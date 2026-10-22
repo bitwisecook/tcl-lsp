@@ -1,0 +1,10 @@
+{
+ "scheduled": "2026-10-19T08:07:48Z",
+ "change_since_previous_report": {"integrated_LSP": 0, "total_baseline_delta": 0, "effective_delta": 0, "verified_complete": 0},
+ "admissions": {},
+ "candidates": {"integration45": {"commit": "aff99dc7e", "capture_lsp_47": "about 927 of 1085 selectors done"}},
+ "user_decisions_since_previous_report": {"receipt": "docs/work/name-handling/handoff/reviews/resume-20261017-diagnosis/user-decisions-20261019T0710Z.json", "added": ["relative literal source paths prove no load order, including in configured entry scripts (08:00Z)"]},
+ "reviews_since_previous_report": {"Luna-28 source-order v4": "REVISE (relative entry-directory admission; dropped entries)", "Luna-28 source-order v5": "ADMIT-TO-BUILD"},
+ "queued_for_cargo_after_capture": ["forced-import A2 (Option A) + source-order proof v5, with targeted suites then a guarded capture", "Server108 analysis-cost profiling"],
+ "next_report_utc": "2026-10-19T08:38:00Z"
+}

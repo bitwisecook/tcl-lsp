@@ -1,0 +1,22 @@
+
+running 1 test
+test private_tcl_namespaces::tests::required_package_namespace_advice_preserves_literal_package_colons ... 
+thread 'private_tcl_namespaces::tests::required_package_namespace_advice_preserves_literal_package_colons' (22947) panicked at rust/tcl-registry/src/private_tcl_namespaces.rs:265:13:
+assertion failed: required_package_namespace_advice_covers("tcl::dict", command)
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: tcl_registry::private_tcl_namespaces::tests::required_package_namespace_advice_preserves_literal_package_colons
+   4: tcl_registry::private_tcl_namespaces::tests::required_package_namespace_advice_preserves_literal_package_colons::{closure#0}
+   5: <tcl_registry::private_tcl_namespaces::tests::required_package_namespace_advice_preserves_literal_package_colons::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+FAILED
+
+failures:
+
+failures:
+    private_tcl_namespaces::tests::required_package_namespace_advice_preserves_literal_package_colons
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1875 filtered out; finished in 0.09s
+

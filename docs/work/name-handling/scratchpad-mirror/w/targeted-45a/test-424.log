@@ -1,0 +1,6 @@
+
+running 1 test
+test source_map::immutable_image_geometry_tests::original_native_byte_positions_need_no_unicode_or_document_channel ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 584 filtered out; finished in 0.00s
+

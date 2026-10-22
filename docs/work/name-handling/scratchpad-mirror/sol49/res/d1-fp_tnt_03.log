@@ -1,0 +1,13 @@
+test analyser::diagnostics::fp::tnt::fp_tnt_03_eval_list_literal_head_no_t100 ... ok
+test analyser::diagnostics::fp::tnt::fp_tnt_03_eval_list_via_var_still_fires ... ok
+test analyser::diagnostics::fp::tnt::fp_tnt_03_eval_list_tainted_head_fires_t100 ... FAILED
+test analyser::diagnostics::fp::tnt::fp_tnt_03_interp_eval_list_tainted_head_fires_t105 ... ok
+test analyser::diagnostics::fp::tnt::fp_tnt_03_interp_eval_list_literal_head_no_t105 ... FAILED
+test analyser::diagnostics::fp::tnt::fp_tnt_03_uplevel_list_tainted_head_fires_t100 ... FAILED
+---- analyser::diagnostics::fp::tnt::fp_tnt_03_eval_list_tainted_head_fires_t100 stdout ----
+thread 'analyser::diagnostics::fp::tnt::fp_tnt_03_eval_list_tainted_head_fires_t100' (4612) panicked at rust/tcl-compiler/src/analyser/diagnostics/fp/tnt.rs:117:5:
+---- analyser::diagnostics::fp::tnt::fp_tnt_03_interp_eval_list_literal_head_no_t105 stdout ----
+thread 'analyser::diagnostics::fp::tnt::fp_tnt_03_interp_eval_list_literal_head_no_t105' (4631) panicked at rust/tcl-compiler/src/analyser/diagnostics/fp/tnt.rs:173:5:
+---- analyser::diagnostics::fp::tnt::fp_tnt_03_uplevel_list_tainted_head_fires_t100 stdout ----
+thread 'analyser::diagnostics::fp::tnt::fp_tnt_03_uplevel_list_tainted_head_fires_t100' (4668) panicked at rust/tcl-compiler/src/analyser/diagnostics/fp/tnt.rs:139:5:
+test result: FAILED. 3 passed; 3 failed; 0 ignored; 0 measured; 10471 filtered out; finished in 11.26s

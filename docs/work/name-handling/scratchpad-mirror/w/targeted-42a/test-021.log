@@ -1,0 +1,6 @@
+
+running 1 test
+test source_graph::original_source_navigation_order_tests::original_workspace_order_retains_conditional_purpose_without_tombstone_authority ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 3479 filtered out; finished in 0.87s
+

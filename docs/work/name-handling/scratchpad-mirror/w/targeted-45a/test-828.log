@@ -1,0 +1,6 @@
+
+running 1 test
+test model::context::tests::a_pack_declared_floor_is_the_floor_of_a_carried_package_only ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1875 filtered out; finished in 0.00s
+

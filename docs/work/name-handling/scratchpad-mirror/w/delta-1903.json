@@ -1,0 +1,6 @@
+{"scheduled":"2026-10-20T19:02:00Z",
+ "change_since_previous_report":{"integrated_LSP":0,"total_baseline_delta":0,"effective_delta":0,"verified_complete":0},
+ "admissions":{},
+ "in_progress":{"sol-44":"with_native_core migration (81 tcl-vm files + embedder crates), uncommitted","sol-45":"cluster C in tcl-compiler/tcl-registry, uncommitted"},
+ "disk_free_gb":3.5,
+ "next_report_utc":"2026-10-20T19:34:00Z"}

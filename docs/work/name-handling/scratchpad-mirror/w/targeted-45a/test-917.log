@@ -1,0 +1,25 @@
+
+running 1 test
+test resolved_invocation::tests::original_logical_case_role_projection_keeps_selected_options_and_body_residuals ... 
+thread 'resolved_invocation::tests::original_logical_case_role_projection_keeps_selected_options_and_body_residuals' (23149) panicked at rust/tcl-registry/src/resolved_invocation.rs:7023:13:
+assertion `left == right` failed
+  left: false
+ right: true
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<bool, bool>
+   4: tcl_registry::resolved_invocation::tests::original_logical_case_role_projection_keeps_selected_options_and_body_residuals
+   5: tcl_registry::resolved_invocation::tests::original_logical_case_role_projection_keeps_selected_options_and_body_residuals::{closure#0}
+   6: <tcl_registry::resolved_invocation::tests::original_logical_case_role_projection_keeps_selected_options_and_body_residuals::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+FAILED
+
+failures:
+
+failures:
+    resolved_invocation::tests::original_logical_case_role_projection_keeps_selected_options_and_body_residuals
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1875 filtered out; finished in 0.39s
+

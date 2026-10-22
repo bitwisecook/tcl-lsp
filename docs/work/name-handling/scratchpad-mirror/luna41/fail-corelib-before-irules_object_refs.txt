@@ -1,0 +1,5 @@
+FAILED irules_object_refs::tests::class_lookup_data_group_ref
+FAILED irules_object_refs::tests::data_group_ref_inside_if_condition
+FAILED irules_object_refs::tests::pool_reference_in_event_body
+FAILED irules_object_refs::tests::semantic_object_spans_follow_reached_helpers_and_complete_quoted_exprs
+FAILED irules_object_refs::tests::virtual_and_node_and_snatpool_refs

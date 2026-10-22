@@ -1,0 +1,36 @@
+base sccp: 123 ok / 79 failed; 1 result lines
+after sccp: 130 ok / 72 failed; 1 result lines
+== sccp regressions (ok at base, FAILED after):
+== sccp fixed: 7; base ok=123 after ok=130
+7.5M	/tmp/claude-0/-home-user-tcl-lsp/8d747420-e446-5e83-b7e6-dff30ae9952e/scratchpad/sol45/res
+base optim: 339 ok / 219 failed; 1 result lines
+after optim: 353 ok / 203 failed; 0 result lines
+== optim regressions (ok at base, FAILED after):
+== optim fixed: 15; base ok=339 after ok=353
+7.3M	/tmp/claude-0/-home-user-tcl-lsp/8d747420-e446-5e83-b7e6-dff30ae9952e/scratchpad/sol45/res
+base taintm: 43 ok / 17 failed; 0 result lines
+after taintm: 43 ok / 17 failed; 0 result lines
+== taintm regressions (ok at base, FAILED after):
+== taintm fixed: 0; base ok=43 after ok=43
+7.3M	/tmp/claude-0/-home-user-tcl-lsp/8d747420-e446-5e83-b7e6-dff30ae9952e/scratchpad/sol45/res
+base ssa: 156 ok / 73 failed; 1 result lines
+after ssa: 170 ok / 59 failed; 1 result lines
+== ssa regressions (ok at base, FAILED after):
+== ssa fixed: 14; base ok=156 after ok=170
+7.4M	/tmp/claude-0/-home-user-tcl-lsp/8d747420-e446-5e83-b7e6-dff30ae9952e/scratchpad/sol45/res
+base interp: 55 ok / 72 failed; 1 result lines
+after interp: 56 ok / 71 failed; 1 result lines
+== interp regressions (ok at base, FAILED after):
+interprocedural::tests::authored_source_report_labels_keep_real_body_ids_and_current_source
+interprocedural::tests::authored_source_report_labels_refuse_foreign_and_changed_owners
+interprocedural::tests::call_by_name_param_traits_inferred
+interprocedural::tests::conditional_authored_declaration_reports_do_not_close_unused_parameters
+interprocedural::tests::forwarded_to_callee_detected
+interprocedural::tests::original_authored_alias_reports_keep_source_formals_frames_and_unknown_debts
+interprocedural::tests::original_authored_call_reports_keep_actual_source_target_formals_and_debts
+interprocedural::tests::original_formal_reference_traits_keep_actual_body_function_and_cfg_owners
+interprocedural::tests::original_formal_reference_traits_keep_authored_conditions_and_unknown_obligations
+interprocedural::tests::upvar_level_word_is_read_by_argument_parity
+interprocedural::tests::used_in_condition_detected
+== interp fixed: 12; base ok=55 after ok=56
+7.5M	/tmp/claude-0/-home-user-tcl-lsp/8d747420-e446-5e83-b7e6-dff30ae9952e/scratchpad/sol45/res

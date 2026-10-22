@@ -1,0 +1,12 @@
+test expr_context::configured_expression_cursor_tests::original_expression_cursor_keeps_whole_source_input_and_utf16_currency ... ok
+test expr_context::original_expression_position_tests::original_expression_positions_keep_handler_roles_and_source_currency ... ok
+test expr_context::configured_expression_cursor_tests::original_expression_cursor_uses_configured_literal_and_comment_grammar ... ok
+test expr_context::tests::command_words_reports_head_and_word_index ... ok
+test expr_context::tests::expr_context_detected_for_the_unbraced_expr_form ... ok
+test expr_context::tests::expr_context_detected_in_a_partially_typed_expr ... ok
+test expr_context::tests::expr_context_detected_in_if_and_while_conditions ... ok
+test expr_context::tests::expr_context_is_scoped_to_the_command_being_typed ... ok
+test expr_context::tests::expr_context_not_detected_outside_expression_arguments ... ok
+test expr_context::original_expression_position_tests::original_expression_positions_retain_nested_hosted_source_candidates ... ok
+test expr_context::logical_math_source_target_tests::logical_math_targets_keep_authentic_expression_and_header_allocations ... ok
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 3474 filtered out; finished in 28.37s

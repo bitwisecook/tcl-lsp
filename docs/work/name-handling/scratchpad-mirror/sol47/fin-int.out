@@ -1,0 +1,24 @@
+optimiser_coverage: 36 ok, 57 failed (base 35/93)
+REGRESSIONS:
+GAINS: 1
+checks: 236 ok, 38 failed (base 236/274)
+REGRESSIONS:
+GAINS: 0
+dataflow: 3 ok, 42 failed (base 3/45)
+REGRESSIONS:
+GAINS: 0
+codegen_depth: 20 ok, 35 failed (base 20/55)
+REGRESSIONS:
+GAINS: 0
+var_escape_typeinfer: 19 ok, 51 failed (base 19/70)
+REGRESSIONS:
+GAINS: 0
+taint_depth: 50 ok, 80 failed (base 50/130)
+REGRESSIONS:
+GAINS: 0
+analyser: 339 ok, 167 failed (base 339/506)
+REGRESSIONS:
+GAINS: 0
+taint: 159 ok, 214 failed (base 159/373)
+REGRESSIONS:
+GAINS: 0

@@ -1,0 +1,6 @@
+
+running 1 test
+test package_resolver::reachability::source_possible_occupant_tests::definitions_from_entered_conditions_and_bodies_keep_namespace_shadows ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 3484 filtered out; finished in 0.89s
+

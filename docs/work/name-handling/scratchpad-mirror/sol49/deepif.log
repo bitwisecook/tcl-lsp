@@ -1,0 +1,3 @@
+
+running 1 test
+test depth_guard::tests::cap_deep_structured_if_ir_is_not_cloned_on_a_budget_thread ... 

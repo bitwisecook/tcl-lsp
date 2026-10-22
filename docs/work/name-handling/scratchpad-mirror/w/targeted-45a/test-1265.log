@@ -1,0 +1,22 @@
+
+running 1 test
+test registry_invocation::source_structure::member_source_catalogue_tests::absolute_member_alias_catalogue_retains_generic_source_metadata ... 
+thread 'registry_invocation::source_structure::member_source_catalogue_tests::absolute_member_alias_catalogue_retains_generic_source_metadata' (1018) panicked at rust/tcl-compiler/src/registry_invocation/source_structure.rs:6359:17:
+assertion failed: advice.obligations().contains(&SourceCommandTransitionObligation::ConditionalMemberBodyCatalogueApplicability)
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: tcl_compiler::registry_invocation::source_structure::member_source_catalogue_tests::absolute_member_alias_catalogue_retains_generic_source_metadata
+   4: tcl_compiler::registry_invocation::source_structure::member_source_catalogue_tests::absolute_member_alias_catalogue_retains_generic_source_metadata::{closure#0}
+   5: <tcl_compiler::registry_invocation::source_structure::member_source_catalogue_tests::absolute_member_alias_catalogue_retains_generic_source_metadata::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+FAILED
+
+failures:
+
+failures:
+    registry_invocation::source_structure::member_source_catalogue_tests::absolute_member_alias_catalogue_retains_generic_source_metadata
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 10440 filtered out; finished in 1.44s
+

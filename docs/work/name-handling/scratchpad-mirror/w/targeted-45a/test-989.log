@@ -1,0 +1,25 @@
+
+running 1 test
+test package_resolver::original_names::original_index_filename_data_tests::original_index_filename_candidates_preserve_oracle_literal_data_and_join_components ... 
+thread 'package_resolver::original_names::original_index_filename_data_tests::original_index_filename_candidates_preserve_oracle_literal_data_and_join_components' (24262) panicked at rust/tcl-lsp-core/src/package_resolver/original_names.rs:1334:17:
+assertion `left == right` failed: V8_4: set {auto_index( spaced key )} [list source [file join $dir { spaced.tcl }]]
+  left: 0
+ right: 1
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<usize, usize>
+   4: tcl_lsp_core::package_resolver::original_names::original_index_filename_data_tests::original_index_filename_candidates_preserve_oracle_literal_data_and_join_components
+   5: tcl_lsp_core::package_resolver::original_names::original_index_filename_data_tests::original_index_filename_candidates_preserve_oracle_literal_data_and_join_components::{closure#0}
+   6: <tcl_lsp_core::package_resolver::original_names::original_index_filename_data_tests::original_index_filename_candidates_preserve_oracle_literal_data_and_join_components::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+FAILED
+
+failures:
+
+failures:
+    package_resolver::original_names::original_index_filename_data_tests::original_index_filename_candidates_preserve_oracle_literal_data_and_join_components
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 3484 filtered out; finished in 1.21s
+

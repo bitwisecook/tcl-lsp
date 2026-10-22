@@ -1,0 +1,8 @@
+{"scheduled":"2026-10-21T20:25:00Z",
+ "change_since_previous_report":{"integrated_LSP":0,"total_baseline_delta":0,"effective_delta":0,"verified_complete":0},
+ "admissions":{},
+ "committed":{"6afd791002":"WIP snapshot (146 files) at user request: commit and push regularly, green only for the PR","446f4334b7":"WIP snapshot"},
+ "decisions_in_chat":{"oo_class_example":"honest port to current vocabulary accepted (pack cannot author oo::class transition facts; no false complete descriptor)","goldens":"regenerate via probe calling golden::render/evaluate_pack with orphan check; xtask not built (disk)"},
+ "in_progress":{"vm-runtime agent":"oo-class port knock-ons in tcl-spec-studio tests, goldens, pack_source_e2e","compiler agent":"definers, iRules realm, ir.rs clippy","compiler-codegen agent":"entry-less preflight + BytecodeObject","compiler-names agent":"R1/R2 rename causes, import alias, W210","lsp agent":"references_rename, clippy, class-variable refusal","contracts agent":"truthful owner manifest"},
+ "disk":"1.3 GB free; no stale test executables; agents told to pause builds and trim scratch (lsp agent 653 MB)",
+ "next_report_utc":"2026-10-21T20:57:00Z"}

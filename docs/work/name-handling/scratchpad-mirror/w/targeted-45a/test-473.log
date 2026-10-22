@@ -1,0 +1,6 @@
+
+running 1 test
+test structural_index::tests::faithfulness_matches_production_lexer_unterminated_verdict ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 584 filtered out; finished in 0.09s
+

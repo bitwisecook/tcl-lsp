@@ -1,0 +1,245 @@
+diff --git a/rust/tcl-compiler/src/command_binding.rs b/rust/tcl-compiler/src/command_binding.rs
+index ddaa1f5c8a..fbffa05d37 100644
+--- a/rust/tcl-compiler/src/command_binding.rs
++++ b/rust/tcl-compiler/src/command_binding.rs
+@@ -157,7 +157,8 @@ pub use source_transition_advice::{
+     OriginalSourceCallbackProcedureTargetKind, OriginalSourceCallbackRegistration,
+     OriginalSourceClassCandidate, OriginalSourceClassDeclaration, OriginalSourceClassHandleBinding,
+     OriginalSourceClassInstance, OriginalSourceClassInstanceWords, OriginalSourceClassPublication,
+-    OriginalSourceClassPublications, OriginalSourceClassReference, OriginalSourceCommandTransition,
++    OriginalSourceClassProcCall, OriginalSourceClassPublications, OriginalSourceClassReference,
++    OriginalSourceCommandTransition,
+     OriginalSourceCommandTransitionAdvice, OriginalSourceConfiguredClassReference,
+     OriginalSourceConstructorBodyAttempt, OriginalSourceConstructorBodyCoverage,
+     OriginalSourceConstructorBodyDisposition, OriginalSourceConstructorCall,
+@@ -6434,6 +6435,49 @@ impl SourceOutcomes {
+         self.normal_rhs_read = None;
+     }
+ 
++    /// The completed command world is the world on the normal-completion
++    /// path of the whole document. A possible error never reaches it, so it
++    /// does not withhold that world; any other abrupt route (a top-level
++    /// `return`, `break`, exit or tail call) may also finish the document
++    /// elsewhere and keeps it withheld. Unknown normal-return
++    /// effects stay withheld by the opaque and observer premises.
++    fn completed_normal_world(&self) -> Option<Arc<ModuleCommandBindings>> {
++        use tcl_registry::completion_route::InvocationCompletionRoute as Route;
++        let normal = self.normal.as_ref()?;
++        // `Unknown` is a handler's uncatalogued residue beside a possible
++        // normal return (`puts`'s channel error). A document-finishing
++        // `return`, `exit` or tail call keeps its own route; a script whose
++        // text is unknown also marks the normal state opaque.
++        let errors_only = self.abrupt.iter().all(|(route, _)| {
++            matches!(
++                route,
++                Route::Tcl(tcl_registry::completion::CompletionCode::Error) | Route::Unknown
++            )
++        });
++        // `original_completed_command_world` separately refuses a withdrawn
++        // command world and unknown entry.
++        let closed = (self.normal_completion.is_some() && self.abrupt.is_empty())
++            || (errors_only
++                && !normal.has_opaque_domain()
++                && !normal.source_step_observed()
++                && !normal.source_execution_observed(None));
++        #[cfg(debug_assertions)]
++        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
++            eprintln!(
++                "ORIGINAL_COMPLETED_NORMAL_WORLD complete={} routes={:?} opaque={} step={} observed={}",
++                self.normal_completion.is_some(),
++                self.abrupt
++                    .iter()
++                    .map(|(route, _)| route)
++                    .collect::<Vec<_>>(),
++                normal.has_opaque_domain(),
++                normal.source_step_observed(),
++                normal.source_execution_observed(None),
++            );
++        }
++        closed.then(|| Arc::new((**normal).clone()))
++    }
++
+     fn retain_complete_normal_evaluation(&mut self) {
+         self.normal_completion =
+             (self.normal.is_some() && self.abrupt.is_empty()).then_some(SourceNormalCompletion);
+@@ -7180,12 +7224,7 @@ impl SourceCommandBindings {
+         trace_source_original_queries(query_start, "walk", source.len());
+         #[cfg(any(test, debug_assertions))]
+         trace_source_lookup(lookup_start, "walk", source.len());
+-        if root_outcomes.normal_completion.is_some() && root_outcomes.abrupt.is_empty() {
+-            bindings.original_completed_root_state = root_outcomes
+-                .normal
+-                .as_ref()
+-                .map(|normal| Arc::new((**normal).clone()));
+-        }
++        bindings.original_completed_root_state = root_outcomes.completed_normal_world();
+         if let Some(normal) = root_outcomes.normal {
+             state = *normal;
+         }
+@@ -7261,8 +7300,7 @@ impl SourceCommandBindings {
+                 {
+                     continue;
+                 }
+-                let after_load = self.uncalled_body_after_load(&root, &entry);
+-                self.walk_deferred_entry_with(&root, &entry, config, registry, after_load);
++                self.walk_deferred_entry(&root, &entry, config, registry);
+             }
+             if root_count == self.deferred.len() {
+                 break;
+@@ -7383,46 +7421,12 @@ impl SourceCommandBindings {
+             .collect::<Vec<_>>()
+     }
+ 
+-    /// An uncalled procedure body is analysed as if called after the
+-    /// document finished running at top level (user decision
+-    /// 2026-10-21T08:20Z, "world after load"): its commands resolve in the
+-    /// procedure's namespace against the command world as it stands at the end
+-    /// of the script. That needs a normal completion of the whole document and
+-    /// this very end-of-script state; event handlers, receiver methods, future
+-    /// frames and bodies first installed by deferred outcomes keep their own
+-    /// conditional entries.
+-    fn uncalled_body_after_load(
+-        &self,
+-        root: &DeferredSourceBody,
+-        incoming: &ModuleCommandBindings,
+-    ) -> bool {
+-        std::env::var_os("ZZ_AFTER_LOAD").is_some()
+-            && root.event.is_none()
+-            && !root.receiver_method
+-            && root.future_frame.is_none()
+-            && self
+-                .original_completed_root_state
+-                .as_deref()
+-                .is_some_and(|completed| completed.same_state(incoming))
+-    }
+-
+     fn walk_deferred_entry(
+         &mut self,
+         root: &DeferredSourceBody,
+         incoming: &ModuleCommandBindings,
+         config: tcl_lexer::LexerConfig,
+         registry: &CommandRegistry,
+-    ) {
+-        self.walk_deferred_entry_with(root, incoming, config, registry, false);
+-    }
+-
+-    fn walk_deferred_entry_with(
+-        &mut self,
+-        root: &DeferredSourceBody,
+-        incoming: &ModuleCommandBindings,
+-        config: tcl_lexer::LexerConfig,
+-        registry: &CommandRegistry,
+-        after_load: bool,
+     ) {
+         #[cfg(any(test, debug_assertions))]
+         let _timing = root_owner_work::Timing::at(root_owner_work::Query::DeferredEntry);
+@@ -7493,18 +7497,13 @@ impl SourceCommandBindings {
+         // Preview ownership does not mark a document call as reached.
+         let implementation = root.implementation_id();
+         let activated = self.active_calls.insert(implementation.clone());
+-        let preview = usize::from(!after_load);
+-        self.declaration_preview_depth += preview;
++        self.declaration_preview_depth += 1;
+         let outcomes = self.walk_source(
+             &root.source,
+             root.offset,
+             &mut branch,
+             &SourceExecutionContext {
+-                body_entry: if after_load {
+-                    SourceBodyEntryPurpose::Selected
+-                } else {
+-                    SourceBodyEntryPurpose::Conditional
+-                },
++                body_entry: SourceBodyEntryPurpose::Conditional,
+                 source_purpose: tcl_lexer::SourceSegmentationPurpose::NestedScript,
+                 realm: root.realm,
+                 compilation,
+@@ -7530,7 +7529,7 @@ impl SourceCommandBindings {
+                 expression_source: None,
+             },
+         );
+-        self.declaration_preview_depth -= preview;
++        self.declaration_preview_depth -= 1;
+         if activated {
+             self.active_calls.remove(&implementation);
+         }
+@@ -8420,12 +8419,7 @@ impl SourceCommandBindings {
+                 expression_source: None,
+             },
+         );
+-        if root_outcomes.normal_completion.is_some() && root_outcomes.abrupt.is_empty() {
+-            bindings.original_completed_root_state = root_outcomes
+-                .normal
+-                .as_ref()
+-                .map(|normal| Arc::new((**normal).clone()));
+-        }
++        bindings.original_completed_root_state = root_outcomes.completed_normal_world();
+         if let Some(normal) = root_outcomes.normal {
+             state = *normal;
+         }
+@@ -12963,9 +12957,6 @@ fn source_binding_projection_in(
+             .binding_alternatives(key)
+             .contains(&MayBinding::Missing)
+     });
+-    if std::env::var_os("ZZ_SOL49").is_some() {
+-        eprintln!("ZZ proj {head}: ns={namespace_display:?} keys={:?} alts={:?} unknown1={} nsknown={} nsctx={}", keys, keys.iter().map(|k| state.binding_alternatives(k)).collect::<Vec<_>>(), state.target_may_be_unknown(head, namespace), state.source_variables.namespace_known, namespace.namespace_key().native_context().is_some());
+-    }
+     SourceInvocationBinding {
+         compiled_candidates: Vec::new(),
+         compiled_named_candidates: Vec::new(),
+@@ -14636,28 +14627,14 @@ impl ModuleCommandBindings {
+     /// Widen command resolution without claiming an unknown command-table
+     /// mutation. Namespace lookup changes are relevant to source-safe
+     /// resolution but do not by themselves invalidate optimiser trust.
+-    #[track_caller]
+     fn mark_opaque_resolution(&mut self) {
+-        if std::env::var_os("ZZ_SOL49").is_some() && !self.opaque_domain { eprintln!("ZZ OPAQUERESAT {}", std::panic::Location::caller()); }
+-        if std::env::var_os("ZZ_SOL49_BT").is_some() && !self.opaque_domain {
+-            let bt = std::backtrace::Backtrace::force_capture().to_string();
+-            let frames: Vec<&str> = bt.lines().filter(|l| l.contains("tcl_compiler::") && !l.contains("backtrace")).take(12).collect();
+-            eprintln!("ZZ OPAQUE {} via\n{}", stringify!(mark_opaque_resolution), frames.join("\n"));
+-        }
+         Arc::make_mut(&mut self.original_command_world).withdraw();
+         self.opaque_domain = true;
+     }
+ 
+     /// Widen both command resolution and the optimiser's command-trust
+     /// projection because an unbounded command-binding effect may occur.
+-    #[track_caller]
+     fn mark_opaque_binding_mutation(&mut self) {
+-        if std::env::var_os("ZZ_SOL49").is_some() && !self.opaque_domain { eprintln!("ZZ OPAQUEAT {}", std::panic::Location::caller()); }
+-        if std::env::var_os("ZZ_SOL49_BT").is_some() && !self.opaque_domain {
+-            let bt = std::backtrace::Backtrace::force_capture().to_string();
+-            let frames: Vec<&str> = bt.lines().filter(|l| l.contains("tcl_compiler::") && !l.contains("backtrace")).take(12).collect();
+-            eprintln!("ZZ OPAQUE {} via\n{}", stringify!(mark_opaque_binding_mutation), frames.join("\n"));
+-        }
+         Arc::make_mut(&mut self.original_command_world).withdraw();
+         self.ordinary_literal_pool = None;
+         Arc::make_mut(&mut self.object_instances).invalidate_dispatch(true);
+@@ -14669,18 +14646,14 @@ impl ModuleCommandBindings {
+ 
+     /// Record the narrow event that invalidates an otherwise-retained
+     /// procedure's declared binding at arbitrary call sites.
+-    #[track_caller]
+     fn mark_dynamic_proc_binding(&mut self) {
+-        if std::env::var_os("ZZ_SOL49").is_some() && !self.opaque_domain { eprintln!("ZZ DYNPROCAT {}", std::panic::Location::caller()); }
+         self.mark_opaque_binding_mutation();
+         self.dynamic_proc_binding = true;
+     }
+ 
+     /// Record that a binding *transition* moved something this lattice cannot
+     /// name, so no name in the module can be claimed as untouched (#2168).
+-    #[track_caller]
+     fn mark_unnameable_rebinding_subject(&mut self) {
+-        if std::env::var_os("ZZ_SOL49").is_some() && !self.opaque_domain { eprintln!("ZZ UNNAMEAT {}", std::panic::Location::caller()); }
+         self.mark_dynamic_proc_binding();
+         self.unnameable_rebinding_subject = true;
+     }
+@@ -18120,7 +18093,6 @@ fn apply_declared_binding_transitions(
+     let interpreted_execution =
+         facts.body_execution.is_some() || invocation_selects_evaluated_body(facts);
+     if !interpreted_execution && transitions.facts().iter().any(|fact| matches!(&fact.transition, StateTransition::Widen(widening) if widening.domains.contains(&StateTransitionDomain::CommandResolution))) {
+-        if std::env::var_os("ZZ_SOL49").is_some() { eprintln!("ZZ widen-res by {:?}", facts.canonical_command); }
+         bindings.mark_opaque_resolution();
+     }
+     for fact in transitions.facts() {

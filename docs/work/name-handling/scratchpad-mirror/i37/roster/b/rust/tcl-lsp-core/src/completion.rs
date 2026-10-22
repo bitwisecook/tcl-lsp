@@ -1,0 +1,7978 @@
+// tcl-lsp — a language server and toolchain for Tcl
+// Copyright (C) 2026 James Deucker (bitwisecook) <https://github.com/bitwisecook>
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
+//! Completion candidates from the current source and selected Registry.
+//!
+//! Original variable, argument, member and workspace owners retain source
+//! identity, frame and naming policy. Hosted source advice and explicitly
+//! selected lexical compatibility have separate entry points. Missing or stale
+//! original inputs cannot be reconstructed from displayed names.
+//!
+//! Registry roles select contextual commands, options and argument values.
+//! Prefix filtering and bounded fuzzy fallback share [`filter_candidates`];
+//! command-position fallback ranks candidates only when the whole response is
+//! empty. Candidates provide source insertions, not live lookup or execution.
+//!
+//! The server owns caching and asynchronous scheduling; this provider performs
+//! synchronous computation over the supplied source and analysis.
+
+use rustc_hash::{FxHashMap, FxHashSet};
+use tcl_compiler::analyser::{AnalysisResult, ProcDef};
+use tcl_registry::CommandRegistry;
+
+mod original_context;
+mod original_properties;
+mod original_variables;
+mod original_workspace;
+
+use crate::definition::utf16_col_to_char_col;
+use tcl_dialect::model::SpecSurface;
+
+/// LSP completion-item kinds emitted by this provider.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum CompletionKind {
+    /// Tcl variable.
+    Variable,
+    /// User-defined proc.
+    #[default]
+    Function,
+    /// Enumerable argument value (e.g. a `string is <class>`
+    /// character class).
+    EnumValue,
+    /// A context-aware code snippet.
+    Snippet,
+}
+
+/// A single completion suggestion.
+///
+/// Presentation and insertion fields passed to the editor. Optional detail
+/// provides a short synopsis independently of full documentation.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct CompletionItem {
+    /// Label shown in the completion list — for variables,
+    /// `$name` / `${name}`; for procs, the proc's qualified or
+    /// simple name.
+    pub label: String,
+    /// Text to insert when the item is accepted.
+    pub insert_text: String,
+    /// LSP completion kind.
+    pub kind: CompletionKind,
+    /// Optional detail text — typically a parameter-list
+    /// summary for procs / a synopsis line for built-in
+    /// commands.  `None` for items without extra detail.
+    pub detail: Option<String>,
+    /// Optional sort key.  When `Some`, the editor uses this
+    /// string instead of the label for ordering completion
+    /// results.  The usage-bucket scheme:
+    /// `A<tier><usage>_<name>` for user procs, `B<usage>_<name>`
+    /// for built-in commands.  Lower buckets sort first.
+    pub sort_text: Option<String>,
+    /// When `true`, `insert_text` is a VS Code snippet (tabstops
+    /// `${1:…}` / `$0`) and the server emits
+    /// `InsertTextFormat.Snippet`.  Plain items leave it
+    /// `false`.
+    pub is_snippet: bool,
+    /// Optional `filterText` — what the editor matches the typed
+    /// prefix against (snippets filter on their `tcl-…` prefix,
+    /// not their human label).  `None` falls back to the label.
+    pub filter_text: Option<String>,
+    /// Optional explicit replacement edit.  When `Some`, the editor
+    /// applies `new_text` over the given single-line range (UTF-16
+    /// columns on the cursor line) verbatim instead of its own
+    /// word-based replacement — required so a `$`/`-` prefix isn't
+    /// duplicated or dropped on accept (var / switch / array
+    /// completion).
+    pub text_edit: Option<CompletionEdit>,
+    /// Optional documentation (rendered in the editor's completion
+    /// detail pane).  Distinct from `detail` (the one-line synopsis):
+    /// switches carry their option help here, built-in commands their
+    /// summary.  `None` for items with no extra docs.
+    pub documentation: Option<String>,
+}
+
+/// A single-line replacement edit attached to a [`CompletionItem`].
+/// `start_char` / `end_char` are UTF-16 columns on the cursor's line.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CompletionEdit {
+    /// Inclusive start column (UTF-16) of the replaced range.
+    pub start_char: u32,
+    /// Exclusive end column (UTF-16) of the replaced range.
+    pub end_char: u32,
+    /// Replacement text.
+    pub new_text: String,
+}
+
+/// Minimum typed-fragment length (in characters) for the fuzzy
+/// completion fallback.  Zero- and one-character fragments sit within
+/// one edit of nearly everything, so falling back there would be
+/// noise, not typo correction.
+const MIN_FUZZY_FRAGMENT_CHARS: usize = 2;
+
+/// Cap on the fuzzy-fallback suggestion list.
+const MAX_FUZZY_SUGGESTIONS: usize = 8;
+
+/// Outcome of [`filter_candidates`]: the surviving candidates, and
+/// whether they came from the fuzzy fallback (fuzzy items need
+/// [`decorate_fuzzy_items`] before they reach an editor).
+struct FilteredCandidates<T> {
+    candidates: Vec<T>,
+    fuzzy: bool,
+}
+
+/// The one shared candidate filter behind every completion list.
+///
+/// **Prefix path** — when `partial` is empty or prefix-matches at
+/// least one candidate name — keeps exactly the prefix matches, in
+/// input order.
+///
+/// **Fuzzy fallback** — when nothing prefix-matches and the typed
+/// fragment is at least [`MIN_FUZZY_FRAGMENT_CHARS`] characters —
+/// returns the candidates within the shared "did you mean…?" edit
+/// budget ([`tcl_compiler::text::scaled_max_distance`]), ranked by
+/// `(distance, name)` via [`tcl_compiler::text::rank_suggestions`] and
+/// capped at [`MAX_FUZZY_SUGGESTIONS`], so a typo'd fragment
+/// (`lsaerch`) still offers its target (`lsearch`) instead of an
+/// empty list.
+fn filter_candidates<T>(
+    partial: &str,
+    candidates: Vec<T>,
+    name_of: impl Fn(&T) -> &str,
+) -> FilteredCandidates<T> {
+    if partial.is_empty()
+        || candidates
+            .iter()
+            .any(|candidate| name_of(candidate).starts_with(partial))
+    {
+        let mut kept = candidates;
+        kept.retain(|candidate| name_of(candidate).starts_with(partial));
+        return FilteredCandidates {
+            candidates: kept,
+            fuzzy: false,
+        };
+    }
+    if partial.chars().count() < MIN_FUZZY_FRAGMENT_CHARS {
+        return FilteredCandidates {
+            candidates: Vec::new(),
+            fuzzy: false,
+        };
+    }
+    let budget = tcl_compiler::text::scaled_max_distance(partial);
+    let scored: Vec<(usize, T)> = candidates
+        .into_iter()
+        .filter_map(|candidate| {
+            let distance = tcl_compiler::text::edit_distance(partial, name_of(&candidate));
+            (distance <= budget).then_some((distance, candidate))
+        })
+        .collect();
+    let ranked = tcl_compiler::text::rank_suggestions(scored, MAX_FUZZY_SUGGESTIONS, &name_of);
+    FilteredCandidates {
+        fuzzy: !ranked.is_empty(),
+        candidates: ranked,
+    }
+}
+
+/// Decorate fuzzy-fallback items so editors keep and rank them.
+///
+/// Editors re-filter returned items against the typed word
+/// (`filterText`, falling back to the label) with a subsequence
+/// matcher that hides a fuzzy match — `lsaerch` is not a subsequence
+/// of `lsearch` — so `filter_text` is pinned to the exact fragment the
+/// user typed.  `sort_text` encodes the fallback rank (`F00_…`,
+/// `F01_…`), preserving the `(distance, name)` order in editors that
+/// re-sort: after real symbols (`A…`/`B…`/`C…`) and before snippets
+/// (`Z0_…`).
+fn decorate_fuzzy_items(items: &mut [CompletionItem], typed: &str) {
+    for (rank, item) in items.iter_mut().enumerate() {
+        item.filter_text = Some(typed.to_string());
+        item.sort_text = Some(format!("F{rank:02}_{}", item.label));
+    }
+}
+
+/// Match colon-led fragments against inserted qualification and other
+/// fragments against labels, so a procedure's simple label stays usable.
+fn item_match_name<'a>(item: &'a CompletionItem, partial: &str) -> &'a str {
+    if partial.starts_with(':') {
+        &item.insert_text
+    } else {
+        &item.label
+    }
+}
+
+/// Convert a codepoint column on `line_text` to a UTF-16 column (for
+/// LSP ranges).  The inverse of [`utf16_col_to_char_col`].
+fn char_col_to_utf16(line_text: &str, char_col: usize) -> u32 {
+    line_text
+        .chars()
+        .take(char_col)
+        .map(|c| u32::try_from(c.len_utf16()).unwrap_or(1))
+        .sum()
+}
+
+/// Registry-driven, context-aware completion: switch / event-name /
+/// user-proc / subcommand / arg-value suggestions resolved from the
+/// surrounding command's [`CommandRegistry`] spec.  Returns `None` when the
+/// cursor isn't inside a recognised command context (so the caller falls
+/// through to plain command + proc completion).
+/// The `(receiver, is_dollar)` pair a command head presents to the
+/// method-completion gate: a `$var` instance variable, or a plain bareword
+/// instance-command name (a Tk widget path, or `CLASS create NAME`).
+/// Substituted / decorated heads are neither.
+fn dispatch_receiver_of(word: &tcl_lexer::NativeWord) -> Option<(String, bool)> {
+    if word.group().expand {
+        return None;
+    }
+    let written = word.image().try_text().ok()?.get(word.span().as_range())?;
+    if let Some(name) = strip_instance_var(written, word.config()) {
+        return Some((name, true));
+    }
+    let value = tcl_syntax::word_rules::original_static_word_unicode_value(word)?;
+    if value.contains(&0) {
+        return None;
+    }
+    let name = String::from_utf8(value).ok()?;
+    (!name.is_empty()).then_some((name, false))
+}
+
+/// Variable receivers use source-scoped suggestions, independently of physical reads.
+fn logical_completion_receiver_candidate<'a>(
+    analysis: &'a AnalysisResult,
+    registry: &CommandRegistry,
+    head: &tcl_lexer::NativeWord,
+    receiver: &str,
+    variable: bool,
+) -> Option<(&'a String, crate::definition::MethodBucket)> {
+    if variable {
+        let candidates = analysis.logical_source_receiver_class_candidates(head, registry)?;
+        let mut classes = candidates.classes();
+        let class = classes.next()?;
+        return classes
+            .next()
+            .is_none()
+            .then_some((class, crate::definition::MethodBucket::Instance));
+    }
+    crate::definition::logical_receiver_candidate_at(analysis, receiver, false, head.span().start())
+}
+
+fn context_aware_completions(
+    source: &str,
+    line: u32,
+    character: u32,
+    analysis: &AnalysisResult,
+    registry: &CommandRegistry,
+    partial: &str,
+    profile: &'static tcl_dialect::DialectProfile,
+) -> Option<Vec<CompletionItem>> {
+    let cursor = crate::definition::byte_offset_at(
+        &tcl_lexer::LineIndex::new(source),
+        source,
+        line,
+        character,
+    );
+    if let Some(items) = original_properties::items(source, cursor, line, analysis, partial) {
+        return Some(items);
+    }
+    let original_class_context =
+        crate::original_oo::class_completion_context(analysis, source, cursor);
+    if let std::ops::ControlFlow::Break(Some(record)) = original_class_context {
+        return Some(original_method_candidate_items_at(
+            analysis,
+            record,
+            partial,
+            tcl_compiler::analyser::types::MemberSide::ClassObject,
+            Some((source, cursor, line)),
+        ));
+    }
+    if let Some(record) =
+        crate::original_oo::instance_method_completion_record(analysis, source, cursor)
+    {
+        return Some(original_instance_method_candidate_items_at(
+            analysis,
+            record,
+            source,
+            cursor,
+            partial,
+            Some((source, cursor, line)),
+        ));
+    }
+    if !analysis.allows_lexical_declaration_advice() {
+        return original_context::items(source, cursor, line, character, analysis, partial);
+    }
+    let command = command_context_on_line(source, line, character, analysis)?;
+    let cmd = command.head_text()?;
+    let word_idx = command.word_index;
+
+    // `$obj <method>` / `.w <subcommand>` — when the command head is an
+    // instance variable *or* a bareword instance-command name (a Tk widget
+    // path, or `CLASS create NAME`) whose class is known, complete the
+    // methods/subcommands callable on it.  Checked before the registry
+    // lookup because neither `$obj` nor a bareword widget path is itself a
+    // registered command. These are advisory candidates, independent of the
+    // temporal receipt required for navigation and editable references. A bare
+    // name only resolves when it was actually bound by a create call
+    // (`created_instance_commands`), not merely because some unrelated
+    // variable of the same name happens to hold an object elsewhere.
+    let line_index = tcl_lexer::LineIndex::new(source);
+    if word_idx == 1
+        && let Some((recv, is_dollar)) = dispatch_receiver_of(&command.head)
+        && let Some((class_q, bucket)) = logical_completion_receiver_candidate(
+            analysis,
+            registry,
+            &command.head,
+            &recv,
+            is_dollar,
+        )
+    {
+        // Per-object member state layers over the class chain in real
+        // dispatch order: per-object members offered first,
+        // an unexport masks, a later export revives.
+        let object_state =
+            crate::definition::object_member_state_at(analysis, source, &recv, line, character);
+        let items = if matches!(original_class_context, std::ops::ControlFlow::Continue(())) {
+            method_completions(
+                analysis,
+                registry,
+                class_q,
+                bucket,
+                partial,
+                object_state,
+                profile,
+            )
+        } else {
+            // Registry object specifications supply authored candidate advice;
+            // a missing source class cannot borrow String-keyed source members.
+            registry_method_items(analysis, registry, class_q, profile).map(|items| {
+                items
+                    .into_iter()
+                    .filter(|item| item.label.starts_with(partial))
+                    .collect()
+            })
+        };
+        if let Some(items) = items {
+            return Some(items);
+        }
+    }
+
+    // Inside a scoped command environment (a `report::defstyle` style script):
+    // the ensemble operations of a scoped command (`top ` → `set`/`get`/`enable`
+    // /…) complete at word index 1.  Checked before the registry lookup because
+    // a scoped head (`top`) is not a registered command.
+    if word_idx == 1
+        && let Some(env) = scoped_env_at(analysis, source, line, character, &line_index)
+        && let Some(scoped) = env.command(&cmd)
+        && !scoped.subcommands.is_empty()
+    {
+        return Some(scoped_op_completions(
+            scoped,
+            partial,
+            analysis.resolved_input.as_ref()?.lexer_config(),
+        ));
+    }
+
+    original_context::items(source, cursor, line, character, analysis, partial)
+}
+
+/// [`completions`]'s `$var` / `${var}` trigger branch, split out so the
+/// parent function stays under the line-count lint. `None` when the cursor
+/// isn't on a variable trigger — the caller falls through to the rest of the
+/// completion pipeline.
+fn variable_trigger_completions(
+    source: &str,
+    line: u32,
+    character: u32,
+    analysis: &AnalysisResult,
+) -> Option<Vec<CompletionItem>> {
+    let index = tcl_lexer::LineIndex::new(source);
+    let cursor = crate::definition::byte_offset_at(&index, source, line, character);
+    let position = index.position_at_utf16(cursor, source);
+    if position.line != line || position.character.get() != character {
+        return Some(Vec::new());
+    }
+    let prefix =
+        match crate::source_structure::original_variable_cursor_prefix(source, analysis, cursor) {
+            Ok(Some(prefix)) => prefix,
+            Ok(None) => return None,
+            Err(_) => return Some(Vec::new()),
+        };
+    if let Some(items) = original_variables::items(source, line, character, analysis, &prefix) {
+        return Some(items);
+    }
+    if !analysis.allows_retained_logical_declaration_advice() {
+        return Some(Vec::new());
+    }
+    Some(variable_completions_in_source(
+        source, line, character, analysis, &prefix,
+    ))
+}
+
+/// Compute completions for a position in `source`.
+///
+/// `analysis` is the pre-computed analyser result; the caller
+/// (server) is expected to cache it.  `registry`, when `Some`,
+/// remains a compatibility parameter. Actual command advice comes from the
+/// retained document Registry and full availability context.  Returns an
+/// empty vector when there is no useful suggestion (delimiter
+/// run, EOF, etc.).
+///
+/// The trigger contexts checked in order:
+///
+/// 1. **Variable trigger** (`$prefix` / `${prefix}`) — short-
+///    circuits to global-scope variable names.
+/// 2. **Switch completion** — when the partial starts with `-`
+///    and the surrounding command's spec declares matching
+///    options.  Requires `registry`.
+/// 3. **Subcommand completion** — when the cursor is at word
+///    index 1 (i.e. the first argument of a command) and the
+///    surrounding command's spec declares subcommands.
+///    Requires `registry`.
+/// 4. **Command + proc completion** — default fallback:
+///    user-defined procs from `analysis.all_procs`, plus all
+///    built-in commands the `registry` knows about.
+#[must_use]
+pub fn completions(
+    source: &str,
+    line: u32,
+    character: u32,
+    analysis: &AnalysisResult,
+    _registry: Option<&CommandRegistry>,
+    workspace: Option<&crate::workspace_index::WorkspaceIndex>,
+    _dialect: &'static tcl_dialect::DialectProfile,
+) -> Vec<CompletionItem> {
+    let Some(current) = crate::original_context::CurrentSourceContext::capture(source, analysis)
+    else {
+        return Vec::new();
+    };
+    if let Some(items) = variable_trigger_completions(source, line, character, analysis) {
+        return items;
+    }
+    let line_index = tcl_lexer::LineIndex::new(source);
+    let cursor = crate::definition::byte_offset_at(&line_index, source, line, character);
+    let Some(prefix) = word_prefix_at_position(source, line, character, analysis) else {
+        return Vec::new();
+    };
+    if crate::expr_context::source_expr_arg_context_at(
+        source,
+        analysis,
+        line,
+        character,
+        &line_index,
+    ) {
+        return math_function_completions(
+            current.registry(),
+            current.profile(),
+            &expression_function_partial_at_position(source, line, character),
+        );
+    }
+    let Some(partial) = tcl_syntax::word_rules::original_word_cursor_literal_prefix(&prefix) else {
+        return Vec::new();
+    };
+    // The current source owner retains the profile and actual command store.
+    let profile = current.profile();
+    let registry = Some(current.registry());
+
+    // Per-point schema advice preserves effective operand origins, known
+    // command barriers and the retained availability context.
+    if let Some(registry) = registry
+        && let Some(items) = context_aware_completions(
+            source, line, character, analysis, registry, &partial, profile,
+        )
+    {
+        return original_word_completion_edits(source, line, &prefix, items);
+    }
+    if prefix.word_index() != 0 {
+        return original_word_completion_edits(
+            source,
+            line,
+            &prefix,
+            fuzzy_command_fallback(
+                source,
+                line,
+                character,
+                analysis,
+                registry,
+                profile,
+                &line_index,
+            ),
+        );
+    }
+
+    // Definition bodies and document grammars have a closed member vocabulary;
+    // the selected Registry owns both nesting and the permitted heads.
+    if let Some(registry) = registry {
+        let vocabulary = definition_grammar_at_position(
+            source,
+            line,
+            character,
+            &line_index,
+            analysis,
+            registry,
+        );
+        if crate::source_structure::SourceDefinitionGrammar::unavailable(&vocabulary).is_some() {
+            return Vec::new();
+        }
+        // A standalone root authoring projection may retain unavailable child
+        // traversal. It is not a selected nested body or an edit vocabulary.
+        if let Some(grammar) = crate::source_structure::SourceDefinitionGrammar::for_authoring(
+            &vocabulary,
+            source,
+            analysis,
+        ) {
+            return original_word_completion_edits(
+                source,
+                line,
+                &prefix,
+                grammar_member_completions(
+                    grammar,
+                    &partial,
+                    registry,
+                    current.config(),
+                    current.context().context(),
+                ),
+            );
+        }
+    }
+
+    let usage = document_usage_counts(analysis);
+    let mut items = proc_completions(analysis, &partial, &usage);
+    if let Some(registry) = registry {
+        // Tk commands are dialect-gated to Tcl/`tk` already, but they are also
+        // offered as package advice from ambient placement — the `tk` dialect (a
+        // `wish` document) or a `package require Tk` in this file.  Without
+        // that, a plain `.tcl` script must not be offered `button`/`pack`/… .
+        // Both halves are placement facts — the
+        // environment ships Tk ambient (`wish`), or this document required
+        // it. No `SpecSurface` bit and no environment *name* is consulted.
+        let tk_advice =
+            crate::document_floor::DocumentFloor::new(analysis, profile).advises_package("Tk");
+        let oo_frame = oo_frame_at(analysis, source, line, character, &line_index);
+        items.extend(builtin_completions(
+            registry, profile, &partial, &usage, tk_advice, analysis, oo_frame,
+        ));
+    }
+    // Inside a scoped command environment (a `report::defstyle` style script),
+    // offer its command heads (`top`, `data`, `columns`, …) alongside the
+    // ordinary command/proc set — a style body uses both scoped and core
+    // commands.  Deduped by label so a scoped name never doubles a core one.
+    if let Some(env) = scoped_env_at(analysis, source, line, character, &line_index) {
+        let present: FxHashSet<String> = items.iter().map(|i| i.label.clone()).collect();
+        for item in scoped_command_completions(env, &partial, current.config()) {
+            if !present.contains(&item.label) {
+                items.push(item);
+            }
+        }
+    }
+    if let Some(index) = workspace {
+        items.extend(original_workspace::items(
+            source, cursor, analysis, index, &partial,
+        ));
+    }
+
+    // Context-aware snippet templates (`tcl-proc`, `tcl-if`,
+    // …).  Only the command-position fallback reaches here (the
+    // variable / switch / subcommand contexts returned earlier), so
+    // snippets never pollute `$var` or `-option` completion.  Their
+    // `Z0_…` sort key keeps them below real symbols, and the prefix
+    // filter means they only surface once the user types `tcl-…`.
+    let variable_references = original_variables::source_references(source, analysis, cursor)
+        .unwrap_or_else(|| {
+            let image = tcl_lexer::SourceImage::document(source);
+            let Some(advice) =
+                analysis.logical_variable_scope_advice(&image, current.config(), cursor)
+            else {
+                return Vec::new();
+            };
+            let qualify_globals = crate::definition::global_vars_needing_qualification(&advice);
+            let mut candidates = Vec::new();
+            push_local_var_items(
+                &mut candidates,
+                visible_variable_names(&advice, ""),
+                qualify_globals.as_ref(),
+                VarEdit {
+                    start: None,
+                    end: 0,
+                    has_open_brace: false,
+                    config: current.config(),
+                },
+            );
+            candidates
+                .into_iter()
+                .map(|item| item.insert_text)
+                .collect()
+        });
+    let snippet_partial = snippet_partial_at_position(source, line, character);
+    // `current_event` / `file_events` drive the iRules event templates'
+    // top-level guard and duplicate-event decline. Only the canonical iRules
+    // profile carries those templates, including its accepted aliases.
+    let (current_event, file_events) = if profile.is_irules() {
+        let facts = crate::irules_context::EventHandlerFacts::from_analysis(source, analysis);
+        facts.map_or_else(
+            || (None, Vec::new()),
+            |facts| (facts.enclosing_event(line), facts.file_events()),
+        )
+    } else {
+        (None, Vec::new())
+    };
+    let at_top_level = if analysis.allows_lexical_declaration_advice() {
+        current_event.is_none()
+    } else {
+        analysis
+            .body_lexer_config
+            .and_then(|config| {
+                crate::source_structure::SourceStructure::capture(source, Some(analysis), config)
+            })
+            .and_then(|structure| {
+                structure
+                    .scripts
+                    .into_iter()
+                    .filter(|(span, _)| span.start() <= cursor && cursor <= span.end())
+                    .min_by_key(|(span, _)| span.end() - span.start())
+            })
+            .is_some_and(|(_, depth)| depth == 0)
+    };
+    items.extend(crate::snippets::snippet_completions(
+        &crate::snippets::SnippetContext {
+            profile,
+            indent_unit: "    ",
+            variable_references: &variable_references,
+            partial: &snippet_partial,
+            at_top_level,
+            file_events: &file_events,
+        },
+    ));
+    // Preserve prefix matches before considering response-wide fuzzy candidates.
+    if items.is_empty() {
+        items = fuzzy_command_fallback(
+            source,
+            line,
+            character,
+            analysis,
+            registry,
+            profile,
+            &line_index,
+        );
+    }
+    original_word_completion_edits(source, line, &prefix, items)
+}
+
+/// Variable-trigger detection — `$prefix` or `${prefix}`.
+///
+/// Returns `Some((trigger_kind, partial))` where `trigger_kind`
+/// is `'$'` for plain `$` triggers and `'{'` for `${name}`
+/// braced triggers.  Returns `None` when the cursor is not in
+/// a variable-completion context.
+///
+/// Test convenience for source-only trigger fixtures; production retains the
+/// analysis's original image, full configuration and enclosing script phase.
+#[cfg(test)]
+fn variable_trigger(source: &str, line: u32, character: u32) -> Option<(char, String)> {
+    let index = tcl_lexer::LineIndex::new(source);
+    let cursor = crate::definition::byte_offset_at(&index, source, line, character);
+    let position = index.position_at_utf16(cursor, source);
+    if position.line != line || position.character.get() != character {
+        return None;
+    }
+    let image = tcl_lexer::SourceImage::document(source);
+    let prefix = tcl_lexer::word_parts::variable_cursor_prefix_in(
+        &image,
+        tcl_lexer::Span::new(0, u32::try_from(source.len()).ok()?),
+        cursor,
+        tcl_lexer::LexerConfig::default(),
+    )
+    .ok()??;
+    Some((
+        if prefix.is_braced() { '{' } else { '$' },
+        source.get(prefix.partial_span().as_range())?.to_owned(),
+    ))
+}
+
+/// Fixed expression-function trigger text, independently admitted by the
+/// selected expression source phase. Command names use original word geometry.
+fn expression_function_partial_at_position(source: &str, line: u32, character: u32) -> String {
+    let Some(line_text) = source.split('\n').nth(line as usize) else {
+        return String::new();
+    };
+    let chars: Vec<char> = line_text.chars().collect();
+    let col = utf16_col_to_char_col(line_text, character).min(chars.len());
+    let mut start = col;
+    while start > 0
+        && (chars[start - 1].is_alphanumeric()
+            || chars[start - 1] == '_'
+            || chars[start - 1] == ':')
+    {
+        start -= 1;
+    }
+    chars[start..col].iter().collect()
+}
+
+fn word_prefix_at_position(
+    source: &str,
+    line: u32,
+    character: u32,
+    analysis: &AnalysisResult,
+) -> Option<tcl_lexer::word_parts::WordCursorPrefix> {
+    let index = tcl_lexer::LineIndex::new(source);
+    let cursor = crate::definition::byte_offset_at(&index, source, line, character);
+    let position = index.position_at_utf16(cursor, source);
+    if position.line != line || position.character.get() != character {
+        return None;
+    }
+    crate::source_structure::original_word_cursor_prefix(source, analysis, cursor).ok()?
+}
+
+fn original_word_completion_edits(
+    source: &str,
+    line: u32,
+    prefix: &tcl_lexer::word_parts::WordCursorPrefix,
+    items: Vec<CompletionItem>,
+) -> Vec<CompletionItem> {
+    if !prefix.matches_source(&tcl_lexer::SourceImage::document(source), prefix.config()) {
+        return Vec::new();
+    }
+    let index = tcl_lexer::LineIndex::new(source);
+    let start = index.position_at_utf16(prefix.container_span().start(), source);
+    let end = index.position_at_utf16(prefix.container_span().end(), source);
+    if start.line != line || end.line != line {
+        return Vec::new();
+    }
+    items
+        .into_iter()
+        .filter_map(|mut item| {
+            if item.text_edit.is_none() {
+                if !item.is_snippet {
+                    let image = tcl_lexer::SourceImage::document(&item.insert_text);
+                    let plan = tcl_lexer::native_script_words_in(
+                        image.clone(),
+                        tcl_lexer::Span::new(0, u32::try_from(image.len()).ok()?),
+                        prefix.config(),
+                    )
+                    .ok()?;
+                    let [command] = plan.commands.as_slice() else {
+                        return None;
+                    };
+                    let [word] = command.words.as_slice() else {
+                        return None;
+                    };
+                    if plan.fatal_tail.is_some()
+                        || word.span() != tcl_lexer::Span::new(0, u32::try_from(image.len()).ok()?)
+                        || tcl_syntax::word_rules::original_static_word_unicode_value(word)
+                            .is_none()
+                    {
+                        return None;
+                    }
+                }
+                item.text_edit = Some(CompletionEdit {
+                    start_char: start.character.get(),
+                    end_char: end.character.get(),
+                    new_text: item.insert_text.clone(),
+                });
+            }
+            Some(item)
+        })
+        .collect()
+}
+
+/// Fixed snippet trigger domain; `-` belongs to the authored `tcl-…` triggers.
+fn snippet_partial_at_position(source: &str, line: u32, character: u32) -> String {
+    let Some(line_text) = source.split('\n').nth(line as usize) else {
+        return String::new();
+    };
+    let chars: Vec<char> = line_text.chars().collect();
+    let col = utf16_col_to_char_col(line_text, character).min(chars.len());
+    let mut start = col;
+    while start > 0 && (chars[start - 1].is_alphanumeric() || matches!(chars[start - 1], '_' | '-'))
+    {
+        start -= 1;
+    }
+    chars[start..col].iter().collect()
+}
+
+/// `::`-qualify a global variable name reached from a local (proc / nested
+/// namespace) context; leave already-qualified names and locals untouched.
+/// `qualify_globals` is the set of root-scope names that need it (`None` at
+/// global scope, where bare names are correct).
+fn qualified_var_name(name: &str, qualify_globals: Option<&FxHashSet<String>>) -> String {
+    match qualify_globals {
+        Some(globals)
+            if globals.contains(name) && tcl_syntax::naming::unroot_rooted_key(name).is_none() =>
+        {
+            tcl_syntax::naming::root_unrooted_key(name)
+        }
+        _ => name.to_owned(),
+    }
+}
+
+#[cfg(test)]
+fn variable_completions(
+    source: &str,
+    line: u32,
+    character: u32,
+    analysis: &AnalysisResult,
+    partial: &str,
+    trigger: char,
+) -> Vec<CompletionItem> {
+    let index = tcl_lexer::LineIndex::new(source);
+    let cursor = crate::definition::byte_offset_at(&index, source, line, character);
+    let Ok(Some(prefix)) =
+        crate::source_structure::original_variable_cursor_prefix(source, analysis, cursor)
+    else {
+        return Vec::new();
+    };
+    if source.get(prefix.partial_span().as_range()) != Some(partial)
+        || prefix.is_braced() != (trigger == '{')
+    {
+        return Vec::new();
+    }
+    variable_completions_in_source(source, line, character, analysis, &prefix)
+}
+
+fn variable_completions_in_source(
+    source: &str,
+    line: u32,
+    character: u32,
+    analysis: &AnalysisResult,
+    prefix: &tcl_lexer::word_parts::VariableCursorPrefix,
+) -> Vec<CompletionItem> {
+    let line_text = source.split('\n').nth(line as usize).unwrap_or("");
+    let line_index = tcl_lexer::LineIndex::new(source);
+    let byte_offset = crate::definition::byte_offset_at(&line_index, source, line, character);
+    let Some(config) = analysis.body_lexer_config else {
+        return Vec::new();
+    };
+    let Some(image) = analysis
+        .retained_command_realm()
+        .and_then(|realm| realm.original_source_image())
+    else {
+        return Vec::new();
+    };
+    if image.bytes() != source.as_bytes()
+        || !analysis.matches_original_source_image(image, config)
+        || !prefix.matches_source(image, config)
+        || prefix.reference_span().end() != byte_offset
+    {
+        return Vec::new();
+    }
+    let Some(partial) = source.get(prefix.partial_span().as_range()) else {
+        return Vec::new();
+    };
+    let begin = line_index.position_at_utf16(prefix.reference_span().start(), source);
+    let finish = line_index.position_at_utf16(prefix.completion_replacement_span().end(), source);
+    if begin.line != line || finish.line != line {
+        return Vec::new();
+    }
+    let has_open_brace = prefix.is_braced();
+    let edit_start = Some(begin.character.get());
+    let edit_end = finish.character.get();
+    let end = utf16_col_to_char_col(line_text, edit_end);
+
+    let Some(advice) = analysis.logical_variable_scope_advice(image, config, byte_offset) else {
+        return Vec::new();
+    };
+
+    // An explicit index is distinct from parentheses inside a braced name.
+    if prefix.index_span().is_some() {
+        return array_element_completions(
+            line_text,
+            &advice,
+            partial,
+            end,
+            edit_start,
+            has_open_brace,
+        );
+    }
+
+    // Source visibility and rooted insertion share the checked scope selector.
+    let names = visible_variable_names(&advice, partial);
+
+    let qualify_globals = crate::definition::global_vars_needing_qualification(&advice);
+
+    let edit = VarEdit {
+        start: edit_start,
+        end: edit_end,
+        has_open_brace,
+        config,
+    };
+    let mut items = Vec::new();
+    push_local_var_items(&mut items, names, qualify_globals.as_ref(), edit);
+    // Cross-namespace candidates — variables in *other* namespaces, offered in
+    // fully-qualified `::ns::var` form (vars in the cursor's own namespace
+    // chain are already above as bare names).
+    push_cross_namespace_vars(&mut items, &advice, partial, edit);
+    if !items.is_empty() {
+        return items;
+    }
+
+    // Fuzzy fallback for the whole variable response: nothing
+    // prefix-matched the fragment, so re-enumerate every candidate
+    // (local and cross-namespace) and offer the closest names.
+    let mut universe = Vec::new();
+    push_local_var_items(
+        &mut universe,
+        visible_variable_names(&advice, ""),
+        qualify_globals.as_ref(),
+        edit,
+    );
+    push_cross_namespace_vars(&mut universe, &advice, "", edit);
+    let FilteredCandidates {
+        candidates: mut fallback,
+        fuzzy,
+    } = filter_candidates(partial, universe, |item| {
+        item.label.strip_prefix('$').unwrap_or(&item.label)
+    });
+    if fuzzy {
+        // The on-screen fragment (sigil included) — the text editors
+        // match the replaced range against.
+        let typed = if has_open_brace {
+            format!("${{{partial}")
+        } else {
+            format!("${partial}")
+        };
+        decorate_fuzzy_items(&mut fallback, &typed);
+    }
+    fallback
+}
+
+/// Sorted current source names matching the fragment before insertion validation.
+fn visible_variable_names(
+    advice: &tcl_compiler::analyser::scope::LogicalVariableScopeAdvice<'_>,
+    partial: &str,
+) -> Vec<String> {
+    let mut names: Vec<String> = crate::definition::visible_variable_names(advice)
+        .into_iter()
+        .filter(|n| n.starts_with(partial))
+        .collect();
+    names.sort_unstable();
+    names.dedup();
+    names
+}
+
+/// Append `$name` / `${name}` items for `names` (already sorted and
+/// deduplicated), `::`-qualifying globals reached from a local
+/// context and forcing the `${…}` form when the user already typed
+/// `${` or the bare `$name` syntax can't carry the name (hyphens,
+/// dots, …).
+fn push_local_var_items(
+    items: &mut Vec<CompletionItem>,
+    names: Vec<String>,
+    qualify_globals: Option<&FxHashSet<String>>,
+    edit: VarEdit,
+) {
+    for name in names {
+        // `::`-qualify a global reached from a local context; leave already
+        // qualified names and locals untouched.
+        let qname = qualified_var_name(&name, qualify_globals);
+        let Some(new_text) =
+            tcl_syntax::naming::scalar_source_reference(&qname, edit.config, edit.has_open_brace)
+        else {
+            continue;
+        };
+        let text_edit = edit.start.map(|start_char| CompletionEdit {
+            start_char,
+            end_char: edit.end,
+            new_text: new_text.clone(),
+        });
+        items.push(CompletionItem {
+            label: format!("${qname}"),
+            insert_text: new_text,
+            kind: CompletionKind::Variable,
+            detail: None,
+            sort_text: None,
+            is_snippet: false,
+            filter_text: None,
+            text_edit,
+            documentation: None,
+        });
+    }
+}
+
+/// Edit-range + brace-form parameters shared by the variable-name builders.
+#[derive(Clone, Copy)]
+struct VarEdit {
+    start: Option<u32>,
+    end: u32,
+    has_open_brace: bool,
+    config: tcl_lexer::LexerConfig,
+}
+
+/// Append fully-qualified `::ns::var` candidates from namespaces outside the
+/// cursor's own lexical chain, deduped against the labels already in `items`.
+fn push_cross_namespace_vars(
+    items: &mut Vec<CompletionItem>,
+    advice: &tcl_compiler::analyser::scope::LogicalVariableScopeAdvice<'_>,
+    partial: &str,
+    edit: VarEdit,
+) {
+    let mut seen: FxHashSet<String> = items.iter().map(|i| i.label.clone()).collect();
+    for qname in advice.cross_namespace_variable_names() {
+        if !qname.starts_with(partial) {
+            continue;
+        }
+        let label = format!("${qname}");
+        if !seen.insert(label.clone()) {
+            continue;
+        }
+        let Some(new_text) =
+            tcl_syntax::naming::scalar_source_reference(&qname, edit.config, edit.has_open_brace)
+        else {
+            continue;
+        };
+        let text_edit = edit.start.map(|start_char| CompletionEdit {
+            start_char,
+            end_char: edit.end,
+            new_text: new_text.clone(),
+        });
+        items.push(CompletionItem {
+            label,
+            insert_text: new_text,
+            kind: CompletionKind::Variable,
+            detail: Some("namespace variable".to_string()),
+            sort_text: None,
+            is_snippet: false,
+            filter_text: None,
+            text_edit,
+            documentation: None,
+        });
+    }
+}
+
+/// Build `$arr(index)` completions for the recorded indices of `arr` when
+/// the partial contains `(`.  Always returns (suggestions or empty) —
+/// preventing command completion from replacing an array-element response.
+fn array_element_completions(
+    line_text: &str,
+    advice: &tcl_compiler::analyser::scope::LogicalVariableScopeAdvice<'_>,
+    partial: &str,
+    end: usize,
+    edit_start: Option<u32>,
+    has_open_brace: bool,
+) -> Vec<CompletionItem> {
+    // The caller dispatches here exactly when `partial` contains a `(`.
+    let Some((arr_name, elem_prefix)) =
+        tcl_syntax::naming::array_variable_completion_prefix(partial)
+    else {
+        return Vec::new();
+    };
+    let candidates = advice.array_index_candidates(arr_name);
+    let arr_edit_end = char_col_to_utf16(line_text, end);
+    let FilteredCandidates {
+        candidates: elems,
+        fuzzy,
+    } = filter_candidates(elem_prefix, candidates, |candidate| candidate.index());
+    let mut items = Vec::new();
+    for candidate in elems {
+        let Some(new_text) = candidate.source_reference(has_open_brace) else {
+            continue;
+        };
+        let elem = candidate.index();
+        let text_edit = edit_start.map(|start_char| CompletionEdit {
+            start_char,
+            end_char: arr_edit_end,
+            new_text: new_text.clone(),
+        });
+        items.push(CompletionItem {
+            label: format!("${arr_name}({elem})"),
+            insert_text: new_text,
+            kind: CompletionKind::Variable,
+            detail: None,
+            sort_text: None,
+            is_snippet: false,
+            filter_text: None,
+            text_edit,
+            documentation: None,
+        });
+    }
+    if fuzzy {
+        // The on-screen fragment runs from the `$` to the cursor (the
+        // partial spans `arr(prefix`), sigil included.
+        decorate_fuzzy_items(&mut items, &format!("${partial}"));
+    } else {
+        items.sort_by(|a, b| a.label.cmp(&b.label));
+    }
+    items
+}
+
+/// Original whole head and the cursor's zero-based argument position.
+struct CompletionCommandContext {
+    head: tcl_lexer::NativeWord,
+    word_index: usize,
+}
+
+impl CompletionCommandContext {
+    fn head_text(&self) -> Option<String> {
+        if let Some(value) = tcl_syntax::word_rules::original_static_word_unicode_value(&self.head)
+        {
+            return String::from_utf8(value).ok();
+        }
+        Some(
+            self.head
+                .image()
+                .try_text()
+                .ok()?
+                .get(self.head.span().as_range())?
+                .to_owned(),
+        )
+    }
+}
+
+/// Whole command and operand geometry in the current line prefix. This retains
+/// lexical candidate context; receiver binding and Registry selection are separate.
+fn command_context_on_line(
+    source: &str,
+    line: u32,
+    character: u32,
+    analysis: &AnalysisResult,
+) -> Option<CompletionCommandContext> {
+    let current = crate::original_context::CurrentSourceContext::capture(source, analysis)?;
+    let image = analysis.retained_command_realm()?.original_source_image()?;
+    let index = tcl_lexer::LineIndex::new(source);
+    let start = crate::definition::byte_offset_at(&index, source, line, 0);
+    let cursor = crate::definition::byte_offset_at(&index, source, line, character);
+    let prefix = tcl_lexer::Span::new(start, cursor);
+    let plan = tcl_lexer::native_script_words_in(image.clone(), prefix, current.config()).ok()?;
+    if plan.fatal_tail.is_some() {
+        return None;
+    }
+    let command = plan.commands.last()?;
+    if command.source_extent?.end() != cursor {
+        return None;
+    }
+    let head = command.words.first()?.clone();
+    if head.group().expand {
+        return None;
+    }
+    let last = command.words.last()?;
+    let word_index = if last.span().end() < cursor {
+        command.words.len()
+    } else {
+        command.words.len().checked_sub(1)?
+    };
+    Some(CompletionCommandContext { head, word_index })
+}
+
+/// The instance-variable name in a `$obj` / `${obj}` command head, or
+/// `None` when the head is not a single bare variable reference.
+fn strip_instance_var(cmd: &str, config: tcl_lexer::LexerConfig) -> Option<String> {
+    let reference = tcl_lexer::word_parts::whole_var_ref(cmd.as_bytes(), config).ok()??;
+    // Completion candidates use scalar handles. A closed combined element name
+    // and an independently scanned index keep their separate array purpose.
+    if reference.index.is_some()
+        || tcl_syntax::naming::split_element_ref_bytes(reference.name).is_some()
+    {
+        return None;
+    }
+    let name = std::str::from_utf8(reference.name).ok()?;
+    (!name.is_empty()).then(|| name.to_owned())
+}
+
+/// Complete the methods/subcommands callable on a receiver whose class
+/// (`class_q`) is already resolved — a user-defined class walks the whole
+/// MRO, a registry-modelled one reads its instance table (see
+/// [`method_items`]).  Returns `None` when the class is unknown to both or
+/// nothing prefix-matches, so the caller falls through to plain command
+/// completion — a typo'd fragment is deliberately *not* fuzzy-matched
+/// here, because the command/proc path this falls through to still offers
+/// its own prefix matches; the response-level [`fuzzy_command_fallback`]
+/// re-ranks these methods together with command candidates only once the
+/// whole response would otherwise be empty.
+
+/// Class-command declaration candidates. This does not select an executed
+/// method provider or model a maker/default delegate's native attachment.
+fn original_class_method_items(
+    analysis: &AnalysisResult,
+    root: &tcl_compiler::signature_scan::original_name::SourceDeclarationMetadata<
+        tcl_compiler::analyser::ClassDef,
+    >,
+    partial: &str,
+) -> Vec<CompletionItem> {
+    original_method_candidate_items(
+        analysis,
+        root,
+        partial,
+        tcl_compiler::analyser::types::MemberSide::ClassObject,
+    )
+}
+
+fn original_method_candidate_items(
+    analysis: &AnalysisResult,
+    root: &tcl_compiler::signature_scan::original_name::SourceDeclarationMetadata<
+        tcl_compiler::analyser::ClassDef,
+    >,
+    partial: &str,
+    side: tcl_compiler::analyser::types::MemberSide,
+) -> Vec<CompletionItem> {
+    original_method_candidate_items_at(analysis, root, partial, side, None)
+}
+
+fn original_instance_method_candidate_items_at(
+    analysis: &AnalysisResult,
+    root: &tcl_compiler::signature_scan::original_name::SourceDeclarationMetadata<
+        tcl_compiler::analyser::ClassDef,
+    >,
+    source: &str,
+    cursor: u32,
+    partial: &str,
+    edit_context: Option<(&str, u32, u32)>,
+) -> Vec<CompletionItem> {
+    let own = match crate::original_oo::own_object_completion_methods(analysis, source, cursor) {
+        std::ops::ControlFlow::Break(Some(own)) => own,
+        std::ops::ControlFlow::Break(None) => return Vec::new(),
+        std::ops::ControlFlow::Continue(()) => Vec::new(),
+    };
+    let receiver = edit_context
+        .and_then(|_| crate::original_oo::instance_completion_source(analysis, source, cursor));
+    if receiver
+        .as_ref()
+        .is_some_and(|receiver| receiver.class.declaration_site() != root.declaration_site())
+    {
+        return Vec::new();
+    }
+    rank_original_method_candidates(
+        partial,
+        original_method_candidate_items_with_own_at(
+            analysis,
+            root,
+            "",
+            tcl_compiler::analyser::types::MemberSide::Instance,
+            OriginalMethodEditContext {
+                position: edit_context,
+                receiver: receiver.as_ref(),
+            },
+            &own,
+        ),
+    )
+}
+
+fn original_method_candidate_items_at(
+    analysis: &AnalysisResult,
+    root: &tcl_compiler::signature_scan::original_name::SourceDeclarationMetadata<
+        tcl_compiler::analyser::ClassDef,
+    >,
+    partial: &str,
+    side: tcl_compiler::analyser::types::MemberSide,
+    edit_context: Option<(&str, u32, u32)>,
+) -> Vec<CompletionItem> {
+    rank_original_method_candidates(
+        partial,
+        original_method_candidate_items_with_own_at(
+            analysis,
+            root,
+            "",
+            side,
+            OriginalMethodEditContext {
+                position: edit_context,
+                receiver: None,
+            },
+            &[],
+        ),
+    )
+}
+
+/// Rank only the authenticated source method universe. Matching insertion
+/// spellings retains escaped-name prefixes; shared fuzzy ranking is UI advice.
+fn rank_original_method_candidates(
+    partial: &str,
+    items: Vec<CompletionItem>,
+) -> Vec<CompletionItem> {
+    let FilteredCandidates {
+        mut candidates,
+        fuzzy,
+    } = filter_candidates(partial, items, |item| {
+        if item.insert_text.starts_with(partial) {
+            item.insert_text.as_str()
+        } else {
+            item.label.as_str()
+        }
+    });
+    if fuzzy {
+        decorate_fuzzy_items(&mut candidates, partial);
+    }
+    candidates
+}
+
+#[derive(Clone, Copy)]
+struct OriginalMethodEditContext<'a, 'b> {
+    position: Option<(&'a str, u32, u32)>,
+    receiver: Option<&'a crate::original_oo::instance_completion::InstanceCompletionSource<'b>>,
+}
+
+fn original_method_candidate_items_with_own_at(
+    analysis: &AnalysisResult,
+    root: &tcl_compiler::signature_scan::original_name::SourceDeclarationMetadata<
+        tcl_compiler::analyser::ClassDef,
+    >,
+    partial: &str,
+    side: tcl_compiler::analyser::types::MemberSide,
+    edit_context: OriginalMethodEditContext<'_, '_>,
+    own: &[crate::original_oo::OwnObjectMethodCandidate<'_>],
+) -> Vec<CompletionItem> {
+    use tcl_compiler::analyser::class_hierarchy::original_metadata::original_instance_metadata_order;
+    use tcl_compiler::analyser::types::MemberSide;
+    let providers = original_instance_metadata_order(analysis, root).unwrap_or_else(|| vec![root]);
+    let mut names = Vec::<(
+        tcl_core_types::NameBytes,
+        tcl_syntax::naming::NamePolicyProtocol,
+    )>::new();
+    let mut items = Vec::new();
+    for candidate in own {
+        let input = &candidate.input;
+        // A private own name blocks the identical class candidate, even when
+        // its source reporting label or insertion spelling collides.
+        names.push((
+            tcl_core_types::NameBytes::from(input.bytes()),
+            input.policy(),
+        ));
+        if !candidate.exported
+            || !candidate
+                .metadata
+                .name_purpose()
+                .admits(input.policy().recipe(), input.bytes())
+        {
+            continue;
+        }
+        let declaration = candidate.metadata.declaration().original_word();
+        let Some(spelling) = tcl_syntax::backslash::native_literal_source_word(
+            input.bytes(),
+            declaration.image().channel(),
+            declaration.config(),
+            input.policy().string_protocol(),
+        ) else {
+            continue;
+        };
+        let label =
+            std::str::from_utf8(input.bytes()).map_or_else(|_| spelling.clone(), str::to_owned);
+        if !label.starts_with(partial) && !spelling.starts_with(partial) {
+            continue;
+        }
+        if let Some(item) = original_method_candidate_item(
+            analysis,
+            input.bytes(),
+            input.policy(),
+            label,
+            spelling,
+            edit_context,
+            "method — per-object declaration candidate",
+        ) {
+            items.push(item);
+        }
+    }
+    for provider in providers {
+        for method in provider
+            .metadata()
+            .original_members
+            .methods(side)
+            .into_iter()
+            .flatten()
+        {
+            if !method.exported()
+                || (side == MemberSide::ClassObject
+                    && provider.declaration_site() != root.declaration_site()
+                    && match method.name_purpose() {
+                        tcl_registry::definer::DefinitionMemberNamePurpose::TclOoMethod => {
+                            !method.native_class_delegate()
+                        }
+                        tcl_registry::definer::DefinitionMemberNamePurpose::SourceValue => {
+                            method.metadata().is_self_method
+                        }
+                    })
+            {
+                continue;
+            }
+            let input = method.original_name_input();
+            let key = (
+                tcl_core_types::NameBytes::from(input.bytes()),
+                input.policy(),
+            );
+            if names.contains(&key) {
+                continue;
+            }
+            let (Some(label), Some(spelling)) = (
+                crate::original_oo::method_label(&method),
+                crate::original_oo::method_word(&method),
+            ) else {
+                continue;
+            };
+            if !label.starts_with(partial) && !spelling.starts_with(partial) {
+                continue;
+            }
+            let Some(item) = original_method_candidate_item(
+                analysis,
+                input.bytes(),
+                input.policy(),
+                label,
+                spelling,
+                edit_context,
+                "method — source declaration candidate",
+            ) else {
+                continue;
+            };
+            names.push(key);
+            items.push(item);
+        }
+        if side == MemberSide::Instance
+            && let Some(properties) = provider.metadata().original_properties.properties(side)
+        {
+            for property in properties {
+                let key = property.declaration().name_input();
+                for name in property.accessor_methods() {
+                    // This is selected Registry-authored metadata, separate
+                    // from the property's counted name and native table state.
+                    let identity = (
+                        tcl_core_types::NameBytes::from(name.as_bytes()),
+                        key.policy(),
+                    );
+                    if names.contains(&identity) || !name.starts_with(partial) {
+                        continue;
+                    }
+                    let Some(spelling) = tcl_syntax::backslash::native_literal_source_word(
+                        name.as_bytes(),
+                        key.source_image().channel(),
+                        key.lexer_config(),
+                        key.policy().string_protocol(),
+                    ) else {
+                        continue;
+                    };
+                    let Some(item) = original_method_candidate_item(
+                        analysis,
+                        name.as_bytes(),
+                        key.policy(),
+                        (*name).to_owned(),
+                        spelling,
+                        edit_context,
+                        "method — property declaration candidate",
+                    ) else {
+                        continue;
+                    };
+                    names.push(identity);
+                    items.push(item);
+                }
+            }
+        }
+    }
+    items.sort_by(|left, right| left.label.cmp(&right.label));
+    items
+}
+
+fn original_method_candidate_item(
+    analysis: &AnalysisResult,
+    bytes: &[u8],
+    policy: tcl_syntax::naming::NamePolicyProtocol,
+    label: String,
+    spelling: String,
+    edit_context: OriginalMethodEditContext<'_, '_>,
+    detail: &str,
+) -> Option<CompletionItem> {
+    let text_edit = if let Some((source, cursor, line)) = edit_context.position {
+        let (span, new_text) = if let Some(receiver) = edit_context.receiver {
+            receiver.selector_replacement(source, cursor, bytes, policy)?
+        } else {
+            crate::original_oo::method_selector_replacement(
+                analysis, source, cursor, bytes, policy,
+            )?
+        };
+        let index = tcl_lexer::LineIndex::new(source);
+        let start = index.position_at_utf16(span.start(), source);
+        let end = index.position_at_utf16(span.end(), source);
+        if start.line != line || end.line != line {
+            return None;
+        }
+        Some(CompletionEdit {
+            start_char: start.character.get(),
+            end_char: end.character.get(),
+            new_text,
+        })
+    } else {
+        None
+    };
+    Some(CompletionItem {
+        label,
+        insert_text: spelling,
+        text_edit,
+        kind: CompletionKind::Function,
+        detail: Some(detail.to_owned()),
+        ..CompletionItem::default()
+    })
+}
+
+fn method_completions(
+    analysis: &AnalysisResult,
+    registry: &CommandRegistry,
+    class_q: &str,
+    bucket: crate::definition::MethodBucket,
+    partial: &str,
+    object_state: Option<&tcl_compiler::analyser::ObjectMemberState>,
+    profile: &'static tcl_dialect::DialectProfile,
+) -> Option<Vec<CompletionItem>> {
+    let all = method_items(
+        analysis,
+        Some(registry),
+        class_q,
+        bucket,
+        object_state,
+        profile,
+    )?;
+    let FilteredCandidates {
+        candidates: items,
+        fuzzy,
+    } = filter_candidates(partial, all, |item| item.label.as_str());
+    (!fuzzy && !items.is_empty()).then_some(items)
+}
+
+/// Readonly method suggestions preserve source side, provider order and visibility.
+/// Named source members require their current selected original name operand;
+/// registry, generated and per-object suggestions retain separate producers.
+fn method_items(
+    analysis: &AnalysisResult,
+    registry: Option<&CommandRegistry>,
+    class_q: &str,
+    bucket: crate::definition::MethodBucket,
+    object_state: Option<&tcl_compiler::analyser::ObjectMemberState>,
+    profile: &'static tcl_dialect::DialectProfile,
+) -> Option<Vec<CompletionItem>> {
+    use crate::definition::MethodBucket;
+    let object_members = if bucket == MethodBucket::Instance {
+        match object_state {
+            Some(state) => Some(analysis.logical_source_object_member_state(state)?),
+            None => None,
+        }
+    } else {
+        None
+    };
+    if !analysis.all_classes.contains_key(class_q) {
+        // An external catalogue cannot supply the source object's own masks.
+        if object_members.is_some() {
+            return None;
+        }
+        return registry_method_items(analysis, registry?, class_q, profile);
+    }
+    let exports = object_members
+        .as_ref()
+        .into_iter()
+        .flat_map(|members| members.export_names())
+        .collect::<FxHashSet<_>>();
+    let unexports = object_members
+        .as_ref()
+        .into_iter()
+        .flat_map(|members| members.unexport_names())
+        .collect::<FxHashSet<_>>();
+    let hierarchy = analysis.class_hierarchy();
+    let mro = hierarchy
+        .mro_map
+        .get(class_q)
+        .cloned()
+        .unwrap_or_else(|| vec![class_q.to_string()]);
+    let mut seen: FxHashSet<String> = FxHashSet::default();
+    let mut items: Vec<CompletionItem> = Vec::new();
+    // Per-object members first — `TclOO` layers an `oo::objdefine`d method
+    // ahead of the class chain, so the receiver's own members claim their
+    // names before any class provider.
+    if bucket == MethodBucket::Instance
+        && let (Some(state), Some(members)) = (object_state, object_members.as_ref())
+    {
+        layer_per_object_members(state, members, &mut seen, &mut items)?;
+    }
+    for cls in &mro {
+        let Some(cd) = analysis.all_classes.get(cls) else {
+            continue;
+        };
+        let bucketed: Vec<(&String, &tcl_compiler::analyser::MethodDef)> = match bucket {
+            MethodBucket::Instance => cd.methods.iter().collect(),
+            MethodBucket::Class => cd
+                .class_methods
+                .iter()
+                .filter(|(_, m)| cls.as_str() == class_q || !m.is_self_method)
+                .collect(),
+        };
+        // Per-object visibility flips override the declared state for this
+        // receiver: an `oo::objdefine … export` revives an unexported class
+        // member, an `… unexport` masks an exported one.
+        let flipped = |name: &str, declared_public: bool| {
+            if exports.contains(name) {
+                true
+            } else if unexports.contains(name) {
+                false
+            } else {
+                declared_public
+            }
+        };
+        let side = match bucket {
+            MethodBucket::Instance => tcl_compiler::analyser::MemberSide::Instance,
+            MethodBucket::Class => tcl_compiler::analyser::MemberSide::ClassObject,
+        };
+        let mut methods = bucketed
+            .into_iter()
+            .filter(|(name, method)| flipped(name, method.visibility == "public"))
+            .filter_map(|(_, method)| analysis.logical_source_member_insertion(cd, side, method))
+            .collect::<Vec<_>>();
+        methods.sort_by(|left, right| left.name().cmp(right.name()));
+        for method in methods {
+            let name = method.name();
+            let provider = cls.as_str();
+            if !seen.insert(name.to_owned()) {
+                continue;
+            }
+            let detail = if provider == class_q {
+                format!("method — {class_q}")
+            } else {
+                format!("method — inherited from {provider}")
+            };
+            items.push(CompletionItem {
+                label: name.to_owned(),
+                insert_text: method.source_word().to_owned(),
+                kind: CompletionKind::Function,
+                detail: Some(detail),
+                ..CompletionItem::default()
+            });
+        }
+    }
+    if bucket == MethodBucket::Instance {
+        for item in generated_property_method_items(analysis, registry, class_q) {
+            if seen.insert(item.label.clone()) {
+                items.push(item);
+            }
+        }
+    }
+    // The universal object method (present on every instance, never on a
+    // class command).
+    if bucket == MethodBucket::Instance && seen.insert("destroy".to_string()) {
+        items.push(CompletionItem {
+            label: "destroy".to_string(),
+            insert_text: "destroy".to_string(),
+            kind: CompletionKind::Function,
+            detail: Some("method — oo::object builtin".to_string()),
+            ..CompletionItem::default()
+        });
+    }
+    items.sort_by(|a, b| a.label.cmp(&b.label));
+    Some(items)
+}
+
+/// Own names and visibility masks require the same current original source state.
+fn layer_per_object_members(
+    state: &tcl_compiler::analyser::ObjectMemberState,
+    members: &tcl_compiler::analyser::LogicalSourceObjectMembers<'_>,
+    seen: &mut FxHashSet<String>,
+    items: &mut Vec<CompletionItem>,
+) -> Option<()> {
+    let mut methods = state.methods.values().collect::<Vec<_>>();
+    methods.sort_by(|left, right| left.name.cmp(&right.name));
+    for method in methods {
+        let spelling = members.source_word(method)?;
+        if method.name.contains('\0') {
+            return None;
+        }
+        if !seen.insert(method.name.clone()) || method.visibility != "public" {
+            continue;
+        }
+        items.push(CompletionItem {
+            label: method.name.clone(),
+            insert_text: spelling,
+            kind: CompletionKind::Function,
+            detail: Some("method — per-object (oo::objdefine)".to_owned()),
+            ..CompletionItem::default()
+        });
+    }
+    Some(())
+}
+
+/// Catalogue name data uses the actual retained source grammar, not a runtime name recipe.
+fn source_method_name_word(analysis: &AnalysisResult, name: &str) -> Option<String> {
+    let input = analysis.resolved_input.as_ref()?;
+    if analysis.body_lexer_config != Some(input.lexer_config()) || name.contains('\0') {
+        return None;
+    }
+    tcl_syntax::word_rules::lexical_unicode_source_word(name, input.lexer_config())
+}
+
+fn generated_property_method_items(
+    analysis: &AnalysisResult,
+    registry: Option<&CommandRegistry>,
+    class_q: &str,
+) -> Vec<CompletionItem> {
+    let Some(registry) = registry else {
+        return Vec::new();
+    };
+    if analysis
+        .resolved_registry()
+        .is_none_or(|actual| actual.snapshot().semantic_key() != registry.snapshot().semantic_key())
+    {
+        return Vec::new();
+    }
+    let Some(class) = analysis.all_classes.get(class_q) else {
+        return Vec::new();
+    };
+    if analysis.logical_source_class_declaration(class).is_none() {
+        return Vec::new();
+    }
+    let hierarchy = analysis.class_hierarchy();
+    let providers = hierarchy
+        .mro_map
+        .get(class_q)
+        .cloned()
+        .unwrap_or_else(|| vec![class_q.to_owned()]);
+    if providers
+        .iter()
+        .filter_map(|name| analysis.all_classes.get(name))
+        .any(|provider| {
+            analysis
+                .logical_source_class_declaration(provider)
+                .is_none()
+        })
+    {
+        return Vec::new();
+    }
+    hierarchy
+        .property_accessor_methods(Some(registry), class_q)
+        .into_iter()
+        .filter_map(|name| {
+            let insert_text = source_method_name_word(analysis, name)?;
+            Some(CompletionItem {
+                label: name.to_owned(),
+                insert_text,
+                kind: CompletionKind::Function,
+                detail: Some("method — generated property accessor".to_owned()),
+                ..CompletionItem::default()
+            })
+        })
+        .collect()
+}
+
+/// Every instance method/subcommand item for a *registry*-modelled class:
+/// a tcllib-style factory (`report::report`, `struct::graph` — a distinct
+/// `ObjectClassSpec`) or a Tk/ttk widget (self-referential — `class_q`
+/// names its own `CommandSpec`, whose `subcommands` *is* its instance
+/// dispatch table).  Tries the dedicated object class first since that is
+/// the precise, intended shape; the self-referential widget case falls
+/// back to the class's own `CommandSpec` when it has no separate
+/// `ObjectClassSpec` (matching [`CommandRegistry::instance_methods`]). The
+/// registry also applies the owning package's lifecycle floor before returning
+/// a row, so Tk 9.1-only methods cannot leak into an older resolved profile.
+/// Fragment matching happens in [`method_completions`].
+fn registry_method_items(
+    analysis: &AnalysisResult,
+    registry: &CommandRegistry,
+    class_q: &str,
+    profile: &'static tcl_dialect::DialectProfile,
+) -> Option<Vec<CompletionItem>> {
+    // naming.consumer.original-receiver-completion-domain
+    // docs/design/analysis/name-resolution-proofs/original-receiver-completion-domain.md
+    if !analysis.allows_lexical_declaration_advice() {
+        return None;
+    }
+    let floor = crate::document_floor::DocumentFloor::new(analysis, profile);
+    let context = floor.context()?;
+    let spec = context.resolve_spec(registry, class_q)?;
+    let methods = CommandRegistry::instance_method_providers_for_descriptor_at(
+        registry,
+        spec,
+        Some(context.authoring_query()),
+        |owner| {
+            context
+                .resolve_spec(registry, owner.name)
+                .filter(|selected| std::ptr::eq(*selected, owner))
+                .map(|selected| floor.for_spec(selected))
+        },
+    );
+    let mut items: Vec<CompletionItem> = methods
+        .into_iter()
+        .filter_map(|(_owner, method)| {
+            let insert_text = source_method_name_word(analysis, method.name)?;
+            Some(CompletionItem {
+                label: method.name.to_owned(),
+                insert_text,
+                kind: CompletionKind::Function,
+                detail: Some(format!("method — {class_q}")),
+                documentation: (!method.detail.is_empty()).then(|| method.detail.to_owned()),
+                ..CompletionItem::default()
+            })
+        })
+        .collect();
+    if items.is_empty() {
+        return None;
+    }
+    items.sort_by(|a, b| a.label.cmp(&b.label));
+    Some(items)
+}
+
+/// The guaranteed-available version floor for a command's owning package,
+/// resolved from the document's `package require` statements.
+///
+/// The rule itself lives in [`crate::document_floor::DocumentFloor`], the one
+/// place a request-time provider resolves a floor, so every consumer reads it
+/// without copying it.
+fn package_version_floor<'a>(
+    analysis: &'a AnalysisResult,
+    spec: &tcl_registry::CommandSpec,
+    profile: &'static tcl_dialect::DialectProfile,
+) -> Option<&'a str> {
+    crate::document_floor::DocumentFloor::new(analysis, profile).for_spec(spec)
+}
+
+fn switch_partial_at_position(
+    source: &str,
+    line: u32,
+    character: u32,
+    analysis: &AnalysisResult,
+) -> Option<(String, (u32, u32))> {
+    let prefix = word_prefix_at_position(source, line, character, analysis)?;
+    let value = tcl_syntax::word_rules::original_word_cursor_literal_prefix(&prefix)?;
+    if !value.starts_with('-') {
+        return None;
+    }
+    let index = tcl_lexer::LineIndex::new(source);
+    let start = index.position_at_utf16(prefix.container_span().start(), source);
+    let end = index.position_at_utf16(prefix.container_span().end(), source);
+    (start.line == line && end.line == line)
+        .then_some((value, (start.character.get(), end.character.get())))
+}
+
+fn switch_completions(
+    options: &[tcl_registry::hover::OptionSpec],
+    context: &tcl_registry::model::ResolvedContext,
+    parent_surface: Option<&'static [SpecSurface]>,
+    partial: &str,
+    edit: (u32, u32),
+    package_version: Option<&str>,
+    config: tcl_lexer::LexerConfig,
+) -> Vec<CompletionItem> {
+    let mut opts: Vec<_> = options
+        .iter()
+        .filter(|opt| {
+            opt.available_for_version(package_version)
+                && context.option_available(opt, parent_surface)
+        })
+        .collect();
+    opts.sort_unstable_by_key(|opt| opt.name);
+    let FilteredCandidates {
+        candidates: opts,
+        fuzzy,
+    } = filter_candidates(partial, opts, |opt| opt.name);
+    let mut items: Vec<CompletionItem> = opts
+        .into_iter()
+        .filter_map(|opt| {
+            let insert_text =
+                tcl_syntax::word_rules::lexical_unicode_source_word(opt.name, config)?;
+            let doc = (!opt.detail.is_empty()).then(|| opt.detail.to_owned());
+            Some(CompletionItem {
+                label: opt.name.to_owned(),
+                insert_text: insert_text.clone(),
+                kind: CompletionKind::Function,
+                detail: doc.clone(),
+                documentation: doc,
+                sort_text: None,
+                is_snippet: false,
+                filter_text: None,
+                text_edit: Some(CompletionEdit {
+                    start_char: edit.0,
+                    end_char: edit.1,
+                    new_text: insert_text,
+                }),
+            })
+        })
+        .collect();
+    if fuzzy {
+        // `partial` carries the leading dash, matching the on-screen
+        // fragment the replace edit covers.
+        decorate_fuzzy_items(&mut items, partial);
+    }
+    items
+}
+
+/// Event candidates retain the actual BIG-IP placement and source grammar.
+fn event_name_completions(partial: &str, analysis: &AnalysisResult) -> Vec<CompletionItem> {
+    let Some(input) = analysis.resolved_input.as_ref() else {
+        return Vec::new();
+    };
+    let config = input.lexer_config();
+    if analysis.body_lexer_config != Some(config) {
+        return Vec::new();
+    }
+    let context = input.context_registry();
+    let Some(target) = context.context().placement_floor("f5-irules-cmds") else {
+        return Vec::new();
+    };
+    let reg = tcl_registry::events::EventRegistry::build();
+    let mut names: Vec<&str> = reg
+        .all_event_names()
+        .into_iter()
+        .filter(|name| reg.event_available_at(name, target.as_str()))
+        .collect();
+    names.sort_unstable();
+    let FilteredCandidates {
+        candidates: names,
+        fuzzy,
+    } = filter_candidates(partial, names, |name| *name);
+    let mut items: Vec<CompletionItem> = names
+        .into_iter()
+        .filter_map(|name| {
+            let insert_text = tcl_syntax::word_rules::lexical_unicode_source_word(name, config)?;
+            // Describe the event from its registry props (sides / transport /
+            // implied profiles) so the item carries documentation.
+            let doc = reg.get_props(name).map(|p| {
+                let mut parts = vec![format!("F5 iRules event `{name}`")];
+                if !p.implied_profiles.is_empty() {
+                    parts.push(format!("Profiles: {}", p.implied_profiles.join(", ")));
+                }
+                if let Some(release) = p.lifecycle().deprecated {
+                    parts.push(format!("Deprecated as of BIG-IP {release}"));
+                }
+                parts.join("\n\n")
+            });
+            Some(CompletionItem {
+                label: name.to_owned(),
+                insert_text,
+                kind: CompletionKind::Function,
+                detail: Some("F5 iRules event".to_string()),
+                sort_text: None,
+                is_snippet: false,
+                filter_text: None,
+                text_edit: None,
+                documentation: doc.or_else(|| Some(format!("F5 iRules event `{name}`"))),
+            })
+        })
+        .collect();
+    if fuzzy {
+        decorate_fuzzy_items(&mut items, partial);
+    }
+    items
+}
+
+#[cfg(test)]
+fn subcommand_completions(
+    spec: &tcl_registry::CommandSpec,
+    analysis: &AnalysisResult,
+    profile: &'static tcl_dialect::DialectProfile,
+    partial: &str,
+) -> Vec<CompletionItem> {
+    // Only subcommands available under the active profile are offered —
+    // the §5.1 `available_subcommands` gap: `dict getwithdefault` (9.0+)
+    // must not be offered in an 8.6 buffer, and an iRules-only subcommand
+    // must not surface in plain Tcl.
+    let floor = package_version_floor(analysis, spec, profile);
+    let subs: Vec<&tcl_registry::SubCommand> = crate::document_context_for_profile(profile)
+        .available_subcommands(spec)
+        .into_iter()
+        .filter(|sub| sub.available_for_version(floor))
+        .collect();
+    arg_value_completions_from_subcommands(
+        subs,
+        partial,
+        tcl_lexer::LexerConfig::from_grammar(profile.grammar),
+    )
+}
+
+fn arg_value_completions_from_subcommands(
+    mut subs: Vec<&tcl_registry::SubCommand>,
+    partial: &str,
+    config: tcl_lexer::LexerConfig,
+) -> Vec<CompletionItem> {
+    subs.sort_unstable_by_key(|sub| sub.name);
+    let FilteredCandidates {
+        candidates: subs,
+        fuzzy,
+    } = filter_candidates(partial, subs, |sub| sub.name);
+    let mut items: Vec<CompletionItem> = subs
+        .into_iter()
+        .filter_map(|sub| {
+            let insert_text =
+                tcl_syntax::word_rules::lexical_unicode_source_word(sub.name, config)?;
+            Some(CompletionItem {
+                label: sub.name.to_owned(),
+                insert_text,
+                kind: CompletionKind::Function,
+                // Surface the registry's one-line description, exactly as the
+                // sub-subcommand / scoped-op / arg-value completions already do
+                // — `string <TAB>` shows what each operation does, not a bare
+                // name list.
+                detail: (!sub.detail.is_empty()).then(|| sub.detail.to_owned()),
+                sort_text: None,
+                is_snippet: false,
+                filter_text: None,
+                text_edit: None,
+                documentation: None,
+            })
+        })
+        .collect();
+    if fuzzy {
+        decorate_fuzzy_items(&mut items, partial);
+    }
+    items
+}
+
+/// The scoped command environment active at the cursor, if the position falls
+/// inside a recorded scoped body (a `report::defstyle` style script).
+fn scoped_env_at(
+    analysis: &AnalysisResult,
+    source: &str,
+    line: u32,
+    character: u32,
+    _line_index: &tcl_lexer::LineIndex,
+) -> Option<&'static tcl_registry::scoped::ScopedCommandEnv> {
+    let position =
+        crate::original_context::CurrentSourcePosition::capture(source, analysis, line, character)?;
+    let offset = position.offset();
+    if !analysis.allows_lexical_declaration_advice() {
+        let body = analysis.original_scoped_body_in_source(
+            &tcl_lexer::SourceImage::document(source),
+            analysis.body_lexer_config?,
+            offset,
+        )?;
+        return Some(body.environment());
+    }
+    let inventory = crate::source_structure::SourceSyntaxCoverage::capture(source, analysis)?;
+    let scoped = inventory.logical_scoped_environment_at(source, analysis, offset)?;
+    scoped.environment(&analysis.resolved_input.as_ref()?.context_registry())
+}
+
+/// Current authored vocabulary at a strict original source position.
+/// Ordinary Tcl definition scripts keep their open command completion purpose.
+/// A declaration document separately retains selected nested grammar, explicit
+/// root authoring vocabulary/debt, ordinary script context or unavailable source.
+fn definition_grammar_at_position(
+    source: &str,
+    line: u32,
+    character: u32,
+    _line_index: &tcl_lexer::LineIndex,
+    analysis: &AnalysisResult,
+    registry: &CommandRegistry,
+) -> crate::source_structure::SourceDefinitionGrammar {
+    use crate::source_structure::{DefinitionGrammarUnavailable, SourceDefinitionGrammar};
+    // Ordinary Tcl definition scripts remain open completion positions. This
+    // consumer closes only explicit standalone authoring vocabularies.
+    if registry.document_grammar().is_none() {
+        return SourceDefinitionGrammar::OrdinaryScript;
+    }
+    let Some(position) =
+        crate::original_context::CurrentSourcePosition::capture(source, analysis, line, character)
+    else {
+        return SourceDefinitionGrammar::Unavailable(DefinitionGrammarUnavailable::CurrentSource);
+    };
+    if !std::ptr::eq(position.context().registry(), registry) {
+        return SourceDefinitionGrammar::Unavailable(DefinitionGrammarUnavailable::CurrentSource);
+    }
+    crate::oo_body::definition_grammar_from_analysis(source, analysis, position.offset())
+}
+
+/// Completion items for the member words of a definition-body grammar — the
+/// declarations legal at this position and nothing else.
+///
+/// A member's detail and documentation come from its own [`CommandSpec`] when
+/// it has one (every `SslicTcl` and `SpecTcl` word does), so a grammar-driven
+/// item is as informative as an ordinary command item; a member that is only a
+/// grammar row still completes, with no detail.
+fn grammar_member_completions(
+    grammar: &'static tcl_registry::definer::DefinitionBodyGrammar,
+    partial: &str,
+    registry: &CommandRegistry,
+    config: tcl_lexer::LexerConfig,
+    context: &tcl_registry::model::ResolvedContext,
+) -> Vec<CompletionItem> {
+    // naming.consumer.selected-catalogue-completion-provider
+    // docs/design/analysis/name-resolution-proofs/selected-catalogue-completion-provider.md
+    let query = context.authoring_query();
+    grammar
+        .members
+        .iter()
+        .filter(|member| {
+            (partial.is_empty() || member.keyword.starts_with(partial))
+                && grammar
+                    .source_member_in(member.keyword.as_bytes(), Some(query))
+                    .is_some_and(|actual| std::ptr::eq(actual, *member))
+        })
+        .filter_map(|member| {
+            let insert_text =
+                tcl_syntax::word_rules::lexical_unicode_source_word(member.keyword, config)?;
+            let spec = context.resolve_spec(registry, member.keyword);
+            Some(CompletionItem {
+                label: member.keyword.to_owned(),
+                insert_text,
+                kind: CompletionKind::Function,
+                detail: spec.map(|s| command_detail(s, registry)),
+                sort_text: None,
+                is_snippet: false,
+                filter_text: None,
+                text_edit: None,
+                documentation: spec
+                    .and_then(|s| s.hover.as_ref())
+                    .map(|h| h.summary.to_owned()),
+            })
+        })
+        .collect()
+}
+
+/// Completion items for the command heads of a scoped environment matching
+/// `partial` (`top`, `data`, `columns`, … inside a `report::defstyle` body).
+fn scoped_command_completions(
+    env: &'static tcl_registry::scoped::ScopedCommandEnv,
+    partial: &str,
+    config: tcl_lexer::LexerConfig,
+) -> Vec<CompletionItem> {
+    env.commands
+        .iter()
+        .filter(|c| partial.is_empty() || c.name.starts_with(partial))
+        .filter_map(|c| {
+            let insert_text = tcl_syntax::word_rules::lexical_unicode_source_word(c.name, config)?;
+            Some(CompletionItem {
+                label: c.name.to_owned(),
+                insert_text,
+                kind: CompletionKind::Function,
+                detail: (!c.detail.is_empty()).then(|| c.detail.to_owned()),
+                sort_text: None,
+                is_snippet: false,
+                filter_text: None,
+                text_edit: None,
+                documentation: None,
+            })
+        })
+        .collect()
+}
+
+/// Completion items for the ensemble operations of a scoped command
+/// (`set` / `get` / `enable` / … after `top ` in a `report::defstyle` body).
+fn scoped_op_completions(
+    cmd: &'static tcl_registry::scoped::ScopedCommand,
+    partial: &str,
+    config: tcl_lexer::LexerConfig,
+) -> Vec<CompletionItem> {
+    let ops: Vec<&tcl_registry::SubCommand> = cmd.subcommands.iter().collect();
+    let FilteredCandidates {
+        candidates: ops,
+        fuzzy,
+    } = filter_candidates(partial, ops, |op| op.name);
+    let mut items: Vec<CompletionItem> = ops
+        .into_iter()
+        .filter_map(|s| {
+            let insert_text = tcl_syntax::word_rules::lexical_unicode_source_word(s.name, config)?;
+            Some(CompletionItem {
+                label: s.name.to_owned(),
+                insert_text,
+                kind: CompletionKind::Function,
+                detail: (!s.detail.is_empty()).then(|| s.detail.to_owned()),
+                sort_text: None,
+                is_snippet: false,
+                filter_text: None,
+                text_edit: None,
+                documentation: None,
+            })
+        })
+        .collect();
+    if fuzzy {
+        decorate_fuzzy_items(&mut items, partial);
+    }
+    items
+}
+
+/// Build completions for the second-level subcommands of a two-level ensemble
+/// (`info object <op>` / `info class <op>`), filtered by `partial`.  Each
+/// item's detail is the operation's one-line description.
+fn sub_subcommand_completions(
+    mut subs: Vec<&'static tcl_registry::SubSubCommand>,
+    partial: &str,
+    config: tcl_lexer::LexerConfig,
+) -> Vec<CompletionItem> {
+    subs.sort_unstable_by_key(|s| s.name);
+    let FilteredCandidates {
+        candidates: subs,
+        fuzzy,
+    } = filter_candidates(partial, subs, |s| s.name);
+    let mut items: Vec<CompletionItem> = subs
+        .into_iter()
+        .filter_map(|s| {
+            let insert_text = tcl_syntax::word_rules::lexical_unicode_source_word(s.name, config)?;
+            Some(CompletionItem {
+                label: s.name.to_owned(),
+                insert_text,
+                kind: CompletionKind::Function,
+                detail: (!s.detail.is_empty()).then(|| s.detail.to_owned()),
+                sort_text: None,
+                is_snippet: false,
+                filter_text: None,
+                text_edit: None,
+                documentation: None,
+            })
+        })
+        .collect();
+    if fuzzy {
+        decorate_fuzzy_items(&mut items, partial);
+    }
+    items
+}
+
+/// Build completions for a value position the registry declares boolean
+/// (`ArgRole::Boolean`), filtered by `partial`.
+///
+/// The vocabulary is `tcl_registry::abbrev::BOOLEAN_KEYWORDS` — the same list
+/// `resolve_boolean` accepts, so completion, the formatter's canonical-boolean
+/// rewrite, and the analyser cannot disagree about what a boolean word is.
+fn boolean_value_completions(partial: &str, config: tcl_lexer::LexerConfig) -> Vec<CompletionItem> {
+    let candidates: Vec<&&str> = tcl_registry::abbrev::BOOLEAN_KEYWORDS.iter().collect();
+    let FilteredCandidates { candidates, fuzzy } = filter_candidates(partial, candidates, |v| **v);
+    let mut items: Vec<CompletionItem> = candidates
+        .into_iter()
+        .filter_map(|value| {
+            let insert_text = tcl_syntax::word_rules::lexical_unicode_source_word(*value, config)?;
+            Some(CompletionItem {
+                label: (*value).to_owned(),
+                insert_text,
+                kind: CompletionKind::EnumValue,
+                detail: Some("boolean".to_owned()),
+                sort_text: None,
+                is_snippet: false,
+                filter_text: None,
+                text_edit: None,
+                documentation: None,
+            })
+        })
+        .collect();
+    if fuzzy {
+        decorate_fuzzy_items(&mut items, partial);
+    }
+    items
+}
+
+fn arg_value_completions_from(
+    mut values: Vec<&tcl_registry::ArgValue>,
+    partial: &str,
+    config: tcl_lexer::LexerConfig,
+) -> Vec<CompletionItem> {
+    // Prefix matches retain value order; fuzzy matches retain distance ranking.
+    values.sort_unstable_by_key(|v| v.value);
+    let FilteredCandidates {
+        candidates: values,
+        fuzzy,
+    } = filter_candidates(partial, values, |v| v.value);
+    let mut items: Vec<CompletionItem> = values
+        .into_iter()
+        .filter_map(|v| {
+            let insert_text = tcl_syntax::word_rules::lexical_unicode_source_word(v.value, config)?;
+            Some(CompletionItem {
+                label: v.value.to_owned(),
+                insert_text,
+                kind: CompletionKind::EnumValue,
+                detail: (!v.detail.is_empty()).then(|| v.detail.to_owned()),
+                sort_text: None,
+                is_snippet: false,
+                filter_text: None,
+                text_edit: None,
+                documentation: None,
+            })
+        })
+        .collect();
+    if fuzzy {
+        decorate_fuzzy_items(&mut items, partial);
+    }
+    items
+}
+
+/// Map a usage count to its sort bucket (lower is better).
+fn usage_bucket(count: usize) -> u8 {
+    match count {
+        c if c >= 50 => 0,
+        c if c >= 20 => 1,
+        c if c >= 8 => 2,
+        c if c >= 3 => 3,
+        c if c >= 1 => 4,
+        _ => 5,
+    }
+}
+
+/// Build a `HashMap<command_name, usage_count>` from the
+/// analyser's per-document `command_invocations`.  Used as a
+/// best-effort, document-local proxy for workspace-wide usage
+/// counts.
+fn document_usage_counts(analysis: &AnalysisResult) -> FxHashMap<String, usize> {
+    let mut counts: FxHashMap<String, usize> = FxHashMap::default();
+    for inv in &analysis.command_invocations {
+        *counts.entry(inv.name.clone()).or_insert(0) += 1;
+        if let Some(q) = inv.resolved_qualified_name.as_deref()
+            && q != inv.name
+        {
+            *counts.entry(q.to_owned()).or_insert(0) += 1;
+        }
+    }
+    counts
+}
+
+/// What kind of `TclOO` frame the completion cursor sits in — which decides
+/// whether the `oo::Helpers` family's bare spellings may be offered.
+///
+/// Thin position-to-offset wrapper over the crate's single frame
+/// classifier, so completion, hover, and the analyser's W123 emitter all
+/// answer from the same scope walk.
+fn oo_frame_at(
+    analysis: &AnalysisResult,
+    source: &str,
+    line: u32,
+    character: u32,
+    line_index: &tcl_lexer::LineIndex,
+) -> crate::oo_dispatch::OoFrame {
+    let offset = crate::definition::byte_offset_at(line_index, source, line, character);
+    crate::oo_dispatch::OoFrame::at(analysis, offset)
+}
+
+fn builtin_sort_text(name: &str, usage: usize) -> String {
+    // `B<usage>_<name>` — built-ins sort after user procs (`A…`)
+    // but before any item with no `sort_text`.  The two-digit
+    // bucket prevents lexicographic confusion between 1 and 10.
+    let rank = usage_bucket(usage);
+    format!("B{rank:02}_{name}")
+}
+
+fn builtin_completions(
+    registry: &CommandRegistry,
+    dialect: &'static tcl_dialect::DialectProfile,
+    partial: &str,
+    usage: &FxHashMap<String, usize>,
+    tk_advice: bool,
+    analysis: &AnalysisResult,
+    oo_frame: crate::oo_dispatch::OoFrame,
+) -> Vec<CompletionItem> {
+    let Some(input) = analysis.resolved_input.as_ref() else {
+        return Vec::new();
+    };
+    let config = input.lexer_config();
+    if analysis.body_lexer_config != Some(config) {
+        return Vec::new();
+    }
+    // Availability-gate the command list through the dialect profile: a
+    // command whose spec restricts itself to later dialects (`try` is Tcl
+    // 8.6+, `lseq` is 9.0+, …) must not be offered in an earlier-dialect
+    // buffer, a vendor profile's composed mask admits its embedded Tcl core
+    // (8.5 `dict` under f5-iapps), and the subtractive iRules disable list
+    // filters the banned commands (§9 of the dialect-profile model).
+    // `load_dialect` only *adds* dialect command sets (iRules / Tk / …); it
+    // never removes a version-gated core command, so `command_names()`
+    // still lists `try` under `tcl8.4`/`tcl8.5` — filter here via the same
+    // profile resolution the analyser's W123 uses. An unknown dialect
+    // (custom / non-Tcl) resolves to the permissive fallback environment.
+    let profile = dialect;
+    let Some(context) = crate::document_floor::DocumentFloor::new(analysis, profile).context()
+    else {
+        return Vec::new();
+    };
+    // naming.consumer.selected-catalogue-completion-provider
+    // docs/design/analysis/name-resolution-proofs/selected-catalogue-completion-provider.md
+    // Retain one descriptor from the actual document availability context.
+    // A same-name row from another provider cannot decide any later filter.
+    let mut candidates: Vec<_> = registry
+        .command_names()
+        .filter(|name| partial.is_empty() || name.starts_with(partial))
+        .filter_map(|name| {
+            context
+                .resolve_spec(registry, name)
+                .map(|spec| (name, spec))
+        })
+        .filter(|(_, spec)| {
+            !spec.traits.contains(tcl_registry::Traits::OPERATOR_COMMAND)
+                && !spec
+                    .traits
+                    .contains(tcl_registry::Traits::DEFINITION_BODY_MEMBER_ONLY)
+        })
+        .filter(|(_, spec)| oo_frame.admits_selected_spec(spec))
+        .filter(|(_, spec)| {
+            (tk_advice && context.can_host_package("Tk")) || spec.required_package != Some("Tk")
+        })
+        .filter(|(_, spec)| {
+            let floor = package_version_floor(analysis, spec, profile);
+            match (context.keyed_version_range(spec), floor) {
+                (Some((min, max)), Some(floor)) => {
+                    tcl_registry::version::within_range(floor, min, max)
+                }
+                _ => spec.available_for_version(floor),
+            }
+        })
+        .collect();
+    candidates.sort_unstable_by_key(|(name, _)| *name);
+    candidates
+        .into_iter()
+        .filter_map(|(name, spec)| {
+            let insert_text = tcl_syntax::word_rules::lexical_unicode_source_word(name, config)?;
+            let count = usage.get(name).copied().unwrap_or(0);
+            Some(CompletionItem {
+                label: name.to_owned(),
+                insert_text,
+                kind: CompletionKind::Function,
+                detail: Some(command_detail(spec, registry)),
+                sort_text: Some(builtin_sort_text(name, count)),
+                is_snippet: false,
+                filter_text: None,
+                text_edit: None,
+                documentation: spec.hover.as_ref().map(|hover| hover.summary.to_owned()),
+            })
+        })
+        .collect()
+}
+
+/// `expr` math-function completions — the bare names
+/// (`sin`, `max`, …) that are callable *only* inside an expression.
+///
+/// Sourced from the registry's own `::tcl::mathfunc::*` specs
+/// ([`CommandRegistry::math_function_names`] / `math_function_spec`), which
+/// are themselves derived from `tcl_syntax::expr::mathfunc` — one canonical
+/// table, no second list here — and gated on the profile's `expr`-grammar
+/// version, so `max` never appears under `tcl8.4` and `gamma` only under
+/// `tcl9.1`.
+///
+/// Ranked in the local-symbol tier (`A000_…`, alongside the most-used local
+/// procs and ahead of the `B…` built-ins) because at this position they are
+/// the candidates that can actually be called: an ordinary command is
+/// reachable inside an expression only through a `[…]` substitution, which is
+/// a different cursor context.
+fn math_function_completions(
+    registry: &CommandRegistry,
+    profile: &'static tcl_dialect::DialectProfile,
+    partial: &str,
+) -> Vec<CompletionItem> {
+    registry
+        .math_function_names(profile)
+        .into_iter()
+        .filter(|name| partial.is_empty() || name.starts_with(partial))
+        .map(|name| {
+            let spec = registry.math_function_spec(name, profile);
+            CompletionItem {
+                label: name.to_owned(),
+                insert_text: name.to_owned(),
+                kind: CompletionKind::Function,
+                detail: Some("expr math function".to_owned()),
+                sort_text: Some(format!("A000_{name}")),
+                is_snippet: false,
+                filter_text: None,
+                text_edit: None,
+                documentation: spec
+                    .and_then(|s| s.hover.as_ref())
+                    .map(|h| h.summary.to_owned()),
+            }
+        })
+        .collect()
+}
+
+/// Completion-detail provenance string for a built-in command:
+/// `tcllib (PKG)` / `stdlib (PKG)` / `Tk` / `built-in`.  Tcllib takes
+/// precedence over a plain `required_package`; a package the profile
+/// ships ambiently (an F5 surface — §7.1 axis C) is part of the runtime
+/// and reads `built-in`, not like a require-gated stdlib package.
+fn command_detail(
+    spec: &tcl_registry::CommandSpec,
+    registry: &tcl_registry::registry::CommandRegistry,
+) -> String {
+    if let Some(pkg) = spec.tcllib_package {
+        format!("tcllib ({pkg})")
+    } else if let Some(pkg) = spec.required_package
+        && !registry.is_ambient_package(pkg)
+    {
+        if pkg == "Tk" {
+            "Tk".to_string()
+        } else {
+            format!("stdlib ({pkg})")
+        }
+    } else {
+        "built-in".to_string()
+    }
+}
+
+/// Render a parameter-list summary for a proc completion's
+/// `detail` field.
+/// Returns `"(no args)"` for paramless procs, otherwise a
+/// space-separated list with `{name default}` for optional
+/// params.
+fn proc_signature_str(proc_def: &ProcDef) -> String {
+    if proc_def.params.is_empty() {
+        return "(no args)".to_string();
+    }
+    proc_def
+        .params
+        .iter()
+        .map(|p| {
+            if p.has_default {
+                let default = p.default_value.as_deref().unwrap_or("");
+                format!("{{{} {}}}", p.name, default)
+            } else {
+                p.name.clone()
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+fn proc_sort_text(name: &str, usage: usize) -> String {
+    // `A<tier><usage>_<name>` — `tier = 0` reserved for
+    // single-document user procs; `tier = 1` differentiates
+    // same-file procs from workspace ones.
+    let rank = usage_bucket(usage);
+    format!("A0{rank:02}_{name}")
+}
+
+fn proc_completions(
+    analysis: &AnalysisResult,
+    partial: &str,
+    usage: &FxHashMap<String, usize>,
+) -> Vec<CompletionItem> {
+    // naming.source.original-procedure-publications
+    // docs/design/analysis/name-resolution-proofs/source-original-procedure-publications.md
+    let source_inventory = analysis
+        .retained_command_realm()
+        .and_then(|realm| realm.original_source_image())
+        .and_then(|image| image.try_text().ok())
+        .and_then(|source| {
+            tcl_compiler::registry_invocation::source_structure::source_procedure_publications(
+                source, analysis,
+            )
+        });
+    let mut names = Vec::new();
+    if let Some(world) = analysis.original_completed_command_world() {
+        // Current publication is independent of canonical declaration metadata.
+        // A move changes the candidate spelling; deletion removes it here.
+        for publication in world.declarations() {
+            for declaration in analysis.original_procedure_declarations() {
+                if publication.declaration_site() == declaration.declaration_site()
+                    && publication.policy() == declaration.name().policy()
+                {
+                    names.push((declaration, publication.slot(), publication.policy()));
+                }
+            }
+        }
+    } else if let Some(inventory) = source_inventory.as_ref() {
+        names.extend(
+            inventory
+                .candidates(analysis.original_procedure_declarations())
+                .into_iter()
+                .map(|candidate| {
+                    (
+                        candidate.declaration(),
+                        candidate.source_slot(),
+                        candidate.policy(),
+                    )
+                }),
+        );
+    } else {
+        // Genuine declaration cards remain independent of a represented graph.
+        names.extend(
+            analysis
+                .original_procedure_declarations()
+                .map(|declaration| {
+                    (
+                        declaration,
+                        declaration.name().slot(),
+                        declaration.name().policy(),
+                    )
+                }),
+        );
+    }
+    let mut items = Vec::new();
+    for (declaration, slot, policy) in names {
+        let proc_def = declaration.metadata();
+        let original = declaration.name_input();
+        let Some(spelling) = tcl_syntax::naming::native_command_source_word(
+            policy.recipe(),
+            slot,
+            original.source_image().channel(),
+            original.lexer_config(),
+        ) else {
+            continue;
+        };
+        let label =
+            if slot.simple == declaration.name().slot().simple && original.display().is_some() {
+                proc_def.name.clone()
+            } else {
+                slot.simple
+                    .try_utf8()
+                    .map_or_else(|_| spelling.clone(), str::to_owned)
+            };
+        let report =
+            String::from_utf8(tcl_syntax::naming::native_command_full_name_bytes(slot)).ok();
+        if !label.starts_with(partial)
+            && !report
+                .as_ref()
+                .is_some_and(|name| name.starts_with(partial))
+            && !spelling.starts_with(partial)
+        {
+            continue;
+        }
+        let count = usage
+            .get(&label)
+            .copied()
+            .max(report.as_ref().and_then(|name| usage.get(name)).copied())
+            .unwrap_or(0);
+        items.push(CompletionItem {
+            label: label.clone(),
+            insert_text: spelling,
+            kind: CompletionKind::Function,
+            detail: Some(proc_signature_str(proc_def)),
+            sort_text: Some(proc_sort_text(&label, count)),
+            is_snippet: false,
+            filter_text: None,
+            text_edit: None,
+            documentation: None,
+        });
+    }
+    if let Some(config) = analysis.body_lexer_config {
+        for declaration in analysis.original_vendor_procedure_declarations() {
+            let input = declaration.name_input();
+            let Some(spelling) =
+                crate::vendor_declaration::source_word(input, declaration.purpose(), config)
+            else {
+                continue;
+            };
+            let Some(label) = crate::vendor_declaration::source_label(input, declaration.purpose())
+            else {
+                continue;
+            };
+            if !label.starts_with(partial) && !spelling.starts_with(partial) {
+                continue;
+            }
+            let count = usage.get(&label).copied().unwrap_or(0);
+            items.push(CompletionItem {
+                label: label.clone(),
+                insert_text: spelling,
+                kind: CompletionKind::Function,
+                detail: Some(format!(
+                    "Source declaration: {}",
+                    proc_signature_str(declaration.metadata())
+                )),
+                sort_text: Some(proc_sort_text(&label, count)),
+                is_snippet: false,
+                filter_text: None,
+                text_edit: None,
+                documentation: None,
+            });
+        }
+    }
+    if analysis.allows_lexical_declaration_advice()
+        && let Some(config) = analysis.body_lexer_config
+    {
+        // Original Logical headers supply insertion data without Native publications.
+        for proc_def in analysis
+            .all_procs
+            .values()
+            .filter(|proc_def| proc_def.source_name.is_none())
+        {
+            let Some(declaration) = analysis.logical_source_procedure_declaration(proc_def) else {
+                continue;
+            };
+            let Some(name) = declaration.name() else {
+                continue;
+            };
+            let Some(spelling) = declaration.source_word(config) else {
+                continue;
+            };
+            if !name.starts_with(partial) && !spelling.starts_with(partial) {
+                continue;
+            }
+            let count = usage.get(name).copied().unwrap_or(0);
+            items.push(CompletionItem {
+                label: name.to_owned(),
+                insert_text: spelling,
+                kind: CompletionKind::Function,
+                detail: Some(proc_signature_str(declaration.metadata())),
+                sort_text: Some(proc_sort_text(name, count)),
+                is_snippet: false,
+                filter_text: None,
+                text_edit: None,
+                documentation: None,
+            });
+        }
+    }
+    items.sort_unstable_by(|left, right| {
+        left.label
+            .cmp(&right.label)
+            .then_with(|| left.insert_text.cmp(&right.insert_text))
+    });
+    items.dedup_by(|left, right| {
+        left.insert_text == right.insert_text && left.detail == right.detail
+    });
+    items
+}
+
+/// Proc-name completions for an `INVOKES_USER_PROC` argument (iRules
+/// `call PROC_NAME`), with the fuzzy fallback: this list is the whole
+/// response for that cursor context, so when no proc prefix-matches a
+/// two-plus-character fragment the closest proc names are offered
+/// instead of an empty list.
+fn invoked_proc_completions(analysis: &AnalysisResult, partial: &str) -> Vec<CompletionItem> {
+    let usage = document_usage_counts(analysis);
+    let items = proc_completions(analysis, partial, &usage);
+    if !items.is_empty() || partial.is_empty() {
+        return items;
+    }
+    let FilteredCandidates {
+        candidates: mut fallback,
+        fuzzy,
+    } = filter_candidates(partial, proc_completions(analysis, "", &usage), |item| {
+        item_match_name(item, partial)
+    });
+    if fuzzy {
+        decorate_fuzzy_items(&mut fallback, partial);
+    }
+    fallback
+}
+
+/// Response-level fuzzy fallback for the command-position path: called
+/// by [`completions`] only when procs, built-ins, scoped heads,
+/// workspace procs, and snippets all produced nothing for the typed
+/// fragment.  Re-enumerates the same candidate universe the prefix
+/// path consults — `$obj` methods when the command head is a known
+/// instance, then user procs, built-ins, and scoped command heads —
+/// and offers the closest names via [`filter_candidates`].
+fn fuzzy_command_fallback(
+    source: &str,
+    line: u32,
+    character: u32,
+    analysis: &AnalysisResult,
+    registry: Option<&CommandRegistry>,
+    dialect: &'static tcl_dialect::DialectProfile,
+    line_index: &tcl_lexer::LineIndex,
+) -> Vec<CompletionItem> {
+    let Some(prefix) = word_prefix_at_position(source, line, character, analysis) else {
+        return Vec::new();
+    };
+    let command_head = prefix.word_index() == 0;
+    let Some(partial) = tcl_syntax::word_rules::original_word_cursor_literal_prefix(&prefix) else {
+        return Vec::new();
+    };
+    if partial.chars().count() < MIN_FUZZY_FRAGMENT_CHARS {
+        return Vec::new();
+    }
+    let usage = document_usage_counts(analysis);
+    let mut universe: Vec<CompletionItem> = Vec::new();
+    // Receiver-method context — the method universe the instance branch of
+    // `context_aware_completions` declined to fuzzy-match (see
+    // `method_completions`) joins the ranking here, resolved with the same
+    // `$var`-vs-bareword gate that branch applies. This candidate universe
+    // grants no method navigation or rename identity.
+    let cursor = crate::definition::byte_offset_at(line_index, source, line, character);
+    let original_context = crate::original_oo::class_completion_context(analysis, source, cursor);
+    if let std::ops::ControlFlow::Break(Some(record)) = original_context {
+        universe.extend(original_class_method_items(analysis, record, ""));
+    } else if let Some(record) =
+        crate::original_oo::instance_method_completion_record(analysis, source, cursor)
+    {
+        universe.extend(original_instance_method_candidate_items_at(
+            analysis, record, source, cursor, "", None,
+        ));
+    }
+    if analysis.allows_lexical_declaration_advice()
+        && let Some(command) = command_context_on_line(source, line, character, analysis)
+        && command.word_index == 1
+        && let Some((recv, is_dollar)) = dispatch_receiver_of(&command.head)
+        && let Some(registry) = registry
+        && let Some((class_q, bucket)) = logical_completion_receiver_candidate(
+            analysis,
+            registry,
+            &command.head,
+            &recv,
+            is_dollar,
+        )
+    {
+        let object_state =
+            crate::definition::object_member_state_at(analysis, source, &recv, line, character);
+        let methods = method_items(
+            analysis,
+            Some(registry),
+            class_q,
+            bucket,
+            object_state,
+            dialect,
+        );
+        if let Some(methods) = methods {
+            universe.extend(methods);
+        }
+    }
+    if command_head {
+        universe.extend(proc_completions(analysis, "", &usage));
+    }
+    if command_head && let Some(registry) = registry {
+        // Both halves are placement facts — the
+        // environment ships Tk ambient (`wish`), or this document required
+        // it. No `SpecSurface` bit and no environment *name* is consulted.
+        let tk_advice =
+            crate::document_floor::DocumentFloor::new(analysis, dialect).advises_package("Tk");
+        let oo_frame = oo_frame_at(analysis, source, line, character, line_index);
+        universe.extend(builtin_completions(
+            registry, dialect, "", &usage, tk_advice, analysis, oo_frame,
+        ));
+    }
+    if command_head && let Some(env) = scoped_env_at(analysis, source, line, character, line_index)
+    {
+        let present: FxHashSet<String> = universe.iter().map(|i| i.label.clone()).collect();
+        universe.extend(
+            scoped_command_completions(env, "", prefix.config())
+                .into_iter()
+                .filter(|item| !present.contains(&item.label)),
+        );
+    }
+    let FilteredCandidates {
+        candidates: mut items,
+        fuzzy,
+    } = filter_candidates(&partial, universe, |item| item_match_name(item, &partial));
+    if fuzzy {
+        decorate_fuzzy_items(&mut items, &partial);
+    }
+    items
+}
+
+#[cfg(test)]
+mod source_catalogue_word_tests {
+    use super::*;
+
+    fn value(item: &CompletionItem, config: tcl_lexer::LexerConfig) -> Vec<u8> {
+        let image = tcl_lexer::SourceImage::document(&item.insert_text);
+        let plan = tcl_lexer::native_script_words_in(
+            image,
+            tcl_lexer::Span::new(0, item.insert_text.len() as u32),
+            config,
+        )
+        .unwrap();
+        assert!(plan.fatal_tail.is_none());
+        let [command] = plan.commands.as_slice() else {
+            panic!("one command")
+        };
+        let [word] = command.words.as_slice() else {
+            panic!("one source word")
+        };
+        assert_eq!(
+            word.span(),
+            tcl_lexer::Span::new(0, item.insert_text.len() as u32)
+        );
+        tcl_syntax::word_rules::original_static_word_unicode_value(word).unwrap()
+    }
+
+    #[test]
+    fn source_catalogue_insertions_encode_provider_data_before_packaging_labels() {
+        use tcl_registry::scoped::{ScopedCommand, ScopedCommandEnv};
+        static OPS: &[tcl_registry::SubCommand] = &[tcl_registry::SubCommand {
+            name: r"op\x41",
+            ..tcl_registry::SubCommand::DEFAULT
+        }];
+        static COMMANDS: &[ScopedCommand] = &[ScopedCommand {
+            name: "café $[literal]",
+            arity: tcl_registry::arity::Arity::any(),
+            subcommands: OPS,
+            allow_unknown_subcommands: false,
+            detail: "",
+            hover: None,
+        }];
+        static ENV: ScopedCommandEnv = ScopedCommandEnv {
+            name: "source catalogue",
+            commands: COMMANDS,
+            include_sibling_definitions: false,
+            allow_unknown_commands: false,
+        };
+        static NESTED: tcl_registry::SubSubCommand = tcl_registry::SubSubCommand {
+            name: r"nested\u0041",
+            ..tcl_registry::SubSubCommand::DEFAULT
+        };
+        static VALUE: tcl_registry::ArgValue = tcl_registry::ArgValue {
+            value: r"value\uD800",
+            ..tcl_registry::ArgValue::DEFAULT
+        };
+        let config = tcl_lexer::LexerConfig::for_dialect("tcl8.6");
+        for (items, expected) in [
+            (
+                scoped_command_completions(&ENV, "", config),
+                COMMANDS[0].name,
+            ),
+            (scoped_op_completions(&COMMANDS[0], "", config), OPS[0].name),
+            (
+                arg_value_completions_from_subcommands(vec![&OPS[0]], "", config),
+                OPS[0].name,
+            ),
+            (
+                sub_subcommand_completions(vec![&NESTED], "", config),
+                NESTED.name,
+            ),
+            (
+                arg_value_completions_from(vec![&VALUE], "", config),
+                VALUE.value,
+            ),
+        ] {
+            let [item] = items.as_slice() else {
+                panic!("one provider candidate")
+            };
+            assert_eq!(item.label, expected);
+            assert_eq!(value(item, config), expected.as_bytes());
+            assert_ne!(item.insert_text, expected);
+        }
+    }
+
+    #[test]
+    fn actual_builtin_catalogue_names_keep_literal_unicode_and_escape_data() {
+        for name in [r"take\x41", "café name"] {
+            let mut registry = tcl_registry::CommandRegistry::build_default();
+            registry.insert(tcl_registry::CommandSpec {
+                name,
+                ..tcl_registry::CommandSpec::DEFAULT
+            });
+            let source = if name.starts_with("take") {
+                "ta"
+            } else {
+                "caf"
+            };
+            let analysis = crate::refactor::test_logical_analysis(
+                source,
+                "tcl",
+                std::sync::Arc::new(registry),
+            );
+            let items = completions(
+                source,
+                0,
+                source.len() as u32,
+                &analysis,
+                None,
+                None,
+                analysis.resolved_profile().unwrap(),
+            );
+            let item = items.iter().find(|item| item.label == name).unwrap();
+            assert_eq!(
+                value(item, analysis.body_lexer_config.unwrap()),
+                name.as_bytes()
+            );
+            assert_ne!(item.insert_text, name);
+            assert!(source_method_name_word(&analysis, "a\0b").is_none());
+            let mut missing = analysis.clone();
+            missing.resolved_input = None;
+            assert!(
+                completions(
+                    source,
+                    0,
+                    source.len() as u32,
+                    &missing,
+                    None,
+                    None,
+                    analysis.resolved_profile().unwrap()
+                )
+                .is_empty()
+            );
+        }
+    }
+
+    #[test]
+    fn event_candidates_use_the_actual_configured_placement() {
+        use tcl_compiler::analyser::Analyser;
+        let old = Analyser::new()
+            .with_bigip_version(Some("9.4.0".to_owned()))
+            .analyse("when ", "f5-irules");
+        let current = Analyser::new()
+            .with_bigip_version(Some("16.1.0".to_owned()))
+            .analyse("when ", "f5-irules");
+        let old_items = event_name_completions("", &old);
+        assert!(old_items.iter().any(|item| item.label == "HTTP_REQUEST"));
+        assert!(
+            old_items
+                .iter()
+                .any(|item| item.label == "XML_BEGIN_DOCUMENT")
+        );
+        let current_items = event_name_completions("", &current);
+        assert!(
+            current_items
+                .iter()
+                .any(|item| item.label == "HTTP_REQUEST")
+        );
+        assert!(
+            !current_items
+                .iter()
+                .any(|item| item.label == "XML_BEGIN_DOCUMENT")
+        );
+        let mut missing = current.clone();
+        missing.resolved_input = None;
+        assert!(event_name_completions("", &missing).is_empty());
+        let mut changed = current.clone();
+        changed.body_lexer_config = Some(tcl_lexer::LexerConfig::for_dialect("jim"));
+        assert!(event_name_completions("", &changed).is_empty());
+    }
+}
+
+#[cfg(test)]
+mod original_command_cursor_tests {
+    use super::*;
+    use tcl_compiler::analyser::Analyser;
+
+    #[test]
+    fn command_completion_replaces_actual_escaped_and_delimited_words() {
+        for dialect in ["tcl", "tcl8.6"] {
+            for (written, extends_to_eof) in [
+                (r"two\ wo<|>suffix", false),
+                ("{two wo<|>suffix}", false),
+                ("\"two wo<|>suffix\"", false),
+                ("{two wo<|>", true),
+            ] {
+                const HEADER: &str = "proc {two words} {} {}; ";
+                let marked = format!("{HEADER}{written} remaining");
+                let cursor = marked.find("<|>").unwrap();
+                let source = marked.replacen("<|>", "", 1);
+                let analysis = Analyser::new().analyse(&source, dialect);
+                let index = tcl_lexer::LineIndex::new(&source);
+                let position = index.position_at_utf16(cursor as u32, &source);
+                let items = completions(
+                    &source,
+                    position.line,
+                    position.character.get(),
+                    &analysis,
+                    None,
+                    None,
+                    analysis.resolved_profile().unwrap(),
+                );
+                let item = items
+                    .iter()
+                    .find(|item| item.label == "two words")
+                    .expect("the actual source declaration remains a candidate");
+                let edit = item.text_edit.as_ref().expect("original container edit");
+                let start = HEADER.encode_utf16().count() as u32;
+                let end = if extends_to_eof {
+                    source.encode_utf16().count() as u32
+                } else {
+                    start + written.replace("<|>", "").encode_utf16().count() as u32
+                };
+                assert_eq!((edit.start_char, edit.end_char), (start, end));
+                assert_eq!(edit.new_text, item.insert_text);
+                assert!(edit.start_char < position.character.get());
+                if !extends_to_eof {
+                    assert!(source[end as usize..].starts_with(" remaining"));
+                }
+                let mut missing = analysis.clone();
+                missing.body_lexer_config = None;
+                assert!(
+                    completions(
+                        &source,
+                        position.line,
+                        position.character.get(),
+                        &missing,
+                        None,
+                        None,
+                        analysis.resolved_profile().unwrap()
+                    )
+                    .is_empty()
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn switch_completion_keeps_actual_prefix_and_complete_original_container() {
+        let marked = r"lsearch \x2dno<|>suffix";
+        let cursor = marked.find("<|>").unwrap();
+        let source = marked.replacen("<|>", "", 1);
+        let analysis = Analyser::new().analyse(&source, "tcl8.6");
+        let position = tcl_lexer::LineIndex::new(&source).position_at_utf16(cursor as u32, &source);
+        let items = completions(
+            &source,
+            0,
+            position.character.get(),
+            &analysis,
+            None,
+            None,
+            analysis.resolved_profile().unwrap(),
+        );
+        let edit = items
+            .iter()
+            .find(|item| item.label == "-nocase")
+            .unwrap()
+            .text_edit
+            .as_ref()
+            .unwrap();
+        assert_eq!(edit.start_char, 8);
+        assert_eq!(edit.end_char, source.len() as u32);
+        assert_eq!(edit.new_text, "-nocase");
+    }
+
+    #[test]
+    fn command_cursor_cannot_promote_data_comments_or_invalid_utf16_points() {
+        for tail in ["puts {two wo<|>rds}", "# two wo<|>rds", "{*}two\\ wo<|>rds"] {
+            let marked = format!("proc {{two words}} {{}} {{}}; {tail}");
+            let cursor = marked.find("<|>").unwrap();
+            let source = marked.replacen("<|>", "", 1);
+            let analysis = Analyser::new().analyse(&source, "tcl");
+            let position =
+                tcl_lexer::LineIndex::new(&source).position_at_utf16(cursor as u32, &source);
+            assert!(
+                !completions(
+                    &source,
+                    position.line,
+                    position.character.get(),
+                    &analysis,
+                    None,
+                    None,
+                    analysis.resolved_profile().unwrap()
+                )
+                .iter()
+                .any(|item| item.label == "two words")
+            );
+        }
+        let source = "proc 😀name {} {}; 😀";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        let end = tcl_lexer::LineIndex::new(source).position_at_utf16(source.len() as u32, source);
+        assert!(
+            completions(
+                source,
+                0,
+                end.character.get() - 1,
+                &analysis,
+                None,
+                None,
+                analysis.resolved_profile().unwrap()
+            )
+            .is_empty()
+        );
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tcl_compiler::analyser::Analyser;
+    use tcl_dialect::model::{Family, SurfaceLayer};
+
+    fn analyse(source: &str) -> AnalysisResult {
+        let mut a = Analyser::new();
+        a.analyse(source, "tcl8.6").clone()
+    }
+
+    fn analyse_for(source: &str, environment: &str) -> AnalysisResult {
+        let mut analyser = Analyser::new();
+        let input = analyser
+            .prepare_analysis_input(environment)
+            .expect("test environment has a complete analysis input");
+        analyser = analyser.with_resolved_input(input);
+        analyser.analyse(source, environment).clone()
+    }
+
+    /// [`analyse`] under Tcl 9.0 — for sources using 9.0-only class
+    /// machinery (`oo::configurable`, `property`), which the 8.6 analysis
+    /// the rest of this module uses does not model.
+    fn analyse9(source: &str) -> AnalysisResult {
+        let mut a = Analyser::new();
+        a.analyse(source, "tcl9.0").clone()
+    }
+
+    #[test]
+    fn array_element_completion_does_not_eat_trailing_text_when_unclosed() {
+        // `$arr(k more stuff` with no `)` — accepting `$arr(key)` must replace
+        // only up to the cursor, not to end-of-line, so ` more stuff` survives
+        // (issue 181).
+        let src = "set arr(key) 1\nset v $arr(k more stuff\n";
+        let analysis = analyse(src);
+        let registry = CommandRegistry::build_default();
+        // Line 1, cursor just after `k`: `set v $arr(k` → char col 12.
+        let items = completions(
+            src,
+            1,
+            12,
+            &analysis,
+            Some(&registry),
+            None,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        );
+        let key = items
+            .iter()
+            .find(|i| i.label == "$arr(key)")
+            .expect("array-element completion offered");
+        let edit = key.text_edit.as_ref().expect("has a replace edit");
+        assert_eq!(
+            edit.end_char, 12,
+            "replace range must stop at the cursor, not run to EOL"
+        );
+    }
+
+    #[test]
+    fn array_element_completion_swallows_existing_close_paren() {
+        // With a closing `)`, the replace range extends through it so the old
+        // index is fully replaced.
+        let src = "set arr(key) 1\nset v $arr(k)\n";
+        let analysis = analyse(src);
+        let registry = CommandRegistry::build_default();
+        let items = completions(
+            src,
+            1,
+            12,
+            &analysis,
+            Some(&registry),
+            None,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        );
+        let key = items
+            .iter()
+            .find(|i| i.label == "$arr(key)")
+            .expect("array-element completion offered");
+        let edit = key.text_edit.as_ref().expect("has a replace edit");
+        assert_eq!(edit.end_char, 13, "replace range must cover the `)`");
+    }
+
+    #[test]
+    fn obj_method_completion_includes_inherited() {
+        let src = "oo::class create Animal {\n    method eat {} {}\n}\noo::class create Dog {\n    superclass Animal\n    method bark {} {}\n}\nset d [Dog new]\n$d \n";
+        let analysis = analyse(src);
+        let registry = CommandRegistry::build_default();
+        // Cursor after `$d ` on line 8.
+        let items = completions(
+            src,
+            8,
+            3,
+            &analysis,
+            Some(&registry),
+            None,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        );
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert!(labels.contains(&"bark"), "own method missing: {labels:?}");
+        assert!(
+            labels.contains(&"eat"),
+            "inherited method missing: {labels:?}"
+        );
+        assert!(labels.contains(&"destroy"), "builtin missing: {labels:?}");
+        // The inherited one is labelled as such.
+        let eat = items.iter().find(|i| i.label == "eat").unwrap();
+        assert!(
+            eat.detail
+                .as_deref()
+                .unwrap_or("")
+                .contains("inherited from ::Animal"),
+            "{:?}",
+            eat.detail
+        );
+    }
+
+    #[test]
+    fn malformed_braced_instance_head_does_not_offer_method_completion() {
+        let src = "oo::class create Dog {\n    method bark {} {}\n}\nset x [Dog new]\n${x ba\n";
+        let analysis = analyse(src);
+        let registry = CommandRegistry::build_default();
+        let items = completions(
+            src,
+            4,
+            6,
+            &analysis,
+            Some(&registry),
+            None,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        );
+        assert!(
+            !items.iter().any(|item| item.label == "bark"),
+            "malformed `${{x` must not dispatch through real `x`: {items:?}"
+        );
+        assert_eq!(
+            strip_instance_var("${x}", tcl_lexer::LexerConfig::default()),
+            Some("x".to_owned())
+        );
+        assert_eq!(
+            strip_instance_var("$x", tcl_lexer::LexerConfig::default()),
+            Some("x".to_owned())
+        );
+        // Completion intentionally only dispatches simple scalar handles;
+        // the shared codec still parses the array decoration, but this
+        // feature's documented name validation rejects it.
+        assert_eq!(
+            strip_instance_var("$arr(idx)", tcl_lexer::LexerConfig::default()),
+            None
+        );
+        assert_eq!(
+            strip_instance_var("$::a:::b", tcl_lexer::LexerConfig::default()),
+            Some("::a:::b".to_owned())
+        );
+        assert_eq!(
+            strip_instance_var("$foo:::", tcl_lexer::LexerConfig::default()).as_deref(),
+            Some("foo:::")
+        );
+        assert_eq!(
+            strip_instance_var("${x", tcl_lexer::LexerConfig::default()).as_deref(),
+            None
+        );
+    }
+
+    #[test]
+    fn obj_method_completion_includes_generated_property_accessors() {
+        // W308 and the semantic-token
+        // classifier accept the `configure` an `oo::configurable`
+        // class generates for its `property` members — completion must
+        // offer the same surface, or the editor colours a method it will
+        // not complete.  `cget` is not generated (`configurable.n`) and
+        // must not be offered.
+        let src = "oo::configurable create Point {\n    property x\n    method shift {} {}\n}\nset p [Point new]\n$p \n";
+        let analysis = analyse9(src);
+        let registry = CommandRegistry::build_default();
+        // Cursor after `$p ` on line 5.
+        let items = completions(
+            src,
+            5,
+            3,
+            &analysis,
+            Some(&registry),
+            None,
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
+        );
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert!(labels.contains(&"shift"), "declared method: {labels:?}");
+        assert!(
+            labels.contains(&"configure"),
+            "generated accessor missing: {labels:?}"
+        );
+        assert!(
+            !labels.contains(&"cget"),
+            "cget is not generated and must not be offered: {labels:?}"
+        );
+        let configure = items.iter().find(|i| i.label == "configure").unwrap();
+        assert!(
+            configure
+                .detail
+                .as_deref()
+                .unwrap_or("")
+                .contains("generated"),
+            "{:?}",
+            configure.detail
+        );
+    }
+
+    #[test]
+    fn obj_method_completion_inherits_generated_accessors_through_plain_subclass() {
+        // A plain `oo::class` subclass of a configurable class inherits the
+        // generated `configure` as a real method — same MRO fold as W308.
+        let src = "oo::configurable create Point {\n    property x\n}\noo::class create Point3 {\n    superclass Point\n    property z\n}\nset p [Point3 new]\n$p \n";
+        let analysis = analyse9(src);
+        let registry = CommandRegistry::build_default();
+        // Cursor after `$p ` on line 8.
+        let items = completions(
+            src,
+            8,
+            3,
+            &analysis,
+            Some(&registry),
+            None,
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
+        );
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert!(
+            labels.contains(&"configure"),
+            "inherited generated accessor missing: {labels:?}"
+        );
+    }
+
+    #[test]
+    fn obj_method_completion_offers_no_accessor_on_a_plain_class() {
+        // The other direction: a plain `oo::class` with no configurable
+        // ancestor has no `configure` — offering one would complete a
+        // method that fails at dispatch (the W308 true positive's twin).
+        let src = "oo::class create Plain {\n    method only {} {}\n}\nset p [Plain new]\n$p \n";
+        let analysis = analyse9(src);
+        let registry = CommandRegistry::build_default();
+        // Cursor after `$p ` on line 4.
+        let items = completions(
+            src,
+            4,
+            3,
+            &analysis,
+            Some(&registry),
+            None,
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
+        );
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert!(
+            !labels.contains(&"configure"),
+            "plain class must not offer configure: {labels:?}"
+        );
+    }
+
+    #[test]
+    fn obj_method_completion_includes_a_literal_foreach_installed_method() {
+        // The loop-installed names must be offered exactly
+        // like an ordinary written method — completion, like hover /
+        // definition / outline, reads the same `ClassDef::methods` table.
+        let src = concat!(
+            "oo::class create Widget {\n",
+            "    foreach m {alpha beta gamma} {\n",
+            "        method $m {args} { return $args }\n",
+            "    }\n",
+            "    method fetch {item} { return $item }\n",
+            "}\n",
+            "set d [Widget new]\n",
+            "$d \n",
+        );
+        let analysis = analyse(src);
+        let registry = CommandRegistry::build_default();
+        // Cursor after `$d ` on line 7.
+        let items = completions(
+            src,
+            7,
+            3,
+            &analysis,
+            Some(&registry),
+            None,
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
+        );
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        for name in ["alpha", "beta", "gamma", "fetch"] {
+            assert!(labels.contains(&name), "{name} missing: {labels:?}");
+        }
+    }
+
+    #[test]
+    fn obj_method_completion_excludes_class_side_methods() {
+        // `classmethod build` is callable on the *class* command, not on an
+        // instance.  `$obj ` completion must offer the instance method
+        // (`bark`) but not the class-side `build`.
+        let src = "oo::class create Dog {\n    method bark {} {}\n    classmethod build {} {}\n}\nset d [Dog new]\n$d \n";
+        let analysis = analyse(src);
+        let registry = CommandRegistry::build_default();
+        // Cursor after `$d ` on line 5.
+        let items = completions(
+            src,
+            5,
+            3,
+            &analysis,
+            Some(&registry),
+            None,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        );
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert!(
+            labels.contains(&"bark"),
+            "instance method missing: {labels:?}"
+        );
+        assert!(
+            !labels.contains(&"build"),
+            "class-side method must not appear on an instance: {labels:?}",
+        );
+    }
+
+    #[test]
+    fn obj_method_completion_survives_a_self_scoped_unexport_of_the_same_name() {
+        // The visibility flip is sided: a class-object-side `unexport bark`
+        // must not un-export the instance method of the same name, or
+        // instance completion (which keeps only `visibility == "public"`)
+        // drops `bark` entirely.
+        // Oracle, byte-identical on tclsh 9.0.4 and 8.6.14:
+        //   oo::class create C { method m {} {return inst-m}
+        //                        self { method m {} {return class-m}
+        //                               unexport m } }
+        //   info class methods ::C  -> m        (instance side still exported)
+        //   [::C new] m             -> inst-m   (still dispatches)
+        let src = "oo::class create Dog {\n    method bark {} {}\n    self {\n        method bark {} {}\n        unexport bark\n    }\n}\nset d [Dog new]\n$d \n";
+        let analysis = analyse(src);
+        let registry = CommandRegistry::build_default();
+        // Cursor after `$d ` on line 8.
+        let items = completions(
+            src,
+            8,
+            3,
+            &analysis,
+            Some(&registry),
+            None,
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
+        );
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert!(
+            labels.contains(&"bark"),
+            "a `self`-scoped unexport must not hide the instance method: {labels:?}",
+        );
+    }
+
+    #[test]
+    fn class_command_completion_honours_a_self_scoped_unexport() {
+        // The class-side half. Ignoring a `self`-scoped `unexport` leaves the
+        // class command offering a member `::Counter m` rejects at runtime;
+        // routing the flip to the class-object side makes it honour it.
+        let hidden = "oo::class create Counter {\n    self {\n        method m {} {}\n        unexport m\n    }\n}\nCounter \n";
+        let shown =
+            "oo::class create Counter {\n    self {\n        method m {} {}\n    }\n}\nCounter \n";
+        let registry = CommandRegistry::build_default();
+        for (src, line, want) in [(hidden, 6, false), (shown, 5, true)] {
+            let analysis = analyse(src);
+            let items = completions(
+                src,
+                line,
+                8,
+                &analysis,
+                Some(&registry),
+                None,
+                tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
+            );
+            let offered = items
+                .iter()
+                .any(|i| i.label == "m" && i.detail.as_deref().unwrap_or("").contains("::Counter"));
+            assert_eq!(offered, want, "{src}");
+        }
+    }
+
+    #[test]
+    fn class_command_completion_ignores_an_unwrapped_unexport() {
+        // The mirror direction, and the false positive an un-sided setter
+        // causes: an *unwrapped* `unexport` acts on the
+        // instance side, so a class-object-side member of that name keeps its
+        // exported state. Oracle: `oo::class create E2 { self { method
+        // onlyclass {} {…} } }; oo::define E2 { unexport onlyclass }` leaves
+        // `info object methods ::E2` -> onlyclass and `::E2 onlyclass` -> oc.
+        let src = "oo::class create Counter {\n    self {\n        method onlyclass {} {}\n    }\n}\noo::define Counter {\n    unexport onlyclass\n}\nCounter \n";
+        let analysis = analyse(src);
+        let registry = CommandRegistry::build_default();
+        let items = completions(
+            src,
+            8,
+            8,
+            &analysis,
+            Some(&registry),
+            None,
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
+        );
+        assert!(
+            items.iter().any(|i| i.label == "onlyclass"),
+            "an instance-side unexport must not hide a class-side method: {:?}",
+            items.iter().map(|i| &i.label).collect::<Vec<_>>(),
+        );
+    }
+
+    #[test]
+    fn obj_method_completion_layers_per_object_members_and_flips() {
+        // Per-object member state reaches completion: a
+        // `oo::objdefine`d method is offered ahead of the class chain, a
+        // per-object `unexport` masks a class-provided member (oracle:
+        // `$d bark` → `unknown method "bark"`, tclsh 9.0.4 / 8.6.14), and a
+        // per-object `export` revives one the name rule left unexported.
+        let src = "oo::class create Dog {\n    method bark {} {}\n    method Fetch {} {}\n}\n\
+                   set d [Dog new]\n\
+                   oo::objdefine $d {\n    method roll {} {}\n    unexport bark\n    export Fetch\n}\n\
+                   $d \n";
+        let analysis = analyse(src);
+        let registry = CommandRegistry::build_default();
+        // Cursor after `$d ` on line 10.
+        let items = completions(
+            src,
+            10,
+            3,
+            &analysis,
+            Some(&registry),
+            None,
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
+        );
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert!(
+            labels.contains(&"roll"),
+            "the per-object member must be offered: {labels:?}",
+        );
+        assert!(
+            !labels.contains(&"bark"),
+            "a per-object unexport masks the class member: {labels:?}",
+        );
+        assert!(
+            labels.contains(&"Fetch"),
+            "a per-object export revives an unexported class member: {labels:?}",
+        );
+        let roll = items.iter().find(|i| i.label == "roll").unwrap();
+        assert!(
+            roll.detail.as_deref().unwrap_or("").contains("per-object"),
+            "{:?}",
+            roll.detail
+        );
+    }
+
+    #[test]
+    fn obj_method_completion_leaves_sibling_objects_untouched() {
+        // TN (CRITICAL FP guard) for the per-object layering: another instance of
+        // the same class carries none of the first object's per-object state.
+        let src = "oo::class create Dog {\n    method bark {} {}\n}\n\
+                   set d [Dog new]\n\
+                   set e [Dog new]\n\
+                   oo::objdefine $d {\n    method roll {} {}\n    unexport bark\n}\n\
+                   $e \n";
+        let analysis = analyse(src);
+        let registry = CommandRegistry::build_default();
+        let items = completions(
+            src,
+            9,
+            3,
+            &analysis,
+            Some(&registry),
+            None,
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
+        );
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert!(
+            labels.contains(&"bark"),
+            "the sibling's class member survives: {labels:?}",
+        );
+        assert!(
+            !labels.contains(&"roll"),
+            "another object's per-object member must not be offered: {labels:?}",
+        );
+    }
+
+    #[test]
+    fn obj_method_completion_omits_an_unwrapped_deleted_method() {
+        // The same provider, destructive half. An unwrapped
+        // `deletemethod` removes the instance method in real Tcl, so offering
+        // it would complete a name the interpreter does not have.
+        let src = "oo::class create Dog {\n    method bark {} {}\n    method sit {} {}\n    deletemethod bark\n}\nset d [Dog new]\n$d \n";
+        let analysis = analyse(src);
+        let registry = CommandRegistry::build_default();
+        let items = completions(
+            src,
+            6,
+            3,
+            &analysis,
+            Some(&registry),
+            None,
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
+        );
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert!(labels.contains(&"sit"), "sibling missing: {labels:?}");
+        assert!(
+            !labels.contains(&"bark"),
+            "deleted method must not be offered: {labels:?}",
+        );
+    }
+
+    #[test]
+    fn obj_method_completion_filters_by_partial() {
+        let src = "oo::class create Dog {\n    method bark {} {}\n    method beg {} {}\n    method sit {} {}\n}\nset d [Dog new]\n$d b\n";
+        let analysis = analyse(src);
+        let registry = CommandRegistry::build_default();
+        let items = completions(
+            src,
+            6,
+            4,
+            &analysis,
+            Some(&registry),
+            None,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        );
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert!(
+            labels.contains(&"bark") && labels.contains(&"beg"),
+            "{labels:?}"
+        );
+        assert!(
+            !labels.contains(&"sit"),
+            "partial `b` should exclude sit: {labels:?}"
+        );
+    }
+
+    /// A Tk widget's bareword instance path completes its own subcommands
+    /// (a self-referential registry `object_class`, not a user class), same
+    /// as `$var`-receiver completion above.
+    #[test]
+    fn widget_bareword_completion_offers_subcommands() {
+        let src = "ttk::treeview .t\n.t i\n";
+        let analysis = analyse(src);
+        let registry = CommandRegistry::build_default();
+        // Cursor after `.t i` on line 1.
+        let items = completions(
+            src,
+            1,
+            4,
+            &analysis,
+            Some(&registry),
+            None,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        );
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert!(
+            labels.contains(&"instate")
+                && labels.contains(&"identify")
+                && labels.contains(&"insert"),
+            "{labels:?}"
+        );
+        assert!(
+            !labels.contains(&"curselection"),
+            "must not offer an unrelated widget's subcommand: {labels:?}"
+        );
+    }
+
+    #[test]
+    fn widget_method_completion_follows_the_document_tk_floor() {
+        fn labels(source: &str, dialect: &'static str, line: u32) -> Vec<String> {
+            let analysis = analyse_for(source, dialect);
+            let registry = tcl_registry::model::ingress::static_context_for(dialect).commands();
+            completions(
+                source,
+                line,
+                5,
+                &analysis,
+                Some(registry),
+                None,
+                tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile(),
+            )
+            .into_iter()
+            .map(|item| item.label)
+            .collect()
+        }
+
+        let plain = "ttk::treeview .t\n.t c\n";
+        assert!(
+            !labels(plain, "tcl9.0", 1)
+                .iter()
+                .any(|name| name == "current")
+        );
+        assert!(
+            labels(plain, "tcl9.1", 1)
+                .iter()
+                .any(|name| name == "current")
+        );
+
+        let raised = "package require Tk 9.1\nttk::treeview .t\n.t c\n";
+        assert!(
+            labels(raised, "tcl9.0", 2)
+                .iter()
+                .any(|name| name == "current"),
+            "an unconditional package require must raise the completion floor"
+        );
+    }
+
+    /// The `set lb [listbox .l]` return-value-capture shape completes too.
+    #[test]
+    fn widget_var_captured_completion_offers_subcommands() {
+        let src = "set lb [listbox .l]\n$lb cu\n";
+        let analysis = analyse(src);
+        let registry = CommandRegistry::build_default();
+        let items = completions(
+            src,
+            1,
+            6,
+            &analysis,
+            Some(&registry),
+            None,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        );
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert!(labels.contains(&"curselection"), "{labels:?}");
+    }
+
+    /// A bareword that merely shares a name with an unrelated tracked
+    /// variable must not offer method completion — only a name genuinely
+    /// bound by a create call qualifies (mirrors
+    /// `logical_receiver_candidates_keep_instance_and_class_buckets_together in
+    /// definition.rs).
+    #[test]
+    fn bareword_completion_does_not_leak_unrelated_variable_class() {
+        let src = "oo::class create Bar {\n    method get {} {}\n}\nset b [Bar new]\nb \n";
+        let analysis = analyse(src);
+        let registry = CommandRegistry::build_default();
+        let items = completions(
+            src,
+            4,
+            2,
+            &analysis,
+            Some(&registry),
+            None,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        );
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert!(
+            !labels.contains(&"get"),
+            "bareword `b` was never created — must not complete as `Bar`: {labels:?}"
+        );
+    }
+
+    #[test]
+    fn dollar_trigger_at_eol_returns_partial() {
+        let (trigger, partial) = variable_trigger("set x $", 0, 7).unwrap();
+        assert_eq!(trigger, '$');
+        assert_eq!(partial, "");
+    }
+
+    #[test]
+    fn dollar_trigger_with_partial_name() {
+        let (trigger, partial) = variable_trigger("set y $foo", 0, 10).unwrap();
+        assert_eq!(trigger, '$');
+        assert_eq!(partial, "foo");
+    }
+
+    #[test]
+    fn brace_trigger_recognised() {
+        let (trigger, partial) = variable_trigger("set y ${ba", 0, 10).unwrap();
+        assert_eq!(trigger, '{');
+        assert_eq!(partial, "ba");
+    }
+
+    #[test]
+    fn space_resets_trigger_context() {
+        // The `$` is followed by a space + new identifier — no
+        // variable trigger active at the cursor.
+        assert!(variable_trigger("set $ ab", 0, 8).is_none());
+    }
+
+    #[test]
+    fn variable_completion_lists_globals_alphabetically() {
+        let src = "set apple 1\nset banana 2\nset $\n";
+        let analysis = analyse(src);
+        // Cursor after `$` on the third line.
+        let items = completions(
+            src,
+            2,
+            5,
+            &analysis,
+            None,
+            None,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        );
+        assert!(!items.is_empty(), "expected variable completions");
+        assert_eq!(items[0].kind, CompletionKind::Variable);
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        // Alphabetical order.
+        let mut sorted = labels.clone();
+        sorted.sort_unstable();
+        assert_eq!(labels, sorted);
+        assert!(labels.contains(&"$apple"));
+        assert!(labels.contains(&"$banana"));
+    }
+
+    #[test]
+    fn variable_completion_filters_by_partial() {
+        let src = "set apple 1\nset banana 2\nset $b\n";
+        let analysis = analyse(src);
+        let items = completions(
+            src,
+            2,
+            6,
+            &analysis,
+            None,
+            None,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        );
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert_eq!(labels, vec!["$banana"]);
+    }
+
+    #[test]
+    fn proc_completion_lists_user_defined_procs() {
+        let src = "proc greet {} {}\nproc shout {} {}\ng\n";
+        let analysis = analyse(src);
+        // Cursor right after `g` on third line.
+        let items = completions(
+            src,
+            2,
+            1,
+            &analysis,
+            None,
+            None,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        );
+        assert_eq!(items.len(), 1, "{items:?}");
+        assert_eq!(items[0].kind, CompletionKind::Function);
+        assert_eq!(items[0].label, "greet");
+    }
+
+    // usage-bucket sort-text
+
+    #[test]
+    fn usage_bucket_thresholds() {
+        // Exhaustive bucket-table check across every threshold.
+        assert_eq!(usage_bucket(0), 5);
+        assert_eq!(usage_bucket(1), 4);
+        assert_eq!(usage_bucket(2), 4);
+        assert_eq!(usage_bucket(3), 3);
+        assert_eq!(usage_bucket(7), 3);
+        assert_eq!(usage_bucket(8), 2);
+        assert_eq!(usage_bucket(19), 2);
+        assert_eq!(usage_bucket(20), 1);
+        assert_eq!(usage_bucket(49), 1);
+        assert_eq!(usage_bucket(50), 0);
+        assert_eq!(usage_bucket(1000), 0);
+    }
+
+    #[test]
+    fn proc_sort_text_has_lower_bucket_for_used_procs() {
+        // Three calls to `greet` and zero calls to `shout`.
+        // The completion-list partial is empty (cursor on
+        // line 6 col 0), so both procs surface — `greet` in
+        // bucket 3 (≥3 calls) and `shout` in bucket 5 (no
+        // calls).
+        let src = "proc greet {} {}\nproc shout {} {}\ngreet\ngreet\ngreet\n\n";
+        let analysis = analyse(src);
+        let items = completions(
+            src,
+            5,
+            0,
+            &analysis,
+            None,
+            None,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        );
+        let greet = items
+            .iter()
+            .find(|i| i.label == "greet")
+            .unwrap_or_else(|| panic!("greet missing from {items:?}"));
+        let greet_sort = greet.sort_text.as_deref().unwrap_or("");
+        assert!(
+            greet_sort.starts_with("A003_"),
+            "greet sort_text {greet_sort:?} should land in bucket 3",
+        );
+        let shout = items
+            .iter()
+            .find(|i| i.label == "shout")
+            .unwrap_or_else(|| panic!("shout missing from {items:?}"));
+        let shout_sort = shout.sort_text.as_deref().unwrap_or("");
+        assert!(
+            shout_sort.starts_with("A005_"),
+            "shout sort_text {shout_sort:?} should land in bucket 5",
+        );
+        // Lower bucket sorts first.
+        assert!(greet_sort < shout_sort);
+    }
+
+    #[test]
+    fn empty_partial_lists_all_procs() {
+        let src = "proc alpha {} {}\nproc beta {} {}\n\n";
+        let analysis = analyse(src);
+        let items = completions(
+            src,
+            2,
+            0,
+            &analysis,
+            None,
+            None,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        );
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert!(labels.contains(&"alpha"));
+        assert!(labels.contains(&"beta"));
+    }
+
+    // built-in command completion
+    //
+    // Tests pin the contract that a non-`None` registry parameter
+    // extends proc-name completion with every command the
+    // registry knows about, filtered by the partial typed at the
+    // cursor.
+
+    #[test]
+    fn builtin_completion_lists_registry_commands_at_command_position() {
+        // No user-defined procs, partial `pu` → `puts` (and any
+        // other registered command beginning with `pu`) should
+        // surface.
+        let src = "pu\n";
+        let analysis = analyse(src);
+        let registry = CommandRegistry::build_default();
+        let items = completions(
+            src,
+            0,
+            2,
+            &analysis,
+            Some(&registry),
+            None,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        );
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert!(
+            labels.contains(&"puts"),
+            "expected `puts` from registry; got {labels:?}",
+        );
+    }
+
+    #[test]
+    fn builtin_completion_detail_shows_provenance() {
+        // A core built-in shows `built-in`; a stdlib command shows its
+        // `stdlib (PKG)` provenance from the registry `required_package`.
+        let src = "pu\n";
+        let analysis = analyse(src);
+        let registry = CommandRegistry::build_default();
+        let items = completions(
+            src,
+            0,
+            2,
+            &analysis,
+            Some(&registry),
+            None,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        );
+        let puts = items.iter().find(|i| i.label == "puts").expect("puts");
+        assert_eq!(puts.detail.as_deref(), Some("built-in"), "{puts:?}");
+
+        // `http::geturl` is a stdlib command requiring the `http` package.
+        let src = "http::ge\n";
+        let analysis = analyse(src);
+        let items = completions(
+            src,
+            0,
+            8,
+            &analysis,
+            Some(&registry),
+            None,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        );
+        if let Some(geturl) = items.iter().find(|i| i.label == "http::geturl") {
+            assert_eq!(
+                geturl.detail.as_deref(),
+                Some("stdlib (http)"),
+                "{geturl:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn command_detail_formats_each_provenance() {
+        let reg = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        // built-in: no package.
+        assert_eq!(command_detail(reg.get("puts").unwrap(), reg), "built-in");
+        // stdlib: required_package set.
+        if let Some(spec) = reg.get("http::geturl") {
+            assert_eq!(command_detail(spec, reg), "stdlib (http)");
+        }
+        // An ambient vendor surface reads as part of the runtime, never as
+        // a require-gated stdlib package (§7.1 axis C). The registry is what
+        // is asked, so a pack's `ambient_package` row would read the same way.
+        let ireg = tcl_registry::model::ingress::static_context_for("f5-irules").commands();
+        let http2 = ireg.get("HTTP2::header").expect("HTTP2::header spec");
+        assert_eq!(command_detail(http2, ireg), "built-in");
+    }
+
+    #[test]
+    fn irules_subcommand_completion_uses_configured_bigip_version() {
+        let registry = tcl_registry::model::ingress::static_context_for("f5-irules").commands();
+        let profile = tcl_dialect::DialectProfile::irules();
+        let c3d = registry.get("SSL::c3d").expect("SSL::c3d spec");
+
+        let mut analysis = AnalysisResult::default();
+        analysis.library_versions.bigip_version = Some("21.0.0".to_owned());
+        let labels_21_0: Vec<String> = subcommand_completions(c3d, &analysis, profile, "")
+            .into_iter()
+            .map(|item| item.label)
+            .collect();
+        assert!(!labels_21_0.iter().any(|label| label == "cert_lifespan"));
+        assert!(!labels_21_0.iter().any(|label| label == "cert_start_date"));
+
+        analysis.library_versions.bigip_version = Some("21.1.0".to_owned());
+        let labels_21_1: Vec<String> = subcommand_completions(c3d, &analysis, profile, "")
+            .into_iter()
+            .map(|item| item.label)
+            .collect();
+        assert!(labels_21_1.iter().any(|label| label == "cert_lifespan"));
+        assert!(labels_21_1.iter().any(|label| label == "cert_start_date"));
+    }
+
+    #[test]
+    fn builtin_completion_filters_by_partial() {
+        // Partial `whi` should yield `while` but not unrelated
+        // commands like `puts`.
+        let src = "whi\n";
+        let analysis = analyse(src);
+        let registry = CommandRegistry::build_default();
+        let items = completions(
+            src,
+            0,
+            3,
+            &analysis,
+            Some(&registry),
+            None,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        );
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert!(
+            labels.contains(&"while"),
+            "expected `while`; got {labels:?}"
+        );
+        assert!(
+            !labels.contains(&"puts"),
+            "should NOT contain `puts` for partial `whi`; got {labels:?}",
+        );
+    }
+
+    #[test]
+    fn builtin_completion_skips_math_operators() {
+        // The registry registers `+` / `-` / `*` / etc. as
+        // commands (Tcl 9 `tcl::mathop`), but they don't make
+        // sense as completion items at a command position.
+        let src = "+\n";
+        let analysis = analyse(src);
+        let registry = CommandRegistry::build_default();
+        let items = completions(
+            src,
+            0,
+            1,
+            &analysis,
+            Some(&registry),
+            None,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        );
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        for op in &["+", "-", "*", "/", ">", ">=", "<", "<=", "==", "!="] {
+            assert!(
+                !labels.contains(op),
+                "math operator `{op}` should be filtered out; got {labels:?}",
+            );
+        }
+    }
+
+    /// `SKIP_BUILTIN_NAMES` must cover the word-form mathop commands
+    /// (`eq`/`ne`/`in`/`ni`, and the 9.0+ `lt`/`le`/`gt`/`ge`) as well as the
+    /// 10 symbolic operators; otherwise they leak through as a nonsensical
+    /// "did you mean `eq`?" at a command position.
+    #[test]
+    fn builtin_completion_skips_word_form_operators() {
+        let src = "\n";
+        let analysis = analyse(src);
+        let registry = CommandRegistry::build_default();
+        let items = completions(
+            src,
+            0,
+            0,
+            &analysis,
+            Some(&registry),
+            None,
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
+        );
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        for op in &["eq", "ne", "in", "ni", "lt", "le", "gt", "ge"] {
+            assert!(
+                !labels.contains(op),
+                "word-form operator `{op}` should be filtered out; got {labels:?}",
+            );
+        }
+    }
+
+    #[test]
+    fn builtin_completion_none_registry_keeps_minimal_behaviour() {
+        // Passing `None` for the registry must not regress the
+        // minimal port's behaviour — proc-name completion alone.
+        let src = "proc helper {} {}\nhe\n";
+        let analysis = analyse(src);
+        let items_no_registry = completions(
+            src,
+            1,
+            2,
+            &analysis,
+            None,
+            None,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        );
+        let labels_no_registry: Vec<&str> =
+            items_no_registry.iter().map(|i| i.label.as_str()).collect();
+        assert!(
+            labels_no_registry.contains(&"helper"),
+            "expected `helper` proc; got {labels_no_registry:?}",
+        );
+        // No registry commands surface without the registry.
+        assert_eq!(items_no_registry.len(), 1, "{items_no_registry:?}");
+    }
+
+    #[test]
+    fn builtin_completion_merges_procs_and_registry() {
+        // Both a user-defined proc and built-in commands should
+        // surface when both apply.
+        let src = "proc parade {} {}\npar\n";
+        let analysis = analyse(src);
+        let registry = CommandRegistry::build_default();
+        let items = completions(
+            src,
+            1,
+            3,
+            &analysis,
+            Some(&registry),
+            None,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        );
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert!(
+            labels.contains(&"parade"),
+            "expected user proc `parade`; got {labels:?}",
+        );
+        // `parray` is a stdlib command starting with `par`.
+        assert!(
+            labels.contains(&"parray"),
+            "expected built-in `parray`; got {labels:?}",
+        );
+    }
+
+    #[test]
+    fn builtin_completion_skipped_inside_variable_trigger() {
+        // Variable trigger (`$par`) must take precedence and
+        // suppress built-in command completions even when a
+        // registry is supplied, via the `variable_completions`
+        // short-circuit at the top of `completions`.
+        let src = "set apple 1\nset $par\n";
+        let analysis = analyse(src);
+        let registry = CommandRegistry::build_default();
+        let items = completions(
+            src,
+            1,
+            8,
+            &analysis,
+            Some(&registry),
+            None,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        );
+        // Only variable completions allowed here.
+        for it in &items {
+            assert_eq!(
+                it.kind,
+                CompletionKind::Variable,
+                "variable trigger should suppress built-ins; got {it:?}",
+            );
+        }
+    }
+
+    // subcommand completion
+    //
+    // When the cursor sits at word-index 1 of a known command
+    // whose spec declares non-empty `subcommands`, the
+    // completion surface lists subcommand names (not user procs
+    // or unrelated built-ins).
+
+    #[test]
+    fn subcommand_completion_surfaces_subcommands_at_word_index_1() {
+        // `string l` — partial `l`, cursor at word-index 1 of
+        // `string`.  The registry declares many `string`
+        // subcommands; expect `length` and similar `l*` ones.
+        let src = "string l\n";
+        let analysis = analyse(src);
+        let registry = CommandRegistry::build_default();
+        let items = completions(
+            src,
+            0,
+            8,
+            &analysis,
+            Some(&registry),
+            None,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        );
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert!(
+            labels.contains(&"length"),
+            "expected `length` subcommand; got {labels:?}",
+        );
+        // No proc / unrelated commands should leak through.
+        assert!(
+            !labels.contains(&"puts"),
+            "subcommand context should not include `puts`; got {labels:?}",
+        );
+    }
+
+    #[test]
+    fn sub_subcommand_completion_surfaces_at_word_index_2() {
+        // After `info object ` (word-index 2), offer the
+        // OBJECT INTROSPECTION operations with their descriptions.
+        let src = "info object \n";
+        let analysis = analyse(src);
+        let registry = CommandRegistry::build_default();
+        let items = completions(
+            src,
+            0,
+            12,
+            &analysis,
+            Some(&registry),
+            None,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        );
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert!(
+            labels.contains(&"class"),
+            "expected `class`; got {labels:?}"
+        );
+        assert!(
+            labels.contains(&"methods"),
+            "expected `methods`; got {labels:?}"
+        );
+        // Descriptions are surfaced as detail.
+        assert!(
+            items
+                .iter()
+                .find(|i| i.label == "class")
+                .and_then(|i| i.detail.as_deref())
+                .is_some_and(|d| !d.is_empty()),
+            "expected a detail on the `class` op",
+        );
+        // Partial filters: `info class super` → `superclasses`.
+        let src = "info class super\n";
+        let analysis = analyse(src);
+        let items = completions(
+            src,
+            0,
+            16,
+            &analysis,
+            Some(&registry),
+            None,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        );
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert_eq!(
+            labels,
+            vec!["superclasses"],
+            "prefix should filter; got {labels:?}"
+        );
+    }
+
+    #[test]
+    fn subcommand_completion_lists_all_subcommands_with_empty_partial() {
+        // `string ` (cursor just past the space) — empty partial,
+        // word-index 1 of `string`.  Should list every `string`
+        // subcommand, alphabetically.
+        let src = "string \n";
+        let analysis = analyse(src);
+        let registry = CommandRegistry::build_default();
+        let items = completions(
+            src,
+            0,
+            7,
+            &analysis,
+            Some(&registry),
+            None,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        );
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        // `string` has at minimum `length`, `match`, `range`,
+        // `tolower`, `toupper` across all dialects.
+        assert!(labels.contains(&"length"), "{labels:?}");
+        assert!(labels.contains(&"match"), "{labels:?}");
+        // Should be sorted.
+        let mut sorted = labels.clone();
+        sorted.sort_unstable();
+        assert_eq!(labels, sorted, "expected sorted subcommands");
+    }
+
+    #[test]
+    fn subcommand_completion_falls_through_when_word_index_not_1() {
+        // `string length f` — cursor at word-index 2 (after
+        // `length` argument).  Subcommand completion should NOT
+        // fire; we fall through to command + proc completion
+        // (which would surface built-ins like `foreach`,
+        // `format`, etc.).
+        let src = "string length f\n";
+        let analysis = analyse(src);
+        let registry = CommandRegistry::build_default();
+        let items = completions(
+            src,
+            0,
+            15,
+            &analysis,
+            Some(&registry),
+            None,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        );
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        // Some f-prefixed command should surface (foreach,
+        // format, file…), confirming we fell through.
+        assert!(
+            labels.iter().any(|l| l.starts_with('f')),
+            "expected at least one f-prefixed command via fallback; got {labels:?}",
+        );
+        // String's `length` subcommand should NOT be in the
+        // result — we're past word-index 1.
+        assert!(
+            !labels.contains(&"length"),
+            "should not surface `length` subcommand at word-index 2; got {labels:?}",
+        );
+    }
+
+    #[test]
+    fn subcommand_completion_skipped_when_command_has_no_subcommands() {
+        // `puts hel` — `puts` declares no subcommands, so we
+        // should fall through to command + proc completion (and
+        // ideally find no commands starting with `hel`).
+        let src = "proc helper {} {}\nputs hel\n";
+        let analysis = analyse(src);
+        let registry = CommandRegistry::build_default();
+        let items = completions(
+            src,
+            1,
+            8,
+            &analysis,
+            Some(&registry),
+            None,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        );
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        // The user proc `helper` should surface (fallback path).
+        assert!(
+            labels.contains(&"helper"),
+            "expected `helper` proc via fallback; got {labels:?}",
+        );
+    }
+
+    // switch completion
+    //
+    // When the partial starts with `-` and the surrounding
+    // command's spec declares matching options, the completion
+    // surface lists option names (not subcommands or built-ins).
+
+    #[test]
+    fn switch_completion_surfaces_options_for_dash_partial() {
+        // `lsearch -n` — partial `-n`.  The `lsearch` spec
+        // declares many `-...` options; expect at least one
+        // starting with `-n` (`-nocase`).
+        let src = "lsearch -n\n";
+        let analysis = analyse(src);
+        let registry = CommandRegistry::build_default();
+        let items = completions(
+            src,
+            0,
+            10,
+            &analysis,
+            Some(&registry),
+            None,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        );
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert!(
+            labels.iter().any(|l| l.starts_with("-n")),
+            "expected at least one `-n*` switch; got {labels:?}",
+        );
+        // No unrelated commands / procs.
+        assert!(
+            !labels.iter().any(|l| !l.starts_with('-')),
+            "all switch-completion items must start with '-'; got {labels:?}",
+        );
+    }
+
+    #[test]
+    fn switch_completion_lists_all_options_for_bare_dash() {
+        // `lsearch -` — partial `-`, every option should
+        // surface.
+        let src = "lsearch -\n";
+        let analysis = analyse(src);
+        let registry = CommandRegistry::build_default();
+        let items = completions(
+            src,
+            0,
+            9,
+            &analysis,
+            Some(&registry),
+            None,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        );
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        // Every result must start with `-`.
+        for l in &labels {
+            assert!(l.starts_with('-'), "non-switch in result: {l}");
+        }
+        // Sorted.
+        let mut sorted = labels.clone();
+        sorted.sort_unstable();
+        assert_eq!(labels, sorted);
+    }
+
+    #[test]
+    fn switch_completion_gates_options_by_package_version() {
+        // `entry -placeholder` was introduced in Tk 8.7.  Completion must gate
+        // it on the version resolved from `package require Tk <req>`.
+        let registry = CommandRegistry::build_default();
+        let older = "package require Tk 8.6\nentry .e -p\n";
+        let a1 = analyse(older);
+        let l1: Vec<String> = completions(
+            older,
+            1,
+            11,
+            &a1,
+            Some(&registry),
+            None,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        )
+        .into_iter()
+        .map(|i| i.label)
+        .collect();
+        assert!(
+            !l1.iter().any(|l| l == "-placeholder"),
+            "Tk 8.6 must not offer -placeholder: {l1:?}",
+        );
+
+        let newer = "package require Tk 8.7\nentry .e -p\n";
+        let a2 = analyse(newer);
+        let l2: Vec<String> = completions(
+            newer,
+            1,
+            11,
+            &a2,
+            Some(&registry),
+            None,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        )
+        .into_iter()
+        .map(|i| i.label)
+        .collect();
+        assert!(
+            l2.iter().any(|l| l == "-placeholder"),
+            "Tk 8.7 must offer -placeholder: {l2:?}",
+        );
+    }
+
+    #[test]
+    fn switch_completion_gates_options_by_dialect() {
+        // `lsearch -stride` is Tcl 9.0+ (see the W004 diagnostic for the same
+        // gate).  Completion must not suggest it under an older dialect, and
+        // must once the document's dialect supports it.
+        let registry = CommandRegistry::build_default();
+        let src = "lsearch -s {a b} x\n";
+        let old_analysis = analyse_for(src, "tcl8.6");
+        let old: Vec<String> = completions(
+            src,
+            0,
+            10,
+            &old_analysis,
+            Some(&registry),
+            None,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        )
+        .into_iter()
+        .map(|i| i.label)
+        .collect();
+        assert!(
+            !old.iter().any(|l| l == "-stride"),
+            "tcl8.6 must not offer -stride: {old:?}",
+        );
+        let new_analysis = analyse_for(src, "tcl9.0");
+        let new: Vec<String> = completions(
+            src,
+            0,
+            10,
+            &new_analysis,
+            Some(&registry),
+            None,
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
+        )
+        .into_iter()
+        .map(|i| i.label)
+        .collect();
+        assert!(
+            new.iter().any(|l| l == "-stride"),
+            "tcl9.0 must offer -stride: {new:?}",
+        );
+    }
+
+    #[test]
+    fn switch_completion_resolves_subcommand_scoped_options() {
+        // `chan configure -inputmode` is a subcommand-scoped, Tcl 9.0+
+        // option that lives only on the `configure` SubCommand's own table —
+        // absent from `chan`'s top-level option table entirely.  Completion
+        // must resolve the typed subcommand to find it, and still gate it by
+        // dialect exactly like W004 does.
+        let registry = CommandRegistry::build_default();
+        let src = "chan configure $chan -i\n";
+        let old_analysis = analyse_for(src, "tcl8.6");
+        let old: Vec<String> = completions(
+            src,
+            0,
+            23,
+            &old_analysis,
+            Some(&registry),
+            None,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        )
+        .into_iter()
+        .map(|i| i.label)
+        .collect();
+        assert!(
+            !old.iter().any(|l| l == "-inputmode"),
+            "tcl8.6 must not offer -inputmode: {old:?}",
+        );
+        let new_analysis = analyse_for(src, "tcl9.0");
+        let new: Vec<String> = completions(
+            src,
+            0,
+            23,
+            &new_analysis,
+            Some(&registry),
+            None,
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
+        )
+        .into_iter()
+        .map(|i| i.label)
+        .collect();
+        assert!(
+            new.iter().any(|l| l == "-inputmode"),
+            "tcl9.0 must offer -inputmode: {new:?}",
+        );
+    }
+
+    #[test]
+    fn command_completion_gates_commands_by_package_version() {
+        // `ttk::button` needs Tk 8.5. On a tcl8.4 host the shipped Tk is
+        // 8.4 (the §7.1 TracksBase pin) and a require cannot raise it —
+        // not offered. On a tcl8.6 host the shipped Tk is 8.6 even when
+        // the file writes `package require Tk 8.4` (a minimum, not a
+        // downgrade) — offered; the old require-only floor wrongly hid it.
+        let registry = CommandRegistry::build_default();
+        let older = "package require Tk 8.4\nttk::b\n";
+        let a1 = analyse_for(older, "tcl8.4");
+        let l1: Vec<String> = completions(
+            older,
+            1,
+            6,
+            &a1,
+            Some(&registry),
+            None,
+            tcl_registry::model::ingress::resolve_environment("tcl8.4").analyser_profile(),
+        )
+        .into_iter()
+        .map(|i| i.label)
+        .collect();
+        assert!(
+            !l1.iter().any(|l| l == "ttk::button"),
+            "a tcl8.4 host (Tk 8.4) must not offer ttk::button: {l1:?}",
+        );
+
+        let a1_86 = analyse_for(older, "tcl8.6");
+        let l1_86: Vec<String> = completions(
+            older,
+            1,
+            6,
+            &a1_86,
+            Some(&registry),
+            None,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        )
+        .into_iter()
+        .map(|i| i.label)
+        .collect();
+        assert!(
+            l1_86.iter().any(|l| l == "ttk::button"),
+            "a tcl8.6 host ships Tk 8.6; `require Tk 8.4` does not downgrade it: {l1_86:?}",
+        );
+
+        let newer = "package require Tk 8.5\nttk::b\n";
+        let a2 = analyse_for(newer, "tcl8.6");
+        let l2: Vec<String> = completions(
+            newer,
+            1,
+            6,
+            &a2,
+            Some(&registry),
+            None,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        )
+        .into_iter()
+        .map(|i| i.label)
+        .collect();
+        assert!(
+            l2.iter().any(|l| l == "ttk::button"),
+            "Tk 8.5 must offer ttk::button: {l2:?}",
+        );
+    }
+
+    // iRules event-name completion
+    //
+    // When the cursor sits at word-index 1 of an event-handler
+    // command (the `when` iRules keyword carries
+    // `Traits::IS_EVENT_HANDLER`), the completion surface lists
+    // event names from the shared `EventRegistry`.
+
+    fn irules_registry() -> CommandRegistry {
+        let mut r = CommandRegistry::build_default();
+        r.load_surface(SurfaceLayer::Core(Family::F5Irules, ""));
+        r
+    }
+
+    #[test]
+    fn event_completion_surfaces_when_handler_first_arg() {
+        // `when HT` inside iRules — should list every event
+        // starting with `HT` (HTTP_REQUEST, HTTP_RESPONSE, …).
+        let src = "when HT\n";
+        let analysis = analyse_for(src, "f5-irules");
+        let registry = irules_registry();
+        let items = completions(
+            src,
+            0,
+            7,
+            &analysis,
+            Some(&registry),
+            None,
+            tcl_registry::model::ingress::resolve_environment("f5-irules").analyser_profile(),
+        );
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert!(
+            labels.contains(&"HTTP_REQUEST"),
+            "expected `HTTP_REQUEST`; got {labels:?}",
+        );
+        assert!(
+            labels.iter().all(|l| l.starts_with("HT")),
+            "all results should start with `HT`; got {labels:?}",
+        );
+    }
+
+    #[test]
+    fn event_completion_marks_detail_as_irules_event() {
+        let src = "when CL\n";
+        let analysis = analyse(src);
+        let registry = irules_registry();
+        let items = completions(
+            src,
+            0,
+            7,
+            &analysis,
+            Some(&registry),
+            None,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        );
+        assert!(
+            items
+                .iter()
+                .all(|i| i.detail.as_deref() == Some("F5 iRules event")),
+            "every event completion should be labelled as an iRules event; got {items:?}",
+        );
+    }
+
+    #[test]
+    fn event_completion_does_not_fire_in_plain_tcl_dialect() {
+        // The default registry doesn't carry the `when` spec —
+        // completion should fall through to plain command + proc
+        // completion (which won't surface `HTTP_REQUEST`).
+        let src = "when HT\n";
+        let analysis = analyse(src);
+        let registry = CommandRegistry::build_default();
+        let items = completions(
+            src,
+            0,
+            7,
+            &analysis,
+            Some(&registry),
+            None,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        );
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert!(
+            !labels.contains(&"HTTP_REQUEST"),
+            "event completion should not fire outside iRules; got {labels:?}",
+        );
+    }
+
+    #[test]
+    fn event_completion_skipped_at_word_index_other_than_1() {
+        // `when HTTP_REQUEST f` — word-index 2 (after the event
+        // name).  Event completion must not fire.
+        let src = "when HTTP_REQUEST f\n";
+        let analysis = analyse(src);
+        let registry = irules_registry();
+        let items = completions(
+            src,
+            0,
+            19,
+            &analysis,
+            Some(&registry),
+            None,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        );
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert!(
+            !labels.iter().any(|l| l.contains("HTTP_REQUEST")),
+            "event completion should not fire at word-index 2; got {labels:?}",
+        );
+    }
+
+    // iRules `call PROC_NAME`
+    //
+    // When the cursor sits at word-index 1 of a command carrying
+    // `Traits::INVOKES_USER_PROC` (today only the iRules `call`
+    // command), the completion surface lists user-defined proc
+    // names and excludes built-in commands.
+
+    #[test]
+    fn call_completion_surfaces_user_procs_at_word_index_1() {
+        // Two user procs starting with `he`, plus one that
+        // doesn't.  Built-in `puts` starts with `p` so won't
+        // surface against `he` either way — but we use it as
+        // additional cover.
+        let src = "proc helper {} {}\nproc help_inner {} {}\nproc unrelated {} {}\ncall he\n";
+        let analysis = analyse(src);
+        let registry = irules_registry();
+        let items = completions(
+            src,
+            3,
+            7,
+            &analysis,
+            Some(&registry),
+            None,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        );
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert!(
+            labels.contains(&"helper") && labels.contains(&"help_inner"),
+            "expected user procs `helper` and `help_inner`; got {labels:?}",
+        );
+        assert!(
+            !labels.contains(&"unrelated"),
+            "should filter on partial `he`; got {labels:?}",
+        );
+        // Every result must be a user proc — built-in commands
+        // are excluded from the `call` context.
+        for it in &items {
+            assert_eq!(
+                it.kind,
+                CompletionKind::Function,
+                "every call-completion item should be a Function; got {it:?}",
+            );
+        }
+    }
+
+    #[test]
+    fn call_completion_does_not_fire_in_plain_tcl_dialect() {
+        // Plain Tcl registry has no `call` spec — completion
+        // should fall through to built-in + proc completion.
+        let src = "proc helper {} {}\ncall help\n";
+        let analysis = analyse(src);
+        let registry = CommandRegistry::build_default();
+        let items = completions(
+            src,
+            1,
+            9,
+            &analysis,
+            Some(&registry),
+            None,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        );
+        // The user proc still appears via the fallback path.
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert!(
+            labels.contains(&"helper"),
+            "fallback should still surface `helper`; got {labels:?}",
+        );
+    }
+
+    #[test]
+    fn call_completion_excludes_builtin_commands() {
+        // Built-in `puts` starts with `p`.  In a `call p`
+        // context, the completion list should contain user
+        // procs starting with `p` but never `puts`.
+        let src = "proc parade {} {}\ncall p\n";
+        let analysis = analyse(src);
+        let registry = irules_registry();
+        let items = completions(
+            src,
+            1,
+            6,
+            &analysis,
+            Some(&registry),
+            None,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        );
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert!(labels.contains(&"parade"), "{labels:?}");
+        assert!(
+            !labels.contains(&"puts"),
+            "`puts` is a built-in; should not surface in `call` context: {labels:?}",
+        );
+    }
+
+    #[test]
+    fn tk_commands_only_offered_when_tk_is_loaded() {
+        let registry = CommandRegistry::build_default();
+
+        // Plain `.tcl` (tcl8.6) with no `package require Tk`: Tk widget
+        // commands must NOT be offered, even though the registry knows them.
+        let src = "butt\n";
+        let analysis = analyse(src);
+        let items = completions(
+            src,
+            0,
+            4,
+            &analysis,
+            Some(&registry),
+            None,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        );
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert!(
+            !labels.contains(&"button"),
+            "Tk `button` must not surface without `package require Tk`: {labels:?}",
+        );
+
+        // Once `package require Tk` is declared, `button` becomes available.
+        let src = "package require Tk\nbutt\n";
+        let analysis = analyse(src);
+        let items = completions(
+            src,
+            1,
+            4,
+            &analysis,
+            Some(&registry),
+            None,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        );
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert!(
+            labels.contains(&"button"),
+            "Tk `button` should surface after `package require Tk`: {labels:?}",
+        );
+    }
+
+    #[test]
+    fn tk_commands_offered_in_wish_tk_dialect() {
+        // A `wish`-labelled document (`tk` dialect) is implicitly Tk-loaded.
+        let registry = CommandRegistry::build_default();
+        let src = "butt\n";
+        let analysis = analyse_for(src, "tk");
+        let items = completions(
+            src,
+            0,
+            4,
+            &analysis,
+            Some(&registry),
+            None,
+            crate::profile_for_dialect("tk"),
+        );
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert!(
+            labels.contains(&"button"),
+            "Tk `button` should surface in the `tk` dialect: {labels:?}",
+        );
+    }
+
+    /// The completion gate reads two placement queries: Tk names are offered where
+    /// Tk is in the world (ambient, or required here) **and** the
+    /// environment declares a Tk placement at all. The `wish` alias must
+    /// answer identically to `tk` — it is the same environment row — and a
+    /// vendor shell must refuse even with an explicit require.
+    #[test]
+    fn tk_completion_follows_the_placement_not_the_environment_name() {
+        let registry = CommandRegistry::build_default();
+        let offers = |src: &str, line: u32, character: u32, dialect: &str| {
+            let analysis = analyse_for(src, dialect);
+            completions(
+                src,
+                line,
+                character,
+                &analysis,
+                Some(&registry),
+                None,
+                crate::profile_for_dialect(dialect),
+            )
+            .iter()
+            .any(|item| item.label == "button")
+        };
+        // Ambient: `wish` under either spelling of its identity.
+        assert!(offers("butt\n", 0, 4, "tk"), "tk");
+        assert!(offers("butt\n", 0, 4, "wish"), "wish");
+        // Hosted: offered only once this document requires it.
+        assert!(!offers("butt\n", 0, 4, "tcl8.6"), "tcl8.6 bare");
+        assert!(!offers("butt\n", 0, 4, "tcl"), "lenient sink bare");
+        assert!(
+            offers("package require Tk\nbutt\n", 1, 4, "tcl8.6"),
+            "tcl8.6 with a require"
+        );
+        // Unhostable: a vendor shell declares no Tk placement, so a stray
+        // require changes nothing.
+        for shell in ["f5-iapps", "xilinx-eda-tcl", "bpf"] {
+            assert!(
+                !offers("package require Tk\nbutt\n", 1, 4, shell),
+                "{shell}"
+            );
+        }
+    }
+
+    #[test]
+    fn tk_commands_never_offered_in_irules() {
+        // Even a stray `package require Tk` cannot make Tk valid in iRules —
+        // the command is dialect-gated out.
+        let registry = CommandRegistry::build_default();
+        let src = "package require Tk\nbutt\n";
+        let analysis = analyse(src);
+        let items = completions(
+            src,
+            1,
+            4,
+            &analysis,
+            Some(&registry),
+            None,
+            tcl_dialect::DialectProfile::irules(),
+        );
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert!(
+            !labels.contains(&"button"),
+            "Tk `button` must never surface in iRules: {labels:?}",
+        );
+    }
+
+    #[test]
+    fn call_completion_skipped_at_word_index_other_than_1() {
+        // `call helper extra` — word-index 2.  Completion
+        // should fall through to plain command + proc
+        // completion (built-ins included).
+        let src = "proc helper {} {}\ncall helper e\n";
+        let analysis = analyse(src);
+        let registry = irules_registry();
+        let items = completions(
+            src,
+            1,
+            14,
+            &analysis,
+            Some(&registry),
+            None,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        );
+        // Plain fallback fires — any e-prefixed builtin
+        // (`eval`, `exec`, `expr`, `error`…) should surface.
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert!(
+            labels.iter().any(|l| l.starts_with('e') && *l != "helper"),
+            "fallback should surface some e-prefixed built-in at word-index 2; got {labels:?}",
+        );
+    }
+
+    // -- subcommand argument-value completion ----
+
+    #[test]
+    fn string_is_completes_character_classes() {
+        // `string is a` — cursor at the class arg (word 2);
+        // expect the `a*` classes (alnum, alpha, ascii).
+        let src = "string is a\n";
+        let analysis = analyse(src);
+        let registry = CommandRegistry::build_default();
+        let items = completions(
+            src,
+            0,
+            11,
+            &analysis,
+            Some(&registry),
+            None,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        );
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert!(labels.contains(&"alnum"), "{labels:?}");
+        assert!(labels.contains(&"alpha"), "{labels:?}");
+        assert!(labels.contains(&"ascii"), "{labels:?}");
+        // Every result is an enum value, not a proc / command.
+        for it in &items {
+            assert_eq!(it.kind, CompletionKind::EnumValue, "{it:?}");
+        }
+        // Non-`a` classes filtered out.
+        assert!(!labels.contains(&"digit"), "{labels:?}");
+    }
+
+    #[test]
+    fn string_is_lists_all_classes_with_empty_partial() {
+        // `string is ` — cursor just past the space, empty
+        // partial → all 22 character classes.
+        let src = "string is \n";
+        let analysis = analyse(src);
+        let registry = CommandRegistry::build_default();
+        let items = completions(
+            src,
+            0,
+            10,
+            &analysis,
+            Some(&registry),
+            None,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        );
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert!(labels.contains(&"boolean"), "{labels:?}");
+        assert!(labels.contains(&"wordchar"), "{labels:?}");
+        assert!(
+            labels.len() >= 20,
+            "expected the full class set; got {labels:?}"
+        );
+        // Sorted.
+        let mut sorted = labels.clone();
+        sorted.sort_unstable();
+        assert_eq!(labels, sorted);
+    }
+
+    #[test]
+    fn string_is_class_detail_is_surfaced() {
+        let src = "string is alnum\n";
+        let analysis = analyse(src);
+        let registry = CommandRegistry::build_default();
+        let items = completions(
+            src,
+            0,
+            15,
+            &analysis,
+            Some(&registry),
+            None,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        );
+        let alnum = items.iter().find(|i| i.label == "alnum").expect("alnum");
+        assert!(
+            alnum
+                .detail
+                .as_deref()
+                .unwrap_or("")
+                .contains("alphabet or digit"),
+            "{alnum:?}",
+        );
+    }
+
+    #[test]
+    fn subcommand_without_arg_values_falls_through() {
+        // `string length x` — `length` has no arg_values, so
+        // word-index 2 falls through to plain completion (no
+        // enum-value items).
+        let src = "string length x\n";
+        let analysis = analyse(src);
+        let registry = CommandRegistry::build_default();
+        let items = completions(
+            src,
+            0,
+            15,
+            &analysis,
+            Some(&registry),
+            None,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        );
+        assert!(
+            items.iter().all(|i| i.kind != CompletionKind::EnumValue),
+            "no enum-value completions expected; got {items:?}",
+        );
+    }
+
+    // workspace-index: cross-document proc completion
+
+    #[test]
+    fn workspace_procs_surface_in_completion() {
+        use crate::workspace_index::WorkspaceIndex;
+        // Current doc defines `local_proc`; a sibling doc
+        // defines `shared_helper`.  Completing `s` should
+        // surface the cross-document proc.
+        let cur_src = "proc local_proc {} {}\ns\n";
+        let cur = analyse(cur_src);
+        let other = analyse("proc shared_helper {} {}\n");
+        let index = WorkspaceIndex::from_documents([
+            ("file:///cur.tcl", &cur),
+            ("file:///other.tcl", &other),
+        ]);
+        let items = completions(
+            cur_src,
+            1,
+            1,
+            &cur,
+            None,
+            Some(&index),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        );
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert!(
+            labels.contains(&"shared_helper"),
+            "expected cross-doc proc; got {labels:?}",
+        );
+        // It's tagged as a workspace proc in the detail.
+        let helper = items.iter().find(|i| i.label == "shared_helper").unwrap();
+        assert!(
+            helper.detail.as_deref().unwrap_or("").contains("workspace"),
+            "{helper:?}",
+        );
+        assert!(helper.sort_text.as_deref().unwrap_or("").starts_with("C0_"));
+    }
+
+    #[test]
+    fn workspace_procs_do_not_duplicate_local_procs() {
+        use crate::workspace_index::WorkspaceIndex;
+        // Both the current doc and the index contain `greet`.
+        // The result must list `greet` once (the local entry).
+        let cur_src = "proc greet {} {}\ngr\n";
+        let cur = analyse(cur_src);
+        let index = WorkspaceIndex::from_documents([("file:///cur.tcl", &cur)]);
+        let items = completions(
+            cur_src,
+            1,
+            2,
+            &cur,
+            None,
+            Some(&index),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        );
+        let count = items.iter().filter(|i| i.label == "greet").count();
+        assert_eq!(count, 1, "{items:?}");
+    }
+
+    #[test]
+    fn option_enum_value_completion_offers_members() {
+        // `button .b -relief ra` — cursor on the value word after a closed-set
+        // option offers the relief members, filtered by the partial.
+        let src = "button .b -relief ra";
+        let cur = analyse(src);
+        let registry = CommandRegistry::build_default();
+        let col = u32::try_from(src.len()).unwrap();
+        let items = completions(
+            src,
+            0,
+            col,
+            &cur,
+            Some(&registry),
+            None,
+            crate::profile_for_dialect("tk"),
+        );
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert!(
+            labels.contains(&"raised"),
+            "expected `raised` among relief completions; got {labels:?}"
+        );
+    }
+
+    #[test]
+    fn workspace_none_keeps_single_doc_behaviour() {
+        let cur_src = "proc greet {} {}\ngr\n";
+        let cur = analyse(cur_src);
+        let items = completions(
+            cur_src,
+            1,
+            2,
+            &cur,
+            None,
+            None,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        );
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert_eq!(labels, vec!["greet"], "{labels:?}");
+    }
+
+    /// iRule event snippet labels surfaced at a cursor.
+    fn irule_snippet_labels(
+        src: &str,
+        line: u32,
+        character: u32,
+        dialect: &'static tcl_dialect::DialectProfile,
+    ) -> Vec<String> {
+        let analysis = tcl_compiler::analyser::Analyser::new().analyse(src, dialect.name);
+        let registry = irules_registry();
+        completions(
+            src,
+            line,
+            character,
+            &analysis,
+            Some(&registry),
+            None,
+            dialect,
+        )
+        .into_iter()
+        .filter(|i| i.label.starts_with("iRule"))
+        .map(|i| i.label)
+        .collect()
+    }
+
+    #[test]
+    fn irules_event_snippets_surface_at_top_level() {
+        // `irule` partial at a top-level command position in the iRules
+        // dialect, including canonicalised legacy aliases, offers every
+        // event template.
+        for dialect in ["f5-irules", "irules", "tcl-irule"] {
+            let labels = irule_snippet_labels(
+                "irule",
+                0,
+                5,
+                tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile(),
+            );
+            assert!(
+                labels.iter().any(|l| l == "iRule RULE_INIT"),
+                "{dialect}: expected RULE_INIT; got {labels:?}",
+            );
+            assert!(
+                labels.iter().any(|l| l == "iRule HTTP_REQUEST"),
+                "{dialect}: expected HTTP_REQUEST; got {labels:?}",
+            );
+        }
+    }
+
+    #[test]
+    fn completion_builds_resolved_event_facts_once_per_request() {
+        let before = crate::irules_context::expensive_build_count();
+        let labels = irule_snippet_labels("irule", 0, 5, tcl_dialect::DialectProfile::irules());
+        assert!(labels.iter().any(|label| label == "iRule RULE_INIT"));
+        assert_eq!(
+            crate::irules_context::expensive_build_count(),
+            before + 1,
+            "completion must reuse one precomputed identity/boundary inventory"
+        );
+    }
+
+    #[test]
+    fn irules_snippets_decline_for_already_declared_event() {
+        // `when RULE_INIT { }` already declared → the RULE_INIT template
+        // drops out, but other event templates remain.
+        let src = "when RULE_INIT {\n}\nirule";
+        let labels = irule_snippet_labels(src, 2, 5, tcl_dialect::DialectProfile::irules());
+        assert!(
+            !labels.iter().any(|l| l == "iRule RULE_INIT"),
+            "RULE_INIT already declared, should decline; got {labels:?}",
+        );
+        assert!(
+            labels.iter().any(|l| l == "iRule HTTP_REQUEST"),
+            "HTTP_REQUEST not declared, should remain; got {labels:?}",
+        );
+    }
+
+    #[test]
+    fn irules_event_snippets_suppressed_inside_when_body() {
+        // Cursor inside a `when HTTP_REQUEST { }` body → the top-level
+        // guard suppresses every event template.
+        let src = "when HTTP_REQUEST {\n    irule\n}\n";
+        let labels = irule_snippet_labels(src, 1, 9, tcl_dialect::DialectProfile::irules());
+        assert!(
+            labels.is_empty(),
+            "event templates must not offer inside a when block; got {labels:?}",
+        );
+    }
+
+    #[test]
+    fn irules_snippets_hidden_in_plain_tcl_dialect() {
+        // Same source, but the `tcl8.6` dialect carries no iRule
+        // templates at all.
+        let labels = irule_snippet_labels(
+            "irule",
+            0,
+            5,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        );
+        assert!(labels.is_empty(), "got {labels:?}");
+    }
+
+    // The shared candidate filter (prefix path + fuzzy fallback).
+
+    #[test]
+    fn filter_candidates_prefix_path_keeps_input_order() {
+        let FilteredCandidates { candidates, fuzzy } =
+            filter_candidates("alpha", vec!["delta", "alpha", "beta", "alphabet"], |n| *n);
+        assert!(!fuzzy);
+        assert_eq!(candidates, vec!["alpha", "alphabet"]);
+    }
+
+    #[test]
+    fn filter_candidates_empty_partial_keeps_everything() {
+        let FilteredCandidates { candidates, fuzzy } =
+            filter_candidates("", vec!["b", "a"], |n| *n);
+        assert!(!fuzzy);
+        assert_eq!(candidates, vec!["b", "a"]);
+    }
+
+    #[test]
+    fn filter_candidates_no_fallback_for_one_char_fragment() {
+        let FilteredCandidates { candidates, fuzzy } =
+            filter_candidates("q", vec!["set", "puts"], |n| *n);
+        assert!(!fuzzy);
+        assert!(candidates.is_empty());
+    }
+
+    #[test]
+    fn filter_candidates_fuzzy_ranks_by_distance_then_name() {
+        // No candidate prefix-matches `abcdef`; `zbcdef` is one edit
+        // away, `abcdxy` two — distance outranks the name order.
+        let FilteredCandidates { candidates, fuzzy } =
+            filter_candidates("abcdef", vec!["abcdxy", "zbcdef", "qqqqqq"], |n| *n);
+        assert!(fuzzy);
+        assert_eq!(candidates, vec!["zbcdef", "abcdxy"]);
+    }
+
+    #[test]
+    fn filter_candidates_fuzzy_cap_respected() {
+        // Nine candidates all one edit from `az` — the fallback caps
+        // at MAX_FUZZY_SUGGESTIONS, keeping the name-order head.
+        let names = vec!["aa", "ab", "ac", "ad", "ae", "af", "ag", "ah", "ai"];
+        let FilteredCandidates { candidates, fuzzy } = filter_candidates("az", names, |n| *n);
+        assert!(fuzzy);
+        assert_eq!(candidates.len(), MAX_FUZZY_SUGGESTIONS);
+        assert_eq!(candidates[0], "aa");
+        assert!(!candidates.contains(&"ai"), "cap should drop the tail");
+    }
+
+    #[test]
+    fn filter_candidates_fuzzy_respects_distance_budget() {
+        // `xyzzy` is beyond the scaled edit budget of every candidate.
+        let FilteredCandidates { candidates, fuzzy } =
+            filter_candidates("xyzzy", vec!["set", "puts"], |n| *n);
+        assert!(!fuzzy);
+        assert!(candidates.is_empty());
+    }
+
+    // Pinned prefix lists — the byte-identical contract for fragments
+    // that match something.
+
+    #[test]
+    fn prefix_proc_list_pinned() {
+        let src = "proc alpha {} {}\nproc beta {} {}\nal\n";
+        let analysis = analyse(src);
+        let items = completions(
+            src,
+            2,
+            2,
+            &analysis,
+            None,
+            None,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        );
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert_eq!(labels, vec!["alpha"]);
+        assert_eq!(items[0].insert_text, "::alpha");
+        assert_eq!(
+            items[0].filter_text, None,
+            "prefix matches stay undecorated"
+        );
+    }
+
+    #[test]
+    fn prefix_subcommand_list_pinned() {
+        let src = "string to\n";
+        let analysis = analyse(src);
+        let registry = CommandRegistry::build_default();
+        let items = completions(
+            src,
+            0,
+            9,
+            &analysis,
+            Some(&registry),
+            None,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        );
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert_eq!(labels, vec!["tolower", "totitle", "toupper"]);
+        assert!(items.iter().all(|i| i.filter_text.is_none()));
+    }
+
+    // Fuzzy fallback behaviour through the public entry point.
+
+    #[test]
+    fn fuzzy_fallback_offers_lsearch_for_lsaerch() {
+        let src = "lsaerch\n";
+        let analysis = analyse(src);
+        let registry = CommandRegistry::build_default();
+        let items = completions(
+            src,
+            0,
+            7,
+            &analysis,
+            Some(&registry),
+            None,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        );
+        let lsearch = items
+            .iter()
+            .find(|i| i.label == "lsearch")
+            .unwrap_or_else(|| panic!("expected fuzzy lsearch, got {items:?}"));
+        // Decorated so editors neither hide nor re-order the item.
+        assert_eq!(lsearch.filter_text.as_deref(), Some("lsaerch"));
+        assert_eq!(lsearch.sort_text.as_deref(), Some("F00_lsearch"));
+    }
+
+    #[test]
+    fn fuzzy_fallback_skips_one_char_fragment() {
+        // `q` prefix-matches no command and is below the fragment
+        // minimum — the response stays empty rather than fuzzing.
+        let src = "q\n";
+        let analysis = analyse(src);
+        let registry = CommandRegistry::build_default();
+        let items = completions(
+            src,
+            0,
+            1,
+            &analysis,
+            Some(&registry),
+            None,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        );
+        assert!(items.is_empty(), "got {items:?}");
+    }
+
+    #[test]
+    fn fuzzy_subcommand_offers_length_for_lenght() {
+        let src = "string lenght\n";
+        let analysis = analyse(src);
+        let registry = CommandRegistry::build_default();
+        let items = completions(
+            src,
+            0,
+            13,
+            &analysis,
+            Some(&registry),
+            None,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        );
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert_eq!(labels, vec!["length"], "typo'd subcommand fragment");
+        assert_eq!(items[0].filter_text.as_deref(), Some("lenght"));
+    }
+
+    #[test]
+    fn fuzzy_switch_offers_nocase_for_ncoase() {
+        let src = "lsort -ncoase\n";
+        let analysis = analyse(src);
+        let registry = CommandRegistry::build_default();
+        let items = completions(
+            src,
+            0,
+            13,
+            &analysis,
+            Some(&registry),
+            None,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        );
+        let nocase = items
+            .iter()
+            .find(|i| i.label == "-nocase")
+            .unwrap_or_else(|| panic!("expected fuzzy -nocase, got {items:?}"));
+        // The filter text carries the dash, matching the replaced range.
+        assert_eq!(nocase.filter_text.as_deref(), Some("-ncoase"));
+        let edit = nocase.text_edit.as_ref().expect("switch replace edit");
+        assert_eq!(edit.new_text, "-nocase");
+    }
+
+    #[test]
+    fn fuzzy_variable_offers_banana_for_bnaana() {
+        let src = "set apple 1\nset banana 2\nputs $bnaana\n";
+        let analysis = analyse(src);
+        let items = completions(
+            src,
+            2,
+            12,
+            &analysis,
+            None,
+            None,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        );
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert_eq!(labels, vec!["$banana"], "typo'd variable fragment");
+        // Sigil included, matching the replaced `$…` range.
+        assert_eq!(items[0].filter_text.as_deref(), Some("$bnaana"));
+        let edit = items[0].text_edit.as_ref().expect("variable replace edit");
+        assert_eq!(edit.new_text, "$banana");
+    }
+
+    #[test]
+    fn fuzzy_array_element_offers_key_for_kye() {
+        let src = "set arr(key) 1\nset v $arr(kye\n";
+        let analysis = analyse(src);
+        let items = completions(
+            src,
+            1,
+            14,
+            &analysis,
+            None,
+            None,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        );
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert_eq!(labels, vec!["$arr(key)"], "typo'd array index");
+        assert_eq!(items[0].filter_text.as_deref(), Some("$arr(kye"));
+    }
+
+    #[test]
+    fn fuzzy_method_surfaces_when_response_would_be_empty() {
+        // `$d brk` — no method prefix-matches and no command comes
+        // within the edit budget, so the response-level fallback offers
+        // the instance's `bark`.
+        let src = "oo::class create Dog {\n    method bark {} {}\n    method beg {} {}\n}\nset d [Dog new]\n$d brk\n";
+        let analysis = analyse(src);
+        let registry = CommandRegistry::build_default();
+        let items = completions(
+            src,
+            5,
+            6,
+            &analysis,
+            Some(&registry),
+            None,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        );
+        let bark = items
+            .iter()
+            .find(|i| i.label == "bark")
+            .unwrap_or_else(|| panic!("expected fuzzy bark, got {items:?}"));
+        assert!(
+            bark.detail.as_deref().unwrap_or("").starts_with("method"),
+            "method item expected, got {:?}",
+            bark.detail,
+        );
+    }
+
+    #[test]
+    fn method_typo_does_not_hijack_command_prefix_matches() {
+        // `$d xy` — no method prefix-matches, but the proc `xyz` does;
+        // the fall-through command/proc list must stay exactly as
+        // before (no fuzzy methods creep in alongside it).
+        let src = "oo::class create Dog {\n    method xx {} {}\n}\nproc xyz {} {}\nset d [Dog new]\n$d xy\n";
+        let analysis = analyse(src);
+        let registry = CommandRegistry::build_default();
+        let items = completions(
+            src,
+            5,
+            5,
+            &analysis,
+            Some(&registry),
+            None,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        );
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert!(labels.contains(&"xyz"), "prefix proc expected: {labels:?}");
+        assert!(
+            !labels.contains(&"xx"),
+            "fuzzy method must not pad a prefix-matching response: {labels:?}",
+        );
+        assert!(items.iter().all(|i| i.filter_text.is_none()));
+    }
+
+    #[test]
+    fn proc_completion_quotes_retained_callable_source() {
+        let source = "proc {odd name} {} {}";
+        for engine in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            let mut analyser = Analyser::new();
+            let analysis = analyser.analyse(source, engine);
+            let items = proc_completions(&analysis, "odd", &FxHashMap::default());
+            assert_eq!(items.len(), 1, "{engine}: {items:?}");
+            assert_eq!(items[0].insert_text, "\"::odd name\"", "{engine}");
+        }
+    }
+
+    #[test]
+    fn proc_completion_keeps_independent_original_inventory_when_ui_geometry_is_removed() {
+        let mut analysis = analyse("proc greet {} {}");
+        analysis.all_procs.get_mut("::greet").unwrap().source_name = None;
+        assert_eq!(
+            proc_completions(&analysis, "gre", &FxHashMap::default()).len(),
+            1
+        );
+        analysis.original_procedure_metadata.clear();
+        assert!(proc_completions(&analysis, "gre", &FxHashMap::default()).is_empty());
+    }
+
+    #[test]
+    fn proc_completion_withdraws_unaddressable_colon_publication() {
+        let source = "namespace eval N {proc :f {} {return LOCAL}}";
+        for engine in ["tcl8.6", "tcl9.0", "tcl9.1"] {
+            let mut analyser = Analyser::new();
+            let analysis = analyser.analyse(source, engine);
+            assert!(analysis.all_procs.contains_key("::N:::f"), "{engine}");
+            assert!(
+                proc_completions(&analysis, ":f", &FxHashMap::default()).is_empty(),
+                "{engine}"
+            );
+        }
+    }
+
+    #[test]
+    fn invoked_proc_completions_fuzzy_falls_back() {
+        let src = "proc greet {} {}\nproc shout {} {}\n";
+        let analysis = analyse(src);
+        // Prefix path unchanged…
+        let items = invoked_proc_completions(&analysis, "gre");
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert_eq!(labels, vec!["greet"]);
+        assert!(items[0].filter_text.is_none());
+        // …and the typo'd fragment falls back to the closest proc.
+        let items = invoked_proc_completions(&analysis, "gret");
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert_eq!(labels, vec!["greet"]);
+        assert_eq!(items[0].filter_text.as_deref(), Some("gret"));
+    }
+
+    // Dialect-profile availability (dialect-profile-model.md): the §5.1
+    // available_subcommands gap and the §5.2 option semantics in
+    // completion.
+
+    #[test]
+    fn subcommand_completion_is_version_gated_by_the_profile() {
+        let src = "dict \n";
+        let analysis = analyse_for(src, "tcl8.6");
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        // 8.6 buffer: 9.0-only subcommands are not offered.
+        let items = completions(
+            src,
+            0,
+            5,
+            &analysis,
+            Some(registry),
+            None,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        );
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert!(labels.contains(&"get"), "{labels:?}");
+        assert!(
+            !labels.contains(&"getwithdefault"),
+            "dict getwithdefault is 9.0+ and must not be offered under tcl8.6: {labels:?}"
+        );
+        // 9.0 buffer: it is offered.
+        let registry90 = tcl_registry::model::ingress::static_context_for("tcl9.0").commands();
+        let analysis90 = analyse_for(src, "tcl9.0");
+        let items90 = completions(
+            src,
+            0,
+            5,
+            &analysis90,
+            Some(registry90),
+            None,
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
+        );
+        let labels90: Vec<&str> = items90.iter().map(|i| i.label.as_str()).collect();
+        assert!(labels90.contains(&"getwithdefault"), "{labels90:?}");
+    }
+
+    #[test]
+    fn command_completion_uses_profile_availability() {
+        let src = "dic\n";
+        let analysis = analyse_for(src, "f5-iapps");
+        // iApps ride the `f5-tcl` trunk — a fork of Tcl at 8.4.6
+        // (measured, bigip-irule-parser-measurements.md §4a: `dict` fails
+        // in `IAppImplementation`) — so `dict` is NOT offered there…
+        let registry = tcl_registry::model::ingress::static_context_for("f5-iapps").commands();
+        let items = completions(
+            src,
+            0,
+            3,
+            &analysis,
+            Some(registry),
+            None,
+            tcl_registry::model::ingress::resolve_environment("f5-iapps").analyser_profile(),
+        );
+        assert!(
+            !items.iter().any(|i| i.label == "dict"),
+            "dict must not be offered under f5-iapps (8.4.6 trunk, measured)"
+        );
+        // …while the banned iRules commands never surface there.
+        let irules_reg = tcl_registry::model::ingress::static_context_for("f5-irules").commands();
+        let exec_src = "exe\n";
+        let exec_analysis = analyse_for(exec_src, "f5-irules");
+        let irules_items = completions(
+            exec_src,
+            0,
+            3,
+            &exec_analysis,
+            Some(irules_reg),
+            None,
+            tcl_dialect::DialectProfile::irules(),
+        );
+        assert!(
+            !irules_items.iter().any(|i| i.label == "exec"),
+            "exec is banned in iRules and must not be completed"
+        );
+    }
+
+    #[test]
+    fn switch_option_completion_respects_profile_gating() {
+        // Option completion under f5-iapps follows the measured fork:
+        // F5 reclassification (measurements §4/§4a,
+        // `docs/design/f5/bigip-irule-parser-measurements.md`) — the iApps
+        // host is the 8.4.6 `f5-tcl` fork, not the falsified 8.5.13
+        // hypothesis, so the 8.5+ `switch -nocase` is not offered
+        // there, and the 9.0-only `regsub
+        // -command` stays out. The 8.4-real `-exact` is offered, so
+        // the composed vendor mask keeps working.
+        let src = "switch -\n";
+        let analysis = analyse_for(src, "f5-iapps");
+        let registry = tcl_registry::model::ingress::static_context_for("f5-iapps").commands();
+        let items = completions(
+            src,
+            0,
+            8,
+            &analysis,
+            Some(registry),
+            None,
+            tcl_registry::model::ingress::resolve_environment("f5-iapps").analyser_profile(),
+        );
+        let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
+        assert!(
+            labels.contains(&"-exact"),
+            "switch -exact is 8.4 core, offered under f5-iapps: {labels:?}"
+        );
+        assert!(
+            !labels.contains(&"-nocase"),
+            "switch -nocase is 8.5+ and the iApps host is a measured 8.4.6 fork: {labels:?}"
+        );
+
+        let src9 = "regsub -\n";
+        let analysis9 = analyse_for(src9, "f5-iapps");
+        let items9 = completions(
+            src9,
+            0,
+            8,
+            &analysis9,
+            Some(registry),
+            None,
+            tcl_registry::model::ingress::resolve_environment("f5-iapps").analyser_profile(),
+        );
+        let labels9: Vec<&str> = items9.iter().map(|i| i.label.as_str()).collect();
+        assert!(
+            !labels9.contains(&"-command"),
+            "regsub -command is 9.0-only, hidden under f5-iapps: {labels9:?}"
+        );
+    }
+}
+
+#[cfg(test)]
+mod original_proc_completion_tests {
+    use super::*;
+
+    #[test]
+    fn logical_proc_completion_inserts_original_headers_after_report_labels_change() {
+        let source = "namespace eval N {proc helper {arg} {return $arg}}";
+        let mut analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl");
+        let original = proc_completions(&analysis, "hel", &FxHashMap::default());
+        assert_eq!(original.len(), 1);
+        assert_eq!(original[0].label, "helper");
+        assert_eq!(original[0].insert_text, "::N::helper");
+        let procedure = analysis.all_procs.get_mut("::N::helper").unwrap();
+        procedure.name = "display".into();
+        procedure.qualified_name = "::foreign::display".into();
+        let current = proc_completions(&analysis, "hel", &FxHashMap::default());
+        assert_eq!(current, original);
+        analysis
+            .all_procs
+            .get_mut("::N::helper")
+            .unwrap()
+            .params
+            .clear();
+        assert!(proc_completions(&analysis, "hel", &FxHashMap::default()).is_empty());
+    }
+    use tcl_compiler::analyser::Analyser;
+
+    fn inserted_slot(
+        item: &CompletionItem,
+        config: tcl_lexer::LexerConfig,
+        policy: tcl_syntax::naming::NamePolicyProtocol,
+    ) -> tcl_core_types::ByteCommandSlot {
+        let image = tcl_lexer::SourceImage::document(&item.insert_text);
+        let command = tcl_lexer::native_script_words_in(
+            image,
+            tcl_lexer::Span::new(0, u32::try_from(item.insert_text.len()).unwrap()),
+            config,
+        )
+        .unwrap();
+        assert_eq!(command.commands.len(), 1);
+        assert_eq!(command.commands[0].words.len(), 1);
+        let key =
+            tcl_compiler::signature_scan::scope::SignatureSourceNameKey::from_original_native_word(
+                &command.commands[0].words[0],
+                tcl_syntax::word_rules::WordValueRules::from_config(&config),
+                policy,
+            )
+            .unwrap();
+        tcl_compiler::signature_scan::scope::SignatureSourceCommand::procedure_from_key(
+            &tcl_compiler::signature_scan::scope::SignatureNamespaceScope::C(
+                tcl_core_types::ByteNamespacePath::root(),
+            ),
+            &key,
+        )
+        .unwrap()
+        .slot()
+        .clone()
+    }
+
+    #[test]
+    fn opaque_completion_names_survive_ui_collapse_and_insert_distinct_native_words() {
+        let source = r"proc p\uD800 {} {}; proc p\uD801 {} {}";
+        let mut analysis = Analyser::new().analyse(source, "tcl8.6");
+        let expected = analysis
+            .original_procedure_declarations()
+            .map(|declaration| declaration.name().slot().clone())
+            .collect::<Vec<_>>();
+        assert_eq!(expected.len(), 2);
+        let policy = analysis
+            .original_procedure_declarations()
+            .next()
+            .unwrap()
+            .name()
+            .policy();
+        analysis.all_procs.clear();
+        analysis.superseded_procs.clear();
+        let items = proc_completions(&analysis, "", &FxHashMap::default());
+        assert_eq!(items.len(), 2);
+        let actual = items
+            .iter()
+            .map(|item| inserted_slot(item, analysis.body_lexer_config.unwrap(), policy))
+            .collect::<Vec<_>>();
+        assert_ne!(actual[0], actual[1]);
+        assert!(expected.iter().all(|slot| actual.contains(slot)));
+    }
+
+    #[test]
+    fn moved_and_deleted_completions_use_conditional_source_publication_slots() {
+        let source = "proc old {value} {}; proc deleted {} {}; rename old moved; rename deleted {}";
+        let mut analysis = Analyser::new().analyse(source, "tcl8.6");
+        // naming.source.original-procedure-publications
+        // docs/design/analysis/name-resolution-proofs/source-original-procedure-publications.md
+        assert!(analysis.original_completed_command_world().is_none());
+        let inventory =
+            tcl_compiler::registry_invocation::source_structure::source_procedure_publications(
+                source, &analysis,
+            )
+            .unwrap();
+        assert_eq!(inventory.publications().len(), 1);
+        assert!(inventory.publications()[0].obligations().contains(&tcl_compiler::command_binding::SourceCommandTransitionObligation::UnavailableActualLookup));
+        analysis.all_procs.clear();
+        let items = proc_completions(&analysis, "", &FxHashMap::default());
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].label, "moved");
+        assert_eq!(items[0].detail.as_deref(), Some("value"));
+        assert!(proc_completions(&analysis, "old", &FxHashMap::default()).is_empty());
+        let policy = analysis
+            .original_procedure_declarations()
+            .next()
+            .unwrap()
+            .name()
+            .policy();
+        assert_eq!(
+            inserted_slot(&items[0], analysis.body_lexer_config.unwrap(), policy)
+                .simple
+                .as_bytes(),
+            b"moved"
+        );
+    }
+
+    #[test]
+    fn document_completion_unicode_uses_the_selected_ingress_recipe() {
+        for engine in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            let analysis = Analyser::new().analyse("proc café😀 {} {}", engine);
+            let declaration = analysis.original_procedure_declarations().next().unwrap();
+            let items = proc_completions(&analysis, "", &FxHashMap::default());
+            assert_eq!(items.len(), 1, "{engine}");
+            assert_eq!(
+                inserted_slot(
+                    &items[0],
+                    declaration.name_input().lexer_config(),
+                    declaration.name().policy()
+                ),
+                *declaration.name().slot(),
+                "{engine}"
+            );
+        }
+    }
+
+    #[test]
+    fn original_hosted_proc_completion_preserves_source_candidates_without_a_native_recipe() {
+        let mut analysis =
+            Analyser::new().analyse("proc greet {value} {return $value}", "f5-irules");
+        assert!(!analysis.allows_lexical_declaration_advice());
+        assert!(analysis.has_original_vendor_source_names());
+        assert!(analysis.original_procedure_declarations().next().is_none());
+        assert_eq!(analysis.original_vendor_procedure_declarations().count(), 1);
+        analysis.all_procs.clear();
+        analysis.global_scope.procs.clear();
+        let items = proc_completions(&analysis, "gre", &FxHashMap::default());
+        assert_eq!(items.len(), 1, "{items:?}");
+        assert_eq!(items[0].label, "greet");
+        assert_eq!(items[0].insert_text, "greet");
+        assert!(
+            items[0]
+                .detail
+                .as_deref()
+                .unwrap()
+                .starts_with("Source declaration:")
+        );
+    }
+
+    #[test]
+    fn original_vendor_command_completion_keeps_owned_unknown_names_out_of_suggestions() {
+        // Implementation contract: naming.vendor.original-source-declaration-consumers
+        // docs/design/analysis/name-resolution-proofs/vendor-original-source-declaration-consumers.md
+        let source = "proc helper {argument} {return $argument}\nproc p\\uD800 {} {}\nhel";
+        let mut analysis = Analyser::new().analyse(source, "f5-iapps");
+        assert_eq!(analysis.original_vendor_procedure_declarations().count(), 2);
+        analysis.all_procs.clear();
+        analysis.global_scope.procs.clear();
+        let profile = crate::profile_for_analysis(&analysis);
+        let items = completions(source, 2, 3, &analysis, None, None, profile);
+        let helper = items.iter().find(|item| item.label == "helper").unwrap();
+        assert_eq!(helper.insert_text, "helper");
+        assert!(
+            helper
+                .detail
+                .as_deref()
+                .unwrap()
+                .starts_with("Source declaration:")
+        );
+        assert!(items.iter().all(|item| !item.label.contains("D800")));
+        assert!(
+            completions(
+                &format!("# displaced\n{source}"),
+                2,
+                3,
+                &analysis,
+                None,
+                None,
+                profile
+            )
+            .is_empty()
+        );
+    }
+
+    #[test]
+    fn eda_proc_completion_uses_the_selected_authored_tcl_layer() {
+        let mut analysis =
+            Analyser::new().analyse("proc greet {value} {return $value}", "xilinx-eda-tcl");
+        assert!(!analysis.allows_lexical_declaration_advice());
+        let declaration = analysis.original_procedure_declarations().next().unwrap();
+        let policy = declaration.name().policy();
+        assert_eq!(
+            policy.authority(),
+            tcl_syntax::naming::NamePolicyAuthority::AuthoredSimulation
+        );
+        assert_eq!(
+            policy.recipe(),
+            tcl_syntax::naming::NativeNameProtocol::C(tcl_dialect::TclVersion::V8_5)
+        );
+        let expected = declaration.name().slot().clone();
+        analysis.all_procs.clear();
+        let items = proc_completions(&analysis, "gre", &FxHashMap::default());
+        assert_eq!(items.len(), 1, "{items:?}");
+        assert_eq!(items[0].label, "greet");
+        assert_eq!(
+            inserted_slot(&items[0], analysis.body_lexer_config.unwrap(), policy),
+            expected
+        );
+    }
+
+    #[test]
+    fn byte_policy_failure_cannot_fall_back_to_display_declaration_advice() {
+        let mut analysis = Analyser::new().analyse(r"proc p\uD800 {} {}", "tcl8.6");
+        assert!(!analysis.allows_lexical_declaration_advice());
+        analysis.original_procedure_metadata.clear();
+        for proc_def in analysis.all_procs.values_mut() {
+            proc_def.source_name = None;
+        }
+        assert!(proc_completions(&analysis, "", &FxHashMap::default()).is_empty());
+        let mut unsupported = Analyser::new().analyse("proc café {} {}", "f5-irules");
+        assert!(!unsupported.allows_lexical_declaration_advice());
+        assert!(unsupported.has_original_vendor_source_names());
+        assert_eq!(
+            unsupported.original_vendor_procedure_declarations().count(),
+            1
+        );
+        assert!(
+            unsupported
+                .original_vendor_procedure_declarations()
+                .next()
+                .unwrap()
+                .name_input()
+                .literal_units(tcl_syntax::naming::VendorSourceNamePurpose::ProcedureName)
+                .is_none()
+        );
+        assert!(proc_completions(&unsupported, "", &FxHashMap::default()).is_empty());
+        unsupported.body_lexer_config = None;
+        assert!(proc_completions(&unsupported, "", &FxHashMap::default()).is_empty());
+    }
+}
+
+#[cfg(test)]
+mod original_oo_completion_tests {
+    use super::*;
+    use tcl_compiler::analyser::Analyser;
+
+    #[test]
+    fn original_class_methods_complete_distinct_native_names_with_ui_tables_cleared() {
+        let source = "oo::class create C\\uD800 {self method m\\uD800 {} {}; self method m\\uD801 {} {}}\nC\\uD800 ";
+        let mut analysis = Analyser::new().analyse(source, "tcl8.6").clone();
+        analysis.all_classes.clear();
+        analysis.superseded_classes.clear();
+        let record = analysis.original_class_declarations().next().unwrap();
+        let items = original_class_method_items(&analysis, record, "");
+        assert_eq!(items.len(), 2);
+        assert_ne!(items[0].insert_text, items[1].insert_text);
+        let cursor = u32::try_from(source.len()).unwrap();
+        let std::ops::ControlFlow::Break(Some(selected)) =
+            crate::original_oo::class_completion_context(&analysis, source, cursor)
+        else {
+            panic!("authentic escaped class command head");
+        };
+        assert_eq!(selected.declaration_site(), record.declaration_site());
+    }
+
+    #[test]
+    fn original_method_completion_replaces_the_complete_grouped_selector() {
+        let source = "oo::class create C {self method m\\uD800 {} {}}\nC {m\\uD8}";
+        let analysis = Analyser::new().analyse(source, "tcl8.6").clone();
+        let record = analysis.original_class_declarations().next().unwrap();
+        let wanted = record
+            .metadata()
+            .original_members
+            .methods(tcl_compiler::analyser::types::MemberSide::ClassObject)
+            .unwrap()
+            .remove(0);
+        let cursor = u32::try_from(source.len() - 1).unwrap();
+        let (span, replacement) = crate::original_oo::method_selector_replacement(
+            &analysis,
+            source,
+            cursor,
+            wanted.original_name_input().bytes(),
+            wanted.original_name_input().policy(),
+        )
+        .unwrap();
+        assert_eq!(source.get(span.as_range()), Some(r"{m\uD8}"));
+        let rewritten = format!(
+            "{}{}{}",
+            &source[..span.start() as usize],
+            replacement,
+            &source[span.end() as usize..]
+        );
+        let config = analysis.body_lexer_config.unwrap();
+        let plan = tcl_lexer::native_script_words_in(
+            tcl_lexer::SourceImage::document(&rewritten),
+            tcl_lexer::Span::new(0, u32::try_from(rewritten.len()).unwrap()),
+            config,
+        )
+        .unwrap();
+        let word = &plan.commands.last().unwrap().words[1];
+        let key =
+            tcl_compiler::signature_scan::scope::SignatureSourceNameKey::from_original_native_word(
+                word,
+                tcl_syntax::word_rules::WordValueRules::from_config(&config),
+                wanted.original_name_input().policy(),
+            )
+            .unwrap();
+        assert_eq!(key.bytes(), wanted.original_name_input().bytes());
+    }
+
+    #[test]
+    fn original_class_method_advice_does_not_inherit_own_self_methods() {
+        let source = "oo::class create Base {self method own {} {}}\noo::class create Child {superclass Base; self method child {} {}}";
+        let analysis = Analyser::new().analyse(source, "tcl8.6").clone();
+        let child = analysis
+            .original_class_declarations()
+            .find(|record| record.name_input().bytes() == b"Child")
+            .unwrap();
+        let items = original_class_method_items(&analysis, child, "");
+        assert_eq!(
+            items
+                .iter()
+                .map(|item| item.label.as_str())
+                .collect::<Vec<_>>(),
+            vec!["child"]
+        );
+    }
+}
+
+#[cfg(test)]
+mod original_inherited_completion_tests {
+    use super::*;
+    use tcl_compiler::analyser::{Analyser, types::MemberSide};
+
+    fn selected_bytes(
+        item: &CompletionItem,
+        record: &tcl_compiler::signature_scan::original_name::SourceDeclarationMetadata<
+            tcl_compiler::analyser::ClassDef,
+        >,
+    ) -> Vec<u8> {
+        let key = record.name_input();
+        let image = tcl_lexer::SourceImage::document(&item.insert_text);
+        let plan = tcl_lexer::native_script_words_in(
+            image,
+            tcl_lexer::Span::new(0, u32::try_from(item.insert_text.len()).unwrap()),
+            key.lexer_config(),
+        )
+        .unwrap();
+        let [command] = plan.commands.as_slice() else {
+            panic!("one inserted command word");
+        };
+        let [word] = command.words.as_slice() else {
+            panic!("one inserted selector");
+        };
+        tcl_compiler::signature_scan::scope::SignatureSourceNameKey::from_original_native_word(
+            word,
+            key.word_value_rules(),
+            key.policy(),
+        )
+        .unwrap()
+        .bytes()
+        .to_vec()
+    }
+
+    #[test]
+    fn original_inherited_method_candidates_use_byte_relations_after_reporting_clear() {
+        let source = r"oo::class create Base\uD800 {method b\uD800 {} {}}; oo::class create Base\uD801 {method wrong {} {}}; oo::class create Mix {method mixed {} {}}; oo::class create Child {superclass Base\uD800; mixin Mix; method own {} {}}";
+        let mut analysis = Analyser::new().analyse(source, "tcl8.6");
+        analysis.all_classes.clear();
+        analysis.superseded_classes.clear();
+        analysis.global_scope.classes.clear();
+        let record = analysis
+            .original_class_declarations()
+            .find(|record| record.name_input().bytes() == b"Child")
+            .unwrap();
+        let items = original_method_candidate_items(&analysis, record, "", MemberSide::Instance);
+        let mut values = items
+            .iter()
+            .map(|item| selected_bytes(item, record))
+            .collect::<Vec<_>>();
+        values.sort();
+        assert_eq!(
+            values,
+            [
+                b"b\xed\xa0\x80".to_vec(),
+                b"mixed".to_vec(),
+                b"own".to_vec()
+            ]
+        );
+        assert!(items.iter().all(|item| item.detail.as_deref() == Some("method — source declaration candidate")));
+    }
+
+    #[test]
+    fn original_property_accessor_candidates_follow_typed_source_inheritance_only() {
+        let source = "oo::configurable create Base {property x}; oo::class create Child {superclass Base; method own {} {}}";
+        let mut analysis = Analyser::new().analyse(source, "tcl9.0");
+        analysis.all_classes.clear();
+        analysis.global_scope.classes.clear();
+        let record = analysis
+            .original_class_declarations()
+            .find(|record| record.name_input().bytes() == b"Child")
+            .unwrap();
+        let items = original_method_candidate_items(&analysis, record, "", MemberSide::Instance);
+        assert_eq!(
+            items
+                .iter()
+                .map(|item| item.label.as_str())
+                .collect::<Vec<_>>(),
+            ["configure", "own"]
+        );
+        assert_eq!(
+            items[0].detail.as_deref(),
+            Some("method — property declaration candidate")
+        );
+        assert!(
+            original_method_candidate_items(&analysis, record, "", MemberSide::ClassObject)
+                .is_empty()
+        );
+    }
+}
+
+#[cfg(test)]
+mod original_property_completion_tests {
+    use super::*;
+    use tcl_compiler::analyser::Analyser;
+    use tcl_compiler::analyser::types::MemberSide;
+
+    #[test]
+    fn original_property_method_advice_uses_selected_grammar_and_own_source_ledger() {
+        let source = r"oo::configurable create C {property p\uD800 -kind readable p\uD801 -kind writable; method own {} {}}";
+        let mut analysis = Analyser::new().analyse(source, "tcl9.1");
+        analysis.all_classes.clear();
+        analysis.global_scope.classes.clear();
+        let record = analysis.original_class_declarations().next().unwrap();
+        assert_eq!(
+            record
+                .metadata()
+                .original_properties
+                .properties(MemberSide::Instance)
+                .unwrap()
+                .len(),
+            2
+        );
+        let items = original_method_candidate_items(&analysis, record, "", MemberSide::Instance);
+        let names = items
+            .iter()
+            .map(|item| item.label.as_str())
+            .collect::<Vec<_>>();
+        assert_eq!(names, ["configure", "own"]);
+        assert!(!names.contains(&"cget"));
+        let accessor = items.iter().find(|item| item.label == "configure").unwrap();
+        assert_eq!(
+            accessor.detail.as_deref(),
+            Some("method — property declaration candidate")
+        );
+        assert!(
+            original_method_candidate_items(&analysis, record, "", MemberSide::ClassObject)
+                .is_empty()
+        );
+        let ordinary = Analyser::new().analyse("oo::class create C {method own {} {}}", "tcl9.1");
+        let record = ordinary.original_class_declarations().next().unwrap();
+        assert_eq!(
+            original_method_candidate_items(&ordinary, record, "", MemberSide::Instance)
+                .iter()
+                .map(|item| item.label.as_str())
+                .collect::<Vec<_>>(),
+            ["own"]
+        );
+    }
+}
+
+#[cfg(test)]
+mod original_own_object_completion_tests {
+    use super::*;
+    use tcl_compiler::analyser::Analyser;
+
+    fn items(source: &str, analysis: &AnalysisResult, head: &str) -> Vec<CompletionItem> {
+        let start = u32::try_from(source.rfind(head).unwrap()).unwrap();
+        let cursor = start + u32::try_from(head.len()).unwrap();
+        let record =
+            crate::original_oo::instance_method_completion_record(analysis, source, cursor)
+                .expect("current actual object class");
+        original_instance_method_candidate_items_at(analysis, record, source, cursor, "", None)
+    }
+
+    #[test]
+    fn original_own_object_completion_keeps_allocations_and_opaque_routes_after_reporting_clear() {
+        // Implementation contract: naming.core.original-own-object-completion
+        // docs/design/analysis/name-resolution-proofs/core-original-own-object-completion.md
+        let source = r"oo::class create C {method shared {} {}}; C create object; C create sibling; oo::objdefine object {method shared {} {}; method p\uD800 {} {}; method p\uD801 {} {}}; object shared; sibling shared";
+        let mut analysis = Analyser::new().analyse(source, "tcl8.6");
+        analysis.all_classes.clear();
+        analysis.superseded_classes.clear();
+        analysis.global_scope.classes.clear();
+        let own = items(source, &analysis, "object shared");
+        assert_eq!(own.len(), 3);
+        assert!(own.iter().all(
+            |item| item.detail.as_deref() == Some("method — per-object declaration candidate")
+        ));
+        let class = analysis.original_class_declarations().next().unwrap();
+        let policy = class.name_input().policy();
+        let values = own.iter().map(|item| {
+            let image = tcl_lexer::SourceImage::document(&item.insert_text);
+            let plan = tcl_lexer::native_script_words_in(image,
+                tcl_lexer::Span::new(0, u32::try_from(item.insert_text.len()).unwrap()),
+                class.name_input().lexer_config()).unwrap();
+            tcl_compiler::signature_scan::scope::SignatureSourceNameKey::from_original_native_word(
+                &plan.commands[0].words[0], class.name_input().word_value_rules(), policy)
+                .unwrap().bytes().to_vec()
+        }).collect::<Vec<_>>();
+        assert!(values.contains(&b"p\xed\xa0\x80".to_vec()));
+        assert!(values.contains(&b"p\xed\xa0\x81".to_vec()));
+        let sibling = items(source, &analysis, "sibling shared");
+        assert_eq!(
+            sibling
+                .iter()
+                .map(|item| item.label.as_str())
+                .collect::<Vec<_>>(),
+            ["shared"]
+        );
+        assert_eq!(
+            sibling[0].detail.as_deref(),
+            Some("method — source declaration candidate")
+        );
+        assert!(matches!(
+            crate::original_oo::own_object_completion_methods(
+                &analysis,
+                &format!("#{source}"),
+                u32::try_from(source.len()).unwrap()
+            ),
+            std::ops::ControlFlow::Break(None)
+        ));
+    }
+
+    #[test]
+    fn original_own_object_completion_requires_the_actual_generation_and_canonical_declaration() {
+        // Implementation contract: naming.core.original-own-object-completion
+        // docs/design/analysis/name-resolution-proofs/core-original-own-object-completion.md
+        let source = "oo::class create C {method shared {} {}}; C create object; oo::objdefine object {method own {} {}}; object own";
+        let mut analysis = Analyser::new().analyse(source, "tcl8.6");
+        assert!(
+            items(source, &analysis, "object own")
+                .iter()
+                .any(|item| item.label == "own")
+        );
+        analysis.original_object_configuration_metadata.clear();
+        assert!(items(source, &analysis, "object own").is_empty());
+        let unknown = "oo::class create C {}; C create object; oo::objdefine object {unknown_worker}; object own";
+        let analysis = Analyser::new().analyse(unknown, "tcl8.6");
+        let offset = u32::try_from(unknown.rfind("object own").unwrap()).unwrap();
+        let structure = crate::source_structure::SourceStructure::capture(
+            unknown,
+            Some(&analysis),
+            analysis.body_lexer_config.unwrap(),
+        )
+        .unwrap();
+        let command = structure
+            .commands
+            .iter()
+            .find(|command| {
+                command
+                    .argv
+                    .first()
+                    .is_some_and(|head| head.span.start() == offset)
+            })
+            .unwrap();
+        assert!(
+            crate::receiver_identity::class_at_command_head(&analysis, unknown, command).is_none(),
+            "conditional source construction cannot supply the missing current receiver generation"
+        );
+    }
+}
+
+#[cfg(test)]
+mod original_expression_completion_tests {
+    use super::*;
+    use tcl_compiler::analyser::Analyser;
+
+    #[test]
+    // Implementation contract: naming.core.original-expression-source-selection
+    // docs/design/analysis/name-resolution-proofs/original-expression-source-selection.md
+    fn original_expression_completion_does_not_borrow_a_shadowed_role() {
+        for (source, expected) in [
+            ("expr {si}", true),
+            ("proc expr args {}; expr {si}", false),
+            ("set data {si}", false),
+        ] {
+            let analysis = Analyser::new().analyse(source, "tcl8.6");
+            let cursor = u32::try_from(source.rfind("si").unwrap() + 2).unwrap();
+            let registry = analysis.resolved_registry().unwrap();
+            let items = completions(
+                source,
+                0,
+                cursor,
+                &analysis,
+                Some(registry),
+                None,
+                analysis.resolved_profile().unwrap(),
+            );
+            assert_eq!(
+                items
+                    .iter()
+                    .any(|item| item.detail.as_deref() == Some("expr math function")),
+                expected,
+                "{source}"
+            );
+        }
+    }
+}
+
+#[cfg(test)]
+mod original_document_grammar_tests {
+    use super::*;
+
+    #[test]
+    fn original_document_grammar_completion_preserves_full_source_configuration() {
+        // Implementation contract: naming.core.original-document-grammar-completion
+        // docs/design/analysis/name-resolution-proofs/original-document-grammar-completion.md
+        let source = "\u{feff}endpoint www {\n    hsts {\n        \n    }\n}\n";
+        let profile =
+            tcl_registry::model::ingress::resolve_environment("sslictcl").analyser_profile();
+        let context = tcl_registry::model::ingress::context_for_profile(profile);
+        let analyse = |leading_bom| {
+            let config = tcl_lexer::LexerConfig {
+                leading_bom,
+                ..tcl_lexer::LexerConfig::for_file_grammar(profile.grammar)
+            };
+            let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+                profile,
+                profile,
+                std::sync::Arc::clone(&context),
+                config,
+            );
+            tcl_compiler::analyser::Analyser::new()
+                .with_resolved_input(input)
+                .analyse(source, profile.name)
+        };
+        let labels = |analysis: &AnalysisResult| {
+            completions(source, 2, 8, analysis, None, None, profile)
+                .into_iter()
+                .map(|item| item.label)
+                .collect::<Vec<_>>()
+        };
+        let skipping = analyse(tcl_lexer::LeadingBom::Skip);
+        let nested = labels(&skipping);
+        assert!(nested.iter().any(|label| label == "max-age"), "{nested:?}");
+        assert!(
+            !nested.iter().any(|label| label == "endpoint"),
+            "{nested:?}"
+        );
+        let literal = analyse(tcl_lexer::LeadingBom::Content);
+        let root = labels(&literal);
+        assert!(root.iter().any(|label| label == "endpoint"), "{root:?}");
+        assert!(!root.iter().any(|label| label == "max-age"), "{root:?}");
+        let index = tcl_lexer::LineIndex::new(source);
+        assert!(
+            definition_grammar_at_position(
+                &source.replace("www", "zzz"),
+                2,
+                8,
+                &index,
+                &skipping,
+                context.commands(),
+            )
+            .is_none()
+        );
+    }
+}
+
+#[cfg(test)]
+mod original_scoped_completion_tests {
+    use super::*;
+
+    #[test]
+    fn original_scoped_completion_uses_source_body_receipts_and_current_owners() {
+        // Implementation contract: naming.core.original-scoped-body-completion
+        // docs/design/analysis/name-resolution-proofs/original-scoped-body-completion.md
+        let source = "::report::defstyle st {} {\n    to\n}\n";
+        let mut analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl8.6");
+        let image = tcl_lexer::SourceImage::document(source);
+        let cursor = u32::try_from(source.find("    to").unwrap() + 6).unwrap();
+        let body = analysis
+            .original_scoped_body_in_source(&image, analysis.body_lexer_config.unwrap(), cursor)
+            .expect("original scoped source body");
+        assert!(body.environment().command("top").is_some());
+        assert_eq!(body.original_body().image(), &image);
+        analysis.scoped_command_regions.clear();
+        let profile = analysis.resolved_profile().unwrap();
+        let labels = completions(source, 1, 6, &analysis, None, None, profile)
+            .into_iter()
+            .map(|item| item.label)
+            .collect::<Vec<_>>();
+        assert!(labels.iter().any(|label| label == "top"), "{labels:?}");
+        assert!(
+            completions(
+                &source.replace("st", "zz"),
+                1,
+                6,
+                &analysis,
+                None,
+                None,
+                profile
+            )
+            .is_empty()
+        );
+        for prefix in [
+            "namespace eval ::report {}\nproc ::report::defstyle {args} {}\n",
+            "namespace eval ::report {}\nproc ::report::defstyle {args} {}\nrename ::report::defstyle {}\n",
+        ] {
+            let custom = format!("{prefix}{source}");
+            let mut blocked = tcl_compiler::analyser::Analyser::new().analyse(&custom, "tcl8.6");
+            blocked
+                .scoped_command_regions
+                .push(tcl_compiler::analyser::types::ScopedBodyRegion {
+                    span: tcl_lexer::Span::new(0, u32::try_from(custom.len()).unwrap()),
+                    env: body_environment(),
+                });
+            let index = tcl_lexer::LineIndex::new(&custom);
+            let cursor = u32::try_from(custom.find("    to").unwrap() + 6).unwrap();
+            let position = index.position_at_utf16(cursor, &custom);
+            assert!(
+                scoped_env_at(
+                    &blocked,
+                    &custom,
+                    position.line,
+                    position.character.get(),
+                    &index
+                )
+                .is_none()
+            );
+        }
+    }
+    fn body_environment() -> &'static tcl_registry::scoped::ScopedCommandEnv {
+        &tcl_registry::scoped::REPORT_DEFSTYLE_ENV
+    }
+}
+
+#[cfg(test)]
+mod original_snippet_context_tests {
+    use super::*;
+    use tcl_compiler::analyser::Analyser;
+
+    fn at(source: &str, analysis: &AnalysisResult, offset: usize) -> Vec<CompletionItem> {
+        let profile = analysis.resolved_profile().unwrap();
+        let position = tcl_lexer::LineIndex::new(source)
+            .position_at_utf16(u32::try_from(offset).unwrap(), source);
+        completions(
+            source,
+            position.line,
+            position.character.get(),
+            analysis,
+            analysis.resolved_registry(),
+            None,
+            profile,
+        )
+    }
+
+    #[test]
+    fn original_snippet_variable_choices_keep_source_references_after_ui_erasure() {
+        // naming.core.original-snippet-source-context
+        // docs/design/analysis/name-resolution-proofs/original-snippet-source-context.md
+        let source = "set {café🙂} LIST\nset v\\uD800 OTHER\ntcl-foreach";
+        let mut analysis = Analyser::new().analyse(source, "tcl8.6");
+        analysis.global_scope.variables.clear();
+        analysis.all_variables.clear();
+        let candidates = at(source, &analysis, source.len());
+        let snippet = candidates
+            .iter()
+            .find(|item| item.label == "Foreach")
+            .unwrap();
+        assert!(
+            snippet.insert_text.contains("${café🙂}"),
+            "{}",
+            snippet.insert_text
+        );
+        assert!(!snippet.insert_text.contains("D800"));
+        assert!(at(&format!("#{source}"), &analysis, source.len() + 1).is_empty());
+    }
+
+    #[test]
+    fn logical_snippet_choices_use_current_scope_and_selected_source_reference_grammar() {
+        let source = "set {two words} LIST\nset {a{b}c} LIST\nset a_\\}_closebrace LIST\nproc p {} {\nset local LIST\ntcl-foreach\n}\n";
+        let cursor = source.find("tcl-foreach").unwrap() + "tcl-foreach".len();
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        for environment in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            let selected = tcl_registry::model::ingress::resolve_environment(environment);
+            let config = tcl_lexer::LexerConfig::for_profile(Some(selected.analyser_profile()));
+            let analysis = Analyser::new()
+                .with_resolved_input(tcl_compiler::analyser::ResolvedAnalysisInput::new(
+                    profile,
+                    profile,
+                    selected.default_context_registry(),
+                    config,
+                ))
+                .analyse(source, "display only");
+            let candidates = at(source, &analysis, cursor);
+            let snippet = candidates
+                .iter()
+                .find(|item| item.label == "Foreach")
+                .unwrap();
+            assert!(
+                snippet.insert_text.contains("$local"),
+                "{environment}: {}",
+                snippet.insert_text
+            );
+            assert!(
+                snippet.insert_text.contains("${::two words}"),
+                "{environment}: {}",
+                snippet.insert_text
+            );
+            assert!(
+                !snippet.insert_text.contains("closebrace"),
+                "{environment}: {}",
+                snippet.insert_text
+            );
+            assert_eq!(
+                snippet.insert_text.contains("${::a{b}c}"),
+                config.braced_var == tcl_dialect::BracedVarStyle::Tcl9Nesting,
+                "{environment}: {}",
+                snippet.insert_text,
+            );
+            assert!(at(&format!("#{source}"), &analysis, cursor + 1).is_empty());
+            let mut missing = analysis.clone();
+            missing.resolved_input = None;
+            let position = tcl_lexer::LineIndex::new(source)
+                .position_at_utf16(u32::try_from(cursor).unwrap(), source);
+            assert!(
+                completions(
+                    source,
+                    position.line,
+                    position.character.get(),
+                    &missing,
+                    None,
+                    None,
+                    profile
+                )
+                .is_empty()
+            );
+            let mut changed = analysis.clone();
+            changed.body_lexer_config.as_mut().unwrap().strict_quoting = !config.strict_quoting;
+            assert!(at(source, &changed, cursor).is_empty());
+        }
+    }
+
+    #[test]
+    fn original_snippet_events_keep_retained_cards_and_actual_script_placement() {
+        // naming.core.original-snippet-source-context
+        // docs/design/analysis/name-resolution-proofs/original-snippet-source-context.md
+        let source = "when RULE_INIT {\n  irule-http-request\n}\nirule-http-request";
+        let mut analysis = Analyser::new().analyse(source, "f5-irules");
+        assert!(
+            analysis
+                .original_vendor_symbol_declarations()
+                .any(|row| row.metadata().kind == tcl_registry::DefinedSymbolKind::Event)
+        );
+        analysis.all_defined_symbols.clear();
+        analysis.global_scope.defined_symbols.clear();
+        let inside = source.find("irule-http-request").unwrap() + "irule-http-request".len();
+        let outside = source.len();
+        assert!(
+            !at(source, &analysis, inside)
+                .iter()
+                .any(|item| item.label == "iRule HTTP_REQUEST")
+        );
+        assert!(
+            at(source, &analysis, outside)
+                .iter()
+                .any(|item| item.label == "iRule HTTP_REQUEST")
+        );
+        let facts =
+            crate::irules_context::EventHandlerFacts::from_analysis(source, &analysis).unwrap();
+        assert_eq!(facts.file_events(), ["RULE_INIT"]);
+        assert!(
+            crate::irules_context::EventHandlerFacts::from_analysis(
+                &format!("#{source}"),
+                &analysis
+            )
+            .is_none()
+        );
+        analysis.body_lexer_config =
+            analysis
+                .body_lexer_config
+                .map(|config| tcl_lexer::LexerConfig {
+                    expand_syntax: !config.expand_syntax,
+                    ..config
+                });
+        assert!(
+            crate::irules_context::EventHandlerFacts::from_analysis(source, &analysis).is_none()
+        );
+    }
+}
+
+#[cfg(test)]
+mod original_package_completion_tests {
+    use super::*;
+    use tcl_compiler::analyser::Analyser;
+
+    #[test]
+    fn original_package_completion_uses_retained_context_and_ignores_reported_names() {
+        // Implementation contract: naming.core.original-package-completion-advice
+        // docs/design/analysis/name-resolution-proofs/original-package-completion-advice.md
+        let source = "package require Tk\nbutt\n";
+        let mut analysis = Analyser::new().analyse(source, "tcl8.6");
+        assert!(analysis.package_requires[0].original_name.is_some());
+        analysis.package_requires[0].name = "Other".to_owned();
+        let wrong_profile = tcl_dialect::DialectProfile::find("f5-irules").unwrap();
+        let items = completions(
+            source,
+            1,
+            4,
+            &analysis,
+            analysis.resolved_registry(),
+            None,
+            wrong_profile,
+        );
+        assert!(items.iter().any(|item| item.label == "button"));
+        assert!(
+            completions(
+                &format!("{source} "),
+                1,
+                4,
+                &analysis,
+                analysis.resolved_registry(),
+                None,
+                wrong_profile
+            )
+            .is_empty()
+        );
+        let plain_source = "butt\n";
+        let mut plain = Analyser::new().analyse(plain_source, "tcl8.6");
+        let mut reported = analysis.package_requires[0].clone();
+        reported.original_name = None;
+        reported.original_requirements.clear();
+        reported.name = "Tk".to_owned();
+        plain.package_requires.push(reported);
+        let items = completions(
+            plain_source,
+            0,
+            4,
+            &plain,
+            plain.resolved_registry(),
+            None,
+            tcl_dialect::DialectProfile::find("tcl9.1").unwrap(),
+        );
+        assert!(!items.iter().any(|item| item.label == "button"));
+    }
+}
+
+#[cfg(test)]
+mod original_receiver_domain_tests {
+    use super::*;
+    use tcl_compiler::analyser::Analyser;
+
+    fn fuzzy(source: &str, analysis: &AnalysisResult) -> Vec<CompletionItem> {
+        fuzzy_command_fallback(
+            source,
+            0,
+            u32::try_from(source.len()).unwrap(),
+            analysis,
+            analysis.resolved_registry(),
+            analysis.resolved_profile().unwrap(),
+            &tcl_lexer::LineIndex::new(source),
+        )
+    }
+
+    #[test]
+    fn native_fuzzy_methods_keep_original_class_and_object_records_without_reports() {
+        // naming.consumer.original-receiver-completion-domain
+        // docs/design/analysis/name-resolution-proofs/original-receiver-completion-domain.md
+        for dialect in ["tcl8.6", "tcl9.0", "tcl9.1"] {
+            for source in [
+                "oo::class create C {self method longMethod {} {}}; C longMethd",
+                "oo::class create C {method longMethod {} {}}; C create object; object longMethd",
+            ] {
+                let mut analysis = Analyser::new().analyse(source, dialect);
+                analysis.all_classes.clear();
+                analysis.global_scope.classes.clear();
+                analysis.instance_classes.clear();
+                analysis.created_instance_commands.clear();
+                let items = fuzzy(source, &analysis);
+                assert!(
+                    items.iter().any(|item| item.label == "longMethod"),
+                    "{dialect}: {items:?}"
+                );
+                assert!(
+                    items
+                        .iter()
+                        .filter(|item| item.label == "longMethod")
+                        .all(|item| item
+                            .detail
+                            .as_deref()
+                            .is_some_and(|detail| detail.contains("source declaration candidate")))
+                );
+                let mut changed = analysis.clone();
+                changed.body_lexer_config.as_mut().unwrap().strict_quoting ^= true;
+                assert!(
+                    !fuzzy(source, &changed)
+                        .iter()
+                        .any(|item| item.label == "longMethod")
+                );
+                assert!(
+                    !fuzzy(&format!("#{source}"), &analysis)
+                        .iter()
+                        .any(|item| item.label == "longMethod")
+                );
+                let mut foreign = analysis.clone();
+                let profile = crate::profile_for_dialect("jim");
+                foreign.resolved_input = Some(tcl_compiler::analyser::ResolvedAnalysisInput::new(
+                    profile,
+                    profile,
+                    tcl_registry::model::ingress::context_for_profile(profile),
+                    analysis.body_lexer_config.unwrap(),
+                ));
+                assert!(
+                    !fuzzy(source, &foreign)
+                        .iter()
+                        .any(|item| item.label == "longMethod")
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn native_fuzzy_unknown_receiver_cannot_borrow_nominal_widget_reports() {
+        // naming.consumer.original-receiver-completion-domain
+        // docs/design/analysis/name-resolution-proofs/original-receiver-completion-domain.md
+        let source = ".w confgure";
+        let mut analysis = Analyser::new().analyse(source, "tk");
+        assert!(!analysis.allows_lexical_declaration_advice());
+        analysis
+            .instance_classes
+            .insert(".w".to_owned(), "button".to_owned());
+        analysis.created_instance_commands.insert(".w".to_owned());
+        let cursor = u32::try_from(source.len()).unwrap();
+        assert!(matches!(
+            crate::original_oo::class_completion_context(&analysis, source, cursor),
+            std::ops::ControlFlow::Break(None)
+        ));
+        assert!(
+            crate::original_oo::instance_method_completion_record(&analysis, source, cursor)
+                .is_none()
+        );
+        assert!(fuzzy(source, &analysis).iter().all(|item| {
+            !item
+                .detail
+                .as_deref()
+                .is_some_and(|detail| detail.starts_with("method — button"))
+        }));
+        assert!(
+            registry_method_items(
+                &analysis,
+                analysis.resolved_registry().unwrap(),
+                "button",
+                analysis.resolved_profile().unwrap()
+            )
+            .is_none()
+        );
+        let foreign = format!("#{source}");
+        assert!(fuzzy(&foreign, &analysis).iter().all(|item| {
+            !item
+                .detail
+                .as_deref()
+                .is_some_and(|detail| detail.starts_with("method — button"))
+        }));
+    }
+}
+
+#[cfg(test)]
+mod original_source_instance_completion_tests {
+    use super::*;
+    use tcl_compiler::analyser::Analyser;
+
+    #[test]
+    fn original_source_instance_methods_reach_prefix_and_fuzzy_consumers_without_reports() {
+        // naming.core.original-source-instance-completion
+        // docs/design/analysis/name-resolution-proofs/core-original-source-instance-completion.md
+        for selector in ["longMet", "longMethd"] {
+            let source = format!(
+                "oo::class create C {{method longMethod {{}} {{}}}}; set o [C new]; $o {selector}"
+            );
+            let mut analysis = Analyser::new().analyse(&source, "tcl8.6");
+            analysis.all_classes.clear();
+            analysis.global_scope.classes.clear();
+            analysis.instance_classes.clear();
+            analysis.created_instance_commands.clear();
+            let items = completions(
+                &source,
+                0,
+                u32::try_from(source.len()).unwrap(),
+                &analysis,
+                analysis.resolved_registry(),
+                None,
+                analysis.resolved_profile().unwrap(),
+            );
+            let method = items
+                .iter()
+                .find(|item| item.label == "longMethod")
+                .expect("source method candidate");
+            assert!(
+                method
+                    .detail
+                    .as_deref()
+                    .is_some_and(|detail| detail.contains("source declaration candidate"))
+            );
+            if selector == "longMet" {
+                let edit = method
+                    .text_edit
+                    .as_ref()
+                    .expect("independent complete selector edit");
+                assert_eq!(
+                    edit.start_char,
+                    u32::try_from(source.rfind(selector).unwrap()).unwrap()
+                );
+                assert_eq!(edit.end_char, u32::try_from(source.len()).unwrap());
+                assert_eq!(edit.new_text, "longMethod");
+                assert!(method.filter_text.is_none());
+            } else {
+                assert_eq!(method.filter_text.as_deref(), Some(selector));
+                assert!(
+                    method
+                        .sort_text
+                        .as_deref()
+                        .is_some_and(|sort| sort.starts_with("F00_"))
+                );
+            }
+        }
+        let source = "oo::class create C {method longMethod args {}}; C create object; interp alias {} fixed {} object longMethod; fixed argument";
+        let analysis = Analyser::new().analyse(source, "tcl8.6");
+        let items = completions(
+            source,
+            0,
+            u32::try_from(source.len()).unwrap(),
+            &analysis,
+            analysis.resolved_registry(),
+            None,
+            analysis.resolved_profile().unwrap(),
+        );
+        assert!(items.iter().all(|item| item.label != "longMethod"));
+    }
+}
+
+#[cfg(test)]
+mod configured_receiver_completion_tests {
+    use super::*;
+    use tcl_compiler::analyser::Analyser;
+
+    fn receiver_projection_for_fixture(
+        source: &str,
+        config: tcl_lexer::LexerConfig,
+    ) -> Option<(String, bool)> {
+        let image = tcl_lexer::SourceImage::document(source);
+        let plan = tcl_lexer::native_script_words_in(
+            image,
+            tcl_lexer::Span::new(0, u32::try_from(source.len()).ok()?),
+            config,
+        )
+        .ok()?;
+        if plan.fatal_tail.is_some() {
+            return None;
+        }
+        let [command] = plan.commands.as_slice() else {
+            return None;
+        };
+        let [word] = command.words.as_slice() else {
+            return None;
+        };
+        dispatch_receiver_of(word)
+    }
+
+    #[test]
+    fn logical_object_completion_keeps_selected_names_and_visibility_masks() {
+        let source = "oo::class create C {method m {} {}}\nset o [C new]\noo::objdefine $o {method {two words} {} {}; method {$literal} {} {}; export {$literal}; unexport m}\n$o ";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        let state = crate::definition::object_member_state_at(&analysis, source, "o", 3, 3)
+            .expect("actual current receiver source state");
+        let items = method_items(
+            &analysis,
+            analysis.resolved_registry(),
+            "::C",
+            crate::definition::MethodBucket::Instance,
+            Some(state),
+            analysis.resolved_profile().unwrap(),
+        )
+        .expect("selected original own members and masks");
+        for (name, expected) in [("two words", "{two words}"), ("$literal", "{$literal}")] {
+            let item = items
+                .iter()
+                .find(|item| item.label == name)
+                .expect("actual per-object selected name");
+            assert_eq!(item.insert_text, expected);
+        }
+        assert!(items.iter().all(|item| item.label != "m"));
+        assert!(
+            method_items(
+                &analysis,
+                analysis.resolved_registry(),
+                "::C",
+                crate::definition::MethodBucket::Instance,
+                Some(&state.clone()),
+                analysis.resolved_profile().unwrap(),
+            )
+            .is_none()
+        );
+        let mut changed = analysis.clone();
+        changed.object_member_state.get_mut("o").unwrap()[0]
+            .unexports
+            .clear();
+        let state = crate::definition::object_member_state_at(&changed, source, "o", 3, 3).unwrap();
+        assert!(
+            method_items(
+                &changed,
+                changed.resolved_registry(),
+                "::C",
+                crate::definition::MethodBucket::Instance,
+                Some(state),
+                changed.resolved_profile().unwrap(),
+            )
+            .is_none()
+        );
+    }
+
+    #[test]
+    fn generated_member_completion_requires_current_property_source_and_registry() {
+        let source = "oo::configurable create C {property p}";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        let registry = analysis.resolved_registry().unwrap();
+        let items = generated_property_method_items(&analysis, Some(registry), "::C");
+        let configure = items
+            .iter()
+            .find(|item| item.label == "configure")
+            .expect("genuine current property source generator");
+        assert_eq!(configure.insert_text, "configure");
+        let mut changed = analysis.clone();
+        changed
+            .all_classes
+            .get_mut("::C")
+            .unwrap()
+            .properties
+            .clear();
+        assert!(
+            generated_property_method_items(&changed, changed.resolved_registry(), "::C")
+                .is_empty()
+        );
+        let mut missing = analysis.clone();
+        missing.resolved_input = None;
+        assert!(generated_property_method_items(&missing, Some(registry), "::C").is_empty());
+        let foreign = tcl_registry::model::ingress::static_context_for("jim");
+        assert!(
+            generated_property_method_items(&analysis, Some(foreign.commands()), "::C").is_empty()
+        );
+    }
+
+    #[test]
+    fn logical_member_completion_quotes_actual_selected_name_data() {
+        let source = "oo::class create C {method {$literal} {} {}; export {$literal}; method {two words} {} {}}";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        let items = method_items(
+            &analysis,
+            analysis.resolved_registry(),
+            "::C",
+            crate::definition::MethodBucket::Instance,
+            None,
+            analysis.resolved_profile().unwrap(),
+        )
+        .unwrap();
+        for (name, expected) in [("$literal", "{$literal}"), ("two words", "{two words}")] {
+            let item = items
+                .iter()
+                .find(|item| item.label == name)
+                .expect("actual selected method name");
+            assert_eq!(item.insert_text, expected);
+        }
+        let mut changed = analysis.clone();
+        changed
+            .all_classes
+            .get_mut("::C")
+            .unwrap()
+            .methods
+            .get_mut("$literal")
+            .unwrap()
+            .body_span = tcl_lexer::Span::new(0, 1);
+        let items = method_items(
+            &changed,
+            changed.resolved_registry(),
+            "::C",
+            crate::definition::MethodBucket::Instance,
+            None,
+            changed.resolved_profile().unwrap(),
+        )
+        .unwrap();
+        assert!(
+            items
+                .iter()
+                .all(|item| item.label != "$literal" && item.label != "two words")
+        );
+    }
+
+    #[test]
+    fn completion_command_geometry_keeps_whole_literal_and_variable_heads() {
+        for (source, name, variable, argument) in [
+            ("${two words} method", "two words", true, 1),
+            ("${$literal} method", "$literal", true, 1),
+            ("{$literal} method", "$literal", false, 1),
+            ("{two words} method", "two words", false, 1),
+            ("set x 1; ${two words} ", "two words", true, 1),
+        ] {
+            let analysis = Analyser::new().analyse(source, "tcl");
+            let character = u32::try_from(source.encode_utf16().count()).unwrap();
+            let command = command_context_on_line(source, 0, character, &analysis)
+                .expect("actual configured original command prefix");
+            assert_eq!(command.word_index, argument, "{source}");
+            assert_eq!(
+                dispatch_receiver_of(&command.head),
+                Some((name.into(), variable))
+            );
+            assert!(
+                command_context_on_line(&format!("#{source}"), 0, character, &analysis).is_none()
+            );
+        }
+        for source in [
+            "set x 1; ",
+            "${two words}(index) method",
+            "[compute] method",
+        ] {
+            let analysis = Analyser::new().analyse(source, "tcl");
+            let character = u32::try_from(source.encode_utf16().count()).unwrap();
+            assert!(
+                command_context_on_line(source, 0, character, &analysis)
+                    .and_then(|command| dispatch_receiver_of(&command.head))
+                    .is_none()
+            );
+        }
+    }
+
+    #[test]
+    fn logical_method_completion_keeps_grouped_scalar_receiver_names() {
+        for (declaration, head) in [
+            ("{two words}", "${two words}"),
+            ("{$literal}", "${$literal}"),
+        ] {
+            for selector in ["longMet", "longMethd"] {
+                let source = format!(
+                    "oo::class create C {{method longMethod {{}} {{}}}}\nset {declaration} [C new]\n{head} {selector}"
+                );
+                let analysis = Analyser::new().analyse(&source, "tcl");
+                let character =
+                    u32::try_from(source.lines().nth(2).unwrap().encode_utf16().count()).unwrap();
+                let items = completions(
+                    &source,
+                    2,
+                    character,
+                    &analysis,
+                    analysis.resolved_registry(),
+                    None,
+                    analysis.resolved_profile().unwrap(),
+                );
+                assert!(
+                    items.iter().any(|item| item.label == "longMethod"),
+                    "{source}: {items:?}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn logical_family_method_completion_uses_selected_source_name_words() {
+        for source in [
+            "snit::type C {method {two words} {} {}}",
+            "itcl::class C {method {two words} {} {}}",
+        ] {
+            let analysis = Analyser::new().analyse(source, "tcl");
+            let items = method_items(
+                &analysis,
+                analysis.resolved_registry(),
+                "::C",
+                crate::definition::MethodBucket::Instance,
+                None,
+                analysis.resolved_profile().unwrap(),
+            )
+            .unwrap();
+            let item = items
+                .iter()
+                .find(|item| item.label == "two words")
+                .expect("actual selected family method");
+            assert_eq!(item.insert_text, "{two words}");
+        }
+    }
+
+    #[test]
+    fn logical_method_completion_keeps_whole_scalar_heads_and_current_source() {
+        // naming.consumer.original-receiver-completion-domain
+        // docs/design/analysis/name-resolution-proofs/original-receiver-completion-domain.md
+        let source_for = |head: &str, selector: &str| {
+            format!(
+                "oo::class create C {{method longMethod {{}} {{}}}}\nset {{箱}} [C new]\n{head} {selector}"
+            )
+        };
+        for selector in ["longMet", "longMethd"] {
+            let source = source_for("${箱}", selector);
+            let analysis = Analyser::new().analyse(&source, "tcl");
+            assert!(analysis.allows_lexical_declaration_advice());
+            let character =
+                u32::try_from(source.lines().nth(2).unwrap().encode_utf16().count()).unwrap();
+            let items = completions(
+                &source,
+                2,
+                character,
+                &analysis,
+                analysis.resolved_registry(),
+                None,
+                analysis.resolved_profile().unwrap(),
+            );
+            assert!(
+                items.iter().any(|item| item.label == "longMethod"),
+                "{items:?}"
+            );
+            let changed = format!("# changed\n{source}");
+            assert!(
+                completions(
+                    &changed,
+                    3,
+                    character,
+                    &analysis,
+                    analysis.resolved_registry(),
+                    None,
+                    analysis.resolved_profile().unwrap()
+                )
+                .is_empty()
+            );
+            for head in [
+                "${箱}suffix",
+                "${箱}[list suffix]",
+                "$箱",
+                "\\${箱}",
+                "${箱(k)}",
+                "$arr(k)",
+            ] {
+                let source = source_for(head, selector);
+                let analysis = Analyser::new().analyse(&source, "tcl");
+                let character =
+                    u32::try_from(source.lines().nth(2).unwrap().encode_utf16().count()).unwrap();
+                let items = completions(
+                    &source,
+                    2,
+                    character,
+                    &analysis,
+                    analysis.resolved_registry(),
+                    None,
+                    analysis.resolved_profile().unwrap(),
+                );
+                assert!(
+                    items.iter().all(|item| item.label != "longMethod"),
+                    "{head}: {items:?}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn logical_array_completion_keeps_original_literal_data_and_computed_index_syntax() {
+        let source = "set {arr($literal)} ONE\nset {arr([list redirected])} TWO\nset {arr(\\x41)} THREE\nset {arr(key)} KEY\nset value $arr($computed)\nputs $arr(";
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        for environment in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            let selected = tcl_registry::model::ingress::resolve_environment(environment);
+            let config = tcl_lexer::LexerConfig::for_profile(Some(selected.analyser_profile()));
+            let mut analysis = Analyser::new()
+                .with_resolved_input(tcl_compiler::analyser::ResolvedAnalysisInput::new(
+                    profile,
+                    profile,
+                    selected.default_context_registry(),
+                    config,
+                ))
+                .analyse(source, "display only");
+            analysis
+                .global_scope
+                .variables
+                .get_mut("arr")
+                .unwrap()
+                .array_indices
+                .insert("UNOWNED".to_owned());
+            let items = variable_completions(source, 5, 10, &analysis, "arr(", '$');
+            for reference in [
+                "${arr($literal)}",
+                "${arr([list redirected])}",
+                "${arr(\\x41)}",
+                "$arr(key)",
+                "$arr($computed)",
+            ] {
+                assert!(
+                    items.iter().any(|item| item.insert_text == reference),
+                    "{environment}: {reference}: {items:?}"
+                );
+            }
+            assert!(items.iter().all(|item| !item.label.contains("UNOWNED")));
+            let mut missing = analysis.clone();
+            missing.resolved_input = None;
+            assert!(variable_completions(source, 5, 10, &missing, "arr(", '$').is_empty());
+            let mut changed = analysis.clone();
+            changed.body_lexer_config.as_mut().unwrap().strict_quoting = !config.strict_quoting;
+            assert!(variable_completions(source, 5, 10, &changed, "arr(", '$').is_empty());
+            assert!(
+                variable_completions(&format!("#{source}"), 5, 10, &analysis, "arr(", '$')
+                    .is_empty()
+            );
+        }
+        let native = Analyser::new().analyse(source, "tcl9.1");
+        assert!(variable_completions(source, 5, 10, &native, "arr(", '$').is_empty());
+    }
+
+    #[test]
+    fn logical_variable_insertions_use_exact_current_reference_grammar() {
+        let source = "set {a{b}c} VALUE\nset {a\\b} SLASH\nset a_\\}_closebrace BAD\nputs $";
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        for environment in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            let selected = tcl_registry::model::ingress::resolve_environment(environment);
+            let config = tcl_lexer::LexerConfig::for_profile(Some(selected.analyser_profile()));
+            let analysis = Analyser::new()
+                .with_resolved_input(tcl_compiler::analyser::ResolvedAnalysisInput::new(
+                    profile,
+                    profile,
+                    selected.default_context_registry(),
+                    config,
+                ))
+                .analyse(source, "display only");
+            let items = variable_completions(source, 3, 6, &analysis, "", '$');
+            assert!(
+                items.iter().any(|item| item.insert_text == "${a\\b}"),
+                "{environment}: {items:?}"
+            );
+            let nested = config.braced_var == tcl_dialect::BracedVarStyle::Tcl9Nesting;
+            assert_eq!(
+                items.iter().any(|item| item.insert_text == "${a{b}c}"),
+                nested,
+                "{environment}: {items:?}"
+            );
+            assert!(items.iter().all(|item| !item.label.contains("closebrace")));
+            let mut missing = analysis.clone();
+            missing.resolved_input = None;
+            assert!(variable_completions(source, 3, 6, &missing, "", '$').is_empty());
+            let mut changed = analysis.clone();
+            changed.body_lexer_config.as_mut().unwrap().braced_var = if nested {
+                tcl_dialect::BracedVarStyle::FirstClose
+            } else {
+                tcl_dialect::BracedVarStyle::Tcl9Nesting
+            };
+            assert!(variable_completions(source, 3, 6, &changed, "", '$').is_empty());
+            assert!(
+                variable_completions(&format!("#{source}"), 3, 6, &analysis, "", '$').is_empty()
+            );
+        }
+        let native = Analyser::new().analyse(source, "tcl9.1");
+        assert!(variable_completions(source, 3, 6, &native, "", '$').is_empty());
+        let source = "namespace eval N {set {a{b}c} VALUE}\nputs $";
+        let selected = tcl_registry::model::ingress::resolve_environment("tcl9.1");
+        let config = tcl_lexer::LexerConfig::for_profile(Some(selected.analyser_profile()));
+        let analysis = Analyser::new()
+            .with_resolved_input(tcl_compiler::analyser::ResolvedAnalysisInput::new(
+                profile,
+                profile,
+                selected.default_context_registry(),
+                config,
+            ))
+            .analyse(source, "display only");
+        let items = variable_completions(source, 1, 6, &analysis, "", '$');
+        assert!(
+            items.iter().any(|item| item.insert_text == "${::N::a{b}c}"),
+            "{items:?}"
+        );
+    }
+
+    #[test]
+    fn logical_variable_completion_keeps_actual_release_reference_closers() {
+        let source = "set alpha 1\nputs ${a{b}c}\n";
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        for (environment, expected_end) in [
+            ("tcl8.4", 11),
+            ("tcl8.5", 11),
+            ("tcl8.6", 11),
+            ("tcl9.0", 13),
+            ("tcl9.1", 13),
+            ("jim", 11),
+        ] {
+            let selected = tcl_registry::model::ingress::resolve_environment(environment);
+            let config = tcl_lexer::LexerConfig::for_profile(Some(selected.analyser_profile()));
+            let analysis = tcl_compiler::analyser::Analyser::new()
+                .with_resolved_input(tcl_compiler::analyser::ResolvedAnalysisInput::new(
+                    profile,
+                    profile,
+                    selected.default_context_registry(),
+                    config,
+                ))
+                .analyse(source, "display only");
+            assert!(analysis.allows_retained_logical_declaration_advice());
+            let items = variable_completions(source, 1, 8, &analysis, "a", '{');
+            let item = items
+                .iter()
+                .find(|item| item.insert_text == "${alpha}")
+                .expect("actual Logical declared candidate");
+            let edit = item.text_edit.as_ref().unwrap();
+            assert_eq!(edit.start_char, 5, "{environment}");
+            assert_eq!(edit.end_char, expected_end, "{environment}");
+            assert_eq!(edit.new_text, "${alpha}");
+        }
+    }
+
+    #[test]
+    fn variable_cursor_completion_keeps_braced_dollars_spaces_and_edit_extent() {
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let selected = tcl_registry::model::ingress::resolve_environment("tcl9.1");
+        let config = tcl_lexer::LexerConfig::for_profile(Some(selected.analyser_profile()));
+        for (name, partial) in [
+            ("cash$name", "cash$"),
+            ("a b", "a "),
+            ("scalar(open", "scalar("),
+        ] {
+            let source = format!("set {{{name}}} VALUE\nputs ${{{name}}}suffix");
+            let analysis = Analyser::new()
+                .with_resolved_input(tcl_compiler::analyser::ResolvedAnalysisInput::new(
+                    profile,
+                    profile,
+                    selected.default_context_registry(),
+                    config,
+                ))
+                .analyse(&source, "display only");
+            let cursor = 7 + partial.encode_utf16().count() as u32;
+            let items = variable_trigger_completions(&source, 1, cursor, &analysis).unwrap();
+            let spelling = format!("${{{name}}}");
+            let item = items
+                .iter()
+                .find(|item| item.insert_text == spelling)
+                .expect("original declared braced-name candidate");
+            let edit = item.text_edit.as_ref().unwrap();
+            assert_eq!(edit.start_char, 5);
+            assert_eq!(edit.end_char, 8 + name.encode_utf16().count() as u32);
+            assert_eq!(edit.new_text, spelling);
+            let mut missing = analysis.clone();
+            missing.resolved_input = None;
+            assert!(
+                variable_trigger_completions(&source, 1, cursor, &missing)
+                    .unwrap()
+                    .is_empty()
+            );
+            assert!(
+                variable_trigger_completions(&format!("#{source}"), 1, cursor, &analysis)
+                    .unwrap()
+                    .is_empty()
+            );
+        }
+    }
+
+    #[test]
+    fn variable_cursor_completion_rejects_non_utf16_boundaries() {
+        let source = "set alpha 1\nputs ${😀alpha}";
+        let analysis = Analyser::new().analyse(source, "tcl9.1");
+        assert!(
+            variable_trigger_completions(source, 1, 8, &analysis)
+                .unwrap()
+                .is_empty()
+        );
+        assert!(
+            variable_trigger_completions(source, 1, 1000, &analysis)
+                .unwrap()
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn configured_scalar_completion_projection_keeps_array_and_brace_boundaries() {
+        // naming.consumer.original-receiver-completion-domain
+        // docs/design/analysis/name-resolution-proofs/original-receiver-completion-domain.md
+        let mut first = tcl_lexer::LexerConfig::default();
+        first.braced_var = tcl_dialect::BracedVarStyle::FirstClose;
+        let mut nested = first;
+        nested.braced_var = tcl_dialect::BracedVarStyle::Tcl9Nesting;
+        assert_eq!(strip_instance_var("${箱}", first), Some("箱".to_owned()));
+        assert_eq!(
+            strip_instance_var("${a{b}c}", nested),
+            Some("a{b}c".to_owned())
+        );
+        assert!(strip_instance_var("${a{b}c}", first).is_none());
+        assert_eq!(strip_instance_var("${a{b}", first), Some("a{b".to_owned()));
+        assert!(strip_instance_var("${a{b}", nested).is_none());
+        for config in [first, nested] {
+            for head in [
+                "${x}suffix",
+                "$x-suffix",
+                "${x}[list suffix]",
+                "${x",
+                "$arr(k)",
+                "${arr(k)}",
+                "$arr($k)",
+                "$arr([list k])",
+                "\\${x}",
+                "$箱",
+            ] {
+                assert!(strip_instance_var(head, config).is_none(), "{head}");
+            }
+            assert_eq!(
+                receiver_projection_for_fixture("${箱}", config),
+                Some(("箱".to_owned(), true))
+            );
+            assert!(receiver_projection_for_fixture("${箱}suffix", config).is_none());
+        }
+    }
+}
+
+#[cfg(test)]
+mod selected_catalogue_provider_tests {
+    use super::*;
+    use tcl_registry::{CommandSpec, Traits};
+
+    const SELECTED_DOC: tcl_registry::hover::HoverSnippet =
+        tcl_registry::hover::HoverSnippet::brief(
+            "selected source provider",
+            &[],
+            "source metadata",
+        );
+    const FOREIGN_DOC: tcl_registry::hover::HoverSnippet = tcl_registry::hover::HoverSnippet::brief(
+        "unavailable foreign provider",
+        &[],
+        "source metadata",
+    );
+
+    #[test]
+    fn builtin_filters_keep_the_actual_selected_provider_through_every_gate() {
+        // naming.consumer.selected-catalogue-completion-provider
+        // docs/design/analysis/name-resolution-proofs/selected-catalogue-completion-provider.md
+        let profile = crate::profile_for_dialect("tcl8.6");
+        let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
+        let source = "package require http 2.0\n";
+        let mut registry = CommandRegistry::build_default();
+        for (name, selected_traits, foreign_traits, foreign_package) in [
+            (
+                "catalogue-operator",
+                Traits::empty(),
+                Traits::OPERATOR_COMMAND,
+                None,
+            ),
+            (
+                "catalogue-member",
+                Traits::empty(),
+                Traits::DEFINITION_BODY_MEMBER_ONLY,
+                None,
+            ),
+            (
+                "catalogue-frame",
+                Traits::empty(),
+                Traits::TCLOO_METHOD_CONTEXT | Traits::TCLOO_REQUIRES_METHOD_FRAME,
+                None,
+            ),
+            (
+                "catalogue-package",
+                Traits::empty(),
+                Traits::empty(),
+                Some("Tk"),
+            ),
+            (
+                "catalogue-version",
+                Traits::empty(),
+                Traits::empty(),
+                Some("http"),
+            ),
+            (
+                "catalogue-hidden-member",
+                Traits::DEFINITION_BODY_MEMBER_ONLY,
+                Traits::empty(),
+                None,
+            ),
+            (
+                "catalogue-hidden-frame",
+                Traits::TCLOO_METHOD_CONTEXT | Traits::TCLOO_REQUIRES_METHOD_FRAME,
+                Traits::empty(),
+                None,
+            ),
+        ] {
+            registry.insert(CommandSpec {
+                name,
+                traits: selected_traits,
+                hover: Some(SELECTED_DOC),
+                ..CommandSpec::DEFAULT
+            });
+            registry.insert(CommandSpec {
+                name,
+                traits: foreign_traits,
+                surface: Some(SpecSurface::TCL90),
+                required_package: foreign_package,
+                lifecycle: tcl_registry::lifecycle::Lifecycle {
+                    introduced: Some("99.0"),
+                    ..tcl_registry::lifecycle::Lifecycle::UNSPECIFIED
+                },
+                hover: Some(FOREIGN_DOC),
+                ..CommandSpec::DEFAULT
+            });
+        }
+        let analysis =
+            crate::source_structure::analyse_document(source, profile, &registry, config);
+        let context = crate::document_floor::DocumentFloor::new(&analysis, profile)
+            .context()
+            .unwrap();
+        for name in registry
+            .command_names()
+            .filter(|name| name.starts_with("catalogue-"))
+        {
+            let selected = context.resolve_spec(&registry, name).unwrap();
+            assert!(!std::ptr::eq(selected, registry.get(name).unwrap()));
+            assert_eq!(selected.hover.unwrap().summary, SELECTED_DOC.summary);
+        }
+        let frame = crate::oo_dispatch::OoFrame {
+            resolves: false,
+            method: false,
+        };
+        let items = builtin_completions(
+            &registry,
+            profile,
+            "catalogue-",
+            &FxHashMap::default(),
+            false,
+            &analysis,
+            frame,
+        );
+        let labels = items
+            .iter()
+            .map(|item| item.label.as_str())
+            .collect::<Vec<_>>();
+        assert_eq!(
+            labels,
+            [
+                "catalogue-frame",
+                "catalogue-member",
+                "catalogue-operator",
+                "catalogue-package",
+                "catalogue-version"
+            ]
+        );
+        assert!(
+            items
+                .iter()
+                .all(|item| item.documentation.as_deref() == Some(SELECTED_DOC.summary))
+        );
+        assert!(
+            items
+                .iter()
+                .all(|item| item.detail.as_deref() == Some("built-in"))
+        );
+        let selected_frame = context
+            .resolve_spec(&registry, "catalogue-hidden-frame")
+            .unwrap();
+        assert!(!frame.admits_selected_spec(selected_frame));
+        assert!(
+            !crate::oo_dispatch::OoFrame {
+                resolves: true,
+                method: false
+            }
+            .admits_selected_spec(selected_frame)
+        );
+        assert!(
+            crate::oo_dispatch::OoFrame {
+                resolves: true,
+                method: true
+            }
+            .admits_selected_spec(selected_frame)
+        );
+        let mut missing = analysis.clone();
+        missing.resolved_input = None;
+        assert!(
+            builtin_completions(
+                &registry,
+                profile,
+                "catalogue-",
+                &FxHashMap::default(),
+                false,
+                &missing,
+                frame
+            )
+            .is_empty()
+        );
+        let mut changed = analysis.clone();
+        changed.body_lexer_config = None;
+        assert!(
+            builtin_completions(
+                &registry,
+                profile,
+                "catalogue-",
+                &FxHashMap::default(),
+                false,
+                &changed,
+                frame
+            )
+            .is_empty()
+        );
+    }
+
+    #[test]
+    fn grammar_member_details_use_the_same_current_availability_context() {
+        // naming.consumer.selected-catalogue-completion-provider
+        // docs/design/analysis/name-resolution-proofs/selected-catalogue-completion-provider.md
+        use tcl_registry::definer::{DefinitionBodyGrammar, MemberSpec, TCLOO_GRAMMAR};
+        static MEMBERS: &[MemberSpec] = &[
+            MemberSpec {
+                keyword: "catalogue-member",
+                surface: None,
+                ..TCLOO_GRAMMAR.members[0]
+            },
+            MemberSpec {
+                keyword: "grammar-only",
+                surface: None,
+                ..TCLOO_GRAMMAR.members[0]
+            },
+            MemberSpec {
+                keyword: "hidden-member",
+                surface: Some(SpecSurface::TCL90),
+                ..TCLOO_GRAMMAR.members[0]
+            },
+        ];
+        static GRAMMAR: DefinitionBodyGrammar = DefinitionBodyGrammar {
+            members: MEMBERS,
+            ..TCLOO_GRAMMAR
+        };
+        let profile = crate::profile_for_dialect("tcl8.6");
+        let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
+        let mut registry = CommandRegistry::build_default();
+        registry.insert(CommandSpec {
+            name: "catalogue-member",
+            hover: Some(SELECTED_DOC),
+            ..CommandSpec::DEFAULT
+        });
+        registry.insert(CommandSpec {
+            name: "catalogue-member",
+            surface: Some(SpecSurface::TCL90),
+            hover: Some(FOREIGN_DOC),
+            ..CommandSpec::DEFAULT
+        });
+        let analysis = crate::source_structure::analyse_document("", profile, &registry, config);
+        let context = crate::document_floor::DocumentFloor::new(&analysis, profile)
+            .context()
+            .unwrap();
+        let items = grammar_member_completions(&GRAMMAR, "", &registry, config, context);
+        assert_eq!(
+            items
+                .iter()
+                .map(|item| item.label.as_str())
+                .collect::<Vec<_>>(),
+            ["catalogue-member", "grammar-only"]
+        );
+        assert_eq!(
+            items[0].documentation.as_deref(),
+            Some(SELECTED_DOC.summary)
+        );
+        assert_eq!(items[0].detail.as_deref(), Some("built-in"));
+        assert!(items[1].documentation.is_none() && items[1].detail.is_none());
+    }
+}
+
+#[cfg(test)]
+mod inherited_registry_completion_provider_tests {
+    use super::*;
+    use tcl_registry::spec::ObjectClassSpec;
+    use tcl_registry::{CommandSpec, SubCommand};
+
+    #[test]
+    fn inherited_completion_uses_selected_provider_package_instead_of_receiver_package() {
+        static METHODS: [SubCommand; 1] = [SubCommand {
+            name: "inherited",
+            detail: "actual parent provider",
+            lifecycle: tcl_registry::lifecycle::Lifecycle::introduced_in("2.0"),
+            ..SubCommand::DEFAULT
+        }];
+        static FOREIGN: [SubCommand; 1] = [SubCommand {
+            name: "foreign",
+            ..SubCommand::DEFAULT
+        }];
+        static CHILD: ObjectClassSpec = ObjectClassSpec {
+            class_name: "CompletionChild",
+            instance_methods: &[],
+            superclasses: &["CompletionParent"],
+            allow_unknown_methods: false,
+            method_prefix_matching: tcl_registry::abbrev::PrefixMatching::Strict,
+        };
+        static PARENT: ObjectClassSpec = ObjectClassSpec {
+            class_name: "CompletionParent",
+            instance_methods: &METHODS,
+            superclasses: &[],
+            allow_unknown_methods: false,
+            method_prefix_matching: tcl_registry::abbrev::PrefixMatching::Strict,
+        };
+        static FOREIGN_PARENT: ObjectClassSpec = ObjectClassSpec {
+            class_name: "CompletionParent",
+            instance_methods: &FOREIGN,
+            superclasses: &[],
+            allow_unknown_methods: false,
+            method_prefix_matching: tcl_registry::abbrev::PrefixMatching::Strict,
+        };
+        let mut registry = CommandRegistry::build_default();
+        for (class, package) in [(&CHILD, "ReceiverPackage"), (&PARENT, "ProviderPackage")] {
+            registry.insert(CommandSpec {
+                name: class.class_name,
+                required_package: Some(package),
+                object_class: Some(class),
+                ..CommandSpec::DEFAULT
+            });
+        }
+        registry.insert(CommandSpec {
+            name: "CompletionParent",
+            required_package: Some("ForeignPackage"),
+            object_class: Some(&FOREIGN_PARENT),
+            surface: Some(SpecSurface::JIM),
+            ..CommandSpec::DEFAULT
+        });
+        let profile = crate::profile_for_dialect("tcl");
+        let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
+        for (receiver, provider, expected) in [("1.0", "2.0", true), ("9.0", "1.0", false)] {
+            let source = format!(
+                "package require ReceiverPackage {receiver}\npackage require ProviderPackage {provider}\n"
+            );
+            let analysis =
+                crate::source_structure::analyse_document(&source, profile, &registry, config);
+            assert!(analysis.allows_lexical_declaration_advice());
+            let items = registry_method_items(&analysis, &registry, "CompletionChild", profile)
+                .unwrap_or_default();
+            assert_eq!(items.iter().any(|item| item.label == "inherited"), expected);
+            assert!(items.iter().all(|item| item.label != "foreign"));
+            if expected {
+                assert_eq!(
+                    items[0].documentation.as_deref(),
+                    Some("actual parent provider")
+                );
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod inherited_registry_roster_completion_tests {
+    use super::*;
+    use tcl_registry::spec::ObjectClassSpec;
+    use tcl_registry::{CommandSpec, SubCommand};
+
+    #[test]
+    fn inherited_completion_cannot_borrow_a_surface_only_provider_excluded_by_actual_roster() {
+        static METHODS: [SubCommand; 1] = [SubCommand {
+            name: "rosterLeak",
+            ..SubCommand::DEFAULT
+        }];
+        static CHILD: ObjectClassSpec = ObjectClassSpec {
+            class_name: "RosterChild",
+            instance_methods: &[],
+            superclasses: &["coroutine"],
+            allow_unknown_methods: false,
+            method_prefix_matching: tcl_registry::abbrev::PrefixMatching::Strict,
+        };
+        static PARENT: ObjectClassSpec = ObjectClassSpec {
+            class_name: "coroutine",
+            instance_methods: &METHODS,
+            superclasses: &[],
+            allow_unknown_methods: false,
+            method_prefix_matching: tcl_registry::abbrev::PrefixMatching::Strict,
+        };
+        tcl_spectcl::core_surfaces::ensure();
+        let mut registry = CommandRegistry::build_default();
+        registry.insert(CommandSpec {
+            name: "RosterChild",
+            object_class: Some(&CHILD),
+            ..CommandSpec::DEFAULT
+        });
+        registry.insert(CommandSpec {
+            name: "coroutine",
+            object_class: Some(&PARENT),
+            surface: Some(SpecSurface::TCL86),
+            ..CommandSpec::DEFAULT
+        });
+        // Jim 0.79 has no Native name recipe. Its actual inherited Tcl roster
+        // independently excludes coroutine despite the inherited surface edge.
+        let profile = tcl_dialect::DialectProfile::projected_from_point(
+            "jim",
+            &[],
+            "Jim",
+            tcl_dialect::model::DialectPoint::canonical(tcl_dialect::model::Release::JIM_0_79),
+        )
+        .intern();
+        let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
+        let analysis = crate::source_structure::analyse_document(" ", profile, &registry, config);
+        assert!(analysis.allows_lexical_declaration_advice());
+        let floor = crate::document_floor::DocumentFloor::new(&analysis, profile);
+        let context = floor.context().unwrap();
+        let surface_owner = registry
+            .get_for_surface("coroutine", Some(context.authoring_query()))
+            .unwrap();
+        assert!(std::ptr::eq(surface_owner.object_class.unwrap(), &PARENT));
+        assert!(context.spec_available(surface_owner));
+        assert!(context.resolve_spec(&registry, "coroutine").is_none());
+        assert!(registry_method_items(&analysis, &registry, "RosterChild", profile).is_none());
+    }
+}
+
+#[cfg(test)]
+mod logical_scoped_environment_tests {
+    use super::*;
+    use tcl_compiler::analyser::Analyser;
+
+    fn environment(
+        source: &str,
+        analysis: &AnalysisResult,
+        cursor: usize,
+    ) -> Option<&'static tcl_registry::scoped::ScopedCommandEnv> {
+        let index = tcl_lexer::LineIndex::new_lsp(source);
+        let position = index.position_at_utf16(u32::try_from(cursor).unwrap(), source);
+        scoped_env_at(
+            analysis,
+            source,
+            position.line,
+            position.character.get(),
+            &index,
+        )
+    }
+
+    #[test]
+    fn logical_scoped_completion_keeps_actual_parent_body_after_reporting_region_erasure() {
+        let source = "# 😀\r\n::report::defstyle st {} {\r\n    to\r\n}\r\n";
+        let mut analysis = Analyser::new().analyse(source, "tcl");
+        analysis.scoped_command_regions.clear();
+        let cursor = source.find("    to").unwrap() + 6;
+        let selected = environment(source, &analysis, cursor).unwrap();
+        assert!(selected.command("top").is_some());
+        let index = tcl_lexer::LineIndex::new_lsp(source);
+        let position = index.position_at_utf16(u32::try_from(cursor).unwrap(), source);
+        let items = completions(
+            source,
+            position.line,
+            position.character.get(),
+            &analysis,
+            None,
+            None,
+            analysis.resolved_profile().unwrap(),
+        );
+        assert!(items.iter().any(|item| item.label == "top"));
+        assert!(environment(&source.replace("st", "zz"), &analysis, cursor).is_none());
+    }
+
+    #[test]
+    fn logical_scoped_vocabulary_follows_genuine_alias_parent_and_known_shadow_barriers() {
+        let source = "interp alias {} style {} ::report::defstyle\nstyle st {} {\n to\n}\n";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        assert!(
+            environment(source, &analysis, source.find(" to").unwrap() + 3)
+                .unwrap()
+                .command("top")
+                .is_some()
+        );
+        for prefix in [
+            "namespace eval ::report {}; proc ::report::defstyle args {}\n",
+            "rename ::report::defstyle {}\n",
+        ] {
+            let source = format!("{prefix}::report::defstyle st {{}} {{\n to\n}}\n");
+            let mut analysis = Analyser::new().analyse(&source, "tcl");
+            analysis
+                .scoped_command_regions
+                .push(tcl_compiler::analyser::types::ScopedBodyRegion {
+                    span: tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap()),
+                    env: &tcl_registry::scoped::REPORT_DEFSTYLE_ENV,
+                });
+            assert!(environment(&source, &analysis, source.find(" to").unwrap() + 3).is_none());
+        }
+    }
+
+    #[test]
+    fn scoped_vocabulary_inherits_same_source_frame_and_stops_at_genuine_procedure_body() {
+        for (source, expected) in [
+            ("::report::defstyle st {} {if {1} {\n to\n}}", true),
+            ("::report::defstyle st {} {proc p {} {\n to\n}}", false),
+        ] {
+            let analysis = Analyser::new().analyse(source, "tcl");
+            assert_eq!(
+                environment(source, &analysis, source.find(" to").unwrap() + 3).is_some(),
+                expected
+            );
+        }
+        let source = "puts to";
+        let mut analysis = Analyser::new().analyse(source, "tcl");
+        analysis
+            .scoped_command_regions
+            .push(tcl_compiler::analyser::types::ScopedBodyRegion {
+                span: tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap()),
+                env: &tcl_registry::scoped::REPORT_DEFSTYLE_ENV,
+            });
+        assert!(environment(source, &analysis, source.len()).is_none());
+    }
+}

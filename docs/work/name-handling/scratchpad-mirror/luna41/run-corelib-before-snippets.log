@@ -1,0 +1,10 @@
+test snippets::tests::foreach_offers_scope_var_choices ... ok
+test snippets::tests::emits_all_tcl_core_templates_with_no_prefix ... ok
+test snippets::tests::http_request_templates_decline_when_event_present ... ok
+test snippets::tests::filters_by_prefix ... ok
+test snippets::tests::irules_event_templates_require_top_level ... ok
+test snippets::tests::irules_templates_hidden_outside_irules_dialect ... ok
+test snippets::tests::irules_templates_offered_in_irules_dialect ... ok
+test snippets::tests::proc_snippet_uses_indent_and_tabstops ... ok
+test snippets::tests::rule_init_declines_when_event_already_declared ... ok
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 3476 filtered out; finished in 0.00s

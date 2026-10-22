@@ -1,0 +1,6 @@
+
+running 1 test
+test command_binding::original_source_projection::tests::original_lexical_projection_nested_cut_memo_matches_the_unmemoised_capture ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 10430 filtered out; finished in 0.03s
+

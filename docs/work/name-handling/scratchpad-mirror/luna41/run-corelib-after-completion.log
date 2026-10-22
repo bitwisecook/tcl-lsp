@@ -1,0 +1,374 @@
+test completion::configured_receiver_completion_tests::configured_scalar_completion_projection_keeps_array_and_brace_boundaries ... ok
+test completion::configured_receiver_completion_tests::generated_member_completion_requires_current_property_source_and_registry ... ok
+test completion::configured_receiver_completion_tests::logical_family_method_completion_uses_selected_source_name_words ... ok
+test completion::configured_receiver_completion_tests::logical_member_completion_quotes_actual_selected_name_data ... ok
+test completion::configured_receiver_completion_tests::completion_command_geometry_keeps_whole_literal_and_variable_heads ... ok
+test completion::configured_receiver_completion_tests::logical_method_completion_keeps_grouped_scalar_receiver_names ... ok
+test completion::configured_receiver_completion_tests::logical_array_completion_keeps_original_literal_data_and_computed_index_syntax ... ok
+test completion::configured_receiver_completion_tests::logical_object_completion_keeps_selected_names_and_visibility_masks ... ok
+test completion::configured_receiver_completion_tests::logical_variable_completion_keeps_actual_release_reference_closers ... ok
+test completion::configured_receiver_completion_tests::variable_cursor_completion_keeps_braced_dollars_spaces_and_edit_extent ... ok
+test completion::configured_receiver_completion_tests::variable_cursor_completion_rejects_non_utf16_boundaries ... ok
+test completion::configured_receiver_completion_tests::logical_variable_insertions_use_exact_current_reference_grammar ... ok
+test completion::inherited_registry_completion_provider_tests::inherited_completion_uses_selected_provider_package_instead_of_receiver_package ... ok
+test completion::configured_receiver_completion_tests::logical_method_completion_keeps_whole_scalar_heads_and_current_source has been running for over 60 seconds
+test completion::logical_scoped_environment_tests::logical_scoped_completion_keeps_actual_parent_body_after_reporting_region_erasure ... FAILED
+test completion::logical_scoped_environment_tests::logical_scoped_vocabulary_follows_genuine_alias_parent_and_known_shadow_barriers ... FAILED
+test completion::logical_scoped_environment_tests::scoped_vocabulary_inherits_same_source_frame_and_stops_at_genuine_procedure_body ... FAILED
+test completion::configured_receiver_completion_tests::logical_method_completion_keeps_whole_scalar_heads_and_current_source ... ok
+test completion::original_command_cursor_tests::command_completion_replaces_actual_escaped_and_delimited_words ... FAILED
+test completion::inherited_registry_roster_completion_tests::inherited_completion_cannot_borrow_a_surface_only_provider_excluded_by_actual_roster ... ok
+test completion::original_command_cursor_tests::switch_completion_keeps_actual_prefix_and_complete_original_container ... ok
+test completion::original_command_cursor_tests::command_cursor_cannot_promote_data_comments_or_invalid_utf16_points ... ok
+test completion::original_context::tests::original_completion_switches_use_actual_option_surface_and_current_source ... ok
+test completion::original_context::tests::original_context_completion_rejects_stale_owners_and_keeps_hosted_schema ... ok
+test completion::original_context::selected_argument_gap_tests::original_registry_argument_slots_use_selected_separator_and_continuation_grammar ... ok
+test completion::original_context::tests::source_option_value_completion_keeps_selected_options_and_currency ... ok
+test completion::original_context::tests::original_context_completion_preserves_actual_handler_and_effective_ordinals ... ok
+test completion::original_document_grammar_tests::original_document_grammar_completion_preserves_full_source_configuration ... FAILED
+test completion::original_expression_completion_tests::original_expression_completion_does_not_borrow_a_shadowed_role ... ok
+test completion::original_inherited_completion_tests::original_inherited_method_candidates_use_byte_relations_after_reporting_clear ... FAILED
+test completion::original_context::tests::original_logical_completion_uses_actual_availability_and_captured_ordinals ... ok
+test completion::original_inherited_completion_tests::original_property_accessor_candidates_follow_typed_source_inheritance_only ... ok
+test completion::original_oo_completion_tests::original_class_method_advice_does_not_inherit_own_self_methods ... ok
+test completion::original_oo_completion_tests::original_class_methods_complete_distinct_native_names_with_ui_tables_cleared ... FAILED
+test completion::original_oo_completion_tests::original_method_completion_replaces_the_complete_grouped_selector ... ok
+test completion::original_package_completion_tests::original_package_completion_uses_retained_context_and_ignores_reported_names ... ok
+test completion::original_own_object_completion_tests::original_own_object_completion_keeps_allocations_and_opaque_routes_after_reporting_clear ... ok
+test completion::original_own_object_completion_tests::original_own_object_completion_requires_the_actual_generation_and_canonical_declaration ... ok
+test completion::original_proc_completion_tests::byte_policy_failure_cannot_fall_back_to_display_declaration_advice ... ok
+test completion::original_proc_completion_tests::eda_proc_completion_uses_the_selected_authored_tcl_layer ... ok
+test completion::original_proc_completion_tests::moved_and_deleted_completions_use_conditional_source_publication_slots ... ok
+test completion::original_proc_completion_tests::document_completion_unicode_uses_the_selected_ingress_recipe ... ok
+test completion::original_proc_completion_tests::opaque_completion_names_survive_ui_collapse_and_insert_distinct_native_words ... ok
+test completion::original_proc_completion_tests::original_hosted_proc_completion_preserves_source_candidates_without_a_native_recipe ... ok
+test completion::original_proc_completion_tests::original_vendor_command_completion_keeps_owned_unknown_names_out_of_suggestions ... ok
+test completion::original_proc_completion_tests::logical_proc_completion_inserts_original_headers_after_report_labels_change ... FAILED
+test completion::original_properties::tests::original_property_options_keep_opaque_names_and_selected_read_write_roles ... ok
+test completion::original_property_completion_tests::original_property_method_advice_uses_selected_grammar_and_own_source_ledger ... ok
+test completion::original_properties::source_instance_tests::original_property_options_share_symbolic_and_captured_receiver_source_argv ... ok
+test completion::original_properties::tests::original_property_options_require_receiver_selector_currency_and_do_not_retag_values ... ok
+test completion::original_receiver_domain_tests::native_fuzzy_unknown_receiver_cannot_borrow_nominal_widget_reports ... FAILED
+test completion::original_scoped_completion_tests::original_scoped_completion_uses_source_body_receipts_and_current_owners ... ok
+test completion::original_snippet_context_tests::original_snippet_events_keep_retained_cards_and_actual_script_placement ... ok
+test completion::original_receiver_domain_tests::native_fuzzy_methods_keep_original_class_and_object_records_without_reports ... ok
+test completion::original_snippet_context_tests::original_snippet_variable_choices_keep_source_references_after_ui_erasure ... ok
+test completion::original_variables::tests::literal_variable_completion_refuses_numeric_escape_donation_and_roundtrips_unicode ... ok
+test completion::original_variables::tests::original_array_reference_spelling_uses_executable_index_lineage ... ok
+test completion::original_variables::tests::original_variable_completion_selects_actual_formal_frame_and_alias_spelling ... ok
+test completion::original_variables::tests::original_variable_completion_uses_static_array_indices_without_reporting_maps ... ok
+test completion::original_variables::tests::original_vendor_variable_completion_uses_authentic_body_and_formal_source_advice ... ok
+test completion::original_source_instance_completion_tests::original_source_instance_methods_reach_prefix_and_fuzzy_consumers_without_reports ... ok
+test completion::original_variables::write_advice_tests::original_conditional_write_candidates_require_a_genuine_home_and_current_source ... ok
+test completion::original_variables::tests::variable_completion_requires_positive_logical_input_for_scope_advice ... ok
+test completion::original_workspace::tests::original_workspace_completion_keeps_opaque_slots_and_source_spelling_after_ui_clear ... ok
+test completion::original_workspace::tests::logical_workspace_insertion_uses_original_header_and_current_indexed_source ... ok
+test completion::original_workspace::tests::original_workspace_completion_requires_the_consumers_own_protocol ... ok
+test completion::original_snippet_context_tests::logical_snippet_choices_use_current_scope_and_selected_source_reference_grammar has been running for over 60 seconds
+test completion::original_workspace::tests::original_workspace_completion_uses_shared_conditional_procedure_slots ... ok
+test completion::original_workspace::tests::original_workspace_hosted_completion_preserves_its_own_source_policy_and_unknown_inputs ... ok
+test completion::selected_catalogue_provider_tests::grammar_member_details_use_the_same_current_availability_context ... ok
+test completion::selected_catalogue_provider_tests::builtin_filters_keep_the_actual_selected_provider_through_every_gate ... ok
+test completion::source_catalogue_word_tests::event_candidates_use_the_actual_configured_placement ... ok
+test completion::source_catalogue_word_tests::source_catalogue_insertions_encode_provider_data_before_packaging_labels ... ok
+test completion::source_catalogue_word_tests::actual_builtin_catalogue_names_keep_literal_unicode_and_escape_data ... ok
+test completion::tests::array_element_completion_does_not_eat_trailing_text_when_unclosed ... ok
+test completion::tests::array_element_completion_swallows_existing_close_paren ... ok
+test completion::tests::brace_trigger_recognised ... ok
+test completion::tests::bareword_completion_does_not_leak_unrelated_variable_class ... ok
+test completion::tests::builtin_completion_detail_shows_provenance ... ok
+test completion::tests::builtin_completion_filters_by_partial ... ok
+test completion::tests::builtin_completion_lists_registry_commands_at_command_position ... ok
+test completion::tests::builtin_completion_merges_procs_and_registry ... ok
+test completion::tests::builtin_completion_none_registry_keeps_minimal_behaviour ... ok
+test completion::tests::builtin_completion_skipped_inside_variable_trigger ... ok
+test completion::tests::builtin_completion_skips_math_operators ... ok
+test completion::tests::builtin_completion_skips_word_form_operators ... ok
+test completion::tests::call_completion_does_not_fire_in_plain_tcl_dialect ... FAILED
+test completion::tests::call_completion_excludes_builtin_commands ... FAILED
+test completion::tests::call_completion_skipped_at_word_index_other_than_1 ... FAILED
+test completion::tests::call_completion_surfaces_user_procs_at_word_index_1 ... FAILED
+test completion::tests::class_command_completion_honours_a_self_scoped_unexport ... FAILED
+test completion::tests::class_command_completion_ignores_an_unwrapped_unexport ... ok
+test completion::tests::command_completion_uses_profile_availability ... ok
+test completion::tests::command_detail_formats_each_provenance ... ok
+test completion::tests::completion_builds_resolved_event_facts_once_per_request ... FAILED
+test completion::tests::dollar_trigger_at_eol_returns_partial ... ok
+test completion::tests::dollar_trigger_with_partial_name ... ok
+test completion::original_snippet_context_tests::logical_snippet_choices_use_current_scope_and_selected_source_reference_grammar ... FAILED
+test completion::tests::command_completion_gates_commands_by_package_version ... ok
+test completion::tests::empty_partial_lists_all_procs ... ok
+test completion::tests::event_completion_does_not_fire_in_plain_tcl_dialect ... ok
+test completion::tests::event_completion_marks_detail_as_irules_event ... ok
+test completion::tests::filter_candidates_empty_partial_keeps_everything ... ok
+test completion::tests::filter_candidates_fuzzy_cap_respected ... ok
+test completion::tests::filter_candidates_fuzzy_ranks_by_distance_then_name ... ok
+test completion::tests::filter_candidates_fuzzy_respects_distance_budget ... ok
+test completion::tests::filter_candidates_no_fallback_for_one_char_fragment ... ok
+test completion::tests::filter_candidates_prefix_path_keeps_input_order ... ok
+test completion::tests::event_completion_surfaces_when_handler_first_arg ... ok
+test completion::tests::event_completion_skipped_at_word_index_other_than_1 ... ok
+test completion::tests::fuzzy_array_element_offers_key_for_kye ... ok
+test completion::tests::fuzzy_fallback_skips_one_char_fragment ... ok
+test completion::tests::fuzzy_fallback_offers_lsearch_for_lsaerch ... ok
+test completion::tests::fuzzy_subcommand_offers_length_for_lenght ... ok
+test completion::tests::fuzzy_switch_offers_nocase_for_ncoase ... ok
+test completion::tests::fuzzy_method_surfaces_when_response_would_be_empty ... ok
+test completion::tests::invoked_proc_completions_fuzzy_falls_back ... ok
+test completion::tests::fuzzy_variable_offers_banana_for_bnaana ... ok
+test completion::tests::irules_event_snippets_suppressed_inside_when_body ... ok
+test completion::tests::irules_snippets_decline_for_already_declared_event ... ok
+test completion::tests::irules_subcommand_completion_uses_configured_bigip_version ... FAILED
+test completion::tests::irules_event_snippets_surface_at_top_level ... ok
+test completion::tests::irules_snippets_hidden_in_plain_tcl_dialect ... ok
+test completion::tests::malformed_braced_instance_head_does_not_offer_method_completion ... ok
+test completion::tests::obj_method_completion_excludes_class_side_methods ... ok
+test completion::tests::method_typo_does_not_hijack_command_prefix_matches ... FAILED
+test completion::tests::obj_method_completion_filters_by_partial ... ok
+test completion::tests::obj_method_completion_includes_a_literal_foreach_installed_method ... FAILED
+test completion::tests::obj_method_completion_includes_generated_property_accessors ... FAILED
+test completion::tests::obj_method_completion_includes_inherited ... FAILED
+test completion::tests::obj_method_completion_inherits_generated_accessors_through_plain_subclass ... ok
+test completion::tests::obj_method_completion_layers_per_object_members_and_flips ... FAILED
+test completion::tests::obj_method_completion_offers_no_accessor_on_a_plain_class ... ok
+test completion::tests::obj_method_completion_leaves_sibling_objects_untouched ... ok
+test completion::tests::obj_method_completion_omits_an_unwrapped_deleted_method ... ok
+test completion::tests::option_enum_value_completion_offers_members ... ok
+test completion::tests::prefix_proc_list_pinned ... FAILED
+test completion::tests::prefix_subcommand_list_pinned ... ok
+test completion::tests::obj_method_completion_survives_a_self_scoped_unexport_of_the_same_name ... ok
+test completion::tests::proc_completion_keeps_independent_original_inventory_when_ui_geometry_is_removed ... ok
+test completion::tests::proc_completion_lists_user_defined_procs ... FAILED
+test completion::tests::proc_sort_text_has_lower_bucket_for_used_procs ... ok
+test completion::tests::space_resets_trigger_context ... ok
+test completion::tests::proc_completion_quotes_retained_callable_source ... ok
+test completion::tests::string_is_class_detail_is_surfaced ... ok
+test completion::tests::proc_completion_withdraws_unaddressable_colon_publication ... ok
+test completion::tests::string_is_lists_all_classes_with_empty_partial ... ok
+test completion::tests::string_is_completes_character_classes ... ok
+test completion::tests::sub_subcommand_completion_surfaces_at_word_index_2 ... ok
+test completion::tests::subcommand_completion_falls_through_when_word_index_not_1 ... FAILED
+test completion::tests::subcommand_completion_lists_all_subcommands_with_empty_partial ... ok
+test completion::tests::subcommand_completion_is_version_gated_by_the_profile ... ok
+test completion::tests::subcommand_completion_skipped_when_command_has_no_subcommands ... FAILED
+test completion::tests::subcommand_completion_surfaces_subcommands_at_word_index_1 ... ok
+test completion::tests::subcommand_without_arg_values_falls_through ... ok
+test completion::tests::switch_completion_lists_all_options_for_bare_dash ... ok
+test completion::tests::switch_completion_gates_options_by_dialect ... ok
+test completion::tests::switch_completion_gates_options_by_package_version ... ok
+test completion::tests::switch_completion_surfaces_options_for_dash_partial ... ok
+test completion::tests::switch_completion_resolves_subcommand_scoped_options ... ok
+test completion::tests::switch_option_completion_respects_profile_gating ... ok
+test completion::tests::tk_commands_never_offered_in_irules ... FAILED
+test completion::tests::tk_commands_offered_in_wish_tk_dialect ... ok
+test completion::tests::usage_bucket_thresholds ... ok
+test completion::tests::variable_completion_filters_by_partial ... ok
+test completion::tests::tk_commands_only_offered_when_tk_is_loaded ... ok
+test completion::tests::variable_completion_lists_globals_alphabetically ... ok
+test completion::tests::widget_bareword_completion_offers_subcommands ... FAILED
+test completion::tests::widget_var_captured_completion_offers_subcommands ... FAILED
+test completion::tests::widget_method_completion_follows_the_document_tk_floor ... FAILED
+test completion::tests::workspace_none_keeps_single_doc_behaviour ... FAILED
+test completion::tests::workspace_procs_do_not_duplicate_local_procs ... ok
+test completion::tests::tk_completion_follows_the_placement_not_the_environment_name ... ok
+test completion::tests::workspace_procs_surface_in_completion ... ok
+test original_oo::instance_completion::tests::original_future_instance_candidates_do_not_borrow_frames_cells_or_navigation ... FAILED
+test original_oo::instance_completion::tests::original_instance_candidates_keep_opaque_canonical_class_inputs_distinct ... FAILED
+test original_oo::instance_completion::tests::original_instance_method_geometry_keeps_captured_selectors_and_later_arguments_separate ... ok
+test original_oo::instance_completion::tests::original_instance_candidates_refuse_stale_input_terminal_mutations_and_detached_reports ... FAILED
+test original_oo::instance_completion::tests::original_instance_selector_edits_keep_whole_grouped_words_without_identity_grants ... ok
+test original_oo::instance_completion::tests::original_instance_candidates_join_genuine_construction_without_reporting_maps ... ok
+test original_oo::instance_completion::tests::original_instance_operand_projection_never_borrows_native_purpose_from_a_class ... ok
+---- completion::logical_scoped_environment_tests::logical_scoped_completion_keeps_actual_parent_body_after_reporting_region_erasure stdout ----
+thread 'completion::logical_scoped_environment_tests::logical_scoped_completion_keeps_actual_parent_body_after_reporting_region_erasure' (10433) panicked at rust/tcl-lsp-core/src/completion.rs:7907:63:
+called `Option::unwrap()` on a `None` value
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- completion::logical_scoped_environment_tests::logical_scoped_vocabulary_follows_genuine_alias_parent_and_known_shadow_barriers stdout ----
+
+thread 'completion::logical_scoped_environment_tests::logical_scoped_vocabulary_follows_genuine_alias_parent_and_known_shadow_barriers' (10443) panicked at rust/tcl-lsp-core/src/completion.rs:7930:18:
+called `Option::unwrap()` on a `None` value
+
+---- completion::logical_scoped_environment_tests::scoped_vocabulary_inherits_same_source_frame_and_stops_at_genuine_procedure_body stdout ----
+
+thread 'completion::logical_scoped_environment_tests::scoped_vocabulary_inherits_same_source_frame_and_stops_at_genuine_procedure_body' (10455) panicked at rust/tcl-lsp-core/src/completion.rs:7957:13:
+assertion `left == right` failed
+  left: false
+ right: true
+
+---- completion::original_command_cursor_tests::command_completion_replaces_actual_escaped_and_delimited_words stdout ----
+
+thread 'completion::original_command_cursor_tests::command_completion_replaces_actual_escaped_and_delimited_words' (10476) panicked at rust/tcl-lsp-core/src/completion.rs:3018:22:
+the actual source declaration remains a candidate
+
+---- completion::original_document_grammar_tests::original_document_grammar_completion_preserves_full_source_configuration stdout ----
+
+thread 'completion::original_document_grammar_tests::original_document_grammar_completion_preserves_full_source_configuration' (10610) panicked at rust/tcl-lsp-core/src/completion.rs:6433:9:
+[]
+
+---- completion::original_inherited_completion_tests::original_inherited_method_candidates_use_byte_relations_after_reporting_clear stdout ----
+
+thread 'completion::original_inherited_completion_tests::original_inherited_method_candidates_use_byte_relations_after_reporting_clear' (10648) panicked at rust/tcl-lsp-core/src/completion.rs:6162:9:
+assertion `left == right` failed
+  left: [[111, 119, 110]]
+ right: [[98, 237, 160, 128], [109, 105, 120, 101, 100], [111, 119, 110]]
+
+---- completion::original_oo_completion_tests::original_class_methods_complete_distinct_native_names_with_ui_tables_cleared stdout ----
+
+thread 'completion::original_oo_completion_tests::original_class_methods_complete_distinct_native_names_with_ui_tables_cleared' (10656) panicked at rust/tcl-lsp-core/src/completion.rs:6033:68:
+called `Option::unwrap()` on a `None` value
+
+---- completion::original_proc_completion_tests::logical_proc_completion_inserts_original_headers_after_report_labels_change stdout ----
+
+thread 'completion::original_proc_completion_tests::logical_proc_completion_inserts_original_headers_after_report_labels_change' (10748) panicked at rust/tcl-lsp-core/src/completion.rs:5777:9:
+assertion `left == right` failed
+  left: 0
+ right: 1
+
+---- completion::original_receiver_domain_tests::native_fuzzy_unknown_receiver_cannot_borrow_nominal_widget_reports stdout ----
+
+thread 'completion::original_receiver_domain_tests::native_fuzzy_unknown_receiver_cannot_borrow_nominal_widget_reports' (10813) panicked at rust/tcl-lsp-core/src/completion.rs:6809:9:
+assertion failed: !analysis.allows_lexical_declaration_advice()
+
+---- completion::tests::call_completion_does_not_fire_in_plain_tcl_dialect stdout ----
+
+thread 'completion::tests::call_completion_does_not_fire_in_plain_tcl_dialect' (11348) panicked at rust/tcl-lsp-core/src/completion.rs:4808:9:
+fallback should still surface `helper`; got []
+
+---- completion::tests::call_completion_excludes_builtin_commands stdout ----
+
+thread 'completion::tests::call_completion_excludes_builtin_commands' (11351) panicked at rust/tcl-lsp-core/src/completion.rs:4832:9:
+[]
+
+---- completion::tests::call_completion_skipped_at_word_index_other_than_1 stdout ----
+
+thread 'completion::tests::call_completion_skipped_at_word_index_other_than_1' (11354) panicked at rust/tcl-lsp-core/src/completion.rs:4988:9:
+fallback should surface some e-prefixed built-in at word-index 2; got []
+
+---- completion::tests::call_completion_surfaces_user_procs_at_word_index_1 stdout ----
+
+thread 'completion::tests::call_completion_surfaces_user_procs_at_word_index_1' (11358) panicked at rust/tcl-lsp-core/src/completion.rs:4771:9:
+expected user procs `helper` and `help_inner`; got []
+
+---- completion::tests::class_command_completion_honours_a_self_scoped_unexport stdout ----
+
+thread 'completion::tests::class_command_completion_honours_a_self_scoped_unexport' (11394) panicked at rust/tcl-lsp-core/src/completion.rs:3490:13:
+assertion `left == right` failed: oo::class create Counter {
+    self {
+        method m {} {}
+    }
+}
+---- completion::tests::completion_builds_resolved_event_facts_once_per_request stdout ----
+thread 'completion::tests::completion_builds_resolved_event_facts_once_per_request' (11438) panicked at rust/tcl-lsp-core/src/completion.rs:5253:9:
+assertion `left == right` failed: completion must reuse one precomputed identity/boundary inventory
+  left: 0
+ right: 1
+
+---- completion::original_snippet_context_tests::logical_snippet_choices_use_current_scope_and_selected_source_reference_grammar stdout ----
+
+thread 'completion::original_snippet_context_tests::logical_snippet_choices_use_current_scope_and_selected_source_reference_grammar' (10817) panicked at rust/tcl-lsp-core/src/completion.rs:6586:13:
+jim: foreach ${1:item} ${2|$local|} {
+    $0
+}
+
+---- completion::tests::irules_subcommand_completion_uses_configured_bigip_version stdout ----
+
+thread 'completion::tests::irules_subcommand_completion_uses_configured_bigip_version' (11537) panicked at rust/tcl-lsp-core/src/completion.rs:4027:9:
+assertion failed: !labels_21_0.iter().any(|label| label == "cert_lifespan")
+
+---- completion::tests::method_typo_does_not_hijack_command_prefix_matches stdout ----
+
+thread 'completion::tests::method_typo_does_not_hijack_command_prefix_matches' (11539) panicked at rust/tcl-lsp-core/src/completion.rs:5574:9:
+prefix proc expected: ["xx"]
+
+---- completion::tests::obj_method_completion_includes_a_literal_foreach_installed_method stdout ----
+
+thread 'completion::tests::obj_method_completion_includes_a_literal_foreach_installed_method' (11560) panicked at rust/tcl-lsp-core/src/completion.rs:3402:13:
+alpha missing: []
+
+---- completion::tests::obj_method_completion_includes_generated_property_accessors stdout ----
+
+thread 'completion::tests::obj_method_completion_includes_generated_property_accessors' (11563) panicked at rust/tcl-lsp-core/src/completion.rs:3313:9:
+Some("method — property declaration candidate")
+
+---- completion::tests::obj_method_completion_includes_inherited stdout ----
+
+thread 'completion::tests::obj_method_completion_includes_inherited' (11567) panicked at rust/tcl-lsp-core/src/completion.rs:3221:9:
+builtin missing: ["bark", "eat"]
+
+---- completion::tests::obj_method_completion_layers_per_object_members_and_flips stdout ----
+
+thread 'completion::tests::obj_method_completion_layers_per_object_members_and_flips' (11573) panicked at rust/tcl-lsp-core/src/completion.rs:3545:9:
+the per-object member must be offered: ["bark"]
+
+---- completion::tests::prefix_proc_list_pinned stdout ----
+
+thread 'completion::tests::prefix_proc_list_pinned' (11609) panicked at rust/tcl-lsp-core/src/completion.rs:5376:9:
+assertion `left == right` failed
+  left: "\"::alpha\""
+ right: "::alpha"
+
+---- completion::tests::proc_completion_lists_user_defined_procs stdout ----
+
+thread 'completion::tests::proc_completion_lists_user_defined_procs' (11618) panicked at rust/tcl-lsp-core/src/completion.rs:3846:9:
+assertion `left == right` failed: [CompletionItem { label: "greet", insert_text: "\"::greet\"", kind: Function, detail: Some("(no args)"), sort_text: Some("A005_greet"), is_snippet: false, filter_text: None, text_edit: Some(CompletionEdit { start_char: 0, end_char: 1, new_text: "\"::greet\"" }), documentation: None }, CompletionItem { label: "generator", insert_text: "generator", kind: Function, detail: Some("tcllib (generator)"), sort_text: Some("B05_generator"), is_snippet: false, filter_text: None, text_edit: Some(CompletionEdit { start_char: 0, end_char: 1, new_text: "generator" }), docume
+  left: 62
+ right: 1
+
+---- completion::tests::subcommand_completion_falls_through_when_word_index_not_1 stdout ----
+
+thread 'completion::tests::subcommand_completion_falls_through_when_word_index_not_1' (11664) panicked at rust/tcl-lsp-core/src/completion.rs:4340:9:
+expected at least one f-prefixed command via fallback; got []
+
+---- completion::tests::subcommand_completion_skipped_when_command_has_no_subcommands stdout ----
+
+thread 'completion::tests::subcommand_completion_skipped_when_command_has_no_subcommands' (11674) panicked at rust/tcl-lsp-core/src/completion.rs:4371:9:
+expected `helper` proc via fallback; got []
+
+---- completion::tests::tk_commands_never_offered_in_irules stdout ----
+
+thread 'completion::tests::tk_commands_never_offered_in_irules' (11704) panicked at rust/tcl-lsp-core/src/completion.rs:4962:9:
+Tk `button` must never surface in iRules: ["button"]
+
+---- completion::tests::widget_bareword_completion_offers_subcommands stdout ----
+
+thread 'completion::tests::widget_bareword_completion_offers_subcommands' (11733) panicked at rust/tcl-lsp-core/src/completion.rs:3665:9:
+[]
+
+---- completion::tests::widget_var_captured_completion_offers_subcommands stdout ----
+
+thread 'completion::tests::widget_var_captured_completion_offers_subcommands' (11741) panicked at rust/tcl-lsp-core/src/completion.rs:3733:9:
+[]
+
+---- completion::tests::widget_method_completion_follows_the_document_tk_floor stdout ----
+
+thread 'completion::tests::widget_method_completion_follows_the_document_tk_floor' (11740) panicked at rust/tcl-lsp-core/src/completion.rs:3702:9:
+assertion failed: labels(plain, "tcl9.1", 1).iter().any(|name| name == "current")
+
+---- completion::tests::workspace_none_keeps_single_doc_behaviour stdout ----
+
+thread 'completion::tests::workspace_none_keeps_single_doc_behaviour' (11748) panicked at rust/tcl-lsp-core/src/completion.rs:5198:9:
+assertion `left == right` failed: ["greet", "grammar::fa::op::complement", "grammar::fa::op::constructor", "grammar::fa::op::kleene", "grammar::fa::op::optional", "grammar::fa::op::remove_eps", "grammar::fa::op::reverse", "grammar::fa::op::simplifyRegexp", "grammar::fa::op::toRegexp", "grammar::fa::op::toRegexp2", "grammar::fa::op::toTclRegexp", "grammar::me::cpu", "grammar::me::cpu::gasm::Bra", "grammar::me::cpu::gasm::Exit", "grammar::me::cpu::gasm::Inline", "grammar::me::cpu::gasm::Jmp", "grammar::me::cpu::gasm::Nop", "grammar::me::cpu::gasm::Note", "grammar::me::cpu::gasm::Who", "grammar::
+  left: ["greet", "grammar::fa::op::complement", "grammar::fa::op::constructor", "grammar::fa::op::kleene", "grammar::fa::op::optional", "grammar::fa::op::remove_eps", "grammar::fa::op::reverse", "grammar::fa::op::simplifyRegexp", "grammar::fa::op::toRegexp", "grammar::fa::op::toRegexp2", "grammar::fa::op::toTclRegexp", "grammar::me::cpu", "grammar::me::cpu::gasm::Bra", "grammar::me::cpu::gasm::Exit", "grammar::me::cpu::gasm::Inline", "grammar::me::cpu::gasm::Jmp", "grammar::me::cpu::gasm::Nop", "grammar::me::cpu::gasm::Note", "grammar::me::cpu::gasm::Who", "grammar::me::cpu::gasm::done", "gra
+ right: ["greet"]
+
+---- original_oo::instance_completion::tests::original_future_instance_candidates_do_not_borrow_frames_cells_or_navigation stdout ----
+
+thread 'original_oo::instance_completion::tests::original_future_instance_candidates_do_not_borrow_frames_cells_or_navigation' (11767) panicked at rust/tcl-lsp-core/src/original_oo/instance_completion/tests.rs:168:5:
+assertion failed: crate::receiver_identity::class_at_command_head(&analysis, source,
+        &command).is_none()
+
+---- original_oo::instance_completion::tests::original_instance_candidates_keep_opaque_canonical_class_inputs_distinct stdout ----
+
+thread 'original_oo::instance_completion::tests::original_instance_candidates_keep_opaque_canonical_class_inputs_distinct' (11770) panicked at rust/tcl-lsp-core/src/original_oo/instance_completion/tests.rs:236:14:
+called `Option::unwrap()` on a `None` value
+
+---- original_oo::instance_completion::tests::original_instance_candidates_refuse_stale_input_terminal_mutations_and_detached_reports stdout ----
+
+thread 'original_oo::instance_completion::tests::original_instance_candidates_refuse_stale_input_terminal_mutations_and_detached_reports' (11786) panicked at rust/tcl-lsp-core/src/original_oo/instance_completion/tests.rs:219:9:
+oo::class create C {}; C create object; proc object args {}; object longMet
+
+
+failures:
+    completion::logical_scoped_environment_tests::logical_scoped_completion_keeps_actual_parent_body_after_reporting_region_erasure
+test result: FAILED. 145 passed; 34 failed; 0 ignored; 0 measured; 3311 filtered out; finished in 391.03s

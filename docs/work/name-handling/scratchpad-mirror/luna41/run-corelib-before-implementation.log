@@ -1,0 +1,76 @@
+test implementation::current_source_implementation_tests::logical_method_implementation_requires_current_source_and_complete_input ... FAILED
+test implementation::conditional_source_implementation_tests::unrelated_unrepresented_relation_does_not_erase_root_own_member ... ok
+test implementation::logical_source_selection_tests::logical_implementation_keeps_unicode_self_selector_and_exact_source_configuration ... FAILED
+test implementation::conditional_source_implementation_tests::conditional_edges_keep_root_and_genuine_descendant_without_inventing_unknown_parent ... FAILED
+test implementation::logical_source_selection_tests::logical_implementation_lifts_lone_cr_source_positions ... ok
+test implementation::original_implementation_tests::original_class_object_implementation_does_not_borrow_instance_superclass_order ... ok
+test implementation::logical_source_selection_tests::logical_implementation_uses_real_member_operand_and_rejects_equal_spelled_data ... FAILED
+test implementation::original_implementation_tests::original_implementation_uses_opaque_method_identity_and_exact_descendant_relations ... ok
+test implementation::original_implementation_tests::original_method_implementations_keep_cross_document_owners_and_block_ambiguous_parents ... FAILED
+test implementation::retained_implementation_applicability_tests::implementation_reply_keeps_debt_and_revalidates_every_positive_target ... FAILED
+test implementation::tests::constructed_implementation_ancestry_keeps_root_marker_distinct_from_colon_segment ... ok
+test implementation::tests::class_in_namespace_returns_only_that_namespaces_subclass ... ok
+test implementation::tests::class_name_returns_direct_subclasses ... ok
+test implementation::tests::method_inside_class_returns_self_and_descendant_overrides ... ok
+test implementation::tests::logical_method_implementations_do_not_join_equal_tail_class_owners ... FAILED
+test implementation::tests::namespaced_class_with_no_subclasses_returns_empty ... ok
+test implementation::tests::namespaced_subclass_via_mixin_is_an_implementation ... ok
+test implementation::tests::logical_method_implementations_use_resolved_bare_relations_in_nested_namespace ... FAILED
+test implementation::tests::unknown_word_returns_empty ... ok
+test implementation::tests::other_namespace_class_returns_its_own_subclass ... ok
+test implementation::tests::unknown_command_argument_cannot_supply_method_implementation_identity ... ok
+---- implementation::current_source_implementation_tests::logical_method_implementation_requires_current_source_and_complete_input stdout ----
+thread 'implementation::current_source_implementation_tests::logical_method_implementation_requires_current_source_and_complete_input' (18614) panicked at rust/tcl-lsp-core/src/implementation.rs:805:9:
+assertion `left == right` failed
+  left: 0
+ right: 1
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- implementation::logical_source_selection_tests::logical_implementation_keeps_unicode_self_selector_and_exact_source_configuration stdout ----
+thread 'implementation::logical_source_selection_tests::logical_implementation_keeps_unicode_self_selector_and_exact_source_configuration' (18627) panicked at rust/tcl-lsp-core/src/implementation.rs:856:9:
+assertion `left == right` failed
+  left: 0
+ right: 1
+
+---- implementation::conditional_source_implementation_tests::conditional_edges_keep_root_and_genuine_descendant_without_inventing_unknown_parent stdout ----
+
+thread 'implementation::conditional_source_implementation_tests::conditional_edges_keep_root_and_genuine_descendant_without_inventing_unknown_parent' (18612) panicked at rust/tcl-lsp-core/src/implementation.rs:894:9:
+assertion `left == right` failed
+  left: 0
+ right: 1
+
+---- implementation::logical_source_selection_tests::logical_implementation_uses_real_member_operand_and_rejects_equal_spelled_data stdout ----
+
+thread 'implementation::logical_source_selection_tests::logical_implementation_uses_real_member_operand_and_rejects_equal_spelled_data' (18633) panicked at rust/tcl-lsp-core/src/implementation.rs:841:9:
+assertion `left == right` failed
+  left: [0]
+ right: [0, 1]
+
+---- implementation::original_implementation_tests::original_method_implementations_keep_cross_document_owners_and_block_ambiguous_parents stdout ----
+
+thread 'implementation::original_implementation_tests::original_method_implementations_keep_cross_document_owners_and_block_ambiguous_parents' (18642) panicked at rust/tcl-lsp-core/src/implementation.rs:716:13:
+original method declaration must be selectable
+
+---- implementation::retained_implementation_applicability_tests::implementation_reply_keeps_debt_and_revalidates_every_positive_target stdout ----
+
+thread 'implementation::retained_implementation_applicability_tests::implementation_reply_keeps_debt_and_revalidates_every_positive_target' (18671) panicked at rust/tcl-lsp-core/src/implementation.rs:957:9:
+assertion `left == right` failed
+  left: [0]
+ right: [0, 2]
+
+---- implementation::tests::logical_method_implementations_do_not_join_equal_tail_class_owners stdout ----
+
+thread 'implementation::tests::logical_method_implementations_do_not_join_equal_tail_class_owners' (18769) panicked at rust/tcl-lsp-core/src/implementation.rs:617:13:
+assertion `left == right` failed: [LspRange { start_line: 4, start_character: 30, end_line: 4, end_character: 33 }]
+  left: [4]
+ right: [4, 5]
+
+---- implementation::tests::logical_method_implementations_use_resolved_bare_relations_in_nested_namespace stdout ----
+
+thread 'implementation::tests::logical_method_implementations_use_resolved_bare_relations_in_nested_namespace' (18770) panicked at rust/tcl-lsp-core/src/implementation.rs:585:13:
+assertion `left == right` failed: superclass: [LspRange { start_line: 2, start_character: 30, end_line: 2, end_character: 33 }]
+  left: [2]
+ right: [2, 3, 4]
+
+
+test result: FAILED. 13 passed; 8 failed; 0 ignored; 0 measured; 3464 filtered out; finished in 45.94s

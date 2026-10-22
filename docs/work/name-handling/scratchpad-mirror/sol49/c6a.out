@@ -1,0 +1,19 @@
+/home/user/tcl-lsp/target/debug/deps/tcl_compiler-ef22ef87d0bd65a7
+test interprocedural::tests::call_by_name_param_traits_inferred ... FAILED
+thread 'interprocedural::tests::call_by_name_param_traits_inferred' (31987) panicked at rust/tcl-compiler/src/interprocedural.rs:7852:9:
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 10455 filtered out; finished in 1.58s
+test interprocedural::tests::forwarded_to_callee_detected ... FAILED
+thread 'interprocedural::tests::forwarded_to_callee_detected' (31997) panicked at rust/tcl-compiler/src/interprocedural.rs:7925:9:
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 10455 filtered out; finished in 1.73s
+test interprocedural::tests::used_in_condition_detected ... FAILED
+thread 'interprocedural::tests::used_in_condition_detected' (32001) panicked at rust/tcl-compiler/src/interprocedural.rs:7914:9:
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 10455 filtered out; finished in 1.46s
+test interprocedural::tests::upvar_level_word_is_read_by_argument_parity ... FAILED
+thread 'interprocedural::tests::upvar_level_word_is_read_by_argument_parity' (32008) panicked at rust/tcl-compiler/src/interprocedural.rs:7887:9:
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 10455 filtered out; finished in 1.54s
+test analyser::diagnostics::fp::sh::fp_sh_21_dict_literal_in_dict_for_silent ... FAILED
+thread 'analyser::diagnostics::fp::sh::fp_sh_21_dict_literal_in_dict_for_silent' (32012) panicked at rust/tcl-compiler/src/analyser/diagnostics/fp/sh.rs:1425:5:
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 10455 filtered out; finished in 3.13s
+test analyser::diagnostics::fp::tnt::fp_tnt_03_interp_eval_list_literal_head_no_t105 ... FAILED
+thread 'analyser::diagnostics::fp::tnt::fp_tnt_03_interp_eval_list_literal_head_no_t105' (32045) panicked at rust/tcl-compiler/src/analyser/diagnostics/fp/tnt.rs:173:5:
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 10455 filtered out; finished in 3.30s

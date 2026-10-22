@@ -1,0 +1,16 @@
+test original_name_edit::original_variable_root_edit_tests::original_c_empty_array_root_edit_preserves_the_independent_index ... ok
+test original_name_edit::original_edit_presentation_tests::original_edit_preserves_verified_plain_and_braced_container_presentations ... ok
+test original_name_edit::original_variable_root_edit_tests::original_variable_name_edits_refuse_stale_or_changed_root_index_boundaries ... ok
+test original_name_edit::original_variable_root_edit_tests::original_variable_name_edits_keep_wrappers_and_array_index_unchanged ... ok
+test original_name_edit::tests::original_edit_refuses_stale_channel_conflicting_paths_and_unrenderable_units ... ok
+test original_name_edit::tests::original_list_children_batch_one_parent_and_preserve_unrelated_opaque_units ... ok
+test original_name_edit::tests::computed_frozen_values_remain_readonly_without_static_container ... FAILED
+test original_name_edit::tests::static_expanded_container_preserves_marker_and_baked_cardinality ... ok
+---- original_name_edit::tests::computed_frozen_values_remain_readonly_without_static_container stdout ----
+thread 'original_name_edit::tests::computed_frozen_values_remain_readonly_without_static_container' (7301) panicked at rust/tcl-lsp-core/src/original_name_edit.rs:673:14:
+called `Option::unwrap()` on a `None` value
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+test result: FAILED. 7 passed; 1 failed; 0 ignored; 0 measured; 3477 filtered out; finished in 0.19s

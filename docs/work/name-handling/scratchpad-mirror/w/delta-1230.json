@@ -1,0 +1,7 @@
+{"scheduled":"2026-10-21T12:30:00Z",
+ "change_since_previous_report":{"integrated_LSP":0,"total_baseline_delta":0,"effective_delta":0,"verified_complete":0},
+ "admissions":{},
+ "decisions_recorded":{"f5b18f5049":"evidence stays on work; added test fixtures (29,092 files, ~469 families) reviewed for performance, completeness and overlap and reduced before the rust PR"},
+ "in_progress":{"sol-48":"tclvm work, active (12 tcl-vm + 1 tcl-vm-cli files modified)","sol-49":"compiler work, active (13 tcl-compiler + 1 tcl-registry files modified)","luna-40":"read-only fixture review and reduction plan, active"},
+ "disk_free_gb":3.3,
+ "next_report_utc":"2026-10-21T13:01:00Z"}

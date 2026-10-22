@@ -1,0 +1,6 @@
+
+running 1 test
+test source_graph::original_source_navigation_order_tests::document_sequence_ends_at_a_possible_early_exit ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 3479 filtered out; finished in 2.16s
+

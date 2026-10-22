@@ -1,0 +1,4 @@
+{"files": 114259, "snapshot": "/tmp/claude-0/-home-user-tcl-lsp/8d747420-e446-5e83-b7e6-dff30ae9952e/scratchpad/w/lsp-build-42/build-post-inputs.json", "sha256": "e357d8554dc710fb75b3689cfd95c3c2bc02e7e39640dc6fda48a179291dea53"}
+{"snapshot": "/tmp/claude-0/-home-user-tcl-lsp/8d747420-e446-5e83-b7e6-dff30ae9952e/scratchpad/w/lsp-build-42/build-post-providers.json", "sha256": "922d66d207d22abb5e74807e48741d1b8f8e37b994649c6edb10d7b262b8021c", "provider_count": 6}
+{"status": "DIRECT_LSP_BUILD42_SOURCE_PROVIDER_GUARDS_PASS", "artifacts": 8, "artifacts_sha256": "2be399ec1d7a371a71c787dea0fb77af172dde1ad46bde91cdaaec76ab34fbf5"}
+done

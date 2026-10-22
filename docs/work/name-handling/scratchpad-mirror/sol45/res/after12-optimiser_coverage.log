@@ -1,0 +1,971 @@
+
+running 93 tests
+test a_catch_result_variable_holds_no_integer_to_shimmer ... ok
+test a_shadowed_append_or_lappend_stops_the_write_chain_fold ... FAILED
+test a_proc_shadowing_a_builtin_is_never_folded_with_builtin_semantics ... FAILED
+test apply_optimisations_edge_cases ... FAILED
+test cross_event_dse_guardrails ... ok
+test demorgan_logic_via_o110 ... FAILED
+test a_shadowed_builtin_value_is_not_published_into_strings_or_branches ... FAILED
+test edge_cases_loops_and_namespaces ... FAILED
+test invert_logic_covers_tip461_and_membership_operators ... FAILED
+test invert_logic_via_o110 ... FAILED
+test legacy_gvn_cse_detection ... FAILED
+test o100_branch_condition_propagation_blocks_on_variable_trace ... ok
+test o100_constant_propagation ... FAILED
+test o100_o105_const_ref_propagation ... FAILED
+test o101_constant_folding_arithmetic ... FAILED
+test o101_constant_folding_bitwise_and_compare ... FAILED
+test o101_constant_folding_ternary_unary_logical ... FAILED
+test edge_cases_no_crash ... ok
+test o101_dialect_octal_arithmetic ... FAILED
+test o101_expr_redefinition_guard ... FAILED
+test o101_mathfunc_redefinition_guard ... FAILED
+test o101_global_write_across_call_guard ... FAILED
+test o101_module_wide_variable_trace_guard ... FAILED
+test o102_abbreviated_trace_add_variable_blocks_forward ... ok
+test o102_alias_baked_set_target_kills_the_stale_global ... ok
+test o102_alias_to_uplevel_uses_its_prepended_caller_level ... ok
+test o102_expr_command_substitution ... FAILED
+test o102_interp_eval_self_target_barrier_blocks_forward ... ok
+test o102_legacy_trace_variable_form_blocks_forward ... ok
+test o102_pure_intervening_call_is_still_forwarded ... FAILED
+test o102_read_trace_installed_before_def_blocks_forward ... ok
+test o102_side_effecting_intervening_call_is_still_forwarded ... FAILED
+test o102_sub_interpreter_isolation_no_longer_over_blocked ... FAILED
+test o102_read_trace_via_helper_proc_blocks_forward ... ok
+test o102_unregistered_proc_call_between_def_and_use_still_forwards ... FAILED
+test o102_uplevel_hash_zero_dynamic_script_widens_every_global ... ok
+test o102_uplevel_hash_zero_embedded_substitution_widens_too ... ok
+test o102_uplevel_hash_zero_in_called_proc_kills_the_stale_global ... ok
+test o102_transitive_trace_taint_through_expr_blocks_forward ... ok
+test o102_uplevel_hash_zero_list_built_script_kills_the_stale_global ... ok
+test o102_uplevel_hash_zero_non_writing_script_still_forwards ... FAILED
+test o102_uplevel_hash_zero_through_a_call_chain_kills_the_stale_global ... ok
+test o102_upvar_aliased_variable_blocks_forward ... ok
+test o102_uplevel_hash_zero_unrelated_global_still_forwards ... ok
+test o102_upvar_dynamic_local_alias_does_not_block_unrelated_forward ... ok
+test o102_upvar_dynamic_local_alias_blocks_forward ... ok
+test o102_upvar_dynamic_local_alias_param_source_blocks_forward ... ok
+test o102_upvar_zero_dynamic_local_is_callee_own_frame_and_still_forwards ... ok
+test o103_alias_resolved_proc_replacement_is_not_folded_as_the_original ... FAILED
+test o102_write_trace_mutating_value_blocks_forward ... ok
+test o104_string_build_chain ... FAILED
+test o103_interprocedural_folding ... FAILED
+test o107_dead_code_in_false_branch ... FAILED
+test o107_dead_code_elimination_of_unreachable_branch ... ok
+test o107_false_positive_guard_unrelated_variable_name_still_eliminated ... FAILED
+test o107_true_positive_untraced_branch_still_eliminated ... FAILED
+test o107_dynamic_variable_trace_target_blocks_elimination ... ok
+test o108_aggressive_dce ... FAILED
+test o110_de_morgan ... FAILED
+test o110_identity_and_annihilator ... FAILED
+test o110_logical_identities ... FAILED
+test o110_no_instcombine_with_command_subst ... ok
+test o110_reassociation ... FAILED
+test o110_self_comparison_tautologies ... FAILED
+test o109_dead_store_elimination ... FAILED
+test o110_ternary_and_double_not ... FAILED
+test o110_unary_and_not_inversions ... FAILED
+test o112_constant_branch_elimination_blocks_on_variable_trace ... ok
+test o112_if_elimination ... FAILED
+test o112_nested_via_multipass ... FAILED
+test o112_switch_elimination ... FAILED
+test o112_while_for_elimination ... FAILED
+test o113_strength_reduction ... FAILED
+test o114_incr_idiom ... FAILED
+test o110_whitespace_noise_suppressed ... FAILED
+test o115_nested_expr_unwrap ... FAILED
+test o117_strlen_zero_check ... FAILED
+test o118_lindex_folding ... FAILED
+test o116_list_folding ... FAILED
+test o120_string_compare_eq_ne ... FAILED
+test o120_with_sccp_const_and_mixed ... FAILED
+test o124_unused_irule_procs ... FAILED
+test o119_multi_set_packing ... FAILED
+test o125_code_sinking ... FAILED
+test pass_interactions ... FAILED
+test o127_load_forwarding ... FAILED
+test profile_directive_and_multipass ... FAILED
+test shimmer_loop_paths_no_crash ... ok
+test robustness_malformed_inputs ... ok
+test shimmer_string_in_numeric_context_s100 ... FAILED
+test shimmer_no_false_positives ... ok
+test tail_call_o121_o122_o123 ... FAILED
+test variable_shape_guardrails ... ok
+
+failures:
+
+---- a_shadowed_append_or_lappend_stops_the_write_chain_fold stdout ----
+
+thread 'a_shadowed_append_or_lappend_stops_the_write_chain_fold' (18141) panicked at rust/tcl-compiler/tests/optimiser_coverage.rs:2530:5:
+unshadowed control must still fold the append chain, got "proc g {} { set s \"\"; append s foo; append s bar; return $s }\n"
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: optimiser_coverage::a_shadowed_append_or_lappend_stops_the_write_chain_fold
+   3: optimiser_coverage::a_shadowed_append_or_lappend_stops_the_write_chain_fold::{closure#0}
+   4: <optimiser_coverage::a_shadowed_append_or_lappend_stops_the_write_chain_fold::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- a_proc_shadowing_a_builtin_is_never_folded_with_builtin_semantics stdout ----
+
+thread 'a_proc_shadowing_a_builtin_is_never_folded_with_builtin_semantics' (18096) panicked at rust/tcl-compiler/tests/optimiser_coverage.rs:2453:5:
+unshadowed control must still fold to the builtin's 3, got "namespace eval ::n {}\nproc ::n::g {} { set v [llength {a b c}]; return $v }\n"
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: optimiser_coverage::a_proc_shadowing_a_builtin_is_never_folded_with_builtin_semantics
+   3: optimiser_coverage::a_proc_shadowing_a_builtin_is_never_folded_with_builtin_semantics::{closure#0}
+   4: <optimiser_coverage::a_proc_shadowing_a_builtin_is_never_folded_with_builtin_semantics::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- apply_optimisations_edge_cases stdout ----
+
+thread 'apply_optimisations_edge_cases' (18187) panicked at rust/tcl-compiler/tests/optimiser_coverage.rs:1894:5:
+assertion failed: optimised("set a 1\nset b 2\nset c [expr {$a + $b}]", TCL).contains("set c 3")
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: optimiser_coverage::apply_optimisations_edge_cases
+   4: optimiser_coverage::apply_optimisations_edge_cases::{closure#0}
+   5: <optimiser_coverage::apply_optimisations_edge_cases::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- demorgan_logic_via_o110 stdout ----
+
+thread 'demorgan_logic_via_o110' (18192) panicked at rust/tcl-compiler/tests/optimiser_coverage.rs:1841:5:
+assertion failed: optimised("set v [expr {!($a && $b)}]", TCL).contains("!$a || !$b")
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: optimiser_coverage::demorgan_logic_via_o110
+   4: optimiser_coverage::demorgan_logic_via_o110::{closure#0}
+   5: <optimiser_coverage::demorgan_logic_via_o110::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- a_shadowed_builtin_value_is_not_published_into_strings_or_branches stdout ----
+
+thread 'a_shadowed_builtin_value_is_not_published_into_strings_or_branches' (18184) panicked at rust/tcl-compiler/tests/optimiser_coverage.rs:2471:5:
+interpolation must carry the shadowing proc's 99, got "proc llength {l} { return 99 }\nproc g {} { set v 99; puts \"x$v\" }\n"
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: optimiser_coverage::a_shadowed_builtin_value_is_not_published_into_strings_or_branches
+   3: optimiser_coverage::a_shadowed_builtin_value_is_not_published_into_strings_or_branches::{closure#0}
+   4: <optimiser_coverage::a_shadowed_builtin_value_is_not_published_into_strings_or_branches::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- edge_cases_loops_and_namespaces stdout ----
+
+thread 'edge_cases_loops_and_namespaces' (18198) panicked at rust/tcl-compiler/tests/optimiser_coverage.rs:2124:5:
+assertion failed: optimised(deep, TCL).contains("set v 1")
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: optimiser_coverage::edge_cases_loops_and_namespaces
+   4: optimiser_coverage::edge_cases_loops_and_namespaces::{closure#0}
+   5: <optimiser_coverage::edge_cases_loops_and_namespaces::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- invert_logic_covers_tip461_and_membership_operators stdout ----
+
+thread 'invert_logic_covers_tip461_and_membership_operators' (18245) panicked at rust/tcl-compiler/tests/optimiser_coverage.rs:1876:5:
+assertion failed: optimised("set v [expr {!($a lt $b)}]", TCL9).contains("$a ge $b")
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: optimiser_coverage::invert_logic_covers_tip461_and_membership_operators
+   4: optimiser_coverage::invert_logic_covers_tip461_and_membership_operators::{closure#0}
+   5: <optimiser_coverage::invert_logic_covers_tip461_and_membership_operators::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- invert_logic_via_o110 stdout ----
+
+thread 'invert_logic_via_o110' (18249) panicked at rust/tcl-compiler/tests/optimiser_coverage.rs:1852:5:
+assertion failed: optimised("set v [expr {!($a == $b)}]", TCL).contains("$a != $b")
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: optimiser_coverage::invert_logic_via_o110
+   4: optimiser_coverage::invert_logic_via_o110::{closure#0}
+   5: <optimiser_coverage::invert_logic_via_o110::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- legacy_gvn_cse_detection stdout ----
+
+thread 'legacy_gvn_cse_detection' (18250) panicked at rust/tcl-compiler/tests/optimiser_coverage.rs:2041:5:
+assertion failed: legacy_gvn_codes(dup).iter().any(|c| c == "O105")
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: optimiser_coverage::legacy_gvn_cse_detection
+   4: optimiser_coverage::legacy_gvn_cse_detection::{closure#0}
+   5: <optimiser_coverage::legacy_gvn_cse_detection::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- o100_constant_propagation stdout ----
+
+thread 'o100_constant_propagation' (18264) panicked at rust/tcl-compiler/tests/optimiser_coverage.rs:178:5:
+assertion failed: opt_any_of("set a 10\nif {$a > 5} { puts yes }", TCL, &["O101", "O112"])
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: optimiser_coverage::o100_constant_propagation
+   4: optimiser_coverage::o100_constant_propagation::{closure#0}
+   5: <optimiser_coverage::o100_constant_propagation::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- o100_o105_const_ref_propagation stdout ----
+
+thread 'o100_o105_const_ref_propagation' (18270) panicked at rust/tcl-compiler/tests/optimiser_coverage.rs:1058:5:
+assertion `left == right` failed
+  left: "set x 42\nputs 42"
+ right: "puts 42"
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<alloc::string::String, &str>
+   4: optimiser_coverage::o100_o105_const_ref_propagation
+   5: optimiser_coverage::o100_o105_const_ref_propagation::{closure#0}
+   6: <optimiser_coverage::o100_o105_const_ref_propagation::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- o101_constant_folding_arithmetic stdout ----
+
+thread 'o101_constant_folding_arithmetic' (18271) panicked at rust/tcl-compiler/tests/optimiser_coverage.rs:225:5:
+assertion failed: optimised("set v [expr {2 + 3}]", TCL).contains("set v 5")
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: optimiser_coverage::o101_constant_folding_arithmetic
+   4: optimiser_coverage::o101_constant_folding_arithmetic::{closure#0}
+   5: <optimiser_coverage::o101_constant_folding_arithmetic::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- o101_constant_folding_bitwise_and_compare stdout ----
+
+thread 'o101_constant_folding_bitwise_and_compare' (18272) panicked at rust/tcl-compiler/tests/optimiser_coverage.rs:239:5:
+assertion failed: optimised("set v [expr {0xFF & 0x0F}]", TCL).contains("15")
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: optimiser_coverage::o101_constant_folding_bitwise_and_compare
+   4: optimiser_coverage::o101_constant_folding_bitwise_and_compare::{closure#0}
+   5: <optimiser_coverage::o101_constant_folding_bitwise_and_compare::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- o101_constant_folding_ternary_unary_logical stdout ----
+
+thread 'o101_constant_folding_ternary_unary_logical' (18274) panicked at rust/tcl-compiler/tests/optimiser_coverage.rs:252:5:
+assertion failed: optimised("set v [expr {1 ? 42 : 99}]", TCL).contains("set v 42")
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: optimiser_coverage::o101_constant_folding_ternary_unary_logical
+   4: optimiser_coverage::o101_constant_folding_ternary_unary_logical::{closure#0}
+   5: <optimiser_coverage::o101_constant_folding_ternary_unary_logical::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- o101_dialect_octal_arithmetic stdout ----
+
+thread 'o101_dialect_octal_arithmetic' (18276) panicked at rust/tcl-compiler/tests/optimiser_coverage.rs:274:5:
+assertion failed: optimised("set v [expr {010 + 1}]", TCL).contains("set v 9")
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: optimiser_coverage::o101_dialect_octal_arithmetic
+   4: optimiser_coverage::o101_dialect_octal_arithmetic::{closure#0}
+   5: <optimiser_coverage::o101_dialect_octal_arithmetic::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- o101_expr_redefinition_guard stdout ----
+
+thread 'o101_expr_redefinition_guard' (18277) panicked at rust/tcl-compiler/tests/optimiser_coverage.rs:302:5:
+assertion failed: opt_fires("rename puts real_puts\nexpr {1 + 2}", TCL, "O101")
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: optimiser_coverage::o101_expr_redefinition_guard
+   4: optimiser_coverage::o101_expr_redefinition_guard::{closure#0}
+   5: <optimiser_coverage::o101_expr_redefinition_guard::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- o101_mathfunc_redefinition_guard stdout ----
+
+thread 'o101_mathfunc_redefinition_guard' (18281) panicked at rust/tcl-compiler/tests/optimiser_coverage.rs:321:5:
+assertion failed: optimised("set v [expr {abs(-5)}]", TCL).contains("set v 5")
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: optimiser_coverage::o101_mathfunc_redefinition_guard
+   4: optimiser_coverage::o101_mathfunc_redefinition_guard::{closure#0}
+   5: <optimiser_coverage::o101_mathfunc_redefinition_guard::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- o101_global_write_across_call_guard stdout ----
+
+thread 'o101_global_write_across_call_guard' (18278) panicked at rust/tcl-compiler/tests/optimiser_coverage.rs:343:5:
+assertion failed: optimised("proc mutate_y {} { global y; incr y }\nset x 5\nmutate_y\nputs [expr {$x + 1}]",
+        TCL).contains("puts 6")
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: optimiser_coverage::o101_global_write_across_call_guard
+   4: optimiser_coverage::o101_global_write_across_call_guard::{closure#0}
+   5: <optimiser_coverage::o101_global_write_across_call_guard::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- o101_module_wide_variable_trace_guard stdout ----
+
+thread 'o101_module_wide_variable_trace_guard' (18282) panicked at rust/tcl-compiler/tests/optimiser_coverage.rs:414:5:
+assertion failed: optimised("proc cb {args} {}\ntrace add variable y write cb\nset x 6\nputs [expr {$x + 1}]",
+        TCL).contains("puts 7")
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: optimiser_coverage::o101_module_wide_variable_trace_guard
+   4: optimiser_coverage::o101_module_wide_variable_trace_guard::{closure#0}
+   5: <optimiser_coverage::o101_module_wide_variable_trace_guard::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- o102_expr_command_substitution stdout ----
+
+thread 'o102_expr_command_substitution' (18294) panicked at rust/tcl-compiler/tests/optimiser_coverage.rs:448:5:
+assertion failed: optimised("set v [expr {3 + 4}]", TCL).contains("set v 7")
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: optimiser_coverage::o102_expr_command_substitution
+   4: optimiser_coverage::o102_expr_command_substitution::{closure#0}
+   5: <optimiser_coverage::o102_expr_command_substitution::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- o102_pure_intervening_call_is_still_forwarded stdout ----
+
+thread 'o102_pure_intervening_call_is_still_forwarded' (18310) panicked at rust/tcl-compiler/tests/optimiser_coverage.rs:666:5:
+assertion failed: opt_fires(src, TCL, "O102")
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: optimiser_coverage::o102_pure_intervening_call_is_still_forwarded
+   4: optimiser_coverage::o102_pure_intervening_call_is_still_forwarded::{closure#0}
+   5: <optimiser_coverage::o102_pure_intervening_call_is_still_forwarded::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- o102_side_effecting_intervening_call_is_still_forwarded stdout ----
+
+thread 'o102_side_effecting_intervening_call_is_still_forwarded' (18315) panicked at rust/tcl-compiler/tests/optimiser_coverage.rs:681:5:
+assertion failed: opt_fires(src, TCL, "O102")
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: optimiser_coverage::o102_side_effecting_intervening_call_is_still_forwarded
+   4: optimiser_coverage::o102_side_effecting_intervening_call_is_still_forwarded::{closure#0}
+   5: <optimiser_coverage::o102_side_effecting_intervening_call_is_still_forwarded::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- o102_sub_interpreter_isolation_no_longer_over_blocked stdout ----
+
+thread 'o102_sub_interpreter_isolation_no_longer_over_blocked' (18316) panicked at rust/tcl-compiler/tests/optimiser_coverage.rs:584:5:
+assertion failed: opt_fires(src, TCL, "O102")
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: optimiser_coverage::o102_sub_interpreter_isolation_no_longer_over_blocked
+   4: optimiser_coverage::o102_sub_interpreter_isolation_no_longer_over_blocked::{closure#0}
+   5: <optimiser_coverage::o102_sub_interpreter_isolation_no_longer_over_blocked::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- o102_unregistered_proc_call_between_def_and_use_still_forwards stdout ----
+
+thread 'o102_unregistered_proc_call_between_def_and_use_still_forwards' (18321) panicked at rust/tcl-compiler/tests/optimiser_coverage.rs:695:5:
+assertion failed: opt_fires(src, TCL, "O102")
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: optimiser_coverage::o102_unregistered_proc_call_between_def_and_use_still_forwards
+   4: optimiser_coverage::o102_unregistered_proc_call_between_def_and_use_still_forwards::{closure#0}
+   5: <optimiser_coverage::o102_unregistered_proc_call_between_def_and_use_still_forwards::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- o102_uplevel_hash_zero_non_writing_script_still_forwards stdout ----
+
+thread 'o102_uplevel_hash_zero_non_writing_script_still_forwards' (18339) panicked at rust/tcl-compiler/tests/optimiser_coverage.rs:804:5:
+assertion failed: opt_fires(src, TCL, "O102")
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: optimiser_coverage::o102_uplevel_hash_zero_non_writing_script_still_forwards
+   4: optimiser_coverage::o102_uplevel_hash_zero_non_writing_script_still_forwards::{closure#0}
+   5: <optimiser_coverage::o102_uplevel_hash_zero_non_writing_script_still_forwards::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- o103_alias_resolved_proc_replacement_is_not_folded_as_the_original stdout ----
+
+thread 'o103_alias_resolved_proc_replacement_is_not_folded_as_the_original' (18356) panicked at rust/tcl-compiler/tests/optimiser_coverage.rs:990:5:
+assertion failed: opt_absent(src, TCL, "O103")
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: optimiser_coverage::o103_alias_resolved_proc_replacement_is_not_folded_as_the_original
+   4: optimiser_coverage::o103_alias_resolved_proc_replacement_is_not_folded_as_the_original::{closure#0}
+   5: <optimiser_coverage::o103_alias_resolved_proc_replacement_is_not_folded_as_the_original::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- o104_string_build_chain stdout ----
+
+thread 'o104_string_build_chain' (18364) panicked at rust/tcl-compiler/tests/optimiser_coverage.rs:999:5:
+assertion `left == right` failed
+  left: "set msg {Hello}\nappend msg { }\nappend msg World"
+ right: "set msg {Hello World}"
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<alloc::string::String, &str>
+   4: optimiser_coverage::o104_string_build_chain
+   5: optimiser_coverage::o104_string_build_chain::{closure#0}
+   6: <optimiser_coverage::o104_string_build_chain::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- o103_interprocedural_folding stdout ----
+
+thread 'o103_interprocedural_folding' (18360) panicked at rust/tcl-compiler/tests/optimiser_coverage.rs:936:5:
+assertion failed: optimised("proc double {x} { return [expr {$x * 2}] }\nset v [double 21]\n",
+        TCL).contains("set v 42")
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: optimiser_coverage::o103_interprocedural_folding
+   4: optimiser_coverage::o103_interprocedural_folding::{closure#0}
+   5: <optimiser_coverage::o103_interprocedural_folding::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- o107_dead_code_in_false_branch stdout ----
+
+thread 'o107_dead_code_in_false_branch' (18370) panicked at rust/tcl-compiler/tests/optimiser_coverage.rs:1124:5:
+assertion failed: !out.contains("puts dead")
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: optimiser_coverage::o107_dead_code_in_false_branch
+   4: optimiser_coverage::o107_dead_code_in_false_branch::{closure#0}
+   5: <optimiser_coverage::o107_dead_code_in_false_branch::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- o107_false_positive_guard_unrelated_variable_name_still_eliminated stdout ----
+
+thread 'o107_false_positive_guard_unrelated_variable_name_still_eliminated' (18387) panicked at rust/tcl-compiler/tests/optimiser_coverage.rs:911:5:
+assertion failed: !optimised(src, TCL).contains("puts no")
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: optimiser_coverage::o107_false_positive_guard_unrelated_variable_name_still_eliminated
+   4: optimiser_coverage::o107_false_positive_guard_unrelated_variable_name_still_eliminated::{closure#0}
+   5: <optimiser_coverage::o107_false_positive_guard_unrelated_variable_name_still_eliminated::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- o107_true_positive_untraced_branch_still_eliminated stdout ----
+
+thread 'o107_true_positive_untraced_branch_still_eliminated' (18390) panicked at rust/tcl-compiler/tests/optimiser_coverage.rs:899:5:
+assertion failed: !optimised(src, TCL).contains("puts no")
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: optimiser_coverage::o107_true_positive_untraced_branch_still_eliminated
+   4: optimiser_coverage::o107_true_positive_untraced_branch_still_eliminated::{closure#0}
+   5: <optimiser_coverage::o107_true_positive_untraced_branch_still_eliminated::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- o108_aggressive_dce stdout ----
+
+thread 'o108_aggressive_dce' (18392) panicked at rust/tcl-compiler/tests/optimiser_coverage.rs:1139:5:
+assertion failed: opt_any_of(s, TCL, &["O108", "O109"])
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: optimiser_coverage::o108_aggressive_dce
+   4: optimiser_coverage::o108_aggressive_dce::{closure#0}
+   5: <optimiser_coverage::o108_aggressive_dce::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- o110_de_morgan stdout ----
+
+thread 'o110_de_morgan' (18399) panicked at rust/tcl-compiler/tests/optimiser_coverage.rs:1399:5:
+assertion failed: optimised("set v [expr {!($a && $b)}]", TCL).contains("!$a || !$b")
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: optimiser_coverage::o110_de_morgan
+   4: optimiser_coverage::o110_de_morgan::{closure#0}
+   5: <optimiser_coverage::o110_de_morgan::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- o110_identity_and_annihilator stdout ----
+
+thread 'o110_identity_and_annihilator' (18401) panicked at rust/tcl-compiler/tests/optimiser_coverage.rs:1223:5:
+assertion failed: optimised(&int_x("set v [expr {$x ** 0}]"), TCL).contains("set v 1")
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: optimiser_coverage::o110_identity_and_annihilator
+   4: optimiser_coverage::o110_identity_and_annihilator::{closure#0}
+   5: <optimiser_coverage::o110_identity_and_annihilator::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- o110_logical_identities stdout ----
+
+thread 'o110_logical_identities' (18408) panicked at rust/tcl-compiler/tests/optimiser_coverage.rs:1247:5:
+assertion failed: optimised("set v [expr {$x && 0}]", TCL).contains("set v 0")
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: optimiser_coverage::o110_logical_identities
+   4: optimiser_coverage::o110_logical_identities::{closure#0}
+   5: <optimiser_coverage::o110_logical_identities::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- o110_reassociation stdout ----
+
+thread 'o110_reassociation' (18410) panicked at rust/tcl-compiler/tests/optimiser_coverage.rs:1194:5:
+assertion failed: optimised(&int_x("set v [expr {$x + 1 + 2}]"), TCL).contains("$x + 3")
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: optimiser_coverage::o110_reassociation
+   4: optimiser_coverage::o110_reassociation::{closure#0}
+   5: <optimiser_coverage::o110_reassociation::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- o110_self_comparison_tautologies stdout ----
+
+thread 'o110_self_comparison_tautologies' (18416) panicked at rust/tcl-compiler/tests/optimiser_coverage.rs:1300:5:
+assertion failed: optimised("set v [expr {$x < $x}]", TCL).contains("set v 0")
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: optimiser_coverage::o110_self_comparison_tautologies
+   4: optimiser_coverage::o110_self_comparison_tautologies::{closure#0}
+   5: <optimiser_coverage::o110_self_comparison_tautologies::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- o109_dead_store_elimination stdout ----
+
+thread 'o109_dead_store_elimination' (18394) panicked at rust/tcl-compiler/tests/optimiser_coverage.rs:1184:5:
+assertion failed: opt_fires(byname_tp, TCL, "O109")
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: optimiser_coverage::o109_dead_store_elimination
+   4: optimiser_coverage::o109_dead_store_elimination::{closure#0}
+   5: <optimiser_coverage::o109_dead_store_elimination::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- o110_ternary_and_double_not stdout ----
+
+thread 'o110_ternary_and_double_not' (18418) panicked at rust/tcl-compiler/tests/optimiser_coverage.rs:1419:5:
+assertion failed: opt_fires("set v [expr {1 ? $a : $b}]", TCL, "O110")
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: optimiser_coverage::o110_ternary_and_double_not
+   4: optimiser_coverage::o110_ternary_and_double_not::{closure#0}
+   5: <optimiser_coverage::o110_ternary_and_double_not::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- o110_unary_and_not_inversions stdout ----
+
+thread 'o110_unary_and_not_inversions' (18420) panicked at rust/tcl-compiler/tests/optimiser_coverage.rs:1354:5:
+assertion failed: optimised("set v [expr {!($a == $b)}]", TCL).contains("$a != $b")
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: optimiser_coverage::o110_unary_and_not_inversions
+   4: optimiser_coverage::o110_unary_and_not_inversions::{closure#0}
+   5: <optimiser_coverage::o110_unary_and_not_inversions::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- o112_if_elimination stdout ----
+
+thread 'o112_if_elimination' (18439) panicked at rust/tcl-compiler/tests/optimiser_coverage.rs:1462:5:
+assertion failed: !iff.contains("set x 1")
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: optimiser_coverage::o112_if_elimination
+   4: optimiser_coverage::o112_if_elimination::{closure#0}
+   5: <optimiser_coverage::o112_if_elimination::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- o112_nested_via_multipass stdout ----
+
+thread 'o112_nested_via_multipass' (18442) panicked at rust/tcl-compiler/tests/optimiser_coverage.rs:1557:5:
+assertion failed: !fixed.contains("set dead 1")
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: optimiser_coverage::o112_nested_via_multipass
+   4: optimiser_coverage::o112_nested_via_multipass::{closure#0}
+   5: <optimiser_coverage::o112_nested_via_multipass::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- o112_switch_elimination stdout ----
+
+thread 'o112_switch_elimination' (18449) panicked at rust/tcl-compiler/tests/optimiser_coverage.rs:1533:5:
+assertion failed: !nm.contains("set a 1")
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: optimiser_coverage::o112_switch_elimination
+   4: optimiser_coverage::o112_switch_elimination::{closure#0}
+   5: <optimiser_coverage::o112_switch_elimination::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- o112_while_for_elimination stdout ----
+
+thread 'o112_while_for_elimination' (18458) panicked at rust/tcl-compiler/tests/optimiser_coverage.rs:1492:5:
+assertion failed: !optimised(wf, TCL).contains("puts looping")
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: optimiser_coverage::o112_while_for_elimination
+   4: optimiser_coverage::o112_while_for_elimination::{closure#0}
+   5: <optimiser_coverage::o112_while_for_elimination::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- o113_strength_reduction stdout ----
+
+thread 'o113_strength_reduction' (18459) panicked at rust/tcl-compiler/tests/optimiser_coverage.rs:1567:5:
+assertion failed: !p.contains("**")
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: optimiser_coverage::o113_strength_reduction
+   4: optimiser_coverage::o113_strength_reduction::{closure#0}
+   5: <optimiser_coverage::o113_strength_reduction::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- o114_incr_idiom stdout ----
+
+thread 'o114_incr_idiom' (18460) panicked at rust/tcl-compiler/tests/optimiser_coverage.rs:1595:5:
+assertion failed: opt_fires(add1, TCL, "O114")
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: optimiser_coverage::o114_incr_idiom
+   4: optimiser_coverage::o114_incr_idiom::{closure#0}
+   5: <optimiser_coverage::o114_incr_idiom::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- o110_whitespace_noise_suppressed stdout ----
+
+thread 'o110_whitespace_noise_suppressed' (18423) panicked at rust/tcl-compiler/tests/optimiser_coverage.rs:1286:5:
+assertion failed: opt_fires(&int_x("set v [expr {$x + 0}]"), TCL, "O110")
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: optimiser_coverage::o110_whitespace_noise_suppressed
+   4: optimiser_coverage::o110_whitespace_noise_suppressed::{closure#0}
+   5: <optimiser_coverage::o110_whitespace_noise_suppressed::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- o115_nested_expr_unwrap stdout ----
+
+thread 'o115_nested_expr_unwrap' (18466) panicked at rust/tcl-compiler/tests/optimiser_coverage.rs:1633:5:
+assertion failed: !optimised(in_if, TCL).contains("[expr")
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: optimiser_coverage::o115_nested_expr_unwrap
+   4: optimiser_coverage::o115_nested_expr_unwrap::{closure#0}
+   5: <optimiser_coverage::o115_nested_expr_unwrap::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- o117_strlen_zero_check stdout ----
+
+thread 'o117_strlen_zero_check' (18470) panicked at rust/tcl-compiler/tests/optimiser_coverage.rs:1681:5:
+assertion failed: opt_fires("if {[string length $s] == 0} {}", TCL, "O117")
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: optimiser_coverage::o117_strlen_zero_check
+   4: optimiser_coverage::o117_strlen_zero_check::{closure#0}
+   5: <optimiser_coverage::o117_strlen_zero_check::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- o118_lindex_folding stdout ----
+
+thread 'o118_lindex_folding' (18471) panicked at rust/tcl-compiler/tests/optimiser_coverage.rs:1706:5:
+assertion `left == right` failed
+  left: "set x a\nputs $x"
+ right: "set x a\nputs a"
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<alloc::string::String, &str>
+   4: optimiser_coverage::o118_lindex_folding
+   5: optimiser_coverage::o118_lindex_folding::{closure#0}
+   6: <optimiser_coverage::o118_lindex_folding::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- o116_list_folding stdout ----
+
+thread 'o116_list_folding' (18468) panicked at rust/tcl-compiler/tests/optimiser_coverage.rs:1669:5:
+assertion failed: opt_absent("set x [list a b c]\nputs $x", TCL, "O116")
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: optimiser_coverage::o116_list_folding
+   4: optimiser_coverage::o116_list_folding::{closure#0}
+   5: <optimiser_coverage::o116_list_folding::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- o120_string_compare_eq_ne stdout ----
+
+thread 'o120_string_compare_eq_ne' (18476) panicked at rust/tcl-compiler/tests/optimiser_coverage.rs:1780:5:
+assertion failed: optimised("if {$a == \"hello\"} {}", TCL).contains("$a eq \"hello\"")
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: optimiser_coverage::o120_string_compare_eq_ne
+   4: optimiser_coverage::o120_string_compare_eq_ne::{closure#0}
+   5: <optimiser_coverage::o120_string_compare_eq_ne::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- o120_with_sccp_const_and_mixed stdout ----
+
+thread 'o120_with_sccp_const_and_mixed' (18480) panicked at rust/tcl-compiler/tests/optimiser_coverage.rs:1815:5:
+assertion failed: opt_fires(vc, TCL, "O120")
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: optimiser_coverage::o120_with_sccp_const_and_mixed
+   4: optimiser_coverage::o120_with_sccp_const_and_mixed::{closure#0}
+   5: <optimiser_coverage::o120_with_sccp_const_and_mixed::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- o124_unused_irule_procs stdout ----
+
+thread 'o124_unused_irule_procs' (18481) panicked at rust/tcl-compiler/tests/optimiser_coverage.rs:2154:5:
+assertion failed: opt_fires(unused, IR, "O124")
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: optimiser_coverage::o124_unused_irule_procs
+   4: optimiser_coverage::o124_unused_irule_procs::{closure#0}
+   5: <optimiser_coverage::o124_unused_irule_procs::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- o119_multi_set_packing stdout ----
+
+thread 'o119_multi_set_packing' (18473) panicked at rust/tcl-compiler/tests/optimiser_coverage.rs:1769:5:
+assertion `left == right` failed
+  left: "set a 1\nset b 2\nset c 3\neval {1 2 3}"
+ right: "lassign {1 2 3} a b c\neval {1 2 3}"
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<alloc::string::String, &str>
+   4: optimiser_coverage::o119_multi_set_packing
+   5: optimiser_coverage::o119_multi_set_packing::{closure#0}
+   6: <optimiser_coverage::o119_multi_set_packing::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- o125_code_sinking stdout ----
+
+thread 'o125_code_sinking' (18482) panicked at rust/tcl-compiler/tests/optimiser_coverage.rs:2241:5:
+assertion failed: opt_any_of(basic, TCL, &["O125", "O100"])
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: optimiser_coverage::o125_code_sinking
+   4: optimiser_coverage::o125_code_sinking::{closure#0}
+   5: <optimiser_coverage::o125_code_sinking::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- pass_interactions stdout ----
+
+thread 'pass_interactions' (18487) panicked at rust/tcl-compiler/tests/optimiser_coverage.rs:2321:5:
+assertion failed: opt_any_of("set x 1\nif {$x > 0} {\n    puts yes\n}\n", TCL,
+    &["O101", "O112"])
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: optimiser_coverage::pass_interactions
+   4: optimiser_coverage::pass_interactions::{closure#0}
+   5: <optimiser_coverage::pass_interactions::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- o127_load_forwarding stdout ----
+
+thread 'o127_load_forwarding' (18486) panicked at rust/tcl-compiler/tests/optimiser_coverage.rs:2270:5:
+assertion failed: opt_fires(cmdsub, TCL, "O127")
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: optimiser_coverage::o127_load_forwarding
+   4: optimiser_coverage::o127_load_forwarding::{closure#0}
+   5: <optimiser_coverage::o127_load_forwarding::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- profile_directive_and_multipass stdout ----
+
+thread 'profile_directive_and_multipass' (18489) panicked at rust/tcl-compiler/tests/optimiser_coverage.rs:2393:5:
+assertion failed: mp.contains("return {Hello World}")
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: optimiser_coverage::profile_directive_and_multipass
+   4: optimiser_coverage::profile_directive_and_multipass::{closure#0}
+   5: <optimiser_coverage::profile_directive_and_multipass::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- shimmer_string_in_numeric_context_s100 stdout ----
+
+thread 'shimmer_string_in_numeric_context_s100' (18497) panicked at rust/tcl-compiler/tests/optimiser_coverage.rs:2002:5:
+assertion failed: shimmer_count("set x [string trim \" hello \"]\nset y [expr {$x + 1}]",
+        "S100") >= 1
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: optimiser_coverage::shimmer_string_in_numeric_context_s100
+   4: optimiser_coverage::shimmer_string_in_numeric_context_s100::{closure#0}
+   5: <optimiser_coverage::shimmer_string_in_numeric_context_s100::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- tail_call_o121_o122_o123 stdout ----
+
+thread 'tail_call_o121_o122_o123' (18499) panicked at rust/tcl-compiler/tests/optimiser_coverage.rs:2212:5:
+assertion failed: opt_any_of(fac, TCL, &["O121", "O122"])
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: optimiser_coverage::tail_call_o121_o122_o123
+   4: optimiser_coverage::tail_call_o121_o122_o123::{closure#0}
+   5: <optimiser_coverage::tail_call_o121_o122_o123::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+
+failures:
+    a_proc_shadowing_a_builtin_is_never_folded_with_builtin_semantics
+    a_shadowed_append_or_lappend_stops_the_write_chain_fold
+    a_shadowed_builtin_value_is_not_published_into_strings_or_branches
+    apply_optimisations_edge_cases
+    demorgan_logic_via_o110
+    edge_cases_loops_and_namespaces
+    invert_logic_covers_tip461_and_membership_operators
+    invert_logic_via_o110
+    legacy_gvn_cse_detection
+    o100_constant_propagation
+    o100_o105_const_ref_propagation
+    o101_constant_folding_arithmetic
+    o101_constant_folding_bitwise_and_compare
+    o101_constant_folding_ternary_unary_logical
+    o101_dialect_octal_arithmetic
+    o101_expr_redefinition_guard
+    o101_global_write_across_call_guard
+    o101_mathfunc_redefinition_guard
+    o101_module_wide_variable_trace_guard
+    o102_expr_command_substitution
+    o102_pure_intervening_call_is_still_forwarded
+    o102_side_effecting_intervening_call_is_still_forwarded
+    o102_sub_interpreter_isolation_no_longer_over_blocked
+    o102_unregistered_proc_call_between_def_and_use_still_forwards
+    o102_uplevel_hash_zero_non_writing_script_still_forwards
+    o103_alias_resolved_proc_replacement_is_not_folded_as_the_original
+    o103_interprocedural_folding
+    o104_string_build_chain
+    o107_dead_code_in_false_branch
+    o107_false_positive_guard_unrelated_variable_name_still_eliminated
+    o107_true_positive_untraced_branch_still_eliminated
+    o108_aggressive_dce
+    o109_dead_store_elimination
+    o110_de_morgan
+    o110_identity_and_annihilator
+    o110_logical_identities
+    o110_reassociation
+    o110_self_comparison_tautologies
+    o110_ternary_and_double_not
+    o110_unary_and_not_inversions
+    o110_whitespace_noise_suppressed
+    o112_if_elimination
+    o112_nested_via_multipass
+    o112_switch_elimination
+    o112_while_for_elimination
+    o113_strength_reduction
+    o114_incr_idiom
+    o115_nested_expr_unwrap
+    o116_list_folding
+    o117_strlen_zero_check
+    o118_lindex_folding
+    o119_multi_set_packing
+    o120_string_compare_eq_ne
+    o120_with_sccp_const_and_mixed
+    o124_unused_irule_procs
+    o125_code_sinking
+    o127_load_forwarding
+    pass_interactions
+    profile_directive_and_multipass
+    shimmer_string_in_numeric_context_s100
+    tail_call_o121_o122_o123
+
+test result: FAILED. 32 passed; 61 failed; 0 ignored; 0 measured; 0 filtered out; finished in 90.81s
+

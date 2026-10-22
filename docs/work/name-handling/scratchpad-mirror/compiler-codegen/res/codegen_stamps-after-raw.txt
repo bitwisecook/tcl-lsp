@@ -1,0 +1,435 @@
+
+running 28 tests
+test a_braced_literal_stays_literal_through_the_wrap ... FAILED
+test a_body_with_a_return_before_its_end_answers_through_the_splice ... FAILED
+test a_braced_word_in_an_inlined_body_stays_literal ... FAILED
+test a_call_whose_body_is_a_branch_is_not_given_the_value_of_an_arm ... FAILED
+test a_changed_pack_invalidates_the_site ... FAILED
+test a_body_that_substitutes_a_command_is_not_given_the_callers_namespace_to_resolve_it_in ... FAILED
+test a_direct_dependencys_reference_body_is_dropped_at_load ... FAILED
+test a_host_native_backing_never_defines_a_proc ... FAILED
+test a_pack_fold_is_admitted_only_under_its_pack_s_facts ... FAILED
+test a_body_that_reads_through_an_operand_kept_as_text_stays_a_call ... ok
+test a_package_source_body_is_a_declared_implementation_too ... ok
+test a_package_source_body_is_read_at_load_through_the_store ... FAILED
+test a_pack_text_body_that_diverges_turns_the_site_plain ... FAILED
+test a_proc_at_the_pack_name_recompiles_plain ... FAILED
+test a_package_source_that_cannot_be_read_is_said_and_not_inlined ... ok
+test a_service_for_the_packs_overlay_compiles_against_the_generation_they_installed ... FAILED
+test a_site_compiled_through_the_service_stamps_the_bases_overlay_generation ... FAILED
+test a_tcl_body_backed_command_is_inlined_and_admitted ... FAILED
+test a_workspace_stamp_is_refused_and_specialises_nothing ... FAILED
+test an_admitted_alias_stamp_records_the_targets_identity ... FAILED
+test a_definition_in_a_namespace_resolves_its_commands_as_it_did has been running for over 60 seconds
+test a_function_claims_a_splice_only_where_it_emits_it has been running for over 60 seconds
+test an_inlined_body_in_an_lmap_body_gives_the_list_each_iterations_value ... FAILED
+test an_inlined_body_inside_a_static_eval_keeps_its_value ... FAILED
+test a_definition_in_a_namespace_resolves_its_commands_as_it_did ... FAILED
+test a_variable_a_substituted_command_names_is_the_definitions_own ... FAILED
+test a_function_claims_a_splice_only_where_it_emits_it ... FAILED
+test the_vm_admits_it_through_the_alias_hop ... FAILED
+test an_inlined_body_reads_only_what_its_definition_binds ... ok
+test an_inlined_body_resolves_the_commands_it_calls_as_its_definition_did ... ok
+
+failures:
+
+---- a_braced_literal_stays_literal_through_the_wrap stdout ----
+
+thread 'a_braced_literal_stays_literal_through_the_wrap' (24163) panicked at rust/tcl-spectcl/tests/codegen_stamps.rs:1876:9:
+assertion `left == right` failed: vsetbs
+  left: 0
+ right: 1
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<usize, usize>
+   4: codegen_stamps::a_braced_literal_stays_literal_through_the_wrap
+   5: codegen_stamps::a_braced_literal_stays_literal_through_the_wrap::{closure#0}
+   6: <codegen_stamps::a_braced_literal_stays_literal_through_the_wrap::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- a_body_with_a_return_before_its_end_answers_through_the_splice stdout ----
+
+thread 'a_body_with_a_return_before_its_end_answers_through_the_splice' (24162) panicked at rust/tcl-spectcl/tests/codegen_stamps.rs:1444:5:
+assertion `left == right` failed: inlined
+  left: 0
+ right: 1
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<usize, usize>
+   4: codegen_stamps::a_body_with_a_return_before_its_end_answers_through_the_splice
+   5: codegen_stamps::a_body_with_a_return_before_its_end_answers_through_the_splice::{closure#0}
+   6: <codegen_stamps::a_body_with_a_return_before_its_end_answers_through_the_splice::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- a_braced_word_in_an_inlined_body_stays_literal stdout ----
+
+thread 'a_braced_word_in_an_inlined_body_stays_literal' (24215) panicked at rust/tcl-spectcl/tests/codegen_stamps.rs:1641:9:
+assertion `left == right` failed: vlit
+  left: 0
+ right: 1
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<usize, usize>
+   4: codegen_stamps::a_braced_word_in_an_inlined_body_stays_literal
+   5: codegen_stamps::a_braced_word_in_an_inlined_body_stays_literal::{closure#0}
+   6: <codegen_stamps::a_braced_word_in_an_inlined_body_stays_literal::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- a_call_whose_body_is_a_branch_is_not_given_the_value_of_an_arm stdout ----
+
+thread 'a_call_whose_body_is_a_branch_is_not_given_the_value_of_an_arm' (24218) panicked at rust/tcl-spectcl/tests/codegen_stamps.rs:2049:9:
+assertion `left == right` failed: terminal
+  left: 0
+ right: 1
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<usize, usize>
+   4: codegen_stamps::a_call_whose_body_is_a_branch_is_not_given_the_value_of_an_arm
+   5: codegen_stamps::a_call_whose_body_is_a_branch_is_not_given_the_value_of_an_arm::{closure#0}
+   6: <codegen_stamps::a_call_whose_body_is_a_branch_is_not_given_the_value_of_an_arm::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- a_changed_pack_invalidates_the_site stdout ----
+
+thread 'a_changed_pack_invalidates_the_site' (24229) panicked at rust/tcl-spectcl/tests/codegen_stamps.rs:465:5:
+assertion `left == right` failed: bytecode manifest disagrees with the runtime on environment: compiled for tcl9.0, runtime holds tcl
+  left: Error
+ right: Ok
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<tcl_core_types::Code, tcl_core_types::Code>
+   4: codegen_stamps::prepare
+   5: codegen_stamps::a_changed_pack_invalidates_the_site
+   6: codegen_stamps::a_changed_pack_invalidates_the_site::{closure#0}
+   7: <codegen_stamps::a_changed_pack_invalidates_the_site::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- a_body_that_substitutes_a_command_is_not_given_the_callers_namespace_to_resolve_it_in stdout ----
+
+thread 'a_body_that_substitutes_a_command_is_not_given_the_callers_namespace_to_resolve_it_in' (24161) panicked at rust/tcl-spectcl/tests/codegen_stamps.rs:1570:9:
+assertion `left == right` failed: vjoin: global
+  left: 0
+ right: 1
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<usize, usize>
+   4: codegen_stamps::a_body_that_substitutes_a_command_is_not_given_the_callers_namespace_to_resolve_it_in
+   5: codegen_stamps::a_body_that_substitutes_a_command_is_not_given_the_callers_namespace_to_resolve_it_in::{closure#0}
+   6: <codegen_stamps::a_body_that_substitutes_a_command_is_not_given_the_callers_namespace_to_resolve_it_in::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- a_direct_dependencys_reference_body_is_dropped_at_load stdout ----
+
+thread 'a_direct_dependencys_reference_body_is_dropped_at_load' (24240) panicked at rust/tcl-spectcl/tests/codegen_stamps.rs:1299:5:
+assertion failed: inlined
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: codegen_stamps::a_direct_dependencys_reference_body_is_dropped_at_load
+   4: codegen_stamps::a_direct_dependencys_reference_body_is_dropped_at_load::{closure#0}
+   5: <codegen_stamps::a_direct_dependencys_reference_body_is_dropped_at_load::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- a_host_native_backing_never_defines_a_proc stdout ----
+
+thread 'a_host_native_backing_never_defines_a_proc' (24253) panicked at rust/tcl-spectcl/tests/codegen_stamps.rs:989:9:
+assertion `left == right` failed: Some(Backing(HostNative))
+  left: false
+ right: true
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<bool, bool>
+   4: codegen_stamps::a_host_native_backing_never_defines_a_proc
+   5: codegen_stamps::a_host_native_backing_never_defines_a_proc::{closure#0}
+   6: <codegen_stamps::a_host_native_backing_never_defines_a_proc::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- a_pack_fold_is_admitted_only_under_its_pack_s_facts stdout ----
+
+thread 'a_pack_fold_is_admitted_only_under_its_pack_s_facts' (24308) panicked at rust/tcl-spectcl/tests/codegen_stamps.rs:644:5:
+[
+    CommandBindingIdentity {
+        namespace_context: None,
+        resolution_namespace: "",
+        name: "set",
+        identity: "set",
+        guard: BeforeArguments,
+    },
+]
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: codegen_stamps::a_pack_fold_is_admitted_only_under_its_pack_s_facts
+   3: codegen_stamps::a_pack_fold_is_admitted_only_under_its_pack_s_facts::{closure#0}
+   4: <codegen_stamps::a_pack_fold_is_admitted_only_under_its_pack_s_facts::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- a_package_source_body_is_read_at_load_through_the_store stdout ----
+
+thread 'a_package_source_body_is_read_at_load_through_the_store' (24318) panicked at rust/tcl-spectcl/tests/codegen_stamps.rs:1099:5:
+assertion `left == right` failed
+  left: []
+ right: [ProcedureBindingIdentity { namespace_context: None, resolution_namespace: "", invocation_name: "vdouble", name: "::vdouble", parameters: "x", body: "expr {$x * 2}" }]
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<alloc::vec::Vec<tcl_runtime_api::ProcedureBindingIdentity>, alloc::vec::Vec<tcl_runtime_api::ProcedureBindingIdentity>>
+   4: codegen_stamps::a_package_source_body_is_read_at_load_through_the_store
+   5: codegen_stamps::a_package_source_body_is_read_at_load_through_the_store::{closure#0}
+   6: <codegen_stamps::a_package_source_body_is_read_at_load_through_the_store::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- a_pack_text_body_that_diverges_turns_the_site_plain stdout ----
+
+thread 'a_pack_text_body_that_diverges_turns_the_site_plain' (24311) panicked at rust/tcl-spectcl/tests/codegen_stamps.rs:1018:5:
+the live text differs: refused, recompiled plain
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: codegen_stamps::a_pack_text_body_that_diverges_turns_the_site_plain
+   3: codegen_stamps::a_pack_text_body_that_diverges_turns_the_site_plain::{closure#0}
+   4: <codegen_stamps::a_pack_text_body_that_diverges_turns_the_site_plain::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- a_proc_at_the_pack_name_recompiles_plain stdout ----
+
+thread 'a_proc_at_the_pack_name_recompiles_plain' (24334) panicked at rust/tcl-spectcl/tests/codegen_stamps.rs:465:5:
+assertion `left == right` failed: bytecode manifest disagrees with the runtime on environment: compiled for tcl9.0, runtime holds tcl
+  left: Error
+ right: Ok
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<tcl_core_types::Code, tcl_core_types::Code>
+   4: codegen_stamps::prepare
+   5: codegen_stamps::a_proc_at_the_pack_name_recompiles_plain
+   6: codegen_stamps::a_proc_at_the_pack_name_recompiles_plain::{closure#0}
+   7: <codegen_stamps::a_proc_at_the_pack_name_recompiles_plain::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- a_service_for_the_packs_overlay_compiles_against_the_generation_they_installed stdout ----
+
+thread 'a_service_for_the_packs_overlay_compiles_against_the_generation_they_installed' (24353) panicked at rust/tcl-spectcl/tests/codegen_stamps.rs:741:14:
+compiles: NativeCompilationAdmission(NativePreflightRequired)
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::result::unwrap_failed
+   3: <core::result::Result<tcl_bytecode::ModuleAsm, tcl_runtime_api::CompileError>>::expect
+   4: codegen_stamps::a_service_for_the_packs_overlay_compiles_against_the_generation_they_installed::{closure#0}
+   5: codegen_stamps::a_service_for_the_packs_overlay_compiles_against_the_generation_they_installed
+   6: codegen_stamps::a_service_for_the_packs_overlay_compiles_against_the_generation_they_installed::{closure#0}
+   7: <codegen_stamps::a_service_for_the_packs_overlay_compiles_against_the_generation_they_installed::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- a_site_compiled_through_the_service_stamps_the_bases_overlay_generation stdout ----
+
+thread 'a_site_compiled_through_the_service_stamps_the_bases_overlay_generation' (24373) panicked at rust/tcl-spectcl/tests/codegen_stamps.rs:693:14:
+compiles: NativeCompilationAdmission(NativePreflightRequired)
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::result::unwrap_failed
+   3: <core::result::Result<tcl_bytecode::ModuleAsm, tcl_runtime_api::CompileError>>::expect
+   4: codegen_stamps::a_site_compiled_through_the_service_stamps_the_bases_overlay_generation::{closure#0}
+   5: codegen_stamps::a_site_compiled_through_the_service_stamps_the_bases_overlay_generation
+   6: codegen_stamps::a_site_compiled_through_the_service_stamps_the_bases_overlay_generation::{closure#0}
+   7: <codegen_stamps::a_site_compiled_through_the_service_stamps_the_bases_overlay_generation::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- a_tcl_body_backed_command_is_inlined_and_admitted stdout ----
+
+thread 'a_tcl_body_backed_command_is_inlined_and_admitted' (24375) panicked at rust/tcl-spectcl/tests/codegen_stamps.rs:900:5:
+assertion `left == right` failed
+  left: []
+ right: [ProcedureBindingIdentity { namespace_context: None, resolution_namespace: "", invocation_name: "vdouble", name: "::vdouble", parameters: "x", body: "expr {$x * 2}" }]
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<alloc::vec::Vec<tcl_runtime_api::ProcedureBindingIdentity>, alloc::vec::Vec<tcl_runtime_api::ProcedureBindingIdentity>>
+   4: codegen_stamps::a_tcl_body_backed_command_is_inlined_and_admitted
+   5: codegen_stamps::a_tcl_body_backed_command_is_inlined_and_admitted::{closure#0}
+   6: <codegen_stamps::a_tcl_body_backed_command_is_inlined_and_admitted::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- a_workspace_stamp_is_refused_and_specialises_nothing stdout ----
+
+thread 'a_workspace_stamp_is_refused_and_specialises_nothing' (24395) panicked at rust/tcl-spectcl/tests/codegen_stamps.rs:465:5:
+assertion `left == right` failed: bytecode manifest disagrees with the runtime on environment: compiled for tcl9.0, runtime holds tcl
+  left: Error
+ right: Ok
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<tcl_core_types::Code, tcl_core_types::Code>
+   4: codegen_stamps::prepare
+   5: codegen_stamps::a_workspace_stamp_is_refused_and_specialises_nothing
+   6: codegen_stamps::a_workspace_stamp_is_refused_and_specialises_nothing::{closure#0}
+   7: <codegen_stamps::a_workspace_stamp_is_refused_and_specialises_nothing::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- an_admitted_alias_stamp_records_the_targets_identity stdout ----
+
+thread 'an_admitted_alias_stamp_records_the_targets_identity' (24408) panicked at rust/tcl-spectcl/tests/codegen_stamps.rs:529:5:
+[
+    CommandBindingIdentity {
+        namespace_context: None,
+        resolution_namespace: "",
+        name: "list",
+        identity: "list",
+        guard: BeforeArguments,
+    },
+    CommandBindingIdentity {
+        namespace_context: None,
+        resolution_namespace: "",
+        name: "set",
+        identity: "set",
+        guard: BeforeArguments,
+    },
+]
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: codegen_stamps::an_admitted_alias_stamp_records_the_targets_identity
+   3: codegen_stamps::an_admitted_alias_stamp_records_the_targets_identity::{closure#0}
+   4: <codegen_stamps::an_admitted_alias_stamp_records_the_targets_identity::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- an_inlined_body_in_an_lmap_body_gives_the_list_each_iterations_value stdout ----
+
+thread 'an_inlined_body_in_an_lmap_body_gives_the_list_each_iterations_value' (24410) panicked at rust/tcl-spectcl/tests/codegen_stamps.rs:1824:9:
+assertion `left == right` failed: a body with none
+  left: 0
+ right: 1
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<usize, usize>
+   4: codegen_stamps::an_inlined_body_in_an_lmap_body_gives_the_list_each_iterations_value
+   5: codegen_stamps::an_inlined_body_in_an_lmap_body_gives_the_list_each_iterations_value::{closure#0}
+   6: <codegen_stamps::an_inlined_body_in_an_lmap_body_gives_the_list_each_iterations_value::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- an_inlined_body_inside_a_static_eval_keeps_its_value stdout ----
+
+thread 'an_inlined_body_inside_a_static_eval_keeps_its_value' (24460) panicked at rust/tcl-spectcl/tests/codegen_stamps.rs:1475:5:
+assertion `left == right` failed: inlined
+  left: 0
+ right: 1
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<usize, usize>
+   4: codegen_stamps::an_inlined_body_inside_a_static_eval_keeps_its_value
+   5: codegen_stamps::an_inlined_body_inside_a_static_eval_keeps_its_value::{closure#0}
+   6: <codegen_stamps::an_inlined_body_inside_a_static_eval_keeps_its_value::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- a_definition_in_a_namespace_resolves_its_commands_as_it_did stdout ----
+
+thread 'a_definition_in_a_namespace_resolves_its_commands_as_it_did' (24235) panicked at rust/tcl-spectcl/tests/codegen_stamps.rs:1946:5:
+assertion `left == right` failed: names no command
+  left: 0
+ right: 1
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<usize, usize>
+   4: codegen_stamps::a_definition_in_a_namespace_resolves_its_commands_as_it_did
+   5: codegen_stamps::a_definition_in_a_namespace_resolves_its_commands_as_it_did::{closure#0}
+   6: <codegen_stamps::a_definition_in_a_namespace_resolves_its_commands_as_it_did::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- a_variable_a_substituted_command_names_is_the_definitions_own stdout ----
+
+thread 'a_variable_a_substituted_command_names_is_the_definitions_own' (24390) panicked at rust/tcl-spectcl/tests/codegen_stamps.rs:1412:49:
+compiles: Host(Execution(CompilationAdmission(NativePreflightRequired)))
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::result::unwrap_failed
+   3: <core::result::Result<tcl_core_types::Completion<tcl_vm::value::Value>, tcl_vm::error::TclError>>::expect
+   4: <codegen_stamps::Spliced>::drive
+   5: <codegen_stamps::Spliced>::inlined
+   6: codegen_stamps::a_variable_a_substituted_command_names_is_the_definitions_own
+   7: codegen_stamps::a_variable_a_substituted_command_names_is_the_definitions_own::{closure#0}
+   8: <codegen_stamps::a_variable_a_substituted_command_names_is_the_definitions_own::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- a_function_claims_a_splice_only_where_it_emits_it stdout ----
+
+thread 'a_function_claims_a_splice_only_where_it_emits_it' (24250) panicked at rust/tcl-spectcl/tests/codegen_stamps.rs:1764:5:
+nothing was spliced, so nothing was compared
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: codegen_stamps::a_function_claims_a_splice_only_where_it_emits_it
+   3: codegen_stamps::a_function_claims_a_splice_only_where_it_emits_it::{closure#0}
+   4: <codegen_stamps::a_function_claims_a_splice_only_where_it_emits_it::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- the_vm_admits_it_through_the_alias_hop stdout ----
+
+thread 'the_vm_admits_it_through_the_alias_hop' (24503) panicked at rust/tcl-vm/src/exec.rs:1745:14:
+module requires a genuine native compiler preflight provider: CompilationAdmission(NativePreflightRequired)
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::result::unwrap_failed
+   3: <core::result::Result<tcl_core_types::Completion<tcl_vm::value::Value>, tcl_runtime_api::native_execution_error::NativeExecutionError>>::expect
+   4: <tcl_vm::interp::Vm>::run_module
+   5: codegen_stamps::the_vm_admits_it_through_the_alias_hop
+   6: codegen_stamps::the_vm_admits_it_through_the_alias_hop::{closure#0}
+   7: <codegen_stamps::the_vm_admits_it_through_the_alias_hop::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+
+failures:
+    a_body_that_substitutes_a_command_is_not_given_the_callers_namespace_to_resolve_it_in
+    a_body_with_a_return_before_its_end_answers_through_the_splice
+    a_braced_literal_stays_literal_through_the_wrap
+    a_braced_word_in_an_inlined_body_stays_literal
+    a_call_whose_body_is_a_branch_is_not_given_the_value_of_an_arm
+    a_changed_pack_invalidates_the_site
+    a_definition_in_a_namespace_resolves_its_commands_as_it_did
+    a_direct_dependencys_reference_body_is_dropped_at_load
+    a_function_claims_a_splice_only_where_it_emits_it
+    a_host_native_backing_never_defines_a_proc
+    a_pack_fold_is_admitted_only_under_its_pack_s_facts
+    a_pack_text_body_that_diverges_turns_the_site_plain
+    a_package_source_body_is_read_at_load_through_the_store
+    a_proc_at_the_pack_name_recompiles_plain
+    a_service_for_the_packs_overlay_compiles_against_the_generation_they_installed
+    a_site_compiled_through_the_service_stamps_the_bases_overlay_generation
+    a_tcl_body_backed_command_is_inlined_and_admitted
+    a_variable_a_substituted_command_names_is_the_definitions_own
+    a_workspace_stamp_is_refused_and_specialises_nothing
+    an_admitted_alias_stamp_records_the_targets_identity
+    an_inlined_body_in_an_lmap_body_gives_the_list_each_iterations_value
+    an_inlined_body_inside_a_static_eval_keeps_its_value
+    the_vm_admits_it_through_the_alias_hop
+
+test result: FAILED. 5 passed; 23 failed; 0 ignored; 0 measured; 1 filtered out; finished in 119.30s
+

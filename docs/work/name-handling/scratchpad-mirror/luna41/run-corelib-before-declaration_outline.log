@@ -1,0 +1,28 @@
+test declaration_outline::tests::every_block_is_an_outline_entry_under_the_block_that_contains_it ... FAILED
+test declaration_outline::tests::a_spec_pack_outlines_as_its_own_declaration_blocks ... FAILED
+test declaration_outline::tests::a_script_document_has_no_block_outline ... ok
+test declaration_outline::tests::server_outline_uses_the_selected_workspace_overlay_registry ... ok
+test declaration_outline::tests::server_outline_uses_the_current_full_configured_analysis ... FAILED
+test declaration_outline::tests::server_outline_keeps_unicode_names_and_declines_incomplete_bodies ... ok
+---- declaration_outline::tests::every_block_is_an_outline_entry_under_the_block_that_contains_it stdout ----
+thread 'declaration_outline::tests::every_block_is_an_outline_entry_under_the_block_that_contains_it' (7098) panicked at rust/tcl-lsp-core/src/declaration_outline.rs:411:9:
+assertion `left == right` failed
+  left: []
+ right: ["endpoint /Common/www", "policy corporate"]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- declaration_outline::tests::a_spec_pack_outlines_as_its_own_declaration_blocks stdout ----
+thread 'declaration_outline::tests::a_spec_pack_outlines_as_its_own_declaration_blocks' (7097) panicked at rust/tcl-lsp-core/src/declaration_outline.rs:446:9:
+assertion `left == right` failed
+  left: []
+ right: ["speclib mylib"]
+
+---- declaration_outline::tests::server_outline_uses_the_current_full_configured_analysis stdout ----
+
+thread 'declaration_outline::tests::server_outline_uses_the_current_full_configured_analysis' (7100) panicked at rust/tcl-lsp-core/src/declaration_outline.rs:485:9:
+assertion `left == right` failed
+  left: [BlockDeclaration { keyword: "endpoint", name: Some("/Common/www"), range: Span { start: 11, end: 103 }, selection: Span { start: 11, end: 19 }, children: [] }, BlockDeclaration { keyword: "policy", name: Some("corporate"), range: Span { start: 104, end: 208 }, selection: Span { start: 104, end: 110 }, children: [] }]
+ right: []
+
+
+test result: FAILED. 3 passed; 3 failed; 0 ignored; 0 measured; 3479 filtered out; finished in 4.37s

@@ -1,0 +1,494 @@
+test shimmer::byte_array::tests::append_damages_target_fires ... FAILED
+test shimmer::byte_array::tests::binary_encode_does_not_clear_non_value_args ... FAILED
+test shimmer::byte_array::tests::binary_encode_rebinarify_silent ... ok
+test shimmer::byte_array::tests::binary_scan_rebinarify_fix_silent ... ok
+test shimmer::byte_array::tests::clean_payload_writeback_silent ... ok
+test shimmer::byte_array::tests::coercing_string_ops_on_payload_still_fire ... FAILED
+test shimmer::byte_array::tests::constructed_byte_array_evidence_is_a_byte_source ... FAILED
+test shimmer::byte_array::tests::copy_chain_preserves_provenance_fires ... FAILED
+test shimmer::byte_array::tests::empty_source_silent ... ok
+test shimmer::byte_array::tests::encoding_convertto_double_encode_fires ... FAILED
+test shimmer::byte_array::tests::inert_word_text_never_creates_a_binary_source_or_read ... ok
+test shimmer::byte_array::tests::payload_names_outside_irules_dialect_silent ... ok
+test shimmer::byte_array::tests::plain_tcl_toupper_case_fold_fires ... FAILED
+test shimmer::byte_array::tests::registry_resolution_matches_legacy_hardcoded_sets ... ok
+test shimmer::byte_array::tests::replacement_binary_command_does_not_inherit_a_source_contract ... ok
+test shimmer::byte_array::tests::retained_byte_provenance_uses_literal_sigil_and_unicode_store_roots ... FAILED
+test shimmer::byte_array::tests::standalone_encoder_reads_only_its_data_operand ... FAILED
+test shimmer::byte_array::tests::string_insert_damage_uses_the_release_where_the_handler_exists ... FAILED
+test shimmer::byte_array::tests::tcp_payload_string_replace_roundtrip_fires ... FAILED
+test shimmer::byte_array::tests::toupper_plain_string_silent ... ok
+test shimmer::byte_array::tests::transparent_preserves_prior_damage ... FAILED
+test shimmer::byte_array::tests::transparent_string_ops_on_payload_are_silent ... ok
+test shimmer::byte_array::tests::transparent_then_coerced_still_fires ... FAILED
+test shimmer::byte_array::tests::trim_ops_on_payload_fire ... FAILED
+test shimmer::byte_array::tests::trim_plain_string_silent ... ok
+test shimmer::commit::tests::a_compatible_read_keeps_the_committed_representation ... ok
+test shimmer::commit::tests::an_erroring_conversion_arm_cannot_commit_the_normal_merge ... FAILED
+test shimmer::commit::tests::captured_physical_representation_supersedes_replayed_commitment ... ok
+test shimmer::commit::tests::current_numeric_category_supersedes_semantic_labels_and_replay ... FAILED
+test shimmer::commit::tests::deeply_nested_collect_expr_reads_survives ... ok
+test shimmer::commit::tests::exceptional_edge_does_not_inherit_normal_conversion_promise ... ok
+test shimmer::commit::tests::merge_of_two_commitments_is_must_only_off_both ... FAILED
+test shimmer::commit::tests::no_pushback_for_committed_producer ... ok
+test shimmer::commit::tests::numeric_commitment_is_separate_from_unknown_container_projection ... ok
+test shimmer::commit::tests::retained_increment_amount_uses_selected_original_word_and_represented_read ... FAILED
+test shimmer::commit::tests::retained_increment_reads_use_literal_operand_names_without_reparsing_sigils ... FAILED
+test shimmer::commit::tests::selected_length_replay_preserves_only_the_actual_native_numeric_cache ... FAILED
+test shimmer::commit::tests::single_commitment_pushback_for_pure_literal ... FAILED
+test shimmer::commit::tests::straight_line_expr_commit_then_list_must_pay ... ok
+test shimmer::expr::tests::a_bare_expr_assignment_is_reported_once ... FAILED
+test shimmer::expr::tests::assign_value_lifts_the_same_nested_expr_a_call_does ... FAILED
+test shimmer::expr::tests::deeply_nested_collect_expr_shimmers_survives ... ok
+test shimmer::expr::tests::expr_shimmer_boolean_context_flags_string_operand ... FAILED
+test shimmer::expr::tests::expr_shimmer_bytearray_in_arithmetic ... FAILED
+test shimmer::expr::tests::expr_shimmer_comparisons_never_flag ... ok
+test shimmer::expr::tests::expr_shimmer_dedups_repeated_operand ... FAILED
+test shimmer::expr::tests::expr_shimmer_double_still_fires_for_integer_only_operators ... FAILED
+test shimmer::expr::tests::expr_shimmer_fires_in_a_nested_call_argument ... FAILED
+test shimmer::expr::tests::expr_shimmer_fires_in_a_return_expression ... FAILED
+test shimmer::expr::tests::expr_shimmer_in_loop_is_s101 ... FAILED
+test shimmer::expr::tests::expr_shimmer_in_membership_flags_committed_not_pure_haystack ... FAILED
+test shimmer::expr::tests::expr_shimmer_int_in_if_branch_condition ... FAILED
+test shimmer::expr::tests::expr_shimmer_int_in_string_comparison_assign_expr ... FAILED
+test shimmer::expr::tests::expr_shimmer_lt_both_numeric_still_fires_with_no_fix_offered ... FAILED
+test shimmer::expr::tests::expr_shimmer_narrowed_span_dedups_to_first_operand ... FAILED
+test shimmer::expr::tests::expr_shimmer_span_falls_back_without_verbatim_anchor ... ok
+test shimmer::expr::tests::expr_shimmer_span_narrows_to_operand_assign_expr ... FAILED
+test shimmer::expr::tests::expr_shimmer_span_narrows_to_operand_in_branch_condition ... FAILED
+test shimmer::expr::tests::expr_shimmer_span_narrows_to_operand_inside_proc ... FAILED
+test shimmer::expr::tests::expr_shimmer_string_in_arithmetic ... FAILED
+test shimmer::expr::tests::no_expr_shimmer_double_accumulator_in_arithmetic ... FAILED
+test shimmer::expr::tests::no_expr_shimmer_double_for_true_arithmetic_operators ... FAILED
+test shimmer::expr::tests::no_expr_shimmer_double_in_boolean_context ... ok
+test shimmer::expr::tests::no_expr_shimmer_in_a_braced_call_argument ... FAILED
+test shimmer::expr::tests::no_expr_shimmer_in_a_braced_return_value ... FAILED
+test shimmer::expr::tests::no_expr_shimmer_int_in_arithmetic ... ok
+test shimmer::expr::tests::no_expr_shimmer_string_in_string_comparison ... ok
+test shimmer::graph::tests::loop_body_blocks_detects_self_loop ... ok
+test shimmer::graph::tests::loop_body_blocks_detects_simple_cycle ... ok
+test shimmer::graph::tests::loop_body_blocks_excludes_preheader_and_exit ... ok
+test shimmer::graph::tests::loop_body_blocks_handles_two_disjoint_cycles ... ok
+test shimmer::graph::tests::loop_body_blocks_linear_chain_is_empty ... ok
+test shimmer::graph::tests::loop_body_blocks_wide_acyclic_chain_is_empty ... ok
+test shimmer::hints::tests::arg_shimmer_expectation_dual_ported_string_subjects_have_no_hint ... ok
+test shimmer::hints::tests::arg_shimmer_expectation_string_first_last_needle_and_haystack ... ok
+test shimmer::hints::tests::arg_shimmer_expectation_string_length_transparent_bytearray ... ok
+test shimmer::hints::tests::arg_shimmer_expectation_string_map_mapping_is_list_dict_transparent ... ok
+test shimmer::hints::tests::arg_shimmer_expectation_string_map_nocase_shifts_positions ... ok
+test shimmer::hints::tests::arg_shimmer_expectation_string_map_subject_converts_bytearray_too ... ok
+test shimmer::hints::tests::arg_shimmer_type_binary_decode_data_is_arg1_not_format_keyword ... ok
+test shimmer::hints::tests::arg_shimmer_type_binary_encode_data_is_arg1_expects_bytearray ... ok
+test shimmer::hints::tests::arg_shimmer_type_dict_getd_family_matches_dict_get ... ok
+test shimmer::hints::tests::arg_shimmer_type_incr_varname ... ok
+test shimmer::hints::tests::arg_shimmer_type_lindex_list ... ok
+test shimmer::hints::tests::arg_shimmer_type_subcommand_arg0_is_subcommand_word ... ok
+test shimmer::hints::tests::arg_shimmer_type_subcommand_string_index_charindex ... ok
+test shimmer::hints::tests::arg_shimmer_type_unknown_command_is_none ... ok
+test shimmer::hints::tests::committed_container_is_not_free ... ok
+test shimmer::hints::tests::constset_one_invalid_member_is_not_free ... ok
+test shimmer::hints::tests::is_numeric_compatible_double_in_numeric_and_boolean_contexts ... ok
+test shimmer::hints::tests::is_numeric_compatible_double_int_is_false ... ok
+test shimmer::hints::tests::is_numeric_compatible_int_bool ... ok
+test shimmer::hints::tests::is_numeric_compatible_int_numeric ... ok
+test shimmer::hints::tests::is_numeric_compatible_into_double ... ok
+test shimmer::hints::tests::is_numeric_compatible_same_type ... ok
+test shimmer::hints::tests::is_numeric_compatible_string_int_is_false ... ok
+test shimmer::hints::tests::is_valid_integer_matches_tcl_forms ... ok
+test shimmer::hints::tests::length_cost_requires_a_captured_class_and_the_selected_operand ... ok
+test shimmer::hints::tests::malformed_list_constant_is_not_free ... ok
+test shimmer::hints::tests::pure_string_invalid_instance_is_not_free ... ok
+test shimmer::hints::tests::runtime_numeric_used_as_list_is_not_free ... ok
+test shimmer::hints::tests::uncommitted_const_int_used_as_list_is_free ... ok
+test shimmer::hints::tests::uncommitted_constset_all_valid_lists_is_free ... ok
+test shimmer::hints::tests::uncommitted_nonconst_string_as_list_is_free ... ok
+test shimmer::hints::tests::uncommitted_pure_string_valid_dict_is_free ... ok
+test shimmer::hints::tests::uncommitted_pure_string_valid_list_is_free ... ok
+test shimmer::phi::tests::no_phi_shimmer_for_array_element_conflation ... FAILED
+test shimmer::phi::tests::no_phi_shimmer_for_empty_accumulator ... FAILED
+test shimmer::phi::tests::no_phi_shimmer_for_uniform_int_type ... ok
+test shimmer::phi::tests::phi_shimmer_emitted_for_int_string_merge ... FAILED
+test shimmer::phi::tests::phi_shimmer_in_loop_anchors_on_in_loop_def ... FAILED
+test shimmer::phi::tests::phi_shimmer_out_of_loop_anchor_unchanged ... FAILED
+test shimmer::phi::tests::phi_shimmer_still_fires_for_scalar_control ... FAILED
+test shimmer::phi::tests::phi_shimmers_empty_source ... ok
+test shimmer::phi::tests::s100_ignores_an_unset_arm ... FAILED
+test shimmer::phi::tests::s100_still_fires_between_the_bound_arms_of_a_three_way_switch ... FAILED
+test shimmer::sharing::tests::s103_consumes_representation_effect_without_command_name_knowledge ... FAILED
+test shimmer::sharing::tests::s103_fires_for_copy_from_parameter_still_read ... FAILED
+test shimmer::sharing::tests::s103_fires_for_copy_then_lappend_with_source_live ... FAILED
+test shimmer::sharing::tests::s103_fires_for_dict_set_on_shared_copy ... FAILED
+test shimmer::sharing::tests::s103_fires_for_lset_on_shared_copy ... FAILED
+test shimmer::sharing::tests::s103_fires_for_mutating_the_source_while_copy_lives ... FAILED
+test shimmer::sharing::tests::s103_fires_for_quoted_pure_copy ... FAILED
+test shimmer::sharing::tests::s103_fires_once_for_repeated_mutation ... FAILED
+test shimmer::sharing::tests::s103_fires_when_partner_read_in_later_block ... FAILED
+test shimmer::sharing::tests::s103_silent_across_barrier ... ok
+test shimmer::sharing::tests::s103_silent_for_array_elements ... ok
+test shimmer::sharing::tests::s103_silent_for_direct_parameter_mutation ... FAILED
+test shimmer::sharing::tests::s103_silent_for_explicit_copy ... ok
+test shimmer::sharing::tests::s103_silent_for_non_mutating_arities ... ok
+test shimmer::sharing::tests::s103_silent_for_upvar_aliased_name ... FAILED
+test shimmer::sharing::tests::s103_silent_when_source_dead_after_mutation ... ok
+test shimmer::sharing::tests::s103_silent_when_source_redefined_before_mutation ... ok
+test shimmer::sharing::tests::s103_spans_anchor_mutation_copy_and_read ... FAILED
+test shimmer::sharing::tests::sharing_destinations_use_original_scalar_name_data ... ok
+test shimmer::source_context::tests::original_representation_consumers_keep_positive_reads_and_refuse_missing_foreign_input ... FAILED
+test shimmer::source_context::tests::original_representation_context_keeps_complete_availability_and_selected_grammar ... ok
+test shimmer::source_context::tests::original_representation_known_replacement_cannot_borrow_stock_conversion_hints ... FAILED
+test shimmer::span::tests::def_range_map_finds_statement_span ... ok
+test shimmer::span::tests::def_range_map_misses_unknown_key ... ok
+test shimmer::span::tests::phi_span_falls_back_to_first_statement ... ok
+test shimmer::span::tests::phi_span_returns_zero_when_empty_ssa ... ok
+test shimmer::span::tests::phi_span_uses_incoming_version ... ok
+test shimmer::tests::find_shimmer_warnings_empty_function ... ok
+test shimmer::tests::first_use_symbols_keep_the_actual_function_and_refuse_missing_input ... ok
+test shimmer::tests::type_name_is_lowercase ... ok
+test shimmer::thunking::tests::no_intra_iteration_s102_for_fresh_per_pass_variable ... FAILED
+test shimmer::thunking::tests::no_intra_iteration_s102_for_uniform_self_reference ... FAILED
+test shimmer::thunking::tests::no_s102_for_array_element_conflation ... FAILED
+test shimmer::thunking::tests::no_s102_for_empty_accumulator_promotion ... FAILED
+test shimmer::thunking::tests::no_s102_for_non_self_referential_branchy_reset ... FAILED
+test shimmer::thunking::tests::no_s102_for_sibling_loops_with_different_types ... FAILED
+test shimmer::thunking::tests::no_s102_for_traced_variable ... FAILED
+test shimmer::thunking::tests::no_thunking_for_no_loop_variables ... ok
+test shimmer::thunking::tests::no_thunking_for_uniform_int_loop_variable ... ok
+test shimmer::thunking::tests::s102_for_intra_iteration_oscillation ... FAILED
+test shimmer::thunking::tests::span_anchors_inside_loop_not_pre_loop_initialiser ... FAILED
+test shimmer::thunking::tests::thunking_detected_for_numeric_shimmer_masked_by_int_entry ... FAILED
+test shimmer::thunking::tests::thunking_detected_for_self_referential_branchy_oscillation ... FAILED
+test shimmer::thunking::tests::thunking_detected_for_two_type_loop_body ... FAILED
+test shimmer::thunking::tests::thunking_empty_source ... ok
+test shimmer::thunking::tests::thunking_still_fires_for_untraced_control ... FAILED
+test shimmer::use_site::tests::a_braced_argument_commits_no_intrep_for_later_reads ... ok
+test shimmer::use_site::tests::a_braced_argument_contributes_no_use_target ... FAILED
+test shimmer::use_site::tests::a_braced_argument_reads_only_where_the_callee_evaluates_it_in_frame ... FAILED
+test shimmer::use_site::tests::a_computed_constant_never_hides_a_conversion ... FAILED
+test shimmer::use_site::tests::a_nested_conversion_in_a_loop_classifies_as_s101_like_the_direct_one ... FAILED
+test shimmer::use_site::tests::a_nested_conversion_in_an_assignment_is_visible_to_later_reads ... FAILED
+test shimmer::use_site::tests::a_nested_conversion_is_visible_to_later_reads ... FAILED
+test shimmer::use_site::tests::an_unknown_abstract_input_does_not_close_the_result_store ... ok
+test shimmer::use_site::tests::an_unknown_or_replaced_constructor_cannot_donate_native_range_representation ... FAILED
+test shimmer::use_site::tests::an_unknown_range_result_does_not_donate_a_list_conversion_warning ... ok
+test shimmer::use_site::tests::assign_value_lifts_the_same_substitutions_a_call_does ... FAILED
+test shimmer::use_site::tests::assign_value_nested_substitution_span_is_tight ... FAILED
+test shimmer::use_site::tests::assign_value_substitution_is_reported_once ... FAILED
+test shimmer::use_site::tests::dual_ported_string_subcommands_stay_silent_for_list_subject ... ok
+test shimmer::use_site::tests::incr_amount_string_var_shimmers ... FAILED
+test shimmer::use_site::tests::loop_invariant_single_target_downgrades_to_s100 ... FAILED
+test shimmer::use_site::tests::no_shimmer_for_foreach_element_used_as_list_in_cmd_sub ... FAILED
+test shimmer::use_site::tests::no_shimmer_for_foreach_header_with_pure_string ... FAILED
+test shimmer::use_site::tests::no_shimmer_for_foreach_header_with_real_list ... FAILED
+test shimmer::use_site::tests::no_shimmer_for_hex_literal_string_used_with_incr ... ok
+test shimmer::use_site::tests::no_shimmer_for_int_used_with_incr ... ok
+test shimmer::use_site::tests::no_shimmer_for_pure_literal_as_list ... ok
+test shimmer::use_site::tests::no_shimmer_for_unknown_type ... ok
+test shimmer::use_site::tests::no_shimmer_iterating_a_regexp_inline_result ... FAILED
+test shimmer::use_site::tests::no_shimmer_iterating_an_lsearch_all_result ... FAILED
+test shimmer::use_site::tests::no_shimmer_measuring_a_varname_less_regsub_result ... FAILED
+test shimmer::use_site::tests::no_shimmer_through_interp_alias_to_non_shimmering_command ... ok
+test shimmer::use_site::tests::no_use_site_shimmer_for_array_element_conflation ... FAILED
+test shimmer::use_site::tests::no_use_site_shimmer_in_a_braced_call_argument ... FAILED
+test shimmer::use_site::tests::reselected_alias_reads_use_the_actual_statement_cell ... FAILED
+test shimmer::use_site::tests::selected_length_cost_distinguishes_conversion_from_preserved_numeric_cache ... FAILED
+test shimmer::use_site::tests::shimmer_detected_for_committed_value_as_list_in_cmd_sub ... FAILED
+test shimmer::use_site::tests::shimmer_detected_for_dict_for_header_argument ... FAILED
+test shimmer::use_site::tests::shimmer_detected_for_dict_map_header_argument ... FAILED
+test shimmer::use_site::tests::shimmer_detected_for_foreach_header_list_argument ... FAILED
+test shimmer::use_site::tests::shimmer_detected_for_int_used_with_lindex ... FAILED
+test shimmer::use_site::tests::shimmer_detected_for_lmap_header_list_argument ... FAILED
+test shimmer::use_site::tests::shimmer_detected_for_string_used_with_incr ... FAILED
+test shimmer::use_site::tests::shimmer_detected_through_interp_alias_to_lindex ... FAILED
+test shimmer::use_site::tests::shimmer_span_is_tight_around_assign_value_substitution_argument ... FAILED
+test shimmer::use_site::tests::shimmer_span_is_tight_around_call_argument ... FAILED
+test shimmer::use_site::tests::shimmer_span_is_tight_per_argument_not_reused_across_args ... FAILED
+test shimmer::use_site::tests::shimmer_still_detected_iterating_a_bare_regexp_result ... FAILED
+test shimmer::use_site::tests::string_first_last_needle_and_haystack_shimmer_list_not_bytearray ... FAILED
+test shimmer::use_site::tests::string_map_mapping_list_and_dict_stay_silent ... ok
+test shimmer::use_site::tests::string_map_nocase_keeps_hint_alignment ... FAILED
+test shimmer::use_site::tests::string_map_subject_shimmers_list_and_bytearray ... FAILED
+test shimmer::use_site::tests::string_replace_reverse_subject_shimmers_list_not_bytearray ... FAILED
+test shimmer::use_site::tests::string_subject_shimmers_list_but_not_bytearray ... FAILED
+test shimmer::use_site::tests::unchanged_store_bytes_do_not_preserve_a_callback_coerced_representation ... FAILED
+test shimmer::use_site::tests::use_site_shimmer_fires_in_a_nested_call_argument ... FAILED
+test shimmer::use_site::tests::use_site_shimmer_still_fires_for_scalar_control ... FAILED
+---- shimmer::byte_array::tests::append_damages_target_fires stdout ----
+thread 'shimmer::byte_array::tests::append_damages_target_fires' (22687) panicked at rust/tcl-compiler/src/shimmer/byte_array.rs:1461:9:
+---- shimmer::byte_array::tests::binary_encode_does_not_clear_non_value_args stdout ----
+thread 'shimmer::byte_array::tests::binary_encode_does_not_clear_non_value_args' (22714) panicked at rust/tcl-compiler/src/shimmer/byte_array.rs:1116:9:
+---- shimmer::byte_array::tests::coercing_string_ops_on_payload_still_fire stdout ----
+thread 'shimmer::byte_array::tests::coercing_string_ops_on_payload_still_fire' (22748) panicked at rust/tcl-compiler/src/shimmer/byte_array.rs:1367:13:
+---- shimmer::byte_array::tests::constructed_byte_array_evidence_is_a_byte_source stdout ----
+thread 'shimmer::byte_array::tests::constructed_byte_array_evidence_is_a_byte_source' (22749) panicked at rust/tcl-compiler/src/shimmer/byte_array.rs:1186:37:
+---- shimmer::byte_array::tests::copy_chain_preserves_provenance_fires stdout ----
+thread 'shimmer::byte_array::tests::copy_chain_preserves_provenance_fires' (22750) panicked at rust/tcl-compiler/src/shimmer/byte_array.rs:1263:9:
+---- shimmer::byte_array::tests::encoding_convertto_double_encode_fires stdout ----
+thread 'shimmer::byte_array::tests::encoding_convertto_double_encode_fires' (22758) panicked at rust/tcl-compiler/src/shimmer/byte_array.rs:1218:9:
+---- shimmer::byte_array::tests::plain_tcl_toupper_case_fold_fires stdout ----
+thread 'shimmer::byte_array::tests::plain_tcl_toupper_case_fold_fires' (22781) panicked at rust/tcl-compiler/src/shimmer/byte_array.rs:1165:9:
+---- shimmer::byte_array::tests::retained_byte_provenance_uses_literal_sigil_and_unicode_store_roots stdout ----
+thread 'shimmer::byte_array::tests::retained_byte_provenance_uses_literal_sigil_and_unicode_store_roots' (22785) panicked at rust/tcl-compiler/src/shimmer/byte_array.rs:992:13:
+---- shimmer::byte_array::tests::standalone_encoder_reads_only_its_data_operand stdout ----
+thread 'shimmer::byte_array::tests::standalone_encoder_reads_only_its_data_operand' (23050) panicked at rust/tcl-compiler/src/shimmer/byte_array.rs:1127:9:
+assertion failed: warnings(data, registry).iter().any(|warning| warning.code == DiagCode::S110)
+---- shimmer::byte_array::tests::string_insert_damage_uses_the_release_where_the_handler_exists stdout ----
+thread 'shimmer::byte_array::tests::string_insert_damage_uses_the_release_where_the_handler_exists' (23078) panicked at rust/tcl-compiler/src/shimmer/byte_array.rs:1379:9:
+---- shimmer::byte_array::tests::tcp_payload_string_replace_roundtrip_fires stdout ----
+thread 'shimmer::byte_array::tests::tcp_payload_string_replace_roundtrip_fires' (23085) panicked at rust/tcl-compiler/src/shimmer/byte_array.rs:1074:9:
+---- shimmer::byte_array::tests::transparent_preserves_prior_damage stdout ----
+thread 'shimmer::byte_array::tests::transparent_preserves_prior_damage' (23092) panicked at rust/tcl-compiler/src/shimmer/byte_array.rs:1446:9:
+---- shimmer::byte_array::tests::transparent_then_coerced_still_fires stdout ----
+thread 'shimmer::byte_array::tests::transparent_then_coerced_still_fires' (23135) panicked at rust/tcl-compiler/src/shimmer/byte_array.rs:1431:9:
+---- shimmer::byte_array::tests::trim_ops_on_payload_fire stdout ----
+thread 'shimmer::byte_array::tests::trim_ops_on_payload_fire' (23139) panicked at rust/tcl-compiler/src/shimmer/byte_array.rs:1402:13:
+---- shimmer::commit::tests::an_erroring_conversion_arm_cannot_commit_the_normal_merge stdout ----
+thread 'shimmer::commit::tests::an_erroring_conversion_arm_cannot_commit_the_normal_merge' (23142) panicked at rust/tcl-compiler/src/shimmer/commit.rs:1322:36:
+---- shimmer::commit::tests::current_numeric_category_supersedes_semantic_labels_and_replay stdout ----
+thread 'shimmer::commit::tests::current_numeric_category_supersedes_semantic_labels_and_replay' (23145) panicked at rust/tcl-compiler/src/shimmer/commit.rs:1552:33:
+---- shimmer::commit::tests::merge_of_two_commitments_is_must_only_off_both stdout ----
+thread 'shimmer::commit::tests::merge_of_two_commitments_is_must_only_off_both' (23149) panicked at rust/tcl-compiler/src/shimmer/commit.rs:1322:36:
+---- shimmer::commit::tests::retained_increment_amount_uses_selected_original_word_and_represented_read stdout ----
+thread 'shimmer::commit::tests::retained_increment_amount_uses_selected_original_word_and_represented_read' (23157) panicked at rust/tcl-compiler/src/shimmer/commit.rs:1288:21:
+assertion failed: matches!(word, crate::ir::WordExpr::BracedLiteral { text, .. } if text ==
+---- shimmer::commit::tests::retained_increment_reads_use_literal_operand_names_without_reparsing_sigils stdout ----
+thread 'shimmer::commit::tests::retained_increment_reads_use_literal_operand_names_without_reparsing_sigils' (23170) panicked at rust/tcl-compiler/src/shimmer/commit.rs:1248:9:
+assertion `left == right` failed
+  left: {"$value"}
+ right: {"$value", "é("}
+---- shimmer::commit::tests::selected_length_replay_preserves_only_the_actual_native_numeric_cache stdout ----
+thread 'shimmer::commit::tests::selected_length_replay_preserves_only_the_actual_native_numeric_cache' (23180) panicked at rust/tcl-compiler/src/shimmer/commit.rs:1602:30:
+---- shimmer::commit::tests::single_commitment_pushback_for_pure_literal stdout ----
+thread 'shimmer::commit::tests::single_commitment_pushback_for_pure_literal' (23198) panicked at rust/tcl-compiler/src/shimmer/commit.rs:1695:9:
+assertion `left == right` failed: pure literal first-used-as-list must push back List: {}
+  left: None
+ right: Some(List)
+---- shimmer::expr::tests::a_bare_expr_assignment_is_reported_once stdout ----
+thread 'shimmer::expr::tests::a_bare_expr_assignment_is_reported_once' (23201) panicked at rust/tcl-compiler/src/shimmer/expr.rs:1055:37:
+---- shimmer::expr::tests::assign_value_lifts_the_same_nested_expr_a_call_does stdout ----
+thread 'shimmer::expr::tests::assign_value_lifts_the_same_nested_expr_a_call_does' (23215) panicked at rust/tcl-compiler/src/shimmer/expr.rs:1029:45:
+---- shimmer::expr::tests::expr_shimmer_boolean_context_flags_string_operand stdout ----
+thread 'shimmer::expr::tests::expr_shimmer_boolean_context_flags_string_operand' (23228) panicked at rust/tcl-compiler/src/shimmer/expr.rs:1167:31:
+---- shimmer::expr::tests::expr_shimmer_bytearray_in_arithmetic stdout ----
+thread 'shimmer::expr::tests::expr_shimmer_bytearray_in_arithmetic' (23233) panicked at rust/tcl-compiler/src/shimmer/expr.rs:1450:9:
+---- shimmer::expr::tests::expr_shimmer_dedups_repeated_operand stdout ----
+thread 'shimmer::expr::tests::expr_shimmer_dedups_repeated_operand' (23237) panicked at rust/tcl-compiler/src/shimmer/expr.rs:1384:9:
+assertion `left == right` failed: repeated operand must emit one shimmer, got: []
+  left: 0
+ right: 1
+---- shimmer::expr::tests::expr_shimmer_double_still_fires_for_integer_only_operators stdout ----
+thread 'shimmer::expr::tests::expr_shimmer_double_still_fires_for_integer_only_operators' (23238) panicked at rust/tcl-compiler/src/shimmer/expr.rs:1075:41:
+---- shimmer::expr::tests::expr_shimmer_fires_in_a_nested_call_argument stdout ----
+thread 'shimmer::expr::tests::expr_shimmer_fires_in_a_nested_call_argument' (23240) panicked at rust/tcl-compiler/src/shimmer/expr.rs:985:37:
+---- shimmer::expr::tests::expr_shimmer_fires_in_a_return_expression stdout ----
+thread 'shimmer::expr::tests::expr_shimmer_fires_in_a_return_expression' (23242) panicked at rust/tcl-compiler/src/shimmer/expr.rs:955:37:
+---- shimmer::expr::tests::expr_shimmer_in_loop_is_s101 stdout ----
+thread 'shimmer::expr::tests::expr_shimmer_in_loop_is_s101' (23243) panicked at rust/tcl-compiler/src/shimmer/expr.rs:1400:37:
+---- shimmer::expr::tests::expr_shimmer_in_membership_flags_committed_not_pure_haystack stdout ----
+thread 'shimmer::expr::tests::expr_shimmer_in_membership_flags_committed_not_pure_haystack' (23244) panicked at rust/tcl-compiler/src/shimmer/expr.rs:1237:9:
+---- shimmer::expr::tests::expr_shimmer_int_in_if_branch_condition stdout ----
+thread 'shimmer::expr::tests::expr_shimmer_int_in_if_branch_condition' (23246) panicked at rust/tcl-compiler/src/shimmer/expr.rs:1366:9:
+---- shimmer::expr::tests::expr_shimmer_int_in_string_comparison_assign_expr stdout ----
+thread 'shimmer::expr::tests::expr_shimmer_int_in_string_comparison_assign_expr' (23247) panicked at rust/tcl-compiler/src/shimmer/expr.rs:1346:9:
+---- shimmer::expr::tests::expr_shimmer_lt_both_numeric_still_fires_with_no_fix_offered stdout ----
+thread 'shimmer::expr::tests::expr_shimmer_lt_both_numeric_still_fires_with_no_fix_offered' (23249) panicked at rust/tcl-compiler/src/shimmer/expr.rs:1582:32:
+---- shimmer::expr::tests::expr_shimmer_narrowed_span_dedups_to_first_operand stdout ----
+thread 'shimmer::expr::tests::expr_shimmer_narrowed_span_dedups_to_first_operand' (23250) panicked at rust/tcl-compiler/src/shimmer/expr.rs:1556:9:
+assertion `left == right` failed: one warning per statement+var: []
+  left: 0
+ right: 1
+---- shimmer::expr::tests::expr_shimmer_span_narrows_to_operand_assign_expr stdout ----
+thread 'shimmer::expr::tests::expr_shimmer_span_narrows_to_operand_assign_expr' (23252) panicked at rust/tcl-compiler/src/shimmer/expr.rs:1467:32:
+---- shimmer::expr::tests::expr_shimmer_span_narrows_to_operand_in_branch_condition stdout ----
+thread 'shimmer::expr::tests::expr_shimmer_span_narrows_to_operand_in_branch_condition' (23253) panicked at rust/tcl-compiler/src/shimmer/expr.rs:1488:32:
+---- shimmer::expr::tests::expr_shimmer_span_narrows_to_operand_inside_proc stdout ----
+thread 'shimmer::expr::tests::expr_shimmer_span_narrows_to_operand_inside_proc' (23255) panicked at rust/tcl-compiler/src/shimmer/expr.rs:1504:37:
+---- shimmer::expr::tests::expr_shimmer_string_in_arithmetic stdout ----
+thread 'shimmer::expr::tests::expr_shimmer_string_in_arithmetic' (23257) panicked at rust/tcl-compiler/src/shimmer/expr.rs:1114:9:
+---- shimmer::expr::tests::no_expr_shimmer_double_accumulator_in_arithmetic stdout ----
+thread 'shimmer::expr::tests::no_expr_shimmer_double_accumulator_in_arithmetic' (23258) panicked at rust/tcl-compiler/src/shimmer/expr.rs:925:44:
+---- shimmer::expr::tests::no_expr_shimmer_double_for_true_arithmetic_operators stdout ----
+thread 'shimmer::expr::tests::no_expr_shimmer_double_for_true_arithmetic_operators' (23259) panicked at rust/tcl-compiler/src/shimmer/expr.rs:1092:41:
+---- shimmer::expr::tests::no_expr_shimmer_in_a_braced_call_argument stdout ----
+thread 'shimmer::expr::tests::no_expr_shimmer_in_a_braced_call_argument' (23262) panicked at rust/tcl-compiler/src/shimmer/expr.rs:999:37:
+---- shimmer::expr::tests::no_expr_shimmer_in_a_braced_return_value stdout ----
+thread 'shimmer::expr::tests::no_expr_shimmer_in_a_braced_return_value' (23263) panicked at rust/tcl-compiler/src/shimmer/expr.rs:970:37:
+---- shimmer::phi::tests::no_phi_shimmer_for_array_element_conflation stdout ----
+thread 'shimmer::phi::tests::no_phi_shimmer_for_array_element_conflation' (23306) panicked at rust/tcl-compiler/src/shimmer/phi.rs:375:37:
+---- shimmer::phi::tests::no_phi_shimmer_for_empty_accumulator stdout ----
+thread 'shimmer::phi::tests::no_phi_shimmer_for_empty_accumulator' (23307) panicked at rust/tcl-compiler/src/shimmer/phi.rs:335:37:
+---- shimmer::phi::tests::phi_shimmer_emitted_for_int_string_merge stdout ----
+thread 'shimmer::phi::tests::phi_shimmer_emitted_for_int_string_merge' (23312) panicked at rust/tcl-compiler/src/shimmer/phi.rs:500:9:
+---- shimmer::phi::tests::phi_shimmer_in_loop_anchors_on_in_loop_def stdout ----
+thread 'shimmer::phi::tests::phi_shimmer_in_loop_anchors_on_in_loop_def' (23313) panicked at rust/tcl-compiler/src/shimmer/phi.rs:432:32:
+---- shimmer::phi::tests::phi_shimmer_out_of_loop_anchor_unchanged stdout ----
+thread 'shimmer::phi::tests::phi_shimmer_out_of_loop_anchor_unchanged' (23314) panicked at rust/tcl-compiler/src/shimmer/phi.rs:468:32:
+---- shimmer::phi::tests::phi_shimmer_still_fires_for_scalar_control stdout ----
+thread 'shimmer::phi::tests::phi_shimmer_still_fires_for_scalar_control' (23315) panicked at rust/tcl-compiler/src/shimmer/phi.rs:406:9:
+---- shimmer::phi::tests::s100_ignores_an_unset_arm stdout ----
+thread 'shimmer::phi::tests::s100_ignores_an_unset_arm' (23317) panicked at rust/tcl-compiler/src/shimmer/phi.rs:532:9:
+---- shimmer::phi::tests::s100_still_fires_between_the_bound_arms_of_a_three_way_switch stdout ----
+thread 'shimmer::phi::tests::s100_still_fires_between_the_bound_arms_of_a_three_way_switch' (23318) panicked at rust/tcl-compiler/src/shimmer/phi.rs:550:13:
+---- shimmer::sharing::tests::s103_consumes_representation_effect_without_command_name_knowledge stdout ----
+thread 'shimmer::sharing::tests::s103_consumes_representation_effect_without_command_name_knowledge' (23320) panicked at rust/tcl-compiler/src/shimmer/sharing.rs:630:9:
+assertion `left == right` failed: registry-declared mutation: []
+  left: 0
+ right: 1
+---- shimmer::sharing::tests::s103_fires_for_copy_from_parameter_still_read stdout ----
+thread 'shimmer::sharing::tests::s103_fires_for_copy_from_parameter_still_read' (23321) panicked at rust/tcl-compiler/src/shimmer/sharing.rs:523:36:
+---- shimmer::sharing::tests::s103_fires_for_copy_then_lappend_with_source_live stdout ----
+thread 'shimmer::sharing::tests::s103_fires_for_copy_then_lappend_with_source_live' (23322) panicked at rust/tcl-compiler/src/shimmer/sharing.rs:599:9:
+assertion `left == right` failed: expected exactly one S103: []
+  left: 0
+ right: 1
+---- shimmer::sharing::tests::s103_fires_for_dict_set_on_shared_copy stdout ----
+thread 'shimmer::sharing::tests::s103_fires_for_dict_set_on_shared_copy' (23323) panicked at rust/tcl-compiler/src/shimmer/sharing.rs:654:9:
+assertion `left == right` failed: expected exactly one S103: []
+  left: 0
+ right: 1
+---- shimmer::sharing::tests::s103_fires_for_lset_on_shared_copy stdout ----
+thread 'shimmer::sharing::tests::s103_fires_for_lset_on_shared_copy' (23324) panicked at rust/tcl-compiler/src/shimmer/sharing.rs:643:9:
+assertion `left == right` failed: expected exactly one S103: []
+  left: 0
+ right: 1
+---- shimmer::sharing::tests::s103_fires_for_mutating_the_source_while_copy_lives stdout ----
+thread 'shimmer::sharing::tests::s103_fires_for_mutating_the_source_while_copy_lives' (23330) panicked at rust/tcl-compiler/src/shimmer/sharing.rs:665:9:
+assertion `left == right` failed: expected exactly one S103: []
+  left: 0
+ right: 1
+---- shimmer::sharing::tests::s103_fires_for_quoted_pure_copy stdout ----
+thread 'shimmer::sharing::tests::s103_fires_for_quoted_pure_copy' (23331) panicked at rust/tcl-compiler/src/shimmer/sharing.rs:676:9:
+assertion `left == right` failed: expected exactly one S103: []
+  left: 0
+ right: 1
+---- shimmer::sharing::tests::s103_fires_once_for_repeated_mutation stdout ----
+thread 'shimmer::sharing::tests::s103_fires_once_for_repeated_mutation' (23346) panicked at rust/tcl-compiler/src/shimmer/sharing.rs:783:9:
+assertion `left == right` failed: only the first mutation copies: []
+  left: 0
+ right: 1
+---- shimmer::sharing::tests::s103_fires_when_partner_read_in_later_block stdout ----
+thread 'shimmer::sharing::tests::s103_fires_when_partner_read_in_later_block' (23352) panicked at rust/tcl-compiler/src/shimmer/sharing.rs:523:36:
+---- shimmer::sharing::tests::s103_silent_for_direct_parameter_mutation stdout ----
+thread 'shimmer::sharing::tests::s103_silent_for_direct_parameter_mutation' (23374) panicked at rust/tcl-compiler/src/shimmer/sharing.rs:523:36:
+---- shimmer::sharing::tests::s103_silent_for_upvar_aliased_name stdout ----
+thread 'shimmer::sharing::tests::s103_silent_for_upvar_aliased_name' (23403) panicked at rust/tcl-compiler/src/shimmer/sharing.rs:523:36:
+---- shimmer::sharing::tests::s103_spans_anchor_mutation_copy_and_read stdout ----
+thread 'shimmer::sharing::tests::s103_spans_anchor_mutation_copy_and_read' (23410) panicked at rust/tcl-compiler/src/shimmer/sharing.rs:833:9:
+assertion `left == right` failed: []
+  left: 0
+ right: 1
+---- shimmer::source_context::tests::original_representation_consumers_keep_positive_reads_and_refuse_missing_foreign_input stdout ----
+thread 'shimmer::source_context::tests::original_representation_consumers_keep_positive_reads_and_refuse_missing_foreign_input' (23414) panicked at rust/tcl-compiler/src/shimmer/source_context.rs:224:9:
+---- shimmer::source_context::tests::original_representation_known_replacement_cannot_borrow_stock_conversion_hints stdout ----
+thread 'shimmer::source_context::tests::original_representation_known_replacement_cannot_borrow_stock_conversion_hints' (23417) panicked at rust/tcl-compiler/src/shimmer/source_context.rs:290:9:
+assertion failed: !super::super::find_shimmer_warnings_for_cu(&stock, &registry).is_empty()
+---- shimmer::thunking::tests::no_intra_iteration_s102_for_fresh_per_pass_variable stdout ----
+thread 'shimmer::thunking::tests::no_intra_iteration_s102_for_fresh_per_pass_variable' (23426) panicked at rust/tcl-compiler/src/shimmer/thunking.rs:793:37:
+---- shimmer::thunking::tests::no_intra_iteration_s102_for_uniform_self_reference stdout ----
+thread 'shimmer::thunking::tests::no_intra_iteration_s102_for_uniform_self_reference' (23427) panicked at rust/tcl-compiler/src/shimmer/thunking.rs:814:37:
+---- shimmer::thunking::tests::no_s102_for_array_element_conflation stdout ----
+thread 'shimmer::thunking::tests::no_s102_for_array_element_conflation' (23428) panicked at rust/tcl-compiler/src/shimmer/thunking.rs:991:37:
+---- shimmer::thunking::tests::no_s102_for_empty_accumulator_promotion stdout ----
+thread 'shimmer::thunking::tests::no_s102_for_empty_accumulator_promotion' (23429) panicked at rust/tcl-compiler/src/shimmer/thunking.rs:745:37:
+---- shimmer::thunking::tests::no_s102_for_non_self_referential_branchy_reset stdout ----
+thread 'shimmer::thunking::tests::no_s102_for_non_self_referential_branchy_reset' (23430) panicked at rust/tcl-compiler/src/shimmer/thunking.rs:961:37:
+---- shimmer::thunking::tests::no_s102_for_sibling_loops_with_different_types stdout ----
+thread 'shimmer::thunking::tests::no_s102_for_sibling_loops_with_different_types' (23432) panicked at rust/tcl-compiler/src/shimmer/thunking.rs:724:37:
+---- shimmer::thunking::tests::no_s102_for_traced_variable stdout ----
+thread 'shimmer::thunking::tests::no_s102_for_traced_variable' (23433) panicked at rust/tcl-compiler/src/shimmer/thunking.rs:1043:37:
+---- shimmer::thunking::tests::s102_for_intra_iteration_oscillation stdout ----
+thread 'shimmer::thunking::tests::s102_for_intra_iteration_oscillation' (23436) panicked at rust/tcl-compiler/src/shimmer/thunking.rs:768:37:
+---- shimmer::thunking::tests::span_anchors_inside_loop_not_pre_loop_initialiser stdout ----
+thread 'shimmer::thunking::tests::span_anchors_inside_loop_not_pre_loop_initialiser' (23438) panicked at rust/tcl-compiler/src/shimmer/thunking.rs:898:37:
+---- shimmer::thunking::tests::thunking_detected_for_numeric_shimmer_masked_by_int_entry stdout ----
+thread 'shimmer::thunking::tests::thunking_detected_for_numeric_shimmer_masked_by_int_entry' (23439) panicked at rust/tcl-compiler/src/shimmer/thunking.rs:1069:37:
+---- shimmer::thunking::tests::thunking_detected_for_self_referential_branchy_oscillation stdout ----
+thread 'shimmer::thunking::tests::thunking_detected_for_self_referential_branchy_oscillation' (23440) panicked at rust/tcl-compiler/src/shimmer/thunking.rs:932:37:
+---- shimmer::thunking::tests::thunking_detected_for_two_type_loop_body stdout ----
+thread 'shimmer::thunking::tests::thunking_detected_for_two_type_loop_body' (23441) panicked at rust/tcl-compiler/src/shimmer/thunking.rs:871:37:
+---- shimmer::thunking::tests::thunking_still_fires_for_untraced_control stdout ----
+thread 'shimmer::thunking::tests::thunking_still_fires_for_untraced_control' (23443) panicked at rust/tcl-compiler/src/shimmer/thunking.rs:1095:37:
+---- shimmer::use_site::tests::a_braced_argument_contributes_no_use_target stdout ----
+thread 'shimmer::use_site::tests::a_braced_argument_contributes_no_use_target' (23445) panicked at rust/tcl-compiler/src/shimmer/use_site.rs:1797:37:
+---- shimmer::use_site::tests::a_braced_argument_reads_only_where_the_callee_evaluates_it_in_frame stdout ----
+thread 'shimmer::use_site::tests::a_braced_argument_reads_only_where_the_callee_evaluates_it_in_frame' (23446) panicked at rust/tcl-compiler/src/shimmer/use_site.rs:1285:62:
+---- shimmer::use_site::tests::a_computed_constant_never_hides_a_conversion stdout ----
+thread 'shimmer::use_site::tests::a_computed_constant_never_hides_a_conversion' (23449) panicked at rust/tcl-compiler/src/shimmer/use_site.rs:1089:73:
+---- shimmer::use_site::tests::a_nested_conversion_in_a_loop_classifies_as_s101_like_the_direct_one stdout ----
+thread 'shimmer::use_site::tests::a_nested_conversion_in_a_loop_classifies_as_s101_like_the_direct_one' (23451) panicked at rust/tcl-compiler/src/shimmer/use_site.rs:1771:45:
+---- shimmer::use_site::tests::a_nested_conversion_in_an_assignment_is_visible_to_later_reads stdout ----
+thread 'shimmer::use_site::tests::a_nested_conversion_in_an_assignment_is_visible_to_later_reads' (23452) panicked at rust/tcl-compiler/src/shimmer/use_site.rs:1515:37:
+---- shimmer::use_site::tests::a_nested_conversion_is_visible_to_later_reads stdout ----
+thread 'shimmer::use_site::tests::a_nested_conversion_is_visible_to_later_reads' (23453) panicked at rust/tcl-compiler/src/shimmer/use_site.rs:1492:37:
+---- shimmer::use_site::tests::an_unknown_or_replaced_constructor_cannot_donate_native_range_representation stdout ----
+thread 'shimmer::use_site::tests::an_unknown_or_replaced_constructor_cannot_donate_native_range_representation' (23455) panicked at rust/tcl-compiler/src/shimmer/use_site.rs:1327:9:
+---- shimmer::use_site::tests::assign_value_lifts_the_same_substitutions_a_call_does stdout ----
+thread 'shimmer::use_site::tests::assign_value_lifts_the_same_substitutions_a_call_does' (23458) panicked at rust/tcl-compiler/src/shimmer/use_site.rs:1423:45:
+---- shimmer::use_site::tests::assign_value_nested_substitution_span_is_tight stdout ----
+thread 'shimmer::use_site::tests::assign_value_nested_substitution_span_is_tight' (23460) panicked at rust/tcl-compiler/src/shimmer/use_site.rs:1470:37:
+---- shimmer::use_site::tests::assign_value_substitution_is_reported_once stdout ----
+thread 'shimmer::use_site::tests::assign_value_substitution_is_reported_once' (23461) panicked at rust/tcl-compiler/src/shimmer/use_site.rs:1454:37:
+---- shimmer::use_site::tests::incr_amount_string_var_shimmers stdout ----
+thread 'shimmer::use_site::tests::incr_amount_string_var_shimmers' (23465) panicked at rust/tcl-compiler/src/shimmer/use_site.rs:1823:9:
+---- shimmer::use_site::tests::loop_invariant_single_target_downgrades_to_s100 stdout ----
+thread 'shimmer::use_site::tests::loop_invariant_single_target_downgrades_to_s100' (23466) panicked at rust/tcl-compiler/src/shimmer/use_site.rs:1727:41:
+---- shimmer::use_site::tests::no_shimmer_for_foreach_element_used_as_list_in_cmd_sub stdout ----
+thread 'shimmer::use_site::tests::no_shimmer_for_foreach_element_used_as_list_in_cmd_sub' (23467) panicked at rust/tcl-compiler/src/shimmer/use_site.rs:1585:37:
+---- shimmer::use_site::tests::no_shimmer_for_foreach_header_with_pure_string stdout ----
+thread 'shimmer::use_site::tests::no_shimmer_for_foreach_header_with_pure_string' (23468) panicked at rust/tcl-compiler/src/shimmer/use_site.rs:1661:41:
+---- shimmer::use_site::tests::no_shimmer_for_foreach_header_with_real_list stdout ----
+thread 'shimmer::use_site::tests::no_shimmer_for_foreach_header_with_real_list' (23469) panicked at rust/tcl-compiler/src/shimmer/use_site.rs:1642:37:
+---- shimmer::use_site::tests::no_shimmer_iterating_a_regexp_inline_result stdout ----
+thread 'shimmer::use_site::tests::no_shimmer_iterating_a_regexp_inline_result' (23474) panicked at rust/tcl-compiler/src/shimmer/use_site.rs:2153:37:
+---- shimmer::use_site::tests::no_shimmer_iterating_an_lsearch_all_result stdout ----
+thread 'shimmer::use_site::tests::no_shimmer_iterating_an_lsearch_all_result' (23493) panicked at rust/tcl-compiler/src/shimmer/use_site.rs:2193:37:
+---- shimmer::use_site::tests::no_shimmer_measuring_a_varname_less_regsub_result stdout ----
+thread 'shimmer::use_site::tests::no_shimmer_measuring_a_varname_less_regsub_result' (23523) panicked at rust/tcl-compiler/src/shimmer/use_site.rs:2211:37:
+---- shimmer::use_site::tests::no_use_site_shimmer_for_array_element_conflation stdout ----
+thread 'shimmer::use_site::tests::no_use_site_shimmer_for_array_element_conflation' (23525) panicked at rust/tcl-compiler/src/shimmer/use_site.rs:1843:37:
+---- shimmer::use_site::tests::no_use_site_shimmer_in_a_braced_call_argument stdout ----
+thread 'shimmer::use_site::tests::no_use_site_shimmer_in_a_braced_call_argument' (23526) panicked at rust/tcl-compiler/src/shimmer/use_site.rs:1242:37:
+---- shimmer::use_site::tests::reselected_alias_reads_use_the_actual_statement_cell stdout ----
+thread 'shimmer::use_site::tests::reselected_alias_reads_use_the_actual_statement_cell' (23527) panicked at rust/tcl-compiler/src/shimmer/use_site.rs:957:43:
+---- shimmer::use_site::tests::selected_length_cost_distinguishes_conversion_from_preserved_numeric_cache stdout ----
+thread 'shimmer::use_site::tests::selected_length_cost_distinguishes_conversion_from_preserved_numeric_cache' (23528) panicked at rust/tcl-compiler/src/shimmer/use_site.rs:1028:49:
+---- shimmer::use_site::tests::shimmer_detected_for_committed_value_as_list_in_cmd_sub stdout ----
+thread 'shimmer::use_site::tests::shimmer_detected_for_committed_value_as_list_in_cmd_sub' (23530) panicked at rust/tcl-compiler/src/shimmer/use_site.rs:1602:37:
+---- shimmer::use_site::tests::shimmer_detected_for_dict_for_header_argument stdout ----
+thread 'shimmer::use_site::tests::shimmer_detected_for_dict_for_header_argument' (23532) panicked at rust/tcl-compiler/src/shimmer/use_site.rs:1692:37:
+---- shimmer::use_site::tests::shimmer_detected_for_dict_map_header_argument stdout ----
+thread 'shimmer::use_site::tests::shimmer_detected_for_dict_map_header_argument' (23533) panicked at rust/tcl-compiler/src/shimmer/use_site.rs:1707:37:
+---- shimmer::use_site::tests::shimmer_detected_for_foreach_header_list_argument stdout ----
+thread 'shimmer::use_site::tests::shimmer_detected_for_foreach_header_list_argument' (23534) panicked at rust/tcl-compiler/src/shimmer/use_site.rs:1627:37:
+---- shimmer::use_site::tests::shimmer_detected_for_int_used_with_lindex stdout ----
+thread 'shimmer::use_site::tests::shimmer_detected_for_int_used_with_lindex' (23535) panicked at rust/tcl-compiler/src/shimmer/use_site.rs:1161:37:
+---- shimmer::use_site::tests::shimmer_detected_for_lmap_header_list_argument stdout ----
+thread 'shimmer::use_site::tests::shimmer_detected_for_lmap_header_list_argument' (23536) panicked at rust/tcl-compiler/src/shimmer/use_site.rs:1675:37:
+---- shimmer::use_site::tests::shimmer_detected_for_string_used_with_incr stdout ----
+thread 'shimmer::use_site::tests::shimmer_detected_for_string_used_with_incr' (23538) panicked at rust/tcl-compiler/src/shimmer/use_site.rs:1116:9:
+---- shimmer::use_site::tests::shimmer_detected_through_interp_alias_to_lindex stdout ----
+thread 'shimmer::use_site::tests::shimmer_detected_through_interp_alias_to_lindex' (23539) panicked at rust/tcl-compiler/src/shimmer/use_site.rs:1929:9:
+---- shimmer::use_site::tests::shimmer_span_is_tight_around_assign_value_substitution_argument stdout ----
+thread 'shimmer::use_site::tests::shimmer_span_is_tight_around_assign_value_substitution_argument' (23540) panicked at rust/tcl-compiler/src/shimmer/use_site.rs:1538:32:
+---- shimmer::use_site::tests::shimmer_span_is_tight_around_call_argument stdout ----
+thread 'shimmer::use_site::tests::shimmer_span_is_tight_around_call_argument' (23541) panicked at rust/tcl-compiler/src/shimmer/use_site.rs:1207:32:
+---- shimmer::use_site::tests::shimmer_span_is_tight_per_argument_not_reused_across_args stdout ----
+thread 'shimmer::use_site::tests::shimmer_span_is_tight_per_argument_not_reused_across_args' (23542) panicked at rust/tcl-compiler/src/shimmer/use_site.rs:1562:32:
+---- shimmer::use_site::tests::shimmer_still_detected_iterating_a_bare_regexp_result stdout ----
+thread 'shimmer::use_site::tests::shimmer_still_detected_iterating_a_bare_regexp_result' (23543) panicked at rust/tcl-compiler/src/shimmer/use_site.rs:2173:37:
+---- shimmer::use_site::tests::string_first_last_needle_and_haystack_shimmer_list_not_bytearray stdout ----
+thread 'shimmer::use_site::tests::string_first_last_needle_and_haystack_shimmer_list_not_bytearray' (23544) panicked at rust/tcl-compiler/src/shimmer/use_site.rs:1971:17:
+---- shimmer::use_site::tests::string_map_nocase_keeps_hint_alignment stdout ----
+thread 'shimmer::use_site::tests::string_map_nocase_keeps_hint_alignment' (23547) panicked at rust/tcl-compiler/src/shimmer/use_site.rs:2047:9:
+---- shimmer::use_site::tests::string_map_subject_shimmers_list_and_bytearray stdout ----
+thread 'shimmer::use_site::tests::string_map_subject_shimmers_list_and_bytearray' (23548) panicked at rust/tcl-compiler/src/shimmer/use_site.rs:2002:9:
+---- shimmer::use_site::tests::string_replace_reverse_subject_shimmers_list_not_bytearray stdout ----
+thread 'shimmer::use_site::tests::string_replace_reverse_subject_shimmers_list_not_bytearray' (23549) panicked at rust/tcl-compiler/src/shimmer/use_site.rs:2069:13:
+---- shimmer::use_site::tests::string_subject_shimmers_list_but_not_bytearray stdout ----
+thread 'shimmer::use_site::tests::string_subject_shimmers_list_but_not_bytearray' (23550) panicked at rust/tcl-compiler/src/shimmer/use_site.rs:1864:9:
+---- shimmer::use_site::tests::unchanged_store_bytes_do_not_preserve_a_callback_coerced_representation stdout ----
+thread 'shimmer::use_site::tests::unchanged_store_bytes_do_not_preserve_a_callback_coerced_representation' (23551) panicked at rust/tcl-compiler/src/shimmer/use_site.rs:939:49:
+---- shimmer::use_site::tests::use_site_shimmer_fires_in_a_nested_call_argument stdout ----
+thread 'shimmer::use_site::tests::use_site_shimmer_fires_in_a_nested_call_argument' (23552) panicked at rust/tcl-compiler/src/shimmer/use_site.rs:1225:37:
+---- shimmer::use_site::tests::use_site_shimmer_still_fires_for_scalar_control stdout ----
+thread 'shimmer::use_site::tests::use_site_shimmer_still_fires_for_scalar_control' (23554) panicked at rust/tcl-compiler/src/shimmer/use_site.rs:1889:37:
+test result: FAILED. 94 passed; 120 failed; 0 ignored; 0 measured; 10237 filtered out; finished in 63.77s

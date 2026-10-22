@@ -1,0 +1,6 @@
+
+running 1 test
+test parse_cut::tests::deep_index_cut_preserves_outer_anchor_and_exact_inner_term ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 584 filtered out; finished in 0.11s
+

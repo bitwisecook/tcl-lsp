@@ -1,0 +1,68 @@
+
+running 6 tests
+test a_pack_file_folds_a_call_site_in_the_optimiser ... FAILED
+test a_pack_timing_hook_controls_a_live_command_prefix_position ... ok
+test a_derived_body_runs_under_the_release_the_call_is_analysed_under ... FAILED
+test the_loader_carries_the_declared_inputs ... ok
+test without_a_host_the_installed_pack_simply_does_not_fold ... ok
+test a_reference_body_answers_through_the_host_as_the_procedure_does ... FAILED
+
+failures:
+
+---- a_pack_file_folds_a_call_site_in_the_optimiser stdout ----
+
+thread 'a_pack_file_folds_a_call_site_in_the_optimiser' (3805) panicked at rust/tcl-spectcl/tests/pack_source_e2e.rs:185:9:
+assertion `left == right` failed: DSL 1
+  left: []
+ right: ["5"]
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<alloc::vec::Vec<alloc::string::String>, alloc::vec::Vec<alloc::string::String>>
+   4: pack_source_e2e::a_pack_file_folds_a_call_site_in_the_optimiser
+   5: pack_source_e2e::a_pack_file_folds_a_call_site_in_the_optimiser::{closure#0}
+   6: <pack_source_e2e::a_pack_file_folds_a_call_site_in_the_optimiser::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- a_derived_body_runs_under_the_release_the_call_is_analysed_under stdout ----
+
+thread 'a_derived_body_runs_under_the_release_the_call_is_analysed_under' (3804) panicked at rust/tcl-spectcl/tests/pack_source_e2e.rs:481:9:
+assertion `left == right` failed: tcl8.6
+  left: None
+ right: Some("xy")
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<core::option::Option<&str>, core::option::Option<&str>>
+   4: pack_source_e2e::a_derived_body_runs_under_the_release_the_call_is_analysed_under
+   5: pack_source_e2e::a_derived_body_runs_under_the_release_the_call_is_analysed_under::{closure#0}
+   6: <pack_source_e2e::a_derived_body_runs_under_the_release_the_call_is_analysed_under::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- a_reference_body_answers_through_the_host_as_the_procedure_does stdout ----
+
+thread 'a_reference_body_answers_through_the_host_as_the_procedure_does' (3841) panicked at rust/tcl-spectcl/tests/pack_source_e2e.rs:389:9:
+assertion `left == right` failed: proc vendor::f {x} {expr {$x * 2}}
+vendor::f 21
+  left: None
+ right: Some("42")
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<core::option::Option<&str>, core::option::Option<&str>>
+   4: pack_source_e2e::a_reference_body_answers_through_the_host_as_the_procedure_does
+   5: pack_source_e2e::a_reference_body_answers_through_the_host_as_the_procedure_does::{closure#0}
+   6: <pack_source_e2e::a_reference_body_answers_through_the_host_as_the_procedure_does::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+
+failures:
+    a_derived_body_runs_under_the_release_the_call_is_analysed_under
+    a_pack_file_folds_a_call_site_in_the_optimiser
+    a_reference_body_answers_through_the_host_as_the_procedure_does
+
+test result: FAILED. 3 passed; 3 failed; 0 ignored; 0 measured; 0 filtered out; finished in 7.17s
+

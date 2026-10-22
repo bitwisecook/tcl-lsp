@@ -1,0 +1,9 @@
+{"scheduled":"2026-10-21T15:18:00Z",
+ "change_since_previous_report":{"integrated_LSP":0,"total_baseline_delta":0,"effective_delta":0,"verified_complete":0},
+ "admissions":{},
+ "committed":{"9a0e063186":"resolution-oracles workflow: runner.temp moved out of job env (GitHub rejected the file)","75c67fa555":"user decisions: BIG-IP LSP units now in scope; validation pushes progress during runs","d1b8739654":"list of the 35 BIG-IP LSP units"},
+ "validation_feed":"Validation agent (current-state.md): original 850 LSP selectors 717/133 vs capture48 719/131 (2 pass-to-fail: Core depth-exhaustion stack overflow, DB memo unwrap); CI 39616304947 cannot compile runtime/rust (StringOperand arm); WASM smoke 6 fails, WASI host 7 fails, VS Code TS6133/Prettier blockers, 2 carried Server timeouts, eval_loader 29/30, clippy 776 compiler errors, fmt 36 hunks; python lint passes",
+ "routing":{"vm-runtime agent":"StringOperand compile break (P0), eval_loader eda_microchip line","compiler agent":"fmt, clippy, whole-workspace checks","lsp agent":"two pass-to-fail losses, WASM smoke, WASI host, Server timeouts, link 136","bigip lsp agent":"VS Code TS6133 and Prettier blockers, 35 BIG-IP units"},
+ "in_progress":{"vm-runtime agent":"active","compiler agent":"active","lsp agent":"active","bigip lsp agent":"active (started 15:00Z)"},
+ "disk":"2.1 GB free -> removed superseded rlibs (newest per crate kept) -> 4.1 GB",
+ "next_report_utc":"2026-10-21T15:52:00Z"}

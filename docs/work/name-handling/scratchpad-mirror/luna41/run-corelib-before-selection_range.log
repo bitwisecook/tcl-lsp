@@ -1,0 +1,30 @@
+test selection_range::tests::analysis_chain_orders_inner_body_before_outer_class ... ok
+test selection_range::tests::analysis_chain_adds_enclosing_proc_body ... ok
+test selection_range::tests::analysis_chain_skips_body_when_cursor_outside ... ok
+test selection_range::tests::chain_is_strictly_nested_for_mid_line_body ... ok
+test selection_range::tests::command_segment_emitted_with_leading_whitespace ... ok
+test selection_range::tests::command_segment_does_not_split_literal_semicolon_in_braces ... ok
+test selection_range::tests::command_segment_inserted_between_word_and_line_with_semicolon ... ok
+test selection_range::tests::command_segment_omitted_when_coincident_with_line ... ok
+test selection_range::tests::command_segment_trims_whitespace ... ok
+test selection_range::tests::command_segment_uses_segmenter_between_semicolons ... ok
+test selection_range::tests::aliased_registry_body_and_nested_substitution_choose_inner_command ... ok
+test selection_range::tests::cursor_in_whitespace_still_emits_line_and_doc_ranges ... ok
+test selection_range::tests::continuation_and_multiline_bracket_cursor_keep_command_parent_nested ... ok
+test selection_range::tests::empty_source_still_yields_a_document_range ... ok
+test selection_range::tests::original_body_ranges_keep_named_and_nameless_class_workers ... FAILED
+test selection_range::tests::command_substitutions_choose_the_innermost_multiline_command_once ... ok
+test selection_range::tests::original_body_ranges_refuse_stale_configuration_and_foreign_headers ... ok
+test selection_range::tests::original_selection_uses_retained_bodies_and_declines_stale_body_roles ... ok
+test selection_range::tests::parent_indices_form_outward_chain ... ok
+test selection_range::tests::nested_proc_command_is_innermost_with_and_without_analysis ... ok
+test selection_range::tests::selection_range_chain_grows_outward ... ok
+test selection_range::tests::original_body_ranges_keep_opaque_and_repeated_declaration_owners ... ok
+---- selection_range::tests::original_body_ranges_keep_named_and_nameless_class_workers stdout ----
+thread 'selection_range::tests::original_body_ranges_keep_named_and_nameless_class_workers' (17245) panicked at rust/tcl-lsp-core/src/selection_range.rs:671:71:
+called `Option::unwrap()` on a `None` value
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+test result: FAILED. 21 passed; 1 failed; 0 ignored; 0 measured; 3463 filtered out; finished in 40.55s

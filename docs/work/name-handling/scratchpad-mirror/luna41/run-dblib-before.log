@@ -1,0 +1,209 @@
+test compiler_snapshot_memo_tests::body_memo_registry_identity_preserves_authored_overrides_and_pins ... ok
+test compiler_snapshot_memo_tests::original_callback_alias_diagnostics_keep_target_and_separate_counts ... ok
+test compiler_snapshot_memo_tests::original_callback_alias_database_refuses_deleted_and_unowned_horizons ... ok
+test compiler_snapshot_memo_tests::same_name_body_memos_preserve_the_selected_execution_snapshot ... ok
+test compiler_snapshot_memo_tests::original_callback_alias_external_headers_use_held_target_slot ... ok
+test original_optimiser_memo_transport_tests::a_legacy_lattice_key_cannot_replace_a_later_original_worker_request ... ok
+test original_optimiser_memo_transport_tests::body_optimiser_memo_retains_the_actual_optional_worker_dialect ... FAILED
+test original_optimiser_memo_transport_tests::isolated_body_report_and_legacy_projection_share_the_actual_lowering_pass ... ok
+test original_optimiser_memo_transport_tests::legacy_equal_capsules_cannot_occupy_original_report_memo_keys ... FAILED
+test original_optimiser_memo_transport_tests::original_report_keys_keep_actual_evaluator_context_across_neutral_capsules ... FAILED
+test original_project_callback_projection_tests::supplied_project_callback_projection_matches_tracked_headers_and_source_barriers ... ok
+test original_project_callback_projection_tests::supplied_project_callback_projection_reads_current_exact_project_headers ... ok
+test original_project_callback_projection_tests::supplied_project_callback_projection_refuses_foreign_images_inputs_and_horizons ... ok
+test original_project_callback_projection_tests::supplied_project_callbacks_refuse_unavailable_generation_with_original_receipts ... ok
+test original_tracked_metadata_tests::tracked_document_input_keeps_keyed_availability_on_the_same_command_store ... ok
+test original_project_callback_projection_tests::legacy_project_advice_requires_positive_retained_logical_input ... ok
+test original_tracked_metadata_tests::tracked_document_input_refuses_unavailable_generation_before_any_source_walk ... ok
+test original_tracked_metadata_tests::tracked_document_input_reloads_actual_pack_roles_and_refuses_stale_grammar ... ok
+test original_uncached_metadata_tests::uncached_compiler_advice_preserves_original_diagnostic_context ... FAILED
+test original_uncached_metadata_tests::uncached_source_units_retain_actual_availability_and_source_currency ... ok
+test project_call_inputs::tests::source_dispatch_bounds_use_original_paths_and_keep_dynamic_coverage_open ... FAILED
+test project_call_inputs::tests::supplied_project_callers_keep_per_file_body_roles_and_withdraw_unavailable_contributors ... FAILED
+test project_call_inputs::tests::supplied_project_evidence_keeps_header_cutoffs_and_avoids_document_deep_queries ... FAILED
+test project_call_inputs::tests::supplied_source_components_keep_selected_paths_and_dynamic_dispatch_withdrawals ... FAILED
+test project_source_inputs::tests::configured_proc_source_headers_defer_body_effects_and_keep_unknown_hook_effects ... ok
+test project_source_inputs::tests::configured_project_diagnostics_do_not_default_missing_native_members ... ok
+test project_source_inputs::tests::configured_project_diagnostics_use_actual_foreign_headers_for_direct_calls_and_callbacks ... ok
+test project_source_inputs::tests::configured_project_headers_and_factories_preserve_the_structure_tier_firewall ... FAILED
+test project_source_inputs::tests::configured_project_headers_keep_pack_definers_and_withdraw_changed_source_metadata ... ok
+test original_tracked_metadata_tests::tracked_source_units_share_checked_input_and_memoized_procedure_grammar has been running for over 60 seconds
+test project_source_inputs::tests::project_factory_hints_preserve_duplicate_provider_ambiguity_in_every_order ... FAILED
+test project_source_inputs::tests::supplied_callback_headers_use_the_librarys_checked_input_and_body_free_signature ... ok
+test original_tracked_metadata_tests::tracked_source_units_share_checked_input_and_memoized_procedure_grammar ... FAILED
+test project_source_inputs::tests::supplied_factory_hints_require_every_members_source_owner ... FAILED
+test project_source_inputs::tests::supplied_logical_arities_require_every_members_source_owner ... ok
+test project_source_inputs::tests::supplied_factory_oracles_require_current_file_inputs_without_a_derived_query_cycle ... FAILED
+test project_source_inputs::tests::supplied_project_headers_keep_unavailable_members_as_lookup_barriers ... ok
+test project_token_inputs::tests::project_class_collection_display_keeps_original_container_and_receiver_paths ... FAILED
+test project_token_inputs::tests::project_class_collection_display_retains_foreign_getter_unknown_barrier ... ok
+test project_token_inputs::tests::project_class_collection_field_display_uses_original_declaration_and_receiver_side ... FAILED
+test project_token_inputs::tests::project_class_display_keeps_original_factory_and_named_instance_cards ... FAILED
+test project_token_inputs::tests::project_class_foreign_equal_content_unknown_inventory_stays_terminal ... FAILED
+test project_token_inputs::tests::project_class_inherited_display_does_not_collapse_distinct_equal_content_files ... FAILED
+test project_token_inputs::tests::project_configurable_display_preserves_cross_file_factory_positive ... FAILED
+test project_token_inputs::tests::project_class_display_does_not_recover_refused_receipts_from_report_maps ... FAILED
+test project_token_inputs::tests::project_source_roles_bind_original_optional_formals_and_keep_foreign_class_barriers ... ok
+test project_token_inputs::tests::project_token_hints_deduplicate_actual_file_owners_without_merging_equal_labels ... ok
+test project_token_inputs::tests::project_token_hints_withdraw_when_another_members_source_owner_is_unavailable ... FAILED
+test project_token_inputs::tests::project_tokens_keep_each_files_pack_roles_and_withdraw_changed_availability ... ok
+test project_token_inputs::tests::supplied_project_cards_require_complete_unambiguous_current_file_mapping ... FAILED
+test project_token_inputs::tests::supplied_project_indexes_keep_the_structure_only_firewall_across_source_edits ... ok
+test readonly_source_optimisation_owner_tests::source_optimisation_certificates_retain_unknown_world_hazards ... FAILED
+test tests::a_completing_callee_reaches_the_optimiser_memo ... FAILED
+test tests::a_key_that_installs_is_reported_again_if_it_misses_later ... ok
+test tests::body_cache_gate_is_per_body_and_whitespace_aware ... ok
+test tests::body_edit_recomputes_one_item ... FAILED
+test tests::callback_arity_args_catchall_is_silent ... ok
+test tests::callback_arity_braced_prefix_bakes_extra_args_exact_match_is_silent ... ok
+test project_token_inputs::tests::project_source_roles_select_current_call_declaration_and_formals ... FAILED
+test tests::callback_arity_braced_prefix_bakes_extra_args_too_few ... ok
+test tests::callback_arity_braced_prefix_bakes_extra_args_too_many ... ok
+test tests::callback_arity_braced_prefix_dynamic_head_is_never_checked ... ok
+test tests::callback_arity_correct_is_silent ... ok
+test tests::callback_arity_closed_tk_descriptors_do_not_select_local_headers ... ok
+test tests::callback_arity_mime_getbody_command_atleast_one ... ok
+test tests::callback_arity_mismatch_draws_e002 ... ok
+test tests::callback_arity_namespace_unknown_relative_trigger_does_not_borrow_installer_frame ... ok
+test tests::callback_arity_namespace_unknown_zero_param_draws_e003 ... ok
+test tests::callback_arity_option_value_exactly_checked ... ok
+test tests::callback_arity_package_unknown_variadic_handler_is_silent ... ok
+test tests::callback_arity_struct_graph_walk_command_checked ... ok
+test tests::callback_arity_struct_tree_walkproc_checked ... ok
+test tests::callback_arity_tcllib_calculus_func_arity_checked ... ok
+test tests::callback_arity_tk_scale_command_arity_checked ... ok
+test tests::callback_arity_too_many_draws_e003 ... ok
+test tests::callback_arity_unknown_appended_never_fires ... ok
+test tests::callback_arity_foreign_library_source_contexts_do_not_select_local_headers ... ok
+test tests::check_diagnostics_rerun_whole_file_on_body_edit ... FAILED
+test tests::compilation_unit_shared_across_consumers ... ok
+test tests::compiler_check_diagnostics_matches_uncached ... ok
+test tests::compiler_check_memo_covers_method_and_body_unit_checks ... FAILED
+test tests::compiler_check_o122_tailrec_memo_matches_uncached ... FAILED
+test tests::compiler_taint_replay_status_is_retained_by_memo_and_direct_paths ... ok
+test tests::configured_taint_checks_consume_the_solve_original_module_owner ... FAILED
+test tests::cross_file_arity_abstains_for_computed_parameter_lists ... ok
+test tests::compiler_check_incremental_matches_fresh_under_edits has been running for over 60 seconds
+test tests::cross_file_arity_edge_cases ... ok
+test tests::cross_file_arity_honors_disabled_code ... ok
+test tests::cross_file_arity_in_command_substitution ... FAILED
+test tests::cross_file_arity_required_after_default_forces_exact_count ... ok
+test tests::cross_file_arity_skips_expanded_call ... ok
+test tests::cross_file_arity_suppressed_for_mixed_proc_nonproc_tail ... ok
+test tests::cross_file_arity_survives_w123_disabled ... ok
+test tests::cross_file_call_sites::an_unreadable_dispatch_in_a_sourced_library_clears_the_sourcing_files_fold ... FAILED
+test tests::cross_file_call_sites::an_unreadable_dispatch_in_an_unlinked_file_leaves_the_fold_alone ... FAILED
+test tests::cross_file_call_sites::an_unrelated_file_reusing_a_proc_name_does_not_poison_the_seed ... FAILED
+test tests::cross_file_call_sites::caller_in_another_file_agreeing_still_folds ... FAILED
+test tests::cross_file_call_sites::caller_in_another_file_with_a_differing_literal_retracts_the_fold ... FAILED
+test tests::cross_file_call_sites::dispatch_components_are_computed_once_per_project_revision ... ok
+test tests::cross_file_call_sites::dispatch_reach_is_the_shared_source_component_merge ... ok
+test tests::cross_file_call_sites::evidence_backdates_across_an_unrelated_body_edit ... ok
+test tests::cross_file_call_sites::slice_carries_only_other_files_calls_to_this_files_procs ... FAILED
+test tests::cross_file_in_proc_instance_method_callback_arity ... FAILED
+test tests::cross_file_object_dispatch_resolves_via_project_index ... FAILED
+test tests::document_symbols_match_direct ... ok
+test tests::editing_text_recomputes ... ok
+test tests::execution_trace_dynamic_and_malformed_operation_lists_abstain ... ok
+test tests::execution_trace_source_counts_keep_unavailable_future_frame ... ok
+test tests::extra_commands_config_suppresses_w123 ... ok
+test tests::file_analysis_carries_declared_targets ... ok
+test tests::file_analysis_incremental_carries_bigip_version_override ... FAILED
+test tests::file_analysis_incremental_matches_full ... ok
+test tests::file_analysis_matches_direct_analyse ... ok
+test tests::file_decls_match_file_analysis ... ok
+test tests::folding_matches_direct ... ok
+test tests::folding_ranges_memoised_across_repeat_queries ... FAILED
+test tests::formal_count_project_headers_keep_the_selected_c_and_jim_contract ... ok
+test tests::fresh_compiler_document_retains_actual_input_and_selected_registry ... ok
+test tests::function_lattice_key_keeps_the_exact_normalized_lexer_config ... ok
+test tests::function_lattice_memoises_param_constant_procs ... FAILED
+test tests::function_lattice_retains_supplied_availability_and_refuses_missing_or_foreign_input ... FAILED
+test tests::function_lattice_reused_on_body_shift ... FAILED
+test tests::function_lattice_reused_on_whole_file_shift ... FAILED
+test tests::function_lattice_semantic_bundle_uses_retained_availability ... ok
+test tests::function_optimisations_reused_on_unrelated_edit ... FAILED
+test tests::instance_variable_existence_guard_does_not_fold_on_either_check_path ... FAILED
+test tests::item_sigs_track_signatures ... ok
+test tests::item_tree_recomputes_on_edit ... ok
+test tests::logical_callback_project_headers_keep_installer_operand_effects_unknown ... ok
+test tests::logical_callback_project_headers_preserve_selected_source_occupants ... ok
+test tests::logical_callback_project_headers_use_callback_scope_and_skip_deleted_alternatives ... FAILED
+test tests::logical_callback_source_receipts_replace_reporting_count_and_tail_joins ... ok
+test tests::logical_callback_source_slots_preserve_namespace_order_and_missing_project_inputs ... FAILED
+test tests::logical_callback_source_unknown_mutations_keep_unresolved_alternatives ... ok
+test tests::logical_direct_project_headers_do_not_depend_on_unknown_command_reporting ... ok
+test tests::lower_proc_body_reused_on_unrelated_edit ... FAILED
+test tests::memoised_lattices_are_shared_not_deep_copied_across_builds ... FAILED
+test tests::merged_role_index_equals_the_all_at_once_build ... FAILED
+test tests::method_body_checks_invalidate_on_edit ... FAILED
+test tests::method_body_edit_recomputes_one_item ... FAILED
+test tests::mixed_execution_trace_source_counts_do_not_issue_a_future_lookup ... ok
+test tests::original_callback_diagnostics_keep_typed_subject_and_ignore_mutable_counts ... ok
+test tests::original_callback_missing_future_lookup_declines_reporting_candidates ... ok
+test tests::original_callback_signature_gap_retains_disjoint_source_headers ... ok
+test tests::original_callback_signature_query_updates_headers_without_tail_substitution ... ok
+test tests::original_db_token_roles_keep_opaque_declarations_and_full_caller_currency ... ok
+test tests::original_document_policy_key_admits_actual_input_and_root_bom_geometry ... ok
+test tests::original_document_policy_key_refuses_foreign_or_changed_full_input ... ok
+test tests::original_event_lattice_cache_retains_conditional_entry_and_reuses_same_source ... FAILED
+test tests::original_event_lattice_key_rejects_foreign_source_body_config_and_registry ... ok
+test tests::original_procedure_facts_retain_each_current_declaration_site ... ok
+test tests::original_project_diagnostics_select_opaque_call_slots_and_namespace_priority ... ok
+test tests::original_project_headers_keep_opaque_slots_and_body_free_arity ... ok
+test tests::original_standalone_compiler_document_keeps_root_and_later_bom_roles ... ok
+test tests::proc_summary_cascade_reused_on_unrelated_edit ... FAILED
+test tests::project_command_arities_firewall ... ok
+test tests::project_diagnostics_emits_cross_file_arity ... ok
+test tests::project_diagnostics_incremental_matches_fresh_both_files_edited has been running for over 60 seconds
+test tests::project_diagnostics_incremental_matches_fresh_both_files_edited ... ok
+test tests::project_diagnostics_incremental_matches_fresh_under_edits has been running for over 60 seconds
+test tests::project_diagnostics_incremental_matches_fresh_under_edits ... ok
+test tests::project_diagnostics_per_symbol_cutoff ... ok
+test tests::project_diagnostics_resolves_cross_file_class ... ok
+test tests::project_diagnostics_suppresses_cross_file_w123 ... ok
+test tests::project_direct_logical_calls_keep_operand_mutations_unresolved ... ok
+test tests::project_direct_logical_calls_keep_root_recipe_and_missing_namespace_unknown ... FAILED
+test tests::project_direct_logical_calls_use_original_occurrences_and_namespace_slots ... ok
+test tests::project_direct_logical_headers_do_not_restore_deleted_local_slots ... FAILED
+test tests::project_direct_logical_headers_preserve_source_occupants ... ok
+test tests::project_index_abstains_on_duplicate_class_name ... ok
+test tests::project_indexes_backdate_on_a_role_neutral_body_edit ... FAILED
+test tests::project_indexes_never_touch_the_deep_tier ... ok
+test tests::project_proc_names_firewall ... ok
+test tests::project_procedure_facts_keep_missing_file_inputs_unavailable ... ok
+test tests::qualified_callback_arity_keeps_same_tailed_namespaces_separate ... ok
+test tests::semantic_tokens_match_direct ... ok
+test tests::semantic_tokens_retags_constant_regex_source_true_positive ... FAILED
+test tests::semantic_tokens_shares_incremental_analysis_with_diagnostics ... ok
+test tests::semantic_tokens_skips_retag_for_non_constant_pattern_true_negative ... ok
+test tests::sidecar_stubs_reach_incremental_proc_bodies_and_invalidate ... ok
+test tests::summary_memo_observes_callee_edits_through_original_quoted_and_braced_heads has been running for over 60 seconds
+test tests::summary_memo_observes_callee_edits_through_original_quoted_and_braced_heads ... ok
+test tests::taint_cascade_matches_uncached_under_edits ... ok
+test tests::taint_cascade_reused_on_unrelated_edit ... FAILED
+test tests::tcl84_memoised_cfg_keeps_user_throw_call_fallthrough_reachable ... FAILED
+test tests::the_opt_projection_keeps_completion_and_defaults ... ok
+test tests::unchanged_body_reinterns_to_the_same_key_without_copying_its_text ... ok
+test value_transfer_parity::a_call_through_a_name_parameter_decides_in_the_editor ... FAILED
+test value_transfer_parity::a_lattice_that_read_another_procedure_reaches_the_checks_and_rewrites ... FAILED
+test value_transfer_parity::a_pack_edit_invalidates_the_lattice ... FAILED
+test value_transfer_parity::a_pool_thread_with_a_stale_host_answers_with_the_new_plan ... FAILED
+thread 'value_transfer_parity::a_rename_invalidates_every_summary' (20968) panicked at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/std/src/thread/local.rs:429:25:
+cannot access a Thread Local Storage value during or after destruction: AccessError
+
+thread 'value_transfer_parity::a_rename_invalidates_every_summary' (20968) panicked at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/std/src/thread/local.rs:429:25:
+cannot access a Thread Local Storage value during or after destruction: AccessError
+stack backtrace:
+   0:     0x55dd2dad9d91 - <<std[68c81ae915296b05]::sys::backtrace::BacktraceLock>::print::DisplayBacktrace as core[efd5e57aef94d71e]::fmt::Display>::fmt
+   1:     0x55dd2daf472a - core[efd5e57aef94d71e]::fmt::write
+   2:     0x55dd2dae0a1c - <std[68c81ae915296b05]::sys::stdio::unix::Stderr as core[efd5e57aef94d71e]::io::write::Write>::write_fmt
+thread 'value_transfer_parity::a_rename_invalidates_every_summary' (20968) panicked at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/std/src/thread/local.rs:429:25:
+cannot access a Thread Local Storage value during or after destruction: AccessError
+stack backtrace:
+   0:     0x55dd2dad9d91 - <<std[68c81ae915296b05]::sys::backtrace::BacktraceLock>::print::DisplayBacktrace as core[efd5e57aef94d71e]::fmt::Display>::fmt
+   1:     0x55dd2daf472a - core[efd5e57aef94d71e]::fmt::write
+   2:     0x55dd2dae0a1c - <std[68c81ae915296b05]::sys::stdio::unix::Stderr as core[efd5e57aef94d71e]::io::write::Write>::write_fmt
+thread 'value_transfer_parity::a_rename_invalidates_every_summary' (20968) panicked at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/core/src/panicking.rs:233:5:
+panic in a destructor during cleanup
+thread caused non-unwinding panic. aborting.

@@ -1,0 +1,6 @@
+
+running 1 test
+test registry_invocation::source_structure::tests::original_logical_payloads_keep_unicode_and_literal_sigils_without_native_names ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 10440 filtered out; finished in 3.13s
+

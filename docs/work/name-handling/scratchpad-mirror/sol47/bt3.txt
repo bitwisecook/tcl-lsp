@@ -1,0 +1,45 @@
+unlink_chunk
+malloc_consolidate
+_int_malloc
+__GI___libc_malloc
+<alloc::alloc::Global>::alloc_impl_runtime
+<alloc::alloc::Global as core::alloc::Allocator>::allocate
+<alloc::raw_vec::RawVecInner>::finish_grow
+<alloc::raw_vec::RawVecInner>::grow_amortized
+<alloc::raw_vec::RawVecInner<_>>::reserve::do_reserve_and_handle::<alloc::alloc::Global>
+<alloc::vec::Vec<tcl_compiler::command_binding::expression_preparation::SourceExpressionPreparation>>::reserve
+<alloc::vec::Vec<tcl_compiler::command_binding::expression_preparation::SourceExpressionPreparation>>::extend_trusted::<core::iter::adapters::cloned::Cloned<core::slice::iter::Iter<tcl_compiler::command_binding::expression_preparation::SourceExpressionPreparation>>>
+<alloc::vec::Vec<tcl_compiler::command_binding::expression_preparation::SourceExpressionPreparation> as alloc::vec::spec_extend::SpecExtend<tcl_compiler::command_binding::expression_preparation::SourceExpressionPreparation, core::iter::adapters::cloned::Cloned<core::slice::iter::Iter<tcl_compiler::command_binding::expression_preparation::SourceExpressionPreparation>>>>::spec_extend
+<alloc::vec::Vec<tcl_compiler::command_binding::expression_preparation::SourceExpressionPreparation> as alloc::vec::spec_extend::SpecExtend<&tcl_compiler::command_binding::expression_preparation::SourceExpressionPreparation, core::slice::iter::Iter<tcl_compiler::command_binding::expression_preparation::SourceExpressionPreparation>>>::spec_extend
+<[tcl_compiler::command_binding::expression_preparation::SourceExpressionPreparation] as alloc::slice::SpecCloneIntoVec<tcl_compiler::command_binding::expression_preparation::SourceExpressionPreparation, alloc::alloc::Global>>::clone_into
+<alloc::vec::Vec<tcl_compiler::command_binding::expression_preparation::SourceExpressionPreparation> as core::clone::Clone>::clone_from
+tcl_compiler::codegen::emitter::generate::generate
+tcl_compiler::codegen::emitter::codegen_function
+<tcl_compiler::codegen::CodegenCtx>::intern_script_locals
+<tcl_compiler::codegen::CodegenCtx>::release_compiles_each_loop
+<tcl_compiler::codegen::CodegenCtx>::release_compiled
+<tcl_compiler::codegen::CodegenCtx>::emit_call_inner
+<tcl_compiler::codegen::CodegenCtx>::emit_call::{closure#0}
+<tcl_compiler::codegen::CodegenCtx>::with_invocation_tokens::<(), <tcl_compiler::codegen::CodegenCtx>::emit_call::{closure#0}>
+<tcl_compiler::codegen::CodegenCtx>::emit_call
+<tcl_compiler::codegen::CodegenCtx>::emit_call_stmt
+<tcl_compiler::codegen::CodegenCtx>::emit_stmt_inner
+<tcl_compiler::codegen::CodegenCtx>::emit_stmt::{closure#1}
+<tcl_compiler::codegen::CodegenCtx>::with_invocation_tokens::<(), <tcl_compiler::codegen::CodegenCtx>::emit_stmt::{closure#1}>
+<tcl_compiler::codegen::CodegenCtx>::emit_stmt
+<tcl_compiler::codegen::CodegenCtx>::emit_stmt_with_start_cmd
+tcl_compiler::codegen::emitter::generate::emit_block_statements
+tcl_compiler::codegen::emitter::generate::emit_block
+tcl_compiler::codegen::emitter::generate::generate
+tcl_compiler::codegen::emitter::codegen_function
+<tcl_compiler::codegen::CodegenCtx>::intern_script_locals
+<tcl_compiler::codegen::CodegenCtx>::release_compiles_each_loop
+<tcl_compiler::codegen::CodegenCtx>::release_compiled
+<tcl_compiler::codegen::CodegenCtx>::emit_call_inner
+<tcl_compiler::codegen::CodegenCtx>::emit_call::{closure#0}
+<tcl_compiler::codegen::CodegenCtx>::with_invocation_tokens::<(), <tcl_compiler::codegen::CodegenCtx>::emit_call::{closure#0}>
+<tcl_compiler::codegen::CodegenCtx>::emit_call
+<tcl_compiler::codegen::CodegenCtx>::emit_call_stmt
+<tcl_compiler::codegen::CodegenCtx>::emit_stmt_inner
+<tcl_compiler::codegen::CodegenCtx>::emit_stmt::{closure#1}
+<tcl_compiler::codegen::CodegenCtx>::with_invocation_tokens::<(), <tcl_compiler::codegen::CodegenCtx>::emit_stmt::{closure#1}>

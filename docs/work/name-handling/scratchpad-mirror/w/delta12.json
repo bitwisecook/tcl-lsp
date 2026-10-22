@@ -1,0 +1,16 @@
+{
+ "scheduled": "2026-10-18T09:43:00Z",
+ "change_since_previous_report": {"integrated_LSP": 0, "total_baseline_delta": 0, "effective_delta": 0, "verified_complete": 0},
+ "admissions": {"integrations_37_40": {"status": "ADMITTED as verification progress", "regression_gate": "capture41 zero pass->fail vs capture36", "unit_delta": 0, "receipt": "docs/work/name-handling/handoff/reviews/resume-20261017-diagnosis/admission-mapping-integrations-37-40.json", "reason": "repairs, coverage, user-authorised test corrections, performance, lint; no catalogued unit newly implemented or completed"}},
+ "validation_recorded_at_capture": {
+  "integration41_candidate": {"commit": "c0437decf", "content": "named ensemble selection under seal premises (Luna-13 v3 ADMIT) + guard fixture correction", "build42": "PASS zero warnings", "targeted": "13/23; the six compiler seal tests that fail also fail without integration41 (pre-existing), the 404 family needed the auto_import fixtures"},
+  "integration42_candidate": {"commit": "db5a1ba9a", "content": "user-authorised rename auto_import fixture prelude (20 tests + 025) and C-faithful end-of-load unpositioned links (H2)", "build43": "running, then full guarded capture"}
+ },
+ "worklist": {"receipt": "docs/work/name-handling/handoff/reviews/resume-20261017-diagnosis/luna-14-WORKLIST.md", "partial_original_LSP_rows": 62, "in_scope_now": 36, "editor_host": 10, "compiler_owner": 14, "mixed": 1, "bigip_deferred": 1, "failures_without_partial_row": 63, "in_progress": ["lsp-signature-cursor-source-transport", "lsp-linked-logical-name-geometry", "lsp-semantic-logical-receiver-selector", "lsp-package-standalone-control-role-residue"]},
+ "user_decisions_since_previous_report": "user-decisions-20261018T0915Z.json (fix auto_import fixtures; H2 follows C Tcl)",
+ "queued_tclsh_correction": "a_forced_import_before_the_call_does_not_shadow_a_later_call_site asserts a call reaches ::dst::p; tclsh gives invalid command name — candidate under the 'correct to tclsh' policy, not yet applied",
+ "user_decisions_still_open": ["Compiler221", "DB921 identity", "Server102/103 freshness vs snapshot", "Server108 validation cost"],
+ "next_report_utc": "2026-10-18T10:14:00Z",
+ "green_PR": false,
+ "merge_or_issue_closure": false
+}

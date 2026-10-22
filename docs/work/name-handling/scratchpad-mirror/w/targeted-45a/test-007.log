@@ -1,0 +1,6 @@
+
+running 1 test
+test expr_lexer::original_expression_cursor_tests::original_expression_cursor_keeps_literal_comment_and_script_phases ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 584 filtered out; finished in 0.00s
+

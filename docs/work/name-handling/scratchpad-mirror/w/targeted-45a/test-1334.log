@@ -1,0 +1,6 @@
+
+running 1 test
+test registry_invocation::source_structure::tests::original_standalone_source_context_keeps_conditional_bodies_and_alias_order ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 10440 filtered out; finished in 1.08s
+

@@ -1,0 +1,3 @@
+   Compiling tcl-compiler v0.1.0 (/home/user/tcl-lsp/rust/tcl-compiler)
+    Finished `test` profile [unoptimized] target(s) in 2.35s
+  Executable tests/dataflow.rs (/home/user/tcl-lsp/target/debug/deps/dataflow-b7f63fa6494da441)

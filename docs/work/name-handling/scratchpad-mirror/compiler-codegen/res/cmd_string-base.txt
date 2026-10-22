@@ -1,0 +1,90 @@
+test bug_format_g_exponential_range ... FAILED
+test bug_format_hash_binary_prefix ... FAILED
+test bug_format_exponent_format ... FAILED
+test bug_format_positional_specifiers ... FAILED
+test bug_format_hash_decimal_prefix_tcl9 ... FAILED
+test bug_format_hash_octal_prefix_tcl9 ... FAILED
+test bug_format_trailing_incomplete_specifier ... FAILED
+test bug_format_zero_flag_on_float ... FAILED
+test bug_string_is_bad_option_with_trailing_arg ... FAILED
+test bug_string_is_integer_failindex_internal_space ... FAILED
+test format_bignum_conversions_issue_2162 ... FAILED
+test bug_string_match_bad_option ... ok
+test format_errors ... FAILED
+test append_command ... ok
+test format_fixed_width_bignums_issue_2163 ... FAILED
+test format_float_conversions ... FAILED
+test format_float_nonfinite_alternate_and_uppercase ... FAILED
+test format_i_family_modifiers_issue_2163 ... FAILED
+test format_fixed_unsigned_ignores_sign_flags_issue_2223 ... FAILED
+test format_bignum_modifier_is_rejected_in_tcl84_issue_2162 ... FAILED
+test format_integer_conversions ... FAILED
+test format_modified_percent_issue_2203 ... FAILED
+test format_pointer_conversion_keeps_the_lp64_width_issue_2163 ... FAILED
+test format_pointer_precision_and_flags ... FAILED
+test format_pointer_width_modifiers_are_lp64_issue_2163 ... FAILED
+test format_positional_mode_star_and_mixing ... FAILED
+test format_string_char_conversions ... FAILED
+test string_basics_index_range_repeat ... FAILED
+test compiled_string_length_uses_the_selected_runtime_character_model ... ok
+test string_case_conversion_errors ... ok
+test format_i_family_modifiers_rejected_before_tcl9_issue_2163 ... FAILED
+test string_case_conversion ... ok
+test format_pre_tcl9_long_width_and_unknown_modifiers_issue_2163 ... FAILED
+test string_format_through_puts ... FAILED
+test string_compare_equal_errors ... ok
+test string_insert_command ... FAILED
+test string_is_class_membership ... FAILED
+test string_is_dash_and_empty_option_words_are_ambiguous ... FAILED
+test string_is_double_range_errors_follow_the_runtime_release ... FAILED
+test string_first_command ... ok
+test string_is_errors ... FAILED
+test string_is_strict_and_failindex ... FAILED
+test string_is_tcl9_classes ... FAILED
+test string_map_command ... FAILED
+test string_repeat_bad_count ... ok
+test string_replace_command ... FAILED
+test string_compare_equal_options ... ok
+test string_last_command ... ok
+test string_subcommand_dispatch ... ok
+test string_match_command ... ok
+test string_trim_family ... ok
+thread 'bug_format_g_exponential_range' (24658) panicked at rust/tcl-vm/tests/cmd_string_e2e.rs:59:46:
+thread 'bug_format_hash_binary_prefix' (24659) panicked at rust/tcl-vm/tests/cmd_string_e2e.rs:59:46:
+thread 'bug_format_exponent_format' (24657) panicked at rust/tcl-vm/tests/cmd_string_e2e.rs:59:46:
+thread 'bug_format_positional_specifiers' (24746) panicked at rust/tcl-vm/tests/cmd_string_e2e.rs:59:46:
+thread 'bug_format_hash_decimal_prefix_tcl9' (24744) panicked at rust/tcl-vm/tests/cmd_string_e2e.rs:59:46:
+thread 'bug_format_hash_octal_prefix_tcl9' (24745) panicked at rust/tcl-vm/tests/cmd_string_e2e.rs:59:46:
+thread 'bug_format_trailing_incomplete_specifier' (24748) panicked at rust/tcl-vm/tests/cmd_string_e2e.rs:59:46:
+thread 'bug_format_zero_flag_on_float' (24751) panicked at rust/tcl-vm/tests/cmd_string_e2e.rs:59:46:
+thread 'bug_string_is_bad_option_with_trailing_arg' (24752) panicked at rust/tcl-vm/tests/cmd_string_e2e.rs:59:46:
+thread 'bug_string_is_integer_failindex_internal_space' (24757) panicked at rust/tcl-vm/tests/cmd_string_e2e.rs:59:46:
+thread 'format_bignum_conversions_issue_2162' (24763) panicked at rust/tcl-vm/tests/cmd_string_e2e.rs:59:46:
+thread 'format_errors' (24773) panicked at rust/tcl-vm/tests/cmd_string_e2e.rs:59:46:
+thread 'format_fixed_width_bignums_issue_2163' (24819) panicked at rust/tcl-vm/tests/cmd_string_e2e.rs:59:46:
+thread 'format_float_conversions' (24828) panicked at rust/tcl-vm/tests/cmd_string_e2e.rs:59:46:
+thread 'format_float_nonfinite_alternate_and_uppercase' (24832) panicked at rust/tcl-vm/tests/cmd_string_e2e.rs:59:46:
+thread 'format_i_family_modifiers_issue_2163' (24834) panicked at rust/tcl-vm/tests/cmd_string_e2e.rs:59:46:
+thread 'format_fixed_unsigned_ignores_sign_flags_issue_2223' (24786) panicked at rust/tcl-vm/tests/cmd_string_e2e.rs:59:46:
+thread 'format_bignum_modifier_is_rejected_in_tcl84_issue_2162' (24768) panicked at rust/tcl-vm/tests/cmd_string_e2e.rs:59:46:
+thread 'format_integer_conversions' (24855) panicked at rust/tcl-vm/tests/cmd_string_e2e.rs:59:46:
+thread 'format_modified_percent_issue_2203' (24858) panicked at rust/tcl-vm/tests/cmd_string_e2e.rs:59:46:
+thread 'format_pointer_conversion_keeps_the_lp64_width_issue_2163' (24875) panicked at rust/tcl-vm/tests/cmd_string_e2e.rs:59:46:
+thread 'format_pointer_precision_and_flags' (24876) panicked at rust/tcl-vm/tests/cmd_string_e2e.rs:59:46:
+thread 'format_pointer_width_modifiers_are_lp64_issue_2163' (24886) panicked at rust/tcl-vm/tests/cmd_string_e2e.rs:59:46:
+thread 'format_positional_mode_star_and_mixing' (24887) panicked at rust/tcl-vm/tests/cmd_string_e2e.rs:59:46:
+thread 'format_string_char_conversions' (24895) panicked at rust/tcl-vm/tests/cmd_string_e2e.rs:59:46:
+thread 'string_basics_index_range_repeat' (24897) panicked at rust/tcl-vm/tests/cmd_string_e2e.rs:59:46:
+thread 'format_i_family_modifiers_rejected_before_tcl9_issue_2163' (24839) panicked at rust/tcl-vm/tests/cmd_string_e2e.rs:59:46:
+thread 'format_pre_tcl9_long_width_and_unknown_modifiers_issue_2163' (24894) panicked at rust/tcl-vm/tests/cmd_string_e2e.rs:59:46:
+thread 'string_format_through_puts' (25116) panicked at rust/tcl-vm/tests/cmd_string_e2e.rs:59:46:
+thread 'string_insert_command' (25130) panicked at rust/tcl-vm/tests/cmd_string_e2e.rs:59:46:
+thread 'string_is_class_membership' (25133) panicked at rust/tcl-vm/tests/cmd_string_e2e.rs:59:46:
+thread 'string_is_dash_and_empty_option_words_are_ambiguous' (25134) panicked at rust/tcl-vm/tests/cmd_string_e2e.rs:59:46:
+thread 'string_is_double_range_errors_follow_the_runtime_release' (25137) panicked at rust/tcl-vm/tests/cmd_string_e2e.rs:59:46:
+thread 'string_is_errors' (25140) panicked at rust/tcl-vm/tests/cmd_string_e2e.rs:59:46:
+thread 'string_is_strict_and_failindex' (25141) panicked at rust/tcl-vm/tests/cmd_string_e2e.rs:59:46:
+thread 'string_is_tcl9_classes' (25149) panicked at rust/tcl-vm/tests/cmd_string_e2e.rs:59:46:
+thread 'string_map_command' (25151) panicked at rust/tcl-vm/tests/cmd_string_e2e.rs:59:46:
+thread 'string_replace_command' (25187) panicked at rust/tcl-vm/tests/cmd_string_e2e.rs:59:46:
+test result: FAILED. 13 passed; 38 failed; 0 ignored; 0 measured; 0 filtered out; finished in 61.13s

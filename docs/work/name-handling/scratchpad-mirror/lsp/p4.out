@@ -1,0 +1,13 @@
+disk avail 5975M
+zz_lsp_agent_probe exit 101
+zz_lsp_agent_probe ok=0 fail=4
+name_resolution exit 101
+name_resolution ok=68 fail=9
+hover_completion exit 101
+hover_completion ok=55 fail=1
+references_rename exit 101
+references_rename ok=71 fail=27
+references_residual exit 101
+references_residual ok=18 fail=5
+hover_residual exit 101
+hover_residual ok=33 fail=3

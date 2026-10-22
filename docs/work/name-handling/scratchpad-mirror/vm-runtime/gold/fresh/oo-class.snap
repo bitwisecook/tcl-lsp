@@ -1,0 +1,26 @@
+# spectcl golden snapshot v1
+# regenerate with `cargo xtask pack-goldens`; do not edit by hand
+pack tcl dsl 2.1 display None load_error None
+target_dependent false
+file_extensions []
+provides []
+co_provides []
+ambient_packages []
+environments []
+dialects []
+registrations 3
+notices 13
+notice command oo::class / subcommand create 25 semantic `world_effects` row `callback` is not loadable; the incomplete semantic descriptor excludes this command from strong analysis
+notice command oo::class / subcommand create 26 semantic `world_effects` row `dynamic_fallback` is not loadable; the incomplete semantic descriptor excludes this command from strong analysis
+notice command oo::class / subcommand create 124 presentation `state_transitions.resolver -native oo::class::create::state_transitions.resolver` names nothing this build ships; the statement installs nothing
+notice command oo::class / subcommand create 124 semantic incomplete state-transition row excludes this command from strong analysis
+notice command oo::class / subcommand new 25 semantic `world_effects` row `callback` is not loadable; the incomplete semantic descriptor excludes this command from strong analysis
+notice command oo::class / subcommand new 26 semantic `world_effects` row `dynamic_fallback` is not loadable; the incomplete semantic descriptor excludes this command from strong analysis
+notice command oo::class / subcommand new 142 presentation `state_transitions.resolver -native oo::class::new::state_transitions.resolver` names nothing this build ships; the statement installs nothing
+notice command oo::class / subcommand new 142 semantic incomplete state-transition row excludes this command from strong analysis
+notice command oo::class / subcommand createWithNamespace 25 semantic `world_effects` row `callback` is not loadable; the incomplete semantic descriptor excludes this command from strong analysis
+notice command oo::class / subcommand createWithNamespace 26 semantic `world_effects` row `dynamic_fallback` is not loadable; the incomplete semantic descriptor excludes this command from strong analysis
+notice command oo::class / subcommand createWithNamespace 162 presentation `state_transitions.resolver -native oo::class::createWithNamespace::state_transitions.resolver` names nothing this build ships; the statement installs nothing
+notice command oo::class / subcommand createWithNamespace 162 semantic incomplete state-transition row excludes this command from strong analysis
+notice command oo::class 29 semantic `command oo::class` is excluded from strong analysis: it uses semantic-class vocabulary this build does not speak
+commands 0

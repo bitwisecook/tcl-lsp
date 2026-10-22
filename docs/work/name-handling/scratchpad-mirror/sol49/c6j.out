@@ -1,0 +1,18 @@
+warning: build failed, waiting for other jobs to finish...
+error: could not compile `tcl-spectcl` (lib) due to 1 previous error
+warning: build failed, waiting for other jobs to finish...
+== set d {a 1 b 2}
+puts $d
+SCCP top "{(Symbol(0), 1): Const(String(\"a 1 b 2\"))}"
+== set d {a 1 b 2}
+foreach {k v} $d { puts "$k=$v" }
+SCCP top "{(Symbol(2), 2): Overdefined, (Symbol(1), 2): Overdefined, (Symbol(0), 1): Overdefined, (Symbol(2), 0): Overdefined, (Symbol(2), 1): Overdefined, (Symbol(1), 1): Overdefined, (Symbol(1), 0): Overdefined}"
+== set d {a 1 b 2}
+dict for {k v} $d { puts "$k=$v" }
+CHECK S100 variable 'd' has string intrep but 'dict for' expects dict (argument 1)
+SCCP top "{(Symbol(0), 1): Overdefined, (Symbol(2), 0): Overdefined, (Symbol(2), 1): Overdefined, (Symbol(2), 2): Overdefined, (Symbol(1), 2): Overdefined, (Symbol(1), 0): Overdefined, (Symbol(1), 1): Overdefined}"
+== set d {a 1 b 2}
+dict for {k v} $d { }
+SCCP top "{(Symbol(1), 1): Overdefined, (Symbol(0), 1): Const(String(\"a 1 b 2\")), (Symbol(2), 1): Overdefined}"
+      6 ZZ rwt arg=1 spelling="${child}" proj=true rec=true words=Some(["::interp", "eval", "${child}", "[list puts $raw]"])
+      2 ZZ tnt wrapper nested=None

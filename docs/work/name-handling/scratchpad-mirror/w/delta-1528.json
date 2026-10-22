@@ -1,0 +1,7 @@
+{"scheduled":"2026-10-19T15:27:00Z",
+ "change_since_previous_report":{"integrated_LSP":0,"total_baseline_delta":0,"effective_delta":0,"verified_complete":0},
+ "admissions":{},
+ "candidates":{"sol-37-fresh-entry":"in progress: compiler entry default + contract/proof doc updates in the working tree (uncommitted, unvalidated)"},
+ "merge":{"base":"127dba9d9","conflicts":154,"drafts":"Merge-A (runtime/VM, 90 files) and Merge-B (compiler/LSP/docs, 60 files) drafting resolutions in scratchpad; 75 drafted so far; 4 lockfiles to regenerate with cargo after applying."},
+ "merge_bar":"After Sol-37 lands: apply merge drafts as a real merge commit, regenerate lockfiles, build, fix remaining CI blockers, re-dispatch hosted CI.",
+ "next_report_utc":"2026-10-19T15:58:00Z"}

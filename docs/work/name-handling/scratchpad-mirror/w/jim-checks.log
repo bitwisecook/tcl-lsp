@@ -1,0 +1,7 @@
+== mcp
+error: no library targets found in package `tcl-mcp`
+== registry model
+thread 'model::namespace_ownership::tests::namespace_package_context_selects_real_rows_and_declines_foreign_release' (29939) panicked at rust/tcl-registry/src/model/namespace_ownership.rs:241:9:
+    model::namespace_ownership::tests::namespace_package_context_selects_real_rows_and_declines_foreign_release
+test result: FAILED. 137 passed; 1 failed; 0 ignored; 0 measured; 1740 filtered out; finished in 55.86s
+error: test failed, to rerun pass `-p tcl-registry --lib`

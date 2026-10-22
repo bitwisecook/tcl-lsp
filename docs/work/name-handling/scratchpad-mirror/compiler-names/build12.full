@@ -1,0 +1,19 @@
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on build directory
+   Compiling crossbeam-utils v0.8.23
+   Compiling scopeguard v1.2.0
+   Compiling parking_lot_core v0.9.12
+   Compiling tcl-test-support v0.1.0 (/home/user/tcl-lsp/rust/tcl-test-support)
+   Compiling lock_api v0.4.14
+   Compiling parking_lot v0.12.5
+   Compiling crossbeam-epoch v0.9.21
+   Compiling temp-env v0.3.6
+   Compiling crossbeam-deque v0.8.8
+   Compiling rayon-core v1.13.0
+   Compiling rayon v1.12.0
+   Compiling tcl-compiler v0.1.0 (/home/user/tcl-lsp/rust/tcl-compiler)
+    Finished `test` profile [unoptimized] target(s) in 7m 56s
+  Executable unittests src/lib.rs (target/debug/deps/tcl_compiler-ef22ef87d0bd65a7)
+BUILD-DONE

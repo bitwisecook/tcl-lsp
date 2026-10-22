@@ -1,0 +1,11 @@
+{
+ "scheduled": "2026-10-18T20:38:33Z",
+ "change_since_previous_report": {"integrated_LSP": 0, "total_baseline_delta": 0, "effective_delta": 0, "verified_complete": 0},
+ "admissions": {},
+ "since_previous_report": {
+  "forced-import": "Luna-28 v5 REVISE (CE11 class at the source name; CE12-CE14 import not executed before the call). The definition-route gate is abandoned in favour of Option A: whole-program export verdicts as an explicit compiler input to the import seal and selection; gate deleted. Sol-25 drafted forced-import-A1 (20 files); Luna-28 reviewing.",
+  "integration45": "Sol-26 holds the tree: composing survey v2 + helper deletion, DB921 v2, Server102/103 v2 and running the measured suites, plus three timed runs of the Server108 Salsa-published fixture"
+ },
+ "user_decisions_still_open": [],
+ "next_report_utc": "2026-10-18T21:09:00Z"
+}

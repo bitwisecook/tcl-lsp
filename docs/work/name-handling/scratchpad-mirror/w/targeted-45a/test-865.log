@@ -1,0 +1,6 @@
+
+running 1 test
+test resolved_invocation::logical_frame_source_role_tests::logical_frame_source_roles_use_consensus_without_native_frame_facts ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1875 filtered out; finished in 0.08s
+

@@ -1,0 +1,2 @@
+a5 many_small_bodies_totalling_over_the_threshold_stay_fast: test analyser::per_item::tests::many_small_bodies_totalling_over_the_threshold_stay_fast ... FAILED test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 10461 filtered out; finished in 433.04s  433s
+a5 ordinary_large_body_stays_on_the_fast_path:  322s

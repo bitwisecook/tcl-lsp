@@ -1,0 +1,6 @@
+
+running 1 test
+test resolved_invocation::tests::original_invokehidden_options_keep_the_path_prefix_and_actual_availability ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1875 filtered out; finished in 0.35s
+

@@ -1,0 +1,9 @@
+test graphs::original::tests::original_graph_summary_requires_body_allocation_even_when_ir_labels_agree ... ok
+test graphs::original::tests::original_graph_alias_edges_select_terminal_allocation_without_reporting_names ... ok
+test graphs::original::tests::original_graph_nodes_preserve_opaque_redefinitions_and_canonical_edges_without_ui_maps ... ok
+test graphs::original::tests::original_summary_rows_join_source_allocations_after_display_collision ... ok
+test graphs::tests::graph_calls_keep_consumed_names_as_references ... FAILED
+test graphs::tests::graph_taint_replay_availability_does_not_follow_warning_count ... FAILED
+test graphs::tests::graph_calls_use_terminal_alias_identity_without_borrowing_a_displaced_proc ... ok
+test graphs::tests::original_dataflow_warnings_keep_selected_source_availability_and_path_ordinals ... ok
+test graphs::tests::deeply_nested_namespaces_survive_symbol_graph has been running for over 60 seconds

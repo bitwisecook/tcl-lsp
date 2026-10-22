@@ -1,0 +1,23 @@
+
+running 1 test
+test registry_invocation::source_structure::project_class_cards::tests::project_class_collection_keeps_original_insertion_extraction_and_unknown_contents ... 
+thread 'registry_invocation::source_structure::project_class_cards::tests::project_class_collection_keeps_original_insertion_extraction_and_unknown_contents' (1079) panicked at rust/tcl-compiler/src/registry_invocation/source_structure/project_class_cards.rs:841:75:
+oo::class create C {method ping {} {}}; dict set values key [C new]; [dict get $values key] ping
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::option::expect_failed
+   3: <core::option::Option<tcl_compiler::registry_invocation::source_structure::project_class_cards::OriginalProjectReceiverClass>>::expect
+   4: tcl_compiler::registry_invocation::source_structure::project_class_cards::tests::project_class_collection_keeps_original_insertion_extraction_and_unknown_contents
+   5: tcl_compiler::registry_invocation::source_structure::project_class_cards::tests::project_class_collection_keeps_original_insertion_extraction_and_unknown_contents::{closure#0}
+   6: <tcl_compiler::registry_invocation::source_structure::project_class_cards::tests::project_class_collection_keeps_original_insertion_extraction_and_unknown_contents::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+FAILED
+
+failures:
+
+failures:
+    registry_invocation::source_structure::project_class_cards::tests::project_class_collection_keeps_original_insertion_extraction_and_unknown_contents
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 10440 filtered out; finished in 1.62s
+

@@ -1,0 +1,22 @@
+
+running 1 test
+test workspace_index::tests::exact_import_ignores_an_export_written_after_it ... 
+thread 'workspace_index::tests::exact_import_ignores_an_export_written_after_it' (9929) panicked at rust/tcl-lsp-core/src/workspace_index.rs:13302:9:
+assertion failed: !index.workspace_command_exists("::app::helper")
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: tcl_lsp_core::workspace_index::tests::exact_import_ignores_an_export_written_after_it
+   4: tcl_lsp_core::workspace_index::tests::exact_import_ignores_an_export_written_after_it::{closure#0}
+   5: <tcl_lsp_core::workspace_index::tests::exact_import_ignores_an_export_written_after_it::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+FAILED
+
+failures:
+
+failures:
+    workspace_index::tests::exact_import_ignores_an_export_written_after_it
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 3479 filtered out; finished in 2.13s
+

@@ -1,0 +1,15 @@
+test file_uri::document_link_path_tests::document_link_paths_refuse_missing_or_unrooted_bases_without_cwd ... ok
+test file_uri::inverse_parser_tests::malformed_original_uris_do_not_reach_native_path_construction ... ok
+test file_uri::inverse_tests::actual_posix_document_paths_keep_the_whole_authority_and_counted_path ... ok
+test file_uri::inverse_tests::unsupported_document_uri_data_is_a_typed_refusal ... ok
+test file_uri::inverse_tests::windows_document_recipe_keeps_drive_case_unc_and_whole_path ... ok
+test file_uri::source_namespace_path_tests::declared_virtual_and_guest_geometry_is_separate_from_native_host_support ... ok
+test file_uri::tests::admitted_uri_spellings_preserve_path_data_under_each_escaping_policy ... ok
+test file_uri::tests::host_path_admission_retains_posix_backslashes_and_declines_relative_or_nul_paths ... ok
+test file_uri::tests::non_unicode_paths_do_not_publish_a_replacement_character_uri ... ok
+test file_uri::tests::standalone_windows_geometry_preserves_drive_unc_and_extended_namespace ... ok
+test file_uri::tests::unsupported_windows_verbatim_subtypes_do_not_lose_their_native_root ... ok
+test file_uri::vscode_forward_projection_tests::product_alias_is_explicit_and_does_not_replace_lossless_path_spelling ... ok
+test file_uri::document_link_path_tests::document_link_paths_keep_supplied_bases_and_existing_host_encoding ... ok
+test file_uri::document_link_path_tests::document_link_paths_preserve_posix_foreign_drive_and_double_root_data ... ok
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 3471 filtered out; finished in 0.00s

@@ -1,0 +1,6 @@
+
+running 1 test
+test package_resolver::reachability::original::coverage_controls::original_coverage_preserves_known_registration_callbacks ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 3484 filtered out; finished in 0.64s
+

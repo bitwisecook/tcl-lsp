@@ -1,0 +1,173 @@
+test assign_local_slots_direct_api ... FAILED
+test command_return_type_clock_format_is_string ... FAILED
+test command_return_type_format_is_string ... FAILED
+test command_return_type_clock_seconds_is_int ... FAILED
+test command_return_type_string_index_is_string ... FAILED
+test command_return_type_string_is_is_boolean ... FAILED
+test command_return_type_llength_is_int ... FAILED
+test command_return_type_string_toupper_is_string ... FAILED
+test command_return_type_string_length_is_int ... FAILED
+test cu_path_includes_top_level_key ... FAILED
+test cu_path_upvar_escapes_alias ... FAILED
+test cu_path_pure_local_needs_no_frame ... FAILED
+test dynamic_set_name_spills_all_known_locals ... FAILED
+test eval_dynamic_body_is_a_barrier ... FAILED
+test expr_arithmetic_over_untyped_var_is_numeric ... FAILED
+test expr_bitwise_and_shift_are_int ... FAILED
+test expr_ceil_is_double ... FAILED
+test expr_comparison_and_logical_are_boolean ... FAILED
+test expr_double_arithmetic_is_double ... FAILED
+test expr_integer_arithmetic_is_int ... FAILED
+test expr_integer_division_stays_int ... FAILED
+test expr_math_functions_infer_return_type ... FAILED
+test expr_ternary_mixed_branches_join_to_numeric ... FAILED
+test expr_unary_minus_preserves_operand_int ... FAILED
+test expr_unknown_function_is_numeric ... FAILED
+test frameless_builtin_call_keeps_local ... FAILED
+test global_declared_var_escapes_to_frame ... FAILED
+test global_alias_def_widens_to_overdefined ... FAILED
+test hex_and_binary_literals_are_int_octal_is_string ... FAILED
+test incr_result_is_int ... FAILED
+test info_exists_literal_escapes_just_that_name ... FAILED
+test info_body_in_proc_is_safe ... FAILED
+test info_level_forces_pessimistic_frame ... FAILED
+test info_vars_in_proc_forces_pessimism ... FAILED
+test interpolated_value_is_string ... FAILED
+test interprocedural_caller_inherits_upvar_pessimism ... FAILED
+test interprocedural_named_source_flows_to_caller ... FAILED
+test interprocedural_off_keeps_raw_intraprocedural_result ... FAILED
+test interprocedural_pure_leaf_downgrade_through_callees ... FAILED
+test literal_scalar_types ... FAILED
+test namespace_upvar_escapes_local_alias ... FAILED
+test plain_set_at_top_level_no_escape ... FAILED
+test pure_local_does_not_escape ... FAILED
+test pure_var_copy_inherits_source_type ... FAILED
+test scope_alias_def_widens_to_overdefined ... FAILED
+test slot_resolution_assigns_params_then_locals ... FAILED
+test slot_resolution_empty_for_pessimistic_proc ... FAILED
+test solve_interprocedural_escape_on_synthetic_summaries ... ok
+test subst_nocommands_array_ref_refuses ... ok
+test subst_nocommands_backslash_escapes_processed ... ok
+test subst_nocommands_braced_and_bare_var_resolve_same_entry ... ok
+test subst_nocommands_combination_of_features ... ok
+test subst_nocommands_complex_braced_name_refuses ... ok
+test subst_nocommands_dollar_dollar_kept_literal ... ok
+test subst_nocommands_leaves_brackets_literal_and_substitutes_var ... ok
+test subst_nocommands_missing_var_refuses ... ok
+test subst_nocommands_namespace_qualified_refuses ... ok
+test subst_nocommands_nested_brackets_kept_whole ... ok
+test subst_nocommands_stray_close_bracket_is_literal ... ok
+test subst_nocommands_unbalanced_bracket_is_literal ... ok
+test subst_nocommands_unicode_passthrough ... ok
+test summary_explicit_reason_passthrough_and_flags ... ok
+test summary_join_and_default_tag ... ok
+test summary_with_escapes_and_barrier_helpers ... ok
+test unknown_command_result_is_unknown ... ok
+test uplevel_non_zero_body_is_a_dynamic_barrier ... FAILED
+test upvar_escape_reason_is_upvar_source ... FAILED
+test upvar_escapes_local_alias_and_records_source ... FAILED
+test variable_declared_var_escapes_to_frame ... FAILED
+test info_subcommand_classification_sets ... ok
+---- assign_local_slots_direct_api stdout ----
+thread 'assign_local_slots_direct_api' (15972) panicked at rust/tcl-compiler/tests/support/body_identity.rs:50:28:
+---- command_return_type_clock_format_is_string stdout ----
+thread 'command_return_type_clock_format_is_string' (15973) panicked at rust/tcl-compiler/tests/var_escape_typeinfer.rs:164:28:
+---- command_return_type_format_is_string stdout ----
+thread 'command_return_type_format_is_string' (15976) panicked at rust/tcl-compiler/tests/var_escape_typeinfer.rs:164:28:
+---- command_return_type_clock_seconds_is_int stdout ----
+thread 'command_return_type_clock_seconds_is_int' (15975) panicked at rust/tcl-compiler/tests/var_escape_typeinfer.rs:164:28:
+---- command_return_type_string_index_is_string stdout ----
+thread 'command_return_type_string_index_is_string' (15978) panicked at rust/tcl-compiler/tests/var_escape_typeinfer.rs:164:28:
+---- command_return_type_string_is_is_boolean stdout ----
+thread 'command_return_type_string_is_is_boolean' (15979) panicked at rust/tcl-compiler/tests/var_escape_typeinfer.rs:164:28:
+---- command_return_type_llength_is_int stdout ----
+thread 'command_return_type_llength_is_int' (15977) panicked at rust/tcl-compiler/tests/var_escape_typeinfer.rs:164:28:
+---- command_return_type_string_toupper_is_string stdout ----
+thread 'command_return_type_string_toupper_is_string' (15981) panicked at rust/tcl-compiler/tests/var_escape_typeinfer.rs:164:28:
+---- command_return_type_string_length_is_int stdout ----
+thread 'command_return_type_string_length_is_int' (15980) panicked at rust/tcl-compiler/tests/var_escape_typeinfer.rs:164:28:
+---- cu_path_includes_top_level_key stdout ----
+thread 'cu_path_includes_top_level_key' (15982) panicked at rust/tcl-compiler/tests/var_escape_typeinfer.rs:542:5:
+---- cu_path_upvar_escapes_alias stdout ----
+thread 'cu_path_upvar_escapes_alias' (15984) panicked at rust/tcl-compiler/tests/var_escape_typeinfer.rs:124:9:
+---- cu_path_pure_local_needs_no_frame stdout ----
+thread 'cu_path_pure_local_needs_no_frame' (15983) panicked at rust/tcl-compiler/tests/var_escape_typeinfer.rs:124:9:
+---- dynamic_set_name_spills_all_known_locals stdout ----
+thread 'dynamic_set_name_spills_all_known_locals' (15985) panicked at rust/tcl-compiler/tests/var_escape_typeinfer.rs:124:9:
+---- eval_dynamic_body_is_a_barrier stdout ----
+thread 'eval_dynamic_body_is_a_barrier' (15986) panicked at rust/tcl-compiler/tests/var_escape_typeinfer.rs:124:9:
+---- expr_arithmetic_over_untyped_var_is_numeric stdout ----
+thread 'expr_arithmetic_over_untyped_var_is_numeric' (15987) panicked at rust/tcl-compiler/tests/var_escape_typeinfer.rs:1013:68:
+---- expr_bitwise_and_shift_are_int stdout ----
+thread 'expr_bitwise_and_shift_are_int' (15988) panicked at rust/tcl-compiler/tests/var_escape_typeinfer.rs:164:28:
+---- expr_ceil_is_double stdout ----
+thread 'expr_ceil_is_double' (15989) panicked at rust/tcl-compiler/tests/var_escape_typeinfer.rs:164:28:
+---- expr_comparison_and_logical_are_boolean stdout ----
+thread 'expr_comparison_and_logical_are_boolean' (15993) panicked at rust/tcl-compiler/tests/var_escape_typeinfer.rs:164:28:
+---- expr_double_arithmetic_is_double stdout ----
+thread 'expr_double_arithmetic_is_double' (15994) panicked at rust/tcl-compiler/tests/var_escape_typeinfer.rs:164:28:
+---- expr_integer_arithmetic_is_int stdout ----
+thread 'expr_integer_arithmetic_is_int' (15996) panicked at rust/tcl-compiler/tests/var_escape_typeinfer.rs:164:28:
+---- expr_integer_division_stays_int stdout ----
+thread 'expr_integer_division_stays_int' (15997) panicked at rust/tcl-compiler/tests/var_escape_typeinfer.rs:164:28:
+---- expr_math_functions_infer_return_type stdout ----
+thread 'expr_math_functions_infer_return_type' (15998) panicked at rust/tcl-compiler/tests/var_escape_typeinfer.rs:164:28:
+---- expr_ternary_mixed_branches_join_to_numeric stdout ----
+thread 'expr_ternary_mixed_branches_join_to_numeric' (16000) panicked at rust/tcl-compiler/tests/var_escape_typeinfer.rs:992:64:
+---- expr_unary_minus_preserves_operand_int stdout ----
+thread 'expr_unary_minus_preserves_operand_int' (16001) panicked at rust/tcl-compiler/tests/var_escape_typeinfer.rs:164:28:
+---- expr_unknown_function_is_numeric stdout ----
+thread 'expr_unknown_function_is_numeric' (16002) panicked at rust/tcl-compiler/tests/var_escape_typeinfer.rs:1004:70:
+---- frameless_builtin_call_keeps_local stdout ----
+thread 'frameless_builtin_call_keeps_local' (16003) panicked at rust/tcl-compiler/tests/var_escape_typeinfer.rs:124:9:
+---- global_declared_var_escapes_to_frame stdout ----
+thread 'global_declared_var_escapes_to_frame' (16005) panicked at rust/tcl-compiler/tests/var_escape_typeinfer.rs:124:9:
+---- global_alias_def_widens_to_overdefined stdout ----
+thread 'global_alias_def_widens_to_overdefined' (16004) panicked at rust/tcl-compiler/tests/support/body_identity.rs:50:28:
+---- hex_and_binary_literals_are_int_octal_is_string stdout ----
+thread 'hex_and_binary_literals_are_int_octal_is_string' (16008) panicked at rust/tcl-compiler/tests/var_escape_typeinfer.rs:164:28:
+---- incr_result_is_int stdout ----
+thread 'incr_result_is_int' (16009) panicked at rust/tcl-compiler/tests/var_escape_typeinfer.rs:164:28:
+---- info_exists_literal_escapes_just_that_name stdout ----
+thread 'info_exists_literal_escapes_just_that_name' (16011) panicked at rust/tcl-compiler/tests/var_escape_typeinfer.rs:124:9:
+---- info_body_in_proc_is_safe stdout ----
+thread 'info_body_in_proc_is_safe' (16010) panicked at rust/tcl-compiler/tests/var_escape_typeinfer.rs:124:9:
+---- info_level_forces_pessimistic_frame stdout ----
+thread 'info_level_forces_pessimistic_frame' (16012) panicked at rust/tcl-compiler/tests/var_escape_typeinfer.rs:124:9:
+---- info_vars_in_proc_forces_pessimism stdout ----
+thread 'info_vars_in_proc_forces_pessimism' (16014) panicked at rust/tcl-compiler/tests/var_escape_typeinfer.rs:124:9:
+---- interpolated_value_is_string stdout ----
+thread 'interpolated_value_is_string' (16015) panicked at rust/tcl-compiler/tests/var_escape_typeinfer.rs:164:28:
+---- interprocedural_caller_inherits_upvar_pessimism stdout ----
+thread 'interprocedural_caller_inherits_upvar_pessimism' (16016) panicked at rust/tcl-compiler/tests/var_escape_typeinfer.rs:124:9:
+---- interprocedural_named_source_flows_to_caller stdout ----
+thread 'interprocedural_named_source_flows_to_caller' (16017) panicked at rust/tcl-compiler/tests/var_escape_typeinfer.rs:124:9:
+---- interprocedural_off_keeps_raw_intraprocedural_result stdout ----
+thread 'interprocedural_off_keeps_raw_intraprocedural_result' (16018) panicked at rust/tcl-compiler/tests/var_escape_typeinfer.rs:124:9:
+---- interprocedural_pure_leaf_downgrade_through_callees stdout ----
+thread 'interprocedural_pure_leaf_downgrade_through_callees' (16019) panicked at rust/tcl-compiler/tests/var_escape_typeinfer.rs:124:9:
+---- literal_scalar_types stdout ----
+thread 'literal_scalar_types' (16020) panicked at rust/tcl-compiler/tests/var_escape_typeinfer.rs:164:28:
+---- namespace_upvar_escapes_local_alias stdout ----
+thread 'namespace_upvar_escapes_local_alias' (16022) panicked at rust/tcl-compiler/tests/var_escape_typeinfer.rs:124:9:
+---- plain_set_at_top_level_no_escape stdout ----
+thread 'plain_set_at_top_level_no_escape' (16024) panicked at rust/tcl-compiler/tests/var_escape_typeinfer.rs:370:5:
+---- pure_local_does_not_escape stdout ----
+thread 'pure_local_does_not_escape' (16025) panicked at rust/tcl-compiler/tests/var_escape_typeinfer.rs:124:9:
+---- pure_var_copy_inherits_source_type stdout ----
+thread 'pure_var_copy_inherits_source_type' (16026) panicked at rust/tcl-compiler/tests/var_escape_typeinfer.rs:164:28:
+---- scope_alias_def_widens_to_overdefined stdout ----
+thread 'scope_alias_def_widens_to_overdefined' (16027) panicked at rust/tcl-compiler/tests/support/body_identity.rs:50:28:
+---- slot_resolution_assigns_params_then_locals stdout ----
+thread 'slot_resolution_assigns_params_then_locals' (16028) panicked at rust/tcl-compiler/tests/var_escape_typeinfer.rs:124:9:
+---- slot_resolution_empty_for_pessimistic_proc stdout ----
+thread 'slot_resolution_empty_for_pessimistic_proc' (16029) panicked at rust/tcl-compiler/tests/var_escape_typeinfer.rs:124:9:
+---- uplevel_non_zero_body_is_a_dynamic_barrier stdout ----
+thread 'uplevel_non_zero_body_is_a_dynamic_barrier' (16048) panicked at rust/tcl-compiler/tests/var_escape_typeinfer.rs:124:9:
+---- upvar_escape_reason_is_upvar_source stdout ----
+thread 'upvar_escape_reason_is_upvar_source' (16049) panicked at rust/tcl-compiler/tests/var_escape_typeinfer.rs:124:9:
+---- upvar_escapes_local_alias_and_records_source stdout ----
+thread 'upvar_escapes_local_alias_and_records_source' (16050) panicked at rust/tcl-compiler/tests/var_escape_typeinfer.rs:124:9:
+---- variable_declared_var_escapes_to_frame stdout ----
+thread 'variable_declared_var_escapes_to_frame' (16051) panicked at rust/tcl-compiler/tests/var_escape_typeinfer.rs:124:9:
+test result: FAILED. 19 passed; 51 failed; 0 ignored; 0 measured; 0 filtered out; finished in 15.95s

@@ -1,0 +1,13 @@
+test append_command
+test bug_string_match_bad_option
+test compiled_string_length_uses_the_selected_runtime_character_model
+test string_case_conversion
+test string_case_conversion_errors
+test string_compare_equal_errors
+test string_compare_equal_options
+test string_first_command
+test string_last_command
+test string_match_command
+test string_repeat_bad_count
+test string_subcommand_dispatch
+test string_trim_family

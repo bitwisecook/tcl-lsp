@@ -1,0 +1,25 @@
+
+running 1 test
+test call_hierarchy::tests::outgoing_calls_from_method_to_top_level_proc ... 
+thread 'call_hierarchy::tests::outgoing_calls_from_method_to_top_level_proc' (26639) panicked at rust/tcl-lsp-core/src/call_hierarchy.rs:2380:9:
+assertion `left == right` failed: []
+  left: []
+ right: ["helper"]
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<alloc::vec::Vec<&str>, alloc::vec::Vec<&str>>
+   4: tcl_lsp_core::call_hierarchy::tests::outgoing_calls_from_method_to_top_level_proc
+   5: tcl_lsp_core::call_hierarchy::tests::outgoing_calls_from_method_to_top_level_proc::{closure#0}
+   6: <tcl_lsp_core::call_hierarchy::tests::outgoing_calls_from_method_to_top_level_proc::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+FAILED
+
+failures:
+
+failures:
+    call_hierarchy::tests::outgoing_calls_from_method_to_top_level_proc
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 3470 filtered out; finished in 1.09s
+

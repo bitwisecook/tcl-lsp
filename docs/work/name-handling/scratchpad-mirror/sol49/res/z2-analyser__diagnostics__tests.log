@@ -1,0 +1,1599 @@
+test analyser::diagnostics::tests::a_conditional_unset_gives_w210 ... FAILED
+test analyser::diagnostics::tests::a_guard_under_and_narrows_the_read ... FAILED
+test analyser::diagnostics::tests::a_concatenated_script_writes_through_the_documents_registry ... FAILED
+test analyser::diagnostics::tests::a_killed_return_read_reports_once ... FAILED
+test analyser::diagnostics::tests::a_nested_index_reads_the_proven_container ... FAILED
+test analyser::diagnostics::tests::a_proven_word_is_reported_once_beside_a_written_one ... FAILED
+test analyser::diagnostics::tests::a_guard_holds_where_the_rung_refines_nothing ... FAILED
+test analyser::diagnostics::tests::a_nested_unbind_is_an_existence_read ... ok
+test analyser::diagnostics::tests::a_read_after_an_opaque_catch_only_its_body_sets_draws_w210 ... ok
+test analyser::diagnostics::tests::a_nested_index_reads_only_what_the_substitution_sees ... ok
+test analyser::diagnostics::tests::a_second_unset_is_a_definite_w213 ... FAILED
+test analyser::diagnostics::tests::a_read_after_an_opaque_switch_only_an_arm_sets_draws_w210 ... ok
+test analyser::diagnostics::tests::abbreviated_inline_expect_flag_reaches_action ... ok
+test analyser::diagnostics::tests::a_read_before_the_conditions_write_still_reports ... ok
+test analyser::diagnostics::tests::after_cancel_argument_is_not_arity_checked_as_a_callback ... ok
+test analyser::diagnostics::tests::after_correct_arity_callback_is_silent ... ok
+test analyser::diagnostics::tests::after_default_form_bareword_callback_correct_arity_is_silent ... ok
+test analyser::diagnostics::tests::after_default_form_bareword_callback_is_now_arity_checked ... FAILED
+test analyser::diagnostics::tests::after_default_form_braced_callback_is_arity_checked ... FAILED
+test analyser::diagnostics::tests::after_idle_braced_callback_is_arity_checked ... FAILED
+test analyser::diagnostics::tests::after_integer_ms_is_not_unknown_subcommand ... ok
+test analyser::diagnostics::tests::after_multi_word_script_concatenation_abstains ... ok
+test analyser::diagnostics::tests::a_read_after_code_the_module_cannot_see_is_no_read_before_set ... FAILED
+test analyser::diagnostics::tests::an_opaque_switch_reports_the_arms_it_never_selects ... FAILED
+test analyser::diagnostics::tests::an_index_site_is_reported_once ... FAILED
+test analyser::diagnostics::tests::an_existence_read_or_an_unbind_is_a_use ... ok
+test analyser::diagnostics::tests::analyse_dynamic_but_resolvable_rename_does_not_set_has_dynamic_providers ... ok
+test analyser::diagnostics::tests::analyse_genuinely_dynamic_rename_still_sets_has_dynamic_providers ... ok
+test analyser::diagnostics::tests::analyse_irule4005_no_emit_for_rule_init_writes ... ok
+test analyser::diagnostics::tests::a_store_a_call_the_module_cannot_see_may_read_draws_neither_w220_nor_w211 ... FAILED
+test analyser::diagnostics::tests::analyse_irule4005_racy_static_emitted_for_per_request_writes ... FAILED
+test analyser::diagnostics::tests::analyse_no_w123_for_builtin_command ... ok
+test analyser::diagnostics::tests::analyse_i230_constant_if_branch ... FAILED
+test analyser::diagnostics::tests::analyse_no_w123_for_qualified_command_name ... ok
+test analyser::diagnostics::tests::analyse_no_w123_for_user_proc ... ok
+test analyser::diagnostics::tests::analyse_no_i230_for_dynamic_condition ... ok
+test analyser::diagnostics::tests::analyse_no_w124_for_oid_chain ... ok
+test analyser::diagnostics::tests::analyse_static_rename_does_not_set_has_dynamic_providers ... ok
+test analyser::diagnostics::tests::analyse_no_w124_for_valid_ipv4 ... ok
+test analyser::diagnostics::tests::analyse_w123_emits_did_you_mean_suggestion ... FAILED
+test analyser::diagnostics::tests::analyse_w123_dispatch_target_from_unknown_proc_suppresses ... FAILED
+test analyser::diagnostics::tests::analyse_w123_filtered_by_disabled_diagnostics ... ok
+test analyser::diagnostics::tests::analyse_no_w307_for_static_known_command ... FAILED
+test analyser::diagnostics::tests::analyse_w123_package_require_gate_suppresses_when_recorded ... ok
+test analyser::diagnostics::tests::analyse_w123_kept_when_partial_interpolation_resolves_to_unknown ... ok
+test analyser::diagnostics::tests::analyse_w123_no_suggestion_when_far_from_any_known_command ... ok
+test analyser::diagnostics::tests::analyse_w123_suppressed_for_inline_stub_declared_command ... ok
+test analyser::diagnostics::tests::analyse_w123_unknown_command ... ok
+test analyser::diagnostics::tests::analyse_w123_suppressed_for_partial_interpolation_resolving_to_known_proc ... ok
+test analyser::diagnostics::tests::analyse_w124_ipv4_leading_zero_warning ... ok
+test analyser::diagnostics::tests::analyse_w124_ipv4_octet_overflow ... ok
+test analyser::diagnostics::tests::analyse_w307_emitted_for_cmd_substitution_with_unknown_return_type ... ok
+test analyser::diagnostics::tests::analyse_w124_real_ipv4_shaped_still_fires ... ok
+test analyser::diagnostics::tests::analyse_w307_suppressed_for_known_class_constructor_chain ... FAILED
+test analyser::diagnostics::tests::analyse_w307_suppressed_for_multi_dispatch_local ... ok
+test analyser::diagnostics::tests::analyse_w307_suppressed_for_my_self_dispatch ... FAILED
+test analyser::diagnostics::tests::an_option_heavy_document_is_checked_with_no_vm_entry ... FAILED
+test analyser::diagnostics::tests::analyse_w307_still_fires_when_precise_version_not_a_command ... ok
+test analyser::diagnostics::tests::analyse_w307_fires_for_tainted_dispatch_despite_multi_use ... ok
+test analyser::diagnostics::tests::analyse_w307_suppressed_for_proc_param_dispatch ... ok
+test analyser::diagnostics::tests::analyse_w307_var_as_command ... ok
+test analyser::diagnostics::tests::analyse_w308_1329_dialect_gate_no_tcloo_before_86 ... ok
+test analyser::diagnostics::tests::analyse_w308_1329_next_and_self_name_no_method ... ok
+test analyser::diagnostics::tests::analyse_w308_emitted_for_unknown_method_on_known_class_constructor ... FAILED
+test analyser::diagnostics::tests::analyse_w307_suppressed_per_ssa_version_after_reassignment ... FAILED
+test analyser::diagnostics::tests::analyse_w308_1330_quick_fix_span_matches_the_diagnostic ... FAILED
+test analyser::diagnostics::tests::analyse_w308_fp_1324_bare_self_receiver_real_method_silent ... ok
+test analyser::diagnostics::tests::analyse_w308_fp_1329_computed_method_word_abstains ... ok
+test analyser::diagnostics::tests::analyse_w308_1330_cmd_site_spans_are_exact ... FAILED
+test analyser::diagnostics::tests::analyse_w308_fp_1329_my_reaches_unexported_object_builtins ... ok
+test analyser::diagnostics::tests::analyse_w308_fp_1329_inherited_and_forwarded_and_unknown ... ok
+test analyser::diagnostics::tests::analyse_w308_fp_1329_disturbed_self_dispatch_keyword_abstains ... ok
+test analyser::diagnostics::tests::analyse_w308_fp_1329_my_outside_any_class_body ... ok
+test analyser::diagnostics::tests::analyse_w308_tp_1324_bare_self_receiver_unknown_method ... FAILED
+test analyser::diagnostics::tests::analyse_w308_tn_1329_bareword_my_real_method_silent ... ok
+test analyser::diagnostics::tests::analyse_w308_fp_1329_unprovable_method_set_abstains ... ok
+test analyser::diagnostics::tests::analyser_hook_selection_requires_binding_proof ... ok
+test analyser::diagnostics::tests::analyse_w308_tp_1324_self_object_receiver_unknown_method ... FAILED
+test analyser::diagnostics::tests::analyser_recurses_into_irules_nesting_script_bodies ... FAILED
+test analyser::diagnostics::tests::apply_disabled_diagnostics_no_op_when_empty ... ok
+test analyser::diagnostics::tests::apply_disabled_diagnostics_removes_listed_codes ... ok
+test analyser::diagnostics::tests::append_and_lappend_define_their_target_variable ... ok
+test analyser::diagnostics::tests::analyse_w308_tp_1329_bareword_my_unknown_method ... FAILED
+test analyser::diagnostics::tests::analyse_w308_tp_1329_object_command_cannot_reach_unexported_builtins ... FAILED
+test analyser::diagnostics::tests::apply_dynamic_lambda_abstains ... ok
+test analyser::diagnostics::tests::apply_expand_args_abstains_too_few ... ok
+test analyser::diagnostics::tests::apply_lambda_arity_fires_and_stays_silent ... FAILED
+test analyser::diagnostics::tests::apply_lambda_arity_still_checked_when_apply_is_not_shadowed ... FAILED
+test analyser::diagnostics::tests::apply_lambda_arity_suppressed_when_apply_itself_is_shadowed ... ok
+test analyser::diagnostics::tests::apply_lambda_in_command_substitution_does_not_report_its_parameter_list ... ok
+test analyser::diagnostics::tests::apply_lambda_body_unbound_read_still_fires_w210 ... FAILED
+test analyser::diagnostics::tests::apply_lambda_in_command_substitution_keeps_its_own_frame ... FAILED
+test analyser::diagnostics::tests::apply_lambda_body_in_command_substitution_is_walked ... FAILED
+test analyser::diagnostics::tests::apply_lambda_with_args_catchall_is_unbounded ... ok
+test analyser::diagnostics::tests::apply_lambda_parameters_named_like_commands_draw_no_unknown_command ... ok
+test analyser::diagnostics::tests::apply_lambda_in_command_substitution_records_its_namespace ... ok
+test analyser::diagnostics::tests::arity_usage_suffix::e002_appends_command_synopsis ... ok
+test analyser::diagnostics::tests::apply_lambda_with_default_param_is_silent_when_omitted ... ok
+test analyser::diagnostics::tests::arity_usage_suffix::e003_appends_subcommand_synopsis ... ok
+test analyser::diagnostics::tests::arity_usage_suffix::e005_appends_command_synopsis ... ok
+test analyser::diagnostics::tests::arity_usage_suffix::user_proc_arity_message_stays_count_only ... ok
+test analyser::diagnostics::tests::apply_lambda_parameters_are_bound_not_read_before_set ... ok
+test analyser::diagnostics::tests::backslash_built_expect_action_stays_an_opaque_barrier ... ok
+test analyser::diagnostics::tests::auto_load_and_auto_import_arity_bounds ... ok
+test analyser::diagnostics::tests::body_references_param_braced_with_punct_after ... ok
+test analyser::diagnostics::tests::body_references_param_braced_dollar ... ok
+test analyser::diagnostics::tests::body_references_param_handles_multiple_uses ... ok
+test analyser::diagnostics::tests::body_references_param_misses_when_unused ... ok
+test analyser::diagnostics::tests::body_references_param_namespace_qualified ... ok
+test analyser::diagnostics::tests::body_references_param_skips_backslash_escape ... ok
+test analyser::diagnostics::tests::bpf_precise_mask_keeps_90_core_and_drops_8x_relics ... FAILED
+test analyser::diagnostics::tests::body_references_param_bare_dollar has been running for over 60 seconds
+test analyser::diagnostics::tests::body_references_param_no_match_for_substring_only ... ok
+test analyser::diagnostics::tests::catch_and_try_body_writes_join_never_last_write_945 ... FAILED
+test analyser::diagnostics::tests::catch_body_is_walked_for_syntactic_checks ... ok
+test analyser::diagnostics::tests::catch_body_package_require_is_conditional ... ok
+test analyser::diagnostics::tests::colon_named_namespace_keeps_nested_definitions_distinct ... ok
+test analyser::diagnostics::tests::branch_joined_const_dispatch_records_every_may_target_945 ... FAILED
+test analyser::diagnostics::tests::colon_named_proc_keeps_its_simple_name_and_key ... ok
+test analyser::diagnostics::tests::colon_named_proc_resolves_from_bare_calls_not_written_runs ... ok
+test analyser::diagnostics::tests::const_cmd_head_records_a_reference_to_the_dispatched_proc_m7 ... ok
+test analyser::diagnostics::tests::body_references_param_bare_dollar ... ok
+test analyser::diagnostics::tests::const_cmd_head_resolves_through_a_pure_copy_chain_m7 ... FAILED
+test analyser::diagnostics::tests::command_version_gates_fire_w123 ... ok
+test analyser::diagnostics::tests::const_cmd_head_abstains_on_unknown_or_dynamic_values_m7 ... FAILED
+test analyser::diagnostics::tests::const_dispatch_fp_issue_1009_alias_no_deletion_still_resolves ... ok
+test analyser::diagnostics::tests::const_cmd_head_resolves_in_the_dispatch_namespace_m7 ... FAILED
+test analyser::diagnostics::tests::const_dispatch_fp_issue_1009_rename_target_no_deletion_still_resolves ... ok
+test analyser::diagnostics::tests::const_dispatch_evaluated_literal_command_names_preserve_navigation ... ok
+test analyser::diagnostics::tests::const_dispatch_fp_issue_1009_proc_reestablished_after_deletion_resolves ... ok
+test analyser::diagnostics::tests::const_dispatch_tn_issue_1009_proc_no_deletion_still_resolves ... ok
+test analyser::diagnostics::tests::const_dispatch_tp_issue_1009_alias_deleted_no_reestablishment_does_not_resolve ... ok
+test analyser::diagnostics::tests::const_dispatch_tp_issue_1009_class_deleted_no_reestablishment_does_not_resolve ... ok
+test analyser::diagnostics::tests::contains_gated_word_handles_boundaries ... ok
+test analyser::diagnostics::tests::const_dispatch_fp_issue_1009_deletion_inside_never_triggered_body_still_resolves ... ok
+test analyser::diagnostics::tests::const_dispatch_tp_issue_1009_proc_deleted_no_reestablishment_does_not_resolve ... ok
+test analyser::diagnostics::tests::dedupe_drops_e002_on_e101_line ... ok
+test analyser::diagnostics::tests::dedupe_drops_exact_duplicates ... ok
+test analyser::diagnostics::tests::dedupe_keeps_distinct_diagnostics_at_different_spans ... ok
+test analyser::diagnostics::tests::dedupe_keeps_e002_on_unrelated_line ... ok
+test analyser::diagnostics::tests::diagnostic_without_owned_subject_does_not_parse_identity_from_message ... ok
+test analyser::diagnostics::tests::const_dispatch_tp_issue_1009_rename_target_deleted_no_reestablishment_does_not_resolve ... ok
+test analyser::diagnostics::tests::dict_create_odd_key_value_tail_fires_e005 ... ok
+test analyser::diagnostics::tests::declared_variable_name_positions_keep_only_supplied_contract_roles ... FAILED
+test analyser::diagnostics::tests::declared_source_diagnostics_use_only_the_declared_roles_and_signature ... FAILED
+test analyser::diagnostics::tests::dict_create_even_key_value_tail_is_silent ... ok
+test analyser::diagnostics::tests::dict_replace_even_tail_fires_e005 ... ok
+test analyser::diagnostics::tests::dict_replace_odd_tail_is_silent ... ok
+test analyser::diagnostics::tests::dict_update_odd_total_fires_e005 ... ok
+test analyser::diagnostics::tests::dict_set_table_value_becomes_a_reference_when_consumed_m7 ... FAILED
+test analyser::diagnostics::tests::did_you_mean_variables::w210_case_mismatch_still_wins_over_edit_distance ... ok
+test analyser::diagnostics::tests::did_you_mean_variables::w210_no_suggestion_when_nothing_is_close ... ok
+test analyser::diagnostics::tests::dict_update_even_total_is_silent ... ok
+test analyser::diagnostics::tests::did_you_mean_variables::w210_short_name_never_fishes_a_full_replacement ... ok
+test analyser::diagnostics::tests::did_you_mean_variables::w210_suggests_close_defined_variable ... ok
+test analyser::diagnostics::tests::did_you_mean_variables::w212_keeps_de_sigil_suggestion_for_defined_name ... ok
+test analyser::diagnostics::tests::did_you_mean_variables::w212_suggests_close_in_scope_variable_for_undefined_name ... ok
+test analyser::diagnostics::tests::did_you_mean_variables::w210_suggests_inside_proc_bodies ... ok
+test analyser::diagnostics::tests::did_you_mean_variables::w212_keeps_de_sigil_suggestion_when_nothing_is_close ... ok
+test analyser::diagnostics::tests::disabled_definer_nested_in_catch_reports_w002_once_without_cascade ... FAILED
+test analyser::diagnostics::tests::dispatch_table_constructed_list_preserves_each_original_head_operand ... FAILED
+test analyser::diagnostics::tests::dispatch_table_dictionary_keeps_known_entries_beside_unknown_values ... FAILED
+test analyser::diagnostics::tests::dispatch_table_dictionary_literal_maps_each_repeated_value_separately ... FAILED
+test analyser::diagnostics::tests::dispatch_table_constructed_list_cannot_borrow_a_later_argument_as_its_head ... ok
+test analyser::diagnostics::tests::dispatch_table_expanded_prefix_maps_only_its_original_command_element ... FAILED
+test analyser::diagnostics::tests::dispatch_table_fp_issue_1010_reestablished_proc_still_references ... ok
+test analyser::diagnostics::tests::dispatch_table_literal_cannot_select_one_of_two_redefined_implementations ... ok
+test analyser::diagnostics::tests::dispatch_table_dictionary_updates_preserve_other_entries_and_original_spans ... FAILED
+test analyser::diagnostics::tests::dispatch_table_navigation_never_confuses_equal_offsets_in_derived_source ... ok
+test analyser::diagnostics::tests::dispatch_table_navigation_resolves_declarations_after_the_store ... FAILED
+test analyser::diagnostics::tests::dispatch_table_navigation_does_not_borrow_another_frames_store ... FAILED
+test analyser::diagnostics::tests::dispatch_table_navigation_tracks_only_the_reaching_element_literal ... FAILED
+test analyser::diagnostics::tests::dispatch_table_navigation_uses_the_selected_native_list_grammar ... FAILED
+test analyser::diagnostics::tests::dispatch_table_navigation_uses_the_consuming_namespace ... FAILED
+test analyser::diagnostics::tests::dispatch_table_navigation_declines_opaque_stores_and_observed_reads ... ok
+test analyser::diagnostics::tests::dotted_quad_scanner_matches_regex_behaviour ... ok
+test analyser::diagnostics::tests::dispatch_table_value_abstains_when_the_table_is_not_consumed_m7 ... ok
+test analyser::diagnostics::tests::dispatch_table_tp_issue_1010_deleted_proc_draws_no_reference ... ok
+test analyser::diagnostics::tests::dispatch_table_value_becomes_a_reference_when_consumed_m7 ... FAILED
+test analyser::diagnostics::tests::dynamic_apply_lambda_word_is_still_a_caller_frame_read ... ok
+test analyser::diagnostics::tests::e001_quiet_when_subcommand_present ... ok
+test analyser::diagnostics::tests::e001_cmd_head_matches_var_path_under_tcloo_less_dialect ... FAILED
+test analyser::diagnostics::tests::e001_fires_for_bare_subcommand_command ... ok
+test analyser::diagnostics::tests::e001_fn_true_negative_bare_history_has_a_default_subcommand ... ok
+test analyser::diagnostics::tests::e001_suppressed_by_shadowing_user_proc ... ok
+test analyser::diagnostics::tests::e003_arity_is_dialect_aware_via_expand_syntax ... FAILED
+test analyser::diagnostics::tests::e002_fires_on_too_few_args ... ok
+test analyser::diagnostics::tests::e003_falls_back_to_whole_command_on_expansion ... FAILED
+test analyser::diagnostics::tests::e003_fires_on_file_link_over_arity ... ok
+test analyser::diagnostics::tests::e003_fires_for_same_file_proc_call_too_many_args ... ok
+test analyser::diagnostics::tests::e001_tn_history_with_subcommand_is_unaffected ... ok
+test analyser::diagnostics::tests::e003_fires_on_genuine_over_arity ... ok
+test analyser::diagnostics::tests::e003_fires_on_subcommand_over_arity ... ok
+test analyser::diagnostics::tests::e003_fp_issue_1007_conditional_deletion_never_triggered_proc_stays_live ... ok
+test analyser::diagnostics::tests::e003_highlights_only_the_surplus_arguments ... FAILED
+test analyser::diagnostics::tests::e003_namespace_which_extra_positional_fires ... FAILED
+test analyser::diagnostics::tests::e001_tp_bare_history_subcommand_sibling_still_required ... ok
+test analyser::diagnostics::tests::e003_not_emitted_for_leading_switches ... ok
+test analyser::diagnostics::tests::e003_not_emitted_for_value_taking_leading_option ... ok
+test analyser::diagnostics::tests::e003_shadow_is_namespace_scoped ... FAILED
+test analyser::diagnostics::tests::e003_proc_body_call_not_order_gated ... ok
+test analyser::diagnostics::tests::e003_silent_for_subcommand_leading_options ... FAILED
+test analyser::diagnostics::tests::e003_still_fires_past_value_taking_option ... ok
+test analyser::diagnostics::tests::e003_source_nopkg_is_tcl9_only ... FAILED
+test analyser::diagnostics::tests::e003_static_rename_onto_builtin_name_suppresses_arity ... FAILED
+test analyser::diagnostics::tests::e003_suppressed_by_expanded_word ... ok
+test analyser::diagnostics::tests::e003_tn_issue_1007_unconditional_deletion_before_call_stays_dead ... ok
+test analyser::diagnostics::tests::e003_switch_options_are_dialect_filtered ... FAILED
+test analyser::diagnostics::tests::e003_top_level_call_after_shadowing_proc_suppressed ... ok
+test analyser::diagnostics::tests::e003_tn_call_between_two_declarations_matching_the_first_is_silent ... ok
+test analyser::diagnostics::tests::e003_top_level_call_before_shadowing_proc_fires ... ok
+test analyser::diagnostics::tests::e003_top_level_call_before_rename_onto_builtin_still_fires ... ok
+test analyser::diagnostics::tests::e003_tp_issue_1007_call_before_later_unconditional_deletion_still_checked ... ok
+test analyser::diagnostics::tests::e003_tp_call_between_two_declarations_checks_the_first_signature ... ok
+test analyser::diagnostics::tests::e003_tp_call_after_both_declarations_checks_the_last_signature ... ok
+test analyser::diagnostics::tests::e003_tp_issue_1007_alias_conditional_deletion_never_triggered_still_checks_arity ... ok
+test analyser::diagnostics::tests::e005_does_not_double_fire_with_e002_or_e003 ... ok
+test analyser::diagnostics::tests::e003_tp_issue_1007_conditional_deletion_never_triggered_still_checks_arity ... ok
+test analyser::diagnostics::tests::e006_discovers_definition_body_and_lambda_parameter_shapes ... ok
+test analyser::diagnostics::tests::e006_offers_only_the_structurally_unambiguous_parameter_repair ... ok
+test analyser::diagnostics::tests::e006_rejects_invalid_literal_formal_parameter_lists_from_registry_roles ... ok
+test analyser::diagnostics::tests::e006_requires_unanimous_actual_formal_grammar_after_alias_mapping ... ok
+test analyser::diagnostics::tests::emit_cfg_ssa_diagnostics_cmd_command_sites_recorded_during_walk ... ok
+test analyser::diagnostics::tests::emit_cfg_ssa_diagnostics_runs_without_panicking_on_empty_source ... ok
+test analyser::diagnostics::tests::emit_cfg_ssa_diagnostics_h300_repeated_assignment ... ok
+test analyser::diagnostics::tests::emit_cfg_ssa_diagnostics_w210_fires_at_top_level ... ok
+test analyser::diagnostics::tests::emit_cfg_ssa_diagnostics_var_command_sites_recorded_during_walk ... ok
+test analyser::diagnostics::tests::emit_cfg_ssa_diagnostics_h300_skips_distinct_values ... ok
+test analyser::diagnostics::tests::emit_cfg_ssa_diagnostics_h300_skips_underscore_vars ... ok
+test analyser::diagnostics::tests::emit_cfg_ssa_diagnostics_w210_read_before_set ... FAILED
+test analyser::diagnostics::tests::emit_cfg_ssa_diagnostics_w210_skipped_for_real_param ... ok
+test analyser::diagnostics::tests::emit_cfg_ssa_diagnostics_w210_read_after_unset ... FAILED
+test analyser::diagnostics::tests::emit_cfg_ssa_diagnostics_w210_suppressed_when_proc_writes_global ... FAILED
+test analyser::diagnostics::tests::emit_cfg_ssa_diagnostics_w210_suppressed_via_global_alias ... FAILED
+test analyser::diagnostics::tests::emit_cfg_ssa_diagnostics_w211_unused_variable ... ok
+test analyser::diagnostics::tests::emit_cfg_ssa_diagnostics_w211_skipped_for_global_aliased ... ok
+test analyser::diagnostics::tests::emit_cfg_ssa_diagnostics_w211_skipped_for_textually_referenced ... ok
+test analyser::diagnostics::tests::emit_cfg_ssa_diagnostics_w210_skipped_for_lappend_autocreate ... FAILED
+test analyser::diagnostics::tests::emit_cfg_ssa_diagnostics_w213_skipped_with_nocomplain ... ok
+test analyser::diagnostics::tests::emit_cfg_ssa_diagnostics_w213_unset_on_possibly_undef ... FAILED
+test analyser::diagnostics::tests::emit_cfg_ssa_diagnostics_w220_dead_store_overwritten ... FAILED
+test analyser::diagnostics::tests::emit_cfg_ssa_diagnostics_w214_skips_args_param ... ok
+test analyser::diagnostics::tests::emit_cfg_ssa_diagnostics_w220_dir_var_not_suppressed_outside_pkgindex ... FAILED
+test analyser::diagnostics::tests::emit_cfg_ssa_diagnostics_w214_unused_param ... ok
+test analyser::diagnostics::tests::emit_cfg_ssa_diagnostics_w220_irules_cross_event_var_suppressed ... ok
+test analyser::diagnostics::tests::emit_cfg_ssa_diagnostics_w220_irules_proc_local_still_flagged ... FAILED
+test analyser::diagnostics::tests::emit_cfg_ssa_diagnostics_w220_pkgindex_dir_var_suppressed ... ok
+test analyser::diagnostics::tests::emit_cfg_ssa_diagnostics_w220_skips_call_defs ... ok
+test analyser::diagnostics::tests::emit_cfg_ssa_diagnostics_w220_skips_command_substitution_value ... ok
+test analyser::diagnostics::tests::emit_cfg_ssa_diagnostics_w220_skips_global_qualified_var ... ok
+test analyser::diagnostics::tests::emit_cfg_ssa_diagnostics_w220_skips_expr_with_command_call ... ok
+test analyser::diagnostics::tests::emit_cfg_ssa_diagnostics_w220_skips_incr_writes ... ok
+test analyser::diagnostics::tests::emit_cfg_ssa_diagnostics_w211_w220_skipped_for_traced_var ... ok
+test analyser::diagnostics::tests::emit_variable_usage_diagnostics_is_a_noop ... ok
+test analyser::diagnostics::tests::emit_cfg_ssa_diagnostics_w220_skips_unreachable_block ... ok
+test analyser::diagnostics::tests::expanded_head_list_prefix_keeps_the_exact_writable_component_945 ... FAILED
+test analyser::diagnostics::tests::enabled_definer_nested_in_catch_is_silent ... ok
+test analyser::diagnostics::tests::expect_clause_flags_keep_pattern_and_body_roles_aligned ... ok
+test analyser::diagnostics::tests::extra_commands_suppress_w123 ... ok
+test analyser::diagnostics::tests::first_nested_expr_finds_bracketed_expr ... ok
+test analyser::diagnostics::tests::emit_cfg_ssa_diagnostics_w220_on_set_once_never_read ... FAILED
+test analyser::diagnostics::tests::expect_list_comment_and_separator_patterns_still_walk_arm_bodies ... ok
+test analyser::diagnostics::tests::foreach_expanded_tail_never_false_fires_e005 ... ok
+test analyser::diagnostics::tests::foreach_unpaired_varlist_fires_e005 ... ok
+test analyser::diagnostics::tests::foreach_paired_varlists_are_silent ... ok
+test analyser::diagnostics::tests::fp_e001_bare_snit_instance_dispatch_not_flagged ... ok
+test analyser::diagnostics::tests::fn_e001_cmd_head_factory_with_method_word_no_w307 ... FAILED
+test analyser::diagnostics::tests::fp_rbs_14_opaque_switch_excludes_non_completing_arm ... FAILED
+test analyser::diagnostics::tests::emit_cfg_ssa_diagnostics_w220_suppressed_for_substitution_hidden_reads has been running for over 60 seconds
+test analyser::diagnostics::tests::fp_rbs_15_all_exiting_opaque_switch_is_a_terminator ... FAILED
+test analyser::diagnostics::tests::fp_rbs_13_tailcall_is_a_terminator has been running for over 60 seconds
+test analyser::diagnostics::tests::emit_cfg_ssa_diagnostics_w220_suppressed_for_substitution_hidden_reads ... FAILED
+test analyser::diagnostics::tests::fp_rbs_15_continue_in_opaque_switch_stays_silent ... ok
+test analyser::diagnostics::tests::fp_rbs_13_tailcall_is_a_terminator ... FAILED
+test analyser::diagnostics::tests::fp_rbs_16_dead_loop_exit_phi_operand_not_read_before_set has been running for over 60 seconds
+test analyser::diagnostics::tests::global_and_variable_zero_args_are_no_op_not_e002 ... ok
+test analyser::diagnostics::tests::global_seed_is_the_plain_analysis_m9 ... ok
+test analyser::diagnostics::tests::fp_rbs_17_guaranteed_foreach_defines_body_vars has been running for over 60 seconds
+test analyser::diagnostics::tests::fp_rbs_18_guaranteed_for_defines_body_vars has been running for over 60 seconds
+test analyser::diagnostics::tests::fp_rbs_17_guaranteed_foreach_defines_body_vars ... FAILED
+test analyser::diagnostics::tests::i230_message_keeps_braced_var_spelling ... FAILED
+test analyser::diagnostics::tests::i230_message_quotes_bare_var_as_source_spells_it ... FAILED
+test analyser::diagnostics::tests::i230_existence_fold_abstains_on_interpreter_globals_at_top_level has been running for over 60 seconds
+test analyser::diagnostics::tests::i230_never_reports_a_condition_across_a_call_the_module_cannot_see ... FAILED
+test analyser::diagnostics::tests::fp_rbs_18_guaranteed_for_defines_body_vars ... FAILED
+test analyser::diagnostics::tests::i230_never_reports_a_condition_across_a_catch_body_or_a_computed_head ... FAILED
+test analyser::diagnostics::tests::i230_never_reports_a_condition_across_a_sourced_file ... ok
+test analyser::diagnostics::tests::i230_never_reports_a_condition_over_a_name_a_callback_writes ... ok
+test analyser::diagnostics::tests::fp_rbs_16_dead_loop_exit_phi_operand_not_read_before_set ... FAILED
+test analyser::diagnostics::tests::i231_names_the_command_of_the_case_list ... FAILED
+test analyser::diagnostics::tests::i231_never_reports_a_switch_over_a_subject_a_release_may_read_as_an_option ... FAILED
+test analyser::diagnostics::tests::i230_never_reports_a_condition_across_unseen_code_in_a_body_a_substitution_runs ... FAILED
+test analyser::diagnostics::tests::info_exists_actual_folds_do_not_borrow_declaration_or_missing_entry ... ok
+test analyser::diagnostics::tests::info_exists_control_still_flags_w210 ... FAILED
+test analyser::diagnostics::tests::i230_never_reports_a_condition_over_a_name_a_switch_arm_may_write ... FAILED
+test analyser::diagnostics::tests::info_exists_does_not_fold_instance_var_assigned_in_constructor ... ok
+test analyser::diagnostics::tests::info_exists_does_not_fold_instance_var_assigned_in_sibling_method ... ok
+test analyser::diagnostics::tests::info_exists_does_not_fold_instance_var_declared_in_later_define_block ... ok
+test analyser::diagnostics::tests::info_exists_does_not_fold_my_variable_local_in_method ... ok
+test analyser::diagnostics::tests::info_exists_does_not_fold_conditionally_set_var ... ok
+test analyser::diagnostics::tests::info_exists_does_not_fold_namespaced_or_array ... ok
+test analyser::diagnostics::tests::i230_existence_fold_abstains_on_interpreter_globals_at_top_level ... FAILED
+test analyser::diagnostics::tests::i231_reads_a_switch_words_by_their_values has been running for over 60 seconds
+test analyser::diagnostics::tests::info_exists_does_not_fold_upvar_defined_local_across_my_dispatch ... ok
+test analyser::diagnostics::tests::info_exists_does_not_fold_unset_parameter ... FAILED
+test analyser::diagnostics::tests::info_exists_does_not_fold_upvar_defined_local_across_next_dispatch ... ok
+test analyser::diagnostics::tests::info_exists_element_fold_abstains_on_instance_state_arrays ... ok
+test analyser::diagnostics::tests::info_exists_element_fold_abstains_on_dynamic_writes ... ok
+test analyser::diagnostics::tests::info_exists_element_fold_survives_an_unrelated_array ... FAILED
+test analyser::diagnostics::tests::info_exists_fold_survives_unrelated_scope_alias ... FAILED
+test analyser::diagnostics::tests::info_exists_folds_an_unset_parameter_false ... FAILED
+test analyser::diagnostics::tests::info_exists_folds_false_for_dynamic_element_of_never_touched_array ... FAILED
+test analyser::diagnostics::tests::info_exists_folds_false_for_element_of_never_touched_array ... FAILED
+test analyser::diagnostics::tests::info_exists_folds_false_for_never_defined_local ... FAILED
+test analyser::diagnostics::tests::info_exists_does_not_fold_scope_alias_locals has been running for over 60 seconds
+test analyser::diagnostics::tests::info_exists_folds_true_for_an_apply_lambda_parameter ... FAILED
+test analyser::diagnostics::tests::info_exists_folds_true_for_method_parameter_shadowing_an_instance_var ... FAILED
+test analyser::diagnostics::tests::info_exists_folds_true_for_parameter ... FAILED
+test analyser::diagnostics::tests::info_exists_folds_true_not_false_for_method_parameter ... FAILED
+test analyser::diagnostics::tests::info_exists_does_not_fold_scope_alias_locals ... ok
+test analyser::diagnostics::tests::info_exists_fresh_activation_absence_does_not_borrow_namespace_contents ... FAILED
+test analyser::diagnostics::tests::info_exists_element_fold_abstains_when_the_array_is_touched has been running for over 60 seconds
+test analyser::diagnostics::tests::info_exists_frame_facts_survive_a_proc_method_qname_collision ... FAILED
+test analyser::diagnostics::tests::info_exists_guard_narrows_read_in_then_arm ... ok
+test analyser::diagnostics::tests::info_exists_element_fold_abstains_when_the_array_is_touched ... ok
+test analyser::diagnostics::tests::info_exists_query_word_not_read_before_set ... ok
+test analyser::diagnostics::tests::info_exists_negated_guard_narrows_false_arm ... ok
+test analyser::diagnostics::tests::info_exists_still_folds_across_my_when_no_method_reaches_the_caller_frame ... ok
+test analyser::diagnostics::tests::info_exists_still_abstains_on_the_non_shadowed_instance_vars ... FAILED
+test analyser::diagnostics::tests::info_exists_still_folds_never_set_non_instance_local_in_method ... FAILED
+test analyser::diagnostics::tests::inline_expect_clause_flags_reach_actions_without_switch_w106 ... ok
+test analyser::diagnostics::tests::interp_create_with_options_no_arity_error ... ok
+test analyser::diagnostics::tests::info_exists_read_outside_guard_still_flags_w210 ... FAILED
+test analyser::diagnostics::tests::ipv6_candidate_scanner_extracts_runs ... ok
+test analyser::diagnostics::tests::interp_optional_path_subcommands_no_arity_error ... ok
+test analyser::diagnostics::tests::info_frame_is_dialect_gated_to_8_5_plus ... ok
+test analyser::diagnostics::tests::irule2001_ambiguous_arity_matchclass_warns_without_fix ... ok
+test analyser::diagnostics::tests::irule2001_carries_matchclass_replacement_fix ... ok
+test analyser::diagnostics::tests::irule2001_three_arg_matchclass_fix_preserves_operator_and_class ... ok
+test analyser::diagnostics::tests::irule2002_drop_in_fix::drop_in_fix_preserves_arguments ... ok
+test analyser::diagnostics::tests::irule2002_drop_in_fix::drop_in_replacement_carries_head_swap_fix ... ok
+test analyser::diagnostics::tests::irule2002_silent_in_plain_tcl_dialect ... ok
+test analyser::diagnostics::tests::irule2002_flags_deprecated_irules_command ... ok
+test analyser::diagnostics::tests::irules_4b_disabled_split_pins_two_diagnostic_severities ... FAILED
+test analyser::diagnostics::tests::irules_alias_dialect_string_behaves_like_canonical ... FAILED
+test analyser::diagnostics::tests::irules_4b_policy_warning_follows_the_4c_lexical_scan ... FAILED
+test analyser::diagnostics::tests::irule2002_drop_in_fix::non_mechanical_replacements_get_no_fix ... ok
+test analyser::diagnostics::tests::irules_stays_subtractive_under_the_profile ... FAILED
+test analyser::diagnostics::tests::is_benign_unicode_matches_reference ... ok
+test analyser::diagnostics::tests::is_safe_literal_expr_classifies ... ok
+test analyser::diagnostics::tests::irules_arity_accepts_documented_pool_log_and_class_iteration_forms ... FAILED
+test analyser::diagnostics::tests::irules_subcommands_named_like_banned_commands_resolve_cleanly ... ok
+test analyser::diagnostics::tests::issue_703_backslash_escaped_dash_no_false_w210 ... ok
+test analyser::diagnostics::tests::issue_703_braced_dash_has_no_e002 ... ok
+test analyser::diagnostics::tests::issue_703_genuine_dash_command_in_handler_still_flagged ... FAILED
+test analyser::diagnostics::tests::issue_703_genuine_dash_command_outside_try_still_flagged ... ok
+test analyser::diagnostics::tests::issue_703_genuine_read_before_set_still_fires_in_shared_body ... ok
+test analyser::diagnostics::tests::itcl_instance_state_and_this_do_not_false_positive_w210 ... ok
+test analyser::diagnostics::tests::issue_703_no_false_w210_on_fallthrough_group_var ... ok
+test analyser::diagnostics::tests::issue_703_fallthrough_dash_has_no_e002 ... ok
+test analyser::diagnostics::tests::itcl_method_body_unbound_read_now_flags_w210 ... FAILED
+test analyser::diagnostics::tests::literal_only_checks_read_proven_words ... FAILED
+test analyser::diagnostics::tests::method_body_instance_variable_read_does_not_false_positive_w210 ... ok
+test analyser::diagnostics::tests::lmap_odd_even_parity_fires_e005 ... ok
+test analyser::diagnostics::tests::method_body_ordinary_unused_local_still_flags_w211 ... FAILED
+test analyser::diagnostics::tests::method_body_own_parameter_read_does_not_false_positive_w210 ... ok
+test analyser::diagnostics::tests::method_body_setter_write_with_no_local_read_does_not_false_positive_dead_store ... ok
+test analyser::diagnostics::tests::method_body_unbound_read_inside_switch_arm_still_flags_w210 ... FAILED
+test analyser::diagnostics::tests::method_body_read_before_set_now_flags_w210 ... FAILED
+test analyser::diagnostics::tests::namespace_eval_body_is_not_read_before_set_analysed ... ok
+test analyser::diagnostics::tests::namespace_qualified_const_value_resolves_absolutely_945 ... FAILED
+test analyser::diagnostics::tests::namespace_ensemble_explicit_command_option_suppresses_w123 ... ok
+test analyser::diagnostics::tests::nested_expect_clause_body_reports_unknown_command ... ok
+test analyser::diagnostics::tests::nested_catch_result_var_is_defined ... ok
+test analyser::diagnostics::tests::namespace_unknown_is_dialect_gated_to_8_5_plus ... ok
+test analyser::diagnostics::tests::nocomplain_never_reports_w213 ... ok
+test analyser::diagnostics::tests::ns_scope_declared_variable_blocks_the_8x_attach_m11 ... ok
+test analyser::diagnostics::tests::ns_scope_array_element_read_attaches_under_8x_m11 ... ok
+test analyser::diagnostics::tests::objdefine_method_body_unbound_read_now_flags_w210 ... FAILED
+test analyser::diagnostics::tests::ns_scope_read_attaches_to_the_global_var_under_8x_only_m11 ... ok
+test analyser::diagnostics::tests::ns_scope_read_never_attaches_to_an_intermediate_namespace_m11 ... ok
+test analyser::diagnostics::tests::oo_helpers_builtin_without_a_user_helper_still_reports ... FAILED
+test analyser::diagnostics::tests::objdefine_per_object_variable_does_not_false_positive_w210 ... ok
+test analyser::diagnostics::tests::oo_helpers_user_helper_shadows_only_inside_a_member_body ... FAILED
+test analyser::diagnostics::tests::oo_helpers_user_helper_shadows_the_dialect_gated_builtin ... ok
+test analyser::diagnostics::tests::original_append_advice_keeps_effective_roles_and_whole_written_operands ... ok
+test analyser::diagnostics::tests::original_case_advice_keeps_effective_roles_and_whole_written_operands ... ok
+test analyser::diagnostics::tests::original_deprecation_advice_preserves_whole_source_words_and_declines_captures ... ok
+test analyser::diagnostics::tests::original_expression_diagnostics_keep_effective_roles_and_whole_written_words ... ok
+test analyser::diagnostics::tests::original_option_diagnostics_share_alias_ordinals_and_stop_at_unknown_layout ... FAILED
+test analyser::diagnostics::tests::original_lambda_and_indirect_builtin_arity_keep_value_and_operand_owners ... ok
+test analyser::diagnostics::tests::opaque_switch_recovers_exhaustive_arm_defs ... FAILED
+test analyser::diagnostics::tests::original_registry_diagnostics_follow_written_alias_operands ... ok
+test analyser::diagnostics::tests::original_option_only_advice_keeps_effective_roles_and_whole_written_operands ... ok
+test analyser::diagnostics::tests::original_selector_diagnostics_share_alias_ordinals_and_declared_default_forms ... FAILED
+test analyser::diagnostics::tests::original_pattern_advice_keeps_selected_roles_and_complete_written_spans ... ok
+test analyser::diagnostics::tests::original_registry_variable_role_diagnostics_keep_shadow_and_capture_boundaries ... ok
+test analyser::diagnostics::tests::original_shape_advice_withdraws_unknown_geometry_and_known_shadows ... FAILED
+test analyser::diagnostics::tests::outer_expect_value_options_do_not_make_a_final_pattern_a_clause_list ... ok
+test analyser::diagnostics::tests::plain_body_argument_in_command_substitution_still_walked ... FAILED
+test analyser::diagnostics::tests::original_terminator_advice_retains_source_words_without_current_value_claims ... FAILED
+test analyser::diagnostics::tests::original_source_arity_and_relationships_keep_effective_counts_and_written_suffixes ... FAILED
+test analyser::diagnostics::tests::plain_script_body_nested_in_catch_still_descends ... ok
+test analyser::diagnostics::tests::proc_nested_in_catch_registers_the_proc ... ok
+test analyser::diagnostics::tests::redos_shape_detector ... ok
+test analyser::diagnostics::tests::proc_read_never_attaches_via_the_ns_fallback_m11 ... ok
+test analyser::diagnostics::tests::read_after_my_dispatch_to_an_upvar_sibling_draws_no_read_before_set ... ok
+test analyser::diagnostics::tests::same_file_alias_query_form_is_not_a_deletion ... ok
+test analyser::diagnostics::tests::same_file_alias_to_renamed_target_still_resolves ... ok
+test analyser::diagnostics::tests::same_file_alias_target_renamed_away_does_not_false_positive ... ok
+test analyser::diagnostics::tests::same_file_alias_reestablished_after_deletion_checks_new_target_arity ... ok
+test analyser::diagnostics::tests::same_file_call_to_deleted_command_does_not_false_positive ... ok
+test analyser::diagnostics::tests::same_file_args_not_last_is_an_ordinary_required_name ... ok
+test analyser::diagnostics::tests::same_file_call_to_renamed_away_name_does_not_false_positive ... ok
+test analyser::diagnostics::tests::same_file_chained_rename_still_resolves_original_arity ... ok
+test analyser::diagnostics::tests::same_file_chained_alias_accumulates_prepended_shift ... ok
+test analyser::diagnostics::tests::same_file_deleted_alias_call_does_not_false_positive ... ok
+test analyser::diagnostics::tests::same_file_deleted_alias_call_is_unknown_command ... ok
+test analyser::diagnostics::tests::same_file_deleted_alias_call_inside_proc_body_does_not_false_positive ... ok
+test analyser::diagnostics::tests::same_file_dynamic_but_resolvable_rename_target_checks_arity ... FAILED
+test analyser::diagnostics::tests::same_file_genuinely_dynamic_rename_target_does_not_false_positive ... ok
+test analyser::diagnostics::tests::same_file_interp_alias_arity_is_shifted_by_prepended_args ... ok
+test analyser::diagnostics::tests::same_file_proc_body_call_to_later_alias_is_not_order_gated ... ok
+test analyser::diagnostics::tests::same_file_proc_call_too_few_args_fires_e002 ... ok
+test analyser::diagnostics::tests::same_file_proc_call_with_correct_arity_is_silent ... ok
+test analyser::diagnostics::tests::same_file_over_applied_alias_always_flags_regardless_of_argcount ... ok
+test analyser::diagnostics::tests::same_file_proc_with_trailing_args_is_unbounded ... ok
+test analyser::diagnostics::tests::same_file_redeclared_alias_after_deletion_is_still_known ... ok
+test analyser::diagnostics::tests::same_file_proc_required_after_default_forces_exact_count ... ok
+test analyser::diagnostics::tests::same_file_relative_qualified_call_prefers_current_namespace_over_global ... FAILED
+test analyser::diagnostics::tests::same_file_relative_qualified_call_resolves_against_current_namespace ... FAILED
+test analyser::diagnostics::tests::same_file_static_rename_inherits_original_arity ... ok
+test analyser::diagnostics::tests::same_file_rename_target_reestablished_after_further_rename_checks_new_arity ... ok
+test analyser::diagnostics::tests::same_file_rename_reestablished_after_deletion_checks_new_arity ... ok
+test analyser::diagnostics::tests::scratch_dup_e003_per_item ... ok
+test analyser::diagnostics::tests::i231_reads_a_switch_words_by_their_values ... FAILED
+test analyser::diagnostics::tests::seeded_analysis_homes_relative_defs_under_the_source_namespace_m9 ... ok
+test analyser::diagnostics::tests::seeded_analysis_records_composed_source_site_namespaces_m9 ... ok
+test analyser::diagnostics::tests::same_file_top_level_call_before_alias_established_does_not_false_positive ... ok
+test analyser::diagnostics::tests::snit_widget_win_and_hull_do_not_false_positive_w210 ... ok
+test analyser::diagnostics::tests::snit_method_body_unbound_read_now_flags_w210 ... FAILED
+test analyser::diagnostics::tests::subnet_mask_helpers ... ok
+test analyser::diagnostics::tests::subcommand_arity_skips_unknown_and_dynamic_subcommands ... ok
+test analyser::diagnostics::tests::snit_method_implicits_and_declared_vars_do_not_false_positive_w210 ... ok
+test analyser::diagnostics::tests::switch_flat_pairs_are_silent ... ok
+test analyser::diagnostics::tests::switch_single_braced_body_shorthand_is_silent ... ok
+test analyser::diagnostics::tests::switch_option_skip_does_not_shift_the_parity_check ... ok
+test analyser::diagnostics::tests::switch_unpaired_pattern_fires_e005 ... FAILED
+test analyser::diagnostics::tests::switch_and_loop_joined_const_dispatch_records_every_may_target_945 ... FAILED
+test analyser::diagnostics::tests::tcloo_constructor_arity_dynamic_expand_abstains ... ok
+test analyser::diagnostics::tests::tcloo_constructor_arity_empty_body_is_not_a_real_constructor ... ok
+test analyser::diagnostics::tests::tcloo_constructor_arity_forward_reference_in_proc_body_resolves ... ok
+test analyser::diagnostics::tests::tcloo_constructor_arity_honours_definition_order_for_top_level_call ... ok
+test analyser::diagnostics::tests::tcloo_constructor_arity_is_inherited_through_superclass ... ok
+test analyser::diagnostics::tests::tcloo_constructor_arity_redefinition_uses_the_one_in_effect_at_the_call ... ok
+test analyser::diagnostics::tests::tcloo_constructor_arity_snit_new_is_not_checked ... ok
+test analyser::diagnostics::tests::tcloo_constructor_arity_proc_body_call_not_order_gated_against_later_define ... ok
+test analyser::diagnostics::tests::tcloo_constructor_arity_top_level_before_class_definition_abstains ... ok
+test analyser::diagnostics::tests::tcloo_constructor_arity_via_oo_define_after_class_create ... ok
+test analyser::diagnostics::tests::tcloo_constructor_arity_whitespace_or_comment_body_is_still_real ... ok
+test analyser::diagnostics::tests::tcloo_constructor_createwithnamespace_is_not_checked_when_not_exported ... ok
+test analyser::diagnostics::tests::tcloo_constructor_create_arity_accounts_for_mandatory_name ... ok
+test analyser::diagnostics::tests::tcloo_constructor_createwithnamespace_arity_accounts_for_two_mandatory_words ... ok
+test analyser::diagnostics::tests::tcloo_constructor_own_overrides_inherited ... ok
+test analyser::diagnostics::tests::tcloo_constructor_new_arity_fires_and_stays_silent ... ok
+test analyser::diagnostics::tests::tcloo_create_mandatory_name_is_checked_even_without_a_constructor ... FAILED
+test analyser::diagnostics::tests::tcloo_constructor_signature_advice_keeps_unknown_formal_grammar_separate_from_authored_names ... ok
+test analyser::diagnostics::tests::tcloo_forward_arity_is_shifted_by_prepended_args ... FAILED
+test analyser::diagnostics::tests::tcloo_forward_to_bare_method_name_abstains ... ok
+test analyser::diagnostics::tests::tcloo_forward_via_my_resolves_sibling_method_arity ... FAILED
+test analyser::diagnostics::tests::tcloo_forward_via_my_resolves_inherited_method_arity ... FAILED
+test analyser::diagnostics::tests::tcloo_instance_dispatch_abstains_for_class_side_method ... ok
+test analyser::diagnostics::tests::tcloo_method_arity_fires_and_stays_silent ... FAILED
+test analyser::diagnostics::tests::tcloo_loop_installed_method_arity_abstains ... FAILED
+test analyser::diagnostics::tests::tcloo_method_arity_abstains_for_ambiguous_receiver_class ... ok
+test analyser::diagnostics::tests::tcloo_next_arity_expansion_never_false_fires_too_few ... ok
+test analyser::diagnostics::tests::tcloo_next_arity_checked_against_superclass_override ... FAILED
+test analyser::diagnostics::tests::tcloo_method_with_default_and_trailing_args_is_unbounded ... FAILED
+test analyser::diagnostics::tests::subcommand_version_gates_fire_w002 ... ok
+test analyser::diagnostics::tests::tcloo_next_arity_silent_when_no_further_provider ... ok
+test analyser::diagnostics::tests::tcloo_nextto_arity_silent_for_unresolvable_target_class ... ok
+test analyser::diagnostics::tests::tcloo_next_arity_silent_outside_method_body ... ok
+test analyser::diagnostics::tests::tcloo_next_arity_trait_bit_does_not_collide_with_structurally_checked_arity ... ok
+test analyser::diagnostics::tests::tcloo_nextto_arity_checked_against_named_target ... FAILED
+test analyser::diagnostics::tests::tcloo_no_explicit_constructor_anywhere_is_never_arity_checked ... ok
+test analyser::diagnostics::tests::tclpkg_manifest_env::manifest_typo_directive_fires_w123 ... ok
+test analyser::diagnostics::tests::tclpkg_manifest_env::manifest_directive_arity_checked ... FAILED
+test analyser::diagnostics::tests::tclpkg_manifest_env::manifest_directives_resolve_cleanly ... FAILED
+test analyser::diagnostics::tests::tclpkg_manifest_env::plain_tcl_document_still_flags_directives ... ok
+test analyser::diagnostics::tests::tcltest_import_is_namespace_scoped ... FAILED
+test analyser::diagnostics::tests::tcltest_shared_frame_keeps_genuine_undefined_reads_and_data_opaque ... ok
+test analyser::diagnostics::tests::tcltest_aliases_keep_genuine_undefined_reads_and_result_data_opaque has been running for over 60 seconds
+test analyser::diagnostics::tests::tcltest_oracle_program_keeps_missing_reads_and_setup_completion has been running for over 60 seconds
+test analyser::diagnostics::tests::tcltest_shared_frame_preserves_the_reported_setup_body_cleanup_reads has been running for over 60 seconds
+test analyser::diagnostics::tests::tcltest_test_body_is_walked_when_imported ... ok
+test analyser::diagnostics::tests::the_ensemble_option_scan_consumes_values_only_for_the_operations_own_options ... FAILED
+test analyser::diagnostics::tests::the_existence_branch_fact_is_stored_once ... FAILED
+test analyser::diagnostics::tests::the_guarded_global_idiom_draws_no_w210 ... ok
+test analyser::diagnostics::tests::the_two_ensemble_option_tables_do_not_share_their_distinctive_options ... ok
+test analyser::diagnostics::tests::tk_checks_activate_on_the_ambient_placement_not_the_environment_name ... ok
+test analyser::diagnostics::tests::tmsh_first_class_resolves_its_surface_and_gates_later_core ... FAILED
+test analyser::diagnostics::tests::tn_e001_abstains_inside_a_child_interpreter_body ... ok
+test analyser::diagnostics::tests::tn_e001_abstains_on_a_deleted_class ... ok
+test analyser::diagnostics::tests::tn_e001_bare_dispatch_silent_for_unclassified_variable ... ok
+test analyser::diagnostics::tests::tn_e001_bare_dispatch_silent_when_method_present ... ok
+test analyser::diagnostics::tests::tn_e001_cmd_head_non_object_and_unknown_stay_silent ... ok
+test analyser::diagnostics::tests::tn_e001_cmd_head_snit_stays_silent ... ok
+test analyser::diagnostics::tests::tn_e001_cmd_head_with_method_word_stays_silent ... FAILED
+test analyser::diagnostics::tests::tn_w307_expanded_runtime_command_list_stays_abstaining ... ok
+test analyser::diagnostics::tests::tp_e001_bare_cmd_head_factory_proc_return ... FAILED
+test analyser::diagnostics::tests::tp_e001_bare_cmd_head_named_constructor_and_alias ... FAILED
+test analyser::diagnostics::tests::tp_e001_bare_command_substitution_head ... FAILED
+test analyser::diagnostics::tests::tp_e001_bare_dispatch_fires_even_when_class_is_ambiguous ... FAILED
+test analyser::diagnostics::tests::tcltest_shared_frame_preserves_the_reported_setup_body_cleanup_reads ... ok
+test analyser::diagnostics::tests::tp_e001_bare_dispatch_on_method_return_captured_handle ... FAILED
+test analyser::diagnostics::tests::tp_e001_bare_tcloo_object_dispatch_named_constructor ... FAILED
+test analyser::diagnostics::tests::tp_e001_bare_tcloo_object_dispatch_requires_method ... FAILED
+test analyser::diagnostics::tests::traced_head_variable_abstains_945 ... FAILED
+test analyser::diagnostics::tests::try_handler_edge_suppressed_when_var_set_before_sole_throw ... ok
+test analyser::diagnostics::tests::tcltest_aliases_keep_genuine_undefined_reads_and_result_data_opaque ... ok
+test analyser::diagnostics::tests::unbraced_expect_action_keeps_its_complete_script_span ... FAILED
+test analyser::diagnostics::tests::unknown_dialect_strings_stay_permissive ... ok
+test analyser::diagnostics::tests::upvar_local_positions_parity ... ok
+test analyser::diagnostics::tests::try_handler_edge_merges_pretry_when_body_falls_through ... FAILED
+test analyser::diagnostics::tests::var_binding_binary_scan_defines_targets ... FAILED
+test analyser::diagnostics::tests::var_binding_double_bind_with_set_is_idempotent ... ok
+test analyser::diagnostics::tests::var_binding_gets_defines_target_and_read_is_clean ... ok
+test analyser::diagnostics::tests::var_binding_a_nested_loop_command_binds_its_loop_variables_in_the_enclosing_scope ... ok
+test analyser::diagnostics::tests::var_binding_vwait_defines_target ... ok
+test analyser::diagnostics::tests::variable_name_positions_are_registry_driven ... FAILED
+test analyser::diagnostics::tests::var_binding_scope_alias_and_destroy_families_are_excluded ... ok
+test analyser::diagnostics::tests::vendor_command_inherited_options_resolve_cleanly ... ok
+test analyser::diagnostics::tests::w001_subcommand_checks_use_the_profile_mask ... ok
+test analyser::diagnostics::tests::w003_bpf_accepts_both_tips_on_its_tcl_9_runtime ... ok
+test analyser::diagnostics::tests::tcltest_oracle_program_keeps_missing_reads_and_setup_completion ... ok
+test analyser::diagnostics::tests::w001_accepts_unique_prefix_subcommand_abbreviations ... ok
+test analyser::diagnostics::tests::w003_distinct_operators_each_get_their_own_tight_span ... ok
+test analyser::diagnostics::tests::w003_dialect_is_file_wide_regardless_of_namespace_or_proc_nesting ... FAILED
+test analyser::diagnostics::tests::w003_f5_tmsh_gates_both_tip_201_and_tip_461 ... ok
+test analyser::diagnostics::tests::w003_f5_irules_stays_gated_on_its_tcl_8_4_runtime ... ok
+test analyser::diagnostics::tests::w003_fires_inside_a_sub_interpreter_eval_body ... FAILED
+test analyser::diagnostics::tests::w003_fires_inside_a_tcl_oo_method_body ... FAILED
+test analyser::diagnostics::tests::w003_fires_on_all_six_gated_operators_pre_availability ... ok
+test analyser::diagnostics::tests::w003_fires_on_exponentiation_operator_in_tcl84 ... ok
+test analyser::diagnostics::tests::w003_fires_on_in_operator_in_tcl84 ... ok
+test analyser::diagnostics::tests::unprovable_const_dispatch_shapes_abstain_945 ... ok
+test analyser::diagnostics::tests::w003_fires_on_irules_word_operator_in_unbraced_multiword_expr ... ok
+test analyser::diagnostics::tests::w003_fires_on_newline_separated_operator ... ok
+test analyser::diagnostics::tests::w003_fires_on_string_compare_in_tcl84 ... ok
+test analyser::diagnostics::tests::w003_fires_on_tab_separated_operator ... ok
+test analyser::diagnostics::tests::w003_fires_on_unbraced_multiword_expr_at_a_tight_span ... ok
+test analyser::diagnostics::tests::w003_fix_span_replaces_exactly_the_gated_application ... ok
+test analyser::diagnostics::tests::w003_irules_alias_gates_like_the_canonical_profile ... ok
+test analyser::diagnostics::tests::w003_correctly_gates_eda_vendor_dialects_by_documented_base_version ... ok
+test analyser::diagnostics::tests::w003_no_fix_when_more_than_one_occurrence ... ok
+test analyser::diagnostics::tests::w003_message_cites_the_relevant_tip ... ok
+test analyser::diagnostics::tests::w003_no_fix_when_operand_is_a_call ... ok
+test analyser::diagnostics::tests::w003_no_fix_when_operator_nested_in_a_larger_expression ... ok
+test analyser::diagnostics::tests::w003_offers_lsearch_fix_for_in ... ok
+test analyser::diagnostics::tests::w003_not_suppressed_by_a_later_proc_shadowing_if ... ok
+test analyser::diagnostics::tests::w003_offers_lsearch_fix_for_ni ... ok
+test analyser::diagnostics::tests::w003_repeated_same_operator_gets_a_diagnostic_per_occurrence ... ok
+test analyser::diagnostics::tests::w003_silent_on_array_element_named_like_a_gated_operator ... ok
+test analyser::diagnostics::tests::w003_silent_on_in_operator_in_tcl85 ... ok
+test analyser::diagnostics::tests::w003_silent_on_malformed_expression ... ok
+test analyser::diagnostics::tests::w003_offers_string_compare_fix_for_string_relational_ops ... ok
+test analyser::diagnostics::tests::w003_silent_on_quoted_string_literal_operator_word ... ok
+test analyser::diagnostics::tests::w003_fires_on_irules_word_operators_outside_irules ... ok
+test analyser::diagnostics::tests::w003_silent_on_string_compare_in_tcl9 ... ok
+test analyser::diagnostics::tests::w003_suppressed_by_an_earlier_proc_shadowing_if ... ok
+test analyser::diagnostics::tests::w003_silent_on_variable_named_like_a_gated_operator ... ok
+test analyser::diagnostics::tests::w003_tight_span_covers_only_the_operator_in_a_braced_if ... ok
+test analyser::diagnostics::tests::w003_silent_on_irules_word_operators_inside_irules ... ok
+test analyser::diagnostics::tests::w003_tight_span_covers_only_the_operator_in_bare_expr ... ok
+test analyser::diagnostics::tests::w004_abstains_on_ambiguous_subcommand_prefix ... ok
+test analyser::diagnostics::tests::w004_abstains_on_expanded_subcommand_word ... ok
+test analyser::diagnostics::tests::w004_abstains_on_dynamic_subcommand ... ok
+test analyser::diagnostics::tests::w004_abstains_on_unknown_subcommand_instead_of_scanning_parent_options ... ok
+test analyser::diagnostics::tests::w004_fires_on_abbreviated_chan_configure_inputmode ... ok
+test analyser::diagnostics::tests::w004_fires_on_chan_configure_inputmode_in_tcl86 ... ok
+test analyser::diagnostics::tests::w004_fires_on_clock_scan_validate_in_tcl86 ... ok
+test analyser::diagnostics::tests::w003_silent_on_ni_le_gt_ge_when_dialect_supports_them ... ok
+test analyser::diagnostics::tests::w004_fires_on_fconfigure_nodelay_in_tcl86 ... ok
+test analyser::diagnostics::tests::w004_fires_on_lsearch_stride_in_tcl85 ... ok
+test analyser::diagnostics::tests::w004_fires_on_lsearch_stride_in_tcl86 ... ok
+test analyser::diagnostics::tests::w004_does_not_scan_a_reserved_trailing_operand ... ok
+test analyser::diagnostics::tests::w004_fires_on_regsub_command_in_tcl86 ... ok
+test analyser::diagnostics::tests::w004_fix_handles_braced_option_token_without_stray_closer ... ok
+test analyser::diagnostics::tests::w004_fix_removes_option_and_its_value ... ok
+test analyser::diagnostics::tests::w004_fix_removes_option_and_value_at_end_of_command ... ok
+test analyser::diagnostics::tests::w004_silent_on_regsub_command_in_tcl9 ... ok
+test analyser::diagnostics::tests::w004_skips_option_value_that_looks_like_a_flag ... ok
+test analyser::diagnostics::tests::w004_later_version_options_never_leak_into_supersets ... ok
+test analyser::diagnostics::tests::w004_still_fires_when_shadowing_proc_defined_after_top_level_call ... ok
+test analyser::diagnostics::tests::w004_suppressed_when_command_aliased_to_user_proc ... ok
+test analyser::diagnostics::tests::w004_names_the_ensemble_operation_whose_option_table_answered ... ok
+test analyser::diagnostics::tests::w004_suppressed_when_shadowed_by_namespaced_proc_called_unqualified ... ok
+test analyser::diagnostics::tests::w004_suppressed_when_shadowed_by_user_proc_before_call ... ok
+test analyser::diagnostics::tests::w004_suppressed_when_shadowing_proc_defined_after_call_inside_proc_body ... ok
+test analyser::diagnostics::tests::w100_marks_every_unbraced_expression ... FAILED
+test analyser::diagnostics::tests::w004_fires_on_version_gated_list_options ... ok
+test analyser::diagnostics::tests::w100_flags_unbraced_expr_with_substitution ... ok
+test analyser::diagnostics::tests::w004_version_gated_options_follow_the_profile_ceiling ... ok
+test analyser::diagnostics::tests::w101_anchors_at_the_substituted_argument ... ok
+test analyser::diagnostics::tests::w102_advice_never_mixes_switch_families ... ok
+test analyser::diagnostics::tests::w102_message_narrows_with_flags ... ok
+test analyser::diagnostics::tests::w102_computed_switch_word_is_not_the_operand ... ok
+test analyser::diagnostics::tests::w101_gate_trait_pair_keeps_eval_only ... ok
+test analyser::diagnostics::tests::w100_skips_braced_and_safe_literals ... ok
+test analyser::diagnostics::tests::w102_tcl91_positive_family_backslashes_only_is_silent ... ok
+test analyser::diagnostics::tests::w102_narrows_a_proven_switch_word ... FAILED
+test analyser::diagnostics::tests::w103_socket_is_not_a_pipeline_opener ... ok
+test analyser::diagnostics::tests::w102_subst_variable_argument ... ok
+test analyser::diagnostics::tests::w104_lappend_fix::literal_piece_and_array_target_also_rewrite ... ok
+test analyser::diagnostics::tests::w104_flags_space_padded_append ... ok
+test analyser::diagnostics::tests::w104_lappend_fix::leading_space_var_piece_carries_whole_command_rewrite ... ok
+test analyser::diagnostics::tests::w104_lappend_fix::trailing_space_shape_gets_no_fix ... ok
+test analyser::diagnostics::tests::w108_code_artifact_beside_comment_still_flags ... ok
+test analyser::diagnostics::tests::w103_open_pipeline ... ok
+test analyser::diagnostics::tests::w106_flags_unbraced_switch_body ... ok
+test analyser::diagnostics::tests::w104_lappend_fix::non_mechanical_shapes_get_no_fix ... ok
+test analyser::diagnostics::tests::w108_common_mode_allows_intentional_unicode ... ok
+test analyser::diagnostics::tests::w108_common_mode_flags_confusables_and_non_benign ... ok
+test analyser::diagnostics::tests::w108_comment_prose_is_not_flagged ... ok
+test analyser::diagnostics::tests::w108_confusables_mode_ignores_benign_unicode ... ok
+test analyser::diagnostics::tests::w108_leaves_code_bidi_controls_to_w305 ... ok
+test analyser::diagnostics::tests::w108_flags_confusables_and_artifacts ... ok
+test analyser::diagnostics::tests::w108_leaves_comment_bidi_controls_to_w305 ... ok
+test analyser::diagnostics::tests::w108_strict_mode_explicit_flags_all_in_plain_tcl ... ok
+test analyser::diagnostics::tests::w108_strict_mode_flags_all_non_ascii_for_irules ... ok
+test analyser::diagnostics::tests::w108_off_mode_disables_entirely ... ok
+test analyser::diagnostics::tests::w108_strict_mode_still_flags_comment_prose ... ok
+test analyser::diagnostics::tests::w114_unwrap_fix::atom_inner_body_drops_the_parentheses ... ok
+test analyser::diagnostics::tests::w114_flags_nested_expr_in_expr_context ... ok
+test analyser::diagnostics::tests::w114_ignores_non_expr_context_and_plain_expr ... ok
+test analyser::diagnostics::tests::w114_unwrap_fix::literal_atom_also_drops_the_parentheses ... ok
+test analyser::diagnostics::tests::w114_unwrap_fix::compound_inner_body_is_parenthesised ... ok
+test analyser::diagnostics::tests::w114_unwrap_fix::multi_group_expr_arguments_get_no_fix ... ok
+test analyser::diagnostics::tests::w114_unwrap_fix::tip461_string_ordering_context_gets_no_fix ... FAILED
+test analyser::diagnostics::tests::w114_unwrap_fix::string_comparison_context_gets_no_fix ... ok
+test analyser::diagnostics::tests::w114_ignores_expr_nested_in_command_substitution ... ok
+test analyser::diagnostics::tests::w114_unwrap_fix::unbraced_inner_body_gets_no_fix ... ok
+test analyser::diagnostics::tests::w120_disabled_via_directive ... ok
+test analyser::diagnostics::tests::w114_unwrap_fix::unbraced_outer_argument_gets_no_fix ... ok
+test analyser::diagnostics::tests::w120_emitted_once_per_command_name ... FAILED
+test analyser::diagnostics::tests::w116_stub_shadow_uses_actual_selected_registry_and_exact_descriptor_data ... ok
+test analyser::diagnostics::tests::w120_fires_for_package_gated_command_without_require ... FAILED
+test analyser::diagnostics::tests::w120_fix_inserts_after_existing_require ... FAILED
+test analyser::diagnostics::tests::w120_retains_selected_package_key_independently_of_message ... ok
+test analyser::diagnostics::tests::w120_suppressed_when_package_required ... ok
+test analyser::diagnostics::tests::w123_fp_expr_function_call_unaffected_by_wrapper_availability_under_84 ... ok
+test analyser::diagnostics::tests::w120_is_silent_under_the_tk_environment_and_nags_under_plain_tcl ... FAILED
+test analyser::diagnostics::tests::w123_fp_expr_function_resolves_inside_if_condition ... ok
+test analyser::diagnostics::tests::w123_fp_a_live_body_edge_still_reaches_a_callee_with_no_top_level_call ... ok
+test analyser::diagnostics::tests::w121_flags_noncontiguous_subnet_mask ... ok
+test analyser::diagnostics::tests::w123_fp_issue_1006_alias_call_before_later_deletion_resolves ... ok
+test analyser::diagnostics::tests::w123_fp_expr_function_resolves_inside_namespace_and_proc_body ... ok
+test analyser::diagnostics::tests::w123_fp_issue_1006_rename_target_call_before_later_deletion_resolves ... ok
+test analyser::diagnostics::tests::w123_fp_issue_1006_alias_deletion_inside_never_triggered_body_resolves ... ok
+test analyser::diagnostics::tests::w123_fp_issue_1009_codex_review_body_call_before_later_deletion_resolves ... ok
+test analyser::diagnostics::tests::w123_fp_issue_1006_rename_target_deletion_inside_never_triggered_body_resolves ... ok
+test analyser::diagnostics::tests::w123_fp_issue_1010_interpolated_head_folds_to_reestablished_proc_resolves ... ok
+test analyser::diagnostics::tests::w123_fp_issue_1009_codex_review_method_body_call_before_later_deletion_resolves ... ok
+test analyser::diagnostics::tests::w123_fp_issue_1015_mutual_recursion_cycle_entered_at_top_level_resolves ... ok
+test analyser::diagnostics::tests::w123_fp_issue_1015_two_level_call_chain_before_later_deletion_resolves ... ok
+test analyser::diagnostics::tests::w123_fp_issue_973_class_call_before_rename_resolves ... ok
+test analyser::diagnostics::tests::w123_fp_issue_1015_three_level_call_chain_before_later_deletion_resolves ... ok
+test analyser::diagnostics::tests::w123_fp_issue_973_class_reestablished_after_deletion_resolves ... ok
+test analyser::diagnostics::tests::w123_fp_issue_973_interp_alias_call_before_deletion_resolves ... ok
+test analyser::diagnostics::tests::w123_fp_issue_973_proc_call_before_rename_resolves ... ok
+test analyser::diagnostics::tests::w123_fp_issue_973_deletion_inside_never_triggered_proc_body_resolves ... ok
+test analyser::diagnostics::tests::w123_fp_issue_973_interp_alias_reestablished_after_deletion_resolves ... ok
+test analyser::diagnostics::tests::w123_fp_ordinary_call_shaped_like_mathfunc_resolves_under_86 ... ok
+test analyser::diagnostics::tests::w123_fp_nested_function_calls_both_resolve ... ok
+test analyser::diagnostics::tests::w123_fp_issue_973_top_level_call_before_later_proc_deletion_resolves ... ok
+test analyser::diagnostics::tests::w123_fp_issue_973_proc_reestablished_after_deletion_resolves ... ok
+test analyser::diagnostics::tests::w123_fp_version_gated_function_resolves_at_its_introducing_release ... ok
+test analyser::diagnostics::tests::w123_fp_original_issue_968_repro_is_silent ... ok
+test analyser::diagnostics::tests::w123_retains_original_missing_word_and_position_independently_of_message ... ok
+test analyser::diagnostics::tests::w123_tn_rename_of_a_builtin_is_silent ... ok
+test analyser::diagnostics::tests::w123_tn_rename_of_an_existing_proc_is_silent ... ok
+test analyser::diagnostics::tests::w123_retains_original_math_function_context_without_command_head_authority ... ok
+test analyser::diagnostics::tests::w123_says_the_call_widens_where_it_does ... FAILED
+test analyser::diagnostics::tests::w123_tn_user_defined_mathfunc_override_still_resolves ... ok
+test analyser::diagnostics::tests::w123_tn_unrelated_proc_sharing_a_mathfunc_name_is_unaffected ... ok
+test analyser::diagnostics::tests::w123_tp_a_class_renamed_away_still_flags_its_old_name ... FAILED
+test analyser::diagnostics::tests::w123_tp_a_rename_in_a_dead_branch_is_not_an_unconditional_deletion ... FAILED
+test analyser::diagnostics::tests::w123_tp_an_empty_enclosing_body_leaves_the_later_top_level_offset ... ok
+test analyser::diagnostics::tests::w123_tp_bareword_call_to_a_mathfunc_shaped_name_is_still_unresolved ... ok
+test analyser::diagnostics::tests::w123_tp_a_dead_body_edge_does_not_lower_a_later_top_level_offset ... ok
+test analyser::diagnostics::tests::w123_tp_deleting_rename_of_a_nonexistent_command_is_flagged ... ok
+test analyser::diagnostics::tests::w123_tp_custom_mathfunc_body_bareword_call_fires_under_84 ... FAILED
+test analyser::diagnostics::tests::w123_tp_expr_function_after_rename_away_is_unresolved ... ok
+test analyser::diagnostics::tests::w123_tp_issue_1010_interpolated_head_folds_to_deleted_proc_stays_flagged ... ok
+test analyser::diagnostics::tests::w123_tp_issue_1009_codex_review_deleted_before_definition_still_flags ... ok
+test analyser::diagnostics::tests::w123_tp_issue_1009_codex_review_deleted_between_definition_and_call_still_flags ... ok
+test analyser::diagnostics::tests::w123_tp_issue_1009_codex_review_escape_hatch_requires_specific_enclosing_call ... ok
+test analyser::diagnostics::tests::w123_tp_issue_973_class_deleted_via_rename_no_reestablishment ... ok
+test analyser::diagnostics::tests::w123_tp_issue_1015_mutual_recursion_cycle_never_entered_still_flags ... ok
+test analyser::diagnostics::tests::w123_tp_issue_973_interp_alias_deleted_no_reestablishment ... ok
+test analyser::diagnostics::tests::w123_tp_math_function_before_its_release_dual_fires_with_w002 ... ok
+test analyser::diagnostics::tests::w123_tp_issue_973_proc_deleted_via_rename_no_reestablishment ... ok
+test analyser::diagnostics::tests::w123_tp_ordinary_call_shaped_like_mathfunc_fires_under_84 ... ok
+test analyser::diagnostics::tests::w123_tp_rename_of_a_nonexistent_command_is_flagged ... ok
+test analyser::diagnostics::tests::w123_tp_issue_973_rename_to_new_name_call_to_old_name_stays_unknown ... ok
+test analyser::diagnostics::tests::w123_tp_unknown_function_name_inside_expr_still_fires ... ok
+test analyser::diagnostics::tests::w123_vendor_profiles_still_gate_later_version_core ... FAILED
+test analyser::diagnostics::tests::w123_vendor_profiles_still_flag_genuinely_unknown_commands ... FAILED
+test analyser::diagnostics::tests::w143_package_namespace_advice_keeps_literal_package_names ... FAILED
+test analyser::diagnostics::tests::w127_fires_on_invalid_option_enum_value ... ok
+test analyser::diagnostics::tests::w144_core_subcommand_lifecycle_uses_registry_safe_fix ... ok
+test analyser::diagnostics::tests::w146_drops_registry_finding_when_a_user_command_shadows_trace ... ok
+test analyser::diagnostics::tests::w123_vendor_profiles_admit_their_embedded_tcl_core ... FAILED
+test analyser::diagnostics::tests::w146_mixed_operation_list_fix_preserves_valid_members_and_requires_review ... ok
+test analyser::diagnostics::tests::w146_abstains_when_a_modern_operation_list_is_not_safely_fixable ... ok
+test analyser::diagnostics::tests::w127_fires_on_invalid_subcommand_closed_value ... ok
+test analyser::diagnostics::tests::w147_is_generic_and_covers_glob_without_source_logic ... ok
+test analyser::diagnostics::tests::w146_honours_trace_prefix_and_legacy_version_rules ... ok
+test analyser::diagnostics::tests::w147_reports_a_cross_option_value_relation_on_an_instance_method ... FAILED
+test analyser::diagnostics::tests::w146_validates_modern_trace_operation_lists_by_registry_declared_type ... ok
+test analyser::diagnostics::tests::w147_reports_registry_declared_mutually_exclusive_options ... ok
+test analyser::diagnostics::tests::w147_reports_a_match_variable_after_regexp_inline ... ok
+test analyser::diagnostics::tests::w147_reports_mixed_subst_switch_families ... ok
+test analyser::diagnostics::tests::w147_requires_two_distinct_canonical_options ... ok
+test analyser::diagnostics::tests::w152_reports_a_directional_option_requirement ... ok
+test analyser::diagnostics::tests::w152_reports_a_requires_one_of_after_a_positional_word ... ok
+test analyser::diagnostics::tests::w200_binary_modifier_is_dialect_gated ... ok
+test analyser::diagnostics::tests::w210_c9_loop_accumulator_distinguishes_custom_inputs_from_ordinary_empty_lists ... FAILED
+test analyser::diagnostics::tests::w210_incr_on_uninit_is_silent ... FAILED
+test analyser::diagnostics::tests::w210_empty_dict_with_return_fires_but_known_key_silent ... FAILED
+test analyser::diagnostics::tests::w210_loop_body_accumulator_requires_an_initial_value ... FAILED
+test analyser::diagnostics::tests::w210_interproc_dict_with_caller_literal ... FAILED
+test analyser::diagnostics::tests::w202_binary_field_letters_are_dialect_gated ... ok
+test analyser::diagnostics::tests::w210_missing_physical_read_does_not_require_an_ssa_value_version ... ok
+test analyser::diagnostics::tests::w210_dict_body_keys_come_from_the_plan ... FAILED
+test analyser::diagnostics::tests::w210_no_false_fire_on_many_var_scan_return ... ok
+test analyser::diagnostics::tests::w210_no_false_fire_on_many_var_lassign_return ... ok
+test analyser::diagnostics::tests::w210_not_fired_for_qualified_global_read ... ok
+test analyser::diagnostics::tests::w210_phi_undef_switch_no_default_return ... FAILED
+test analyser::diagnostics::tests::w210_phi_undef_if_arm_only_def_return ... FAILED
+test analyser::diagnostics::tests::w210_no_fire_when_both_merge_arms_define ... ok
+test analyser::diagnostics::tests::w210_pkgindex_reports_other_reads_inside_command_substitutions ... FAILED
+test analyser::diagnostics::tests::w210_phi_undef_use_after_unset_return ... FAILED
+test analyser::diagnostics::tests::w210_provably_no_match_regexp_scan ... FAILED
+test analyser::diagnostics::tests::w210_reads_a_no_match_preserve_outcome ... FAILED
+test analyser::diagnostics::tests::w210_matchable_regexp_scan_silent ... FAILED
+test analyser::diagnostics::tests::w210_qualified_variable_alias_tail_return_silent ... ok
+test analyser::diagnostics::tests::w210_startup_read_trace_respects_global_alias_and_unset_lifecycle ... FAILED
+test analyser::diagnostics::tests::w211_deliberately_skips_destructuring_writer_outputs ... ok
+test analyser::diagnostics::tests::w211_fires_once_per_variable_set_twice ... ok
+test analyser::diagnostics::tests::w210_regexp_expanded_whitespace_pattern_silent ... FAILED
+test analyser::diagnostics::tests::w210_uses_registry_owned_startup_lifecycle_facts ... FAILED
+test analyser::diagnostics::tests::w212_flags_name_position_substitution ... ok
+test analyser::diagnostics::tests::w212_ignores_plain_names ... ok
+test analyser::diagnostics::tests::w212_upvar_remote_name_may_be_computed ... ok
+test analyser::diagnostics::tests::w212_covers_registry_name_positions ... FAILED
+test analyser::diagnostics::tests::w211_not_emitted_for_command_output_vars ... ok
+test analyser::diagnostics::tests::w214_empty_body_stub_silent ... ok
+test analyser::diagnostics::tests::w214_genuine_unused_param_still_fires ... ok
+test analyser::diagnostics::tests::w214_quoted_keyword_marker_silent ... FAILED
+test analyser::diagnostics::tests::w214_no_dispatcher_still_fires_on_peer_family ... FAILED
+test analyser::diagnostics::tests::w216_fixed_proposals_match_captured_public_value_examples ... FAILED
+test analyser::diagnostics::tests::w214_dispatch_protocol_suppresses_peer_family ... ok
+test analyser::diagnostics::tests::w216_public_value_capture_keeps_whole_provider_rows ... ok
+test analyser::diagnostics::tests::w216_literal_root_replacement_preserves_bytes_and_index_source ... FAILED
+test analyser::diagnostics::tests::w216_upvar_local_name_is_indirect_array_idiom ... ok
+test analyser::diagnostics::tests::w218_args_in_non_final_position_fires ... ok
+test analyser::diagnostics::tests::w218_fires_for_method_and_apply_params ... ok
+test analyser::diagnostics::tests::w214_dispatcher_in_an_independent_source_namespace_does_not_suppress_peers has been running for over 60 seconds
+test analyser::diagnostics::tests::w220_array_element_overwrite_not_dead ... ok
+test analyser::diagnostics::tests::w214_dispatcher_in_an_independent_source_namespace_does_not_suppress_peers ... FAILED
+test analyser::diagnostics::tests::w218_silent_for_final_args_and_plain_params ... ok
+test analyser::diagnostics::tests::w214_repeated_publication_does_not_count_as_three_protocol_peers ... FAILED
+test analyser::diagnostics::tests::w220_scalar_overwrite_still_fires_via_analyse ... ok
+test analyser::diagnostics::tests::w220_deduped_against_w211_on_single_dead_assignment ... ok
+test analyser::diagnostics::tests::w220_braced_literal_arg_is_not_a_read ... FAILED
+test analyser::diagnostics::tests::w220_suppressed_for_interpreter_special_variable_writes ... FAILED
+test analyser::diagnostics::tests::w233_divide_by_zero_literal_and_const_var ... FAILED
+test analyser::diagnostics::tests::w300_source_with_variable_path ... FAILED
+test analyser::diagnostics::tests::w233_silent_on_float_division ... ok
+test analyser::diagnostics::tests::w302_constructive_subcommand_still_fires ... ok
+test analyser::diagnostics::tests::w301_uplevel_injection ... ok
+test analyser::diagnostics::tests::w302_fire_and_forget_ensemble_chan_close_silent ... ok
+test analyser::diagnostics::tests::w302_fire_and_forget_bare_close_silent ... ok
+test analyser::diagnostics::tests::w303_message_and_severity ... ok
+test analyser::diagnostics::tests::w304_braced_switch_form_silent ... ok
+test analyser::diagnostics::tests::w304_does_not_cross_proc_param_shadow ... ok
+test analyser::diagnostics::tests::w303_redos_nested_quantifiers ... ok
+test analyser::diagnostics::tests::w305_analyser_finds_comments_and_command_positions ... ok
+test analyser::diagnostics::tests::w305_analyser_is_silent_on_ordinary_rtl_and_directional_marks ... ok
+test analyser::diagnostics::tests::w233_silent_on_nonzero_unknown_and_guarded has been running for over 60 seconds
+test analyser::diagnostics::tests::w302_fire_and_forget_is_registry_destructive_data ... ok
+test analyser::diagnostics::tests::w304_split_switch_form_still_fires ... ok
+test analyser::diagnostics::tests::w305_analyser_skips_a_disabled_code_and_leaves_a_noqa_to_the_policy ... ok
+test analyser::diagnostics::tests::w305_analyser_reports_every_bidi_control_without_w108_duplication ... ok
+test analyser::diagnostics::tests::w306_literal_expected_in_regexp_pattern ... ok
+test analyser::diagnostics::tests::w307_nested_command_sub_dispatch_counts_for_multidispatch ... ok
+test analyser::diagnostics::tests::w307_fp_issue_1010_dispatch_value_is_reestablished_proc_resolves ... FAILED
+test analyser::diagnostics::tests::w307_reads_the_constant_an_array_element_was_set_to ... ok
+test analyser::diagnostics::tests::w307_reads_element_and_body_bindings ... FAILED
+test analyser::diagnostics::tests::w233_silent_on_nonzero_unknown_and_guarded ... FAILED
+test analyser::diagnostics::tests::w307_absence_advice_does_not_override_custom_fallback_uncertainty ... ok
+test analyser::diagnostics::tests::w307_suppressed_for_method_return_captured_handle ... FAILED
+test analyser::diagnostics::tests::w307_suppressed_for_braced_namespace_var_proc_param ... ok
+test analyser::diagnostics::tests::w307_selected_alias_slot_does_not_require_a_live_terminal_command ... FAILED
+test analyser::diagnostics::tests::w308_constructor_create_named_and_auto ... FAILED
+test analyser::diagnostics::tests::w307_suppressed_for_snit_instance_var_in_helper_proc ... ok
+test analyser::diagnostics::tests::w308_double_colon_oo_class_constructor ... FAILED
+test analyser::diagnostics::tests::w307_tp_issue_1010_dispatch_value_is_deleted_proc_stays_flagged ... ok
+test analyser::diagnostics::tests::w308_fp_issue_1010_reestablished_class_constructor_still_flags_unknown_method ... FAILED
+test analyser::diagnostics::tests::w308_fires_for_bogus_method_on_method_return_captured_handle ... FAILED
+test analyser::diagnostics::tests::w308_tn_a_constructor_written_before_its_rename_does_not_type_1049 ... FAILED
+test analyser::diagnostics::tests::w308_namespace_scoped_class_constructor ... FAILED
+test analyser::diagnostics::tests::w308_tn_a_renamed_class_still_accepts_its_real_methods_1049 ... FAILED
+test analyser::diagnostics::tests::w308_tn_an_alias_to_the_vacated_source_name_stays_untyped_1049 ... ok
+test analyser::diagnostics::tests::w307_suppressed_for_object_returning_proc_factory ... FAILED
+test analyser::diagnostics::tests::w308_tn_an_alias_with_prepended_args_is_declined_1049 ... ok
+test analyser::diagnostics::tests::w308_tp_a_chain_of_aliases_reaches_the_class_1049 ... FAILED
+test analyser::diagnostics::tests::w308_tp_a_chain_of_renames_still_reaches_the_class_1049 ... FAILED
+test analyser::diagnostics::tests::w308_tp_a_renamed_class_name_still_types_its_constructor_1049 ... FAILED
+test analyser::diagnostics::tests::w308_tp_a_renamed_class_types_a_direct_constructor_dispatch_1049 ... FAILED
+test analyser::diagnostics::tests::w308_fp_issue_1013_reestablished_class_set_var_constructor_still_flags ... FAILED
+test analyser::diagnostics::tests::w308_tp_an_interp_alias_of_a_class_types_its_constructor_1049 ... FAILED
+test analyser::diagnostics::tests::w308_tp_an_alias_to_a_renamed_class_name_reaches_the_class_1049 ... FAILED
+test analyser::diagnostics::tests::w308_tn_issue_1013_live_class_set_var_constructor_still_flags ... FAILED
+test analyser::diagnostics::tests::w308_tp_class_renamed_to_a_name_keeps_typing_its_existing_objects ... FAILED
+test analyser::diagnostics::tests::w308_tp_issue_1010_deleted_class_constructor_falls_back_to_w307 ... FAILED
+test analyser::diagnostics::tests::w308_transitive_alias_known_method_silent ... FAILED
+test analyser::diagnostics::tests::w308_transitive_alias_of_constructor_object ... FAILED
+test analyser::diagnostics::tests::w309_eval_uplevel_with_subst ... ok
+test analyser::diagnostics::tests::w309_inner_subst_head_resolves_through_registry ... ok
+test analyser::diagnostics::tests::w310_message_names_option ... ok
+test analyser::diagnostics::tests::w310_registry_credential_option ... FAILED
+test analyser::diagnostics::tests::w310_subcommand_sensitive_header ... ok
+test analyser::diagnostics::tests::w308_tp_issue_1013_deleted_class_set_var_constructor_draws_no_w308 ... ok
+test analyser::diagnostics::tests::w311_flags_binary_encoding_with_translation ... ok
+test analyser::diagnostics::tests::w310_hardcoded_credential_option ... ok
+test analyser::diagnostics::tests::w312_message_names_subcommand ... ok
+test analyser::diagnostics::tests::w308_tp_copy_propagated_handle_with_a_trailing_rename_still_flags ... FAILED
+test analyser::diagnostics::tests::w312_interp_eval_injection ... ok
+test analyser::diagnostics::tests::w312_registry_taint_list_widens_to_console_and_abbreviations ... ok
+test analyser::diagnostics::tests::when_body_analysed_under_irules ... FAILED
+test analyser::diagnostics::tests::w314_namespace_flags_once_without_per_definition_cascade ... ok
+test analyser::diagnostics::tests::when_body_not_analysed_under_plain_tcl ... FAILED
+test analyser::diagnostics::tests::zz_probe_w210_lowering ... ok
+test analyser::diagnostics::tests::w314_does_not_fire_for_addressable_colon_shapes ... ok
+test analyser::diagnostics::tests::w314_fires_for_colon_named_proc_class_and_namespace ... ok
+---- analyser::diagnostics::tests::a_conditional_unset_gives_w210 stdout ----
+thread 'analyser::diagnostics::tests::a_conditional_unset_gives_w210' (25006) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:18053:5:
+---- analyser::diagnostics::tests::a_guard_under_and_narrows_the_read stdout ----
+thread 'analyser::diagnostics::tests::a_guard_under_and_narrows_the_read' (25008) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:18223:5:
+---- analyser::diagnostics::tests::a_concatenated_script_writes_through_the_documents_registry stdout ----
+thread 'analyser::diagnostics::tests::a_concatenated_script_writes_through_the_documents_registry' (25005) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:18118:5:
+assertion `left == right` failed: 8.4: lassign is no command
+  left: 0
+ right: 1
+---- analyser::diagnostics::tests::a_killed_return_read_reports_once stdout ----
+thread 'analyser::diagnostics::tests::a_killed_return_read_reports_once' (25071) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:18081:5:
+assertion `left == right` failed: []
+  left: 0
+ right: 1
+---- analyser::diagnostics::tests::a_nested_index_reads_the_proven_container stdout ----
+thread 'analyser::diagnostics::tests::a_nested_index_reads_the_proven_container' (25075) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:2144:9:
+assertion `left == right` failed: W230: set l {a b c}
+  left: []
+ right: ["9"]
+---- analyser::diagnostics::tests::a_proven_word_is_reported_once_beside_a_written_one stdout ----
+thread 'analyser::diagnostics::tests::a_proven_word_is_reported_once_beside_a_written_one' (25079) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:2056:5:
+assertion `left == right` failed: proc p {} {
+  left: ["255.0.255.0", "255.0.255.0"]
+ right: ["255.0.255.0", "255.0.255.0", "$m"]
+---- analyser::diagnostics::tests::a_guard_holds_where_the_rung_refines_nothing stdout ----
+thread 'analyser::diagnostics::tests::a_guard_holds_where_the_rung_refines_nothing' (25007) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:18209:5:
+assertion `left == right` failed
+  left: [(W210, "Variable 'x' is read before it is set"), (W210, "Variable 'y' is read before it is set")]
+ right: [(W210, "Variable 'y' is read before it is set")]
+---- analyser::diagnostics::tests::a_second_unset_is_a_definite_w213 stdout ----
+thread 'analyser::diagnostics::tests::a_second_unset_is_a_definite_w213' (25241) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:18042:5:
+assertion `left == right` failed: []
+  left: 0
+ right: 1
+---- analyser::diagnostics::tests::after_default_form_bareword_callback_is_now_arity_checked stdout ----
+thread 'analyser::diagnostics::tests::after_default_form_bareword_callback_is_now_arity_checked' (25372) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:3906:5:
+assertion `left == right` failed
+  left: []
+ right: ["E002"]
+---- analyser::diagnostics::tests::after_default_form_braced_callback_is_arity_checked stdout ----
+thread 'analyser::diagnostics::tests::after_default_form_braced_callback_is_arity_checked' (25375) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:3858:5:
+assertion `left == right` failed: after's script word must recurse as a real call, not an opaque value
+  left: []
+ right: ["E002"]
+---- analyser::diagnostics::tests::after_idle_braced_callback_is_arity_checked stdout ----
+thread 'analyser::diagnostics::tests::after_idle_braced_callback_is_arity_checked' (25405) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:3868:5:
+assertion `left == right` failed: after idle's script word must recurse exactly like after ms's
+  left: []
+ right: ["E002"]
+---- analyser::diagnostics::tests::a_read_after_code_the_module_cannot_see_is_no_read_before_set stdout ----
+thread 'analyser::diagnostics::tests::a_read_after_code_the_module_cannot_see_is_no_read_before_set' (25177) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:18514:9:
+---- analyser::diagnostics::tests::an_opaque_switch_reports_the_arms_it_never_selects stdout ----
+thread 'analyser::diagnostics::tests::an_opaque_switch_reports_the_arms_it_never_selects' (25543) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:7694:5:
+assertion `left == right` failed
+  left: []
+ right: [59, 72]
+---- analyser::diagnostics::tests::an_index_site_is_reported_once stdout ----
+thread 'analyser::diagnostics::tests::an_index_site_is_reported_once' (25512) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:2108:9:
+assertion `left == right` failed: W230: set l [split a,b,c ,]
+  left: []
+ right: ["$i"]
+---- analyser::diagnostics::tests::a_store_a_call_the_module_cannot_see_may_read_draws_neither_w220_nor_w211 stdout ----
+thread 'analyser::diagnostics::tests::a_store_a_call_the_module_cannot_see_may_read_draws_neither_w220_nor_w211' (25275) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:18590:9:
+assertion `left == right` failed: proc foo {} { puts hi }
+  left: []
+ right: [W220]
+---- analyser::diagnostics::tests::analyse_irule4005_racy_static_emitted_for_per_request_writes stdout ----
+thread 'analyser::diagnostics::tests::analyse_irule4005_racy_static_emitted_for_per_request_writes' (25600) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:10922:5:
+---- analyser::diagnostics::tests::analyse_i230_constant_if_branch stdout ----
+thread 'analyser::diagnostics::tests::analyse_i230_constant_if_branch' (25596) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:11745:5:
+---- analyser::diagnostics::tests::analyse_w123_emits_did_you_mean_suggestion stdout ----
+thread 'analyser::diagnostics::tests::analyse_w123_emits_did_you_mean_suggestion' (25795) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:10837:5:
+---- analyser::diagnostics::tests::analyse_w123_dispatch_target_from_unknown_proc_suppresses stdout ----
+thread 'analyser::diagnostics::tests::analyse_w123_dispatch_target_from_unknown_proc_suppresses' (25768) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:10891:5:
+assertion failed: r.diagnostics.iter().any(|d| d.code == DiagCode::W123)
+---- analyser::diagnostics::tests::analyse_no_w307_for_static_known_command stdout ----
+thread 'analyser::diagnostics::tests::analyse_no_w307_for_static_known_command' (25758) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:12048:5:
+assertion `left == right` failed: W307 must be suppressed when var holds known command name; got [Diagnostic { subject: None, code: W307, span: Span { start: 27, end: 31 }, message: "Non-literal command name — cannot statically analyse", severity: Warning, fixes: [] }]
+  left: 1
+ right: 0
+---- analyser::diagnostics::tests::analyse_w307_suppressed_for_known_class_constructor_chain stdout ----
+thread 'analyser::diagnostics::tests::analyse_w307_suppressed_for_known_class_constructor_chain' (26030) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:8557:5:
+---- analyser::diagnostics::tests::analyse_w307_suppressed_for_my_self_dispatch stdout ----
+thread 'analyser::diagnostics::tests::analyse_w307_suppressed_for_my_self_dispatch' (26225) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:10309:5:
+---- analyser::diagnostics::tests::an_option_heavy_document_is_checked_with_no_vm_entry stdout ----
+thread 'analyser::diagnostics::tests::an_option_heavy_document_is_checked_with_no_vm_entry' (25591) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:2896:5:
+---- analyser::diagnostics::tests::analyse_w308_emitted_for_unknown_method_on_known_class_constructor stdout ----
+thread 'analyser::diagnostics::tests::analyse_w308_emitted_for_unknown_method_on_known_class_constructor' (26286) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:8579:5:
+---- analyser::diagnostics::tests::analyse_w307_suppressed_per_ssa_version_after_reassignment stdout ----
+thread 'analyser::diagnostics::tests::analyse_w307_suppressed_per_ssa_version_after_reassignment' (26234) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:12104:5:
+assertion `left == right` failed: W307 must read the precise reaching version ("puts"); got [Diagnostic { subject: None, code: W307, span: Span { start: 47, end: 51 }, message: "Non-literal command name — cannot statically analyse", severity: Warning, fixes: [] }]
+  left: 1
+ right: 0
+---- analyser::diagnostics::tests::analyse_w308_1330_quick_fix_span_matches_the_diagnostic stdout ----
+thread 'analyser::diagnostics::tests::analyse_w308_1330_quick_fix_span_matches_the_diagnostic' (26252) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:16842:28:
+---- analyser::diagnostics::tests::analyse_w308_1330_cmd_site_spans_are_exact stdout ----
+thread 'analyser::diagnostics::tests::analyse_w308_1330_cmd_site_spans_are_exact' (26249) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:16801:5:
+assertion `left == right` failed
+  left: [("W307", "[Dog new]")]
+ right: [("W308", "badmethod")]
+---- analyser::diagnostics::tests::analyse_w308_tp_1324_bare_self_receiver_unknown_method stdout ----
+thread 'analyser::diagnostics::tests::analyse_w308_tp_1324_bare_self_receiver_unknown_method' (26454) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:10340:5:
+---- analyser::diagnostics::tests::analyse_w308_tp_1324_self_object_receiver_unknown_method stdout ----
+thread 'analyser::diagnostics::tests::analyse_w308_tp_1324_self_object_receiver_unknown_method' (26458) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:10390:5:
+---- analyser::diagnostics::tests::analyser_recurses_into_irules_nesting_script_bodies stdout ----
+thread 'analyser::diagnostics::tests::analyser_recurses_into_irules_nesting_script_bodies' (26470) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:4430:9:
+---- analyser::diagnostics::tests::analyse_w308_tp_1329_bareword_my_unknown_method stdout ----
+thread 'analyser::diagnostics::tests::analyse_w308_tp_1329_bareword_my_unknown_method' (26461) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:16609:5:
+assertion `left == right` failed: exactly one dispatch diagnostic expected; got []
+  left: 0
+ right: 1
+---- analyser::diagnostics::tests::analyse_w308_tp_1329_object_command_cannot_reach_unexported_builtins stdout ----
+thread 'analyser::diagnostics::tests::analyse_w308_tp_1329_object_command_cannot_reach_unexported_builtins' (26462) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:16658:5:
+assertion `left == right` failed: `$obj varname` is a real error — only `my` reaches it
+  left: []
+ right: ["W308"]
+---- analyser::diagnostics::tests::apply_lambda_arity_fires_and_stays_silent stdout ----
+thread 'analyser::diagnostics::tests::apply_lambda_arity_fires_and_stays_silent' (26516) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:9790:5:
+assertion `left == right` failed
+  left: []
+ right: ["E002"]
+---- analyser::diagnostics::tests::apply_lambda_arity_still_checked_when_apply_is_not_shadowed stdout ----
+thread 'analyser::diagnostics::tests::apply_lambda_arity_still_checked_when_apply_is_not_shadowed' (26517) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:9642:5:
+assertion `left == right` failed
+  left: []
+ right: ["E002"]
+---- analyser::diagnostics::tests::apply_lambda_body_unbound_read_still_fires_w210 stdout ----
+thread 'analyser::diagnostics::tests::apply_lambda_body_unbound_read_still_fires_w210' (26555) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:16512:9:
+---- analyser::diagnostics::tests::apply_lambda_in_command_substitution_keeps_its_own_frame stdout ----
+thread 'analyser::diagnostics::tests::apply_lambda_in_command_substitution_keeps_its_own_frame' (26738) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:1103:5:
+---- analyser::diagnostics::tests::apply_lambda_body_in_command_substitution_is_walked stdout ----
+thread 'analyser::diagnostics::tests::apply_lambda_body_in_command_substitution_is_walked' (26552) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:1022:9:
+---- analyser::diagnostics::tests::bpf_precise_mask_keeps_90_core_and_drops_8x_relics stdout ----
+thread 'analyser::diagnostics::tests::bpf_precise_mask_keeps_90_core_and_drops_8x_relics' (28198) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:15838:9:
+---- analyser::diagnostics::tests::catch_and_try_body_writes_join_never_last_write_945 stdout ----
+thread 'analyser::diagnostics::tests::catch_and_try_body_writes_join_never_last_write_945' (28497) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:14757:5:
+---- analyser::diagnostics::tests::branch_joined_const_dispatch_records_every_may_target_945 stdout ----
+thread 'analyser::diagnostics::tests::branch_joined_const_dispatch_records_every_may_target_945' (28367) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:14688:5:
+---- analyser::diagnostics::tests::const_cmd_head_resolves_through_a_pure_copy_chain_m7 stdout ----
+thread 'analyser::diagnostics::tests::const_cmd_head_resolves_through_a_pure_copy_chain_m7' (28956) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:14645:5:
+---- analyser::diagnostics::tests::const_cmd_head_abstains_on_unknown_or_dynamic_values_m7 stdout ----
+thread 'analyser::diagnostics::tests::const_cmd_head_abstains_on_unknown_or_dynamic_values_m7' (28812) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:14606:5:
+assertion failed: r4.command_invocations.iter().filter(|i|
+---- analyser::diagnostics::tests::const_cmd_head_resolves_in_the_dispatch_namespace_m7 stdout ----
+thread 'analyser::diagnostics::tests::const_cmd_head_resolves_in_the_dispatch_namespace_m7' (28955) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:14567:5:
+---- analyser::diagnostics::tests::declared_variable_name_positions_keep_only_supplied_contract_roles stdout ----
+thread 'analyser::diagnostics::tests::declared_variable_name_positions_keep_only_supplied_contract_roles' (29457) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:17594:32:
+---- analyser::diagnostics::tests::declared_source_diagnostics_use_only_the_declared_roles_and_signature stdout ----
+thread 'analyser::diagnostics::tests::declared_source_diagnostics_use_only_the_declared_roles_and_signature' (29456) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:17472:32:
+---- analyser::diagnostics::tests::dict_set_table_value_becomes_a_reference_when_consumed_m7 stdout ----
+thread 'analyser::diagnostics::tests::dict_set_table_value_becomes_a_reference_when_consumed_m7' (29647) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:15025:5:
+---- analyser::diagnostics::tests::disabled_definer_nested_in_catch_reports_w002_once_without_cascade stdout ----
+thread 'analyser::diagnostics::tests::disabled_definer_nested_in_catch_reports_w002_once_without_cascade' (29755) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:843:5:
+assertion `left == right` failed: W002 exactly once: ["W302", "W123"]
+  left: 0
+ right: 1
+---- analyser::diagnostics::tests::dispatch_table_constructed_list_preserves_each_original_head_operand stdout ----
+thread 'analyser::diagnostics::tests::dispatch_table_constructed_list_preserves_each_original_head_operand' (29815) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:15327:9:
+---- analyser::diagnostics::tests::dispatch_table_dictionary_keeps_known_entries_beside_unknown_values stdout ----
+thread 'analyser::diagnostics::tests::dispatch_table_dictionary_keeps_known_entries_beside_unknown_values' (29817) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:15220:9:
+---- analyser::diagnostics::tests::dispatch_table_dictionary_literal_maps_each_repeated_value_separately stdout ----
+thread 'analyser::diagnostics::tests::dispatch_table_dictionary_literal_maps_each_repeated_value_separately' (29821) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:15170:5:
+---- analyser::diagnostics::tests::dispatch_table_expanded_prefix_maps_only_its_original_command_element stdout ----
+thread 'analyser::diagnostics::tests::dispatch_table_expanded_prefix_maps_only_its_original_command_element' (29834) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:15297:9:
+---- analyser::diagnostics::tests::dispatch_table_dictionary_updates_preserve_other_entries_and_original_spans stdout ----
+thread 'analyser::diagnostics::tests::dispatch_table_dictionary_updates_preserve_other_entries_and_original_spans' (29825) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:15149:9:
+assertion `left == right` failed: keep: [SignatureCommandInvocation { original_callback_signature_lookup: None, original_callback_prefix: None, original_lookup: Some(OriginalCommandLookup { input: OriginalWord(SignatureSourceNameKey { original: NativeWord { arena: ExecutablePartArena { image: Source
+  left: false
+ right: true
+---- analyser::diagnostics::tests::dispatch_table_navigation_resolves_declarations_after_the_store stdout ----
+thread 'analyser::diagnostics::tests::dispatch_table_navigation_resolves_declarations_after_the_store' (29956) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:15083:5:
+---- analyser::diagnostics::tests::dispatch_table_navigation_does_not_borrow_another_frames_store stdout ----
+thread 'analyser::diagnostics::tests::dispatch_table_navigation_does_not_borrow_another_frames_store' (29944) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:15106:5:
+---- analyser::diagnostics::tests::dispatch_table_navigation_tracks_only_the_reaching_element_literal stdout ----
+thread 'analyser::diagnostics::tests::dispatch_table_navigation_tracks_only_the_reaching_element_literal' (29964) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:15048:9:
+assertion `left == right` failed: keep: [SignatureCommandInvocation { original_callback_signature_lookup: None, original_callback_prefix: None, original_lookup: Some(OriginalCommandLookup { input: OriginalWord(SignatureSourceNameKey { original: NativeWord { arena: ExecutablePartArena { image: Source
+  left: false
+ right: true
+---- analyser::diagnostics::tests::dispatch_table_navigation_uses_the_selected_native_list_grammar stdout ----
+thread 'analyser::diagnostics::tests::dispatch_table_navigation_uses_the_selected_native_list_grammar' (29967) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:15196:9:
+assertion `left == right` failed: jim: [SignatureCommandInvocation { original_callback_signature_lookup: None, original_callback_prefix: None, original_lookup: Some(OriginalCommandLookup { input: OriginalWord(SignatureSourceNameKey { original: NativeWord { arena: ExecutablePartArena { image: SourceI
+  left: false
+ right: true
+---- analyser::diagnostics::tests::dispatch_table_navigation_uses_the_consuming_namespace stdout ----
+thread 'analyser::diagnostics::tests::dispatch_table_navigation_uses_the_consuming_namespace' (29965) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:15067:5:
+---- analyser::diagnostics::tests::dispatch_table_value_becomes_a_reference_when_consumed_m7 stdout ----
+thread 'analyser::diagnostics::tests::dispatch_table_value_becomes_a_reference_when_consumed_m7' (30006) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:14939:5:
+---- analyser::diagnostics::tests::e001_cmd_head_matches_var_path_under_tcloo_less_dialect stdout ----
+thread 'analyser::diagnostics::tests::e001_cmd_head_matches_var_path_under_tcloo_less_dialect' (30009) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:10112:5:
+---- analyser::diagnostics::tests::e003_arity_is_dialect_aware_via_expand_syntax stdout ----
+thread 'analyser::diagnostics::tests::e003_arity_is_dialect_aware_via_expand_syntax' (30082) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:2505:5:
+---- analyser::diagnostics::tests::e003_falls_back_to_whole_command_on_expansion stdout ----
+thread 'analyser::diagnostics::tests::e003_falls_back_to_whole_command_on_expansion' (30088) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:3468:28:
+---- analyser::diagnostics::tests::e003_highlights_only_the_surplus_arguments stdout ----
+thread 'analyser::diagnostics::tests::e003_highlights_only_the_surplus_arguments' (30098) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:3487:5:
+assertion `left == right` failed: E003 must skip leading options when isolating the surplus
+  left: "hello extra"
+ right: "extra"
+---- analyser::diagnostics::tests::e003_namespace_which_extra_positional_fires stdout ----
+thread 'analyser::diagnostics::tests::e003_namespace_which_extra_positional_fires' (30103) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:2573:5:
+---- analyser::diagnostics::tests::e003_shadow_is_namespace_scoped stdout ----
+thread 'analyser::diagnostics::tests::e003_shadow_is_namespace_scoped' (30112) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:3326:5:
+assertion `left == right` failed: expected exactly one E003 (the global close), got [Diagnostic { subject: Some(RegistrySource(RegistrySourceDiagnosticSubject { words: OriginalRegistryWords { command: "close", dialect: Some(InvocationDialect { native_family: Some(Tcl), core_point: None, lexer_gramma
+  left: 2
+ right: 1
+---- analyser::diagnostics::tests::e003_silent_for_subcommand_leading_options stdout ----
+thread 'analyser::diagnostics::tests::e003_silent_for_subcommand_leading_options' (30114) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:2600:9:
+assertion `left == right` failed: unexpected E003 for "file link -symbolic $a $b": [Diagnostic { subject: Some(RegistrySource(RegistrySourceDiagnosticSubject { words: OriginalRegistryWords { command: "file", dialect: Some(InvocationDialect { native_family: Some(Tcl), core_point: None, lexer_grammar:
+  left: 1
+ right: 0
+---- analyser::diagnostics::tests::e003_source_nopkg_is_tcl9_only stdout ----
+thread 'analyser::diagnostics::tests::e003_source_nopkg_is_tcl9_only' (30115) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:2450:5:
+---- analyser::diagnostics::tests::e003_static_rename_onto_builtin_name_suppresses_arity stdout ----
+thread 'analyser::diagnostics::tests::e003_static_rename_onto_builtin_name_suppresses_arity' (30118) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:3419:5:
+---- analyser::diagnostics::tests::e003_switch_options_are_dialect_filtered stdout ----
+thread 'analyser::diagnostics::tests::e003_switch_options_are_dialect_filtered' (30127) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:2427:5:
+---- analyser::diagnostics::tests::emit_cfg_ssa_diagnostics_w210_read_before_set stdout ----
+thread 'analyser::diagnostics::tests::emit_cfg_ssa_diagnostics_w210_read_before_set' (30432) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:6390:5:
+---- analyser::diagnostics::tests::emit_cfg_ssa_diagnostics_w210_read_after_unset stdout ----
+thread 'analyser::diagnostics::tests::emit_cfg_ssa_diagnostics_w210_read_after_unset' (30403) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:6890:5:
+---- analyser::diagnostics::tests::emit_cfg_ssa_diagnostics_w210_suppressed_when_proc_writes_global stdout ----
+thread 'analyser::diagnostics::tests::emit_cfg_ssa_diagnostics_w210_suppressed_when_proc_writes_global' (30533) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:7256:5:
+---- analyser::diagnostics::tests::emit_cfg_ssa_diagnostics_w210_suppressed_via_global_alias stdout ----
+thread 'analyser::diagnostics::tests::emit_cfg_ssa_diagnostics_w210_suppressed_via_global_alias' (30508) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:7275:5:
+---- analyser::diagnostics::tests::emit_cfg_ssa_diagnostics_w210_skipped_for_lappend_autocreate stdout ----
+thread 'analyser::diagnostics::tests::emit_cfg_ssa_diagnostics_w210_skipped_for_lappend_autocreate' (30433) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:6809:5:
+---- analyser::diagnostics::tests::emit_cfg_ssa_diagnostics_w213_unset_on_possibly_undef stdout ----
+thread 'analyser::diagnostics::tests::emit_cfg_ssa_diagnostics_w213_unset_on_possibly_undef' (30620) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:6853:5:
+---- analyser::diagnostics::tests::emit_cfg_ssa_diagnostics_w220_dead_store_overwritten stdout ----
+thread 'analyser::diagnostics::tests::emit_cfg_ssa_diagnostics_w220_dead_store_overwritten' (30672) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:5740:5:
+---- analyser::diagnostics::tests::emit_cfg_ssa_diagnostics_w220_dir_var_not_suppressed_outside_pkgindex stdout ----
+thread 'analyser::diagnostics::tests::emit_cfg_ssa_diagnostics_w220_dir_var_not_suppressed_outside_pkgindex' (30675) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:6050:5:
+---- analyser::diagnostics::tests::emit_cfg_ssa_diagnostics_w220_irules_proc_local_still_flagged stdout ----
+thread 'analyser::diagnostics::tests::emit_cfg_ssa_diagnostics_w220_irules_proc_local_still_flagged' (30677) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:6108:5:
+---- analyser::diagnostics::tests::expanded_head_list_prefix_keeps_the_exact_writable_component_945 stdout ----
+thread 'analyser::diagnostics::tests::expanded_head_list_prefix_keeps_the_exact_writable_component_945' (30731) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:14904:5:
+---- analyser::diagnostics::tests::emit_cfg_ssa_diagnostics_w220_on_set_once_never_read stdout ----
+thread 'analyser::diagnostics::tests::emit_cfg_ssa_diagnostics_w220_on_set_once_never_read' (30678) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:5626:5:
+---- analyser::diagnostics::tests::fn_e001_cmd_head_factory_with_method_word_no_w307 stdout ----
+thread 'analyser::diagnostics::tests::fn_e001_cmd_head_factory_with_method_word_no_w307' (30743) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:10014:5:
+assertion `left == right` failed: `[make] bark` resolves through the factory return type; got ["W307"]
+  left: 1
+ right: 0
+---- analyser::diagnostics::tests::fp_rbs_14_opaque_switch_excludes_non_completing_arm stdout ----
+thread 'analyser::diagnostics::tests::fp_rbs_14_opaque_switch_excludes_non_completing_arm' (30761) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:6529:5:
+---- analyser::diagnostics::tests::fp_rbs_15_all_exiting_opaque_switch_is_a_terminator stdout ----
+thread 'analyser::diagnostics::tests::fp_rbs_15_all_exiting_opaque_switch_is_a_terminator' (30765) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:6576:5:
+---- analyser::diagnostics::tests::emit_cfg_ssa_diagnostics_w220_suppressed_for_substitution_hidden_reads stdout ----
+thread 'analyser::diagnostics::tests::emit_cfg_ssa_diagnostics_w220_suppressed_for_substitution_hidden_reads' (30692) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:5720:5:
+---- analyser::diagnostics::tests::fp_rbs_13_tailcall_is_a_terminator stdout ----
+thread 'analyser::diagnostics::tests::fp_rbs_13_tailcall_is_a_terminator' (30754) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:6493:5:
+---- analyser::diagnostics::tests::fp_rbs_17_guaranteed_foreach_defines_body_vars stdout ----
+thread 'analyser::diagnostics::tests::fp_rbs_17_guaranteed_foreach_defines_body_vars' (30945) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:6673:5:
+---- analyser::diagnostics::tests::i230_message_keeps_braced_var_spelling stdout ----
+thread 'analyser::diagnostics::tests::i230_message_keeps_braced_var_spelling' (31228) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:7593:5:
+---- analyser::diagnostics::tests::i230_message_quotes_bare_var_as_source_spells_it stdout ----
+thread 'analyser::diagnostics::tests::i230_message_quotes_bare_var_as_source_spells_it' (31272) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:7564:5:
+---- analyser::diagnostics::tests::i230_never_reports_a_condition_across_a_call_the_module_cannot_see stdout ----
+thread 'analyser::diagnostics::tests::i230_never_reports_a_condition_across_a_call_the_module_cannot_see' (31278) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:18332:5:
+assertion `left == right` failed: proc foo {} { puts hi }
+  left: 0
+ right: 1
+---- analyser::diagnostics::tests::fp_rbs_18_guaranteed_for_defines_body_vars stdout ----
+thread 'analyser::diagnostics::tests::fp_rbs_18_guaranteed_for_defines_body_vars' (30965) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:6714:5:
+---- analyser::diagnostics::tests::i230_never_reports_a_condition_across_a_catch_body_or_a_computed_head stdout ----
+thread 'analyser::diagnostics::tests::i230_never_reports_a_condition_across_a_catch_body_or_a_computed_head' (31572) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:18255:9:
+---- analyser::diagnostics::tests::fp_rbs_16_dead_loop_exit_phi_operand_not_read_before_set stdout ----
+thread 'analyser::diagnostics::tests::fp_rbs_16_dead_loop_exit_phi_operand_not_read_before_set' (30890) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:6641:5:
+---- analyser::diagnostics::tests::i231_names_the_command_of_the_case_list stdout ----
+thread 'analyser::diagnostics::tests::i231_names_the_command_of_the_case_list' (32054) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:7745:5:
+assertion `left == right` failed
+  left: []
+ right: ["Switch arm 'b*' is never selected; this arm is unreachable"]
+---- analyser::diagnostics::tests::i231_never_reports_a_switch_over_a_subject_a_release_may_read_as_an_option stdout ----
+thread 'analyser::diagnostics::tests::i231_never_reports_a_switch_over_a_subject_a_release_may_read_as_an_option' (32055) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:7875:13:
+---- analyser::diagnostics::tests::i230_never_reports_a_condition_across_unseen_code_in_a_body_a_substitution_runs stdout ----
+thread 'analyser::diagnostics::tests::i230_never_reports_a_condition_across_unseen_code_in_a_body_a_substitution_runs' (31701) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:18444:9:
+assertion `left == right` failed: set g 5
+  left: 0
+ right: 1
+---- analyser::diagnostics::tests::info_exists_control_still_flags_w210 stdout ----
+thread 'analyser::diagnostics::tests::info_exists_control_still_flags_w210' (32091) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:7501:5:
+assertion failed: codes_for("proc f {} { puts $u }").contains(&"W210".to_string())
+---- analyser::diagnostics::tests::i230_never_reports_a_condition_over_a_name_a_switch_arm_may_write stdout ----
+thread 'analyser::diagnostics::tests::i230_never_reports_a_condition_over_a_name_a_switch_arm_may_write' (32013) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:18285:5:
+assertion `left == right` failed: a global writer leaves a local alone: []
+  left: 0
+ right: 1
+---- analyser::diagnostics::tests::i230_existence_fold_abstains_on_interpreter_globals_at_top_level stdout ----
+thread 'analyser::diagnostics::tests::i230_existence_fold_abstains_on_interpreter_globals_at_top_level' (31012) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:7155:9:
+---- analyser::diagnostics::tests::info_exists_does_not_fold_unset_parameter stdout ----
+thread 'analyser::diagnostics::tests::info_exists_does_not_fold_unset_parameter' (32544) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:8138:5:
+assertion `left == right` failed: the reached absent cell must retain its false existence fact
+  left: 0
+ right: 1
+---- analyser::diagnostics::tests::info_exists_element_fold_survives_an_unrelated_array stdout ----
+thread 'analyser::diagnostics::tests::info_exists_element_fold_survives_an_unrelated_array' (32673) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:8119:5:
+---- analyser::diagnostics::tests::info_exists_fold_survives_unrelated_scope_alias stdout ----
+thread 'analyser::diagnostics::tests::info_exists_fold_survives_unrelated_scope_alias' (32678) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:8198:5:
+---- analyser::diagnostics::tests::info_exists_folds_an_unset_parameter_false stdout ----
+thread 'analyser::diagnostics::tests::info_exists_folds_an_unset_parameter_false' (32684) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:8156:5:
+assertion `left == right` failed: an unset parameter's guard folds once; got []
+  left: 0
+ right: 1
+---- analyser::diagnostics::tests::info_exists_folds_false_for_dynamic_element_of_never_touched_array stdout ----
+thread 'analyser::diagnostics::tests::info_exists_folds_false_for_dynamic_element_of_never_touched_array' (32697) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:8059:5:
+---- analyser::diagnostics::tests::info_exists_folds_false_for_element_of_never_touched_array stdout ----
+thread 'analyser::diagnostics::tests::info_exists_folds_false_for_element_of_never_touched_array' (32731) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:8047:5:
+---- analyser::diagnostics::tests::info_exists_folds_false_for_never_defined_local stdout ----
+thread 'analyser::diagnostics::tests::info_exists_folds_false_for_never_defined_local' (323) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:7949:5:
+---- analyser::diagnostics::tests::info_exists_folds_true_for_an_apply_lambda_parameter stdout ----
+thread 'analyser::diagnostics::tests::info_exists_folds_true_for_an_apply_lambda_parameter' (387) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:8539:5:
+assertion `left == right` failed: a lambda parameter must fold; got []
+  left: 0
+ right: 1
+---- analyser::diagnostics::tests::info_exists_folds_true_for_method_parameter_shadowing_an_instance_var stdout ----
+thread 'analyser::diagnostics::tests::info_exists_folds_true_for_method_parameter_shadowing_an_instance_var' (391) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:8447:5:
+assertion `left == right` failed: the shadowing parameter must still fold; got []
+  left: 0
+ right: 1
+---- analyser::diagnostics::tests::info_exists_folds_true_for_parameter stdout ----
+thread 'analyser::diagnostics::tests::info_exists_folds_true_for_parameter' (428) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:7973:5:
+---- analyser::diagnostics::tests::info_exists_folds_true_not_false_for_method_parameter stdout ----
+thread 'analyser::diagnostics::tests::info_exists_folds_true_not_false_for_method_parameter' (431) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:8326:5:
+assertion `left == right` failed: a method parameter must fold; got []
+  left: 0
+ right: 1
+---- analyser::diagnostics::tests::info_exists_fresh_activation_absence_does_not_borrow_namespace_contents stdout ----
+thread 'analyser::diagnostics::tests::info_exists_fresh_activation_absence_does_not_borrow_namespace_contents' (441) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:7966:5:
+---- analyser::diagnostics::tests::info_exists_frame_facts_survive_a_proc_method_qname_collision stdout ----
+thread 'analyser::diagnostics::tests::info_exists_frame_facts_survive_a_proc_method_qname_collision' (434) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:8511:5:
+assertion `left == right` failed: each frame must fold its own three guards; got []
+  left: 0
+ right: 3
+---- analyser::diagnostics::tests::info_exists_still_abstains_on_the_non_shadowed_instance_vars stdout ----
+thread 'analyser::diagnostics::tests::info_exists_still_abstains_on_the_non_shadowed_instance_vars' (558) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:8469:5:
+assertion `left == right` failed: only the shadowed name may fold; got []
+  left: 0
+ right: 1
+---- analyser::diagnostics::tests::info_exists_still_folds_never_set_non_instance_local_in_method stdout ----
+thread 'analyser::diagnostics::tests::info_exists_still_folds_never_set_non_instance_local_in_method' (593) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:8301:5:
+---- analyser::diagnostics::tests::info_exists_read_outside_guard_still_flags_w210 stdout ----
+thread 'analyser::diagnostics::tests::info_exists_read_outside_guard_still_flags_w210' (524) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:7520:5:
+---- analyser::diagnostics::tests::irules_4b_disabled_split_pins_two_diagnostic_severities stdout ----
+thread 'analyser::diagnostics::tests::irules_4b_disabled_split_pins_two_diagnostic_severities' (679) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:15641:9:
+---- analyser::diagnostics::tests::irules_alias_dialect_string_behaves_like_canonical stdout ----
+thread 'analyser::diagnostics::tests::irules_alias_dialect_string_behaves_like_canonical' (681) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:15723:5:
+---- analyser::diagnostics::tests::irules_4b_policy_warning_follows_the_4c_lexical_scan stdout ----
+thread 'analyser::diagnostics::tests::irules_4b_policy_warning_follows_the_4c_lexical_scan' (680) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:15674:5:
+---- analyser::diagnostics::tests::irules_stays_subtractive_under_the_profile stdout ----
+thread 'analyser::diagnostics::tests::irules_stays_subtractive_under_the_profile' (683) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:15694:9:
+---- analyser::diagnostics::tests::irules_arity_accepts_documented_pool_log_and_class_iteration_forms stdout ----
+thread 'analyser::diagnostics::tests::irules_arity_accepts_documented_pool_log_and_class_iteration_forms' (682) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:3741:9:
+assertion `left == right` failed: "log -noname 192.0.2.20:514 local0.info message\n"
+  left: ["E003"]
+ right: []
+---- analyser::diagnostics::tests::issue_703_genuine_dash_command_in_handler_still_flagged stdout ----
+thread 'analyser::diagnostics::tests::issue_703_genuine_dash_command_in_handler_still_flagged' (693) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:13306:5:
+assertion `left == right` failed
+  left: 0
+ right: 1
+---- analyser::diagnostics::tests::itcl_method_body_unbound_read_now_flags_w210 stdout ----
+thread 'analyser::diagnostics::tests::itcl_method_body_unbound_read_now_flags_w210' (708) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:7467:5:
+---- analyser::diagnostics::tests::literal_only_checks_read_proven_words stdout ----
+thread 'analyser::diagnostics::tests::literal_only_checks_read_proven_words' (713) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:2039:9:
+assertion `left == right` failed: W121: when CLIENT_ACCEPTED {
+  left: []
+ right: ["$m"]
+---- analyser::diagnostics::tests::method_body_ordinary_unused_local_still_flags_w211 stdout ----
+thread 'analyser::diagnostics::tests::method_body_ordinary_unused_local_still_flags_w211' (718) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:7374:5:
+---- analyser::diagnostics::tests::method_body_unbound_read_inside_switch_arm_still_flags_w210 stdout ----
+thread 'analyser::diagnostics::tests::method_body_unbound_read_inside_switch_arm_still_flags_w210' (723) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:7492:5:
+---- analyser::diagnostics::tests::method_body_read_before_set_now_flags_w210 stdout ----
+thread 'analyser::diagnostics::tests::method_body_read_before_set_now_flags_w210' (720) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:7308:5:
+assertion `left == right` failed: the unbound `$other` read inside Buggy must flag exactly once: []
+  left: []
+ right: ["W210"]
+---- analyser::diagnostics::tests::namespace_qualified_const_value_resolves_absolutely_945 stdout ----
+thread 'analyser::diagnostics::tests::namespace_qualified_const_value_resolves_absolutely_945' (727) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:14845:5:
+---- analyser::diagnostics::tests::objdefine_method_body_unbound_read_now_flags_w210 stdout ----
+thread 'analyser::diagnostics::tests::objdefine_method_body_unbound_read_now_flags_w210' (760) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:7390:5:
+---- analyser::diagnostics::tests::oo_helpers_builtin_without_a_user_helper_still_reports stdout ----
+thread 'analyser::diagnostics::tests::oo_helpers_builtin_without_a_user_helper_still_reports' (803) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:796:5:
+---- analyser::diagnostics::tests::oo_helpers_user_helper_shadows_only_inside_a_member_body stdout ----
+thread 'analyser::diagnostics::tests::oo_helpers_user_helper_shadows_only_inside_a_member_body' (807) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:815:5:
+---- analyser::diagnostics::tests::original_option_diagnostics_share_alias_ordinals_and_stop_at_unknown_layout stdout ----
+thread 'analyser::diagnostics::tests::original_option_diagnostics_share_alias_ordinals_and_stop_at_unknown_layout' (879) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:17066:9:
+---- analyser::diagnostics::tests::opaque_switch_recovers_exhaustive_arm_defs stdout ----
+thread 'analyser::diagnostics::tests::opaque_switch_recovers_exhaustive_arm_defs' (820) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:6441:5:
+---- analyser::diagnostics::tests::original_selector_diagnostics_share_alias_ordinals_and_declared_default_forms stdout ----
+thread 'analyser::diagnostics::tests::original_selector_diagnostics_share_alias_ordinals_and_declared_default_forms' (918) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:17276:9:
+---- analyser::diagnostics::tests::original_shape_advice_withdraws_unknown_geometry_and_known_shadows stdout ----
+thread 'analyser::diagnostics::tests::original_shape_advice_withdraws_unknown_geometry_and_known_shadows' (933) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:17772:9:
+---- analyser::diagnostics::tests::plain_body_argument_in_command_substitution_still_walked stdout ----
+thread 'analyser::diagnostics::tests::plain_body_argument_in_command_substitution_still_walked' (946) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:1045:9:
+---- analyser::diagnostics::tests::original_terminator_advice_retains_source_words_without_current_value_claims stdout ----
+thread 'analyser::diagnostics::tests::original_terminator_advice_retains_source_words_without_current_value_claims' (939) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:17153:9:
+test value
+---- analyser::diagnostics::tests::original_source_arity_and_relationships_keep_effective_counts_and_written_suffixes stdout ----
+thread 'analyser::diagnostics::tests::original_source_arity_and_relationships_keep_effective_counts_and_written_suffixes' (938) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:17447:32:
+---- analyser::diagnostics::tests::same_file_dynamic_but_resolvable_rename_target_checks_arity stdout ----
+thread 'analyser::diagnostics::tests::same_file_dynamic_but_resolvable_rename_target_checks_arity' (1048) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:4156:5:
+assertion `left == right` failed: newname's value is a known constant, so this rename must resolve and check arity
+  left: []
+ right: ["E002"]
+---- analyser::diagnostics::tests::same_file_relative_qualified_call_prefers_current_namespace_over_global stdout ----
+thread 'analyser::diagnostics::tests::same_file_relative_qualified_call_prefers_current_namespace_over_global' (1152) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:4406:5:
+assertion `left == right` failed: must resolve against ::ns::inner::p (2 args), not ::inner::p (0 args)
+  left: []
+ right: ["E003"]
+---- analyser::diagnostics::tests::same_file_relative_qualified_call_resolves_against_current_namespace stdout ----
+thread 'analyser::diagnostics::tests::same_file_relative_qualified_call_resolves_against_current_namespace' (1184) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:4380:5:
+assertion `left == right` failed
+  left: []
+ right: ["E002"]
+---- analyser::diagnostics::tests::i231_reads_a_switch_words_by_their_values stdout ----
+thread 'analyser::diagnostics::tests::i231_reads_a_switch_words_by_their_values' (32066) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:7832:13:
+---- analyser::diagnostics::tests::snit_method_body_unbound_read_now_flags_w210 stdout ----
+thread 'analyser::diagnostics::tests::snit_method_body_unbound_read_now_flags_w210' (1346) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:7415:5:
+---- analyser::diagnostics::tests::switch_unpaired_pattern_fires_e005 stdout ----
+thread 'analyser::diagnostics::tests::switch_unpaired_pattern_fires_e005' (1409) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:3668:5:
+assertion `left == right` failed
+  left: []
+ right: ["E005"]
+---- analyser::diagnostics::tests::switch_and_loop_joined_const_dispatch_records_every_may_target_945 stdout ----
+thread 'analyser::diagnostics::tests::switch_and_loop_joined_const_dispatch_records_every_may_target_945' (1404) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:14719:5:
+---- analyser::diagnostics::tests::tcloo_create_mandatory_name_is_checked_even_without_a_constructor stdout ----
+thread 'analyser::diagnostics::tests::tcloo_create_mandatory_name_is_checked_even_without_a_constructor' (1542) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:9471:5:
+assertion `left == right` failed: the mandatory object-name word must still be enforced
+  left: []
+ right: ["E002"]
+---- analyser::diagnostics::tests::tcloo_forward_arity_is_shifted_by_prepended_args stdout ----
+thread 'analyser::diagnostics::tests::tcloo_forward_arity_is_shifted_by_prepended_args' (1543) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:9201:5:
+assertion `left == right` failed
+  left: []
+ right: ["E002"]
+---- analyser::diagnostics::tests::tcloo_forward_via_my_resolves_sibling_method_arity stdout ----
+thread 'analyser::diagnostics::tests::tcloo_forward_via_my_resolves_sibling_method_arity' (1548) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:9241:5:
+assertion `left == right` failed
+  left: []
+ right: ["E002"]
+---- analyser::diagnostics::tests::tcloo_forward_via_my_resolves_inherited_method_arity stdout ----
+thread 'analyser::diagnostics::tests::tcloo_forward_via_my_resolves_inherited_method_arity' (1547) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:9273:5:
+assertion `left == right` failed
+  left: []
+ right: ["E002"]
+---- analyser::diagnostics::tests::tcloo_method_arity_fires_and_stays_silent stdout ----
+thread 'analyser::diagnostics::tests::tcloo_method_arity_fires_and_stays_silent' (1590) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:9128:5:
+assertion `left == right` failed
+  left: []
+ right: ["E002"]
+---- analyser::diagnostics::tests::tcloo_loop_installed_method_arity_abstains stdout ----
+thread 'analyser::diagnostics::tests::tcloo_loop_installed_method_arity_abstains' (1578) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:9167:5:
+assertion `left == right` failed
+  left: []
+ right: ["E002"]
+---- analyser::diagnostics::tests::tcloo_next_arity_checked_against_superclass_override stdout ----
+thread 'analyser::diagnostics::tests::tcloo_next_arity_checked_against_superclass_override' (1595) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:9674:5:
+assertion `left == right` failed
+  left: []
+ right: ["E002"]
+---- analyser::diagnostics::tests::tcloo_method_with_default_and_trailing_args_is_unbounded stdout ----
+thread 'analyser::diagnostics::tests::tcloo_method_with_default_and_trailing_args_is_unbounded' (1592) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:9187:5:
+assertion `left == right` failed
+  left: []
+ right: ["E002"]
+---- analyser::diagnostics::tests::tcloo_nextto_arity_checked_against_named_target stdout ----
+thread 'analyser::diagnostics::tests::tcloo_nextto_arity_checked_against_named_target' (1605) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:9695:5:
+assertion `left == right` failed
+  left: []
+ right: ["E003"]
+---- analyser::diagnostics::tests::tclpkg_manifest_env::manifest_directive_arity_checked stdout ----
+thread 'analyser::diagnostics::tests::tclpkg_manifest_env::manifest_directive_arity_checked' (1614) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:13884:9:
+---- analyser::diagnostics::tests::tclpkg_manifest_env::manifest_directives_resolve_cleanly stdout ----
+thread 'analyser::diagnostics::tests::tclpkg_manifest_env::manifest_directives_resolve_cleanly' (1615) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:13842:9:
+assertion `left == right` failed: a valid manifest must produce no diagnostics: [Diagnostic { subject: Some(RegistrySource(RegistrySourceDiagnosticSubject { words: OriginalRegistryWords { command: "package", dialect: Some(InvocationDialect { native_family: Some(Tcl), core_point: None, lexer_grammar:
+  left: 2
+ right: 0
+---- analyser::diagnostics::tests::tcltest_import_is_namespace_scoped stdout ----
+thread 'analyser::diagnostics::tests::tcltest_import_is_namespace_scoped' (1622) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:13798:5:
+assertion `left == right` failed
+  left: 0
+ right: 1
+---- analyser::diagnostics::tests::the_ensemble_option_scan_consumes_values_only_for_the_operations_own_options stdout ----
+thread 'analyser::diagnostics::tests::the_ensemble_option_scan_consumes_values_only_for_the_operations_own_options' (1830) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:1864:5:
+assertion `left == right` failed: `-command` is no `configure` option, so it swallows nothing and the 8.6-only `-parameters` behind it is still seen
+  left: 0
+ right: 1
+---- analyser::diagnostics::tests::the_existence_branch_fact_is_stored_once stdout ----
+thread 'analyser::diagnostics::tests::the_existence_branch_fact_is_stored_once' (1833) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:7619:41:
+---- analyser::diagnostics::tests::tmsh_first_class_resolves_its_surface_and_gates_later_core stdout ----
+thread 'analyser::diagnostics::tests::tmsh_first_class_resolves_its_surface_and_gates_later_core' (1867) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:15803:9:
+---- analyser::diagnostics::tests::tn_e001_cmd_head_with_method_word_stays_silent stdout ----
+thread 'analyser::diagnostics::tests::tn_e001_cmd_head_with_method_word_stays_silent' (1957) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:9997:5:
+---- analyser::diagnostics::tests::tp_e001_bare_cmd_head_factory_proc_return stdout ----
+thread 'analyser::diagnostics::tests::tp_e001_bare_cmd_head_factory_proc_return' (1970) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:9984:5:
+---- analyser::diagnostics::tests::tp_e001_bare_cmd_head_named_constructor_and_alias stdout ----
+thread 'analyser::diagnostics::tests::tp_e001_bare_cmd_head_named_constructor_and_alias' (1982) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:9961:5:
+---- analyser::diagnostics::tests::tp_e001_bare_command_substitution_head stdout ----
+thread 'analyser::diagnostics::tests::tp_e001_bare_command_substitution_head' (1985) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:9946:5:
+---- analyser::diagnostics::tests::tp_e001_bare_dispatch_fires_even_when_class_is_ambiguous stdout ----
+thread 'analyser::diagnostics::tests::tp_e001_bare_dispatch_fires_even_when_class_is_ambiguous' (1986) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:9895:5:
+---- analyser::diagnostics::tests::tp_e001_bare_dispatch_on_method_return_captured_handle stdout ----
+thread 'analyser::diagnostics::tests::tp_e001_bare_dispatch_on_method_return_captured_handle' (2000) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:10165:5:
+---- analyser::diagnostics::tests::tp_e001_bare_tcloo_object_dispatch_named_constructor stdout ----
+thread 'analyser::diagnostics::tests::tp_e001_bare_tcloo_object_dispatch_named_constructor' (2007) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:9872:5:
+---- analyser::diagnostics::tests::tp_e001_bare_tcloo_object_dispatch_requires_method stdout ----
+thread 'analyser::diagnostics::tests::tp_e001_bare_tcloo_object_dispatch_requires_method' (2008) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:9853:5:
+assertion `left == right` failed: expected one E001 for bare `$o`: [Diagnostic { subject: None, code: W307, span: Span { start: 72, end: 74 }, message: "Non-literal command name — cannot statically analyse", severity: Warning, fixes: [] }]
+  left: 0
+ right: 1
+---- analyser::diagnostics::tests::traced_head_variable_abstains_945 stdout ----
+thread 'analyser::diagnostics::tests::traced_head_variable_abstains_945' (2009) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:14876:5:
+---- analyser::diagnostics::tests::unbraced_expect_action_keeps_its_complete_script_span stdout ----
+thread 'analyser::diagnostics::tests::unbraced_expect_action_keeps_its_complete_script_span' (2043) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:16217:5:
+---- analyser::diagnostics::tests::try_handler_edge_merges_pretry_when_body_falls_through stdout ----
+thread 'analyser::diagnostics::tests::try_handler_edge_merges_pretry_when_body_falls_through' (2012) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:6912:5:
+---- analyser::diagnostics::tests::var_binding_binary_scan_defines_targets stdout ----
+thread 'analyser::diagnostics::tests::var_binding_binary_scan_defines_targets' (2050) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:12870:5:
+---- analyser::diagnostics::tests::variable_name_positions_are_registry_driven stdout ----
+thread 'analyser::diagnostics::tests::variable_name_positions_are_registry_driven' (2061) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:1513:14:
+---- analyser::diagnostics::tests::w003_dialect_is_file_wide_regardless_of_namespace_or_proc_nesting stdout ----
+thread 'analyser::diagnostics::tests::w003_dialect_is_file_wide_regardless_of_namespace_or_proc_nesting' (2078) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:5184:5:
+assertion `left == right` failed: []
+  left: 0
+ right: 1
+---- analyser::diagnostics::tests::w003_fires_inside_a_sub_interpreter_eval_body stdout ----
+thread 'analyser::diagnostics::tests::w003_fires_inside_a_sub_interpreter_eval_body' (2084) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:5204:5:
+assertion `left == right` failed: []
+  left: 0
+ right: 1
+---- analyser::diagnostics::tests::w003_fires_inside_a_tcl_oo_method_body stdout ----
+thread 'analyser::diagnostics::tests::w003_fires_inside_a_tcl_oo_method_body' (2085) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:5192:5:
+assertion `left == right` failed: []
+  left: 0
+ right: 1
+---- analyser::diagnostics::tests::w100_marks_every_unbraced_expression stdout ----
+thread 'analyser::diagnostics::tests::w100_marks_every_unbraced_expression' (2259) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:17100:9:
+assertion `left == right` failed: expected exactly one W100 at "\"$a + 1" for "expr \"$a + 1\"\n"
+  left: ["\"$a + 1\""]
+ right: ["\"$a + 1"]
+---- analyser::diagnostics::tests::w102_narrows_a_proven_switch_word stdout ----
+thread 'analyser::diagnostics::tests::w102_narrows_a_proven_switch_word' (2271) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:12680:5:
+assertion `left == right` failed
+  left: ["subst with a variable argument enables code injection: any [cmd] and $var in the string will be evaluated. Use [format] / [string map] for safe templating."]
+ right: ["subst with a variable argument enables code injection: any [cmd] in the string will be evaluated. Add -nocommands to limit substitution scope, or use [format] / [string map] for safe templating."]
+---- analyser::diagnostics::tests::w114_unwrap_fix::tip461_string_ordering_context_gets_no_fix stdout ----
+thread 'analyser::diagnostics::tests::w114_unwrap_fix::tip461_string_ordering_context_gets_no_fix' (2350) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:14228:32:
+---- analyser::diagnostics::tests::w120_emitted_once_per_command_name stdout ----
+thread 'analyser::diagnostics::tests::w120_emitted_once_per_command_name' (2364) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:12369:5:
+assertion `left == right` failed: expected one W120 per name; got []
+  left: 0
+ right: 1
+---- analyser::diagnostics::tests::w120_fires_for_package_gated_command_without_require stdout ----
+thread 'analyser::diagnostics::tests::w120_fires_for_package_gated_command_without_require' (2365) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:12308:5:
+assertion `left == right` failed: expected one W120; got [Diagnostic { subject: Some(UnresolvedCommand(SourceUnresolvedCommandSubject { invocation: SourceInvocationBinding { compiled_candidates: [], compiled_named_candidates: [], may_use_live_dispatch: true, compiled_execution_residual: Closed, nati
+  left: 0
+ right: 1
+---- analyser::diagnostics::tests::w120_fix_inserts_after_existing_require stdout ----
+thread 'analyser::diagnostics::tests::w120_fix_inserts_after_existing_require' (2366) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:12345:10:
+---- analyser::diagnostics::tests::w120_is_silent_under_the_tk_environment_and_nags_under_plain_tcl stdout ----
+thread 'analyser::diagnostics::tests::w120_is_silent_under_the_tk_environment_and_nags_under_plain_tcl' (2367) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:12394:5:
+assertion `left == right` failed: the lenient sink hosts Tk too
+  left: 0
+ right: 2
+---- analyser::diagnostics::tests::w123_says_the_call_widens_where_it_does stdout ----
+thread 'analyser::diagnostics::tests::w123_says_the_call_widens_where_it_does' (2415) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:978:14:
+---- analyser::diagnostics::tests::w123_tp_a_class_renamed_away_still_flags_its_old_name stdout ----
+thread 'analyser::diagnostics::tests::w123_tp_a_class_renamed_away_still_flags_its_old_name' (2427) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:8730:5:
+---- analyser::diagnostics::tests::w123_tp_a_rename_in_a_dead_branch_is_not_an_unconditional_deletion stdout ----
+thread 'analyser::diagnostics::tests::w123_tp_a_rename_in_a_dead_branch_is_not_an_unconditional_deletion' (2429) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:8755:5:
+---- analyser::diagnostics::tests::w123_tp_custom_mathfunc_body_bareword_call_fires_under_84 stdout ----
+thread 'analyser::diagnostics::tests::w123_tp_custom_mathfunc_body_bareword_call_fires_under_84' (2434) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:10750:5:
+---- analyser::diagnostics::tests::w123_vendor_profiles_still_gate_later_version_core stdout ----
+thread 'analyser::diagnostics::tests::w123_vendor_profiles_still_gate_later_version_core' (2461) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:15610:9:
+---- analyser::diagnostics::tests::w123_vendor_profiles_still_flag_genuinely_unknown_commands stdout ----
+thread 'analyser::diagnostics::tests::w123_vendor_profiles_still_flag_genuinely_unknown_commands' (2460) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:15621:9:
+---- analyser::diagnostics::tests::w143_package_namespace_advice_keeps_literal_package_names stdout ----
+thread 'analyser::diagnostics::tests::w143_package_namespace_advice_keeps_literal_package_names' (2465) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:18652:9:
+assertion `left == right` failed: tcl::dict
+  left: true
+ right: false
+---- analyser::diagnostics::tests::w123_vendor_profiles_admit_their_embedded_tcl_core stdout ----
+thread 'analyser::diagnostics::tests::w123_vendor_profiles_admit_their_embedded_tcl_core' (2459) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:15570:9:
+---- analyser::diagnostics::tests::w147_reports_a_cross_option_value_relation_on_an_instance_method stdout ----
+thread 'analyser::diagnostics::tests::w147_reports_a_cross_option_value_relation_on_an_instance_method' (2511) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:2789:5:
+---- analyser::diagnostics::tests::w210_c9_loop_accumulator_distinguishes_custom_inputs_from_ordinary_empty_lists stdout ----
+thread 'analyser::diagnostics::tests::w210_c9_loop_accumulator_distinguishes_custom_inputs_from_ordinary_empty_lists' (2532) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:11422:5:
+---- analyser::diagnostics::tests::w210_incr_on_uninit_is_silent stdout ----
+thread 'analyser::diagnostics::tests::w210_incr_on_uninit_is_silent' (2536) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:11350:5:
+assertion `left == right` failed
+  left: ["Variable 'z' is read before it is set"]
+ right: []
+---- analyser::diagnostics::tests::w210_empty_dict_with_return_fires_but_known_key_silent stdout ----
+thread 'analyser::diagnostics::tests::w210_empty_dict_with_return_fires_but_known_key_silent' (2534) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:11443:5:
+---- analyser::diagnostics::tests::w210_loop_body_accumulator_requires_an_initial_value stdout ----
+thread 'analyser::diagnostics::tests::w210_loop_body_accumulator_requires_an_initial_value' (2555) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:11379:5:
+---- analyser::diagnostics::tests::w210_interproc_dict_with_caller_literal stdout ----
+thread 'analyser::diagnostics::tests::w210_interproc_dict_with_caller_literal' (2543) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:11222:5:
+assertion failed: w210_codes("proc f {d} { dict with d { return $missing } }\nf {}\n").iter().any(|m|
+---- analyser::diagnostics::tests::w210_dict_body_keys_come_from_the_plan stdout ----
+thread 'analyser::diagnostics::tests::w210_dict_body_keys_come_from_the_plan' (2533) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:11476:5:
+---- analyser::diagnostics::tests::w210_phi_undef_switch_no_default_return stdout ----
+thread 'analyser::diagnostics::tests::w210_phi_undef_switch_no_default_return' (2610) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:11164:5:
+---- analyser::diagnostics::tests::w210_phi_undef_if_arm_only_def_return stdout ----
+thread 'analyser::diagnostics::tests::w210_phi_undef_if_arm_only_def_return' (2604) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:11155:5:
+---- analyser::diagnostics::tests::w210_pkgindex_reports_other_reads_inside_command_substitutions stdout ----
+thread 'analyser::diagnostics::tests::w210_pkgindex_reports_other_reads_inside_command_substitutions' (2643) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:6033:5:
+---- analyser::diagnostics::tests::w210_phi_undef_use_after_unset_return stdout ----
+thread 'analyser::diagnostics::tests::w210_phi_undef_use_after_unset_return' (2637) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:11365:5:
+---- analyser::diagnostics::tests::w210_provably_no_match_regexp_scan stdout ----
+thread 'analyser::diagnostics::tests::w210_provably_no_match_regexp_scan' (2652) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:11237:5:
+assertion failed: w210_codes("proc f {} { scan abc %d n\n puts $n }").iter().any(|m|
+---- analyser::diagnostics::tests::w210_reads_a_no_match_preserve_outcome stdout ----
+thread 'analyser::diagnostics::tests::w210_reads_a_no_match_preserve_outcome' (2666) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:11323:5:
+assertion `left == right` failed
+  left: []
+ right: ["$a"]
+---- analyser::diagnostics::tests::w210_matchable_regexp_scan_silent stdout ----
+thread 'analyser::diagnostics::tests::w210_matchable_regexp_scan_silent' (2560) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:11295:5:
+assertion failed: w210_codes("proc f {} { regexp -about {x} y v\n puts $v }").iter().any(|m|
+---- analyser::diagnostics::tests::w210_startup_read_trace_respects_global_alias_and_unset_lifecycle stdout ----
+thread 'analyser::diagnostics::tests::w210_startup_read_trace_respects_global_alias_and_unset_lifecycle' (2682) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:7199:5:
+---- analyser::diagnostics::tests::w210_regexp_expanded_whitespace_pattern_silent stdout ----
+thread 'analyser::diagnostics::tests::w210_regexp_expanded_whitespace_pattern_silent' (2669) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:11264:5:
+assertion failed: w210_codes("proc f {} { regexp -expanded {x} X v\n puts $v }").iter().any(|m|
+---- analyser::diagnostics::tests::w210_uses_registry_owned_startup_lifecycle_facts stdout ----
+thread 'analyser::diagnostics::tests::w210_uses_registry_owned_startup_lifecycle_facts' (2683) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:7029:5:
+assertion failed: result.diagnostics.iter().any(|d| d.code == DiagCode::W210)
+---- analyser::diagnostics::tests::w212_covers_registry_name_positions stdout ----
+thread 'analyser::diagnostics::tests::w212_covers_registry_name_positions' (2757) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:1461:5:
+assertion `left == right` failed
+  left: 0
+ right: 1
+---- analyser::diagnostics::tests::w214_quoted_keyword_marker_silent stdout ----
+thread 'analyser::diagnostics::tests::w214_quoted_keyword_marker_silent' (2845) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:11593:5:
+---- analyser::diagnostics::tests::w214_no_dispatcher_still_fires_on_peer_family stdout ----
+thread 'analyser::diagnostics::tests::w214_no_dispatcher_still_fires_on_peer_family' (2835) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:11695:5:
+---- analyser::diagnostics::tests::w216_fixed_proposals_match_captured_public_value_examples stdout ----
+thread 'analyser::diagnostics::tests::w216_fixed_proposals_match_captured_public_value_examples' (3084) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:17937:18:
+---- analyser::diagnostics::tests::w216_literal_root_replacement_preserves_bytes_and_index_source stdout ----
+thread 'analyser::diagnostics::tests::w216_literal_root_replacement_preserves_bytes_and_index_source' (3085) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:17889:40:
+---- analyser::diagnostics::tests::w214_dispatcher_in_an_independent_source_namespace_does_not_suppress_peers stdout ----
+thread 'analyser::diagnostics::tests::w214_dispatcher_in_an_independent_source_namespace_does_not_suppress_peers' (2809) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:11668:5:
+---- analyser::diagnostics::tests::w214_repeated_publication_does_not_count_as_three_protocol_peers stdout ----
+thread 'analyser::diagnostics::tests::w214_repeated_publication_does_not_count_as_three_protocol_peers' (2880) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:11639:5:
+---- analyser::diagnostics::tests::w220_braced_literal_arg_is_not_a_read stdout ----
+thread 'analyser::diagnostics::tests::w220_braced_literal_arg_is_not_a_read' (3214) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:5804:5:
+---- analyser::diagnostics::tests::w220_suppressed_for_interpreter_special_variable_writes stdout ----
+thread 'analyser::diagnostics::tests::w220_suppressed_for_interpreter_special_variable_writes' (3218) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:5683:5:
+---- analyser::diagnostics::tests::w233_divide_by_zero_literal_and_const_var stdout ----
+thread 'analyser::diagnostics::tests::w233_divide_by_zero_literal_and_const_var' (3405) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:11110:5:
+assertion `left == right` failed
+  left: 0
+ right: 1
+---- analyser::diagnostics::tests::w300_source_with_variable_path stdout ----
+thread 'analyser::diagnostics::tests::w300_source_with_variable_path' (3474) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:12475:5:
+assertion `left == right` failed
+  left: 1
+ right: 0
+---- analyser::diagnostics::tests::w307_fp_issue_1010_dispatch_value_is_reestablished_proc_resolves stdout ----
+thread 'analyser::diagnostics::tests::w307_fp_issue_1010_dispatch_value_is_reestablished_proc_resolves' (3785) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:12080:5:
+---- analyser::diagnostics::tests::w307_reads_element_and_body_bindings stdout ----
+thread 'analyser::diagnostics::tests::w307_reads_element_and_body_bindings' (3796) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:11524:5:
+assertion `left == right` failed
+  left: 0
+ right: 1
+---- analyser::diagnostics::tests::w233_silent_on_nonzero_unknown_and_guarded stdout ----
+thread 'analyser::diagnostics::tests::w233_silent_on_nonzero_unknown_and_guarded' (3441) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:11135:5:
+assertion `left == right` failed
+  left: 0
+ right: 1
+---- analyser::diagnostics::tests::w307_suppressed_for_method_return_captured_handle stdout ----
+thread 'analyser::diagnostics::tests::w307_suppressed_for_method_return_captured_handle' (3956) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:10129:5:
+assertion `left == right` failed: the method-return-captured handle must suppress W307; got ["W307"]
+  left: 1
+ right: 0
+---- analyser::diagnostics::tests::w307_selected_alias_slot_does_not_require_a_live_terminal_command stdout ----
+thread 'analyser::diagnostics::tests::w307_selected_alias_slot_does_not_require_a_live_terminal_command' (3911) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:61:9:
+---- analyser::diagnostics::tests::w308_constructor_create_named_and_auto stdout ----
+thread 'analyser::diagnostics::tests::w308_constructor_create_named_and_auto' (4122) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:9033:9:
+assertion `left == right` failed: src: oo::class create Dog { method bark {} {return woof} }
+  left: ["W307"]
+ right: ["W308"]
+---- analyser::diagnostics::tests::w308_double_colon_oo_class_constructor stdout ----
+thread 'analyser::diagnostics::tests::w308_double_colon_oo_class_constructor' (4132) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:9095:5:
+assertion `left == right` failed
+  left: ["W307"]
+ right: ["W308"]
+---- analyser::diagnostics::tests::w308_fp_issue_1010_reestablished_class_constructor_still_flags_unknown_method stdout ----
+thread 'analyser::diagnostics::tests::w308_fp_issue_1010_reestablished_class_constructor_still_flags_unknown_method' (4145) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:8985:5:
+---- analyser::diagnostics::tests::w308_fires_for_bogus_method_on_method_return_captured_handle stdout ----
+thread 'analyser::diagnostics::tests::w308_fires_for_bogus_method_on_method_return_captured_handle' (4144) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:10146:5:
+assertion `left == right` failed: an unknown method on the lattice-typed handle is W308, not W307
+  left: ["W307"]
+ right: ["W308"]
+---- analyser::diagnostics::tests::w308_tn_a_constructor_written_before_its_rename_does_not_type_1049 stdout ----
+thread 'analyser::diagnostics::tests::w308_tn_a_constructor_written_before_its_rename_does_not_type_1049' (4164) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:8832:5:
+---- analyser::diagnostics::tests::w308_namespace_scoped_class_constructor stdout ----
+thread 'analyser::diagnostics::tests::w308_namespace_scoped_class_constructor' (4161) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:9043:5:
+assertion `left == right` failed
+  left: ["W307"]
+ right: ["W308"]
+---- analyser::diagnostics::tests::w308_tn_a_renamed_class_still_accepts_its_real_methods_1049 stdout ----
+thread 'analyser::diagnostics::tests::w308_tn_a_renamed_class_still_accepts_its_real_methods_1049' (4197) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:8803:5:
+assertion `left == right` failed: a valid method on a renamed class is silent; got [Diagnostic { subject: None, code: W307, span: Span { start: 87, end: 89 }, message: "Non-literal command name — cannot statically analyse", severity: Warning, fixes: [] }]
+  left: 1
+ right: 0
+---- analyser::diagnostics::tests::w307_suppressed_for_object_returning_proc_factory stdout ----
+thread 'analyser::diagnostics::tests::w307_suppressed_for_object_returning_proc_factory' (4100) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:9059:5:
+assertion `left == right` failed: factory-return dispatch of a declared method must be silent; got ["W307"]
+  left: 1
+ right: 0
+---- analyser::diagnostics::tests::w308_tp_a_chain_of_aliases_reaches_the_class_1049 stdout ----
+thread 'analyser::diagnostics::tests::w308_tp_a_chain_of_aliases_reaches_the_class_1049' (4208) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:8934:5:
+---- analyser::diagnostics::tests::w308_tp_a_chain_of_renames_still_reaches_the_class_1049 stdout ----
+thread 'analyser::diagnostics::tests::w308_tp_a_chain_of_renames_still_reaches_the_class_1049' (4209) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:8849:5:
+---- analyser::diagnostics::tests::w308_tp_a_renamed_class_name_still_types_its_constructor_1049 stdout ----
+thread 'analyser::diagnostics::tests::w308_tp_a_renamed_class_name_still_types_its_constructor_1049' (4214) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:8781:5:
+---- analyser::diagnostics::tests::w308_tp_a_renamed_class_types_a_direct_constructor_dispatch_1049 stdout ----
+thread 'analyser::diagnostics::tests::w308_tp_a_renamed_class_types_a_direct_constructor_dispatch_1049' (4217) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:8971:5:
+---- analyser::diagnostics::tests::w308_fp_issue_1013_reestablished_class_set_var_constructor_still_flags stdout ----
+thread 'analyser::diagnostics::tests::w308_fp_issue_1013_reestablished_class_set_var_constructor_still_flags' (4155) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:8652:5:
+---- analyser::diagnostics::tests::w308_tp_an_interp_alias_of_a_class_types_its_constructor_1049 stdout ----
+thread 'analyser::diagnostics::tests::w308_tp_an_interp_alias_of_a_class_types_its_constructor_1049' (4223) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:8868:5:
+---- analyser::diagnostics::tests::w308_tp_an_alias_to_a_renamed_class_name_reaches_the_class_1049 stdout ----
+thread 'analyser::diagnostics::tests::w308_tp_an_alias_to_a_renamed_class_name_reaches_the_class_1049' (4222) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:8909:5:
+---- analyser::diagnostics::tests::w308_tn_issue_1013_live_class_set_var_constructor_still_flags stdout ----
+thread 'analyser::diagnostics::tests::w308_tn_issue_1013_live_class_set_var_constructor_still_flags' (4207) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:8668:5:
+---- analyser::diagnostics::tests::w308_tp_class_renamed_to_a_name_keeps_typing_its_existing_objects stdout ----
+thread 'analyser::diagnostics::tests::w308_tp_class_renamed_to_a_name_keeps_typing_its_existing_objects' (4224) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:8711:5:
+---- analyser::diagnostics::tests::w308_tp_issue_1010_deleted_class_constructor_falls_back_to_w307 stdout ----
+thread 'analyser::diagnostics::tests::w308_tp_issue_1010_deleted_class_constructor_falls_back_to_w307' (4231) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:8615:5:
+---- analyser::diagnostics::tests::w308_transitive_alias_known_method_silent stdout ----
+thread 'analyser::diagnostics::tests::w308_transitive_alias_known_method_silent' (4233) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:9023:5:
+assertion `left == right` failed
+  left: ["W307"]
+ right: []
+---- analyser::diagnostics::tests::w308_transitive_alias_of_constructor_object stdout ----
+thread 'analyser::diagnostics::tests::w308_transitive_alias_of_constructor_object' (4240) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:9016:5:
+assertion `left == right` failed
+  left: ["W307"]
+ right: ["W308"]
+---- analyser::diagnostics::tests::w310_registry_credential_option stdout ----
+thread 'analyser::diagnostics::tests::w310_registry_credential_option' (4264) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:13098:10:
+---- analyser::diagnostics::tests::w308_tp_copy_propagated_handle_with_a_trailing_rename_still_flags stdout ----
+thread 'analyser::diagnostics::tests::w308_tp_copy_propagated_handle_with_a_trailing_rename_still_flags' (4230) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:8691:5:
+---- analyser::diagnostics::tests::when_body_analysed_under_irules stdout ----
+thread 'analyser::diagnostics::tests::when_body_analysed_under_irules' (4290) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:11203:5:
+---- analyser::diagnostics::tests::when_body_not_analysed_under_plain_tcl stdout ----
+thread 'analyser::diagnostics::tests::when_body_not_analysed_under_plain_tcl' (4291) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:11193:5:
+test result: FAILED. 587 passed; 245 failed; 0 ignored; 0 measured; 9646 filtered out; finished in 1792.60s

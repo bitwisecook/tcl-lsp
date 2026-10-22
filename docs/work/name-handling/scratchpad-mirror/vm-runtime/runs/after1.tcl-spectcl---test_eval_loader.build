@@ -1,0 +1,11 @@
+error: lifetime may not live long enough
+    --> rust/tcl-spectcl/src/loader/eval.rs:1749:13
+     |
+1742 |     let value = |word: &Word| {
+     |                        -    - return type of closure is Cow<'2, str>
+     |                        |
+     |                        let's call the lifetime of this reference `'1`
+...
+--
+error: could not compile `tcl-spectcl` (lib) due to 1 previous error
+warning: build failed, waiting for other jobs to finish...

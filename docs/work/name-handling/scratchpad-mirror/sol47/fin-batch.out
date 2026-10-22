@@ -1,0 +1,13 @@
+fin-analyser__diagnostics__fp__: 445 ok / 136 failed; 1 result lines
+fin-interprocedural__: 55 ok / 72 failed; 1 result lines
+fin-sccp__: 123 ok / 79 failed; 1 result lines
+fin-optimiser__: 339 ok / 219 failed; 1 result lines
+fin-compilation_unit__: 33 ok / 65 failed; 1 result lines
+fin-analyser__diagnostics__helpers: 5 ok / 17 failed; 1 result lines
+fin-ssa__: 157 ok / 72 failed; 1 result lines
+fin-gvn__: 58 ok / 36 failed; 1 result lines
+fin-lowering_hooks__: 22 ok / 6 failed; 1 result lines
+fin-lowering__: 229 ok / 176 failed; 1 result lines
+fin-codegen__: 515 ok / 37 failed; 1 result lines
+fin-registry_invocation: 207 ok / 80 failed; 1 result lines
+fin-analyser__diagnostics__tests: 311 ok / 142 failed; 0 result lines

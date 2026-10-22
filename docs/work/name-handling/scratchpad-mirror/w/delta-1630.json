@@ -1,0 +1,12 @@
+{"scheduled":"2026-10-19T22:24:00Z (delivered 2026-10-20T16:21Z after container restarts)",
+ "change_since_previous_report":{"integrated_LSP":0,"total_baseline_delta":0,"effective_delta":0,"verified_complete":0},
+ "admissions":{},
+ "committed":{
+   "3fd8d08e4a":"CI gate fixes (Sol-43): cargo-deny yanked inout, stale lockfiles, prettier + spec-studio tests, tcl.h native-only leg, wasm/wasi recursion_limit, no-libtommath runtime warnings, clippy in 24 non-owned crates, CI path/shard tables, VS Code partition totals",
+   "fde7995cdd":"user decisions: python lint excludes evidence paths; tclvm constructors require with_native_core",
+   "a8e296754e":"C1 part 2 (Sol-42): fresh-interpreter entry for core Tcl; tcl-compiler C1 modules 1103 -> 1194 passing, zero tests regressed; bounded AnalysisResult mismatch output",
+   "1fba5c3be5":"tclvm ports (Sol-41): yieldable package require; partial return/tailcall reporting, errorInfo levels, compiled frames, cmd-core rewrites, namespace frame text; tclvm CLI uses with_native_core"},
+ "root_causes":{"tcl-vm cluster A":"Vm::new/with_output never install an engine profile (work commit 6fa086c780, pre-merge) -> every command name refused; decision: require with_native_core","cluster C":"native-core VM refuses string toupper/index/range/map, regsub -command, some encoding/format paths with NativePreflightRequired (compiler/registry selection Unknown)","spectcl eval_loader":"same as cluster A"},
+ "risks":["docs/design/analysis/name-resolution-proofs/manifest.json is ~90 MB on work (absent on rust); each edit adds a ~90 MB blob; GitHub warns at 50 MB and rejects at 100 MB"],
+ "next":"Sol-44: migrate tclvm harnesses/embedders to with_native_core, Vm::new test-only, then remaining ports; Sol-45: cluster C (string ops refused), C6 standalone builders, C2; coordinator: python lint exclusion; then re-dispatch CI.",
+ "next_report_utc":"2026-10-20T17:05:00Z"}

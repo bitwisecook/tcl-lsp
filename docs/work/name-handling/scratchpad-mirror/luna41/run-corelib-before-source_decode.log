@@ -1,0 +1,17 @@
+test source_decode::tests::positions_never_panic_on_offsets_inside_a_multi_byte_character ... ok
+test source_decode::tests::w107_anchors_on_the_decoder_insertion_after_an_authored_replacement_character ... ok
+test source_decode::tests::w107_anchors_on_the_first_replacement_character ... ok
+test source_decode::tests::w107_counts_every_ill_formed_sequence_not_just_the_first ... ok
+test source_decode::tests::w107_does_not_infer_a_decode_failure_from_lsp_text_alone ... ok
+test source_decode::tests::positions_are_utf16_code_units_not_bytes_or_chars ... ok
+test source_decode::tests::w107_fires_on_every_malformation_class ... ok
+test source_decode::tests::w107_is_one_diagnostic_per_file_however_broken ... ok
+test source_decode::tests::w107_requires_byte_evidence_and_never_accuses_a_literal_replacement_char ... ok
+test source_decode::tests::w107_silent_on_valid_utf8_including_non_ascii ... ok
+test source_decode::tests::w109_does_not_guess_from_nul_interleaved_lsp_text ... ok
+test source_decode::tests::w109_fires_on_utf16_with_and_without_a_bom ... ok
+test source_decode::tests::w109_needs_both_a_nul_floor_and_a_ratio ... ok
+test source_decode::tests::w109_silent_on_ordinary_source_and_on_an_empty_file ... ok
+test source_decode::tests::w109_silent_on_valid_utf8_containing_occasional_nuls ... ok
+test source_decode::tests::decode_of_a_large_buffer_stays_linear_and_reports_once ... ok
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 3469 filtered out; finished in 0.01s

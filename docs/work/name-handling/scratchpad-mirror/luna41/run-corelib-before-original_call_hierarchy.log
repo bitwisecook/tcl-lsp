@@ -1,0 +1,12 @@
+test original_call_hierarchy::own_object_call_tests::original_own_object_calls_and_references_keep_the_canonical_object_worker ... ok
+test original_call_hierarchy::external_procedure_advice_tests::original_root_call_reborrows_head_and_conditional_external_header ... ok
+test original_call_hierarchy::positioned_procedure_advice_tests::original_call_fallback_uses_genuine_positioned_source_advice_for_deferred_headers ... ok
+test original_call_hierarchy::positioned_procedure_advice_tests::original_call_fallback_does_not_restore_deleted_or_unknown_occupied_headers ... ok
+test original_call_hierarchy::positioned_procedure_advice_tests::original_call_prepare_requires_written_head_and_strict_current_position ... ok
+test original_call_hierarchy::positioned_procedure_advice_tests::original_call_lookup_projection_must_match_the_genuine_current_call ... ok
+test original_call_hierarchy::positioned_procedure_advice_tests::original_call_ranges_follow_lsp_lone_cr_positions_after_exact_selection ... ok
+test original_call_hierarchy::external_procedure_advice_tests::external_root_header_preserves_occupants_deletions_and_unknowns ... ok
+test original_call_hierarchy::tests::original_call_edges_keep_opaque_declarations_and_independent_source_owners ... ok
+test original_call_hierarchy::positioned_procedure_strong_reference_tests::original_call_reference_keeps_local_alias_target_and_builtin_occupancy_terminal ... ok
+test original_call_hierarchy::tests::original_math_navigation_and_reference_edges_share_expression_allocations ... ok
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 3474 filtered out; finished in 17.27s

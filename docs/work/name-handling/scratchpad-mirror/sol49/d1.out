@@ -1,0 +1,23 @@
+BUILT /home/user/tcl-lsp/target/debug/deps/tcl_compiler-ef22ef87d0bd65a7
+d1-analyser__bounds_checks: 56 ok / 13 failed; 1 result lines
+d1-fp_rbs_15: 6 ok / 3 failed; 1 result lines
+d1-fp_sh_21: 6 ok / 1 failed; 1 result lines
+d1-fp_tnt_03: 3 ok / 3 failed; 1 result lines
+d1-analyser__diagnostics__fp: 484 ok / 97 failed; 1 result lines
+d1-interprocedural__: 76 ok / 51 failed; 1 result lines
+d1-analyser__diagnostics__helpers: 13 ok / 9 failed; 1 result lines
+d1-compilation_unit__: 36 ok / 62 failed; 1 result lines
+d1-analyser__irules_event_checks: 77 ok / 13 failed; 1 result lines
+d1-irules_checks__: 0 ok / 0 failed; 0 result lines
+d1-analyser__diagnostics__tests: 0 ok / 0 failed; 0 result lines
+d1-registry_invocation: 0 ok / 0 failed; 0 result lines
+d1-signature_scan__: 0 ok / 0 failed; 0 result lines
+d1-taint__: 0 ok / 0 failed; 0 result lines
+d1-lowering__: 0 ok / 0 failed; 0 result lines
+d1-source_class__tests: 0 ok / 0 failed; 0 result lines
+d1-depth_guard__tests__cap_deep: 0 ok / 0 failed; 0 result lines
+d1-depth_guard__tests__deep_namespace_eval_lowering: 0 ok / 0 failed; 0 result lines
+d1-cfg_builder__: 0 ok / 0 failed; 0 result lines
+d1-deferred_writes: 0 ok / 0 failed; 0 result lines
+d1-command_binding__: 0 ok / 0 failed; 0 result lines
+DONE (exe deleted)

@@ -1,0 +1,15 @@
+{
+ "scheduled": "2026-10-18T19:35:13Z",
+ "change_since_previous_report": {"integrated_LSP": 0, "total_baseline_delta": 0, "effective_delta": 0, "verified_complete": 0},
+ "admissions": {},
+ "candidates": {"integration44": {"amendment": "106babc99 (Sol-24: completion gaps read lone CR through the document channel; both PASS->FAIL rows fixed; zero PASS->FAIL in its runs)", "build46": "passed, source/provider guards pass, 9 ELFs", "capture_lsp_46": "running: about 473 of 1085 selectors done"}},
+ "reviews_since_previous_report": {
+  "Luna-25 DB921 v2": "ADMIT-TO-BUILD (two text nits fixed at composition)",
+  "Luna-27 survey v2": "ADMIT-TO-BUILD; stack depth now bounded by the shared cap; malformed if declines; runs owed",
+  "Sol-21 Server102/103 v2": "Luna-26 conditions met (docs only)",
+  "Server108": "fixture-only change needs a measured run (estimated 173-176 s worst case)"
+ },
+ "in_review": {"Luna-28": "forced-import v2 (exports on the definition route, -force onto existing command, offsets, prelude, D1 tclsh correction)"},
+ "queued_for_cargo_after_capture": ["survey v2 + helper deletion", "DB921 v2", "Server102/103 v2", "Server108 fixture timing", "forced-import v2 (after review)"],
+ "next_report_utc": "2026-10-18T20:06:00Z"
+}

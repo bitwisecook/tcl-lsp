@@ -1,0 +1,265 @@
+test interprocedural::completion::original_source_purpose_tests::original_module_completion_uses_actual_native_or_logical_entry_purpose ... FAILED
+test interprocedural::completion::tests::a_body_of_commands_that_complete_completes has been running for over 60 seconds
+test interprocedural::completion::tests::a_body_that_may_raise_does_not_complete has been running for over 60 seconds
+test interprocedural::completion::tests::a_callee_counts_as_defined_only_where_its_definition_surely_ran has been running for over 60 seconds
+test interprocedural::completion::tests::a_body_of_commands_that_complete_completes ... FAILED
+test interprocedural::completion::tests::a_rebound_or_declared_head_states_no_completion ... FAILED
+test interprocedural::completion::tests::a_word_the_release_rejects_never_completes ... ok
+test interprocedural::completion::tests::original_completion_declines_missing_foreign_native_and_mutated_headers ... FAILED
+test interprocedural::completion::tests::original_completion_keeps_alias_prefixes_defaults_and_child_horizons ... FAILED
+test interprocedural::completion::tests::a_callee_counts_as_defined_only_where_its_definition_surely_ran ... FAILED
+test interprocedural::completion::tests::original_completion_retains_selected_jim_formal_binding_strategy ... FAILED
+test interprocedural::completion::tests::the_ir_only_summary_states_no_completion ... FAILED
+test interprocedural::effect_propagation_tests::nested_substitution_effects_propagate_only_when_evaluated ... ok
+test interprocedural::selected_global_option_taint_tests::interprocedural_option_summary_uses_selected_alias_target_receipt ... FAILED
+test interprocedural::tests::a_call_naming_the_callers_own_place_keeps_it_pure ... FAILED
+test interprocedural::tests::a_call_running_a_body_word_may_return ... FAILED
+test interprocedural::tests::a_computed_command_prefix_records_no_callback_edge ... ok
+test interprocedural::tests::a_trace_callback_is_a_call_graph_edge ... FAILED
+test interprocedural::tests::an_alias_at_the_current_or_global_frame_is_a_global_alias ... FAILED
+test interprocedural::tests::arity_from_names_handles_trailing_args ... ok
+test interprocedural::completion::tests::original_completion_keeps_selected_scalar_reference_and_element_obligations ... ok
+test interprocedural::tests::array_element_instance_var_write_makes_method_impure ... FAILED
+test interprocedural::tests::authored_source_report_labels_keep_real_body_ids_and_current_source ... ok
+test interprocedural::tests::authored_source_report_labels_refuse_foreign_and_changed_owners ... ok
+test interprocedural::tests::barrier_detected_via_eval_call ... ok
+test interprocedural::tests::call_by_name_param_traits_inferred ... ok
+test interprocedural::tests::call_graph_abstains_for_a_builtin_shadowed_by_a_user_proc ... ok
+test interprocedural::tests::call_graph_abstains_for_a_dynamic_binding ... FAILED
+test interprocedural::tests::call_graph_follows_a_renamed_body_command ... ok
+test interprocedural::tests::call_in_if_condition_is_recorded ... ok
+test interprocedural::tests::call_in_while_condition_is_recorded ... ok
+test interprocedural::tests::call_graph_follows_an_aliased_body_command ... ok
+test interprocedural::tests::call_inside_apply_lambda_body_is_a_direct_call ... ok
+test interprocedural::tests::call_inside_apply_lambda_body_resolves_in_explicit_namespace ... FAILED
+test interprocedural::tests::call_inside_catch_in_if_condition_is_recorded ... ok
+test interprocedural::tests::call_inside_apply_lambda_body_resolves_in_lambda_namespace ... ok
+test interprocedural::tests::calls_captured_and_transitively_closed ... ok
+test interprocedural::tests::command_prefix_callbacks_are_call_graph_edges_in_every_shape ... FAILED
+test interprocedural::tests::command_prefix_head_reads_each_shape ... ok
+test interprocedural::tests::can_fold_gated_on_pure_and_return_shape ... ok
+test interprocedural::tests::conditional_return_is_constant_when_all_paths_return ... ok
+test interprocedural::tests::conditional_return_is_not_constant_when_body_falls_through ... ok
+test interprocedural::tests::conditional_authored_declaration_reports_do_not_close_unused_parameters ... ok
+test interprocedural::tests::constant_return_inferred_for_literal_proc ... ok
+test interprocedural::tests::cyclic_call_graph_handled ... ok
+test interprocedural::tests::deeply_nested_if_survives_collect_instance_var_writes ... FAILED
+test interprocedural::tests::deeply_nested_interprocedural_scans_survive ... ok
+test interprocedural::tests::document_alias_prefix_preserves_the_call_graph_target ... ok
+test interprocedural::tests::document_procedure_named_like_wrapper_does_not_inherit_body_roles ... ok
+test interprocedural::tests::empty_module_has_no_summaries ... ok
+test interprocedural::tests::forwarded_to_callee_detected ... ok
+test interprocedural::tests::fp_nab_03_impure_proc_still_detected ... ok
+test interprocedural::tests::fp_nab_03_recursive_arithmetic_proc_is_pure ... FAILED
+test interprocedural::tests::global_alias_write_counts_as_writes_global ... ok
+test interprocedural::tests::instance_method_callback_is_a_direct_call ... FAILED
+test interprocedural::tests::instance_var_write_makes_method_impure ... FAILED
+test interprocedural::tests::instance_write_candidates_keep_literal_destinations_and_dynamic_unknowns ... ok
+test interprocedural::tests::literal_empty_global_alias_mutations_remain_visible ... ok
+test interprocedural::tests::my_dispatch_makes_method_impure ... FAILED
+test interprocedural::tests::namespace_parts_from_proc_extracts_segments ... ok
+test interprocedural::tests::namespace_relative_calls_resolved ... ok
+test interprocedural::tests::nominal_global_alias_coverage_keeps_empty_data_separate_from_unknown_names ... FAILED
+test interprocedural::tests::non_aliased_local_write_is_not_writes_global ... ok
+test interprocedural::tests::original_authored_alias_reports_keep_source_formals_frames_and_unknown_debts ... ok
+test interprocedural::tests::original_authored_call_reports_keep_actual_source_target_formals_and_debts ... ok
+test interprocedural::tests::original_callback_reachability_distinguishes_literal_values_and_selected_builders ... FAILED
+test interprocedural::tests::original_declaration_receivers_keep_owned_ids_and_preceding_setup ... FAILED
+test interprocedural::tests::original_declaration_summaries_keep_actual_cards_without_callable_publication ... ok
+test interprocedural::tests::original_formal_reference_parts_keep_lexical_names_and_complete_grammar ... ok
+test interprocedural::tests::original_formal_reference_traits_keep_actual_body_function_and_cfg_owners ... ok
+test interprocedural::tests::original_formal_reference_traits_keep_authored_conditions_and_unknown_obligations ... ok
+test interprocedural::tests::original_logical_source_call_edges_keep_body_ids_without_execution_grants ... FAILED
+test interprocedural::tests::original_positioned_child_bodies_preserve_replacements_and_aliases ... FAILED
+test interprocedural::tests::param_traits_inferred ... ok
+test interprocedural::tests::passthrough_param_detected ... ok
+test interprocedural::tests::positioned_alias_traits_use_selected_frame_and_transition_grammar ... ok
+test interprocedural::tests::proc_summary_unknown_is_conservative ... ok
+test interprocedural::tests::procedure_and_method_callback_advice_requires_the_module_source_producer ... FAILED
+test interprocedural::tests::pure_getter_method_is_summarised_pure ... FAILED
+test interprocedural::tests::deeply_nested_if_survives_interprocedural_scan has been running for over 60 seconds
+test interprocedural::tests::pure_proc_is_flagged_pure ... ok
+test interprocedural::tests::redefined_method_joins_over_every_retained_body ... FAILED
+test interprocedural::tests::resolve_absolute_names ... ok
+test interprocedural::tests::resolve_bare_does_not_walk_ancestor_namespaces ... ok
+test interprocedural::tests::resolve_bare_falls_through_to_global ... ok
+test interprocedural::tests::resolve_bare_returns_none_when_not_found ... ok
+test interprocedural::tests::resolve_call_target_delegates ... ok
+test interprocedural::tests::resolve_empty_command_is_none ... ok
+test interprocedural::tests::resolve_relative_dotted_name_prefers_caller_namespace ... ok
+test interprocedural::tests::resolve_relative_with_segments ... ok
+test interprocedural::tests::return_word_classification_keeps_literal_names_and_selected_grammar ... ok
+test interprocedural::tests::side_effect_classification_follows_an_aliased_head ... ok
+test interprocedural::tests::simple_proc_is_recorded_with_params_and_arity ... ok
+test interprocedural::tests::standalone_empty_alias_declaration_and_mutation_have_distinct_write_effects ... FAILED
+test interprocedural::tests::uncertain_point_binding_preserves_unknown_effect_obligation ... ok
+test interprocedural::tests::unknown_alias_prefix_bytes_preserve_document_call_graph_target ... FAILED
+test interprocedural::tests::unknown_call_sets_has_unknown_calls ... ok
+test interprocedural::tests::unreadable_oo_definitions_force_methods_impure ... FAILED
+test interprocedural::tests::upvar_level_word_is_read_by_argument_parity ... ok
+test interprocedural::tests::used_in_condition_detected ... ok
+test interprocedural::tests::user_proc_invoker_is_registry_driven_not_name_matched ... FAILED
+test interprocedural::tests::variable_decl_is_not_counted_as_instance_var_write ... FAILED
+test interprocedural::transfer::source_context::tests::original_expression_fused_top_level_retains_its_existing_parent_record ... FAILED
+test interprocedural::transfer::source_context::tests::original_expression_receipts_join_actual_literal_operand_and_child_extent ... FAILED
+test interprocedural::transfer::source_context::tests::original_expression_receipts_refuse_captured_and_shadowed_producers ... FAILED
+test interprocedural::transfer::source_context::tests::original_expression_receipts_refuse_cooked_and_foreign_producers ... FAILED
+test interprocedural::transfer::source_context::tests::original_transfer_alias_targets_keep_source_symbols_and_refuse_foreign_words ... FAILED
+test interprocedural::transfer::source_context::tests::original_transfer_call_keeps_selected_procedure_and_captured_operands_together ... FAILED
+test interprocedural::transfer::source_context::tests::original_transfer_child_and_body_require_the_genuine_parent_word ... FAILED
+test interprocedural::transfer::source_context::tests::original_transfer_shadow_and_command_observers_do_not_borrow_catalogue_closure ... FAILED
+test interprocedural::transfer::source_context::tests::original_transfer_source_refuses_missing_foreign_config_and_changed_headers ... ok
+test interprocedural::completion::tests::a_body_that_may_raise_does_not_complete ... ok
+test interprocedural::transfer::tests::a_barrier_has_no_summary ... FAILED
+test interprocedural::transfer::tests::a_call_names_its_omitted_parameters_default ... FAILED
+test interprocedural::transfer::tests::a_cycle_that_does_not_converge_is_may_bind ... FAILED
+test interprocedural::transfer::tests::a_rename_or_a_redefinition_moves_the_revision ... FAILED
+test interprocedural::transfer::tests::conditional_source_outer_places_do_not_issue_physical_steps ... FAILED
+test interprocedural::transfer::tests::a_name_argument_naming_an_outer_place_is_a_global_write has been running for over 60 seconds
+test interprocedural::transfer::tests::summaries_compose_through_two_callees ... FAILED
+test interprocedural::transfer::tests::transfer_formals_keep_selected_tcl_and_jim_binders_separate ... ok
+test interprocedural::transfer::tests::transfer_unused_formals_use_actual_variable_roots_and_metadata ... FAILED
+test var_escape::interprocedural::tests::caller_inherits_callee_upvar_sources ... ok
+test var_escape::interprocedural::tests::caller_with_matching_local_gets_frame_tag ... ok
+test var_escape::interprocedural::tests::empty_input_returns_empty ... ok
+test var_escape::interprocedural::tests::has_call_fallback_downgrades_when_all_callees_resolve ... ok
+test var_escape::interprocedural::tests::has_call_fallback_keeps_set_when_callee_unresolved ... ok
+test var_escape::interprocedural::tests::has_fallback_intraproc_value_preserved ... ok
+test var_escape::interprocedural::tests::self_recursion_does_not_loop ... ok
+test var_escape::interprocedural::tests::transitive_through_chain ... ok
+test var_escape::interprocedural::tests::unbounded_callee_marks_caller_pessimistic ... ok
+test interprocedural::tests::deeply_nested_if_survives_interprocedural_scan ... ok
+test interprocedural::transfer::tests::a_name_argument_naming_an_outer_place_is_a_global_write ... FAILED
+---- interprocedural::completion::original_source_purpose_tests::original_module_completion_uses_actual_native_or_logical_entry_purpose stdout ----
+thread 'interprocedural::completion::original_source_purpose_tests::original_module_completion_uses_actual_native_or_logical_entry_purpose' (29757) panicked at rust/tcl-compiler/src/interprocedural/completion.rs:1017:13:
+assertion failed: metadata.permits_logical_source_names()
+---- interprocedural::completion::tests::a_body_of_commands_that_complete_completes stdout ----
+thread 'interprocedural::completion::tests::a_body_of_commands_that_complete_completes' (29758) panicked at rust/tcl-compiler/src/interprocedural/completion.rs:589:13:
+---- interprocedural::completion::tests::a_rebound_or_declared_head_states_no_completion stdout ----
+thread 'interprocedural::completion::tests::a_rebound_or_declared_head_states_no_completion' (30880) panicked at rust/tcl-compiler/src/interprocedural/completion.rs:674:9:
+---- interprocedural::completion::tests::original_completion_declines_missing_foreign_native_and_mutated_headers stdout ----
+thread 'interprocedural::completion::tests::original_completion_declines_missing_foreign_native_and_mutated_headers' (31313) panicked at rust/tcl-compiler/src/interprocedural/completion.rs:770:9:
+assertion failed: super::procedures_complete(module, context.commands(), &|_, _| true)[&p_id]
+---- interprocedural::completion::tests::original_completion_keeps_alias_prefixes_defaults_and_child_horizons stdout ----
+thread 'interprocedural::completion::tests::original_completion_keeps_alias_prefixes_defaults_and_child_horizons' (31346) panicked at rust/tcl-compiler/src/interprocedural/completion.rs:713:13:
+---- interprocedural::completion::tests::a_callee_counts_as_defined_only_where_its_definition_surely_ran stdout ----
+thread 'interprocedural::completion::tests::a_callee_counts_as_defined_only_where_its_definition_surely_ran' (29794) panicked at rust/tcl-compiler/src/test_body_identity.rs:54:28:
+---- interprocedural::completion::tests::original_completion_retains_selected_jim_formal_binding_strategy stdout ----
+thread 'interprocedural::completion::tests::original_completion_retains_selected_jim_formal_binding_strategy' (31460) panicked at rust/tcl-compiler/src/test_body_identity.rs:54:28:
+---- interprocedural::completion::tests::the_ir_only_summary_states_no_completion stdout ----
+thread 'interprocedural::completion::tests::the_ir_only_summary_states_no_completion' (31639) panicked at rust/tcl-compiler/src/test_body_identity.rs:54:28:
+---- interprocedural::selected_global_option_taint_tests::interprocedural_option_summary_uses_selected_alias_target_receipt stdout ----
+thread 'interprocedural::selected_global_option_taint_tests::interprocedural_option_summary_uses_selected_alias_target_receipt' (31873) panicked at rust/tcl-compiler/src/interprocedural.rs:8390:9:
+assertion failed: writes[&id].contains("::bound")
+---- interprocedural::tests::a_call_naming_the_callers_own_place_keeps_it_pure stdout ----
+thread 'interprocedural::tests::a_call_naming_the_callers_own_place_keeps_it_pure' (31923) panicked at rust/tcl-compiler/src/interprocedural.rs:7057:9:
+assertion failed: !pure("::g")
+---- interprocedural::tests::a_call_running_a_body_word_may_return stdout ----
+thread 'interprocedural::tests::a_call_running_a_body_word_may_return' (32116) panicked at rust/tcl-compiler/src/test_body_identity.rs:54:28:
+---- interprocedural::tests::a_trace_callback_is_a_call_graph_edge stdout ----
+thread 'interprocedural::tests::a_trace_callback_is_a_call_graph_edge' (32142) panicked at rust/tcl-compiler/src/interprocedural.rs:5927:9:
+assertion `left == right` failed
+  left: []
+ right: ["::cb"]
+---- interprocedural::tests::an_alias_at_the_current_or_global_frame_is_a_global_alias stdout ----
+thread 'interprocedural::tests::an_alias_at_the_current_or_global_frame_is_a_global_alias' (32162) panicked at rust/tcl-compiler/src/interprocedural.rs:6709:13:
+---- interprocedural::tests::array_element_instance_var_write_makes_method_impure stdout ----
+thread 'interprocedural::tests::array_element_instance_var_write_makes_method_impure' (32228) panicked at rust/tcl-compiler/src/interprocedural.rs:6778:50:
+---- interprocedural::tests::call_graph_abstains_for_a_dynamic_binding stdout ----
+thread 'interprocedural::tests::call_graph_abstains_for_a_dynamic_binding' (32275) panicked at rust/tcl-compiler/src/interprocedural.rs:8224:9:
+---- interprocedural::tests::call_inside_apply_lambda_body_resolves_in_explicit_namespace stdout ----
+thread 'interprocedural::tests::call_inside_apply_lambda_body_resolves_in_explicit_namespace' (32343) panicked at rust/tcl-compiler/src/interprocedural.rs:6492:9:
+---- interprocedural::tests::command_prefix_callbacks_are_call_graph_edges_in_every_shape stdout ----
+thread 'interprocedural::tests::command_prefix_callbacks_are_call_graph_edges_in_every_shape' (32351) panicked at rust/tcl-compiler/src/interprocedural.rs:5876:13:
+assertion `left == right` failed: `-command cb` must record a call edge to cb
+  left: []
+ right: ["::cb"]
+---- interprocedural::tests::deeply_nested_if_survives_collect_instance_var_writes stdout ----
+thread '<unnamed>' (32395) panicked at rust/tcl-compiler/src/interprocedural.rs:8152:17:
+assertion failed: ia.methods.values().any(|method| method.base.qualified_name == "::C::bump")
+thread 'interprocedural::tests::deeply_nested_if_survives_collect_instance_var_writes' (32394) panicked at rust/tcl-compiler/src/interprocedural.rs:8160:14:
+---- interprocedural::tests::fp_nab_03_recursive_arithmetic_proc_is_pure stdout ----
+thread 'interprocedural::tests::fp_nab_03_recursive_arithmetic_proc_is_pure' (32754) panicked at rust/tcl-compiler/src/interprocedural.rs:7016:9:
+---- interprocedural::tests::instance_method_callback_is_a_direct_call stdout ----
+thread 'interprocedural::tests::instance_method_callback_is_a_direct_call' (321) panicked at rust/tcl-compiler/src/interprocedural.rs:6532:55:
+---- interprocedural::tests::instance_var_write_makes_method_impure stdout ----
+thread 'interprocedural::tests::instance_var_write_makes_method_impure' (322) panicked at rust/tcl-compiler/src/interprocedural.rs:6759:50:
+---- interprocedural::tests::my_dispatch_makes_method_impure stdout ----
+thread 'interprocedural::tests::my_dispatch_makes_method_impure' (325) panicked at rust/tcl-compiler/src/interprocedural.rs:6793:47:
+---- interprocedural::tests::nominal_global_alias_coverage_keeps_empty_data_separate_from_unknown_names stdout ----
+thread 'interprocedural::tests::nominal_global_alias_coverage_keeps_empty_data_separate_from_unknown_names' (328) panicked at rust/tcl-compiler/src/interprocedural.rs:6680:9:
+assertion failed: coverage.names.contains("") && coverage.names.contains("array")
+---- interprocedural::tests::original_callback_reachability_distinguishes_literal_values_and_selected_builders stdout ----
+thread 'interprocedural::tests::original_callback_reachability_distinguishes_literal_values_and_selected_builders' (338) panicked at rust/tcl-compiler/src/interprocedural.rs:5900:13:
+---- interprocedural::tests::original_declaration_receivers_keep_owned_ids_and_preceding_setup stdout ----
+thread 'interprocedural::tests::original_declaration_receivers_keep_owned_ids_and_preceding_setup' (339) panicked at rust/tcl-compiler/src/interprocedural.rs:5604:9:
+assertion failed: classes[&id].contains_key(".before")
+---- interprocedural::tests::original_logical_source_call_edges_keep_body_ids_without_execution_grants stdout ----
+thread 'interprocedural::tests::original_logical_source_call_edges_keep_body_ids_without_execution_grants' (350) panicked at rust/tcl-compiler/src/interprocedural.rs:7982:10:
+---- interprocedural::tests::original_positioned_child_bodies_preserve_replacements_and_aliases stdout ----
+thread 'interprocedural::tests::original_positioned_child_bodies_preserve_replacements_and_aliases' (351) panicked at rust/tcl-compiler/src/interprocedural.rs:5860:13:
+assertion `left == right` failed: proc leaf {} {}; ; proc caller {} {time {catch {leaf}}}
+  left: false
+ right: true
+---- interprocedural::tests::procedure_and_method_callback_advice_requires_the_module_source_producer stdout ----
+thread 'interprocedural::tests::procedure_and_method_callback_advice_requires_the_module_source_producer' (450) panicked at rust/tcl-compiler/src/interprocedural.rs:5787:59:
+---- interprocedural::tests::pure_getter_method_is_summarised_pure stdout ----
+thread 'interprocedural::tests::pure_getter_method_is_summarised_pure' (453) panicked at rust/tcl-compiler/src/interprocedural.rs:6744:49:
+---- interprocedural::tests::redefined_method_joins_over_every_retained_body stdout ----
+thread 'interprocedural::tests::redefined_method_joins_over_every_retained_body' (457) panicked at rust/tcl-compiler/src/interprocedural.rs:6818:9:
+assertion `left == right` failed
+  left: 0
+ right: 2
+---- interprocedural::tests::standalone_empty_alias_declaration_and_mutation_have_distinct_write_effects stdout ----
+thread 'interprocedural::tests::standalone_empty_alias_declaration_and_mutation_have_distinct_write_effects' (550) panicked at rust/tcl-compiler/src/interprocedural.rs:6646:9:
+assertion failed: facts.global_aliases.contains("")
+---- interprocedural::tests::unknown_alias_prefix_bytes_preserve_document_call_graph_target stdout ----
+thread 'interprocedural::tests::unknown_alias_prefix_bytes_preserve_document_call_graph_target' (584) panicked at rust/tcl-compiler/src/interprocedural.rs:6363:9:
+---- interprocedural::tests::unreadable_oo_definitions_force_methods_impure stdout ----
+thread 'interprocedural::tests::unreadable_oo_definitions_force_methods_impure' (697) panicked at rust/tcl-compiler/src/interprocedural.rs:6885:47:
+---- interprocedural::tests::user_proc_invoker_is_registry_driven_not_name_matched stdout ----
+thread 'interprocedural::tests::user_proc_invoker_is_registry_driven_not_name_matched' (743) panicked at rust/tcl-compiler/src/interprocedural.rs:5964:9:
+assertion `left == right` failed
+  left: []
+ right: ["::helper"]
+---- interprocedural::tests::variable_decl_is_not_counted_as_instance_var_write stdout ----
+thread 'interprocedural::tests::variable_decl_is_not_counted_as_instance_var_write' (744) panicked at rust/tcl-compiler/src/interprocedural.rs:6912:50:
+---- interprocedural::transfer::source_context::tests::original_expression_fused_top_level_retains_its_existing_parent_record stdout ----
+thread 'interprocedural::transfer::source_context::tests::original_expression_fused_top_level_retains_its_existing_parent_record' (745) panicked at rust/tcl-compiler/src/interprocedural/transfer/source_context.rs:591:14:
+---- interprocedural::transfer::source_context::tests::original_expression_receipts_join_actual_literal_operand_and_child_extent stdout ----
+thread 'interprocedural::transfer::source_context::tests::original_expression_receipts_join_actual_literal_operand_and_child_extent' (785) panicked at rust/tcl-compiler/src/interprocedural/transfer/source_context.rs:624:14:
+---- interprocedural::transfer::source_context::tests::original_expression_receipts_refuse_captured_and_shadowed_producers stdout ----
+thread 'interprocedural::transfer::source_context::tests::original_expression_receipts_refuse_captured_and_shadowed_producers' (792) panicked at rust/tcl-compiler/src/interprocedural/transfer/source_context.rs:766:14:
+---- interprocedural::transfer::source_context::tests::original_expression_receipts_refuse_cooked_and_foreign_producers stdout ----
+thread 'interprocedural::transfer::source_context::tests::original_expression_receipts_refuse_cooked_and_foreign_producers' (862) panicked at rust/tcl-compiler/src/interprocedural/transfer/source_context.rs:699:14:
+---- interprocedural::transfer::source_context::tests::original_transfer_alias_targets_keep_source_symbols_and_refuse_foreign_words stdout ----
+thread 'interprocedural::transfer::source_context::tests::original_transfer_alias_targets_keep_source_symbols_and_refuse_foreign_words' (922) panicked at rust/tcl-compiler/src/interprocedural/transfer/source_context.rs:807:14:
+---- interprocedural::transfer::source_context::tests::original_transfer_call_keeps_selected_procedure_and_captured_operands_together stdout ----
+thread 'interprocedural::transfer::source_context::tests::original_transfer_call_keeps_selected_procedure_and_captured_operands_together' (927) panicked at rust/tcl-compiler/src/interprocedural/transfer/source_context.rs:853:14:
+---- interprocedural::transfer::source_context::tests::original_transfer_child_and_body_require_the_genuine_parent_word stdout ----
+thread 'interprocedural::transfer::source_context::tests::original_transfer_child_and_body_require_the_genuine_parent_word' (930) panicked at rust/tcl-compiler/src/interprocedural/transfer/source_context.rs:894:14:
+---- interprocedural::transfer::source_context::tests::original_transfer_shadow_and_command_observers_do_not_borrow_catalogue_closure stdout ----
+thread 'interprocedural::transfer::source_context::tests::original_transfer_shadow_and_command_observers_do_not_borrow_catalogue_closure' (988) panicked at rust/tcl-compiler/src/interprocedural/transfer/source_context.rs:1023:14:
+---- interprocedural::transfer::tests::a_barrier_has_no_summary stdout ----
+thread 'interprocedural::transfer::tests::a_barrier_has_no_summary' (1017) panicked at rust/tcl-compiler/src/interprocedural/transfer.rs:2618:38:
+---- interprocedural::transfer::tests::a_call_names_its_omitted_parameters_default stdout ----
+thread 'interprocedural::transfer::tests::a_call_names_its_omitted_parameters_default' (1054) panicked at rust/tcl-compiler/src/interprocedural/transfer.rs:2641:9:
+assertion `left == right` failed
+  left: None
+ right: Some(Places([("n", Set(Bound(Scalar)))]))
+---- interprocedural::transfer::tests::a_cycle_that_does_not_converge_is_may_bind stdout ----
+thread 'interprocedural::transfer::tests::a_cycle_that_does_not_converge_is_may_bind' (1074) panicked at rust/tcl-compiler/src/interprocedural/transfer.rs:2768:31:
+---- interprocedural::transfer::tests::a_rename_or_a_redefinition_moves_the_revision stdout ----
+thread 'interprocedural::transfer::tests::a_rename_or_a_redefinition_moves_the_revision' (1106) panicked at rust/tcl-compiler/src/interprocedural/transfer.rs:2810:9:
+assertion `left != right` failed
+  left: 0
+ right: 0
+---- interprocedural::transfer::tests::conditional_source_outer_places_do_not_issue_physical_steps stdout ----
+thread 'interprocedural::transfer::tests::conditional_source_outer_places_do_not_issue_physical_steps' (1133) panicked at rust/tcl-compiler/src/interprocedural/transfer.rs:2681:40:
+---- interprocedural::transfer::tests::summaries_compose_through_two_callees stdout ----
+thread 'interprocedural::transfer::tests::summaries_compose_through_two_callees' (1193) panicked at rust/tcl-compiler/src/interprocedural/transfer.rs:2547:40:
+---- interprocedural::transfer::tests::transfer_unused_formals_use_actual_variable_roots_and_metadata stdout ----
+thread 'interprocedural::transfer::tests::transfer_unused_formals_use_actual_variable_roots_and_metadata' (1810) panicked at rust/tcl-compiler/src/interprocedural/transfer.rs:2902:19:
+---- interprocedural::transfer::tests::a_name_argument_naming_an_outer_place_is_a_global_write stdout ----
+thread 'interprocedural::transfer::tests::a_name_argument_naming_an_outer_place_is_a_global_write' (1105) panicked at rust/tcl-compiler/src/interprocedural/transfer.rs:2715:33:
+test result: FAILED. 76 passed; 51 failed; 0 ignored; 0 measured; 10346 filtered out; finished in 480.08s

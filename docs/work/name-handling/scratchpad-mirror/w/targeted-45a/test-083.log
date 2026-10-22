@@ -1,0 +1,6 @@
+
+running 1 test
+test lexer::tests::array_index_substitution_and_escape_shield_tcl9_source_bytes ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 584 filtered out; finished in 0.00s
+

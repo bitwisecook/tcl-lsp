@@ -1,0 +1,6 @@
+
+running 1 test
+test registry_invocation::source_structure::procedure::tests::logical_procedure_roles_keep_captured_prefix_separate_from_written_anchors ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 10440 filtered out; finished in 1.11s
+

@@ -1,0 +1,23 @@
+
+running 1 test
+test package_resolver::reachability::source_survey_owner_tests::fixed_source_guard_retains_real_query_and_advertisement_dependencies ... 
+thread 'package_resolver::reachability::source_survey_owner_tests::fixed_source_guard_retains_real_query_and_advertisement_dependencies' (24751) panicked at rust/tcl-lsp-core/src/package_resolver/reachability.rs:734:9:
+assertion failed: found[0].0.iter().any(|condition|
+        matches!(condition, Condition::SourceTarget(_)))
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: tcl_lsp_core::package_resolver::reachability::source_survey_owner_tests::fixed_source_guard_retains_real_query_and_advertisement_dependencies
+   4: tcl_lsp_core::package_resolver::reachability::source_survey_owner_tests::fixed_source_guard_retains_real_query_and_advertisement_dependencies::{closure#0}
+   5: <tcl_lsp_core::package_resolver::reachability::source_survey_owner_tests::fixed_source_guard_retains_real_query_and_advertisement_dependencies::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+FAILED
+
+failures:
+
+failures:
+    package_resolver::reachability::source_survey_owner_tests::fixed_source_guard_retains_real_query_and_advertisement_dependencies
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 3484 filtered out; finished in 0.41s
+

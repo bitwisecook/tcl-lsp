@@ -1,0 +1,44 @@
+test lowering_hooks::tests::append_substituted_or_expanded_name_records_no_def ... ok
+test lowering_hooks::tests::extract_expr_arg_alias ... ok
+test lowering_hooks::tests::extract_expr_arg_basic ... ok
+test lowering_hooks::tests::extract_expr_arg_refuses_a_computed_head ... ok
+test lowering_hooks::tests::extract_expr_arg_refuses_a_second_command ... ok
+test lowering_hooks::tests::append_literal_name_records_def ... FAILED
+test lowering_hooks::tests::extract_expr_arg_rooted_head_uses_registry_identity ... ok
+test lowering_hooks::tests::extract_expr_arg_too_many_words ... ok
+test lowering_hooks::tests::lower_set_const ... ok
+test lowering_hooks::tests::lower_set_int ... ok
+test lowering_hooks::tests::lower_set_folds_canonical_decimal_form ... FAILED
+test lowering_hooks::tests::lower_set_jim_expr_sugar_is_an_expression ... ok
+test lowering_hooks::tests::conditional_original_expression_topology_is_analysis_only ... FAILED
+test lowering_hooks::tests::lower_set_keeps_the_static_assign_for_a_spelled_out_name ... FAILED
+test lowering_hooks::tests::lower_set_preserves_leading_zeros ... FAILED
+test lowering_hooks::tests::lower_set_preserves_leading_whitespace_in_value ... FAILED
+test lowering_hooks::tests::lower_upvar_with_level ... ok
+test lowering_hooks::tests::parse_decimal_int_invalid ... ok
+test lowering_hooks::tests::parse_decimal_int_simple ... ok
+test lowering_hooks::tests::registry_expr_spec_carries_lowering_hook ... ok
+test lowering_hooks::tests::registry_incr_spec_carries_lowering_hook ... ok
+test lowering_hooks::tests::registry_set_spec_carries_lowering_hook ... ok
+test lowering_hooks::tests::structured_specs_declare_lowering_hook_ids ... ok
+test lowering_hooks::tests::try_lower_hook_returns_none_for_uncovered_command ... ok
+test lowering_hooks::tests::try_lower_hook_routes_set_via_registry ... ok
+test lowering_hooks::tests::upvar_lowering_uses_the_selected_frame_grammar ... ok
+test lowering_hooks::tests::lower_set_leaves_the_expanded_name_word_on_its_existing_path ... ok
+test lowering_hooks::tests::lower_set_refuses_a_computed_name_under_an_expansionless_grammar ... ok
+---- lowering_hooks::tests::append_literal_name_records_def stdout ----
+thread 'lowering_hooks::tests::append_literal_name_records_def' (21867) panicked at rust/tcl-compiler/src/lowering_hooks.rs:1418:9:
+assertion `left == right` failed
+  left: []
+ right: ["x"]
+---- lowering_hooks::tests::lower_set_folds_canonical_decimal_form stdout ----
+thread 'lowering_hooks::tests::lower_set_folds_canonical_decimal_form' (21877) panicked at rust/tcl-compiler/src/lowering_hooks.rs:1402:13:
+---- lowering_hooks::tests::conditional_original_expression_topology_is_analysis_only stdout ----
+thread 'lowering_hooks::tests::conditional_original_expression_topology_is_analysis_only' (21869) panicked at rust/tcl-compiler/src/test_body_identity.rs:54:28:
+---- lowering_hooks::tests::lower_set_keeps_the_static_assign_for_a_spelled_out_name stdout ----
+thread 'lowering_hooks::tests::lower_set_keeps_the_static_assign_for_a_spelled_out_name' (21880) panicked at rust/tcl-compiler/src/lowering_hooks.rs:1314:17:
+---- lowering_hooks::tests::lower_set_preserves_leading_zeros stdout ----
+thread 'lowering_hooks::tests::lower_set_preserves_leading_zeros' (21883) panicked at rust/tcl-compiler/src/lowering_hooks.rs:1367:22:
+---- lowering_hooks::tests::lower_set_preserves_leading_whitespace_in_value stdout ----
+thread 'lowering_hooks::tests::lower_set_preserves_leading_whitespace_in_value' (21882) panicked at rust/tcl-compiler/src/lowering_hooks.rs:1386:22:
+test result: FAILED. 22 passed; 6 failed; 0 ignored; 0 measured; 10423 filtered out; finished in 1.79s

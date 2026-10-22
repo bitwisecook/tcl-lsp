@@ -1,0 +1,4 @@
+   Compiling tcl-compiler v0.1.0 (/home/user/tcl-lsp/rust/tcl-compiler)
+   Compiling tcl-vm v0.1.0 (/home/user/tcl-lsp/rust/tcl-vm)
+    Finished `test` profile [unoptimized] target(s) in 2m 13s
+  Executable tests/word_value_resolution_e2e.rs (/home/user/tcl-lsp/target/debug/deps/word_value_resolution_e2e-fad4f47017f5bd58)

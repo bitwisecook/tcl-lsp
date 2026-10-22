@@ -1,0 +1,6 @@
+
+running 1 test
+test native_script_words::checked_substitution_reborrow_tests::checked_child_matches_recursive_capture_in_both_original_channels ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 584 filtered out; finished in 0.00s
+

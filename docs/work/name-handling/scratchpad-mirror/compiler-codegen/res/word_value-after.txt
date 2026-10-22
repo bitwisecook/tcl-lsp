@@ -1,0 +1,4 @@
+test vectors_match_real_tclsh ... ok
+test vm_matches_the_pinned_word_value_vectors ... ok
+test the_vectors_hold_at_every_release ... ok
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 93.97s

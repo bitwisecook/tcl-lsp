@@ -1,0 +1,3 @@
+test original_command_rename::tests::original_command_rename_declines_stale_duplicate_collision_and_readonly_links ... ok
+test original_command_rename::tests::original_command_rename_keeps_opaque_words_and_ignores_reporting_maps ... ok
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 3483 filtered out; finished in 18.84s

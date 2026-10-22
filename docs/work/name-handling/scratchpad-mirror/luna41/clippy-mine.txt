@@ -1,0 +1,1059 @@
+rust/tcl-lsp-core/examples/tcloo_diag.rs:104:48: warning: this expression creates a reference which is immediately dereferenced by the compiler: help: change this to: `registry`
+rust/tcl-lsp-core/examples/tcloo_diag.rs:39:1: warning: this function has too many lines (120/100)
+rust/tcl-lsp-core/examples/tcloo_dispatch.rs:53:1: warning: this function has too many lines (160/100)
+rust/tcl-lsp-core/src/call_hierarchy.rs:625:22: warning: redundant closure: help: replace the closure with the method itself: `tcl_compiler::signature_scan::original_name::SourceDeclarationMetadata::metadata`
+rust/tcl-lsp-core/src/call_hierarchy/logical_source.rs:1004:5: warning: this `if` statement can be collapsed
+rust/tcl-lsp-core/src/call_hierarchy/logical_source.rs:596:21: warning: consider adding a `;` to the last statement for consistent formatting: help: add a `;` here: `scope = scope.parent_source_context()?;`
+rust/tcl-lsp-core/src/caller_frame.rs:1032:21: warning: binding's name is too similar to existing binding
+rust/tcl-lsp-core/src/caller_frame.rs:400:16: warning: item in documentation is missing backticks
+rust/tcl-lsp-core/src/caller_frame.rs:448:9: warning: this `if` statement can be collapsed
+rust/tcl-lsp-core/src/caller_frame.rs:600:13: warning: this argument is passed by value, but not consumed in the function body
+rust/tcl-lsp-core/src/code_actions.rs:2432:1: warning: this function has too many lines (106/100)
+rust/tcl-lsp-core/src/code_actions.rs:2548:1: warning: this function has too many lines (117/100)
+rust/tcl-lsp-core/src/code_actions/diagnostic_context.rs:220:5: warning: adding items after statements is confusing, since items exist from the start of the scope
+rust/tcl-lsp-core/src/code_actions/diagnostic_context.rs:78:9: warning: adding items after statements is confusing, since items exist from the start of the scope
+rust/tcl-lsp-core/src/code_actions/diagnostic_context.rs:79:9: warning: adding items after statements is confusing, since items exist from the start of the scope
+rust/tcl-lsp-core/src/code_actions/diagnostic_currency.rs:82:45: warning: item in documentation is missing backticks
+rust/tcl-lsp-core/src/code_actions/spec_notice.rs:351:5: warning: this function has too many lines (128/100)
+rust/tcl-lsp-core/src/code_actions/spec_notice.rs:43:5: warning: this function has too many lines (103/100)
+rust/tcl-lsp-core/src/code_actions/spec_notice.rs:55:9: warning: adding items after statements is confusing, since items exist from the start of the scope
+rust/tcl-lsp-core/src/code_actions/spec_notice.rs:71:9: warning: adding items after statements is confusing, since items exist from the start of the scope
+rust/tcl-lsp-core/src/code_actions/spec_notice.rs:71:9: warning: this function has too many arguments (8/7)
+rust/tcl-lsp-core/src/code_actions/spec_notice.rs:94:41: warning: casting `usize` to `u32` may truncate the value on targets with 64-bit wide pointers
+rust/tcl-lsp-core/src/code_actions/spec_notice.rs:94:41: warning: you appear to be counting bytes the naive way
+rust/tcl-lsp-core/src/code_lens.rs:132:81: warning: redundant closure: help: replace the closure with the method itself: `tcl_compiler::signature_scan::original_name::SourceDeclarationMetadata::name`
+rust/tcl-lsp-core/src/code_lens.rs:133:166: warning: redundant closure: help: replace the closure with the method itself: `tcl_compiler::signature_scan::original_name::SourceDeclarationMetadata::name`
+rust/tcl-lsp-core/src/code_lens/logical_source.rs:12:1: warning: large size difference between variants: the entire enum is at least 1816 bytes
+rust/tcl-lsp-core/src/completion.rs:1189:1: warning: empty line after doc comment
+rust/tcl-lsp-core/src/completion.rs:1311:1: warning: this function has too many lines (141/100)
+rust/tcl-lsp-core/src/completion.rs:1536:1: warning: this function has too many lines (107/100)
+rust/tcl-lsp-core/src/completion.rs:1563:19: warning: redundant closure: help: replace the closure with the method itself: `tcl_compiler::analyser::LogicalSourceObjectMembers::export_names`
+rust/tcl-lsp-core/src/completion.rs:1568:19: warning: redundant closure: help: replace the closure with the method itself: `tcl_compiler::analyser::LogicalSourceObjectMembers::unexport_names`
+rust/tcl-lsp-core/src/completion.rs:2225:83: warning: deref which would be done by auto-deref: help: try: `value`
+rust/tcl-lsp-core/src/completion.rs:2517:1: warning: this function has too many lines (168/100)
+rust/tcl-lsp-core/src/completion.rs:2833:37: warning: casting `usize` to `u32` may truncate the value on targets with 64-bit wide pointers
+rust/tcl-lsp-core/src/completion.rs:2846:37: warning: casting `usize` to `u32` may truncate the value on targets with 64-bit wide pointers
+rust/tcl-lsp-core/src/completion.rs:2930:17: warning: casting `usize` to `u32` may truncate the value on targets with 64-bit wide pointers
+rust/tcl-lsp-core/src/completion.rs:2949:21: warning: casting `usize` to `u32` may truncate the value on targets with 64-bit wide pointers
+rust/tcl-lsp-core/src/completion.rs:3016:56: warning: casting `usize` to `u32` may truncate the value on targets with 64-bit wide pointers
+rust/tcl-lsp-core/src/completion.rs:3031:29: warning: casting `usize` to `u32` may truncate the value on targets with 64-bit wide pointers
+rust/tcl-lsp-core/src/completion.rs:3033:21: warning: casting `usize` to `u32` may truncate the value on targets with 64-bit wide pointers
+rust/tcl-lsp-core/src/completion.rs:3035:29: warning: casting `usize` to `u32` may truncate the value on targets with 64-bit wide pointers
+rust/tcl-lsp-core/src/completion.rs:3067:77: warning: casting `usize` to `u32` may truncate the value on targets with 64-bit wide pointers
+rust/tcl-lsp-core/src/completion.rs:3085:35: warning: casting `usize` to `u32` may truncate the value on targets with 64-bit wide pointers
+rust/tcl-lsp-core/src/completion.rs:3097:70: warning: casting `usize` to `u32` may truncate the value on targets with 64-bit wide pointers
+rust/tcl-lsp-core/src/completion.rs:3114:71: warning: casting `usize` to `u32` may truncate the value on targets with 64-bit wide pointers
+rust/tcl-lsp-core/src/completion.rs:3747:9: warning: backticks are unbalanced
+rust/tcl-lsp-core/src/completion.rs:446:1: warning: this function has too many lines (182/100)
+rust/tcl-lsp-core/src/completion.rs:7416:30: warning: casting `usize` to `u32` may truncate the value on targets with 64-bit wide pointers
+rust/tcl-lsp-core/src/completion.rs:7425:43: warning: casting `usize` to `u32` may truncate the value on targets with 64-bit wide pointers
+rust/tcl-lsp-core/src/completion.rs:7463:9: warning: field assignment outside of initializer for an instance created with Default::default()
+rust/tcl-lsp-core/src/completion.rs:7516:5: warning: this function has too many lines (163/100)
+rust/tcl-lsp-core/src/completion.rs:7879:67: warning: implicit borrow as raw pointer
+rust/tcl-lsp-core/src/completion/original_context.rs:187:1: warning: this function has too many lines (125/100)
+rust/tcl-lsp-core/src/completion/original_context.rs:275:39: warning: redundant closure: help: replace the closure with the method itself: `tcl_lexer::NativeWord::span`
+rust/tcl-lsp-core/src/completion/original_properties.rs:181:5: warning: this function has too many lines (140/100)
+rust/tcl-lsp-core/src/completion/original_variables.rs:115:1: warning: this function has too many lines (225/100)
+rust/tcl-lsp-core/src/completion/original_variables.rs:519:39: warning: redundant closure: help: replace the closure with the method itself: `tcl_syntax::naming::NativeNameProjection::selected`
+rust/tcl-lsp-core/src/completion/original_workspace.rs:15:1: warning: this function has too many lines (135/100)
+rust/tcl-lsp-core/src/declaration_outline.rs:275:19: warning: redundant closure: help: replace the closure with the function itself: `tcl_syntax::word_rules::original_static_word_unicode_value`
+rust/tcl-lsp-core/src/definition.rs:1648:70: warning: redundant closure: help: replace the closure with the method itself: `tcl_compiler::analyser::types::LogicalSourceProcedureDeclaration::metadata`
+rust/tcl-lsp-core/src/definition.rs:1876:20: warning: item in documentation is missing backticks
+rust/tcl-lsp-core/src/definition.rs:197:1: warning: this function has too many lines (155/100)
+rust/tcl-lsp-core/src/definition.rs:1986:12: warning: this boolean expression can be simplified
+rust/tcl-lsp-core/src/definition.rs:2434:35: warning: item in documentation is missing backticks
+rust/tcl-lsp-core/src/definition.rs:3157:14: warning: redundant closure: help: replace the closure with the method itself: `tcl_compiler::signature_scan::original_name::SourceDeclarationMetadata::name`
+rust/tcl-lsp-core/src/definition.rs:3162:22: warning: redundant closure: help: replace the closure with the method itself: `tcl_compiler::signature_scan::original_name::SourceDeclarationMetadata::name`
+rust/tcl-lsp-core/src/definition.rs:3607:1: warning: this function has too many lines (156/100)
+rust/tcl-lsp-core/src/definition.rs:3679:26: warning: redundant closure: help: replace the closure with the method itself: `tcl_compiler::command_binding::OriginalCommandLookup::name_input`
+rust/tcl-lsp-core/src/definition.rs:3698:22: warning: redundant closure: help: replace the closure with the method itself: `tcl_compiler::signature_scan::original_name::SourceDeclarationMetadata::name`
+rust/tcl-lsp-core/src/definition.rs:3702:30: warning: redundant closure: help: replace the closure with the method itself: `tcl_compiler::signature_scan::original_name::SourceDeclarationMetadata::name`
+rust/tcl-lsp-core/src/definition.rs:3936:18: warning: redundant closure: help: replace the closure with the method itself: `tcl_compiler::analyser::types::LogicalSourceProcedureDeclaration::metadata`
+rust/tcl-lsp-core/src/definition.rs:4316:18: warning: redundant closure: help: replace the closure with the method itself: `tcl_compiler::analyser::types::LogicalSourceProcedureDeclaration::metadata`
+rust/tcl-lsp-core/src/definition.rs:4405:28: warning: implicit borrow as raw pointer
+rust/tcl-lsp-core/src/definition.rs:5029:28: warning: allocating a local array larger than 16384 bytes
+rust/tcl-lsp-core/src/definition.rs:5157:5: warning: this function has too many lines (112/100)
+rust/tcl-lsp-core/src/definition.rs:8859:9: warning: field assignment outside of initializer for an instance created with Default::default()
+rust/tcl-lsp-core/src/definition.rs:938:1: warning: this function has too many lines (111/100)
+rust/tcl-lsp-core/src/diagnostic_report.rs:636:24: warning: allocating a local array larger than 16384 bytes
+rust/tcl-lsp-core/src/diagnostic_subject.rs:1049:5: warning: this function has too many lines (211/100)
+rust/tcl-lsp-core/src/diagnostic_subject.rs:1270:13: warning: unnested or-patterns
+rust/tcl-lsp-core/src/diagnostic_subject.rs:1533:9: warning: adding items after statements is confusing, since items exist from the start of the scope
+rust/tcl-lsp-core/src/document_links.rs:1943:56: warning: casting `usize` to `u32` may truncate the value on targets with 64-bit wide pointers
+rust/tcl-lsp-core/src/document_links.rs:1970:34: warning: casting `usize` to `u32` may truncate the value on targets with 64-bit wide pointers
+rust/tcl-lsp-core/src/document_links.rs:2050:21: warning: casting `usize` to `u32` may truncate the value on targets with 64-bit wide pointers
+rust/tcl-lsp-core/src/document_links.rs:2051:27: warning: casting `usize` to `u32` may truncate the value on targets with 64-bit wide pointers
+rust/tcl-lsp-core/src/document_links.rs:2068:41: warning: casting `usize` to `u32` may truncate the value on targets with 64-bit wide pointers
+rust/tcl-lsp-core/src/document_links.rs:695:42: warning: item in documentation is missing backticks
+rust/tcl-lsp-core/src/document_links.rs:743:50: warning: casting `usize` to `u32` may truncate the value on targets with 64-bit wide pointers
+rust/tcl-lsp-core/src/document_links.rs:744:48: warning: casting `usize` to `u32` may truncate the value on targets with 64-bit wide pointers
+rust/tcl-lsp-core/src/document_links.rs:817:59: warning: item in documentation is missing backticks
+rust/tcl-lsp-core/src/document_links.rs:890:21: warning: casting `usize` to `u32` may truncate the value on targets with 64-bit wide pointers
+rust/tcl-lsp-core/src/document_links.rs:891:27: warning: casting `usize` to `u32` may truncate the value on targets with 64-bit wide pointers
+rust/tcl-lsp-core/src/document_symbols/original.rs:24:1: warning: this function has too many lines (436/100)
+rust/tcl-lsp-core/src/document_symbols/original.rs:318:46: warning: redundant closure: help: replace the closure with the method itself: `tcl_compiler::signature_scan::original_name::SignatureSourceNameKey::span`
+rust/tcl-lsp-core/src/document_symbols/original.rs:370:5: warning: mutable key type
+rust/tcl-lsp-core/src/document_symbols/original.rs:486:1: warning: this function's return value is unnecessarily wrapped by `Option`
+rust/tcl-lsp-core/src/document_symbols/original.rs:572:9: warning: you seem to be trying to use `match` for destructuring a single pattern. Consider using `if let`
+rust/tcl-lsp-core/src/executable_regions.rs:324:5: warning: this function has too many lines (112/100)
+rust/tcl-lsp-core/src/executable_regions.rs:475:9: warning: this `if` statement can be collapsed
+rust/tcl-lsp-core/src/executable_regions.rs:560:42: warning: redundant closure: help: replace the closure with the method itself: `tcl_registry::ResolvedInvocation::authored_source_script_arguments`
+rust/tcl-lsp-core/src/expr_context.rs:160:23: warning: item in documentation is missing backticks
+rust/tcl-lsp-core/src/expr_context.rs:329:13: warning: this `if` statement can be collapsed
+rust/tcl-lsp-core/src/expr_context.rs:452:14: warning: redundant closure: help: replace the closure with the method itself: `tcl_compiler::analyser::ResolvedAnalysisInput::unit_profile`
+rust/tcl-lsp-core/src/file_ops.rs:184:12: warning: this boolean expression can be simplified
+rust/tcl-lsp-core/src/file_uri.rs:292:16: warning: item in documentation is missing backticks
+rust/tcl-lsp-core/src/file_uri.rs:582:9: warning: adding items after statements is confusing, since items exist from the start of the scope
+rust/tcl-lsp-core/src/formatting/engine.rs:1016:75: warning: redundant closure: help: replace the closure with the method itself: `tcl_registry::ArgPresentation::is_block`
+rust/tcl-lsp-core/src/formatting/engine.rs:2333:47: warning: item in documentation is missing backticks
+rust/tcl-lsp-core/src/formatting/engine.rs:2365:1: warning: this function has too many lines (201/100)
+rust/tcl-lsp-core/src/formatting/engine.rs:2370:13: warning: this argument is passed by value, but not consumed in the function body
+rust/tcl-lsp-core/src/formatting/engine.rs:2499:21: warning: redundant closure: help: replace the closure with the method itself: `tcl_lexer::Span::start`
+rust/tcl-lsp-core/src/formatting/engine.rs:3398:9: warning: field assignment outside of initializer for an instance created with Default::default()
+rust/tcl-lsp-core/src/formatting/engine.rs:488:26: warning: redundant closure: help: replace the closure with the method itself: `tcl_compiler::signature_scan::scope::SignatureSourceNameInput::bytes`
+rust/tcl-lsp-core/src/formatting/engine.rs:489:32: warning: redundant closure: help: replace the closure with the method itself: `std::convert::AsRef::as_ref`
+rust/tcl-lsp-core/src/formatting/engine.rs:517:1: warning: this function has too many lines (128/100)
+rust/tcl-lsp-core/src/formatting/engine.rs:767:1: warning: this function has too many lines (277/100)
+rust/tcl-lsp-core/src/formatting/engine.rs:910:28: warning: called `.ok().is_some_and(..)` on a `Result` value
+rust/tcl-lsp-core/src/formatting/engine.rs:987:26: warning: manual saturating arithmetic: help: consider using `saturating_add`: `ordinal.saturating_add(1)`
+rust/tcl-lsp-core/src/formatting/keywords.rs:498:1: warning: this function has too many lines (126/100)
+rust/tcl-lsp-core/src/graphs.rs:1188:33: warning: redundant closure: help: replace the closure with the method itself: `tcl_core_types::ProcedureId::ordinal`
+rust/tcl-lsp-core/src/graphs.rs:1189:34: warning: redundant closure: help: replace the closure with the method itself: `tcl_core_types::ProcedureId::reporting_key`
+rust/tcl-lsp-core/src/graphs.rs:1235:5: warning: adding items after statements is confusing, since items exist from the start of the scope
+rust/tcl-lsp-core/src/graphs.rs:1311:34: warning: redundant closure: help: replace the closure with the method itself: `tcl_core_types::ProcedureId::ordinal`
+rust/tcl-lsp-core/src/graphs.rs:1312:35: warning: redundant closure: help: replace the closure with the method itself: `tcl_core_types::ProcedureId::reporting_key`
+rust/tcl-lsp-core/src/graphs.rs:1513:21: warning: casting `u64` to `usize` may truncate the value on targets with 32-bit wide pointers
+rust/tcl-lsp-core/src/graphs.rs:1514:19: warning: casting `u64` to `usize` may truncate the value on targets with 32-bit wide pointers
+rust/tcl-lsp-core/src/graphs.rs:610:1: warning: this function has too many lines (129/100)
+rust/tcl-lsp-core/src/graphs.rs:980:1: warning: this function has too many lines (121/100)
+rust/tcl-lsp-core/src/graphs/original.rs:16:1: warning: this function has too many lines (120/100)
+rust/tcl-lsp-core/src/graphs/original.rs:259:6: warning: use of `Option<Option<T>>`
+rust/tcl-lsp-core/src/graphs/original.rs:55:35: warning: redundant closure: help: replace the closure with the method itself: `tcl_core_types::ProcedureId::ordinal`
+rust/tcl-lsp-core/src/graphs/original.rs:56:36: warning: redundant closure: help: replace the closure with the method itself: `tcl_core_types::ProcedureId::reporting_key`
+rust/tcl-lsp-core/src/graphs/original.rs:94:17: warning: binding's name is too similar to existing binding
+rust/tcl-lsp-core/src/hover.rs:2980:1: warning: this function has too many lines (138/100)
+rust/tcl-lsp-core/src/hover.rs:3256:18: warning: redundant closure: help: replace the closure with the method itself: `tcl_compiler::signature_scan::variable_symbol::SignatureSourceVariableOccurrence::span`
+rust/tcl-lsp-core/src/hover.rs:338:5: warning: adding items after statements is confusing, since items exist from the start of the scope
+rust/tcl-lsp-core/src/hover.rs:683:39: warning: redundant closure: help: replace the closure with the method itself: `tcl_registry::ResolvedInvocation::authored_source_format_arguments`
+rust/tcl-lsp-core/src/hover.rs:720:27: warning: implicitly cloning a `String` by calling `to_owned` on its dereferenced type: help: consider using: `text.clone()`
+rust/tcl-lsp-core/src/hover.rs:823:1: warning: this function has too many lines (177/100)
+rust/tcl-lsp-core/src/ilx_navigation.rs:1682:13: warning: binding's name is too similar to existing binding
+rust/tcl-lsp-core/src/ilx_navigation.rs:487:5: warning: you seem to be trying to use `match` for destructuring a single pattern. Consider using `if let`
+rust/tcl-lsp-core/src/implementation.rs:188:9: warning: this `let...else` may be rewritten with the `?` operator: help: replace it with: `let owner = analysis.logical_source_class_declaration(class)?;`
+rust/tcl-lsp-core/src/implementation.rs:196:13: warning: this `let...else` may be rewritten with the `?` operator: help: replace it with: `let candidate = owner.member(member.side(), method)?;`
+rust/tcl-lsp-core/src/implementation.rs:84:1: warning: large size difference between variants: the entire enum is at least 1816 bytes
+rust/tcl-lsp-core/src/implementation.rs:897:13: warning: implicit borrow as raw pointer
+rust/tcl-lsp-core/src/inert_text.rs:262:13: warning: these match arms have identical bodies
+rust/tcl-lsp-core/src/inlay_hints.rs:2423:9: warning: adding items after statements is confusing, since items exist from the start of the scope
+rust/tcl-lsp-core/src/inlay_hints.rs:297:1: warning: this function has too many lines (101/100)
+rust/tcl-lsp-core/src/inlay_hints.rs:3010:43: warning: redundant closure: help: replace the closure with the method itself: `tcl_registry::ResolvedInvocation::authored_source_format_arguments`
+rust/tcl-lsp-core/src/inlay_hints.rs:636:39: warning: redundant closure: help: replace the closure with the method itself: `tcl_registry::ResolvedInvocation::authored_source_format_arguments`
+rust/tcl-lsp-core/src/inlay_hints.rs:811:1: warning: this function has too many arguments (8/7)
+rust/tcl-lsp-core/src/irules_context.rs:69:5: warning: this function has too many lines (127/100)
+rust/tcl-lsp-core/src/math_function_symbol.rs:158:1: warning: this function has a `#[must_use]` attribute with no message, but returns a type already considered as `#[must_use]`
+rust/tcl-lsp-core/src/method_symbol.rs:1113:1: warning: this function has a `#[must_use]` attribute with no message, but returns a type already considered as `#[must_use]`
+rust/tcl-lsp-core/src/method_symbol.rs:1436:37: warning: single-character string constant used as pattern: help: consider using a `char`: `'N'`
+rust/tcl-lsp-core/src/method_symbol.rs:49:1: warning: large size difference between variants: the entire enum is at least 816 bytes
+rust/tcl-lsp-core/src/method_symbol.rs:586:1: warning: this function has a `#[must_use]` attribute with no message, but returns a type already considered as `#[must_use]`
+rust/tcl-lsp-core/src/method_symbol.rs:607:1: warning: this function has too many lines (126/100)
+rust/tcl-lsp-core/src/method_symbol.rs:812:1: warning: this function has a `#[must_use]` attribute with no message, but returns a type already considered as `#[must_use]`
+rust/tcl-lsp-core/src/method_symbol.rs:965:9: warning: these match arms have identical bodies
+rust/tcl-lsp-core/src/minify.rs:1059:12: warning: this argument is passed by value, but not consumed in the function body
+rust/tcl-lsp-core/src/minify.rs:1264:1: warning: this function has too many lines (114/100)
+rust/tcl-lsp-core/src/minify.rs:2331:20: warning: binding's name is too similar to existing binding
+rust/tcl-lsp-core/src/minify.rs:2502:30: warning: binding's name is too similar to existing binding
+rust/tcl-lsp-core/src/minify.rs:5830:31: warning: redundant closure: help: replace the closure with the method itself: `tcl_compiler::signature_scan::formal_parameters::OriginalSourceFormalName::name`
+rust/tcl-lsp-core/src/minify.rs:5951:9: warning: field assignment outside of initializer for an instance created with Default::default()
+rust/tcl-lsp-core/src/minify.rs:6027:26: warning: casting `usize` to `u32` may truncate the value on targets with 64-bit wide pointers
+rust/tcl-lsp-core/src/minify.rs:885:6: warning: the following explicit lifetimes could be elided: 'a
+rust/tcl-lsp-core/src/minify/original.rs:1426:76: warning: redundant closure: help: replace the closure with the method itself: `tcl_registry::ResolvedInvocation::authored_source_case_invocation`
+rust/tcl-lsp-core/src/minify/original.rs:1826:17: warning: binding's name is too similar to existing binding
+rust/tcl-lsp-core/src/minify/original.rs:235:6: warning: redundant else block
+rust/tcl-lsp-core/src/minify/original.rs:256:13: warning: assigning the result of `ToOwned::to_owned()` may be inefficient: help: use `clone_into()`: `source.clone_into(&mut result.source)`
+rust/tcl-lsp-core/src/minify/original.rs:271:1: warning: this function has too many lines (107/100)
+rust/tcl-lsp-core/src/minify/original.rs:475:1: warning: this function has too many lines (168/100)
+rust/tcl-lsp-core/src/minify/original.rs:576:16: warning: binding's name is too similar to existing binding
+rust/tcl-lsp-core/src/namespace_import.rs:154:7: warning: item in documentation is missing backticks
+rust/tcl-lsp-core/src/namespace_import.rs:205:40: warning: item in documentation is missing backticks
+rust/tcl-lsp-core/src/namespace_import.rs:544:5: warning: adding items after statements is confusing, since items exist from the start of the scope
+rust/tcl-lsp-core/src/namespace_import.rs:789:66: warning: item in documentation is missing backticks
+rust/tcl-lsp-core/src/namespace_rename.rs:1108:5: warning: this function has too many lines (112/100)
+rust/tcl-lsp-core/src/namespace_rename.rs:141:1: warning: this function has too many lines (136/100)
+rust/tcl-lsp-core/src/namespace_rename.rs:433:1: warning: this function has too many lines (152/100)
+rust/tcl-lsp-core/src/namespace_rename.rs:516:18: warning: redundant closure: help: replace the closure with the method itself: `tcl_compiler::registry_invocation::source_structure::OriginalRegistryWords::written_argument_roles`
+rust/tcl-lsp-core/src/namespace_rename/original.rs:178:5: warning: this function has too many lines (109/100)
+rust/tcl-lsp-core/src/namespace_rename/original.rs:304:1: warning: this function has too many lines (384/100)
+rust/tcl-lsp-core/src/namespace_rename/original.rs:443:9: warning: adding items after statements is confusing, since items exist from the start of the scope
+rust/tcl-lsp-core/src/namespace_rename/original.rs:444:13: warning: adding items after statements is confusing, since items exist from the start of the scope
+rust/tcl-lsp-core/src/namespace_rename/original.rs:444:37: warning: adding items after statements is confusing, since items exist from the start of the scope
+rust/tcl-lsp-core/src/namespace_rename/original.rs:448:60: warning: this expression creates a reference which is immediately dereferenced by the compiler: help: change this to: `current`
+rust/tcl-lsp-core/src/namespace_rename/original.rs:451:57: warning: this expression creates a reference which is immediately dereferenced by the compiler: help: change this to: `current`
+rust/tcl-lsp-core/src/namespace_rename/original.rs:454:66: warning: this expression creates a reference which is immediately dereferenced by the compiler: help: change this to: `current`
+rust/tcl-lsp-core/src/namespace_rename/original.rs:597:25: warning: consider adding a `;` to the last statement for consistent formatting: help: add a `;` here: `plan.record_alias_target(target.name_input())?;`
+rust/tcl-lsp-core/src/namespace_rename/original.rs:757:25: warning: this `if` statement can be collapsed
+rust/tcl-lsp-core/src/namespace_rename/original.rs:919:5: warning: this `if` statement can be collapsed
+rust/tcl-lsp-core/src/namespace_rename/original.rs:951:5: warning: this `if` statement can be collapsed
+rust/tcl-lsp-core/src/namespace_symbol.rs:227:1: warning: this function has a `#[must_use]` attribute with no message, but returns a type already considered as `#[must_use]`
+rust/tcl-lsp-core/src/oo_body.rs:1000:54: warning: single-character string constant used as pattern: help: consider using a `char`: `'C'`
+rust/tcl-lsp-core/src/original_call_hierarchy.rs:1238:26: warning: redundant closure: help: replace the closure with the method itself: `tcl_compiler::signature_scan::scope::SignatureSourceNameInput::bytes`
+rust/tcl-lsp-core/src/original_call_hierarchy.rs:263:53: warning: redundant closure: help: replace the closure with the method itself: `tcl_lexer::NativeWord::span`
+rust/tcl-lsp-core/src/original_call_hierarchy.rs:289:1: warning: this function has too many lines (106/100)
+rust/tcl-lsp-core/src/original_call_hierarchy.rs:61:1: warning: this function has too many lines (131/100)
+rust/tcl-lsp-core/src/original_command_rename.rs:279:1: warning: this function has too many lines (129/100)
+rust/tcl-lsp-core/src/original_command_rename.rs:359:52: warning: using `map_err` over `inspect_err`
+rust/tcl-lsp-core/src/original_command_rename.rs:451:1: warning: this function has too many lines (154/100)
+rust/tcl-lsp-core/src/original_command_rename.rs:523:44: warning: this expression creates a reference which is immediately dereferenced by the compiler: help: change this to: `tail`
+rust/tcl-lsp-core/src/original_command_rename.rs:526:71: warning: this expression creates a reference which is immediately dereferenced by the compiler: help: change this to: `tail`
+rust/tcl-lsp-core/src/original_command_rename.rs:541:49: warning: this expression creates a reference which is immediately dereferenced by the compiler: help: change this to: `tail`
+rust/tcl-lsp-core/src/original_command_rename.rs:586:80: warning: this expression creates a reference which is immediately dereferenced by the compiler: help: change this to: `tail`
+rust/tcl-lsp-core/src/original_command_rename.rs:617:1: warning: this function has a `#[must_use]` attribute with no message, but returns a type already considered as `#[must_use]`
+rust/tcl-lsp-core/src/original_command_rename/linked_authoring.rs:21:5: warning: this function has too many lines (122/100)
+rust/tcl-lsp-core/src/original_declaration.rs:1122:14: warning: redundant closure: help: replace the closure with the method itself: `tcl_compiler::analyser::class_hierarchy::original_metadata::OriginalSourceSelfMethodReference::command_span`
+rust/tcl-lsp-core/src/original_declaration.rs:1127:43: warning: redundant closure: help: replace the closure with the method itself: `tcl_compiler::analyser::class_hierarchy::original_metadata::OriginalSourceSelfPropertyReference::command_span`
+rust/tcl-lsp-core/src/original_declaration.rs:1511:13: warning: field name starts with the struct's name
+rust/tcl-lsp-core/src/original_declaration.rs:2505:74: warning: long literal lacking separators: help: consider: `999_999`
+rust/tcl-lsp-core/src/original_declaration.rs:2600:9: warning: field assignment outside of initializer for an instance created with Default::default()
+rust/tcl-lsp-core/src/original_declaration.rs:590:13: warning: assigning the result of `ToOwned::to_owned()` may be inefficient: help: use `clone_into()`: `uri.clone_into(&mut owned.uri)`
+rust/tcl-lsp-core/src/original_declaration.rs:631:17: warning: called `.ok().is_some_and(..)` on a `Result` value
+rust/tcl-lsp-core/src/original_declaration.rs:677:9: warning: called `map(<f>).unwrap_or_else(<g>)` on an `Option` value
+rust/tcl-lsp-core/src/original_declaration.rs:687:1: warning: this function has a `#[must_use]` attribute with no message, but returns a type already considered as `#[must_use]`
+rust/tcl-lsp-core/src/original_declaration.rs:709:1: warning: this function has a `#[must_use]` attribute with no message, but returns a type already considered as `#[must_use]`
+rust/tcl-lsp-core/src/original_declaration.rs:819:1: warning: this function has too many lines (111/100)
+rust/tcl-lsp-core/src/original_indexed_location.rs:221:10: warning: needlessly taken reference of both operands
+rust/tcl-lsp-core/src/original_invocation.rs:398:17: warning: consider adding a `;` to the last statement for consistent formatting: help: add a `;` here: `assert_eq!(metadata.original_words().len(), 3);`
+rust/tcl-lsp-core/src/original_member_rename.rs:158:1: warning: this function has too many lines (150/100)
+rust/tcl-lsp-core/src/original_member_rename.rs:294:41: warning: unnecessary map of the identity function: help: remove the call to `map_err`
+rust/tcl-lsp-core/src/original_member_rename.rs:294:42: warning: using `map_err` over `inspect_err`
+rust/tcl-lsp-core/src/original_member_rename.rs:353:1: warning: this function has too many lines (165/100)
+rust/tcl-lsp-core/src/original_name_edit.rs:291:9: warning: this `if` statement can be collapsed
+rust/tcl-lsp-core/src/original_name_edit.rs:296:13: warning: this `if` statement can be collapsed
+rust/tcl-lsp-core/src/original_name_edit.rs:297:17: warning: this `if` statement can be collapsed
+rust/tcl-lsp-core/src/original_name_edit.rs:366:12: warning: this boolean expression can be simplified: help: try: `group.word.group().expand == markers.is_empty()`
+rust/tcl-lsp-core/src/original_name_edit.rs:644:22: warning: redundant closure: help: replace the closure with the method itself: `std::convert::AsRef::as_ref`
+rust/tcl-lsp-core/src/original_name_edit.rs:720:9: warning: field assignment outside of initializer for an instance created with Default::default()
+rust/tcl-lsp-core/src/original_oo.rs:198:12: warning: this `else { if .. }` block can be collapsed
+rust/tcl-lsp-core/src/original_oo.rs:394:1: warning: this function's return value is unnecessarily wrapped by `Option`
+rust/tcl-lsp-core/src/package_resolver.rs:578:9: warning: binding's name is too similar to existing binding
+rust/tcl-lsp-core/src/package_resolver/original_names.rs:1006:56: warning: unnecessary use of `clone` to create a slice from a reference: help: try: `std::slice::from_ref(&stable)`
+rust/tcl-lsp-core/src/package_resolver/original_names.rs:1016:17: warning: unnecessary use of `clone` to create a slice from a reference: help: try: `std::slice::from_ref(&root)`
+rust/tcl-lsp-core/src/package_resolver/original_names.rs:1144:13: warning: this expression creates a reference which is immediately dereferenced by the compiler: help: change this to: `source`
+rust/tcl-lsp-core/src/package_resolver/original_names.rs:1295:21: warning: unnecessary hashes around raw string literal
+rust/tcl-lsp-core/src/package_resolver/original_names.rs:1303:21: warning: unnecessary hashes around raw string literal
+rust/tcl-lsp-core/src/package_resolver/original_names.rs:1307:21: warning: unnecessary hashes around raw string literal
+rust/tcl-lsp-core/src/package_resolver/original_names.rs:1311:21: warning: unnecessary hashes around raw string literal
+rust/tcl-lsp-core/src/package_resolver/original_names.rs:1318:18: warning: unnecessary hashes around raw string literal
+rust/tcl-lsp-core/src/package_resolver/original_names.rs:1320:18: warning: unnecessary hashes around raw string literal
+rust/tcl-lsp-core/src/package_resolver/original_names.rs:1323:18: warning: unnecessary hashes around raw string literal
+rust/tcl-lsp-core/src/package_resolver/original_names.rs:483:32: warning: item in documentation is missing backticks
+rust/tcl-lsp-core/src/package_resolver/original_names.rs:510:18: warning: item in documentation is missing backticks
+rust/tcl-lsp-core/src/package_resolver/original_names.rs:615:1: warning: this function has too many lines (129/100)
+rust/tcl-lsp-core/src/package_resolver/original_names.rs:760:1: warning: this function has too many lines (106/100)
+rust/tcl-lsp-core/src/package_resolver/original_names.rs:802:5: warning: this could be rewritten as `let...else`: help: consider writing: `let tcl_syntax::naming::NativeNameProtocol::C(version) = policy.recipe() else { return entries };`
+rust/tcl-lsp-core/src/package_resolver/original_names.rs:804:9: warning: wildcard matches only a single variant and will also match any future added variants: help: try: `tcl_syntax::naming::NativeNameProtocol::Jim084`
+rust/tcl-lsp-core/src/package_resolver/original_names.rs:810:14: warning: binding's name is too similar to existing binding
+rust/tcl-lsp-core/src/package_resolver/original_names.rs:813:14: warning: redundant closure: help: replace the closure with the method itself: `tcl_compiler::analyser::ResolvedAnalysisInput::context_registry`
+rust/tcl-lsp-core/src/package_resolver/original_names.rs:908:5: warning: this function has too many lines (121/100)
+rust/tcl-lsp-core/src/package_resolver/original_names.rs:982:56: warning: unnecessary use of `clone` to create a slice from a reference: help: try: `std::slice::from_ref(&latest)`
+rust/tcl-lsp-core/src/package_resolver/original_names/file_candidates.rs:122:5: warning: this function has too many lines (153/100)
+rust/tcl-lsp-core/src/package_resolver/original_names/file_candidates.rs:201:27: warning: redundant closure: help: replace the closure with the method itself: `tcl_registry::InvocationDialect::source_file_grammar`
+rust/tcl-lsp-core/src/package_resolver/original_names/file_candidates.rs:352:26: warning: redundant closure: help: replace the closure with the method itself: `super::OriginalPackageFileCandidate::path`
+rust/tcl-lsp-core/src/package_resolver/original_names/index_loader.rs:152:9: warning: consider adding a `;` to the last statement for consistent formatting: help: add a `;` here: `self.collect_word_with_plan(word, None, directory, out, depth);`
+rust/tcl-lsp-core/src/package_resolver/original_names/index_loader.rs:166:9: warning: consider adding a `;` to the last statement for consistent formatting: help: add a `;` here: `self.collect_word_with_plan(word, Some(plan), directory, out, depth);`
+rust/tcl-lsp-core/src/package_resolver/original_names/index_loader.rs:185:9: warning: this `if` statement can be collapsed
+rust/tcl-lsp-core/src/package_resolver/reachability.rs:317:35: warning: item in documentation is missing backticks
+rust/tcl-lsp-core/src/package_resolver/reachability.rs:511:42: warning: item in documentation is missing backticks
+rust/tcl-lsp-core/src/package_resolver/reachability.rs:537:13: warning: consider adding a `;` to the last statement for consistent formatting: help: add a `;` here: `found.push(reached.conditions);`
+rust/tcl-lsp-core/src/package_resolver/reachability.rs:605:17: warning: consider adding a `;` to the last statement for consistent formatting: help: add a `;` here: `found.push(reached.conditions);`
+rust/tcl-lsp-core/src/package_resolver/reachability.rs:659:13: warning: consider adding a `;` to the last statement for consistent formatting: help: add a `;` here: `out.push(reached.conditions);`
+rust/tcl-lsp-core/src/package_resolver/reachability/original.rs:106:5: warning: field name ends with the struct's name
+rust/tcl-lsp-core/src/package_resolver/reachability/original.rs:209:5: warning: this function has too many lines (142/100)
+rust/tcl-lsp-core/src/package_resolver/reachability/original.rs:464:29: warning: consider adding a `;` to the last statement for consistent formatting: help: add a `;` here: `bodies.push(body.content_span());`
+rust/tcl-lsp-core/src/package_resolver/reachability/original.rs:490:5: warning: this function has too many lines (109/100)
+rust/tcl-lsp-core/src/package_resolver/reachability/original.rs:605:9: warning: this `if` statement can be collapsed
+rust/tcl-lsp-core/src/package_resolver/reachability/original.rs:98:1: warning: more than 3 bools in a struct
+rust/tcl-lsp-core/src/package_resolver/reachability/tests.rs:564:26: warning: unnecessary hashes around raw string literal
+rust/tcl-lsp-core/src/package_resolver/registration.rs:214:40: warning: casting `usize` to `u32` may truncate the value on targets with 64-bit wide pointers
+rust/tcl-lsp-core/src/package_resolver/tests.rs:82:1: warning: this function's return value is unnecessarily wrapped by `Option`
+rust/tcl-lsp-core/src/procedure_symbol.rs:27:18: warning: redundant closure: help: replace the closure with the method itself: `tcl_compiler::analyser::types::LogicalSourceProcedureDeclaration::metadata`
+rust/tcl-lsp-core/src/refactor/datagroup.rs:1651:17: warning: unnecessary hashes around raw string literal
+rust/tcl-lsp-core/src/refactor/datagroup.rs:295:16: warning: this argument is passed by value, but not consumed in the function body
+rust/tcl-lsp-core/src/refactor/datagroup.rs:296:12: warning: this argument is passed by value, but not consumed in the function body
+rust/tcl-lsp-core/src/refactor/datagroup.rs:622:16: warning: this argument is passed by value, but not consumed in the function body
+rust/tcl-lsp-core/src/refactor/datagroup.rs:625:15: warning: this argument is passed by value, but not consumed in the function body
+rust/tcl-lsp-core/src/refactor/datagroup.rs:798:62: warning: redundant closure: help: replace the closure with the method itself: `tcl_registry::ResolvedInvocation::clause_plan`
+rust/tcl-lsp-core/src/refactor/datagroup/source_subject.rs:196:18: warning: redundant closure: help: replace the closure with the method itself: `std::borrow::Cow::into_owned`
+rust/tcl-lsp-core/src/refactor/datagroup/source_subject.rs:210:14: warning: using `chunks_exact` with a constant chunk size: help: consider using `as_chunks` instead: `as_chunks::<2>().0.iter()`
+rust/tcl-lsp-core/src/refactor/extract_proc.rs:1053:17: warning: consider adding a `;` to the last statement for consistent formatting: help: add a `;` here: `record_write(roles, carriable_written_name(head, name)?, command_end);`
+rust/tcl-lsp-core/src/refactor/extract_proc.rs:340:1: warning: this function has too many lines (129/100)
+rust/tcl-lsp-core/src/refactor/extract_proc.rs:584:1: warning: this function has too many lines (117/100)
+rust/tcl-lsp-core/src/refactor/extract_variable.rs:37:1: warning: this function has too many lines (108/100)
+rust/tcl-lsp-core/src/refactor/extract_variable.rs:395:1: warning: this function has too many lines (115/100)
+rust/tcl-lsp-core/src/refactor/if_to_switch.rs:470:18: warning: unnecessary hashes around raw string literal
+rust/tcl-lsp-core/src/refactor/if_to_switch.rs:471:18: warning: unnecessary hashes around raw string literal
+rust/tcl-lsp-core/src/refactor/if_to_switch.rs:473:18: warning: unnecessary hashes around raw string literal
+rust/tcl-lsp-core/src/refactor/if_to_switch.rs:474:18: warning: unnecessary hashes around raw string literal
+rust/tcl-lsp-core/src/refactor/if_to_switch.rs:490:17: warning: unnecessary hashes around raw string literal
+rust/tcl-lsp-core/src/refactor/if_to_switch.rs:491:17: warning: unnecessary hashes around raw string literal
+rust/tcl-lsp-core/src/refactor/if_to_switch.rs:89:54: warning: redundant closure: help: replace the closure with the method itself: `tcl_registry::ResolvedInvocation::clause_plan`
+rust/tcl-lsp-core/src/refactor/inline_proc.rs:234:1: warning: this function has too many arguments (8/7)
+rust/tcl-lsp-core/src/refactor/inline_proc.rs:234:1: warning: this function has too many lines (240/100)
+rust/tcl-lsp-core/src/refactor/inline_proc.rs:526:18: warning: redundant closure: help: replace the closure with the method itself: `tcl_compiler::signature_scan::original_name::SignatureSourceNameKey::original_word`
+rust/tcl-lsp-core/src/refactor/inline_proc.rs:940:9: warning: this `let...else` may be rewritten with the `?` operator: help: replace it with: `let words = walk.native_words(source, command)?;`
+rust/tcl-lsp-core/src/refactor/inline_proc.rs:943:9: warning: this `let...else` may be rewritten with the `?` operator: help: replace it with: `let schema = walk.source_words(source, command)?;`
+rust/tcl-lsp-core/src/refactor/inline_proc.rs:946:9: warning: this block may be rewritten with the `?` operator: help: replace it with: `schema.roles()?;`
+rust/tcl-lsp-core/src/refactor/inline_proc.rs:958:17: warning: this `let...else` may be rewritten with the `?` operator: help: replace it with: `let profile = analysis.resolved_profile()?;`
+rust/tcl-lsp-core/src/refactor/inline_proc.rs:986:25: warning: binding's name is too similar to existing binding
+rust/tcl-lsp-core/src/refactor/inline_variable.rs:153:33: warning: item in documentation is missing backticks
+rust/tcl-lsp-core/src/refactor/inline_variable.rs:182:5: warning: this function has too many lines (149/100)
+rust/tcl-lsp-core/src/refactor/inline_variable.rs:473:9: warning: assigning the result of `Clone::clone()` may be inefficient: help: use `clone_from()`: `words.clone_from(&child.commands.first()?.words)`
+rust/tcl-lsp-core/src/refactor/mod.rs:1147:64: warning: redundant closure: help: replace the closure with the method itself: `tcl_registry::ResolvedInvocation::arg_roles`
+rust/tcl-lsp-core/src/refactor/mod.rs:1528:33: warning: reference as raw pointer: help: try: `std::ptr::from_ref::<CommandRegistry>(analysis.resolved_registry().unwrap())`
+rust/tcl-lsp-core/src/refactor/mod.rs:1531:20: warning: reference as raw pointer: help: try: `std::ptr::from_ref::<CommandRegistry>(walk.nesting)`
+rust/tcl-lsp-core/src/refactor/mod.rs:412:10: warning: use of `Option<Option<T>>`
+rust/tcl-lsp-core/src/refactor/mod.rs:581:29: warning: consider adding a `;` to the last statement for consistent formatting: help: add a `;` here: `regions.push((body.start() as usize, body.end() as usize));`
+rust/tcl-lsp-core/src/references.rs:2843:1: warning: this function has too many lines (112/100)
+rust/tcl-lsp-core/src/references.rs:3256:1: warning: this function has too many lines (112/100)
+rust/tcl-lsp-core/src/references.rs:4354:39: warning: redundant closure: help: replace the closure with the method itself: `tcl_registry::ResolvedInvocation::authored_source_script_arguments`
+rust/tcl-lsp-core/src/references.rs:4654:1: warning: this function has too many lines (149/100)
+rust/tcl-lsp-core/src/references.rs:9391:9: warning: field assignment outside of initializer for an instance created with Default::default()
+rust/tcl-lsp-core/src/references.rs:951:1: warning: this function has too many lines (169/100)
+rust/tcl-lsp-core/src/references/member_metadata.rs:53:5: warning: this `let...else` may be rewritten with the `?` operator: help: replace it with: `let input = analysis.resolved_input.as_ref()?;`
+rust/tcl-lsp-core/src/rename.rs:1131:17: warning: redundant field names in struct initialization: help: replace it with: `span`
+rust/tcl-lsp-core/src/rename.rs:1247:5: warning: this `if` statement can be collapsed
+rust/tcl-lsp-core/src/rename.rs:138:1: warning: this function has too many lines (137/100)
+rust/tcl-lsp-core/src/rename.rs:1851:21: warning: redundant field names in struct initialization: help: replace it with: `span`
+rust/tcl-lsp-core/src/rename.rs:1864:17: warning: redundant field names in struct initialization: help: replace it with: `span`
+rust/tcl-lsp-core/src/rename.rs:416:1: warning: this function has too many lines (178/100)
+rust/tcl-lsp-core/src/rename.rs:691:10: warning: unused "map closure" when calling `Option::map_or_else` value
+rust/tcl-lsp-core/src/rename_safety.rs:217:9: warning: this `if` statement can be collapsed
+rust/tcl-lsp-core/src/rename_safety.rs:2338:9: warning: field assignment outside of initializer for an instance created with Default::default()
+rust/tcl-lsp-core/src/rename_safety.rs:263:17: warning: it is more concise to loop over references to containers instead of using explicit iteration methods: help: to write this more concisely, try: `target.family`
+rust/tcl-lsp-core/src/rename_safety.rs:946:1: warning: this function has too many lines (102/100)
+rust/tcl-lsp-core/src/selection_range.rs:103:1: warning: this function has too many lines (108/100)
+rust/tcl-lsp-core/src/selection_range.rs:277:5: warning: unnecessary boolean `not` operation
+rust/tcl-lsp-core/src/semantic_tokens.rs:11247:9: warning: field assignment outside of initializer for an instance created with Default::default()
+rust/tcl-lsp-core/src/semantic_tokens.rs:1445:1: warning: large size difference between variants: the entire enum is at least 224 bytes
+rust/tcl-lsp-core/src/semantic_tokens.rs:3415:1: warning: this function has too many lines (253/100)
+rust/tcl-lsp-core/src/semantic_tokens.rs:3458:16: warning: this boolean expression can be simplified
+rust/tcl-lsp-core/src/semantic_tokens.rs:3608:18: warning: redundant closure: help: replace the closure with the method itself: `tcl_compiler::registry_invocation::OriginalSourceScopedBody::environment`
+rust/tcl-lsp-core/src/semantic_tokens.rs:3644:36: warning: redundant closure: help: replace the closure with the function itself: `original::expanded_role_extents`
+rust/tcl-lsp-core/src/semantic_tokens.rs:3910:17: warning: called `.ok().is_some_and(..)` on a `Result` value: help: use `is_ok_and` instead: `u32::try_from(parameter).is_ok_and(|index| parameters.contains(&index))`
+rust/tcl-lsp-core/src/semantic_tokens.rs:4680:14: warning: binding's name is too similar to existing binding
+rust/tcl-lsp-core/src/semantic_tokens.rs:4784:1: warning: this function has too many lines (139/100)
+rust/tcl-lsp-core/src/semantic_tokens.rs:4906:13: warning: used `unwrap()` on `Some` value
+rust/tcl-lsp-core/src/semantic_tokens.rs:4917:38: warning: used `unwrap()` on `Some` value
+rust/tcl-lsp-core/src/semantic_tokens.rs:5570:24: warning: casting `usize` to `u32` may truncate the value on targets with 64-bit wide pointers
+rust/tcl-lsp-core/src/semantic_tokens.rs:5583:25: warning: casting `usize` to `u32` may truncate the value on targets with 64-bit wide pointers
+rust/tcl-lsp-core/src/semantic_tokens.rs:5600:23: warning: casting `usize` to `u32` may truncate the value on targets with 64-bit wide pointers
+rust/tcl-lsp-core/src/semantic_tokens.rs:5610:23: warning: casting `usize` to `u32` may truncate the value on targets with 64-bit wide pointers
+rust/tcl-lsp-core/src/semantic_tokens/original.rs:1162:24: warning: the following explicit lifetimes could be elided: 'a
+rust/tcl-lsp-core/src/semantic_tokens/original.rs:1202:19: warning: redundant closure: help: replace the closure with the method itself: `tcl_compiler::signature_scan::scope::SignatureSourceNameInput::original_list_elements_with_source_spans`
+rust/tcl-lsp-core/src/semantic_tokens/original.rs:1251:14: warning: redundant closure: help: replace the closure with the method itself: `tcl_syntax::word_rules::OriginalSourceListElement::elements`
+rust/tcl-lsp-core/src/semantic_tokens/original.rs:28:5: warning: this function has too many lines (111/100)
+rust/tcl-lsp-core/src/semantic_tokens/original.rs:594:9: warning: these match arms have identical bodies
+rust/tcl-lsp-core/src/signature_help.rs:1448:42: warning: this expression creates a reference which is immediately dereferenced by the compiler: help: change this to: `foreign`
+rust/tcl-lsp-core/src/signature_help.rs:1506:42: warning: this expression creates a reference which is immediately dereferenced by the compiler: help: change this to: `foreign`
+rust/tcl-lsp-core/src/signature_help.rs:278:1: warning: this function has too many lines (115/100)
+rust/tcl-lsp-core/src/source_graph.rs:1237:53: warning: redundant closure: help: replace the closure with the method itself: `tcl_lexer::Span::end`
+rust/tcl-lsp-core/src/source_graph.rs:1545:12: warning: item in documentation is missing backticks
+rust/tcl-lsp-core/src/source_graph.rs:222:33: warning: this boolean expression can be simplified
+rust/tcl-lsp-core/src/source_graph.rs:3191:9: warning: used `assert_eq!` with a literal bool
+rust/tcl-lsp-core/src/source_graph.rs:3591:53: warning: unnecessary use of `clone` to create a slice from a reference: help: try: `std::slice::from_ref(&edge)`
+rust/tcl-lsp-core/src/source_graph.rs:3597:9: warning: used `assert_eq!` with a literal bool
+rust/tcl-lsp-core/src/source_graph.rs:3660:13: warning: unnecessary use of `clone` to create a slice from a reference: help: try: `std::slice::from_ref(&edge)`
+rust/tcl-lsp-core/src/source_graph.rs:3671:9: warning: used `assert_eq!` with a literal bool
+rust/tcl-lsp-core/src/source_graph.rs:3694:13: warning: unnecessary use of `clone` to create a slice from a reference: help: try: `std::slice::from_ref(&edge)`
+rust/tcl-lsp-core/src/source_graph.rs:745:1: warning: more than 3 bools in a struct
+rust/tcl-lsp-core/src/source_graph.rs:77:34: warning: item in documentation is missing backticks
+rust/tcl-lsp-core/src/source_structure.rs:1101:9: warning: this `if` statement can be collapsed
+rust/tcl-lsp-core/src/source_structure.rs:116:24: warning: called `.ok().is_some_and(..)` on a `Result` value: help: use `is_ok_and` instead: `word.content_span().is_ok_and(contains)`
+rust/tcl-lsp-core/src/source_structure.rs:1218:9: warning: this `if` statement can be collapsed
+rust/tcl-lsp-core/src/source_structure.rs:1240:25: warning: this `if` statement can be collapsed
+rust/tcl-lsp-core/src/source_structure.rs:1594:5: warning: this function has too many lines (112/100)
+rust/tcl-lsp-core/src/source_structure.rs:2437:5: warning: this function has too many lines (107/100)
+rust/tcl-lsp-core/src/source_structure.rs:2555:5: warning: this function has too many lines (139/100)
+rust/tcl-lsp-core/src/source_structure.rs:514:5: warning: this function's return value is unnecessarily wrapped by `Option`
+rust/tcl-lsp-core/src/tk_preview.rs:1463:5: warning: this `let...else` may be rewritten with the `?` operator: help: replace it with: `let parent = tcl_registry::tk_geometry::widget_path_parent_depth(target).and_then(|path| path.parent)?;`
+rust/tcl-lsp-core/src/tk_preview.rs:564:23: warning: this argument is passed by value, but not consumed in the function body
+rust/tcl-lsp-core/src/type_hierarchy.rs:1465:13: warning: implicit borrow as raw pointer
+rust/tcl-lsp-core/src/type_hierarchy.rs:742:27: warning: you seem to be trying to use `match` for destructuring a single pattern. Consider using `if let`
+rust/tcl-lsp-core/src/variable_symbol.rs:170:1: warning: this function has too many lines (101/100)
+rust/tcl-lsp-core/src/variable_symbol.rs:26:1: warning: this function has a `#[must_use]` attribute with no message, but returns a type already considered as `#[must_use]`
+rust/tcl-lsp-core/src/variable_symbol/rename.rs:163:22: warning: redundant closure: help: replace the closure with the method itself: `tcl_compiler::analyser::ResolvedAnalysisInput::has_logical_source_name_context`
+rust/tcl-lsp-core/src/variable_symbol/rename.rs:194:5: warning: this function has too many lines (106/100)
+rust/tcl-lsp-core/src/variable_symbol/rename.rs:226:9: warning: mutable key type
+rust/tcl-lsp-core/src/variable_symbol/rename.rs:227:9: warning: mutable key type
+rust/tcl-lsp-core/src/variable_symbol/rename.rs:24:1: warning: this function has too many lines (149/100)
+rust/tcl-lsp-core/src/vendor_declaration.rs:172:1: warning: this function has a `#[must_use]` attribute with no message, but returns a type already considered as `#[must_use]`
+rust/tcl-lsp-core/src/vendor_declaration.rs:79:1: warning: large size difference between variants: the entire enum is at least 1960 bytes
+rust/tcl-lsp-core/src/vfs.rs:1015:19: warning: item in documentation is missing backticks
+rust/tcl-lsp-core/src/vfs.rs:1103:9: warning: unnecessary `!=` operation
+rust/tcl-lsp-core/src/vfs.rs:1738:17: warning: consider adding a `;` to the last statement for consistent formatting: help: add a `;` here: `published += 1;`
+rust/tcl-lsp-core/src/vfs.rs:330:60: warning: item in documentation is missing backticks
+rust/tcl-lsp-core/src/vfs.rs:502:22: warning: item in documentation is missing backticks
+rust/tcl-lsp-core/src/vfs.rs:520:54: warning: item in documentation is missing backticks
+rust/tcl-lsp-core/src/workspace_index.rs:1488:5: warning: this function has too many lines (108/100)
+rust/tcl-lsp-core/src/workspace_index.rs:1529:27: warning: redundant closure: help: replace the closure with the method itself: `tcl_compiler::command_binding::OriginalCompletedCommandWorld::declarations`
+rust/tcl-lsp-core/src/workspace_index.rs:1804:5: warning: this function has too many lines (108/100)
+rust/tcl-lsp-core/src/workspace_index.rs:1937:5: warning: this function has too many lines (232/100)
+rust/tcl-lsp-core/src/workspace_index.rs:1940:9: warning: assigning the result of `ToOwned::to_owned()` may be inefficient: help: use `clone_into()`: `uri.clone_into(&mut self.uri)`
+rust/tcl-lsp-core/src/workspace_index.rs:1991:9: warning: this `if` statement can be collapsed
+rust/tcl-lsp-core/src/workspace_index.rs:2401:29: warning: redundant closure: help: replace the closure with the method itself: `tcl_compiler::signature_scan::variable_symbol::OriginalVariableAliasTemplate::is_declaration`
+rust/tcl-lsp-core/src/workspace_index.rs:2434:5: warning: this function has too many lines (105/100)
+rust/tcl-lsp-core/src/workspace_index.rs:4051:14: warning: called `map(..).flatten()` on `Iterator`
+rust/tcl-lsp-core/src/workspace_index.rs:4628:17: warning: this `if` statement can be collapsed
+rust/tcl-lsp-core/src/workspace_index.rs:4639:17: warning: this `if` statement can be collapsed
+rust/tcl-lsp-core/src/workspace_index.rs:5140:16: warning: item in documentation is missing backticks
+rust/tcl-lsp-core/src/workspace_index.rs:6384:17: warning: this `if` statement can be collapsed
+rust/tcl-lsp-core/src/workspace_index.rs:7959:5: warning: this function has too many arguments (8/7)
+rust/tcl-lsp-core/src/workspace_index.rs:8263:5: warning: this function has too many lines (124/100)
+rust/tcl-lsp-core/src/workspace_index.rs:8281:26: warning: redundant closure: help: replace the closure with the method itself: `tcl_compiler::signature_scan::original_name::SourceDeclarationMetadata::name`
+rust/tcl-lsp-core/src/workspace_index.rs:8282:60: warning: redundant closure: help: replace the closure with the method itself: `tcl_compiler::signature_scan::original_name::SourceDeclarationMetadata::name`
+rust/tcl-lsp-core/src/workspace_symbols.rs:175:1: warning: this function has too many lines (117/100)
+rust/tcl-lsp-core/tests/code_actions_depth.rs:260:1: warning: empty line after doc comment
+rust/tcl-lsp-core/tests/file_ops_bigip_residual.rs:64:8: warning: this boolean expression can be simplified
+rust/tcl-lsp-db/src/lib.rs:10201:19: warning: this argument is passed by value, but not consumed in the function body
+rust/tcl-lsp-db/src/lib.rs:10595:5: warning: this function has too many lines (101/100)
+rust/tcl-lsp-db/src/lib.rs:10700:5: warning: this function has too many lines (203/100)
+rust/tcl-lsp-db/src/lib.rs:10891:13: warning: used `assert!` with an equality comparison
+rust/tcl-lsp-db/src/lib.rs:11878:9: warning: used `assert!` with an equality comparison
+rust/tcl-lsp-db/src/lib.rs:11880:9: warning: used `assert!` with an equality comparison
+rust/tcl-lsp-db/src/lib.rs:12031:13: warning: used `assert!` with an equality comparison
+rust/tcl-lsp-db/src/lib.rs:12085:9: warning: used `assert!` with an equality comparison
+rust/tcl-lsp-db/src/lib.rs:12098:9: warning: used `assert!` with an equality comparison
+rust/tcl-lsp-db/src/lib.rs:12118:9: warning: used `assert!` with an equality comparison
+rust/tcl-lsp-db/src/lib.rs:12129:9: warning: used `assert!` with an equality comparison
+rust/tcl-lsp-db/src/lib.rs:12136:5: warning: this function has too many lines (102/100)
+rust/tcl-lsp-db/src/lib.rs:12211:13: warning: used `assert!` with an equality comparison
+rust/tcl-lsp-db/src/lib.rs:12226:13: warning: used `assert!` with an equality comparison
+rust/tcl-lsp-db/src/lib.rs:12227:13: warning: used `assert!` with an equality comparison
+rust/tcl-lsp-db/src/lib.rs:1368:25: warning: you seem to be trying to use `match` for destructuring a single pattern. Consider using `if let`
+rust/tcl-lsp-db/src/lib.rs:1576:20: warning: unnecessary map of the identity function: help: remove the call to `map`
+rust/tcl-lsp-db/src/lib.rs:1649:20: warning: unnecessary map of the identity function: help: remove the call to `map`
+rust/tcl-lsp-db/src/lib.rs:1786:6: warning: very complex type used. Consider factoring parts into `type` definitions
+rust/tcl-lsp-db/src/lib.rs:1976:5: warning: adding items after statements is confusing, since items exist from the start of the scope
+rust/tcl-lsp-db/src/lib.rs:1977:21: warning: adding items after statements is confusing, since items exist from the start of the scope
+rust/tcl-lsp-db/src/lib.rs:1977:40: warning: adding items after statements is confusing, since items exist from the start of the scope
+rust/tcl-lsp-db/src/lib.rs:1977:50: warning: adding items after statements is confusing, since items exist from the start of the scope
+rust/tcl-lsp-db/src/lib.rs:1977:9: warning: adding items after statements is confusing, since items exist from the start of the scope
+rust/tcl-lsp-db/src/lib.rs:1978:9: warning: adding items after statements is confusing, since items exist from the start of the scope
+rust/tcl-lsp-db/src/lib.rs:2082:1: warning: this function has too many lines (146/100)
+rust/tcl-lsp-db/src/lib.rs:2771:5: warning: this function has too many lines (113/100)
+rust/tcl-lsp-db/src/lib.rs:2951:9: warning: this expression creates a reference which is immediately dereferenced by the compiler: help: change this to: `registry`
+rust/tcl-lsp-db/src/lib.rs:3040:1: warning: this function has too many lines (172/100)
+rust/tcl-lsp-db/src/lib.rs:3077:13: warning: consider using `sort_by_key`
+rust/tcl-lsp-db/src/lib.rs:3083:13: warning: consider using `sort_by_key`
+rust/tcl-lsp-db/src/lib.rs:3089:13: warning: consider using `sort_by_key`
+rust/tcl-lsp-db/src/lib.rs:3124:9: warning: this `if` statement can be collapsed
+rust/tcl-lsp-db/src/lib.rs:4373:5: warning: this `let...else` may be rewritten with the `?` operator: help: replace it with: `let _shared_unit = compilation_unit_for_config(db, file, cfg_key, config)?;`
+rust/tcl-lsp-db/src/lib.rs:4385:5: warning: this `let...else` may be rewritten with the `?` operator: help: replace it with: `let solve = proc_taint_solve_for_config(db, file, cfg_key, config)?;`
+rust/tcl-lsp-db/src/lib.rs:4552:14: warning: redundant closure: help: replace the closure with the method itself: `tcl_compiler::analyser::ResolvedAnalysisInput::unit_profile`
+rust/tcl-lsp-db/src/lib.rs:5578:5: warning: this function has too many lines (104/100)
+rust/tcl-lsp-db/src/lib.rs:5633:25: warning: using `chunks_exact` with a constant chunk size: help: consider using `as_chunks` instead: `as_chunks::<5>().0.iter()`
+rust/tcl-lsp-db/src/lib.rs:6058:5: warning: this function has too many lines (154/100)
+rust/tcl-lsp-db/src/lib.rs:6275:5: warning: this function has too many lines (166/100)
+rust/tcl-lsp-db/src/lib.rs:6313:9: warning: adding items after statements is confusing, since items exist from the start of the scope
+rust/tcl-lsp-db/src/lib.rs:6316:9: warning: adding items after statements is confusing, since items exist from the start of the scope
+rust/tcl-lsp-db/src/lib.rs:820:5: warning: assigning the result of `ToOwned::to_owned()` may be inefficient: help: use `clone_into()`: `dialect.clone_into(&mut result.dialect)`
+rust/tcl-lsp-db/src/lib.rs:8689:5: warning: this function has too many lines (113/100)
+rust/tcl-lsp-db/src/original_tracked_metadata_tests.rs:265:18: warning: redundant closure: help: replace the closure with the method itself: `tcl_dialect::model::Version::as_str`
+rust/tcl-lsp-db/src/original_tracked_metadata_tests.rs:288:18: warning: redundant closure: help: replace the closure with the method itself: `tcl_dialect::model::Version::as_str`
+rust/tcl-lsp-db/src/original_tracked_metadata_tests.rs:63:17: warning: using `chunks_exact` with a constant chunk size: help: consider using `as_chunks` instead: `as_chunks::<5>().0.iter()`
+rust/tcl-lsp-db/src/original_uncached_metadata_tests.rs:92:20: warning: allocating a local array larger than 16384 bytes
+rust/tcl-lsp-db/src/project_call_inputs.rs:7:5: warning: usage of wildcard import: help: try: `super::{Arc, ItemTree, FileSourceTarget, DeclaredSurface, TclDb, SourceFile, AnalyserConfig, document_analysis_input, document_analyser, Project, project_token_inputs, FileDecls, BTreeSet, DispatchComponents, conditional_source_links, merge_dispatch_components, CallSiteEvidence, HashSet}`
+rust/tcl-lsp-db/src/project_source_inputs.rs:7:5: warning: usage of wildcard import: help: try: `super::{TclDb, SourceFile, AnalyserConfig, Arc, ItemTree, project_call_inputs, ItemSig, Project, project_token_inputs, HashSet, merge_class_factories, HashMap, merge_original_command_signatures, OriginalCommandSlot, select_original_command_signatures, original_lookup_command_signatures_using, AnalysisResult, project_callback_diagnostics_with_mode, ProjectSourceInputMode, file_analysis_incremental}`
+rust/tcl-lsp-db/src/project_source_inputs/tests.rs:180:1: warning: this function has too many lines (103/100)
+rust/tcl-lsp-db/src/project_token_inputs.rs:7:5: warning: usage of wildcard import: help: try: `super::{TclDb, Project, SourceFile, AnalyserConfig, Arc, FileTokenFacts, document_analysis_input, document_analyser, token_facts_from_analysis, HashSet, ClassHierarchy, merge_project_classes, VarNameArgRoles, merge_project_named_instances, SemanticTokens, document_compilation_unit_for, file_analysis_incremental}`
+rust/tcl-lsp-db/src/project_token_inputs/tests.rs:101:5: warning: adding items after statements is confusing, since items exist from the start of the scope
+rust/tcl-lsp-db/src/project_token_inputs/tests.rs:102:40: warning: adding items after statements is confusing, since items exist from the start of the scope
+rust/tcl-lsp-db/src/project_token_inputs/tests.rs:102:9: warning: adding items after statements is confusing, since items exist from the start of the scope
+rust/tcl-lsp-db/src/project_token_inputs/tests.rs:44:17: warning: using `chunks_exact` with a constant chunk size: help: consider using `as_chunks` instead: `as_chunks::<5>().0.iter()`
+rust/tcl-lsp-db/src/project_token_inputs/tests.rs:539:17: warning: using `chunks_exact` with a constant chunk size: help: consider using `as_chunks` instead: `as_chunks::<5>().0.iter()`
+rust/tcl-lsp-db/src/project_token_inputs/tests.rs:59:1: warning: this function has too many lines (134/100)
+rust/tcl-lsp-server/src/current_diagnostics.rs:1108:87: warning: deref which would be done by auto-deref: help: try: `&published`
+rust/tcl-lsp-server/src/current_diagnostics.rs:1169:13: warning: unnecessary `!=` operation
+rust/tcl-lsp-server/src/current_diagnostics.rs:1245:24: warning: large future with a size of 36640 bytes
+rust/tcl-lsp-server/src/current_diagnostics.rs:1297:5: warning: this function has too many lines (197/100)
+rust/tcl-lsp-server/src/current_diagnostics.rs:1672:5: warning: this function has too many lines (150/100)
+rust/tcl-lsp-server/src/current_diagnostics.rs:1777:34: warning: large future with a size of 35160 bytes
+rust/tcl-lsp-server/src/current_diagnostics.rs:1814:21: warning: redundant field names in struct initialization: help: replace it with: `uri`
+rust/tcl-lsp-server/src/current_diagnostics.rs:1844:22: warning: large future with a size of 36640 bytes
+rust/tcl-lsp-server/src/current_diagnostics.rs:20:5: warning: usage of wildcard import: help: try: `super::{Arc, DocumentPathAdmission, Mutex, HashMap, Uri, DiagSlot, HashSet, PublishedSourcePath, DocumentState, DiagInputs, DiagJob, DiagCurrency, with_pack_hooks, FutureExt, Digest, DiagnosticPublisher, LanguageServer, DeliveryCtx, AnalysisResult, Backend, jsonrpc, DocumentPublication, is_apl_source, EvidenceHandles, capture_cross_file_evidence_snapshot, Path, longest_folder_match, proposal_diagnostics, provider_source, TrackedRwLock, SalsaAnalysisCtx, RecoveryNameCache, AnalyserPathInputs, RecoveryWidenCtx, CLASS_FACTORY_SYNC_ROUNDS, compute_base_analysis, ControlFlow, LiftInputs, rewrite_wire, compute_deep_diagnostic_report, Sha256, sha256_digest_hex, WorkspaceDiagnosticSources, PullDiagEntry, next_pull_diag_result_id, PackNoticeContext, OrphanCommandDependencies, WorkspaceCommandQueries}`
+rust/tcl-lsp-server/src/current_diagnostics.rs:2200:11: warning: this function has too many lines (104/100)
+rust/tcl-lsp-server/src/current_diagnostics.rs:2480:11: warning: this function has too many lines (104/100)
+rust/tcl-lsp-server/src/current_diagnostics.rs:2547:22: warning: large future with a size of 37176 bytes: help: consider `Box::pin` on it: `Box::pin(backend.diagnostic(params))`
+rust/tcl-lsp-server/src/current_diagnostics.rs:2638:9: warning: adding items after statements is confusing, since items exist from the start of the scope
+rust/tcl-lsp-server/src/current_diagnostics.rs:2803:13: warning: large future with a size of 37176 bytes
+rust/tcl-lsp-server/src/current_diagnostics.rs:2818:13: warning: large future with a size of 37176 bytes
+rust/tcl-lsp-server/src/current_diagnostics.rs:2864:13: warning: large future with a size of 37176 bytes
+rust/tcl-lsp-server/src/current_diagnostics.rs:2874:22: warning: large future with a size of 36984 bytes
+rust/tcl-lsp-server/src/current_diagnostics.rs:2903:13: warning: large future with a size of 37176 bytes
+rust/tcl-lsp-server/src/current_diagnostics.rs:2916:13: warning: large future with a size of 37176 bytes
+rust/tcl-lsp-server/src/current_diagnostics.rs:2922:13: warning: large future with a size of 36984 bytes
+rust/tcl-lsp-server/src/current_diagnostics.rs:2933:13: warning: large future with a size of 37176 bytes
+rust/tcl-lsp-server/src/current_diagnostics.rs:2954:13: warning: large future with a size of 37176 bytes
+rust/tcl-lsp-server/src/current_diagnostics.rs:2974:13: warning: large future with a size of 37176 bytes
+rust/tcl-lsp-server/src/current_diagnostics.rs:3058:9: warning: large future with a size of 39232 bytes
+rust/tcl-lsp-server/src/current_diagnostics.rs:3070:5: warning: it is more idiomatic to use `Option<&T>` instead of `&Option<T>`
+rust/tcl-lsp-server/src/current_diagnostics.rs:3079:11: warning: this function has too many lines (125/100)
+rust/tcl-lsp-server/src/current_diagnostics.rs:3122:21: warning: large future with a size of 39408 bytes: help: consider `Box::pin` on it: `Box::pin(command(&backend, &selected, 7, "", ""))`
+rust/tcl-lsp-server/src/current_diagnostics.rs:3128:23: warning: large future with a size of 39408 bytes: help: consider `Box::pin` on it: `Box::pin(command(&backend, &selected, 7, "", "set\n"))`
+rust/tcl-lsp-server/src/current_diagnostics.rs:3211:21: warning: large future with a size of 39408 bytes: help: consider `Box::pin` on it: `Box::pin(command(&backend, &selected, 7, "", ""))`
+rust/tcl-lsp-server/src/current_diagnostics.rs:3222:21: warning: large future with a size of 39408 bytes: help: consider `Box::pin` on it: `Box::pin(command(&backend, &selected, 7, "", "set\n"))`
+rust/tcl-lsp-server/src/current_diagnostics.rs:3225:23: warning: large future with a size of 39408 bytes: help: consider `Box::pin` on it: `Box::pin(command(&backend, &selected, 8, current_source, ""))`
+rust/tcl-lsp-server/src/current_diagnostics.rs:3228:25: warning: large future with a size of 39408 bytes: help: consider `Box::pin` on it: `Box::pin(command(&backend, &selected, 8, current_source, ""))`
+rust/tcl-lsp-server/src/current_diagnostics.rs:3237:25: warning: large future with a size of 39408 bytes: help: consider `Box::pin` on it: `Box::pin(command(&backend, &selected, 7, "", ""))`
+rust/tcl-lsp-server/src/current_diagnostics.rs:3276:26: warning: large future with a size of 39408 bytes
+rust/tcl-lsp-server/src/current_diagnostics.rs:3302:26: warning: large future with a size of 39408 bytes: help: consider `Box::pin` on it: `Box::pin(command(&backend, &selected, 7, "", ""))`
+rust/tcl-lsp-server/src/current_diagnostics.rs:3313:26: warning: large future with a size of 39408 bytes: help: consider `Box::pin` on it: `Box::pin(command(&backend, &selected, 7, "", "proc unfinished {"))`
+rust/tcl-lsp-server/src/current_diagnostics.rs:526:28: warning: large future with a size of 39048 bytes: help: consider `Box::pin` on it: `Box::pin(self.produce_proposal_diagnostics(&expected))`
+rust/tcl-lsp-server/src/current_diagnostics.rs:535:5: warning: this function has too many lines (437/100)
+rust/tcl-lsp-server/src/current_diagnostics.rs:851:28: warning: large future with a size of 33744 bytes
+rust/tcl-lsp-server/src/current_diagnostics.rs:915:30: warning: large future with a size of 35160 bytes
+rust/tcl-lsp-server/src/current_diagnostics.rs:987:5: warning: this function has too many lines (139/100)
+rust/tcl-lsp-server/src/document_transform.rs:11:5: warning: usage of wildcard import: help: try: `super::{Uri, FromStr, Arc, HashSet, NonAsciiMode, ResourceAnalyserInputs, PolicyLayers, AnalysisResult, Backend, DocumentPathAdmission, Digest, jsonrpc, DocumentState, DocumentSourceResult, FutureExt}`
+rust/tcl-lsp-server/src/document_transform.rs:266:5: warning: this function has too many lines (103/100)
+rust/tcl-lsp-server/src/document_transform.rs:271:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/document_transform.rs:46:46: warning: item in documentation is missing backticks
+rust/tcl-lsp-server/src/lib.rs:10946:56: warning: calling `TransformLedger::default()` is more clear than this expression: help: try: `TransformLedger::default()`
+rust/tcl-lsp-server/src/lib.rs:10965:55: warning: calling `OriginalDeclarationRegistry::default()` is more clear than this expression: help: try: `OriginalDeclarationRegistry::default()`
+rust/tcl-lsp-server/src/lib.rs:10984:40: warning: calling `StudioSources::default()` is more clear than this expression: help: try: `StudioSources::default()`
+rust/tcl-lsp-server/src/lib.rs:11047:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:11051:18: warning: the `Err`-variant returned from this closure is very large
+rust/tcl-lsp-server/src/lib.rs:11184:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:11199:9: warning: passing a unit value to a function
+rust/tcl-lsp-server/src/lib.rs:11412:13: warning: struct constructor field order is inconsistent with struct definition field order
+rust/tcl-lsp-server/src/lib.rs:1172:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:11825:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:11851:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:11896:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:11903:18: warning: the `Err`-variant returned from this closure is very large
+rust/tcl-lsp-server/src/lib.rs:11907:18: warning: the `Err`-variant returned from this closure is very large
+rust/tcl-lsp-server/src/lib.rs:11909:9: warning: enclosing `Ok` and `?` operator are unneeded
+rust/tcl-lsp-server/src/lib.rs:11911:17: warning: used underscore-prefixed binding
+rust/tcl-lsp-server/src/lib.rs:11925:5: warning: this function has too many arguments (11/7)
+rust/tcl-lsp-server/src/lib.rs:11925:5: warning: this function has too many lines (148/100)
+rust/tcl-lsp-server/src/lib.rs:11937:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:12121:23: warning: very complex type used. Consider factoring parts into `type` definitions
+rust/tcl-lsp-server/src/lib.rs:12128:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:12197:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:12205:25: warning: called `map(<f>).unwrap_or_else(<g>)` on an `Option` value
+rust/tcl-lsp-server/src/lib.rs:12205:75: warning: the `Err`-variant returned from this closure is very large
+rust/tcl-lsp-server/src/lib.rs:12226:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:12291:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:12356:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:12375:9: warning: enclosing `Ok` and `?` operator are unneeded
+rust/tcl-lsp-server/src/lib.rs:12389:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:12396:9: warning: enclosing `Ok` and `?` operator are unneeded
+rust/tcl-lsp-server/src/lib.rs:1242:1: warning: large size difference between variants: the entire enum is at least 208 bytes
+rust/tcl-lsp-server/src/lib.rs:12430:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:12431:9: warning: enclosing `Ok` and `?` operator are unneeded
+rust/tcl-lsp-server/src/lib.rs:12455:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:12566:9: warning: enclosing `Ok` and `?` operator are unneeded
+rust/tcl-lsp-server/src/lib.rs:12586:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:12694:5: warning: this function has too many lines (116/100)
+rust/tcl-lsp-server/src/lib.rs:12701:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:1278:17: warning: assigning the result of `Clone::clone()` may be inefficient: help: use `clone_from()`: `result.dialect.clone_from(&self.dialect)`
+rust/tcl-lsp-server/src/lib.rs:12816:20: warning: enclosing `Ok` and `?` operator are unneeded
+rust/tcl-lsp-server/src/lib.rs:12829:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:1298:1: warning: large size difference between variants: the entire enum is at least 208 bytes
+rust/tcl-lsp-server/src/lib.rs:13065:5: warning: this function has too many arguments (8/7)
+rust/tcl-lsp-server/src/lib.rs:13074:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:13153:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:13190:25: warning: unnecessary `!=` operation
+rust/tcl-lsp-server/src/lib.rs:13222:67: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:13247:57: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:13256:22: warning: the `Err`-variant returned from this closure is very large
+rust/tcl-lsp-server/src/lib.rs:13273:9: warning: passing a unit value to a function
+rust/tcl-lsp-server/src/lib.rs:13550:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:13584:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:13619:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:13655:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:13664:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:13668:46: warning: the `Err`-variant returned from this closure is very large
+rust/tcl-lsp-server/src/lib.rs:13749:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:14407:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:14489:49: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:14499:55: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:14513:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:14662:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:14727:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:14728:9: warning: this could be rewritten as `let...else`: help: consider writing: `let Some(identity) = item.identity.as_ref() else { return Ok(None) };`
+rust/tcl-lsp-server/src/lib.rs:14732:9: warning: this could be rewritten as `let...else`: help: consider writing: `let Some(uri) = identity.uri().parse::<Uri>().ok() else { return Ok(None) };`
+rust/tcl-lsp-server/src/lib.rs:14736:9: warning: this could be rewritten as `let...else`: help: consider writing: `let Some(doc) = self.read_document(&uri).await? else { return Ok(None) };`
+rust/tcl-lsp-server/src/lib.rs:14743:9: warning: this could be rewritten as `let...else`
+rust/tcl-lsp-server/src/lib.rs:14775:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:14860:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:14863:9: warning: this could be rewritten as `let...else`: help: consider writing: `let Some(config) = analysis.body_lexer_config else { return Ok(None) };`
+rust/tcl-lsp-server/src/lib.rs:14886:9: warning: this could be rewritten as `let...else`: help: consider writing: `let Some(selected) = documents.iter().find(|(owner, _, _)| owner == uri.as_str()) else { return Ok(None) };`
+rust/tcl-lsp-server/src/lib.rs:14912:9: warning: this could be rewritten as `let...else`
+rust/tcl-lsp-server/src/lib.rs:14930:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:15276:66: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:15349:9: warning: passing a unit value to a function
+rust/tcl-lsp-server/src/lib.rs:15447:62: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:15448:9: warning: large future with a size of 20264 bytes: help: consider `Box::pin` on it: `Box::pin(self.batch_reindex_from_disk_using(uris, None))`
+rust/tcl-lsp-server/src/lib.rs:15455:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:15495:23: warning: large future with a size of 20064 bytes: help: consider `Box::pin` on it: `Box::pin(run_bounded(futures, concurrency))`
+rust/tcl-lsp-server/src/lib.rs:15524:59: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:15532:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:15557:9: warning: passing a unit value to a function
+rust/tcl-lsp-server/src/lib.rs:15907:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:15949:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:15984:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:16113:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:16133:9: warning: this could be rewritten as `let...else`: help: consider writing: `let Some(call) = core_ilx::method_call_at(document, ctx, pos.line, pos.character) else { return Ok(None) };`
+rust/tcl-lsp-server/src/lib.rs:16159:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:16213:13: warning: this could be rewritten as `let...else`: help: consider writing: `let Some(registration) = core_ilx::registration_at(document, pos.line, pos.character) else { return Ok(None) };`
+rust/tcl-lsp-server/src/lib.rs:16219:13: warning: this could be rewritten as `let...else`: help: consider writing: `let Some(call) = core_ilx::method_call_at(document, ctx, pos.line, pos.character) else { return Ok(None) };`
+rust/tcl-lsp-server/src/lib.rs:16320:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:16326:9: warning: this could be rewritten as `let...else`: help: consider writing: `let Some((_, target)) = self.ilx_method_at(uri, doc, &path, pos).await? else { return Ok(None) };`
+rust/tcl-lsp-server/src/lib.rs:16386:5: warning: this function has too many lines (190/100)
+rust/tcl-lsp-server/src/lib.rs:16418:30: warning: redundant closure: help: replace the closure with the method itself: `tcl_compiler::analyser::ResolvedAnalysisInput::has_logical_source_name_context`
+rust/tcl-lsp-server/src/lib.rs:16516:9: warning: this `if` statement can be collapsed
+rust/tcl-lsp-server/src/lib.rs:16519:26: warning: redundant closure: help: replace the closure with the method itself: `tcl_compiler::analyser::ResolvedAnalysisInput::has_logical_source_name_context`
+rust/tcl-lsp-server/src/lib.rs:16541:9: warning: this `if` statement can be collapsed
+rust/tcl-lsp-server/src/lib.rs:16572:26: warning: redundant closure: help: replace the closure with the method itself: `tcl_compiler::analyser::ResolvedAnalysisInput::has_logical_source_name_context`
+rust/tcl-lsp-server/src/lib.rs:16607:26: warning: redundant closure: help: replace the closure with the method itself: `tcl_compiler::analyser::ResolvedAnalysisInput::has_logical_source_name_context`
+rust/tcl-lsp-server/src/lib.rs:16642:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:16670:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:16753:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:16775:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:16805:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:16824:9: warning: adding items after statements is confusing, since items exist from the start of the scope
+rust/tcl-lsp-server/src/lib.rs:16894:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:16988:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:17066:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:17067:9: warning: this could be rewritten as `let...else`: help: consider writing: `let Some(context) = core_workspace_index::WorkspaceDiagnosticSourceContext::for_analysis(analysis) else { return Ok(None) };`
+rust/tcl-lsp-server/src/lib.rs:17119:9: warning: this could be rewritten as `let...else`
+rust/tcl-lsp-server/src/lib.rs:17165:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:17221:9: warning: enclosing `Ok` and `?` operator are unneeded
+rust/tcl-lsp-server/src/lib.rs:17248:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:17300:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:17326:9: warning: enclosing `Ok` and `?` operator are unneeded
+rust/tcl-lsp-server/src/lib.rs:17343:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:17363:20: warning: enclosing `Ok` and `?` operator are unneeded
+rust/tcl-lsp-server/src/lib.rs:17385:9: warning: enclosing `Ok` and `?` operator are unneeded
+rust/tcl-lsp-server/src/lib.rs:17441:5: warning: this function has too many lines (107/100)
+rust/tcl-lsp-server/src/lib.rs:17447:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:17570:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:17576:9: warning: enclosing `Ok` and `?` operator are unneeded
+rust/tcl-lsp-server/src/lib.rs:17647:9: warning: returning the result of a `let` binding from a block
+rust/tcl-lsp-server/src/lib.rs:17660:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:17757:68: warning: redundant closure: help: replace the closure with the method itself: `std::borrow::Cow::into_owned`
+rust/tcl-lsp-server/src/lib.rs:17821:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:17893:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:17894:9: warning: this could be rewritten as `let...else`: help: consider writing: `let Some(owner) = identity.uri().parse::<Uri>().ok() else { return Ok(None) };`
+rust/tcl-lsp-server/src/lib.rs:17898:9: warning: this could be rewritten as `let...else`: help: consider writing: `let Some(document) = self.read_document(&owner).await? else { return Ok(None) };`
+rust/tcl-lsp-server/src/lib.rs:17940:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:17942:13: warning: this could be rewritten as `let...else`
+rust/tcl-lsp-server/src/lib.rs:17949:20: warning: enclosing `Ok` and `?` operator are unneeded
+rust/tcl-lsp-server/src/lib.rs:17994:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:18073:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:18116:9: warning: this could be rewritten as `let...else`
+rust/tcl-lsp-server/src/lib.rs:18155:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:18290:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:18340:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:18408:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:18442:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:18510:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:18577:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:18610:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:18628:9: warning: adding items after statements is confusing, since items exist from the start of the scope
+rust/tcl-lsp-server/src/lib.rs:18628:9: warning: large size difference between variants: the entire enum is at least 1896 bytes
+rust/tcl-lsp-server/src/lib.rs:18694:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:18713:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:18777:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:18795:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:18895:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:18940:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:18959:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:18993:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:19013:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:19109:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:19169:5: warning: empty line after doc comment
+rust/tcl-lsp-server/src/lib.rs:19171:5: warning: this function has too many lines (105/100)
+rust/tcl-lsp-server/src/lib.rs:19178:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:19318:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:19335:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:19353:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:19366:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:19414:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:19431:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:19449:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:19498:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:19499:9: warning: enclosing `Ok` and `?` operator are unneeded
+rust/tcl-lsp-server/src/lib.rs:19529:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:19530:9: warning: enclosing `Ok` and `?` operator are unneeded
+rust/tcl-lsp-server/src/lib.rs:19550:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:19593:9: warning: enclosing `Ok` and `?` operator are unneeded
+rust/tcl-lsp-server/src/lib.rs:19604:5: warning: this function has too many lines (152/100)
+rust/tcl-lsp-server/src/lib.rs:19611:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:19619:20: warning: enclosing `Ok` and `?` operator are unneeded
+rust/tcl-lsp-server/src/lib.rs:19634:20: warning: enclosing `Ok` and `?` operator are unneeded
+rust/tcl-lsp-server/src/lib.rs:19815:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:19835:20: warning: enclosing `Ok` and `?` operator are unneeded
+rust/tcl-lsp-server/src/lib.rs:19867:9: warning: enclosing `Ok` and `?` operator are unneeded
+rust/tcl-lsp-server/src/lib.rs:19878:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:19985:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:20037:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:20152:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:20191:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:20326:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:20477:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:20483:9: warning: this could be rewritten as `let...else`
+rust/tcl-lsp-server/src/lib.rs:20571:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:20900:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:20901:9: warning: this could be rewritten as `let...else`
+rust/tcl-lsp-server/src/lib.rs:21095:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:21219:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:21309:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:21377:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:21417:24: warning: enclosing `Ok` and `?` operator are unneeded
+rust/tcl-lsp-server/src/lib.rs:21447:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:21466:9: warning: this could be rewritten as `let...else`
+rust/tcl-lsp-server/src/lib.rs:21548:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:21581:5: warning: this function has too many arguments (8/7)
+rust/tcl-lsp-server/src/lib.rs:21590:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:21648:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:21676:5: warning: this function has too many lines (106/100)
+rust/tcl-lsp-server/src/lib.rs:21683:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:21796:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:21901:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:22011:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:22018:20: warning: enclosing `Ok` and `?` operator are unneeded
+rust/tcl-lsp-server/src/lib.rs:22049:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:22050:9: warning: passing a unit value to a function
+rust/tcl-lsp-server/src/lib.rs:22084:5: warning: this function has too many lines (108/100)
+rust/tcl-lsp-server/src/lib.rs:22088:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:22221:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:23952:17: warning: assigning the result of `ToOwned::to_owned()` may be inefficient: help: use `clone_into()`: `dialect.clone_into(&mut default_dialect)`
+rust/tcl-lsp-server/src/lib.rs:24276:9: warning: this `if` statement can be collapsed
+rust/tcl-lsp-server/src/lib.rs:24362:9: warning: this `if` statement can be collapsed
+rust/tcl-lsp-server/src/lib.rs:24385:46: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:24447:53: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:24505:9: warning: passing a unit value to a function
+rust/tcl-lsp-server/src/lib.rs:24568:68: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:24638:48: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:24673:42: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:24721:69: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:24740:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:24762:9: warning: passing a unit value to a function
+rust/tcl-lsp-server/src/lib.rs:25121:5: warning: this function has too many lines (111/100)
+rust/tcl-lsp-server/src/lib.rs:26043:24: warning: binding's name is too similar to existing binding
+rust/tcl-lsp-server/src/lib.rs:26047:24: warning: unnecessary boolean `not` operation
+rust/tcl-lsp-server/src/lib.rs:26476:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:26480:24: warning: binding's name is too similar to existing binding
+rust/tcl-lsp-server/src/lib.rs:26487:17: warning: redundant field names in struct initialization: help: replace it with: `uri`
+rust/tcl-lsp-server/src/lib.rs:26489:17: warning: redundant field names in struct initialization: help: replace it with: `pack_seq`
+rust/tcl-lsp-server/src/lib.rs:26505:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:27103:5: warning: this function has too many lines (157/100)
+rust/tcl-lsp-server/src/lib.rs:27103:66: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:27358:5: warning: this function has too many arguments (8/7)
+rust/tcl-lsp-server/src/lib.rs:27367:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:27406:9: warning: passing a unit value to a function
+rust/tcl-lsp-server/src/lib.rs:27477:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:27876:5: warning: this function has too many lines (170/100)
+rust/tcl-lsp-server/src/lib.rs:27884:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:27924:13: warning: this `if` statement can be collapsed
+rust/tcl-lsp-server/src/lib.rs:28118:48: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:28128:44: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:28147:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:28201:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:28265:55: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:28342:25: warning: binding's name is too similar to existing binding
+rust/tcl-lsp-server/src/lib.rs:28342:62: warning: the `Err`-variant returned from this closure is very large
+rust/tcl-lsp-server/src/lib.rs:28404:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:28473:5: warning: this function has too many lines (118/100)
+rust/tcl-lsp-server/src/lib.rs:28477:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:28559:26: warning: binding's name is too similar to existing binding
+rust/tcl-lsp-server/src/lib.rs:28632:73: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:28710:47: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:28710:5: warning: this function has too many lines (138/100)
+rust/tcl-lsp-server/src/lib.rs:28788:18: warning: the `Err`-variant returned from this closure is very large
+rust/tcl-lsp-server/src/lib.rs:29051:5: warning: this function has too many arguments (9/7)
+rust/tcl-lsp-server/src/lib.rs:29051:5: warning: this function has too many lines (200/100)
+rust/tcl-lsp-server/src/lib.rs:29061:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:29171:17: warning: returning the result of a `let` binding from a block
+rust/tcl-lsp-server/src/lib.rs:29185:17: warning: these match arms have identical bodies
+rust/tcl-lsp-server/src/lib.rs:29197:21: warning: consider adding a `;` to the last statement for consistent formatting: help: add a `;` here: `batch.push(item);`
+rust/tcl-lsp-server/src/lib.rs:29283:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:29952:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:30036:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:30157:10: warning: unnecessary semicolon: help: remove
+rust/tcl-lsp-server/src/lib.rs:30192:10: warning: unnecessary semicolon: help: remove
+rust/tcl-lsp-server/src/lib.rs:30222:5: warning: this function can be simplified using the `async fn` syntax
+rust/tcl-lsp-server/src/lib.rs:30244:5: warning: this function has too many lines (106/100)
+rust/tcl-lsp-server/src/lib.rs:30393:5: warning: this function has too many lines (128/100)
+rust/tcl-lsp-server/src/lib.rs:30438:13: warning: this `if` statement can be collapsed
+rust/tcl-lsp-server/src/lib.rs:30569:21: warning: unneeded `return` statement
+rust/tcl-lsp-server/src/lib.rs:30571:14: warning: unnecessary semicolon: help: remove
+rust/tcl-lsp-server/src/lib.rs:30674:17: warning: unneeded `return` statement
+rust/tcl-lsp-server/src/lib.rs:30676:10: warning: unnecessary semicolon: help: remove
+rust/tcl-lsp-server/src/lib.rs:30773:10: warning: unnecessary semicolon: help: remove
+rust/tcl-lsp-server/src/lib.rs:30846:14: warning: unnecessary semicolon: help: remove
+rust/tcl-lsp-server/src/lib.rs:30860:14: warning: unnecessary semicolon: help: remove
+rust/tcl-lsp-server/src/lib.rs:30883:17: warning: unneeded `return` statement
+rust/tcl-lsp-server/src/lib.rs:30885:10: warning: unnecessary semicolon: help: remove
+rust/tcl-lsp-server/src/lib.rs:30888:5: warning: this function has too many lines (190/100)
+rust/tcl-lsp-server/src/lib.rs:31072:15: warning: large future with a size of 20264 bytes
+rust/tcl-lsp-server/src/lib.rs:31083:10: warning: unnecessary semicolon: help: remove
+rust/tcl-lsp-server/src/lib.rs:31136:14: warning: unnecessary semicolon: help: remove
+rust/tcl-lsp-server/src/lib.rs:31145:14: warning: unnecessary semicolon: help: remove
+rust/tcl-lsp-server/src/lib.rs:31534:5: warning: this function has too many lines (102/100)
+rust/tcl-lsp-server/src/lib.rs:31643:5: warning: this function has too many lines (104/100)
+rust/tcl-lsp-server/src/lib.rs:31813:26: warning: redundant closure: help: replace the closure with the method itself: `tcl_compiler::analyser::ResolvedAnalysisInput::has_logical_source_name_context`
+rust/tcl-lsp-server/src/lib.rs:32226:22: warning: large future with a size of 36680 bytes: help: consider `Box::pin` on it: `Box::pin(self.ensure_current_diagnostic_report(&uri))`
+rust/tcl-lsp-server/src/lib.rs:32267:13: warning: large future with a size of 36680 bytes: help: consider `Box::pin` on it: `Box::pin(self.ensure_current_diagnostic_report(uri))`
+rust/tcl-lsp-server/src/lib.rs:32466:5: warning: this function has too many lines (111/100)
+rust/tcl-lsp-server/src/lib.rs:32626:5: warning: this function has too many lines (128/100)
+rust/tcl-lsp-server/src/lib.rs:33144:5: warning: this function has too many lines (141/100)
+rust/tcl-lsp-server/src/lib.rs:33304:22: warning: you seem to be trying to use `match` for destructuring a single pattern. Consider using `if let`
+rust/tcl-lsp-server/src/lib.rs:33376:17: warning: large future with a size of 39232 bytes: help: consider `Box::pin` on it: `Box::pin(self.proposal_diagnostics_command(&params.arguments))`
+rust/tcl-lsp-server/src/lib.rs:33660:5: warning: this function has too many lines (117/100)
+rust/tcl-lsp-server/src/lib.rs:33805:5: warning: this function has too many lines (207/100)
+rust/tcl-lsp-server/src/lib.rs:34161:5: warning: this function has too many lines (119/100)
+rust/tcl-lsp-server/src/lib.rs:349:60: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:36567:1: warning: this function has too many lines (132/100)
+rust/tcl-lsp-server/src/lib.rs:36847:17: warning: you seem to be trying to use `match` for destructuring a single pattern. Consider using `if let`
+rust/tcl-lsp-server/src/lib.rs:37031:30: warning: redundant closure: help: replace the closure with the method itself: `tcl_compiler::signature_scan::formal_count::SourceFormalCountProjection::arity`
+rust/tcl-lsp-server/src/lib.rs:37323:1: warning: this function has too many lines (105/100)
+rust/tcl-lsp-server/src/lib.rs:37507:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:38036:23: warning: you seem to be trying to use `match` for destructuring a single pattern. Consider using `if let`
+rust/tcl-lsp-server/src/lib.rs:38036:9: warning: this could be rewritten as `let...else`
+rust/tcl-lsp-server/src/lib.rs:38206:1: warning: this function has too many lines (108/100)
+rust/tcl-lsp-server/src/lib.rs:38728:88: warning: this `continue` expression is redundant
+rust/tcl-lsp-server/src/lib.rs:39416:11: warning: this function has too many lines (165/100)
+rust/tcl-lsp-server/src/lib.rs:39630:21: warning: binding's name is too similar to existing binding
+rust/tcl-lsp-server/src/lib.rs:39671:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:39701:11: warning: this function has too many lines (113/100)
+rust/tcl-lsp-server/src/lib.rs:41341:5: warning: this function has too many lines (102/100)
+rust/tcl-lsp-server/src/lib.rs:414:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:44519:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:44532:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:4552:17: warning: you seem to be trying to use `match` for destructuring a single pattern. Consider using `if let`
+rust/tcl-lsp-server/src/lib.rs:46610:56: warning: calling `TransformLedger::default()` is more clear than this expression: help: try: `TransformLedger::default()`
+rust/tcl-lsp-server/src/lib.rs:46629:55: warning: calling `OriginalDeclarationRegistry::default()` is more clear than this expression: help: try: `OriginalDeclarationRegistry::default()`
+rust/tcl-lsp-server/src/lib.rs:46648:40: warning: calling `StudioSources::default()` is more clear than this expression: help: try: `StudioSources::default()`
+rust/tcl-lsp-server/src/lib.rs:474:17: warning: assigning the result of `ToOwned::to_owned()` may be inefficient
+rust/tcl-lsp-server/src/lib.rs:47847:9: warning: large future with a size of 21120 bytes
+rust/tcl-lsp-server/src/lib.rs:47893:9: warning: large future with a size of 21120 bytes
+rust/tcl-lsp-server/src/lib.rs:47955:9: warning: large future with a size of 21120 bytes
+rust/tcl-lsp-server/src/lib.rs:48683:9: warning: large future with a size of 21120 bytes
+rust/tcl-lsp-server/src/lib.rs:48692:9: warning: large future with a size of 21120 bytes
+rust/tcl-lsp-server/src/lib.rs:4985:25: warning: very complex type used. Consider factoring parts into `type` definitions
+rust/tcl-lsp-server/src/lib.rs:498:39: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:50257:21: warning: large future with a size of 37176 bytes
+rust/tcl-lsp-server/src/lib.rs:50269:22: warning: large future with a size of 37176 bytes
+rust/tcl-lsp-server/src/lib.rs:50292:21: warning: large future with a size of 37176 bytes
+rust/tcl-lsp-server/src/lib.rs:50313:22: warning: large future with a size of 36984 bytes: help: consider `Box::pin` on it: `Box::pin(backend.workspace_diagnostic(params))`
+rust/tcl-lsp-server/src/lib.rs:50363:9: warning: large future with a size of 21120 bytes
+rust/tcl-lsp-server/src/lib.rs:50406:9: warning: large future with a size of 21120 bytes
+rust/tcl-lsp-server/src/lib.rs:50440:9: warning: large future with a size of 21120 bytes
+rust/tcl-lsp-server/src/lib.rs:509:62: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:51143:21: warning: large future with a size of 37176 bytes
+rust/tcl-lsp-server/src/lib.rs:51171:22: warning: large future with a size of 37176 bytes
+rust/tcl-lsp-server/src/lib.rs:51357:17: warning: very complex type used. Consider factoring parts into `type` definitions
+rust/tcl-lsp-server/src/lib.rs:5363:16: warning: large future with a size of 23872 bytes
+rust/tcl-lsp-server/src/lib.rs:54339:84: warning: this `continue` expression is redundant
+rust/tcl-lsp-server/src/lib.rs:548:69: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:557:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/lib.rs:57859:11: warning: this function has too many lines (129/100)
+rust/tcl-lsp-server/src/lib.rs:5959:29: warning: assigning the result of `Clone::clone()` may be inefficient: help: use `clone_from()`: `result.dialect.clone_from(&dialect)`
+rust/tcl-lsp-server/src/lib.rs:59646:17: warning: large future with a size of 21120 bytes
+rust/tcl-lsp-server/src/lib.rs:59767:17: warning: large future with a size of 21120 bytes
+rust/tcl-lsp-server/src/lib.rs:59971:17: warning: large future with a size of 21120 bytes
+rust/tcl-lsp-server/src/lib.rs:60047:9: warning: large future with a size of 21120 bytes
+rust/tcl-lsp-server/src/lib.rs:60071:9: warning: large future with a size of 21120 bytes
+rust/tcl-lsp-server/src/lib.rs:60137:9: warning: large future with a size of 21120 bytes
+rust/tcl-lsp-server/src/lib.rs:60354:9: warning: large future with a size of 21120 bytes
+rust/tcl-lsp-server/src/lib.rs:60556:17: warning: large future with a size of 21120 bytes
+rust/tcl-lsp-server/src/lib.rs:60591:17: warning: large future with a size of 21120 bytes
+rust/tcl-lsp-server/src/lib.rs:62253:11: warning: this function has too many lines (103/100)
+rust/tcl-lsp-server/src/lib.rs:62370:11: warning: this function has too many lines (102/100)
+rust/tcl-lsp-server/src/lib.rs:66066:74: warning: long literal lacking separators: help: consider: `18_446_744_073_709_551_615_u64`
+rust/tcl-lsp-server/src/lib.rs:66084:44: warning: calling `WorkDoneProgressParams::default()` is more clear than this expression: help: try: `WorkDoneProgressParams::default()`
+rust/tcl-lsp-server/src/lib.rs:66085:40: warning: calling `PartialResultParams::default()` is more clear than this expression: help: try: `PartialResultParams::default()`
+rust/tcl-lsp-server/src/lib.rs:66558:22: warning: casting `usize` to `u32` may truncate the value on targets with 64-bit wide pointers
+rust/tcl-lsp-server/src/lib.rs:66794:11: warning: this function has too many lines (165/100)
+rust/tcl-lsp-server/src/lib.rs:66835:17: warning: redundant field names in struct initialization: help: replace it with: `source`
+rust/tcl-lsp-server/src/lib.rs:66843:9: warning: unnecessary use of `clone` to create a slice from a reference
+rust/tcl-lsp-server/src/lib.rs:66863:9: warning: unnecessary use of `clone` to create a slice from a reference
+rust/tcl-lsp-server/src/lib.rs:66867:21: warning: redundant field names in struct initialization: help: replace it with: `source`
+rust/tcl-lsp-server/src/lib.rs:66899:25: warning: redundant field names in struct initialization: help: replace it with: `source`
+rust/tcl-lsp-server/src/lib.rs:66916:25: warning: redundant field names in struct initialization: help: replace it with: `source`
+rust/tcl-lsp-server/src/lib.rs:66933:25: warning: redundant field names in struct initialization: help: replace it with: `source`
+rust/tcl-lsp-server/src/lib.rs:66951:25: warning: redundant field names in struct initialization: help: replace it with: `source`
+rust/tcl-lsp-server/src/lib.rs:67237:9: warning: this could be rewritten as `let...else`
+rust/tcl-lsp-server/src/lib.rs:6774:1: warning: this function has too many lines (115/100)
+rust/tcl-lsp-server/src/lib.rs:7140:1: warning: this function has too many lines (163/100)
+rust/tcl-lsp-server/src/lib.rs:7594:15: warning: this argument is passed by value, but not consumed in the function body
+rust/tcl-lsp-server/src/lib.rs:8201:16: warning: item in documentation is missing backticks
+rust/tcl-lsp-server/src/lib.rs:8591:13: warning: very complex type used. Consider factoring parts into `type` definitions
+rust/tcl-lsp-server/src/lib.rs:8606:13: warning: very complex type used. Consider factoring parts into `type` definitions
+rust/tcl-lsp-server/src/lib.rs:8628:1: warning: this function has too many lines (176/100)
+rust/tcl-lsp-server/src/lib.rs:8740:13: warning: assigning the result of `Clone::clone()` may be inefficient: help: use `clone_from()`: `document.orphan_command_dependencies.clone_from(&command_dependencies)`
+rust/tcl-lsp-server/src/lib.rs:8839:10: warning: used underscore-prefixed binding
+rust/tcl-lsp-server/src/lib.rs:9549:68: warning: item in documentation is missing backticks
+rust/tcl-lsp-server/src/lib.rs:9775:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/original_document_metadata_tests.rs:1569:7: warning: this function has too many lines (124/100)
+rust/tcl-lsp-server/src/original_document_metadata_tests.rs:1724:43: warning: calling `Range::default()` is more clear than this expression: help: try: `Range::default()`
+rust/tcl-lsp-server/src/original_document_metadata_tests.rs:1731:43: warning: calling `Range::default()` is more clear than this expression: help: try: `Range::default()`
+rust/tcl-lsp-server/src/original_document_metadata_tests.rs:1733:43: warning: calling `Range::default()` is more clear than this expression: help: try: `Range::default()`
+rust/tcl-lsp-server/src/original_document_metadata_tests.rs:227:20: warning: allocating a local array larger than 16384 bytes
+rust/tcl-lsp-server/src/original_document_metadata_tests.rs:36:10: warning: using `chunks_exact` with a constant chunk size: help: consider using `as_chunks` instead: `as_chunks::<5>().0.iter()`
+rust/tcl-lsp-server/src/original_document_metadata_tests.rs:510:22: warning: allocating a local array larger than 16384 bytes
+rust/tcl-lsp-server/src/original_document_metadata_tests.rs:598:5: warning: large future with a size of 20296 bytes
+rust/tcl-lsp-server/src/original_document_metadata_tests.rs:711:21: warning: allocating a local array larger than 16384 bytes
+rust/tcl-lsp-server/src/original_document_metadata_tests.rs:728:5: warning: adding items after statements is confusing, since items exist from the start of the scope
+rust/tcl-lsp-server/src/original_document_metadata_tests.rs:792:7: warning: this function has too many lines (125/100)
+rust/tcl-lsp-server/src/original_document_metadata_tests.rs:900:5: warning: adding items after statements is confusing, since items exist from the start of the scope
+rust/tcl-lsp-server/src/original_document_metadata_tests.rs:926:7: warning: this function has too many lines (107/100)
+rust/tcl-lsp-server/src/original_document_path_admission_tests.rs:191:5: warning: large future with a size of 21120 bytes
+rust/tcl-lsp-server/src/original_document_path_admission_tests.rs:310:9: warning: large future with a size of 20296 bytes
+rust/tcl-lsp-server/src/original_document_path_admission_tests.rs:31:24: warning: the borrowed expression implements the required traits: help: change this to: `std::env::temp_dir().join(name)`
+rust/tcl-lsp-server/src/original_document_path_admission_tests.rs:349:9: warning: large future with a size of 20296 bytes
+rust/tcl-lsp-server/src/original_document_path_admission_tests.rs:627:9: warning: large future with a size of 20296 bytes
+rust/tcl-lsp-server/src/package_source.rs:6:5: warning: usage of wildcard import: help: try: `super::{Backend, jsonrpc, document_transform, Arc, core_code_actions, Digest}`
+rust/tcl-lsp-server/src/proposal_diagnostics.rs:188:70: warning: this expression creates a reference which is immediately dereferenced by the compiler: help: change this to: `text`
+rust/tcl-lsp-server/src/proposal_diagnostics.rs:191:26: warning: this expression creates a reference which is immediately dereferenced by the compiler: help: change this to: `text`
+rust/tcl-lsp-server/src/proposal_diagnostics.rs:193:36: warning: this expression creates a reference which is immediately dereferenced by the compiler: help: change this to: `text`
+rust/tcl-lsp-server/src/proposal_diagnostics.rs:214:52: warning: deref which would be done by auto-deref: help: try: `&snapshot`
+rust/tcl-lsp-server/src/proposal_diagnostics.rs:268:48: warning: deref which would be done by auto-deref: help: try: `&snapshot`
+rust/tcl-lsp-server/src/proposal_diagnostics.rs:362:5: warning: this `let...else` may be rewritten with the `?` operator: help: replace it with: `let planned = planned?;`
+rust/tcl-lsp-server/src/provider_source.rs:113:9: warning: item in documentation is missing backticks
+rust/tcl-lsp-server/src/provider_source.rs:276:5: warning: this function has too many lines (116/100)
+rust/tcl-lsp-server/src/provider_source.rs:423:66: warning: item in documentation is missing backticks
+rust/tcl-lsp-server/src/provider_source.rs:623:22: warning: cloning an `Option<_>` using `.as_ref().cloned()`
+rust/tcl-lsp-server/src/provider_source.rs:7:5: warning: usage of wildcard import: help: try: `super::{Arc, HashMap, Uri, Backend, FutureExt, TrackedMutex, Mutex, vfs, PublishedSourcePaths, HashSet, NonAsciiMode, ResourceAnalyserInputs, Path, Analyser, DocumentPathAdmission, AnalysisResult, PathBuf, Digest, PackageResolver, PublishedSourcePath, RwLock, longest_folder_match}`
+rust/tcl-lsp-server/src/provider_source/tests.rs:259:7: warning: this function has too many lines (111/100)
+rust/tcl-lsp-server/src/provider_source/tests.rs:517:13: warning: large future with a size of 33744 bytes: help: consider `Box::pin` on it: `Box::pin(compute_base_analysis(&backend.client, &ctx, &disabled, &extra, mode, &recovery))`
+rust/tcl-lsp-server/src/provider_source/tests.rs:88:7: warning: this function has too many lines (102/100)
+rust/tcl-lsp-server/src/readonly_reference_reports.rs:1066:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/readonly_reference_reports.rs:1130:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/readonly_reference_reports.rs:1151:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/readonly_reference_reports.rs:1194:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/readonly_reference_reports.rs:1285:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/readonly_reference_reports.rs:1326:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/readonly_reference_reports.rs:1391:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/readonly_reference_reports.rs:1454:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/readonly_reference_reports.rs:1491:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/readonly_reference_reports.rs:1508:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/readonly_reference_reports.rs:1522:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/readonly_reference_reports.rs:1559:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/readonly_reference_reports.rs:1623:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/readonly_reference_reports.rs:1662:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/readonly_reference_reports.rs:1685:46: warning: item in documentation is missing backticks
+rust/tcl-lsp-server/src/readonly_reference_reports.rs:1692:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/readonly_reference_reports.rs:1772:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/readonly_reference_reports.rs:186:14: warning: this argument is passed by value, but not consumed in the function body
+rust/tcl-lsp-server/src/readonly_reference_reports.rs:2264:44: warning: calling `WorkDoneProgressParams::default()` is more clear than this expression: help: try: `WorkDoneProgressParams::default()`
+rust/tcl-lsp-server/src/readonly_reference_reports.rs:2265:40: warning: calling `PartialResultParams::default()` is more clear than this expression: help: try: `PartialResultParams::default()`
+rust/tcl-lsp-server/src/readonly_reference_reports.rs:2316:44: warning: calling `WorkDoneProgressParams::default()` is more clear than this expression: help: try: `WorkDoneProgressParams::default()`
+rust/tcl-lsp-server/src/readonly_reference_reports.rs:2317:40: warning: calling `PartialResultParams::default()` is more clear than this expression: help: try: `PartialResultParams::default()`
+rust/tcl-lsp-server/src/readonly_reference_reports.rs:3100:44: warning: calling `WorkDoneProgressParams::default()` is more clear than this expression: help: try: `WorkDoneProgressParams::default()`
+rust/tcl-lsp-server/src/readonly_reference_reports.rs:3101:40: warning: calling `PartialResultParams::default()` is more clear than this expression: help: try: `PartialResultParams::default()`
+rust/tcl-lsp-server/src/readonly_reference_reports.rs:3156:54: warning: long literal lacking separators: help: consider: `18_446_744_073_709_551_615_u64`
+rust/tcl-lsp-server/src/readonly_reference_reports.rs:3337:44: warning: calling `WorkDoneProgressParams::default()` is more clear than this expression: help: try: `WorkDoneProgressParams::default()`
+rust/tcl-lsp-server/src/readonly_reference_reports.rs:3338:40: warning: calling `PartialResultParams::default()` is more clear than this expression: help: try: `PartialResultParams::default()`
+rust/tcl-lsp-server/src/readonly_reference_reports.rs:3572:44: warning: calling `WorkDoneProgressParams::default()` is more clear than this expression: help: try: `WorkDoneProgressParams::default()`
+rust/tcl-lsp-server/src/readonly_reference_reports.rs:3573:40: warning: calling `PartialResultParams::default()` is more clear than this expression: help: try: `PartialResultParams::default()`
+rust/tcl-lsp-server/src/readonly_reference_reports.rs:3585:11: warning: this function has too many lines (129/100)
+rust/tcl-lsp-server/src/readonly_reference_reports.rs:368:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/readonly_reference_reports.rs:3815:44: warning: calling `WorkDoneProgressParams::default()` is more clear than this expression: help: try: `WorkDoneProgressParams::default()`
+rust/tcl-lsp-server/src/readonly_reference_reports.rs:3816:40: warning: calling `PartialResultParams::default()` is more clear than this expression: help: try: `PartialResultParams::default()`
+rust/tcl-lsp-server/src/readonly_reference_reports.rs:42:22: warning: item in documentation is missing backticks
+rust/tcl-lsp-server/src/readonly_reference_reports.rs:437:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/readonly_reference_reports.rs:460:39: warning: the `Err`-variant returned from this closure is very large
+rust/tcl-lsp-server/src/readonly_reference_reports.rs:488:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/readonly_reference_reports.rs:531:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/readonly_reference_reports.rs:558:63: warning: cloning an `Option<_>` using `.as_ref().cloned()`
+rust/tcl-lsp-server/src/readonly_reference_reports.rs:569:43: warning: the `Err`-variant returned from this closure is very large
+rust/tcl-lsp-server/src/readonly_reference_reports.rs:574:56: warning: cloning an `Option<_>` using `.as_ref().cloned()`
+rust/tcl-lsp-server/src/readonly_reference_reports.rs:601:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/readonly_reference_reports.rs:632:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/readonly_reference_reports.rs:657:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/readonly_reference_reports.rs:689:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/readonly_reference_reports.rs:723:17: warning: matching over `()` is more explicit: help: use `()` instead of `_`: `()`
+rust/tcl-lsp-server/src/readonly_reference_reports.rs:748:5: warning: this function has too many lines (105/100)
+rust/tcl-lsp-server/src/readonly_reference_reports.rs:759:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/readonly_reference_reports.rs:885:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/readonly_reference_reports.rs:903:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/readonly_reference_reports.rs:940:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/readonly_reference_reports.rs:990:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/recovery_source.rs:119:17: warning: assigning the result of `ToOwned::to_owned()` may be inefficient: help: use `clone_into()`: `dialect.name.clone_into(&mut refused.dialect)`
+rust/tcl-lsp-server/src/recovery_source.rs:136:46: warning: cloning an `Option<_>` using `.as_ref().cloned()`
+rust/tcl-lsp-server/src/recovery_source.rs:7:5: warning: usage of wildcard import: help: try: `super::{provider_source, Arc, Mutex, CommandRegistry, TrackedRwLock, core_workspace_index, RwLock, PackageResolver, PathBuf, FutureExt, HashSet, Client, SalsaAnalysisCtx, NonAsciiMode, PreparedCompletenessInput, ControlFlow, AnalysisResult, ResourceAnalyserInputs, Backend, with_pack_hooks, report_analysis_worker_panic, Digest, Path, defined_original_commands_from_analysis}`
+rust/tcl-lsp-server/src/recovery_source/tests.rs:174:20: warning: large future with a size of 34200 bytes: help: consider `Box::pin` on it: `Box::pin(recover(&backend, &uri, source))`
+rust/tcl-lsp-server/src/recovery_source/tests.rs:188:5: warning: large future with a size of 34200 bytes: help: consider `Box::pin` on it: `Box::pin(recover(&backend, &uri, source))`
+rust/tcl-lsp-server/src/recovery_source/tests.rs:194:21: warning: large future with a size of 34160 bytes: help: consider `Box::pin` on it: `Box::pin(recover_for_input(&backend, &uri, source, false))`
+rust/tcl-lsp-server/src/recovery_source/tests.rs:214:5: warning: large future with a size of 34200 bytes: help: consider `Box::pin` on it: `Box::pin(recover(&backend, &uri, source))`
+rust/tcl-lsp-server/src/recovery_source/tests.rs:223:23: warning: large future with a size of 34200 bytes: help: consider `Box::pin` on it: `Box::pin(recover(&backend, &uri, source))`
+rust/tcl-lsp-server/src/recovery_source/tests.rs:246:5: warning: large future with a size of 34280 bytes: help: consider `Box::pin` on it: `Box::pin(assert_unavailable_caller(&backend, &uri, source))`
+rust/tcl-lsp-server/src/recovery_source/tests.rs:266:5: warning: large future with a size of 34200 bytes
+rust/tcl-lsp-server/src/recovery_source/tests.rs:277:5: warning: large future with a size of 34200 bytes
+rust/tcl-lsp-server/src/recovery_source/tests.rs:287:18: warning: large future with a size of 34200 bytes: help: consider `Box::pin` on it: `Box::pin(recover(&backend, &uri, "package require absent\nproc unfinished {"))`
+rust/tcl-lsp-server/src/recovery_source/tests.rs:293:19: warning: large future with a size of 34200 bytes
+rust/tcl-lsp-server/src/recovery_source/tests.rs:301:19: warning: large future with a size of 34200 bytes: help: consider `Box::pin` on it: `Box::pin(recover(&backend, &uri, "package require Tcl\nproc unfinished {"))`
+rust/tcl-lsp-server/src/recovery_source/tests.rs:318:19: warning: large future with a size of 34200 bytes: help: consider `Box::pin` on it: `Box::pin(recover(&backend, &uri, source))`
+rust/tcl-lsp-server/src/recovery_source/tests.rs:368:20: warning: allocating a local array larger than 16384 bytes
+rust/tcl-lsp-server/src/recovery_source/tests.rs:387:19: warning: large future with a size of 34200 bytes: help: consider `Box::pin` on it: `Box::pin(recover(backend, uri, source))`
+rust/tcl-lsp-server/src/recovery_source/tests.rs:476:13: warning: large future with a size of 34200 bytes: help: consider `Box::pin` on it: `Box::pin(recover(&backend, &uri, source))`
+rust/tcl-lsp-server/src/recovery_source/tests.rs:69:41: warning: large future with a size of 33744 bytes
+rust/tcl-lsp-server/src/recovery_source/tests.rs:9:5: warning: large future with a size of 34160 bytes: help: consider `Box::pin` on it: `Box::pin(recover_for_input(backend, uri, source, true))`
+rust/tcl-lsp-server/src/rewrite_wire.rs:103:23: warning: you seem to be trying to use `match` for destructuring a single pattern. Consider using `if let`
+rust/tcl-lsp-server/src/rewrite_wire.rs:7:5: warning: usage of wildcard import: help: try: `super::{Arc, DiagnosticPass, Uri, core_report, AnalysisResult, Digest, core_policy, HashMap, core_code_actions, FutureExt}`
+rust/tcl-lsp-server/src/studio_source.rs:1002:13: warning: large future with a size of 39480 bytes
+rust/tcl-lsp-server/src/studio_source.rs:1017:20: warning: large future with a size of 39480 bytes: help: consider `Box::pin` on it: `Box::pin(request(&backend, serde_json::json!({"operation":"publish","uri":uri,"lease":lease,"revision":2,"source":source})))`
+rust/tcl-lsp-server/src/studio_source.rs:1022:13: warning: large future with a size of 39480 bytes
+rust/tcl-lsp-server/src/studio_source.rs:1037:24: warning: large future with a size of 39480 bytes
+rust/tcl-lsp-server/src/studio_source.rs:1043:20: warning: large future with a size of 39480 bytes: help: consider `Box::pin` on it: `Box::pin(request(&backend, serde_json::json!({"operation":"publish","uri":uri,"lease":lease,"revision":1,"source":source})))`
+rust/tcl-lsp-server/src/studio_source.rs:1049:13: warning: large future with a size of 39480 bytes
+rust/tcl-lsp-server/src/studio_source.rs:239:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/studio_source.rs:256:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/studio_source.rs:366:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/studio_source.rs:386:56: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/studio_source.rs:423:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/studio_source.rs:570:9: warning: large future with a size of 39392 bytes
+rust/tcl-lsp-server/src/studio_source.rs:582:22: warning: large future with a size of 39480 bytes
+rust/tcl-lsp-server/src/studio_source.rs:614:21: warning: large future with a size of 39496 bytes: help: consider `Box::pin` on it: `Box::pin(acquire(&backend))`
+rust/tcl-lsp-server/src/studio_source.rs:619:20: warning: large future with a size of 39480 bytes: help: consider `Box::pin` on it: `Box::pin(request(&backend, serde_json::json!({"operation":"publish","uri":URI,"lease":lease,"revision":1,"source":"unwritten"})))`
+rust/tcl-lsp-server/src/studio_source.rs:623:20: warning: large future with a size of 39480 bytes: help: consider `Box::pin` on it: `Box::pin(request(&backend, serde_json::json!({"operation":"publish","uri":URI,"lease":lease,"revision":1,"source":SOURCE})))`
+rust/tcl-lsp-server/src/studio_source.rs:632:13: warning: large future with a size of 39480 bytes
+rust/tcl-lsp-server/src/studio_source.rs:652:20: warning: large future with a size of 39480 bytes: help: consider `Box::pin` on it: `Box::pin(request(&backend, serde_json::json!({"operation":"publish","uri":URI,"lease":lease,"revision":2,"source":SOURCE})))`
+rust/tcl-lsp-server/src/studio_source.rs:665:21: warning: large future with a size of 39496 bytes: help: consider `Box::pin` on it: `Box::pin(acquire(&backend))`
+rust/tcl-lsp-server/src/studio_source.rs:668:20: warning: large future with a size of 39480 bytes: help: consider `Box::pin` on it: `Box::pin(request(&backend, serde_json::json!({"operation":"publish","uri":URI,"lease":lease,"revision":1,"source":SOURCE})))`
+rust/tcl-lsp-server/src/studio_source.rs:672:13: warning: large future with a size of 39480 bytes
+rust/tcl-lsp-server/src/studio_source.rs:681:20: warning: large future with a size of 39480 bytes: help: consider `Box::pin` on it: `Box::pin(request(&backend, serde_json::json!({"operation":"publish","uri":URI,"lease":lease,"revision":2,"source":SOURCE})))`
+rust/tcl-lsp-server/src/studio_source.rs:689:21: warning: large future with a size of 39496 bytes: help: consider `Box::pin` on it: `Box::pin(acquire(&backend))`
+rust/tcl-lsp-server/src/studio_source.rs:693:13: warning: large future with a size of 39480 bytes: help: consider `Box::pin` on it: `Box::pin(request(&publishing, serde_json::json!({"operation":"publish","uri":URI,"lease":lease,"revision":1,"source":SOURCE})))`
+rust/tcl-lsp-server/src/studio_source.rs:726:21: warning: large future with a size of 39496 bytes: help: consider `Box::pin` on it: `Box::pin(acquire(&backend))`
+rust/tcl-lsp-server/src/studio_source.rs:730:13: warning: large future with a size of 39392 bytes
+rust/tcl-lsp-server/src/studio_source.rs:770:25: warning: large future with a size of 39496 bytes: help: consider `Box::pin` on it: `Box::pin(acquire(&old))`
+rust/tcl-lsp-server/src/studio_source.rs:771:25: warning: large future with a size of 39496 bytes: help: consider `Box::pin` on it: `Box::pin(acquire(&new))`
+rust/tcl-lsp-server/src/studio_source.rs:774:20: warning: large future with a size of 39480 bytes: help: consider `Box::pin` on it: `Box::pin(request(&new, serde_json::json!({"operation":"publish","uri":URI,"lease":new_lease,"revision":1,"source":SOURCE})))`
+rust/tcl-lsp-server/src/studio_source.rs:775:20: warning: large future with a size of 39480 bytes: help: consider `Box::pin` on it: `Box::pin(request(&new, serde_json::json!({"operation":"publish","uri":URI,"lease":old_lease,"revision":2,"source":SOURCE})))`
+rust/tcl-lsp-server/src/studio_source.rs:777:13: warning: large future with a size of 39480 bytes
+rust/tcl-lsp-server/src/studio_source.rs:792:21: warning: large future with a size of 39496 bytes: help: consider `Box::pin` on it: `Box::pin(acquire(&backend))`
+rust/tcl-lsp-server/src/studio_source.rs:793:20: warning: large future with a size of 39480 bytes: help: consider `Box::pin` on it: `Box::pin(request(&backend, serde_json::json!({"operation":"publish","uri":URI,"lease":lease,"revision":1,"source":SOURCE})))`
+rust/tcl-lsp-server/src/studio_source.rs:7:5: warning: usage of wildcard import: help: try: `super::{Uri, Digest, Arc, DocumentPathAdmission, HashMap, FutureExt, vfs, DocumentSourceResult, DocumentSourceUnavailable, uri_norm, Path, PathBuf, Backend, jsonrpc, ReloadTrigger}`
+rust/tcl-lsp-server/src/studio_source.rs:803:13: warning: large future with a size of 39480 bytes
+rust/tcl-lsp-server/src/studio_source.rs:811:27: warning: large future with a size of 39496 bytes: help: consider `Box::pin` on it: `Box::pin(acquire(&backend))`
+rust/tcl-lsp-server/src/studio_source.rs:812:20: warning: large future with a size of 39480 bytes: help: consider `Box::pin` on it: `Box::pin(request(&backend, serde_json::json!({"operation":"publish","uri":URI,"lease":replacement,"revision":1,"source":SOURCE})))`
+rust/tcl-lsp-server/src/studio_source.rs:821:21: warning: large future with a size of 39496 bytes: help: consider `Box::pin` on it: `Box::pin(acquire(&backend))`
+rust/tcl-lsp-server/src/studio_source.rs:822:20: warning: large future with a size of 39480 bytes: help: consider `Box::pin` on it: `Box::pin(request(&backend, serde_json::json!({"operation":"publish","uri":URI,"lease":lease,"revision":1,"source":SOURCE})))`
+rust/tcl-lsp-server/src/studio_source.rs:827:13: warning: large future with a size of 39480 bytes
+rust/tcl-lsp-server/src/studio_source.rs:865:19: warning: large future with a size of 39496 bytes: help: consider `Box::pin` on it: `Box::pin(acquire(&backend))`
+rust/tcl-lsp-server/src/studio_source.rs:867:23: warning: large future with a size of 39496 bytes: help: consider `Box::pin` on it: `Box::pin(acquire(&backend))`
+rust/tcl-lsp-server/src/studio_source.rs:868:20: warning: large future with a size of 39480 bytes: help: consider `Box::pin` on it: `Box::pin(request(&backend, serde_json::json!({"operation":"publish","uri":URI,"lease":old,"revision":1,"source":SOURCE})))`
+rust/tcl-lsp-server/src/studio_source.rs:869:20: warning: large future with a size of 39480 bytes: help: consider `Box::pin` on it: `Box::pin(request(&backend, serde_json::json!({"operation":"publish","uri":URI,"lease":current,"revision":2,"source":SOURCE})))`
+rust/tcl-lsp-server/src/studio_source.rs:870:20: warning: large future with a size of 39480 bytes: help: consider `Box::pin` on it: `Box::pin(request(&backend, serde_json::json!({"operation":"publish","uri":URI,"lease":current,"revision":1,"source":SOURCE})))`
+rust/tcl-lsp-server/src/studio_source.rs:875:13: warning: large future with a size of 39480 bytes
+rust/tcl-lsp-server/src/studio_source.rs:883:13: warning: large future with a size of 39480 bytes
+rust/tcl-lsp-server/src/studio_source.rs:964:9: warning: large future with a size of 39392 bytes
+rust/tcl-lsp-server/src/studio_source.rs:990:24: warning: large future with a size of 39480 bytes
+rust/tcl-lsp-server/src/studio_source.rs:997:20: warning: large future with a size of 39480 bytes: help: consider `Box::pin` on it: `Box::pin(request(&backend, serde_json::json!({"operation":"publish","uri":uri,"lease":lease,"revision":1,"source":source})))`
+rust/tcl-lsp-server/src/uri_norm.rs:307:8: warning: this boolean expression can be simplified
+rust/tcl-lsp-server/src/workspace_diagnostic_sources.rs:169:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/src/workspace_diagnostic_sources.rs:21:5: warning: usage of wildcard import: help: try: `super::{core_workspace_index, Uri, DocumentState, Arc, DocumentPathAdmission, HashMap, PublishedSourcePath, vfs, DiagnosticUnavailable, Digest, DocumentPublication, DocumentSourceResult, FutureExt, DocumentSourceUnavailable}`
+rust/tcl-lsp-server/src/workspace_diagnostic_sources.rs:231:10: warning: the `Err`-variant returned from this function is very large
+rust/tcl-lsp-server/tests/preview_tickets_e2e.rs:312:24: warning: this boolean expression can be simplified

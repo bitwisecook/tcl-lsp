@@ -1,0 +1,8 @@
+test corpus_watchdog_scales_with_work_requested ... ok
+test a_hostile_pack_degrades_to_abstention_and_never_hangs ... FAILED
+test shared_analysis_fallbacks_are_never_silent ... ok
+test shared_unit_matches_legacy_for_representative_profiles ... ok
+test every_shipped_tclspec_loads_installs_and_analyses_against_corpus ... FAILED
+thread 'a_hostile_pack_degrades_to_abstention_and_never_hangs' (28258) panicked at rust/tcl-spectcl/tests/spec_corpus.rs:1792:5:
+thread 'every_shipped_tclspec_loads_installs_and_analyses_against_corpus' (28261) panicked at rust/tcl-spectcl/tests/spec_corpus.rs:1538:13:
+test result: FAILED. 3 passed; 2 failed; 0 ignored; 0 measured; 0 filtered out; finished in 600.03s

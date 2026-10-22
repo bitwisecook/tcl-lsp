@@ -1,0 +1,28 @@
+
+running 1 test
+test tests::workspace_class_cache_key_covers_bare_word_and_factory_oracles ... FAILED
+
+failures:
+
+---- tests::workspace_class_cache_key_covers_bare_word_and_factory_oracles stdout ----
+
+thread 'tests::workspace_class_cache_key_covers_bare_word_and_factory_oracles' (7622) panicked at rust/tcl-lsp-server/src/lib.rs:52962:9:
+assertion `left != right` failed
+  left: (11509258298736317618, 13434062293867366480, 0, 9886797495896358906)
+ right: (11509258298736317618, 13434062293867366480, 0, 9886797495896358906)
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<(u64, u64, u64, u64), (u64, u64, u64, u64)>
+   4: tcl_lsp_server::tests::workspace_class_cache_key_covers_bare_word_and_factory_oracles
+   5: tcl_lsp_server::tests::workspace_class_cache_key_covers_bare_word_and_factory_oracles::{closure#0}
+   6: <tcl_lsp_server::tests::workspace_class_cache_key_covers_bare_word_and_factory_oracles::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+
+failures:
+    tests::workspace_class_cache_key_covers_bare_word_and_factory_oracles
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 839 filtered out; finished in 7.45s
+

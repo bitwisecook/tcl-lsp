@@ -1,0 +1,5 @@
+== spectcl jim
+    a_jim_document_resolves_every_declared_command
+test result: FAILED. 10 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.17s
+== registry repeated/upvar/frame
+test result: ok. 33 passed; 0 failed; 0 ignored; 0 measured; 1845 filtered out; finished in 0.07s

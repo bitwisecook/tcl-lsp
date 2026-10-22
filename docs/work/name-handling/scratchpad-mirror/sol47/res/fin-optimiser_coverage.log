@@ -1,0 +1,208 @@
+test a_catch_result_variable_holds_no_integer_to_shimmer ... ok
+test a_proc_shadowing_a_builtin_is_never_folded_with_builtin_semantics ... FAILED
+test a_shadowed_builtin_value_is_not_published_into_strings_or_branches ... FAILED
+test a_shadowed_append_or_lappend_stops_the_write_chain_fold ... FAILED
+test apply_optimisations_edge_cases ... FAILED
+test cross_event_dse_guardrails ... ok
+test demorgan_logic_via_o110 ... FAILED
+test edge_cases_loops_and_namespaces ... FAILED
+test invert_logic_covers_tip461_and_membership_operators ... FAILED
+test invert_logic_via_o110 ... FAILED
+test legacy_gvn_cse_detection ... FAILED
+test o100_branch_condition_propagation_blocks_on_variable_trace ... ok
+test o100_constant_propagation ... FAILED
+test o100_o105_const_ref_propagation ... FAILED
+test o101_constant_folding_arithmetic ... FAILED
+test o101_constant_folding_bitwise_and_compare ... FAILED
+test o101_constant_folding_ternary_unary_logical ... FAILED
+test edge_cases_no_crash ... ok
+test o101_dialect_octal_arithmetic ... FAILED
+test o101_expr_redefinition_guard ... FAILED
+test o101_mathfunc_redefinition_guard ... FAILED
+test o101_global_write_across_call_guard ... FAILED
+test o102_abbreviated_trace_add_variable_blocks_forward ... ok
+test o101_module_wide_variable_trace_guard ... FAILED
+test o102_alias_baked_set_target_kills_the_stale_global ... ok
+test o102_alias_to_uplevel_uses_its_prepended_caller_level ... ok
+test o102_expr_command_substitution ... FAILED
+test o102_interp_eval_self_target_barrier_blocks_forward ... ok
+test o102_legacy_trace_variable_form_blocks_forward ... ok
+test o102_pure_intervening_call_is_still_forwarded ... FAILED
+test o102_read_trace_installed_before_def_blocks_forward ... ok
+test o102_side_effecting_intervening_call_is_still_forwarded ... FAILED
+test o102_sub_interpreter_isolation_no_longer_over_blocked ... FAILED
+test o102_read_trace_via_helper_proc_blocks_forward ... ok
+test o102_unregistered_proc_call_between_def_and_use_still_forwards ... FAILED
+test o102_uplevel_hash_zero_dynamic_script_widens_every_global ... ok
+test o102_uplevel_hash_zero_embedded_substitution_widens_too ... ok
+test o102_uplevel_hash_zero_in_called_proc_kills_the_stale_global ... ok
+test o102_uplevel_hash_zero_list_built_script_kills_the_stale_global ... ok
+test o102_transitive_trace_taint_through_expr_blocks_forward ... ok
+test o102_uplevel_hash_zero_non_writing_script_still_forwards ... FAILED
+test o102_uplevel_hash_zero_through_a_call_chain_kills_the_stale_global ... ok
+test o102_uplevel_hash_zero_unrelated_global_still_forwards ... ok
+test o102_upvar_aliased_variable_blocks_forward ... ok
+test o102_upvar_dynamic_local_alias_blocks_forward ... ok
+test o102_upvar_dynamic_local_alias_does_not_block_unrelated_forward ... ok
+test o102_upvar_dynamic_local_alias_param_source_blocks_forward ... ok
+test o102_upvar_zero_dynamic_local_is_callee_own_frame_and_still_forwards ... ok
+test o102_write_trace_mutating_value_blocks_forward ... ok
+test o103_alias_resolved_proc_replacement_is_not_folded_as_the_original ... ok
+test o103_interprocedural_folding ... FAILED
+test o104_string_build_chain ... FAILED
+test o107_dead_code_in_false_branch ... ok
+test o107_dead_code_elimination_of_unreachable_branch ... ok
+test o107_dynamic_variable_trace_target_blocks_elimination ... ok
+test o107_false_positive_guard_unrelated_variable_name_still_eliminated ... FAILED
+test o107_true_positive_untraced_branch_still_eliminated ... FAILED
+test o109_dead_store_elimination ... FAILED
+test o108_aggressive_dce ... FAILED
+test o110_de_morgan ... FAILED
+test o110_logical_identities ... FAILED
+test o110_identity_and_annihilator ... FAILED
+test o110_no_instcombine_with_command_subst ... ok
+test o110_self_comparison_tautologies ... FAILED
+test o110_reassociation ... FAILED
+test o110_ternary_and_double_not ... FAILED
+test o110_unary_and_not_inversions ... FAILED
+test o112_constant_branch_elimination_blocks_on_variable_trace ... ok
+test o112_if_elimination ... FAILED
+test o112_nested_via_multipass ... ok
+test o112_switch_elimination ... ok
+test o112_while_for_elimination ... FAILED
+test o113_strength_reduction ... FAILED
+test o110_whitespace_noise_suppressed ... FAILED
+test o115_nested_expr_unwrap ... FAILED
+test o114_incr_idiom ... FAILED
+test o117_strlen_zero_check ... FAILED
+test o116_list_folding ... FAILED
+test o118_lindex_folding ... FAILED
+test o120_string_compare_eq_ne ... FAILED
+test o120_with_sccp_const_and_mixed ... FAILED
+test o124_unused_irule_procs ... FAILED
+test o119_multi_set_packing ... FAILED
+test o125_code_sinking ... FAILED
+test pass_interactions ... FAILED
+test o127_load_forwarding ... FAILED
+test profile_directive_and_multipass ... FAILED
+test shimmer_loop_paths_no_crash ... ok
+test robustness_malformed_inputs ... ok
+test shimmer_string_in_numeric_context_s100 ... FAILED
+test shimmer_no_false_positives ... ok
+test tail_call_o121_o122_o123 ... FAILED
+test variable_shape_guardrails ... ok
+---- a_proc_shadowing_a_builtin_is_never_folded_with_builtin_semantics stdout ----
+thread 'a_proc_shadowing_a_builtin_is_never_folded_with_builtin_semantics' (14297) panicked at rust/tcl-compiler/tests/optimiser_coverage.rs:2453:5:
+---- a_shadowed_builtin_value_is_not_published_into_strings_or_branches stdout ----
+thread 'a_shadowed_builtin_value_is_not_published_into_strings_or_branches' (14301) panicked at rust/tcl-compiler/tests/optimiser_coverage.rs:2471:5:
+---- a_shadowed_append_or_lappend_stops_the_write_chain_fold stdout ----
+thread 'a_shadowed_append_or_lappend_stops_the_write_chain_fold' (14298) panicked at rust/tcl-compiler/tests/optimiser_coverage.rs:2530:5:
+---- apply_optimisations_edge_cases stdout ----
+thread 'apply_optimisations_edge_cases' (14303) panicked at rust/tcl-compiler/tests/optimiser_coverage.rs:1894:5:
+---- demorgan_logic_via_o110 stdout ----
+thread 'demorgan_logic_via_o110' (14305) panicked at rust/tcl-compiler/tests/optimiser_coverage.rs:1841:5:
+---- edge_cases_loops_and_namespaces stdout ----
+thread 'edge_cases_loops_and_namespaces' (14306) panicked at rust/tcl-compiler/tests/optimiser_coverage.rs:2124:5:
+---- invert_logic_covers_tip461_and_membership_operators stdout ----
+thread 'invert_logic_covers_tip461_and_membership_operators' (14309) panicked at rust/tcl-compiler/tests/optimiser_coverage.rs:1876:5:
+---- invert_logic_via_o110 stdout ----
+thread 'invert_logic_via_o110' (14310) panicked at rust/tcl-compiler/tests/optimiser_coverage.rs:1852:5:
+---- legacy_gvn_cse_detection stdout ----
+thread 'legacy_gvn_cse_detection' (14311) panicked at rust/tcl-compiler/tests/optimiser_coverage.rs:2041:5:
+---- o100_constant_propagation stdout ----
+thread 'o100_constant_propagation' (14314) panicked at rust/tcl-compiler/tests/optimiser_coverage.rs:178:5:
+---- o100_o105_const_ref_propagation stdout ----
+thread 'o100_o105_const_ref_propagation' (14315) panicked at rust/tcl-compiler/tests/optimiser_coverage.rs:1058:5:
+---- o101_constant_folding_arithmetic stdout ----
+thread 'o101_constant_folding_arithmetic' (14316) panicked at rust/tcl-compiler/tests/optimiser_coverage.rs:225:5:
+---- o101_constant_folding_bitwise_and_compare stdout ----
+thread 'o101_constant_folding_bitwise_and_compare' (14318) panicked at rust/tcl-compiler/tests/optimiser_coverage.rs:239:5:
+---- o101_constant_folding_ternary_unary_logical stdout ----
+thread 'o101_constant_folding_ternary_unary_logical' (14320) panicked at rust/tcl-compiler/tests/optimiser_coverage.rs:252:5:
+---- o101_dialect_octal_arithmetic stdout ----
+thread 'o101_dialect_octal_arithmetic' (14321) panicked at rust/tcl-compiler/tests/optimiser_coverage.rs:274:5:
+---- o101_expr_redefinition_guard stdout ----
+thread 'o101_expr_redefinition_guard' (14322) panicked at rust/tcl-compiler/tests/optimiser_coverage.rs:302:5:
+---- o101_mathfunc_redefinition_guard stdout ----
+thread 'o101_mathfunc_redefinition_guard' (14325) panicked at rust/tcl-compiler/tests/optimiser_coverage.rs:321:5:
+---- o101_global_write_across_call_guard stdout ----
+thread 'o101_global_write_across_call_guard' (14324) panicked at rust/tcl-compiler/tests/optimiser_coverage.rs:343:5:
+---- o101_module_wide_variable_trace_guard stdout ----
+thread 'o101_module_wide_variable_trace_guard' (14326) panicked at rust/tcl-compiler/tests/optimiser_coverage.rs:414:5:
+---- o102_expr_command_substitution stdout ----
+thread 'o102_expr_command_substitution' (14340) panicked at rust/tcl-compiler/tests/optimiser_coverage.rs:448:5:
+---- o102_pure_intervening_call_is_still_forwarded stdout ----
+thread 'o102_pure_intervening_call_is_still_forwarded' (14344) panicked at rust/tcl-compiler/tests/optimiser_coverage.rs:666:5:
+---- o102_side_effecting_intervening_call_is_still_forwarded stdout ----
+thread 'o102_side_effecting_intervening_call_is_still_forwarded' (14372) panicked at rust/tcl-compiler/tests/optimiser_coverage.rs:681:5:
+---- o102_sub_interpreter_isolation_no_longer_over_blocked stdout ----
+thread 'o102_sub_interpreter_isolation_no_longer_over_blocked' (14373) panicked at rust/tcl-compiler/tests/optimiser_coverage.rs:584:5:
+---- o102_unregistered_proc_call_between_def_and_use_still_forwards stdout ----
+thread 'o102_unregistered_proc_call_between_def_and_use_still_forwards' (14375) panicked at rust/tcl-compiler/tests/optimiser_coverage.rs:695:5:
+---- o102_uplevel_hash_zero_non_writing_script_still_forwards stdout ----
+thread 'o102_uplevel_hash_zero_non_writing_script_still_forwards' (14384) panicked at rust/tcl-compiler/tests/optimiser_coverage.rs:804:5:
+---- o103_interprocedural_folding stdout ----
+thread 'o103_interprocedural_folding' (14475) panicked at rust/tcl-compiler/tests/optimiser_coverage.rs:934:5:
+---- o104_string_build_chain stdout ----
+thread 'o104_string_build_chain' (14476) panicked at rust/tcl-compiler/tests/optimiser_coverage.rs:999:5:
+---- o107_false_positive_guard_unrelated_variable_name_still_eliminated stdout ----
+thread 'o107_false_positive_guard_unrelated_variable_name_still_eliminated' (14483) panicked at rust/tcl-compiler/tests/optimiser_coverage.rs:911:5:
+---- o107_true_positive_untraced_branch_still_eliminated stdout ----
+thread 'o107_true_positive_untraced_branch_still_eliminated' (14484) panicked at rust/tcl-compiler/tests/optimiser_coverage.rs:899:5:
+---- o109_dead_store_elimination stdout ----
+thread 'o109_dead_store_elimination' (14486) panicked at rust/tcl-compiler/tests/optimiser_coverage.rs:1154:5:
+---- o108_aggressive_dce stdout ----
+thread 'o108_aggressive_dce' (14485) panicked at rust/tcl-compiler/tests/optimiser_coverage.rs:1138:5:
+---- o110_de_morgan stdout ----
+thread 'o110_de_morgan' (14487) panicked at rust/tcl-compiler/tests/optimiser_coverage.rs:1399:5:
+---- o110_logical_identities stdout ----
+thread 'o110_logical_identities' (14490) panicked at rust/tcl-compiler/tests/optimiser_coverage.rs:1247:5:
+---- o110_identity_and_annihilator stdout ----
+thread 'o110_identity_and_annihilator' (14489) panicked at rust/tcl-compiler/tests/optimiser_coverage.rs:1223:5:
+---- o110_self_comparison_tautologies stdout ----
+thread 'o110_self_comparison_tautologies' (14494) panicked at rust/tcl-compiler/tests/optimiser_coverage.rs:1300:5:
+---- o110_reassociation stdout ----
+thread 'o110_reassociation' (14493) panicked at rust/tcl-compiler/tests/optimiser_coverage.rs:1194:5:
+---- o110_ternary_and_double_not stdout ----
+thread 'o110_ternary_and_double_not' (14496) panicked at rust/tcl-compiler/tests/optimiser_coverage.rs:1419:5:
+---- o110_unary_and_not_inversions stdout ----
+thread 'o110_unary_and_not_inversions' (14497) panicked at rust/tcl-compiler/tests/optimiser_coverage.rs:1354:5:
+---- o112_if_elimination stdout ----
+thread 'o112_if_elimination' (14502) panicked at rust/tcl-compiler/tests/optimiser_coverage.rs:1467:5:
+---- o112_while_for_elimination stdout ----
+thread 'o112_while_for_elimination' (14546) panicked at rust/tcl-compiler/tests/optimiser_coverage.rs:1502:5:
+---- o113_strength_reduction stdout ----
+thread 'o113_strength_reduction' (14548) panicked at rust/tcl-compiler/tests/optimiser_coverage.rs:1567:5:
+---- o110_whitespace_noise_suppressed stdout ----
+thread 'o110_whitespace_noise_suppressed' (14498) panicked at rust/tcl-compiler/tests/optimiser_coverage.rs:1286:5:
+---- o115_nested_expr_unwrap stdout ----
+thread 'o115_nested_expr_unwrap' (14558) panicked at rust/tcl-compiler/tests/optimiser_coverage.rs:1633:5:
+---- o114_incr_idiom stdout ----
+thread 'o114_incr_idiom' (14549) panicked at rust/tcl-compiler/tests/optimiser_coverage.rs:1595:5:
+---- o117_strlen_zero_check stdout ----
+thread 'o117_strlen_zero_check' (14560) panicked at rust/tcl-compiler/tests/optimiser_coverage.rs:1681:5:
+---- o116_list_folding stdout ----
+thread 'o116_list_folding' (14559) panicked at rust/tcl-compiler/tests/optimiser_coverage.rs:1656:5:
+---- o118_lindex_folding stdout ----
+thread 'o118_lindex_folding' (14561) panicked at rust/tcl-compiler/tests/optimiser_coverage.rs:1706:5:
+---- o120_string_compare_eq_ne stdout ----
+thread 'o120_string_compare_eq_ne' (14570) panicked at rust/tcl-compiler/tests/optimiser_coverage.rs:1780:5:
+---- o120_with_sccp_const_and_mixed stdout ----
+thread 'o120_with_sccp_const_and_mixed' (14573) panicked at rust/tcl-compiler/tests/optimiser_coverage.rs:1815:5:
+---- o124_unused_irule_procs stdout ----
+thread 'o124_unused_irule_procs' (14574) panicked at rust/tcl-compiler/tests/optimiser_coverage.rs:2154:5:
+---- o119_multi_set_packing stdout ----
+thread 'o119_multi_set_packing' (14562) panicked at rust/tcl-compiler/tests/optimiser_coverage.rs:1769:5:
+---- o125_code_sinking stdout ----
+thread 'o125_code_sinking' (14575) panicked at rust/tcl-compiler/tests/optimiser_coverage.rs:2241:5:
+---- pass_interactions stdout ----
+thread 'pass_interactions' (14577) panicked at rust/tcl-compiler/tests/optimiser_coverage.rs:2321:5:
+---- o127_load_forwarding stdout ----
+thread 'o127_load_forwarding' (14576) panicked at rust/tcl-compiler/tests/optimiser_coverage.rs:2270:5:
+---- profile_directive_and_multipass stdout ----
+thread 'profile_directive_and_multipass' (14578) panicked at rust/tcl-compiler/tests/optimiser_coverage.rs:2380:5:
+---- shimmer_string_in_numeric_context_s100 stdout ----
+thread 'shimmer_string_in_numeric_context_s100' (14586) panicked at rust/tcl-compiler/tests/optimiser_coverage.rs:2002:5:
+---- tail_call_o121_o122_o123 stdout ----
+thread 'tail_call_o121_o122_o123' (14589) panicked at rust/tcl-compiler/tests/optimiser_coverage.rs:2212:5:
+test result: FAILED. 36 passed; 57 failed; 0 ignored; 0 measured; 0 filtered out; finished in 49.43s

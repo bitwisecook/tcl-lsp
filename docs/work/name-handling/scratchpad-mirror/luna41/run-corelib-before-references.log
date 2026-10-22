@@ -1,0 +1,603 @@
+test references::configured_callback_variable_tests::actual_stored_callback_reference_uses_its_retained_brace_configuration ... FAILED
+test references::configured_callback_variable_tests::actual_callback_references_do_not_borrow_a_prefix_or_array_variable_name ... FAILED
+test references::constructed_compatibility_tests::constructed_reference_projection_keeps_colon_components_and_known_refusal ... ok
+test references::dispatch_region_census_tests::complete_children_include_variable_index_and_expression_commands ... ok
+test references::dispatch_region_census_tests::checked_census_distinguishes_empty_children_and_unavailable_source_phases ... ok
+test references::itcl_original_source_geometry_tests::itcl_proc_sites_keep_actual_quoted_and_braced_tail_geometry ... ok
+test references::itcl_original_source_geometry_tests::itcl_proc_sites_refuse_dynamic_expanded_foreign_and_missing_inputs ... ok
+test references::logical_class_selector_tests::captured_selectors_and_replaced_class_commands_have_no_written_selector_grant ... ok
+test references::logical_class_selector_tests::logical_class_selector_keeps_actual_alias_and_rename_source_lineage ... ok
+test references::logical_consumed_and_callback_reference_tests::consumed_alias_and_callback_receipts_keep_registration_horizon_and_known_barriers ... FAILED
+test references::logical_class_selector_tests::logical_selector_preserves_full_source_and_unicode_and_refuses_native_donation ... ok
+test references::logical_consumed_and_callback_reference_tests::logical_class_consumed_operands_and_callbacks_retain_actual_alias_history ... FAILED
+test references::logical_consumed_and_callback_reference_tests::source_consumed_names_and_callbacks_join_actual_headers_without_becoming_edits ... FAILED
+test references::logical_reference_source_owner_tests::logical_name_references_keep_source_headers_without_reporting_maps ... ok
+test references::logical_reference_source_owner_tests::logical_class_references_keep_actual_constructor_and_relation_operands ... FAILED
+test references::logical_consumed_and_callback_reference_tests::logical_probe_patterns_and_foreign_inputs_do_not_manufacture_selected_references ... ok
+test references::logical_reference_source_owner_tests::logical_reference_candidates_do_not_replace_missing_input_or_native_owners ... ok
+test references::member_metadata::tests::checked_member_hazards_keep_unknown_coverage_separate_from_partial_spans ... ok
+test references::member_metadata::tests::checked_member_hazards_refuse_fatal_member_tail_without_losing_prefix_spans ... ok
+test references::member_metadata::tests::member_hazards_refuse_stale_missing_and_unowned_class_metadata ... ok
+test references::member_metadata::tests::member_hazards_use_retained_custom_schema_and_nested_definition_vocabulary ... FAILED
+test references::original_highlight_selection_tests::original_highlights_preserve_opaque_declarations_and_whole_source_currency ... ok
+test references::original_highlight_selection_tests::original_method_reference_helpers_do_not_select_from_reporting_names ... ok
+test references::original_dispatch_parser_purpose_tests::original_dispatch_body_scans_keep_bom_content_and_selected_full_config ... ok
+test references::original_next_dispatch_context_tests::original_next_dispatch_withdraws_known_replacements_missing_and_foreign_source ... ok
+test references::tests::a_dynamic_ensemble_map_yields_no_call_site_reference_923_idx85 ... ok
+test references::member_metadata::tests::member_hazards_follow_original_configured_target_moves_and_captured_operands ... ok
+test references::original_next_dispatch_context_tests::original_next_dispatch_uses_selected_roles_captured_targets_and_actual_availability ... ok
+test references::tests::a_global_self_command_does_not_shadow_the_tcloo_method_helper ... FAILED
+test references::tests::a_live_mixin_branch_still_outranks_the_spine ... FAILED
+test references::tests::a_mixin_branch_can_revive_its_own_bases_unexported_member ... FAILED
+test references::tests::a_mixin_branch_decides_its_own_providers_visibility ... FAILED
+test references::tests::a_mixin_declared_on_a_superclass_governs_its_branch_too ... FAILED
+test references::tests::a_mixins_unexport_does_not_suppress_the_superclass_capture ... FAILED
+test references::tests::a_receiver_that_reexports_an_unexported_provider_resolves_both_ways ... FAILED
+test references::tests::a_receiver_that_unexports_the_inherited_name_abstains_both_ways ... ok
+test references::tests::a_shadowing_list_command_does_not_build_a_callback_reference ... ok
+test references::tests::an_overriding_receiver_keeps_its_callback_in_its_own_family ... FAILED
+test references::tests::bare_set_var_receiver_is_not_matched_without_dollar ... ok
+test references::tests::an_unrelated_class_does_not_collect_a_same_named_callback ... ok
+test references::tests::callback_cursor_classifier_reaches_constructor_and_destructor_bodies ... FAILED
+test references::tests::callback_cursor_classifier_rejects_ordinary_method_dispatches ... ok
+test references::tests::an_expanded_callback_word_invents_no_reference ... ok
+test references::tests::callback_source_roles_keep_actual_package_availability_in_the_same_store ... ok
+test references::tests::caller_frame_reference_component_keeps_retained_registry_and_input ... ok
+test references::tests::callback_source_roles_keep_actual_availability_and_original_builder_geometry ... FAILED
+test references::tests::case_list_aliases_use_positioned_resolved_registry_identity ... ok
+test references::tests::class_method_references_require_the_original_temporal_entry ... FAILED
+test references::tests::class_method_references_refuse_replacement_during_arguments ... ok
+test references::tests::composed_callback_prefix_tests::composed_callback_prefix_original_advice_keeps_builder_and_each_written_operand ... FAILED
+test references::tests::composed_callback_prefix_tests::composed_callback_prefix_original_context_withdraws_stale_source_and_configuration ... FAILED
+test references::tests::callback_source_targets_withdraw_known_shadows_and_incomplete_stored_writes ... ok
+test references::tests::composed_callback_prefix_tests::composed_callback_prefix_references_keep_public_and_private_original_selectors ... FAILED
+test references::tests::compound_list_built_self_word_is_not_the_spelled_method ... ok
+test references::tests::constructor_keyword_resolves_its_own_next_chain_even_with_a_same_named_method ... ok
+test references::tests::constructor_next_chain_reference_from_direct_subclass ... ok
+test references::tests::constructor_next_chain_reference_not_counted_without_next ... ok
+test references::tests::constructor_next_chain_reference_skips_non_overriding_subclass ... ok
+test references::tests::constructor_next_chain_reference_skips_ancestor_with_no_own_constructor ... ok
+test references::tests::constructor_next_chain_reference_via_braced_nextto_target ... ok
+test references::tests::constructor_next_chain_reference_via_nextto_explicit_target ... ok
+test references::tests::constructor_shadowed_by_a_later_redeclaration_has_no_references ... FAILED
+test references::tests::deferred_braced_self_script_is_not_a_method_reference ... ok
+test references::tests::destructor_next_chain_reference_from_direct_subclass ... ok
+test references::tests::deleted_or_rebound_case_list_aliases_do_not_expose_clause_bodies ... ok
+test references::tests::document_highlights_empty_for_unknown_symbol ... ok
+test references::tests::document_highlights_for_method_marks_decl_and_calls_text ... ok
+test references::tests::document_highlights_proc_decl_is_text ... ok
+test references::tests::document_highlights_var_read_kind_is_correctly_tagged ... ok
+test references::tests::document_highlights_surfaces_var_reads_from_arg_positions ... ok
+test references::tests::document_highlights_var_records_write_at_definition ... FAILED
+test references::tests::dynamic_list_built_self_method_remains_unresolved ... ok
+test references::tests::ensemble_abbreviated_dispatch_is_a_reference_to_the_target ... FAILED
+test references::tests::ensemble_subcommand_references_include_decl_and_both_call_sites ... FAILED
+test references::tests::expect_clause_flags_reach_each_clause_body ... FAILED
+test references::tests::ensemble_subcommand_references_reach_the_call_site_through_a_qualified_proc_923_idx85 ... FAILED
+test references::tests::explicitly_global_self_is_not_the_tcloo_method_helper ... ok
+test references::tests::find_obj_method_call_sites_covers_top_level_and_subst ... FAILED
+test references::tests::find_obj_method_call_sites_excludes_non_inheriting_self_method_subclass ... FAILED
+test references::tests::find_obj_method_call_sites_excludes_var_receivers_across_a_frame_shift ... FAILED
+test references::tests::find_obj_method_call_sites_finds_calls_in_proc_body ... FAILED
+test references::tests::find_obj_method_call_sites_matches_bare_created_instance_command ... FAILED
+test references::tests::find_obj_method_call_sites_matches_class_command_and_inheriting_subclass ... FAILED
+test references::tests::find_obj_method_call_sites_skips_escaped_lambda_body_element ... ok
+test references::tests::find_obj_method_call_sites_reaches_lambda_and_namespace_eval_bodies ... FAILED
+test references::tests::idx63_two_block_class_my_dispatch_already_fixed_by_idx52 ... FAILED
+test references::tests::inert_list_built_self_value_is_not_a_method_reference ... ok
+test references::tests::inherited_callback_abstains_without_effective_receiver_visibility ... ok
+test references::tests::inherited_callback_joins_the_providers_reference_set ... FAILED
+test references::tests::inline_expect_clause_flags_reach_each_clause_body ... ok
+test references::tests::instance_method_references_require_the_retained_head_object ... FAILED
+test references::tests::list_built_self_callback_cannot_reach_an_unexported_method ... ok
+test references::tests::instance_method_references_refuse_mutated_dispatch_and_nominal_decoys ... ok
+test references::tests::malformed_case_lists_do_not_expose_nested_dispatch_regions ... FAILED
+test references::tests::malformed_self_object_receiver_is_not_a_callback_reference ... ok
+test references::tests::loaded_terminal_can_report_an_external_call_without_local_edit_authority ... FAILED
+test references::tests::method_dispatch_scan_uses_retained_custom_schema_and_script_purpose ... ok
+test references::tests::method_source_dispatch_keeps_actual_store_availability_and_lookup_barriers ... FAILED
+test references::tests::method_references_include_next_dispatch ... FAILED
+test references::tests::composed_callback_prefix_tests::composed_callback_prefix_stored_sink_withdraws_unknown_and_opaque_writers ... ok
+test references::tests::prefixless_ensemble_abbreviation_is_not_a_reference ... ok
+test references::tests::qualified_tcloo_self_helper_builds_the_same_callback ... FAILED
+test references::tests::references_do_not_conflate_unrelated_same_named_cells_in_different_namespaces ... ok
+test references::tests::references_do_not_include_the_renames_new_word ... FAILED
+test references::tests::references_do_not_resolve_an_unclosed_braced_instance_head ... FAILED
+test references::tests::references_do_not_include_unexported_sibling_wildcard_call_same_document ... ok
+test references::tests::references_enumerates_class_command_declaration_and_both_call_sites ... FAILED
+test references::tests::references_drop_a_call_after_a_namespace_forget ... FAILED
+test references::tests::references_drop_a_conflicting_unforced_imports_call_site ... ok
+test references::tests::references_exclude_a_top_level_bare_call_with_the_same_name_as_an_oo_helpers_proc ... ok
+test references::tests::references_exclude_decl_when_flag_false ... ok
+test references::tests::references_exclude_a_wildcard_imported_call_the_import_predates_the_export_of ... ok
+test references::tests::references_for_a_multi_list_foreach_second_varlist_now_reach_every_use ... FAILED
+test references::tests::references_for_method_excludes_decl_when_requested ... ok
+test references::tests::references_for_method_includes_decl_and_call_sites ... ok
+test references::tests::references_for_method_reach_a_my_dispatch_call_inside_a_switch_arm ... FAILED
+test references::tests::references_from_catch_resultvar_bareword_include_the_original_declaration ... ok
+test references::tests::references_for_method_includes_one_hop_stored_callback_prefixes ... FAILED
+test references::tests::references_from_cursor_on_class_command_call_site ... ok
+test references::tests::references_from_cursor_on_bare_obj_command_call_site ... ok
+test references::tests::references_from_decl_reach_a_list_built_self_callback ... FAILED
+test references::tests::references_from_decl_reach_my_dispatch_when_class_extended_via_separate_oo_define ... FAILED
+test references::tests::references_from_decl_reach_a_self_bracket_dispatch_call_site ... FAILED
+test references::tests::references_from_inside_class_includes_external_sites ... ok
+test references::tests::references_from_external_obj_method_site ... ok
+test references::tests::references_from_in_proc_global_alias_reach_the_callers_canonical_set ... ok
+test references::tests::references_from_opt_proc_declaration_reach_the_call_site ... FAILED
+test references::tests::references_from_proc_param_bareword_declaration_include_every_use ... ok
+test references::tests::references_from_the_callers_canonical_set_reach_the_in_proc_global_alias ... ok
+test references::tests::references_include_a_forced_imports_call_site ... FAILED
+test references::tests::references_include_a_call_through_an_import_chain ... FAILED
+test references::tests::references_include_bare_created_instance_command_site ... ok
+test references::tests::references_include_bare_call_to_a_proc_installed_into_oo_helpers ... FAILED
+test references::tests::references_include_the_renames_own_old_word ... FAILED
+test references::tests::references_include_unbraced_if_body_bareword_call ... FAILED
+test references::tests::references_include_unbraced_uplevel_body_bareword_call ... FAILED
+test references::tests::references_include_wildcard_imported_bareword_call_same_document ... ok
+test references::tests::references_reach_a_list_built_self_after_callback ... FAILED
+test references::tests::references_keep_a_wildcard_imported_call_after_a_later_export_clear ... FAILED
+test references::tests::references_reach_a_list_built_self_command_prefix ... FAILED
+test references::tests::references_reach_a_list_built_self_object_callback ... FAILED
+test references::tests::references_reach_a_proc_dispatched_through_an_eval_of_a_list_computed_var ... FAILED
+test references::tests::references_reach_my_dispatch_inside_a_static_switch_alias ... ok
+test references::tests::references_reach_a_method_return_captured_dispatch_site ... ok
+test references::tests::references_reach_namespace_wrapped_my_callback_even_when_private ... FAILED
+test references::tests::references_reach_the_call_site_from_a_shadowed_duplicate_proc_decl_same_document ... FAILED
+test references::tests::references_reach_namespace_wrapped_self_callback_only_when_public ... FAILED
+test references::tests::references_resolve_a_constant_var_body_through_its_real_value_not_its_literal_text ... FAILED
+test references::tests::references_to_proc_include_decl_and_calls ... ok
+test references::tests::references_to_unknown_word_empty ... ok
+test references::tests::references_reach_the_call_site_from_the_stale_original_in_a_foreach_rename_reinstall_idiom ... FAILED
+test references::tests::references_to_var_includes_definition_and_uses ... FAILED
+test references::tests::references_unify_global_alias_and_canonical_set_when_the_set_is_unqualified ... ok
+test references::tests::resolved_qualified_name_field_populated_for_simple_call ... ok
+test references::tests::resolved_qualified_name_matches_call_site_from_namespace ... ok
+test references::tests::references_skip_a_same_named_untyped_variable_in_another_scope ... ok
+test references::tests::retained_alias_calls_do_not_become_target_rename_edits ... ok
+test references::tests::retained_builtin_wrapper_cannot_borrow_an_old_class_name ... ok
+test references::tests::retained_proc_redefinitions_keep_original_reference_sets_separate ... ok
+test references::tests::rooted_and_namespaced_case_list_aliases_expose_clause_bodies ... ok
+test references::tests::stale_instance_candidate_does_not_add_a_variable_method_reference ... ok
+test references::tests::shifted_dispatch_regions_follow_original_moves_and_known_source_barriers ... ok
+test references::tests::stored_callback_prefix_cursor_resolves_to_method_declaration ... FAILED
+test references::tests::stored_callback_prefixes_abstain_on_non_set_varwrite_reassignment ... ok
+test references::tests::retained_colon_procedure_does_not_reference_the_empty_name ... ok
+test references::tests::stored_callback_prefixes_abstain_on_qualified_and_aliased_variables ... ok
+test references::tests::stored_callback_prefixes_abstain_on_reassignment_and_dynamic_methods ... ok
+test references::tests::the_real_tcllib_callback_shapes_resolve_to_their_methods ... FAILED
+test references::tests::switch_braced_body_references_reach_nested_command ... FAILED
+test references::tests::wrapped_my_callback_cursor_resolves_private_dispatch ... FAILED
+test references::tests::stored_callback_prefixes_count_nested_same_frame_reassignment ... ok
+---- references::configured_callback_variable_tests::actual_stored_callback_reference_uses_its_retained_brace_configuration stdout ----
+thread 'references::configured_callback_variable_tests::actual_stored_callback_reference_uses_its_retained_brace_configuration' (11891) panicked at rust/tcl-lsp-core/src/references.rs:9393:9:
+assertion failed: has_stored_target(&source, &nested)
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- references::configured_callback_variable_tests::actual_callback_references_do_not_borrow_a_prefix_or_array_variable_name stdout ----
+
+thread 'references::configured_callback_variable_tests::actual_callback_references_do_not_borrow_a_prefix_or_array_variable_name' (11890) panicked at rust/tcl-lsp-core/src/references.rs:9413:13:
+${cbé}
+
+---- references::logical_consumed_and_callback_reference_tests::consumed_alias_and_callback_receipts_keep_registration_horizon_and_known_barriers stdout ----
+
+thread 'references::logical_consumed_and_callback_reference_tests::consumed_alias_and_callback_receipts_keep_registration_horizon_and_known_barriers' (12054) panicked at rust/tcl-lsp-core/src/references.rs:9626:14:
+called `Option::unwrap()` on a `None` value
+
+---- references::logical_consumed_and_callback_reference_tests::logical_class_consumed_operands_and_callbacks_retain_actual_alias_history stdout ----
+
+thread 'references::logical_consumed_and_callback_reference_tests::logical_class_consumed_operands_and_callbacks_retain_actual_alias_history' (12057) panicked at rust/tcl-lsp-core/src/references.rs:9644:9:
+assertion `left == right` failed
+  left: 1
+ right: 3
+
+---- references::logical_consumed_and_callback_reference_tests::source_consumed_names_and_callbacks_join_actual_headers_without_becoming_edits stdout ----
+
+thread 'references::logical_consumed_and_callback_reference_tests::source_consumed_names_and_callbacks_join_actual_headers_without_becoming_edits' (12061) panicked at rust/tcl-lsp-core/src/references.rs:9579:9:
+assertion `left == right` failed
+  left: 2
+ right: 3
+
+---- references::logical_reference_source_owner_tests::logical_class_references_keep_actual_constructor_and_relation_operands stdout ----
+
+thread 'references::logical_reference_source_owner_tests::logical_class_references_keep_actual_constructor_and_relation_operands' (12062) panicked at rust/tcl-lsp-core/src/references.rs:9534:9:
+assertion `left == right` failed
+  left: 0
+ right: 2
+
+---- references::member_metadata::tests::member_hazards_use_retained_custom_schema_and_nested_definition_vocabulary stdout ----
+
+thread 'references::member_metadata::tests::member_hazards_use_retained_custom_schema_and_nested_definition_vocabulary' (12149) panicked at rust/tcl-lsp-core/src/references/member_metadata.rs:378:13:
+assertion `left == right` failed: tcl
+  left: [Span { start: 45, end: 46 }, Span { start: 61, end: 62 }, Span { start: 111, end: 112 }]
+ right: [Span { start: 45, end: 46 }, Span { start: 61, end: 62 }, Span { start: 80, end: 81 }, Span { start: 111, end: 112 }]
+
+---- references::tests::a_global_self_command_does_not_shadow_the_tcloo_method_helper stdout ----
+
+thread 'references::tests::a_global_self_command_does_not_shadow_the_tcloo_method_helper' (12257) panicked at rust/tcl-lsp-core/src/references.rs:7662:9:
+::oo::Helpers precedes global fallback on a method frame: [LspRange { start_line: 3, start_character: 11, end_line: 3, end_character: 15 }]
+
+---- references::tests::a_live_mixin_branch_still_outranks_the_spine stdout ----
+
+thread 'references::tests::a_live_mixin_branch_still_outranks_the_spine' (12258) panicked at rust/tcl-lsp-core/src/references.rs:7484:9:
+assertion `left == right` failed: a live mixin branch provides the capture ahead of the spine
+  left: None
+ right: Some(("::MBase", false))
+
+---- references::tests::a_mixin_branch_can_revive_its_own_bases_unexported_member stdout ----
+
+thread 'references::tests::a_mixin_branch_can_revive_its_own_bases_unexported_member' (12288) panicked at rust/tcl-lsp-core/src/references.rs:7501:9:
+assertion `left == right` failed: the branch's own export revives its base's body
+  left: None
+ right: Some(("::NBase", false))
+
+---- references::tests::a_mixin_branch_decides_its_own_providers_visibility stdout ----
+
+thread 'references::tests::a_mixin_branch_decides_its_own_providers_visibility' (12289) panicked at rust/tcl-lsp-core/src/references.rs:7456:9:
+assertion `left == right` failed: the suppressed mixin branch must not provide the capture
+  left: None
+ right: Some(("::A", false))
+
+---- references::tests::a_mixin_declared_on_a_superclass_governs_its_branch_too stdout ----
+
+thread 'references::tests::a_mixin_declared_on_a_superclass_governs_its_branch_too' (12293) panicked at rust/tcl-lsp-core/src/references.rs:7517:9:
+assertion `left == right` failed: a superclass-declared mixin's suppression empties that branch only
+  left: None
+ right: Some(("::A", false))
+
+---- references::tests::a_mixins_unexport_does_not_suppress_the_superclass_capture stdout ----
+
+thread 'references::tests::a_mixins_unexport_does_not_suppress_the_superclass_capture' (12296) panicked at rust/tcl-lsp-core/src/references.rs:7888:9:
+assertion `left == right` failed: a mixin's unexport must not suppress the spine's provider
+  left: None
+ right: Some(("::Base", false))
+
+---- references::tests::a_receiver_that_reexports_an_unexported_provider_resolves_both_ways stdout ----
+
+thread 'references::tests::a_receiver_that_reexports_an_unexported_provider_resolves_both_ways' (12297) panicked at rust/tcl-lsp-core/src/references.rs:7831:9:
+assertion `left == right` failed: a re-exporting receiver revives the inherited callback target
+  left: None
+ right: Some(("::Base", false))
+
+---- references::tests::an_overriding_receiver_keeps_its_callback_in_its_own_family stdout ----
+
+thread 'references::tests::an_overriding_receiver_keeps_its_callback_in_its_own_family' (12331) panicked at rust/tcl-lsp-core/src/references.rs:7853:9:
+assertion `left == right` failed: the override, not the base, provides this capture
+  left: None
+ right: Some(("::Child", false))
+
+---- references::tests::callback_cursor_classifier_reaches_constructor_and_destructor_bodies stdout ----
+
+thread 'references::tests::callback_cursor_classifier_reaches_constructor_and_destructor_bodies' (12364) panicked at rust/tcl-lsp-core/src/references.rs:7727:13:
+assertion `left == right` failed
+  left: None
+ right: Some(("::C", false))
+
+---- references::tests::callback_source_roles_keep_actual_availability_and_original_builder_geometry stdout ----
+
+thread 'references::tests::callback_source_roles_keep_actual_availability_and_original_builder_geometry' (12366) panicked at rust/tcl-lsp-core/src/references.rs:8419:13:
+source_callback [namespace code [list source_dispatch selected]]
+
+---- references::tests::class_method_references_require_the_original_temporal_entry stdout ----
+
+thread 'references::tests::class_method_references_require_the_original_temporal_entry' (12379) panicked at rust/tcl-lsp-core/src/references.rs:5059:9:
+assertion `left == right` failed: []
+  left: 0
+ right: 1
+
+---- references::tests::composed_callback_prefix_tests::composed_callback_prefix_original_advice_keeps_builder_and_each_written_operand stdout ----
+
+thread 'references::tests::composed_callback_prefix_tests::composed_callback_prefix_original_advice_keeps_builder_and_each_written_operand' (12384) panicked at rust/tcl-lsp-core/src/references.rs:6801:29:
+tcl8.6/positive: missing authored prefix receipt
+
+---- references::tests::composed_callback_prefix_tests::composed_callback_prefix_original_context_withdraws_stale_source_and_configuration stdout ----
+
+thread 'references::tests::composed_callback_prefix_tests::composed_callback_prefix_original_context_withdraws_stale_source_and_configuration' (12412) panicked at rust/tcl-lsp-core/src/references.rs:6923:13:
+assertion failed: source_authored_command_prefix(source, &analysis, &producer).is_some()
+
+---- references::tests::composed_callback_prefix_tests::composed_callback_prefix_references_keep_public_and_private_original_selectors stdout ----
+
+thread 'references::tests::composed_callback_prefix_tests::composed_callback_prefix_references_keep_public_and_private_original_selectors' (12443) panicked at rust/tcl-lsp-core/src/references.rs:6874:21:
+tcl8.6: original stored selector missing: [LspRange { start_line: 2, start_character: 11, end_line: 2, end_character: 15 }]
+
+---- references::tests::constructor_shadowed_by_a_later_redeclaration_has_no_references stdout ----
+
+thread 'references::tests::constructor_shadowed_by_a_later_redeclaration_has_no_references' (12459) panicked at rust/tcl-lsp-core/src/references.rs:6329:9:
+[LspRange { start_line: 1, start_character: 4, end_line: 1, end_character: 15 }]
+
+---- references::tests::document_highlights_var_records_write_at_definition stdout ----
+
+thread 'references::tests::document_highlights_var_records_write_at_definition' (12475) panicked at rust/tcl-lsp-core/src/references.rs:6448:9:
+expected at least one Write for `set x 1`; got []
+
+---- references::tests::ensemble_abbreviated_dispatch_is_a_reference_to_the_target stdout ----
+
+thread 'references::tests::ensemble_abbreviated_dispatch_is_a_reference_to_the_target' (12477) panicked at rust/tcl-lsp-core/src/references.rs:6023:9:
+expected the abbreviated call site inside the proc body: []
+
+---- references::tests::ensemble_subcommand_references_include_decl_and_both_call_sites stdout ----
+
+thread 'references::tests::ensemble_subcommand_references_include_decl_and_both_call_sites' (12478) panicked at rust/tcl-lsp-core/src/references.rs:5986:9:
+assertion `left == right` failed: expected decl + map entry + 2 call sites: []
+  left: 0
+ right: 4
+
+---- references::tests::expect_clause_flags_reach_each_clause_body stdout ----
+
+thread 'references::tests::expect_clause_flags_reach_each_clause_body' (12483) panicked at rust/tcl-lsp-core/src/references.rs:8666:9:
+assertion `left == right` failed: Expect clause flags must not shift bodies
+  left: 0
+ right: 2
+
+---- references::tests::ensemble_subcommand_references_reach_the_call_site_through_a_qualified_proc_923_idx85 stdout ----
+
+thread 'references::tests::ensemble_subcommand_references_reach_the_call_site_through_a_qualified_proc_923_idx85' (12479) panicked at rust/tcl-lsp-core/src/references.rs:6099:9:
+the `::app::widget show` dispatch is missing from the declaration's reference set: [LspRange { start_line: 8, start_character: 5, end_line: 8, end_character: 24 }]
+
+---- references::tests::find_obj_method_call_sites_covers_top_level_and_subst stdout ----
+
+thread 'references::tests::find_obj_method_call_sites_covers_top_level_and_subst' (12485) panicked at rust/tcl-lsp-core/src/references.rs:7951:9:
+assertion `left == right` failed: []
+  left: 0
+ right: 2
+
+---- references::tests::find_obj_method_call_sites_excludes_non_inheriting_self_method_subclass stdout ----
+
+thread 'references::tests::find_obj_method_call_sites_excludes_non_inheriting_self_method_subclass' (12514) panicked at rust/tcl-lsp-core/src/references.rs:8125:9:
+assertion `left == right` failed: []
+  left: 0
+ right: 1
+
+---- references::tests::find_obj_method_call_sites_excludes_var_receivers_across_a_frame_shift stdout ----
+
+thread 'references::tests::find_obj_method_call_sites_excludes_var_receivers_across_a_frame_shift' (12517) panicked at rust/tcl-lsp-core/src/references.rs:8081:9:
+assertion `left == right` failed: []
+  left: 0
+ right: 1
+
+---- references::tests::find_obj_method_call_sites_finds_calls_in_proc_body stdout ----
+
+thread 'references::tests::find_obj_method_call_sites_finds_calls_in_proc_body' (12518) panicked at rust/tcl-lsp-core/src/references.rs:7966:9:
+assertion `left == right` failed: []
+  left: 0
+ right: 1
+
+---- references::tests::find_obj_method_call_sites_matches_bare_created_instance_command stdout ----
+
+thread 'references::tests::find_obj_method_call_sites_matches_bare_created_instance_command' (12522) panicked at rust/tcl-lsp-core/src/references.rs:7984:9:
+assertion `left == right` failed: []
+  left: 0
+ right: 1
+
+---- references::tests::find_obj_method_call_sites_matches_class_command_and_inheriting_subclass stdout ----
+
+thread 'references::tests::find_obj_method_call_sites_matches_class_command_and_inheriting_subclass' (12527) panicked at rust/tcl-lsp-core/src/references.rs:8013:9:
+assertion `left == right` failed: []
+  left: 0
+ right: 2
+
+---- references::tests::find_obj_method_call_sites_reaches_lambda_and_namespace_eval_bodies stdout ----
+
+thread 'references::tests::find_obj_method_call_sites_reaches_lambda_and_namespace_eval_bodies' (12556) panicked at rust/tcl-lsp-core/src/references.rs:8048:9:
+assertion `left == right` failed: []
+  left: 0
+ right: 3
+
+---- references::tests::idx63_two_block_class_my_dispatch_already_fixed_by_idx52 stdout ----
+
+thread 'references::tests::idx63_two_block_class_my_dispatch_already_fixed_by_idx52' (12563) panicked at rust/tcl-lsp-core/src/references.rs:6628:9:
+assertion `left == right` failed: []
+  left: 0
+ right: 1
+
+---- references::tests::inherited_callback_joins_the_providers_reference_set stdout ----
+
+thread 'references::tests::inherited_callback_joins_the_providers_reference_set' (12566) panicked at rust/tcl-lsp-core/src/references.rs:7785:9:
+assertion `left == right` failed: the inherited callback resolves to its effective provider
+  left: None
+ right: Some(("::Base", false))
+
+---- references::tests::instance_method_references_require_the_retained_head_object stdout ----
+
+thread 'references::tests::instance_method_references_require_the_retained_head_object' (12571) panicked at rust/tcl-lsp-core/src/references.rs:5078:9:
+assertion `left == right` failed: []
+  left: 0
+ right: 1
+
+---- references::tests::malformed_case_lists_do_not_expose_nested_dispatch_regions stdout ----
+
+thread 'references::tests::malformed_case_lists_do_not_expose_nested_dispatch_regions' (12578) panicked at rust/tcl-lsp-core/src/references.rs:8723:13:
+semantic references must abstain for malformed case list: "switch subject {a {puts hidden} orphan}"
+
+---- references::tests::loaded_terminal_can_report_an_external_call_without_local_edit_authority stdout ----
+
+thread 'references::tests::loaded_terminal_can_report_an_external_call_without_local_edit_authority' (12577) panicked at rust/tcl-lsp-core/src/references.rs:5040:9:
+assertion failed: crate::rename::prepare_rename(local_source, 1, 9, &local_analysis).is_some()
+
+---- references::tests::method_source_dispatch_keeps_actual_store_availability_and_lookup_barriers stdout ----
+
+thread 'references::tests::method_source_dispatch_keeps_actual_store_availability_and_lookup_barriers' (12586) panicked at rust/tcl-lsp-core/src/references.rs:8294:64:
+called `Option::unwrap()` on a `None` value
+
+---- references::tests::method_references_include_next_dispatch stdout ----
+
+thread 'references::tests::method_references_include_next_dispatch' (12585) panicked at rust/tcl-lsp-core/src/references.rs:6159:9:
+expected the `next` dispatch among refs: [LspRange { start_line: 5, start_character: 11, end_line: 5, end_character: 16 }]
+
+---- references::tests::qualified_tcloo_self_helper_builds_the_same_callback stdout ----
+
+thread 'references::tests::qualified_tcloo_self_helper_builds_the_same_callback' (12588) panicked at rust/tcl-lsp-core/src/references.rs:7713:9:
+the registry-declared qualified helper must remain valid: [LspRange { start_line: 1, start_character: 11, end_line: 1, end_character: 15 }]
+
+---- references::tests::references_do_not_include_the_renames_new_word stdout ----
+
+thread 'references::tests::references_do_not_include_the_renames_new_word' (12592) panicked at rust/tcl-lsp-core/src/references.rs:5833:9:
+assertion `left == right` failed: [LspRange { start_line: 0, start_character: 5, end_line: 0, end_character: 15 }]
+  left: [0]
+ right: [0, 1]
+
+---- references::tests::references_do_not_resolve_an_unclosed_braced_instance_head stdout ----
+
+thread 'references::tests::references_do_not_resolve_an_unclosed_braced_instance_head' (12594) panicked at rust/tcl-lsp-core/src/references.rs:7092:9:
+assertion `left == right` failed: only the declaration may resolve; malformed `${x` is not `x`: []
+  left: 0
+ right: 1
+
+---- references::tests::references_enumerates_class_command_declaration_and_both_call_sites stdout ----
+
+thread 'references::tests::references_enumerates_class_command_declaration_and_both_call_sites' (12631) panicked at rust/tcl-lsp-core/src/references.rs:8152:9:
+assertion `left == right` failed: [LspRange { start_line: 1, start_character: 16, end_line: 1, end_character: 20 }, LspRange { start_line: 7, start_character: 13, end_line: 7, end_character: 17 }]
+  left: 2
+ right: 3
+
+---- references::tests::references_drop_a_call_after_a_namespace_forget stdout ----
+
+thread 'references::tests::references_drop_a_call_after_a_namespace_forget' (12595) panicked at rust/tcl-lsp-core/src/references.rs:5422:9:
+the call before the forget is still a reference: [LspRange { start_line: 1, start_character: 9, end_line: 1, end_character: 10 }]
+
+---- references::tests::references_for_a_multi_list_foreach_second_varlist_now_reach_every_use stdout ----
+
+thread 'references::tests::references_for_a_multi_list_foreach_second_varlist_now_reach_every_use' (12638) panicked at rust/tcl-lsp-core/src/references.rs:5721:9:
+the first loop's own `name` decl (line 0) must no longer be missing: []
+
+---- references::tests::references_for_method_reach_a_my_dispatch_call_inside_a_switch_arm stdout ----
+
+thread 'references::tests::references_for_method_reach_a_my_dispatch_call_inside_a_switch_arm' (12709) panicked at rust/tcl-lsp-core/src/references.rs:7131:9:
+the my bar call site inside the switch arm is missing: [LspRange { start_line: 1, start_character: 11, end_line: 1, end_character: 14 }]
+
+---- references::tests::references_for_method_includes_one_hop_stored_callback_prefixes stdout ----
+
+thread 'references::tests::references_for_method_includes_one_hop_stored_callback_prefixes' (12708) panicked at rust/tcl-lsp-core/src/references.rs:6973:9:
+stored [self] callback missing: [LspRange { start_line: 2, start_character: 11, end_line: 2, end_character: 15 }]
+
+---- references::tests::references_from_decl_reach_a_list_built_self_callback stdout ----
+
+thread 'references::tests::references_from_decl_reach_a_list_built_self_callback' (12818) panicked at rust/tcl-lsp-core/src/references.rs:7243:9:
+the list-built bind callback is missing: [LspRange { start_line: 2, start_character: 11, end_line: 2, end_character: 19 }]
+
+---- references::tests::references_from_decl_reach_my_dispatch_when_class_extended_via_separate_oo_define stdout ----
+
+thread 'references::tests::references_from_decl_reach_my_dispatch_when_class_extended_via_separate_oo_define' (12824) panicked at rust/tcl-lsp-core/src/references.rs:7193:9:
+decl missing: []
+
+---- references::tests::references_from_decl_reach_a_self_bracket_dispatch_call_site stdout ----
+
+thread 'references::tests::references_from_decl_reach_a_self_bracket_dispatch_call_site' (12822) panicked at rust/tcl-lsp-core/src/references.rs:7220:9:
+the [self] animTick call site is missing: [LspRange { start_line: 1, start_character: 11, end_line: 1, end_character: 19 }]
+
+---- references::tests::references_from_opt_proc_declaration_reach_the_call_site stdout ----
+
+thread 'references::tests::references_from_opt_proc_declaration_reach_the_call_site' (12868) panicked at rust/tcl-lsp-core/src/references.rs:8260:9:
+decl missing: []
+
+---- references::tests::references_include_a_forced_imports_call_site stdout ----
+
+thread 'references::tests::references_include_a_forced_imports_call_site' (12874) panicked at rust/tcl-lsp-core/src/references.rs:5474:9:
+a `-force` import makes the bare call a reference to the source: [LspRange { start_line: 1, start_character: 9, end_line: 1, end_character: 10 }]
+
+---- references::tests::references_include_a_call_through_an_import_chain stdout ----
+
+thread 'references::tests::references_include_a_call_through_an_import_chain' (12872) panicked at rust/tcl-lsp-core/src/references.rs:5500:9:
+the chained bare call is a reference to ::C::p: [LspRange { start_line: 1, start_character: 9, end_line: 1, end_character: 10 }]
+
+---- references::tests::references_include_bare_call_to_a_proc_installed_into_oo_helpers stdout ----
+
+thread 'references::tests::references_include_bare_call_to_a_proc_installed_into_oo_helpers' (12879) panicked at rust/tcl-lsp-core/src/references.rs:5529:9:
+the bare classvar call site inside the method body is missing: [LspRange { start_line: 0, start_character: 5, end_line: 0, end_character: 28 }]
+
+---- references::tests::references_include_the_renames_own_old_word stdout ----
+
+thread 'references::tests::references_include_the_renames_own_old_word' (12895) panicked at rust/tcl-lsp-core/src/references.rs:5808:9:
+rename's own OLD word missing: [LspRange { start_line: 0, start_character: 5, end_line: 0, end_character: 15 }, LspRange { start_line: 1, start_character: 0, end_line: 1, end_character: 10 }]
+
+---- references::tests::references_include_unbraced_if_body_bareword_call stdout ----
+
+thread 'references::tests::references_include_unbraced_if_body_bareword_call' (12905) panicked at rust/tcl-lsp-core/src/references.rs:5859:9:
+unbraced if-body call site missing: [LspRange { start_line: 0, start_character: 5, end_line: 0, end_character: 8 }]
+
+---- references::tests::references_include_unbraced_uplevel_body_bareword_call stdout ----
+
+thread 'references::tests::references_include_unbraced_uplevel_body_bareword_call' (12908) panicked at rust/tcl-lsp-core/src/references.rs:5883:9:
+unbraced uplevel-body call site missing: [LspRange { start_line: 0, start_character: 5, end_line: 0, end_character: 8 }]
+
+---- references::tests::references_reach_a_list_built_self_after_callback stdout ----
+
+thread 'references::tests::references_reach_a_list_built_self_after_callback' (12919) panicked at rust/tcl-lsp-core/src/references.rs:7280:9:
+the list-built after callback is missing: [LspRange { start_line: 1, start_character: 11, end_line: 1, end_character: 15 }]
+
+---- references::tests::references_keep_a_wildcard_imported_call_after_a_later_export_clear stdout ----
+
+thread 'references::tests::references_keep_a_wildcard_imported_call_after_a_later_export_clear' (12913) panicked at rust/tcl-lsp-core/src/references.rs:5370:9:
+the imported call site must survive a later `-clear`: [LspRange { start_line: 1, start_character: 9, end_line: 1, end_character: 10 }]
+
+---- references::tests::references_reach_a_list_built_self_command_prefix stdout ----
+
+thread 'references::tests::references_reach_a_list_built_self_command_prefix' (12922) panicked at rust/tcl-lsp-core/src/references.rs:7400:9:
+the list-built CommandPrefix callback is missing: [LspRange { start_line: 1, start_character: 11, end_line: 1, end_character: 18 }]
+
+---- references::tests::references_reach_a_list_built_self_object_callback stdout ----
+
+thread 'references::tests::references_reach_a_list_built_self_object_callback' (12927) panicked at rust/tcl-lsp-core/src/references.rs:7260:9:
+the `[self object]` callback is missing: [LspRange { start_line: 2, start_character: 11, end_line: 2, end_character: 15 }]
+
+---- references::tests::references_reach_a_proc_dispatched_through_an_eval_of_a_list_computed_var stdout ----
+
+thread 'references::tests::references_reach_a_proc_dispatched_through_an_eval_of_a_list_computed_var' (12940) panicked at rust/tcl-lsp-core/src/references.rs:8282:9:
+the `greetD` word inside `[list greetD World]` must be reachable too: [LspRange { start_line: 0, start_character: 5, end_line: 0, end_character: 11 }]
+
+---- references::tests::references_reach_namespace_wrapped_my_callback_even_when_private stdout ----
+
+thread 'references::tests::references_reach_namespace_wrapped_my_callback_even_when_private' (12970) panicked at rust/tcl-lsp-core/src/references.rs:7421:9:
+the wrapped private `my read` callback is missing: [LspRange { start_line: 1, start_character: 11, end_line: 1, end_character: 15 }]
+
+---- references::tests::references_reach_the_call_site_from_a_shadowed_duplicate_proc_decl_same_document stdout ----
+
+thread 'references::tests::references_reach_the_call_site_from_a_shadowed_duplicate_proc_decl_same_document' (12973) panicked at rust/tcl-lsp-core/src/references.rs:5777:9:
+winning decl missing: [LspRange { start_line: 0, start_character: 5, end_line: 0, end_character: 15 }]
+
+---- references::tests::references_reach_namespace_wrapped_self_callback_only_when_public stdout ----
+
+thread 'references::tests::references_reach_namespace_wrapped_self_callback_only_when_public' (12971) panicked at rust/tcl-lsp-core/src/references.rs:7438:9:
+the wrapped public `[self] changed` callback is missing: [LspRange { start_line: 1, start_character: 11, end_line: 1, end_character: 18 }]
+
+---- references::tests::references_resolve_a_constant_var_body_through_its_real_value_not_its_literal_text stdout ----
+
+thread 'references::tests::references_resolve_a_constant_var_body_through_its_real_value_not_its_literal_text' (12978) panicked at rust/tcl-lsp-core/src/references.rs:5917:9:
+`if {1} $cb` really does dispatch to `foo` (tclsh9.0/8.6-verified) and must be found: [LspRange { start_line: 0, start_character: 5, end_line: 0, end_character: 8 }]
+
+---- references::tests::references_reach_the_call_site_from_the_stale_original_in_a_foreach_rename_reinstall_idiom stdout ----
+
+thread 'references::tests::references_reach_the_call_site_from_the_stale_original_in_a_foreach_rename_reinstall_idiom' (12974) panicked at rust/tcl-lsp-core/src/references.rs:5218:9:
+winning wrapper decl missing: [LspRange { start_line: 0, start_character: 5, end_line: 0, end_character: 11 }]
+
+---- references::tests::references_to_var_includes_definition_and_uses stdout ----
+
+thread 'references::tests::references_to_var_includes_definition_and_uses' (13016) panicked at rust/tcl-lsp-core/src/references.rs:6375:9:
+[]
+
+---- references::tests::stored_callback_prefix_cursor_resolves_to_method_declaration stdout ----
+
+thread 'references::tests::stored_callback_prefix_cursor_resolves_to_method_declaration' (13102) panicked at rust/tcl-lsp-core/src/references.rs:7069:9:
+assertion `left == right` failed: stored callback cursor must resolve: []
+  left: 0
+ right: 1
+
+---- references::tests::the_real_tcllib_callback_shapes_resolve_to_their_methods stdout ----
+
+thread 'references::tests::the_real_tcllib_callback_shapes_resolve_to_their_methods' (13160) panicked at rust/tcl-lsp-core/src/references.rs:7312:14:
+fixed Tcllib 2.0 source setup must be available and unchanged: Custom { kind: NotFound, error: "Tcllib 2.0 (tcllib-2-0) setup: /home/user/tcl-lsp/rust/tcl-lsp-core/../../tmp/tcllib-2.0/modules/virtchannel_base/cat.tcl: No such file or directory (os error 2); fetch with make install-test-deps" }
+
+---- references::tests::switch_braced_body_references_reach_nested_command stdout ----
+
+thread 'references::tests::switch_braced_body_references_reach_nested_command' (13158) panicked at rust/tcl-lsp-core/src/references.rs:8869:9:
+switch braced body reference missing: [LspRange { start_line: 0, start_character: 5, end_line: 0, end_character: 10 }]
+
+---- references::tests::wrapped_my_callback_cursor_resolves_private_dispatch stdout ----
+
+thread 'references::tests::wrapped_my_callback_cursor_resolves_private_dispatch' (13161) panicked at rust/tcl-lsp-core/src/references.rs:7622:9:
+assertion `left == right` failed
+  left: None
+ right: Some(("::C", false))
+
+
+test result: FAILED. 97 passed; 74 failed; 0 ignored; 0 measured; 3314 filtered out; finished in 195.15s

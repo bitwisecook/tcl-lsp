@@ -1,0 +1,21 @@
+
+running 1 test
+test references::tests::references_include_a_forced_imports_call_site ... 
+thread 'references::tests::references_include_a_forced_imports_call_site' (29236) panicked at rust/tcl-lsp-core/src/references.rs:5474:9:
+a `-force` import makes the bare call a reference to the source: [LspRange { start_line: 1, start_character: 9, end_line: 1, end_character: 10 }]
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: tcl_lsp_core::references::tests::references_include_a_forced_imports_call_site
+   3: tcl_lsp_core::references::tests::references_include_a_forced_imports_call_site::{closure#0}
+   4: <tcl_lsp_core::references::tests::references_include_a_forced_imports_call_site::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+FAILED
+
+failures:
+
+failures:
+    references::tests::references_include_a_forced_imports_call_site
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 3484 filtered out; finished in 1.68s
+

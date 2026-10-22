@@ -1,0 +1,6 @@
+
+running 1 test
+test parse_cut::tests::valid_scripts_have_no_cut ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 584 filtered out; finished in 0.00s
+

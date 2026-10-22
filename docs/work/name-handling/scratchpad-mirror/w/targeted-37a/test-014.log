@@ -1,0 +1,6 @@
+
+running 1 test
+test completion::inherited_registry_roster_completion_tests::inherited_completion_cannot_borrow_a_surface_only_provider_excluded_by_actual_roster ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 3464 filtered out; finished in 0.62s
+

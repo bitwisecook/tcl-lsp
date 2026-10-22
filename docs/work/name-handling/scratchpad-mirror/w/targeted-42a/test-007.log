@@ -1,0 +1,23 @@
+
+running 1 test
+test command_binding::source_command_world::tests::original_namespace_import_keeps_the_source_declaration_allocation ... 
+thread 'command_binding::source_command_world::tests::original_namespace_import_keeps_the_source_declaration_allocation' (9659) panicked at rust/tcl-compiler/src/command_binding/source_command_world.rs:3172:18:
+closed original namespace operations
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::option::expect_failed
+   3: <core::option::Option<tcl_compiler::command_binding::source_command_world::OriginalCompletedCommandWorld>>::expect
+   4: tcl_compiler::command_binding::source_command_world::tests::original_namespace_import_keeps_the_source_declaration_allocation
+   5: tcl_compiler::command_binding::source_command_world::tests::original_namespace_import_keeps_the_source_declaration_allocation::{closure#0}
+   6: <tcl_compiler::command_binding::source_command_world::tests::original_namespace_import_keeps_the_source_declaration_allocation::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+FAILED
+
+failures:
+
+failures:
+    command_binding::source_command_world::tests::original_namespace_import_keeps_the_source_declaration_allocation
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 10434 filtered out; finished in 0.37s
+

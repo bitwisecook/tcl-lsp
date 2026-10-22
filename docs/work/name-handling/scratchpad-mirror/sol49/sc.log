@@ -1,0 +1,165 @@
+
+running 23 tests
+test command_binding::source_transition_advice::source_class::tests::itcl_class_proc_calls_join_the_qualifying_source_class ... FAILED
+test command_binding::source_transition_advice::source_class::tests::itcl_two_word_form_is_construction_even_over_a_class_proc_name ... ok
+test command_binding::source_transition_advice::source_class::tests::c_source_class_query_preserves_independently_completed_world ... ok
+test command_binding::source_transition_advice::source_class::tests::logical_class_facet_retains_a_same_purpose_occupied_target_refusal ... ok
+test command_binding::source_transition_advice::source_class::tests::c_source_namespace_class_after_unentered_definition_body_keeps_unknown_mutation ... ok
+test command_binding::source_transition_advice::source_class::tests::logical_class_declarations_reborrow_the_exact_source_purpose_facet ... FAILED
+test command_binding::source_transition_advice::source_class::tests::original_abstract_constructor_defaults_and_exports_keep_selected_native_source_grammar ... FAILED
+test command_binding::source_transition_advice::source_class::tests::original_class_constructor_call_keeps_alias_prefix_move_and_canonical_declaration ... ok
+test command_binding::source_transition_advice::source_class::tests::original_abstract_constructor_logical_advice_keeps_defaults_without_native_identity ... FAILED
+test command_binding::source_transition_advice::source_class::tests::original_class_constructor_call_preserves_expansion_and_refuses_private_or_overridden_makers ... ok
+test command_binding::source_transition_advice::source_class::tests::c_source_namespace_class_declarations_retain_original_body_and_conditional_scope ... ok
+test command_binding::source_transition_advice::source_class::tests::original_class_constructor_call_refuses_known_factory_or_class_replacement_and_cycles ... ok
+test command_binding::source_transition_advice::source_class::tests::original_constructor_substitution_keeps_whole_child_words_and_selected_body ... ok
+test command_binding::source_transition_advice::source_class::tests::original_constructor_substitution_refuses_compound_words_and_multiple_commands ... ok
+test command_binding::source_transition_advice::source_class::tests::original_constructor_manufacturer_visibility_keeps_call_source_horizon ... ok
+test command_binding::source_transition_advice::source_class::tests::original_logical_constructor_calls_keep_real_deferred_and_immediate_parent_bodies ... FAILED
+test command_binding::source_transition_advice::source_class::tests::original_snit_constructor_call_retains_explicit_and_bare_provider_layouts ... ok
+test command_binding::source_transition_advice::source_class::tests::original_native_class_names_keep_distinct_source_units_without_ascii_report_gate ... FAILED
+test command_binding::source_transition_advice::source_class::tests::original_logical_constructor_shape_keeps_canonical_factory_without_native_authority ... FAILED
+test command_binding::source_transition_advice::source_class::tests::original_source_class_family_uses_selected_definer_not_metaclass_reporting_label ... ok
+test command_binding::source_transition_advice::source_class::tests::original_factory_attempt_keeps_source_incarnation_without_constructor_visibility ... ok
+test command_binding::source_transition_advice::source_class::tests::snit_type_command_dispatches_its_typemethod_through_the_source_class ... FAILED
+test command_binding::source_transition_advice::source_class::tests::original_source_class_keeps_conditional_factory_after_unknown_call_but_known_replacement_blocks ... ok
+
+failures:
+
+---- command_binding::source_transition_advice::source_class::tests::itcl_class_proc_calls_join_the_qualifying_source_class stdout ----
+
+thread 'command_binding::source_transition_advice::source_class::tests::itcl_class_proc_calls_join_the_qualifying_source_class' (13283) panicked at rust/tcl-compiler/src/command_binding/source_transition_advice/source_class.rs:2146:9:
+assertion `left == right` failed
+  left: []
+ right: [[109, 97, 107, 101]]
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<alloc::vec::Vec<alloc::vec::Vec<u8>>, alloc::vec::Vec<alloc::vec::Vec<u8>>>
+   4: tcl_compiler::command_binding::source_transition_advice::source_class::tests::itcl_class_proc_calls_join_the_qualifying_source_class
+   5: tcl_compiler::command_binding::source_transition_advice::source_class::tests::itcl_class_proc_calls_join_the_qualifying_source_class::{closure#0}
+   6: <tcl_compiler::command_binding::source_transition_advice::source_class::tests::itcl_class_proc_calls_join_the_qualifying_source_class::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- command_binding::source_transition_advice::source_class::tests::logical_class_declarations_reborrow_the_exact_source_purpose_facet stdout ----
+
+thread 'command_binding::source_transition_advice::source_class::tests::logical_class_declarations_reborrow_the_exact_source_purpose_facet' (13329) panicked at rust/tcl-compiler/src/command_binding/source_transition_advice/source_class.rs:1356:9:
+assertion `left == right` failed
+  left: 0
+ right: 2
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<usize, usize>
+   4: tcl_compiler::command_binding::source_transition_advice::source_class::tests::logical_class_declarations_reborrow_the_exact_source_purpose_facet
+   5: tcl_compiler::command_binding::source_transition_advice::source_class::tests::logical_class_declarations_reborrow_the_exact_source_purpose_facet::{closure#0}
+   6: <tcl_compiler::command_binding::source_transition_advice::source_class::tests::logical_class_declarations_reborrow_the_exact_source_purpose_facet::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- command_binding::source_transition_advice::source_class::tests::original_abstract_constructor_defaults_and_exports_keep_selected_native_source_grammar stdout ----
+
+thread 'command_binding::source_transition_advice::source_class::tests::original_abstract_constructor_defaults_and_exports_keep_selected_native_source_grammar' (13340) panicked at rust/tcl-compiler/src/command_binding/source_transition_advice/source_class.rs:1470:17:
+assertion `left == right` failed: tcl9.0: oo::abstract create Base {}; oo::objdefine Base export new; Base new
+  left: false
+ right: true
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<bool, bool>
+   4: tcl_compiler::command_binding::source_transition_advice::source_class::tests::original_abstract_constructor_defaults_and_exports_keep_selected_native_source_grammar
+   5: tcl_compiler::command_binding::source_transition_advice::source_class::tests::original_abstract_constructor_defaults_and_exports_keep_selected_native_source_grammar::{closure#0}
+   6: <tcl_compiler::command_binding::source_transition_advice::source_class::tests::original_abstract_constructor_defaults_and_exports_keep_selected_native_source_grammar::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- command_binding::source_transition_advice::source_class::tests::original_abstract_constructor_logical_advice_keeps_defaults_without_native_identity stdout ----
+
+thread 'command_binding::source_transition_advice::source_class::tests::original_abstract_constructor_logical_advice_keeps_defaults_without_native_identity' (13378) panicked at rust/tcl-compiler/src/command_binding/source_transition_advice/source_class.rs:1534:13:
+assertion `left == right` failed: oo::abstract create Base {}; oo::objdefine Base export new; Base new
+  left: false
+ right: true
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<bool, bool>
+   4: tcl_compiler::command_binding::source_transition_advice::source_class::tests::original_abstract_constructor_logical_advice_keeps_defaults_without_native_identity
+   5: tcl_compiler::command_binding::source_transition_advice::source_class::tests::original_abstract_constructor_logical_advice_keeps_defaults_without_native_identity::{closure#0}
+   6: <tcl_compiler::command_binding::source_transition_advice::source_class::tests::original_abstract_constructor_logical_advice_keeps_defaults_without_native_identity::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- command_binding::source_transition_advice::source_class::tests::original_logical_constructor_calls_keep_real_deferred_and_immediate_parent_bodies stdout ----
+
+thread 'command_binding::source_transition_advice::source_class::tests::original_logical_constructor_calls_keep_real_deferred_and_immediate_parent_bodies' (13537) panicked at rust/tcl-compiler/src/command_binding/source_transition_advice/source_class.rs:1746:78:
+oo::class create C {}; proc p {} {set o [C new value]}
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::option::expect_failed
+   3: <core::option::Option<tcl_compiler::command_binding::source_transition_advice::source_class::OriginalSourceConstructorCall>>::expect
+   4: tcl_compiler::command_binding::source_transition_advice::source_class::tests::original_logical_constructor_calls_keep_real_deferred_and_immediate_parent_bodies
+   5: tcl_compiler::command_binding::source_transition_advice::source_class::tests::original_logical_constructor_calls_keep_real_deferred_and_immediate_parent_bodies::{closure#0}
+   6: <tcl_compiler::command_binding::source_transition_advice::source_class::tests::original_logical_constructor_calls_keep_real_deferred_and_immediate_parent_bodies::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- command_binding::source_transition_advice::source_class::tests::original_native_class_names_keep_distinct_source_units_without_ascii_report_gate stdout ----
+
+thread 'command_binding::source_transition_advice::source_class::tests::original_native_class_names_keep_distinct_source_units_without_ascii_report_gate' (13607) panicked at rust/tcl-compiler/src/command_binding/source_transition_advice/source_class.rs:1991:10:
+called `Option::unwrap()` on a `None` value
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: core::option::unwrap_failed
+   4: tcl_compiler::command_binding::source_transition_advice::source_class::tests::original_native_class_names_keep_distinct_source_units_without_ascii_report_gate
+   5: tcl_compiler::command_binding::source_transition_advice::source_class::tests::original_native_class_names_keep_distinct_source_units_without_ascii_report_gate::{closure#0}
+   6: <tcl_compiler::command_binding::source_transition_advice::source_class::tests::original_native_class_names_keep_distinct_source_units_without_ascii_report_gate::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- command_binding::source_transition_advice::source_class::tests::original_logical_constructor_shape_keeps_canonical_factory_without_native_authority stdout ----
+
+thread 'command_binding::source_transition_advice::source_class::tests::original_logical_constructor_shape_keeps_canonical_factory_without_native_authority' (13598) panicked at rust/tcl-compiler/src/command_binding/source_transition_advice/source_class.rs:1583:13:
+assertion `left == right` failed: oo::class create C {}; oo::objdefine C unexport new; [C new] ping
+  left: true
+ right: false
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<bool, bool>
+   4: tcl_compiler::command_binding::source_transition_advice::source_class::tests::original_logical_constructor_shape_keeps_canonical_factory_without_native_authority
+   5: tcl_compiler::command_binding::source_transition_advice::source_class::tests::original_logical_constructor_shape_keeps_canonical_factory_without_native_authority::{closure#0}
+   6: <tcl_compiler::command_binding::source_transition_advice::source_class::tests::original_logical_constructor_shape_keeps_canonical_factory_without_native_authority::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- command_binding::source_transition_advice::source_class::tests::snit_type_command_dispatches_its_typemethod_through_the_source_class stdout ----
+
+thread 'command_binding::source_transition_advice::source_class::tests::snit_type_command_dispatches_its_typemethod_through_the_source_class' (13714) panicked at rust/tcl-compiler/src/command_binding/source_transition_advice/source_class.rs:2120:9:
+assertion `left == right` failed
+  left: []
+ right: [[109, 97, 107, 101]]
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<alloc::vec::Vec<alloc::vec::Vec<u8>>, alloc::vec::Vec<alloc::vec::Vec<u8>>>
+   4: tcl_compiler::command_binding::source_transition_advice::source_class::tests::snit_type_command_dispatches_its_typemethod_through_the_source_class
+   5: tcl_compiler::command_binding::source_transition_advice::source_class::tests::snit_type_command_dispatches_its_typemethod_through_the_source_class::{closure#0}
+   6: <tcl_compiler::command_binding::source_transition_advice::source_class::tests::snit_type_command_dispatches_its_typemethod_through_the_source_class::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+
+failures:
+    command_binding::source_transition_advice::source_class::tests::itcl_class_proc_calls_join_the_qualifying_source_class
+    command_binding::source_transition_advice::source_class::tests::logical_class_declarations_reborrow_the_exact_source_purpose_facet
+    command_binding::source_transition_advice::source_class::tests::original_abstract_constructor_defaults_and_exports_keep_selected_native_source_grammar
+    command_binding::source_transition_advice::source_class::tests::original_abstract_constructor_logical_advice_keeps_defaults_without_native_identity
+    command_binding::source_transition_advice::source_class::tests::original_logical_constructor_calls_keep_real_deferred_and_immediate_parent_bodies
+    command_binding::source_transition_advice::source_class::tests::original_logical_constructor_shape_keeps_canonical_factory_without_native_authority
+    command_binding::source_transition_advice::source_class::tests::original_native_class_names_keep_distinct_source_units_without_ascii_report_gate
+    command_binding::source_transition_advice::source_class::tests::snit_type_command_dispatches_its_typemethod_through_the_source_class
+
+test result: FAILED. 15 passed; 8 failed; 0 ignored; 0 measured; 10452 filtered out; finished in 110.57s
+

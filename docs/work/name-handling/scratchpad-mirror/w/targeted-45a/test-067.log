@@ -1,0 +1,6 @@
+
+running 1 test
+test jim_subst_tokens::tests::original_substitution_roster_matches_native_flag_and_line_windows ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 584 filtered out; finished in 0.00s
+

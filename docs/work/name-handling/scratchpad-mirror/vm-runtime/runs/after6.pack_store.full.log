@@ -1,0 +1,12 @@
+
+running 7 tests
+test a_patched_command_resolves_through_the_patch ... ok
+test a_stray_word_outside_the_block_is_not_a_program ... ok
+test canonical_rendering_preserves_a_real_packs_shape_and_override_flags ... ok
+test a_form_edit_on_a_real_pack_splices_and_preserves_its_neighbours ... ok
+test every_shipped_example_opens_as_a_store ... ok
+test the_resolution_facade_answers_over_a_real_pack ... ok
+test every_hand_written_pack_is_canonical ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 57.61s
+

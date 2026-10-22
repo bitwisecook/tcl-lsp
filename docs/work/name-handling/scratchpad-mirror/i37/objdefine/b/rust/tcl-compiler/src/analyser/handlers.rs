@@ -1,0 +1,20422 @@
+// tcl-lsp — a language server and toolchain for Tcl
+// Copyright (C) 2026 James Deucker (bitwisecook) <https://github.com/bitwisecook>
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
+//! Per-command handlers: the variable-mutation commands, plus `proc`,
+//! `namespace eval`, the loop and branch forms, `catch`/`try`, `interp
+//! alias` and `oo::objdefine`.
+//!
+//! The variable bindings:
+//!
+//! - [`Analyser::bind_value_word_assignment`] — a direct one-target write
+//!   of a value word (`set var value`), read off the registry's `CellWrite`
+//!   declaration
+//! - [`Analyser::apply_state_transitions`] — every scope alias an
+//!   invocation's state transitions state (`global`, `variable`, `upvar`,
+//!   `namespace upvar`, a pack command's alias facts)
+//! - [`Analyser::handle_var_binding_command`] — every loop and written
+//!   variable a call's roles name (`foreach`, `dict for`, `incr`, `append`,
+//!   `lassign`, …)
+//!
+//! Plus the remaining structural command handlers: proc-body
+//! walking, `namespace eval`/`namespace ensemble`, `foreach`/`for`/
+//! `switch`, `catch`/`try`, `interp alias`, `oo::objdefine`, and
+//! alias resolution.
+
+use tcl_core_types::DiagCode;
+use tcl_dialect::model::surface_admits;
+use tcl_lexer::{Span, Token, TokenType};
+use tcl_syntax::list::find_element;
+
+use crate::alias::{command_table_transitions, is_current_interpreter};
+use crate::lowering::structured::{braced_word_flags, quoted_word_flags};
+use crate::parsing::syntax::descend::descend_token;
+use crate::parsing::syntax::segment::segments_from_tree;
+use crate::segmenter::SegmentedCommand;
+use crate::signature_scan::params::bind_proc_formals;
+use crate::signature_scan::types::ParamDef;
+use crate::signature_scan::types::SignatureCommandAlias;
+use crate::value_transfer::{WordForm, literal_selection};
+
+use super::state::Analyser;
+use super::types::{
+    ClassDef, ClassFactory, DefinedSymbol, FactoryMember, FactoryWord, MemberSide,
+    MetaclassProvenance, ProcDef,
+};
+use super::utils::{param_name_spans_for_token, parse_param_list};
+use tcl_dialect::model::SpecSurface;
+
+/// The three per-proc facts [`Analyser::infer_proc_param_traits`] derives from
+/// one view of a proc body: the per-parameter trait map, the caller-frame
+/// parameter names ([`super::types::ProcDef::caller_frame_params`]), and the
+/// literal caller-frame targets
+/// ([`super::types::ProcDef::caller_frame_literals`], name → written-through-alias).
+type ProcParamFacts = (
+    std::collections::HashMap<String, std::collections::HashSet<super::types::ProcArgTrait>>,
+    std::collections::HashSet<String>,
+    std::collections::HashMap<String, bool>,
+);
+
+/// Tcl *library* procedures (defined in init.tcl / auto.tcl / history.tcl /
+/// package.tcl / word.tcl) that are script-defined and documented as
+/// user-replaceable — redefining one is the supported overlay idiom, not
+/// shadowing a C built-in.  Genuine C commands that are not byte-compiled
+/// but still dangerous to redefine (`clock`, `after`, `socket`, `glob`) are
+/// deliberately excluded — they keep firing W113.
+/// Memoised set of the redefinable Tcl library procs (`unknown`,
+/// `auto_*`, `pkg_*`, `tclLog`, `tcl_findLibrary`, the word-boundary
+/// helpers, …), sourced from the registry's
+/// [`Traits::OVERRIDABLE_LIBRARY_PROC`] trait. Redefining one of these
+/// must not fire W113. Cached once; the set is dialect-agnostic core Tcl.
+fn overridable_library_procs() -> &'static std::collections::HashSet<String> {
+    use std::sync::OnceLock;
+    static SET: OnceLock<std::collections::HashSet<String>> = OnceLock::new();
+    SET.get_or_init(|| {
+        tcl_registry::CommandRegistry::build_default()
+            .commands_with_trait(tcl_registry::Traits::OVERRIDABLE_LIBRARY_PROC)
+            .into_iter()
+            .map(str::to_owned)
+            .collect()
+    })
+}
+
+/// Build a fully-qualified Tcl proc / class name from a namespace
+/// prefix and a possibly-relative name.
+///
+/// `ns_prefix` is a **constructed** namespace key, rooted (`::a::b`, `::`)
+/// or unrooted (`a::b`, empty = global); it is joined verbatim — only the
+/// *written* `name`'s colon runs canonicalise.
+pub(super) fn qualify(ns_prefix: &str, name: &str) -> String {
+    crate::naming::qualify(ns_prefix, name)
+}
+
+/// The [`super::types::Scope`] name for a routine whose written name is
+/// `resolved_name` (after [`Analyser::resolve_dynamic_word`]).
+///
+/// A `Proc` / `Method` scope's name is not decoration: it *is* the routine's
+/// qualified name for
+/// [`super::scope::advance_command_resolution_namespace`], which takes
+/// everything before the last `::` as the namespace the body runs in.  So a
+/// scope named with the raw, unresolved word invents a namespace out of the
+/// substitution: the real tcllib idiom `proc [namespace current]::_x {...}`
+/// inside `::pki` (tcllib 2.0 `modules/pki/pki.tcl`:316) made every definition
+/// in the body home to `::pki::[namespace current]`.
+///
+/// When the name still carries a `$` / `[` after resolution there is no
+/// trustworthy qualifier in it, so the scope keeps only the trailing segment —
+/// whose holder is the *lexical* parent namespace, which is where the idiom
+/// actually lands (tclsh 8.6.16 / 9.0.4: a `proc helper` inside
+/// `proc [namespace current]::_inner` in `::pki` becomes `::pki::helper`).
+pub(super) fn scope_name_for_routine(resolved_name: &str) -> &str {
+    if crate::naming::is_dynamic_word(resolved_name) {
+        crate::naming::key_tail(resolved_name)
+    } else {
+        resolved_name
+    }
+}
+
+/// Normalise a literal `interp` path word to the interpreter-domain map
+/// key: the path is a Tcl *list* naming a descent through child
+/// interpreters (`{s t}` = child `t` of child `s`), so whitespace runs
+/// collapse to one separator.  A single-element path (`s`) keys as
+/// itself.
+pub(super) fn interp_path_key(path: &str) -> String {
+    path.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+/// Parse `interp create`'s `?-safe? ?--? ?path?` words:
+/// returns `(safe, path)`, where `path` is the sole non-flag word (or
+/// `None` for a bare, uncaptured `interp create -safe`). Shared by
+/// `Analyser::handle_interp_create_command` and the `set VAR [interp
+/// create ...]` value-flow detector in `Analyser::handle_set_command`, so
+/// both parse the flag/path shape identically.
+///
+/// Mirrors C Tcl's own loop (`Tcl_InterpObjCmd`, the `create` arm): every
+/// word is examined, and a `-`-prefixed word is a *flag* until `--` is
+/// seen, whether or not the path has already been read. The scan does not
+/// stop at the path.
+///
+/// Oracle (tclsh8.6 and tclsh9.0):
+///
+/// * `interp create x -safe` — path `x`, and it **is** safe.
+/// * `interp create -safe -- z` — path `z`, safe.
+/// * `interp create -- -safe` — path is the literal `-safe`, not safe.
+/// * `interp create n -bogus` — `bad option "-bogus"`, so flags really are
+///   still being parsed after the path.
+/// * `interp create a b` — `wrong # args`; a second path word is an error
+///   shape, not a rebinding, so no path is reported rather than the wrong
+///   one.
+pub(super) fn parse_interp_create_path(words: &[String]) -> Option<&str> {
+    let args = words.iter().map(String::as_str).collect::<Vec<_>>();
+    parse_interp_create_words(&args).1
+}
+
+fn parse_interp_create_words<'a>(words: &[&'a str]) -> (bool, Option<&'a str>) {
+    let mut safe = false;
+    let mut path: Option<&str> = None;
+    let mut past_flags = false;
+    let mut too_many_paths = false;
+    for &word in words {
+        if !past_flags && word.starts_with('-') {
+            if word == "--" {
+                past_flags = true;
+            } else if word == "-safe" {
+                safe = true;
+            }
+            // Any other `-` word is a bad option in real Tcl. Skipping it
+            // keeps the path reading unaffected, which is the conservative
+            // choice for a command that will fail anyway.
+            continue;
+        }
+        if path.is_none() {
+            path = Some(word);
+        } else {
+            too_many_paths = true;
+        }
+    }
+    if too_many_paths {
+        return (safe, None);
+    }
+    (safe, path)
+}
+
+/// The child an invocation's transitions create: its path (`None` for an
+/// auto-named child) and whether it starts safe — `None` when the call states
+/// no creation (another command, or a shape Tcl rejects). A child whose
+/// safety a computed option leaves unknown is not recorded as safe.
+fn created_interpreter(
+    transitions: &tcl_registry::StateTransitions,
+) -> Option<(Option<tcl_registry::TransitionSubject>, bool)> {
+    transitions
+        .facts()
+        .iter()
+        .find_map(|fact| match &fact.transition {
+            tcl_registry::StateTransition::Interpreter(
+                tcl_registry::InterpreterTransition::Create {
+                    interpreter,
+                    safety,
+                },
+            ) => Some((
+                interpreter.clone(),
+                *safety == tcl_registry::ChildInterpreterSafety::Safe,
+            )),
+            _ => None,
+        })
+}
+
+/// The first position `roles` assigns `role`.
+fn role_position(
+    roles: &[(usize, tcl_registry::ArgRole)],
+    role: tcl_registry::ArgRole,
+) -> Option<usize> {
+    roles
+        .iter()
+        .find(|&&(_, assigned)| assigned == role)
+        .map(|&(index, _)| index)
+}
+
+/// The words at every position `roles` assigns `role`, in position order.
+fn role_texts(
+    roles: &[(usize, tcl_registry::ArgRole)],
+    role: tcl_registry::ArgRole,
+    args: &[String],
+) -> Vec<String> {
+    roles
+        .iter()
+        .filter(|&&(_, assigned)| assigned == role)
+        .filter_map(|&(index, _)| args.get(index).cloned())
+        .collect()
+}
+
+/// Whether a word substitutes at all: a braced word never does, whatever it
+/// holds; any other word does when it carries a `$` or `[` or is itself a
+/// variable or command substitution.
+fn word_substitutes(text: &str, tok: Token) -> bool {
+    tok.kind != TokenType::Str && super::diagnostics::helpers::has_substitution(text, &tok)
+}
+
+/// Whether a written-variable word names a static variable: a non-empty word
+/// that substitutes nothing, or an element of an array whose name is written
+/// literally — the key may substitute (`incr hits($word)`), the base may not.
+fn names_static_variable(text: &str, tok: Token) -> bool {
+    if text.is_empty() {
+        return false;
+    }
+    if !word_substitutes(text, tok) {
+        return true;
+    }
+    crate::naming::split_element_ref(text)
+        .is_some_and(|(base, _)| !base.is_empty() && !crate::naming::is_dynamic_word(base))
+}
+
+/// Condense a definition's description argument into a single-line outline
+/// detail: the first non-empty line, trimmed, and length-capped so a verbose
+/// multi-line description doesn't bloat the outline entry.
+fn summarise_detail(description: &str) -> String {
+    const MAX: usize = 80;
+    let line = description
+        .lines()
+        .map(str::trim)
+        .find(|l| !l.is_empty())
+        .unwrap_or("")
+        .trim();
+    if line.chars().count() > MAX {
+        let truncated: String = line.chars().take(MAX - 1).collect();
+        format!("{truncated}…")
+    } else {
+        line.to_string()
+    }
+}
+
+/// A recorded class that is itself a `TclOO` class factory, with the
+/// definition-body grammar the bodies it manufactures obey.
+///
+/// See [`Analyser::user_metaclass_of_command`].
+struct UserMetaclass {
+    /// The registry metaclass command at the root of the chain
+    /// (`oo::class`), whose definition-body grammar governs the bodies this
+    /// factory makes.
+    root_command: String,
+    /// Original relation naming policy and selected root candidate.
+    root_policy: tcl_syntax::naming::NamePolicyProtocol,
+    root_slot: tcl_core_types::ByteCommandSlot,
+    /// The root registry metaclass's definition-body grammar.
+    grammar: &'static tcl_registry::definer::DefinitionBodyGrammar,
+}
+
+/// One definition-body member a class factory injects into every class it
+/// manufactures, with each word resolved to a real source token.
+struct InjectedMember {
+    /// Member keyword followed by its argument words.
+    texts: Vec<String>,
+    /// Parallel tokens — each in the manufacturer's own body (a literal it
+    /// always splices) or in the creation call (a `{*}$param` splice).
+    argv: Vec<Token>,
+}
+
+/// Where a class-manufacturing call's words sit, and what its manufacturer
+/// contributes on top of the written body.
+///
+/// See [`Analyser::manufacturer_layout`].
+struct SelectedObjdefineBodyLayout {
+    grammar: Option<&'static tcl_registry::definer::DefinitionBodyGrammar>,
+    body_argument: Option<usize>,
+    definer_disabled: bool,
+}
+
+struct ManufacturerLayout {
+    /// Argument index of the new class's name.
+    name_arg: usize,
+    /// Argument index of the new class's definition body.
+    body_arg: usize,
+    /// Members the manufacturer always injects.
+    injected: Vec<InjectedMember>,
+    /// `true` when the manufacturer override could not be read, so the
+    /// class's superclass list is unknown — see
+    /// [`super::types::ClassDef::inheritance_unknown`].
+    inheritance_unknown: bool,
+}
+
+/// Registry/user-factory facts needed after a class-manufacturing call has
+/// been classified.
+struct ResolvedClassCreation {
+    /// Published factory proof for a user-defined metaclass, absent for a
+    /// registry definer.
+    user_factory: Option<ClassFactory>,
+    /// Descriptor selected by the shared catalogue owner for this written head.
+    registry_metaclass: Option<&'static tcl_registry::CommandSpec>,
+    /// Name/body positions and injected definition members.
+    layout: ManufacturerLayout,
+}
+
+impl ManufacturerLayout {
+    /// A registry-declared manufacturer's own word layout, with nothing
+    /// injected. Anonymous manufacturers (`new`) and ordinary-instance
+    /// manufacturers (snit's type `create`) have no statically nameable
+    /// class definition and therefore return `None`.
+    fn builtin(method: &tcl_registry::definer::ManufacturerMethod) -> Option<Self> {
+        Some(Self {
+            name_arg: usize::from(method.names_instance_at?),
+            body_arg: usize::from(method.definition_body_at?),
+            injected: Vec::new(),
+            inheritance_unknown: false,
+        })
+    }
+}
+
+/// How deep [`Analyser::collect_nested_statements`] descends into nested
+/// script words before giving up.
+///
+/// A metaclass's unknown-dispatch member is a handful of lines in every real
+/// corpus instance; the cap only bounds a pathological or generated body, and
+/// stopping early can only *lose* evidence, which abstains.
+const MAX_UNKNOWN_BODY_DEPTH: u32 = 8;
+
+/// How many unclassifiable creation calls one document keeps for the
+/// post-pass retry — see [`Analyser::defer_class_creation`].
+///
+/// Only a call whose head names nothing the document knows is kept, so a real
+/// file holds a handful: the shape exists to catch a metaclass proved after
+/// the walk, and a document proves few. The cap bounds a generated or
+/// half-edited file whose calls are all to unknown commands; past it the
+/// document behaves exactly as it did before this pass existed, which is the
+/// abstaining direction.
+const MAX_DEFERRED_CLASS_CREATIONS: usize = 4096;
+
+/// One creation call inside a proc body whose name word reads a parameter —
+/// see [`Analyser::record_literal_parameter_definitions`].
+struct ParameterisedCreation {
+    /// Qualified name of the proc whose body holds the call.
+    proc_qname: String,
+    /// That proc's Tcl formals, including defaults and the trailing `args`
+    /// collector.
+    params: Vec<ParamDef>,
+    /// The name word, as written (`${ns}::class`).
+    name_word: String,
+    /// Source offset of the creation call.  Literal-provenance evaluation
+    /// executes only dominating assignments before this point.
+    call_off: u32,
+    /// Registry-described control bodies enclosing the creation, from the
+    /// proc body inwards.  Each body must be selected by its controller for
+    /// the creation to materialise.
+    control_path: Vec<ControlArm>,
+}
+
+#[derive(Clone, Copy)]
+struct ParameterisedProc<'a> {
+    qname: &'a str,
+    params: &'a [ParamDef],
+}
+
+#[derive(Clone)]
+struct ControlArm {
+    controller: SegmentedCommand,
+    body_span: Span,
+}
+
+#[derive(Default)]
+struct ControlArms {
+    arms: Vec<ControlArm>,
+    complete: bool,
+}
+
+struct LoadTimeCall {
+    args: Vec<String>,
+    control_path: Vec<ControlArm>,
+    call_off: u32,
+}
+
+enum StaticScriptOutcome {
+    FallsThrough(String),
+    Returns(String),
+}
+
+/// `word` with each `$name` / `${name}` reading one of `params` replaced by
+/// the call site's argument at that parameter's position.
+///
+/// `None` — abstain — when the word carries a command substitution or a
+/// backslash escape (whose value this cannot compute), when an interpolation
+/// names something other than a parameter, or when the call site supplied no
+/// argument for the parameter it does name.
+fn substitute_bound_words(
+    word: &str,
+    params: &[String],
+    args: &[String],
+    config: tcl_lexer::LexerConfig,
+) -> Option<String> {
+    if word.contains('\\') {
+        return None;
+    }
+    let length = u32::try_from(word.len()).ok()?;
+    let arena = tcl_lexer::ExecutablePartArena::decompose(
+        tcl_lexer::SourceImage::document(word),
+        Span::new(0, length),
+        tcl_lexer::word_parts::SubstFlags::default(),
+        config,
+    )
+    .ok()?;
+    let mut out = String::with_capacity(word.len());
+    for part in arena.list(arena.root()) {
+        match part.part {
+            tcl_lexer::ExecutablePart::Text(_) => {
+                let text = std::str::from_utf8(arena.bytes(part.span)?).ok()?;
+                if text.contains('$') {
+                    return None;
+                }
+                out.push_str(text);
+            }
+            tcl_lexer::ExecutablePart::Variable {
+                name, index: None, ..
+            } => {
+                let name = std::str::from_utf8(arena.bytes(name)?).ok()?;
+                let index = params.iter().position(|parameter| parameter == name)?;
+                let value = args.get(index)?;
+                if tcl_syntax::naming::is_dynamic_word(value) {
+                    return None;
+                }
+                out.push_str(value);
+            }
+            tcl_lexer::ExecutablePart::Variable { index: Some(_), .. }
+            | tcl_lexer::ExecutablePart::Command { .. }
+            | tcl_lexer::ExecutablePart::Expression { .. }
+            | tcl_lexer::ExecutablePart::ParseError(_) => return None,
+        }
+    }
+    Some(out)
+}
+
+/// Join two observations of the same computed-name class creation.
+///
+/// The source walk can observe the load-time wrapper with no structural body,
+/// while the proc-body walk observes the body under a dynamic placeholder.
+/// Empty structural relations are therefore lower bounds at this boundary:
+/// the non-empty compatible observation wins, and an already-published
+/// factory never disappears behind a later empty observation. Two different
+/// concrete superclass relations are not compatible evidence for one class;
+/// the caller must publish an abstaining record instead.
+///
+/// **Only facts a walk actually established take part in the conflict check.**
+/// Both sides here are `ClassDef`s, and `ClassDef::default()` fabricates one
+/// concrete-looking value — `metaclass: "oo::class"` — that no walk need have
+/// read. A record that never saw a creation command's head word carries it
+/// while having observed nothing, so it is compared only when
+/// [`ClassDef::metaclass_provenance`] says it was read; otherwise the observing
+/// side's answer is simply adopted. Without that gate an `oo::define` stub for
+/// a class made by a user metaclass contradicted the real metaclass and cost
+/// the record its factory and superclasses.
+fn join_parameterised_class_observations(
+    existing: &ClassDef,
+    observed: &ClassDef,
+) -> Option<ClassDef> {
+    let metaclasses_conflict = existing.metaclass_provenance == MetaclassProvenance::Observed
+        && observed.metaclass_provenance == MetaclassProvenance::Observed
+        && crate::naming::normalise_qualified_name(&existing.metaclass)
+            != crate::naming::normalise_qualified_name(&observed.metaclass);
+    if existing.qualified_name != observed.qualified_name
+        || metaclasses_conflict
+        || (!existing.superclasses.is_empty()
+            && !observed.superclasses.is_empty()
+            && existing.superclasses != observed.superclasses)
+    {
+        return None;
+    }
+
+    let (mut joined, other) = if !existing.superclasses.is_empty()
+        && observed.superclasses.is_empty()
+        || existing.superclasses == observed.superclasses
+            && existing.factory.is_some()
+            && observed.factory.is_none()
+    {
+        (existing.clone(), observed)
+    } else {
+        (observed.clone(), existing)
+    };
+    // The stand-in loses to a real reading whichever side won above, so the
+    // joined record names the metaclass the source actually wrote.
+    if joined.metaclass_provenance != MetaclassProvenance::Observed
+        && other.metaclass_provenance == MetaclassProvenance::Observed
+    {
+        joined.metaclass.clone_from(&other.metaclass);
+        joined.metaclass_provenance = MetaclassProvenance::Observed;
+    }
+    if joined.superclasses.is_empty() {
+        joined.superclasses.clone_from(&other.superclasses);
+    }
+    if joined.factory.is_none() {
+        joined.factory.clone_from(&other.factory);
+    }
+    if joined.class_command_fallback == super::types::ClassCommandFallback::None {
+        joined.class_command_fallback = other.class_command_fallback;
+    }
+    joined.inheritance_unknown |= other.inheritance_unknown;
+    joined.member_set_incomplete |= other.member_set_incomplete;
+    // One of these observations *is* the creation, so the joined record is
+    // not a cross-file extension stub even when the stub's side won above —
+    // go-to-definition must still prefer this file's creation site.
+    joined.via_define &= other.via_define;
+    // Whichever side lost, its declarations are still declarations: an
+    // `oo::define` stub's members belong to this class as surely as the
+    // creation body's do. Deliberately after the line above:
+    // `absorb_declarations` reads `via_define` on both records to decide who
+    // wins a name they both declare, and by here `joined`'s answers "were
+    // *both* of these observations stubs" — which is exactly the question
+    // that rule needs asked.
+    joined.absorb_declarations(other);
+    Some(joined)
+}
+
+/// What one statement of an unknown-dispatch body proves — see
+/// [`Analyser::unknown_dispatch_binds_instance`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum UnknownBodyEvidence {
+    /// It constructs an object named from the fallback's first parameter.
+    Constructs,
+    /// It completes the member with exactly that parameter.
+    ReturnsWord,
+    /// It completes the member with something else — fatal to the proof.
+    ReturnsSomethingElse,
+    /// It ends this path with a non-normal completion and returns no handle.
+    Terminates,
+    /// It says nothing either way.
+    Nothing,
+}
+
+#[derive(Default)]
+struct UnknownPathProof {
+    proved_return: bool,
+    invalid_return: bool,
+    fallthrough_constructed: Vec<bool>,
+}
+
+/// Whether `head` is a bracketed self-receiver word — `[self]` / `[self
+/// object]` written as a command head, which dispatches on the current object
+/// exactly as `my` does.
+///
+/// Registry data via [`tcl_registry::CommandRegistry::is_self_receiver_call`];
+/// the bracket peeling is this function's whole contribution.
+fn bracketed_self_receiver(registry: &tcl_registry::CommandRegistry, head: &str) -> bool {
+    let Some(inner) = head
+        .strip_prefix('[')
+        .and_then(|h| h.strip_suffix(']'))
+        .map(str::trim)
+    else {
+        return false;
+    };
+    let mut words = inner.split_whitespace();
+    let Some(cmd) = words.next() else {
+        return false;
+    };
+    let arg = words.next();
+    words.next().is_none() && registry.is_self_receiver_call(cmd, arg)
+}
+
+/// One piece of a manufacturer prologue word, as
+/// [`Analyser::manufacturer_injected_template`] accounts for it.
+#[derive(Debug, PartialEq, Eq)]
+enum ProloguePiece<'a> {
+    /// A `[…]` command substitution — one prologue member to read.
+    Substitution(Token),
+    /// A `$name` / `${name}` variable read.
+    VarRead(&'a str),
+    /// Whitespace, a statement separator, or an escaped separator — text
+    /// that joins pieces without contributing any member of its own.
+    Separator,
+    /// Anything else: literal prologue text, or a fragment the scanner
+    /// cannot classify.  Its presence means the prologue is *not* fully
+    /// read.
+    Opaque,
+}
+
+/// Read original executable components without treating literal text as a
+/// substituted parameter. Unsupported components withdraw the whole template.
+fn prologue_pieces(original: &tcl_lexer::NativeWord) -> Vec<ProloguePiece<'_>> {
+    let arena = original.executable_parts();
+    let source_map = tcl_lexer::SourceMap::from_image(original.image());
+    let mut pieces = Vec::new();
+    for part in arena.list(arena.root()) {
+        let piece = match part.part {
+            tcl_lexer::ExecutablePart::Text(_) => {
+                if arena.text(part).is_some_and(|text| {
+                    text.iter()
+                        .all(|byte| byte.is_ascii_whitespace() || *byte == b';')
+                }) {
+                    ProloguePiece::Separator
+                } else {
+                    ProloguePiece::Opaque
+                }
+            }
+            tcl_lexer::ExecutablePart::Variable { name, index: None } => arena
+                .bytes(name)
+                .and_then(|bytes| std::str::from_utf8(bytes).ok())
+                .map_or(ProloguePiece::Opaque, ProloguePiece::VarRead),
+            tcl_lexer::ExecutablePart::Command { body } => {
+                let mut groups = original.tokens().iter().filter(|token| {
+                    token.kind == TokenType::Cmd
+                        && token.span.start() == part.span.start()
+                        && Some(source_map.token_text(**token).as_bytes()) == arena.bytes(body)
+                });
+                match (groups.next(), groups.next()) {
+                    (Some(group), None) => ProloguePiece::Substitution(*group),
+                    _ => ProloguePiece::Opaque,
+                }
+            }
+            tcl_lexer::ExecutablePart::Variable { index: Some(_), .. }
+            | tcl_lexer::ExecutablePart::Expression { .. }
+            | tcl_lexer::ExecutablePart::ParseError(_) => ProloguePiece::Opaque,
+        };
+        let opaque = piece == ProloguePiece::Opaque;
+        if piece != ProloguePiece::Separator || pieces.last() != Some(&piece) {
+            pieces.push(piece);
+        }
+        if opaque {
+            break;
+        }
+    }
+    pieces
+}
+
+/// Resolve one injected-member template against the creation call that
+/// triggered it.
+///
+/// The literal words keep the tokens they were templated with; a
+/// [`FactoryWord::CallerSplice`] contributes the call argument's literal list
+/// elements, each with its own call-site token.  `None` when this call's
+/// argument is not a statically-known list — the caller then marks the
+/// class's inheritance unknown rather than claiming an injection it cannot
+/// spell.
+fn resolve_factory_member(
+    member: &FactoryMember,
+    original_arguments: Option<&[tcl_lexer::NativeWord]>,
+) -> Option<InjectedMember> {
+    let mut member_words: Vec<String> = Vec::new();
+    let mut member_tokens: Vec<Token> = Vec::new();
+    for word in &member.words {
+        match word {
+            FactoryWord::Literal { text, token } => {
+                member_words.push(text.clone());
+                member_tokens.push(*token);
+            }
+            FactoryWord::CallerSplice(arg_index) => {
+                let original = original_arguments?.get(*arg_index)?;
+                for element in tcl_syntax::word_rules::original_static_word_list_elements(original)?
+                {
+                    // This token is a display anchor for an actual list field,
+                    // never an independently captured word or naming input.
+                    let span = element.source_span()?;
+                    member_words.push(element.value().to_owned());
+                    member_tokens.push(Token {
+                        kind: TokenType::Esc,
+                        span,
+                        content_offset: 0,
+                        in_quote: false,
+                    });
+                }
+            }
+        }
+    }
+    Some(InjectedMember {
+        texts: member_words,
+        argv: member_tokens,
+    })
+}
+
+/// The word layout a class factory's `args[0]` manufacturer imposes on this
+/// creation call, with its injected members resolved against the call's own
+/// arguments.
+///
+/// A subcommand the factory does not override runs the inherited `oo::class`
+/// manufacturer, so the builtin `create Name Body` layout applies with
+/// nothing injected.
+fn manufacturer_layout(
+    factory: &ClassFactory,
+    builtin: &tcl_registry::definer::ManufacturerMethod,
+    args: &[String],
+    original_arguments: Option<&[tcl_lexer::NativeWord]>,
+) -> Option<ManufacturerLayout> {
+    let Some(spec) = factory.overrides.get(&args[0]) else {
+        return ManufacturerLayout::builtin(builtin);
+    };
+    let injected = spec.injected.as_ref().and_then(|members| {
+        members
+            .iter()
+            .map(|m| resolve_factory_member(m, original_arguments))
+            .collect::<Option<Vec<_>>>()
+    });
+    Some(ManufacturerLayout {
+        name_arg: spec.name_arg,
+        body_arg: spec.body_arg,
+        inheritance_unknown: injected.is_none(),
+        injected: injected.unwrap_or_default(),
+    })
+}
+
+/// Bundled arguments for [`Analyser::walk_proc_body_in_new_scope`] — kept
+/// under clippy's argument-count limit (mirrors `TaintScan` in `taint.rs`).
+#[derive(Clone, Copy)]
+#[allow(clippy::struct_field_names)]
+struct ProcBodyWalkArgs<'a> {
+    /// Parent scope path, *before* the new proc scope is pushed.
+    path: &'a [usize],
+    /// The routine's name after [`Analyser::resolve_dynamic_word`] — the
+    /// `Scope` name is derived from it via [`scope_name_for_routine`], never
+    /// from the raw written word.
+    resolved_name: &'a str,
+    body_span: Span,
+    /// The parameter-list word's token.
+    params_tok: Token,
+    name_tok: Token,
+    params: &'a [crate::signature_scan::types::ParamDef],
+    /// The static-variable list word and its token, when the definer takes one
+    /// and the call supplies it.
+    statics: Option<(&'a str, Token)>,
+    body_text: &'a str,
+    body_tok: Token,
+    ns_prefix: &'a str,
+}
+
+/// One element of a static-variable list.
+struct StaticVariable {
+    /// The name the body declares.
+    name: String,
+    /// Whether the element refers to the enclosing scope's variable of that
+    /// name, which is read when the procedure is defined: a bare `name` or
+    /// `&name`. A `{name value}` pair names its own initial value.
+    reads_enclosing: bool,
+}
+
+/// The variables a static-variable list declares: each element is a bare
+/// `name`, a `{name value}` pair, or `&name`, which refers to the enclosing
+/// scope's variable of that name and declares the same name in the body.
+fn static_variables(
+    text: &str,
+    rules: tcl_syntax::word_rules::WordValueRules,
+) -> Vec<StaticVariable> {
+    parse_param_list(text, rules)
+        .into_iter()
+        .map(|param| {
+            let reads_enclosing = !param.has_default;
+            match param.name.strip_prefix('&') {
+                Some(referenced) => StaticVariable {
+                    name: referenced.to_owned(),
+                    reads_enclosing,
+                },
+                None => StaticVariable {
+                    name: param.name,
+                    reads_enclosing,
+                },
+            }
+        })
+        .collect()
+}
+
+impl Analyser {
+    /// Bind the variable a direct one-target write names to the value word
+    /// it stores — `set name value` — for any invocation whose declared
+    /// semantics is that write
+    /// ([`tcl_registry::value_transfer::ResolvedSemantics::writes_value_word`]),
+    /// the registry's declaration rather than the command's spelling or an
+    /// analyser hook:
+    ///
+    /// - the written name is an assignment the unused-variable hint may
+    ///   report, so its definition escalates `warn_if_unused` over the one
+    ///   the generic role binding ([`Self::handle_var_binding_command`])
+    ///   gave the same word;
+    /// - the constant-string environment reads the value word's `CellWrite`
+    ///   evaluation (`value_word_write`) when the word is one literal
+    ///   token, so a regex source or a namespace a later word names
+    ///   resolves through the variable;
+    /// - a value word that is one `[…]` substitution creating a child
+    ///   interpreter binds the name to that interpreter's key, the
+    ///   interpreter domain reached from this binding;
+    /// - a value word that is one `[…]` substitution the registry folds
+    ///   binds the folded constant, and anything else clears both;
+    /// - `set auto_path …` records the search path the value word names.
+    ///
+    /// The one-word read form (`set name`) binds nothing: the walk's
+    /// `VarRead`-role reference recording
+    /// ([`Self::record_arg_var_reads`]) takes it.
+    pub fn bind_value_word_assignment(
+        &mut self,
+        command_token: Token,
+        argument_tokens: &[Token],
+        scope_path: &[usize],
+    ) {
+        use tcl_registry::arg_role::ArgRole;
+        let Some(original) = self.original_diagnostic_call_at(command_token, argument_tokens)
+        else {
+            return;
+        };
+        let Some(Some((Some(roles), semantics, canonical))) = original.with_schema(|call| {
+            call.semantics.value.writes_value_word().then(|| {
+                (
+                    call.arg_roles(),
+                    call.semantics.value,
+                    call.canonical_command.to_owned(),
+                )
+            })
+        }) else {
+            return;
+        };
+        let Some((arguments, tokens, single_token_word)) = original.source_arguments() else {
+            return;
+        };
+        let args = arguments.as_slice();
+        let arg_tokens = tokens.as_slice();
+        // The write's shape (`CellWriteSemantics`): one `VarWrite` word, and
+        // the value word after it, last.
+        let Some(target) = role_position(&roles, ArgRole::VarWrite) else {
+            return;
+        };
+        let value = target + 1;
+        let (Some(name), Some(&name_tok), Some(value_text), Some(&value_tok)) = (
+            args.get(target),
+            arg_tokens.get(target),
+            args.get(value),
+            arg_tokens.get(value),
+        ) else {
+            return;
+        };
+        if value + 1 != args.len() {
+            return;
+        }
+        if names_static_variable(name, name_tok) {
+            self.define_var(name, name_tok, scope_path, true, None);
+        }
+        if original.literal(target).is_none() {
+            return;
+        }
+        self.record_search_path_write(
+            args,
+            arg_tokens,
+            target,
+            value..value + 1,
+            super::types::AutoPathForm::Assign,
+        );
+        let single = single_token_word.get(value).copied().unwrap_or(false);
+        let written = single
+            .then(|| {
+                self.value_word_write(
+                    semantics,
+                    &canonical,
+                    (args, roles.as_slice()),
+                    (target, value),
+                    original.literal(value)?,
+                )
+            })
+            .flatten();
+        if let Some(written) = written {
+            self.set_const_string(name, written, value_tok.span, scope_path);
+            self.clear_interp_var_binding(name, scope_path);
+        } else if let Some((path, safe)) = original
+            .word(value)
+            .and_then(|word| self.original_substitution_call(word))
+            .and_then(|call| {
+                call.with_schema(|schema| created_interpreter(&schema.state_transitions()))
+                    .flatten()
+            })
+        {
+            // `set VAR [interp create ?-safe? ?--? ?path?]` — bind VAR, in
+            // this scope, to the interpreter-domain key this call records.
+            // The substitution is read as a call and resolved like any
+            // other, so what it creates is its
+            // `InterpreterTransition::Create`, never its spelling. Mirrors
+            // `record_instance_creation`'s TclOO `set g [Foo new]` value-flow
+            // shape, but scope-chain-aware like `const_strings` rather than
+            // flat like `instance_classes` — see `interp_var_bindings`'s doc
+            // for why.
+            self.clear_const_string(name, scope_path);
+            match path {
+                Some(tcl_registry::TransitionSubject::Unknown { .. }) => {
+                    // A dynamic path argument (not just a missing one) —
+                    // mirrors `handle_interp_create_command`'s own handling
+                    // of the identical shape: existence becomes unknowable
+                    // file-wide, nothing recorded.
+                    self.dynamic_interp_ops = true;
+                    self.clear_interp_var_binding(name, scope_path);
+                }
+                path => {
+                    // A literal path resolves to its qualified key; a missing
+                    // path (Tcl auto-generates a fresh, always-unique name)
+                    // gets a synthetic per-call-site key — mirrors
+                    // `handle_namespace_eval_command`'s `@dynns@<offset>`
+                    // pattern — so two unrelated `set VAR [interp create
+                    // -safe]` call sites never collide just because they
+                    // wrote the same variable name.
+                    let key = match path {
+                        Some(tcl_registry::TransitionSubject::Literal(p)) => {
+                            self.qualified_interp_key(&p)
+                        }
+                        _ => self.mint_synthetic_offset_name("@autoname@", value_tok.span.start()),
+                    };
+                    self.interpreters.insert(
+                        key.clone(),
+                        super::state::InterpState {
+                            safe,
+                            ..Default::default()
+                        },
+                    );
+                    self.set_original_logical_interp_var_binding(name, key, value_tok, scope_path);
+                }
+            }
+        } else if single
+            && value_tok.kind == TokenType::Cmd
+            && let Some(folded) =
+                self.try_fold_const_cmd_subst_rhs(value_text, value_tok, scope_path)
+        {
+            // `set VAR [cmd …]` whose substitution is a compile-time
+            // constant: the registry `const_fold` / frame-fact engine proves
+            // the value, so VAR enters the same constant-string lattice a
+            // literal value does — unblocking the `${ns}::setdef`-style
+            // navigation chain (`resolve_dynamic_command_head`) for the
+            // `set ns [namespace qualifiers ::tc::X]` shape.
+            self.set_const_string(name, folded, value_tok.span, scope_path);
+            self.clear_interp_var_binding(name, scope_path);
+        } else {
+            self.clear_const_string(name, scope_path);
+            self.clear_interp_var_binding(name, scope_path);
+        }
+    }
+
+    /// The value a direct one-target write stores when its value word is
+    /// one literal token: the declared semantics' `CellWrite` evaluation
+    /// over the call's words, the value word cooked as Tcl reads it
+    /// (backslashes substituted in a bare or quoted word, the braces' content
+    /// in a braced one), the resolver's roles on its operands. `None` for a
+    /// word that is no literal, or an evaluation that writes no exact value
+    /// to the target.
+    fn value_word_write(
+        &self,
+        semantics: tcl_registry::value_transfer::ResolvedSemantics,
+        canonical: &str,
+        (args, roles): (&[String], &[(usize, tcl_registry::ArgRole)]),
+        (target, value): (usize, usize),
+        value_literal: &str,
+    ) -> Option<String> {
+        use tcl_registry::value_transfer::{
+            Budget, EvalAnswer, LiteralInputs, OperandId, StoreOutcome,
+        };
+        let words: Vec<&str> = args
+            .iter()
+            .enumerate()
+            .map(|(index, word)| {
+                if index == value {
+                    value_literal
+                } else {
+                    word.as_str()
+                }
+            })
+            .collect();
+        let input = self.resolved_analysis_input();
+        let generation = input.context_registry();
+        let mut context =
+            tcl_registry::value_transfer::AnalysisContext::detached(Some(input.unit_profile()));
+        context.grammar = self
+            .lexer_config()
+            .grammar_over(input.unit_profile().grammar);
+        context.registry_generation = generation.commands().generation();
+        context.overlay_generation = generation.commands().overlay_generation();
+        let mut inputs = LiteralInputs::new(canonical, None, &words, Some(input.unit_profile()))
+            .with_context(context);
+        for &(index, role) in roles {
+            inputs = inputs.with_role(OperandId(index), role);
+        }
+        match semantics
+            .semantics()?
+            .evaluate(&inputs, &mut Budget::evaluation())
+        {
+            EvalAnswer::Evaluated(outcome) => {
+                outcome
+                    .ordered_stores
+                    .into_iter()
+                    .find_map(|store| match store {
+                        StoreOutcome::Write { target: t, value } if t.0 == OperandId(target) => {
+                            String::from_utf8(value.bytes).ok()
+                        }
+                        _ => None,
+                    })
+            }
+            EvalAnswer::Pending | EvalAnswer::Declined(_) => None,
+        }
+    }
+
+    /// Registry folding keeps whole-module command trust and exact original variable sources.
+    /// Declaration labels cannot supply entered object-frame facts.
+    fn try_fold_const_cmd_subst_rhs(
+        &mut self,
+        value_text: &str,
+        value_token: Token,
+        scope_path: &[usize],
+    ) -> Option<String> {
+        let registry = self.registry.clone()?;
+        let trimmed = value_text.trim();
+        let inner = trimmed
+            .strip_prefix('[')
+            .and_then(|s| s.strip_suffix(']'))
+            .unwrap_or(trimmed);
+        if !crate::const_subst::head_may_fold(&registry, inner) {
+            return None;
+        }
+        let trust = self.whole_file_command_trust()?;
+        let version = (!self.result.dialect.is_empty())
+            .then(|| self.profile.const_fold_version())
+            .flatten();
+        let trusts = |name: &str| trust.trusts(name);
+        let lookup = |arena: &tcl_lexer::ExecutablePartArena,
+                      component: &tcl_lexer::SpannedExecutablePart| {
+            self.lookup_logical_const_component(arena, component)
+        };
+        let operand = self.retained_value_word(value_token)?;
+        crate::const_subst::ConstSubstCtx {
+            registry: &registry,
+            resolution_namespace: &self.command_resolution_namespace(scope_path),
+            namespace_context: None,
+            version,
+            defining_class: None,
+            trusts: &trusts,
+            lookup_var: &|_| None,
+        }
+        .fold_original_source_substitution(&operand, &lookup)
+    }
+
+    /// Apply the scope aliases one invocation's state transitions state: each
+    /// [`tcl_registry::VariableCellAliasTransition`] defines its local and
+    /// links it to the cell it aliases, whichever command — `global`,
+    /// `variable`, `upvar`, `namespace upvar`, or a pack command whose
+    /// `state_transitions` resolver states alias facts — said so. Nothing
+    /// here knows a command's layout: the registry resolver located every
+    /// word, and [`tcl_registry::AliasWords`] says where each is spelled.
+    ///
+    /// Called from the dispatch tail for every command the walk's context
+    /// proves, with `invocation` resolved over the words' source facts, so a
+    /// computed word reaches the resolver as computed and the fact abstains
+    /// on it (`alias_and_binding_resolvers_abstain_on_a_dynamic_word` pins
+    /// the registry side).
+    pub fn apply_state_transitions(
+        &mut self,
+        transitions: &tcl_registry::StateTransitions,
+        args: &[String],
+        arg_tokens: &[Token],
+        scope_path: &[usize],
+    ) {
+        for fact in transitions.facts() {
+            if let tcl_registry::StateTransition::VariableCellAlias(alias) = &fact.transition {
+                self.apply_variable_alias(alias, args, arg_tokens, scope_path);
+            }
+        }
+    }
+
+    /// Define one alias fact's local and link it to its cell.
+    ///
+    /// The local is a declaration (`warn_if_unused = false`), never a "set
+    /// but unused" write. A computed local names no static variable, so the
+    /// fact binds nothing. The link unifies every alias of one cell for
+    /// Find-References and Rename; `target_span` is the word that names the
+    /// cell — the declaration word itself for `global v`, one word earlier
+    /// for `upvar #0 v local` — see [`super::types::VarDef::link_target_span`].
+    fn apply_variable_alias(
+        &mut self,
+        alias: &tcl_registry::VariableCellAliasTransition,
+        args: &[String],
+        arg_tokens: &[Token],
+        scope_path: &[usize],
+    ) {
+        let Some(local) = alias.local.literal() else {
+            return;
+        };
+        let Some(local_tok) = arg_tokens.get(alias.words.local).copied() else {
+            return;
+        };
+        self.define_var(local, local_tok, scope_path, false, None);
+        let Some(target_tok) = arg_tokens.get(alias.words.target).copied() else {
+            return;
+        };
+        let namespace =
+            self.original_alias_target_namespace((local_tok.span, target_tok.span), scope_path);
+        let original = self.record_original_variable_alias_target(
+            local_tok.span,
+            target_tok.span,
+            namespace,
+            crate::signature_scan::variable_symbol::OriginalVariableSymbolReceiver::NamespaceAlias,
+        );
+        if let Some(report) = self.alias_target_report(&alias.target, args, scope_path) {
+            self.set_var_link_report(local, scope_path, report, target_tok.span);
+        }
+        if matches!(
+            alias.target,
+            tcl_registry::VariableAliasTarget::CallerSelectedFrame { .. }
+        ) && let Some(original) = original
+        {
+            self.define_original_namespace_alias_target(&original);
+        }
+    }
+
+    fn original_alias_target_namespace(
+        &self,
+        operands: (Span, Span),
+        scope_path: &[usize],
+    ) -> Option<crate::signature_scan::scope::SignatureNamespaceScope> {
+        let input = self.resolved_analysis_input();
+        let target_input = self.original_qualified_variable_input(operands.1, false)?;
+        let current = if input.has_logical_source_name_context() {
+            self.head_identities
+                .original_logical_variable_scope_at(
+                    &input,
+                    &tcl_lexer::SourceImage::document(&self.source),
+                    operands.1,
+                    &target_input,
+                )?
+                .namespace()
+        } else {
+            self.original_variable_namespace_at(scope_path)?
+        };
+        let purpose =
+            crate::signature_scan::original_name::OriginalSourceNamePurpose::for_analysis_input(
+                &input,
+                self.source_analysis_entry.as_deref(),
+                self.declaration_name_policy()?,
+            );
+        let mut selected = None;
+        for source in &self.result.original_variable_alias_source_operands {
+            if !source
+                .operands()
+                .iter()
+                .any(|&(local, target, _)| (local, target) == operands)
+            {
+                continue;
+            }
+            let namespace = source.target_namespace_scope(
+                &self.source,
+                &self.result,
+                operands,
+                &target_input,
+                &current,
+                purpose,
+            )?;
+            if selected.as_ref().is_some_and(|prior| prior != &namespace) {
+                return None;
+            }
+            selected = Some(namespace);
+        }
+        selected
+    }
+
+    /// Reporting spelling and protective unknown markers. No symbol or target
+    /// definition is constructed from this text.
+    pub(super) fn alias_target_report(
+        &self,
+        target: &tcl_registry::VariableAliasTarget,
+        args: &[String],
+        scope_path: &[usize],
+    ) -> Option<String> {
+        use tcl_registry::VariableAliasTarget as Target;
+        /// A subject's value when the resolver knew it, else its source word
+        /// as written — the spelling, substitution marker included, never
+        /// taken for the value it computes.
+        fn spelt<'a>(
+            subject: &'a tcl_registry::TransitionSubject,
+            args: &'a [String],
+        ) -> Option<&'a str> {
+            match subject {
+                tcl_registry::TransitionSubject::Literal(name)
+                | tcl_registry::TransitionSubject::LocatedLiteral { value: name, .. } => Some(name),
+                tcl_registry::TransitionSubject::LocatedNativeBytes { value, .. } => {
+                    std::str::from_utf8(value).ok()
+                }
+                tcl_registry::TransitionSubject::Unknown { argument_index, .. } => {
+                    args.get(*argument_index).map(String::as_str)
+                }
+            }
+        }
+        let relative_to = |namespace: &str, name: &str| {
+            if name.starts_with("::") {
+                name.to_owned()
+            } else {
+                format!("{}::{name}", namespace.trim_end_matches("::"))
+            }
+        };
+        let path = match target {
+            Target::Global { variable } => relative_to("", variable.literal()?),
+            Target::CurrentNamespace { variable } => relative_to(
+                &self.command_resolution_namespace(scope_path),
+                variable.literal()?,
+            ),
+            Target::Namespace {
+                namespace,
+                variable,
+            } => {
+                let namespace = spelt(namespace, args)?;
+                let namespace = if namespace.starts_with("::") {
+                    namespace.to_owned()
+                } else {
+                    relative_to(&self.command_resolution_namespace(scope_path), namespace)
+                };
+                relative_to(&namespace, spelt(variable, args)?)
+            }
+            Target::CallerSelectedFrame { frame, variable } => {
+                // The array an element word lives in is named by the word's
+                // base whatever its key, so a computed key still leaves the
+                // written base readable: the source spelling is read for that
+                // base alone, never taken as the variable's value.
+                let other = spelt(variable, args)?;
+                let path = Self::upvar_link_target(other, self.alias_frame_level(frame))?;
+                return Some(path);
+            }
+        };
+        Some(path)
+    }
+
+    /// The frame an alias's caller-frame selection reaches, in the analysed
+    /// release's level grammar (`uplevel 010` is 8 frames up on 8.6 and 10
+    /// on 9.0). With no registry loaded there is no release to name, so the
+    /// parse abstains with `Dynamic` wherever the releases disagree, as does
+    /// a computed level word — the direction every consumer of this level
+    /// already treats conservatively.
+    fn alias_frame_level(
+        &self,
+        frame: &tcl_registry::CallerFrameSelection,
+    ) -> tcl_registry::frame_effect::FrameLevel {
+        use tcl_registry::frame_effect::FrameLevel;
+        match frame {
+            tcl_registry::CallerFrameSelection::DefaultCaller => FrameLevel::DEFAULT,
+            tcl_registry::CallerFrameSelection::Explicit(level) => level
+                .literal()
+                .and_then(|level| {
+                    self.registry.as_ref().map_or_else(
+                        || FrameLevel::parse(level),
+                        |r| FrameLevel::parse_in(level, r),
+                    )
+                })
+                .unwrap_or(FrameLevel::Dynamic),
+        }
+    }
+
+    /// Handle a `global` declaration: a flat list of names; each gets
+    /// a var binding with `warn_if_unused = false` (declared, not
+    /// "set but unused").
+    ///
+    /// Dispatched via [`tcl_registry::hooks::AnalyserHookId::Global`].
+    #[cfg(test)]
+    pub fn handle_global_command(
+        &mut self,
+        args: &[String],
+        arg_tokens: &[Token],
+        scope_path: &[usize],
+    ) {
+        // `global ::ns::v` makes the *unqualified tail* (`v`) a local alias
+        // to the global variable, so define the tail name locally (matches
+        // Tcl + completion's expectation of both `$v` and `$::ns::v`).
+        for (i, name) in args.iter().enumerate() {
+            let Some(local) = self.declaration_local_alias(
+                name,
+                i,
+                tcl_registry::state_transition::VariableAliasNamePurpose::Global,
+            ) else {
+                continue;
+            };
+            // A dynamic name (`global $dyn`) computes its name at runtime — not
+            // a static declaration.
+            if let Some(tok) = arg_tokens.get(i)
+                && !crate::naming::is_dynamic_word(name)
+            {
+                self.define_var(&local, *tok, scope_path, false, None);
+                // `global v` aliases the global cell `::v`; `global ::ns::v`
+                // aliases `::ns::v` as written.  Record the target so every
+                // `global` alias and the global declaration unify.
+                let Some(target) = self.declaration_alias_target("::", name) else {
+                    continue;
+                };
+                // The declaration word *is* the cell's name here (`global v`
+                // / `global ::ns::v`), so a rename of the cell rewrites this
+                // very word — see `VarDef::link_target_span`.
+                self.set_var_link_target(
+                    &local,
+                    scope_path,
+                    super::scope::VariableLinkTarget {
+                        target,
+                        target_span: tok.span,
+                        local_span: tok.span,
+                        original_target_namespace: self.original_variable_root_namespace(),
+                        original_target_receiver: crate::signature_scan::variable_symbol::OriginalVariableSymbolReceiver::NamespaceAlias,
+                    },
+                );
+            }
+        }
+    }
+
+    /// Handle a `variable` declaration: alternating `name ?value?`
+    /// pairs; only the names get bindings. The optional value words
+    /// are skipped (the IR pass handles their assignment if the value
+    /// form actually fires).
+    ///
+    /// Dispatched via [`tcl_registry::hooks::AnalyserHookId::Variable`].
+    #[cfg(test)]
+    pub fn handle_variable_command(
+        &mut self,
+        args: &[String],
+        arg_tokens: &[Token],
+        scope_path: &[usize],
+    ) {
+        // `variable name ?value? name ?value? ...`
+        // Each `name` aliases the cell `<current-namespace>::<name>`; every
+        // `variable name` across that namespace's procs, plus the namespace
+        // -level declaration, shares that target and so unifies.
+        let ns = self.command_resolution_namespace(scope_path);
+        let mut i = 0;
+        while i < args.len() {
+            // A dynamic name (`variable $dyn` / `variable [f]`) is computed at
+            // runtime — its literal text is not the variable's name, so it is
+            // not a static declaration.  Skip it rather than record the
+            // substitution text as a variable.
+            if let Some(tok) = arg_tokens.get(i)
+                && !crate::naming::is_dynamic_word(&args[i])
+            {
+                // Mirror `global` above: the *unqualified tail* is the local
+                // alias name, but the target keeps the FULL qualified path so a
+                // relative `variable child::v` aliases `<ns>::child::v` (and an
+                // absolute `variable ::x::v` aliases `::x::v`), never the
+                // tail-collapsed `<ns>::v`.  Keying the link on the tail is what
+                // lets a later `$v` reference share the target and unify.
+                let Some(local) = self.declaration_local_alias(
+                    &args[i],
+                    i,
+                    tcl_registry::state_transition::VariableAliasNamePurpose::NamespaceVariable,
+                ) else {
+                    i += if i + 1 < args.len() { 2 } else { 1 };
+                    continue;
+                };
+                self.define_var(&local, *tok, scope_path, false, None);
+                let Some(target) = self.declaration_alias_target(&ns, &args[i]) else {
+                    i += if i + 1 < args.len() { 2 } else { 1 };
+                    continue;
+                };
+                // As with `global`, the declaration word names the cell.
+                self.set_var_link_target(
+                    &local,
+                    scope_path,
+                    super::scope::VariableLinkTarget {
+                        target,
+                        target_span: tok.span,
+                        local_span: tok.span,
+                        original_target_namespace: self.original_variable_namespace_at(scope_path),
+                        original_target_receiver: if self.head_identities.source_bindings_ref().original_variable_uses_global_frame_at_span(tok.span, self.file_lexer_config())
+                        && self.original_variable_namespace_at(scope_path).is_some_and(|namespace| match namespace {
+                            crate::signature_scan::scope::SignatureNamespaceScope::C(path) => path.is_root(),
+                            crate::signature_scan::scope::SignatureNamespaceScope::Jim(object) => object.is_empty(),
+                            crate::signature_scan::scope::SignatureNamespaceScope::Symbolic(_) => false,
+                        })
+                    {
+                        crate::signature_scan::variable_symbol::OriginalVariableSymbolReceiver::NamespaceVariableWithoutLink
+                    } else {
+                        crate::signature_scan::variable_symbol::OriginalVariableSymbolReceiver::NamespaceAlias
+                    },
+                    },
+                );
+            }
+            i += if i + 1 < args.len() { 2 } else { 1 };
+        }
+    }
+
+    #[cfg(test)]
+    fn declaration_local_alias(
+        &self,
+        name: &str,
+        argument_index: usize,
+        purpose: tcl_registry::state_transition::VariableAliasNamePurpose,
+    ) -> Option<String> {
+        let dialect = self.declaration_name_dialect();
+        let subject = tcl_registry::state_transition::local_alias_name(
+            &tcl_registry::TransitionSubject::Literal(name.to_owned()),
+            argument_index,
+            purpose,
+            Some(dialect),
+        )?;
+        subject.literal().map(str::to_owned)
+    }
+
+    fn declaration_name_dialect(&self) -> tcl_registry::InvocationDialect {
+        self.source_analysis_entry
+            .as_ref()
+            .and_then(|entry| entry.invocation_dialect)
+            .unwrap_or_else(|| tcl_registry::InvocationDialect::of_profile(self.profile))
+    }
+
+    /// Independently selected Logical source advice. The authored declaration
+    /// simulation can have a native-shaped naming policy without selecting a
+    /// Native editing domain; actual entry and recipe remain separate barriers.
+    pub(super) fn selected_logical_declaration_advice(&self) -> bool {
+        // naming.minifier.complete-logical-metadata
+        // docs/design/analysis/name-resolution-proofs/minifier-complete-logical-metadata.md
+        crate::signature_scan::original_name::LogicalSourceNamePurpose::for_input(
+            &self.resolved_analysis_input(),
+            self.source_analysis_entry.as_deref(),
+        )
+        .is_some()
+    }
+
+    pub(super) fn declaration_name_policy(&self) -> Option<tcl_syntax::naming::NamePolicyProtocol> {
+        if self.vendor_source_name_policy().is_some()
+            && self.source_analysis_entry.as_ref().is_none_or(|entry| {
+                entry.native_entry.is_none()
+                    && !matches!(
+                        entry.execution_name_policy,
+                        Some(tcl_syntax::naming::ExecutionNamePolicy::NativeRecipe(_))
+                    )
+            })
+        {
+            return None;
+        }
+        match self.source_analysis_entry.as_deref() {
+            Some(entry) => match entry.native_entry.as_deref() {
+                Some(native) => native.command_name_policy(),
+                None => match entry.execution_name_policy {
+                    Some(tcl_syntax::naming::ExecutionNamePolicy::ObservedBigIp(_)) => {
+                        entry.invocation_dialect?.authored_name_policy()
+                    }
+                    Some(tcl_syntax::naming::ExecutionNamePolicy::NativeRecipe(policy)) => {
+                        Some(policy)
+                    }
+                    None => self.declaration_name_dialect().authored_name_policy(),
+                },
+            },
+            None => self.declaration_name_dialect().authored_name_policy(),
+        }
+    }
+
+    pub(super) fn declaration_namespace_scope(
+        &self,
+        path: &[usize],
+    ) -> Option<crate::signature_scan::scope::SignatureNamespaceScope> {
+        use crate::signature_scan::scope::SignatureNamespaceScope;
+        let policy = self.declaration_name_policy()?;
+        let mut current = match self
+            .source_analysis_entry
+            .as_deref()
+            .and_then(|entry| entry.native_entry.as_deref())
+        {
+            Some(entry) => {
+                let row = entry.namespace_context(entry.current_namespace).ok()?;
+                match policy.recipe() {
+                    tcl_syntax::naming::NativeNameProtocol::C(_) => {
+                        SignatureNamespaceScope::C(row.path.clone())
+                    }
+                    tcl_syntax::naming::NativeNameProtocol::Jim084 => {
+                        SignatureNamespaceScope::Jim(row.jim_namespace_object.clone()?)
+                    }
+                }
+            }
+            None => SignatureNamespaceScope::root(Some(policy)),
+        };
+        let mut scope = &self.result.global_scope;
+        for &index in path {
+            scope = scope.children.get(index)?;
+        }
+        // Each receipt owns a complete namespace. Synthetic reporting wrappers
+        // need not have their own recipe when the final lambda/declaration
+        // scope independently retains one. An unknown final scope stays unknown.
+        if !path.is_empty() {
+            current = scope.naming_scope.clone()?;
+        }
+        Some(current)
+    }
+
+    #[cfg(test)]
+    fn declaration_alias_target(&self, namespace: &str, name: &str) -> Option<String> {
+        let dialect = self.declaration_name_dialect();
+        if dialect.native_name_protocol().is_none()
+            && dialect.family() == Some(tcl_dialect::model::Family::Tcl)
+            && !name.contains('\0')
+        {
+            return Some(crate::naming::qualify(namespace, name));
+        }
+        Some(match dialect.native_name_protocol()? {
+            tcl_syntax::naming::NativeNameProtocol::C(_) => crate::naming::qualify(namespace, name),
+            tcl_syntax::naming::NativeNameProtocol::Jim084 => {
+                format!(
+                    "::{}",
+                    crate::naming::jim_global_variable_key(namespace, name)
+                )
+            }
+        })
+    }
+
+    /// Record a lightweight named definition for a registry *symbol-definer*
+    /// command (`tcltest::test NAME …`, …) so it appears in the document /
+    /// workspace outline alongside procs, classes, and variables.
+    ///
+    /// Everything command-specific is registry data: which argument holds the
+    /// name, which holds the description, and the outline category all come from
+    /// the command's [`tcl_registry::SymbolDef`] — there is no `cmd == "test"`
+    /// arm here, so registering the next such command (a benchmark runner, a
+    /// custom test wrapper) is a one-line spec change.
+    ///
+    /// Names use original-word values and checked Logical declaration provenance.
+    /// Unresolved substitutions cannot supply outline identities.
+    pub(super) fn handle_defines_symbol(
+        &mut self,
+        advice: &crate::registry_invocation::OriginalSymbolDeclarationAdvice,
+        args: &[String],
+        arg_tokens: &[Token],
+        arg_single: &[bool],
+        command_token: Token,
+        scope_path: &[usize],
+    ) {
+        if !self.registry_symbol_placement_is_valid(advice, args, arg_tokens, arg_single) {
+            return;
+        }
+        let sym = advice.symbol;
+        // A command that defines only in one form (the `testConstraint NAME
+        // value` setter, not the `testConstraint NAME` getter) records a symbol
+        // only when its defining argument is present.
+        if let Some(req) = sym.requires_arg
+            && args.get(req as usize).is_none()
+        {
+            return;
+        }
+        let name_idx = sym.name_arg as usize;
+        let (Some(name_tok), Some(name_text), Some(name_single)) = (
+            arg_tokens.get(name_idx).copied(),
+            args.get(name_idx),
+            arg_single.get(name_idx).copied(),
+        ) else {
+            return;
+        };
+        let vendor_name = self
+            .result
+            .original_vendor_source_name_in_source(
+                &tcl_lexer::SourceImage::document(&self.source),
+                self.file_lexer_config(),
+                name_tok.span,
+            )
+            .cloned();
+        let original_name_input = self
+            .head_identities
+            .original_written_name_input_at_span(name_tok.span, self.file_lexer_config())
+            .or_else(|| {
+                Some(
+                    crate::signature_scan::scope::SignatureSourceNameInput::OriginalWord(
+                        self.original_static_source_name_at_span(name_tok.span)?
+                            .name_input()
+                            .clone(),
+                    ),
+                )
+            });
+        let name = self.defined_symbol_reporting_name(
+            original_name_input.as_ref(),
+            vendor_name.as_ref(),
+            name_text,
+            name_tok,
+            name_single,
+            scope_path,
+        );
+        let Some(name) = name else {
+            return;
+        };
+        if name.is_empty() {
+            return;
+        }
+
+        // The description argument, but only when it too resolves to a constant.
+        let detail = sym.detail_arg.and_then(|d| {
+            let di = d as usize;
+            let tok = arg_tokens.get(di).copied()?;
+            let text = args.get(di)?;
+            let single = arg_single.get(di).copied().unwrap_or(false);
+            self.resolve_const_word(text, tok, single)
+                .map(|d| summarise_detail(&d))
+        });
+
+        // Fold range: the name token through the end of the last argument.
+        let end = arg_tokens
+            .last()
+            .map_or(name_tok.span.end(), |t| t.span.end())
+            .max(name_tok.span.end());
+        let full_span = Span::new(name_tok.span.start(), end);
+
+        // A registry definer called inside `proc ::ns::p {}` creates its symbol
+        // in `::ns` (the proc's defining namespace), not `::` — the
+        // command-resolution rule, not the lexical one.
+        let ns_prefix = self.command_resolution_namespace(scope_path);
+        let qualified = qualify(&ns_prefix, &name);
+
+        let symbol = DefinedSymbol {
+            original_name_input,
+            name,
+            qualified_name: qualified,
+            kind: sym.kind,
+            name_span: name_tok.span,
+            full_span,
+            detail,
+        };
+        self.retain_vendor_symbol_metadata(vendor_name, &symbol);
+        self.retain_defined_symbol_metadata(advice, command_token, scope_path, &symbol);
+        self.result.all_defined_symbols.push(symbol.clone());
+        let path = scope_path.to_vec();
+        if let Some(scope) = super::scope::scope_at_mut(&mut self.result.global_scope, &path) {
+            scope.defined_symbols.push(symbol);
+        }
+    }
+
+    fn procedure_definition_doc(&mut self, body: Option<&str>) -> String {
+        let mut doc = std::mem::take(&mut self.last_comment);
+        if doc.is_empty()
+            && let Some(body) = body
+        {
+            doc = super::utils::extract_body_docstring(body);
+        }
+        doc
+    }
+
+    fn retain_unknown_procedure_info(
+        &mut self,
+        qualified: &str,
+        body: &str,
+        params: &[ParamDef],
+        body_tok: Token,
+    ) {
+        if self.defines_global_unresolved_handler(qualified) {
+            let info = self.extract_unknown_proc_info_at(
+                body,
+                params,
+                Some(body_tok.span.start() + u32::from(body_tok.content_offset)),
+            );
+            self.result.unknown_proc_info = Some(info);
+        }
+    }
+
+    fn bind_opt_proc_locals(
+        &mut self,
+        params_tok: Token,
+        name_tok: Token,
+        child_path: &[usize],
+        opt_locals: &[ParamDef],
+    ) {
+        // Bind the real `args` catch-all — a body reference to
+        // `$args` (inspecting leftovers `::tcl::OptKeyParse` didn't
+        // consume) is legitimate, exactly like an ordinary proc's own
+        // `args` parameter. No literal `args` word is ever written for
+        // this idiom, so — unlike an ordinary proc's own parameters,
+        // each anchored to its own written span — there is no sensible
+        // non-synthetic span to anchor it to: `name_tok` collides with
+        // the proc *name*'s own span (`$args` hover would resolve to
+        // the declaration token instead of `greet`), and the whole
+        // `optlist` word collides with every one of its own descriptor
+        // sub-spans (`child`'s / `-use`'s own hover would resolve to
+        // `args` instead). A zero-width span at the `optlist` word's
+        // own opening brace sits before any descriptor's span starts,
+        // so it collides with neither.
+        let args_span = Span::new(params_tok.span.start(), params_tok.span.start());
+        self.define_var("args", params_tok, child_path, false, Some(args_span));
+        // Bind every optlist-derived local, anchored to its own
+        // descriptor's span (dash included — the written token, not a
+        // byte-sliced substring) so go-to-definition / references /
+        // rename on the parameter land on the real declaration.
+        let param_spans = param_name_spans_for_token(&self.source, params_tok);
+        for (i, p) in opt_locals.iter().enumerate() {
+            self.define_var(
+                &p.name,
+                name_tok,
+                child_path,
+                false,
+                param_spans.get(i).copied(),
+            );
+        }
+    }
+
+    fn retain_manufactured_class_declaration(
+        &mut self,
+        original_name: Option<&crate::signature_scan::original_name::SourceOriginalNameOccurrence>,
+        qualified: String,
+        class: ClassDef,
+        scope_path: &[usize],
+    ) {
+        self.retain_original_provider_class(original_name, &class);
+        let simple_key = class.name.clone();
+        // The creation site's own body span, for `my`-dispatch resolution
+        // to find — see `class_body_spans`'s doc.
+        self.result
+            .class_body_spans
+            .push((qualified.clone(), class.body_span));
+        self.result
+            .retain_class_declaration(qualified, class.clone());
+        let path = scope_path.to_vec();
+        if let Some(scope) = super::scope::scope_at_mut(&mut self.result.global_scope, &path) {
+            scope.classes.insert(simple_key, class);
+        }
+    }
+
+    fn procedure_reporting_names(
+        &self,
+        original_name: Option<&crate::signature_scan::original_name::SourceOriginalNameOccurrence>,
+        name_word: Token,
+        scope_path: &[usize],
+        ns_prefix: &str,
+        resolved_name: &str,
+    ) -> (
+        Option<crate::signature_scan::scope::SignatureSourceCommand>,
+        String,
+        String,
+    ) {
+        let source_name = original_name.and_then(|original| {
+            crate::signature_scan::scope::SignatureSourceCommand::procedure_from_key(
+                &self.declaration_namespace_scope(scope_path)?,
+                original.name_input(),
+            )
+        });
+        let source_name = source_name
+            .or_else(|| self.original_interp_procedure_source_name(name_word, scope_path));
+        let qualified = source_name
+            .as_ref()
+            .and_then(|name| {
+                match super::scope::scope_at(&self.result.global_scope, scope_path)
+                    .and_then(|scope| scope.original_interpreter_source_domain.as_ref())
+                {
+                    Some(domain) => domain.reported_command(name.slot()),
+                    None => name.reported_full_name(),
+                }
+            })
+            .unwrap_or_else(|| qualify(ns_prefix, resolved_name));
+        let simple = source_name
+            .as_ref()
+            .and_then(crate::signature_scan::scope::SignatureSourceCommand::simple_name)
+            .unwrap_or_else(|| crate::naming::key_tail(&qualified).to_string());
+        (source_name, qualified, simple)
+    }
+
+    fn declared_procedure_parameters(
+        &self,
+        text: &str,
+        token: Token,
+        single: bool,
+    ) -> (Vec<ParamDef>, bool) {
+        let params_computed =
+            !crate::signature_scan::params::param_word_is_literal(token.kind, single);
+        let params = if params_computed {
+            Vec::new()
+        } else {
+            parse_param_list(text, self.word_rules())
+        };
+        (params, params_computed)
+    }
+
+    fn declared_procedure_formal_count(
+        &self,
+        token: Token,
+    ) -> crate::signature_scan::formal_count::SourceFormalCount {
+        use crate::signature_scan::formal_count::SourceFormalCount;
+        let Some(dialect) = self.original_source_invocation_dialect() else {
+            return SourceFormalCount::Unknown;
+        };
+        if dialect.authored_name_policy().is_none() {
+            return SourceFormalCount::Authored(
+                dialect
+                    .parameter_grammar()
+                    .unwrap_or(tcl_dialect::ParameterGrammar::Tcl),
+            );
+        }
+        self.original_static_source_name_at_span(token.span)
+            .map_or(SourceFormalCount::Unknown, |original| {
+                SourceFormalCount::from_original_input(original.name_input(), dialect)
+            })
+    }
+
+    fn retain_vendor_symbol_metadata(
+        &mut self,
+        vendor_name: Option<crate::signature_scan::vendor_name::VendorSourceNameOccurrence>,
+        symbol: &DefinedSymbol,
+    ) {
+        if let Some(original) = vendor_name {
+            let record = crate::signature_scan::vendor_name::VendorSourceDeclarationMetadata::new(
+                &original,
+                tcl_syntax::naming::VendorSourceNamePurpose::SourceName,
+                symbol.clone(),
+            );
+            if !self
+                .result
+                .original_vendor_symbol_metadata
+                .contains(&record)
+            {
+                self.result.original_vendor_symbol_metadata.push(record);
+            }
+        }
+    }
+
+    fn original_procedure_declaration_name(
+        &self,
+        name_tok: Token,
+    ) -> Option<crate::signature_scan::original_name::SourceOriginalNameOccurrence> {
+        self.declaration_name_policy().and_then(|policy| {
+            self.head_identities
+                .original_source_name_at_span(
+                    name_tok.span,
+                    self.file_lexer_config(),
+                    self.word_rules(),
+                    policy,
+                )
+                .or_else(|| {
+                    // The selected procedure role supplies declaration advice;
+                    // retaining its original static word requires no completed
+                    // command world or reached installation.
+                    let original = self.original_static_source_name_at_span(name_tok.span)?;
+                    let key = original.name_input();
+                    (key.policy() == policy
+                        && key.lexer_config() == self.file_lexer_config()
+                        && key.word_value_rules() == self.word_rules())
+                    .then(|| original.clone())
+                })
+        })
+    }
+
+    fn retain_procedure_declaration_metadata(
+        &mut self,
+        original_name: Option<&crate::signature_scan::original_name::SourceOriginalNameOccurrence>,
+        proc: &ProcDef,
+        name_span: Span,
+    ) {
+        if self.selected_logical_declaration_advice()
+            && let Some(declaration) = super::types::LogicalSourceProcedureDeclaration::capture(
+                &self.result,
+                &self.source,
+                self.resolved_analysis_input(),
+                proc,
+            )
+        {
+            self.result.logical_procedure_declarations.push(declaration);
+        }
+        if let (Some(original), Some(name)) = (original_name, proc.source_name.as_ref())
+            && let Some(record) =
+                crate::signature_scan::original_name::SourceDeclarationMetadata::new(
+                    original,
+                    name.clone(),
+                    proc.clone(),
+                )
+            && !self.result.original_procedure_metadata.contains(&record)
+        {
+            self.result.original_procedure_metadata.push(record);
+        }
+        if let Some(original) = self.result.original_vendor_source_name_in_source(
+            &tcl_lexer::SourceImage::document(&self.source),
+            self.file_lexer_config(),
+            name_span,
+        ) {
+            let record = crate::signature_scan::vendor_name::VendorSourceDeclarationMetadata::new(
+                original,
+                tcl_syntax::naming::VendorSourceNamePurpose::ProcedureName,
+                proc.clone(),
+            );
+            if !self
+                .result
+                .original_vendor_procedure_metadata
+                .contains(&record)
+            {
+                self.result.original_vendor_procedure_metadata.push(record);
+            }
+        }
+    }
+
+    fn record_apply_namespace_reference(
+        &mut self,
+        elements: &[(Token, String)],
+        body_ns: &str,
+        arg_tokens: &[Token],
+    ) {
+        // That element is also a first-class *reference* to the namespace it
+        // names, not merely a semantic input: it sits
+        // inside an `ArgRole::LambdaLiteral` word, which no whole-word role
+        // reaches, so the identity is recorded here, where the element has
+        // already been split. Non-declaring — `apply` looks the namespace up,
+        // it does not create it (tclsh 8.6.16 / 9.0.4: `apply {{} {} ::nope}`
+        // fails `namespace "::nope" not found`).
+        if let Some((ns_tok, ns_text)) = elements.get(2)
+            && body_ns != "::"
+            && !crate::naming::is_dynamic_word(ns_text)
+        {
+            let span = tcl_lexer::Span::new(
+                ns_tok.span.start() + u32::from(ns_tok.content_offset),
+                ns_tok.span.end(),
+            );
+            if span.start() < span.end() {
+                self.result.namespace_refs.push(
+                    super::types::NamespaceRef::from_original(
+                        self.declaration_name_policy().map(|policy| {
+                            crate::signature_scan::scope::SignatureNamespaceScope::root(Some(
+                                policy,
+                            ))
+                        }),
+                        self.declaration_name_policy(),
+                        ns_text,
+                        span,
+                        0,
+                        false,
+                        body_ns.to_owned(),
+                    )
+                    .with_original_input(arg_tokens.first().and_then(
+                        |token| {
+                            self.head_identities
+                                .original_written_name_input_at_span(
+                                    token.span,
+                                    self.file_lexer_config(),
+                                )?
+                                .original_list_element(2)
+                        },
+                    )),
+                );
+            }
+        }
+    }
+
+    fn record_resolved_namespace_reference(
+        &mut self,
+        resolved_dynamic: Option<&str>,
+        token: Option<&Token>,
+        scope_path: &[usize],
+        invocation_offset: Option<u32>,
+    ) {
+        if let (Some(resolved), Some(tok)) = (resolved_dynamic, token)
+            && !self
+                .result
+                .namespace_refs
+                .iter()
+                .any(|reference| reference.span == tok.span)
+        {
+            // The general namespace role collector already retains genuine
+            // computed inputs. Keep this presentation-only legacy record when
+            // it has no independently retained input at the same source word.
+            let here = self.command_resolution_namespace(scope_path);
+            self.result.namespace_refs.push(
+                super::types::NamespaceRef::from_original(
+                    self.declaration_namespace_scope(scope_path),
+                    self.declaration_name_policy(),
+                    resolved,
+                    tok.span,
+                    u16::from(tok.content_offset),
+                    true,
+                    crate::naming::qualify(&here, resolved),
+                )
+                .with_original_input(match invocation_offset {
+                    Some(offset) => self
+                        .head_identities
+                        .original_written_name_input_at_invocation_span(
+                            &tcl_lexer::SourceImage::document(&self.source),
+                            self.file_lexer_config(),
+                            offset,
+                            tok.span,
+                        ),
+                    None => self
+                        .head_identities
+                        .original_written_name_input_at_span(tok.span, self.file_lexer_config()),
+                }),
+            );
+        }
+    }
+
+    fn apply_manufactured_class_members(
+        &self,
+        grammar: Option<&tcl_registry::definer::DefinitionBodyGrammar>,
+        injected_members: &[InjectedMember],
+        class: &mut ClassDef,
+    ) {
+        if let Some(grammar) = grammar {
+            for injected in injected_members {
+                super::oo::apply_oo_subcommand_in(
+                    grammar,
+                    &injected.texts,
+                    &injected.argv,
+                    class,
+                    super::oo::MemberDialect {
+                        surface: Some(self.analysis_context().context().authoring_query()),
+                        rules: self.word_rules(),
+                    },
+                );
+            }
+        }
+    }
+
+    fn defined_symbol_reporting_name(
+        &self,
+        original_name_input: Option<&crate::signature_scan::scope::SignatureSourceNameInput>,
+        vendor_name: Option<&crate::signature_scan::vendor_name::VendorSourceNameOccurrence>,
+        name_text: &str,
+        name_tok: Token,
+        name_single: bool,
+        _scope_path: &[usize],
+    ) -> Option<String> {
+        if let Some(input) = original_name_input {
+            std::str::from_utf8(input.bytes())
+                .ok()
+                .map(str::to_owned)
+                .or_else(|| {
+                    tcl_syntax::backslash::native_literal_source_word(
+                        input.bytes(),
+                        tcl_lexer::SourceChannel::Document,
+                        self.lexer_config(),
+                        input.policy().string_protocol(),
+                    )
+                })
+        } else if let Some(original) = vendor_name {
+            // Registry-selected declaration advice retains the original hosted
+            // source spelling when materialisation is unavailable. The label
+            // supplies no canonical units or runtime identity.
+            let input = original.name_input();
+            input
+                .literal_units(tcl_syntax::naming::VendorSourceNamePurpose::SourceName)
+                .and_then(|bytes| std::str::from_utf8(bytes).ok())
+                .map(str::to_owned)
+                .or_else(|| {
+                    let span = input.original_word().content_span().ok()?;
+                    std::str::from_utf8(input.source_image().bytes().get(span.as_range())?)
+                        .ok()
+                        .map(str::to_owned)
+                })
+        } else if self.result.allows_lexical_declaration_advice() {
+            // Explicit logical-only declaration advice has no native recipe.
+            self.resolve_const_word(name_text, name_tok, name_single)
+        } else {
+            None
+        }
+    }
+
+    fn retain_defined_symbol_metadata(
+        &mut self,
+        advice: &crate::registry_invocation::OriginalSymbolDeclarationAdvice,
+        command_token: Token,
+        scope_path: &[usize],
+        symbol: &DefinedSymbol,
+    ) {
+        if let (Some(input), Some(head)) = (
+            symbol.original_name_input.as_ref(),
+            self.original_static_source_name_at_span(command_token.span),
+        ) && let Some(registry) = self.result.resolved_registry().or(self.registry.as_deref())
+            && let Some(record) =
+                crate::signature_scan::symbol_name::OriginalSourceSymbolDeclaration::new(
+                    head,
+                    input,
+                    advice.symbol,
+                    super::scope::scope_at(&self.result.global_scope, scope_path)
+                        .and_then(|scope| scope.naming_scope.as_ref()),
+                    advice.conditional_metadata.as_ref(),
+                    symbol,
+                    registry,
+                )
+            && !self.result.original_symbol_metadata.contains(&record)
+        {
+            self.result.original_symbol_metadata.push(record);
+        }
+    }
+
+    fn registry_symbol_placement_is_valid(
+        &self,
+        advice: &crate::registry_invocation::OriginalSymbolDeclarationAdvice,
+        args: &[String],
+        arg_tokens: &[Token],
+        arg_single: &[bool],
+    ) -> bool {
+        // A registry symbol definer that is top-level-only in iRules does not
+        // become a definition merely because its invalid nested spelling was
+        // parsed. In particular, nested event-handler syntax must not leak
+        // into document/workspace symbol inventories. Keep this driven by the
+        // placement trait shared with IRULE5006, never by a command name.
+        let cmd_name = advice.command.as_str();
+        if self.profile.is_irules()
+            && self.body_depth > 0
+            && advice
+                .traits
+                .contains(tcl_registry::Traits::IRULES_TOP_LEVEL_ONLY)
+        {
+            return false;
+        }
+        let sym = advice.symbol;
+        // An iRules event symbol is a declaration only when the shared
+        // source-aware owner accepts its complete top-level shape. In
+        // particular, a bare or quoted body must not turn an otherwise
+        // ordinary command into an outline event.
+        if self.profile.is_irules() && sym.kind == tcl_registry::DefinedSymbolKind::Event {
+            let words: Vec<&str> = args.iter().map(String::as_str).collect();
+            let valid = self.body_depth == 0
+                && self.registry.as_deref().is_some_and(|registry| {
+                    tcl_registry::events::closed_braced_argument_words(
+                        &self.source,
+                        arg_tokens,
+                        arg_single,
+                    )
+                    .as_deref()
+                    .and_then(|closed| {
+                        tcl_registry::events::IrulesDeclarationArguments::new(
+                            &words, arg_tokens, arg_single, closed,
+                        )
+                    })
+                    .and_then(|arguments| {
+                        registry.irules_top_level_declaration_shape(cmd_name, arguments)
+                    })
+                    .is_some_and(|declaration| {
+                        matches!(
+                            declaration,
+                            tcl_registry::events::IrulesTopLevelDeclaration::Event { .. }
+                        )
+                    })
+                });
+            if !valid {
+                return false;
+            }
+        }
+        true
+    }
+
+    /// Resolve a single literal or original scalar substitution through checked value provenance.
+    fn resolve_const_word(&self, text: &str, tok: Token, is_single: bool) -> Option<String> {
+        if !is_single {
+            return None;
+        }
+        match tok.kind {
+            TokenType::Str | TokenType::Esc => Some(text.to_string()),
+            TokenType::Var => self
+                .lookup_logical_const_substitution(tok)
+                .map(|(value, _)| value.to_owned()),
+            _ => None,
+        }
+    }
+
+    /// Handle the `proc` command: `proc NAME PARAMS BODY`.
+    ///
+    /// Returns `true` when the command was handled (callers use the
+    /// bool to decide whether further processing is needed), `false`
+    /// when the input doesn't match the expected shape.
+    ///
+    /// Records the [`ProcDef`] in
+    /// both `scope.procs` (keyed by simple name) and
+    /// `result.all_procs` (keyed by qualified name).  When the
+    /// body is a braced literal, opens a fresh
+    /// [`super::types::ScopeKind::Proc`] child scope, defines each parameter
+    /// in it, and re-segments the body via
+    /// [`crate::segmenter::segment_commands_with_offset`] —
+    /// every body command is dispatched through
+    /// [`Analyser::process_command`] with the new scope path.
+    /// Body recursion does **not** invoke segmenter recovery —
+    /// that fires only at the top level.
+    /// Dynamic bodies (`$body`, `[gen]`) skip the walk because
+    /// they cannot be statically re-segmented; the proc record
+    /// is still emitted so downstream consumers see the
+    /// signature.
+    ///
+    /// Infer per-parameter traits for a proc body.  Always runs
+    /// the shallow pass (`infer_param_traits`); when
+    /// [`Self::deep_param_traits`] is set, also runs the
+    /// recursive deep pass (`infer_param_traits_deep`) and
+    /// unions both via [`super::param_traits::merge_traits`].
+    /// Threads the analyser's pre-built dialect-aware registry
+    /// through so iRules-only `arg_role_resolver` callbacks
+    /// (e.g. `when`) fire on body args.  When [`Self::registry`]
+    /// is `None` (outside an active `analyse` run, e.g. a unit-
+    /// test harness) we skip the inference rather than pay the
+    /// cost of a fresh `build_default` on every proc.
+    ///
+    /// Returns the trait map together with
+    /// [`ProcDef::caller_frame_params`](super::types::ProcDef::caller_frame_params)
+    /// — the strictly narrower "this parameter's value names a variable in the
+    /// *immediate caller's* frame" fact, which the trait map alone cannot
+    /// answer because it records no frame level — and
+    /// [`ProcDef::caller_frame_literals`](super::types::ProcDef::caller_frame_literals),
+    /// the literal caller-frame names the body spells itself (`upvar 1 name
+    /// name`).  Computed here, from the same
+    /// body text and the same dialect config, so the three can never be
+    /// derived from different views of the proc.
+    fn infer_proc_param_traits(
+        &self,
+        params: &[crate::signature_scan::types::ParamDef],
+        body_text: &str,
+        body_span: tcl_lexer::Span,
+    ) -> ProcParamFacts {
+        let Some(registry) = self.registry.as_deref() else {
+            return (
+                std::collections::HashMap::new(),
+                std::collections::HashSet::new(),
+                std::collections::HashMap::new(),
+            );
+        };
+        let param_names: Vec<&str> = params.iter().map(|p| p.name.as_str()).collect();
+        // One environment for all four scans, so the traits, the caller-frame
+        // params, and the caller-frame literals can never be derived from
+        // different views of the proc *or* of the document's command bindings.
+        let input = self.resolved_analysis_input();
+        let original_logical_body = self
+            .head_identities
+            .original_logical_procedure_body_cards(&input)
+            .and_then(|cards| {
+                let mut matching = cards.into_iter().filter(|body| {
+                    body.matches_source(&tcl_lexer::SourceImage::document(&self.source), &input)
+                        && body.scope().scope_body().original_container().group().span == body_span
+                        && body
+                            .parameters()
+                            .iter()
+                            .map(|formal| formal.name.as_str())
+                            .eq(param_names.iter().copied())
+                });
+                let body = matching.next()?;
+                matching.next().is_none().then_some(body)
+            });
+        let env = super::param_traits::TraitScanEnv {
+            surface: tcl_registry::model::DocumentCommandSurface::new(
+                registry,
+                self.declared_commands.as_ref(),
+            ),
+            config: self.file_lexer_config(),
+            identities: &self.head_identities,
+            executed_source: self.head_identities.executed_script_for_word(body_span),
+            original_logical_body: original_logical_body.as_ref(),
+        };
+        let original_body_offset = self.result.retained_command_realm().and_then(|realm| {
+            let config = self.file_lexer_config();
+            let image = realm
+                .original_source_image()
+                .filter(|image| image.bytes() == self.source.as_bytes())?;
+            let (word, _) =
+                realm.original_written_word_at_span_in_source(image, body_span, config)?;
+            word.content_span().ok().map(|span| span.start())
+        });
+        #[cfg(debug_assertions)]
+        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_PARAM_ROLES").is_some() {
+            eprintln!(
+                "ORIGINAL_PARAM_ROLES begin body={}..{} parameters={} executed_source={} deep={}",
+                body_span.start(),
+                body_span.end(),
+                params.len(),
+                env.executed_source.is_some(),
+                self.deep_param_traits
+            );
+        }
+        let body_text = match env.executed_source {
+            Some(source) => {
+                let Ok(text) = source.try_text() else {
+                    return (
+                        std::collections::HashMap::default(),
+                        std::collections::HashSet::default(),
+                        std::collections::HashMap::default(),
+                    );
+                };
+                text
+            }
+            None => body_text,
+        };
+        let caller_frame_params =
+            super::param_traits::caller_frame_upvar_params(&param_names, body_text, env);
+        let caller_frame_literals =
+            super::param_traits::caller_frame_literal_targets(body_text, env);
+        let shallow = super::param_traits::infer_param_traits(&param_names, body_text, env);
+        let traits = if self.deep_param_traits {
+            let deep = super::param_traits::infer_param_traits_deep_in_document(
+                &param_names,
+                body_text,
+                env,
+                &self.source,
+                &self.result,
+                original_body_offset,
+            );
+            super::param_traits::merge_traits(shallow, deep)
+        } else {
+            shallow
+        };
+        #[cfg(debug_assertions)]
+        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_PARAM_ROLES").is_some() {
+            eprintln!(
+                "ORIGINAL_PARAM_ROLES end body={} traits={} caller_parameters={} caller_literals={}",
+                body_span.start(),
+                traits.len(),
+                caller_frame_params.len(),
+                caller_frame_literals.len()
+            );
+        }
+        (traits, caller_frame_params, caller_frame_literals)
+    }
+
+    /// **W113** — a `proc` name shadows a built-in command.
+    ///
+    /// The check runs against both the unqualified `raw_name` and the
+    /// fully-qualified form, with the leading `::` trimmed (the registry
+    /// indexes by bare command name).  The inner borrow on
+    /// `self.builtin_command_names()` is dropped before the diagnostic push so
+    /// `self.result` is free to mutate.
+    ///
+    /// Only *core global* built-ins are shadow-worthy (unqualified `set` /
+    /// `dict` / …).  A namespace-qualified match (`::base64::encode`,
+    /// `::snit::type`) is a library/package command living in its own namespace
+    /// — its own definition or a deliberate override, not shadowing a built-in.
+    /// And the overridable Tcl *library* procedures (`unknown`, `history`,
+    /// `auto_*`, …) are script-defined, documented user-replaceable overlays.
+    /// A third-party/package command (`argparse`, a tcllib/itcl/ticklecharts
+    /// proc, …) is excluded too: `registry.command_names()`
+    /// is the full package-inclusive command universe, not the set of names a
+    /// bare Tcl interpreter actually starts with, so a proc named after a
+    /// registered package command (e.g. `proc ::argparse {args} {...}`
+    /// defining the `argparse` package's own entry point) is not shadowing
+    /// anything until that package is actually loaded — and even then it is
+    /// the package's own definition, not a redefinition of a core built-in.
+    /// The gate reads `CommandSpec::owning_package` (`required_package` or
+    /// its `tcllib_package` alias) rather than a hardcoded package-name list,
+    /// so it stays correct as new package specs are added. A package a
+    /// profile ships **ambient** (an F5 command pack, an EDA vendor tool
+    /// surface) is the exception: that profile's real, always-present command
+    /// surface, so it keeps firing W113 like any other core built-in (e.g.
+    /// iRules' `pool`, which — being ambient and never `required_package`-gated
+    /// in the first place — is untouched by this filter).
+    fn emit_w113_proc_shadows_builtin(
+        &mut self,
+        raw_name: &str,
+        qualified: &str,
+        name_span: Span,
+        source_name: Option<&crate::signature_scan::scope::SignatureSourceCommand>,
+    ) {
+        // Original structured publication geometry takes precedence over
+        // reporting names, including literal colons and isolated interpreters.
+        let original_global = match source_name {
+            Some(name) if !name.slot().namespace.is_root() => return,
+            Some(name) => {
+                let Ok(simple) = name.slot().simple.try_utf8() else {
+                    return;
+                };
+                Some(simple)
+            }
+            None => None,
+        };
+        let rooted_written = qualify("::", raw_name);
+        let normalised_proc = tcl_syntax::naming::unroot_rooted_key(&rooted_written)
+            .unwrap_or(&rooted_written)
+            .to_owned();
+        let normalised_qual = tcl_syntax::naming::unroot_rooted_key(qualified)
+            .unwrap_or(qualified)
+            .to_owned();
+        let shadow_name: Option<String> = {
+            let builtins = self.builtin_command_names();
+            // A `tcl::mathop` operator (`%`, `+`, `eq`, …) carries a bare-name
+            // registry entry only so an `import`ed / `namespace path`-reachable
+            // call resolves; the command itself lives in `::tcl::mathop`, not the
+            // global namespace, so `proc %` shadows nothing reachable. Detect it
+            // by its qualified spelling and treat it like the other namespaced
+            // (non-core-global) commands the check already skips.
+            let is_mathop = |n: &str| builtins.contains(&format!("tcl::mathop::{n}"));
+            if let Some(simple) = original_global {
+                (builtins.contains(simple) && !is_mathop(simple)).then(|| simple.to_owned())
+            } else if builtins.contains(&normalised_proc) && !is_mathop(&normalised_proc) {
+                Some(normalised_proc.clone())
+            } else if builtins.contains(&normalised_qual) && !is_mathop(&normalised_qual) {
+                Some(normalised_qual.clone())
+            } else {
+                None
+            }
+        };
+        let shadow_name = shadow_name.filter(|name| {
+            !name.contains("::")
+                && !overridable_library_procs().contains(name.as_str())
+                && !self.is_package_gated_non_ambient(name)
+        });
+        if shadow_name.is_some() {
+            // The permissive fallback profile means "no specific dialect" —
+            // no parenthetical label.
+            let dialect_label = if self.profile.is_fallback() {
+                String::new()
+            } else {
+                format!(" ({})", self.dialect())
+            };
+            let message = format!("Procedure '{raw_name}' shadows built-in command{dialect_label}");
+            self.result
+                .diagnostics
+                .push(crate::analyser::types::Diagnostic::new(
+                    DiagCode::W113,
+                    name_span,
+                    message,
+                    super::types::Severity::Warning,
+                ));
+        }
+    }
+
+    /// Whether `name` (a bare or fully-qualified command name already known
+    /// to be in `registry.command_names()`) resolves to a `CommandSpec` gated
+    /// behind a `required_package` / `tcllib_package` (`CommandSpec::
+    /// owning_package`) that this profile does **not** ship ambiently.
+    ///
+    /// Data-driven, not a hardcoded package-name list: the answer comes
+    /// straight from the resolved spec's package attribution and the
+    /// registry's own `is_ambient_package` query (the same query
+    /// `emit_missing_package_require_diagnostics` / W120 already uses for the
+    /// converse fact), so a new package-gated spec is covered automatically —
+    /// no per-package entry to remember to add here. The registry is asked
+    /// rather than the profile so a pack's `ambient_package` row counts too.
+    fn is_package_gated_non_ambient(&self, name: &str) -> bool {
+        // Resolution reads the un-overlaid generation's store (as the old
+        // `registry_for_profile` call did); the ambient answer reads this
+        // walk's own — possibly pack-overlaid — context, the same split
+        // W120 uses.
+        let base = crate::environment_ingress::context_for_profile(self.profile);
+        base.context()
+            .resolve_spec(base.commands(), name)
+            .and_then(tcl_registry::CommandSpec::owning_package)
+            .is_some_and(|pkg| !self.analysis_context().context().ambient_package(pkg))
+    }
+
+    /// **W314.** The definition's name has no absolute (fully-qualified)
+    /// written form.  A written colon run of two or more is a
+    /// namespace separator (the whole run collapses, `TclGetNamespaceForQualName`,
+    /// invariant C 8.4→9.1), so an **all-colon simple name** — only `:` is
+    /// writable — can never be spelled absolutely: `namespace which :` renders
+    /// `:::`, which parses back to the global `{}` command, ensembles cannot
+    /// dispatch an exported `:`, and `interp alias` / callback qualification
+    /// break the same way.  The command remains reachable by *relative*
+    /// lookup only.  (tclsh 8.6/9.0-pinned.)
+    pub(super) fn emit_w314_no_absolute_name(&mut self, raw_name: &str, name_span: Span) {
+        // The written simple name is the last colon-run-delimited segment.  A
+        // name *ending* in a run names the `{}` command, which IS addressable
+        // (`::x::`); an all-colon segment can only be a lone `:` (a run of ≥2
+        // is consumed as the separator).
+        let unaddressable = !tcl_syntax::naming::ends_with_separator(raw_name.as_bytes())
+            && crate::naming::qualifier_segments(raw_name.as_bytes())
+                .last()
+                .is_some_and(|seg| *seg == b":");
+        if !unaddressable {
+            return;
+        }
+        self.result
+            .diagnostics
+            .push(crate::analyser::types::Diagnostic::new(
+                DiagCode::W314,
+                name_span,
+                format!(
+                    "'{raw_name}' has no absolute (fully-qualified) name — a written colon run \
+                 is a namespace separator, so this definition is reachable only by \
+                 unqualified/relative lookup ([namespace which] output will not resolve, \
+                 and ensembles cannot dispatch it)"
+                ),
+                super::types::Severity::Warning,
+            ));
+    }
+
+    /// Logical declaration compatibility for class definition-abort reports.
+    /// The source member tables retain authored order, without a selected Native
+    /// definition worker or closed current own-method table. Every candidate is
+    /// consumed; only positively retained Logical input permits reporting advice.
+    pub(super) fn emit_w315_definition_cannot_run(&mut self, class: &mut super::types::ClassDef) {
+        let aborts = core::mem::take(&mut class.definition_aborts);
+        // naming.diagnostics.original-definition-abort-admission
+        // docs/design/analysis/name-resolution-proofs/diagnostic-original-definition-abort-admission.md
+        if !self.result.allows_retained_logical_declaration_advice() || class.via_define {
+            // A missing Logical admission or a cross-file extension cannot
+            // justify an abort from these reporting tables. Retain its source
+            // tombstone without claiming a successful Native retraction.
+            return;
+        }
+        // Within Logical compatibility, an abort report replaces the source
+        // tombstone for that same retraction. Neither reporting form describes
+        // a successful Native operation or its current method table.
+        if !aborts.is_empty() {
+            class.retracted_members.retain(|record| {
+                !aborts.iter().any(|a| {
+                    a.kind == super::types::DefinitionAbortKind::MissingMember
+                        && a.member == record.member
+                })
+            });
+        }
+        for abort in aborts {
+            self.result
+                .diagnostics
+                .push(crate::analyser::types::Diagnostic::new(
+                    DiagCode::W315,
+                    abort.span,
+                    abort.message(),
+                    super::types::Severity::Warning,
+                ));
+        }
+    }
+
+    /// **W314**, namespace flavour: a `namespace eval` (or sibling) whose
+    /// written name carries an **all-colon segment** (`namespace eval :`)
+    /// creates a namespace no absolute path can spell — its entire contents
+    /// are reachable only relatively (`namespace inscope : :`), and
+    /// `namespace current` inside renders an unresolvable `:::`.
+    pub(super) fn emit_w314_unaddressable_namespace(&mut self, written_ns: &str, span: Span) {
+        let has_all_colon_segment = crate::naming::qualifier_segments(written_ns.as_bytes())
+            .into_iter()
+            .any(|seg| seg == b":");
+        if !has_all_colon_segment {
+            return;
+        }
+        self.result
+            .diagnostics
+            .push(crate::analyser::types::Diagnostic::new(
+                DiagCode::W314,
+                span,
+                format!(
+                    "namespace '{written_ns}' has no absolute (fully-qualified) path — a \
+                 written colon run is a namespace separator, so everything defined \
+                 inside is reachable only by relative lookup"
+                ),
+                super::types::Severity::Warning,
+            ));
+    }
+
+    /// **W218.** `args` declared anywhere but the final parameter position
+    /// is an ordinary parameter named `args` — C Tcl sets `VAR_IS_ARGS`
+    /// only on the last formal (`tclProc.c`), so the variadic
+    /// collect-the-rest meaning is silently lost.  Anchors at the
+    /// parameter's own name span; `fallback_tok` is used when the name
+    /// span could not be recovered.  Shared by the `proc`, `apply`, and
+    /// OO-method param walks.
+    pub(super) fn emit_w218_args_not_final(
+        &mut self,
+        params: &[crate::signature_scan::types::ParamDef],
+        param_spans: &[tcl_lexer::Span],
+        fallback_tok: Token,
+    ) {
+        let Some(last) = params.len().checked_sub(1) else {
+            return;
+        };
+        for (i, p) in params.iter().enumerate() {
+            // registry-axis-ok: irreducible — the variadic `args` formal is Tcl's proc grammar (`VAR_IS_ARGS` on the last formal, `tclProc.c`), no registry fact; until never
+            if i == last || p.name != "args" {
+                continue;
+            }
+            let span = param_spans.get(i).copied().unwrap_or(fallback_tok.span);
+            self.result
+                .diagnostics
+                .push(crate::analyser::types::Diagnostic::new(
+                    DiagCode::W218,
+                    span,
+                    "`args` here is an ordinary parameter — it only has its special \
+                     collect-the-rest meaning as the final parameter. Move it last, or \
+                     rename it if a plain parameter is intended."
+                        .to_string(),
+                    super::types::Severity::Warning,
+                ));
+        }
+    }
+
+    /// Handle a `proc name params body` definition: record the procedure
+    /// (name, parameter list, body, and harvested doc-comment) in the
+    /// analysis result and run per-parameter trait inference. Returns `true`
+    /// when the definition had the full three-argument shape this handler
+    /// consumes.
+    ///
+    /// Dispatched via [`tcl_registry::hooks::AnalyserHookId::Proc`].
+    pub fn handle_proc_command(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[Token],
+        arg_single: &[bool],
+        scope_path: &[usize],
+    ) -> bool {
+        // iRules procedures are declaration-only, exact three-word forms at
+        // file scope. An invalid declaration is consumed but deliberately
+        // contributes no symbol, binding, scope, or executable body facts.
+        if self.profile.is_irules()
+            && !self.is_valid_irules_procedure_declaration(args, arg_tokens, arg_single)
+        {
+            return true;
+        }
+        // Where the name, parameter list, static-variable list and body sit is
+        // the definer's own role data: `proc name args body` puts the body at
+        // 2, a definer that also takes a static-variable list puts it at 3.
+        let arg_words: Vec<&str> = args.iter().map(String::as_str).collect();
+        let words = self
+            .registry
+            .as_deref()
+            .and_then(|registry| registry.procedure_definition_words(cmd_name, &arg_words))
+            .unwrap_or(tcl_registry::ProcedureWords::TCL_PROC);
+        let last = words.name.max(words.params).max(words.body);
+        if args.len() <= last || arg_tokens.len() <= last {
+            return false;
+        }
+
+        let raw_name = &args[words.name];
+        let name_tok = arg_tokens[words.name];
+        // A constant-foldable dynamic name (`proc ::$wtype {args} {...}` with
+        // `wtype` a known constant) resolves the same way `rename`'s operands
+        // already do (`tk/library/accessibility.tcl`'s
+        // rename-away-and-reinstall idiom names its wrapper proc this way).
+        // An unresolvable dynamic name falls back to the raw written text
+        // unchanged — this only *improves* the resolvable case, the same
+        // scope boundary `resolve_dynamic_word`'s other callers keep.
+        let resolved_name = self
+            .resolve_dynamic_word(
+                raw_name,
+                Some(name_tok),
+                arg_single.first().copied().unwrap_or(false),
+                scope_path,
+            )
+            .unwrap_or_else(|| raw_name.clone());
+        // Home the proc to the *command-resolution* namespace, not the purely
+        // lexical one: a proc defined inside another proc's body homes to that
+        // enclosing proc's **defining** namespace (the prefix of its qualified
+        // name), the way Tcl resolves the `proc` command at run time.  The
+        // purely lexical namespace walk skips proc scopes and so homed a
+        // nested `proc helper` under `proc a::outer` to `::helper`, overwriting
+        // the real global `::helper` in `all_procs`; the command-resolution
+        // namespace homes it to `::a::helper`.
+        let ns_prefix = self.command_resolution_namespace(scope_path);
+        // `qualify` takes the constructed (rooted) namespace key verbatim and
+        // `key_tail` inverts the construction — a `char`-pattern colon trim or
+        // an `rsplit("::")` here would collapse a lone-colon name.
+        let original_name = self.original_procedure_declaration_name(name_tok);
+        let (source_name, qualified, simple) = self.procedure_reporting_names(
+            original_name.as_ref(),
+            name_tok,
+            scope_path,
+            &ns_prefix,
+            &resolved_name,
+        );
+        let name_span = name_tok.span;
+        let body_tok = arg_tokens[words.body];
+        let body_span = body_tok.span;
+
+        // **W113** — proc name shadows a built-in command.
+        self.emit_w113_proc_shadows_builtin(
+            &resolved_name,
+            &qualified,
+            name_span,
+            source_name.as_ref(),
+        );
+        // **W314** — the name has no absolute written form.
+        self.emit_w314_no_absolute_name(raw_name, name_span);
+
+        // A **computed** parameter-list word (`proc p [makeargs] {…}`,
+        // `proc q $params {…}`) builds the formals from a run-time value, so
+        // nothing about them is knowable: the proc's params are unmodelled.
+        // Reading the unresolved word as a one-parameter
+        // literal registered a `VarDef` literally named `"[makeargs]"` and
+        // made the call-site arity checker demand exactly one argument, which
+        // tclsh 9.0.4 / 8.6.16 contradict (`proc makeargs {} {return {a b}}`;
+        // `proc p [makeargs] {…}`; `info args p` → `a b`; `p 1 2` runs).
+        //
+        // The literalness rule itself lives in
+        // `signature_scan::params::param_word_is_literal` — the one predicate
+        // this tier, the signature-scan tier, and the LSP's cursor classifier
+        // all share.
+        let (params, params_computed) = self.declared_procedure_parameters(
+            &args[words.params],
+            arg_tokens[words.params],
+            arg_single.get(words.params).copied().unwrap_or(true),
+        );
+        // Doc string: prefer the preceding-comment harvest from
+        // the segmenter; fall back to ``extract_body_docstring``
+        // (leading comment block at the top of the body).
+        let doc = self.procedure_definition_doc(Some(&args[words.body]));
+
+        // When a user defines the *global* unresolved-command handler,
+        // inspect the body to determine which commands it can resolve. The
+        // result gates W123 (unresolved command) file-wide — with a
+        // user-supplied handler in place we cannot statically prove a
+        // command is truly unresolved.
+        self.retain_unknown_procedure_info(&qualified, &args[words.body], &params, body_tok);
+
+        let body_text = &args[words.body];
+        let (param_traits, caller_frame_params, caller_frame_literals) =
+            self.infer_proc_param_traits(&params, body_text, body_tok.span);
+
+        let proc = ProcDef {
+            source_name,
+            name: simple,
+            qualified_name: qualified.clone(),
+            params: params.clone(),
+            params_computed,
+            formal_count: self.declared_procedure_formal_count(arg_tokens[words.params]),
+            name_span,
+            body_span,
+            doc,
+            param_traits,
+            caller_frame_params,
+            caller_frame_literals,
+        };
+
+        // Register globally and in the current scope. ``scope.procs``
+        // is keyed by the *simple* (unqualified) proc name (so
+        // per-scope lookup and shadowing rules work locally), while
+        // ``result.all_procs`` is keyed by the fully-qualified
+        // name. The full qualified name is still on
+        // ``ProcDef.qualified_name`` for callers that need it.
+        self.retain_procedure_declaration_metadata(original_name.as_ref(), &proc, name_span);
+        self.register_proc_definition(&qualified, &proc, name_span);
+        self.record_two_word_proc_member(&resolved_name, &proc, scope_path);
+        let simple_key = proc.name.clone();
+        let path = scope_path.to_vec();
+        if let Some(scope) = super::scope::scope_at_mut(&mut self.result.global_scope, &path) {
+            scope.procs.insert(simple_key.clone(), proc);
+        }
+        // Original command-transition source advice tracks this definition
+        // independently of the reporting procedure table.
+
+        // Walk the body in a fresh proc scope when the body is a
+        // braced literal. The *resolved* name is the proc-scope name:
+        // ``define_var`` keys ``result.all_variables`` on
+        // ``"<scope_name>::<var>"``, and the scope name is also what
+        // ``advance_command_resolution_namespace`` reads the body's namespace
+        // off — see ``scope_name_for_routine``.
+        if body_tok.kind == TokenType::Str {
+            self.walk_proc_body_in_new_scope(ProcBodyWalkArgs {
+                path: &path,
+                resolved_name: &resolved_name,
+                body_span,
+                params_tok: arg_tokens[words.params],
+                name_tok,
+                params: &params,
+                statics: words.statics.map(|at| (args[at].as_str(), arg_tokens[at])),
+                body_text: &args[words.body],
+                body_tok,
+                ns_prefix: &ns_prefix,
+            });
+        }
+
+        true
+    }
+
+    fn is_valid_irules_procedure_declaration(
+        &self,
+        args: &[String],
+        arg_tokens: &[Token],
+        arg_single: &[bool],
+    ) -> bool {
+        if self.body_depth != 0 {
+            return false;
+        }
+        let words: Vec<&str> = args.iter().map(String::as_str).collect();
+        let generation;
+        let registry = if let Some(stashed) = self.registry.as_deref() {
+            stashed
+        } else {
+            generation = self.analysis_context();
+            generation.commands()
+        };
+        let closed = tcl_registry::events::closed_braced_argument_words(
+            &self.source,
+            arg_tokens,
+            arg_single,
+        );
+        closed
+            .as_deref()
+            .and_then(|closed| {
+                tcl_registry::events::IrulesDeclarationArguments::new(
+                    &words, arg_tokens, arg_single, closed,
+                )
+            })
+            .and_then(|arguments| {
+                registry.irules_top_level_declaration(
+                    "proc",
+                    arguments,
+                    &tcl_registry::events::EventRegistry::build(),
+                )
+            })
+            .is_some_and(|declaration| {
+                matches!(
+                    declaration,
+                    tcl_registry::events::IrulesTopLevelDeclaration::Procedure { .. }
+                )
+            })
+    }
+
+    /// Record one `proc` declaration into the whole-document tables —
+    /// `all_procs` (keyed by qualified name, last redefinition winning, which
+    /// is plain Tcl's own semantics), the never-deduplicated
+    /// `proc_declaration_sites` span list, and, when this declaration
+    /// displaces an earlier one of the same qualified name,
+    /// `superseded_procs`.
+    ///
+    /// The displaced definition is kept because "last wins" is only true
+    /// *from the second declaration onward*: a call written between the two
+    /// reaches the first one, with the first one's span and parameter list.
+    /// Oracle (tclsh 8.6.16 and 9.0.4): with `proc p {} {return first}`,
+    /// `p` between the declarations returns `first`, and after a later
+    /// `proc p {a} {…}` the same bare `p` fails `wrong # args: should be "p
+    /// a"`. Dropping the first definition on the map insert made
+    /// go-to-definition from the in-between call jump to the *later* header
+    /// and left its arity unknowable.
+    ///
+    /// `superseded_procs` stays empty for every document without a
+    /// redefinition, so the common case pays one `HashMap::insert` return
+    /// value and nothing else.
+    fn register_proc_definition(
+        &mut self,
+        qualified: &str,
+        proc: &ProcDef,
+        name_span: tcl_lexer::Span,
+    ) {
+        if let Some(previous) = self.result.all_procs.insert(qualified.into(), proc.clone()) {
+            self.result
+                .superseded_procs
+                .entry(qualified.to_string())
+                .or_default()
+                .push(previous);
+        }
+        self.result
+            .proc_declaration_sites
+            .push((qualified.to_string(), name_span));
+    }
+
+    /// Register the same physical procedure scope for ordinary and optlist
+    /// definers, before either an inline walk or a deferred body is scheduled.
+    fn push_proc_body_scope(&mut self, path: &[usize], name: &str, span: Span) -> Vec<usize> {
+        let parent = super::scope::scope_at_mut(&mut self.result.global_scope, path)
+            .expect("scope_path resolved when registering proc must still resolve");
+        let mut child = super::types::Scope::new(super::types::ScopeKind::Proc, name.to_owned());
+        child.body_span = Some(span);
+        child
+            .original_interpreter_source_domain
+            .clone_from(&parent.original_interpreter_source_domain);
+        child.naming_scope = parent
+            .procs
+            .values()
+            .find(|proc| proc.body_span == span)
+            .and_then(|proc| proc.source_name.as_ref())
+            .and_then(crate::signature_scan::scope::SignatureSourceCommand::body_scope);
+        let index = parent.children.len();
+        parent.children.push(child);
+        let mut child_path = path.to_vec();
+        child_path.push(index);
+        child_path
+    }
+
+    /// Walks a `proc`'s body in a freshly created child scope: binds formal
+    /// parameters as locals, then recurses into the body (or, on the
+    /// per-item shell pass, defers it). Split out of
+    /// [`Self::handle_proc_command`] to keep that function's line count
+    /// down; `ctx.path` is the *parent* scope path (before the new proc
+    /// scope is pushed).
+    fn walk_proc_body_in_new_scope(&mut self, ctx: ProcBodyWalkArgs<'_>) {
+        let ProcBodyWalkArgs {
+            path,
+            resolved_name,
+            body_span,
+            params_tok,
+            name_tok,
+            params,
+            statics,
+            body_text,
+            body_tok,
+            ns_prefix,
+        } = ctx;
+        // One scope key for both the inline and the deferred path — a
+        // divergence here would make the per-item and whole-file walks
+        // disagree about which namespace the body runs in.
+        let scope_name = scope_name_for_routine(resolved_name);
+        let child_path = self.push_proc_body_scope(path, scope_name, body_span);
+        self.record_original_vendor_variable_body(
+            name_tok.span,
+            body_tok.span,
+            Some(params_tok.span),
+            crate::signature_scan::vendor_variable::VendorSourceVariableBodyKind::Procedure,
+        );
+
+        // Parameters become locals in the proc scope. Each param's
+        // definition range is anchored to its *name* in the param-list
+        // literal so go-to-definition / references / rename on
+        // a formal parameter resolve to the parameter, not the proc name.
+        // The spans are recovered from the raw param-list word token; any
+        // param whose name can't be located falls back to the proc name
+        // token.
+        let param_spans = param_name_spans_for_token(&self.source, params_tok);
+        for (i, p) in params.iter().enumerate() {
+            self.define_var(
+                &p.name,
+                name_tok,
+                &child_path,
+                false,
+                param_spans.get(i).copied(),
+            );
+        }
+        self.emit_w218_args_not_final(params, &param_spans, params_tok);
+
+        // Static variables are locals of the body too: declared once when the
+        // procedure is defined, kept between calls, and never an argument.
+        let static_names = statics.map_or_else(Vec::new, |(text, tok)| {
+            let variables = static_variables(text, self.word_rules());
+            let spans = param_name_spans_for_token(&self.source, tok);
+            for (i, variable) in variables.iter().enumerate() {
+                let span = spans.get(i).copied();
+                self.define_var(&variable.name, tok, &child_path, false, span);
+                // The definition reads the enclosing variable, so it is used
+                // there whether or not the body reads its own copy.
+                if variable.reads_enclosing
+                    && let Some(span) = span
+                {
+                    let named = self.source.get(span.as_range()).unwrap_or_default();
+                    let skipped = u32::try_from(named.len() - named.trim_start_matches('&').len())
+                        .unwrap_or(0);
+                    self.record_var_read(
+                        &variable.name,
+                        Span::new(span.start() + skipped, span.end()),
+                        path,
+                    );
+                }
+            }
+            variables
+                .into_iter()
+                .map(|variable| variable.name)
+                .collect()
+        });
+
+        // Save / restore `last_comment` around the body walk so a
+        // doc-comment inside the proc body doesn't bleed to whatever
+        // follows the proc at the outer scope. Same treatment for
+        // `current_event`: a `proc` body is a new call frame, so W142's
+        // event-body-only bare-`return` restriction must not leak in from
+        // an enclosing `when` — see `emit_w142_context_gate`'s doc comment.
+        let (saved_comment, saved_event) = (
+            std::mem::take(&mut self.last_comment),
+            self.current_event.take(),
+        );
+
+        // Body recursion via the shared helper.  Re-segments
+        // the body (no recovery — top-level only) and
+        // dispatches each command at the new proc scope path.
+        // Per-item shell pass: defer the body (its scope is already
+        // created with params; a second pass fills it in place).
+        let body_text: std::sync::Arc<str> = std::sync::Arc::from(body_text);
+        if self.defer_proc_bodies {
+            let safe_interp_ctx = self.safe_interp_ctx_snapshot();
+            self.deferred_bodies.push(super::per_item::DeferredBody {
+                resolved_input: Some(self.resolved_analysis_input()),
+                body_text,
+                body_tok,
+                scope_path: child_path.clone(),
+                is_method: false,
+                oo_global_resolution: false,
+                namespace: ns_prefix.to_string(),
+                scope_name: scope_name.to_string(),
+                params: params.to_vec(),
+                seeded_variables: static_names,
+                // Attached later by `fill_deferred_bodies` for bodies with a
+                // fold candidate.
+                command_trust: None,
+                ensemble_targets: Vec::new(),
+                prefixless_ensembles: Vec::new(),
+                oo_defining_class: None,
+                safe_interp_ctx,
+            });
+        } else {
+            self.analyse_body(&body_text, body_tok, &child_path);
+        }
+
+        (self.last_comment, self.current_event) = (saved_comment, saved_event);
+    }
+
+    /// `tcl::OptProc name optlist body` — the `opt` package's automatic-
+    /// option-parsing proc definer.
+    ///
+    /// At runtime this installs a REAL proc via `uplevel 1 [list ::proc
+    /// $name args ...]` — the Tcl-level formal parameter is always the
+    /// single literal word `args` (any call arity is accepted; `optlist`
+    /// itself is never arity-checked). `optlist`'s own descriptor entries
+    /// (`{child -use -display}`) share `proc`'s own `{name default}` /
+    /// bare-`name` list shape, so [`parse_param_list`] applies directly —
+    /// but they are bound as LOCAL VARIABLES inside the body by
+    /// `::tcl::OptKeyParse`, with a leading `-` on a flag descriptor
+    /// STRIPPED for the bound name (tclsh9.0/8.6-verified: `-use`/
+    /// `-display` bind as `use`/`display`, never with the dash).
+    ///
+    /// Mirrors [`Self::handle_proc_command`]'s register/scope/walk glue
+    /// largely as a separate function rather than a shared abstraction —
+    /// the two definers' arity/local-binding stories diverge enough
+    /// (`ProcDef.params` is `[args]` here, never `optlist`'s own entries)
+    /// that factoring out a shared helper would need as many branches as
+    /// duplicating the glue outright.
+    pub fn handle_opt_proc_command(
+        &mut self,
+        args: &[String],
+        arg_tokens: &[Token],
+        arg_single: &[bool],
+        scope_path: &[usize],
+    ) -> bool {
+        if args.len() < 3 || arg_tokens.len() < 3 {
+            return false;
+        }
+
+        let (raw_name, name_tok) = (&args[0], arg_tokens[0]);
+        let resolved_name = self
+            .resolve_dynamic_word(
+                raw_name,
+                Some(name_tok),
+                arg_single.first().copied().unwrap_or(false),
+                scope_path,
+            )
+            .unwrap_or_else(|| raw_name.clone());
+        let ns_prefix = self.command_resolution_namespace(scope_path);
+        let original_name = self.original_procedure_declaration_name(name_tok);
+        let (source_name, qualified, simple) = self.procedure_reporting_names(
+            original_name.as_ref(),
+            name_tok,
+            scope_path,
+            &ns_prefix,
+            &resolved_name,
+        );
+        let name_span = name_tok.span;
+        let body_tok = arg_tokens[2];
+
+        self.emit_w113_proc_shadows_builtin(
+            &resolved_name,
+            &qualified,
+            name_span,
+            source_name.as_ref(),
+        );
+        self.emit_w314_no_absolute_name(raw_name, name_span);
+
+        let (real_params, opt_locals) = Self::opt_proc_params(&args[1], self.word_rules());
+
+        let doc = self.procedure_definition_doc(args.get(2).map(String::as_str));
+
+        // Combined list — the real `args` catch-all plus every
+        // optlist-derived local — feeds hover/param-trait inference and
+        // the body's own local-variable scope (never `ProcDef.params`,
+        // which stays `[args]`-only for correct arity).
+        let mut combined_params = real_params.clone();
+        combined_params.extend(opt_locals.iter().cloned());
+
+        let body_text = &args[2];
+        let (param_traits, caller_frame_params, caller_frame_literals) =
+            self.infer_proc_param_traits(&combined_params, body_text, body_tok.span);
+
+        let proc = ProcDef {
+            source_name,
+            name: simple,
+            qualified_name: qualified.clone(),
+            params: real_params,
+            // `tcl::OptProc`'s Tcl-level signature is always the single
+            // catch-all `args`, derived above — a known list, not a computed
+            // one.
+            params_computed: false,
+            formal_count: crate::signature_scan::formal_count::SourceFormalCount::Authored(
+                tcl_dialect::ParameterGrammar::Tcl,
+            ),
+            name_span,
+            body_span: body_tok.span,
+            doc,
+            param_traits,
+            caller_frame_params,
+            caller_frame_literals,
+        };
+
+        // The optlist's locals remain distinct from native formal syntax;
+        // this record retains only its genuine declaration name and report.
+        self.retain_procedure_declaration_metadata(original_name.as_ref(), &proc, name_span);
+        self.register_proc_definition(&qualified, &proc, name_span);
+        let simple_key = proc.name.clone();
+        let path = scope_path.to_vec();
+        if let Some(scope) = super::scope::scope_at_mut(&mut self.result.global_scope, &path) {
+            scope.procs.insert(simple_key.clone(), proc);
+        }
+
+        if body_tok.kind == TokenType::Str {
+            // The *resolved* name keys the scope — see
+            // `scope_name_for_routine`; the raw written word would invent a
+            // namespace out of a substitution.
+            let scope_name = scope_name_for_routine(&resolved_name).to_string();
+            let child_path = self.push_proc_body_scope(&path, &scope_name, body_tok.span);
+
+            self.bind_opt_proc_locals(arg_tokens[1], name_tok, &child_path, &opt_locals);
+
+            let saved_comment = std::mem::take(&mut self.last_comment);
+            let body_text: std::sync::Arc<str> = std::sync::Arc::from(args[2].as_str());
+            if self.defer_proc_bodies {
+                let safe_interp_ctx = self.safe_interp_ctx_snapshot();
+                self.deferred_bodies.push(super::per_item::DeferredBody {
+                    resolved_input: Some(self.resolved_analysis_input()),
+                    body_text,
+                    body_tok,
+                    scope_path: child_path.clone(),
+                    is_method: false,
+                    oo_global_resolution: false,
+                    namespace: ns_prefix.clone(),
+                    scope_name,
+                    params: combined_params,
+                    seeded_variables: Vec::new(),
+                    // Attached later by `fill_deferred_bodies` for bodies
+                    // with a fold candidate.
+                    command_trust: None,
+                    ensemble_targets: Vec::new(),
+                    prefixless_ensembles: Vec::new(),
+                    oo_defining_class: None,
+                    safe_interp_ctx,
+                });
+            } else {
+                self.analyse_body(&body_text, body_tok, &child_path);
+            }
+
+            self.last_comment = saved_comment;
+        }
+
+        true
+    }
+
+    /// Split `tcl::OptProc`'s `optlist` argument into `(real_params,
+    /// opt_locals)`: the real, arity-relevant Tcl-level
+    /// signature — always the single catch-all `args`, regardless of what
+    /// `optlist` declares — and `optlist`'s own descriptors, dash-stripped
+    /// to the LOCAL VARIABLE name `::tcl::OptKeyParse` actually binds at
+    /// runtime (used only for local-variable binding in the body, never
+    /// for arity). A pure text transform — no analyser state needed — kept
+    /// out of [`Self::handle_opt_proc_command`] purely to stay within the
+    /// line-count lint.
+    fn opt_proc_params(
+        optlist_text: &str,
+        rules: tcl_syntax::word_rules::WordValueRules,
+    ) -> (
+        Vec<crate::signature_scan::types::ParamDef>,
+        Vec<crate::signature_scan::types::ParamDef>,
+    ) {
+        let real_params = vec![crate::signature_scan::types::ParamDef {
+            name: "args".to_string(),
+            has_default: false,
+            default_value: None,
+        }];
+        let opt_locals: Vec<crate::signature_scan::types::ParamDef> =
+            parse_param_list(optlist_text, rules)
+                .into_iter()
+                .map(|p| crate::signature_scan::types::ParamDef {
+                    name: p
+                        .name
+                        .strip_prefix('-')
+                        .map(str::to_string)
+                        .unwrap_or(p.name),
+                    has_default: p.has_default,
+                    default_value: p.default_value,
+                })
+                .collect();
+        (real_params, opt_locals)
+    }
+
+    /// One-hop lambda inspection from original list builders or checked Logical values.
+    /// Element spans retain their defining source; unavailable receivers stay opaque.
+    fn resolve_dynamic_apply_lambda(&self, arg_tok: Token) -> Option<Vec<(Token, String)>> {
+        let one_hop = |word_tok: Token| -> Option<(Token, String)> {
+            if word_tok.kind != TokenType::Var {
+                let word_text = Analyser::source_slice(
+                    &self.source,
+                    word_tok.span.start() as usize,
+                    word_tok.span.end() as usize,
+                )?;
+                return Some((word_tok, word_text.to_string()));
+            }
+            let (value, span) = self.lookup_logical_const_substitution(word_tok)?;
+            Some((
+                Token::with_content_offset(TokenType::Str, span, 1),
+                value.to_string(),
+            ))
+        };
+
+        match arg_tok.kind {
+            TokenType::Var => {
+                let (tok, text) = one_hop(arg_tok)?;
+                if text.as_bytes().first() != Some(&b'{') {
+                    return None;
+                }
+                self.parse_apply_lambda_elements(&[text], &[tok])
+            }
+            TokenType::Cmd => {
+                let (inner, base) = super::scope::inner_of(&self.source, arg_tok)?;
+                let segmented = crate::segmenter::segment_commands_with_offset_and_config(
+                    inner,
+                    base,
+                    self.file_lexer_config().nested(),
+                );
+                let [cmd] = segmented.as_slice() else {
+                    return None;
+                };
+                // A lambda built word by word: the head is the command whose
+                // result quotes each of its words as one element — the
+                // registry's `BUILDS_COMMAND_PREFIX` reading, not a spelling.
+                let original =
+                    self.original_diagnostic_call_at(*cmd.argv.first()?, &cmd.argv[1..])?;
+                if !original.with_schema(|schema| {
+                    schema
+                        .semantics
+                        .traits
+                        .contains(tcl_registry::Traits::BUILDS_COMMAND_PREFIX)
+                })? || original.words().arguments().len() != cmd.argv.len().checked_sub(1)?
+                    || (0..original.words().arguments().len())
+                        .any(|ordinal| original.written_index(ordinal) != Some(ordinal))
+                {
+                    return None;
+                }
+                let mut out = Vec::with_capacity(cmd.texts.len().saturating_sub(1));
+                for (tok, text) in cmd.argv.iter().skip(1).zip(cmd.texts.iter().skip(1)) {
+                    if tok.kind == TokenType::Var {
+                        // A `$body` / `$ns` list element still needs one hop
+                        // through the constant-value lattice.
+                        out.push(one_hop(*tok)?);
+                    } else {
+                        // Use the segmenter's already-delimiter-stripped
+                        // element text (`cmd.texts`) paired with its token —
+                        // the same shape `parse_apply_lambda_elements` yields
+                        // for a literal lambda. Slicing the token's raw source
+                        // span instead would keep a `{cleanup done}` element's
+                        // braces, so the body re-segments as one braced word
+                        // and the real `cleanup` call is missed.
+                        out.push((*tok, text.clone()));
+                    }
+                }
+                Some(out)
+            }
+            _ => None,
+        }
+    }
+
+    pub(in crate::analyser) fn parse_apply_lambda_elements(
+        &self,
+        args: &[String],
+        arg_tokens: &[Token],
+    ) -> Option<Vec<(Token, String)>> {
+        if args.is_empty() || arg_tokens.is_empty() {
+            return None;
+        }
+        let lambda_tok = arg_tokens[0];
+        // Only a *braced* literal lambda can be split and offset-mapped safely
+        // (its content is verbatim source).
+        let lambda_start = lambda_tok.span.start() as usize;
+        if lambda_tok.kind != TokenType::Str
+            || self.source.as_bytes().get(lambda_start) != Some(&b'{')
+        {
+            return None;
+        }
+
+        // Split the lambda literal into its list elements. Re-segmenting the
+        // brace-stripped content (`args[0]`) at the lambda's absolute content
+        // offset yields the elements as command words carrying absolute-span
+        // tokens; flattening across commands keeps params / body paired even
+        // when a multi-line lambda puts them on separate lines (a newline
+        // splits *commands*, not *list elements*).
+        let base = lambda_tok.span.start() + u32::from(lambda_tok.content_offset);
+        let segmented = crate::segmenter::segment_commands_with_offset_and_config(
+            &args[0],
+            base,
+            self.file_lexer_config().nested(),
+        );
+        Some(
+            segmented
+                .iter()
+                .flat_map(|c| c.argv.iter().copied().zip(c.texts.iter().cloned()))
+                .collect(),
+        )
+    }
+
+    /// Handle an `apply {{params} body ?ns?} ?arg ...?` invocation.
+    ///
+    /// `apply`'s first argument is a *lambda* (an anonymous procedure), **not**
+    /// a plain script body: element 0 is the parameter list and element 1 is
+    /// the body. The `apply` registry spec marks the argument `ArgRole::Body`,
+    /// so without this handler the generic body-recursion in
+    /// [`Analyser::dispatch_body_arguments`] treats the whole `{{params} body}`
+    /// literal as a *script* — mis-reading the parameter list as a command
+    /// (`apply {{a} {…}}` ⇒ a spurious W123 "unknown command 'a'") and never
+    /// linting the real body.
+    ///
+    /// This models the lambda like a `proc`: the parameters bind as locals in a
+    /// fresh proc scope and element 1 is walked as the body (deferred during the
+    /// per-item shell pass, inline otherwise — mirroring
+    /// [`Analyser::handle_proc_command`], so the incremental and full paths stay
+    /// byte-identical). The body is walked in the *lambda's* namespace — element
+    /// 2 of the lambda, or the global namespace `::` when absent — not the
+    /// caller's, so a nested `proc` registers under the qualified name the
+    /// runtime `apply` gives it (`::p`, not `::caller::p`). Returns `true` when
+    /// the command was an `apply` with a
+    /// statically-inspectable braced lambda literal, so the caller skips the
+    /// generic body recursion. A dynamic lambda (`apply $lambda …`) returns
+    /// `false` and falls through to the generic path (whose `analyse_body` is a
+    /// no-op on the non-braced word), preserving its existing behaviour.
+    ///
+    /// Dispatched via [`tcl_registry::hooks::AnalyserHookId::Apply`].
+    pub fn handle_apply_command(
+        &mut self,
+        args: &[String],
+        arg_tokens: &[Token],
+        _scope_path: &[usize],
+    ) -> bool {
+        self.handle_apply_command_with_source_namespace(args, arg_tokens, None)
+    }
+
+    pub(super) fn handle_apply_command_with_source_namespace(
+        &mut self,
+        args: &[String],
+        arg_tokens: &[Token],
+        original: Option<super::interp_visibility::OriginalInterpreterLambdaBody>,
+    ) -> bool {
+        // A literal braced lambda parses directly; a dynamic one (`apply
+        // $lambda`, `apply [list {params} $body ns]`) gets one hop through
+        // the constant-value lattice before giving up
+        // — same downstream shape either way, so nothing past this point
+        // needs to know which path supplied `elements`.
+        let elements = if let Some(elements) = self.parse_apply_lambda_elements(args, arg_tokens) {
+            elements
+        } else {
+            let Some(&arg_tok) = arg_tokens.first() else {
+                return false;
+            };
+            let Some(elements) = self.resolve_dynamic_apply_lambda(arg_tok) else {
+                return false;
+            };
+            elements
+        };
+        // When a source-selected lambda receipt is present, the token-derived
+        // list projection must name that exact original body in the current
+        // input. A cooked or shifted value cannot borrow this source owner.
+        if let Some(original) = original.as_ref() {
+            let (Some((parameter_token, _)), Some((body_token, _))) =
+                (elements.first(), elements.get(1))
+            else {
+                return true;
+            };
+            if original
+                .for_lambda_tokens(
+                    &self.source,
+                    &self.resolved_analysis_input(),
+                    *parameter_token,
+                    *body_token,
+                )
+                .is_none()
+            {
+                return true;
+            }
+        }
+        // A lambda needs at least a parameter list and a body.
+        if elements.len() < 2 {
+            return true;
+        }
+        let (params_tok, params_text) = (elements[0].0, elements[0].1.as_str());
+        let (body_tok, body_text) = (elements[1].0, elements[1].1.as_str());
+
+        // The body must itself be a braced literal to walk statically (matching
+        // `analyse_body`'s own `TokenType::Str` guard); a bare / substituted
+        // body is left un-analysed, identically on the inline and per-item
+        // paths so the two never diverge.
+        if body_tok.kind != TokenType::Str
+            || self.source.as_bytes().get(body_tok.span.start() as usize) != Some(&b'{')
+        {
+            return true;
+        }
+
+        // `apply` runs the lambda body in the namespace named by lambda element
+        // 2, or the *global* namespace when it is absent — never the caller's
+        // namespace. Element 2 is interpreted relative to the **global**
+        // namespace even when it does not start with `::` (`doc/apply.n`:
+        // "If given, namespace is interpreted relative to the global namespace
+        // even if its name does not start with ::"; `tclProc.c`
+        // `TclNRApplyObjCmd` literally `::`-prefixes the word before the
+        // lookup). So `apply {{} {…} sub}` homes to `::sub` no matter which
+        // namespace the call sits in, and a nested `proc` registers under the
+        // qualified name the runtime `apply` would give it.
+        let body_ns = match elements.get(2).map(|(_, t)| t.as_str()) {
+            Some(ns) if !ns.is_empty() && !ns.starts_with('$') && !ns.starts_with('[') => {
+                qualify("", ns)
+            }
+            _ => "::".to_string(),
+        };
+        let original_namespace = original.as_ref().and_then(|original| {
+            original.for_body_token(&self.source, &self.resolved_analysis_input(), body_tok)
+        });
+        let logical_formals = original.as_ref().and_then(|original| {
+            original
+                .logical_formals_for_body_token(
+                    &self.source,
+                    &self.resolved_analysis_input(),
+                    body_tok,
+                    params_tok,
+                )
+                .and_then(|formals| {
+                    Some((
+                        formals
+                            .parameters()
+                            .iter()
+                            .map(|parameter| crate::signature_scan::types::ParamDef {
+                                name: parameter.name.clone(),
+                                has_default: parameter.default.is_some(),
+                                default_value: parameter.default.clone(),
+                            })
+                            .collect::<Vec<_>>(),
+                        formals
+                            .name_sources()
+                            .iter()
+                            .map(|name| name.source_span())
+                            .collect::<Option<Vec<_>>>()?,
+                    ))
+                })
+        });
+        if let Some(original) = original
+            .as_ref()
+            .filter(|original| original.has_logical_source_namespace())
+        {
+            if let Some(field) = original.logical_namespace_field_for_body_token(
+                &self.source,
+                &self.resolved_analysis_input(),
+                body_tok,
+            ) && let Some((namespace, _)) = original_namespace.as_ref()
+                && !namespace.is_root()
+                && let Some(span) = field.original_field().source_span()
+                && !span.is_empty()
+            {
+                self.result
+                    .namespace_refs
+                    .push(super::types::NamespaceRef::from_original(
+                        Some(crate::signature_scan::scope::SignatureNamespaceScope::root(
+                            Some(field.policy()),
+                        )),
+                        Some(field.policy()),
+                        field.original_field().value(),
+                        span,
+                        0,
+                        false,
+                        namespace
+                            .source_spelling(Some(field.policy()))
+                            .unwrap_or_else(|| body_ns.clone()),
+                    ));
+            }
+        } else {
+            self.record_apply_namespace_reference(&elements, &body_ns, arg_tokens);
+        }
+        let logical_namespace_source = original
+            .filter(|original| {
+                original_namespace.is_some() && original.has_logical_source_namespace()
+            })
+            .map(std::sync::Arc::new);
+        let body_ns = original_namespace
+            .as_ref()
+            .and_then(|(namespace, domain)| {
+                domain.as_ref().map_or_else(
+                    || namespace.display(),
+                    |domain| domain.reported_namespace(namespace),
+                )
+            })
+            .unwrap_or(body_ns);
+
+        let (params, original_param_spans) = match logical_formals {
+            Some((parameters, spans)) => (parameters, Some(spans)),
+            None => (parse_param_list(params_text, self.word_rules()), None),
+        };
+        let body_text: std::sync::Arc<str> = std::sync::Arc::from(body_text);
+        let body_span = body_tok.span;
+        // Anonymous, but keyed by source position so two lambdas never collide
+        // in `all_variables` (keyed `"<scope_name>::<var>"`).
+        let scope_name = format!("apply@{}", arg_tokens[0].span.start());
+
+        // Record the namespace override for `tcl-lsp-core`'s command-
+        // resolution lookups: the `Scope` subtree
+        // rooted below, via `reconstruct_proc_scope`, sits under fresh
+        // `body_span`-less namespace wrapper nodes the ordinary lexical
+        // span-containment walk can never reach — `namespace_overrides` is
+        // a separate, flat, span-keyed fast path consulted ahead of that
+        // walk. Pushed once regardless of the inline/deferred split below.
+        self.result
+            .namespace_overrides
+            .push((body_span, body_ns.clone()));
+
+        // Root the lambda scope at `body_ns` under the global scope — NOT under
+        // the caller — via the same `reconstruct_proc_scope` the per-item path
+        // uses, so the inline (full) and per-item (incremental) walks build
+        // byte-identical structure and nested definitions resolve to `body_ns`.
+        let child_path = super::per_item::reconstruct_proc_scope(
+            &mut self.result.global_scope,
+            &body_ns,
+            &scope_name,
+            super::types::ScopeKind::Proc,
+        );
+        if let Some(scope) = super::scope::scope_at_mut(&mut self.result.global_scope, &child_path)
+        {
+            scope.body_span = Some(body_span);
+            scope.requires_original_lambda_source_context = true;
+            if let Some((namespace, domain)) = original_namespace {
+                scope.naming_scope = Some(namespace);
+                scope.original_interpreter_source_domain = domain;
+                scope.original_logical_lambda_namespace = logical_namespace_source;
+            }
+        }
+
+        // Parameters become locals, each anchored to its name in the param-list
+        // literal so go-to-definition / references / rename on a
+        // formal resolve to the parameter, not the `apply` call.
+        let param_spans = original_param_spans
+            .unwrap_or_else(|| param_name_spans_for_token(&self.source, params_tok));
+        for (i, p) in params.iter().enumerate() {
+            self.define_var(
+                &p.name,
+                params_tok,
+                &child_path,
+                false,
+                param_spans.get(i).copied(),
+            );
+        }
+        self.emit_w218_args_not_final(&params, &param_spans, params_tok);
+
+        // Save / restore last_comment around the body walk, as `proc` does, so a
+        // doc-comment inside the lambda body doesn't bleed to what follows.
+        let saved_comment = std::mem::take(&mut self.last_comment);
+        if self.defer_proc_bodies {
+            let safe_interp_ctx = self.safe_interp_ctx_snapshot();
+            self.deferred_bodies.push(super::per_item::DeferredBody {
+                resolved_input: Some(self.resolved_analysis_input()),
+                body_text,
+                body_tok,
+                scope_path: child_path.clone(),
+                is_method: false,
+                oo_global_resolution: false,
+                namespace: body_ns,
+                scope_name,
+                params,
+                seeded_variables: Vec::new(),
+                // Attached later by `fill_deferred_bodies` for bodies with a
+                // fold candidate.
+                command_trust: None,
+                ensemble_targets: Vec::new(),
+                prefixless_ensembles: Vec::new(),
+                oo_defining_class: None,
+                safe_interp_ctx,
+            });
+        } else {
+            self.analyse_body(&body_text, body_tok, &child_path);
+        }
+        self.last_comment = saved_comment;
+        true
+    }
+
+    /// Whether a `proc` defined as `qualified` is the interpreter's *global*
+    /// unresolved-command handler — the one whose presence gates W123 for the
+    /// whole file.
+    ///
+    /// Which command is the handler comes from
+    /// [`tcl_registry::Traits::UNRESOLVED_COMMAND_HANDLER`], never a literal
+    /// name here — the same registry query `tcl_compiler::unit_scope` uses for
+    /// the interprocedural call-site seed.
+    ///
+    /// **Global only.** Tcl consults `::unknown` for a bare unresolved word
+    /// regardless of the calling namespace, so a namespace-local
+    /// `proc unknown` inside `namespace eval ::mylib { … }` is an ordinary
+    /// proc that happens to share the name and must not suppress anything.
+    /// tclsh8.6.14 and tclsh9.0.4 both confirm the split: with a global
+    /// `proc unknown {args} {return handled}` a call to
+    /// `totallyBogusCommand` returns `handled`, while with the same proc
+    /// defined inside `namespace eval ::mylib` it still fails
+    /// `invalid command name "totallyBogusCommand"`. (`namespace unknown
+    /// NAME` registers a per-namespace handler explicitly; that path is
+    /// modelled separately by its handler argument's
+    /// [`tcl_registry::ArgRole::CommandPrefix`] role.)
+    ///
+    /// `::tcl::unknown` is admitted alongside `::unknown`: it is the Tcl
+    /// library's own handler spelling, installed as the interpreter-wide
+    /// handler rather than scoped to callers inside `::tcl`.
+    fn defines_global_unresolved_handler(&self, qualified: &str) -> bool {
+        let Some(registry) = self.registry.as_deref() else {
+            return false;
+        };
+        let mut carriers =
+            registry.commands_with_trait(tcl_registry::Traits::UNRESOLVED_COMMAND_HANDLER);
+        carriers.sort_unstable();
+        carriers.iter().any(|name| {
+            qualified == crate::naming::qualify("::", name)
+                || qualified == crate::naming::qualify("::tcl", name)
+        })
+    }
+
+    /// Handle `namespace eval`: opens a new namespace scope and
+    /// schedules its body for analysis.
+    ///
+    /// Returns `true` when the command was handled.
+    ///
+    /// Creates the child namespace scope so downstream handlers see
+    /// qualified names resolve through it, then recurses into the
+    /// body.
+    ///
+    /// Dispatched via
+    /// [`tcl_registry::hooks::AnalyserHookId::NamespaceEval`] (stamped
+    /// on `namespace`'s `eval` subcommand); `args[0]` is still the
+    /// subcommand word.
+    pub fn handle_namespace_eval_command(
+        &mut self,
+        args: &[String],
+        arg_tokens: &[Token],
+        arg_single: &[bool],
+        scope_path: &[usize],
+    ) -> bool {
+        self.handle_namespace_eval_command_at_invocation(
+            args, arg_tokens, arg_single, scope_path, None,
+        )
+    }
+
+    /// Source-only namespace geometry from the actual command point, when
+    /// dispatch retains one. Direct compatibility calls keep their ordinary
+    /// span-based lookup without inventing an invocation offset.
+    pub(in crate::analyser) fn handle_namespace_eval_command_at_invocation(
+        &mut self,
+        args: &[String],
+        arg_tokens: &[Token],
+        arg_single: &[bool],
+        scope_path: &[usize],
+        invocation_offset: Option<u32>,
+    ) -> bool {
+        // Implementation contract: naming.source.original-point-operand-projection
+        // docs/design/analysis/name-resolution-proofs/original-point-operand-projection.md
+        if args.len() < 2 {
+            return false;
+        }
+        let ns_name = args[1].clone();
+        // **W314** — an all-colon segment (`namespace eval :`) creates a
+        // namespace no absolute path can spell.
+        if let Some(ns_tok) = arg_tokens.get(1) {
+            self.emit_w314_unaddressable_namespace(&ns_name, ns_tok.span);
+        }
+        // The scope's `body_span` is what offset-keyed lookups resolve
+        // *against* the namespace frame, so it may only cover text that runs
+        // in that frame.  A literal `{…}` block does.  A `[…]` substitution
+        // does **not**: Tcl evaluates it in the *calling* frame and hands
+        // `namespace eval` the resulting value, so `namespace eval ::
+        // [list source [file join $::tk_library $file.tcl]]` (Tk's
+        // `::tk::SourceLibFile`) reads the proc's own `$file` parameter
+        // before the namespace is entered at all.  Claiming those bytes for
+        // the namespace made the scope-chain lookup stop there and answer
+        // nothing for that read.
+        let body_tok = arg_tokens.get(2).copied();
+        let body_span = body_tok
+            .filter(|t| t.kind == TokenType::Str)
+            .map(|t| t.span);
+        let body_text = args.get(2).cloned();
+        // `namespace eval $ns [list namespace unknown $handler]` — the
+        // list-wrapped installer idiom `analyse_body`'s literal-`{...}`
+        // -only gate below never sees.
+        if let Some(tok) = body_tok {
+            self.detect_list_wrapped_namespace_unknown(tok);
+        }
+
+        // A dynamic target (`namespace eval $name { … }`, the irc.tcl
+        // per-connection idiom) can't be resolved to a real namespace path —
+        // and, unlike a literal one, two lexically unrelated occurrences
+        // that happen to write the *same* variable name (an unremarkable
+        // choice for this exact idiom) must never collapse into one scope:
+        // each occurrence gets its own synthetic, per-call-site domain,
+        // keyed by this argument token's own source offset (unique per
+        // occurrence, deterministic, and — like `@interp@` — unrepresentable
+        // in real Tcl, so it can never collide with a literal namespace of
+        // the same written text). Mirrors `interp eval`'s dynamic-path
+        // handling a few hooks below, which is conservatively isolated the
+        // same way rather than merged by raw text.
+        //
+        // A computed target whose value is **constant-dominated** is not
+        // dynamic in any way that matters: `set ns ::app; namespace eval $ns
+        // { … }` creates `::app` on every run, so the block's procs really do
+        // home to `::app::…` and the block really is a declaring site for
+        // `::app`. That case is settled through the same identity-resolution
+        // helper the command head, `source`, `rename`, and
+        // `oo::define`'s target word already use — one lattice answers "what
+        // does this word name" everywhere, and its dominance requirement keeps
+        // a branch-conditional binding out.
+        let resolved_dynamic = crate::naming::is_dynamic_word(&ns_name)
+            .then(|| {
+                self.resolve_dynamic_word(
+                    &ns_name,
+                    arg_tokens.get(1).copied(),
+                    arg_single.get(1).copied().unwrap_or(false),
+                    scope_path,
+                )
+            })
+            .flatten()
+            .filter(|resolved| !resolved.is_empty() && !crate::naming::is_dynamic_word(resolved));
+        self.record_resolved_namespace_reference(
+            resolved_dynamic.as_deref(),
+            arg_tokens.get(1),
+            scope_path,
+            invocation_offset,
+        );
+        let scope_name = match resolved_dynamic {
+            Some(resolved) => resolved,
+            None if crate::naming::is_dynamic_word(&ns_name) => match arg_tokens.get(1) {
+                Some(tok) => self.mint_synthetic_offset_name("@dynns@", tok.span.start()),
+                None => ns_name.clone(),
+            },
+            None => ns_name,
+        };
+
+        let naming_scope = arg_tokens
+            .get(1)
+            .and_then(|token| {
+                let input = match invocation_offset {
+                    Some(offset) => {
+                        self.original_variable_operand_input_at_invocation(offset, token.span)
+                    }
+                    None => self.original_variable_operand_input(token.span),
+                }?;
+                self.declaration_namespace_scope(scope_path)?
+                    .child_from_input(&input)
+            })
+            .or_else(|| {
+                self.original_interp_namespace_source_scope(
+                    invocation_offset?,
+                    arg_tokens,
+                    scope_path,
+                )
+            });
+        let path = scope_path.to_vec();
+        let child_scope_idx = {
+            let mut child =
+                super::types::Scope::new(super::types::ScopeKind::Namespace, scope_name);
+            child.body_span = body_span;
+            child.naming_scope = naming_scope;
+            child.original_interpreter_source_domain =
+                super::scope::scope_at(&self.result.global_scope, &path)
+                    .and_then(|scope| scope.original_interpreter_source_domain.clone());
+            // The written `NAME` word, so the outline can point its
+            // `selectionRange` at the name rather than the whole body.
+            // Recorded even for a dynamic `$ns` target: the
+            // word is still where the user would want the cursor.
+            child.name_span = arg_tokens.get(1).map(|t| t.span);
+            let Some(parent) = super::scope::scope_at_mut(&mut self.result.global_scope, &path)
+            else {
+                return false;
+            };
+            parent.children.push(child);
+            parent.children.len() - 1
+        };
+        let mut child_path = path;
+        child_path.push(child_scope_idx);
+
+        // Body recursion lets procs and classes declared inside
+        // ``namespace eval`` register with the correct namespace
+        // prefix.  Words past the body join into the script exactly as
+        // `eval`'s do, so a multi-word call is analysed as the whole
+        // concatenation or not at all — never as its first
+        // word alone, which invented an E002 on the trailing words'
+        // arguments and lost every write they performed.
+        if args.len() == 3
+            && let (Some(name), Some(body)) = (arg_tokens.get(1), body_tok)
+        {
+            self.record_original_vendor_variable_body(
+                name.span,
+                body.span,
+                None,
+                crate::signature_scan::vendor_variable::VendorSourceVariableBodyKind::Namespace,
+            );
+        }
+        if args.len() > 3 {
+            self.analyse_namespace_eval_tail(args, arg_tokens, &child_path);
+        } else if let (Some(text), Some(tok)) = (body_text, body_tok) {
+            self.analyse_body(&text, tok, &child_path);
+        }
+        true
+    }
+
+    /// Analyse the script a multi-word `namespace eval` / `namespace inscope`
+    /// evaluates, in the namespace scope `child_path` already opened for it.
+    ///
+    /// The two subcommands share this hook but not their tail semantics, and
+    /// the registry records the split:
+    ///
+    /// - `namespace eval ns arg ?arg …?` carries
+    ///   [`tcl_registry::Traits::SCRIPT_CONCATENATES_ARGS`] alone — the tail
+    ///   space-joins into the script (`namespace eval ::n set l2 hello` sets
+    ///   `::n::l2`, tclsh8.6.14/9.0.4-confirmed), so a fully-static tail is
+    ///   joined and walked.
+    /// - `namespace inscope ns script ?arg …?` adds
+    ///   [`tcl_registry::Traits::SCRIPT_APPENDS_LIST_ARGS`] — the tail is
+    ///   appended as *list elements*, so `namespace inscope :: {puts} {a b}`
+    ///   prints `a b` where `namespace eval :: {puts} {a b}` errors. A join
+    ///   would be simply wrong, and reconstructing the list quoting is beyond
+    ///   what the analyser models, so any trailing word means the call is
+    ///   consumed without walking.
+    ///
+    /// A dynamic word takes the same consume-without-walk route as
+    /// [`Self::handle_interp_eval_command`]'s multi-word arm: substitution
+    /// runs before concatenation, so the real script is unknowable.
+    fn analyse_namespace_eval_tail(
+        &mut self,
+        args: &[String],
+        arg_tokens: &[Token],
+        child_path: &[usize],
+    ) {
+        let Some(registry) = self.registry.as_deref() else {
+            return;
+        };
+        let list_append = registry
+            .get("namespace")
+            .and_then(|spec| spec.subcommand(&args[0]))
+            .is_some_and(|sub| {
+                sub.traits
+                    .contains(tcl_registry::Traits::SCRIPT_APPENDS_LIST_ARGS)
+            });
+        if list_append {
+            return;
+        }
+        let (Some(words), Some(tokens)) = (args.get(2..), arg_tokens.get(2..)) else {
+            return;
+        };
+        let Some(first_tok) = tokens.first() else {
+            return;
+        };
+        let Some((script, span)) = super::utils::concat_script_window(words, tokens, &self.source)
+        else {
+            // The tail cannot be walked (a dynamic word). A braced first word
+            // is still a literal script prefix — concatenation appends after
+            // it — and it is the namespace's whole visible body in the common
+            // mangled-document case (an unbalanced brace inside the body word
+            // drags trailing text into extra words). Walk it rather than
+            // discarding every proc and variable the namespace declares.
+            if first_tok.kind == TokenType::Str {
+                self.analyse_body(&words[0], *first_tok, child_path);
+            }
+            return;
+        };
+        let anchor = Token::new(TokenType::Str, span);
+        self.analyse_body(&script, anchor, child_path);
+    }
+
+    /// Handle `interp eval PATH SCRIPT`: the script runs in a **child**
+    /// interpreter — a separate command / variable space — so its `proc` /
+    /// `oo::class` / variable definitions and calls must not merge into the
+    /// parent namespace (a parent `rename foo` must not rewrite a child `proc
+    /// foo`; [`tcl_vm::interp`] isolates the child at run time).
+    ///
+    /// Only the single-script form (`interp eval child { … }`) is isolated: an
+    /// **empty** path (`interp eval {} script`) targets the *current*
+    /// interpreter — its definitions belong here — and a multi-word /
+    /// non-literal script cannot be statically re-assembled, so both fall back
+    /// to the generic body recursion by returning `false`.  Otherwise an
+    /// isolated child scope is opened, named for the interpreter path so the
+    /// child's definitions home under it (`::<path>::foo`) and the child's own
+    /// calls still resolve within the block; a dynamic path (`$i`) can't
+    /// collide with a real namespace, so it stays conservatively isolated too.
+    ///
+    /// Dispatched via [`tcl_registry::hooks::AnalyserHookId::InterpEval`]
+    /// (stamped on `interp`'s `eval` subcommand); `args[0]` is the subcommand
+    /// word.
+    pub fn handle_interp_eval_command(
+        &mut self,
+        args: &[String],
+        arg_tokens: &[Token],
+        scope_path: &[usize],
+    ) -> bool {
+        self.handle_interp_eval_command_original(args, arg_tokens, scope_path, None)
+    }
+
+    pub(super) fn handle_interp_eval_command_original(
+        &mut self,
+        args: &[String],
+        arg_tokens: &[Token],
+        scope_path: &[usize],
+        head: Option<Token>,
+    ) -> bool {
+        // `interp eval PATH arg ?arg ...?` — the subcommand word, the path,
+        // and one or more script words (C concatenates them).
+        if args.len() < 3 {
+            return false;
+        }
+        // An empty path runs in the current interpreter — not isolated.
+        if args[1].is_empty() {
+            return false;
+        }
+        // The interpreter path is a *list* relative to the current
+        // interpreter — inside a child's eval body it is relative to that
+        // child — so qualify against the walk's interpreter-path stack. A
+        // dynamic path also resolves through a tracked `set VAR [interp
+        // create ...]` binding — that key is already
+        // fully qualified at bind time, so it's used as-is, not
+        // requalified.
+        let literal_path = !crate::naming::is_dynamic_word(&args[1]);
+        let resolved_dynamic = (!literal_path)
+            .then(|| self.resolve_dynamic_interp_path(arg_tokens.get(1).copied()))
+            .flatten();
+        let original_key =
+            head.and_then(|head| self.original_interp_eval_state_key(head, arg_tokens));
+        let key = original_key
+            .or_else(|| resolved_dynamic.clone())
+            .unwrap_or_else(|| self.qualified_interp_key(&args[1]));
+        if literal_path || resolved_dynamic.is_some() {
+            // Interpreter existence: evaluating into a
+            // known-but-never-created child raises `could not find
+            // interpreter` at run time.  Abstains when any interp operation
+            // in the file used a dynamic, *unresolvable* path (existence
+            // then unknowable).
+            if !self.interpreters.contains_key(&key)
+                && !self.dynamic_interp_ops
+                && let Some(tok) = arg_tokens.get(1)
+            {
+                self.result
+                    .diagnostics
+                    .push(crate::analyser::types::Diagnostic::new(
+                        tcl_core_types::DiagCode::W140,
+                        tok.span,
+                        format!(
+                            "interpreter '{}' is never created in this file — \
+                         `interp eval` will raise `could not find interpreter`",
+                            args[1]
+                        ),
+                        super::types::Severity::Warning,
+                    ));
+            }
+        }
+        // Multiple script words concatenate at run time (`Tcl_ConcatObj`),
+        // so commands can span word boundaries — no per-word walk is sound.
+        // Consume the command *without* walking, keeping the parent domain
+        // clean (a fall-through would analyse the words in the parent
+        // scope); W312 separately flags the shape.
+        if args.len() > 3 {
+            return true;
+        }
+        let Some(body_tok) = arg_tokens.get(2).copied() else {
+            return true;
+        };
+        // A path we could not resolve still gets its own domain (two
+        // `interp eval $a {…}` / `interp eval $b {…}` bodies must not
+        // merge), but it is flagged unresolved so per-interpreter state
+        // widens rather than asserting this is a *different* interpreter
+        // from every other — `$path` could hold any name, including one
+        // already used literally elsewhere in the file.
+        let resolved = literal_path || resolved_dynamic.is_some();
+        let visibility = head.and_then(|head| {
+            self.original_interp_visibility_body(&key, body_tok, head, arg_tokens)
+        });
+        self.isolate_interp_eval_body(&key, resolved, &args[2], body_tok, scope_path, visibility);
+        true
+    }
+
+    /// Isolate `body_text` — already known to belong to interpreter `key` —
+    /// into a synthetic `@interp@<key>` child scope, so its `proc` /
+    /// `oo::class` / variable definitions and calls don't merge into the
+    /// parent namespace. Shared core of [`Self::handle_interp_eval_command`]
+    /// (literal `interp eval PATH { … }`) and
+    /// [`Self::handle_interp_handle_eval_command`] (`NAME eval { … }` via the
+    /// interpreter's own object command) — both recognise the *same*
+    /// isolated-body shape, just via different call-site spellings, so both
+    /// must isolate it identically rather than maintaining two copies of
+    /// this logic that could drift apart.
+    ///
+    /// `path_resolved` says whether `key` names an interpreter the walk could
+    /// identify statically (a literal path, or a dynamic one resolved through
+    /// a tracked `set VAR [interp create …]` binding).  It is recorded on the
+    /// pushed [`InterpFrame`](super::state::InterpFrame) so consumers of the
+    /// domain identity — analyser state that models *per-interpreter runtime
+    /// state*, such as the Tk widget/geometry hierarchy — can
+    /// widen conservatively for a body whose interpreter is unknowable
+    /// instead of treating it as provably distinct from every other domain.
+    ///
+    /// Returns `false` (never isolated) only when the scope-tree path has
+    /// gone stale — shouldn't happen during a healthy walk.
+    fn isolate_interp_eval_body(
+        &mut self,
+        key: &str,
+        path_resolved: bool,
+        body_text: &str,
+        body_tok: Token,
+        scope_path: &[usize],
+        visibility: Option<super::SourceInterpreterVisibilitySnapshot>,
+    ) -> bool {
+        let outer = scope_path.to_vec();
+        let domain = self.interp_domain_name(key);
+        let child_scope_idx = {
+            // The child's global namespace is its own domain, not a parent
+            // namespace — home the scope under a synthetic
+            // `@interp@<path>` name (unrepresentable in Tcl, mirroring
+            // `@objdefine@`) so a real parent namespace of the same name
+            // can never collide.  Repeated evals into the same live
+            // interpreter share one domain name (their definitions
+            // accumulate, as in C); the name carries the path's deletion
+            // *epoch*, so a deleted-and-recreated interpreter is a fresh
+            // domain that never merges with its predecessor's definitions.
+            let mut child =
+                super::types::Scope::new(super::types::ScopeKind::Namespace, domain.clone());
+            child.body_span = Some(body_tok.span);
+            child.isolated_interpreter_source_body = true;
+            child.original_interpreter_source_domain = visibility
+                .as_ref()
+                .map(|snapshot| snapshot.reporting_domain(domain.clone()));
+            child.naming_scope = visibility.as_ref().map(|_| {
+                crate::signature_scan::scope::SignatureNamespaceScope::C(
+                    tcl_core_types::ByteNamespacePath::root(),
+                )
+            });
+            let Some(parent) = super::scope::scope_at_mut(&mut self.result.global_scope, &outer)
+            else {
+                return false;
+            };
+            parent.children.push(child);
+            parent.children.len() - 1
+        };
+        let mut child_path = outer;
+        child_path.push(child_scope_idx);
+
+        // Each child source has an independent context, including a child
+        // whose original declaration cannot be retained. The enclosing
+        // child's snapshot must not leak into that unknown body.
+        let outer_visibility = std::mem::take(&mut self.safe_interp_stack);
+        if let Some(context) = visibility {
+            self.safe_interp_stack.push(context);
+        }
+        // `interp` operations inside the body name paths relative to *this*
+        // child — push its path so they qualify correctly.  The frame also
+        // carries the body's domain identity for per-interpreter state; an
+        // unresolvable path anywhere in the enclosing chain makes the whole
+        // frame unresolved, since a body nested inside an unknowable
+        // interpreter is itself in an unknowable one.
+        let enclosing_resolved = self.interp_path_stack.last().is_none_or(|f| f.resolved);
+        self.interp_path_stack.push(super::state::InterpFrame {
+            key: key.to_string(),
+            domain,
+            resolved: path_resolved && enclosing_resolved,
+        });
+        self.analyse_body(body_text, body_tok, &child_path);
+        self.interp_path_stack.pop();
+        self.safe_interp_stack = outer_visibility;
+        true
+    }
+
+    /// Handle `NAME eval SCRIPT` — a far more common real-world spelling of
+    /// `interp eval NAME SCRIPT` than the `interp eval` form itself: `interp
+    /// create` binds the child interpreter's *own* object command to its
+    /// create-time name (`interp create sandbox` makes `sandbox` itself
+    /// callable; `sandbox eval { … }` dispatches exactly like `interp eval
+    /// sandbox { … }`). Without this, the body is neither isolated nor
+    /// walked at all: no symbols are produced for procs defined inside it,
+    /// and hover/go-to-definition on a call inside falls back to a
+    /// scope-blind, file-wide "any proc anywhere with this bare name" match
+    /// — which can resolve to a same-named proc in a completely unrelated
+    /// interpreter.
+    ///
+    /// Recognised purely from analysis state — `cmd_name` is looked up
+    /// against [`Self::interpreters`] (built by
+    /// [`Self::handle_interp_create_command`]), never matched against a
+    /// hardcoded name — so an ordinary proc that happens to be named `eval`
+    /// as its first argument (`foo eval bar`, `foo` an unrelated command) is
+    /// untouched. Only the single-script form is isolated, mirroring
+    /// [`Self::handle_interp_eval_command`]; every other shape (no `eval`
+    /// first word, wrong arity, an untracked head) falls through to the
+    /// generic per-command dispatch by returning `false`.
+    ///
+    /// Handles the `$handle eval { … }` spelling too: `cmd_name` is the
+    /// literal, unsubstituted head text, so a `$`-prefixed handle only
+    /// resolves through a tracked `set VAR [interp create ...]` binding
+    /// ([`Self::resolve_dynamic_interp_path`]) — a handle sourced any
+    /// other way (a proc parameter, a value read from elsewhere) still
+    /// falls through untouched, the same conservative fallback used for
+    /// an untracked head.
+    ///
+    /// Dispatched from [`Self::dispatch_analyser_hook`]'s hookless fallback
+    /// chain — `cmd_name` never matches a registry command (it's a
+    /// user-chosen interpreter name), so this can't be reached via a
+    /// registry hook the way the literal `interp eval` form is.
+    pub fn handle_interp_handle_eval_command(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[Token],
+        scope_path: &[usize],
+    ) -> bool {
+        self.handle_interp_handle_eval_command_original(
+            cmd_name, args, arg_tokens, scope_path, None,
+        )
+    }
+
+    pub(super) fn handle_interp_handle_eval_command_original(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[Token],
+        scope_path: &[usize],
+        head: Option<Token>,
+    ) -> bool {
+        if args.len() != 2 || args[0] != "eval" {
+            return false;
+        }
+        let Some(body_tok) = arg_tokens.get(1).copied() else {
+            return false;
+        };
+        if let Some((key, visibility)) = head.and_then(|head| {
+            self.original_interp_handle_visibility_body(body_tok, head, arg_tokens)
+        }) {
+            return self.isolate_interp_eval_body(
+                &key,
+                true,
+                &args[1],
+                body_tok,
+                scope_path,
+                Some(visibility),
+            );
+        }
+        let key = if crate::naming::is_dynamic_word(cmd_name) {
+            let Some(resolved) = self.resolve_dynamic_interp_path(head) else {
+                return false;
+            };
+            resolved
+        } else {
+            self.qualified_interp_key(cmd_name)
+        };
+        if !self.interpreters.contains_key(&key) {
+            return false;
+        }
+        // Compatibility reporting retains the tracked interpreter path, but
+        // no genuine source receipt or visibility advice follows from it.
+        self.isolate_interp_eval_body(&key, true, &args[1], body_tok, scope_path, None)
+    }
+
+    /// Qualify a literal `interp` path operand against the enclosing
+    /// `interp eval` bodies on the walk stack: paths are relative to the
+    /// *current* interpreter, so `interp create t` inside
+    /// `interp eval s {…}` names `s t`.  A dynamic operand is returned
+    /// key-normalised only (its stack context cannot make it literal).
+    pub(super) fn qualified_interp_key(&self, path: &str) -> String {
+        let local = interp_path_key(path);
+        match self.interp_path_stack.last() {
+            Some(enclosing) if !local.is_empty() => format!("{} {local}", enclosing.key),
+            _ => local,
+        }
+    }
+
+    /// The `::`-rooted prefix that qualifies a name into the interpreter
+    /// domain the walk is currently inside: empty at the top level (the main
+    /// interpreter), `::@interp@<path>[#<epoch>]` inside a child's eval body.
+    ///
+    /// Concatenate it with an already-`::`-rooted name (`::foo` →
+    /// `::@interp@c::foo`) or use it as the namespace half of a join. It is
+    /// what command-table facts (`interp alias`, alias deletion) written with
+    /// an *empty* interpreter path must be keyed by: an empty path means "the
+    /// interpreter this command runs in", which is the child inside a
+    /// `child eval { … }` body, not the main interpreter.
+    pub(super) fn current_interp_domain_prefix(&self) -> String {
+        self.interp_path_stack
+            .last()
+            .map_or_else(String::new, |frame| format!("::{}", frame.domain))
+    }
+
+    /// The synthetic namespace name for an interpreter domain: the
+    /// current epoch of `key` is folded in so a deleted-and-recreated
+    /// interpreter never shares its predecessor's definitions.
+    fn interp_domain_name(&self, key: &str) -> String {
+        match self.interp_epochs.get(key) {
+            Some(epoch) if *epoch > 0 => format!("@interp@{key}#{epoch}"),
+            _ => format!("@interp@{key}"),
+        }
+    }
+
+    /// Current original scalar syntax selects independently recorded interpreter-path advice.
+    fn resolve_dynamic_interp_path(&self, token: Option<Token>) -> Option<String> {
+        self.lookup_logical_interp_path(token?)
+    }
+
+    /// Resolve an `interp alias` path operand to the domain prefix its
+    /// alias/target command name qualifies under: the
+    /// plain-current-interpreter sentinel (`""`/`"{}"`) is the empty
+    /// prefix; a literal word resolves via [`Self::qualified_interp_key`]
+    /// and then [`Self::interp_domain_name`]; a dynamic word resolves
+    /// ONLY through [`Self::resolve_dynamic_interp_path`] — anything else
+    /// (an untracked dynamic word) returns `None`, aborting the whole
+    /// cross-domain alias (unchanged conservative behaviour).
+    fn resolve_alias_domain_prefix(&self, path: &str, token: Option<Token>) -> Option<String> {
+        if matches!(path, "" | "{}") {
+            // The empty path is *this* interpreter — which is the child when
+            // the command is written inside a child's eval body, not always
+            // the main one.
+            return Some(self.current_interp_domain_prefix());
+        }
+        let key = if crate::naming::is_dynamic_word(path) {
+            self.resolve_dynamic_interp_path(token)?
+        } else {
+            self.qualified_interp_key(path)
+        };
+        Some(format!("::{}", self.interp_domain_name(&key)))
+    }
+
+    /// Handle `interp create ?-safe? ?--? ?path?` — record the child
+    /// interpreter's existence and safe state in the interpreter-domain
+    /// map, read off the invocation's `InterpreterTransition::Create`: the
+    /// registry resolver scans the options as Tcl does (the scan continues
+    /// past the path, `-safe` and `--` match by prefix, and a shape Tcl
+    /// rejects states no creation). A computed path makes interpreter
+    /// existence unknowable file-wide; a missing path auto-generates a name
+    /// this file cannot reference literally, so nothing is recorded.
+    ///
+    /// Dispatched via [`tcl_registry::hooks::AnalyserHookId::InterpCreate`],
+    /// with the transitions the call states over its source words.
+    pub fn handle_interp_create_command(&mut self, transitions: &tcl_registry::StateTransitions) {
+        match created_interpreter(transitions) {
+            Some((Some(subject), safe)) => {
+                let path = subject.literal().or_else(|| {
+                    subject
+                        .native_bytes()
+                        .and_then(|bytes| std::str::from_utf8(bytes).ok())
+                });
+                let Some(path) = path else {
+                    self.dynamic_interp_ops = true;
+                    return;
+                };
+                let state = super::state::InterpState {
+                    safe,
+                    ..Default::default()
+                };
+                let key = self.qualified_interp_key(path);
+                self.interpreters.insert(key, state);
+            }
+            Some((None, _)) | None => {}
+        }
+    }
+
+    /// Handle `interp delete ?path ...?` — remove the recorded state and
+    /// bump the path's **epoch**, so a later re-creation is a fresh
+    /// domain.
+    ///
+    /// Dispatched via [`tcl_registry::hooks::AnalyserHookId::InterpDelete`].
+    pub fn handle_interp_delete_command(&mut self, args: &[String]) {
+        for word in &args[1..] {
+            if crate::naming::is_dynamic_word(word) {
+                self.dynamic_interp_ops = true;
+                continue;
+            }
+            let key = self.qualified_interp_key(word);
+            if self.interpreters.remove(&key).is_some() {
+                *self.interp_epochs.entry(key).or_insert(0) += 1;
+            }
+        }
+    }
+
+    /// Compatibility entry without original operands. It withdraws source
+    /// visibility advice; the complete invocation entry retains hidden tokens
+    /// separately from scoped visible slots.
+    ///
+    /// Dispatched via [`tcl_registry::hooks::AnalyserHookId::InterpHide`].
+    pub fn handle_interp_hide_command(&mut self, args: &[String]) {
+        self.apply_interp_visibility_delta(args, true);
+    }
+
+    /// Compatibility entry without original operands. It withdraws source
+    /// visibility advice rather than constructing hidden-token/name receipts.
+    ///
+    /// Dispatched via [`tcl_registry::hooks::AnalyserHookId::InterpExpose`].
+    pub fn handle_interp_expose_command(&mut self, args: &[String]) {
+        self.apply_interp_visibility_delta(args, false);
+    }
+
+    /// Compatibility handlers without original operands cannot issue visibility.
+    fn apply_interp_visibility_delta(&mut self, args: &[String], _hide: bool) {
+        let Some(path) = args.get(1) else {
+            return;
+        };
+        let key = self.qualified_interp_key(path);
+        if let Some(state) = self.interpreters.get_mut(&key) {
+            state.tainted = true;
+            state.visibility = None;
+        }
+    }
+
+    pub(super) fn handle_interp_hide_command_original(
+        &mut self,
+        args: &[String],
+        head: Token,
+        tokens: &[Token],
+    ) {
+        if let Some(path) = args.get(1) {
+            self.apply_original_interp_visibility_delta(path, head, tokens, true);
+        }
+    }
+
+    pub(super) fn handle_interp_expose_command_original(
+        &mut self,
+        args: &[String],
+        head: Token,
+        tokens: &[Token],
+    ) {
+        if let Some(path) = args.get(1) {
+            self.apply_original_interp_visibility_delta(path, head, tokens, false);
+        }
+    }
+
+    /// Handle `namespace path {…}`: record the current namespace's
+    /// command-resolution search path for the post-walk settlement
+    /// ([`Self::finalise_invocation_resolutions`]).
+    ///
+    /// Only the two-word set form
+    /// with a *literal* list is recorded — the one-word query form mutates
+    /// nothing, and a dynamic list (`$var` / `[cmd]`) is statically
+    /// unknowable, so it keeps the conservative empty path. Each
+    /// declaration replaces the namespace's whole path, as in C Tcl, so
+    /// the lexically-last one wins (settlement is call-time / whole-file,
+    /// like the rest of the resolution model).
+    ///
+    /// Dispatched via
+    /// [`tcl_registry::hooks::AnalyserHookId::NamespacePath`] (stamped
+    /// on `namespace`'s `path` subcommand); `args[0]` is still the
+    /// subcommand word.
+    ///
+    /// The argument is a *list* of namespace names inside one word, so each
+    /// element is additionally recorded as a
+    /// [`NamespaceRef`](super::types::NamespaceRef) at its own source span.
+    /// Whole-word `ArgRole`s cannot express that — the
+    /// word as a whole is not one namespace name — so the split happens here,
+    /// where the semantics are already modelled, using the shared Tcl list
+    /// grammar rather than a second scanner. That is also what makes a braced
+    /// element (`namespace path {{my ns} ::b}`) come out right, which the
+    /// previous `split_whitespace` did not.
+    pub fn handle_namespace_path_command(
+        &mut self,
+        args: &[String],
+        arg_tokens: &[Token],
+        scope_path: &[usize],
+    ) {
+        if args.len() != 2 {
+            return;
+        }
+        if surface_admits(
+            SpecSurface::TCL85_PLUS,
+            Some(&self.analysis_context().context().authoring_query()),
+        ) && let Some(token) = arg_tokens.get(1)
+        {
+            let config = self.file_lexer_config();
+            let original = self
+                .head_identities
+                .original_written_name_input_at_span(token.span, config)
+                .or_else(|| {
+                    self.declaration_name_policy()
+                        .and_then(|policy| {
+                            self.head_identities.original_source_name_at_span(
+                                token.span,
+                                config,
+                                self.word_rules(),
+                                policy,
+                            )
+                        })
+                        .map(|occurrence| {
+                            crate::signature_scan::scope::SignatureSourceNameInput::OriginalWord(
+                                occurrence.name_input().clone(),
+                            )
+                        })
+                });
+            if let Some(parent) = original {
+                let here = self.command_resolution_namespace(scope_path);
+                if let Some(entries) = self
+                    .record_original_namespace_path_element_refs(&parent, token.span, scope_path)
+                {
+                    self.namespace_paths.insert(here, entries);
+                } else {
+                    // Byte names with no UTF-8 report cannot leave an older
+                    // String path active. The original reference inventory is
+                    // independent of this compatibility map.
+                    self.namespace_paths.remove(&here);
+                }
+                return;
+            }
+            if self.declaration_name_policy().is_some() {
+                self.result.namespace_path_computed.push(token.span);
+                return;
+            }
+        }
+        // The word arrives with its braces already stripped, so a text-only
+        // dynamism scan mistakes `namespace path {$ns ::a}` for a computed
+        // path and abstains from the whole command. Braces suppress
+        // substitution, so the token kind is the authority.
+        // tclsh-proof: tclsh8.6.14 —
+        //   set nn {::$ns}; namespace eval $nn {}; namespace eval a {}
+        //   namespace eval n { namespace path {::$ns ::a} }
+        //   namespace eval n { namespace path }   ->  {::$ns} ::a
+        // i.e. the entry is a namespace literally *named* `::$ns`; without
+        // that namespace existing the same line errors with
+        // `namespace "$ns" not found in "::n"` — never a variable read.
+        let braced = arg_tokens
+            .get(1)
+            .is_some_and(|tok| tok.kind == TokenType::Str);
+        if tcl_syntax::naming::word_is_dynamic(&args[1], braced) {
+            // Record the abstention rather than merely staying silent: a
+            // consumer that has to be exhaustive about namespace occurrences
+            // (the namespace rename tier) cannot otherwise tell this document
+            // from one that declares no path at all.
+            if let Some(tok) = arg_tokens.get(1) {
+                self.result.namespace_path_computed.push(tok.span);
+            }
+            return;
+        }
+        // The `namespace path` command-resolution tier is an 8.5 addition
+        // (`NamespacePathCmd`, tclNamesp.c); 8.4 has no path tier, so a bare
+        // call there never reaches a path namespace.  Recording the path under
+        // a pre-8.5 dialect would make command resolution / definition / hover
+        // falsely settle a call onto a path entry the runtime never consults —
+        // so skip it, matching the `namespace path` subcommand's own dialect
+        // gate (which already flags the command W002 there).
+        if !surface_admits(
+            SpecSurface::TCL85_PLUS,
+            Some(&self.analysis_context().context().authoring_query()),
+        ) {
+            return;
+        }
+        let ns = self.command_resolution_namespace(scope_path);
+        let Ok(elements) = self.word_rules().split_list(&args[1]) else {
+            // A malformed list (an unbalanced brace) is not a path Tcl would
+            // accept either; record nothing rather than half of one.
+            return;
+        };
+        let entries: Vec<String> = elements.iter().map(ToString::to_string).collect();
+        self.record_namespace_path_element_refs(
+            &args[1],
+            arg_tokens.get(1),
+            braced,
+            &ns,
+            scope_path,
+        );
+        self.namespace_paths.insert(ns, entries);
+    }
+
+    fn record_original_namespace_path_element_refs(
+        &mut self,
+        parent: &crate::signature_scan::scope::SignatureSourceNameInput,
+        parent_span: tcl_lexer::Span,
+        scope_path: &[usize],
+    ) -> Option<Vec<String>> {
+        let Some(children) = parent.original_list_elements_with_source_spans() else {
+            self.result.namespace_path_computed.push(parent_span);
+            return None;
+        };
+        let context = self.declaration_namespace_scope(scope_path);
+        let mut reports = Some(Vec::with_capacity(children.len()));
+        for (input, extent) in children {
+            let report = std::str::from_utf8(input.bytes()).ok();
+            if let Some(value) = report {
+                if let Some(reports) = &mut reports {
+                    reports.push(value.to_owned());
+                }
+            } else {
+                reports = None;
+            }
+            let span = extent.unwrap_or(parent_span);
+            self.result.namespace_refs.push(
+                super::types::NamespaceRef::from_original(
+                    context.clone(),
+                    Some(input.policy()),
+                    report.unwrap_or(""),
+                    span,
+                    0,
+                    false,
+                    String::new(),
+                )
+                .with_original_input(Some(input)),
+            );
+        }
+        reports
+    }
+
+    /// Record one [`NamespaceRef`](super::types::NamespaceRef) per element of
+    /// a `namespace path {…}` list, at the element's own source span.
+    ///
+    /// Non-declaring: a path entry *refers* to a namespace, it does not
+    /// create one (tclsh 8.6.16 / 9.0.4: `namespace path ::nope` fails
+    /// `namespace "::nope" not found`, so the name must already exist).
+    /// Rooting follows the ordinary relative rule — a relative entry is
+    /// current-namespace-relative only, which is what
+    /// `command_resolution_candidates` already assumes.
+    ///
+    /// Silently does nothing when the word is not a braced/bare literal the
+    /// span arithmetic can trust (`token` absent, or the element offsets fall
+    /// outside it).
+    ///
+    /// `word_braced` says whether the *whole* path word was brace-quoted. If
+    /// it was, no element substitutes however many `$`/`[` characters it
+    /// holds, so the per-element dynamism scan must be suppressed exactly as
+    /// the whole-word one already is — otherwise `namespace
+    /// path {::$ns ::a}` records `::$ns` as a path entry but not as a
+    /// reference, and the same function disagrees with itself.
+    fn record_namespace_path_element_refs(
+        &mut self,
+        raw: &str,
+        token: Option<&Token>,
+        word_braced: bool,
+        here: &str,
+        scope_path: &[usize],
+    ) {
+        let Some(token) = token else { return };
+        let Ok(decoded) = self.word_rules().split_list(raw) else {
+            return;
+        };
+        let mut decoded = decoded.into_iter();
+        let base = token.span.start() + u32::from(token.content_offset);
+        let original_parent = self
+            .head_identities
+            .original_written_name_input_at_span(token.span, self.file_lexer_config());
+        let mut scan = 0usize;
+        let mut ordinal = 0usize;
+        while let Ok(Some(el)) = tcl_syntax::list::find_element(raw, scan) {
+            let Some(text) = decoded.next() else { break };
+            let original_input = original_parent
+                .as_ref()
+                .and_then(|parent| parent.original_list_element(ordinal));
+            ordinal += 1;
+            let (start, end) = (el.value.start, el.value.end);
+            if el.next <= scan {
+                break;
+            }
+            scan = el.next;
+            if text.is_empty() || tcl_syntax::naming::word_is_dynamic(&text, word_braced) {
+                continue;
+            }
+            let Ok(start_u32) = u32::try_from(start) else {
+                continue;
+            };
+            let Ok(end_u32) = u32::try_from(end) else {
+                continue;
+            };
+            self.result.namespace_refs.push(
+                super::types::NamespaceRef::from_original(
+                    self.declaration_namespace_scope(scope_path),
+                    self.declaration_name_policy(),
+                    &text,
+                    tcl_lexer::Span::new(base + start_u32, base + end_u32),
+                    0,
+                    false,
+                    crate::naming::qualify(here, &text),
+                )
+                .with_original_input(original_input),
+            );
+        }
+    }
+
+    /// Handle `uplevel #0 { body }`: the script runs in the global
+    /// frame, so the body's locals belong to a global-rooted scope
+    /// rather than the enclosing proc.  Open an [`ScopeKind::Uplevel`]
+    /// child scope (nested under the current scope, but tagged so
+    /// completion / definition treat it as a global frame and ignore the
+    /// proc's locals) and analyse the body there.
+    ///
+    /// Returns `true` for every single-braced-body `uplevel` form; a
+    /// multi-word / non-literal script is left to the generic recursion (the
+    /// W301 injection check already flags that shape).
+    ///
+    /// The frame the body runs in depends on the level word: `#0` is the global
+    /// frame; `N` / `#N` / an implicit level is a *caller* frame that is
+    /// statically unknown.  Either way the body's locals do **not** belong to
+    /// the enclosing proc, so both open an [`ScopeKind::Uplevel`] child scope
+    /// (tagged with the level word so variable resolution can tell global-frame
+    /// from unknown-frame: `#0` resolves outward to the global namespace, a
+    /// non-`#0` level abstains — the true frame can't be named).  Without the
+    /// child scope the body's variables merged into the enclosing proc's
+    /// locals, silently unifying two variables in different frames.
+    /// Dispatched via [`tcl_registry::hooks::AnalyserHookId::Uplevel`];
+    /// the level word is a shape check, not a command name.
+    pub fn handle_uplevel_command(
+        &mut self,
+        args: &[String],
+        arg_tokens: &[Token],
+        scope_path: &[usize],
+    ) -> bool {
+        // Two literal-body shapes: `uplevel LEVEL {body}` (level word + single
+        // braced body) and `uplevel {body}` (implicit level 1).  A `#0` level
+        // records the global frame; anything else records an unknown caller
+        // frame.  Multi-word scripts (`args.len() > 2`) fall through.
+        let (level_word, body_tok, body_text) = match args.len() {
+            2 => {
+                let Some(bt) = arg_tokens.get(1).copied() else {
+                    return false;
+                };
+                (args[0].clone(), bt, args[1].clone())
+            }
+            1 => {
+                let Some(bt) = arg_tokens.first().copied() else {
+                    return false;
+                };
+                ("1".to_owned(), bt, args[0].clone())
+            }
+            _ => return false,
+        };
+        // A literal `{…}` block, or a script *built* with `list` — the latter
+        // is not dynamic (`uplevel #0 [list upvar #0 A B]` runs exactly one
+        // deterministic command, tclsh-identical to the braced spelling), so
+        // it opens the same frame scope.  Any other shape falls
+        // through to the generic recursion.
+        if body_tok.kind != TokenType::Str
+            && !self.registry.as_deref().is_some_and(|r| {
+                crate::script_arg::list_quoted_script_command(r, body_tok, &body_text).is_some()
+            })
+        {
+            return false;
+        }
+
+        let path = scope_path.to_vec();
+        let child_idx = {
+            let Some(parent) = super::scope::scope_at_mut(&mut self.result.global_scope, &path)
+            else {
+                return false;
+            };
+            // The scope name carries the level word so `lookup_var_in_scope_chain`
+            // can distinguish the `#0` global frame (resolve outward) from a
+            // non-`#0` unknown caller frame (abstain outward).
+            let mut child = super::types::Scope::new(super::types::ScopeKind::Uplevel, level_word);
+            // Only a literal `{…}` block may claim the token bytes as the
+            // frame's `body_span` — same rule as `namespace eval` above.  A
+            // `[list …]` build substitutes its elements in the *calling*
+            // frame before `uplevel` changes frames, so an offset-keyed
+            // lookup on (say) `$file` in `uplevel #0 [list source [file join
+            // $file]]` must keep resolving lexically to the proc's own
+            // parameter, not stop at this frame.
+            child.body_span = (body_tok.kind == TokenType::Str).then_some(body_tok.span);
+            parent.children.push(child);
+            parent.children.len() - 1
+        };
+        let mut child_path = path;
+        child_path.push(child_idx);
+        self.analyse_body(&body_text, body_tok, &child_path);
+        true
+    }
+
+    /// Handle `namespace ensemble create` — record the namespace as
+    /// an ensemble so its tail names become valid commands, plus an
+    /// explicit `-command name` override when present.
+    ///
+    /// The implicit form (`namespace eval ::ens { namespace ensemble
+    /// create }`) dispatches through a command named after the enclosing
+    /// namespace; `-command NAME` instead creates the ensemble's dispatch
+    /// command under an arbitrary, possibly differently-namespaced, name.
+    /// Without recording that name too, a call through it (`myEns
+    /// subcmd …`) resolves to nothing the analyser knows — drawing a
+    /// spurious W123 and abstaining from arity checking for the wrong
+    /// reason (an unresolved name) rather than the right one (a
+    /// dynamically-defined ensemble the analyser can't see the
+    /// subcommand map of).
+    ///
+    /// `namespace ensemble create`'s options are registry data
+    /// (`ENSEMBLE_CREATE_OPTIONS` in `tcl-registry`'s `namespace_`
+    /// module), not a hardcoded name list — walking by each option's
+    /// declared value arity (rather than a bare `opt == "-command"` scan
+    /// over every word) is what keeps another option's *value* word
+    /// (`-map`'s dict, `-subcommands`' list, …) from ever being misread as
+    /// `-command`'s own flag or value.
+    ///
+    /// Dispatched via
+    /// [`tcl_registry::hooks::AnalyserHookId::NamespaceEnsemble`]
+    /// (stamped on `namespace`'s `ensemble` subcommand); `args[0]` is
+    /// still the subcommand word, and only the `create` form (checked
+    /// on `args[1]`) mutates anything.
+    pub fn handle_namespace_ensemble(
+        &mut self,
+        args: &[String],
+        arg_tokens: &[Token],
+        scope_path: &[usize],
+    ) {
+        if args.len() < 2 {
+            return;
+        }
+        // `create` operates on the *current* namespace, with no explicit name
+        // argument; `configure NAME ...` (the ensemble side of the
+        // `namespace ensemble configure -map` gap) names an *existing* ensemble
+        // command explicitly, resolved like any other command reference.
+        // Both share the same `-command`/`-map`/`-subcommands` option set.
+        let is_create = args[1] == "create";
+        let is_configure = args[1] == "configure";
+        if !is_create && !is_configure {
+            return;
+        }
+        // `namespace ensemble create` names the ensemble after the namespace
+        // the command *resolves in*, not the lexically enclosing one: run
+        // inside the body of `proc ::tk::foo {} {...}` declared at top level,
+        // the current namespace is `::tk`, so the ensemble is `::tk` — the
+        // purely lexical namespace walk skips proc scopes and homes it
+        // to `::` instead, losing every `<ns> sub` call site.
+        let ns = self.command_resolution_namespace(scope_path);
+        let ns_prefix = ns.clone();
+
+        let (opts, opt_tokens, configure_target) = if is_create {
+            if !ns.is_empty() && ns != "::" {
+                self.ensemble_namespaces.insert(ns.clone());
+            }
+            (&args[2..], arg_tokens.get(2..).unwrap_or(&[]), None)
+        } else {
+            let Some(name) = args.get(2) else { return };
+            if crate::naming::is_dynamic_word(name) {
+                return;
+            }
+            let target = self.resolve_command_qualified_name(name, scope_path);
+            (
+                args.get(3..).unwrap_or(&[]),
+                arg_tokens.get(3..).unwrap_or(&[]),
+                Some(target),
+            )
+        };
+
+        // The ensemble's own resolved command name:
+        // `-command NAME`, when present, *replaces* the default naming
+        // entirely (tclsh 8.6.14-verified: `namespace ensemble create
+        // -command ::alt` creates only `::alt`, never the enclosing
+        // namespace's own name too) — so scan for it before recording any
+        // `-map`, rather than defaulting eagerly the way `ensemble_namespaces`
+        // (a broader, over-inclusive "valid command name" recovery set) does.
+        let explicit_command = is_create
+            .then(|| {
+                opts.iter()
+                    .enumerate()
+                    .find_map(|(i, o)| (o == "-command").then(|| opts.get(i + 1)).flatten())
+            })
+            .flatten()
+            .filter(|v| !v.is_empty() && !crate::naming::is_dynamic_word(v))
+            .map(|v| qualify(&ns_prefix, v));
+        let ensemble_key = configure_target
+            .or(explicit_command)
+            .or_else(|| (is_create && !ns.is_empty() && ns != "::").then(|| ns.clone()));
+
+        let option_specs: Vec<&tcl_registry::hover::OptionSpec> = self
+            .registry
+            .as_deref()
+            .and_then(|r| r.get("namespace"))
+            .and_then(|spec| spec.subcommand("ensemble").map(|sub| (spec, sub)))
+            .map(|(spec, sub)| {
+                self.analysis_context()
+                    .context()
+                    .available_sub_option_specs(spec, sub)
+            })
+            .unwrap_or_default();
+
+        let mut i = 0usize;
+        while i < opts.len() {
+            let Some(spec) = option_specs.iter().find(|o| o.matches(opts[i].as_str())) else {
+                i += 1;
+                continue;
+            };
+            let value = opts.get(i + 1);
+            let value_tok = opt_tokens.get(i + 1).copied();
+            match spec.name {
+                // `-command NAME` names the ensemble command — its namespace
+                // is recorded so `<ns> sub` calls resolve.  A dynamic value
+                // (`$var` / `[cmd]`) can't be resolved statically.
+                "-command" => {
+                    if let Some(value) = value
+                        && !value.is_empty()
+                        && !value.starts_with('$')
+                        && !value.starts_with('[')
+                    {
+                        self.ensemble_namespaces.insert(qualify(&ns_prefix, value));
+                    }
+                }
+                // `-map {sub target sub target …}` — every *target* (an
+                // odd-indexed element) is a command the ensemble dispatches to,
+                // recorded so it is reached by references / definition / rename
+                // — and, keyed by the ensemble's own resolved command name, so
+                // the W129 safe-interpreter gate can resolve a call through
+                // this redirect to the target.
+                "-map" => {
+                    if let (Some(value), Some(tok)) = (value, value_tok)
+                        && let Some((text, text_tok)) = self.ensemble_list_literal(value, tok)
+                    {
+                        self.record_ensemble_map_targets(
+                            &text,
+                            text_tok,
+                            scope_path,
+                            ensemble_key.as_deref(),
+                        );
+                    }
+                }
+                // `-subcommands {a b c}` — each subcommand `a` dispatches to
+                // the command `<ns>::a` in the ensemble's namespace.
+                "-subcommands" => {
+                    if let (Some(value), Some(tok)) = (value, value_tok)
+                        && let Some((text, text_tok)) = self.ensemble_list_literal(value, tok)
+                    {
+                        self.record_ensemble_subcommands(
+                            &text,
+                            text_tok,
+                            &ns_prefix,
+                            ensemble_key.as_deref(),
+                        );
+                    }
+                }
+                "-prefixes" => self.record_ensemble_prefixes(value, ensemble_key.as_deref()),
+                _ => {}
+            }
+            i += 1 + spec.value_word_count(opts, i);
+        }
+    }
+
+    /// Record a `namespace ensemble … -prefixes 0` configuration.
+    ///
+    /// `-prefixes 0` turns off this ensemble's `Tcl_GetIndexFromObj` prefix
+    /// matching, so an abbreviated subcommand word there is a plain
+    /// unknown-subcommand error rather than an abbreviation. Keyed by the
+    /// ensemble's resolved command name so the abbreviation machinery (W145,
+    /// the formatter's expansion) abstains on it.
+    ///
+    /// tclsh-proof (8.6.16): `namespace ensemble create -command ::e
+    /// -subcommands {alpha} -prefixes 0` then `::e al` →
+    /// `unknown subcommand "al": must be alpha`; without `-prefixes 0` the
+    /// same call succeeds.
+    fn record_ensemble_prefixes(&mut self, value: Option<&String>, ensemble_key: Option<&str>) {
+        if let (Some(value), Some(key)) = (value, ensemble_key)
+            && matches!(tcl_registry::abbrev::resolve_boolean(value), Some(false))
+        {
+            self.result.prefixless_ensembles.insert(key.to_owned());
+        }
+    }
+
+    /// Resolve a `-map`/`-subcommands` option value to its statically-known
+    /// list text + representative token, or `None` when nothing static can
+    /// be extracted.
+    ///
+    /// A plain literal (`{sub target …}`) passes through unchanged — the
+    /// pre-existing, common case, where `-command`'s own equivalent
+    /// dynamic-value check (`starts_with('$')`/`starts_with('[')`) already
+    /// guards a *whole*-value dynamic. `-map`/`-subcommands` additionally
+    /// tolerate one dynamic *element* among literal ones today
+    /// ([`Self::list_word_elements`]'s per-element `is_dynamic_word`), but a
+    /// value that is itself one whole dynamic `[...]` substitution is not a
+    /// list at all — naively word-splitting
+    /// `[dict merge [namespace ensemble configure tk -map] {systray
+    /// ::tk::systray}]` would misread fragments of the *expression*
+    /// (`"tk"`, `"configure"`, …) as bogus subcommand/target pairs, which is
+    /// worse than abstaining. Falls back to
+    /// [`Self::dict_merge_literal_tail`] for the one dynamic shape real code
+    /// needs; anything else abstains.
+    fn ensemble_list_literal(&self, value: &str, value_tok: Token) -> Option<(String, Token)> {
+        if !crate::naming::is_dynamic_word(value) {
+            return Some((value.to_owned(), value_tok));
+        }
+        self.dict_merge_literal_tail(value_tok)
+    }
+
+    /// Recognise the `[dict merge EXISTING {literal}]`-shaped value the real
+    /// `tk/library/systray.tcl` (and `print.tcl`, `fileicon.tcl`,
+    /// `accessibility.tcl`) idiom uses to splice new entries onto a
+    /// pre-existing ensemble's `-map`/`-subcommands` without a literal
+    /// `{...}` value of its own: `namespace ensemble
+    /// configure tk -map [dict merge [namespace ensemble configure tk -map]
+    /// {systray ::tk::systray sysnotify ::tk::sysnotify::sysnotify}]`.
+    /// `EXISTING` (whatever it evaluates to — typically a self-referential
+    /// query of the ensemble's own current map) is left unknown, but the
+    /// spliced literal tail is a statically known fact regardless of what
+    /// `EXISTING` is.
+    ///
+    /// Deliberately narrow: exactly `dict merge ARG {literal}` (2 dict-merge operands, the
+    /// second a literal word) — does not recognise `dict set`/`dict
+    /// replace`/`concat`/a list-building helper proc, or a `dict merge`
+    /// with more than 2 operands. A documented scope boundary, not an
+    /// oversight (no attested real-world instance of those forms).
+    fn dict_merge_literal_tail(&self, value_tok: Token) -> Option<(String, Token)> {
+        if value_tok.kind != TokenType::Cmd {
+            return None;
+        }
+        let config = self.file_lexer_config();
+        let sm = Self::source_map(
+            &self.source,
+            &self.cached_line_index,
+            self.cached_line_index_source_len,
+        );
+        let descended = descend_token(&sm, value_tok, config);
+        let segs = segments_from_tree(descended.tree(), &sm);
+        let [seg] = segs.as_slice() else { return None };
+        if seg.texts.len() != 4 || seg.texts[0] != "dict" || seg.texts[1] != "merge" {
+            return None;
+        }
+        let tail = seg.texts[3].clone();
+        if crate::naming::is_dynamic_word(&tail) {
+            return None;
+        }
+        seg.argv.get(3).map(|tok| (tail, *tok))
+    }
+
+    /// The `(element, span)` pairs of a list word's *top-level* Tcl-list
+    /// elements — proper brace/quote-aware splitting
+    /// ([`find_element`]), not naive whitespace splitting, so a braced
+    /// multi-word element (`{source b.tcl}`, the shape a `-map` *target*
+    /// commonly takes — see [`Self::record_ensemble_map_targets`]) comes
+    /// back as one element instead of being shredded into stray fragments
+    /// that no longer line up in pairs (a naive `split_whitespace` turns
+    /// `-map {go {source b.tcl}}` into `["go", "{source", "b.tcl}"]`, an
+    /// unmatched three-way split that silently drops the pairing entirely).
+    /// Each element's span is
+    /// located inside the token's content (`content_offset` skips the
+    /// opening delimiter). A malformed trailing element (unmatched
+    /// brace/quote, typically mid-edit) simply stops the scan early,
+    /// matching this codebase's established lenient-list-parsing
+    /// convention (`tcl_syntax::list::split_list_lenient`) rather than
+    /// discarding everything already parsed. Shared by the ensemble
+    /// `-map` / `-subcommands` extraction; a dynamic element is left for
+    /// the caller to skip.
+    fn list_word_elements(list_text: &str, tok: Token) -> Vec<(String, Span)> {
+        let content_start = tok.span.start() + u32::from(tok.content_offset);
+        let mut out = Vec::new();
+        let mut pos = 0usize;
+        while let Ok(Some(el)) = find_element(list_text, pos) {
+            if let Some(text) = list_text.get(el.value.clone()) {
+                let start = content_start + u32::try_from(el.value.start).unwrap_or(0);
+                let end = content_start + u32::try_from(el.value.end).unwrap_or(0);
+                out.push((text.to_string(), Span::new(start, end)));
+            }
+            pos = el.next;
+        }
+        out
+    }
+
+    /// The head word `(text, span)` of a command-prefix string — Tcl-list
+    /// parses `text` and returns just its first element, the command
+    /// actually invoked once the prefix's trailing words and the caller's
+    /// own arguments are appended (mirrors
+    /// `signature_scan::command_prefix::extract_prefix_head`'s
+    /// braced-multi-word case, applied to a string with no lexer token of
+    /// its own — a `-map` target sits *inside* another list element, not
+    /// as a distinct token). `base_start` is `text`'s own absolute start
+    /// offset in the source, so the returned span locates the head word
+    /// there, not merely within `text`. `None` for an empty or malformed
+    /// (unmatched brace/quote) prefix.
+    fn command_prefix_head(text: &str, base_start: u32) -> Option<(String, Span)> {
+        let head_el = find_element(text, 0).ok().flatten()?;
+        let head = text.get(head_el.value.clone())?;
+        if head.is_empty() {
+            return None;
+        }
+        let start = base_start + u32::try_from(head_el.value.start).ok()?;
+        let end = base_start + u32::try_from(head_el.value.end).ok()?;
+        Some((head.to_string(), Span::new(start, end)))
+    }
+
+    /// Record every `-map` target (the odd elements of the `sub target …`
+    /// list) as a command reference resolved in the caller's namespace, and
+    /// — when `ensemble_key` is `Some` (the ensemble's own resolved
+    /// qualified command name, computed by [`Self::handle_namespace_ensemble`])
+    /// — also record each `sub -> target` pair into
+    /// `self.ensemble_command_maps`, so the W129 safe-interpreter gate can
+    /// resolve a call reaching a hidden command only through this ensemble's
+    /// redirect (`None` when the ensemble's own name
+    /// couldn't be resolved statically, matching every other guard in this
+    /// handler), *and* — when the paired subcommand word is also static —
+    /// file the same `sub -> target` fact under `ensemble_key` in
+    /// [`AnalysisResult::ensemble_subcommand_targets`] so `definition`/
+    /// `hover`/`references` can resolve a `<ensemble> <subcommand>` call site
+    /// — a distinct field from `ensemble_command_maps`
+    /// above, serving navigation rather than the safe-interpreter gate.
+    ///
+    /// The navigation entry is tagged
+    /// [`EnsembleSubcommandProvenance::Map`](crate::signature_scan::types::EnsembleSubcommandProvenance::Map):
+    /// a `-map` key is an arbitrary name, so a consumer that
+    /// *rewrites* the subcommand word — rename — must leave it alone, unlike
+    /// the `-subcommands` sibling below whose entry is the target's own tail.
+    ///
+    /// A `-map` target is a command name **or a command prefix** in real
+    /// Tcl (tclsh 8.6.14-verified: `-map {go {string length}}` dispatches
+    /// `myens go hello` to `string length hello`) — the command actually
+    /// invoked is the prefix's *head*; the rest are baked-in arguments, not
+    /// part of the command's identity. [`Self::command_prefix_head`]
+    /// extracts just that head (recording the whole multi-word target text
+    /// verbatim, or worse, splitting it on whitespace before pairing it with
+    /// its subcommand at all, means
+    /// a target like `{source b.tcl}` never matches the registry's bare
+    /// `source` and W129 stays silently missed for this valid indirection
+    /// shape) — the reference, the map entry, and the navigation entry all
+    /// use only the head.
+    ///
+    /// Every `-map` value **replaces** the ensemble's entire subcommand
+    /// table in real Tcl, whether given at `create` or a later
+    /// `configure` (tclsh 8.6.14-verified: `configure myens -map {ok
+    /// puts}` after `create ... -map {bad source ok puts}` turns `myens
+    /// bad` into an "unknown or ambiguous subcommand" error, not a
+    /// leftover redirect to `source`).  Merging new pairs into the existing
+    /// cached map instead of replacing it would leave a subcommand a later
+    /// `-map` dropped still resolving to its stale target, a false-positive
+    /// risk. The cached
+    /// map for `ensemble_key` is cleared before any of its new pairs are
+    /// inserted.
+    ///
+    /// The reporting map supports navigation only. A selector token does not
+    /// own the mapped target's original source/value producer and cannot issue
+    /// an interpreter visibility subject or suppress invocation effects.
+    fn record_ensemble_map_targets(
+        &mut self,
+        list_text: &str,
+        tok: Token,
+        scope_path: &[usize],
+        ensemble_key: Option<&str>,
+    ) {
+        if let Some(key) = ensemble_key {
+            self.ensemble_command_maps
+                .entry(key.to_string())
+                .or_default()
+                .clear();
+        }
+        for pair in Self::list_word_elements(list_text, tok).chunks(2) {
+            let [(sub, _), (target, span)] = pair else {
+                continue;
+            };
+            if crate::naming::is_dynamic_word(target) {
+                continue;
+            }
+            let Some((head, head_span)) = Self::command_prefix_head(target, span.start()) else {
+                continue;
+            };
+            if let Some(key) = ensemble_key {
+                self.ensemble_command_maps
+                    .entry(key.to_string())
+                    .or_default()
+                    .insert(sub.clone(), head.clone());
+            }
+            let resolved = self.resolve_command_qualified_name(&head, scope_path);
+            if let Some(key) = ensemble_key
+                && !crate::naming::is_dynamic_word(sub)
+            {
+                self.result
+                    .ensemble_subcommand_targets
+                    .entry(key.to_owned())
+                    .or_default()
+                    .insert(
+                        sub.clone(),
+                        super::types::EnsembleSubcommandTarget {
+                            target: resolved.clone(),
+                            provenance:
+                                crate::signature_scan::types::EnsembleSubcommandProvenance::Map,
+                        },
+                    );
+                self.ensemble_record_offsets
+                    .insert(key.to_owned(), tok.span.start());
+            }
+            self.push_command_reference(head, head_span, resolved, None);
+        }
+    }
+
+    /// Record each `-subcommands` name as a reference to the command
+    /// `<ns>::<name>` the ensemble maps it to, and file the same
+    /// `subcommand → resolved target` fact under `ensemble_key` in
+    /// [`AnalysisResult::ensemble_subcommand_targets`] — the `-subcommands`
+    /// sibling of [`Self::record_ensemble_map_targets`] (same
+    /// one-directional-only gap, same shape).
+    ///
+    /// Tagged
+    /// [`EnsembleSubcommandProvenance::Subcommands`](crate::signature_scan::types::EnsembleSubcommandProvenance::Subcommands):
+    /// here the subcommand word *is* the target's tail — the
+    /// ensemble derives `<ns>::<name>` from it — so renaming the target must
+    /// rewrite the entry and the dispatch word with it.
+    fn record_ensemble_subcommands(
+        &mut self,
+        list_text: &str,
+        tok: Token,
+        ns_prefix: &str,
+        ensemble_key: Option<&str>,
+    ) {
+        for (elem, span) in Self::list_word_elements(list_text, tok) {
+            if crate::naming::is_dynamic_word(&elem) {
+                continue;
+            }
+            let resolved = qualify(ns_prefix, &elem);
+            if let Some(key) = ensemble_key {
+                self.result
+                    .ensemble_subcommand_targets
+                    .entry(key.to_owned())
+                    .or_default()
+                    .insert(
+                        elem.clone(),
+                        super::types::EnsembleSubcommandTarget {
+                            target: resolved.clone(),
+                            provenance: crate::signature_scan::types::
+                                EnsembleSubcommandProvenance::Subcommands,
+                        },
+                    );
+                self.ensemble_record_offsets
+                    .insert(key.to_owned(), tok.span.start());
+            }
+            self.push_command_reference(elem, span, resolved, None);
+        }
+    }
+
+    /// Define a list of variables from a varList token (e.g. the
+    /// loop-variable list of `foreach`).
+    ///
+    /// Each name gets its **own** definition span, located inside the
+    /// varList token's content (the token's `content_offset` skips a
+    /// leading `{`/`"`). This — crucially — gives same-token bindings
+    /// like `foreach {b a}` / `dict for {k v}` distinct,
+    /// declaration-ordered spans, so downstream offset-sorted consumers
+    /// (the `symbols` / `symbolgraph` CLI verbs) stay deterministic and
+    /// source-ordered. Tcl list grouping and backslash substitutions are
+    /// decoded for the variable name while each definition span remains the
+    /// exact source range of its list element.
+    pub(super) fn define_vars_from_list(
+        &mut self,
+        var_list_text: &str,
+        tok: Token,
+        scope_path: &[usize],
+    ) {
+        let Ok(names) = self.word_rules().split_list(var_list_text) else {
+            return;
+        };
+        let content_start = tok.span.start() + u32::from(tok.content_offset);
+        let mut pos = 0usize;
+        for name in names {
+            let Ok(Some(element)) = tcl_syntax::list::find_element(var_list_text, pos) else {
+                return;
+            };
+            let start = content_start + u32::try_from(element.value.start).unwrap_or(0);
+            let end = content_start + u32::try_from(element.value.end).unwrap_or(0);
+            self.define_var(
+                name.as_ref(),
+                tok,
+                scope_path,
+                true,
+                Some(Span::new(start, end)),
+            );
+            pos = element.next;
+        }
+    }
+
+    /// Handle `foreach varList1 list1 ?varList2 list2 ...? body` (and the
+    /// `foreach_in_collection` dialect variant, whose spec carries the same
+    /// hook).
+    ///
+    /// Defines every `varListN` the registry's roles name (its repeated
+    /// `LoopVarList` layout covers an unlimited number of `varList`/`list`
+    /// pairs, tclsh 8.6/9.0-verified) in the active scope, through the one
+    /// binder [`Self::handle_var_binding_command`], then recurses into the
+    /// body so vars defined inside the loop land in the enclosing scope. What
+    /// stays here is the literal-iteration simulation, the page's residue.
+    ///
+    /// Dispatched via [`tcl_registry::hooks::AnalyserHookId::Foreach`].
+    pub fn handle_foreach_command(
+        &mut self,
+        _cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[Token],
+        scope_path: &[usize],
+    ) -> bool {
+        if args.len() < 3 {
+            return false;
+        }
+        // A single-pair `foreach VAR {literal list} { rename ::$VAR ... ;
+        // proc ::$VAR ... }` loop over a fully literal list (the real
+        // `tk/library/accessibility.tcl` rename-away-and-reinstall idiom)
+        // binds `VAR` to a *different* value each
+        // iteration — a fact the single-value `const_strings` scope map
+        // can't represent generally (`foreach` shares one flat cell for the
+        // whole loop, confirmed against tclsh: no per-iteration scope to key
+        // a value under). Bind `VAR` to the *first* literal element before
+        // the one normal body walk below, so `rename`/`proc`'s own
+        // constant-fold (unchanged) resolves that iteration correctly;
+        // `simulate_remaining_foreach_iterations` afterwards narrowly
+        // re-dispatches just `rename`/`proc` for every *additional* literal
+        // element, since those are the only two commands go-to-definition/
+        // references/rename need to see resolved here.
+        let list_braced = arg_tokens
+            .get(1)
+            .is_some_and(|tok| tok.kind == TokenType::Str);
+        let literal_binding = (args.len() == 3)
+            .then(|| {
+                Self::literal_foreach_binding(&args[0], &args[1], list_braced, self.word_rules())
+            })
+            .flatten();
+        if let Some((var, elements)) = &literal_binding
+            && let Some(first) = elements.first()
+        {
+            self.set_const_string(var, first.clone(), arg_tokens[1].span, scope_path);
+        }
+        // The body is always the last argument; recurse so vars
+        // defined inside the loop land in the enclosing scope.
+        if let (Some(body_text), Some(body_tok)) = (args.last(), arg_tokens.last().copied()) {
+            self.control_flow_body_depth += 1;
+            self.analyse_body(body_text, body_tok, scope_path);
+            if let Some((var, elements)) = &literal_binding {
+                self.simulate_remaining_foreach_iterations(var, elements, body_tok, scope_path);
+            }
+            self.control_flow_body_depth -= 1;
+        }
+        true
+    }
+
+    /// Whether a `foreach`'s only var/list pair (`var_list_text`/
+    /// `list_text`) is the narrow, fully-literal shape
+    /// [`Self::simulate_remaining_foreach_iterations`] can simulate: a
+    /// single plain identifier (not itself dynamic, not a multi-name list)
+    /// bound to a Tcl-list-valued sequence of literal (non-dynamic)
+    /// elements. Returns `(var, elements)`.
+    ///
+    /// `list_braced` says whether the value word was brace-quoted. Braces
+    /// suppress substitution across the whole word, so *every* element of a
+    /// braced list is literal however many `$`/`[` characters it holds — the
+    /// element text arrives with the braces stripped, and scanning it alone
+    /// made one odd element abstain from the whole simulation.
+    /// tclsh-proof (8.6.16 / 9.0.4):
+    ///   foreach n {aa {$b} cc} { puts $n }   ->  aa / $b / cc
+    /// i.e. the loop runs three times over literal values, and no read of
+    /// `b` happens at any point.
+    fn literal_foreach_binding(
+        var_list_text: &str,
+        list_text: &str,
+        list_braced: bool,
+        rules: tcl_syntax::word_rules::WordValueRules,
+    ) -> Option<(String, Vec<String>)> {
+        let vars = rules.split_list(var_list_text).ok()?;
+        let [var] = vars.as_slice() else {
+            return None;
+        };
+        if crate::naming::is_dynamic_word(var) {
+            return None;
+        }
+        // Parse the value as a real Tcl list, not `split_whitespace`: a
+        // braced element like `{bar baz}` in `foo {bar baz}` is a *single*
+        // list element (`bar baz`), and whitespace-splitting would mis-slice
+        // it into `{bar` + `baz}` and bind the loop var to those bogus
+        // fragments — the re-dispatched `rename`/`proc` handlers would then
+        // invent command facts for `{bar`/`baz}` and miss the real `bar baz`
+        // iteration. A malformed list (unbalanced
+        // brace/quote) is not a valid `foreach` value at all — real Tcl
+        // errors on it — so `split_list`'s `Err` means abstain entirely.
+        let elements: Vec<String> = rules
+            .split_list(list_text)
+            .ok()?
+            .into_iter()
+            .map(std::borrow::Cow::into_owned)
+            .collect();
+        if elements.is_empty()
+            || elements
+                .iter()
+                .any(|e| tcl_syntax::naming::word_is_dynamic(e, list_braced))
+        {
+            return None;
+        }
+        Some((var.to_string(), elements))
+    }
+
+    /// For each literal element *after* the first (the first iteration is
+    /// already covered by [`Self::handle_foreach_command`]'s own
+    /// pre-binding + the loop's one normal body walk), narrowly re-dispatch
+    /// just the body's own **named-definition installers** with `var`
+    /// temporarily rebound to that element — the commands whose registry
+    /// spec carries [`tcl_registry::Traits::INSTALLS_NAMED_DEFINITION`],
+    /// because those (and only those) name their target with a word whose
+    /// substituted value changes per iteration, so each element installs a
+    /// *different* definition (`proc` / `rename`, and `oo::define`'s class
+    /// target). Which commands those are is
+    /// registry data, never a name list here — a newly-stamped spec joins
+    /// the simulation with no edit to this walker.
+    ///
+    /// Every *other* command in the body keeps the single evaluation the
+    /// normal walk above already gave it — deliberately narrow: this does
+    /// not generally re-walk
+    /// the body per iteration (which would duplicate diagnostics/scope
+    /// entries for everything else).
+    ///
+    /// Cost is `O(elements × body-commands)` with no fixpoint: the element
+    /// list is a bounded literal and each element re-dispatches only the
+    /// already-segmented installer commands.
+    ///
+    /// Leaves `var` bound to the *last* element afterwards — the same
+    /// value real Tcl leaves the loop variable holding once `foreach`
+    /// completes.
+    fn simulate_remaining_foreach_iterations(
+        &mut self,
+        var: &str,
+        elements: &[String],
+        body_tok: Token,
+        scope_path: &[usize],
+    ) {
+        use tcl_registry::hooks::AnalyserHookId as Hook;
+
+        if elements.len() < 2 || body_tok.kind != TokenType::Str {
+            return;
+        }
+        // `body_tok`'s span must address real text in `self.source` — a
+        // direct unit-level `handle_foreach_command` call (bypassing the
+        // real tokeniser) can pass a synthetic span that doesn't, the same
+        // out-of-bounds guard `Self::cmd_fragments` already needs for the
+        // identical reason.
+        let start = body_tok.span.start() as usize;
+        let end = body_tok.span.end() as usize;
+        if start >= self.source.len() || end > self.source.len() || start >= end {
+            return;
+        }
+        let config = self.file_lexer_config();
+        let segs: Vec<SegmentedCommand> = {
+            let sm = Self::source_map(
+                &self.source,
+                &self.cached_line_index,
+                self.cached_line_index_source_len,
+            );
+            let descended = descend_token(&sm, body_tok, config);
+            segments_from_tree(descended.tree(), &sm)
+        };
+        // Which of the body's commands install a per-iteration name is a
+        // fixed property of the segmented body, so classify once (registry
+        // lookup per body command) rather than once per element.
+        let installers: Vec<(SegmentedCommand, Hook)> = segs
+            .iter()
+            .filter_map(|seg| {
+                let resolved = self.resolve_analyser_hook_call(seg.name(), seg.args())?;
+                resolved
+                    .traits
+                    .contains(tcl_registry::Traits::INSTALLS_NAMED_DEFINITION)
+                    .then(|| (seg.clone(), resolved.hook))
+            })
+            .collect();
+        if installers.is_empty() {
+            return;
+        }
+        for element in &elements[1..] {
+            self.set_const_string(var, element.clone(), body_tok.span, scope_path);
+            for (seg, hook) in &installers {
+                let args = seg.args();
+                let arg_tokens = seg.arg_tokens();
+                let arg_single = seg.arg_single_token();
+                match hook {
+                    Hook::Proc => {
+                        self.handle_proc_command(
+                            seg.name(),
+                            args,
+                            arg_tokens,
+                            arg_single,
+                            scope_path,
+                        );
+                    }
+                    Hook::Rename => {
+                        self.handle_rename(
+                            args,
+                            arg_tokens,
+                            arg_single,
+                            scope_path,
+                            seg.span.start(),
+                        );
+                    }
+                    Hook::OoDefine => {
+                        self.handle_oo_define_command(
+                            seg.name(),
+                            args,
+                            arg_tokens,
+                            arg_single,
+                            scope_path,
+                        );
+                    }
+                    Hook::OoObjdefine => {
+                        if let Some(cmd_tok) = seg.argv.first().copied() {
+                            self.handle_oo_objdefine_at(
+                                cmd_tok, args, arg_tokens, arg_single, scope_path,
+                            );
+                        }
+                    }
+                    // Unreachable for a spec carrying the trait —
+                    // `installer_hook_is_redispatched` pins that every one
+                    // of them lands on an arm above, so a newly-stamped
+                    // spec cannot silently promise a re-dispatch this match
+                    // never delivers.
+                    _ => {}
+                }
+            }
+        }
+    }
+
+    /// Handle `switch ?options? string ?pattern body? ...`.
+    ///
+    /// Arity checking lives in `compiler_checks::arity_checks` via
+    /// the IR; this handler walks each arm body so locals defined
+    /// inside an arm land in the enclosing scope.
+    ///
+    /// Switch has two forms:
+    ///
+    /// 1. ``switch ?options? string pattern body ?pattern body? ...``
+    ///    — pattern and body args alternate inline.
+    /// 2. ``switch ?options? string {pattern body ?pattern body? ...}``
+    ///    — pattern/body pairs live inside a single braced
+    ///    block.  See [`crate::segmenter::flatten_clause_list_elements_with_config`]
+    ///    for how that braced form is split.
+    ///
+    /// Bodies that are literally ``-`` are fall-through markers
+    /// (the next arm's body fires) and are skipped — recursing
+    /// into the literal ``-`` would produce a useless command.
+    ///
+    /// `-regexp` pattern recording: each non-`default`
+    /// pattern arm is recorded as a `RegexPattern` with
+    /// ``command = "switch"`` when its token is a literal
+    /// (`Esc` / `Str`) or a `Var` token whose original substitution resolves
+    /// through checked Logical declaration and value provenance.  Command-substitution patterns
+    /// are skipped (runtime-computed values can't be statically
+    /// resolved).
+    /// Dispatched via [`tcl_registry::hooks::AnalyserHookId::Switch`].
+    pub fn handle_switch_command(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[Token],
+        scope_path: &[usize],
+    ) -> bool {
+        let Some(registry) = self.registry.as_deref() else {
+            return true;
+        };
+        let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
+        let Some((case, invocation)) = registry.case_invocation(
+            cmd_name,
+            &arg_refs,
+            Some(self.analysis_context().context().authoring_query()),
+        ) else {
+            // Preserve malformed-switch handling while allowing valid
+            // subjectless Expect clause lists through the registry resolver.
+            return args.len() >= 2;
+        };
+        let invocation_is_regexp = invocation.mode == tcl_registry::spec::CaseMatchMode::Regexp;
+        if let Some(i) = invocation.clause_list_index {
+            // Form 2 — single braced body containing all pairs.
+            let body_text = args[i].clone();
+            let Some(body_tok) = arg_tokens.get(i).copied() else {
+                return true;
+            };
+            let clauses = crate::segmenter::flatten_case_list_clauses(
+                &self.source,
+                &body_text,
+                body_tok,
+                &case,
+                self.lexer_config(),
+            );
+            let shape = tcl_syntax::case_list::CaseListShape {
+                clause_flags: case.clause_flags,
+                clause_value_flags: case.clause_value_flags,
+            };
+            let clause_regexp: Vec<bool> =
+                tcl_syntax::case_list::split_case_list(&body_text, &shape)
+                    .iter()
+                    .map(|clause| {
+                        clause.flags.iter().any(|flag| {
+                            body_text
+                                .get(flag.start..flag.end)
+                                .and_then(|word| shape.resolve_flag(word))
+                                == case.clause_regex_flag
+                        })
+                    })
+                    .collect();
+            let clause_count = clauses.len();
+            for (clause_index, ((pat_text, pat_tok), (body_text, body_tok))) in
+                clauses.iter().enumerate()
+            {
+                if invocation_is_regexp || clause_regexp.get(clause_index) == Some(&true) {
+                    self.record_switch_regexp_pattern(
+                        cmd_name,
+                        &case,
+                        pat_text,
+                        *pat_tok,
+                        (clause_index, clause_count),
+                        scope_path,
+                    );
+                }
+                if case.fallthrough_body != Some(body_text.as_str()) {
+                    self.analyse_control_flow_body(body_text, *body_tok, scope_path);
+                }
+            }
+        } else if let Some(i) = invocation.inline_clause_start {
+            // Form 1 — pattern/body pairs inline in args/arg_tokens.
+            let Some(clauses) = case.inline_clauses(&arg_refs, i) else {
+                return true;
+            };
+            let clause_count = clauses.len();
+            for (clause_index, clause) in clauses.iter().enumerate() {
+                let pattern_index = clause.pattern_index;
+                let body_index = clause.body_index;
+                if (invocation_is_regexp
+                    || clause.mode == tcl_registry::spec::CaseMatchMode::Regexp)
+                    && let Some(pat_tok) = arg_tokens.get(pattern_index).copied()
+                {
+                    self.record_switch_regexp_pattern(
+                        cmd_name,
+                        &case,
+                        &args[pattern_index],
+                        pat_tok,
+                        (clause_index, clause_count),
+                        scope_path,
+                    );
+                }
+                let Some(body_index) = body_index else {
+                    continue;
+                };
+                let body_text = &args[body_index];
+                if let Some(body_tok) = arg_tokens.get(body_index).copied()
+                    && case.fallthrough_body != Some(body_text.as_str())
+                {
+                    self.analyse_control_flow_body(body_text, body_tok, scope_path);
+                }
+            }
+        }
+        true
+    }
+
+    /// Record one ``switch -regexp`` arm's pattern.  Skipped for
+    /// the ``default`` keyword (Tcl's catch-all).  Literal tokens
+    /// are recorded verbatim; `Var` tokens are resolved via the
+    /// `const_strings` map (the ``regex-vars`` propagation);
+    /// `Cmd` substitutions are skipped (can't statically
+    /// resolve).
+    fn record_switch_regexp_pattern(
+        &mut self,
+        command: &str,
+        case: &tcl_registry::spec::CaseListSpec,
+        pattern: &str,
+        tok: Token,
+        clause_position: (usize, usize),
+        scope_path: &[usize],
+    ) {
+        let (clause_index, clause_count) = clause_position;
+        if case.is_keyword_pattern(pattern, clause_index, clause_count) {
+            return;
+        }
+        self.record_regex_pattern_token(pattern, tok, command, scope_path);
+    }
+
+    /// Handle `catch SCRIPT ?RESULTVAR? ?OPTIONSVAR?`.
+    ///
+    /// Defines the optional `RESULTVAR` and `OPTIONSVAR` bindings
+    /// (they receive values when the body throws / completes) and
+    /// bumps `conditional_depth` for the duration of the body.
+    ///
+    /// Dispatched via [`tcl_registry::hooks::AnalyserHookId::Catch`].
+    pub fn handle_catch_command(
+        &mut self,
+        args: &[String],
+        arg_tokens: &[Token],
+        scope_path: &[usize],
+    ) -> bool {
+        if args.is_empty() {
+            return false;
+        }
+        // The script body (args[0]) is evaluated by `catch`, so walk it like
+        // every other body-bearing command — otherwise the per-command
+        // syntactic checks (W100 unbraced `expr`, W104, W304, …) never reach
+        // inside a `catch { … }`, under-reporting. `analyse_body` no-ops on a
+        // dynamic body (`catch $cmd`).
+        //
+        // The body is a *guarded probe*: `catch { package require Foo }` is the
+        // idiomatic optional-dependency check, so facts recorded inside it
+        // (package requirements, …) must be marked conditional. Bump
+        // `conditional_depth` for the walk, matching `if`/`try` bodies (and this
+        // handler's own contract — see the doc comment above).
+        if let Some(body_tok) = arg_tokens.first().copied() {
+            self.conditional_depth += 1;
+            self.analyse_body(&args[0], body_tok, scope_path);
+            self.conditional_depth -= 1;
+        }
+        // The result-var / options-var positions come from the registry's
+        // `ArgRole::VarWrite` rows on the `catch` spec, matching the nested
+        // `[catch …]` path in `dispatch_nested_segment`. The literal spec
+        // name is sound here: `AnalyserHookId::Catch` dispatch already
+        // resolved the head (qualified spellings included) to this spec.
+        if let Some(registry) = self.registry.as_deref() {
+            let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
+            for i in registry.arg_indices_for_role(
+                "catch",
+                &arg_strs,
+                tcl_registry::arg_role::ArgRole::VarWrite,
+            ) {
+                if let (Some(name), Some(tok)) = (args.get(i), arg_tokens.get(i)) {
+                    let name = name.clone();
+                    self.define_var(&name, *tok, scope_path, false, None);
+                }
+            }
+        }
+        true
+    }
+
+    /// Bind the loop and output variables a call's argument roles name — the
+    /// one binder behind every command that binds a variable by position,
+    /// read off the registry's roles and never a per-command layout:
+    ///
+    /// - an [`tcl_registry::ArgRole::LoopVarList`] word is a Tcl list of
+    ///   names bound before a body runs — `foreach` / `lmap` var lists,
+    ///   `dict for` / `dict map` / `array for` key-value pairs, `dict
+    ///   update`'s locals — each name defined at its own element's span
+    ///   ([`Self::define_vars_from_list`]);
+    /// - an [`tcl_registry::ArgRole::VarWrite`] word names a variable the
+    ///   command writes — `lassign`, `scan`, `regexp`, `regsub`, `gets`,
+    ///   `binary scan`, `vwait`, `incr`, `append`, `lappend`, `dict set`,
+    ///   `info default`, … — bound with `warn_if_unused = false`: like
+    ///   `catch`'s result variable the binding is a documented side effect,
+    ///   and a read-modify-write command (`incr`, `append`, `lappend`) reads
+    ///   the target before it writes it.
+    ///
+    /// Only a word that names a static variable binds: one that substitutes
+    /// nothing, or (for a written variable) an element of an array whose name
+    /// is written literally — `incr hits($word)` writes an element of `hits`
+    /// whatever the key. A computed name (`scan $s $fmt $dyn`, `foreach
+    /// $names …`) names nothing statically.
+    ///
+    /// The roles are read over the words' spellings, a computed word taking
+    /// one position and never standing for an option (the reading the editor
+    /// has always given a call), under the invocation the walk's context
+    /// proves. Two trait families opt out:
+    ///
+    /// - [`tcl_registry::Traits::CREATES_SCOPE_ALIAS`] (`global` /
+    ///   `variable` / `upvar`): the alias an invocation states is
+    ///   [`Self::apply_state_transitions`]'s — tail-stripping (`global
+    ///   ::ns::v` binds the local alias `v`, not the qualified name) and
+    ///   name/value pairing are the resolver's, which a flat `VarWrite` walk
+    ///   would get wrong. The opt-out reads the command's trait only:
+    ///   `SubCommand::creates_scope_alias` is not folded into the
+    ///   invocation's traits, because `dict update`, `dict with` and `my
+    ///   variable` carry it for aliases no `VariableCellAliasTransition`
+    ///   states — this binder is what binds their names. So `namespace
+    ///   upvar`, the one flagged subcommand whose aliases the resolver does
+    ///   state, has its strided `VarWrite` locals bound here as well as
+    ///   there: the same name at the same word, which [`Self::define_var`]
+    ///   re-defines idempotently, and the link the alias set is kept.
+    /// - [`tcl_registry::Traits::DESTROYS_VARIABLE`] (`unset`): its
+    ///   `VarWrite` role marks a *removal* target (an SSA def that kills the
+    ///   value), not a binding to record.
+    ///
+    /// A name [`Self::bind_value_word_assignment`] also binds (`set`'s) is
+    /// bound twice for one word: [`Self::define_var`]'s re-definition path is
+    /// idempotent for the same token span, and the assignment's
+    /// `warn_if_unused = true` escalates this binding's `false`.
+    ///
+    /// Void-returning (self-guards on the role set) so it composes with the
+    /// other side-effect handlers — `regexp` / `regsub` also feed
+    /// `handle_regex_pattern_capture`, which must still run.
+    pub fn handle_var_binding_command(
+        &mut self,
+        command_token: Token,
+        argument_tokens: &[Token],
+        scope_path: &[usize],
+    ) {
+        use tcl_registry::arg_role::ArgRole;
+        let Some(original) = self.original_diagnostic_call_at(command_token, argument_tokens)
+        else {
+            return;
+        };
+        let Some((Some(roles), appends_from)) = original.with_schema(|call| {
+            let opted_out = call.semantics.traits.intersects(
+                tcl_registry::Traits::CREATES_SCOPE_ALIAS | tcl_registry::Traits::DESTROYS_VARIABLE,
+            );
+            let appends_from = match call.semantics.var_elements_effect {
+                Some(tcl_registry::VarElementsEffect::AppendsListElements { values_from }) => {
+                    Some(call.semantics.argument_offset + usize::from(values_from))
+                }
+                _ => None,
+            };
+            (
+                (!opted_out).then(|| call.arg_roles()).flatten(),
+                appends_from,
+            )
+        }) else {
+            return;
+        };
+        let Some((arguments, tokens, _single)) = original.source_arguments() else {
+            return;
+        };
+        let args = arguments.as_slice();
+        let arg_tokens = tokens.as_slice();
+        // A list append to the package search path is a new directory per
+        // word (`lappend auto_path DIR…`).
+        if let (Some(values_from), Some(written)) =
+            (appends_from, role_position(&roles, ArgRole::VarWrite))
+        {
+            self.record_search_path_write(
+                args,
+                arg_tokens,
+                written,
+                values_from..args.len(),
+                super::types::AutoPathForm::Append,
+            );
+        }
+        for (index, role) in roles {
+            let (Some(text), Some(&tok)) = (args.get(index), arg_tokens.get(index)) else {
+                continue;
+            };
+            match role {
+                ArgRole::LoopVarList if !word_substitutes(text, tok) => {
+                    self.define_vars_from_list(text, tok, scope_path);
+                }
+                ArgRole::VarWrite if names_static_variable(text, tok) => {
+                    self.define_var(text, tok, scope_path, false, None);
+                }
+                _ => {}
+            }
+        }
+    }
+
+    // Registry clause plans supply body depths and per-clause variable bindings.
+    // Selected handler bodies retain conditional control flow for name mutations.
+
+    /// The fixed cell a frame-crossing alias's `otherVar` word names, or
+    /// `None` when it names a frame-relative variable with no stable path.
+    ///
+    /// `otherVar` normally names a variable in *another frame*, which has no
+    /// namespace path to link to — a bare `x` at level 1 is whatever local
+    /// the caller happens to have. Two spellings escape that and name one
+    /// fixed cell whatever the call depth (without them `upvar
+    /// ::tk::FocusGrab($index) data` leaves the array completely
+    /// unregistered):
+    ///
+    /// * a **fully-qualified** target — `upvar 1 ::myns::q g` binds
+    ///   `::myns::q` from any depth (tclsh 9.0.4 / 8.6.14: reached
+    ///   identically through `upvar 1` and `upvar 2`);
+    /// * any target at **`#0`** — the global frame, so `upvar #0 counter c`
+    ///   binds `::counter` however deep the call stack is.
+    ///
+    /// An array element (`::tk::FocusGrab($index)`) links to its **base**:
+    /// the element key is runtime data, but the array it lives in is the
+    /// named cell every sibling access shares.
+    ///
+    /// Dispatched via [`tcl_registry::hooks::AnalyserHookId::Upvar`].
+    pub fn handle_upvar_command(
+        &mut self,
+        args: &[String],
+        arg_tokens: &[Token],
+        scope_path: &[usize],
+    ) {
+        use tcl_registry::frame_effect::FrameLevel;
+
+        if args.is_empty() || arg_tokens.is_empty() {
+            return;
+        }
+        let pair_start = usize::from(args.len() % 2 == 1);
+        let level = if pair_start == 1 {
+            // The level word's grammar is the analysed release's (`uplevel 010`
+            // is 8 frames up on 8.6 and 10 on 9.0). With no registry loaded
+            // there is no release to name, so `parse` abstains with `Dynamic`
+            // wherever the releases disagree — the direction every consumer of
+            // this level already treats conservatively.
+            self.registry
+                .as_ref()
+                .map_or_else(
+                    || FrameLevel::parse(&args[0]),
+                    |r| FrameLevel::parse_in(&args[0], r),
+                )
+                .unwrap_or(FrameLevel::Dynamic)
+        } else {
+            FrameLevel::DEFAULT
+        };
+        let mut i = pair_start + 1;
+        while i < args.len() && i < arg_tokens.len() {
+            // The local alias name may be dynamic (`upvar 1 x $local`) — skip
+            // it rather than record the substitution text.
+            if !crate::naming::is_dynamic_word(&args[i]) {
+                self.define_var(&args[i], arg_tokens[i], scope_path, false, None);
+                if let Some(target) = Self::upvar_link_target(&args[i - 1], level)
+                    && let Some(other_tok) = arg_tokens.get(i - 1)
+                {
+                    // `otherVar` (at `i - 1`) names the cell; `args[i]` is an
+                    // independent local spelling.  Renaming the cell must
+                    // rewrite the former, never the latter.
+                    let original_namespace = self
+                        .original_qualified_variable_input(other_tok.span, false)
+                        .and_then(|input| {
+                            let absolute = input
+                                .policy()
+                                .recipe()
+                                .variable_root_input(input.bytes())
+                                .qualification()
+                                == tcl_syntax::naming::NativeNameQualification::Absolute;
+                            let global = if pair_start == 1 {
+                                self.original_variable_operand_input(arg_tokens[0].span)
+                                    .and_then(|level| {
+                                        let dialect = tcl_registry::InvocationDialect::of_profile(
+                                            self.profile,
+                                        );
+                                        FrameLevel::parse_native_bytes(level.bytes(), dialect)?
+                                            .map(FrameLevel::is_global_frame)
+                                    })
+                                    == Some(true)
+                            } else {
+                                false
+                            };
+                            (absolute || global)
+                                .then(|| self.original_variable_root_namespace())
+                                .flatten()
+                        });
+                    self.set_var_link_target(
+                        &args[i],
+                        scope_path,
+                        super::scope::VariableLinkTarget {
+                            target: target.clone(),
+                            target_span: other_tok.span,
+                            local_span: arg_tokens[i].span,
+                            original_target_namespace: original_namespace,
+                            original_target_receiver: crate::signature_scan::variable_symbol::OriginalVariableSymbolReceiver::NamespaceAlias,
+                        },
+                    );
+                    // The fixed cell itself gets a definition at the
+                    // `otherVar` word: `upvar ::tk::FocusGrab($index) data`
+                    // is the
+                    // only place the array ever comes to exist, so without
+                    // a `VarDef` for `::tk::FocusGrab` every occurrence —
+                    // this word, a sibling proc's `$::tk::FocusGrab($idx)`
+                    // read, its `info exists` / `unset` — answered nothing.
+                    // Defined in the GLOBAL scope: both qualifying
+                    // spellings (a `::`-qualified target, any target at
+                    // `#0`) name a cell reachable from everywhere.
+                    self.define_var(&target, *other_tok, &[], false, None);
+                }
+            }
+            i += 2;
+        }
+    }
+
+    /// The fixed cell an `upvar` `otherVar` word names, or `None` when it
+    /// names a frame-relative variable with no stable path.
+    ///
+    /// See [`Self::handle_upvar_command`] for the two qualifying spellings
+    /// and their oracle transcripts.
+    fn upvar_link_target(
+        other: &str,
+        level: tcl_registry::frame_effect::FrameLevel,
+    ) -> Option<String> {
+        // `a($k)` names the array `a`; the element key is runtime data, so
+        // the base is tested for dynamism, not the whole word.
+        let base = crate::naming::split_element_ref(other).map_or(other, |(base, _)| base);
+        if base.is_empty() || crate::naming::is_dynamic_word(base) {
+            return None;
+        }
+        if base.starts_with("::") {
+            return Some(base.to_owned());
+        }
+        if level.is_global_frame() {
+            return Some(format!("::{base}"));
+        }
+        None
+    }
+
+    /// Register the loop variables of `dict for {keyVar valueVar}
+    /// dictValue body`.
+    ///
+    /// Dispatched via [`tcl_registry::hooks::AnalyserHookId::DictFor`]
+    /// (stamped on `dict`'s `for` subcommand); `args[0]` is still the
+    /// subcommand word.
+    pub fn handle_dict_for_command(
+        &mut self,
+        args: &[String],
+        arg_tokens: &[Token],
+        scope_path: &[usize],
+    ) {
+        if args.len() >= 4 && arg_tokens.len() >= 2 {
+            self.define_vars_from_list(&args[1], arg_tokens[1], scope_path);
+        }
+    }
+
+    /// Register the alias variables of `dict update dictVar key1 var1
+    /// ?key2 var2 ...? body` — vars at 3, 5, 7, … (i.e. `len-2` last).
+    ///
+    /// Dispatched via
+    /// [`tcl_registry::hooks::AnalyserHookId::DictUpdate`] (stamped on
+    /// `dict`'s `update` subcommand).
+    pub fn handle_dict_update_command(
+        &mut self,
+        args: &[String],
+        arg_tokens: &[Token],
+        scope_path: &[usize],
+    ) {
+        if args.len() < 5 || !(args.len() - 3).is_multiple_of(2) {
+            return;
+        }
+        let mut i = 3;
+        while i + 1 < args.len() {
+            if let Some(tok) = arg_tokens.get(i) {
+                self.define_var(&args[i], *tok, scope_path, false, None);
+            }
+            i += 2;
+        }
+    }
+
+    /// Register the key variables of `dict with dictVar body` — only
+    /// the no-path case is statically resolvable, and only when the
+    /// dict came from a const literal.
+    ///
+    /// Dispatched via [`tcl_registry::hooks::AnalyserHookId::DictWith`]
+    /// (stamped on `dict`'s `with` subcommand).
+    pub fn handle_dict_with_command(
+        &mut self,
+        args: &[String],
+        arg_tokens: &[Token],
+        scope_path: &[usize],
+    ) {
+        if args.len() != 3 || arg_tokens.len() < 2 {
+            return;
+        }
+        let Some((value, value_span)) = self
+            .lookup_logical_const_string_at(&args[1], arg_tokens[1].span)
+            .map(|(value, span)| (value.to_owned(), span))
+        else {
+            return;
+        };
+        self.retain_readonly_dictionary_keys(&value, value_span, arg_tokens[1].span, scope_path);
+    }
+
+    /// Handle `interp alias {} ALIAS {} TARGET ?ARG ...?` —
+    /// records the alias for later argument-role resolution.
+    ///
+    /// Reads the registry's one command-table transition vocabulary
+    /// (`CommandBindingTransition`) rather than destructuring
+    /// `interp alias`'s word layout here. `offset` is the command token's
+    /// start, recorded in [`Analyser::alias_offsets`] for the same-file
+    /// arity resolver's top-level order gate.
+    ///
+    /// Dispatched via
+    /// [`tcl_registry::hooks::AnalyserHookId::InterpAlias`] (stamped on
+    /// `interp`'s `alias` subcommand); `args[0]` is still the subcommand
+    /// word, which is what selects the alias descriptor.
+    pub fn handle_interp_alias(&mut self, args: &[String], scope_path: &[usize], offset: u32) {
+        self.handle_interp_alias_with_original_arguments(args, &[], scope_path, offset);
+    }
+
+    pub(super) fn handle_interp_alias_with_original_arguments(
+        &mut self,
+        args: &[String],
+        arg_tokens: &[Token],
+        _scope_path: &[usize],
+        offset: u32,
+    ) {
+        // What this call did to the command table is registry data, read
+        // through the one transition vocabulary. The
+        // interpreter *paths* are not — a path may be a tracked
+        // `set VAR [interp create …]` binding this analyser resolves
+        // itself — so the cross-domain arm below still reads the path
+        // words; the alias and target *command* names come from the facts.
+        let registry = self.registry.as_deref();
+        let facts: Vec<tcl_registry::CommandBindingTransition> =
+            registry.map_or_else(Vec::new, |registry| {
+                command_table_transitions(registry, "interp", args)
+                    .command_bindings()
+                    .cloned()
+                    .collect()
+            });
+        if let Some(tcl_registry::CommandBindingTransition::Delete { interpreter, name }) =
+            facts.first()
+            && interpreter.as_ref().is_none_or(is_current_interpreter)
+            && let Some(deleted) = name.literal()
+        {
+            // Deleting an alias destroys the command object, so every
+            // `namespace import` edge pointing at it dies too.
+            // An empty srcPath means the interpreter this command *runs in*,
+            // so inside a child's eval body the deletion homes under that
+            // child's domain rather than the parent's command table.
+            let deleted = format!(
+                "{}{}",
+                self.current_interp_domain_prefix(),
+                crate::naming::normalise_qualified_name(deleted)
+            );
+            self.result
+                .destroyed_commands
+                .insert(deleted.clone(), offset);
+            self.deleted_commands.insert(deleted, offset);
+            return;
+        }
+        let Some(tcl_registry::CommandBindingTransition::Alias {
+            source_interpreter,
+            alias,
+            target_interpreter,
+            target,
+            arguments,
+            target_lookup,
+        }) = facts.first()
+        else {
+            return;
+        };
+        if *target_lookup != tcl_registry::AliasTargetLookup::Global {
+            // Caller-dependent aliases are represented by the source kernel.
+            // This legacy global-only presentation cannot invent a target.
+            return;
+        }
+        // The `interp alias {} A {} B` fast path homes both names at the
+        // global root, which is only right in the main interpreter: inside a
+        // child's eval body `{}` names *that child*. There, fall through to
+        // the domain-aware branch below, which qualifies both sides through
+        // `resolve_alias_domain_prefix` exactly as the explicit-path form
+        // already does.
+        if self.interp_path_stack.is_empty()
+            && is_current_interpreter(source_interpreter)
+            && is_current_interpreter(target_interpreter)
+            && let (Some(alias_name), Some(target_cmd)) = (alias.literal(), target.literal())
+        {
+            let qualified = if alias_name.is_empty() {
+                String::new()
+            } else {
+                crate::naming::normalise_qualified_name(alias_name)
+            };
+            let prepended = arguments
+                .iter()
+                .filter_map(tcl_registry::TransitionSubject::literal)
+                .map(str::to_owned)
+                .collect();
+            self.record_interp_alias(
+                qualified,
+                self.registry
+                    .as_deref()
+                    .and_then(tcl_registry::CommandRegistry::profile)
+                    .and_then(|profile| {
+                        tcl_registry::InvocationDialect::of_profile(profile).authored_name_policy()
+                    })
+                    .and_then(|policy| {
+                        crate::signature_scan::scope::SignatureSourceCommand::alias_at_root(
+                            policy, alias_name,
+                        )
+                    }),
+                crate::signature_scan::types::SignatureCommandAliasTarget::WrittenGlobal(
+                    target_cmd.to_owned(),
+                ),
+                prepended,
+                offset,
+            );
+            return;
+        }
+        // Cross-domain alias: `interp alias PATH name
+        // TPATH target ?arg…?` deliberately crosses interpreter domains —
+        // the alias `name` becomes callable in the *source* interpreter,
+        // running `target` resolved in the *target* interpreter.  With
+        // literal paths both sides home under their `@interp@` domains, so
+        // calls of the alias inside the child's eval bodies resolve to the
+        // target through the ordinary alias link machinery. A path need
+        // not itself be a source literal: it also
+        // resolves through a tracked `set VAR [interp create ...]`
+        // binding — only the alias/target *command* names stay hard
+        // literal requirements, which is exactly what the registry's typed
+        // subjects already say.
+        let (Some(alias_name), Some(target_cmd)) = (alias.literal(), target.literal()) else {
+            return;
+        };
+        let (Some(src_path), Some(target_path)) = (args.get(1), args.get(3)) else {
+            return;
+        };
+        if let Some(src_prefix) =
+            self.resolve_alias_domain_prefix(src_path, arg_tokens.get(1).copied())
+            && let Some(target_prefix) =
+                self.resolve_alias_domain_prefix(target_path, arg_tokens.get(3).copied())
+            && !(src_prefix.is_empty() && target_prefix.is_empty())
+        {
+            let qualified =
+                crate::signature_scan::types::SignatureCommandAliasTarget::in_interpreter(
+                    &src_prefix,
+                    alias_name,
+                )
+                .constructed_key()
+                .into_owned();
+            let target = crate::signature_scan::types::SignatureCommandAliasTarget::in_interpreter(
+                &target_prefix,
+                target_cmd,
+            );
+            let prepended: Vec<String> = args[5..].to_vec();
+            self.record_interp_alias(qualified, None, target, prepended, offset);
+        }
+    }
+
+    /// Record one resolved `interp alias` fact into the three alias
+    /// tables (shared by the current-interp and cross-domain forms).
+    fn record_interp_alias(
+        &mut self,
+        qualified: String,
+        source_name: Option<crate::signature_scan::scope::SignatureSourceCommand>,
+        target_cmd: crate::signature_scan::types::SignatureCommandAliasTarget,
+        prepended: Vec<String>,
+        offset: u32,
+    ) {
+        // Binding a second name onto `source` (or another external-unit
+        // loader) means calls through that name never reach the `Source` hook,
+        // so the files they pull in are invisible — see
+        // [`Self::note_external_unit_command_moved`].
+        let policy = self
+            .registry
+            .as_deref()
+            .and_then(tcl_registry::CommandRegistry::profile)
+            .and_then(|profile| {
+                tcl_registry::InvocationDialect::of_profile(profile).authored_name_policy()
+            });
+        self.command_aliases.remove(&qualified);
+        if let Some(target_key) = target_cmd
+            .checked_global_key(policy)
+            .map(std::borrow::Cow::into_owned)
+        {
+            self.note_external_unit_command_moved(&target_key);
+            self.command_aliases
+                .insert(qualified.clone(), (target_key, prepended.clone()));
+        }
+        self.alias_offsets.insert(qualified.clone(), offset);
+        self.result.alias_offsets.insert(qualified.clone(), offset);
+        self.result.command_aliases.insert(
+            qualified.clone(),
+            SignatureCommandAlias {
+                source_name,
+                qualified_name: qualified,
+                target: target_cmd,
+                extras: prepended,
+            },
+        );
+    }
+
+    /// Static words and dominating interpolations supply constant argument values.
+    /// Command substitutions and unavailable variable values stay unresolved.
+    /// Shared by any command whose argument names something else purely
+    /// as data rather than computing it — [`Self::handle_rename`]'s
+    /// `OLD`/`NEW` words, and [`Self::handle_source_command`]'s path word
+    /// (`set p "e.tcl"; source $p`, the same shape `rename $old new`
+    /// already resolves), the `oo::define`
+    /// target word, and the command head itself
+    /// ([`Self::resolve_dynamic_command_head`]).
+    pub(super) fn resolve_dynamic_word(
+        &self,
+        text: &str,
+        tok: Option<Token>,
+        is_single: bool,
+        _scope_path: &[usize],
+    ) -> Option<String> {
+        if !crate::naming::is_dynamic_word(text) {
+            return Some(text.to_string());
+        }
+        let tok = tok?;
+        if is_single && matches!(tok.kind, TokenType::Str | TokenType::Esc) {
+            return Some(text.to_owned());
+        }
+        self.resolve_logical_value_word(tok)
+    }
+
+    /// Handle `rename OLD NEW` — record a static rename so calls to
+    /// `NEW` resolve to whatever `OLD` denoted (the same proc, unchanged
+    /// signature — a rename is a pure name move, never an arity change).
+    /// Also records that `OLD` itself is no longer a callable command
+    /// from this point on (confirmed against tclsh 9.0.4: `OLD` fails
+    /// "invalid command name" afterwards, not a "wrong # args" against
+    /// its original signature).
+    ///
+    /// `OLD`/`NEW` need not themselves be literal words: each is first
+    /// run through [`Self::resolve_dynamic_word`], which also resolves a
+    /// constant-foldable dynamic word (`rename $old ::new`, `set key
+    /// impl; rename ::foo_$key ::foo`) — a bare variable read of a
+    /// runtime value (`rename [somecommand] ::new`) or one that folding
+    /// can't pin down still can't be, and only *that* residual case
+    /// returns `true` (dynamic) — the caller widens
+    /// `has_dynamic_providers` then, the same wildcard-collapse
+    /// convention `command_binding.rs`'s flow-sensitive lattice uses for
+    /// the identical shape. A malformed `rename` (wrong argument count,
+    /// already flagged by the registry arity check) is not treated as
+    /// dynamic — there is no new binding to widen for. `offset` is the
+    /// command token's start, recorded in [`Analyser::rename_offsets`] /
+    /// [`Analyser::deleted_commands`] for the same-file arity resolver's
+    /// top-level order gate. A deleting `rename OLD {}` records only
+    /// `OLD`'s deletion (confirmed against tclsh 9.0.4: also "invalid
+    /// command name" afterwards) — there is no `NEW` to map it to.
+    ///
+    /// Dispatched via [`tcl_registry::hooks::AnalyserHookId::Rename`].
+    pub fn handle_rename(
+        &mut self,
+        args: &[String],
+        arg_tokens: &[Token],
+        arg_single: &[bool],
+        scope_path: &[usize],
+        offset: u32,
+    ) -> bool {
+        if args.len() != 2 {
+            return false;
+        }
+        let Some(old_resolved) = self.resolve_dynamic_word(
+            &args[0],
+            arg_tokens.first().copied(),
+            arg_single.first().copied().unwrap_or(false),
+            scope_path,
+        ) else {
+            return true;
+        };
+        let old = crate::naming::normalise_qualified_name(&old_resolved);
+        if old.is_empty() {
+            return false;
+        }
+        // Required-name navigation and advice use the post-argv lookup site.
+        // Recording the source operand does not require the destination to be
+        // known, and does not prove that the rename itself succeeds.
+        if let Some(tok) = arg_tokens.first() {
+            self.push_command_reference_with_policy(
+                args[0].clone(),
+                tok.span,
+                old.clone(),
+                None,
+                false,
+                crate::signature_scan::types::SignatureCommandLookup::ConsumedName {
+                    invocation_offset: offset,
+                },
+            );
+        }
+        let Some(new_resolved) = self.resolve_dynamic_word(
+            &args[1],
+            arg_tokens.get(1).copied(),
+            arg_single.get(1).copied().unwrap_or(false),
+            scope_path,
+        ) else {
+            return true;
+        };
+        let new = crate::naming::normalise_qualified_name(&new_resolved);
+        // Moving an external-unit loader takes its loading out of static view.
+        self.note_external_unit_command_moved(&old);
+        // `OLD`'s own deletion must not appear to have already happened *at*
+        // the reference just pushed above for it — `deleted_commands` is
+        // keyed by a single load-order offset compared with `>=` (see
+        // `registry_name_deleted_before`), and `OLD`'s token always sits
+        // textually after the `rename` command's own start (`offset`), so
+        // recording the deletion at `offset` would make that offset compare
+        // as "at or after" a call site that is really the deletion's own
+        // trigger — wrongly W123-flagging `rename puts myputs`'s own `puts`
+        // as a call to an already-dead builtin. Anchoring the deletion to
+        // just past `OLD`'s own token keeps every *other*, later call site's
+        // ordering unaffected (nothing else can sit between `OLD`'s token
+        // and here) while excluding this one.
+        let deletion_offset = arg_tokens.first().map_or(offset, |t| t.span.end());
+        // A rename moves whatever real Tcl object `OLD` currently denotes —
+        // including a live interpreter's own handle command — to `NEW` (or,
+        // for a deleting `rename OLD {}`, off the command table entirely).
+        // Keep `self.interpreters` in step so a later, unrelated definition
+        // that reuses `OLD`'s freed name is never misidentified as still
+        // being that interpreter's handle (confirmed against tclsh 9.0.4:
+        // after `rename sandbox {}` the child interpreter is gone —
+        // `interp slaves` no longer lists it — and a later `proc sandbox
+        // {sub body} {...}` dispatches to the new proc, never to the
+        // interpreter; `rename sandbox t` instead keeps the same
+        // interpreter reachable, now only as `t`). Bumping the epoch on
+        // both the vacated key and any interpreter the rename overwrites at
+        // `NEW` mirrors `handle_interp_delete_command`, so a later
+        // `interp create` recreating either name never merges with the
+        // interpreter tracked under that name before.
+        // Keyed off the *resolved* text (identical to `args[N]` for an
+        // already-static rename) so a resolvable dynamic handle
+        // (`set h sandbox; rename $h moved`) migrates the tracked state
+        // too, not just the ones spelled out literally.
+        let old_interp_key = self.qualified_interp_key(&old_resolved);
+        if let Some(state) = self.interpreters.remove(&old_interp_key) {
+            *self.interp_epochs.entry(old_interp_key).or_insert(0) += 1;
+            if !new.is_empty() {
+                let new_interp_key = self.qualified_interp_key(&new_resolved);
+                if self.interpreters.remove(&new_interp_key).is_some() {
+                    *self
+                        .interp_epochs
+                        .entry(new_interp_key.clone())
+                        .or_insert(0) += 1;
+                }
+                self.interpreters.insert(new_interp_key, state);
+            }
+        }
+        // Child-interpreter renames cannot mutate the parent's command facts.
+        if !self.interp_path_stack.is_empty() {
+            return false;
+        }
+        // A rename nested inside a control-flow body may not run at all, so it
+        // is not evidence that `OLD` is gone. Recording it anyway draws a
+        // W123 on a command that is demonstrably still callable, and — since
+        // class liveness consults the same facts — withdraws the
+        // W308 on objects of that class too.
+        //
+        // Oracle (tclsh8.6): with `if {0} { rename
+        // Dog {} }`, `Dog new` succeeds and `$d fly` fails with `unknown
+        // method "fly"`. The analyser proves the same branch dead in the same
+        // run — it emits I230 on it — so honouring the deletion would
+        // contradict its own verdict.
+        //
+        // Only straight-line deletions count. This is the *syntactic* rule:
+        // `if {1} { rename Dog {} }` is equally not recorded, even though it
+        // does run. Reading the branch's real value needs SCCP, which runs
+        // later over the IR this walk feeds, so it is not available here. The
+        // narrower rule errs towards treating commands as live, matching the
+        // existing "a deletion inside a definition body does not count"
+        // rule in `fact_live_for_call`.
+        if self.control_flow_body_depth > 0 {
+            if !new.is_empty() {
+                self.renamed_commands.insert(new.clone(), old.clone());
+                self.rename_offsets.insert(new.clone(), offset);
+                self.result.rename_offsets.insert(new.clone(), offset);
+                self.result.renamed_commands.insert(new, old);
+            }
+            return false;
+        }
+        if new.is_empty() {
+            // `rename OLD {}` destroys the command object — unlike `rename OLD
+            // NEW`, which hands it over and leaves every import edge alive.
+            self.result
+                .destroyed_commands
+                .insert(old.clone(), deletion_offset);
+            self.deleted_commands.insert(old, deletion_offset);
+            return false;
+        }
+        self.renamed_commands.insert(new.clone(), old.clone());
+        self.rename_offsets.insert(new.clone(), offset);
+        self.deleted_commands.insert(old.clone(), deletion_offset);
+        self.result.rename_offsets.insert(new.clone(), offset);
+        self.result.renamed_commands.insert(new, old);
+        false
+    }
+
+    /// Handle `oo::objdefine $obj …` — record the object variable
+    /// (so W308 can suppress unknown-method false positives from
+    /// per-instance extensions) **and** walk the per-object
+    /// definition so its method bodies are analysed exactly like an
+    /// `oo::define` class's.
+    ///
+    /// `oo::objdefine` shares the `oo::define` member grammar, so the
+    /// body / inline forms are parsed with the same helpers.  The
+    /// members are collected into a *throwaway* `ClassDef` whose only
+    /// purpose is to drive [`Self::parse_oo_definition_body`]'s
+    /// method-body walk (variable / command resolution and in-body
+    /// diagnostics light up as a side effect).  The `ClassDef` is
+    /// deliberately **not** registered in `all_classes`: a per-object
+    /// extension is not a class and must never surface in class
+    /// listings, hover, rename, or completion.  Its method bodies
+    /// home under a private synthetic name so the duplicate detector
+    /// never confuses them with the object's real class methods.
+    ///
+    /// Returns `true` when it owns the command's body walk (an object
+    /// name is present), mirroring [`Self::handle_oo_define_command`],
+    /// so the generic body recursion does not also descend the body.
+    ///
+    /// A receiver written as a substitution keeps its **variable** name as
+    /// the `objdefined_vars` / `object_methods` key — that is what a
+    /// `$obj method` dispatch site is keyed by — but when the word also
+    /// folds to a dominating constant (`foreach o {::a ::b} { oo::objdefine
+    /// $o { … } }`) the per-object facts are recorded under the *object's*
+    /// own name as well, so a bare `::a probe` call sees them too.  tclsh
+    /// 9.0.4 / 8.6.16 both confirm every literal element really gains the
+    /// method.
+    ///
+    /// Dispatched via
+    /// [`tcl_registry::hooks::AnalyserHookId::OoObjdefine`].
+    pub fn handle_oo_objdefine_at(
+        &mut self,
+        cmd_tok: Token,
+        args: &[String],
+        arg_tokens: &[Token],
+        arg_single: &[bool],
+        scope_path: &[usize],
+    ) -> bool {
+        if args.is_empty() {
+            return false;
+        }
+        let Some(words) = crate::registry_invocation::source_structure::source_registry_words_at(
+            &self.source,
+            &self.result,
+            cmd_tok.span.start(),
+        ) else {
+            return true;
+        };
+        let context = self.analysis_context();
+        let Some((grammar, definer_disabled)) = words
+            .with_source_schema(&context, |schema| {
+                let command = schema.authored_source_descriptors().command;
+                // A script operand enters the definition vocabulary only through
+                // the selected configure layout. The inline member form instead
+                // names a member of the selected descriptor's own grammar under
+                // its complete selected layout; that member's body stays Tcl.
+                let grammar = schema
+                    .authored_source_definition_body_grammar()
+                    .or_else(|| {
+                        let declared = command.definition_body?;
+                        (schema.authored_source_argument_roles().1
+                            && args
+                                .get(1)
+                                .is_some_and(|keyword| declared.is_member(keyword)))
+                        .then_some(declared)
+                    })?;
+                Some((grammar, !context.context().spec_available(command)))
+            })
+            .flatten()
+        else {
+            return true;
+        };
+        let body_argument = if args
+            .get(1)
+            .is_some_and(|subcommand| grammar.is_member(subcommand))
+        {
+            None
+        } else {
+            let body_arguments: Vec<_> = words
+                .written_argument_roles()
+                .into_iter()
+                .filter_map(|(argument, role)| {
+                    (role == tcl_registry::ArgRole::Body).then_some(argument)
+                })
+                .collect();
+            let [body_argument] = body_arguments.as_slice() else {
+                return true;
+            };
+            let Some(source_body) = words.original_argument_word(*body_argument) else {
+                return true;
+            };
+            let Some(body_token) = arg_tokens.get(*body_argument) else {
+                return true;
+            };
+            if !words.matches_source(source_body.image(), source_body.config())
+                || !source_body
+                    .tokens()
+                    .iter()
+                    .any(|token| token.span == body_token.span)
+            {
+                return true;
+            }
+            Some(*body_argument)
+        };
+        self.handle_oo_objdefine_with_layout(
+            args,
+            arg_tokens,
+            arg_single,
+            scope_path,
+            SelectedObjdefineBodyLayout {
+                grammar: Some(grammar),
+                body_argument,
+                definer_disabled,
+            },
+        )
+    }
+
+    /// Apply the standalone object-definition layout used by direct test fixtures.
+    #[cfg(test)]
+    pub fn handle_oo_objdefine(
+        &mut self,
+        args: &[String],
+        arg_tokens: &[Token],
+        arg_single: &[bool],
+        scope_path: &[usize],
+    ) -> bool {
+        let grammar = self.definition_grammar("oo::objdefine");
+        self.handle_oo_objdefine_with_layout(
+            args,
+            arg_tokens,
+            arg_single,
+            scope_path,
+            SelectedObjdefineBodyLayout {
+                grammar,
+                body_argument: Some(1),
+                definer_disabled: false,
+            },
+        )
+    }
+
+    fn handle_oo_objdefine_with_layout(
+        &mut self,
+        args: &[String],
+        arg_tokens: &[Token],
+        arg_single: &[bool],
+        scope_path: &[usize],
+        layout: SelectedObjdefineBodyLayout,
+    ) -> bool {
+        if args.is_empty() {
+            return false;
+        }
+        let (obj_name, resolved_obj) =
+            self.oo_objdefine_receiver(args, arg_tokens, arg_single, scope_path);
+        if let Some(name) = &obj_name {
+            self.objdefined_vars.insert(name.clone());
+        }
+        // A receiver that resolves to no static name (`$objs($i)`, `[pick]`)
+        // may define members on *any* object, so the per-object W315 gates
+        // abstain file-wide.
+        if obj_name.is_none() && resolved_obj.is_none() {
+            self.objdefine_unresolved_receiver = true;
+            for state in self.result.object_member_state.values_mut().flatten() {
+                state.logical_source_members = None;
+            }
+        }
+
+        // `oo::objdefine $obj` with no definition script — the object variable
+        // is recorded above; there is nothing more to walk.
+        if args.len() < 2 {
+            return true;
+        }
+
+        if let Some(target) = arg_tokens.first() {
+            self.retain_original_class_configuration_metadata(target.span);
+        }
+
+        // A throwaway holder for the walked members.  The method bodies home
+        // under a private synthetic name (`@objdefine@…`, unrepresentable in
+        // real Tcl) so a per-object `greet` never collides with the same-named
+        // class method in the duplicate detector or the scope-name key.
+        let synthetic = obj_name.as_ref().map_or_else(
+            || "::@objdefine@".to_string(),
+            |name| format!("::@objdefine@::{name}"),
+        );
+        let mut object_class = super::types::ClassDef {
+            name: obj_name.clone().unwrap_or_default(),
+            qualified_name: synthetic,
+            ..Default::default()
+        };
+
+        // The receiver keys this block records under, and the binding the
+        // block belongs to: the innermost proc/method frame is
+        // the walk-time spelling of the binding identity consumers re-derive
+        // from `ObjectMemberState::anchor_offset`.
+        let keys: Vec<String> = [obj_name.clone(), resolved_obj.clone()]
+            .into_iter()
+            .flatten()
+            .collect();
+        let frame = self.innermost_frame_extent(scope_path);
+        let objdefine_offset = arg_tokens.first().map_or(0, |t| t.span.start());
+        // Seed the holder with the binding's accumulated per-object table, so
+        // this block's retractions and renames run against the state the
+        // interpreter would hold — a second block retracting what the first
+        // declared removes it silently instead of recording a false abort,
+        // which is exactly the hazard that kept W315 out of `oo::objdefine`.
+        let (seed, prior_state_conditional) = keys
+            .first()
+            .and_then(|k| self.objdefine_binding_state(k, frame))
+            .map(|st| (st.methods.clone(), st.conditional))
+            .unwrap_or_default();
+        object_class.methods = seed;
+        if let Some(source) = self.logical_object_member_source_input()
+            && let Some(previous) = keys
+                .first()
+                .and_then(|key| self.objdefine_binding_state(key, frame))
+            && let Some(owner) = previous.logical_source_members.as_ref()
+            && owner.matches_state(previous, &source.0, &source.1)
+        {
+            object_class
+                .original_members
+                .absorb(owner.original_members(), true);
+        }
+
+        self.walk_oo_objdefine_form(args, arg_tokens, scope_path, &mut object_class, layout);
+
+        // **W315** candidates. `oo::objdefine` aborts the same
+        // way a class definition does (`oo::objdefine $o { deletemethod m }`
+        // naming a class-provided `m` errors `method m does not exist` on
+        // 9.0.4 and 8.6.14 alike — a per-object retraction reaches only the
+        // object's *own* table, never an inherited member).  The seeded walk
+        // above judged this block against the binding's accumulated table, so
+        // its aborts carry cross-block state; whether each one is *emittable*
+        // needs document-wide facts (per-object declarations under any key,
+        // receiver creations), so they are held for
+        // `flush_objdefine_abort_diagnostics` rather than reported here.
+        for abort in std::mem::take(&mut object_class.definition_aborts) {
+            self.objdefine_abort_candidates
+                .push(super::state::ObjdefineAbortCandidate {
+                    abort,
+                    receiver: keys.first().cloned().unwrap_or_default(),
+                    prior_state_conditional,
+                });
+        }
+
+        self.fold_objdefine_block(&keys, frame, objdefine_offset, &object_class);
+
+        true
+    }
+
+    /// Resolve the source spelling and any statically-known object target of
+    /// an `oo::objdefine` receiver. The source spelling remains the dispatch
+    /// key, while a resolved loop literal contributes an additional key.
+    fn oo_objdefine_receiver(
+        &self,
+        args: &[String],
+        arg_tokens: &[Token],
+        arg_single: &[bool],
+        scope_path: &[usize],
+    ) -> (Option<String>, Option<String>) {
+        let Some(token) = arg_tokens.first() else {
+            return (None, None);
+        };
+        let config = self.file_lexer_config();
+        let Some(realm) = self.result.retained_command_realm() else {
+            return (None, None);
+        };
+        let Some(image) = realm
+            .original_source_image()
+            .filter(|image| image.bytes() == self.source.as_bytes())
+        else {
+            return (None, None);
+        };
+        let Some((word, _)) =
+            realm.original_written_word_at_span_in_source(image, token.span, config)
+        else {
+            return (None, None);
+        };
+        let operand = crate::registry_invocation::original_source_receiver_name_operand(&word);
+        let written = match operand {
+            Some(crate::registry_invocation::SourceReceiverNameOperand::Literal(value)) => {
+                if self.selected_logical_declaration_advice() && value.as_bytes().contains(&0) {
+                    return (None, None);
+                }
+                return (Some(value), None);
+            }
+            Some(crate::registry_invocation::SourceReceiverNameOperand::ScalarVariable(name)) => {
+                name
+            }
+            None => return (None, None),
+        };
+        if self.selected_logical_declaration_advice() && written.as_bytes().contains(&0) {
+            return (None, None);
+        }
+        let resolved = self
+            .resolve_dynamic_word(
+                &args[0],
+                Some(*token),
+                arg_single.first().copied().unwrap_or(false),
+                scope_path,
+            )
+            .filter(|name| {
+                !name.is_empty() && *name != written && !crate::naming::is_dynamic_word(name)
+            });
+        (Some(written), resolved)
+    }
+
+    /// Walk an `oo::objdefine` inline member or its braced definition body
+    /// through the same registry grammar used by `oo::define`.
+    fn walk_oo_objdefine_form(
+        &mut self,
+        args: &[String],
+        arg_tokens: &[Token],
+        scope_path: &[usize],
+        object_class: &mut super::types::ClassDef,
+        layout: SelectedObjdefineBodyLayout,
+    ) {
+        let Some(grammar) = layout.grammar else {
+            return;
+        };
+        let inline_form = args
+            .get(1)
+            .is_some_and(|subcommand| grammar.is_member(subcommand));
+        if inline_form {
+            let inline_args: Vec<String> = args[1..].to_vec();
+            let inline_tokens: Vec<Token> = arg_tokens.iter().skip(1).copied().collect();
+            {
+                if let Some(member) = inline_args
+                    .first()
+                    .and_then(|subcmd| grammar.member(subcmd))
+                {
+                    self.emit_w002_oo_member_option_disabled(
+                        member,
+                        &inline_args[1..],
+                        &inline_tokens[1..],
+                        layout.definer_disabled,
+                    );
+                }
+                super::oo::parse_oo_define_inline_in(
+                    self,
+                    grammar,
+                    &inline_args,
+                    &inline_tokens,
+                    object_class,
+                    Some(self.analysis_context().context().authoring_query()),
+                    scope_path,
+                );
+                self.record_member_command_references(
+                    grammar,
+                    &inline_args,
+                    &inline_tokens,
+                    scope_path,
+                );
+            }
+        } else if let (Some(body), Some(body_tok)) = (
+            layout.body_argument.and_then(|argument| args.get(argument)),
+            layout
+                .body_argument
+                .and_then(|argument| arg_tokens.get(argument).copied()),
+        ) {
+            self.parse_oo_definition_body(
+                body,
+                body_tok,
+                object_class,
+                scope_path,
+                Some(grammar),
+                layout.definer_disabled,
+            );
+        }
+    }
+
+    /// Record one walked `oo::objdefine` block's member declarations and fold
+    /// it into each receiver key's durable [`super::types::ObjectMemberState`]
+    /// — the durable home for per-object visibility.
+    ///
+    /// Declarations feed `object_methods` so `$obj m` navigation resolves the
+    /// per-object override ahead of a same-named class method, keyed by the
+    /// objdefine site's receiver offset — the receiver's *binding identity*,
+    /// never the textual tail alone.  The diff runs per
+    /// key against *that key's* own accumulated state: members another block
+    /// already recorded for the key are carry-over, not new declarations,
+    /// while a `foreach` re-dispatch's per-element key (empty state) still
+    /// gains the block's members.  The fold then stores the block's effective
+    /// table plus the explicit export/unexport flips, which may name
+    /// *class*-provided members the object masks or revives.
+    fn fold_objdefine_block(
+        &mut self,
+        keys: &[String],
+        frame: Option<(u32, u32)>,
+        objdefine_offset: u32,
+        object_class: &super::types::ClassDef,
+    ) {
+        let block_conditional = self.conditional_depth > 0;
+        let source = self.logical_object_member_source_input();
+        for key in keys {
+            let previous_source_complete =
+                self.objdefine_binding_state(key, frame)
+                    .is_none_or(|previous| {
+                        source.as_ref().is_some_and(|(image, input)| {
+                            previous
+                                .logical_source_members
+                                .as_ref()
+                                .is_some_and(|owner| owner.matches_state(previous, image, input))
+                        })
+                    });
+            let key_seed = self
+                .objdefine_binding_state(key, frame)
+                .map(|st| st.methods.clone())
+                .unwrap_or_default();
+            let mut new_methods: Vec<super::types::MethodDef> = object_class
+                .methods
+                .values()
+                .filter(|m| key_seed.get(&m.name) != Some(*m))
+                .cloned()
+                .collect();
+            // Source-ordered, so the recorded sequence is the same on every
+            // run (and the same under each key) rather than the hash map's
+            // iteration order.
+            new_methods.sort_by_key(|def| def.name_span.start());
+            if !new_methods.is_empty() {
+                self.record_object_methods(key.clone(), &new_methods, objdefine_offset);
+            }
+            let state = self.objdefine_binding_state_mut(key, frame, objdefine_offset);
+            state.methods.clone_from(&object_class.methods);
+            for name in &object_class.exports {
+                state.exports.insert(name.clone());
+                state.unexports.remove(name);
+            }
+            for name in &object_class.unexports {
+                state.unexports.insert(name.clone());
+                state.exports.remove(name);
+            }
+            state.conditional |= block_conditional;
+            state.logical_source_members = source
+                .as_ref()
+                .filter(|_| previous_source_complete && !object_class.member_set_incomplete)
+                .and_then(|(image, input)| {
+                    super::types::LogicalSourceObjectMemberState::capture(
+                        image.clone(),
+                        input.clone(),
+                        state,
+                        &object_class.original_members,
+                    )
+                });
+        }
+    }
+
+    fn logical_object_member_source_input(
+        &self,
+    ) -> Option<(tcl_lexer::SourceImage, super::ResolvedAnalysisInput)> {
+        (self.selected_logical_declaration_advice() && !self.objdefine_unresolved_receiver)
+            .then_some(())?;
+        let input = self.resolved_analysis_input();
+        let realm = self.result.retained_command_realm()?;
+        realm
+            .matches_resolved_analysis_input(&input)
+            .then_some(())?;
+        let image = realm.original_source_image()?;
+        (image.bytes() == self.source.as_bytes()).then_some((image.clone(), input))
+    }
+
+    /// The accumulated [`super::types::ObjectMemberState`] for `key`'s
+    /// binding in `frame`, if any `oo::objdefine` block was walked for it.
+    fn objdefine_binding_state(
+        &self,
+        key: &str,
+        frame: Option<(u32, u32)>,
+    ) -> Option<&super::types::ObjectMemberState> {
+        let idx = *self.objdefine_bindings.get(&(key.to_owned(), frame))?;
+        self.result.object_member_state.get(key)?.get(idx)
+    }
+
+    /// [`Self::objdefine_binding_state`], creating the binding's entry on
+    /// first use with `anchor` as its binding-identity anchor.
+    fn objdefine_binding_state_mut(
+        &mut self,
+        key: &str,
+        frame: Option<(u32, u32)>,
+        anchor: u32,
+    ) -> &mut super::types::ObjectMemberState {
+        let states = self
+            .result
+            .object_member_state
+            .entry(key.to_owned())
+            .or_default();
+        let idx = *self
+            .objdefine_bindings
+            .entry((key.to_owned(), frame))
+            .or_insert_with(|| {
+                states.push(super::types::ObjectMemberState {
+                    anchor_offset: anchor,
+                    ..Default::default()
+                });
+                states.len() - 1
+            });
+        &mut states[idx]
+    }
+
+    /// The byte extent of the innermost proc / method body scope along
+    /// `scope_path` — the walk-time spelling of the binding identity the
+    /// LSP side re-derives from a record's anchor offset (the innermost
+    /// `Proc`/`Method` frame, or `None` at the top level).
+    fn innermost_frame_extent(&self, scope_path: &[usize]) -> Option<(u32, u32)> {
+        let mut scope = &self.result.global_scope;
+        let mut extent = None;
+        for &idx in scope_path {
+            let Some(child) = scope.children.get(idx) else {
+                break;
+            };
+            if matches!(
+                child.kind,
+                super::types::ScopeKind::Proc | super::types::ScopeKind::Method
+            ) && let Some(span) = child.body_span
+            {
+                extent = Some((span.start(), span.end()));
+            }
+            scope = child;
+        }
+        extent
+    }
+
+    /// Logical source compatibility for per-object definition-abort advice.
+    /// Candidates retain reporting member/receiver labels, without a genuine
+    /// selected operation or a closed current Native own-method table. Native,
+    /// hosted and unknown input therefore supplies no diagnosis from these rows.
+    /// Original member ledgers describe authored source order; constructed
+    /// instance source carriers supply neither allocation nor absence closure.
+    pub(super) fn flush_objdefine_abort_diagnostics(&mut self) {
+        let candidates = std::mem::take(&mut self.objdefine_abort_candidates);
+        // naming.diagnostics.original-object-abort-admission
+        // docs/design/analysis/name-resolution-proofs/diagnostic-original-object-abort-admission.md
+        if !self.result.allows_retained_logical_declaration_advice()
+            || candidates.is_empty()
+            || self.objdefine_unresolved_receiver
+        {
+            return;
+        }
+        let declared_anywhere: std::collections::HashSet<&str> = self
+            .result
+            .object_methods
+            .values()
+            .flatten()
+            .map(|m| m.def.name.as_str())
+            .collect();
+        let mut diagnostics = Vec::new();
+        for cand in &candidates {
+            let emit = match cand.abort.kind {
+                super::types::DefinitionAbortKind::RenameToItself => true,
+                super::types::DefinitionAbortKind::DestinationExists => {
+                    !cand.prior_state_conditional
+                }
+                super::types::DefinitionAbortKind::MissingMember => {
+                    !cand.prior_state_conditional
+                        && !declared_anywhere.contains(cand.abort.member.as_str())
+                        && (self.result.instance_classes.contains_key(&cand.receiver)
+                            || self
+                                .result
+                                .created_instance_commands
+                                .contains(&cand.receiver))
+                }
+            };
+            if emit {
+                diagnostics.push(crate::analyser::types::Diagnostic::new(
+                    DiagCode::W315,
+                    cand.abort.span,
+                    cand.abort.object_message(),
+                    super::types::Severity::Warning,
+                ));
+            }
+        }
+        self.result.diagnostics.extend(diagnostics);
+    }
+
+    /// Handle ``package require ?-exact? NAME ?requirement ...?`` — record
+    /// the package dependency so later passes can gate W123
+    /// (unresolved-command) suppression and dynamic-provider detection.
+    ///
+    /// Appends a ``SignaturePackageRequire`` record to
+    /// ``result.package_requires`` and flips ``has_dynamic_providers`` when
+    /// the name is a ``$``-substitution / ``[…]``-substitution. Where each
+    /// word sits is the registry's: the name and the requirements are the
+    /// roles `require` declares after its option run, and ``exact`` is
+    /// whether that run is non-empty — the subcommand's one option,
+    /// ``-exact``, narrows each requirement to an exact version for the
+    /// resolver (the reading `signature_scan`'s handler gives the same
+    /// call). A call too short to carry a name records nothing.
+    ///
+    /// The conditional flag is ``self.conditional_depth > 0``.
+    ///
+    /// `cmd_tok` is the command-head token (the ``package``
+    /// word).  The recorded
+    /// [`SignaturePackageRequire::range`](crate::signature_scan::types::SignaturePackageRequire::range)
+    /// uses its span so code-action / quick-fix UX points at the
+    /// ``package`` keyword rather than at the ``require``
+    /// subcommand word.
+    ///
+    /// Dispatched via
+    /// [`tcl_registry::hooks::AnalyserHookId::PackageRequire`] (stamped
+    /// on `package`'s `require` subcommand); `args[0]` is still the
+    /// subcommand word.
+    fn original_package_operand(
+        &self,
+        token: Option<&Token>,
+    ) -> Option<crate::signature_scan::scope::SignatureSourceNameInput> {
+        let token = token?;
+        let policy = self.declaration_name_policy()?;
+        if let Some(input) = self
+            .head_identities
+            .original_written_name_input_at_span(token.span, self.file_lexer_config())
+        {
+            return (input.policy() == policy
+                && !matches!(
+                    input,
+                    crate::signature_scan::scope::SignatureSourceNameInput::OriginalVariableRoot(_)
+                ))
+            .then_some(input);
+        }
+        let original = self.head_identities.original_source_name_at_span(
+            token.span,
+            self.file_lexer_config(),
+            self.word_rules(),
+            policy,
+        )?;
+        Some(
+            crate::signature_scan::scope::SignatureSourceNameInput::OriginalWord(
+                original.name_input().clone(),
+            ),
+        )
+    }
+
+    fn original_package_name(
+        &self,
+        token: Option<&Token>,
+    ) -> Option<crate::signature_scan::original_name::SourcePackageName> {
+        self.original_package_operand(token)
+            .map(crate::signature_scan::original_name::SourcePackageName::from_input)
+    }
+
+    /// Record an original package requirement and its independently selected
+    /// byte key, without inferring that its loader has executed.
+    pub fn handle_package_require(
+        &mut self,
+        _cmd_name: &str,
+        cmd_tok: Token,
+        _args: &[String],
+        arg_tokens: &[Token],
+    ) {
+        use tcl_registry::arg_role::ArgRole;
+        let Some(original) = self.original_diagnostic_call_at(cmd_tok, arg_tokens) else {
+            return;
+        };
+        let Some((Some(roles), exact)) = original.with_schema(|call| {
+            (
+                call.arg_roles(),
+                call.option_effects().option_end > call.semantics.argument_offset,
+            )
+        }) else {
+            return;
+        };
+        let Some((arguments, tokens, _single)) = original.source_arguments() else {
+            return;
+        };
+        let args = arguments.as_slice();
+        let arg_tokens = tokens.as_slice();
+        let Some(name_idx) = role_position(&roles, ArgRole::Name) else {
+            return;
+        };
+        let name_text = args[name_idx].clone();
+        let requirements = role_texts(&roles, ArgRole::Value, args);
+        let version = requirements.first().cloned();
+
+        // Dynamic-provider detection — non-literal package
+        // name suppresses W123 unknown-command emission
+        // because the dynamic provider may register the
+        // missing command at runtime.
+        if let Some(name_tok) = arg_tokens.get(name_idx)
+            && (matches!(name_tok.kind, TokenType::Var | TokenType::Cmd)
+                || name_text.contains('$')
+                || name_text.contains('['))
+        {
+            self.result.has_dynamic_providers = true;
+        }
+
+        let original_name = self.original_package_name(arg_tokens.get(name_idx));
+        let original_requirements = roles
+            .iter()
+            .filter_map(|&(ordinal, role)| (role == ArgRole::Value).then_some(ordinal))
+            .map(|ordinal| self.original_package_operand(arg_tokens.get(ordinal)))
+            .collect();
+        self.result
+            .package_requires
+            .push(crate::signature_scan::types::SignaturePackageRequire {
+                original_name,
+                original_requirements,
+                name: name_text,
+                version,
+                requirements,
+                exact,
+                range: cmd_tok.span,
+                conditional: self.conditional_depth > 0,
+                control_flow: self.control_flow_body_depth > 0,
+                origin: crate::signature_scan::types::PackageRequireOrigin::Source,
+            });
+    }
+
+    /// Record ``package provide NAME ?VERSION?`` — the name and the version
+    /// are the roles `provide` declares.
+    ///
+    /// Dispatched via
+    /// [`tcl_registry::hooks::AnalyserHookId::PackageProvide`] (stamped
+    /// on `package`'s `provide` subcommand).  See
+    /// [`Self::handle_package_require`] for the `cmd_tok` anchoring
+    /// convention.
+    pub fn handle_package_provide(
+        &mut self,
+        cmd_tok: Token,
+        args: &[String],
+        arg_tokens: &[Token],
+    ) {
+        if args.len() < 2 {
+            return;
+        };
+        let original_name = self.original_package_name(arg_tokens.get(1));
+        let name = args[1].clone();
+        let version = args.get(2).cloned();
+        self.result
+            .package_provides
+            .push(super::types::PackageProvide {
+                original_name,
+                name,
+                version,
+                range: cmd_tok.span,
+                conditional: self.conditional_depth > 0,
+            });
+    }
+
+    /// Record ``package ifneeded NAME VERSION ?SCRIPT?``.
+    ///
+    /// Only the setter form is a record: ``package ifneeded NAME
+    /// VERSION`` with no script is a *query* that registers nothing,
+    /// so treating it as a registration would abstain a
+    /// package-derived load order on a document that merely asked
+    /// what was registered. The name, the version and the script are the
+    /// roles `ifneeded` declares; the setter form is the one with a script.
+    ///
+    /// The script is not kept — see
+    /// [`PackageIfneeded`](super::types::PackageIfneeded) for why the
+    /// bare fact of a registration is the useful part.
+    ///
+    /// Dispatched via
+    /// [`tcl_registry::hooks::AnalyserHookId::PackageIfneeded`]
+    /// (stamped on `package`'s `ifneeded` subcommand).  See
+    /// [`Self::handle_package_require`] for the `cmd_tok` anchoring
+    /// convention.
+    pub fn handle_package_ifneeded(
+        &mut self,
+        cmd_tok: Token,
+        args: &[String],
+        arg_tokens: &[Token],
+    ) {
+        // args[0] is the `ifneeded` subcommand word; the setter form
+        // is NAME + VERSION + SCRIPT.
+        if args.len() < 4 {
+            return;
+        }
+        let original_name = self.original_package_name(arg_tokens.get(1));
+        self.result
+            .package_ifneededs
+            .push(super::types::PackageIfneeded {
+                original_name,
+                name: args[1].clone(),
+                version: args[2].clone(),
+                range: cmd_tok.span,
+            });
+    }
+
+    /// Record ``package prefer latest`` — the one form of ``package
+    /// prefer`` that changes the interpreter's version-selection rule.
+    ///
+    /// ``package prefer`` with no argument is a query, and ``package
+    /// prefer stable`` never changes anything: it is a no-op from the
+    /// default and silently ineffective once ``latest`` has been set
+    /// (see [`crate::signature_scan::types::SignaturePackagePrefer`]
+    /// for the transcript), so neither is recorded and the state is
+    /// the monotone "has a raise already run".
+    ///
+    /// A non-literal mode word (``package prefer $mode``) is skipped
+    /// rather than guessed at — flipping the selection rule on a
+    /// substitution would silently move go-to-definition onto a
+    /// different release of a package.
+    ///
+    /// Dispatched via
+    /// [`tcl_registry::hooks::AnalyserHookId::PackagePrefer`] (stamped
+    /// on `package`'s `prefer` subcommand).  See
+    /// [`Self::handle_package_require`] for the `cmd_tok` anchoring
+    /// convention.
+    pub fn handle_package_prefer(&mut self, cmd_tok: Token, args: &[String]) {
+        if args.len() < 2 || args[1] != "latest" {
+            return;
+        }
+        self.result.package_prefer_latest.push(
+            crate::signature_scan::types::SignaturePackagePrefer {
+                range: cmd_tok.span,
+                conditional: self.conditional_depth > 0,
+            },
+        );
+    }
+
+    /// The definition-body grammar attached to `cmd_name`'s spec, if it is a
+    /// definer command.  Registry-sourced, so member recognition / argument
+    /// structure in the body walkers never hardcodes a keyword list — a new
+    /// definer is picked up the moment its spec carries a `definition_body`.
+    pub(super) fn definition_grammar(
+        &self,
+        cmd_name: &str,
+    ) -> Option<&'static tcl_registry::definer::DefinitionBodyGrammar> {
+        let context = self.analysis_context();
+        context
+            .context()
+            .resolve_spec(context.commands(), cmd_name)?
+            .definition_body
+    }
+
+    /// The [`ClassFactory`] `class` publishes, when `class` is itself a
+    /// `TclOO` class factory — a class whose superclass chain reaches a
+    /// registry metaclass.
+    ///
+    /// Derived **once, where the metaclass is written**, so every consumer
+    /// (this file's own `Meta create …` calls and, through the workspace
+    /// factory index, another file's) classifies a creation call from the
+    /// same proved fact instead of re-deriving it — or, cross-file,
+    /// abstaining for want of it.
+    ///
+    /// A user metaclass that does not override a manufacturer subcommand
+    /// inherits `oo::class`'s own `create Name Body` shape, so that
+    /// subcommand simply has no entry and the builtin layout applies.  One
+    /// that *does* override it declares its own shape in the override's
+    /// parameter list, and that override is read rather than guessed: Tk's
+    /// `self method create {name superclasses body}` puts the body at
+    /// argument 3, not 2, and splices a superclass the caller never wrote.
+    fn class_factory_of(&self, class: &ClassDef) -> Option<ClassFactory> {
+        let meta = self.user_metaclass_of_class(class)?;
+        let members =
+            super::class_hierarchy::original_metadata::original_definition_members_for_class(
+                &self.result,
+                class,
+                MemberSide::ClassObject,
+            )?;
+        let mut overrides = std::collections::BTreeMap::new();
+        let mut exported_manufacturers = std::collections::BTreeSet::new();
+        for builtin in meta.grammar.manufacturers {
+            let own = members.iter().find(|method| {
+                method.original_name_input().policy() == meta.root_policy
+                    && method.original_name_input().bytes() == builtin.keyword.as_bytes()
+            });
+            let exported = if let Some(method) = own {
+                let override_def = method.original_parameter_names_and_body(&self.result)?;
+                let lexical =
+                    super::types::OriginalLexicalMemberContext::from_original_definition_method(
+                        &self.result,
+                        class,
+                        method,
+                    )?;
+                let next = self.manufacturer_next_call(&override_def, &lexical)?;
+                let arguments = next.original_direct_argument_words()?;
+                let (name_arg, body_arg) =
+                    self.manufacturer_word_positions(&override_def, builtin, &arguments)?;
+                let body_argument = usize::from(builtin.definition_body_at?).checked_sub(1)?;
+                let prologue = arguments.get(body_argument)?;
+                overrides.insert(
+                    builtin.keyword.to_owned(),
+                    super::types::ManufacturerSpec {
+                        name_arg,
+                        body_arg,
+                        injected: self.manufacturer_injected_template(
+                            &meta,
+                            &override_def,
+                            prologue,
+                        ),
+                    },
+                );
+                method.exported()
+            } else {
+                class
+                    .original_members
+                    .inherited_visibility_for_metadata_keyword(
+                        MemberSide::ClassObject,
+                        meta.root_policy,
+                        builtin.keyword,
+                        builtin.visibility == tcl_registry::definer::MemberVisibility::Exported,
+                    )?
+            };
+            if exported {
+                exported_manufacturers.insert(builtin.keyword.to_owned());
+            }
+        }
+        let unknown_binds_instance = self.unknown_dispatch_binds_instance(&meta, class);
+        Some(ClassFactory {
+            root_metaclass: meta.root_command,
+            overrides,
+            exported_manufacturers,
+            unknown_binds_instance,
+        })
+    }
+
+    /// Whether this metaclass's **unrecognised-word fallback member** proves
+    /// that calling one of the classes it makes with a bare word both
+    /// constructs an object and hands that same word back — Tk's
+    /// `::tk::IconList .il` idiom.
+    ///
+    /// Two facts have to hold, and both are read off the metaclass's own
+    /// body, where they are provable:
+    ///
+    /// 1. it declares the family's unknown-dispatch member
+    ///    ([`DefinitionBodyGrammar::unknown_dispatch_method`], registry data —
+    ///    `unknown` for `TclOO`) with at least one parameter, so an
+    ///    unrecognised first word reaches code at all; and
+    /// 2. that body **constructs** an object named from the first parameter
+    ///    (a manufacturer call — again registry data — whose instance-name
+    ///    word interpolates the parameter) **and** completes with exactly
+    ///    that parameter, proved through
+    ///    [`tcl_registry::ArgRole::Result`] rather than assumed.
+    ///
+    /// Fact 2 is the one the issue insists on: an `unknown` that returns
+    /// something else — `return [self]`, a formatted string, a bare `next`
+    /// fall-through — must **not** be read this way, because the value the
+    /// caller binds is then not an object handle at all. Every reachable
+    /// normal-result path must return the first parameter after constructing
+    /// it; a different result collapses the proof to `false`, and a body with
+    /// no such path proves nothing. Registry completion semantics distinguish
+    /// that normal result from `return -code error`, `error`, loop transfer,
+    /// and other terminating completions.
+    ///
+    /// Deliberate residuals, both in the abstaining direction except where
+    /// noted:
+    ///
+    /// * a body that also dispatches through `next` (Tk's does, for a word
+    ///   that is not a widget path) is accepted only when the actual class MRO
+    ///   proves that the next provider terminates. A visible user provider
+    ///   that returns normally invalidates the proof; an incomplete hierarchy
+    ///   abstains. At a proved built-in chain end, completion comes from the
+    ///   definition grammar rather than from the dispatch keyword;
+    /// * a construction written through a variable holding the name
+    ///   (`set n $w; [self] create $n`) is not followed, and abstains;
+    /// * the member is looked up on the **metaclass**, because it is
+    ///   *instances* of the metaclass — the manufactured classes — that
+    ///   dispatch through it. An `unknown` on an ordinary class governs that
+    ///   class's own instances, which is a different question this does not
+    ///   answer.
+    ///
+    /// [`DefinitionBodyGrammar::unknown_dispatch_method`]: tcl_registry::definer::DefinitionBodyGrammar::unknown_dispatch_method
+    fn unknown_dispatch_binds_instance(&self, meta: &UserMetaclass, class: &ClassDef) -> bool {
+        let Some(keyword) = meta.grammar.unknown_dispatch_method else {
+            return false;
+        };
+        let Some(members) =
+            super::class_hierarchy::original_metadata::original_definition_members_for_class(
+                &self.result,
+                class,
+                MemberSide::Instance,
+            )
+        else {
+            return false;
+        };
+        let Some(original) = members.iter().find(|method| {
+            method.original_name_input().policy() == meta.root_policy
+                && method.original_name_input().bytes() == keyword.as_bytes()
+        }) else {
+            return false;
+        };
+        let Some(member) = original.original_parameter_names_and_body(&self.result) else {
+            return false;
+        };
+        let Some(word_param) = member.parameter_names().next() else {
+            return false;
+        };
+        let Some(body_token) = member.body_word().tokens().first() else {
+            return false;
+        };
+        let Some(proof) = self.unknown_script_path_proof(
+            meta,
+            class,
+            body_token.span,
+            word_param,
+            vec![false],
+            0,
+        ) else {
+            return false;
+        };
+        proof.proved_return && !proof.invalid_return && proof.fallthrough_constructed.is_empty()
+    }
+
+    fn unknown_script_path_proof(
+        &self,
+        meta: &UserMetaclass,
+        class: &ClassDef,
+        body_span: Span,
+        word_param: &str,
+        mut states: Vec<bool>,
+        depth: u32,
+    ) -> Option<UnknownPathProof> {
+        if depth > MAX_UNKNOWN_BODY_DEPTH {
+            return None;
+        }
+        let context = self.retained_static_source_context()?;
+        let mut proof = UnknownPathProof::default();
+        for seg in self.direct_statements_in_span(body_span)? {
+            if states.is_empty() {
+                break;
+            }
+            let words = crate::registry_invocation::source_structure::source_registry_words_at(
+                &self.source,
+                &self.result,
+                seg.argv.first()?.span.start(),
+            )?;
+            let hook =
+                words.with_source_schema(&context, |schema| schema.semantics.lowering_hook)?;
+            if hook == Some(tcl_registry::hooks::LoweringHookId::If) {
+                let (body_spans, has_fallthrough) =
+                    self.possible_if_body_spans(&seg, word_param)?;
+                let mut next_states = Vec::new();
+                for state in states {
+                    for span in &body_spans {
+                        let nested = self.unknown_script_path_proof(
+                            meta,
+                            class,
+                            *span,
+                            word_param,
+                            vec![state],
+                            depth + 1,
+                        )?;
+                        proof.proved_return |= nested.proved_return;
+                        proof.invalid_return |= nested.invalid_return;
+                        next_states.extend(nested.fallthrough_constructed);
+                    }
+                    if has_fallthrough {
+                        next_states.push(state);
+                    }
+                }
+                states = next_states;
+                continue;
+            }
+            if hook.is_some_and(|hook| {
+                matches!(
+                    hook,
+                    tcl_registry::hooks::LoweringHookId::Switch
+                        | tcl_registry::hooks::LoweringHookId::Try
+                )
+            }) {
+                return None;
+            }
+            match self.unknown_body_evidence(meta, class, &seg, word_param) {
+                UnknownBodyEvidence::Constructs => states.fill(true),
+                UnknownBodyEvidence::ReturnsWord => {
+                    proof.invalid_return |= states.iter().any(|constructed| !constructed);
+                    proof.proved_return |= states.iter().any(|constructed| *constructed);
+                    states.clear();
+                }
+                UnknownBodyEvidence::ReturnsSomethingElse => {
+                    proof.invalid_return = true;
+                    states.clear();
+                }
+                UnknownBodyEvidence::Terminates => states.clear(),
+                UnknownBodyEvidence::Nothing => {}
+            }
+        }
+        proof.fallthrough_constructed = states;
+        Some(proof)
+    }
+
+    /// Completion follows the actual selected implementation and frozen argv.
+    /// A captured alias operand has no original segment index to return.
+    fn segment_invocation_completion(
+        &self,
+        seg: &SegmentedCommand,
+    ) -> tcl_registry::registry::InvocationCompletion {
+        use crate::registry_invocation::InvocationWordOrigin;
+        use tcl_registry::registry::InvocationCompletion;
+        let context = self.analysis_context();
+        let registry = context.commands();
+        let mut tokens = crate::ir::CommandTokens::from_segmented(
+            &self.cached_source_map(),
+            self.file_lexer_config(),
+            seg,
+        );
+        self.head_identities
+            .source_bindings()
+            .stamp_original_tokens(&mut tokens);
+        let retained = self
+            .resolved_input
+            .as_ref()
+            .or(self.result.resolved_input.as_ref());
+
+        #[cfg(test)]
+        let trace_enabled = std::env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some();
+        #[cfg(test)]
+        let trace = |label: &str, passed: bool| {
+            if trace_enabled {
+                eprintln!("ORIGINAL_COMPLETION_GUARD label={label} passed={passed}");
+            }
+        };
+        let metadata = retained.and_then(|input| {
+            crate::registry_invocation::InvocationMetadataContext::for_source_input(
+                registry,
+                input,
+                self.file_lexer_config(),
+                Some(input.unit_profile()),
+            )
+        });
+        let purpose = metadata.and_then(|metadata| {
+            tokens
+                .source_binding
+                .as_ref()?
+                .original_source_advice_purpose(&tokens, metadata, registry)
+        });
+        let Some(purpose) = purpose else {
+            return InvocationCompletion::Unknown;
+        };
+        let logical_source =
+            purpose == crate::command_binding::OriginalInvocationSourcePurpose::Logical;
+        #[cfg(test)]
+        if trace_enabled {
+            trace("source.logical", logical_source);
+            trace("source.retained", retained.is_some());
+            trace("metadata.request", metadata.is_some());
+            trace("tokens.binding", tokens.source_binding.is_some());
+            let binding = tokens.source_binding.as_ref();
+            trace(
+                "tokens.config",
+                binding.and_then(|binding| binding.original_lexer_config_for_tokens(&tokens))
+                    == Some(self.file_lexer_config()),
+            );
+            trace(
+                "metadata.original",
+                binding.zip(retained).is_some_and(|(binding, input)| {
+                    binding
+                        .original_invocation_metadata_for_input(&tokens, input, registry)
+                        .is_some()
+                }),
+            );
+            let advice =
+                binding.and_then(|binding| binding.declaration_operand_layout_advice(&tokens));
+            trace("declaration.layout", advice.is_some());
+            trace(
+                "declaration.closed",
+                advice.is_some_and(|advice| advice.closed_logical_source_lookup()),
+            );
+        }
+        let selected = if logical_source {
+            let Some(metadata) = metadata else {
+                return InvocationCompletion::Unknown;
+            };
+            let invocation = crate::registry_invocation::original_logical_operation_invocation_with_metadata_context(
+                registry, metadata, &tokens,
+            );
+            #[cfg(test)]
+            trace("operation.selected", invocation.is_some());
+            let Some(invocation) = invocation else {
+                return InvocationCompletion::Unknown;
+            };
+            let realm = tokens.source_binding.as_ref().and_then(|binding| {
+                binding.original_source_realm_for_input(
+                    &tokens,
+                    metadata.source_analysis_input()?,
+                    registry,
+                )
+            });
+            #[cfg(test)]
+            trace("realm.original", realm.is_some());
+            let Some(realm) = realm else {
+                return InvocationCompletion::Unknown;
+            };
+            let completion =
+                invocation.with_metadata_schema(registry, metadata, realm, |selected| {
+                    Some(selected.authored_source_invocation_completion())
+                });
+            #[cfg(test)]
+            trace("completion.schema", completion.is_some());
+            #[cfg(test)]
+            trace(
+                "completion.known",
+                completion.is_some_and(|completion| completion != InvocationCompletion::Unknown),
+            );
+            let Some(completion) = completion else {
+                return InvocationCompletion::Unknown;
+            };
+            (invocation, completion)
+        } else {
+            // Native completion retains its independently proved handler path.
+            let Some(invocation) =
+                crate::registry_invocation::resolved_tokens_invocation_in_context(
+                    &context, &tokens,
+                )
+            else {
+                return InvocationCompletion::Unknown;
+            };
+            let completion = invocation.with_argument_words(|words| {
+                registry.invocation_completion_words(
+                    &invocation.facts.canonical_command,
+                    words.arguments(),
+                    invocation
+                        .dialect
+                        .and_then(tcl_registry::InvocationDialect::authoring_query),
+                )
+            });
+            (invocation, completion)
+        };
+        let (invocation, completion) = selected;
+        match completion {
+            InvocationCompletion::ReturnsResult(Some(index)) => {
+                match index
+                    .checked_add(1)
+                    .and_then(|index| invocation.effective.origins.get(index))
+                {
+                    Some(InvocationWordOrigin::Written(index)) => index
+                        .checked_sub(1)
+                        .map_or(InvocationCompletion::Unknown, |index| {
+                            InvocationCompletion::ReturnsResult(Some(index))
+                        }),
+                    _ => InvocationCompletion::Unknown,
+                }
+            }
+            completion => completion,
+        }
+    }
+
+    fn possible_if_body_spans(
+        &self,
+        seg: &SegmentedCommand,
+        _word_param: &str,
+    ) -> Option<(Vec<Span>, bool)> {
+        let context = self.retained_static_source_context()?;
+        let input = self.result.resolved_input.as_ref()?;
+        if self.segment_invocation_completion(seg)
+            != tcl_registry::registry::InvocationCompletion::FallsThrough
+        {
+            return None;
+        }
+        let words = crate::registry_invocation::source_structure::source_registry_words_at(
+            &self.source,
+            &self.result,
+            seg.argv.first()?.span.start(),
+        )?;
+        if words.origins().len() != seg.argv.len()
+            || words.origins().iter().enumerate().any(|(ordinal, origin)| {
+                *origin != crate::registry_invocation::InvocationWordOrigin::Written(ordinal)
+            })
+        {
+            return None;
+        }
+        let clauses = words.with_source_schema(&context, |schema| {
+            if schema.semantics.lowering_hook != Some(tcl_registry::hooks::LoweringHookId::If) {
+                return None;
+            }
+            let plan = schema.clause_plan()?;
+            if plan.defect.is_some() || plan.clauses.is_empty() {
+                return None;
+            }
+            let clauses = plan
+                .clauses
+                .iter()
+                .map(|clause| {
+                    if clause.timing != tcl_registry::clause_grammar::ClauseTiming::Selected
+                        || clause.operands(tcl_registry::ArgRole::Body).count() != 1
+                        || clause.operands(tcl_registry::ArgRole::Expr).count() > 1
+                    {
+                        return None;
+                    }
+                    let body = clause.operand(tcl_registry::ArgRole::Body)?;
+                    let semantics = if input.has_logical_source_name_context() {
+                        schema.authored_logical_source_control_arm_semantics(body)
+                    } else {
+                        schema.authored_source_control_arm_semantics(body)
+                    };
+                    (semantics == Some(tcl_registry::registry::ControlArmSemantics::Selected))
+                        .then_some(())?;
+                    Some((clause.operand(tcl_registry::ArgRole::Expr), body))
+                })
+                .collect::<Option<Vec<_>>>()?;
+            let (mut scripts, prefixes, mut expressions) =
+                if input.has_logical_source_name_context() {
+                    (
+                        schema.authored_logical_source_script_arguments()?,
+                        schema.authored_logical_source_command_prefix_arguments()?,
+                        schema
+                            .authored_logical_source_expression_arguments()?
+                            .arguments,
+                    )
+                } else {
+                    (
+                        schema.authored_source_script_arguments()?,
+                        schema.authored_source_command_prefix_arguments()?,
+                        schema.authored_source_expression_arguments()?.arguments,
+                    )
+                };
+            let mut expected_scripts = clauses.iter().map(|(_, body)| *body).collect::<Vec<_>>();
+            let mut expected_expressions = clauses
+                .iter()
+                .filter_map(|(condition, _)| *condition)
+                .collect::<Vec<_>>();
+            scripts.sort_unstable();
+            expressions.sort_unstable();
+            expected_scripts.sort_unstable();
+            expected_expressions.sort_unstable();
+            (prefixes.is_empty()
+                && scripts == expected_scripts
+                && expressions == expected_expressions)
+                .then_some(clauses)
+        })??;
+        let bodies = words.source_script_bodies_for_mutation_coverage(&context)?;
+        if bodies.len() != clauses.len() {
+            return None;
+        }
+        let mut branches = Vec::with_capacity(clauses.len());
+        for (condition, ordinal) in clauses {
+            let original = words.original_argument_word(ordinal)?;
+            let mut matches = bodies
+                .iter()
+                .filter(|body| body.original_container() == original);
+            let body = matches.next()?;
+            if matches.next().is_some()
+                || branches.iter().any(|(_, span)| *span == body.extent_span())
+            {
+                return None;
+            }
+            branches.push((condition, body.extent_span()));
+        }
+        for &(condition, body) in &branches {
+            match condition {
+                None => return Some((vec![body], false)),
+                Some(condition) => {
+                    match self.original_condition_boolean(seg, condition.checked_add(1)?) {
+                        Some(true) => return Some((vec![body], false)),
+                        Some(false) => {}
+                        None => {
+                            return Some((
+                                branches.iter().map(|(_, span)| *span).collect(),
+                                branches.iter().all(|(condition, _)| condition.is_some()),
+                            ));
+                        }
+                    }
+                }
+            }
+        }
+        Some((Vec::new(), true))
+    }
+
+    fn original_condition_boolean(&self, seg: &SegmentedCommand, written: usize) -> Option<bool> {
+        let context = self.retained_static_source_context()?;
+        let mut tokens = crate::ir::CommandTokens::from_segmented(
+            &self.cached_source_map(),
+            self.file_lexer_config(),
+            seg,
+        );
+        self.head_identities
+            .source_bindings()
+            .stamp_original_tokens(&mut tokens);
+        let original = crate::registry_invocation::original_expression_operand_advice_for_word(
+            context.commands(),
+            &tokens,
+            written,
+        )?;
+        if !original.lookup_closed
+            || original.expression.evaluation_nodes().iter().any(|node| {
+                !matches!(
+                    node,
+                    crate::expr_ast::ExprNode::Literal { .. }
+                        | crate::expr_ast::ExprNode::Unary { .. }
+                        | crate::expr_ast::ExprNode::Binary { .. }
+                        | crate::expr_ast::ExprNode::Ternary { .. }
+                )
+            })
+        {
+            return None;
+        }
+        let mut policy = crate::tcl_expr_eval::FoldPolicy::from_registry(context.commands())
+            .with_invocation_dialect(original.dialect);
+        policy.word_rules =
+            tcl_syntax::word_rules::WordValueRules::from_config(&self.file_lexer_config());
+        crate::tcl_expr_eval::evaluate_expr_with_constants(
+            &original.expression,
+            &crate::tcl_expr_eval::Env::new(),
+            policy,
+        )
+        .map(|value| value != 0)
+    }
+
+    /// Resolve a method-chain continuation from the current metaclass's
+    /// actual linearised hierarchy. A user-defined next provider is judged
+    /// from its body; only a proved chain end may use the registry-declared
+    /// completion of the class system's built-in fallback.
+    fn next_chain_terminates(
+        &self,
+        meta: &UserMetaclass,
+        class: &ClassDef,
+        args: &[&str],
+        anchor_arg: Option<usize>,
+    ) -> Option<bool> {
+        if class.inheritance_unknown {
+            return None;
+        }
+        let method = meta.grammar.unknown_dispatch_method?;
+        let mut classes = self.result.all_classes.clone();
+        classes.insert(class.qualified_name.clone(), class.clone());
+        let hierarchy = super::class_hierarchy::build_class_hierarchy(classes.clone());
+        if !hierarchy.errors.is_empty() {
+            return None;
+        }
+        if hierarchy.method_target(&class.qualified_name, method)
+            != Some(class.qualified_name.as_str())
+        {
+            return None;
+        }
+        let mro = hierarchy.mro_map.get(&class.qualified_name)?;
+        let current = mro.iter().position(|name| name == &class.qualified_name)?;
+        let scan_from = if let Some(anchor_arg) = anchor_arg {
+            let written = args.get(anchor_arg)?;
+            if crate::naming::is_dynamic_word(written) {
+                return None;
+            }
+            let (namespace, _) = crate::naming::key_holder_and_tail(&class.qualified_name);
+            let qualified = crate::naming::qualify(namespace, written);
+            let anchor = mro.iter().position(|name| name == &qualified)?;
+            (anchor > current).then_some(anchor)?
+        } else {
+            current + 1
+        };
+        for (index, ancestor) in mro.iter().enumerate().skip(scan_from) {
+            if let Some(provider) = classes.get(ancestor) {
+                if let Some(definition) = provider.methods.get(method) {
+                    return self.method_body_terminates(definition);
+                }
+                continue;
+            }
+            let lookup = hierarchy.original_unresolved_relation(ancestor)?;
+            if lookup.policy() == meta.root_policy
+                && lookup
+                    .candidates()?
+                    .iter()
+                    .any(|slot| slot == &meta.root_slot)
+                && !classes.values().any(|class| {
+                    class.source_name.as_ref().is_some_and(|source| {
+                        source.policy() == lookup.policy() && source.slot() == &meta.root_slot
+                    })
+                })
+            {
+                return Self::builtin_next_completion(meta.grammar, method, index, mro.len());
+            }
+            return None;
+        }
+        None
+    }
+
+    fn builtin_next_completion(
+        grammar: &tcl_registry::definer::DefinitionBodyGrammar,
+        method: &str,
+        provider_index: usize,
+        mro_len: usize,
+    ) -> Option<bool> {
+        (provider_index + 1 == mro_len).then_some(grammar.builtin_method_terminates(method))
+    }
+
+    fn method_body_terminates(&self, method: &super::types::MethodDef) -> Option<bool> {
+        self.registry.as_deref()?;
+        for seg in self.direct_statements_in_span(method.body_span)? {
+            match self.segment_invocation_completion(&seg) {
+                tcl_registry::registry::InvocationCompletion::FallsThrough => {
+                    let controls = self.control_arms_for_segment(&seg);
+                    if !controls.complete || !controls.arms.is_empty() {
+                        return None;
+                    }
+                }
+                tcl_registry::registry::InvocationCompletion::ReturnsResult(_) => {
+                    return Some(false);
+                }
+                tcl_registry::registry::InvocationCompletion::Terminates => return Some(true),
+                tcl_registry::registry::InvocationCompletion::Unknown => return None,
+            }
+        }
+        Some(false)
+    }
+
+    /// What one statement of an unknown-dispatch body contributes to
+    /// [`Self::unknown_dispatch_binds_instance`]'s proof.
+    fn unknown_body_evidence(
+        &self,
+        meta: &UserMetaclass,
+        class: &ClassDef,
+        seg: &SegmentedCommand,
+        word_param: &str,
+    ) -> UnknownBodyEvidence {
+        let Some(registry) = self.registry.as_ref() else {
+            return UnknownBodyEvidence::Nothing;
+        };
+        let args: Vec<&str> = seg.args().iter().map(String::as_str).collect();
+        // A compound self receiver is not itself a registry command head, so
+        // classify its registry-described manufacturer method before asking
+        // for ordinary command completion. The full dispatch shape remains
+        // typed by the self-receiver hook and the definition grammar.
+        let head = seg.name();
+        let receiver_is_self = registry
+            .method_dispatch_keyword(head)
+            .is_some_and(|kind| kind == tcl_registry::registry::MethodDispatchKind::SelfDispatch)
+            || bracketed_self_receiver(registry, head);
+        if receiver_is_self
+            && let Some(manufacturer) = args.first().and_then(|kw| meta.grammar.manufacturer(kw))
+        {
+            let Some(name_arg) = manufacturer.names_instance_at else {
+                return UnknownBodyEvidence::Nothing;
+            };
+            let config = self.file_lexer_config();
+            let bindings = self.head_identities.source_bindings();
+            let Some(origin) = bindings.source_origin() else {
+                return UnknownBodyEvidence::Nothing;
+            };
+            let image = origin.source_image();
+            if image.bytes() != self.source.as_bytes()
+                || !bindings.matches_original_source_image(image, config)
+            {
+                return UnknownBodyEvidence::Nothing;
+            }
+            let tokens = crate::ir::CommandTokens::from_segmented(&image.source_map(), config, seg);
+            let original = crate::registry_invocation::original_native_compiler_words(
+                image,
+                tokens.words(),
+                seg.span.start(),
+                config,
+            );
+            return if original
+                .as_ref()
+                .and_then(|words| {
+                    tcl_syntax::word_rules::original_scalar_variable_with_prefix(
+                        words.get(usize::from(name_arg).checked_add(1)?)?,
+                        &[b"", b"::"],
+                    )
+                })
+                .is_some_and(|name| name == word_param.as_bytes())
+            {
+                UnknownBodyEvidence::Constructs
+            } else {
+                UnknownBodyEvidence::Nothing
+            };
+        }
+        let completion = self.segment_invocation_completion(seg);
+        if registry.method_dispatch_keyword(seg.name())
+            == Some(tcl_registry::registry::MethodDispatchKind::NextChain)
+        {
+            if completion != tcl_registry::registry::InvocationCompletion::FallsThrough {
+                return UnknownBodyEvidence::ReturnsSomethingElse;
+            }
+            let anchor_arg = registry
+                .arg_indices_for_role(seg.name(), &args, tcl_registry::ArgRole::Name)
+                .into_iter()
+                .next();
+            return self
+                .next_chain_terminates(meta, class, &args, anchor_arg)
+                .map_or(UnknownBodyEvidence::ReturnsSomethingElse, |terminates| {
+                    if terminates {
+                        UnknownBodyEvidence::Terminates
+                    } else {
+                        UnknownBodyEvidence::ReturnsSomethingElse
+                    }
+                });
+        }
+        match completion {
+            tcl_registry::registry::InvocationCompletion::ReturnsResult(Some(idx)) => {
+                let Some(word) = args.get(idx) else {
+                    return UnknownBodyEvidence::ReturnsSomethingElse;
+                };
+                return if crate::value_shapes::whole_word_scalar_var_name(
+                    word,
+                    self.file_lexer_config(),
+                ) == Some(word_param)
+                {
+                    UnknownBodyEvidence::ReturnsWord
+                } else {
+                    UnknownBodyEvidence::ReturnsSomethingElse
+                };
+            }
+            tcl_registry::registry::InvocationCompletion::ReturnsResult(None)
+            | tcl_registry::registry::InvocationCompletion::Unknown => {
+                return UnknownBodyEvidence::ReturnsSomethingElse;
+            }
+            tcl_registry::registry::InvocationCompletion::Terminates => {
+                return UnknownBodyEvidence::Terminates;
+            }
+            tcl_registry::registry::InvocationCompletion::FallsThrough => {}
+        }
+        UnknownBodyEvidence::Nothing
+    }
+
+    /// Registry-driven recursive script-block collection for broad structural
+    /// scans that do not claim control-flow reachability.
+    fn collect_script_blocks(
+        &self,
+        text: &str,
+        base: u32,
+        depth: u32,
+        out: &mut Vec<Vec<SegmentedCommand>>,
+    ) {
+        if depth >= MAX_UNKNOWN_BODY_DEPTH {
+            return;
+        }
+        let Some(context) = self.retained_static_source_context() else {
+            return;
+        };
+        let registry = context.commands().as_ref();
+        let block = crate::segmenter::segment_commands_with_offset_and_config(
+            text,
+            base,
+            self.file_lexer_config().nested(),
+        );
+        for seg in &block {
+            let args: Vec<&str> = seg.args().iter().map(String::as_str).collect();
+            for idx in tcl_registry::ArgRole::ALL
+                .iter()
+                .filter(|role| role.carries_script())
+                .flat_map(|&role| registry.arg_indices_for_role(seg.name(), &args, role))
+            {
+                let (Some(word), Some(tok)) = (seg.args().get(idx), seg.argv.get(idx + 1)) else {
+                    continue;
+                };
+                // Only a braced word is a script whose text is exactly what
+                // runs; a substituted or quoted one is composed at run time
+                // and re-segmenting its written form would read code Tcl
+                // never evaluates.
+                if tok.kind != TokenType::Str {
+                    continue;
+                }
+                let inner_base = tok
+                    .span
+                    .start()
+                    .saturating_add(u32::from(tok.content_offset));
+                self.collect_script_blocks(word, inner_base, depth + 1, out);
+            }
+        }
+        out.push(block);
+    }
+
+    /// Record the classes a proc manufactures under a **computed name** whose
+    /// value a literal call-site argument proves.
+    ///
+    /// A namespace-normalising factory commonly creates its metaclass as
+    /// `Base create ${namespace}::class {…}` inside a procedure. The name
+    /// word is written dynamically, so the ordinary walk abstains and the
+    /// metaclass never enters the class-factory index. A literal load-time
+    /// call can nevertheless prove that computed absolute name.
+    ///
+    /// This pass follows exactly that: a **literal argument at a load-time
+    /// call site**, through the parameter binding, into the creation call's
+    /// name word. It is the const/literal propagation the `foreach`
+    /// simulation already does for a literal list
+    /// ([`Analyser::simulate_remaining_foreach_iterations`]), with the call
+    /// site rather than the list supplying the values. The ordinary walk's
+    /// registry-classified placeholder supplies the already-parsed class
+    /// structure; this pass changes only its proved identity and re-derives
+    /// identity-dependent factory facts against the completed class lattice.
+    ///
+    /// **What it proves, and what it does not.** Each literal call site is
+    /// independent evidence: `mkdialect ::T::D` really does create
+    /// `::T::D::class`, and a *different* call site passing `$x` neither adds
+    /// to nor subtracts from that. So a mixed set of call sites yields
+    /// exactly the classes the literal ones prove, and nothing for the
+    /// others — no guess anywhere. What is deliberately **not** claimed:
+    ///
+    /// * a call site the pass cannot read as naming this proc (a bare
+    ///   relative spelling resolved through a `namespace path`, a
+    ///   `{*}`-expanded argument list, an `interp alias`) contributes
+    ///   nothing, so the class it would have proved stays unrecorded — the
+    ///   abstaining direction;
+    /// * only **load-time** call sites count. A call written inside another
+    ///   proc's or class's body runs at *call* time, if ever, and the same
+    ///   `offset_is_inside_any_definition_body` rule the load-level
+    ///   destruction filter uses applies here;
+    /// * the resolved name must be **absolute**. A relative one would have to
+    ///   be homed against the call site's namespace, which this pass does not
+    ///   model, so it abstains instead of homing it wrongly;
+    /// * a name word carrying a command substitution, a backslash escape, or
+    ///   an unbound interpolation resolves to nothing;
+    /// * nested control-flow bodies are retained as paths. Typed registry
+    ///   hooks select `if`/`switch` arms and the unconditional parts of
+    ///   `try`; a dynamic condition, handler-only path, loop, or unsupported
+    ///   control shape abstains instead of flattening its body into the
+    ///   unconditional stream.
+    ///
+    /// No command is named here and no framework is special-cased: the
+    /// manufacturer words come from the registry
+    /// ([`tcl_registry::CommandRegistry::is_manufacturer_method`]) and the
+    /// creation's structural template exists only when the ordinary generic
+    /// handler classified it as a class creation.
+    /// Keep a creation call the walk declined, in case a metaclass proved
+    /// after the walk turns it into one.
+    ///
+    /// The gate is "nothing this document knows makes the head's verdict
+    /// final": a registry command has its own classification, and a recorded
+    /// **proc** is a command that is not a class, so neither can become a
+    /// factory later and neither is kept.
+    ///
+    /// A recorded **class** deliberately *is* kept, even though the walk knew
+    /// the name. A class can be recorded without a factory and gain one in the
+    /// post-pass — an `oo::define` on a computed-name metaclass makes exactly
+    /// such a stub, and the join then proves it — so "known" is not the same
+    /// question as "judged".
+    ///
+    /// A call needs at least a manufacturer word and a name word to be a
+    /// creation at all, so shorter ones are never kept. Buffering is bounded:
+    /// past [`MAX_DEFERRED_CLASS_CREATIONS`] a document keeps the behaviour it
+    /// had before this pass existed, which is the abstaining direction.
+    fn defer_class_creation(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[Token],
+        scope_path: &[usize],
+        cmd_tok: Token,
+    ) {
+        // Cheapest questions first: this runs for every command the generic
+        // handler declines, which is most of a document.
+        if args.len() < 2
+            || arg_tokens.len() < 2
+            || self.deferred_class_creations.len() >= MAX_DEFERRED_CLASS_CREATIONS
+            || crate::naming::is_dynamic_word(cmd_name)
+            || self
+                .registry
+                .as_deref()
+                .is_some_and(|registry| registry.get(cmd_name).is_some())
+        {
+            return;
+        }
+        let namespace = self.command_resolution_namespace(scope_path);
+        if crate::naming::bareword_resolution_candidates(&namespace, cmd_name)
+            .into_iter()
+            .any(|candidate| self.result.all_procs.contains_key(&candidate))
+        {
+            return;
+        }
+        self.deferred_class_creations
+            .push(super::types::DeferredClassCreation {
+                cmd_name: cmd_name.to_owned(),
+                args: args.to_vec(),
+                arg_tokens: arg_tokens.to_vec(),
+                scope_path: scope_path.to_vec(),
+                cmd_tok,
+            });
+    }
+
+    /// Form the deferred verdicts, now that
+    /// [`Self::record_literal_parameter_definitions`] has settled the
+    /// parameterised-class join.
+    ///
+    /// Replayed in document order, so a chain settles in one pass: a class
+    /// this replay records is in the index before the next call is retried,
+    /// which is what lets `Meta create ::A::sub` and then `::A::sub create
+    /// ::A::leaf` both land when `Meta` itself was only proved post-pass.
+    ///
+    /// Each call goes back through the *same* handler the walk used, so a
+    /// replayed creation is recorded by one code path with the walk's own
+    /// rules — the manufacturer layout, the injected members, the body walk,
+    /// the W314/W315 emissions. The retry is gated on the head now naming a
+    /// factory, so a head that stayed unknown costs one lookup and records
+    /// nothing.
+    pub(super) fn replay_deferred_class_creations(&mut self) {
+        if self.deferred_class_creations.is_empty() {
+            return;
+        }
+        for deferred in std::mem::take(&mut self.deferred_class_creations) {
+            // What the walk already recorded under the name this call
+            // creates — an `oo::define` stub it made *because* the creation
+            // was invisible. Captured before the replay, which overwrites it.
+            let prior = self.deferred_creation_prior(&deferred);
+            if !self.handle_oo_class_command(
+                &deferred.cmd_name,
+                &deferred.args,
+                &deferred.arg_tokens,
+                &deferred.scope_path,
+                deferred.cmd_tok,
+            ) {
+                continue;
+            }
+            if let Some((qualified, prior)) = prior {
+                self.rejoin_replayed_class(&qualified, &prior, &deferred.scope_path);
+            }
+        }
+        // A replayed call has had its verdict, whichever way it went. The
+        // handler's decline path buffers again — it cannot tell a first
+        // hearing from a second — so the buffer is emptied here rather than
+        // left to be replayed once more against the same evidence.
+        self.deferred_class_creations.clear();
+    }
+
+    /// The class name a deferred call would record, paired with whatever the
+    /// walk already holds under it.
+    ///
+    /// `None` when the head still names no factory, when the layout puts no
+    /// name where this call has a word, or — the ordinary case — when nothing
+    /// was recorded under that name at all.
+    fn deferred_creation_prior(
+        &self,
+        deferred: &super::types::DeferredClassCreation,
+    ) -> Option<(String, ClassDef)> {
+        let resolved =
+            self.resolve_class_creation(&deferred.args, &deferred.arg_tokens, deferred.cmd_tok)?;
+        let raw_name = deferred.args.get(resolved.layout.name_arg)?;
+        let namespace = self.command_resolution_namespace(&deferred.scope_path);
+        let qualified = qualify(&namespace, raw_name);
+        Some((
+            qualified.clone(),
+            self.result.all_classes.get(&qualified)?.clone(),
+        ))
+    }
+
+    /// Fold a record the walk made for a class whose creation call it could
+    /// not see back into the replayed creation.
+    ///
+    /// Because the creation was invisible, an `oo::define` on the same class
+    /// made a *stub* — and that stub is where its members went. The replay
+    /// then records the creation under the same name, so without this the
+    /// members the walk did record would be lost: strictly worse than before
+    /// the replay existed.
+    ///
+    /// The union is the one [`join_parameterised_class_observations`] already
+    /// owns, used exactly as the parameterised-class post-pass uses it, so a
+    /// stub joins a creation by one rule wherever the two meet. Two
+    /// observations that contradict each other publish the abstaining record
+    /// the house rule calls for — no factory, inheritance unknown — while
+    /// still keeping both sides' declarations, which are declarations of this
+    /// class either way.
+    fn rejoin_replayed_class(&mut self, qualified: &str, prior: &ClassDef, scope_path: &[usize]) {
+        let Some(observed) = self.result.all_classes.get(qualified) else {
+            return;
+        };
+        let joined = join_parameterised_class_observations(prior, observed).unwrap_or_else(|| {
+            let mut abstaining = observed.clone();
+            abstaining.factory = None;
+            abstaining.inheritance_unknown = true;
+            abstaining.absorb_declarations(prior);
+            abstaining
+        });
+        let simple = joined.name.clone();
+        self.result
+            .all_classes
+            .insert(qualified.to_owned(), joined.clone());
+        if let Some(scope) = super::scope::scope_at_mut(&mut self.result.global_scope, scope_path) {
+            scope.classes.insert(simple, joined);
+        }
+    }
+
+    pub(super) fn record_literal_parameter_definitions(&mut self) {
+        self.record_parameterised_class_definitions();
+        // The join has settled, so the heads the walk could not judge can be
+        // judged now. Paired here rather than at each of the
+        // four entry points that run this tail: the order matters — a
+        // creation call can only be classified after the metaclass it names
+        // is proved — and pairing them is what makes that order impossible to
+        // get wrong. It also guarantees the buffer is drained on every path,
+        // so a reused analyser never carries one document's deferrals into
+        // the next.
+        self.replay_deferred_class_creations();
+    }
+
+    fn record_parameterised_class_definitions(&mut self) {
+        let Some(registry) = self.registry.as_deref() else {
+            return;
+        };
+        let candidates = self.parameterised_creation_sites(registry);
+        if candidates.is_empty() {
+            return;
+        }
+        let calls = self.load_time_call_arguments();
+        for candidate in candidates {
+            let Some(values) = calls.get(&candidate.proc_qname) else {
+                continue;
+            };
+            // The ordinary source walk has already parsed this creation body
+            // under its unresolved written name.  Re-dispatching the same
+            // source span can legitimately be deduplicated by the body
+            // walker, so retain that structural record and transplant it
+            // onto every name the call-site provenance proves.
+            let Some(template) = self.unresolved_class(&candidate).cloned() else {
+                continue;
+            };
+            let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
+            for call in values {
+                if !self.load_time_call_is_reachable(call) {
+                    continue;
+                }
+                let Some(resolved) =
+                    self.resolve_parameterised_creation_name(&candidate, &call.args)
+                else {
+                    continue;
+                };
+                // Only an absolute name is homed without a namespace model —
+                // see the doc comment.
+                if !resolved.starts_with("::") || !seen.insert(resolved.clone()) {
+                    continue;
+                }
+                self.materialise_parameterised_class(&resolved, &template);
+            }
+            if !seen.is_empty() {
+                self.retract_unresolved_class(&candidate);
+            }
+        }
+    }
+
+    fn load_time_call_is_reachable(&mut self, call: &LoadTimeCall) -> bool {
+        let mut body_span = Span::new(0, u32::try_from(self.source.len()).unwrap_or(u32::MAX));
+        let env = std::collections::HashMap::new();
+        for arm in &call.control_path {
+            if !self.static_prefix_falls_through(body_span, arm.controller.span.start(), 0)
+                || self.control_body_is_selected("", arm, &env, 0) != Some(true)
+            {
+                return false;
+            }
+            body_span = arm.body_span;
+        }
+        self.static_prefix_falls_through(body_span, call.call_off, 0)
+    }
+
+    /// Whether the statements of `body_span` before `stop_off` all fall
+    /// through, so control really reaches `stop_off`.
+    ///
+    /// `depth` is the nesting of *control bodies* this walk has descended
+    /// into — [`Self::static_statement_falls_through`] re-enters here for each
+    /// arm whose body may run, so nested control flow recurses one native
+    /// frame per level and has to be bounded like every other recursive walk
+    /// in this file ([`MAX_UNKNOWN_BODY_DEPTH`]). Past
+    /// the cap the walk abstains, which is the direction it already takes for
+    /// anything it cannot read. Entry points that are not themselves inside a
+    /// body pass `0`.
+    fn static_prefix_falls_through(&mut self, body_span: Span, stop_off: u32, depth: u32) -> bool {
+        if self.retained_static_source_context().is_none() {
+            return false;
+        }
+        let Some(statements) = self.direct_statements_in_span(body_span) else {
+            return false;
+        };
+        for seg in statements
+            .into_iter()
+            .take_while(|seg| seg.span.start() < stop_off)
+        {
+            if !self.static_statement_falls_through(&seg, depth) {
+                return false;
+            }
+        }
+        true
+    }
+
+    /// Prove that a statically declared procedure call completes normally.
+    /// `return` is normal completion at the caller, while registry-declared
+    /// non-normal completions and unresolved statements make the proof
+    /// abstain. Calls through a recorded class-factory oracle are ordinary
+    /// fallthrough statements when their exported manufacturer layout is
+    /// valid; no factory command spelling is known here.
+    fn static_user_proc_call_falls_through(
+        &mut self,
+        caller: &str,
+        seg: &SegmentedCommand,
+        depth: u32,
+        stack: &mut Vec<String>,
+    ) -> Option<bool> {
+        if depth >= MAX_UNKNOWN_BODY_DEPTH {
+            return None;
+        }
+        let proc_def = if self.result.allows_lexical_declaration_advice() {
+            let qname = self.resolve_static_proc_name(caller, seg.name())?;
+            self.result.all_procs.get(&qname)?.clone()
+        } else {
+            self.original_static_procedure_at(seg)?
+        };
+        let qname = proc_def.qualified_name.clone();
+        if stack.iter().any(|active| active == &qname) {
+            return None;
+        }
+        if proc_def.params_computed {
+            return None;
+        }
+        let actuals: Vec<Option<String>> = seg.args().iter().cloned().map(Some).collect();
+        bind_proc_formals(&proc_def.params, &actuals, self.word_rules())?;
+        stack.push(qname.clone());
+        let result = self.static_proc_body_falls_through(&qname, proc_def.body_span, depth, stack);
+        stack.pop();
+        result
+    }
+
+    fn static_proc_body_falls_through(
+        &mut self,
+        qname: &str,
+        body_span: Span,
+        depth: u32,
+        stack: &mut Vec<String>,
+    ) -> Option<bool> {
+        let context = self.retained_static_source_context()?;
+        let registry = context.commands();
+        for seg in self.direct_statements_in_span(body_span)? {
+            match self.segment_invocation_completion(&seg) {
+                tcl_registry::registry::InvocationCompletion::ReturnsResult(_) => {
+                    return Some(true);
+                }
+                tcl_registry::registry::InvocationCompletion::Terminates => return Some(false),
+                tcl_registry::registry::InvocationCompletion::Unknown => {
+                    if registry.get(seg.name()).is_some() {
+                        return None;
+                    }
+                    if self.known_factory_invocation_falls_through(qname, &seg) {
+                        continue;
+                    }
+                    if self.static_user_proc_call_falls_through(qname, &seg, depth + 1, stack)? {
+                        continue;
+                    }
+                    return Some(false);
+                }
+                tcl_registry::registry::InvocationCompletion::FallsThrough => {
+                    if !self.static_statement_falls_through(&seg, depth + 1) {
+                        return None;
+                    }
+                }
+            }
+        }
+        Some(true)
+    }
+
+    fn known_factory_invocation_falls_through(&self, caller: &str, seg: &SegmentedCommand) -> bool {
+        if crate::naming::is_dynamic_word(seg.name()) {
+            return false;
+        }
+        let (namespace, _) = crate::naming::key_holder_and_tail(caller);
+        let candidates = crate::naming::bareword_resolution_candidates(namespace, seg.name());
+        let Some(factory) =
+            self.static_summary_factory_for_candidates(&candidates, seg.arg_tokens())
+        else {
+            return false;
+        };
+        let Some(method) = seg.args().first() else {
+            return false;
+        };
+        if !factory.exported_manufacturers.contains(method) {
+            return false;
+        }
+        let Some(grammar) = self.definition_grammar(&factory.root_metaclass) else {
+            return false;
+        };
+        let Some(manufacturer) = grammar.manufacturer(method) else {
+            return false;
+        };
+        manufacturer_layout(&factory, manufacturer, seg.args(), None)
+            .is_some_and(|layout| layout.name_arg < seg.args().len())
+    }
+
+    fn static_statement_falls_through(&mut self, seg: &SegmentedCommand, depth: u32) -> bool {
+        if depth >= MAX_UNKNOWN_BODY_DEPTH {
+            return false;
+        }
+        let Some(context) = self.retained_static_source_context() else {
+            return false;
+        };
+        let registry = context.commands().as_ref();
+        let args: Vec<&str> = seg.args().iter().map(String::as_str).collect();
+        match self.segment_invocation_completion(seg) {
+            tcl_registry::registry::InvocationCompletion::FallsThrough => {}
+            tcl_registry::registry::InvocationCompletion::Unknown
+                if registry.get(seg.name()).is_none() =>
+            {
+                if self.known_factory_invocation_falls_through("", seg) {
+                    return true;
+                }
+                return self
+                    .static_user_proc_call_falls_through("", seg, depth + 1, &mut Vec::new())
+                    .unwrap_or(false);
+            }
+            _ => return false,
+        }
+        let is_control = registry
+            .invocation_traits(seg.name(), &args, Some(context.context().authoring_query()))
+            .contains(tcl_registry::Traits::CONTROL_FLOW);
+        if is_control
+            && registry.control_invocation_valid(
+                seg.name(),
+                &args,
+                Some(context.context().authoring_query()),
+            ) != Some(true)
+        {
+            return false;
+        }
+        let controls = self.control_arms_for_segment(seg);
+        if !controls.complete {
+            return false;
+        }
+        let arms = controls.arms;
+        if arms.is_empty() {
+            return true;
+        }
+
+        let mut selected = Vec::new();
+        let mut saw_typed_arm = false;
+        let mut saw_propagating_arm = false;
+        for arm in arms {
+            let Some(semantics) = self.control_arm_semantics_for(&arm) else {
+                if is_control {
+                    return false;
+                }
+                // Untyped is not the same as irrelevant. The
+                // registry types the arms whose *selection* it models; a body
+                // it does not type is still a body, and unless the command
+                // declared that it stores one (`DEFERS_BODY`), it runs it
+                // here — so `uplevel 1 {error stop}`, `eval {error stop}` and
+                // `oo::define C {error stop}` cannot be walked past on the
+                // strength of having no descriptor.
+                let body_runs_now = self
+                    .control_arm_body_index(&arm)
+                    .is_none_or(|index| self.body_runs_now(&arm.controller, index));
+                if body_runs_now && self.untyped_body_provably_blocks(arm.body_span, depth + 1) {
+                    return false;
+                }
+                continue;
+            };
+            saw_typed_arm = true;
+            match semantics {
+                tcl_registry::registry::ControlArmSemantics::Always
+                | tcl_registry::registry::ControlArmSemantics::FrameBoundary => {
+                    saw_propagating_arm = true;
+                    if !self.static_prefix_falls_through(
+                        arm.body_span,
+                        arm.body_span.end(),
+                        depth + 1,
+                    ) {
+                        return false;
+                    }
+                }
+                tcl_registry::registry::ControlArmSemantics::Selected => selected.push(arm),
+                tcl_registry::registry::ControlArmSemantics::CompletionBoundary => {}
+                // A collection loop runs its body a finite number of times, so
+                // control reaches the next statement exactly when the body
+                // falls through — the same question, and the same answer, as
+                // an `if` arm whose selection is unknown (below). Nothing is
+                // *read* out of the loop: it stays unselectable, and the
+                // provenance walk still clears every fact the iteration
+                // variables or the body could write.
+                tcl_registry::registry::ControlArmSemantics::BoundedIteration => {
+                    if !self.static_prefix_falls_through(
+                        arm.body_span,
+                        arm.body_span.end(),
+                        depth + 1,
+                    ) {
+                        return false;
+                    }
+                }
+                // A condition loop's trip count is not bounded by anything
+                // readable here — it may run forever, so no claim is made
+                // about the statement after it.
+                tcl_registry::registry::ControlArmSemantics::Uncertain => return false,
+            }
+        }
+        if !saw_typed_arm || selected.is_empty() {
+            return true;
+        }
+        if saw_propagating_arm {
+            return false;
+        }
+
+        self.selected_arms_fall_through(&selected, depth)
+    }
+
+    /// The `Selected`-arm half of [`Self::static_statement_falls_through`]:
+    /// at most one arm of an `if` / `switch` runs, so control reaches the
+    /// next statement when *that* arm does. An arm whose selection cannot be
+    /// decided is treated as one that may run, which is the same requirement
+    /// a [`ControlArmSemantics::BoundedIteration`] body carries.
+    ///
+    /// [`ControlArmSemantics::BoundedIteration`]: tcl_registry::registry::ControlArmSemantics::BoundedIteration
+    fn selected_arms_fall_through(&mut self, selected: &[ControlArm], depth: u32) -> bool {
+        let env = std::collections::HashMap::new();
+        let mut selected_body = None;
+        let mut selection_unknown = false;
+        for arm in selected {
+            match self.control_body_is_selected("", arm, &env, depth + 1) {
+                Some(true) if selected_body.is_none() => selected_body = Some(arm.body_span),
+                Some(true) => return false,
+                Some(false) => {}
+                None => {
+                    selection_unknown = true;
+                    if !self.static_prefix_falls_through(
+                        arm.body_span,
+                        arm.body_span.end(),
+                        depth + 1,
+                    ) {
+                        return false;
+                    }
+                }
+            }
+        }
+        if selection_unknown {
+            return true;
+        }
+        selected_body
+            .is_none_or(|span| self.static_prefix_falls_through(span, span.end(), depth + 1))
+    }
+
+    /// The placeholder record made by the ordinary walk for `candidate`.
+    ///
+    /// A dynamic written name is intentionally retained until at least one
+    /// load-time call proves a real name.  Besides making the earlier walk
+    /// visible to this pass, the record is the authoritative parse of the
+    /// creation body's members: a second walk over the identical source span
+    /// may be suppressed by definition-body deduplication.
+    fn unresolved_class(&self, candidate: &ParameterisedCreation) -> Option<&ClassDef> {
+        let unresolved = Self::unresolved_class_name(candidate)?;
+        self.result.all_classes.get(&unresolved)
+    }
+
+    /// Move the already-parsed structure of a computed-name creation onto a
+    /// name proved by a literal call site, then derive identity-dependent
+    /// facts against the now-complete class lattice.
+    fn materialise_parameterised_class(&mut self, resolved: &str, template: &ClassDef) {
+        let mut observed = template.clone();
+        crate::naming::key_tail(resolved).clone_into(&mut observed.name);
+        resolved.clone_into(&mut observed.qualified_name);
+        let (mut class, compatible) = if let Some(existing) = self.result.all_classes.get(resolved)
+        {
+            join_parameterised_class_observations(existing, &observed).map_or_else(
+                || {
+                    let mut abstaining = existing.clone();
+                    abstaining.factory = None;
+                    abstaining.inheritance_unknown = true;
+                    (abstaining, false)
+                },
+                |joined| (joined, true),
+            )
+        } else {
+            (observed, true)
+        };
+        if compatible {
+            class.factory = self.class_factory_of(&class);
+        }
+
+        let simple = class.name.clone();
+        if !self
+            .result
+            .class_body_spans
+            .iter()
+            .any(|(qname, span)| qname == resolved && *span == class.body_span)
+        {
+            self.result
+                .class_body_spans
+                .push((resolved.to_owned(), class.body_span));
+        }
+        self.result
+            .all_classes
+            .insert(resolved.to_owned(), class.clone());
+        self.result.global_scope.classes.insert(simple, class);
+    }
+
+    /// Resolve one computed creation name by executing the small, proven
+    /// constant/provenance slice that dominates it inside its procedure.
+    ///
+    /// Direct parameter interpolation is the zero-statement case.  Local
+    /// assignments may additionally call a user procedure when that call can
+    /// be evaluated from registry `const_fold` callbacks and literal inputs.
+    /// This also carries a local assigned by a namespace-normalising helper:
+    /// its false branch is selected through one registry fold and its final
+    /// replacement result through another registry fold.
+    /// A renamed, aliased, unknown, effectful, or non-constant call yields no
+    /// value and the analysis abstains.
+    fn resolve_parameterised_creation_name(
+        &mut self,
+        candidate: &ParameterisedCreation,
+        binding: &[String],
+    ) -> Option<String> {
+        let actuals: Vec<Option<String>> = binding.iter().cloned().map(Some).collect();
+        let mut env: std::collections::HashMap<String, String> =
+            bind_proc_formals(&candidate.params, &actuals, self.word_rules())?
+                .into_iter()
+                .filter_map(|(name, value)| value.map(|value| (name, value)))
+                .filter(|(_, value)| !tcl_syntax::naming::is_dynamic_word(value))
+                .collect();
+        let proc_def = self.result.all_procs.get(&candidate.proc_qname)?.clone();
+        let mut body_span = proc_def.body_span;
+        for arm in &candidate.control_path {
+            self.apply_static_path_prefix(
+                &candidate.proc_qname,
+                body_span,
+                arm.controller.span.start(),
+                &mut env,
+            )?;
+            if !self.control_body_is_selected(&candidate.proc_qname, arm, &env, 0)? {
+                return None;
+            }
+            body_span = arm.body_span;
+        }
+        self.apply_static_path_prefix(
+            &candidate.proc_qname,
+            body_span,
+            candidate.call_off,
+            &mut env,
+        )?;
+        self.static_word_value(
+            &candidate.name_word,
+            &candidate.proc_qname,
+            &env,
+            &mut Vec::new(),
+            0,
+        )
+    }
+
+    /// Execute the direct, dominating prefix of one selected script body.
+    /// A Tcl result completion ends the path; statements after it cannot
+    /// contribute provenance to a later creation.
+    fn apply_static_path_prefix(
+        &mut self,
+        proc_qname: &str,
+        body_span: Span,
+        stop_off: u32,
+        env: &mut std::collections::HashMap<String, String>,
+    ) -> Option<()> {
+        for seg in self.direct_statements_in_span(body_span)? {
+            if seg.span.start() >= stop_off {
+                break;
+            }
+            if !self.static_statement_falls_through(&seg, 0) {
+                return None;
+            }
+            self.apply_static_provenance_statement(proc_qname, &seg, env, 0)?;
+        }
+        Some(())
+    }
+
+    /// Whether the typed control-flow command selects `arm` for the current
+    /// literal environment.  Unknown conditions and unsupported control
+    /// shapes abstain; no nested body is flattened into an unconditional
+    /// statement stream.
+    fn control_body_is_selected(
+        &mut self,
+        proc_qname: &str,
+        arm: &ControlArm,
+        env: &std::collections::HashMap<String, String>,
+        depth: u32,
+    ) -> Option<bool> {
+        let context = self.retained_static_source_context()?;
+        let words = crate::registry_invocation::source_structure::source_registry_words(
+            &self.source,
+            &self.result,
+            &arm.controller,
+        )?;
+        match self.control_arm_semantics_for(arm)? {
+            tcl_registry::registry::ControlArmSemantics::Always => return Some(true),
+            tcl_registry::registry::ControlArmSemantics::Selected => {}
+            // A bounded collection loop is no more *selectable* than an
+            // unbounded one — which iteration a body run belongs to, or
+            // whether the collection was empty, is not decidable here.
+            tcl_registry::registry::ControlArmSemantics::FrameBoundary
+            | tcl_registry::registry::ControlArmSemantics::BoundedIteration
+            | tcl_registry::registry::ControlArmSemantics::Uncertain => return None,
+            tcl_registry::registry::ControlArmSemantics::CompletionBoundary => {
+                return Some(true);
+            }
+        }
+        let hook =
+            words.with_source_schema(&context, |schema| schema.semantics.lowering_hook)??;
+        match hook {
+            tcl_registry::hooks::LoweringHookId::If => {
+                self.if_body_is_selected(proc_qname, arm, env, depth)
+            }
+            tcl_registry::hooks::LoweringHookId::Switch => {
+                self.switch_body_is_selected(proc_qname, arm, env, depth)
+            }
+            _ => None,
+        }
+    }
+
+    /// Resolve typed semantics for either a direct body argument or one body
+    /// nested inside a registry-described case-list argument. The latter's
+    /// token span belongs to a list element, not the controller argv, so its
+    /// owning clause-list position must be recovered through `CaseListSpec`.
+    fn control_arm_semantics_for(
+        &self,
+        arm: &ControlArm,
+    ) -> Option<tcl_registry::registry::ControlArmSemantics> {
+        let input = self.result.resolved_input.as_ref()?;
+        let context = self.retained_static_source_context()?;
+        let words = crate::registry_invocation::source_structure::source_registry_words(
+            &self.source,
+            &self.result,
+            &arm.controller,
+        )?;
+        let ordinal = self.control_arm_body_index(arm)?;
+        words.with_source_schema(&context, |schema| {
+            if input.has_logical_source_name_context() {
+                schema.authored_logical_source_control_arm_semantics(ordinal)
+            } else {
+                schema.authored_source_control_arm_semantics(ordinal)
+            }
+        })?
+    }
+
+    /// Recover the owning argv position for a direct body, a case-list body,
+    /// or a body nested inside a lambda literal.
+    ///
+    /// Timing and control-arm semantics are both per script position, so they
+    /// must share this mapping rather than falling back to an invocation-wide
+    /// trait when a command mixes immediate and deferred scripts.
+    fn control_arm_body_index(&self, arm: &ControlArm) -> Option<usize> {
+        let context = self.retained_static_source_context()?;
+        let config = self.file_lexer_config();
+        let tokens = crate::ir::CommandTokens::from_segmented(
+            &self.cached_source_map(),
+            config,
+            &arm.controller,
+        );
+        let bindings = self.head_identities.source_bindings();
+        let origin = bindings.source_origin()?;
+        let original = origin.original_lexical_command(
+            tokens.words(),
+            arm.controller.argv.first()?.span.start(),
+            config,
+        )?;
+        let actual = original.command();
+        if actual.span != arm.controller.span
+            || actual.argv != arm.controller.argv
+            || actual.texts != arm.controller.texts
+            || actual.word_fragments != arm.controller.word_fragments
+            || actual.single_token_word != arm.controller.single_token_word
+            || actual.expand_word != arm.controller.expand_word
+            || actual.is_partial != arm.controller.is_partial
+            || actual.partial_delimiter != arm.controller.partial_delimiter
+        {
+            return None;
+        }
+        let words = crate::registry_invocation::source_structure::source_registry_words(
+            &self.source,
+            &self.result,
+            &arm.controller,
+        )?;
+        if words.origins().len() != arm.controller.argv.len()
+            || words.origins().iter().enumerate().any(|(ordinal, origin)| {
+                *origin != crate::registry_invocation::InvocationWordOrigin::Written(ordinal)
+            })
+        {
+            return None;
+        }
+        let mut bodies = words
+            .source_script_bodies_for(
+                &context,
+                crate::registry_invocation::OriginalSourceScriptPurpose::PotentialEvaluation,
+            )
+            .into_iter()
+            .chain(words.original_lambda_body_geometry(&context))
+            .filter(|body| body.extent_span() == arm.body_span);
+        let body = bodies.next()?;
+        if bodies.next().is_some() {
+            return None;
+        }
+        let mut ordinals = words
+            .operands()
+            .iter()
+            .enumerate()
+            .filter_map(|(ordinal, operand)| {
+                (operand.as_ref()?.word()? == body.original_container()).then_some(ordinal)
+            });
+        let ordinal = ordinals.next()?;
+        ordinals.next().is_none().then_some(ordinal)
+    }
+
+    /// Whether a body argument this walk could **not** read makes the arm set
+    /// incomplete.
+    ///
+    /// Two registry facts, in order, and the walk abstains unless both say the
+    /// body is irrelevant to it:
+    ///
+    /// 1. **Typed control semantics.** A body position the registry types
+    ///    carries a fact the consumers below consume directly — whether it is
+    ///    one arm of a selection (`if {$c} $script`), a frame boundary that
+    ///    runs now (`namespace eval $ns $script`), a bounded iteration. An
+    ///    unreadable body there is a missing answer, so the arm set really is
+    ///    incomplete.
+    /// 2. **[`ScriptTiming`].** With no typed semantics the question left is
+    ///    whether this exact body argument runs as part of *this* invocation,
+    ///    and that is registry data, never an inference. `proc ${ns}::define
+    ///    {a} [string map … {…}]` stores its body — nothing in it executes
+    ///    here, so an unreadable body word costs the walk nothing about the
+    ///    declaration, which falls through like any other command. Legacy
+    ///    positional bodies without an exact timing descriptor fall back to
+    ///    the command-level [`Traits::DEFERS_BODY`] fact.
+    ///
+    /// The default is deliberately the abstaining one: a command that has not
+    /// declared deferred timing is assumed to run its body now. The first
+    /// version of this helper read the *absence* of control-arm semantics as
+    /// proof of dormancy, which is not what that absence means —
+    /// `uplevel 1 $script` and `oo::define $c $script` have no control-arm
+    /// semantics either, and both execute their argument immediately and can
+    /// raise or return before the enclosing walk reaches the statement it
+    /// cares about. That let the computed-metaclass walk materialise a class
+    /// created after `uplevel 1 $script`.
+    /// `BodyKind` cannot answer it either: `proc` and `uplevel` are both
+    /// `Structural`, because that descriptor answers *which frame*, not
+    /// *when*.
+    ///
+    /// `body_index` may name an [`ArgRole::LambdaLiteral`] word as well as an
+    /// [`ArgRole::Body`] one — an unreadable lambda is unreadable script on
+    /// the same terms, and `apply` types that position, so it
+    /// stops at the first check.
+    ///
+    /// [`ArgRole::Body`]: tcl_registry::ArgRole::Body
+    /// [`ArgRole::LambdaLiteral`]: tcl_registry::ArgRole::LambdaLiteral
+    /// [`ScriptTiming`]: tcl_registry::ScriptTiming
+    /// [`Traits::DEFERS_BODY`]: tcl_registry::Traits::DEFERS_BODY
+    fn unreadable_body_is_material(&self, seg: &SegmentedCommand, body_index: usize) -> bool {
+        let Some(context) = self.retained_static_source_context() else {
+            return true;
+        };
+        let registry = context.commands().as_ref();
+        let args: Vec<&str> = seg.args().iter().map(String::as_str).collect();
+        if registry
+            .control_arm_semantics(seg.name(), &args, body_index)
+            .is_some()
+        {
+            return true;
+        }
+        self.body_runs_now(seg, body_index)
+    }
+
+    /// Whether `seg` runs its body argument as part of **this** invocation.
+    ///
+    /// The one place that answers it, for both the unreadable-body question
+    /// above and the untyped-arm question in
+    /// [`Self::static_statement_falls_through`] — the two were
+    /// the same question asked in two places, and only one of them was asking
+    /// it.
+    ///
+    /// Registry data, never an inference: an option or argument can declare
+    /// its exact [`ScriptTiming`], so a command with both immediate and stored
+    /// scripts does not force one answer onto both. Legacy positional bodies
+    /// fall back to command-level [`Traits::DEFERS_BODY`]. Everything else is
+    /// assumed to run now. That default is the abstaining direction — a body
+    /// that runs can raise or return before the walk reaches the statement it
+    /// cares about, while a body that is merely stored cannot.
+    ///
+    /// [`Traits::DEFERS_BODY`]: tcl_registry::Traits::DEFERS_BODY
+    /// [`ScriptTiming`]: tcl_registry::ScriptTiming
+    fn body_runs_now(&self, seg: &SegmentedCommand, body_index: usize) -> bool {
+        let Some(context) = self.retained_static_source_context() else {
+            return true;
+        };
+        let registry = context.commands().as_ref();
+        let args: Vec<&str> = seg.args().iter().map(String::as_str).collect();
+        registry
+            .script_timing(
+                seg.name(),
+                &args,
+                body_index,
+                Some(context.context().authoring_query()),
+            )
+            .is_none_or(|timing| timing == tcl_registry::ScriptTiming::SameInvocation)
+    }
+
+    /// Whether a body the registry gives **no** control-arm semantics for is
+    /// proved to stop control before its own end.
+    ///
+    /// The typed arms above ask the opposite question — *prove* the body falls
+    /// through, or abstain — because a descriptor says what the body is for. An
+    /// untyped body carries no such promise, and asking it to prove
+    /// fall-through would abstain on every script written in a vocabulary this
+    /// walk does not model. A class definition script is the case that settles
+    /// it: `oo::class create C { superclass D }` is an untyped body running
+    /// now, and `superclass` is a definition command, not a command — nothing
+    /// here can type it, so demanding a proof of fall-through would abstain on
+    /// the one construct the computed-metaclass walk exists to read (the tcllib
+    /// clay corpus is built out of exactly these).
+    ///
+    /// So the burden runs the other way: the enclosing statement is walked past
+    /// unless *this* body proves it blocks. Both proofs are registry-owned and
+    /// oracle-checked against tclsh 8.6.16 and 9.0.4, which agree exactly:
+    ///
+    /// * [`InvocationCompletion::Terminates`] — `uplevel 1 {error stop}`,
+    ///   `eval {error stop}`, `oo::define C {error stop}`: the statement after
+    ///   them never runs;
+    /// * [`InvocationCompletion::ReturnsResult`] — `oo::define C {return}`,
+    ///   `eval {return}`, `uplevel 1 {return}`: likewise, the completion
+    ///   propagates out of the body rather than ending at it.
+    ///
+    /// A statement whose completion is [`InvocationCompletion::Unknown`] ends
+    /// the scan with no proof, which leaves the enclosing walk exactly where it
+    /// was before this rule existed. That is the honest limit of an untyped
+    /// body, and it is why nested control inside one (`oo::define C {if {$x}
+    /// {error stop} else {error stop}}`) is not detected: the `if` itself
+    /// completes normally as far as the registry is concerned, and reading its
+    /// arms requires control-flow facts unavailable to this lexical walk.
+    ///
+    /// [`InvocationCompletion::Terminates`]: tcl_registry::registry::InvocationCompletion::Terminates
+    /// [`InvocationCompletion::ReturnsResult`]: tcl_registry::registry::InvocationCompletion::ReturnsResult
+    /// [`InvocationCompletion::Unknown`]: tcl_registry::registry::InvocationCompletion::Unknown
+    fn untyped_body_provably_blocks(&mut self, body_span: Span, depth: u32) -> bool {
+        if depth >= MAX_UNKNOWN_BODY_DEPTH || self.retained_static_source_context().is_none() {
+            return false;
+        }
+        let Some(statements) = self.direct_statements_in_span(body_span) else {
+            return false;
+        };
+        for seg in statements {
+            if self.static_statement_falls_through(&seg, depth) {
+                continue;
+            }
+            return matches!(
+                self.segment_invocation_completion(&seg),
+                tcl_registry::registry::InvocationCompletion::Terminates
+                    | tcl_registry::registry::InvocationCompletion::ReturnsResult(_)
+            );
+        }
+        false
+    }
+
+    fn control_arms_for_segment(&self, seg: &SegmentedCommand) -> ControlArms {
+        let Some(context) = self.retained_static_source_context() else {
+            return ControlArms::default();
+        };
+        let registry = context.commands().as_ref();
+        let args: Vec<&str> = seg.args().iter().map(String::as_str).collect();
+        let mut indices =
+            registry.arg_indices_for_role(seg.name(), &args, tcl_registry::ArgRole::Body);
+        indices.sort_unstable();
+        indices.dedup();
+        let case_call = registry
+            .case_invocation(seg.name(), &args, Some(context.context().authoring_query()))
+            .and_then(|(_, invocation)| invocation.clause_list_index);
+        let mut arms = Vec::new();
+        let mut complete = true;
+        for idx in indices {
+            let (Some(word), Some(token)) =
+                (seg.args().get(idx), seg.arg_tokens().get(idx).copied())
+            else {
+                complete &= !self.unreadable_body_is_material(seg, idx);
+                continue;
+            };
+            if case_call == Some(idx) {
+                let Some((case, _)) = registry.case_invocation(
+                    seg.name(),
+                    &args,
+                    Some(context.context().authoring_query()),
+                ) else {
+                    complete = false;
+                    continue;
+                };
+                for (_, (body_word, body_token)) in crate::segmenter::flatten_case_list_clauses(
+                    &self.source,
+                    word,
+                    token,
+                    &case,
+                    self.lexer_config(),
+                ) {
+                    if body_token.kind == TokenType::Str
+                        || (body_token.kind == TokenType::Esc
+                            && !tcl_syntax::naming::is_dynamic_word(&body_word)
+                            && !body_word.contains('\\'))
+                    {
+                        arms.push(ControlArm {
+                            controller: seg.clone(),
+                            body_span: body_token.span,
+                        });
+                    } else {
+                        complete = false;
+                    }
+                }
+            } else if token.kind == TokenType::Str
+                || (token.kind == TokenType::Esc
+                    && !tcl_syntax::naming::is_dynamic_word(word)
+                    && !word.contains('\\'))
+            {
+                arms.push(ControlArm {
+                    controller: seg.clone(),
+                    body_span: token.span,
+                });
+            } else {
+                complete &= !self.unreadable_body_is_material(seg, idx);
+            }
+        }
+        self.collect_lambda_arms(seg, &args, &mut arms, &mut complete);
+        ControlArms { arms, complete }
+    }
+
+    /// The [`ArgRole::LambdaLiteral`] half of [`Self::control_arms_for_segment`].
+    ///
+    /// A lambda argument carries a script that runs *now* — `apply $lambda`
+    /// can raise before control ever reaches the next statement — but it is
+    /// not an [`ArgRole::Body`], so the loop above never sees it. The walk
+    /// therefore neither read such a lambda nor abstained on it, and claimed
+    /// past an aborting one: the same soundness class as the `uplevel` shape
+    /// above, reached through the other role.
+    ///
+    /// The argument is one level removed from a body — a `{argList body ?ns?}`
+    /// **list** — so a readable one contributes its *body element*'s span,
+    /// split by the shared [`crate::lambda_literal`] owner rather than
+    /// re-segmented whole. A lambda whose
+    /// body cannot be located at exact source offsets — a computed word, a
+    /// malformed list, a body element that is not `{braced}` and so has its
+    /// escapes collapsed before `apply` sees it — is unreadable, and falls to
+    /// the same materiality question a `Body` word does.
+    ///
+    /// [`ArgRole::Body`]: tcl_registry::ArgRole::Body
+    /// [`ArgRole::LambdaLiteral`]: tcl_registry::ArgRole::LambdaLiteral
+    fn collect_lambda_arms(
+        &self,
+        seg: &SegmentedCommand,
+        args: &[&str],
+        arms: &mut Vec<ControlArm>,
+        complete: &mut bool,
+    ) {
+        let Some(context) = self.retained_static_source_context() else {
+            return;
+        };
+        let registry = context.commands().as_ref();
+        let mut indices =
+            registry.arg_indices_for_role(seg.name(), args, tcl_registry::ArgRole::LambdaLiteral);
+        indices.sort_unstable();
+        indices.dedup();
+        for idx in indices {
+            // Read the body only where the registry says what running it
+            // means. `apply` types this position (a frame boundary that runs
+            // now); a command that carries the role without typing it has told
+            // the walk nothing, and an untyped script that runs now is exactly
+            // what `unreadable_body_is_material` abstains on.
+            let body = registry
+                .control_arm_semantics(seg.name(), args, idx)
+                .and_then(|_| seg.arg_tokens().get(idx).copied())
+                .and_then(|token| crate::lambda_literal::split_lambda_literal(&self.source, token))
+                .and_then(|elements| elements.braced_body());
+            if let Some(body_span) = body {
+                arms.push(ControlArm {
+                    controller: seg.clone(),
+                    body_span,
+                });
+            } else {
+                *complete &= !self.unreadable_body_is_material(seg, idx);
+            }
+        }
+    }
+
+    fn if_body_is_selected(
+        &mut self,
+        proc_qname: &str,
+        arm: &ControlArm,
+        env: &std::collections::HashMap<String, String>,
+        depth: u32,
+    ) -> Option<bool> {
+        let context = self.retained_static_source_context()?;
+        let words = crate::registry_invocation::source_structure::source_registry_words(
+            &self.source,
+            &self.result,
+            &arm.controller,
+        )?;
+        let wanted = self.control_arm_body_index(arm)?;
+        let clauses = words.with_source_schema(&context, |schema| {
+            if schema.semantics.lowering_hook != Some(tcl_registry::hooks::LoweringHookId::If) {
+                return None;
+            }
+            let plan = schema.clause_plan()?;
+            if plan.defect.is_some() || plan.clauses.is_empty() {
+                return None;
+            }
+            plan.clauses
+                .iter()
+                .map(|clause| {
+                    if clause.timing != tcl_registry::clause_grammar::ClauseTiming::Selected
+                        || clause.operands(tcl_registry::ArgRole::Body).count() != 1
+                        || clause.operands(tcl_registry::ArgRole::Expr).count() > 1
+                    {
+                        return None;
+                    }
+                    Some((
+                        clause.operand(tcl_registry::ArgRole::Expr),
+                        clause.operand(tcl_registry::ArgRole::Body)?,
+                    ))
+                })
+                .collect::<Option<Vec<_>>>()
+        })??;
+        for (condition, body) in clauses {
+            let Some(condition) = condition else {
+                return Some(body == wanted);
+            };
+            let original = words.original_argument_word(condition)?;
+            let source = original.image().try_text().ok()?;
+            let expression = source.get(original.content_span().ok()?.as_range())?;
+            if self.static_expr_value(expression, proc_qname, env, &mut Vec::new(), depth)? {
+                return Some(body == wanted);
+            }
+        }
+        Some(false)
+    }
+
+    /// Whether the body at `arm.body_span` is the one the `switch` runs, when
+    /// the environment states the words the registry's selection reads: the
+    /// selection is the command's own (mode, case folding, ordered first
+    /// match, the final `default`, fall-through, the regexp engine), never a
+    /// match made here. `None` where any word is not stated, the selection
+    /// declines, or the subject's members would run different bodies.
+    fn switch_body_is_selected(
+        &mut self,
+        proc_qname: &str,
+        arm: &ControlArm,
+        env: &std::collections::HashMap<String, String>,
+        depth: u32,
+    ) -> Option<bool> {
+        let context = self.retained_static_source_context()?;
+        let registry = context.commands();
+        let args: Vec<&str> = arm.controller.args().iter().map(String::as_str).collect();
+        let (case, invocation) = registry.case_invocation(
+            arm.controller.name(),
+            &args,
+            Some(context.context().authoring_query()),
+        )?;
+        if usize::from(case.subject_args) != 1 {
+            return None;
+        }
+        let values = self.switch_words(proc_qname, arm, &invocation, env, depth)?;
+        let words: Vec<(&str, WordForm)> = values
+            .iter()
+            .map(|(text, form)| (text.as_str(), *form))
+            .collect();
+        let selection = literal_selection(&registry, arm.controller.name(), &words, None)?;
+        let bodies = self.switch_clause_bodies(arm, &case, &invocation)?;
+        if bodies.len() != selection.clauses || Some(selection.subject) != invocation.subject_index
+        {
+            return None;
+        }
+        let mut verdicts = selection.fact.bodies.iter().map(|body| match body {
+            None => Some(false),
+            Some(clause) => bodies.get(*clause).map(|span| *span == arm.body_span),
+        });
+        let first = verdicts.next()??;
+        verdicts
+            .all(|verdict| verdict == Some(first))
+            .then_some(first)
+    }
+
+    /// The words of a `switch` as its selection reads them, each with how it
+    /// was written: the subject and the inline patterns as the environment
+    /// states them (a braced one is its own text), every other word as
+    /// written. A word left to substitute that is not the subject or a
+    /// pattern is unproven, so a `-` body it might spell declines the
+    /// selection.
+    fn switch_words(
+        &mut self,
+        proc_qname: &str,
+        arm: &ControlArm,
+        invocation: &tcl_registry::spec::CaseInvocation,
+        env: &std::collections::HashMap<String, String>,
+        depth: u32,
+    ) -> Option<Vec<(String, WordForm)>> {
+        let controller = &arm.controller;
+        let count = controller.args().len();
+        let braced = braced_word_flags(
+            controller.arg_tokens(),
+            controller.arg_single_token(),
+            count,
+        );
+        let quoted = quoted_word_flags(controller.arg_tokens(), count);
+        let is_pattern = |index: usize| {
+            invocation
+                .inline_clause_start
+                .is_some_and(|start| index >= start && (index - start).is_multiple_of(2))
+        };
+        let mut words = Vec::with_capacity(count);
+        for (index, text) in controller.args().iter().enumerate() {
+            let stated = invocation.subject_index == Some(index) || is_pattern(index);
+            let form = if braced[index] {
+                WordForm::Braced
+            } else if quoted[index] {
+                WordForm::Quoted
+            } else {
+                WordForm::Bare
+            };
+            words.push(if braced[index] {
+                (
+                    self.word_rules().collapse_braced_word(text).into_owned(),
+                    form,
+                )
+            } else if stated {
+                let value =
+                    self.static_word_value(text, proc_qname, env, &mut Vec::new(), depth)?;
+                (value, form)
+            } else if ['$', '[', '\\'].iter().any(|mark| text.contains(*mark)) {
+                (text.clone(), WordForm::Unproven)
+            } else {
+                (text.clone(), form)
+            });
+        }
+        Some(words)
+    }
+
+    /// The body span of each clause of a `switch`, in the command's order:
+    /// the clause-list word's bodies, or every second inline word after the
+    /// patterns begin.
+    fn switch_clause_bodies(
+        &self,
+        arm: &ControlArm,
+        case: &tcl_registry::spec::CaseListSpec,
+        invocation: &tcl_registry::spec::CaseInvocation,
+    ) -> Option<Vec<Span>> {
+        let args = arm.controller.args();
+        let tokens = arm.controller.arg_tokens();
+        if let Some(list_index) = invocation.clause_list_index {
+            let clauses = crate::segmenter::flatten_case_list_clauses(
+                &self.source,
+                args.get(list_index)?,
+                *tokens.get(list_index)?,
+                case,
+                self.lexer_config(),
+            );
+            return Some(
+                clauses
+                    .into_iter()
+                    .map(|(_, (_, body))| body.span)
+                    .collect(),
+            );
+        }
+        let start = invocation.inline_clause_start?;
+        (start..args.len().saturating_sub(1))
+            .step_by(2)
+            .map(|pattern| tokens.get(pattern + 1).map(|token| token.span))
+            .collect()
+    }
+
+    /// Apply one dominating statement to the literal environment.  Binding
+    /// layout comes from the registry's `set` handle/value descriptor; branch
+    /// conditionality and expression/body positions come from traits and
+    /// argument roles. Registry-declared variable/unknown writes invalidate
+    /// the affected facts; an unsupported command abstains.
+    fn apply_static_provenance_statement(
+        &mut self,
+        proc_qname: &str,
+        seg: &SegmentedCommand,
+        env: &mut std::collections::HashMap<String, String>,
+        depth: u32,
+    ) -> Option<()> {
+        if depth > MAX_UNKNOWN_BODY_DEPTH {
+            return None;
+        }
+        let context = self.retained_static_source_context()?;
+        let registry = context.commands().as_ref();
+        let args: Vec<&str> = seg.args().iter().map(String::as_str).collect();
+        let spec = registry.get(seg.name())?;
+
+        if spec
+            .traits
+            .contains(tcl_registry::Traits::BRANCH_SELECTED_BODY)
+        {
+            let exprs =
+                registry.arg_indices_for_role(seg.name(), &args, tcl_registry::ArgRole::Expr);
+            let bodies =
+                registry.arg_indices_for_role(seg.name(), &args, tcl_registry::ArgRole::Body);
+            if let ([expr_idx], [body_idx]) = (exprs.as_slice(), bodies.as_slice())
+                && let Some(condition) = self.static_expr_value(
+                    seg.args().get(*expr_idx)?,
+                    proc_qname,
+                    env,
+                    &mut Vec::new(),
+                    depth,
+                )
+            {
+                if condition {
+                    self.invalidate_static_facts_written_by_script(
+                        seg.args().get(*body_idx)?,
+                        env,
+                        depth + 1,
+                    )?;
+                }
+                return Some(());
+            }
+
+            // For a multi-arm or unresolved branch, keep only facts no arm
+            // can change. Argument layout and same-frame body identity both
+            // come from the registry. An explicit/dynamic variable write or
+            // a registry-declared unknown write invalidates the affected
+            // fact; unrelated locals survive without selecting an arm.
+            for body_idx in bodies {
+                self.invalidate_static_facts_written_by_script(
+                    seg.args().get(body_idx)?,
+                    env,
+                    depth + 1,
+                )?;
+            }
+            return Some(());
+        }
+
+        if let Some(binding) = spec.binds_handle
+            && matches!(
+                binding.class_from,
+                tcl_registry::handle_binding::HandleClassSource::ConstructionValue(_)
+            )
+            && let Some(bound) = binding.resolve(&args)
+        {
+            let value =
+                self.static_word_value(bound.class_word, proc_qname, env, &mut Vec::new(), depth);
+            if let Some(value) = value {
+                env.insert(bound.name.to_owned(), value);
+            } else {
+                env.remove(bound.name);
+            }
+            return Some(());
+        }
+
+        for idx in registry.arg_indices_for_role(seg.name(), &args, tcl_registry::ArgRole::VarWrite)
+        {
+            if let Some(name) = seg.args().get(idx) {
+                env.remove(name);
+            }
+        }
+        self.invalidate_static_facts_written_by_segment(seg, env, depth + 1)
+    }
+
+    /// Invalidate literal facts a same-frame script may write.
+    ///
+    /// Variable positions, nested body positions, body-frame ownership, and
+    /// unknown write effects are all registry declarations. A dynamic write
+    /// target or an unknown command/effect can name any local and therefore
+    /// clears the environment; a literal target kills only that fact.
+    fn invalidate_static_facts_written_by_script(
+        &self,
+        body: &str,
+        env: &mut std::collections::HashMap<String, String>,
+        depth: u32,
+    ) -> Option<()> {
+        if depth > MAX_UNKNOWN_BODY_DEPTH {
+            env.clear();
+            return Some(());
+        }
+        for seg in crate::segmenter::segment_commands_with_offset_and_config(
+            body,
+            0,
+            self.file_lexer_config().nested(),
+        ) {
+            self.invalidate_static_facts_written_by_segment(&seg, env, depth + 1)?;
+        }
+        Some(())
+    }
+
+    /// Invalidate facts written by one command whose body framing and
+    /// variable layout are described by the registry.
+    fn invalidate_static_facts_written_by_segment(
+        &self,
+        seg: &SegmentedCommand,
+        env: &mut std::collections::HashMap<String, String>,
+        depth: u32,
+    ) -> Option<()> {
+        let context = self.retained_static_source_context()?;
+        let registry = context.commands().as_ref();
+        let Some(spec) = registry.get(seg.name()) else {
+            env.clear();
+            return Some(());
+        };
+        let args: Vec<&str> = seg.args().iter().map(String::as_str).collect();
+        let resolved_sub = args
+            .first()
+            .and_then(|first| spec.resolve_subcommand(first));
+
+        if resolved_sub.is_some_and(|sub| sub.creates_scope_alias) {
+            env.clear();
+            return Some(());
+        }
+
+        for role in [
+            tcl_registry::ArgRole::VarWrite,
+            tcl_registry::ArgRole::LoopVarList,
+        ] {
+            for idx in registry.arg_indices_for_role(seg.name(), &args, role) {
+                let Some(word) = seg.args().get(idx) else {
+                    continue;
+                };
+                if tcl_syntax::naming::is_dynamic_word(word) {
+                    env.clear();
+                    return Some(());
+                }
+                let names: Vec<String> = if role == tcl_registry::ArgRole::LoopVarList {
+                    let Ok(names) = self.word_rules().split_list(word) else {
+                        env.clear();
+                        return Some(());
+                    };
+                    names
+                        .into_iter()
+                        .map(std::borrow::Cow::into_owned)
+                        .collect()
+                } else {
+                    vec![word.clone()]
+                };
+                for name in names {
+                    let base = tcl_syntax::naming::split_element_ref(&name)
+                        .map_or(name.as_str(), |(base, _)| base);
+                    env.remove(base);
+                }
+            }
+        }
+
+        let plain_bodies = registry.plain_body_arg_indices(seg.name(), &args);
+        for idx in &plain_bodies {
+            if let Some(nested) = seg.args().get(*idx) {
+                self.invalidate_static_facts_written_by_script(nested, env, depth + 1)?;
+            }
+        }
+
+        // Control commands summarise their nested scripts as an unknown
+        // effect. Same-frame bodies were inspected above, while structural
+        // bodies execute in another frame. For a direct command with no
+        // script argument, an unknown/variable write lacking a more precise
+        // VarWrite role invalidates every remaining fact.
+        let has_script_argument = tcl_registry::ArgRole::ALL
+            .iter()
+            .filter(|role| role.carries_script())
+            .any(|&role| {
+                !registry
+                    .arg_indices_for_role(seg.name(), &args, role)
+                    .is_empty()
+            });
+        if !has_script_argument {
+            let effects = resolved_sub
+                .filter(|sub| !sub.side_effects.is_empty())
+                .map_or(spec.side_effects, |sub| sub.side_effects);
+            if effects.iter().any(|effect| {
+                effect.writes
+                    && matches!(
+                        effect.target,
+                        tcl_registry::prelude::SideEffectTarget::Unknown
+                            | tcl_registry::prelude::SideEffectTarget::Variable
+                    )
+            }) && registry
+                .arg_indices_for_role(seg.name(), &args, tcl_registry::ArgRole::VarWrite)
+                .is_empty()
+            {
+                env.clear();
+            }
+        }
+        Some(())
+    }
+
+    /// Evaluate a static word under `env`. Braced words are literal; a whole
+    /// command substitution dispatches through registry folds or a proven
+    /// user-procedure result; composite variable words use the same strict
+    /// substitution routine as direct parameter names.
+    fn static_word_value(
+        &mut self,
+        word: &str,
+        proc_qname: &str,
+        env: &std::collections::HashMap<String, String>,
+        stack: &mut Vec<String>,
+        depth: u32,
+    ) -> Option<String> {
+        if depth > MAX_UNKNOWN_BODY_DEPTH {
+            return None;
+        }
+        let trimmed = word.trim();
+        if let Some(inner) = trimmed.strip_prefix('{').and_then(|s| s.strip_suffix('}')) {
+            return Some(inner.to_owned());
+        }
+        let unquoted = trimmed
+            .strip_prefix('"')
+            .and_then(|s| s.strip_suffix('"'))
+            .unwrap_or(trimmed);
+        if let Some((head, args)) = crate::value_shapes::parse_command_substitution_with_config(
+            unquoted,
+            self.file_lexer_config().nested(),
+        ) {
+            let values: Vec<Option<String>> = args
+                .iter()
+                .map(|arg| self.static_word_value(arg, proc_qname, env, stack, depth))
+                .collect();
+            return self.static_command_value(&head, &values, proc_qname, env, stack, depth);
+        }
+        let mut names: Vec<String> = env.keys().cloned().collect();
+        names.sort();
+        let values: Vec<String> = names
+            .iter()
+            .filter_map(|name| env.get(name).cloned())
+            .collect();
+        substitute_bound_words(unquoted, &names, &values, self.file_lexer_config())
+    }
+
+    /// The actual source input held by this walk, including availability.
+    /// Transient walk caches and reconstructed environment labels cannot
+    /// replace its original source, full configuration or realm.
+    fn retained_static_source_context(
+        &self,
+    ) -> Option<std::sync::Arc<tcl_registry::model::ContextRegistry>> {
+        let input = self.result.resolved_input.as_ref()?;
+        let config = self.file_lexer_config();
+        if self
+            .resolved_input
+            .as_ref()
+            .is_some_and(|current| current != input)
+            || self.profile.cache_key() != input.analyser_profile().cache_key()
+            || self.unit_profile.unwrap_or(self.profile).cache_key()
+                != input.unit_profile().cache_key()
+            || input.lexer_config() != config
+            || !self.result.matches_original_source_image(
+                &tcl_lexer::SourceImage::document(&self.source),
+                config,
+            )
+            || !self.head_identities.matches_resolved_analysis_input(input)
+            || self.retained_source_advice_purpose().is_none()
+        {
+            return None;
+        }
+        Some(input.context_registry())
+    }
+
+    /// Evaluate a registry-foldable command or a statically-resolved user
+    /// procedure. Unknown arguments are allowed into a user procedure because
+    /// a selected path may not read them; registry folds require every input.
+    fn static_command_value(
+        &mut self,
+        head: &str,
+        args: &[Option<String>],
+        proc_qname: &str,
+        _env: &std::collections::HashMap<String, String>,
+        stack: &mut Vec<String>,
+        depth: u32,
+    ) -> Option<String> {
+        // A materialised String command has no genuine original call point,
+        // occupied implementation or captured prefix. Registry folds here
+        // belong only to the explicit Logical assistance domain.
+        if !self.result.allows_lexical_declaration_advice() || depth > MAX_UNKNOWN_BODY_DEPTH {
+            return None;
+        }
+        let context = self.retained_static_source_context()?;
+        let registry = context.commands().as_ref();
+        if registry.get(head).is_some() {
+            let spec = context.context().resolve_spec(registry, head)?;
+            if !self.static_provenance_command_is_trusted(&crate::naming::qualify("::", head)) {
+                return None;
+            }
+            let values: Vec<&str> = args
+                .iter()
+                .map(|value| value.as_deref())
+                .collect::<Option<_>>()?;
+            let dialect = self
+                .source_analysis_entry
+                .as_ref()
+                .and_then(|entry| entry.invocation_dialect)
+                .map(|mut dialect| {
+                    dialect.lexer_grammar = self.grammar();
+                    dialect.word_values = self.word_rules();
+                    dialect
+                });
+            if spec.subcommands.is_empty() {
+                return match dialect {
+                    Some(dialect) => spec.run_const_fold_in(&values, dialect),
+                    None => spec.run_const_fold(&values, None),
+                };
+            }
+            let (sub, rest) = values.split_first()?;
+            let subcommand = spec.resolve_subcommand(sub)?;
+            return match dialect {
+                Some(dialect) => subcommand.run_const_fold_in(rest, dialect),
+                None => subcommand.run_const_fold(rest, None),
+            };
+        }
+
+        let qname = self.resolve_static_proc_name(proc_qname, head)?;
+        if !self.static_provenance_command_is_trusted(&qname)
+            || stack.iter().any(|seen| seen == &qname)
+        {
+            return None;
+        }
+        stack.push(qname.clone());
+        let result = self.static_proc_result(&qname, args, stack, depth + 1);
+        stack.pop();
+        result
+    }
+
+    /// Whether `query` still denotes its declared builtin/procedure for the
+    /// narrow static-provenance proof.
+    ///
+    /// Command-table mutators are discovered only through the registry's
+    /// [`CommandTableEffect`](tcl_registry::CommandTableEffect). Dynamic
+    /// target words retain their literal fragments instead of collapsing the
+    /// entire command table: `${ns}::define::$method` cannot name `::string`,
+    /// whereas `$name` can name anything and therefore abstains. This scan is
+    /// flow-insensitive, so a compatible mutation before or after the proof
+    /// site blocks it equally.
+    fn static_provenance_command_is_trusted(&self, query: &str) -> bool {
+        let Some(context) = self.retained_static_source_context() else {
+            return false;
+        };
+        let registry = context.commands().as_ref();
+        let Some(statements) = self.statements_in_span(Span::new(
+            0,
+            u32::try_from(self.source.len()).unwrap_or(u32::MAX),
+        )) else {
+            return false;
+        };
+        let expected_declarations = usize::from(self.result.all_procs.contains_key(query));
+        let mut matching_declarations = 0_usize;
+
+        for seg in statements {
+            // A declaration body is dormant until its command is invoked.
+            // Its dynamic `proc`/`rename`/`interp alias` words therefore do
+            // not mutate the load-time command table merely because the body
+            // is present in the source. Invoked bodies are evaluated through
+            // `static_proc_result`, whose unsupported/mutating statements
+            // still make the proof abstain.
+            if self
+                .result
+                .offset_is_inside_any_definition_body(seg.span.start())
+            {
+                continue;
+            }
+            let Some(original) =
+                crate::registry_invocation::source_structure::source_registry_words(
+                    &self.source,
+                    &self.result,
+                    &seg,
+                )
+            else {
+                return false;
+            };
+            let Some(transitions) = original.with_source_schema(&context, |schema| {
+                schema
+                    .semantics
+                    .state_transitions
+                    .resolve_after_success_with_effect_coverage(schema.words.arguments())
+                    .0
+            }) else {
+                return false;
+            };
+            let input = self
+                .result
+                .resolved_input
+                .as_ref()
+                .expect("checked original source input");
+            let metadata = crate::registry_invocation::InvocationMetadataContext::for_source_input(
+                registry,
+                input,
+                self.file_lexer_config(),
+                Some(input.unit_profile()),
+            );
+            let overlap = |subject: &tcl_registry::TransitionSubject| {
+                crate::dynamic_names::original_command_name_overlap(
+                    original.original_argument_word(subject.argument_index()?)?,
+                    query,
+                    metadata,
+                )
+            };
+            for transition in transitions.command_bindings() {
+                match transition {
+                    tcl_registry::CommandBindingTransition::Define { name, .. } => {
+                        let Some(name) = overlap(name) else {
+                            return false;
+                        };
+                        if name.may_equal {
+                            if name.dynamic {
+                                return false;
+                            }
+                            matching_declarations += 1;
+                            if matching_declarations > expected_declarations {
+                                return false;
+                            }
+                        }
+                    }
+                    tcl_registry::CommandBindingTransition::Move { from, to } => {
+                        let (Some(old), Some(new)) = (overlap(from), overlap(to)) else {
+                            return false;
+                        };
+                        if old.may_equal || (!new.empty && new.may_equal) {
+                            return false;
+                        }
+                    }
+                    tcl_registry::CommandBindingTransition::Delete { name, .. }
+                    | tcl_registry::CommandBindingTransition::Alias { alias: name, .. } => {
+                        let Some(name) = overlap(name) else {
+                            return false;
+                        };
+                        if name.may_equal {
+                            return false;
+                        }
+                    }
+                    // A mutation whose very shape is unknown could name
+                    // anything.
+                    tcl_registry::CommandBindingTransition::Unknown { .. } => return false,
+                }
+            }
+        }
+        matching_declarations == expected_declarations
+    }
+
+    /// A genuine positioned occupied implementation for static continuation.
+    /// Metadata joins its original allocation; a final report name cannot
+    /// supply a replacement, captured prefix or current command identity.
+    fn original_static_procedure_at(&self, segment: &SegmentedCommand) -> Option<ProcDef> {
+        let config = self.file_lexer_config();
+        self.result
+            .matches_original_source_image(&tcl_lexer::SourceImage::document(&self.source), config)
+            .then_some(())?;
+        let mut tokens = crate::ir::CommandTokens::from_segmented(
+            &tcl_lexer::SourceMap::new(&self.source),
+            config,
+            segment,
+        );
+        self.head_identities.stamp_original_tokens(&mut tokens);
+        let binding = tokens.source_binding.as_ref()?;
+        let target = binding.proved_execution_target()?;
+        if target.registry_backed
+            || target.kind != crate::command_binding::BindingKind::Proc
+            || !target.prepended.is_empty()
+        {
+            return None;
+        }
+        let reference = binding.evaluated_command_reference()?;
+        let definition = reference
+            .linked_definition()
+            .or_else(|| reference.definition())?;
+        if Some(definition.allocation()) != target.implementation_allocation.as_ref() {
+            return None;
+        }
+        self.result
+            .proc_for_definition(definition, &self.source)
+            .cloned()
+    }
+
+    /// Explicit Logical assistance only. This unpositioned String interface
+    /// has no original call/allocation point from which Native or hosted
+    /// occupied implementation could be proved.
+    fn resolve_static_proc_name(&self, caller: &str, head: &str) -> Option<String> {
+        if !self.result.allows_lexical_declaration_advice() {
+            return None;
+        }
+        let absolute = if head.starts_with("::") {
+            crate::naming::qualify("", head)
+        } else {
+            let (ns, _) = crate::naming::key_holder_and_tail(caller);
+            crate::naming::qualify(ns, head)
+        };
+        if self.result.all_procs.contains_key(&absolute) {
+            return Some(absolute);
+        }
+        let global = crate::naming::qualify("", head);
+        self.result
+            .all_procs
+            .contains_key(&global)
+            .then_some(global)
+    }
+
+    /// Evaluate the return of a small user procedure from registry command
+    /// folds. Every unsupported control-flow or command result abstains.
+    fn static_proc_result(
+        &mut self,
+        qname: &str,
+        args: &[Option<String>],
+        stack: &mut Vec<String>,
+        depth: u32,
+    ) -> Option<String> {
+        // Materialised substitution strings have no original operation point.
+        // A positioned caller must use original_static_procedure_at instead.
+        if !self.result.allows_lexical_declaration_advice() {
+            return None;
+        }
+        self.retained_static_source_context()?;
+        let proc_def = self.result.all_procs.get(qname)?.clone();
+        if proc_def.params_computed {
+            return None;
+        }
+        let mut env = std::collections::HashMap::new();
+        for (name, value) in bind_proc_formals(&proc_def.params, args, self.word_rules())? {
+            if let Some(value) = value {
+                env.insert(name, value);
+            }
+        }
+        match self.static_script_result(qname, proc_def.body_span, &mut env, stack, depth)? {
+            StaticScriptOutcome::FallsThrough(value) | StaticScriptOutcome::Returns(value) => {
+                Some(value)
+            }
+        }
+    }
+
+    fn static_script_result(
+        &mut self,
+        qname: &str,
+        body_span: Span,
+        env: &mut std::collections::HashMap<String, String>,
+        stack: &mut Vec<String>,
+        depth: u32,
+    ) -> Option<StaticScriptOutcome> {
+        if depth > MAX_UNKNOWN_BODY_DEPTH {
+            return None;
+        }
+        let context = self.retained_static_source_context()?;
+        let registry = context.commands().as_ref();
+        let statements = self.direct_statements_in_span(body_span)?;
+        let mut result = String::new();
+        for seg in statements {
+            let raw_args: Vec<&str> = seg.args().iter().map(String::as_str).collect();
+            match self.segment_invocation_completion(&seg) {
+                tcl_registry::registry::InvocationCompletion::ReturnsResult(Some(idx)) => {
+                    let value =
+                        self.static_word_value(seg.args().get(idx)?, qname, env, stack, depth)?;
+                    return Some(StaticScriptOutcome::Returns(value));
+                }
+                tcl_registry::registry::InvocationCompletion::ReturnsResult(None) => {
+                    return Some(StaticScriptOutcome::Returns(String::new()));
+                }
+                tcl_registry::registry::InvocationCompletion::Terminates
+                | tcl_registry::registry::InvocationCompletion::Unknown => return None,
+                tcl_registry::registry::InvocationCompletion::FallsThrough => {}
+            }
+            let spec = registry.get(seg.name())?;
+            if spec
+                .traits
+                .contains(tcl_registry::Traits::BRANCH_SELECTED_BODY)
+            {
+                if registry.control_invocation_valid(
+                    seg.name(),
+                    &raw_args,
+                    Some(context.context().authoring_query()),
+                ) != Some(true)
+                {
+                    return None;
+                }
+                if !matches!(
+                    spec.lowering_hook,
+                    Some(
+                        tcl_registry::hooks::LoweringHookId::If
+                            | tcl_registry::hooks::LoweringHookId::Switch
+                    )
+                ) {
+                    return None;
+                }
+                let mut selected = None;
+                let controls = self.control_arms_for_segment(&seg);
+                if !controls.complete {
+                    return None;
+                }
+                for arm in controls.arms {
+                    match self.control_body_is_selected(qname, &arm, env, depth) {
+                        Some(true) if selected.is_none() => selected = Some(arm.body_span),
+                        Some(true) | None => return None,
+                        Some(false) => {}
+                    }
+                }
+                if let Some(span) = selected {
+                    match self.static_script_result(qname, span, env, stack, depth + 1)? {
+                        StaticScriptOutcome::Returns(value) => {
+                            return Some(StaticScriptOutcome::Returns(value));
+                        }
+                        StaticScriptOutcome::FallsThrough(value) => result = value,
+                    }
+                } else {
+                    result.clear();
+                }
+                continue;
+            }
+            if let Some(binding) = spec.binds_handle
+                && matches!(
+                    binding.class_from,
+                    tcl_registry::handle_binding::HandleClassSource::ConstructionValue(_)
+                )
+                && let Some(bound) = binding.resolve(&raw_args)
+            {
+                result = self.static_word_value(bound.class_word, qname, env, stack, depth)?;
+                env.insert(bound.name.to_owned(), result.clone());
+                continue;
+            }
+            let values: Vec<Option<String>> = seg
+                .args()
+                .iter()
+                .map(|arg| self.static_word_value(arg, qname, env, stack, depth))
+                .collect();
+            result = self.static_command_value(seg.name(), &values, qname, env, stack, depth)?;
+        }
+        Some(StaticScriptOutcome::FallsThrough(result))
+    }
+
+    fn static_expr_value(
+        &mut self,
+        word: &str,
+        proc_qname: &str,
+        env: &std::collections::HashMap<String, String>,
+        stack: &mut Vec<String>,
+        depth: u32,
+    ) -> Option<bool> {
+        let context = self.retained_static_source_context()?;
+        let mut expr = word
+            .trim()
+            .strip_prefix('{')
+            .and_then(|s| s.strip_suffix('}'))
+            .unwrap_or(word.trim())
+            .to_owned();
+        while let Some(start) = expr.find('[') {
+            let mut nesting = 0_u32;
+            let mut end = None;
+            for (idx, ch) in expr[start..].char_indices() {
+                match ch {
+                    '[' => nesting += 1,
+                    ']' => {
+                        nesting = nesting.saturating_sub(1);
+                        if nesting == 0 {
+                            end = Some(start + idx + 1);
+                            break;
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            let end = end?;
+            let substitution = expr.get(start..end)?;
+            let folded = self.static_word_value(substitution, proc_qname, env, stack, depth)?;
+            expr.replace_range(start..end, &folded);
+        }
+        // Each value is its text, which the expression engine reads as Tcl
+        // reads a literal operand.
+        let constants: crate::tcl_expr_eval::Env = env
+            .iter()
+            .map(|(name, value)| {
+                (
+                    name.clone(),
+                    crate::tcl_expr_eval::EnvValue::Str(value.clone()),
+                )
+            })
+            .collect();
+        crate::tcl_expr_eval::evaluate_expr_with_constants(
+            &crate::parse_expr_for_profile(&expr, Some(self.profile)),
+            &constants,
+            crate::tcl_expr_eval::FoldPolicy::from_registry(context.commands()),
+        )
+        .map(|value| value != 0)
+    }
+
+    /// Direct statements only (no nested body flattening), used by the
+    /// static provenance evaluator so a non-selected branch cannot leak a
+    /// binding into the outer path.
+    fn direct_statements_in_span(&self, span: Span) -> Option<Vec<SegmentedCommand>> {
+        let start = span.start() as usize;
+        let end = span.end() as usize;
+        let raw = self.source.get(start..end)?;
+        let (body, base) = if matches!(raw, "}" | "{}") {
+            // A closed empty braced word has the lexer's degenerate span on
+            // its closing delimiter. It contains no script to execute.
+            ("", start)
+        } else {
+            raw.strip_prefix(['{', '"'])
+                .map_or((raw, start), |inner| (inner, start.saturating_add(1)))
+        };
+        Some(crate::segmenter::segment_commands_with_offset_and_config(
+            body,
+            u32::try_from(base).unwrap_or(0),
+            self.file_lexer_config().nested(),
+        ))
+    }
+
+    /// Drop the record the walk made for a creation whose name it could not
+    /// resolve, now that the call sites have named the classes it really
+    /// makes.
+    ///
+    /// The walk records `::T::${ns}::class` verbatim — a class of that name
+    /// exists in no interpreter, and leaving it would show a phantom entry in
+    /// the outline beside the real one and put a nonsense key in the
+    /// workspace class index. Only removed when at least one real name was
+    /// proved for that same site, so a creation nothing could settle keeps
+    /// exactly the record it had before.
+    fn retract_unresolved_class(&mut self, candidate: &ParameterisedCreation) {
+        let Some(unresolved) = Self::unresolved_class_name(candidate) else {
+            return;
+        };
+        self.result.all_classes.remove(&unresolved);
+        self.result
+            .class_body_spans
+            .retain(|(qname, _)| qname != &unresolved);
+    }
+
+    fn unresolved_class_name(candidate: &ParameterisedCreation) -> Option<String> {
+        let (owner_ns, _) = crate::naming::key_holder_and_tail(&candidate.proc_qname);
+        let unresolved = crate::naming::qualify(owner_ns, &candidate.name_word);
+        tcl_syntax::naming::is_dynamic_word(&unresolved).then_some(unresolved)
+    }
+
+    /// Every creation call written inside a proc body whose **name word**
+    /// interpolates one of that proc's parameters — the sites
+    /// [`Self::record_literal_parameter_definitions`] can settle.
+    ///
+    /// Cheap by construction: the manufacturer-word test is a registry
+    /// lookup on the call's first argument, so a body with no `create` /
+    /// `new` / `createWithNamespace` in it is rejected before anything is
+    /// segmented twice.
+    fn parameterised_creation_sites(
+        &self,
+        registry: &tcl_registry::CommandRegistry,
+    ) -> Vec<ParameterisedCreation> {
+        let mut out = Vec::new();
+        for (qname, proc_def) in &self.result.all_procs {
+            if proc_def.params_computed || proc_def.params.is_empty() {
+                continue;
+            }
+            self.collect_parameterised_creation_sites(
+                registry,
+                ParameterisedProc {
+                    qname,
+                    params: &proc_def.params,
+                },
+                proc_def.body_span,
+                &mut Vec::new(),
+                0,
+                &mut out,
+            );
+        }
+        out
+    }
+
+    fn collect_parameterised_creation_sites(
+        &self,
+        registry: &tcl_registry::CommandRegistry,
+        proc_context: ParameterisedProc<'_>,
+        body_span: Span,
+        control_path: &mut Vec<ControlArm>,
+        depth: u32,
+        out: &mut Vec<ParameterisedCreation>,
+    ) {
+        if depth >= MAX_UNKNOWN_BODY_DEPTH {
+            return;
+        }
+        let Some(statements) = self.direct_statements_in_span(body_span) else {
+            return;
+        };
+        for seg in statements {
+            let args: Vec<&str> = seg.args().iter().map(String::as_str).collect();
+            if let Some(first) = seg.args().first()
+                && registry.is_manufacturer_method(first)
+                && let Some(name_arg) = registry.uniform_manufacturer_names_instance_at(first)
+                && let Some(name_word) = seg.args().get(name_arg)
+                && !crate::var_refs::scan_var_ref_forms_with_config(name_word, self.lexer_config())
+                    .is_empty()
+            {
+                out.push(ParameterisedCreation {
+                    proc_qname: proc_context.qname.to_owned(),
+                    params: proc_context.params.to_vec(),
+                    name_word: name_word.clone(),
+                    call_off: seg.span.start(),
+                    control_path: control_path.clone(),
+                });
+            }
+
+            let case_call = registry
+                .case_invocation(
+                    seg.name(),
+                    &args,
+                    Some(self.analysis_context().context().authoring_query()),
+                )
+                .and_then(|(_, invocation)| invocation.clause_list_index);
+            let mut body_indices =
+                registry.arg_indices_for_role(seg.name(), &args, tcl_registry::ArgRole::Body);
+            body_indices.sort_unstable();
+            body_indices.dedup();
+            for body_idx in body_indices {
+                let (Some(word), Some(token)) = (
+                    seg.args().get(body_idx),
+                    seg.arg_tokens().get(body_idx).copied(),
+                ) else {
+                    continue;
+                };
+                if case_call == Some(body_idx) {
+                    let Some((case, _)) = registry.case_invocation(
+                        seg.name(),
+                        &args,
+                        Some(self.analysis_context().context().authoring_query()),
+                    ) else {
+                        continue;
+                    };
+                    for (_, (_, body_token)) in crate::segmenter::flatten_case_list_clauses(
+                        &self.source,
+                        word,
+                        token,
+                        &case,
+                        self.lexer_config(),
+                    ) {
+                        if body_token.kind != TokenType::Str {
+                            continue;
+                        }
+                        control_path.push(ControlArm {
+                            controller: seg.clone(),
+                            body_span: body_token.span,
+                        });
+                        self.collect_parameterised_creation_sites(
+                            registry,
+                            ParameterisedProc {
+                                qname: proc_context.qname,
+                                params: proc_context.params,
+                            },
+                            body_token.span,
+                            control_path,
+                            depth + 1,
+                            out,
+                        );
+                        control_path.pop();
+                    }
+                    continue;
+                }
+                if token.kind != TokenType::Str {
+                    continue;
+                }
+                control_path.push(ControlArm {
+                    controller: seg.clone(),
+                    body_span: token.span,
+                });
+                self.collect_parameterised_creation_sites(
+                    registry,
+                    ParameterisedProc {
+                        qname: proc_context.qname,
+                        params: proc_context.params,
+                    },
+                    token.span,
+                    control_path,
+                    depth + 1,
+                    out,
+                );
+                control_path.pop();
+            }
+        }
+    }
+
+    /// The **load-time** call sites in this document, keyed by the qualified
+    /// name the head word spells, each carrying its argument words.
+    ///
+    /// A call inside a proc or class body is excluded: it runs at call time,
+    /// if ever, so it proves nothing about what sourcing this file creates —
+    /// the same rule [`Self::publish_load_level_destructions`] applies.
+    fn load_time_call_arguments(&self) -> std::collections::HashMap<String, Vec<LoadTimeCall>> {
+        let mut out = std::collections::HashMap::new();
+        self.collect_load_time_calls(
+            Span::new(0, u32::try_from(self.source.len()).unwrap_or(u32::MAX)),
+            &mut Vec::new(),
+            0,
+            &mut out,
+        );
+        out
+    }
+
+    fn collect_load_time_calls(
+        &self,
+        body_span: Span,
+        control_path: &mut Vec<ControlArm>,
+        depth: u32,
+        out: &mut std::collections::HashMap<String, Vec<LoadTimeCall>>,
+    ) {
+        if depth >= MAX_UNKNOWN_BODY_DEPTH {
+            return;
+        }
+        let Some(context) = self.retained_static_source_context() else {
+            return;
+        };
+        let registry = context.commands().as_ref();
+        let Some(statements) = self.direct_statements_in_span(body_span) else {
+            return;
+        };
+        for seg in statements {
+            if !self
+                .result
+                .offset_is_inside_any_definition_body(seg.span.start())
+                && !seg.name().is_empty()
+            {
+                let qualified = crate::naming::qualify("::", seg.name());
+                out.entry(qualified).or_default().push(LoadTimeCall {
+                    args: seg.args().to_vec(),
+                    control_path: control_path.clone(),
+                    call_off: seg.span.start(),
+                });
+            }
+
+            let args: Vec<&str> = seg.args().iter().map(String::as_str).collect();
+            let mut body_indices =
+                registry.arg_indices_for_role(seg.name(), &args, tcl_registry::ArgRole::Body);
+            body_indices.sort_unstable();
+            body_indices.dedup();
+            let case_call = registry
+                .case_invocation(seg.name(), &args, Some(context.context().authoring_query()))
+                .and_then(|(_, invocation)| invocation.clause_list_index);
+            for body_idx in body_indices {
+                let (Some(word), Some(token)) = (
+                    seg.args().get(body_idx),
+                    seg.arg_tokens().get(body_idx).copied(),
+                ) else {
+                    continue;
+                };
+                if case_call == Some(body_idx) {
+                    let Some((case, _)) = registry.case_invocation(
+                        seg.name(),
+                        &args,
+                        Some(context.context().authoring_query()),
+                    ) else {
+                        continue;
+                    };
+                    for (_, (_, body_token)) in crate::segmenter::flatten_case_list_clauses(
+                        &self.source,
+                        word,
+                        token,
+                        &case,
+                        self.lexer_config(),
+                    ) {
+                        if body_token.kind != TokenType::Str {
+                            continue;
+                        }
+                        control_path.push(ControlArm {
+                            controller: seg.clone(),
+                            body_span: body_token.span,
+                        });
+                        self.collect_load_time_calls(body_token.span, control_path, depth + 1, out);
+                        control_path.pop();
+                    }
+                    continue;
+                }
+                if token.kind != TokenType::Str {
+                    continue;
+                }
+                control_path.push(ControlArm {
+                    controller: seg.clone(),
+                    body_span: token.span,
+                });
+                self.collect_load_time_calls(token.span, control_path, depth + 1, out);
+                control_path.pop();
+            }
+        }
+    }
+
+    /// The statements of the script at `span`, plus those of every nested
+    /// script word, re-segmented from the document's own bytes.
+    ///
+    /// `span` may be a body **word**'s span (whose start sits on the opening
+    /// delimiter) or a plain script range; the delimiter is stripped when
+    /// present, matching [`Self::manufacturer_next_call`].
+    fn statements_in_span(&self, span: Span) -> Option<Vec<SegmentedCommand>> {
+        let start = span.start() as usize;
+        let end = span.end() as usize;
+        if start >= end || end > self.source.len() {
+            return None;
+        }
+        let raw = self.source.get(start..end)?;
+        let (body, base) = raw
+            .strip_prefix(['{', '"'])
+            .map_or((raw, start), |inner| (inner, start.saturating_add(1)));
+        let mut blocks = Vec::new();
+        self.collect_script_blocks(body, u32::try_from(base).unwrap_or(0), 0, &mut blocks);
+        Some(blocks.into_iter().flatten().collect())
+    }
+
+    /// Original formal arguments supplying the selected manufacturer's name
+    /// and body roles. Unrepresented or transformed contributions refuse.
+    fn manufacturer_word_positions(
+        &self,
+        original: &super::types::OriginalSourceMethodNameBody<'_>,
+        builtin: &tcl_registry::definer::ManufacturerMethod,
+        arguments: &[&tcl_lexer::NativeWord],
+    ) -> Option<(usize, usize)> {
+        let name = usize::from(builtin.names_instance_at?).checked_sub(1)?;
+        let body = usize::from(builtin.definition_body_at?).checked_sub(1)?;
+        let name_arg = original
+            .scalar_parameter_read(arguments.get(name)?)?
+            .checked_add(1)?;
+        let body_arg = original
+            .body_parameter_read(arguments.get(body)?)?
+            .checked_add(1)?;
+        (name_arg != body_arg).then_some((name_arg, body_arg))
+    }
+
+    fn manufacturer_next_call(
+        &self,
+        original: &super::types::OriginalSourceMethodNameBody<'_>,
+        context: &super::types::OriginalLexicalMemberContext,
+    ) -> Option<super::types::OriginalLexicalNextCall> {
+        if context.body_word() != original.body_word() {
+            return None;
+        }
+        let word = original.body_word();
+        let content = word.content_span().ok()?;
+        let body = word.image().try_text().ok()?.get(content.as_range())?;
+        crate::segmenter::segment_commands_with_offset_and_config(
+            body,
+            content.start(),
+            tcl_lexer::SourceSegmentationPurpose::NestedScript.config(word.config()),
+        )
+        .into_iter()
+        .filter_map(|command| {
+            let head = command.argv.first()?;
+            super::types::OriginalLexicalNextCall::from_source(
+                context,
+                &self.result,
+                &self.source,
+                head,
+            )
+        })
+        .find(|call| !call.has_target_class())
+    }
+
+    /// The definition-body members the manufacturer splices into every class
+    /// it makes, as a template over the creation call's arguments.
+    ///
+    /// Tk's `Megawidget` hands `next` a `[list superclass ::tk::MegawidgetClass
+    /// {*}$superclasses]` prologue, so every class it makes really does
+    /// inherit `::tk::MegawidgetClass` plus whatever the caller passed —
+    /// tclsh 9.0.4 and 8.6.16 both report exactly that from `info class
+    /// superclasses`.  Only **reference-only** members (`superclass`,
+    /// `mixin`, `filter`, `export`, … — the grammar's `all_args_ref` set)
+    /// are injected: they name existing entities, so every injected word
+    /// keeps a real source span, either in the manufacturer's own body
+    /// (a literal it always splices) or in the call's arguments (a
+    /// `{*}$param` splice, resolved per call by
+    /// [`resolve_factory_member`]).
+    ///
+    /// **Reading the whole prologue is a precondition, not a best effort.**
+    /// The definition word `next` receives is scanned piece by piece, and
+    /// every piece must be one the analyser can account for: a `[list
+    /// <member> …]` group it parsed, the manufacturer's own `$param` read
+    /// (the caller's body, spliced in verbatim), or list/statement
+    /// separator text.  Anything else — most importantly a **string-built**
+    /// prologue such as `next $name "superclass Base\n$body"`, which
+    /// injects a superclass with no nested command at all (tclsh 9.0.4 /
+    /// 8.6.16: `info class superclasses` really reports `::Base`, and its
+    /// methods really are inherited) — yields `None`, and the class is
+    /// recorded with its inheritance marked unknown.  Returning a
+    /// *known-empty* injection for a prologue that was merely unreadable
+    /// would claim the class has no superclass and let W308 fire on
+    /// perfectly good inherited methods.
+    fn manufacturer_injected_template(
+        &self,
+        meta: &UserMetaclass,
+        original: &super::types::OriginalSourceMethodNameBody<'_>,
+        prologue: &tcl_lexer::NativeWord,
+    ) -> Option<Vec<FactoryMember>> {
+        let params = original.parameter_names().collect::<Vec<_>>();
+        let mut injected: Vec<FactoryMember> = Vec::new();
+        for piece in prologue_pieces(prologue) {
+            match piece {
+                ProloguePiece::Separator => {}
+                ProloguePiece::VarRead(name) if params.contains(&name) => {}
+                ProloguePiece::Substitution(group) => {
+                    injected.push(self.injected_member_from_group(meta, group, original)?);
+                }
+                // Literal prologue text, a read of something that is not a
+                // manufacturer parameter, or an unreadable fragment: the
+                // prologue is not fully accounted for.
+                ProloguePiece::VarRead(_) | ProloguePiece::Opaque => return None,
+            }
+        }
+        Some(injected)
+    }
+
+    /// The definition-body member one `[…]` group of a manufacturer
+    /// prologue installs, or `None` when the group is not a
+    /// reference-only member built by a source-selected list-argument constructor.
+    fn injected_member_from_group(
+        &self,
+        meta: &UserMetaclass,
+        group: Token,
+        original: &super::types::OriginalSourceMethodNameBody<'_>,
+    ) -> Option<FactoryMember> {
+        let sm = Self::source_map(
+            &self.source,
+            &self.cached_line_index,
+            self.cached_line_index_source_len,
+        );
+        let descended = descend_token(&sm, group, self.file_lexer_config());
+        let mut segs = segments_from_tree(descended.tree(), &sm).into_iter();
+        let seg = segs.next()?;
+        // One group builds one member; a `[a; b]` compound is not a shape
+        // the prologue reader accounts for.
+        if segs.next().is_some() {
+            return None;
+        }
+        let source_words = crate::registry_invocation::source_structure::source_registry_words_at(
+            &self.source,
+            &self.result,
+            seg.argv.first()?.span.start(),
+        )?;
+        let context = self.result.resolved_input.as_ref()?.context_registry();
+        let layout = source_words.with_source_schema(&context, |schema| {
+            schema.authored_source_list_operand_templates()
+        })??;
+        let tokens = seg.arg_tokens();
+        if layout.len() != tokens.len()
+            || source_words.arguments().len() != tokens.len()
+            || source_words.origins().len() != tokens.len().checked_add(1)?
+            || source_words
+                .origins()
+                .iter()
+                .enumerate()
+                .any(|(ordinal, origin)| {
+                    *origin != crate::registry_invocation::InvocationWordOrigin::Written(ordinal)
+                })
+        {
+            return None;
+        }
+        let mut words = Vec::with_capacity(layout.len());
+        for (ordinal, expanded) in layout {
+            let operand = source_words.operands().get(ordinal)?.as_ref()?;
+            let word = operand.word()?;
+            if word.group().expand != expanded {
+                return None;
+            }
+            let value = if expanded {
+                // The original operand arena excludes its actual expansion
+                // marker; no reconstructed word supplies the formal read.
+                FactoryWord::CallerSplice(original.scalar_parameter_splice(word)?.checked_add(1)?)
+            } else {
+                FactoryWord::Literal {
+                    text: String::from_utf8(
+                        tcl_syntax::word_rules::original_static_word_unicode_value(word)?,
+                    )
+                    .ok()?,
+                    token: *tokens.get(ordinal)?,
+                }
+            };
+            words.push(value);
+        }
+        let FactoryWord::Literal { text: keyword, .. } = words.first()? else {
+            return None;
+        };
+        meta.grammar.member(keyword)?.all_args_ref?;
+        Some(FactoryMember { words })
+    }
+
+    /// Readonly factory metadata and its same original call arguments.
+    /// Foreign headers require the source graph's separate occupancy facet;
+    /// neither tier proves that a custom manufacturer executes or completes.
+    fn class_factory_for_command(
+        &self,
+        args: &[String],
+        arg_tokens: &[Token],
+        call_off: u32,
+    ) -> Option<(ClassFactory, Vec<tcl_lexer::NativeWord>)> {
+        use crate::command_binding::SourceCommandTransitionObligation;
+        if let Some(call) = crate::registry_invocation::source_structure::source_constructor_call_at(
+            &self.source,
+            &self.result,
+            call_off,
+        ) {
+            if call
+                .obligations()
+                .contains(&SourceCommandTransitionObligation::UnknownEarlierMutation)
+                || (0..arg_tokens.len()).any(|index| call.written_argument(index) != Some(index))
+                || !super::original_definer::constructor_arguments_match(&call, args, arg_tokens)
+            {
+                return None;
+            }
+            let declaration = call.class_declaration();
+            let class = if self.result.allows_retained_logical_declaration_advice() {
+                declaration.logical_source_class(&self.result)?
+            } else {
+                declaration.source_class(&self.result)?.metadata()
+            };
+            let original_arguments = (0..arg_tokens.len())
+                .map(|ordinal| call.argument_word(ordinal).cloned())
+                .collect::<Option<Vec<_>>>()?;
+            return Some((class.factory.clone()?, original_arguments));
+        }
+        let request =
+            crate::registry_invocation::source_structure::source_logical_command_candidates_at(
+                &self.source,
+                &self.result,
+                call_off,
+            )?;
+        if request.has_earlier_unknown_mutations()
+            || request.has_lookup_operand_effects()
+            || request.argument_count() != Some(arg_tokens.len())
+            || !super::original_definer::logical_arguments_match(
+                request.original_words(),
+                args,
+                arg_tokens,
+            )
+        {
+            return None;
+        }
+        let input = self.result.resolved_input.as_ref()?;
+        let policy = tcl_registry::InvocationDialect::of_profile(input.unit_profile())
+            .authored_name_policy()?;
+        let index = self.workspace_class_factories.as_ref()?;
+        let foreign = request
+            .external_header_coordinates()?
+            .iter()
+            .find_map(|coordinate| {
+                // Project an existing slot outward to the legacy index only
+                // when the shared recipe preserves every component boundary.
+                let key = tcl_syntax::naming::native_command_source_spelling(
+                    policy.recipe(),
+                    coordinate,
+                )?;
+                index.get(&key)
+            })?;
+        Some((
+            self.foreign_factory_at_call(foreign, arg_tokens)?,
+            request.original_words().iter().skip(1).cloned().collect(),
+        ))
+    }
+
+    /// Factory metadata used by static-body result summaries.
+    fn static_summary_factory_for_candidates(
+        &self,
+        candidates: &[String],
+        arg_tokens: &[Token],
+    ) -> Option<ClassFactory> {
+        // This file first: a locally-written metaclass shadows a workspace one
+        // under the same name, exactly as a local proc shadows a workspace
+        // proc for command resolution.
+        for candidate in candidates {
+            if let Some(class) = self.result.all_classes.get(candidate) {
+                return class.factory.clone();
+            }
+        }
+        let index = self.workspace_class_factories.as_ref()?;
+        let foreign = candidates
+            .iter()
+            .find_map(|candidate| index.get(candidate))?;
+        self.foreign_factory_at_call(foreign, arg_tokens)
+    }
+
+    fn foreign_factory_at_call(
+        &self,
+        foreign: &ClassFactory,
+        arg_tokens: &[Token],
+    ) -> Option<ClassFactory> {
+        // Tokens in the foreign factory index the metaclass's document. The
+        // creation call's own subcommand word (`create`) is the nearest real
+        // token in *this* document that the injected member genuinely came
+        // with, and it is guaranteed present — the caller has already checked
+        // `arg_tokens.len() >= 2`.
+        let elsewhere = *arg_tokens.first()?;
+        let grammar = self.definition_grammar(&foreign.root_metaclass)?;
+        Some(foreign.resolve_in_other_document(elsewhere, &|keyword| {
+            grammar
+                .member(keyword)
+                .is_some_and(|m| m.retraction.is_some())
+        }))
+    }
+
+    /// The registry metaclass at the root of `seed`'s superclass chain, when
+    /// `seed` (recorded, or being recorded, under `qualified`) is **itself a
+    /// class factory** — a user-defined `TclOO` metaclass.
+    ///
+    /// A class is a factory when its (possibly indirect) superclass chain
+    /// reaches a command the registry marks [`tcl_registry::Traits::IS_OO_METACLASS`]
+    /// with a `TclOo` definition-body grammar — the same seed
+    /// [`Self::handle_oo_class_command`] uses for a written-out
+    /// `oo::class create`.  Only the inheritance step is added here, and
+    /// that is `TclOO` language semantics (`oo::class`'s subclasses
+    /// manufacture classes), not per-command knowledge.
+    ///
+    /// The returned grammar is the *root registry metaclass's* own
+    /// definition-body grammar, so the bodies this factory makes are walked
+    /// by exactly the grammar the language gives them without the walker
+    /// naming a metaclass command.
+    ///
+    /// Superclass words retain the original definition caller's namespace,
+    /// independently of the manufactured class's holder or reported name.
+    /// Missing relation context supplies no superclass identity.
+    ///
+    /// Chain walking is depth-bounded and visited-checked, so a cyclic
+    /// `superclass` declaration (rejected by real Tcl, but writable in a
+    /// half-edited buffer) terminates.
+    fn user_metaclass_of_class(&self, seed: &ClassDef) -> Option<UserMetaclass> {
+        let context = self.analysis_context();
+        let provider =
+            super::class_hierarchy::original_metadata::original_registry_metaclass_provider(
+                &self.result,
+                seed,
+                &context,
+            )?;
+        let descriptor = provider.registry_descriptor(&context)?;
+        Some(UserMetaclass {
+            root_command: descriptor.name.to_owned(),
+            root_policy: provider.policy(),
+            root_slot: provider.source_slot().clone(),
+            grammar: descriptor.definition_body?,
+        })
+    }
+
+    /// Add one `oo::objdefine` site's per-object methods under `key`,
+    /// skipping any the same site already contributed.
+    ///
+    /// The `foreach`-literal simulation re-dispatches an installer once per
+    /// remaining element, and the ordinary walk already covered the first
+    /// one, so the first element's site is visited twice under the
+    /// *variable*'s key.  A single source site can never legitimately
+    /// declare the same member twice, so `(objdefine_offset, name)` is an
+    /// exact identity for "already recorded" — no iteration count is
+    /// needed, and a genuinely separate `oo::objdefine` block on the same
+    /// object (a different offset) still accumulates.
+    fn record_object_methods(
+        &mut self,
+        key: String,
+        methods: &[super::types::MethodDef],
+        objdefine_offset: u32,
+    ) {
+        let recorded = self.result.object_methods.entry(key).or_default();
+        for def in methods {
+            if recorded
+                .iter()
+                .any(|m| m.objdefine_offset == objdefine_offset && m.def.name == def.name)
+            {
+                continue;
+            }
+            recorded.push(super::types::ObjectMethodDef {
+                def: def.clone(),
+                objdefine_offset,
+            });
+        }
+    }
+
+    /// Classify one possible class-manufacturing call and resolve its layout.
+    /// Both registry definers and published user-metaclass factories converge
+    /// here, so the main recorder only handles the resulting structural data.
+    fn resolve_class_creation(
+        &self,
+        args: &[String],
+        arg_tokens: &[Token],
+        cmd_tok: Token,
+    ) -> Option<ResolvedClassCreation> {
+        if args.is_empty() || arg_tokens.is_empty() {
+            return None;
+        }
+        let context = self.analysis_context();
+        let original_definer = super::original_definer::OriginalClassDefinerSource::capture(
+            &self.source,
+            &self.result,
+            cmd_tok.span.start(),
+        );
+        let registry_definer = if let Some(original) = &original_definer {
+            original.matches_arguments(args, arg_tokens).then_some(())?;
+            let descriptor = original.registry_descriptor(&context)?;
+            (descriptor
+                .traits
+                .contains(tcl_registry::Traits::IS_OO_METACLASS)
+                && descriptor.definition_body.is_some_and(|grammar| {
+                    grammar.family == tcl_registry::definer::DefinerFamily::TclOo
+                }))
+            .then_some(())?;
+            Some(descriptor)
+        } else {
+            None
+        };
+        let user_factory = if registry_definer.is_some() {
+            None
+        } else {
+            Some(self.class_factory_for_command(args, arg_tokens, cmd_tok.span.start())?)
+        };
+        let manufacturer = match user_factory.as_ref() {
+            None => tcl_registry::CommandRegistry::manufacturer_method_for_descriptor(
+                registry_definer?,
+                &args[0],
+            )
+            .filter(|method| {
+                method.visibility == tcl_registry::definer::MemberVisibility::Exported
+            }),
+            Some((factory, _)) => self
+                .definition_grammar(&factory.root_metaclass)
+                .and_then(|grammar| grammar.manufacturer(&args[0])),
+        }?;
+        if user_factory.as_ref().is_some_and(|(factory, _)| {
+            !factory
+                .exported_manufacturers
+                .contains(manufacturer.keyword)
+        }) {
+            return None;
+        }
+        let layout = match user_factory.as_ref() {
+            None => ManufacturerLayout::builtin(manufacturer),
+            Some((factory, original_arguments)) => {
+                manufacturer_layout(factory, manufacturer, args, Some(original_arguments))
+            }
+        }?;
+        Some(ResolvedClassCreation {
+            user_factory: user_factory.map(|(factory, _)| factory),
+            registry_metaclass: registry_definer,
+            layout,
+        })
+    }
+
+    /// Handle `oo::class create NAME ?BODY?` — record the class.
+    ///
+    /// Records a [`super::types::ClassDef`] in ``result.all_classes``
+    /// (walking the body when present to populate method / mixin /
+    /// superclass info) so consumers see the class in the workspace
+    /// index. Returns `true` when the command shape matched.
+    pub fn handle_oo_class_command(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[Token],
+        scope_path: &[usize],
+        cmd_tok: Token,
+    ) -> bool {
+        self.handle_oo_class_source(super::original_definer::ClassDefinerCall {
+            cmd_name,
+            args,
+            arg_tokens,
+            scope_path,
+            cmd_tok: Some(cmd_tok),
+            original: None,
+        })
+    }
+
+    pub(super) fn handle_oo_class_source(
+        &mut self,
+        call: super::original_definer::ClassDefinerCall<'_>,
+    ) -> bool {
+        let super::original_definer::ClassDefinerCall {
+            cmd_name,
+            args,
+            arg_tokens,
+            scope_path,
+            cmd_tok,
+            original,
+        } = call;
+        let Some(cmd_tok) = cmd_tok else {
+            return false;
+        };
+        // Keep the written head for original source and factory lookups.
+        let Some(ResolvedClassCreation {
+            user_factory,
+            registry_metaclass,
+            layout,
+        }) = self.resolve_class_creation(args, arg_tokens, cmd_tok)
+        else {
+            // Anonymous class manufacturers have no source-level class name
+            // to put in `all_classes`; ordinary instance manufacturers have
+            // no class-definition body. Both are handled by their respective
+            // object-value paths instead.
+            //
+            // …and a third case, which is not a verdict at all: the head may
+            // name a metaclass this document proves only *after* the walk.
+            // Keep it for the post-pass.
+            self.defer_class_creation(cmd_name, args, arg_tokens, scope_path, cmd_tok);
+            return false;
+        };
+        if layout.name_arg >= args.len() || layout.name_arg >= arg_tokens.len() {
+            return false;
+        }
+        let raw_name = &args[layout.name_arg];
+        // Home the class to the command-resolution namespace (see the same
+        // reasoning in `handle_proc_command`): a class created inside a
+        // qualified-name proc's body homes to that proc's defining namespace,
+        // not the lexical global, so it can't overwrite a same-named global
+        // class in `all_classes`.
+        let ns_prefix = self.command_resolution_namespace(scope_path);
+        let original_name = original
+            .and_then(super::original_definer::OriginalClassDefinerSource::original_name)
+            .or_else(|| self.original_provider_class_name(arg_tokens[layout.name_arg].span));
+        let source_name = original_name.as_ref().and_then(|original| {
+            crate::signature_scan::scope::SignatureSourceCommand::object_from_key(
+                &self.declaration_namespace_scope(scope_path)?,
+                original.name_input(),
+            )
+        });
+        let qualified = source_name
+            .as_ref()
+            .and_then(crate::signature_scan::scope::SignatureSourceCommand::reported_full_name)
+            .unwrap_or_else(|| qualify(&ns_prefix, raw_name));
+        let simple = source_name
+            .as_ref()
+            .and_then(crate::signature_scan::scope::SignatureSourceCommand::simple_name)
+            .unwrap_or_else(|| crate::naming::key_tail(&qualified).to_string());
+        let name_span = arg_tokens[layout.name_arg].span;
+        // **W314** — the class name has no absolute written form.
+        self.emit_w314_no_absolute_name(raw_name, name_span);
+        let body_tok_opt = arg_tokens.get(layout.body_arg).copied();
+        let body_span = body_tok_opt.map_or(name_span, |t| t.span);
+        let doc = std::mem::take(&mut self.last_comment);
+        let metaclass_lookup = self.declaration_name_policy().and_then(|policy| {
+            crate::signature_scan::scope::SignatureSourceLookup::new(
+                policy,
+                self.declaration_namespace_scope(scope_path)?,
+                cmd_name.to_owned(),
+            )
+        });
+        let mut class = super::types::ClassDef {
+            source_name,
+            metaclass_lookup,
+            name: simple,
+            qualified_name: qualified.clone(),
+            name_span,
+            body_span,
+            metaclass: registry_metaclass.map_or_else(
+                || cmd_name.to_owned(),
+                |descriptor| descriptor.name.to_owned(),
+            ),
+            metaclass_provenance: MetaclassProvenance::Observed,
+            doc,
+            inheritance_unknown: layout.inheritance_unknown,
+            ..Default::default()
+        };
+        // A user metaclass has no spec of its own, so the bodies it makes are
+        // governed by the definition grammar of the registry metaclass at the
+        // root of its superclass chain — the same `TclOO` grammar, reached
+        // without naming it here.
+        let grammar = original
+            .map(super::original_definer::OriginalClassDefinerSource::grammar)
+            .or_else(|| {
+                user_factory.as_ref().map_or_else(
+                    || registry_metaclass.and_then(|descriptor| descriptor.definition_body),
+                    |factory| self.definition_grammar(&factory.root_metaclass),
+                )
+            });
+        self.apply_original_created_class_body(&mut class, &layout, grammar, call, body_tok_opt);
+        // **W315** — a retraction the body could not legally make. Drained
+        // here, after the whole body walk, so a class extended by several
+        // `oo::define` blocks reports each block's own aborts once.
+        self.emit_w315_definition_cannot_run(&mut class);
+        // Is the class we just recorded *itself* a class factory?  Answered
+        // here, once, so every later `ThisClass create …` — in this file or,
+        // via the workspace factory index, in another — reads a derived fact
+        // instead of re-walking the superclass chain and re-segmenting the
+        // manufacturer override per call site.
+        class.factory = self.class_factory_of(&class);
+        // …and does the *manufacturer* let this class be constructed by a
+        // bare word (Tk's `::tk::IconList .il`)?  Settled here too, for the
+        // same reason: the proof lives on the metaclass, which a consuming
+        // document may never see, so the answer travels on the class rather
+        // than the question.
+        if user_factory
+            .as_ref()
+            .is_some_and(|factory| factory.unknown_binds_instance)
+        {
+            class.class_command_fallback =
+                super::types::ClassCommandFallback::ConstructsNamedInstance;
+        }
+        // Register globally and in the current scope, the same as
+        // the proc registration path: ``result.all_classes`` is keyed
+        // by the fully-qualified name; the per-scope
+        // ``scope.classes`` map is keyed by the bare (unqualified)
+        // name so per-scope lookups and shadowing rules work.
+        self.retain_manufactured_class_declaration(
+            original_name.as_ref(),
+            qualified,
+            class,
+            scope_path,
+        );
+        true
+    }
+
+    fn apply_original_created_class_body(
+        &mut self,
+        class: &mut super::types::ClassDef,
+        layout: &ManufacturerLayout,
+        grammar: Option<&'static tcl_registry::definer::DefinitionBodyGrammar>,
+        call: super::original_definer::ClassDefinerCall<'_>,
+        body_token: Option<Token>,
+    ) {
+        self.apply_manufactured_class_members(grammar, &layout.injected, class);
+        if let (Some(body_text), Some(body_tok)) = (call.args.get(layout.body_arg), body_token) {
+            let disabled = self.command_dialect_disabled(call.cmd_name);
+            let body = call.cmd_tok.zip(grammar).and_then(|(head, grammar)| {
+                self.original_class_definition_body_at(head.span.start(), body_tok, grammar)
+            });
+            let enclosing = std::mem::replace(&mut self.original_class_definition_body, body);
+            self.parse_oo_definition_body(
+                body_text,
+                body_tok,
+                class,
+                call.scope_path,
+                grammar,
+                disabled,
+            );
+            self.original_class_definition_body = enclosing;
+        }
+    }
+
+    fn original_class_definition_body_at(
+        &self,
+        offset: u32,
+        token: Token,
+        grammar: &'static tcl_registry::definer::DefinitionBodyGrammar,
+    ) -> Option<std::sync::Arc<crate::registry_invocation::OriginalSourceScriptBody>> {
+        let words = crate::registry_invocation::source_structure::source_registry_words_at(
+            &self.source,
+            &self.result,
+            offset,
+        )?;
+        let context = self.result.resolved_input.as_ref()?.context_registry();
+        (words.with_source_schema(&context, |schema| {
+            schema
+                .authored_source_definition_body_grammar()
+                .is_some_and(|selected| std::ptr::eq(selected, grammar))
+        }) == Some(true))
+        .then_some(())?;
+        let mut bodies = words
+            .source_script_bodies(&context)
+            .into_iter()
+            .filter(|body| body.original_container().tokens().first() == Some(&token));
+        let body = bodies.next()?;
+        bodies.next().is_none().then(|| std::sync::Arc::new(body))
+    }
+
+    /// Class definition advice from the selected definition grammar.
+    /// Native source targets require a genuine original class/configuration
+    /// receipt; unjoined targets retain only lexical body analysis. Positively
+    /// retained Logical inputs can also publish cross-document advisory stubs.
+    /// Reporting tables establish neither Native identity nor definition entry.
+    pub fn handle_oo_define_command(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[Token],
+        arg_single: &[bool],
+        scope_path: &[usize],
+    ) -> bool {
+        let enclosing = self.original_class_definition_body.take();
+        let result = self
+            .handle_oo_define_with_source(cmd_name, args, arg_tokens, arg_single, scope_path, None);
+        self.original_class_definition_body = enclosing;
+        result
+    }
+
+    pub(super) fn handle_oo_define_source(
+        &mut self,
+        original: &super::original_definer::OriginalClassConfigurationSource,
+        scope_path: &[usize],
+    ) -> bool {
+        let body = original
+            .tokens
+            .get(1)
+            .zip(
+                original
+                    .target
+                    .class_declaration()
+                    .grammar(&self.analysis_context()),
+            )
+            .and_then(|(token, grammar)| {
+                self.original_class_definition_body_at(
+                    original.target.consumer().site().offset,
+                    *token,
+                    grammar,
+                )
+            });
+        let enclosing = std::mem::replace(&mut self.original_class_definition_body, body);
+        let result = self.handle_oo_define_with_source(
+            original.target.consumer().command(),
+            &original.arguments,
+            &original.tokens,
+            &original.single,
+            scope_path,
+            Some(original),
+        );
+        self.original_class_definition_body = enclosing;
+        result
+    }
+
+    fn handle_oo_define_with_source(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[Token],
+        arg_single: &[bool],
+        scope_path: &[usize],
+        source: Option<&super::original_definer::OriginalClassConfigurationSource>,
+    ) -> bool {
+        if args.is_empty() {
+            return false;
+        }
+        // Distinguish body-form from inline-form by inspecting
+        // ``args[1]``.  Body-form: ``oo::define Class { ... }``
+        // — args[1] is a single body argument.  Inline-form:
+        // ``oo::define Class method foo {} {}`` — args[1] is a
+        // known define subcommand.
+        if args.len() < 2 {
+            return true;
+        }
+
+        let source_class = source.map(|source| source.target.class_declaration());
+        if let Some(target) = arg_tokens.first() {
+            self.retain_original_class_configuration_metadata_with_source(
+                target.span,
+                source_class,
+            );
+        }
+        let original_class = source_class.cloned().or_else(|| {
+            arg_tokens
+                .first()
+                .and_then(|token| self.original_oo_configuration_class_declaration(*token))
+        });
+        let selected = original_class.as_ref().and_then(|declaration| {
+            declaration
+                .source_class(&self.result)
+                .map(|record| record.metadata().qualified_name.clone())
+                .or_else(|| {
+                    declaration
+                        .logical_source_class(&self.result)
+                        .map(|class| class.qualified_name.clone())
+                })
+        });
+        let Some(qualified) = selected
+            .or_else(|| self.oo_define_qualified_target(args, arg_tokens, arg_single, scope_path))
+        else {
+            // An unjoined target still owns its lexical definition body. This
+            // temporary holder is not published under an invented class key.
+            let mut holder = super::types::ClassDef {
+                via_define: true,
+                ..Default::default()
+            };
+            self.walk_oo_define_form(cmd_name, args, arg_tokens, scope_path, &mut holder);
+            return true;
+        };
+
+        let (name_span, this_call_span) = Self::oo_definition_source_spans(arg_tokens, source);
+        self.result
+            .class_body_spans
+            .push((qualified.clone(), this_call_span));
+        let mut class_def = self.oo_definition_source_class(
+            &qualified,
+            original_class.as_ref(),
+            name_span,
+            this_call_span,
+        );
+
+        self.walk_oo_define_form(cmd_name, args, arg_tokens, scope_path, &mut class_def);
+
+        // **W315** — as on the creation path, except that a `via_define` stub's
+        // aborts are dropped rather than reported: a class created in another
+        // file leaves this record with no member tables to judge against.
+        self.emit_w315_definition_cannot_run(&mut class_def);
+        // `oo::define C { superclass oo::class }` turns an ordinary class into
+        // a factory, and `self method create …` changes the shape of the
+        // classes it makes, so the derived factory record is recomputed here
+        // exactly as it is on the creation path.
+        class_def.factory = self.class_factory_of(&class_def);
+        if let Some(original) = &original_class {
+            self.retain_original_source_class_update(original, &class_def);
+        }
+        self.register_defined_class(qualified, class_def, scope_path);
+        true
+    }
+
+    fn oo_definition_source_class(
+        &mut self,
+        qualified: &str,
+        original: Option<&crate::command_binding::OriginalSourceClassDeclaration>,
+        name_span: tcl_lexer::Span,
+        body_span: tcl_lexer::Span,
+    ) -> super::types::ClassDef {
+        let canonical = original.and_then(|original| {
+            original
+                .source_class(&self.result)
+                .map(|record| record.metadata().clone())
+                .or_else(|| original.logical_source_class(&self.result).cloned())
+        });
+        canonical
+            .or_else(|| {
+                self.result
+                    .allows_retained_logical_declaration_advice()
+                    .then(|| self.result.all_classes.remove(qualified))
+                    .flatten()
+            })
+            .unwrap_or_else(|| super::types::ClassDef {
+                name: crate::naming::key_tail(qualified).to_owned(),
+                qualified_name: qualified.to_owned(),
+                name_span,
+                body_span,
+                via_define: true,
+                ..Default::default()
+            })
+    }
+
+    /// Report geometry follows the actual whole selected installer. A
+    /// captured target's producer does not become the configuration site.
+    fn oo_definition_source_spans(
+        arguments: &[Token],
+        source: Option<&super::original_definer::OriginalClassConfigurationSource>,
+    ) -> (tcl_lexer::Span, tcl_lexer::Span) {
+        let name = arguments
+            .first()
+            .map_or(tcl_lexer::Span::empty(0), |word| word.span);
+        let original = source.and_then(|source| {
+            let words = source.target.consumer().original_words();
+            Some(tcl_lexer::Span::new(
+                words.first()?.word_span().start(),
+                words.last()?.word_span().end(),
+            ))
+        });
+        let call = original.unwrap_or_else(|| {
+            arguments.last().map_or(name, |last| {
+                tcl_lexer::Span::new(name.start(), last.span.end())
+            })
+        });
+        (name, call)
+    }
+
+    /// Note that the command whose name is being moved/bound loads an external
+    /// unit — a `source`, a `load`, an `auto_load` — and, if so, widen
+    /// [`AnalysisResult::has_dynamic_providers`](super::types::AnalysisResult::has_dynamic_providers).
+    ///
+    /// Hook dispatch keys off the **written** head, so once `source` has been
+    /// renamed or aliased to another name, calls through that name no longer
+    /// reach [`Self::handle_source_command`] and the files they pull in become
+    /// invisible. Rather than let W120 / W123 then confidently report a package
+    /// or command "missing" that the moved command loads, this widens to the
+    /// same unknowable state a dynamic `namespace import` pattern or a
+    /// `namespace unknown` handler produces.
+    ///
+    /// The test is [`Traits::LOADS_EXTERNAL_UNIT`](tcl_registry::Traits), read
+    /// off the spec: no command name appears here, so `load` and `auto_load`
+    /// are covered by the same code that covers `source`, and a dialect that
+    /// adds another file-loading command is covered by declaring the trait.
+    fn note_external_unit_command_moved(&mut self, name: &str) {
+        if self
+            .registry
+            .as_deref()
+            .and_then(|r| r.get(name))
+            .is_some_and(|spec| {
+                spec.traits
+                    .contains(tcl_registry::Traits::LOADS_EXTERNAL_UNIT)
+            })
+        {
+            self.result.has_dynamic_providers = true;
+        }
+    }
+
+    /// How many of `args`' leading words the **top-level** command `cmd_name`
+    /// consumes as options, entirely from registry data — the whole-command
+    /// counterpart of [`Self::namespace_leading_flag_words`], which answers the
+    /// same question for a `namespace` *subcommand*.
+    ///
+    /// A leading word counts when it matches one of the command's
+    /// profile-available [`OptionSpec`](tcl_registry::OptionSpec)s, and a
+    /// value-taking option (`source -encoding utf-8 f.tcl`) consumes its value
+    /// word too.  The scan stops at the first word that is not a declared
+    /// option, so the first *positional* is what remains — which is the only
+    /// thing callers want to know.
+    ///
+    /// Matching is exact (`OptionSpec::matches`: canonical name or a declared
+    /// alias), never the generic unique-prefix rule, for the same reason
+    /// [`Self::namespace_leading_flag_words`] is exact: these are hand-parsed
+    /// in C and an abbreviation is not accepted.
+    ///
+    /// `0` when no registry is attached (the analyser runs registry-less in
+    /// some unit tests) or the command has no declared options — a flagless
+    /// read then treats every word as positional, which is the pre-registry
+    /// behaviour.
+    fn leading_option_words(&self, cmd_name: &str, args: &[String]) -> usize {
+        let Some(spec) = self.registry.as_deref().and_then(|r| r.get(cmd_name)) else {
+            return 0;
+        };
+        let options = self
+            .analysis_context()
+            .context()
+            .available_option_specs(spec);
+        if options.is_empty() {
+            return 0;
+        }
+        let mut consumed = 0usize;
+        while let Some(word) = args.get(consumed) {
+            let Some(opt) = options.iter().find(|o| o.matches(word.as_str())) else {
+                break;
+            };
+            // A value-taking option eats the next word as well — but only when
+            // that word is actually present, so a truncated `source -encoding`
+            // does not report more words than were written.
+            let width = 1 + usize::from(opt.takes_value());
+            if consumed + width > args.len() {
+                break;
+            }
+            consumed += width;
+        }
+        consumed
+    }
+
+    /// Keep the global class index and the enclosing lexical scope's class
+    /// map in lockstep for any definition form that has produced a class fact.
+    pub(super) fn register_defined_class(
+        &mut self,
+        qualified: String,
+        class_def: super::types::ClassDef,
+        scope_path: &[usize],
+    ) {
+        let simple = class_def.name.clone();
+        self.result
+            .retain_class_declaration(qualified, class_def.clone());
+        if let Some(scope) = super::scope::scope_at_mut(&mut self.result.global_scope, scope_path) {
+            scope.classes.insert(simple, class_def);
+        }
+    }
+
+    fn original_oo_configuration_class_declaration(
+        &self,
+        token: Token,
+    ) -> Option<crate::command_binding::OriginalSourceClassDeclaration> {
+        let configuration = self
+            .result
+            .original_class_configurations()
+            .find(|configuration| {
+                configuration
+                    .target()
+                    .name_input()
+                    .original_word_key()
+                    .is_some_and(|key| {
+                        key.span() == token.span
+                            || key
+                                .original_word()
+                                .tokens()
+                                .first()
+                                .is_some_and(|original| original.span == token.span)
+                    })
+            })?;
+        let allocation = configuration.target().local_allocation()?;
+        let mut originals = self
+            .result
+            .original_class_declarations()
+            .filter(|declaration| declaration.declaration_site() == &allocation.site);
+        let original = originals.next()?;
+        if originals.next().is_some() {
+            return None;
+        }
+        let declaration =
+            crate::registry_invocation::source_structure::source_class_declaration_at(
+                &self.source,
+                &self.result,
+                original.declaration_site().offset,
+            )?;
+        (declaration.source_class(&self.result)?.declaration_site() == original.declaration_site())
+            .then_some(declaration)
+    }
+
+    /// Resolve the `oo::define` target to its class key. A statically known
+    /// substitution retains its actual class name; an unresolved dynamic word
+    /// gets a call-site-specific synthetic key so unrelated definitions never
+    /// merge state merely because they spell the same variable.
+    fn oo_define_qualified_target(
+        &mut self,
+        args: &[String],
+        arg_tokens: &[Token],
+        arg_single: &[bool],
+        scope_path: &[usize],
+    ) -> Option<String> {
+        if let Some(token) = arg_tokens.first()
+            && let Some(configuration) =
+                self.result
+                    .original_class_configurations()
+                    .find(|configuration| {
+                        configuration
+                            .target()
+                            .name_input()
+                            .original_word_key()
+                            .is_some_and(|key| {
+                                key.span() == token.span
+                                    || key
+                                        .original_word()
+                                        .tokens()
+                                        .first()
+                                        .is_some_and(|written| written.span == token.span)
+                            })
+                    })
+        {
+            if let Some(allocation) = configuration.target().local_allocation() {
+                let mut declarations = self
+                    .result
+                    .original_class_declarations()
+                    .filter(|declaration| declaration.declaration_site() == &allocation.site);
+                let declaration = declarations.next()?;
+                if declarations.next().is_some() {
+                    return None;
+                }
+                return Some(declaration.metadata().qualified_name.clone());
+            }
+            if !configuration.target().is_external_candidate() {
+                return None;
+            }
+        }
+        // Native targets require the genuine original configuration issuer.
+        // Missing source category/layout never re-enters a reporting-name map.
+        if !self.result.allows_retained_logical_declaration_advice() {
+            return None;
+        }
+        let resolved = self
+            .resolve_dynamic_word(
+                &args[0],
+                arg_tokens.first().copied(),
+                arg_single.first().copied().unwrap_or(false),
+                scope_path,
+            )
+            .filter(|name| !crate::naming::is_dynamic_word(name));
+        let raw = resolved.as_ref().unwrap_or(&args[0]);
+        let dynamic_key = crate::naming::is_dynamic_word(raw).then(|| {
+            arg_tokens.first().map_or_else(
+                || raw.clone(),
+                |token| self.mint_synthetic_offset_name("@dynclass@", token.span.start()),
+            )
+        });
+        if dynamic_key.is_none()
+            && let Some(selected) = self.resolve_user_class_in(raw, scope_path)
+        {
+            return Some(selected);
+        }
+        let namespace = self.command_resolution_namespace(scope_path);
+        let presentation = qualify(&namespace, dynamic_key.as_deref().unwrap_or(raw));
+        if self.result.all_classes.contains_key(&presentation) {
+            return None;
+        }
+        Some(presentation)
+    }
+
+    /// Apply an `oo::define` inline member or braced body through the selected
+    /// definition grammar. Both forms receive identical dialect diagnostics
+    /// and registry-driven command-reference recording.
+    fn walk_oo_define_form(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[Token],
+        scope_path: &[usize],
+        class_def: &mut super::types::ClassDef,
+    ) {
+        let inline_form = self
+            .definition_grammar("oo::define")
+            .is_some_and(|grammar| grammar.is_member(&args[1]));
+        if inline_form {
+            let inline_args: Vec<String> = args[1..].to_vec();
+            let inline_tokens: Vec<Token> = arg_tokens.iter().skip(1).copied().collect();
+            if let Some(grammar) = self.definition_grammar(cmd_name) {
+                let definer_disabled = self.command_dialect_disabled(cmd_name);
+                if let (Some(subcmd), Some(token)) = (inline_args.first(), inline_tokens.first()) {
+                    self.emit_w002_oo_member_disabled(grammar, subcmd, *token, definer_disabled);
+                }
+                if let Some(member) = inline_args
+                    .first()
+                    .and_then(|subcmd| grammar.member(subcmd))
+                {
+                    self.emit_w002_oo_member_option_disabled(
+                        member,
+                        &inline_args[1..],
+                        &inline_tokens[1..],
+                        definer_disabled,
+                    );
+                }
+                super::oo::parse_oo_define_inline_in(
+                    self,
+                    grammar,
+                    &inline_args,
+                    &inline_tokens,
+                    class_def,
+                    Some(self.analysis_context().context().authoring_query()),
+                    scope_path,
+                );
+                self.record_member_command_references(
+                    grammar,
+                    &inline_args,
+                    &inline_tokens,
+                    scope_path,
+                );
+            }
+        } else if let Some(body_tok) = arg_tokens.get(1).copied() {
+            let grammar = self.definition_grammar(cmd_name);
+            let definer_disabled = self.command_dialect_disabled(cmd_name);
+            self.parse_oo_definition_body(
+                &args[1],
+                body_tok,
+                class_def,
+                scope_path,
+                grammar,
+                definer_disabled,
+            );
+        }
+    }
+
+    /// Record `source ?-encoding ENC? FILE` invocations.
+    ///
+    /// Which leading words are options — and therefore which word is the
+    /// script path — comes from `source`'s own [`OptionSpec`
+    /// list](tcl_registry::CommandSpec::options) via
+    /// [`Self::leading_option_words`], not a `-encoding` literal here.  The
+    /// option carries `SpecSurface::TCL85_PLUS` in the registry, so the
+    /// dialect gating comes along for free: under an 8.4 profile — which has
+    /// no `-encoding` — the word is not recognised as an option and the path
+    /// word is read at index 0, matching that spec's own declaration rather
+    /// than a hardcoded assumption here.
+    ///
+    /// Dispatched via [`tcl_registry::hooks::AnalyserHookId::Source`].
+    pub fn handle_source_command(
+        &mut self,
+        cmd_tok: Token,
+        args: &[String],
+        arg_tokens: &[Token],
+        arg_single: &[bool],
+        scope_path: &[usize],
+    ) {
+        let current_interpreter_scope = (0..=scope_path.len()).all(|depth| {
+            super::scope::scope_at(&self.result.global_scope, &scope_path[..depth]).is_some_and(
+                |scope| {
+                    scope.original_interpreter_source_domain.is_none()
+                        && !scope.isolated_interpreter_source_body
+                },
+            )
+        });
+        let original_project_source_load = (current_interpreter_scope
+            && self.interp_path_stack.is_empty()
+            && self.safe_interp_stack.is_empty())
+        .then(|| {
+            crate::registry_invocation::source_structure::capture_original_project_source_load_at(
+                &self.source,
+                &self.result,
+                cmd_tok.span.start(),
+            )
+        })
+        .flatten()
+        .map(std::sync::Arc::new);
+        let file_idx = original_project_source_load.as_ref().map_or_else(
+            || self.leading_option_words("source", args),
+            |load| load.path_argument(),
+        );
+        if file_idx >= args.len() || file_idx >= arg_tokens.len() {
+            self.result
+                .source_targets
+                .push(crate::signature_scan::types::SignatureSource {
+                    original_project_source_load: None,
+                    original_interpreter_source_load: None,
+                    raw_path: String::new(),
+                    range: cmd_tok.span,
+                    is_literal: false,
+                    site_namespace: self.command_resolution_namespace(scope_path),
+                });
+            return;
+        }
+        let st = arg_tokens[file_idx];
+        let original_project_source_load = original_project_source_load
+            .filter(|load| load.path_word().is_some_and(|path| path.span() == st.span));
+        let path = &args[file_idx];
+        let is_single = arg_single.get(file_idx).copied().unwrap_or(false);
+        // A dynamic path — a bare `$var` or a concatenation like
+        // `${dir}lit.tcl` — is first tried against the same last-write-wins
+        // constant-string lattice already proven for `rename`'s OLD/NEW
+        // words: the real corpus idiom is `set p
+        // "e.tcl"; source $p`, a few lines apart in the same file, which
+        // should resolve exactly like the literal `source e.tcl` it's
+        // equivalent to — instead of going untracked and leaking the
+        // sourced file's definitions into every caller as if unconditionally
+        // global. A `[...]` command substitution
+        // anywhere in the word (e.g. `[file join $dir lit.tcl]`) still
+        // can't be folded this way — `resolve_dynamic_word` rejects it
+        // outright, same as a variable whose value originates in a
+        // different file — both stay conservatively dynamic, falling
+        // through to `evaluate_auto_path_expr`'s narrower `[info script]`
+        // subset unchanged.
+        let (path, is_lit) = match self.resolve_dynamic_word(path, Some(st), is_single, scope_path)
+        {
+            Some(resolved) => {
+                let is_lit = !crate::naming::is_dynamic_word(&resolved);
+                (resolved, is_lit)
+            }
+            None => (path.clone(), false),
+        };
+        // `source` evaluates the file in the caller's current namespace:
+        // record the command-resolution namespace at this call site so the
+        // workspace index can re-home the sourced document's definitions.
+        let site_namespace = self.command_resolution_namespace(scope_path);
+        if let Some(source) = self
+            .result
+            .source_targets
+            .iter_mut()
+            .find(|source| source.range == st.span)
+        {
+            source.original_project_source_load = original_project_source_load;
+            source.raw_path = path;
+            source.is_literal = is_lit;
+            source.site_namespace = site_namespace;
+            return;
+        }
+        self.result
+            .source_targets
+            .push(crate::signature_scan::types::SignatureSource {
+                original_project_source_load,
+                raw_path: path,
+                range: st.span,
+                is_literal: is_lit,
+                site_namespace,
+                original_interpreter_source_load: None,
+            });
+    }
+
+    /// Record `namespace import ?-force? PATTERN ...` declarations.
+    ///
+    /// Literal patterns are recorded in ``result.namespace_imports`` (the
+    /// W123 unresolved-command pass suppresses an unqualified call whose
+    /// name glob-matches a recorded pattern's tail); a *dynamic* pattern
+    /// (``$``/``[…]`` substitution) can't be qualified statically, so it
+    /// flips ``has_dynamic_providers`` instead — the imported namespace may
+    /// provide any name at runtime, which suppresses W120/W123 file-wide.
+    ///
+    /// Dispatched via
+    /// [`tcl_registry::hooks::AnalyserHookId::NamespaceImport`] (stamped
+    /// on `namespace`'s `import` subcommand); `args[0]` is still the
+    /// subcommand word.
+    pub fn handle_namespace_import_command(
+        &mut self,
+        args: &[String],
+        arg_tokens: &[Token],
+        scope_path: &[usize],
+    ) {
+        if args.is_empty() {
+            return;
+        }
+        // Skip the subcommand word + the leading flag words the registry says
+        // `namespace import` consumes (`-force`, at most one). Both facts are
+        // read from the spec rather than matched by name or bounded by a
+        // literal here — see [`Self::namespace_leading_flag_words`]. That the
+        // option word was consumed *is* `-force` (`IMPORT_OPTIONS` declares
+        // exactly one option and `max_leading_option_words` caps it at one),
+        // so the conflict semantics below need no name match either — the
+        // same reading `namespace export`'s `-clear` tombstone already gets.
+        let Some(first) = arg_tokens
+            .get(1)
+            .and_then(|token| self.original_source_namespace_operand(token.span, scope_path))
+        else {
+            return;
+        };
+        let first_bytes = [first.name_input().bytes()];
+        let Some((forced, _)) = tcl_registry::NamespaceTransition::import_pattern_byte_operands(
+            &first_bytes,
+            first.name_input().policy(),
+        ) else {
+            return;
+        };
+        let mut idx = 1 + usize::from(forced);
+        // `namespace import` imports into the namespace current at the call —
+        // the command-resolution namespace, so an import inside
+        // `proc ::ns::p {}` lands in `::ns`.
+        let importing_ns = self.command_resolution_namespace(scope_path);
+        while idx < args.len() && idx < arg_tokens.len() {
+            let pat_raw = args[idx].clone();
+            let original = self
+                .original_source_namespace_operand(arg_tokens[idx].span, scope_path)
+                .and_then(|operand| {
+                    crate::signature_scan::original_name::SourceNamespacePattern::from_original(
+                        operand,
+                        tcl_syntax::naming::NativeNamePurpose::NamespaceImportPattern,
+                        arg_tokens[idx].span,
+                        forced,
+                    )
+                });
+            let Some(original) = original else {
+                if pat_raw.contains(['$', '[']) {
+                    self.result.has_dynamic_providers = true;
+                }
+                idx += 1;
+                continue;
+            };
+            let source =
+                crate::signature_scan::types::SignatureNamespaceImportSource::from_native_pattern(
+                    original.parts(),
+                );
+            self.result.original_namespace_patterns.push(original);
+            let Some(source) = source else {
+                idx += 1;
+                continue;
+            };
+            let pat = source.constructed_pattern();
+            self.result.namespace_imports.push(
+                crate::signature_scan::types::SignatureNamespaceImport {
+                    ns: importing_ns.clone(),
+                    pattern: pat,
+                    source: Some(source),
+                    range: arg_tokens[idx].span,
+                    conjectured: false,
+                    forced,
+                },
+            );
+            idx += 1;
+        }
+    }
+
+    /// Record `namespace forget ?PATTERN ...?` events — the removal half of
+    /// the import edge's lifecycle log.
+    ///
+    /// A `namespace import` is not a permanent name: `namespace forget`
+    /// removes the alias and a later bare call raises `invalid command name`
+    /// (oracle in
+    /// [`crate::signature_scan::types::SignatureNamespaceForget`], tclsh
+    /// 8.6.14 / 9.0.4 byte-identical). Recorded as an ordered event beside
+    /// the `namespace export` tombstones so the resolvers in `tcl-lsp-core`
+    /// can ask "does this namespace still hold an alias for NAME *here*?"
+    /// rather than "was one ever installed"
+    /// (`tcl_lsp_core::namespace_import::alias_live_at`).
+    ///
+    /// The pattern shapes follow `Tcl_ForgetImport` exactly: a qualified
+    /// pattern names the *source* namespace whose commands lose their import
+    /// here, a simple one matches this namespace's own imported command
+    /// names whatever their origin. Both are oracle-confirmed; see the record
+    /// type.
+    ///
+    /// A dynamic pattern (`$`/`[` substitution) can't be statically resolved
+    /// to a glob text and is skipped rather than guessed at: revoking an
+    /// alias on a guess would silently drop real references, the same
+    /// abstain-toward-answering direction the unordered `-clear` takes.
+    /// `namespace forget` declares no options, so — unlike `import` /
+    /// `export` — there is no leading flag word to consume; the registry's
+    /// own [`Self::namespace_leading_flag_words`] is still what says so.
+    ///
+    /// Dispatched via
+    /// [`tcl_registry::hooks::AnalyserHookId::NamespaceForget`] (stamped on
+    /// `namespace`'s `forget` subcommand); `args[0]` is still the subcommand
+    /// word.
+    pub fn handle_namespace_forget_command(
+        &mut self,
+        args: &[String],
+        arg_tokens: &[Token],
+        scope_path: &[usize],
+    ) {
+        if args.is_empty() {
+            return;
+        }
+        let mut idx = 1 + self.namespace_leading_flag_words("forget", &args[1..]);
+        // As for `import` / `export`: the namespace losing the aliases is the
+        // one current at the call, not the lexically enclosing one.
+        let forgetting_ns = self.command_resolution_namespace(scope_path);
+        while idx < args.len() && idx < arg_tokens.len() {
+            let original = self
+                .original_source_namespace_operand(arg_tokens[idx].span, scope_path)
+                .and_then(|operand| {
+                    crate::signature_scan::original_name::SourceNamespacePattern::from_original(
+                        operand,
+                        tcl_syntax::naming::NativeNamePurpose::NamespaceForgetPattern,
+                        arg_tokens[idx].span,
+                        false,
+                    )
+                });
+            let Some(original) = original else {
+                idx += 1;
+                continue;
+            };
+            let parts = original.parts().clone();
+            self.result.original_namespace_patterns.push(original);
+            let source_ns =
+                crate::signature_scan::types::SignatureNamespaceImportSource::from_native_pattern(
+                    &parts,
+                )
+                .map(|source| source.namespace);
+            let Ok(pattern) = parts.tail.try_utf8() else {
+                idx += 1;
+                continue;
+            };
+            self.result.namespace_forgets.push(
+                crate::signature_scan::types::SignatureNamespaceForget {
+                    ns: forgetting_ns.clone(),
+                    source_ns,
+                    pattern: pattern.to_owned(),
+                    range: arg_tokens[idx].span,
+                },
+            );
+            idx += 1;
+        }
+    }
+
+    /// Record `namespace export ?-clear? PATTERN ...` declarations.
+    ///
+    /// Real Tcl's `namespace import NS::*` only ever imports names `NS` has
+    /// actually exported (`Tcl_Export`, `tclNamesp.c`) — an unexported
+    /// sibling command living in `NS` is not reachable through the import at
+    /// all (tclsh9.0/8.6-verified: `invalid command name` calling it bare).
+    /// Recorded in
+    /// `result.namespace_exports` so the wildcard-import bareword resolvers
+    /// in `tcl-lsp-core` (same-document) and the workspace index
+    /// (cross-document) can gate a would-be import target on whether its
+    /// source namespace actually exports it.
+    ///
+    /// `-clear` is recorded as an ordered **tombstone** entry rather than
+    /// applied by dropping the namespace's earlier entries: an import
+    /// snapshots the export list as it stood when the import ran, so a
+    /// `-clear` written *after* an import must not revoke what that import
+    /// already bound (oracle in
+    /// [`crate::signature_scan::types::SignatureNamespaceExport`]).
+    /// Collapsing it eagerly destroys exactly the ordering the snapshot needs. Consumers reconstruct the
+    /// export set as of an offset with
+    /// `tcl_lsp_core::namespace_import::exported_at_import_site`.
+    ///
+    /// A dynamic pattern (`$`/`[` substitution) can't be statically resolved
+    /// to a glob text, so it is silently skipped — the wildcard-import
+    /// resolver then correctly abstains for names it might have covered,
+    /// rather than guessing. A dynamic word cannot hide a `-clear`, which is
+    /// a literal flag word or nothing. It is skipped rather than treated as
+    /// the abort below, for the same reason: whether it resolves to a
+    /// qualified pattern is unknowable here.
+    ///
+    /// A **qualified** pattern is a guaranteed runtime error (`Tcl_Export`
+    /// rejects it), and C `return`s from the pattern loop on that failure, so
+    /// recording stops there — see the loop for the oracle.
+    ///
+    /// Dispatched via
+    /// [`tcl_registry::hooks::AnalyserHookId::NamespaceExport`] (stamped on
+    /// `namespace`'s `export` subcommand); `args[0]` is still the subcommand
+    /// word.
+    pub fn handle_namespace_export_command(
+        &mut self,
+        args: &[String],
+        arg_tokens: &[Token],
+        scope_path: &[usize],
+    ) {
+        if args.is_empty() {
+            return;
+        }
+        self.record_original_namespace_exports(args, arg_tokens, scope_path);
+        let mut idx = 1;
+        // As for `import`: the exporting namespace is the one current at the
+        // call, not the lexically enclosing one.
+        let exporting_ns = self.command_resolution_namespace(scope_path);
+        // Which leading words are flags — and how many of them the command
+        // consumes — is registry data (`EXPORT_OPTIONS` plus
+        // `max_leading_option_words`), not a name match or a loop bound here.
+        // `-clear` is the only option and at most one is consumed, so a
+        // second `-clear` falls through to the pattern loop below and is
+        // recorded as the export pattern real Tcl treats it as. Each consumed
+        // flag lands as a tombstone event at its own token so the ordering
+        // survives.
+        let flag_words = self.namespace_leading_flag_words("export", &args[1..]);
+        for _ in 0..flag_words {
+            if idx >= args.len() || idx >= arg_tokens.len() {
+                break;
+            }
+            self.result.namespace_exports.push(
+                crate::signature_scan::types::SignatureNamespaceExport {
+                    ns: exporting_ns.clone(),
+                    pattern: String::new(),
+                    range: arg_tokens[idx].span,
+                    clears: true,
+                },
+            );
+            idx += 1;
+        }
+        while idx < args.len() && idx < arg_tokens.len() {
+            let pattern = args[idx].clone();
+            if pattern.contains('$') || pattern.contains('[') {
+                idx += 1;
+                continue;
+            }
+            let selected = self
+                .declaration_name_dialect()
+                .authored_name_policy()
+                .and_then(|policy| {
+                    policy
+                        .recipe()
+                        .namespace_pattern_input(
+                            pattern.as_bytes(),
+                            tcl_syntax::naming::NativeNamePurpose::NamespaceExportPattern,
+                        )
+                        .ok()
+                        .and_then(|projection| {
+                            std::str::from_utf8(projection.selected())
+                                .ok()
+                                .map(str::to_owned)
+                        })
+                });
+            let Some(pattern) = selected else {
+                idx += 1;
+                continue;
+            };
+            // `NamespaceExportCmd` calls `Tcl_Export` per pattern and
+            // `return`s on the first failure, so a qualified pattern aborts
+            // the loop: every *later* word is never exported at all. The
+            // earlier ones stay — C commits each pattern as it goes.
+            // Oracle (tclsh 8.6.16 / 9.0.4): `namespace export one ::bad
+            // three` leaves exactly `one` exported, and `namespace export
+            // ::bad ok` leaves nothing. Recording past the bad word let a
+            // wildcard-import bareword resolve where real Tcl would not.
+            if tcl_syntax::naming::is_qualified(pattern.as_bytes()) {
+                break;
+            }
+            self.result.namespace_exports.push(
+                crate::signature_scan::types::SignatureNamespaceExport {
+                    ns: exporting_ns.clone(),
+                    pattern,
+                    range: arg_tokens[idx].span,
+                    clears: false,
+                },
+            );
+            idx += 1;
+        }
+    }
+
+    fn original_source_namespace_operand(
+        &self,
+        span: tcl_lexer::Span,
+        scope_path: &[usize],
+    ) -> Option<crate::signature_scan::original_name::SourceOriginalNamespaceOperand> {
+        self.head_identities
+            .original_namespace_operand_at_span_in_source(
+                &tcl_lexer::SourceImage::document(&self.source),
+                span,
+                self.file_lexer_config(),
+            )
+            .or_else(|| {
+                let original = self.original_static_source_name_at_span(span)?;
+                (original.name_input().policy() == self.declaration_name_policy()?)
+                    .then_some(())?;
+                crate::signature_scan::original_name::SourceOriginalNamespaceOperand::from_conditional_declaration(
+                    original,
+                    self.conditional_source_namespace_scope(scope_path)?,
+                )
+            })
+    }
+
+    fn conditional_source_namespace_scope(
+        &self,
+        scope_path: &[usize],
+    ) -> Option<crate::signature_scan::scope::SignatureNamespaceScope> {
+        use crate::signature_scan::scope::SignatureSourceNameInput;
+        let policy = self.declaration_name_policy()?;
+        let image = tcl_lexer::SourceImage::document(&self.source);
+        let mut selected = self.declaration_namespace_scope(&[])?;
+        let mut scope = &self.result.global_scope;
+        for &index in scope_path {
+            scope = scope.children.get(index)?;
+            if scope.kind != super::types::ScopeKind::Namespace {
+                return None;
+            }
+            let name = self.original_static_source_name_at_span(scope.name_span?)?;
+            let key = name.name_input();
+            if key.policy() != policy
+                || key.lexer_config() != self.file_lexer_config()
+                || key.source_image() != &image
+            {
+                return None;
+            }
+            selected =
+                selected.child_from_input(&SignatureSourceNameInput::OriginalWord(key.clone()))?;
+            if scope.naming_scope.as_ref() != Some(&selected) {
+                return None;
+            }
+        }
+        Some(selected)
+    }
+
+    fn record_original_namespace_exports(
+        &mut self,
+        args: &[String],
+        tokens: &[Token],
+        scope_path: &[usize],
+    ) {
+        use crate::signature_scan::original_name::SourceNamespaceExport;
+        let mut operands = Vec::new();
+        for token in tokens.iter().take(args.len()).skip(1) {
+            let Some(operand) = self.original_source_namespace_operand(token.span, scope_path)
+            else {
+                self.result
+                    .original_namespace_export_unknowns
+                    .push(token.span);
+                return;
+            };
+            operands.push((operand, token.span));
+        }
+        let Some((first, _)) = operands.first() else {
+            return;
+        };
+        let policy = first.name_input().policy();
+        if operands.iter().any(|(operand, _)| {
+            operand.name_input().policy() != policy
+                || operand.context() != first.context()
+                || operand.site() != first.site()
+        }) {
+            return;
+        }
+        let bytes = operands
+            .iter()
+            .map(|(operand, _)| operand.name_input().bytes())
+            .collect::<Vec<_>>();
+        let Some((clear, _)) =
+            tcl_registry::NamespaceTransition::export_pattern_byte_operands(&bytes, policy)
+        else {
+            return;
+        };
+        for (index, (operand, span)) in operands.into_iter().enumerate() {
+            let Some(event) =
+                SourceNamespaceExport::from_original(operand, span, clear && index == 0)
+            else {
+                // A qualified pattern aborts this handler after committing its
+                // preceding pattern events; it supplies no enclosing Normal.
+                break;
+            };
+            self.result.original_namespace_exports.push(event);
+        }
+    }
+
+    /// How many of `args`' leading words `namespace SUB` consumes as option
+    /// flags, entirely from registry data: a word that matches a declared
+    /// flag option of that subcommand, capped by the subcommand's declared
+    /// [`tcl_registry::SubCommand::max_leading_option_words`].
+    ///
+    /// `args` is the word list *after* the subcommand word.
+    ///
+    /// Two registry facts, no literal in the walker:
+    ///
+    /// - **Which** words are flags — `namespace import`'s `-force` and
+    ///   `namespace export`'s `-clear` (`IMPORT_OPTIONS` / `EXPORT_OPTIONS`).
+    ///   Matching is exact (`OptionSpec::matches`, canonical name or declared
+    ///   alias), never the generic unique-prefix rule, because both
+    ///   subcommands hand-parse with `strcmp` in C: oracle (tclsh 8.6.14 /
+    ///   9.0.4) `namespace export -c p` exports `-c` and `p`, and `namespace
+    ///   import -f ::src::p` aborts with `no namespace specified in import
+    ///   pattern "-f"`.
+    /// - **How many** — one, declared as `max_leading_option_words`. A second
+    ///   `-clear` is an ordinary export pattern (and `-clear` is a perfectly
+    ///   valid, importable command name); a second `-force` is an import
+    ///   pattern that aborts the script.
+    ///
+    /// The scan also stops at the first non-flag word, which is what makes
+    /// `namespace export a -clear` export both (the flag is only ever the
+    /// first word — oracle-verified).
+    ///
+    /// `0` when no registry is attached (the analyser runs registry-less in
+    /// some unit tests): a flagless read then treats `-clear` as an ordinary
+    /// pattern, which is inert — nothing else records a command by that name.
+    fn namespace_leading_flag_words(&self, sub: &str, args: &[String]) -> usize {
+        let Some((spec, sub_spec)) = self
+            .registry
+            .as_deref()
+            .and_then(|r| r.get("namespace"))
+            .and_then(|spec| spec.subcommand(sub).map(|s| (spec, s)))
+        else {
+            return 0;
+        };
+        let options = self
+            .analysis_context()
+            .context()
+            .available_sub_option_specs(spec, sub_spec);
+        let cap = sub_spec
+            .max_leading_option_words
+            .map_or(usize::MAX, usize::from);
+        args.iter()
+            .take(cap)
+            .take_while(|w| {
+                options
+                    .iter()
+                    .any(|o| o.matches(w.as_str()) && !o.takes_value())
+            })
+            .count()
+    }
+
+    /// Handle `namespace unknown HANDLER` — installing a per-namespace
+    /// unknown handler (TIP 181, `NamespaceUnknownCmd` in `tclNamesp.c`)
+    /// makes command resolution unknowable, exactly like a dynamic user
+    /// `proc unknown`: the handler runs for every failed lookup and may
+    /// resolve anything.  Flips ``has_dynamic_providers``, which suppresses
+    /// W120/W123 file-wide (matching the proc-unknown behaviour).
+    ///
+    /// Only the *setter* form suppresses: the bare query (`namespace
+    /// unknown`) installs nothing, and an empty handler (`namespace unknown
+    /// {}`) resets to the default lookup (`Tcl_SetNamespaceUnknownHandler`
+    /// treats an empty list as a reset).
+    ///
+    /// Dispatched via
+    /// [`tcl_registry::hooks::AnalyserHookId::NamespaceUnknown`]
+    /// (stamped on `namespace`'s `unknown` subcommand); `args[0]` is
+    /// still the subcommand word.
+    pub fn handle_namespace_unknown_command(&mut self, args: &[String]) {
+        if args.len() < 2 {
+            return;
+        }
+        if args[1].trim().is_empty() {
+            return;
+        }
+        self.result.has_dynamic_providers = true;
+    }
+
+    /// Recognise the tcllib ``<NS>::import <ALIAS>`` wrapper idiom
+    /// and record a conjectured `NamespaceImport`.
+    ///
+    /// A common tcllib convention is a proc ``some::ns::import`` that
+    /// ``uplevel``s ``namespace eval <alias> {namespace import some::ns::*}``.
+    /// The wrapper bodies are not statically detected, but
+    /// the call shape is unambiguous — its qualified name ends in
+    /// ``::import`` and its single argument is a static namespace
+    /// identifier.
+    pub fn handle_tcllib_import_wrapper(
+        &mut self,
+        cmd_name: &str,
+        cmd_tok: Token,
+        args: &[String],
+        scope_path: &[usize],
+    ) {
+        let [alias] = args else {
+            return;
+        };
+        let current_ns = self.command_resolution_namespace(scope_path);
+        let Some(hint) = crate::naming::authored_import_wrapper_hint(
+            cmd_name,
+            alias,
+            &current_ns,
+            crate::naming::AuthoredImportAliasSpelling::Written,
+        ) else {
+            return;
+        };
+        self.result.namespace_imports.push(
+            crate::signature_scan::types::SignatureNamespaceImport {
+                ns: hint.alias_namespace,
+                pattern: hint.pattern,
+                source: Some(
+                    crate::signature_scan::types::SignatureNamespaceImportSource {
+                        native_source: None,
+                        namespace: hint.source_namespace,
+                        tail_pattern: "*".to_owned(),
+                    },
+                ),
+                range: cmd_tok.span,
+                conjectured: true,
+                // The wrapper's own body is not read, so whether the
+                // `namespace import` it `uplevel`s carries `-force` is
+                // unknown. `false` is the conservative reading for the one
+                // thing the flag decides: a conjectured import never claims
+                // to have replaced a command the target namespace already
+                // holds.
+                forced: false,
+            },
+        );
+    }
+
+    /// Record a write to the package search path: `lappend auto_path
+    /// PATH...` ([`AutoPathForm::Append`], one entry per word) or `set
+    /// auto_path PATH` ([`AutoPathForm::Assign`], one entry for the list).
+    ///
+    /// The search path is the special variable the registry names
+    /// `auto_path`, where the document's dialect provides it for user code to
+    /// write ([`tcl_registry::VarAccess::ReadWrite`]) — one read of the
+    /// special-variable registry, so a dialect with no auto-loader (iRules)
+    /// records nothing. The check is on the written *variable*, not a
+    /// command guard. Any such mutation flips ``has_dynamic_providers``:
+    /// packages discovered at runtime can register commands the static
+    /// analyser can't see, so W123 unknown-command diagnostics suppress on
+    /// the document.
+    ///
+    /// `lappend` appends **one list element per argument word**, so an
+    /// append records one entry per word and each is a whole directory —
+    /// `lappend auto_path {p q}` names the single directory `p q`, not two.
+    /// An assignment's right-hand side is a **list**, so its one record may
+    /// name several directories; the split is deliberately *not* done here:
+    /// the record keeps the source word verbatim (its `range` is the whole
+    /// argument), and [`crate::auto_path_eval::evaluate_auto_path_entry`]
+    /// applies the list grammar at consumption.
+    ///
+    /// `written` is the position of the written variable and `values` the
+    /// words recorded. The assignment is recorded by
+    /// [`Self::bind_value_word_assignment`] for any command whose declared
+    /// semantics stores its value word into the variable it names; an
+    /// append by the binder ([`Self::handle_var_binding_command`]) for any
+    /// command whose descriptor appends list elements to the variable it
+    /// writes ([`tcl_registry::VarElementsEffect::AppendsListElements`]).
+    pub fn record_search_path_write(
+        &mut self,
+        args: &[String],
+        arg_tokens: &[Token],
+        written: usize,
+        values: std::ops::Range<usize>,
+        form: super::types::AutoPathForm,
+    ) {
+        let Some(written) = args.get(written) else {
+            return;
+        };
+        let context = self.analysis_context();
+        let dialect = Some(context.context().authoring_query());
+        if !context
+            .commands()
+            .special_var_in_dialect("auto_path", dialect)
+            .is_some_and(|search_path| {
+                search_path.access == tcl_registry::VarAccess::ReadWrite
+                    && search_path.name == written
+            })
+        {
+            return;
+        }
+        // An assignment with no value reads the path; it writes nothing. An
+        // append of nothing still names the path as written.
+        if values.is_empty() && form == super::types::AutoPathForm::Assign {
+            return;
+        }
+        for i in values {
+            let Some(tok) = arg_tokens.get(i) else {
+                continue;
+            };
+            self.result
+                .auto_path_entries
+                .push(super::types::AutoPathEntry {
+                    raw_path: args[i].clone(),
+                    range: tok.span,
+                    form,
+                });
+        }
+        self.result.has_dynamic_providers = true;
+    }
+
+    /// Record a `set auto_path PATH` mutation.
+    ///
+    /// Dispatched from the [`tcl_registry::hooks::AnalyserHookId::Set`]
+    /// arm; see [`Self::handle_auto_path_lappend`] for why any
+    /// ``auto_path`` mutation flips ``has_dynamic_providers``.
+    ///
+    /// The right-hand side is assigned as a **list**, so the one record this
+    /// pushes may name several directories and is tagged
+    /// [`AutoPathForm::Assign`] to say so.  The split is deliberately *not*
+    /// done here: the record keeps the source word verbatim (its `range` is
+    /// the whole argument), and
+    /// [`crate::auto_path_eval::evaluate_auto_path_entry`] applies the list
+    /// grammar at consumption.
+    pub fn handle_auto_path_set(&mut self, args: &[String], arg_tokens: &[Token]) {
+        if args.first().map(String::as_str) != Some("auto_path") || args.len() < 2 {
+            return;
+        }
+        if let Some(tok) = arg_tokens.get(1) {
+            self.result
+                .auto_path_entries
+                .push(super::types::AutoPathEntry {
+                    raw_path: args[1].clone(),
+                    range: tok.span,
+                    form: super::types::AutoPathForm::Assign,
+                });
+            self.result.has_dynamic_providers = true;
+        }
+    }
+
+    /// Registry-owned pattern layout over original typed argument words.
+    pub(in crate::analyser) fn regex_pattern_source_index(
+        &self,
+        command: &str,
+        arg_tokens: &[Token],
+        command_token: Token,
+    ) -> Option<usize> {
+        let context = self.analysis_context();
+        let mut dialect = self
+            .source_analysis_entry
+            .as_ref()
+            .and_then(|entry| entry.invocation_dialect)
+            .unwrap_or_else(|| tcl_registry::InvocationDialect::of_profile(self.profile));
+        dialect.lexer_grammar = self.grammar();
+        dialect.word_values = self.word_rules();
+        let source_map = self.cached_source_map();
+        let end = tcl_lexer::word_span(&source_map, *arg_tokens.last()?).end();
+        let start = command_token.span.start();
+        let text = self.source.get(start as usize..end as usize)?;
+        let segmented = crate::segmenter::segment_commands_with_offset_and_config(
+            text,
+            start,
+            self.file_lexer_config().nested(),
+        )
+        .into_iter()
+        .next()?;
+        let mut tokens = crate::ir::CommandTokens::from_segmented(
+            &source_map,
+            self.file_lexer_config(),
+            &segmented,
+        );
+        self.head_identities
+            .source_bindings()
+            .stamp_original_tokens(&mut tokens);
+        if self.result.allows_lexical_declaration_advice() {
+            let words = crate::registry_invocation::source_structure::source_registry_words(
+                &self.source,
+                &self.result,
+                &segmented,
+            )?;
+            let patterns = words.with_source_schema(&context, |schema| {
+                schema.authored_source_pattern_arguments()
+            })??;
+            let mut selected = patterns
+                .into_iter()
+                .filter(|pattern| pattern.kind == tcl_registry::patterns::PatternType::Regex);
+            let pattern = selected.next()?;
+            if selected.next().is_some() {
+                return None;
+            }
+            let crate::registry_invocation::InvocationWordOrigin::Written(written) = words
+                .origins()
+                .get(usize::from(pattern.index).checked_add(1)?)?
+            else {
+                return None;
+            };
+            return written.checked_sub(1);
+        }
+        if tokens.source_binding.is_some() {
+            return crate::registry_invocation::normal_representation_invocation_in_context(
+                &context, &tokens,
+            )?
+            .pattern_source_argument_index(context.commands());
+        }
+        crate::regex_source::source_pattern_index(
+            &self.source,
+            context.commands(),
+            command,
+            arg_tokens,
+            self.file_lexer_config(),
+            dialect,
+        )
+    }
+
+    /// Record the pattern arguments of regex-pattern commands
+    /// (`PatternType::Regex` specs — `regexp` / `regsub`) for syntax
+    /// highlighting.
+    ///
+    /// Literal patterns (`Esc` / `Str` tokens) are recorded
+    /// verbatim; variable patterns use checked Logical declaration and value
+    /// provenance to retain the original value and its source geometry.
+    /// `Cmd`-substitution patterns are skipped — runtime-computed
+    /// patterns can't be statically resolved.
+    ///
+    /// Dispatched via
+    /// [`tcl_registry::hooks::AnalyserHookId::RegexPatternCapture`]
+    /// (stamped on both `regexp` and `regsub`); `cmd_name` is data —
+    /// it labels the recorded pattern — not a guard.
+    pub fn handle_regex_pattern_capture(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[Token],
+        scope_path: &[usize],
+        command_token: Token,
+    ) {
+        if args.is_empty() {
+            return;
+        }
+        let Some(idx) = self.regex_pattern_source_index(cmd_name, arg_tokens, command_token) else {
+            return;
+        };
+        if idx >= arg_tokens.len() {
+            return;
+        }
+        let tok = arg_tokens[idx];
+        self.record_regex_pattern_token(&args[idx], tok, cmd_name, scope_path);
+    }
+
+    /// Record one regex-pattern token for `regexp` / `regsub` /
+    /// `switch -regexp`. Variables use checked original value provenance;
+    /// command substitutions supply no static pattern, and literals retain their bytes.
+    fn record_regex_pattern_token(
+        &mut self,
+        text: &str,
+        tok: Token,
+        command: &str,
+        scope_path: &[usize],
+    ) {
+        match tok.kind {
+            TokenType::Cmd => {
+                // Runtime-computed patterns can't be statically
+                // resolved — skip.  Only ``Var`` tokens are
+                // resolved as a substitution branch.
+            }
+            TokenType::Var => {
+                let sm = Analyser::source_map(
+                    &self.source,
+                    &self.cached_line_index,
+                    self.cached_line_index_source_len,
+                );
+                let var_name = sm.token_text(tok).to_string();
+                if let Some((const_val, def_span)) = self.lookup_logical_const_substitution(tok) {
+                    let pattern = const_val.to_string();
+                    // Record the use site (the `$var` token).
+                    self.result.regex_patterns.push(super::types::RegexPattern {
+                        range: tok.span,
+                        pattern: pattern.clone(),
+                        command: command.to_string(),
+                    });
+                    // Also record the defining ``set`` value's
+                    // range so the semantic-token provider can
+                    // highlight the literal.
+                    self.result.regex_patterns.push(super::types::RegexPattern {
+                        range: def_span,
+                        pattern,
+                        command: command.to_string(),
+                    });
+                    self.regex_vars.insert((scope_path.to_vec(), var_name));
+                }
+            }
+            _ => {
+                self.result.regex_patterns.push(super::types::RegexPattern {
+                    range: tok.span,
+                    pattern: text.to_string(),
+                    command: command.to_string(),
+                });
+            }
+        }
+    }
+
+    /// Resolve a command name to the `ProcDef` that implements it, following
+    /// Tcl's real bareword command resolution via
+    /// [`crate::naming::bareword_resolution_candidates`] — the current
+    /// namespace (computed by [`Self::command_resolution_namespace`]) first,
+    /// then global, exactly two levels, never every enclosing ancestor
+    /// namespace on the scope chain (Tcl's own command lookup does not walk
+    /// intermediate namespaces absent an explicit `namespace path`).
+    ///
+    /// Shared with the optimiser's identical same-file resolution
+    /// (`resolve_proc_qname`) and the disabled-command / arity suppression
+    /// checks' resolution (`UserResolutionFacts::resolves_to_user`) so the
+    /// three can't diverge on the same rule.
+    ///
+    /// Returns the first matching ``ProcDef`` (by reference into
+    /// ``result.all_procs``), or `None` if no candidate is known.
+    #[must_use]
+    pub fn resolve_proc_call(
+        &self,
+        cmd_name: &str,
+        scope_path: &[usize],
+    ) -> Option<&super::types::ProcDef> {
+        if cmd_name.is_empty() {
+            return None;
+        }
+        let ns = self.command_resolution_namespace(scope_path);
+        crate::naming::bareword_resolution_candidates(&ns, cmd_name)
+            .into_iter()
+            .find_map(|qname| self.result.all_procs.get(&qname))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tcl_lexer::Span;
+
+    fn command_name_pattern_with_closer(
+        word: &str,
+        candidate: &str,
+        closer: tcl_lexer::BracedVarStyle,
+    ) -> bool {
+        let mut input = Analyser::new().prepare_analysis_input("tcl").unwrap();
+        input.config.braced_var = closer;
+        let config = input.lexer_config();
+        let source = format!("marker {word}");
+        let segment =
+            crate::segmenter::segment_commands_with_offset_and_config(&source, 0, config).remove(0);
+        let tokens = crate::ir::CommandTokens::from_segmented(
+            &tcl_lexer::SourceMap::new(&source),
+            config,
+            &segment,
+        );
+        let original = crate::registry_invocation::original_native_compiler_words(
+            &tcl_lexer::SourceImage::document(&source),
+            tokens.words(),
+            0,
+            config,
+        )
+        .unwrap();
+        let metadata = crate::registry_invocation::InvocationMetadataContext::for_source_input(
+            input.borrowed_context_registry().commands(),
+            &input,
+            config,
+            Some(input.unit_profile()),
+        );
+        crate::dynamic_names::original_command_name_overlap(&original[1], candidate, metadata)
+            .unwrap()
+            .may_equal
+    }
+
+    fn dynamic_command_name_may_equal(word: &str, candidate: &str) -> bool {
+        command_name_pattern_with_closer(word, candidate, tcl_lexer::BracedVarStyle::FirstClose)
+    }
+
+    #[test]
+    fn original_registry_class_definers_require_the_selected_source_and_complete_arguments() {
+        for (source, expected) in [
+            ("oo::class create Made {}", true),
+            ("proc oo::class args {}; oo::class create Made {}", false),
+        ] {
+            let mut analyser = Analyser::new();
+            analyser.analyse_and_retain_result_for_test(source, "tcl");
+            analyser.registry = Some(analyser.profile_registry());
+            let segment = crate::segmenter::segment_commands_with_offset_and_config(
+                source,
+                0,
+                analyser.file_lexer_config(),
+            )
+            .pop()
+            .unwrap();
+            assert_eq!(
+                analyser
+                    .resolve_class_creation(segment.args(), segment.arg_tokens(), segment.argv[0])
+                    .is_some_and(|creation| creation.registry_metaclass.is_some()),
+                expected,
+                "{source}",
+            );
+            if expected {
+                let mut changed = segment.args().to_vec();
+                changed[0] = "new".to_owned();
+                assert!(
+                    analyser
+                        .resolve_class_creation(&changed, segment.arg_tokens(), segment.argv[0])
+                        .is_none()
+                );
+                analyser.source.push(' ');
+                assert!(
+                    analyser
+                        .resolve_class_creation(
+                            segment.args(),
+                            segment.arg_tokens(),
+                            segment.argv[0]
+                        )
+                        .is_none()
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn original_factory_overrides_require_readable_original_member_layout() {
+        for (source, represented) in [
+            (
+                "oo::class create Meta {superclass ::oo::class; self method create {name body} {next $name $body}}",
+                true,
+            ),
+            (
+                "oo::class create Meta {superclass ::oo::class; self method create {name body} {return opaque}}",
+                false,
+            ),
+            (
+                "oo::class create Meta {superclass ::oo::class; self forward create opaque}",
+                false,
+            ),
+        ] {
+            let mut analyser = Analyser::new();
+            analyser.analyse_and_retain_result_for_test(source, "tcl8.6");
+            let class = analyser
+                .result
+                .all_classes
+                .values()
+                .find(|class| class.name == "Meta")
+                .unwrap();
+            let factory = analyser.class_factory_of(class);
+            assert_eq!(factory.is_some(), represented, "{source}");
+            if let Some(factory) = factory {
+                let layout = factory.overrides.get("create").unwrap();
+                assert_eq!((layout.name_arg, layout.body_arg), (1, 2));
+                let mut report_only = class.clone();
+                report_only.class_methods.clear();
+                report_only.class_unexports.insert("create".to_owned());
+                assert_eq!(analyser.class_factory_of(&report_only), Some(factory));
+            }
+        }
+    }
+
+    #[test]
+    fn original_factory_headers_require_the_actual_graph_occupancy_and_arguments() {
+        for (source, key, expected) in [
+            ("External create Made {}", "::External", true),
+            ("puts create Made {}", "::puts", false),
+            (
+                "proc External args {}; External create Made {}",
+                "::External",
+                false,
+            ),
+            (
+                "interp alias {} External {} puts; External create Made {}",
+                "::External",
+                false,
+            ),
+            (
+                "unknown_effect; External create Made {}",
+                "::External",
+                false,
+            ),
+            ("External create [set name] {}", "::External", false),
+        ] {
+            let mut analyser = Analyser::new();
+            analyser.analyse_and_retain_result_for_test(source, "tcl");
+            analyser.registry = Some(analyser.profile_registry());
+            analyser.workspace_class_factories = Some(std::sync::Arc::new(
+                [(
+                    key.to_owned(),
+                    ClassFactory {
+                        root_metaclass: "::oo::class".to_owned(),
+                        ..ClassFactory::default()
+                    },
+                )]
+                .into_iter()
+                .collect(),
+            ));
+            let segment = crate::segmenter::segment_commands_with_offset_and_config(
+                source,
+                0,
+                analyser.file_lexer_config(),
+            )
+            .pop()
+            .unwrap();
+            assert_eq!(
+                analyser
+                    .class_factory_for_command(
+                        segment.args(),
+                        segment.arg_tokens(),
+                        segment.argv[0].span.start(),
+                    )
+                    .is_some(),
+                expected,
+                "{source}",
+            );
+            if expected {
+                let mut changed = segment.arg_tokens().to_vec();
+                changed.swap(0, 1);
+                assert!(
+                    analyser
+                        .class_factory_for_command(
+                            segment.args(),
+                            &changed,
+                            segment.argv[0].span.start()
+                        )
+                        .is_none()
+                );
+                let mut changed = segment.args().to_vec();
+                changed[0] = "new".to_owned();
+                assert!(
+                    analyser
+                        .class_factory_for_command(
+                            &changed,
+                            segment.arg_tokens(),
+                            segment.argv[0].span.start()
+                        )
+                        .is_none()
+                );
+                analyser.source.push(' ');
+                assert!(
+                    analyser
+                        .class_factory_for_command(
+                            segment.args(),
+                            segment.arg_tokens(),
+                            segment.argv[0].span.start()
+                        )
+                        .is_none()
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn manufacturer_prologue_components_keep_original_reference_and_group_geometry() {
+        for (source, expected) in [
+            ("next $a:b", vec!["a", "opaque"]),
+            ("next ${a:b}", vec!["a:b"]),
+            ("next {$body}", vec!["opaque"]),
+            (
+                "next \"[list superclass {a]b}]\\;$body\"",
+                vec!["group", "separator", "body"],
+            ),
+        ] {
+            let image = tcl_lexer::SourceImage::document(source);
+            let config = tcl_lexer::LexerConfig::default();
+            let plan = tcl_lexer::native_script_words_in(
+                image,
+                Span::new(0, u32::try_from(source.len()).unwrap()),
+                config,
+            )
+            .unwrap();
+            let observed = prologue_pieces(&plan.commands[0].words[1]);
+            let labels = observed
+                .iter()
+                .map(|piece| match piece {
+                    ProloguePiece::VarRead(name) => *name,
+                    ProloguePiece::Separator => "separator",
+                    ProloguePiece::Substitution(_) => "group",
+                    ProloguePiece::Opaque => "opaque",
+                })
+                .collect::<Vec<_>>();
+            assert_eq!(labels, expected, "{source}");
+        }
+    }
+
+    #[test]
+    fn original_if_conditions_keep_selected_grammar_and_unknown_evaluation_boundaries() {
+        for (dialect, condition, expected) in [
+            ("tcl8.6", "1 + 2 * 3", Some(true)),
+            ("tcl8.6", "0", Some(false)),
+            ("tcl8.6", "1 / 0", None),
+            ("tcl8.6", "$unknown", None),
+            ("tcl8.6", "[unknown]", None),
+            ("tcl8.6", "abs(1)", None),
+            ("tcl8.6", "\"1\"", None),
+            ("tcl8.6", "1_0", None),
+            ("tcl9.0", "1_0", Some(true)),
+        ] {
+            let source = format!("if {{{condition}}} {{set x 1}}");
+            let mut analyser = Analyser::new();
+            analyser.analyse_and_retain_result_for_test(&source, dialect);
+            let segment = crate::segmenter::segment_commands_with_offset_and_config(
+                &source,
+                0,
+                analyser.file_lexer_config(),
+            )
+            .remove(0);
+            assert_eq!(
+                analyser.original_condition_boolean(&segment, 1),
+                expected,
+                "{dialect}: {source}"
+            );
+            assert!(
+                analyser.original_condition_boolean(&segment, 2).is_none(),
+                "a Body role cannot donate an expression"
+            );
+            let mut foreign = segment.clone();
+            foreign.texts[1] = "0".to_owned();
+            if condition != "0" {
+                assert!(
+                    analyser.original_condition_boolean(&foreign, 1).is_none(),
+                    "foreign operand data cannot borrow the original expression owner"
+                );
+            }
+            let mut input = analyser.result.resolved_input.clone().unwrap();
+            input.config.strict_quoting = !input.config.strict_quoting;
+            analyser.resolved_input = Some(input);
+            assert!(analyser.original_condition_boolean(&segment, 1).is_none());
+        }
+        let mut prepared = Analyser::new();
+        let input = prepared.prepare_analysis_input("tcl9.0").unwrap();
+        for escapes in [
+            tcl_dialect::EscapeSyntax::Tcl84,
+            tcl_dialect::EscapeSyntax::Tcl90,
+            tcl_dialect::EscapeSyntax::Jim,
+        ] {
+            let mut input = input.clone();
+            input.config.escapes = escapes;
+            let mut analyser = Analyser::new().with_resolved_input(input.clone());
+            let source = "if {1} break";
+            analyser.analyse_and_retain_result_for_test(source, "display-only");
+            assert_eq!(analyser.result.resolved_input.as_ref(), Some(&input));
+            let segment = crate::segmenter::segment_commands_with_offset_and_config(
+                source,
+                0,
+                input.lexer_config(),
+            )
+            .remove(0);
+            assert_eq!(analyser.original_condition_boolean(&segment, 1), Some(true));
+        }
+    }
+
+    #[test]
+    fn original_if_branches_use_clause_order_and_complete_original_bodies() {
+        for (source, selected_bodies, fallthrough) in [
+            ("if {1} {set x 1} else {set x 2}", vec!["set x 1"], false),
+            (
+                "if {0} {set x 1} elseif {1} {set x 2} else {set x 3}",
+                vec!["set x 2"],
+                false,
+            ),
+            ("if {0} {set x 1}", Vec::new(), true),
+            (
+                "if {$unknown} {set x 1} else {set x 2}",
+                vec!["set x 1", "set x 2"],
+                false,
+            ),
+            ("if {1 / 0} {set x 1}", vec!["set x 1"], true),
+            (
+                "if {1} {set x 1} elseif {1 / 0} {set x 2}",
+                vec!["set x 1"],
+                false,
+            ),
+            ("if {0} break else continue", vec!["continue"], false),
+        ] {
+            let mut analyser = Analyser::new();
+            analyser.analyse_and_retain_result_for_test(source, "tcl8.6");
+            let config = analyser.file_lexer_config();
+            let segment =
+                crate::segmenter::segment_commands_with_offset_and_config(source, 0, config)
+                    .remove(0);
+            let (spans, actual_fallthrough) = analyser
+                .possible_if_body_spans(&segment, "unused")
+                .expect("actual selected source If and complete original bodies");
+            let image = tcl_lexer::SourceImage::document(source);
+            let original = crate::registry_invocation::original_native_compiler_words(
+                &image,
+                crate::ir::CommandTokens::from_segmented(
+                    &tcl_lexer::SourceMap::from_image(&image),
+                    config,
+                    &segment,
+                )
+                .words(),
+                0,
+                config,
+            )
+            .unwrap();
+            let selected = spans
+                .iter()
+                .map(|span| {
+                    let word = original
+                        .iter()
+                        .find(|word| {
+                            word.tokens()
+                                .first()
+                                .is_some_and(|token| token.span == *span)
+                        })
+                        .unwrap();
+                    source.get(word.content_span().unwrap().as_range()).unwrap()
+                })
+                .collect::<Vec<_>>();
+            assert_eq!(selected, selected_bodies, "{source}");
+            assert_eq!(actual_fallthrough, fallthrough, "{source}");
+            analyser.source.push(' ');
+            assert!(
+                analyser
+                    .possible_if_body_spans(&segment, "unused")
+                    .is_none()
+            );
+        }
+    }
+
+    #[test]
+    fn control_arm_metadata_requires_the_actual_selected_body_source() {
+        use tcl_registry::registry::ControlArmSemantics as Arm;
+        for (source, body_ordinal, expected) in [
+            ("if {1} {set x 1}", 1, Some(Arm::Selected)),
+            (
+                "interp alias {} choose {} if; choose {1} {set x 1}",
+                1,
+                Some(Arm::Selected),
+            ),
+            ("interp alias {} choose {} if 1; choose {set x 1}", 0, None),
+            ("proc if args {}; if {1} {set x 1}", 1, None),
+            ("namespace eval N {set x 1}", 2, Some(Arm::FrameBoundary)),
+            ("namespace eval N {set x 1;} {set y 2}", 2, None),
+            ("apply {{} {set x 1}}", 0, None),
+        ] {
+            let mut analyser = Analyser::new();
+            analyser.analyse_and_retain_result_for_test(source, "tcl8.6");
+            let controller = crate::segmenter::segment_commands_with_offset_and_config(
+                source,
+                0,
+                analyser.file_lexer_config(),
+            )
+            .pop()
+            .unwrap();
+            let mut arm = ControlArm {
+                body_span: controller.arg_tokens()[body_ordinal].span,
+                controller,
+            };
+            assert_eq!(
+                analyser.control_arm_semantics_for(&arm),
+                expected,
+                "{source}"
+            );
+            let supplied = analyser.resolved_input.clone();
+            let mut foreign = analyser.result.resolved_input.clone().unwrap();
+            foreign.config.strict_quoting = !foreign.config.strict_quoting;
+            analyser.resolved_input = Some(foreign);
+            assert!(
+                analyser.control_arm_semantics_for(&arm).is_none(),
+                "a changed current input cannot borrow old structural advice"
+            );
+            analyser.resolved_input = supplied;
+            let actual_span = arm.body_span;
+            arm.body_span = Span::new(arm.body_span.start(), arm.body_span.start());
+            assert!(
+                analyser.control_arm_semantics_for(&arm).is_none(),
+                "an arbitrary contained point is not an original body"
+            );
+            arm.body_span = actual_span;
+            analyser.source.push(' ');
+            assert!(analyser.control_arm_semantics_for(&arm).is_none());
+        }
+    }
+
+    #[test]
+    fn control_arm_positions_require_actual_original_body_containers() {
+        for (source, expected) in [
+            (
+                "if {0} {set x 1} else {set x 2}",
+                vec![(1, Some(false)), (3, Some(true))],
+            ),
+            (
+                "switch x {x {set a 1} default {set a 2}}",
+                vec![(1, None), (1, None)],
+            ),
+            ("apply {{} {puts body}}", vec![(0, None)]),
+        ] {
+            let mut analyser = Analyser::new();
+            analyser.analyse_and_retain_result_for_test(source, "tcl8.6");
+            let config = analyser.file_lexer_config();
+            let controller =
+                crate::segmenter::segment_commands_with_offset_and_config(source, 0, config)
+                    .remove(0);
+            let context = analyser.retained_static_source_context().unwrap();
+            let words = crate::registry_invocation::source_structure::source_registry_words_at(
+                source,
+                &analyser.result,
+                0,
+            )
+            .unwrap();
+            let bodies = words
+                .source_script_bodies_for(
+                    &context,
+                    crate::registry_invocation::OriginalSourceScriptPurpose::PotentialEvaluation,
+                )
+                .into_iter()
+                .chain(words.original_lambda_body_geometry(&context))
+                .collect::<Vec<_>>();
+            assert_eq!(bodies.len(), expected.len(), "{source}");
+            for (body, (ordinal, selected)) in bodies.iter().zip(expected) {
+                let mut arm = ControlArm {
+                    controller: controller.clone(),
+                    body_span: body.extent_span(),
+                };
+                assert_eq!(
+                    analyser.control_arm_body_index(&arm),
+                    Some(ordinal),
+                    "{source}"
+                );
+                if let Some(selected) = selected {
+                    assert_eq!(
+                        analyser.control_body_is_selected(
+                            "",
+                            &arm,
+                            &std::collections::HashMap::new(),
+                            0
+                        ),
+                        Some(selected),
+                        "{source}"
+                    );
+                }
+                let mut foreign = arm.clone();
+                foreign.controller.texts[0] = "another-head".to_owned();
+                assert!(analyser.control_arm_body_index(&foreign).is_none());
+                let mut foreign = arm.clone();
+                foreign.controller.texts[1] = "altered-argument".to_owned();
+                assert!(analyser.control_arm_body_index(&foreign).is_none());
+                let mut foreign = arm.clone();
+                foreign.controller.argv[1].span = Span::new(0, 0);
+                assert!(analyser.control_arm_body_index(&foreign).is_none());
+                arm.body_span = body.container_extent_span();
+                if arm.body_span != body.extent_span() {
+                    assert!(
+                        analyser.control_arm_body_index(&arm).is_none(),
+                        "container is not its script child"
+                    );
+                }
+                arm.body_span = Span::new(body.content_span().start(), body.content_span().start());
+                assert!(
+                    analyser.control_arm_body_index(&arm).is_none(),
+                    "interior point cannot donate body authority"
+                );
+            }
+            analyser.source.push(' ');
+            let arm = ControlArm {
+                controller,
+                body_span: bodies[0].extent_span(),
+            };
+            assert!(analyser.control_arm_body_index(&arm).is_none());
+        }
+    }
+
+    #[test]
+    fn factory_splices_keep_original_list_data_geometry_and_grammar() {
+        let member = FactoryMember {
+            words: vec![FactoryWord::CallerSplice(0)],
+        };
+        for (source, expected) in [
+            ("maker {A B}", Some(vec!["A", "B"])),
+            (
+                "maker {A $literal [data]}",
+                Some(vec!["A", "$literal", "[data]"]),
+            ),
+            (r"maker {escaped\ name}", Some(vec!["escaped name"])),
+            ("maker {}", Some(Vec::new())),
+            ("maker $dynamic", None),
+            ("maker {*}{one two}", None),
+            (r"maker {\uD800}", None),
+            ("maker {one \"two}", None),
+        ] {
+            let config = tcl_lexer::LexerConfig {
+                expand_syntax: true,
+                ..tcl_lexer::LexerConfig::default()
+            };
+            let plan = tcl_lexer::native_script_words_in(
+                tcl_lexer::SourceImage::document(source),
+                Span::new(0, u32::try_from(source.len()).unwrap()),
+                config,
+            )
+            .unwrap();
+            let original = &plan.commands[0].words[1..];
+            let result = resolve_factory_member(&member, Some(original));
+            assert_eq!(
+                result.as_ref().map(|member| member
+                    .texts
+                    .iter()
+                    .map(String::as_str)
+                    .collect::<Vec<_>>()),
+                expected,
+                "{source}"
+            );
+            if let Some(result) = result {
+                let content = original[0].content_span().unwrap();
+                assert_eq!(result.texts.len(), result.argv.len());
+                assert!(
+                    result
+                        .argv
+                        .iter()
+                        .all(|token| content.start() <= token.span.start()
+                            && token.span.end() <= content.end())
+                );
+            }
+            assert!(
+                resolve_factory_member(&member, None).is_none(),
+                "a report-only caller cannot donate an empty splice"
+            );
+        }
+    }
+
+    #[test]
+    fn factory_list_templates_require_actual_constructor_and_scalar_formal_splices() {
+        for (prefix, constructor, operand, expected) in [
+            ("", "list", "$parents", true),
+            ("", "::list", "${parents}", true),
+            ("", "list", "$parents:tail", false),
+            ("", "list", "$parents(key)", false),
+            ("", "list", "[set parents]", false),
+            ("", "split", "$parents", false),
+            ("", "lreverse", "$parents", false),
+            (
+                "proc list {args} {return opaque}\n",
+                "list",
+                "$parents",
+                false,
+            ),
+        ] {
+            let source = format!(
+                "{prefix}oo::class create Meta {{superclass ::oo::class; self method create {{name parents body}} {{next $name \"[{constructor} super\\u0063lass {{*}}{operand}];$body\"}}}}"
+            );
+            let mut analyser = Analyser::new();
+            analyser.analyse_and_retain_result_for_test(&source, "tcl8.6");
+            let class = analyser
+                .result
+                .all_classes
+                .values()
+                .find(|class| class.name == "Meta")
+                .unwrap();
+            let meta = analyser
+                .user_metaclass_of_class(class)
+                .expect("actual retained Registry root relation");
+            let methods = crate::analyser::class_hierarchy::original_metadata::original_definition_members_for_class(
+                &analyser.result, class, MemberSide::ClassObject,
+            ).unwrap();
+            let method = methods
+                .iter()
+                .find(|method| method.original_name_input().bytes() == b"create")
+                .unwrap();
+            let original = method
+                .original_parameter_names_and_body(&analyser.result)
+                .unwrap();
+            let body = original.body_word();
+            let plan = tcl_lexer::native_script_words_in(
+                body.image().clone(),
+                body.content_span().unwrap(),
+                body.config(),
+            )
+            .unwrap();
+            let prologue = &plan.commands[0].words[2];
+            let group = prologue_pieces(prologue)
+                .into_iter()
+                .find_map(|part| match part {
+                    ProloguePiece::Substitution(group) => Some(group),
+                    _ => None,
+                })
+                .unwrap();
+            let template = analyser.injected_member_from_group(&meta, group, &original);
+            assert_eq!(template.is_some(), expected, "{source}");
+            if let Some(template) = template {
+                assert!(
+                    matches!(template.words.as_slice(), [FactoryWord::Literal { text, .. }, FactoryWord::CallerSplice(2)] if text == "superclass")
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn bound_parameter_substitution_uses_the_complete_shared_reference_grammar() {
+        let parameters = vec![
+            "a".to_owned(),
+            "a:b".to_owned(),
+            "a{b}".to_owned(),
+            "a{b".to_owned(),
+        ];
+        let arguments = vec![
+            "SCALAR".to_owned(),
+            "LITERAL".to_owned(),
+            "NESTED".to_owned(),
+            "FIRST".to_owned(),
+        ];
+        let mut config = Analyser::new()
+            .prepare_analysis_input("tcl")
+            .unwrap()
+            .lexer_config();
+        assert_eq!(
+            substitute_bound_words("$a:b", &parameters, &arguments, config).as_deref(),
+            Some("SCALAR:b")
+        );
+        assert_eq!(
+            substitute_bound_words("${a:b}", &parameters, &arguments, config).as_deref(),
+            Some("LITERAL")
+        );
+        assert!(substitute_bound_words("$a(index)", &parameters, &arguments, config).is_none());
+        config.braced_var = tcl_lexer::BracedVarStyle::Tcl9Nesting;
+        assert_eq!(
+            substitute_bound_words("${a{b}}", &parameters, &arguments, config).as_deref(),
+            Some("NESTED")
+        );
+        config.braced_var = tcl_lexer::BracedVarStyle::FirstClose;
+        assert_eq!(
+            substitute_bound_words("${a{b}}", &parameters, &arguments, config).as_deref(),
+            Some("FIRST}")
+        );
+    }
+
+    #[test]
+    fn command_mutation_overlap_retains_the_original_configured_closer() {
+        assert!(dynamic_command_name_may_equal("a:::$x:b", "::a::b"));
+        assert!(!dynamic_command_name_may_equal("a:::$x:b", "::a::OTHER"));
+        assert!(command_name_pattern_with_closer(
+            "${a{b}}",
+            "::string",
+            tcl_lexer::BracedVarStyle::Tcl9Nesting
+        ));
+        assert!(!command_name_pattern_with_closer(
+            "${a{b}}",
+            "::string",
+            tcl_lexer::BracedVarStyle::FirstClose
+        ));
+        for (closer, trusted) in [
+            (tcl_lexer::BracedVarStyle::FirstClose, true),
+            (tcl_lexer::BracedVarStyle::Tcl9Nesting, false),
+        ] {
+            let mut input = Analyser::new().prepare_analysis_input("tcl").unwrap();
+            input.config.braced_var = closer;
+            let mut analyser = Analyser::new().with_resolved_input(input);
+            analyser.analyse_and_retain_result_for_test("proc ${a{b}} {} {}", "tcl");
+            assert_eq!(
+                analyser.static_provenance_command_is_trusted("::string"),
+                trusted
+            );
+        }
+    }
+
+    #[test]
+    fn segment_completion_retains_return_depth_and_implementation_identity() {
+        use tcl_registry::registry::InvocationCompletion;
+        for (source, expected) in [
+            ("return VALUE", InvocationCompletion::ReturnsResult(Some(0))),
+            ("return -level 2 VALUE", InvocationCompletion::Terminates),
+            (
+                "proc p {depth} {return -level $depth VALUE}",
+                InvocationCompletion::Unknown,
+            ),
+            (
+                "proc return args {list CUSTOM}; return VALUE",
+                InvocationCompletion::Unknown,
+            ),
+            (
+                "rename return savedReturn; savedReturn VALUE",
+                InvocationCompletion::ReturnsResult(Some(0)),
+            ),
+        ] {
+            let mut analyser = Analyser::new();
+            analyser.analyse_and_retain_result_for_test(source, "tcl9.0");
+            // The public walk clears transient registry state after returning.
+            analyser.registry = Some(analyser.profile_registry());
+            let segments = crate::segmenter::segment_commands_with_offset_and_config(
+                source,
+                0,
+                analyser.lexer_config(),
+            );
+            let segment = segments.last().unwrap();
+            let segment = if source.starts_with("proc p") {
+                analyser
+                    .direct_statements_in_span(segment.arg_tokens()[2].span)
+                    .unwrap()
+                    .pop()
+                    .unwrap()
+            } else {
+                segment.clone()
+            };
+            let binding = analyser
+                .head_identities
+                .invocation_at_source(segment.name(), segment.argv[0].span.start());
+            assert_eq!(
+                analyser.segment_invocation_completion(&segment),
+                expected,
+                "{source}; unknown={} absent={} targets={:?} execution={:?} handler={:?} compilation={:?}",
+                binding.unknown,
+                binding.may_be_absent,
+                binding
+                    .targets
+                    .iter()
+                    .map(|target| (&target.command, target.registry_backed))
+                    .collect::<Vec<_>>(),
+                binding
+                    .proved_execution_target()
+                    .map(|target| &target.command),
+                binding
+                    .proved_handler_target()
+                    .map(|target| &target.command),
+                binding.native_compilation_selection(),
+            );
+        }
+    }
+
+    #[test]
+    fn original_static_proc_selection_does_not_borrow_final_names_or_caller_labels() {
+        // Implementation contract: naming.compiler.original-static-procedure-selection
+        // docs/design/analysis/name-resolution-proofs/original-static-procedure-selection.md
+        let sources = [
+            "namespace eval N {proc helper {} {return OLD}}; proc N::helper {} {return NEW}",
+            "namespace eval N {proc helper {} {return OLD}}; rename N::helper N::saved",
+            "namespace eval N {proc helper {} {return OLD}}; interp alias {} N::helper {} puts",
+            "namespace eval N {proc helper {} {return NAMESPACE}}; proc helper {} {return GLOBAL}",
+        ];
+        for dialect in [
+            "tcl8.4",
+            "tcl8.5",
+            "tcl8.6",
+            "tcl9.0",
+            "tcl9.1",
+            "jim",
+            "f5-irules",
+        ] {
+            for source in sources {
+                let mut analyser = Analyser::new();
+                analyser.analyse_and_retain_result_for_test(source, dialect);
+                analyser.registry = Some(analyser.profile_registry());
+                assert!(
+                    analyser
+                        .resolve_static_proc_name("::N::caller", "helper")
+                        .is_none(),
+                    "{dialect}: {source}"
+                );
+                assert!(
+                    analyser
+                        .static_proc_result("::N::helper", &[], &mut Vec::new(), 0)
+                        .is_none(),
+                    "{dialect}: {source}"
+                );
+                assert!(
+                    analyser
+                        .static_command_value(
+                            "helper",
+                            &[],
+                            "::N::caller",
+                            &std::collections::HashMap::new(),
+                            &mut Vec::new(),
+                            0,
+                        )
+                        .is_none(),
+                    "{dialect}: source-free command folding has no occupied target"
+                );
+            }
+        }
+        // A replaced Registry head is also an occupied implementation, not
+        // authority supplied by the builtin spelling in a fold table.
+        let mut shadowed = Analyser::new();
+        shadowed.analyse_and_retain_result_for_test(
+            "proc string args {return USER}; string length abc",
+            "tcl8.6",
+        );
+        shadowed.registry = Some(shadowed.profile_registry());
+        assert!(
+            shadowed
+                .static_command_value(
+                    "string",
+                    &[Some("length".to_owned()), Some("abc".to_owned())],
+                    "::caller",
+                    &std::collections::HashMap::new(),
+                    &mut Vec::new(),
+                    0,
+                )
+                .is_none()
+        );
+        let mut logical = Analyser::new();
+        logical.analyse_and_retain_result_for_test(sources[3], "tcl");
+        logical.registry = Some(logical.profile_registry());
+        assert_eq!(
+            logical
+                .resolve_static_proc_name("::N::caller", "helper")
+                .as_deref(),
+            Some("::N::helper")
+        );
+        assert_eq!(
+            logical
+                .static_proc_result("::N::helper", &[], &mut Vec::new(), 0)
+                .as_deref(),
+            Some("NAMESPACE")
+        );
+    }
+
+    #[test]
+    fn original_logical_static_completion_keeps_alias_ordinals_and_source_owners() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // Conditional source result advice, without Native return completion.
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        let input =
+            |context| super::super::ResolvedAnalysisInput::new(profile, profile, context, config);
+        let analyse = |source: &str, input| {
+            let mut analyser = Analyser::new().with_resolved_input(input);
+            analyser.analyse_and_retain_result_for_test(source, "tcl");
+            analyser
+        };
+        for (source, expected) in [
+            ("proc p {} {return café}", Some("café")),
+            (
+                "interp alias {} answer {} return; proc p {} {answer WRITTEN}",
+                Some("WRITTEN"),
+            ),
+            (
+                "interp alias {} answer {} return CAPTURED; proc p {} {answer}",
+                None,
+            ),
+            (
+                "interp alias {} answer {} return -level 2; proc p {} {answer VALUE}",
+                None,
+            ),
+            (
+                "proc return args {return CHANGED}; proc p {} {return VALUE}",
+                None,
+            ),
+        ] {
+            let mut analyser = analyse(source, input(std::sync::Arc::clone(&context)));
+            assert_eq!(
+                analyser
+                    .static_proc_result("::p", &[], &mut Vec::new(), 0)
+                    .as_deref(),
+                expected,
+                "{source}"
+            );
+        }
+        let mut availability_store = tcl_registry::CommandRegistry::build_default();
+        availability_store.insert(tcl_registry::CommandSpec {
+            name: "metadata_return_current",
+            surface: Some(tcl_dialect::model::SpecSurface::TCL86_PLUS),
+            ..availability_store.get("return").unwrap().clone()
+        });
+        let shared = availability_store.snapshot().shared_registry();
+        let current =
+            std::sync::Arc::new(context.with_command_store(std::sync::Arc::clone(&shared)));
+        let older = std::sync::Arc::new(
+            tcl_registry::model::ingress::resolve_environment("tcl8.4")
+                .default_context_registry()
+                .with_command_store(shared),
+        );
+        assert!(std::sync::Arc::ptr_eq(current.commands(), older.commands()));
+        let selected_source = "proc p {} {metadata_return_current VALUE}";
+        let mut selected = analyse(selected_source, input(current));
+        assert_eq!(
+            selected
+                .static_proc_result("::p", &[], &mut Vec::new(), 0)
+                .as_deref(),
+            Some("VALUE")
+        );
+        let mut unavailable = analyse(selected_source, input(older));
+        assert!(
+            unavailable
+                .static_proc_result("::p", &[], &mut Vec::new(), 0)
+                .is_none()
+        );
+        let source = "proc p {} {return VALUE}";
+        let mut missing = analyse(source, input(std::sync::Arc::clone(&context)));
+        missing.resolved_input = None;
+        missing.result.resolved_input = None;
+        assert!(
+            missing
+                .static_proc_result("::p", &[], &mut Vec::new(), 0)
+                .is_none()
+        );
+        let mut changed = analyse(source, input(std::sync::Arc::clone(&context)));
+        let mut altered = config;
+        altered.strict_quoting = !altered.strict_quoting;
+        let changed_input = super::super::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::clone(&context),
+            altered,
+        );
+        changed.resolved_input = Some(changed_input.clone());
+        changed.result.resolved_input = Some(changed_input);
+        assert!(
+            changed
+                .static_proc_result("::p", &[], &mut Vec::new(), 0)
+                .is_none()
+        );
+        let mut store = tcl_registry::CommandRegistry::build_default();
+        store.insert(tcl_registry::CommandSpec {
+            name: "foreign_completion_axis",
+            ..tcl_registry::CommandSpec::DEFAULT
+        });
+        let foreign = std::sync::Arc::new(context.with_command_store(std::sync::Arc::new(store)));
+        let mut changed = analyse(source, input(std::sync::Arc::clone(&context)));
+        let foreign_input = input(foreign);
+        changed.resolved_input = Some(foreign_input.clone());
+        changed.result.resolved_input = Some(foreign_input);
+        assert!(
+            changed
+                .static_proc_result("::p", &[], &mut Vec::new(), 0)
+                .is_none()
+        );
+    }
+
+    fn original_value_use_token(analyser: &Analyser, needle: &str) -> Token {
+        let start = u32::try_from(analyser.source.rfind(needle).unwrap()).unwrap();
+        let commands = crate::segmenter::segment_commands_with_offset_and_config(
+            analyser
+                .source
+                .get(usize::try_from(start).unwrap()..)
+                .unwrap(),
+            start,
+            analyser.file_lexer_config().nested(),
+        );
+        commands.first().unwrap().argv[0]
+    }
+
+    #[test]
+    fn logical_dynamic_word_keeps_exact_braced_name_and_interpolation_sources() {
+        let source =
+            "set n WRONG; set {$n} RIGHT; set {scalar(open} SCALAR; puts ${n}:${$n}:${scalar(open}";
+        let mut analyser = Analyser::new();
+        analyser.analyse_and_retain_result_for_test(source, "tcl");
+        let token = original_value_use_token(&analyser, "${n}:${$n}:${scalar(open}");
+        assert_eq!(
+            analyser.resolve_dynamic_word("${n}:${$n}:${scalar(open}", Some(token), false, &[]),
+            Some("WRONG:RIGHT:SCALAR".to_owned())
+        );
+        analyser.source = source.replace("RIGHT", "OTHER");
+        assert!(
+            analyser
+                .resolve_dynamic_word("${n}:${$n}:${scalar(open}", Some(token), false, &[])
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn logical_nested_constant_fold_uses_original_variable_components() {
+        let source = "set n WRONG; set {$n} RIGHT; set result [list $n [list ${$n}]]; puts $result";
+        let mut analyser = Analyser::new();
+        analyser.analyse_and_retain_result_for_test(source, "tcl");
+        let token = original_value_use_token(&analyser, "$result");
+        assert_eq!(
+            analyser
+                .lookup_logical_const_substitution(token)
+                .map(|(value, _)| value),
+            Some("WRONG RIGHT")
+        );
+    }
+
+    #[test]
+    fn logical_regex_value_metadata_uses_original_scope_and_source_provenance() {
+        let source = "set pattern {ROOT}; proc p {} {set pattern {LOCAL}; regexp $pattern text}";
+        let mut analyser = Analyser::new();
+        analyser.analyse_and_retain_result_for_test(source, "tcl");
+        let source_use = source.rfind("$pattern").unwrap();
+        assert!(analyser.result.regex_patterns.iter().any(|pattern| {
+            pattern.pattern == "LOCAL"
+                && usize::try_from(pattern.range.start()).unwrap() == source_use
+        }));
+        assert!(
+            !analyser
+                .result
+                .regex_patterns
+                .iter()
+                .any(|pattern| pattern.pattern == "ROOT")
+        );
+    }
+
+    #[test]
+    fn logical_interpreter_handle_value_keeps_distinct_path_provenance_and_snapshot() {
+        let source = "set child [interp create named]; interp eval $child {set x VALUE}";
+        let mut analyser = Analyser::new();
+        analyser.analyse_and_retain_result_for_test(source, "tcl");
+        let token = original_value_use_token(&analyser, "$child");
+        assert_eq!(
+            analyser.resolve_dynamic_interp_path(Some(token)).as_deref(),
+            Some("named")
+        );
+        let snapshot = analyser.snapshot();
+        analyser.source = source.replace("VALUE", "OTHER");
+        assert!(analyser.resolve_dynamic_interp_path(Some(token)).is_none());
+        analyser.source = source.to_owned();
+        analyser.restore(snapshot);
+        assert_eq!(
+            analyser.resolve_dynamic_interp_path(Some(token)).as_deref(),
+            Some("named")
+        );
+        let source = "set child named; interp eval $child {set x VALUE}";
+        let mut scalar = Analyser::new();
+        scalar.analyse_and_retain_result_for_test(source, "tcl");
+        let token = original_value_use_token(&scalar, "$child");
+        assert!(scalar.resolve_dynamic_interp_path(Some(token)).is_none());
+    }
+
+    #[test]
+    fn logical_dictionary_keys_have_metadata_and_data_geometry_without_variable_declarations() {
+        let source = "set d {alpha A beta B}; dict with d {puts $alpha}";
+        let mut analyser = Analyser::new();
+        analyser.analyse_and_retain_result_for_test(source, "tcl");
+        let scope = &analyser.result.global_scope;
+        assert!(!scope.variables.contains_key("alpha"));
+        assert!(!scope.variables.contains_key("beta"));
+        let alpha = scope.readonly_dictionary_keys.get("alpha").unwrap();
+        assert_eq!(
+            &source[alpha.original_key_span().unwrap().as_range()],
+            "alpha"
+        );
+        let image = tcl_lexer::SourceImage::document(source);
+        let advice = analyser
+            .result
+            .logical_variable_scope_advice(
+                &image,
+                analyser.file_lexer_config(),
+                u32::try_from(source.rfind("$alpha").unwrap()).unwrap(),
+            )
+            .unwrap();
+        assert!(advice.readonly_variable_names().contains(&"alpha"));
+        assert!(advice.variable_definition("alpha").is_none());
+    }
+
+    #[test]
+    fn logical_dictionary_metadata_retains_an_empty_variable_name() {
+        let source = "set d {{} EMPTY}; dict with d {puts ${}}";
+        let mut analyser = Analyser::new();
+        analyser.analyse_and_retain_result_for_test(source, "tcl");
+        let scope = &analyser.result.global_scope;
+        assert!(scope.readonly_dictionary_keys.contains_key(""));
+        assert!(!scope.variables.contains_key(""));
+    }
+
+    #[test]
+    fn logical_dictionary_write_invalidates_the_previous_constant_value() {
+        let source = "set x OLD; set d {x NEW}; dict with d {puts $x}; puts $x";
+        let mut analyser = Analyser::new();
+        analyser.analyse_and_retain_result_for_test(source, "tcl");
+        let token = original_value_use_token(&analyser, "$x");
+        assert!(analyser.lookup_logical_const_substitution(token).is_none());
+        assert!(analyser.result.global_scope.variables.contains_key("x"));
+    }
+
+    #[test]
+    fn logical_dictionary_write_invalidates_interpreter_handle_provenance() {
+        let source = "set child [interp create named]; set d {child other}; dict with d {}; interp eval $child {set x VALUE}";
+        let mut analyser = Analyser::new();
+        analyser.analyse_and_retain_result_for_test(source, "tcl");
+        let token = original_value_use_token(&analyser, "$child");
+        assert!(analyser.resolve_dynamic_interp_path(Some(token)).is_none());
+    }
+
+    #[test]
+    fn logical_dictionary_metadata_masks_an_outer_procedure_name() {
+        let source = "set x ROOT; proc p {} {set d {x LOCAL}; dict with d {puts $x}}";
+        let mut analyser = Analyser::new();
+        analyser.analyse_and_retain_result_for_test(source, "tcl");
+        let token = original_value_use_token(&analyser, "$x");
+        let image = tcl_lexer::SourceImage::document(source);
+        let advice = analyser
+            .result
+            .logical_variable_scope_advice(&image, analyser.file_lexer_config(), token.span.start())
+            .unwrap();
+        assert!(advice.readonly_variable_names().contains(&"x"));
+        assert!(advice.variable_definition("x").is_none());
+        assert!(analyser.lookup_logical_const_substitution(token).is_none());
+    }
+
+    #[test]
+    fn dynamic_apply_value_uses_checked_logical_variable_declaration() {
+        let source = "namespace eval N {set lambda {{p} {puts $p} ::N}}; apply $::N::lambda VALUE";
+        let mut analyser = Analyser::new();
+        analyser.analyse_and_retain_result_for_test(source, "tcl");
+        let token = tcl_lexer::Lexer::with_config(source, analyser.file_lexer_config())
+            .tokenise_all()
+            .unwrap()
+            .into_iter()
+            .find(|token| token.kind == TokenType::Var)
+            .unwrap();
+        let elements = analyser
+            .resolve_dynamic_apply_lambda(token)
+            .expect("original Logical namespace value");
+        assert_eq!(
+            elements
+                .iter()
+                .map(|(_, value)| value.as_str())
+                .collect::<Vec<_>>(),
+            vec!["p", "puts $p", "::N"]
+        );
+        analyser.source = source.replace("VALUE", "OTHER");
+        assert!(analyser.resolve_dynamic_apply_lambda(token).is_none());
+    }
+
+    #[test]
+    fn logical_defined_symbol_word_uses_current_value_provenance() {
+        let source = "set name SYMBOL; puts $name";
+        let mut analyser = Analyser::new();
+        analyser.analyse_and_retain_result_for_test(source, "tcl");
+        let token = tcl_lexer::Lexer::with_config(source, analyser.file_lexer_config())
+            .tokenise_all()
+            .unwrap()
+            .into_iter()
+            .find(|token| token.kind == TokenType::Var)
+            .unwrap();
+        assert_eq!(
+            analyser.defined_symbol_reporting_name(None, None, "$name", token, true, &[]),
+            Some("SYMBOL".to_owned())
+        );
+        let original = analyser.snapshot();
+        analyser.result.resolved_input = None;
+        assert!(
+            analyser
+                .defined_symbol_reporting_name(None, None, "$name", token, true, &[])
+                .is_none()
+        );
+        analyser.restore(original);
+        assert_eq!(
+            analyser.resolve_const_word("$name", token, true),
+            Some("SYMBOL".to_owned())
+        );
+    }
+
+    #[test]
+    fn dict_with_value_uses_checked_logical_scope() {
+        let source =
+            "set d {root ROOT}; namespace eval N {set d {local LOCAL}; dict with d {puts $local}}";
+        let mut analyser = Analyser::new();
+        analyser.analyse_and_retain_result_for_test(source, "tcl");
+        let namespace = analyser
+            .result
+            .global_scope
+            .children
+            .iter()
+            .find(|scope| scope.kind == super::super::types::ScopeKind::Namespace)
+            .unwrap();
+        assert!(namespace.readonly_dictionary_keys.contains_key("local"));
+        assert!(!namespace.readonly_dictionary_keys.contains_key("root"));
+        assert!(!namespace.variables.contains_key("local"));
+        let key = &namespace.readonly_dictionary_keys["local"];
+        assert_eq!(
+            &source[key.original_key_span().unwrap().as_range()],
+            "local"
+        );
+        let source = "set d {root ROOT}; proc p {} {dict with d {puts $root}}";
+        let mut procedure = Analyser::new();
+        procedure.analyse_and_retain_result_for_test(source, "tcl");
+        let local = procedure
+            .result
+            .global_scope
+            .children
+            .iter()
+            .find(|scope| scope.kind == super::super::types::ScopeKind::Proc)
+            .unwrap();
+        assert!(!local.variables.contains_key("root"));
+    }
+
+    #[test]
+    fn dynamic_apply_scanner_uses_irules_brace_boundary_config() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // An original Logical builder with the supplied lexer overlay, without
+        // any Native/F5 list execution or lambda-frame claim.
+        let source = "set lambda [list {p} {set y}{set z}]";
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let config = tcl_lexer::LexerConfig::for_dialect("f5-irules");
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
+        let input = super::super::ResolvedAnalysisInput::new(profile, profile, context, config);
+        let mut analyser = Analyser::new().with_resolved_input(input);
+        analyser.result = analyser.analyse(source, "tcl");
+        let token = tcl_lexer::Lexer::with_source_map(tcl_lexer::SourceMap::new(source), config)
+            .tokenise_all()
+            .expect("valid command substitution")
+            .into_iter()
+            .find(|token| token.kind == tcl_lexer::TokenType::Cmd)
+            .expect("command token");
+        let elements = analyser
+            .resolve_dynamic_apply_lambda(token)
+            .expect("original literal list lambda");
+        assert_eq!(elements.len(), 3, "iRules list elements: {elements:?}");
+        let mut missing = Analyser::new();
+        missing.source = source.to_owned();
+        missing.profile = tcl_dialect::DialectProfile::irules();
+        assert!(
+            missing.resolve_dynamic_apply_lambda(token).is_none(),
+            "a profile and authored source do not supply the original builder"
+        );
+    }
+
+    #[test]
+    fn builtin_next_completion_requires_the_actual_mro_end() {
+        assert_eq!(
+            Analyser::builtin_next_completion(
+                &tcl_registry::definer::TCLOO_GRAMMAR,
+                "unknown",
+                0,
+                2,
+            ),
+            None
+        );
+        assert_eq!(
+            Analyser::builtin_next_completion(
+                &tcl_registry::definer::TCLOO_GRAMMAR,
+                "unknown",
+                1,
+                2,
+            ),
+            Some(true)
+        );
+    }
+
+    #[test]
+    fn dynamic_command_name_patterns_keep_only_proven_fixed_fragments() {
+        assert!(!dynamic_command_name_may_equal(
+            "${ns}::define::$method",
+            "::string"
+        ));
+        assert!(dynamic_command_name_may_equal("$name", "::string"));
+        assert!(dynamic_command_name_may_equal(
+            "${ns}::::helper",
+            "::T::helper"
+        ));
+        assert!(dynamic_command_name_may_equal(
+            "$array(index)::define",
+            "::anything"
+        ));
+    }
+
+    #[test]
+    fn static_write_invalidation_preserves_scalar_parenthesis_names() {
+        for name in ["a(b", "a(b)tail", "a(b)"] {
+            let source = format!("set {name} VALUE");
+            let mut analyser = Analyser::new();
+            analyser.analyse_and_retain_result_for_test(&source, "tcl");
+            let command = crate::segmenter::segment_commands_with_offset_and_config(
+                &source,
+                0,
+                analyser.file_lexer_config().nested(),
+            )
+            .remove(0);
+            let mut values = std::collections::HashMap::from([
+                ("a".to_owned(), "ROOT".to_owned()),
+                ("a(b".to_owned(), "OPEN".to_owned()),
+                ("a(b)tail".to_owned(), "SUFFIX".to_owned()),
+            ]);
+            analyser
+                .invalidate_static_facts_written_by_segment(&command, &mut values, 0)
+                .unwrap();
+            let root = if name == "a(b)" { "a" } else { name };
+            assert!(!values.contains_key(root));
+            assert_eq!(values.len(), 2);
+        }
+    }
+
+    #[test]
+    fn command_mutation_matching_preserves_constructed_colon_keys() {
+        assert!(dynamic_command_name_may_equal("p", ":::::p"));
+        assert!(dynamic_command_name_may_equal(":p", ":::p"));
+        assert!(!dynamic_command_name_may_equal(":p", ":::::p"));
+        // Written separator runs canonicalise once; an already constructed
+        // namespace key must not be interpreted as that written spelling.
+        assert!(dynamic_command_name_may_equal(":::::p", "::p"));
+        assert!(!dynamic_command_name_may_equal(":::::p", ":::::p"));
+        assert!(dynamic_command_name_may_equal("x:::y", "::x::y"));
+        assert!(dynamic_command_name_may_equal("x:::", "::x::"));
+        assert!(!dynamic_command_name_may_equal("x:::y", "::x:::y"));
+    }
+
+    fn class_observation(superclass: Option<&str>, factory: bool) -> ClassDef {
+        ClassDef {
+            name: "class".to_owned(),
+            qualified_name: "::T::D::class".to_owned(),
+            superclasses: superclass.into_iter().map(str::to_owned).collect(),
+            factory: factory.then(|| ClassFactory {
+                root_metaclass: "oo::class".to_owned(),
+                ..ClassFactory::default()
+            }),
+            ..ClassDef::default()
+        }
+    }
+
+    #[test]
+    fn parameterised_class_join_is_monotone_across_incomplete_observations() {
+        let proved = class_observation(Some("::T::Mother"), true);
+        let incomplete = class_observation(None, false);
+
+        let later_incomplete = join_parameterised_class_observations(&proved, &incomplete).unwrap();
+        assert_eq!(later_incomplete.superclasses, vec!["::T::Mother"]);
+        assert!(later_incomplete.factory.is_some());
+
+        let later_proof = join_parameterised_class_observations(&incomplete, &proved).unwrap();
+        assert_eq!(later_proof.superclasses, vec!["::T::Mother"]);
+        assert!(later_proof.factory.is_some());
+    }
+
+    #[test]
+    fn parameterised_class_join_abstains_on_conflicting_concrete_relations() {
+        let left = class_observation(Some("::T::Mother"), true);
+        let right = class_observation(Some("::T::OtherMother"), true);
+        assert!(join_parameterised_class_observations(&left, &right).is_none());
+    }
+
+    #[test]
+    fn parameterised_class_join_ignores_an_unobserved_metaclass() {
+        // The `oo::define` stub's `"oo::class"` is
+        // `ClassDef::default()`'s stand-in, not something a walk read, so it
+        // must neither contradict the proved `::T::Mother` nor survive into
+        // the joined record.
+        let stub = class_observation(None, false);
+        assert_ne!(stub.metaclass_provenance, MetaclassProvenance::Observed);
+        let proved = ClassDef {
+            metaclass: "::T::Mother".to_owned(),
+            metaclass_provenance: MetaclassProvenance::Observed,
+            ..class_observation(Some("::T::Mother"), true)
+        };
+
+        for (existing, observed) in [(&stub, &proved), (&proved, &stub)] {
+            let joined = join_parameterised_class_observations(existing, observed)
+                .expect("a stand-in metaclass is not conflicting evidence");
+            assert_eq!(joined.metaclass, "::T::Mother");
+            assert_eq!(joined.metaclass_provenance, MetaclassProvenance::Observed);
+            assert_eq!(joined.superclasses, vec!["::T::Mother"]);
+            assert!(joined.factory.is_some());
+        }
+    }
+
+    #[test]
+    fn parameterised_class_join_abstains_on_two_observed_metaclasses() {
+        // FP guard for the gate above: once *both* sides read a head word,
+        // a disagreement is still a real conflict.
+        let left = ClassDef {
+            metaclass: "::T::Mother".to_owned(),
+            metaclass_provenance: MetaclassProvenance::Observed,
+            ..class_observation(None, true)
+        };
+        let right = ClassDef {
+            metaclass: "::T::OtherMother".to_owned(),
+            metaclass_provenance: MetaclassProvenance::Observed,
+            ..class_observation(None, true)
+        };
+        assert!(join_parameterised_class_observations(&left, &right).is_none());
+        // …and identical observed metaclasses still join.
+        assert!(join_parameterised_class_observations(&left, &left).is_some());
+    }
+
+    fn esc_tok(span: Span) -> Token {
+        Token::new(TokenType::Esc, span)
+    }
+
+    fn str_tok(span: Span) -> Token {
+        Token {
+            kind: TokenType::Str,
+            span,
+            content_offset: 1,
+            in_quote: false,
+        }
+    }
+
+    fn span(start: u32, end: u32) -> Span {
+        Span::new(start, end)
+    }
+
+    // Explicit standalone word-shape controls use the shared lexer owner.
+    fn elements(text: &str) -> Option<Vec<String>> {
+        let (head, args) = crate::value_shapes::parse_command_substitution_with_config(
+            text,
+            tcl_lexer::LexerConfig::default(),
+        )?;
+        Some(std::iter::once(head).chain(args).collect())
+    }
+
+    #[test]
+    fn interp_create_value_words_strip_a_single_braced_path_issue_1025() {
+        // TP — `{child}` is one Tcl word naming interpreter `child`; the
+        // direct handler sees it segmenter-decoded, so the value-flow path
+        // must strip the braces too rather than binding to `"{child}"`.
+        assert_eq!(
+            elements("[interp create {child}]"),
+            Some(vec!["interp".into(), "create".into(), "child".into()])
+        );
+    }
+
+    #[test]
+    fn interp_create_value_words_keep_a_nested_path_as_one_word_issue_1025() {
+        // TP — `{parent child}` is one word (a descent path), not two.
+        // `split_whitespace` would yield `["{parent", "child}"]`, whose first
+        // fragment would become the bound key.
+        assert_eq!(
+            elements("[interp create {parent child}]"),
+            Some(vec![
+                "interp".into(),
+                "create".into(),
+                "parent child".into()
+            ])
+        );
+    }
+
+    #[test]
+    fn interp_create_value_words_unchanged_for_bare_and_flagged_forms_issue_1025() {
+        // TN — the shapes that already worked must be byte-for-byte
+        // unchanged by the switch to list parsing.
+        assert_eq!(
+            elements("[interp create -safe -- name]"),
+            Some(vec![
+                "interp".into(),
+                "create".into(),
+                "-safe".into(),
+                "--".into(),
+                "name".into()
+            ])
+        );
+        assert_eq!(
+            elements("[interp create]"),
+            Some(vec!["interp".into(), "create".into()])
+        );
+        // Only one whole bracketed substitution is a call.
+        assert_eq!(elements("interp create child"), None);
+    }
+
+    #[test]
+    fn interp_create_value_words_reject_an_unmatched_brace_issue_1025() {
+        // A malformed (mid-edit) path is not a list at all, so the whole
+        // substitution is rejected. Returning the prefix parsed before the
+        // error instead would read as a bare `interp create`, binding the
+        // variable to an auto-named interpreter real Tcl never creates.
+        // Later `$i eval` / `interp alias $i …` sites then resolve against
+        // that phantom.
+        assert_eq!(elements("[interp create {child]"), None);
+        assert_eq!(
+            elements("[interp create good {child]"),
+            None,
+            "a valid prefix does not rescue a malformed tail",
+        );
+    }
+
+    // `interp create` — the registry's `InterpreterTransition::Create`,
+    // whose option scan mirrors tclInterp.c (`create_reads_the_c_option_scan`
+    // in `tcl-registry`'s `interp.rs` pins every row against tclsh 8.4–9.1).
+
+    /// Dispatch `interp create WORDS…` and report whether `path` was
+    /// recorded, and as safe.
+    fn created_by(words: &[&str], path: &str) -> Option<bool> {
+        let mut a = Analyser::new();
+        let call: Vec<&str> = ["interp", "create"]
+            .into_iter()
+            .chain(words.iter().copied())
+            .collect();
+        dispatch_words(&mut a, &call);
+        let key = a.qualified_interp_key(path);
+        a.interpreters.get(&key).map(|state| state.safe)
+    }
+
+    #[test]
+    fn interp_create_flags_are_still_scanned_after_the_path() {
+        // C Tcl examines every word and treats a `-` word as a flag until
+        // `--`, whether or not the path has been read. tclsh8.6/9.0:
+        // `interp create x -safe` yields `interp issafe x` == 1. Stopping at
+        // the path recorded `x` as an *unsafe* interpreter.
+        assert_eq!(created_by(&["x", "-safe"], "x"), Some(true));
+        assert_eq!(created_by(&["-safe", "y"], "y"), Some(true));
+        // `-safe` matches by unique prefix.
+        assert_eq!(created_by(&["-s", "x"], "x"), Some(true));
+    }
+
+    #[test]
+    fn interp_create_double_dash_ends_flag_parsing() {
+        // tclsh8.6/9.0: `interp create -safe -- z` creates a safe `z`, and
+        // `interp create -- -safe` creates an *unsafe* interpreter whose
+        // path is the literal `-safe`.
+        assert_eq!(created_by(&["-safe", "--", "z"], "z"), Some(true));
+        assert_eq!(created_by(&["--", "-safe"], "-safe"), Some(false));
+    }
+
+    #[test]
+    fn interp_create_two_path_words_record_no_path() {
+        // tclsh8.6/9.0: `interp create a b` is `wrong # args`, and `interp
+        // create n -bogus` a bad option. No interpreter is created, so
+        // recording either word would bind a name that does not exist.
+        assert_eq!(created_by(&["a", "b"], "a"), None);
+        assert_eq!(created_by(&["a", "b"], "b"), None);
+        assert_eq!(created_by(&["n", "-bogus"], "n"), None);
+        assert_eq!(
+            created_by(&["--", "x", "-safe"], "x"),
+            None,
+            "after `--` a second `-` word is a path word, so this is the error shape too",
+        );
+    }
+
+    #[test]
+    fn interp_create_bare_and_flag_only_forms_are_unchanged() {
+        // TN control: a named child is recorded; an auto-named one has no
+        // name this file can reference, so nothing is.
+        assert_eq!(created_by(&["child"], "child"), Some(false));
+        let mut a = Analyser::new();
+        dispatch_words(&mut a, &["interp", "create", "-safe"]);
+        assert!(a.interpreters.is_empty());
+        // A computed path makes interpreter existence unknowable.
+        let mut a = Analyser::new();
+        dispatch_words(&mut a, &["interp", "create", "$name"]);
+        assert!(a.interpreters.is_empty());
+        assert!(a.dynamic_interp_ops);
+    }
+
+    // `set`'s binding through the generic dispatch tail — the role binding
+    // and `bind_value_word_assignment`; `set` has no analyser hook.
+
+    /// Dispatch one command whose words carry the given tokens and
+    /// single-token flags, through `process_command` exactly as a walked
+    /// command reaches it.
+    fn dispatch_tokens(a: &mut Analyser, words: &[(&str, Token, bool)]) {
+        let owned: Vec<String> = words.iter().map(|(w, _, _)| (*w).to_string()).collect();
+        let toks: Vec<Token> = words.iter().map(|&(_, tok, _)| tok).collect();
+        let single: Vec<bool> = words.iter().map(|&(_, _, single)| single).collect();
+        let expanded = vec![false; owned.len()];
+        a.process_command(&owned, &toks, &single, &expanded, &[]);
+    }
+
+    #[test]
+    fn handle_set_defines_variable() {
+        let mut a = Analyser::new();
+        dispatch_tokens(
+            &mut a,
+            &[
+                ("set", esc_tok(span(0, 3)), true),
+                ("x", esc_tok(span(4, 5)), true),
+                ("1", esc_tok(span(6, 7)), true),
+            ],
+        );
+        assert!(a.result.global_scope.variables.contains_key("x"));
+        assert!(a.result.global_scope.variables["x"].warn_if_unused);
+    }
+
+    #[test]
+    fn handle_set_tracks_single_token_literal_value() {
+        let mut a = Analyser::new();
+        dispatch_tokens(
+            &mut a,
+            &[
+                ("set", esc_tok(span(0, 3)), true),
+                ("x", esc_tok(span(4, 5)), true),
+                ("hello", esc_tok(span(6, 11)), true),
+            ],
+        );
+        assert_eq!(
+            a.const_strings
+                .get(&Vec::new())
+                .and_then(|values| values.get("x"))
+                .map(|(value, _)| value.as_str()),
+            Some("hello")
+        );
+    }
+
+    #[test]
+    fn handle_set_tracks_braced_string_value() {
+        let mut a = Analyser::new();
+        dispatch_tokens(
+            &mut a,
+            &[
+                ("set", esc_tok(span(0, 3)), true),
+                ("x", esc_tok(span(4, 5)), true),
+                ("hello world", str_tok(span(6, 19)), true),
+            ],
+        );
+        assert_eq!(
+            a.const_strings
+                .get(&Vec::new())
+                .and_then(|values| values.get("x"))
+                .map(|(value, _)| value.as_str()),
+            Some("hello world")
+        );
+    }
+
+    #[test]
+    fn handle_set_clears_const_string_for_interpolated_value() {
+        let mut a = Analyser::new();
+        // Pre-seed a constant tracking entry.
+        a.set_const_string("x", "old".to_string(), span(0, 0), &[]);
+        // Re-assign with a multi-token (interpolation) value — the value
+        // word is not one token, so the const string is cleared.
+        dispatch_tokens(
+            &mut a,
+            &[
+                ("set", esc_tok(span(0, 3)), true),
+                ("x", esc_tok(span(4, 5)), true),
+                ("$other", esc_tok(span(6, 12)), false),
+            ],
+        );
+        assert_eq!(
+            a.const_strings
+                .get(&Vec::new())
+                .and_then(|values| values.get("x"))
+                .map(|(value, _)| value.as_str()),
+            None
+        );
+    }
+
+    #[test]
+    fn handle_set_no_value_records_read_not_definition() {
+        // ``set x`` (one-arg form) is a *read*, not a definition — Tcl
+        // returns the current value of ``x`` — recorded by the walk's
+        // `VarRead`-role reference pass, with no const-string tracking.
+        let src = "set x 1\nset x\n";
+        let mut a = Analyser::new();
+        let r = a.analyse(src, "tcl8.6");
+        let read = u32::try_from(src.rfind('x').expect("the read")).expect("an offset");
+        assert_eq!(
+            r.global_scope.variables["x"].references,
+            vec![span(read, read + 1)],
+        );
+        let mut read_only = Analyser::new();
+        dispatch_tokens(
+            &mut read_only,
+            &[
+                ("set", esc_tok(span(0, 3)), true),
+                ("x", esc_tok(span(4, 5)), true),
+            ],
+        );
+        assert_eq!(
+            read_only
+                .const_strings
+                .get(&Vec::new())
+                .and_then(|values| values.get("x"))
+                .map(|(value, _)| value.as_str()),
+            None
+        );
+    }
+
+    /// A literal value word is recorded as Tcl reads it: the
+    /// `CellWrite` evaluation cooks a bare or quoted token, so `set p
+    /// "a\\d"` holds `a\d` — tclsh 8.4.20 to 9.1b0 print `a\d`.
+    #[test]
+    fn a_literal_value_word_is_recorded_as_tcl_reads_it() {
+        let mut a = Analyser::new();
+        dispatch_tokens(
+            &mut a,
+            &[
+                ("set", esc_tok(span(0, 3)), true),
+                ("p", esc_tok(span(4, 5)), true),
+                ("a\\\\d", esc_tok(span(6, 12)), true),
+            ],
+        );
+        assert_eq!(
+            a.const_strings
+                .get(&Vec::new())
+                .and_then(|values| values.get("p"))
+                .map(|(value, _)| value.as_str()),
+            Some("a\\d")
+        );
+    }
+
+    /// A computed target defines no variable: `set $n 1` writes
+    /// the variable `n` names — tclsh 8.4.20 to 9.1b0 leave `n` as it was
+    /// — so the role binding's static-name rule binds nothing.
+    #[test]
+    fn a_computed_set_target_defines_no_variable() {
+        let r = Analyser::new().analyse("set $n 1\n", "tcl8.6");
+        assert!(!r.global_scope.variables.contains_key("n"));
+    }
+
+    #[test]
+    fn handle_set_no_value_undefined_var_is_silent() {
+        // ``set x`` on an undefined variable is still a read; the read
+        // recording silently no-ops when the name isn't in scope, so no
+        // spurious binding lands.
+        let r = Analyser::new().analyse("set x\n", "tcl8.6");
+        assert!(!r.global_scope.variables.contains_key("x"));
+    }
+
+    // Scope aliases through the generic consumer — the dispatch tail's
+    // `apply_state_transitions`, reached by `process_command` exactly as a
+    // walked command reaches it.
+
+    /// Dispatch one command whose words are bare (`Esc`) tokens four bytes
+    /// apart — a word carrying `$` or `[` reads as computed, as it would in
+    /// source.
+    fn dispatch_words(a: &mut Analyser, words: &[&str]) {
+        let owned: Vec<String> = words.iter().map(|s| (*s).to_string()).collect();
+        let toks: Vec<Token> = (0..owned.len())
+            .map(|i| {
+                let at = u32::try_from(i).unwrap() * 4;
+                esc_tok(span(at, at + 1))
+            })
+            .collect();
+        let single = vec![true; owned.len()];
+        let expanded = vec![false; owned.len()];
+        a.process_command(&owned, &toks, &single, &expanded, &[]);
+    }
+
+    #[test]
+    fn handle_global_defines_each_name() {
+        let mut a = Analyser::new();
+        dispatch_words(&mut a, &["global", "x", "y", "z"]);
+        for name in ["x", "y", "z"] {
+            assert!(a.result.global_scope.variables.contains_key(name));
+            assert!(!a.result.global_scope.variables[name].warn_if_unused);
+            assert_eq!(
+                a.result.global_scope.variables[name].link_target.as_deref(),
+                Some(format!("::{name}").as_str()),
+            );
+        }
+    }
+
+    #[test]
+    fn global_binds_the_tail_of_a_qualified_name_and_skips_a_computed_one() {
+        let mut a = Analyser::new();
+        dispatch_words(&mut a, &["global", "::ns::v", "$dyn"]);
+        let v = &a.result.global_scope.variables["v"];
+        assert_eq!(v.link_target.as_deref(), Some("::ns::v"));
+        // The declaration word names the cell, so a rename rewrites it.
+        assert_eq!(v.link_target_span, Some(span(4, 5)));
+        assert!(!a.result.global_scope.variables.contains_key("dyn"));
+        assert!(!a.result.global_scope.variables.contains_key("$dyn"));
+    }
+
+    #[test]
+    fn handle_variable_defines_only_names_skipping_values() {
+        let mut a = Analyser::new();
+        // `variable x 1 y 2 z` — names at 0, 2, 4; values at 1, 3.
+        dispatch_words(&mut a, &["variable", "x", "1", "y", "2", "z"]);
+        for name in ["x", "y", "z"] {
+            assert!(a.result.global_scope.variables.contains_key(name));
+        }
+        // Numbers should NOT be variable names.
+        assert!(!a.result.global_scope.variables.contains_key("1"));
+        assert!(!a.result.global_scope.variables.contains_key("2"));
+    }
+
+    #[test]
+    fn handle_variable_single_name_no_value() {
+        let mut a = Analyser::new();
+        dispatch_words(&mut a, &["variable", "x"]);
+        assert!(a.result.global_scope.variables.contains_key("x"));
+        // At the top level the current namespace is the global one.
+        assert_eq!(
+            a.result.global_scope.variables["x"].link_target.as_deref(),
+            Some("::x"),
+        );
+    }
+
+    #[test]
+    fn declaration_aliases_use_selected_native_name_owner() {
+        for version in tcl_dialect::TclVersion::ALL {
+            let mut analyser = Analyser::new();
+            analyser.source_analysis_entry = Some(std::sync::Arc::new(
+                crate::command_binding::SourceAnalysisEntry {
+                    invocation_dialect: Some(tcl_registry::InvocationDialect::for_version(version)),
+                    ..Default::default()
+                },
+            ));
+            analyser.handle_global_command(&["ns:::v".to_owned()], &[esc_tok(span(0, 6))], &[]);
+            assert!(analyser.result.global_scope.variables.contains_key("v"));
+            assert!(!analyser.result.global_scope.variables.contains_key(":v"));
+            assert_eq!(
+                analyser.result.global_scope.variables["v"]
+                    .link_target
+                    .as_deref(),
+                Some("::ns::v"),
+            );
+        }
+        let mut analyser = Analyser::new();
+        analyser.source_analysis_entry = Some(std::sync::Arc::new(
+            crate::command_binding::SourceAnalysisEntry {
+                invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(
+                    tcl_registry::model::ingress::resolve_environment("jim").unit_profile(),
+                )),
+                ..Default::default()
+            },
+        ));
+        analyser.handle_global_command(&["::ns::v".to_owned()], &[esc_tok(span(0, 7))], &[]);
+        assert!(!analyser.result.global_scope.variables.contains_key("v"));
+        analyser.handle_variable_command(&["::ns:::v".to_owned()], &[esc_tok(span(0, 8))], &[]);
+        assert!(analyser.result.global_scope.variables.contains_key("v"));
+    }
+
+    // handle_upvar_command — the `otherVar` link
+
+    #[test]
+    fn namespace_upvar_links_each_local_to_its_namespace_cell() {
+        // `namespace upvar ns other local` — `other` resolved within `ns`
+        // and kept whole (`b::c` is `::a::b::c`, not the tail-collapsed
+        // `::a::c`), `ns` relative to the current namespace; the rename span
+        // is the `other` word, not the local.
+        let mut a = Analyser::new();
+        dispatch_words(
+            &mut a,
+            &["namespace", "upvar", "::a", "b::c", "l", "d", "m"],
+        );
+        let l = &a.result.global_scope.variables["l"];
+        assert_eq!(l.link_target.as_deref(), Some("::a::b::c"));
+        assert_eq!(l.link_target_span, Some(span(12, 13)));
+        assert_eq!(
+            a.result.global_scope.variables["m"].link_target.as_deref(),
+            Some("::a::d"),
+        );
+    }
+
+    #[test]
+    fn namespace_upvar_with_a_computed_word_keeps_the_cell_as_written() {
+        // A computed local binds nothing.
+        let mut a = Analyser::new();
+        dispatch_words(&mut a, &["namespace", "upvar", "::a", "x", "$local"]);
+        assert!(!a.result.global_scope.variables.contains_key("local"));
+        // Legacy alias reports preserve computed namespace/otherVar spellings.
+        // Core candidates and rename coverage use typed source receipts instead.
+        let mut a = Analyser::new();
+        dispatch_words(&mut a, &["namespace", "upvar", "$ns", "x", "l"]);
+        assert_eq!(
+            a.result.global_scope.variables["l"].link_target.as_deref(),
+            Some("::$ns::x"),
+        );
+        // The cell is named by the `otherVar` word, not the local.
+        assert_eq!(
+            a.result.global_scope.variables["l"].link_target_span,
+            Some(span(12, 13)),
+        );
+        let mut a = Analyser::new();
+        dispatch_words(&mut a, &["namespace", "upvar", "::mypkg", "$v", "l"]);
+        assert_eq!(
+            a.result.global_scope.variables["l"].link_target.as_deref(),
+            Some("::mypkg::$v"),
+        );
+        // An absolute `otherVar` names its cell whatever the namespace word.
+        let mut a = Analyser::new();
+        dispatch_words(&mut a, &["namespace", "upvar", "$ns", "::abs", "l"]);
+        assert_eq!(
+            a.result.global_scope.variables["l"].link_target.as_deref(),
+            Some("::abs"),
+        );
+    }
+
+    // `upvar` — the `otherVar` link
+
+    /// Dispatch `upvar <args>` and report the alias's link target, if it got
+    /// one.
+    fn upvar_link_of(args: &[&str], local: &str) -> Option<String> {
+        let mut a = Analyser::new();
+        let words: Vec<&str> = std::iter::once("upvar")
+            .chain(args.iter().copied())
+            .collect();
+        dispatch_words(&mut a, &words);
+        a.result
+            .global_scope
+            .variables
+            .get(local)
+            .and_then(|v| v.link_target.clone())
+    }
+
+    #[test]
+    fn upvar_links_a_fully_qualified_other_var_at_any_level() {
+        // `upvar 1 ::myns::q g` binds `::myns::q` from any call depth
+        // (tclsh 9.0.4 / 8.6.14: reached identically through `upvar 1` and
+        // `upvar 2`), so the alias has a stable cell to link to.
+        assert_eq!(
+            upvar_link_of(&["1", "::myns::q", "g"], "g"),
+            Some("::myns::q".to_string()),
+        );
+        assert_eq!(
+            upvar_link_of(&["2", "::myns::q", "g"], "g"),
+            Some("::myns::q".to_string()),
+        );
+    }
+
+    #[test]
+    fn upvar_links_an_array_other_var_to_its_base() {
+        // tk.tcl:177 `upvar ::tk::FocusGrab($index) data` — the element key
+        // is runtime data, the array is the named cell every sibling access
+        // shares.
+        assert_eq!(
+            upvar_link_of(&["::tk::FocusGrab($index)", "data"], "data"),
+            Some("::tk::FocusGrab".to_string()),
+        );
+    }
+
+    #[test]
+    fn logical_upvar_targets_share_literal_scalar_and_element_geometry() {
+        // naming.compiler.logical-upvar-target-element-geometry
+        // docs/design/analysis/name-resolution-proofs/logical-upvar-target-element-geometry.md
+        // These are readonly Logical source coordinates, not executed links.
+        // Literal name parsing must preserve a scalar's unmatched parenthesis
+        // and must not strip substitution sigils before the dynamic refusal.
+        for (other, expected) in [
+            ("a(b", Some("::a(b")),
+            ("a(b)c", Some("::a(b)c")),
+            ("a(b)", Some("::a")),
+            ("π(β", Some("::π(β")),
+            ("π(β)", Some("::π")),
+            ("a($key)", Some("::a")),
+            ("::ns::a(b", Some("::ns::a(b")),
+            ("$computed", None),
+        ] {
+            let source = format!("upvar #0 {{{other}}} local");
+            let analysis = Analyser::new().analyse(&source, "tcl");
+            assert!(analysis.allows_retained_logical_declaration_advice());
+            assert_eq!(
+                analysis.global_scope.variables["local"]
+                    .link_target
+                    .as_deref(),
+                expected,
+                "{source}",
+            );
+        }
+    }
+
+    #[test]
+    fn logical_alias_source_declarations_keep_typed_targets_and_unknown_obligations() {
+        let source = "upvar #0 shared local; puts $local";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        assert_eq!(
+            analysis.global_scope.variables["local"]
+                .link_target
+                .as_deref(),
+            Some("::shared")
+        );
+        let span = tcl_lexer::Span::new(9, 15);
+        let target = analysis
+            .original_variable_symbols
+            .iter()
+            .find(|site| site.span() == span)
+            .expect("actual original target occurrence");
+        assert!(target.is_declaration());
+        assert_eq!(target.original_name_input().bytes(), b"shared");
+        assert_eq!(
+            target.symbol().checked_c_namespace_key().as_deref(),
+            Some("::shared")
+        );
+        assert!(analysis.original_variable_alias_receipts.is_empty());
+        assert!(analysis.original_variable_alias_operands.is_empty());
+
+        let source = "upvar #0 $unknown local";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        assert!(
+            analysis
+                .global_scope
+                .variables
+                .get("local")
+                .is_none_or(|variable| variable.link_target.is_none())
+        );
+        assert!(!analysis.original_variable_name_unknowns.is_empty());
+        assert!(analysis.original_variable_alias_receipts.is_empty());
+    }
+
+    #[test]
+    fn upvar_at_level_hash_zero_links_to_the_global_cell() {
+        // tclsh 9.0.4 / 8.6.14: `upvar #0 counter c` reaches `::counter`
+        // however deep the stack is.
+        assert_eq!(
+            upvar_link_of(&["#0", "counter", "c"], "c"),
+            Some("::counter".to_string()),
+        );
+    }
+
+    #[test]
+    fn upvar_does_not_link_a_frame_relative_other_var() {
+        // TN — `upvar 1 x y` names whatever local the *caller* happens to
+        // have; there is no namespace path for it, so inventing one would
+        // unify unrelated cells.
+        assert_eq!(upvar_link_of(&["1", "x", "y"], "y"), None);
+        assert_eq!(upvar_link_of(&["x", "y"], "y"), None);
+        // A computed target has no readable name at all.
+        assert_eq!(upvar_link_of(&["1", "$name", "obj"], "obj"), None);
+        // A computed *level* could be `#0`, but could equally be `1` — the
+        // alias must not be linked on a guess.
+        assert_eq!(upvar_link_of(&["$lvl", "counter", "c"], "c"), None);
+    }
+
+    #[test]
+    fn upvar_level_word_presence_follows_argument_count_parity() {
+        // `upvar 1 b` is TWO words, so there is no level word and `1` is the
+        // caller-side variable name — the alias is `b` (tclsh 9.0.4 /
+        // 8.6.14: with `set 1 ONE` in the caller, the callee reads `ONE`).
+        let mut a = Analyser::new();
+        dispatch_words(&mut a, &["upvar", "1", "b"]);
+        assert!(a.result.global_scope.variables.contains_key("b"));
+        assert!(!a.result.global_scope.variables.contains_key("1"));
+    }
+
+    // handle_proc_command
+
+    #[test]
+    fn handle_proc_command_records_every_declaration_site_even_when_shadowed() {
+        // TP: a proc declared twice
+        // verbatim at different spans (plain Tcl's own "last redefinition
+        // wins" semantics) must still leave BOTH declarations' own name
+        // spans in `proc_declaration_sites`, even though `all_procs`
+        // (keyed by qualified name) only ever retains the winner's.
+        let mut a = Analyser::new();
+        a.handle_proc_command(
+            "proc",
+            &["foo".to_string(), String::new(), "return ONE".to_string()],
+            &[
+                esc_tok(span(5, 8)),
+                esc_tok(span(9, 9)),
+                str_tok(span(10, 20)),
+            ],
+            &[],
+            &[],
+        );
+        a.handle_proc_command(
+            "proc",
+            &["foo".to_string(), String::new(), "return TWO".to_string()],
+            &[
+                esc_tok(span(30, 33)),
+                esc_tok(span(34, 34)),
+                str_tok(span(35, 45)),
+            ],
+            &[],
+            &[],
+        );
+        assert_eq!(a.result.all_procs["::foo"].body_span, span(35, 45));
+        let sites: Vec<(&str, tcl_lexer::Span)> = a
+            .result
+            .proc_declaration_sites
+            .iter()
+            .map(|(q, s)| (q.as_str(), *s))
+            .collect();
+        assert_eq!(
+            sites,
+            vec![("::foo", span(5, 8)), ("::foo", span(30, 33))],
+            "both declaration sites must be recorded, in source order"
+        );
+    }
+
+    #[test]
+    fn handle_proc_records_proc_at_global() {
+        let mut a = Analyser::new();
+        let handled = a.handle_proc_command(
+            "proc",
+            &["foo".to_string(), "a b".to_string(), "set x $a".to_string()],
+            &[
+                esc_tok(span(5, 8)),
+                esc_tok(span(9, 14)),
+                str_tok(span(15, 25)),
+            ],
+            &[],
+            &[],
+        );
+        assert!(handled);
+        assert!(a.result.all_procs.contains_key("::foo"));
+        let proc = &a.result.all_procs["::foo"];
+        assert_eq!(proc.name, "foo");
+        assert_eq!(proc.qualified_name, "::foo");
+        assert_eq!(proc.params.len(), 2);
+        assert_eq!(proc.params[0].name, "a");
+        assert_eq!(proc.params[1].name, "b");
+    }
+
+    #[test]
+    fn handle_proc_qualifies_under_namespace() {
+        use crate::analyser::types::{Scope, ScopeKind};
+        let mut a = Analyser::new();
+        a.result
+            .global_scope
+            .children
+            .push(Scope::new(ScopeKind::Namespace, "ns1"));
+        let handled = a.handle_proc_command(
+            "proc",
+            &["foo".to_string(), String::new(), String::new()],
+            &[
+                esc_tok(span(5, 8)),
+                str_tok(span(9, 11)),
+                str_tok(span(12, 14)),
+            ],
+            &[],
+            &[0],
+        );
+        assert!(handled);
+        assert!(a.result.all_procs.contains_key("::ns1::foo"));
+    }
+
+    #[test]
+    fn handle_proc_keys_scope_procs_by_simple_name() {
+        // ``scope.procs`` is keyed by the simple name so per-scope
+        // lookups and shadowing rules work locally. The
+        // qualified name lives on ``ProcDef.qualified_name`` and
+        // is the key for ``result.all_procs``.
+        use crate::analyser::types::{Scope, ScopeKind};
+        let mut a = Analyser::new();
+        a.result
+            .global_scope
+            .children
+            .push(Scope::new(ScopeKind::Namespace, "ns1"));
+        a.handle_proc_command(
+            "proc",
+            &["foo".to_string(), String::new(), String::new()],
+            &[
+                esc_tok(span(5, 8)),
+                str_tok(span(9, 11)),
+                str_tok(span(12, 14)),
+            ],
+            &[],
+            &[0],
+        );
+        let scope = &a.result.global_scope.children[0];
+        // Scope's procs map keyed by simple name, NOT qualified.
+        assert!(
+            scope.procs.contains_key("foo"),
+            "scope.procs should be keyed by simple `foo`, got keys: {:?}",
+            scope.procs.keys().collect::<Vec<_>>(),
+        );
+        assert!(
+            !scope.procs.contains_key("::ns1::foo"),
+            "scope.procs must not be keyed by qualified name",
+        );
+        // The qualified name is still on the ProcDef.
+        assert_eq!(scope.procs["foo"].qualified_name, "::ns1::foo");
+        // ...and result.all_procs is keyed by qualified name.
+        assert!(a.result.all_procs.contains_key("::ns1::foo"));
+    }
+
+    #[test]
+    fn handle_proc_absolute_name_rebases() {
+        use crate::analyser::types::{Scope, ScopeKind};
+        let mut a = Analyser::new();
+        a.result
+            .global_scope
+            .children
+            .push(Scope::new(ScopeKind::Namespace, "outer"));
+        let handled = a.handle_proc_command(
+            "proc",
+            &["::other::foo".to_string(), String::new(), String::new()],
+            &[
+                esc_tok(span(5, 17)),
+                str_tok(span(18, 20)),
+                str_tok(span(21, 23)),
+            ],
+            &[],
+            &[0],
+        );
+        assert!(handled);
+        // Absolute name rebases — does NOT nest under outer.
+        assert!(a.result.all_procs.contains_key("::other::foo"));
+        assert!(!a.result.all_procs.contains_key("::outer::other::foo"));
+    }
+
+    #[test]
+    fn handle_proc_consumes_last_comment_as_doc() {
+        let mut a = Analyser::new();
+        a.last_comment = "doc string".to_string();
+        a.handle_proc_command(
+            "proc",
+            &["foo".to_string(), String::new(), String::new()],
+            &[
+                esc_tok(span(0, 3)),
+                str_tok(span(4, 6)),
+                str_tok(span(7, 9)),
+            ],
+            &[],
+            &[],
+        );
+        assert_eq!(a.result.all_procs["::foo"].doc, "doc string");
+        // last_comment is consumed.
+        assert_eq!(a.last_comment, "");
+    }
+
+    #[test]
+    fn handle_proc_too_few_args_returns_false() {
+        let mut a = Analyser::new();
+        let handled = a.handle_proc_command(
+            "proc",
+            &["foo".to_string()],
+            &[esc_tok(span(0, 3))],
+            &[],
+            &[],
+        );
+        assert!(!handled);
+        assert_eq!(a.result.all_procs.len(), 0);
+    }
+
+    // handle_proc_command W113 shadow check
+
+    #[test]
+    fn handle_proc_emits_w113_for_builtin_shadow() {
+        // ``proc set {} {}`` — the proc name is a built-in.
+        // W113 should anchor at the proc-name span and carry
+        // the canonical message shape. A *real* dialect is named in the
+        // parenthetical label; the permissive fallback (both the empty
+        // string and its canonical "tcl" spelling resolve there —
+        // dialect-profile-model.md §8, one sink) carries no label, covered
+        // by the sibling no-label test below.
+        let mut a = Analyser::new();
+        a.profile = tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile();
+        a.handle_proc_command(
+            "proc",
+            &["set".to_string(), String::new(), String::new()],
+            &[
+                esc_tok(span(5, 8)),
+                str_tok(span(9, 11)),
+                str_tok(span(12, 14)),
+            ],
+            &[],
+            &[],
+        );
+        let w113s: Vec<&crate::analyser::types::Diagnostic> = a
+            .result
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == DiagCode::W113)
+            .collect();
+        assert_eq!(w113s.len(), 1);
+        assert_eq!(w113s[0].span, span(5, 8));
+        assert!(w113s[0].message.contains("'set' shadows built-in"));
+        assert!(w113s[0].message.contains("(tcl8.6)"));
+        assert_eq!(w113s[0].severity, crate::analyser::types::Severity::Warning);
+    }
+
+    #[test]
+    fn irules_profile_without_attached_registry_keeps_valid_proc_semantics() {
+        let mut analyser = Analyser::new();
+        analyser.profile = tcl_dialect::DialectProfile::irules();
+        analyser.source = "proc set {} {}".to_owned();
+        assert!(analyser.registry.is_none());
+        let handled = analyser.handle_proc_command(
+            "proc",
+            &["set".to_owned(), String::new(), String::new()],
+            &[
+                esc_tok(span(5, 8)),
+                str_tok(span(9, 11)),
+                str_tok(span(12, 14)),
+            ],
+            &[true, true, true],
+            &[],
+        );
+        assert!(handled);
+        assert!(analyser.result.all_procs.contains_key("::set"));
+        assert!(
+            analyser
+                .result
+                .diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.code == DiagCode::W113)
+        );
+    }
+
+    #[test]
+    fn irules_profile_without_attached_registry_rejects_malformed_proc() {
+        let mut analyser = Analyser::new();
+        analyser.profile = tcl_dialect::DialectProfile::irules();
+        assert!(analyser.registry.is_none());
+        let handled = analyser.handle_proc_command(
+            "proc",
+            &[
+                "set".to_owned(),
+                String::new(),
+                "set leaked 1".to_owned(),
+                "extra".to_owned(),
+            ],
+            &[
+                esc_tok(span(5, 8)),
+                str_tok(span(9, 11)),
+                str_tok(span(12, 26)),
+                esc_tok(span(27, 32)),
+            ],
+            &[],
+            &[],
+        );
+        assert!(handled);
+        assert_eq!(analyser.result.all_procs.len(), 0);
+        assert_eq!(analyser.result.global_scope.variables.len(), 0);
+        assert_eq!(
+            analyser.result.diagnostics,
+            [] as [crate::analyser::types::Diagnostic; 0]
+        );
+    }
+
+    #[test]
+    fn handle_proc_no_w113_for_non_builtin_name() {
+        // ``foo`` is not a built-in — no W113.
+        let mut a = Analyser::new();
+        a.profile = tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile();
+        a.handle_proc_command(
+            "proc",
+            &["foo".to_string(), String::new(), String::new()],
+            &[
+                esc_tok(span(5, 8)),
+                str_tok(span(9, 11)),
+                str_tok(span(12, 14)),
+            ],
+            &[],
+            &[],
+        );
+        assert!(
+            !a.result
+                .diagnostics
+                .iter()
+                .any(|d| d.code == DiagCode::W113),
+            "should NOT emit W113 for non-built-in name 'foo'",
+        );
+    }
+
+    #[test]
+    fn handle_proc_w113_matches_qualified_form() {
+        // ``proc ::set {} {}`` — qualified form also shadows
+        // ``set`` because the registry indexes by bare command
+        // name (``::`` is trimmed at lookup).
+        let mut a = Analyser::new();
+        a.profile = tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile();
+        a.handle_proc_command(
+            "proc",
+            &["::set".to_string(), String::new(), String::new()],
+            &[
+                esc_tok(span(5, 10)),
+                str_tok(span(11, 13)),
+                str_tok(span(14, 16)),
+            ],
+            &[],
+            &[],
+        );
+        assert!(
+            a.result
+                .diagnostics
+                .iter()
+                .any(|d| d.code == DiagCode::W113)
+        );
+    }
+
+    #[test]
+    fn handle_proc_w113_no_dialect_label_when_dialect_empty() {
+        // Empty dialect → no parenthetical label in the message.
+        let mut a = Analyser::new();
+        // dialect intentionally left empty
+        a.handle_proc_command(
+            "proc",
+            &["set".to_string(), String::new(), String::new()],
+            &[
+                esc_tok(span(5, 8)),
+                str_tok(span(9, 11)),
+                str_tok(span(12, 14)),
+            ],
+            &[],
+            &[],
+        );
+        let w113 = a
+            .result
+            .diagnostics
+            .iter()
+            .find(|d| d.code == DiagCode::W113)
+            .expect("W113 expected");
+        assert!(w113.message.contains("'set' shadows built-in"));
+        assert!(!w113.message.contains('('), "no dialect label expected");
+    }
+
+    #[test]
+    fn handle_proc_w113_dialect_specific_command_only_shadows_in_that_dialect() {
+        // ``pool`` is an *unqualified* iRules-specific command; under the
+        // ``f5-irules`` dialect a proc named ``pool`` shadows a built-in,
+        // but under plain ``tcl`` it does not.  (A *namespace-qualified*
+        // iRules command like ``HTTP::respond`` is never flagged, because a
+        // qualified match is a library/package command living in its own
+        // namespace, not a core-global shadow.)
+        let mut a = Analyser::new();
+        a.profile = tcl_dialect::DialectProfile::irules();
+        a.source = "proc pool {} {}".to_owned();
+        a.handle_proc_command(
+            "proc",
+            &["pool".to_string(), String::new(), String::new()],
+            &[
+                esc_tok(span(5, 9)),
+                str_tok(span(10, 12)),
+                str_tok(span(13, 15)),
+            ],
+            &[true, true, true],
+            &[],
+        );
+        assert!(
+            a.result
+                .diagnostics
+                .iter()
+                .any(|d| d.code == DiagCode::W113),
+            "f5-irules dialect should treat pool as built-in",
+        );
+
+        // Same proc, plain tcl dialect → no W113.
+        let mut b = Analyser::new();
+        b.profile = tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile();
+        b.handle_proc_command(
+            "proc",
+            &["pool".to_string(), String::new(), String::new()],
+            &[
+                esc_tok(span(5, 9)),
+                str_tok(span(10, 12)),
+                str_tok(span(13, 15)),
+            ],
+            &[],
+            &[],
+        );
+        assert!(
+            !b.result
+                .diagnostics
+                .iter()
+                .any(|d| d.code == DiagCode::W113),
+            "plain tcl dialect should NOT flag pool",
+        );
+    }
+
+    #[test]
+    fn handle_proc_w113_silent_on_namespace_qualified_shadow() {
+        // FP: a namespace-qualified match (`HTTP::respond` under f5-irules)
+        // is a library/package command in its own namespace, not a
+        // core-global shadow — never W113.
+        let mut a = Analyser::new();
+        a.profile = tcl_dialect::DialectProfile::irules();
+        a.handle_proc_command(
+            "proc",
+            &["HTTP::respond".to_string(), String::new(), String::new()],
+            &[
+                esc_tok(span(5, 18)),
+                str_tok(span(19, 21)),
+                str_tok(span(22, 24)),
+            ],
+            &[],
+            &[],
+        );
+        assert!(
+            !a.result
+                .diagnostics
+                .iter()
+                .any(|d| d.code == DiagCode::W113),
+            "namespace-qualified HTTP::respond must not fire W113",
+        );
+    }
+
+    // handle_proc_command body recursion
+
+    #[test]
+    fn handle_proc_creates_proc_scope_for_braced_body() {
+        // ``proc foo {} {}`` — empty braced body still opens a
+        // proc scope so subsequent body-walking handlers have a
+        // place to record locals.
+        let mut a = Analyser::new();
+        a.handle_proc_command(
+            "proc",
+            &["foo".to_string(), String::new(), String::new()],
+            &[
+                esc_tok(span(5, 8)),
+                str_tok(span(9, 11)),
+                str_tok(span(12, 14)),
+            ],
+            &[],
+            &[],
+        );
+        assert_eq!(a.result.global_scope.children.len(), 1);
+        let proc_scope = &a.result.global_scope.children[0];
+        assert_eq!(proc_scope.kind, crate::analyser::types::ScopeKind::Proc);
+        assert_eq!(proc_scope.name, "foo");
+        assert_eq!(proc_scope.body_span, Some(span(12, 14)));
+    }
+
+    #[test]
+    fn handle_proc_defines_params_in_proc_scope() {
+        // ``proc foo {a b} {}`` — a, b become locals in the
+        // proc scope, not in the outer scope.
+        let mut a = Analyser::new();
+        a.handle_proc_command(
+            "proc",
+            &["foo".to_string(), "a b".to_string(), String::new()],
+            &[
+                esc_tok(span(5, 8)),
+                esc_tok(span(9, 14)),
+                str_tok(span(15, 17)),
+            ],
+            &[],
+            &[],
+        );
+        let proc_scope = &a.result.global_scope.children[0];
+        assert!(proc_scope.variables.contains_key("a"));
+        assert!(proc_scope.variables.contains_key("b"));
+        // Outer scope must be untouched.
+        assert!(!a.result.global_scope.variables.contains_key("a"));
+    }
+
+    #[test]
+    fn handle_proc_walks_body_set_defines_local() {
+        // ``proc foo {} {set x 1}`` — body walk segments the
+        // body and dispatches `set x 1` against the proc scope,
+        // landing the local in proc_scope.variables, not global.
+        // The body token's span must mirror the outer source so
+        // the segmenter rebases correctly: source layout is
+        // ``proc foo {} {set x 1}`` with the body occupying [13, 22].
+        // ``content_offset = 1`` skips the leading ``{`` so the
+        // re-segmented inner runs at base 14.
+        let mut a = Analyser::new();
+        a.handle_proc_command(
+            "proc",
+            &["foo".to_string(), String::new(), "set x 1".to_string()],
+            &[
+                esc_tok(span(5, 8)),
+                str_tok(span(9, 11)),
+                str_tok(span(13, 22)),
+            ],
+            &[],
+            &[],
+        );
+        let proc_scope = &a.result.global_scope.children[0];
+        assert!(
+            proc_scope.variables.contains_key("x"),
+            "body walk should land 'x' in proc scope; vars: {:?}",
+            proc_scope.variables.keys().collect::<Vec<_>>(),
+        );
+        assert!(!a.result.global_scope.variables.contains_key("x"));
+    }
+
+    #[test]
+    fn handle_proc_walks_body_global_falls_into_proc_scope() {
+        // ``proc foo {} {global a b}`` — the ``global`` handler
+        // defines bindings in the proc scope so the body's later
+        // reads/writes resolve correctly. Real ``global`` semantics
+        // (link to outer var) live with diagnostic emission later.
+        let mut a = Analyser::new();
+        a.handle_proc_command(
+            "proc",
+            &["foo".to_string(), String::new(), "global a b".to_string()],
+            &[
+                esc_tok(span(5, 8)),
+                str_tok(span(9, 11)),
+                str_tok(span(13, 25)),
+            ],
+            &[],
+            &[],
+        );
+        let proc_scope = &a.result.global_scope.children[0];
+        assert!(proc_scope.variables.contains_key("a"));
+        assert!(proc_scope.variables.contains_key("b"));
+    }
+
+    #[test]
+    fn handle_proc_nested_proc_creates_nested_scopes() {
+        // Body-walk recursion must dispatch `proc` inside the body,
+        // creating a nested proc scope under the outer proc.
+        let mut a = Analyser::new();
+        a.handle_proc_command(
+            "proc",
+            &[
+                "outer".to_string(),
+                String::new(),
+                "proc inner {} {}".to_string(),
+            ],
+            &[
+                esc_tok(span(5, 10)),
+                str_tok(span(11, 13)),
+                str_tok(span(15, 33)),
+            ],
+            &[],
+            &[],
+        );
+        // Outer proc registered.
+        assert!(a.result.all_procs.contains_key("::outer"));
+        // A nested definition homes to the enclosing proc's *defining*
+        // namespace (`command_resolution_namespace` /
+        // `advance_command_resolution_namespace`), not to a namespace named
+        // after the proc. ``outer`` is unqualified, so its defining namespace
+        // is ``::`` and the nested ``inner`` qualifies as ``::inner``.
+        assert!(a.result.all_procs.contains_key("::inner"));
+        // Outer's proc scope holds the nested proc scope as a child.
+        let outer_scope = &a.result.global_scope.children[0];
+        assert_ne!(
+            outer_scope.children,
+            [] as [crate::analyser::types::Scope; 0]
+        );
+        assert_eq!(
+            outer_scope.children[0].kind,
+            crate::analyser::types::ScopeKind::Proc,
+        );
+        assert_eq!(outer_scope.children[0].name, "inner");
+    }
+
+    #[test]
+    fn handle_proc_dynamic_body_skips_walk() {
+        // ``proc foo {} $body`` — the body is a Var token, not a
+        // Str token; we cannot statically re-segment a dynamic
+        // body, so the body walk is skipped. The proc record
+        // itself still lands so downstream signature consumers see
+        // the proc; only the inner walk is gated.
+        let mut a = Analyser::new();
+        let var_tok = Token::new(TokenType::Var, span(13, 18));
+        a.handle_proc_command(
+            "proc",
+            &["foo".to_string(), String::new(), "$body".to_string()],
+            &[esc_tok(span(5, 8)), str_tok(span(9, 11)), var_tok],
+            &[],
+            &[],
+        );
+        assert!(a.result.all_procs.contains_key("::foo"));
+        // No proc scope opened — Str gate failed.
+        assert_eq!(
+            a.result.global_scope.children,
+            [] as [crate::analyser::types::Scope; 0]
+        );
+    }
+
+    #[test]
+    fn handle_proc_body_walk_increments_body_depth_temporarily() {
+        // ``body_depth`` is bumped for the duration of the body
+        // walk and restored on exit — top-level-only command
+        // checks rely on the depth being zero outside any body.
+        let mut a = Analyser::new();
+        assert_eq!(a.body_depth, 0);
+        a.handle_proc_command(
+            "proc",
+            &["foo".to_string(), String::new(), String::new()],
+            &[
+                esc_tok(span(5, 8)),
+                str_tok(span(9, 11)),
+                str_tok(span(12, 14)),
+            ],
+            &[],
+            &[],
+        );
+        assert_eq!(a.body_depth, 0);
+    }
+
+    #[test]
+    fn handle_proc_body_walk_does_not_leak_inner_doc_comment() {
+        // A trailing comment inside the body should not bleed into
+        // ``last_comment`` for whatever follows the proc at the
+        // outer scope. The outer comment ("doc string") is consumed
+        // as the proc's own doc; after the walk, ``last_comment``
+        // is restored to empty.
+        let mut a = Analyser::new();
+        a.last_comment = "doc string".to_string();
+        a.handle_proc_command(
+            "proc",
+            &["foo".to_string(), String::new(), String::new()],
+            &[
+                esc_tok(span(5, 8)),
+                str_tok(span(9, 11)),
+                str_tok(span(12, 14)),
+            ],
+            &[],
+            &[],
+        );
+        assert_eq!(a.result.all_procs["::foo"].doc, "doc string");
+        assert_eq!(a.last_comment, "");
+    }
+
+    // handle_namespace_eval_command
+
+    // handle_namespace_export_command
+
+    #[test]
+    fn handle_namespace_export_records_pattern() {
+        let mut a = Analyser::new();
+        a.handle_namespace_export_command(
+            &["export".to_string(), "bar".to_string()],
+            &[esc_tok(span(0, 6)), esc_tok(span(7, 10))],
+            &[],
+        );
+        assert_eq!(a.result.namespace_exports.len(), 1);
+        assert_eq!(a.result.namespace_exports[0].ns, "::");
+        assert_eq!(a.result.namespace_exports[0].pattern, "bar");
+    }
+
+    #[test]
+    fn handle_namespace_export_records_multiple_patterns() {
+        let mut a = Analyser::new();
+        a.handle_namespace_export_command(
+            &["export".to_string(), "bar".to_string(), "b*".to_string()],
+            &[
+                esc_tok(span(0, 6)),
+                esc_tok(span(7, 10)),
+                esc_tok(span(11, 13)),
+            ],
+            &[],
+        );
+        let patterns: Vec<&str> = a
+            .result
+            .namespace_exports
+            .iter()
+            .map(|e| e.pattern.as_str())
+            .collect();
+        assert_eq!(patterns, vec!["bar", "b*"]);
+    }
+
+    /// `NamespaceExportCmd` calls `Tcl_Export` per pattern and returns on the
+    /// first failure, so a qualified pattern aborts the loop — the patterns
+    /// *before* it are committed, the ones after are never exported at all.
+    /// Oracle rows (identical on tclsh 8.6.16 and 9.0.4, `namespace export`
+    /// read back from the namespace afterwards):
+    ///
+    /// | script | exports |
+    /// |---|---|
+    /// | `namespace export ::bad ok` | nothing |
+    /// | `namespace export ok ::bad` | `ok` |
+    /// | `namespace export one ::bad three` | `one` |
+    #[test]
+    fn handle_namespace_export_stops_at_the_first_qualified_pattern() {
+        let recorded = |words: &[&str]| -> Vec<String> {
+            let mut a = Analyser::new();
+            let args: Vec<String> = std::iter::once("export".to_string())
+                .chain(words.iter().map(|w| (*w).to_string()))
+                .collect();
+            let tokens: Vec<Token> = (0..args.len())
+                .map(|i| {
+                    let start = u32::try_from(i).expect("small index") * 10;
+                    esc_tok(span(start, start + 5))
+                })
+                .collect();
+            a.handle_namespace_export_command(&args, &tokens, &[]);
+            a.result
+                .namespace_exports
+                .iter()
+                .map(|e| e.pattern.clone())
+                .collect()
+        };
+
+        // The bad pattern is first: nothing is exported.
+        assert_eq!(recorded(&["::bad", "ok"]), [] as [std::string::String; 0]);
+        // …and after a valid one: only the valid one survives.
+        assert_eq!(recorded(&["ok", "::bad"]), vec!["ok".to_string()]);
+        assert_eq!(
+            recorded(&["one", "::bad", "three"]),
+            vec!["one".to_string()]
+        );
+        // A *relative* qualifier is equally invalid (oracle: `namespace
+        // export sub::pat` errors), so it aborts too.
+        assert_eq!(
+            recorded(&["sub::pat", "ok"]),
+            [] as [std::string::String; 0]
+        );
+        // A lone colon is not a separator, so `a:b` is a perfectly valid
+        // pattern and must not abort (oracle: exports `a:b`).
+        assert_eq!(
+            recorded(&["a:b", "ok"]),
+            vec!["a:b".to_string(), "ok".to_string()]
+        );
+        // The empty pattern is valid too (oracle: exports `{} ok`).
+        assert_eq!(recorded(&["", "ok"]), vec![String::new(), "ok".to_string()]);
+    }
+
+    #[test]
+    fn handle_namespace_export_clear_commits_before_an_invalid_pattern() {
+        // C spends a whole `Tcl_Export(…, "::", 1)` call on `-clear`, which
+        // resets the list before any pattern is looked at, so a later bad
+        // pattern cannot undo it. Oracle: a namespace exporting `keep`, then
+        // `namespace export -clear ::bad`, exports nothing afterwards.
+        let mut a = Analyser::new();
+        a.registry = Some(std::sync::Arc::clone(
+            tcl_registry::model::ingress::static_context_for("tcl").commands(),
+        ));
+        a.handle_namespace_export_command(
+            &[
+                "export".to_string(),
+                "-clear".to_string(),
+                "::bad".to_string(),
+            ],
+            &[
+                esc_tok(span(0, 6)),
+                esc_tok(span(7, 13)),
+                esc_tok(span(14, 19)),
+            ],
+            &[],
+        );
+        let events: Vec<(&str, bool)> = a
+            .result
+            .namespace_exports
+            .iter()
+            .map(|e| (e.pattern.as_str(), e.clears))
+            .collect();
+        assert_eq!(events, vec![("", true)]);
+    }
+
+    #[test]
+    fn handle_namespace_export_clear_records_an_ordered_tombstone() {
+        let mut a = Analyser::new();
+        a.registry = Some(std::sync::Arc::clone(
+            tcl_registry::model::ingress::static_context_for("tcl").commands(),
+        ));
+        a.handle_namespace_export_command(
+            &["export".to_string(), "bar".to_string()],
+            &[esc_tok(span(0, 6)), esc_tok(span(7, 10))],
+            &[],
+        );
+        a.handle_namespace_export_command(
+            &[
+                "export".to_string(),
+                "-clear".to_string(),
+                "baz".to_string(),
+            ],
+            &[
+                esc_tok(span(11, 17)),
+                esc_tok(span(18, 24)),
+                esc_tok(span(25, 28)),
+            ],
+            &[],
+        );
+        // `-clear` is an ordered event, not an eager delete: the earlier
+        // `bar` entry stays on the log so a `namespace import` that ran
+        // *before* the `-clear` can still see it.
+        let events: Vec<(&str, bool, u32)> = a
+            .result
+            .namespace_exports
+            .iter()
+            .map(|e| (e.pattern.as_str(), e.clears, e.range.start()))
+            .collect();
+        assert_eq!(
+            events,
+            vec![("bar", false, 7), ("", true, 18), ("baz", false, 25)]
+        );
+    }
+
+    #[test]
+    fn handle_namespace_export_consumes_only_one_clear_flag() {
+        // `NamespaceExportCmd` compares `objv[1]`
+        // against `-clear` once, so a *second* `-clear` is an ordinary export
+        // pattern. Oracle (tclsh 8.6.14 / 9.0.4): `namespace export -clear
+        // -clear p` leaves exactly `-clear p` exported, and a command really
+        // named `-clear` is then importable through `namespace import
+        // ::src::*`. Consuming every matching word instead records two
+        // tombstones and silently drops the `-clear` export.
+        let mut a = Analyser::new();
+        a.registry = Some(std::sync::Arc::clone(
+            tcl_registry::model::ingress::static_context_for("tcl").commands(),
+        ));
+        a.handle_namespace_export_command(
+            &[
+                "export".to_string(),
+                "-clear".to_string(),
+                "-clear".to_string(),
+                "p".to_string(),
+            ],
+            &[
+                esc_tok(span(0, 6)),
+                esc_tok(span(7, 13)),
+                esc_tok(span(14, 20)),
+                esc_tok(span(21, 22)),
+            ],
+            &[],
+        );
+        let events: Vec<(&str, bool)> = a
+            .result
+            .namespace_exports
+            .iter()
+            .map(|e| (e.pattern.as_str(), e.clears))
+            .collect();
+        assert_eq!(events, vec![("", true), ("-clear", false), ("p", false)]);
+    }
+
+    #[test]
+    fn handle_namespace_export_flag_after_a_pattern_is_a_pattern() {
+        // The flag is only ever the *first* word: oracle `namespace export a
+        // -clear` → `namespace export` returns `a -clear`.
+        let mut a = Analyser::new();
+        a.registry = Some(std::sync::Arc::clone(
+            tcl_registry::model::ingress::static_context_for("tcl").commands(),
+        ));
+        a.handle_namespace_export_command(
+            &["export".to_string(), "a".to_string(), "-clear".to_string()],
+            &[
+                esc_tok(span(0, 6)),
+                esc_tok(span(7, 8)),
+                esc_tok(span(9, 15)),
+            ],
+            &[],
+        );
+        let events: Vec<(&str, bool)> = a
+            .result
+            .namespace_exports
+            .iter()
+            .map(|e| (e.pattern.as_str(), e.clears))
+            .collect();
+        assert_eq!(events, vec![("a", false), ("-clear", false)]);
+    }
+
+    #[test]
+    fn handle_namespace_import_consumes_only_one_force_flag() {
+        // Symmetric to the export case: `namespace import -force -force
+        // ::src::*` reads the second `-force` as an import *pattern* (and
+        // aborts with `no namespace specified in import pattern "-force"`,
+        // tclsh 8.6.14/9.0.4). Only the first is skipped as a flag, so the
+        // second is recorded as the pattern word it is — one whose empty
+        // source namespace both wildcard resolvers already decline.
+        let mut a = Analyser::new();
+        a.registry = Some(std::sync::Arc::clone(
+            tcl_registry::model::ingress::static_context_for("tcl").commands(),
+        ));
+        a.handle_namespace_import_command(
+            &[
+                "import".to_string(),
+                "-force".to_string(),
+                "-force".to_string(),
+                "::src::*".to_string(),
+            ],
+            &[
+                esc_tok(span(0, 6)),
+                esc_tok(span(7, 13)),
+                esc_tok(span(14, 20)),
+                esc_tok(span(21, 29)),
+            ],
+            &[],
+        );
+        let patterns: Vec<&str> = a
+            .result
+            .namespace_imports
+            .iter()
+            .map(|i| i.pattern.as_str())
+            .collect();
+        assert_eq!(patterns, vec!["::-force", "::src::*"]);
+    }
+
+    #[test]
+    fn handle_namespace_export_bare_clear_records_a_tombstone() {
+        let mut a = Analyser::new();
+        a.registry = Some(std::sync::Arc::clone(
+            tcl_registry::model::ingress::static_context_for("tcl").commands(),
+        ));
+        a.handle_namespace_export_command(
+            &["export".to_string(), "-clear".to_string()],
+            &[esc_tok(span(0, 6)), esc_tok(span(7, 13))],
+            &[],
+        );
+        assert_eq!(a.result.namespace_exports.len(), 1);
+        assert!(a.result.namespace_exports[0].clears);
+        assert_eq!(a.result.namespace_exports[0].pattern, "");
+    }
+
+    #[test]
+    fn handle_namespace_export_skips_dynamic_pattern() {
+        let mut a = Analyser::new();
+        a.handle_namespace_export_command(
+            &["export".to_string(), "$dyn".to_string()],
+            &[esc_tok(span(0, 6)), esc_tok(span(7, 11))],
+            &[],
+        );
+        assert_eq!(
+            a.result.namespace_exports.len(),
+            0,
+            "a dynamic pattern can't be statically recorded"
+        );
+    }
+
+    // handle_namespace_path_command
+
+    /// The two-word literal set form records entries under the declaring
+    /// namespace; a later declaration replaces the whole path (C Tcl
+    /// semantics), and entries are kept as written (rooting happens in the
+    /// shared candidate builder).
+    #[test]
+    fn handle_namespace_path_records_and_replaces() {
+        let mut a = Analyser::new();
+        a.handle_namespace_path_command(&["path".to_string(), "::u ::v".to_string()], &[], &[]);
+        assert_eq!(
+            a.namespace_paths.get("::").map(Vec::as_slice),
+            Some(&["::u".to_string(), "::v".to_string()][..]),
+        );
+        a.handle_namespace_path_command(&["path".to_string(), "inner".to_string()], &[], &[]);
+        assert_eq!(
+            a.namespace_paths.get("::").map(Vec::as_slice),
+            Some(&["inner".to_string()][..]),
+            "each namespace path declaration replaces the whole path",
+        );
+    }
+
+    /// A **braced** path word is literal, not dynamic. The word
+    /// arrives with braces stripped, so a text-only dynamism scan sees the
+    /// `$` and abstains from the whole command; the token kind is the
+    /// authority.
+    ///
+    /// tclsh-proof: tclsh8.6.14 —
+    /// `set nn {::$ns}; namespace eval $nn {}; namespace eval a {}` then
+    /// `namespace eval n { namespace path {::$ns ::a} }` and
+    /// `namespace eval n { namespace path }` answers `{::$ns} ::a` — the
+    /// entry is a namespace literally *named* `::$ns`.
+    #[test]
+    fn handle_namespace_path_records_a_braced_dollar_bearing_word() {
+        let mut a = Analyser::new();
+        a.handle_namespace_path_command(
+            &["path".to_string(), "::$ns ::a".to_string()],
+            &[esc_tok(span(0, 4)), str_tok(span(5, 16))],
+            &[],
+        );
+        assert_eq!(
+            a.namespace_paths.get("::").map(Vec::as_slice),
+            Some(&["::$ns".to_string(), "::a".to_string()][..]),
+            "a braced word never substitutes, so its entries are literal names",
+        );
+    }
+
+    /// TN control — the same text **unbraced** really is a substitution, so
+    /// the command still abstains.
+    #[test]
+    fn handle_namespace_path_still_skips_an_unbraced_dollar_word() {
+        let mut a = Analyser::new();
+        a.handle_namespace_path_command(
+            &["path".to_string(), "$entries".to_string()],
+            &[esc_tok(span(0, 4)), Token::new(TokenType::Var, span(5, 13))],
+            &[],
+        );
+        assert_eq!(a.namespace_paths.len(), 0);
+    }
+
+    /// The query form (no list) and a dynamic list (`$var` / `[cmd]`)
+    /// record nothing — the conservative empty path stands.
+    #[test]
+    fn handle_namespace_path_skips_query_and_dynamic_forms() {
+        let mut a = Analyser::new();
+        a.handle_namespace_path_command(&["path".to_string()], &[], &[]);
+        a.handle_namespace_path_command(&["path".to_string(), "$entries".to_string()], &[], &[]);
+        a.handle_namespace_path_command(
+            &["path".to_string(), "[current_path]".to_string()],
+            &[],
+            &[],
+        );
+        assert_eq!(a.namespace_paths.len(), 0);
+    }
+
+    /// A declaration inside a namespace scope keys to that namespace's
+    /// accumulated name, so settlement applies it to the right call sites.
+    #[test]
+    fn handle_namespace_path_keys_to_declaring_namespace() {
+        let mut a = Analyser::new();
+        a.result
+            .global_scope
+            .children
+            .push(crate::analyser::types::Scope::new(
+                crate::analyser::types::ScopeKind::Namespace,
+                "outer",
+            ));
+        a.handle_namespace_path_command(&["path".to_string(), "::helpers".to_string()], &[], &[0]);
+        assert_eq!(
+            a.namespace_paths.get("::outer").map(Vec::as_slice),
+            Some(&["::helpers".to_string()][..]),
+        );
+    }
+
+    /// The `namespace path` resolution tier is 8.5+: a bare call under a path
+    /// gains the path namespace as a candidate from 8.5 on, but under 8.4 it
+    /// must not (8.4 has no path tier, so the call never reaches it).
+    #[test]
+    fn bare_call_honours_namespace_path_only_from_8_5() {
+        let src = "namespace eval ::app { namespace path ::mymod\n    proc run {} { helper } }\n";
+        let candidates = |dialect: &str| {
+            let mut a = Analyser::new();
+            a.analyse(src, dialect)
+                .command_invocations
+                .iter()
+                .find(|i| i.name == "helper")
+                .map(|i| i.resolution_candidates.clone())
+                .unwrap_or_default()
+        };
+        assert!(
+            candidates("tcl8.6").iter().any(|c| c == "::mymod::helper"),
+            "8.6 should add the path namespace as a candidate: {:?}",
+            candidates("tcl8.6"),
+        );
+        assert!(
+            !candidates("tcl8.4").iter().any(|c| c == "::mymod::helper"),
+            "8.4 has no path tier, so it must not: {:?}",
+            candidates("tcl8.4"),
+        );
+    }
+
+    /// A command-table mutation inside a child interpreter's eval body
+    /// belongs to *that* interpreter, not to a flat file-wide map.
+    ///
+    /// tclsh 9.0.4, verified: after `interp create c; c eval { rename puts
+    /// myputs }` the parent's `puts` still works, the parent has no `myputs`,
+    /// the child has `myputs` and no `puts`; and `c eval { rename set {} }`
+    /// leaves the parent's `set` alone.
+    #[test]
+    fn rename_inside_a_child_body_does_not_touch_the_parent_command_table() {
+        let src = "interp create c\nc eval { rename puts myputs }\nputs hi\n";
+        let r = Analyser::new().analyse(src, "tcl8.6");
+        assert_eq!(
+            r.renamed_commands.len(),
+            0,
+            "a child's rename must not enter the parent's rename map: {:?}",
+            r.renamed_commands
+        );
+        assert!(
+            !r.diagnostics.iter().any(|d| d.message.contains("'puts'")),
+            "the parent's own `puts` is still a live builtin: {:?}",
+            r.diagnostics
+                .iter()
+                .map(|d| (d.code.to_string(), d.message.clone()))
+                .collect::<Vec<_>>()
+        );
+    }
+
+    /// The incremental per-item path must agree with full analysis here: a
+    /// deferred proc body is walked by a fresh `Analyser` that does not
+    /// inherit the interpreter stack, so a `rename` buried in a proc defined
+    /// inside a child body is the shape most likely to diverge.
+    #[test]
+    fn per_item_agrees_on_a_rename_nested_in_a_child_body() {
+        let src = "interp create c\n\
+                   c eval { proc setup {} { rename puts myputs } }\n\
+                   puts hi\n";
+        let codes = |r: &super::super::types::AnalysisResult| {
+            let mut v: Vec<(String, u32)> = r
+                .diagnostics
+                .iter()
+                .map(|d| (d.code.to_string(), d.span.start()))
+                .collect();
+            v.sort();
+            v
+        };
+        let full = Analyser::new().analyse(src, "tcl8.6");
+        let per_item = Analyser::new().analyse_per_item(src, "tcl8.6");
+        assert_eq!(codes(&full), codes(&per_item));
+        assert!(
+            !full
+                .diagnostics
+                .iter()
+                .any(|d| d.message.contains("'puts'")),
+            "{:?}",
+            codes(&full)
+        );
+    }
+
+    /// The same rename written in the parent still records normally — the
+    /// guard narrows the fact to its interpreter, it does not disable it.
+    #[test]
+    fn rename_in_the_parent_still_records_the_command_move() {
+        let src = "interp create c\nrename puts myputs\n";
+        let r = Analyser::new().analyse(src, "tcl8.6");
+        assert_eq!(
+            r.renamed_commands.get("::myputs").map(String::as_str),
+            Some("::puts"),
+            "{:?}",
+            r.renamed_commands
+        );
+    }
+
+    /// `interp alias {} A {} B` inside a child's eval body creates the alias
+    /// in the *child* (an empty srcPath is "the interpreter I am running
+    /// in"), so it must home under that child's `@interp@` domain rather than
+    /// at the parent's global root.
+    #[test]
+    fn empty_path_interp_alias_inside_a_child_body_homes_in_that_child() {
+        let src = "interp create c\nc eval { interp alias {} shout {} puts }\n";
+        let r = Analyser::new().analyse(src, "tcl8.6");
+        assert!(
+            !r.command_aliases.contains_key("::shout"),
+            "the parent gained no alias: {:?}",
+            r.command_aliases.keys().collect::<Vec<_>>()
+        );
+        assert!(
+            r.command_aliases.contains_key("::@interp@c::shout"),
+            "the child's alias homes under its own domain: {:?}",
+            r.command_aliases.keys().collect::<Vec<_>>()
+        );
+    }
+
+    /// The same alias written at the top level is unchanged.
+    #[test]
+    fn empty_path_interp_alias_at_top_level_still_homes_globally() {
+        let src = "interp alias {} shout {} puts\n";
+        let r = Analyser::new().analyse(src, "tcl8.6");
+        assert!(
+            r.command_aliases.contains_key("::shout"),
+            "{:?}",
+            r.command_aliases.keys().collect::<Vec<_>>()
+        );
+    }
+
+    /// `interp eval child { proc foo }` runs in a child interpreter, so `foo`
+    /// is isolated from the parent's `::foo` — the two stay distinct commands,
+    /// so a parent rename of `::foo` can never reach the child body.
+    #[test]
+    fn interp_eval_child_isolates_definitions_from_the_parent() {
+        // Runnable Tcl (tclsh 9.0.4): the child is created before the
+        // eval.  The child's `foo` homes under the synthetic
+        // `@interp@child` domain — unrepresentable as a real namespace,
+        // so a parent namespace literally named `child` can never
+        // collide with the interpreter's definitions (the
+        // child-global-vs-parent-namespace identity split).
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "interp create child\nproc foo {} {}\ninterp eval child { proc foo {} {} }\n",
+            "tcl8.6",
+        );
+        let keys: Vec<&str> = r.all_procs.keys().map(String::as_str).collect();
+        assert!(r.all_procs.contains_key("::foo"), "parent proc: {keys:?}");
+        assert!(
+            r.all_procs.contains_key("::@interp@child::foo"),
+            "child proc isolated under the interpreter domain: {keys:?}",
+        );
+        assert!(
+            !r.all_procs.contains_key("::child::foo"),
+            "the child's global is not the parent namespace `::child`: {keys:?}",
+        );
+    }
+
+    /// `sandbox eval { proc foo }` via the interpreter's own object command
+    /// (`interp create sandbox` binds `sandbox` itself as a callable
+    /// command) isolates definitions from the parent exactly like the
+    /// literal `interp eval sandbox { … }` form above — the far more common
+    /// real-world spelling (`docstrip_util.tcl`'s `$c eval {...}`, reduced to
+    /// a literal name here so it resolves statically).
+    #[test]
+    fn interp_handle_eval_isolates_definitions_from_the_parent() {
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "interp create sandbox\nproc foo {} {}\nsandbox eval { proc foo {} {} }\n",
+            "tcl8.6",
+        );
+        let keys: Vec<&str> = r.all_procs.keys().map(String::as_str).collect();
+        assert!(r.all_procs.contains_key("::foo"), "parent proc: {keys:?}");
+        assert!(
+            r.all_procs.contains_key("::@interp@sandbox::foo"),
+            "child proc isolated under the interpreter domain: {keys:?}",
+        );
+    }
+
+    #[test]
+    fn renamed_away_interp_handle_reused_as_a_proc_is_not_treated_as_interp_eval() {
+        // TP: `self.interpreters` is only cleared by `interp delete`, so a plain
+        // `rename sandbox {}` (deleting the interpreter's own object
+        // command — confirmed against tclsh9.0: afterwards `info commands
+        // sandbox` is empty and the child interpreter is only reachable
+        // through whatever name, if any, it was renamed *to*) left a stale
+        // `sandbox` entry. A later, wholly unrelated `proc sandbox {sub
+        // body} {...}` reusing the freed name would then have any
+        // `sandbox eval …` call misidentified as isolated interpreter-eval
+        // (walking the literal second argument as a *script*) instead of an
+        // ordinary two-arg proc call — confirmed against tclsh9.0 that the
+        // real dispatch reaches the new proc, never the (now nameless,
+        // orphaned) interpreter.
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "interp create sandbox\n\
+             rename sandbox {}\n\
+             proc sandbox {sub body} {}\n\
+             sandbox eval { proc shouldNotBeIsolated {} {} }\n",
+            "tcl8.6",
+        );
+        let keys: Vec<&str> = r.all_procs.keys().map(String::as_str).collect();
+        assert!(
+            !r.all_procs
+                .contains_key("::@interp@sandbox::shouldNotBeIsolated"),
+            "the call must not be isolated into the (deleted) interpreter's \
+             domain once `sandbox` has been renamed away and reused: {keys:?}",
+        );
+    }
+
+    #[test]
+    fn renamed_interp_handle_still_isolates_under_its_new_name() {
+        // TP — the other half of the same fix: a rename that *moves* the
+        // interpreter handle (`NEW` non-empty) rather than deleting it must
+        // keep the tracking, now keyed by `NEW` — confirmed against
+        // tclsh9.0 that `rename sandbox t; t eval {...}` still talks to the
+        // same child interpreter. A name-only invalidation (removing `OLD`
+        // without transferring state to `NEW`) would wrongly stop isolating
+        // `t eval { ... }` too (falling through to an ordinary, unisolated
+        // command call). The domain name itself is always derived from
+        // whichever key the call site actually writes — `@interp@t`, not
+        // the original `@interp@sandbox` — exactly like every other
+        // interpreter-domain lookup in this module (e.g. the literal
+        // `interp eval` form re-derives its domain from its own `PATH`
+        // argument text the same way); this test only asserts that the
+        // call is isolated *at all* under the new name, not which domain
+        // string it lands in.
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "interp create sandbox\n\
+             rename sandbox t\n\
+             t eval { proc shouldBeIsolated {} {} }\n",
+            "tcl8.6",
+        );
+        let keys: Vec<&str> = r.all_procs.keys().map(String::as_str).collect();
+        assert!(
+            r.all_procs.contains_key("::@interp@t::shouldBeIsolated"),
+            "the renamed handle must still be tracked as an interpreter, \
+             isolating the eval body under its new name's domain: {keys:?}",
+        );
+    }
+
+    #[test]
+    fn interp_handle_eval_and_literal_interp_eval_agree_on_the_same_domain() {
+        // The two spellings of the same operation must home under the
+        // *same* synthetic domain — the analyser can't tell them apart at
+        // run time (both dispatch on the identical interpreter object
+        // command), so it must not tell them apart statically either.
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "interp create sandbox\ninterp eval sandbox { proc viaLiteral {} {} }\n\
+             sandbox eval { proc viaHandle {} {} }\n",
+            "tcl8.6",
+        );
+        let keys: Vec<&str> = r.all_procs.keys().map(String::as_str).collect();
+        assert!(
+            r.all_procs.contains_key("::@interp@sandbox::viaLiteral"),
+            "{keys:?}"
+        );
+        assert!(
+            r.all_procs.contains_key("::@interp@sandbox::viaHandle"),
+            "{keys:?}"
+        );
+    }
+
+    #[test]
+    fn two_interp_handles_never_cross_contaminate_same_named_procs() {
+        // TP: two
+        // separate safe child interpreters, each independently defining
+        // their own same-named `helper`, must never merge — a call inside
+        // one script must resolve to *that* interpreter's helper, never
+        // the other's.
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "interp create sandboxA\ninterp create sandboxB\n\
+             interp eval sandboxA { proc helper {} { return A } }\n\
+             sandboxB eval { proc helper {} { return B } }\n",
+            "tcl8.6",
+        );
+        let keys: Vec<&str> = r.all_procs.keys().map(String::as_str).collect();
+        assert!(
+            r.all_procs.contains_key("::@interp@sandboxA::helper"),
+            "{keys:?}"
+        );
+        assert!(
+            r.all_procs.contains_key("::@interp@sandboxB::helper"),
+            "{keys:?}"
+        );
+        // Each interpreter's own `helper` is a genuinely distinct
+        // ProcDef, not the same entry aliased twice.
+        assert_ne!(
+            r.all_procs["::@interp@sandboxA::helper"].body_span,
+            r.all_procs["::@interp@sandboxB::helper"].body_span,
+        );
+    }
+
+    #[test]
+    fn untracked_bareword_eval_is_not_isolated() {
+        // TN / FN guard — a bareword shaped exactly like the tracked-handle
+        // idiom (`NAME eval { script }`) but never created via `interp
+        // create` must fall through to the generic dispatch untouched: no
+        // isolated scope, no crash.
+        let mut a = Analyser::new();
+        let r = a.analyse("untracked eval { proc foo {} {} }\n", "tcl8.6");
+        assert!(
+            !r.all_procs.keys().any(|k| k.contains("@interp@")),
+            "an untracked head must never open an interpreter domain: {:?}",
+            r.all_procs.keys().collect::<Vec<_>>(),
+        );
+    }
+
+    #[test]
+    fn ordinary_proc_with_eval_as_sole_argument_is_untouched() {
+        // FP guard — an unrelated proc whose single argument merely happens
+        // to be the literal text `eval` must resolve as an ordinary call,
+        // never trip the arity/shape check into isolating anything.
+        let mut a = Analyser::new();
+        let r = a.analyse("proc foo {a} { return $a }\nfoo eval\n", "tcl8.6");
+        assert!(
+            !r.all_procs.keys().any(|k| k.contains("@interp@")),
+            "a 1-arg call must never be treated as NAME eval SCRIPT: {:?}",
+            r.all_procs.keys().collect::<Vec<_>>(),
+        );
+    }
+
+    #[test]
+    fn interp_eval_into_uncreated_interp_warns_and_multiword_stays_isolated_945() {
+        // `interp eval ghost { … }` with no `interp create ghost` anywhere
+        // raises `could not find interpreter` at run time — W140.
+        let mut a = Analyser::new();
+        let r = a.analyse("interp eval ghost { proc foo {} {} }\n", "tcl8.6");
+        assert!(
+            r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W140),
+            "eval into a never-created interpreter warns: {:?}",
+            r.diagnostics
+        );
+        // A dynamic create makes existence unknowable — W140 abstains.
+        let mut a2 = Analyser::new();
+        let r2 = a2.analyse(
+            "interp create $name\ninterp eval ghost { proc foo {} {} }\n",
+            "tcl8.6",
+        );
+        assert!(
+            !r2.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W140),
+            "dynamic interp creation abstains: {:?}",
+            r2.diagnostics
+        );
+        // Multi-word scripts concatenate at run time — the words must not
+        // be analysed in the *parent* scope, nor
+        // walked per-word (commands span word boundaries).
+        let mut a3 = Analyser::new();
+        let r3 = a3.analyse(
+            "interp create c\ninterp eval c {proc leak {} {}} {puts hi}\n",
+            "tcl8.6",
+        );
+        assert!(
+            !r3.all_procs.contains_key("::leak"),
+            "multi-word eval must not leak definitions into the parent: {:?}",
+            r3.all_procs.keys().collect::<Vec<_>>(),
+        );
+    }
+
+    #[test]
+    fn deleted_and_recreated_interp_is_a_fresh_domain_945() {
+        // C: `interp delete s; interp create s` starts with an empty
+        // command table — the first lifetime's definitions are gone.  The
+        // epoch-stamped
+        // domain keeps the two lifetimes apart: the first eval's `foo`
+        // homes under `@interp@s`, the recreated interpreter's under
+        // `@interp@s#1`, and they never merge.
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "interp create s\ninterp eval s { proc foo {} {} }\n\
+             interp delete s\ninterp create s\n\
+             interp eval s { proc bar {} {} }\n",
+            "tcl8.6",
+        );
+        let keys: Vec<&str> = r.all_procs.keys().map(String::as_str).collect();
+        assert!(
+            r.all_procs.contains_key("::@interp@s::foo"),
+            "first lifetime's proc: {keys:?}"
+        );
+        assert!(
+            r.all_procs.contains_key("::@interp@s#1::bar"),
+            "recreated interpreter is a fresh domain: {keys:?}"
+        );
+        assert!(
+            !r.all_procs.contains_key("::@interp@s::bar"),
+            "the recreated child never merges with its predecessor: {keys:?}"
+        );
+    }
+
+    #[test]
+    fn nested_interp_ops_qualify_against_the_enclosing_child_945() {
+        // `interp create t` inside `interp eval s {…}` creates `s t` —
+        // paths are relative to the *current* interpreter, so a top-level
+        // `interp eval {s t} {…}` reaches the grandchild without W140 and
+        // its definitions home under the composed domain.
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "interp create s\n\
+             interp eval s { interp create t }\n\
+             interp eval {s t} { proc deep {} {} }\n",
+            "tcl8.6",
+        );
+        assert!(
+            !r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W140),
+            "the nested create makes `s t` exist: {:?}",
+            r.diagnostics
+        );
+        assert!(
+            r.all_procs.contains_key("::@interp@s t::deep"),
+            "grandchild definitions home under the composed domain: {:?}",
+            r.all_procs.keys().collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn cross_domain_interp_alias_links_child_calls_to_the_parent_target_945() {
+        // `interp alias s helper {} ::parent_helper` makes `helper`
+        // callable *inside the child* running the parent's proc — the
+        // alias deliberately crosses interpreter domains while
+        // definitions do not.  The child-side call
+        // resolves through the alias link to the parent target.
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "proc parent_helper {} {}\ninterp create s\n\
+             interp alias s helper {} parent_helper\n\
+             interp eval s { helper }\n",
+            "tcl8.6",
+        );
+        let alias = r
+            .command_aliases
+            .get("::@interp@s::helper")
+            .unwrap_or_else(|| {
+                panic!(
+                    "child-domain alias recorded: {:?}",
+                    r.command_aliases.keys().collect::<Vec<_>>()
+                )
+            });
+        assert_eq!(
+            alias.target, "::parent_helper",
+            "the alias target resolves in the parent domain",
+        );
+    }
+
+    #[test]
+    fn safe_interp_hides_unsafe_commands_and_expose_restores_945() {
+        // naming.interpreter.original-source-visibility-advice
+        // docs/design/analysis/name-resolution-proofs/interpreter-original-source-visibility-advice.md
+        // tclsh 9.0.4: a `-safe` child hides `source` (and the rest of the
+        // non-CMD_IS_SAFE set) — calling it raises `invalid command name`.
+        // The source warning retains its explicit child/source assumptions.
+        // It does not establish an actual selected hidden command, so the
+        // possible source edge remains available to workspace consumers.
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "interp create -safe s\ninterp eval s { source b.tcl }\n",
+            "tcl8.6",
+        );
+        assert!(
+            r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129
+                    && d.conditional_interpreter_visibility().is_some()),
+            "hidden `source` in a safe interp warns: {:?}",
+            r.diagnostics
+        );
+        assert_eq!(
+            r.source_targets.len(),
+            1,
+            "conditional visibility does not discard the possible source edge: {:?}",
+            r.source_targets
+        );
+        // A safe command (`puts`) draws no W129; a non-safe interp draws
+        // none either.
+        let mut a2 = Analyser::new();
+        let r2 = a2.analyse(
+            "interp create -safe s\ninterp eval s { puts hi }\n\
+             interp create n\ninterp eval n { source b.tcl }\n",
+            "tcl8.6",
+        );
+        assert!(
+            !r2.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129),
+            "safe commands and non-safe interps draw no W129: {:?}",
+            r2.diagnostics
+        );
+        // `interp expose s source` restores the command.
+        let mut a3 = Analyser::new();
+        let r3 = a3.analyse(
+            "interp create -safe s\ninterp expose s source\n\
+             interp eval s { source b.tcl }\n",
+            "tcl8.6",
+        );
+        assert!(
+            !r3.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129),
+            "an exposed command is callable again: {:?}",
+            r3.diagnostics
+        );
+        // `interp hide n source` hides it in a *normal* interp too.
+        let mut a4 = Analyser::new();
+        let r4 = a4.analyse(
+            "interp create n\ninterp hide n source\n\
+             interp eval n { source b.tcl }\n",
+            "tcl8.6",
+        );
+        assert!(
+            r4.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129
+                    && d.conditional_interpreter_visibility().is_some()),
+            "an explicitly hidden command warns in a normal interp: {:?}",
+            r4.diagnostics
+        );
+    }
+
+    #[test]
+    fn safe_interp_child_redefinition_of_a_hidden_builtin_is_callable_945() {
+        // naming.interpreter.original-source-visibility-advice
+        // docs/design/analysis/name-resolution-proofs/interpreter-original-source-visibility-advice.md
+        // tclsh 9.0.4: `proc source {} {…}` inside a safe interp creates a
+        // real command in the ordinary command table — a table entirely
+        // separate from the hidden set — so calling `source` afterwards
+        // runs the user's proc, never `invalid command name`.  The gate
+        // must not draw W129 for the call, and the call must still be
+        // fully analysed (resolving to the local proc), not skipped as an
+        // effect-free hidden call.
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "interp create -safe s\n\
+             interp eval s { proc source {} { return ok }; source }\n",
+            "tcl8.6",
+        );
+        assert!(
+            !r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129),
+            "a locally-redefined name is callable, not hidden: {:?}",
+            r.diagnostics
+        );
+        assert!(
+            r.all_procs.contains_key("::@interp@s::source"),
+            "the local proc is recorded, not skipped: {:?}",
+            r.all_procs.keys().collect::<Vec<_>>()
+        );
+        // A call *preceding* the redefinition is unaffected by this file's
+        // whole-body approximation in the other direction — still hidden
+        // until the walk has seen a local definition — is not asserted
+        // here (the analyser's per-body model is not that finely ordered);
+        // what matters is that a real, common redefinition idiom never
+        // produces a false-positive W129 that also drops the call's facts.
+    }
+
+    #[test]
+    fn interp_expose_with_a_new_name_tracks_the_new_name_945() {
+        // tclsh 9.0.4: `interp expose s source src` restores the hidden
+        // `source` implementation under the name `src` — `source` itself
+        // stays absent from ordinary lookup, and `src` becomes callable.
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "interp create -safe s\ninterp expose s source src\n\
+             interp eval s { source b.tcl }\n",
+            "tcl8.6",
+        );
+        assert!(
+            r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129
+                    && d.conditional_interpreter_visibility().is_some()),
+            "the hidden name itself stays hidden after an exposed rename: {:?}",
+            r.diagnostics
+        );
+        let mut a2 = Analyser::new();
+        let r2 = a2.analyse(
+            "interp create -safe s\ninterp expose s source src\n\
+             interp eval s { src b.tcl }\n",
+            "tcl8.6",
+        );
+        assert!(
+            !r2.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129),
+            "the new exposed name is callable: {:?}",
+            r2.diagnostics
+        );
+    }
+
+    // W129 through `[...]` bracket-substitution indirection.
+
+    /// Conditional source visibility, independently of actual dispatch.
+    /// Original command/list operands and the enclosing source child are required.
+    #[test]
+    fn safe_interp_w129_list_quoted_apply_lambda_body_reports_hidden_source_1001() {
+        // naming.interpreter.original-source-visibility-advice
+        // docs/design/analysis/name-resolution-proofs/interpreter-original-source-visibility-advice.md
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "interp create -safe s\n\
+             interp eval s {\n\
+                 package ifneeded myPackage 1.0 [list apply {dir {\n\
+                     source [file join $dir font.tcl]\n\
+                 }} $dir]\n\
+             }\n",
+            "tcl8.6",
+        );
+        assert!(
+            r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129
+                    && d.conditional_interpreter_visibility().is_some()),
+            "hidden `source` nested inside a list-quoted apply lambda body \
+             (reached only via `package ifneeded`'s deferred script) warns: {:?}",
+            r.diagnostics
+        );
+    }
+
+    /// Conditional source visibility, independently of actual dispatch.
+    /// Original command/list operands and the enclosing source child are required.
+    #[test]
+    fn safe_interp_w129_list_quoted_apply_in_command_prefix_position_1001() {
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "interp create -safe s\n\
+             interp eval s {\n\
+                 trace add variable x write [list apply {{a b c} {\n\
+                     exec ls\n\
+                 }} $x]\n\
+             }\n",
+            "tcl8.6",
+        );
+        assert!(
+            r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129
+                    && d.conditional_interpreter_visibility().is_some()),
+            "hidden `exec` nested inside a list-quoted apply lambda body \
+             reached via a CommandPrefix (`trace add … command`) position warns: {:?}",
+            r.diagnostics
+        );
+    }
+
+    /// Conditional source visibility, independently of actual dispatch.
+    /// Original command/list operands and the enclosing source child are required.
+    #[test]
+    fn safe_interp_w129_list_quoted_apply_after_idle_1001() {
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "interp create -safe s\n\
+             interp eval s {\n\
+                 after idle [list apply {x {\n\
+                     file delete $x\n\
+                 }} val]\n\
+             }\n",
+            "tcl8.6",
+        );
+        assert!(
+            r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129
+                    && d.conditional_interpreter_visibility().is_some()),
+            "hidden `file` nested inside a list-quoted apply lambda body \
+             reached via `after idle` warns: {:?}",
+            r.diagnostics
+        );
+    }
+
+    /// Conditional source visibility, independently of actual dispatch.
+    /// Original command/list operands and the enclosing source child are required.
+    #[test]
+    fn safe_interp_w129_list_quoted_hidden_command_directly_1001() {
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "interp create -safe s\n\
+             interp eval s { after idle [list source b.tcl] }\n",
+            "tcl8.6",
+        );
+        assert!(
+            r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129
+                    && d.conditional_interpreter_visibility().is_some()),
+            "a bare `[list source …]` in a deferred-call position warns \
+             directly, with no `apply` indirection needed: {:?}",
+            r.diagnostics
+        );
+    }
+
+    /// Conditional source visibility, independently of actual dispatch.
+    /// Original command/list operands and the enclosing source child are required.
+    #[test]
+    fn safe_interp_w129_list_quoted_apply_in_plain_data_is_not_flagged_1001() {
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "interp create -safe s\n\
+             interp eval s {\n\
+                 set data [list apply {x { source $x }} value]\n\
+             }\n",
+            "tcl8.6",
+        );
+        assert!(
+            !r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129),
+            "a `[list apply …]` value that is only ever stored, never \
+             invoked, must not warn: {:?}",
+            r.diagnostics
+        );
+    }
+
+    /// Conditional source visibility, independently of actual dispatch.
+    /// Original command/list operands and the enclosing source child are required.
+    #[test]
+    fn list_quoted_apply_lambda_outside_any_safe_interp_is_untouched_1001() {
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "package ifneeded myPackage 1.0 [list apply {dir {source [file join $dir x]}} $dir]\n",
+            "tcl8.6",
+        );
+        assert!(
+            !r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129),
+            "no safe interpreter is involved, so no W129 can ever fire: {:?}",
+            r.diagnostics
+        );
+        assert_eq!(
+            r.all_procs.len(),
+            0,
+            "this fix must not widen the general analyser's scope — \
+             the list-quoted lambda body stays un-analysed outside a \
+             safe-interpreter context, exactly as before #1001: {:?}",
+            r.all_procs.keys().collect::<Vec<_>>()
+        );
+    }
+
+    /// Conditional source visibility, independently of actual dispatch.
+    /// Original command/list operands and the enclosing source child are required.
+    #[test]
+    fn safe_interp_w129_direct_nested_bracket_substitution_1001() {
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "interp create -safe s\ninterp eval s { set x [source b.tcl] }\n",
+            "tcl8.6",
+        );
+        assert!(
+            r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129
+                    && d.conditional_interpreter_visibility().is_some()),
+            "a directly nested `[source …]` substitution warns: {:?}",
+            r.diagnostics
+        );
+    }
+
+    /// Conditional source visibility, independently of actual dispatch.
+    /// Original command/list operands and the enclosing source child are required.
+    #[test]
+    fn safe_interp_w129_direct_nested_bracket_substitution_deep_1001() {
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "interp create -safe s\n\
+             interp eval s { if {[catch {set y [exec ls]} err]} { puts $err } }\n",
+            "tcl8.6",
+        );
+        assert!(
+            r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129
+                    && d.conditional_interpreter_visibility().is_some()),
+            "a deeply nested `[exec …]` substitution still warns: {:?}",
+            r.diagnostics
+        );
+    }
+
+    /// Conditional source visibility, independently of actual dispatch.
+    /// Original command/list operands and the enclosing source child are required.
+    #[test]
+    fn safe_interp_w129_expand_list_quoted_head_1001() {
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "interp create -safe s\ninterp eval s { {*}[list source b.tcl] }\n",
+            "tcl8.6",
+        );
+        assert!(
+            r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129
+                    && d.conditional_interpreter_visibility().is_some()),
+            "`{{*}}[list source …]` used as the whole statement warns \
+             on the effective (expanded) head: {:?}",
+            r.diagnostics
+        );
+    }
+
+    /// Conditional source visibility, independently of actual dispatch.
+    /// Original command/list operands and the enclosing source child are required.
+    #[test]
+    fn safe_interp_w129_expand_dynamic_var_head_not_flagged_1001() {
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "interp create -safe s\n\
+             interp eval s { set cmdList [list source b.tcl]; {*}$cmdList }\n",
+            "tcl8.6",
+        );
+        assert!(
+            !r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129),
+            "an opaque `{{*}}$var` expansion is not statically resolvable \
+             and must not warn: {:?}",
+            r.diagnostics
+        );
+    }
+
+    /// Conditional source visibility, independently of actual dispatch.
+    /// Original command/list operands and the enclosing source child are required.
+    #[test]
+    fn safe_interp_w129_dynamic_variable_dispatch_not_flagged_1001() {
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "interp create -safe s\n\
+             interp eval s { set cmd source; $cmd b.tcl }\n",
+            "tcl8.6",
+        );
+        assert!(
+            !r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129),
+            "dynamic dispatch through a variable is not statically \
+             resolvable and must not warn: {:?}",
+            r.diagnostics
+        );
+    }
+
+    /// Conditional source visibility, independently of actual dispatch.
+    /// Original command/list operands and the enclosing source child are required.
+    #[test]
+    fn safe_interp_w129_eval_list_quoted_hidden_command_1001() {
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "interp create -safe s\ninterp eval s { eval [list source b.tcl] }\n",
+            "tcl8.6",
+        );
+        assert!(
+            r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129
+                    && d.conditional_interpreter_visibility().is_some()),
+            "`eval [list source …]` warns on the resolved head: {:?}",
+            r.diagnostics
+        );
+    }
+
+    /// Conditional source visibility, independently of actual dispatch.
+    /// Original command/list operands and the enclosing source child are required.
+    #[test]
+    fn safe_interp_w129_uplevel_list_quoted_hidden_command_1001() {
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "interp create -safe s\ninterp eval s { uplevel [list source b.tcl] }\n",
+            "tcl8.6",
+        );
+        assert!(
+            r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129
+                    && d.conditional_interpreter_visibility().is_some()),
+            "`uplevel [list source …]` warns on the resolved head: {:?}",
+            r.diagnostics
+        );
+    }
+
+    /// Conditional source visibility, independently of actual dispatch.
+    /// Original command/list operands and the enclosing source child are required.
+    #[test]
+    fn safe_interp_w129_list_quoted_apply_safe_command_not_flagged_1001() {
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "interp create -safe s\n\
+             interp eval s { after idle [list apply {x { puts $x }} val] }\n",
+            "tcl8.6",
+        );
+        assert!(
+            !r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129),
+            "a safe command (`puts`) reached via list-quoted apply must \
+             not warn: {:?}",
+            r.diagnostics
+        );
+    }
+
+    /// Conditional source visibility, independently of actual dispatch.
+    /// Original command/list operands and the enclosing source child are required.
+    #[test]
+    fn safe_interp_w129_redefined_command_not_flagged_through_indirection_1001() {
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "interp create -safe s\n\
+             interp eval s {\n\
+                 proc source {} { return ok }\n\
+                 after idle [list apply {{} { source }}]\n\
+             }\n",
+            "tcl8.6",
+        );
+        assert!(
+            !r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129),
+            "a locally-redefined name reached via list-quoted apply is \
+             callable, not hidden: {:?}",
+            r.diagnostics
+        );
+    }
+
+    /// Conditional source visibility, independently of actual dispatch.
+    /// Original command/list operands and the enclosing source child are required.
+    #[test]
+    fn safe_interp_w129_alias_bridged_command_not_flagged_through_indirection_1001() {
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "interp create -safe s\n\
+             interp alias s foo {} source\n\
+             interp eval s { after idle [list apply {{} { foo }}] }\n",
+            "tcl8.6",
+        );
+        assert!(
+            !r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129),
+            "an alias bridging a capability in from the trusted parent is \
+             not itself a hidden registry name, so it must not warn: {:?}",
+            r.diagnostics
+        );
+    }
+
+    /// `namespace inscope ::x { proc foo }` runs the body in `::x`, so `foo`
+    /// homes to `::x::foo` — the same namespace frame as `namespace eval`, not
+    /// the caller's scope.
+    #[test]
+    fn namespace_inscope_runs_the_body_in_the_named_namespace() {
+        let mut a = Analyser::new();
+        let r = a.analyse("namespace inscope ::x { proc foo {} {} }\n", "tcl8.6");
+        let keys: Vec<&str> = r.all_procs.keys().map(String::as_str).collect();
+        assert!(
+            r.all_procs.contains_key("::x::foo"),
+            "inscope body should home to the named namespace: {keys:?}",
+        );
+        assert!(
+            !r.all_procs.contains_key("::foo"),
+            "the body must not resolve in the caller's global scope: {keys:?}",
+        );
+    }
+
+    /// `namespace code { proc foo }` captures the *current* namespace, so its
+    /// script is analysed in this scope — inside `::x`, `foo` homes to
+    /// `::x::foo`.
+    #[test]
+    fn namespace_code_analyses_the_script_in_the_current_namespace() {
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "namespace eval ::x { namespace code { proc foo {} {} } }\n",
+            "tcl8.6",
+        );
+        let keys: Vec<&str> = r.all_procs.keys().map(String::as_str).collect();
+        assert!(
+            r.all_procs.contains_key("::x::foo"),
+            "namespace code script should analyse in the current namespace: {keys:?}",
+        );
+    }
+
+    /// `interp eval {} { proc foo }` targets the *current* interpreter, so
+    /// `foo` is the parent's `::foo` (no isolation, no synthetic namespace).
+    #[test]
+    fn interp_eval_empty_path_is_the_current_interpreter() {
+        let mut a = Analyser::new();
+        let r = a.analyse("interp eval {} { proc foo {} {} }\n", "tcl8.6");
+        let keys: Vec<&str> = r.all_procs.keys().map(String::as_str).collect();
+        assert!(
+            r.all_procs.contains_key("::foo"),
+            "current-interp proc: {keys:?}"
+        );
+        assert!(
+            !keys.iter().any(|k| k.contains("::::")),
+            "an empty path must not open a synthetic namespace: {keys:?}",
+        );
+    }
+
+    #[test]
+    fn handle_namespace_eval_creates_child_scope() {
+        let mut a = Analyser::new();
+        let handled = a.handle_namespace_eval_command(
+            &[
+                "eval".to_string(),
+                "ns1".to_string(),
+                "proc inner {} {}".to_string(),
+            ],
+            &[
+                esc_tok(span(10, 14)),
+                esc_tok(span(15, 18)),
+                str_tok(span(19, 35)),
+            ],
+            &[],
+            &[],
+        );
+        assert!(handled);
+        assert_eq!(a.result.global_scope.children.len(), 1);
+        assert_eq!(a.result.global_scope.children[0].name, "ns1");
+        assert_eq!(
+            a.result.global_scope.children[0].kind,
+            crate::analyser::types::ScopeKind::Namespace,
+        );
+    }
+
+    #[test]
+    fn namespace_scope_geometry_retains_the_actual_point_operand() {
+        // naming.source.original-point-operand-projection
+        // docs/design/analysis/name-resolution-proofs/original-point-operand-projection.md
+        let source = "set target A; namespace eval $target {namespace eval B {set x 1}}";
+        let result = Analyser::new().analyse(source, "tcl8.6");
+        let outer = &result.global_scope.children[0];
+        let inner = &outer.children[0];
+        let outer_input = result
+            .namespace_refs
+            .iter()
+            .find(|reference| {
+                reference
+                    .original_name_input
+                    .as_ref()
+                    .is_some_and(|input| input.bytes() == b"A")
+            })
+            .unwrap()
+            .original_name_input
+            .as_ref()
+            .unwrap();
+        let inner_input = result
+            .namespace_refs
+            .iter()
+            .find(|reference| {
+                reference
+                    .original_name_input
+                    .as_ref()
+                    .is_some_and(|input| input.bytes() == b"B")
+            })
+            .unwrap()
+            .original_name_input
+            .as_ref()
+            .unwrap();
+        assert_eq!(
+            outer.naming_scope,
+            result
+                .global_scope
+                .naming_scope
+                .as_ref()
+                .unwrap()
+                .child_from_input(outer_input)
+        );
+        assert!(outer.naming_scope.is_some());
+        assert_eq!(
+            inner.naming_scope,
+            outer
+                .naming_scope
+                .as_ref()
+                .unwrap()
+                .child_from_input(inner_input)
+        );
+        assert!(inner.naming_scope.is_some());
+        let unknown = Analyser::new().analyse("namespace eval $missing {set x 1}", "tcl8.6");
+        assert!(unknown.global_scope.children[0].naming_scope.is_none());
+    }
+
+    #[test]
+    fn handle_namespace_eval_records_body_span() {
+        let mut a = Analyser::new();
+        a.handle_namespace_eval_command(
+            &["eval".to_string(), "ns1".to_string(), String::new()],
+            &[
+                esc_tok(span(10, 14)),
+                esc_tok(span(15, 18)),
+                str_tok(span(19, 35)),
+            ],
+            &[],
+            &[],
+        );
+        assert_eq!(
+            a.result.global_scope.children[0].body_span,
+            Some(span(19, 35))
+        );
+    }
+
+    #[test]
+    fn handle_namespace_eval_dynamic_target_gets_a_synthetic_span_keyed_name() {
+        // TP (corpus shape: irc.tcl's per-connection
+        // `namespace eval $name { … }` idiom): a
+        // dynamic target must never become the scope's `.name` verbatim (two
+        // unrelated occurrences sharing the same variable name would then
+        // collapse into one scope), so it's replaced with a synthetic name
+        // keyed on this occurrence's own token offset.
+        let mut a = Analyser::new();
+        a.handle_namespace_eval_command(
+            &[
+                "eval".to_string(),
+                "$name".to_string(),
+                "proc inner {} {}".to_string(),
+            ],
+            &[
+                esc_tok(span(10, 14)),
+                esc_tok(span(15, 20)),
+                str_tok(span(21, 37)),
+            ],
+            &[],
+            &[],
+        );
+        assert_eq!(a.result.global_scope.children[0].name, "@dynns@15");
+    }
+
+    #[test]
+    fn handle_namespace_eval_literal_target_keeps_its_written_name() {
+        // FN guard — a literal (non-dynamic) target must still use its own
+        // written text verbatim.
+        let mut a = Analyser::new();
+        a.handle_namespace_eval_command(
+            &["eval".to_string(), "ns1".to_string(), String::new()],
+            &[
+                esc_tok(span(10, 14)),
+                esc_tok(span(15, 18)),
+                str_tok(span(19, 35)),
+            ],
+            &[],
+            &[],
+        );
+        assert_eq!(a.result.global_scope.children[0].name, "ns1");
+    }
+
+    #[test]
+    fn two_dynamic_namespace_eval_blocks_sharing_a_variable_name_never_collide() {
+        // TP — the full-pipeline shape from irc.tcl: two lexically
+        // unrelated procs each open `namespace eval $name { … }` with a
+        // same-named local `name` (an unremarkable choice for this exact
+        // idiom) and each define their own `helper`. Keying both blocks'
+        // scope on the literal text "$name" would let the second `helper`
+        // silently overwrite the first in the flat `all_procs` map.
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "proc setupA {} {\n    set name connA\n    namespace eval $name {\n        proc helper {} { return A }\n    }\n}\n\
+             proc setupB {} {\n    set name connB\n    namespace eval $name {\n        proc helper {} { return B }\n    }\n}\n",
+            "tcl8.6",
+        );
+        // drift-ok: test assertion counting distinct entries by simple name
+        // to prove no cross-occurrence merge, not a resolution decision.
+        let helpers: Vec<_> = r
+            .all_procs
+            .iter()
+            .filter(|(_, p)| p.name == "helper")
+            .collect();
+        assert_eq!(
+            helpers.len(),
+            2,
+            "both blocks' helper must survive as distinct entries: {:?}",
+            r.all_procs.keys().collect::<Vec<_>>(),
+        );
+        assert_ne!(
+            helpers[0].0, helpers[1].0,
+            "distinct call sites must get distinct qualified keys: {helpers:?}",
+        );
+        assert_ne!(
+            helpers[0].1.body_span, helpers[1].1.body_span,
+            "each is genuinely its own definition, not the same one twice: {helpers:?}",
+        );
+    }
+
+    // handle_namespace_ensemble
+
+    #[test]
+    fn handle_namespace_ensemble_records_in_set() {
+        use crate::analyser::types::{Scope, ScopeKind};
+        let mut a = Analyser::new();
+        a.result
+            .global_scope
+            .children
+            .push(Scope::new(ScopeKind::Namespace, "myns"));
+        a.handle_namespace_ensemble(&["ensemble".to_string(), "create".to_string()], &[], &[0]);
+        assert!(a.ensemble_namespaces.contains("::myns"));
+    }
+
+    #[test]
+    fn handle_namespace_ensemble_command_option_recorded() {
+        use crate::analyser::types::{Scope, ScopeKind};
+        let mut a = Analyser::new();
+        // `-command` recognition is registry-driven (`ENSEMBLE_CREATE_OPTIONS`).
+        a.registry = Some(std::sync::Arc::clone(
+            tcl_registry::model::ingress::static_context_for("tcl").commands(),
+        ));
+        a.result
+            .global_scope
+            .children
+            .push(Scope::new(ScopeKind::Namespace, "myns"));
+        a.handle_namespace_ensemble(
+            &[
+                "ensemble".to_string(),
+                "create".to_string(),
+                "-command".to_string(),
+                "::ens".to_string(),
+            ],
+            &[],
+            &[0],
+        );
+        assert!(a.ensemble_namespaces.contains("::myns"));
+        assert!(a.ensemble_namespaces.contains("::ens"));
+    }
+
+    #[test]
+    fn handle_namespace_ensemble_command_option_qualifies_relative_name() {
+        use crate::analyser::types::{Scope, ScopeKind};
+        let mut a = Analyser::new();
+        // `-command` recognition is registry-driven (`ENSEMBLE_CREATE_OPTIONS`).
+        a.registry = Some(std::sync::Arc::clone(
+            tcl_registry::model::ingress::static_context_for("tcl").commands(),
+        ));
+        a.result
+            .global_scope
+            .children
+            .push(Scope::new(ScopeKind::Namespace, "myns"));
+        a.handle_namespace_ensemble(
+            &[
+                "ensemble".to_string(),
+                "create".to_string(),
+                "-command".to_string(),
+                "ens".to_string(),
+            ],
+            &[],
+            &[0],
+        );
+        assert!(a.ensemble_namespaces.contains("::myns::ens"));
+    }
+
+    #[test]
+    fn handle_namespace_ensemble_command_option_dynamic_value_not_recorded() {
+        use crate::analyser::types::{Scope, ScopeKind};
+        let mut a = Analyser::new();
+        a.result
+            .global_scope
+            .children
+            .push(Scope::new(ScopeKind::Namespace, "myns"));
+        a.handle_namespace_ensemble(
+            &[
+                "ensemble".to_string(),
+                "create".to_string(),
+                "-command".to_string(),
+                "$dyn".to_string(),
+            ],
+            &[],
+            &[0],
+        );
+        assert_eq!(
+            a.ensemble_namespaces,
+            std::collections::HashSet::from(["::myns".to_string()])
+        );
+    }
+
+    #[test]
+    fn namespace_ensemble_map_and_subcommands_record_command_references() {
+        // `-map {get ::foo::getImpl}` — the odd element is the target command;
+        // `-subcommands {show}` maps `show` to `::foo::show`.  Both become
+        // command references so navigation reaches the implementing procs.
+        let mut a = Analyser::new();
+        let src = "namespace eval ::foo {\n    \
+                   proc getImpl {} {}\n    \
+                   proc show {} {}\n    \
+                   namespace ensemble create -map {get ::foo::getImpl} -subcommands {show}\n\
+                   }\n";
+        let r = a.analyse(src, "tcl8.6");
+        let resolved: Vec<&str> = r
+            .command_invocations
+            .iter()
+            .filter_map(|i| i.resolved_qualified_name.as_deref())
+            .collect();
+        assert!(
+            resolved.contains(&"::foo::getImpl"),
+            "the -map target should be a command reference: {resolved:?}",
+        );
+        assert!(
+            resolved.contains(&"::foo::show"),
+            "the -subcommands name should map to `<ns>::show`: {resolved:?}",
+        );
+    }
+
+    /// A tk-shaped ensemble: the ensemble-creating command runs inside
+    /// a proc whose *qualified name* homes it to `::tk`, but which is declared
+    /// at the top level with no enclosing `namespace eval`.  `namespace
+    /// current` there is `::tk` (tclsh 8.6.16 / 9.0.4-verified: the ensemble
+    /// created is `::tk` and `tk alpha` dispatches to `::tk::alpha`), so the
+    /// subcommand must map to `::tk::alpha`; a purely lexical namespace walk
+    /// skips proc scopes and would map it to `::alpha`.
+    #[test]
+    fn namespace_ensemble_create_in_a_qualified_name_proc_homes_to_that_namespace_923_idx85() {
+        let mut a = Analyser::new();
+        let src = "namespace eval ::tk {}\n\
+                   proc ::tk::alpha {} {}\n\
+                   proc ::tk::SetupEnsemble {} {\n    \
+                   namespace ensemble create -subcommands {alpha}\n\
+                   }\n";
+        let r = a.analyse(src, "tcl8.6");
+        let resolved: Vec<&str> = r
+            .command_invocations
+            .iter()
+            .filter_map(|i| i.resolved_qualified_name.as_deref())
+            .collect();
+        assert!(
+            resolved.contains(&"::tk::alpha"),
+            "the subcommand should map to the proc's defining namespace: {resolved:?}",
+        );
+        assert!(
+            !resolved.contains(&"::alpha"),
+            "the lexical (global) namespace is the wrong home: {resolved:?}",
+        );
+        assert!(
+            a.ensemble_namespaces.contains("::tk"),
+            "the ensemble command itself is `::tk`: {:?}",
+            a.ensemble_namespaces,
+        );
+    }
+
+    /// TN control for the above: the ordinary lexical case — the ensemble is
+    /// created directly inside `namespace eval ::foo`, so both the lexical and
+    /// the command-resolution namespace agree on `::foo`.  Pinned so the common
+    /// shape cannot regress.
+    #[test]
+    fn namespace_ensemble_create_lexically_inside_namespace_eval_is_unchanged_923_idx85() {
+        let mut a = Analyser::new();
+        let src = "namespace eval ::foo {\n    \
+                   proc alpha {} {}\n    \
+                   namespace ensemble create -subcommands {alpha}\n\
+                   }\n";
+        let r = a.analyse(src, "tcl8.6");
+        let resolved: Vec<&str> = r
+            .command_invocations
+            .iter()
+            .filter_map(|i| i.resolved_qualified_name.as_deref())
+            .collect();
+        assert!(
+            resolved.contains(&"::foo::alpha"),
+            "lexical case still maps to `::foo::alpha`: {resolved:?}",
+        );
+        assert!(a.ensemble_namespaces.contains("::foo"));
+    }
+
+    /// The definition-homing sweep: every analyser site that asks "which
+    /// namespace is current here?" answers with
+    /// [`Analyser::command_resolution_namespace`], so a definition made inside
+    /// a qualified-name proc's body homes to that proc's *defining* namespace.
+    /// These are cases (A)–(D) from `docs/design/analysis/name-resolution.md`
+    /// §3.5, each with the real interpreter's answer as the expectation.
+    #[test]
+    fn definitions_inside_a_qualified_name_proc_home_to_its_defining_namespace_923_idx85() {
+        // (A) The already-correct lexical control.
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "namespace eval ::x { proc mk {} { proc helper {} {} } }\n",
+            "tcl8.6",
+        );
+        assert!(
+            r.all_procs.contains_key("::x::helper"),
+            "(A) lexical case: {:?}",
+            r.all_procs.keys().collect::<Vec<_>>(),
+        );
+
+        // (B) A qualified-name proc with no enclosing `namespace eval`.
+        let mut a = Analyser::new();
+        let r = a.analyse("proc ::x::mk {} { proc helper {} {} }\n", "tcl8.6");
+        assert!(
+            r.all_procs.contains_key("::x::helper"),
+            "(B) qualified encloser: {:?}",
+            r.all_procs.keys().collect::<Vec<_>>(),
+        );
+
+        // (C) A qualified-name proc whose own name overrides the lexical
+        // `namespace eval` it sits in.
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "namespace eval ::x { proc ::y::mk {} { proc helper {} {} } }\n",
+            "tcl8.6",
+        );
+        assert!(
+            r.all_procs.contains_key("::y::helper"),
+            "(C) absolute name rebases: {:?}",
+            r.all_procs.keys().collect::<Vec<_>>(),
+        );
+
+        // (D) The same rule for a class, not a proc.
+        let mut a = Analyser::new();
+        let r = a.analyse("proc ::x::mk {} { oo::class create Helper {} }\n", "tcl8.6");
+        assert!(
+            r.all_classes.contains_key("::x::Helper"),
+            "(D) class create: {:?}",
+            r.all_classes.keys().collect::<Vec<_>>(),
+        );
+    }
+
+    /// A nested definition that mis-homes to `::` collides with a real global
+    /// of the same name, and one silently overwrites the other.  Both must
+    /// survive under their own keys.
+    #[test]
+    fn a_nested_definition_no_longer_overwrites_a_same_named_global_923_idx85() {
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "proc helper {} { return global }\n\
+             proc ::x::mk {} { proc helper {} { return nested } }\n",
+            "tcl8.6",
+        );
+        let keys: Vec<&str> = r.all_procs.keys().map(String::as_str).collect();
+        assert!(
+            r.all_procs.contains_key("::helper"),
+            "global lost: {keys:?}"
+        );
+        assert!(
+            r.all_procs.contains_key("::x::helper"),
+            "nested lost: {keys:?}",
+        );
+    }
+
+    /// `namespace import` written inside a qualified-name proc imports into
+    /// that proc's defining namespace, not the global one.
+    #[test]
+    fn namespace_import_inside_a_qualified_name_proc_targets_that_namespace_923_idx85() {
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "namespace eval ::src { proc thing {} {} namespace export thing }\n\
+             proc ::dst::setup {} { namespace import ::src::thing }\n",
+            "tcl8.6",
+        );
+        let targets: Vec<&str> = r.namespace_imports.iter().map(|i| i.ns.as_str()).collect();
+        assert!(
+            targets.contains(&"::dst"),
+            "the import lands in the proc's defining namespace: {targets:?}",
+        );
+    }
+
+    /// A `-map` target inside the same qualified-name proc resolves the same
+    /// way — the `-map` half.
+    #[test]
+    fn namespace_ensemble_map_in_a_qualified_name_proc_resolves_targets_923_idx85() {
+        let mut a = Analyser::new();
+        let src = "namespace eval ::tk {}\n\
+                   proc ::tk::getImpl {} {}\n\
+                   proc ::tk::SetupEnsemble {} {\n    \
+                   namespace ensemble create -map {get getImpl}\n\
+                   }\n";
+        let r = a.analyse(src, "tcl8.6");
+        let resolved: Vec<&str> = r
+            .command_invocations
+            .iter()
+            .filter_map(|i| i.resolved_qualified_name.as_deref())
+            .collect();
+        assert!(
+            resolved.contains(&"::tk::getImpl"),
+            "the -map target resolves in the proc's defining namespace: {resolved:?}",
+        );
+    }
+
+    // The tk-shaped ensemble's *call-site* half.  Everything above pins the
+    // ensemble's own declaration (where the `-map`/`-subcommands` targets
+    // home to); these pin the downstream `<ensemble> <sub>` dispatch sites,
+    // which is what find-references / rename / code-lens / call-hierarchy
+    // enumerate.  Oracle — tclsh 8.6.16 and 9.0.4 both print
+    // `shown` then `configured:-x 1` for `VIAPROC_SRC`, so
+    // `::app::widget show` really does dispatch to `::app::widget::Show`.
+
+    /// The shape: `namespace ensemble create -map` inside a
+    /// proc declared with a fully-qualified name at top level, with no
+    /// enclosing `namespace eval`, and the dispatch call sites written after
+    /// it — one nested in a `[…]` substitution, one at the top level.
+    const VIAPROC_SRC: &str = "namespace eval ::app::widget {\n    \
+         variable state 0\n\
+         }\n\
+         proc ::app::widget::Setup {} {\n    \
+         namespace ensemble create -map {\n        \
+         show      ::app::widget::Show\n        \
+         configure ::app::widget::Configure\n    \
+         }\n\
+         }\n\
+         proc ::app::widget::Show {} { puts \"shown\" }\n\
+         proc ::app::widget::Configure {args} { puts \"configured:$args\" }\n\
+         ::app::widget::Setup\n\
+         puts [::app::widget show]\n\
+         ::app::widget configure -x 1\n";
+
+    /// Every `(written name, resolved name)` pair recorded as an
+    /// existence-probed reference — the shape
+    /// `record_ensemble_subcommand_invocation` gives a subcommand word.
+    fn probe_refs(r: &super::super::types::AnalysisResult) -> Vec<(String, String)> {
+        r.command_invocations
+            .iter()
+            .filter(|i| i.existence_probe)
+            .map(|i| {
+                (
+                    i.name.clone(),
+                    i.resolved_qualified_name.clone().unwrap_or_default(),
+                )
+            })
+            .collect()
+    }
+
+    #[test]
+    fn ensemble_call_sites_resolve_when_the_ensemble_is_created_in_a_qualified_proc_923_idx85() {
+        let r = Analyser::new().analyse(VIAPROC_SRC, "tcl8.6").clone();
+        let probes = probe_refs(&r);
+        assert!(
+            probes.contains(&("show".to_owned(), "::app::widget::Show".to_owned())),
+            "the `[::app::widget show]` dispatch must be a reference to Show: {probes:?}",
+        );
+        assert!(
+            probes.contains(&(
+                "configure".to_owned(),
+                "::app::widget::Configure".to_owned()
+            )),
+            "the top-level `::app::widget configure` dispatch must be a reference \
+             to Configure: {probes:?}",
+        );
+    }
+
+    #[test]
+    fn per_item_records_the_same_ensemble_call_sites_as_the_whole_file_walk_923_idx85() {
+        // The per-item shell pass defers `::app::widget::Setup`'s body, so the
+        // ensemble map is empty when the two call sites below it are
+        // walked: without the deferred replay neither subcommand reference
+        // is recorded — go-to-definition (an on-demand lookup against the
+        // finished analysis) still answers, find-references cannot.  Comparing
+        // the two walk strategies directly is the assertion that cannot drift.
+        let whole = Analyser::new().analyse(VIAPROC_SRC, "tcl8.6").clone();
+        let per_item = Analyser::new().analyse_per_item(VIAPROC_SRC, "tcl8.6");
+        assert_eq!(
+            probe_refs(&per_item),
+            probe_refs(&whole),
+            "per-item must record the same ensemble dispatch references as the \
+             whole-file walk",
+        );
+        assert!(
+            probe_refs(&per_item)
+                .iter()
+                .any(|(_, res)| res == "::app::widget::Show"),
+            "and both must actually find Show's call site: {:?}",
+            probe_refs(&per_item),
+        );
+    }
+
+    #[test]
+    fn a_dynamic_ensemble_map_records_no_call_site_reference_923_idx85() {
+        // TN — deliberate abstention.  `-map [list …]` is not a literal
+        // list, so no `subcommand -> target` fact exists at all; the
+        // dispatch site must stay unattributed rather than being guessed
+        // at from the surrounding text.  Both walk strategies abstain.
+        let src = "proc ::app::widget::Setup {} {\n    \
+                   namespace ensemble create -map [list show ::app::widget::Show]\n\
+                   }\n\
+                   proc ::app::widget::Show {} {}\n\
+                   ::app::widget::Setup\n\
+                   ::app::widget show\n";
+        for r in [
+            Analyser::new().analyse(src, "tcl8.6").clone(),
+            Analyser::new().analyse_per_item(src, "tcl8.6"),
+        ] {
+            assert!(
+                !probe_refs(&r)
+                    .iter()
+                    .any(|(_, res)| res == "::app::widget::Show"),
+                "a dynamic -map must not attribute the dispatch site: {:?}",
+                probe_refs(&r),
+            );
+        }
+    }
+
+    #[test]
+    fn an_ensemble_call_site_above_its_declaration_is_not_attributed_923_idx85() {
+        // TN — the whole-file DFS walks a proc body at its *definition*
+        // point, so a dispatch written above the proc that creates the
+        // ensemble sees no map.  The deferred replay reproduces that
+        // visibility rule rather than widening it, which is what keeps the
+        // two walk strategies byte-identical.
+        let src = "proc ::app::widget::Show {} {}\n\
+                   ::app::widget show\n\
+                   proc ::app::widget::Setup {} {\n    \
+                   namespace ensemble create -map {show ::app::widget::Show}\n\
+                   }\n";
+        for r in [
+            Analyser::new().analyse(src, "tcl8.6").clone(),
+            Analyser::new().analyse_per_item(src, "tcl8.6"),
+        ] {
+            assert!(
+                !probe_refs(&r)
+                    .iter()
+                    .any(|(_, res)| res == "::app::widget::Show"),
+                "a dispatch above the declaration must not be attributed: {:?}",
+                probe_refs(&r),
+            );
+        }
+    }
+
+    // `namespace ensemble configure`: the real
+    // `tk/library/systray.tcl` idiom splices new subcommands onto a
+    // *pre-existing* ensemble via `configure`, not `create`, so
+    // `handle_namespace_ensemble` has to recognise both.
+
+    #[test]
+    fn namespace_ensemble_configure_extends_a_preexisting_ensembles_map() {
+        // TP — the mechanism in isolation, with a literal `-map` value and a
+        // deliberately non-tk ensemble name (`myens`), proving the mechanism is
+        // registry-agnostic rather than hardcoded to `tk`.
+        let mut a = Analyser::new();
+        let src = "namespace eval ::myens {\n    \
+                   namespace ensemble create -subcommands {}\n\
+                   }\n\
+                   proc ::myens::extra {args} {}\n\
+                   namespace ensemble configure ::myens -map {extra ::myens::extra}\n\
+                   myens extra\n";
+        let r = a.analyse(src, "tcl8.6");
+        let resolved: Vec<&str> = r
+            .command_invocations
+            .iter()
+            .filter_map(|i| i.resolved_qualified_name.as_deref())
+            .collect();
+        assert!(
+            resolved.contains(&"::myens::extra"),
+            "a configure-spliced -map target should be a command reference: {resolved:?}",
+        );
+    }
+
+    #[test]
+    fn namespace_ensemble_configure_dynamic_name_is_not_recorded() {
+        // FP-guard — `namespace ensemble configure $x -map {...}` can't be
+        // resolved statically; the whole call must abstain rather than
+        // recording a `-map` splice under a guessed/wrong key.
+        let mut a = Analyser::new();
+        a.handle_namespace_ensemble(
+            &[
+                "ensemble".to_string(),
+                "configure".to_string(),
+                "$x".to_string(),
+                "-map".to_string(),
+                "sub".to_string(),
+                "::real::target".to_string(),
+            ],
+            &[],
+            &[],
+        );
+        assert_eq!(a.result.ensemble_subcommand_targets.len(), 0);
+    }
+
+    #[test]
+    fn namespace_ensemble_configure_with_no_name_argument_is_a_no_op() {
+        // TN — the bare query form `namespace ensemble configure` (no NAME,
+        // no options) must not panic on `args[2]` indexing.
+        let mut a = Analyser::new();
+        a.handle_namespace_ensemble(&["ensemble".to_string(), "configure".to_string()], &[], &[]);
+        assert_eq!(a.result.ensemble_subcommand_targets.len(), 0);
+    }
+
+    #[test]
+    fn namespace_ensemble_configure_dict_merge_literal_tail_is_extracted() {
+        // TP — the real, exact idiom:
+        // `namespace ensemble configure NAME -map [dict merge [namespace
+        // ensemble configure NAME -map] {literal}]`. The self-referential
+        // query argument is left unknown, but the literal tail's own pairs
+        // are statically known regardless of what it evaluates to.
+        let mut a = Analyser::new();
+        let src = "namespace eval ::myens {\n    \
+                   namespace ensemble create -subcommands {}\n\
+                   }\n\
+                   proc ::myens::extra {args} {}\n\
+                   proc ::myens::other {args} {}\n\
+                   namespace ensemble configure ::myens -map \
+                   [dict merge [namespace ensemble configure ::myens -map] \
+                   {extra ::myens::extra other ::myens::other}]\n\
+                   myens extra\n\
+                   myens other\n";
+        let r = a.analyse(src, "tcl8.6");
+        let resolved: Vec<&str> = r
+            .command_invocations
+            .iter()
+            .filter_map(|i| i.resolved_qualified_name.as_deref())
+            .collect();
+        assert!(
+            resolved.contains(&"::myens::extra"),
+            "the dict-merge literal tail's first pair should resolve: {resolved:?}",
+        );
+        assert!(
+            resolved.contains(&"::myens::other"),
+            "the dict-merge literal tail's second pair should resolve too, \
+             proving the extraction isn't overfit to a single pair: {resolved:?}",
+        );
+    }
+
+    #[test]
+    fn namespace_ensemble_configure_unrecognised_dynamic_map_shape_abstains_safely() {
+        // Safety guard: a `-map` value that is itself one whole
+        // dynamic `[...]` substitution NOT matching the narrow `dict merge
+        // ARG {literal}` shape must abstain entirely — not naively
+        // word-split the expression's own source text into bogus
+        // subcommand/target pairs. `[linsert {} 0 foo bar]` evaluates to
+        // the *string* "foo bar" at runtime (one call to `linsert`; "foo"/
+        // "bar" are plain data words, never independently invoked) — were
+        // the value's raw text naively whitespace-split instead of
+        // abstained on, "foo" would land at an odd (target) index and
+        // wrongly resolve to the real `::myens::foo` defined below,
+        // recording a spurious command reference to it.
+        let mut a = Analyser::new();
+        let src = "namespace eval ::myens {\n    \
+                   namespace ensemble create -subcommands {}\n\
+                   }\n\
+                   proc ::myens::foo {} {}\n\
+                   namespace ensemble configure ::myens -map [linsert {} 0 foo bar]\n";
+        let r = a.analyse(src, "tcl8.6");
+        assert!(
+            r.ensemble_subcommand_targets
+                .get("::myens")
+                .is_none_or(std::collections::HashMap::is_empty),
+            "an unrecognised dynamic -map shape must record no subcommand \
+             targets: {:?}",
+            r.ensemble_subcommand_targets.get("::myens"),
+        );
+        let resolved: Vec<&str> = r
+            .command_invocations
+            .iter()
+            .filter_map(|i| i.resolved_qualified_name.as_deref())
+            .collect();
+        assert!(
+            !resolved.contains(&"::myens::foo"),
+            "must not record a spurious command reference from splitting \
+             the dynamic expression's own text: {resolved:?}",
+        );
+    }
+
+    #[test]
+    fn ensemble_subcommand_targets_record_which_option_declared_them() {
+        // The two options bind the subcommand word to its
+        // target in opposite ways, so the recorded fact has to say which one
+        // wrote it. Oracle (tclsh 8.6.14 / 9.0.4, identical): with `-map
+        // {show ::app::widget::Show}` the call `::app::widget Show` is
+        // `unknown or ambiguous subcommand "Show": must be show` — the key is
+        // arbitrary; with `-subcommands {alpha}` the ensemble derives
+        // `::app::widget::alpha` from the entry, and a `-subcommands {alpha}`
+        // whose proc is named `beta` is `invalid command name "alpha"`.
+        use crate::signature_scan::types::EnsembleSubcommandProvenance;
+
+        let mut a = Analyser::new();
+        let map_src = "namespace eval ::app::widget {}\n\
+                       proc ::app::widget::Show {} {}\n\
+                       namespace ensemble create -command ::app::widget \
+                       -map {show ::app::widget::Show}\n";
+        let r = a.analyse(map_src, "tcl8.6");
+        let entry = r
+            .ensemble_subcommand_targets
+            .get("::app::widget")
+            .and_then(|subs| subs.get("show"))
+            .expect("the literal -map pair is recorded");
+        assert_eq!(entry.target, "::app::widget::Show");
+        assert_eq!(
+            entry.provenance,
+            EnsembleSubcommandProvenance::Map,
+            "a -map pair must be tagged as such",
+        );
+
+        let mut a = Analyser::new();
+        let sub_src = "namespace eval ::app::widget {\n    \
+                       proc alpha {} {}\n    \
+                       namespace ensemble create -command ::app::widget \
+                       -subcommands {alpha}\n\
+                       }\n";
+        let r = a.analyse(sub_src, "tcl8.6");
+        let entry = r
+            .ensemble_subcommand_targets
+            .get("::app::widget")
+            .and_then(|subs| subs.get("alpha"))
+            .expect("the literal -subcommands entry is recorded");
+        assert_eq!(entry.target, "::app::widget::alpha");
+        assert_eq!(
+            entry.provenance,
+            EnsembleSubcommandProvenance::Subcommands,
+            "a -subcommands entry must be tagged as such",
+        );
+    }
+
+    #[test]
+    fn ensemble_dispatch_call_sites_carry_their_mapping_provenance() {
+        // The dispatch word's own invocation record carries the provenance,
+        // because only the recording site knows *this span* is
+        // a subcommand word: a `-map {Show ::app::widget::Show}` whose key
+        // happens to equal the target's tail is textually indistinguishable
+        // from an ordinary bare call to the target, so a consumer that
+        // re-derived the fact by name would gate the wrong spans.
+        use crate::signature_scan::types::EnsembleSubcommandProvenance;
+
+        let mut a = Analyser::new();
+        let map_src = "namespace eval ::app::widget {}\n\
+                       proc ::app::widget::Show {} {}\n\
+                       namespace ensemble create -command ::app::widget \
+                       -map {show ::app::widget::Show}\n\
+                       ::app::widget show\n";
+        let r = a.analyse(map_src, "tcl8.6");
+        let tagged: Vec<(&str, Option<EnsembleSubcommandProvenance>)> = r
+            .command_invocations
+            .iter()
+            .filter(|i| i.resolved_qualified_name.as_deref() == Some("::app::widget::Show"))
+            .map(|i| (i.name.as_str(), i.ensemble_dispatch))
+            .collect();
+        assert!(
+            tagged.contains(&("show", Some(EnsembleSubcommandProvenance::Map))),
+            "the dispatch word is tagged with the -map provenance: {tagged:?}",
+        );
+        assert!(
+            tagged
+                .iter()
+                .any(|(name, prov)| *name == "::app::widget::Show" && prov.is_none()),
+            "the -map *value* is an ordinary reference, not a dispatch word — \
+             it carries the target's own name and rename must rewrite it: {tagged:?}",
+        );
+
+        let mut a = Analyser::new();
+        let sub_src = "namespace eval ::app::widget {\n    \
+                       proc alpha {} {}\n    \
+                       namespace ensemble create -command ::app::widget \
+                       -subcommands {alpha}\n\
+                       }\n\
+                       ::app::widget alpha\n";
+        let r = a.analyse(sub_src, "tcl8.6");
+        let tagged: Vec<(&str, Option<EnsembleSubcommandProvenance>)> = r
+            .command_invocations
+            .iter()
+            .filter(|i| i.resolved_qualified_name.as_deref() == Some("::app::widget::alpha"))
+            .map(|i| (i.name.as_str(), i.ensemble_dispatch))
+            .collect();
+        assert!(
+            tagged.contains(&("alpha", Some(EnsembleSubcommandProvenance::Subcommands))),
+            "the dispatch word is tagged with the -subcommands provenance: {tagged:?}",
+        );
+    }
+
+    #[test]
+    fn handle_namespace_ensemble_other_options_value_word_is_not_mistaken_for_command_flag() {
+        // `-map`'s value here is (pathologically, but syntactically legally)
+        // the string `-command`. A scan checking *every* word for literal
+        // equality with `-command`, another option's own value word
+        // included, misreads that value as the
+        // `-command` flag itself and steals the *next* word (the real
+        // `-command`'s own flag) as if it were a namespace name. Walking
+        // by each option's declared value arity instead correctly skips
+        // `-map`'s whole value before ever looking for `-command` again,
+        // so only the genuine `-command ::real::target` is recorded.
+        use crate::analyser::types::{Scope, ScopeKind};
+        let mut a = Analyser::new();
+        a.registry = Some(std::sync::Arc::clone(
+            tcl_registry::model::ingress::static_context_for("tcl").commands(),
+        ));
+        a.result
+            .global_scope
+            .children
+            .push(Scope::new(ScopeKind::Namespace, "myns"));
+        a.handle_namespace_ensemble(
+            &[
+                "ensemble".to_string(),
+                "create".to_string(),
+                "-map".to_string(),
+                "-command".to_string(),
+                "-command".to_string(),
+                "::real::target".to_string(),
+            ],
+            &[],
+            &[0],
+        );
+        assert_eq!(
+            a.ensemble_namespaces,
+            std::collections::HashSet::from(["::myns".to_string(), "::real::target".to_string()]),
+            "only the genuine -command flag's value must be recorded, \
+             not -map's value word that happens to read \"-command\""
+        );
+    }
+
+    #[test]
+    fn handle_namespace_ensemble_global_scope_no_op() {
+        let mut a = Analyser::new();
+        a.handle_namespace_ensemble(&["ensemble".to_string(), "create".to_string()], &[], &[]);
+        assert_eq!(a.ensemble_namespaces.len(), 0);
+    }
+
+    #[test]
+    fn handle_namespace_ensemble_wrong_subcommand_no_op() {
+        use crate::analyser::types::{Scope, ScopeKind};
+        let mut a = Analyser::new();
+        a.result
+            .global_scope
+            .children
+            .push(Scope::new(ScopeKind::Namespace, "myns"));
+        a.handle_namespace_ensemble(&["eval".to_string(), "myns".to_string()], &[], &[0]);
+        assert_eq!(a.ensemble_namespaces.len(), 0);
+    }
+
+    // handle_foreach_command
+
+    #[test]
+    fn handle_foreach_defines_single_loop_var() {
+        let result = Analyser::new().analyse("foreach i {1 2 3} {puts $i}", "tcl");
+        assert!(result.global_scope.variables.contains_key("i"));
+    }
+
+    #[test]
+    fn handle_foreach_defines_multiple_loop_vars() {
+        let source = "foreach {k v} {a 1 b 2} {}";
+        let result = Analyser::new().analyse(source, "tcl");
+        let k = &result.global_scope.variables["k"];
+        let v = &result.global_scope.variables["v"];
+        assert_eq!(k.definition_span, span(9, 10));
+        assert_eq!(v.definition_span, span(11, 12));
+        assert!(k.definition_span.start() < v.definition_span.start());
+    }
+
+    #[test]
+    fn handle_foreach_varlist_uses_tcl_list_names_and_source_ranges() {
+        let source = r#"foreach {{one name} "two name" three\ name plain} {values} {}"#;
+        let result = Analyser::new().analyse(source, "tcl");
+        let variables = &result.global_scope.variables;
+        for (name, spelling) in [
+            ("one name", "one name"),
+            ("two name", "two name"),
+            ("three name", r"three\ name"),
+            ("plain", "plain"),
+        ] {
+            let start = u32::try_from(source.find(spelling).expect("original element")).unwrap();
+            let end = start + u32::try_from(spelling.len()).unwrap();
+            assert_eq!(variables[name].definition_span, span(start, end));
+        }
+    }
+
+    #[test]
+    fn malformed_foreach_varlist_defines_no_variables() {
+        let result = Analyser::new().analyse(r#"foreach "{unterminated" values {}"#, "tcl");
+        assert!(result.global_scope.variables.is_empty());
+    }
+
+    #[test]
+    fn literal_foreach_binding_parses_single_variable_as_tcl_list() {
+        assert_eq!(
+            Analyser::literal_foreach_binding(
+                r"{one name}",
+                "alpha beta",
+                true,
+                tcl_syntax::word_rules::WordValueRules::TCL
+            ),
+            Some((
+                "one name".to_string(),
+                vec!["alpha".to_string(), "beta".to_string()]
+            ))
+        );
+        assert!(
+            Analyser::literal_foreach_binding(
+                "{unterminated",
+                "alpha",
+                true,
+                tcl_syntax::word_rules::WordValueRules::TCL
+            )
+            .is_none()
+        );
+        assert!(
+            Analyser::literal_foreach_binding(
+                "one two",
+                "alpha",
+                true,
+                tcl_syntax::word_rules::WordValueRules::TCL
+            )
+            .is_none()
+        );
+    }
+
+    #[test]
+    fn handle_foreach_defines_every_varlist_in_the_multi_list_lock_step_form() {
+        let result = Analyser::new().analyse(
+            "foreach dirName {src src {src core}} name {alpha beta gamma} {puts $dirName-$name}",
+            "tcl",
+        );
+        assert!(result.global_scope.variables.contains_key("dirName"));
+        assert!(result.global_scope.variables.contains_key("name"));
+    }
+
+    #[test]
+    fn handle_foreach_multi_list_form_binds_a_third_pair_too() {
+        let result =
+            Analyser::new().analyse("foreach a {1 2} b {3 4} c {5 6} {puts $a$b$c}", "tcl");
+        for name in ["a", "b", "c"] {
+            assert!(result.global_scope.variables.contains_key(name));
+        }
+    }
+
+    #[test]
+    fn handle_foreach_too_few_args_returns_false() {
+        let mut a = Analyser::new();
+        let handled = a.handle_foreach_command(
+            "foreach",
+            &["i".to_string(), "{1 2}".to_string()],
+            &[esc_tok(span(0, 1)), str_tok(span(2, 7))],
+            &[],
+        );
+        assert!(!handled);
+    }
+
+    // Dynamic proc names + the foreach rename-and-reinstall idiom:
+    // `tk/library/accessibility.tcl`'s `foreach wtype {...} {
+    // rename ::$wtype ::tk::accessible::orig_$wtype ; proc ::$wtype {args}
+    // {...} }` renames each classic widget command away and reinstalls a
+    // wrapper under the same original name.
+
+    #[test]
+    fn handle_proc_command_dynamic_name_resolves_via_constant_fold() {
+        // TP — no loop at all: a plain `set` constant. `proc ::$wtype {...}` must
+        // constant-fold its name, as `rename` does, rather than register under
+        // the literal garbled text.
+        let mut a = Analyser::new();
+        let src = "set wtype button\nproc ::$wtype {} {return ok}\n";
+        let r = a.analyse(src, "tcl8.6");
+        assert!(
+            r.all_procs.contains_key("::button"),
+            "{:?}",
+            r.all_procs.keys().collect::<Vec<_>>()
+        );
+        assert!(
+            !r.all_procs.keys().any(|k| k.contains('$')),
+            "{:?}",
+            r.all_procs.keys().collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn handle_proc_command_unresolvable_dynamic_name_keeps_raw_text() {
+        // TN — a genuinely dynamic name (no constant to fold against) keeps the
+        // raw-text fallback behaviour; only the resolvable case folds.
+        let mut a = Analyser::new();
+        let src = "proc ::$wtype {} {return ok}\n";
+        let r = a.analyse(src, "tcl8.6");
+        assert!(
+            r.all_procs.keys().any(|k| k.contains("wtype")),
+            "{:?}",
+            r.all_procs.keys().collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn handle_foreach_rename_reinstall_idiom_resolves_every_literal_element() {
+        // TP — `tk/library/accessibility.tcl` renames each classic widget
+        // command away and
+        // reinstalls a wrapper proc under the same name, once per element
+        // of a literal `foreach` list. tclsh9.0/8.6 both prove `button`/
+        // `entry` are the *new* wrapper procs afterwards; the original bodies
+        // live only at `::tk::accessible::orig_button`/`orig_entry`.
+        let mut a = Analyser::new();
+        let src = "proc button {args} {return orig_button}\n\
+                   proc entry {args} {return orig_entry}\n\
+                   namespace eval ::tk::accessible {\n    \
+                   foreach wtype {button entry} {\n        \
+                   rename ::$wtype ::tk::accessible::orig_$wtype\n        \
+                   proc ::$wtype {args} {return wrapped}\n    \
+                   }\n\
+                   }\n";
+        let r = a.analyse(src, "tcl8.6");
+        // Both wrapper redefinitions are registered, at the *same* physical
+        // source location (the one templated `proc ::$wtype ...`
+        // statement) — genuinely correct: there is only one place in the
+        // source that defines either of them.
+        let button_def = r.all_procs.get("::button").expect("::button registered");
+        let entry_def = r.all_procs.get("::entry").expect("::entry registered");
+        assert_eq!(button_def.body_span, entry_def.body_span);
+        // No garbled `${wtype}`-named entry left behind.
+        assert!(
+            !r.all_procs.keys().any(|k| k.contains('$')),
+            "{:?}",
+            r.all_procs.keys().collect::<Vec<_>>()
+        );
+        // The old, pre-rename bodies are reachable only via their new
+        // `orig_*` names.
+        assert_eq!(
+            r.renamed_commands.get("::tk::accessible::orig_button"),
+            Some(&"::button".to_string())
+        );
+        assert_eq!(
+            r.renamed_commands.get("::tk::accessible::orig_entry"),
+            Some(&"::entry".to_string())
+        );
+    }
+
+    #[test]
+    fn handle_foreach_rename_reinstall_idiom_is_not_overfit_to_two_elements() {
+        // FP guard — a third element proves the per-iteration simulation
+        // isn't hardcoded to exactly the corpus's own two widget names.
+        let mut a = Analyser::new();
+        let src = "namespace eval ::ns {\n    \
+                   foreach wtype {button entry checkbutton} {\n        \
+                   rename ::$wtype ::ns::orig_$wtype\n        \
+                   proc ::$wtype {args} {return wrapped}\n    \
+                   }\n\
+                   }\n";
+        let r = a.analyse(src, "tcl8.6");
+        for name in ["::button", "::entry", "::checkbutton"] {
+            assert!(
+                r.all_procs.contains_key(name),
+                "{name} missing: {:?}",
+                r.all_procs.keys().collect::<Vec<_>>()
+            );
+        }
+    }
+
+    #[test]
+    fn handle_foreach_multi_pair_form_does_not_trigger_the_literal_simulation() {
+        // TN — the multi-list lock-step form (`foreach v1 l1 v2 l2
+        // body`) is a different arg shape; the single-pair-only literal
+        // simulation must not misfire on it.
+        let mut a = Analyser::new();
+        let src = "foreach a {1 2} b {3 4} {\n    rename ::$a ::orig_$a\n}\n";
+        let r = a.analyse(src, "tcl8.6");
+        assert_eq!(r.renamed_commands.len(), 0, "{:?}", r.renamed_commands);
+    }
+
+    #[test]
+    fn handle_foreach_dynamic_list_does_not_trigger_the_literal_simulation() {
+        // TN — a non-literal list (a variable, not a literal element list)
+        // can't be simulated; must abstain.
+        let mut a = Analyser::new();
+        let src = "set items {button entry}\nforeach wtype $items {\n    rename ::$wtype ::orig_$wtype\n}\n";
+        let r = a.analyse(src, "tcl8.6");
+        assert_eq!(r.renamed_commands.len(), 0, "{:?}", r.renamed_commands);
+    }
+
+    #[test]
+    fn handle_foreach_non_idiom_body_is_unaffected() {
+        // TN — an ordinary literal-list foreach with no rename/proc inside
+        // must see no new side effects from the idiom-recognition code.
+        let mut a = Analyser::new();
+        let src = "foreach x {a b c} {\n    puts $x\n}\n";
+        let r = a.analyse(src, "tcl8.6");
+        assert_eq!(r.renamed_commands.len(), 0);
+        assert!(!r.all_procs.keys().any(|k| k.contains('$')));
+    }
+
+    // handle_switch_command
+
+    fn switch_analyser() -> Analyser {
+        let mut analyser = Analyser::new();
+        analyser.registry = Some(std::sync::Arc::clone(
+            tcl_registry::model::ingress::static_context_for("tcl").commands(),
+        ));
+        analyser
+    }
+
+    #[test]
+    fn handle_switch_returns_true_for_canonical_shape() {
+        let mut a = switch_analyser();
+        let handled = a.handle_switch_command(
+            "switch",
+            &["$x".to_string(), "{a {puts a} b {puts b}}".to_string()],
+            &[esc_tok(span(7, 9)), str_tok(span(10, 36))],
+            &[],
+        );
+        assert!(handled);
+    }
+
+    #[test]
+    fn handle_switch_too_few_args_returns_false() {
+        let mut a = switch_analyser();
+        let handled = a.handle_switch_command("switch", &["$x".to_string()], &[], &[]);
+        assert!(!handled);
+    }
+
+    #[test]
+    fn handle_switch_form1_walks_each_arm_body() {
+        // Form 1: ``switch $x a {set y 1} b {set z 2}``.
+        // Each arm body should land its ``set`` in the
+        // surrounding scope.  Source layout has the bodies at
+        // offsets 13..23 (``{set y 1}``) and 27..37 (``{set z 2}``).
+        let mut a = switch_analyser();
+        a.handle_switch_command(
+            "switch",
+            &[
+                "$x".to_string(),
+                "a".to_string(),
+                "set y 1".to_string(),
+                "b".to_string(),
+                "set z 2".to_string(),
+            ],
+            &[
+                esc_tok(span(7, 9)),
+                esc_tok(span(10, 11)),
+                str_tok(span(13, 22)),
+                esc_tok(span(24, 25)),
+                str_tok(span(27, 36)),
+            ],
+            &[],
+        );
+        assert!(a.result.global_scope.variables.contains_key("y"));
+        assert!(a.result.global_scope.variables.contains_key("z"));
+    }
+
+    #[test]
+    fn handle_switch_form2_braced_body_walks_each_arm() {
+        // Form 2: ``switch $x { a {set y 1} b {set z 2} }``.
+        // The single braced body holds all pattern/body pairs;
+        // ``flatten_clause_list_elements`` uses Tcl list offsets to surface
+        // each pair, then each body recurses.
+        let mut a = switch_analyser();
+        let body_text = " a {set y 1} b {set z 2} ".to_string();
+        // body span: outer source positions 10..(10 + len(body)+2).
+        // body_text has 25 chars, plus surrounding braces → token
+        // span 10..37, content_offset = 1 to skip the opening ``{``.
+        a.handle_switch_command(
+            "switch",
+            &["$x".to_string(), body_text],
+            &[esc_tok(span(7, 9)), str_tok(span(10, 37))],
+            &[],
+        );
+        assert!(a.result.global_scope.variables.contains_key("y"));
+        assert!(a.result.global_scope.variables.contains_key("z"));
+    }
+
+    #[test]
+    fn handle_switch_form1_skips_fallthrough_marker() {
+        // ``switch $x a - b {set y 1}`` — the ``-`` body for
+        // pattern ``a`` is fall-through (next arm fires); only
+        // ``b``'s body should be walked.
+        let mut a = switch_analyser();
+        a.handle_switch_command(
+            "switch",
+            &[
+                "$x".to_string(),
+                "a".to_string(),
+                "-".to_string(),
+                "b".to_string(),
+                "set y 1".to_string(),
+            ],
+            &[
+                esc_tok(span(7, 9)),
+                esc_tok(span(10, 11)),
+                esc_tok(span(12, 13)),
+                esc_tok(span(14, 15)),
+                str_tok(span(17, 26)),
+            ],
+            &[],
+        );
+        assert!(a.result.global_scope.variables.contains_key("y"));
+    }
+
+    #[test]
+    fn handle_switch_recognises_dashdash_options_terminator() {
+        // ``switch -- $x a {set y 1}`` — ``--`` ends the option
+        // section; the string arg follows.  Walker still finds
+        // the arm body and lands ``y``.
+        let mut a = switch_analyser();
+        a.handle_switch_command(
+            "switch",
+            &[
+                "--".to_string(),
+                "$x".to_string(),
+                "a".to_string(),
+                "set y 1".to_string(),
+            ],
+            &[
+                esc_tok(span(7, 9)),
+                esc_tok(span(10, 12)),
+                esc_tok(span(13, 14)),
+                str_tok(span(16, 25)),
+            ],
+            &[],
+        );
+        assert!(a.result.global_scope.variables.contains_key("y"));
+    }
+
+    #[test]
+    fn handle_switch_dynamic_form2_body_skips_walk() {
+        // Form 2 with a dynamic body (``$body`` instead of a
+        // braced literal) yields no elements; the walk no-ops.
+        let mut a = switch_analyser();
+        let var_tok = Token::new(TokenType::Var, span(10, 15));
+        a.handle_switch_command(
+            "switch",
+            &["$x".to_string(), "$body".to_string()],
+            &[esc_tok(span(7, 9)), var_tok],
+            &[],
+        );
+        // No body walked → no vars defined.
+        assert_eq!(a.result.global_scope.variables.len(), 0);
+    }
+
+    // handle_catch_command
+
+    #[test]
+    fn handle_catch_canonical_returns_true() {
+        let mut a = Analyser::new();
+        let handled = a.handle_catch_command(&["body".to_string()], &[esc_tok(span(0, 4))], &[]);
+        assert!(handled);
+    }
+
+    #[test]
+    fn handle_catch_with_result_var_defines_it() {
+        let mut a = Analyser::new();
+        // The binding positions come from the registry's VarWrite roles.
+        a.registry = Some(std::sync::Arc::clone(
+            tcl_registry::model::ingress::static_context_for("tcl").commands(),
+        ));
+        a.handle_catch_command(
+            &["body".to_string(), "res".to_string()],
+            &[esc_tok(span(0, 4)), esc_tok(span(5, 8))],
+            &[],
+        );
+        assert!(a.result.global_scope.variables.contains_key("res"));
+    }
+
+    #[test]
+    fn handle_catch_with_options_var_defines_both() {
+        let mut a = Analyser::new();
+        a.registry = Some(std::sync::Arc::clone(
+            tcl_registry::model::ingress::static_context_for("tcl").commands(),
+        ));
+        a.handle_catch_command(
+            &["body".to_string(), "res".to_string(), "opts".to_string()],
+            &[
+                esc_tok(span(0, 4)),
+                esc_tok(span(5, 8)),
+                esc_tok(span(9, 13)),
+            ],
+            &[],
+        );
+        assert!(a.result.global_scope.variables.contains_key("res"));
+        assert!(a.result.global_scope.variables.contains_key("opts"));
+    }
+
+    #[test]
+    fn handle_catch_no_args_returns_false() {
+        let mut a = Analyser::new();
+        let handled = a.handle_catch_command(&[], &[], &[]);
+        assert!(!handled);
+    }
+
+    // try (no handler of its own: it goes through the generic dispatch `for`
+    // uses; `try`'s own clause-timing resolution is `clause_grammar.rs`'s
+    // `try_grammar_agrees_with_the_retired_walk` and its neighbours)
+
+    #[test]
+    fn handle_try_walks_main_body() {
+        // ``try {set y 1}`` — main body walks and lands ``y``.
+        let mut a = Analyser::new();
+        let r = a.analyse("try {set y 1}\n", "tcl8.6");
+        assert!(r.global_scope.variables.contains_key("y"));
+    }
+
+    #[test]
+    fn handle_try_walks_finally_body() {
+        // ``try {} finally {set z 1}`` — finally clause body walks.
+        let mut a = Analyser::new();
+        let r = a.analyse("try {} finally {set z 1}\n", "tcl8.6");
+        assert!(r.global_scope.variables.contains_key("z"));
+    }
+
+    #[test]
+    fn handle_try_walks_on_handler_body() {
+        // ``try {} on error {result options} {set q 1}`` — the handler
+        // body walks and its var-list binds both names (so completion
+        // offers `$result` / `$options`).
+        let mut a = Analyser::new();
+        let r = a.analyse("try {} on error {result options} {set q 1}\n", "tcl8.6");
+        assert!(r.global_scope.variables.contains_key("q"));
+        assert!(r.global_scope.variables.contains_key("result"));
+        assert!(r.global_scope.variables.contains_key("options"));
+    }
+
+    #[test]
+    fn handle_try_walks_trap_handler_body() {
+        // ``try {} trap NONE {result} {set q 1}`` — same shape as ``on``,
+        // but the keyword is ``trap`` and the var-list has one name.
+        let mut a = Analyser::new();
+        let r = a.analyse("try {} trap NONE {result} {set q 1}\n", "tcl8.6");
+        assert!(r.global_scope.variables.contains_key("q"));
+        assert!(r.global_scope.variables.contains_key("result"));
+    }
+
+    // resolve_proc_call
+
+    #[test]
+    fn resolve_proc_call_absolute_qualified_name() {
+        // ``::foo`` resolves directly when registered.
+        let mut a = Analyser::new();
+        a.handle_proc_command(
+            "proc",
+            &["foo".to_string(), String::new(), String::new()],
+            &[
+                esc_tok(span(5, 8)),
+                str_tok(span(9, 11)),
+                str_tok(span(12, 14)),
+            ],
+            &[],
+            &[],
+        );
+        let resolved = a.resolve_proc_call("::foo", &[]);
+        assert!(resolved.is_some());
+        assert_eq!(resolved.unwrap().qualified_name, "::foo");
+    }
+
+    #[test]
+    fn resolve_proc_call_bare_name_walks_namespace_chain() {
+        // ``foo`` declared inside ``ns1`` is found when resolved
+        // from ``ns1``'s scope.
+        use crate::analyser::types::{Scope, ScopeKind};
+        let mut a = Analyser::new();
+        a.result
+            .global_scope
+            .children
+            .push(Scope::new(ScopeKind::Namespace, "ns1"));
+        a.handle_proc_command(
+            "proc",
+            &["foo".to_string(), String::new(), String::new()],
+            &[
+                esc_tok(span(5, 8)),
+                str_tok(span(9, 11)),
+                str_tok(span(12, 14)),
+            ],
+            &[],
+            &[0],
+        );
+        // Resolve from inside ns1 — should find ::ns1::foo.
+        let resolved = a.resolve_proc_call("foo", &[0]);
+        assert!(resolved.is_some());
+        assert_eq!(resolved.unwrap().qualified_name, "::ns1::foo");
+    }
+
+    #[test]
+    fn resolve_proc_call_falls_back_to_global() {
+        // Bare ``foo`` declared at global is found from any scope.
+        use crate::analyser::types::{Scope, ScopeKind};
+        let mut a = Analyser::new();
+        a.handle_proc_command(
+            "proc",
+            &["foo".to_string(), String::new(), String::new()],
+            &[
+                esc_tok(span(5, 8)),
+                str_tok(span(9, 11)),
+                str_tok(span(12, 14)),
+            ],
+            &[],
+            &[],
+        );
+        a.result
+            .global_scope
+            .children
+            .push(Scope::new(ScopeKind::Namespace, "ns1"));
+        // Resolve from inside ns1 — chain misses ::ns1::foo,
+        // falls back to ::foo.
+        let resolved = a.resolve_proc_call("foo", &[0]);
+        assert!(resolved.is_some());
+        assert_eq!(resolved.unwrap().qualified_name, "::foo");
+    }
+
+    #[test]
+    fn resolve_proc_call_qualified_relative_name() {
+        // ``a::b`` (qualified but not absolute) prepends ``::``.
+        let mut a = Analyser::new();
+        a.result.all_procs.insert(
+            "::a::b".to_string(),
+            super::ProcDef {
+                source_name: None,
+                name: "b".to_string(),
+                qualified_name: "::a::b".to_string(),
+                params: Vec::new(),
+                params_computed: false,
+                formal_count: crate::signature_scan::formal_count::SourceFormalCount::Authored(
+                    tcl_dialect::ParameterGrammar::Tcl,
+                ),
+                name_span: span(0, 0),
+                body_span: span(0, 0),
+                doc: String::new(),
+                param_traits: std::collections::HashMap::new(),
+                caller_frame_params: std::collections::HashSet::new(),
+                caller_frame_literals: std::collections::HashMap::new(),
+            },
+        );
+        let resolved = a.resolve_proc_call("a::b", &[]);
+        assert!(resolved.is_some());
+        assert_eq!(resolved.unwrap().qualified_name, "::a::b");
+    }
+
+    #[test]
+    fn resolve_proc_call_relative_dotted_name_prefers_current_namespace() {
+        // A relative dotted word (`ns2::inner`, containing `::` but not
+        // starting with it) must resolve against the current namespace
+        // first, not be rooted straight at global (confirmed against tclsh
+        // 9.0.4 — see `bareword_resolution_candidates`).
+        use crate::analyser::types::{Scope, ScopeKind};
+        let mut a = Analyser::new();
+        for qname in ["::ns2::inner", "::ns::ns2::inner"] {
+            a.result.all_procs.insert(
+                qname.to_string(),
+                super::ProcDef {
+                    source_name: None,
+                    name: "inner".to_string(),
+                    qualified_name: qname.to_string(),
+                    params: Vec::new(),
+                    params_computed: false,
+                    formal_count: crate::signature_scan::formal_count::SourceFormalCount::Authored(
+                        tcl_dialect::ParameterGrammar::Tcl,
+                    ),
+                    name_span: span(0, 0),
+                    body_span: span(0, 0),
+                    doc: String::new(),
+                    param_traits: std::collections::HashMap::new(),
+                    caller_frame_params: std::collections::HashSet::new(),
+                    caller_frame_literals: std::collections::HashMap::new(),
+                },
+            );
+        }
+        a.result
+            .global_scope
+            .children
+            .push(Scope::new(ScopeKind::Namespace, "ns"));
+        let resolved = a.resolve_proc_call("ns2::inner", &[0]);
+        assert_eq!(
+            resolved.unwrap().qualified_name,
+            "::ns::ns2::inner",
+            "must prefer the current-namespace proc over the root one",
+        );
+        // Falls back to the root proc when there is no current-namespace
+        // candidate.
+        let resolved = a.resolve_proc_call("ns2::inner", &[]);
+        assert_eq!(resolved.unwrap().qualified_name, "::ns2::inner");
+    }
+
+    #[test]
+    fn resolve_proc_call_does_not_walk_ancestor_namespaces() {
+        // Real Tcl bareword resolution is exactly two levels — current
+        // namespace, then global — absent an explicit `namespace path`. A
+        // proc defined in a *grandparent* namespace must not resolve for a
+        // bare call from a nested `::a::b::c` scope.
+        use crate::analyser::types::{Scope, ScopeKind};
+        let mut a = Analyser::new();
+        let mut ns_a = Scope::new(ScopeKind::Namespace, "a");
+        let mut ns_b = Scope::new(ScopeKind::Namespace, "b");
+        ns_b.children.push(Scope::new(ScopeKind::Namespace, "c"));
+        ns_a.children.push(ns_b);
+        a.result.global_scope.children.push(ns_a);
+        // scope_path [0] = ::a — define `foo` there.
+        a.handle_proc_command(
+            "proc",
+            &["foo".to_string(), String::new(), String::new()],
+            &[
+                esc_tok(span(5, 8)),
+                str_tok(span(9, 11)),
+                str_tok(span(12, 14)),
+            ],
+            &[],
+            &[0],
+        );
+        // Resolving from ::a::b::c (scope_path [0, 0, 0]) must NOT reach
+        // the grandparent's ::a::foo.
+        assert!(
+            a.resolve_proc_call("foo", &[0, 0, 0]).is_none(),
+            "a grandparent-namespace proc must not resolve for a bare call",
+        );
+        // Control: resolving directly from ::a still finds it.
+        assert!(a.resolve_proc_call("foo", &[0]).is_some());
+    }
+
+    #[test]
+    fn resolve_proc_call_unknown_name_returns_none() {
+        let a = Analyser::new();
+        assert!(a.resolve_proc_call("nope", &[]).is_none());
+    }
+
+    #[test]
+    fn resolve_proc_call_empty_name_returns_none() {
+        let a = Analyser::new();
+        assert!(a.resolve_proc_call("", &[]).is_none());
+    }
+
+    // handle_interp_alias
+
+    #[test]
+    fn handle_interp_alias_records_canonical_form() {
+        let mut a = Analyser::new();
+        a.registry = Some(std::sync::Arc::clone(
+            tcl_registry::model::ingress::static_context_for("tcl").commands(),
+        ));
+        a.handle_interp_alias(
+            &[
+                "alias".to_string(),
+                String::new(),
+                "myset".to_string(),
+                String::new(),
+                "set".to_string(),
+            ],
+            &[],
+            42,
+        );
+        assert!(a.command_aliases.contains_key("::myset"));
+        assert!(a.result.command_aliases.contains_key("::myset"));
+        let (target, prepended) = &a.command_aliases["::myset"];
+        assert_eq!(target, "set");
+        assert_eq!(prepended.as_slice(), [] as [String; 0]);
+        assert_eq!(a.alias_offsets.get("::myset"), Some(&42));
+        // The offset is also promoted onto the finalised `AnalysisResult`
+        // (not just the in-progress `Analyser`), so a cross-document
+        // consumer such as `tcl_lsp_core::WorkspaceIndex` can tell an
+        // unconditional alias apart from one nested in a proc/class body.
+        assert_eq!(a.result.alias_offsets.get("::myset"), Some(&42));
+    }
+
+    #[test]
+    fn handle_interp_alias_with_prepended_args() {
+        let mut a = Analyser::new();
+        a.registry = Some(std::sync::Arc::clone(
+            tcl_registry::model::ingress::static_context_for("tcl").commands(),
+        ));
+        a.handle_interp_alias(
+            &[
+                "alias".to_string(),
+                String::new(),
+                "logerr".to_string(),
+                String::new(),
+                "puts".to_string(),
+                "stderr".to_string(),
+            ],
+            &[],
+            0,
+        );
+        let (target, prepended) = &a.command_aliases["::logerr"];
+        assert_eq!(target, "puts");
+        assert_eq!(prepended, &vec!["stderr".to_string()]);
+    }
+
+    #[test]
+    fn handle_interp_alias_wrong_shape_no_op() {
+        let mut a = Analyser::new();
+        a.registry = Some(std::sync::Arc::clone(
+            tcl_registry::model::ingress::static_context_for("tcl").commands(),
+        ));
+        a.handle_interp_alias(&["alias".to_string()], &[], 0);
+        assert_eq!(a.command_aliases.len(), 0);
+        assert_eq!(a.alias_offsets.len(), 0);
+    }
+
+    // resolve_dynamic_word
+
+    #[test]
+    fn resolve_dynamic_word_braced_literal_dollar_is_not_mistaken_for_dynamic() {
+        // A brace-quoted word containing a literal `$`/`[` character is
+        // legitimately STATIC — Tcl suppresses substitution inside
+        // `{}` — so this must return it as-is via `resolve_const_word`'s
+        // `Str`/`Esc` branch, even though `is_dynamic_word`'s naive text
+        // scan alone would call it dynamic.
+        let a = Analyser::new();
+        let tok = Token {
+            kind: TokenType::Str,
+            span: span(0, 10),
+            content_offset: 1,
+            in_quote: false,
+        };
+        assert_eq!(
+            a.resolve_dynamic_word("::pkg::$c", Some(tok), true, &[]),
+            Some("::pkg::$c".to_string())
+        );
+    }
+
+    #[test]
+    fn resolve_dynamic_word_missing_token_is_none() {
+        // A dynamic word with no token to inspect (the handful of
+        // existing handle_rename unit tests pass `arg_tokens: &[]`)
+        // must fall through to None, not panic.
+        let a = Analyser::new();
+        assert_eq!(a.resolve_dynamic_word("$x", None, false, &[]), None);
+    }
+
+    // handle_rename
+
+    #[test]
+    fn handle_rename_records_static_move() {
+        let mut a = Analyser::new();
+        let dynamic = a.handle_rename(
+            &["target".to_string(), "target_orig".to_string()],
+            &[],
+            &[],
+            &[],
+            42,
+        );
+        assert!(!dynamic, "a fully static rename is not dynamic");
+        assert_eq!(
+            a.renamed_commands.get("::target_orig").map(String::as_str),
+            Some("::target")
+        );
+        assert_eq!(
+            a.result
+                .renamed_commands
+                .get("::target_orig")
+                .map(String::as_str),
+            Some("::target")
+        );
+        assert_eq!(a.rename_offsets.get("::target_orig"), Some(&42));
+        // The old name is recorded as deleted from this offset —
+        // confirmed against tclsh 9.0.4: `target` becomes an unknown
+        // command, not still callable under its original arity.
+        assert_eq!(a.deleted_commands.get("::target"), Some(&42));
+    }
+
+    #[test]
+    fn handle_rename_deletion_records_old_name_as_deleted() {
+        // `rename OLD {}` deletes OLD — no new binding to record (it is
+        // not a "dynamic" rename either, nothing to widen for), but OLD
+        // itself must be recorded as gone (confirmed against tclsh
+        // 9.0.4: also "invalid command name" afterwards).
+        let mut a = Analyser::new();
+        let dynamic = a.handle_rename(&["target".to_string(), String::new()], &[], &[], &[], 7);
+        assert!(!dynamic);
+        assert_eq!(a.renamed_commands.len(), 0);
+        assert_eq!(a.deleted_commands.get("::target"), Some(&7));
+    }
+
+    #[test]
+    fn handle_rename_dynamic_old_name_reports_dynamic() {
+        let mut a = Analyser::new();
+        let dynamic = a.handle_rename(&["$x".to_string(), "y".to_string()], &[], &[], &[], 0);
+        assert!(dynamic, "rename $x y cannot be resolved statically");
+        assert_eq!(a.renamed_commands.len(), 0);
+        assert_eq!(a.deleted_commands.len(), 0);
+    }
+
+    #[test]
+    fn handle_rename_dynamic_new_name_reports_dynamic() {
+        let mut a = Analyser::new();
+        let dynamic = a.handle_rename(&["x".to_string(), "y[z]".to_string()], &[], &[], &[], 0);
+        assert!(dynamic, "rename x y[z] cannot be resolved statically");
+        assert_eq!(a.renamed_commands.len(), 0);
+        assert_eq!(a.deleted_commands.len(), 0);
+    }
+
+    #[test]
+    fn handle_rename_wrong_shape_no_op() {
+        let mut a = Analyser::new();
+        let dynamic = a.handle_rename(&["onlyone".to_string()], &[], &[], &[], 0);
+        assert!(!dynamic);
+        assert_eq!(a.renamed_commands.len(), 0);
+        assert_eq!(a.deleted_commands.len(), 0);
+    }
+
+    // handle_source_command
+
+    #[test]
+    fn handle_source_command_resolves_a_same_file_constant_variable() {
+        // The simplest possible case: a straight-line `set`, zero branches, zero
+        // external input, immediately followed by `source $var` — the real
+        // corpus's `set p "e.tcl"; source $p` shape, resolved through the
+        // same constant-string lattice `rename`'s OLD/NEW words use, via the
+        // shared `resolve_dynamic_word`.
+        let mut a = Analyser::new();
+        let r = a.analyse("namespace eval ::z { set p \"e.tcl\"; source $p }\n", "tcl");
+        let target = r
+            .source_targets
+            .iter()
+            .find(|s| s.raw_path == "e.tcl")
+            .unwrap_or_else(|| panic!("resolved literal not found: {:?}", r.source_targets));
+        assert!(target.is_literal, "{target:?}");
+    }
+
+    #[test]
+    fn handle_source_command_resolves_a_concatenated_constant_variable() {
+        // A multi-token word (`${base}.tcl`, a Var fragment concatenated
+        // with a literal) goes through `fold_interpolation_single` rather
+        // than the single-token `resolve_const_word` fast path — covered
+        // separately since it's a different code path inside
+        // `resolve_dynamic_word`.
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "namespace eval ::z { set base \"helper\"; source ${base}.tcl }\n",
+            "tcl",
+        );
+        let target = r
+            .source_targets
+            .iter()
+            .find(|s| s.raw_path == "helper.tcl")
+            .unwrap_or_else(|| panic!("resolved literal not found: {:?}", r.source_targets));
+        assert!(target.is_literal, "{target:?}");
+    }
+
+    #[test]
+    fn handle_source_command_a_dynamic_variable_with_no_known_value_stays_dynamic() {
+        // A proc parameter is never constant-tracked (the same limitation
+        // `resolve_dynamic_word` already documents for `rename`) — `source
+        // $p` here must stay conservatively dynamic rather than guess.
+        let mut a = Analyser::new();
+        let r = a.analyse("proc f {p} { source $p }\n", "tcl");
+        assert_eq!(r.source_targets.len(), 1, "{:?}", r.source_targets);
+        assert!(!r.source_targets[0].is_literal, "{:?}", r.source_targets[0]);
+    }
+
+    #[test]
+    fn handle_source_command_leaves_a_bracket_wrapped_variable_dynamic() {
+        // A same-file constant wrapped inside a `[file join ...]` command
+        // substitution — the real corpus's `source [file join $edir
+        // extra.tcl]` shape — can't be folded by the same-word constant
+        // lattice (`fold_interpolation_single` rejects any word containing
+        // `[` outright, by design — a command substitution can have
+        // arbitrary side effects), and `evaluate_auto_path_expr`'s
+        // separate `[info script]`-anchored folder doesn't evaluate `$var`
+        // at all.
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "namespace eval ::z { set dir \"lib\"; source [file join $dir extra.tcl] }\n",
+            "tcl",
+        );
+        assert_eq!(r.source_targets.len(), 1, "{:?}", r.source_targets);
+        assert!(!r.source_targets[0].is_literal, "{:?}", r.source_targets[0]);
+    }
+
+    // The `INSTALLS_NAMED_DEFINITION` re-dispatch contract.
+
+    #[test]
+    fn every_installer_spec_lands_on_a_live_redispatch_arm() {
+        // Drift gate — the trait is a *promise* that
+        // `simulate_remaining_foreach_iterations` re-runs the command once
+        // per literal `foreach` element.  A spec that carries it but whose
+        // analyser hook has no arm in that match silently promises nothing
+        // (`oo::objdefine` is exactly that shape).
+        // Registry-driven, so a newly-stamped spec fails here rather than
+        // in a corpus months later.
+        use tcl_registry::hooks::AnalyserHookId as Hook;
+        let redispatched = [Hook::Proc, Hook::Rename, Hook::OoDefine, Hook::OoObjdefine];
+        let registry = tcl_registry::CommandRegistry::build_default();
+        let mut checked = 0usize;
+        for name in registry.command_names() {
+            for spec in registry.specs(name) {
+                if !spec
+                    .traits
+                    .contains(tcl_registry::Traits::INSTALLS_NAMED_DEFINITION)
+                {
+                    continue;
+                }
+                checked += 1;
+                let hook = spec.analyser_hook.unwrap_or_else(|| {
+                    panic!("{name} carries INSTALLS_NAMED_DEFINITION but has no analyser hook")
+                });
+                assert!(
+                    redispatched.contains(&hook),
+                    "{name} carries INSTALLS_NAMED_DEFINITION but its hook {hook:?} has no \
+                     arm in the foreach re-dispatch — the trait promises a re-dispatch \
+                     the match does not deliver",
+                );
+            }
+        }
+        assert!(
+            checked >= 4,
+            "expected proc/rename/oo::define/oo::objdefine, saw {checked}"
+        );
+    }
+
+    #[test]
+    fn foreach_objdefine_records_per_object_facts_for_every_literal_element() {
+        // TP — the sibling shape.  tclsh 9.0.4 and 8.6.16
+        // both run `foreach o {::a ::b} { oo::objdefine $o { method probe
+        // {} {…} } }` and report `probe` in `info object methods` for
+        // *both* objects, so both must carry the per-object method fact.
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "oo::class create Base { method hello {} { return hi } }\n\
+             Base create ::a\n\
+             Base create ::b\n\
+             foreach o {::a ::b} {\n    oo::objdefine $o {\n        method probe {} { return probed }\n    }\n}\n",
+            "tcl9.0",
+        );
+        for obj in ["::a", "::b"] {
+            let methods = r
+                .object_methods
+                .get(obj)
+                .unwrap_or_else(|| panic!("{obj} has per-object methods: {:?}", r.object_methods));
+            assert!(
+                methods.iter().any(|m| m.def.name == "probe"),
+                "{obj} gained probe: {methods:?}",
+            );
+        }
+    }
+
+    #[test]
+    fn foreach_objdefine_does_not_double_record_the_first_element() {
+        // FP guard — the ordinary body walk covers the first element and
+        // the simulation covers the rest, so the first element's site is
+        // visited twice under the loop variable's own key.  One source site
+        // can never declare the same member twice, so it must appear once.
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "oo::class create Base { method hello {} { return hi } }\n\
+             Base create ::a\n\
+             Base create ::b\n\
+             foreach o {::a ::b} {\n    oo::objdefine $o {\n        method probe {} { return probed }\n    }\n}\n",
+            "tcl9.0",
+        );
+        for (key, methods) in &r.object_methods {
+            let probes = methods.iter().filter(|m| m.def.name == "probe").count();
+            assert!(
+                probes <= 1,
+                "{key} recorded probe {probes} times: {methods:?}",
+            );
+        }
+    }
+
+    #[test]
+    fn foreach_objdefine_does_not_duplicate_body_diagnostics() {
+        // FP guard — re-running the installer per element re-walks the
+        // per-object method bodies, so a diagnostic raised inside one must
+        // still be reported once per site, never once per iteration.
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "oo::class create Base { method hello {} { return hi } }\n\
+             Base create ::a\n\
+             Base create ::b\n\
+             foreach o {::a ::b} {\n    oo::objdefine $o {\n        method probe {} { return $undefinedVar }\n    }\n}\n",
+            "tcl9.0",
+        );
+        let mut seen = std::collections::HashSet::new();
+        for diag in &r.diagnostics {
+            assert!(
+                seen.insert((diag.code.to_string(), diag.span)),
+                "duplicate diagnostic {:?} at {:?}",
+                diag.code,
+                diag.span,
+            );
+        }
+    }
+
+    #[test]
+    fn foreach_objdefine_over_a_dynamic_list_abstains() {
+        // TN — a runtime element list names no object the walk can know, so
+        // the per-object facts stay under the loop variable's own key and
+        // are never attributed to a literal object.
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "oo::class create Base { method hello {} { return hi } }\n\
+             Base create ::a\n\
+             foreach o $objects {\n    oo::objdefine $o {\n        method probe {} { return probed }\n    }\n}\n",
+            "tcl9.0",
+        );
+        assert!(
+            !r.object_methods.contains_key("::a"),
+            "a runtime receiver must not be attributed to a literal object: {:?}",
+            r.object_methods,
+        );
+        assert!(
+            r.object_methods.contains_key("o"),
+            "the facts stay under the receiver variable: {:?}",
+            r.object_methods,
+        );
+    }
+
+    // handle_oo_objdefine
+
+    #[test]
+    fn handle_oo_objdefine_records_dollar_var() {
+        let mut a = Analyser::new();
+        a.handle_oo_objdefine(&["$obj".to_string()], &[], &[], &[]);
+        assert!(a.objdefined_vars.contains("obj"));
+    }
+
+    #[test]
+    fn handle_oo_objdefine_records_braced_dollar_var() {
+        let mut a = Analyser::new();
+        a.handle_oo_objdefine(&["${obj}".to_string()], &[], &[], &[]);
+        assert!(a.objdefined_vars.contains("obj"));
+    }
+
+    #[test]
+    fn handle_oo_objdefine_records_bare_name() {
+        let mut a = Analyser::new();
+        a.handle_oo_objdefine(&["obj".to_string()], &[], &[], &[]);
+        assert!(a.objdefined_vars.contains("obj"));
+    }
+
+    #[test]
+    fn oo_objdefine_body_methods_are_analysed() {
+        // Before: the `oo::objdefine` body was never parsed, so nothing inside
+        // a per-object method resolved.  Now the body walks like any method
+        // body — the call it makes is recorded as an invocation.
+        let mut a = Analyser::new();
+        let src = "proc helper {} {}\n\
+                   oo::class create Foo {}\n\
+                   set o [Foo new]\n\
+                   oo::objdefine $o {\n    \
+                       method greet {} { helper }\n\
+                   }\n";
+        let r = a.analyse(src, "tcl8.6");
+        assert!(
+            r.command_invocations.iter().any(|i| i.name == "helper"),
+            "the call inside the per-object method body should be analysed: {:?}",
+            r.command_invocations
+                .iter()
+                .map(|i| &i.name)
+                .collect::<Vec<_>>(),
+        );
+    }
+
+    // handle_oo_class_command
+
+    #[test]
+    fn handle_oo_class_create_records_class() {
+        let mut a = Analyser::new();
+        // Metaclass recognition is now registry-trait-driven (`IS_OO_METACLASS`).
+        a.registry = Some(std::sync::Arc::clone(
+            tcl_registry::model::ingress::static_context_for("tcl").commands(),
+        ));
+        let handled = a.handle_oo_class_command(
+            "oo::class",
+            &["create".to_string(), "MyClass".to_string()],
+            &[
+                esc_tok(span(0, 9)),
+                esc_tok(span(10, 16)),
+                esc_tok(span(17, 24)),
+            ],
+            &[],
+            esc_tok(span(0, 9)),
+        );
+        assert!(handled);
+        assert!(a.result.all_classes.contains_key("::MyClass"));
+        let cls = &a.result.all_classes["::MyClass"];
+        assert_eq!(cls.name, "MyClass");
+    }
+
+    #[test]
+    fn handle_oo_class_create_with_body() {
+        // arg_tokens stripped of cmd_name (matching the
+        // ``process_command`` dispatch convention).
+        let mut a = Analyser::new();
+        a.registry = Some(std::sync::Arc::clone(
+            tcl_registry::model::ingress::static_context_for("tcl").commands(),
+        ));
+        let handled = a.handle_oo_class_command(
+            "oo::class",
+            &[
+                "create".to_string(),
+                "MyClass".to_string(),
+                "method m {} {}".to_string(),
+            ],
+            &[
+                esc_tok(span(10, 16)),
+                esc_tok(span(17, 24)),
+                str_tok(span(25, 41)),
+            ],
+            &[],
+            esc_tok(span(0, 9)),
+        );
+        assert!(handled);
+        assert_eq!(a.result.all_classes["::MyClass"].body_span, span(25, 41));
+    }
+
+    #[test]
+    fn handle_oo_class_wrong_subcommand_returns_false() {
+        let mut a = Analyser::new();
+        let handled = a.handle_oo_class_command(
+            "oo::class",
+            &["destroy".to_string(), "MyClass".to_string()],
+            &[
+                esc_tok(span(0, 9)),
+                esc_tok(span(10, 17)),
+                esc_tok(span(18, 25)),
+            ],
+            &[],
+            esc_tok(span(0, 9)),
+        );
+        assert!(!handled);
+        assert_eq!(a.result.all_classes.len(), 0);
+    }
+
+    // handle_oo_class_command body walking
+
+    #[test]
+    fn analyse_oo_class_body_records_superclass_and_methods() {
+        // End-to-end: ``oo::class create Sub`` with a body
+        // declaring a superclass and a method.  After analyse
+        // ``::Sub`` should carry both fields.
+        let mut a = crate::analyser::Analyser::new();
+        let r = a.analyse(
+            "oo::class create Sub { superclass ::Base\nmethod greet {} { puts hi } }",
+            "tcl",
+        );
+        assert!(r.all_classes.contains_key("::Sub"));
+        let cls = &r.all_classes["::Sub"];
+        assert_eq!(cls.superclasses, vec!["::Base"]);
+        assert!(cls.methods.contains_key("greet"));
+        assert_eq!(cls.methods["greet"].kind, "method");
+    }
+
+    #[test]
+    fn analyse_oo_class_body_records_classmethod_and_mixin() {
+        let mut a = crate::analyser::Analyser::new();
+        let r = a.analyse(
+            "oo::class create C { mixin ::M\nclassmethod build {} { return ok } }",
+            "tcl",
+        );
+        let cls = &r.all_classes["::C"];
+        assert_eq!(cls.mixins, vec!["::M"]);
+        assert!(cls.class_methods.contains_key("build"));
+        assert!(!cls.methods.contains_key("build"));
+    }
+
+    // handle_oo_define_command body walking
+
+    #[test]
+    fn analyse_oo_define_body_extends_existing_class() {
+        // ``oo::class create C {}`` followed by ``oo::define
+        // C { method m {} {} }`` — the method ends up in the
+        // already-recorded class.
+        let mut a = crate::analyser::Analyser::new();
+        let r = a.analyse(
+            "oo::class create C {}\noo::define C { method m {} {} }",
+            "tcl",
+        );
+        assert!(r.all_classes.contains_key("::C"));
+        let cls = &r.all_classes["::C"];
+        assert!(cls.methods.contains_key("m"));
+    }
+
+    #[test]
+    fn oo_define_extending_an_existing_class_adds_its_own_class_body_span() {
+        // `class_body_spans` must record BOTH the
+        // creation site's own span AND the separate `oo::define` block's
+        // own span for the same qualified class — a class extended via a
+        // *separate* `oo::define ClassName { ... }` block has textually
+        // disjoint body spans, not one contiguous range, and `my`-dispatch
+        // resolution (a lexical "which class's body am I inside" query)
+        // needs every contributing span, not just the first one recorded.
+        let mut a = crate::analyser::Analyser::new();
+        let src = "oo::class create C {}\noo::define C { method m {} {} }";
+        let r = a.analyse(src, "tcl");
+        let spans: Vec<tcl_lexer::Span> = r
+            .class_body_spans
+            .iter()
+            .filter(|(name, _)| name == "::C")
+            .map(|(_, span)| *span)
+            .collect();
+        assert_eq!(spans.len(), 2, "{spans:?}");
+        // One of the two recorded spans must cover the `oo::define`
+        // block's own `method m {} {}` text — the token whose containment
+        // `enclosing_class_at` checks for a cursor inside it.
+        let inside_define_block = u32::try_from(src.find("method m").unwrap()).unwrap();
+        assert!(
+            spans
+                .iter()
+                .any(|span| span.start() <= inside_define_block
+                    && inside_define_block < span.end()),
+            "no recorded span covers the oo::define block's own body: {spans:?}"
+        );
+    }
+
+    #[test]
+    fn oo_define_extends_class_named_like_a_create_subcommand() {
+        // `oo::define` / `oo::objdefine` carry a TclOO
+        // `definition_body` but no `IS_OO_METACLASS` trait, so a class literally
+        // named `create` must be *extended* by `handle_oo_define_command`, not
+        // stolen by `handle_oo_class_command` (which would record a bogus class
+        // named `method`).  The class-creator check requires the metaclass
+        // trait, which define/objdefine lack.
+        let mut a = crate::analyser::Analyser::new();
+        let r = a.analyse("oo::define create method greet {} { return hi }", "tcl");
+        // The real class is `create`, with method `greet` — not a bogus class.
+        let cls = r
+            .all_classes
+            .get("::create")
+            .expect("class `create` recorded by oo::define");
+        assert!(
+            cls.methods.contains_key("greet"),
+            "method greet must be recorded on class `create`: {:?}",
+            cls.methods.keys().collect::<Vec<_>>()
+        );
+        assert!(
+            !r.all_classes.contains_key("::method"),
+            "no bogus class named `method` should be created",
+        );
+    }
+
+    #[test]
+    fn analyse_oo_define_inline_form_extends_class() {
+        // ``oo::define C method m {} {}`` — inline form,
+        // single subcommand.  Works whether or not the class
+        // was already declared (creates a stub if absent).
+        let mut a = crate::analyser::Analyser::new();
+        let r = a.analyse("oo::define MyClass method greet {} { puts hi }", "tcl");
+        assert!(r.all_classes.contains_key("::MyClass"));
+        let cls = &r.all_classes["::MyClass"];
+        assert!(cls.methods.contains_key("greet"));
+    }
+
+    #[test]
+    fn two_dynamic_oo_define_targets_sharing_a_variable_name_never_merge() {
+        // TP — clay.tcl's `current_class`-based Ensemble DSL shape: two lexically
+        // unrelated procs each write `oo::define $class method ... ` with a
+        // same-named local `class` (an unremarkable choice for this exact
+        // idiom) and each add their own method. Keying such a call on the raw
+        // text `$class` gives both calls the identical key, so the second
+        // `remove`+`insert` round-trip silently merges the first proc's
+        // method into the second's ClassDef (and vice versa via the
+        // dual-registration into `scope.classes`), producing a document
+        // symbol whose child method range sits outside its own parent's.
+        // The targets here are *parameters*, so no constant dominates
+        // either call and both stay genuinely dynamic — the shape this
+        // guard is about.  (A target bound to a dominating constant is a
+        // different, statically-resolvable case: see
+        // `oo_define_resolves_a_dominating_constant_target`.)
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "proc addFoo {class} {\n    oo::define $class method foo {} { return foo }\n}\n\
+             proc addBar {class} {\n    oo::define $class method bar {} { return bar }\n}\n",
+            "tcl8.6",
+        );
+        let synthetic: Vec<_> = r
+            .all_classes
+            .iter()
+            .filter(|(k, _)| k.contains("@dynclass@"))
+            .collect();
+        assert_eq!(
+            synthetic.len(),
+            2,
+            "each dynamic oo::define call site gets its own ClassDef: {:?}",
+            r.all_classes.keys().collect::<Vec<_>>(),
+        );
+        let has_foo_only = synthetic
+            .iter()
+            .any(|(_, c)| c.methods.contains_key("foo") && !c.methods.contains_key("bar"));
+        let has_bar_only = synthetic
+            .iter()
+            .any(|(_, c)| c.methods.contains_key("bar") && !c.methods.contains_key("foo"));
+        assert!(
+            has_foo_only && has_bar_only,
+            "neither call site's method may leak into the other's ClassDef: {:?}",
+            synthetic
+                .iter()
+                .map(|(k, c)| (k, c.methods.keys().collect::<Vec<_>>()))
+                .collect::<Vec<_>>(),
+        );
+    }
+
+    #[test]
+    fn dynamic_oo_define_target_does_not_touch_a_same_named_literal_class() {
+        // FP guard — a class whose *written* name matches nothing knowable
+        // (`$class` bound to a parameter) must never be found/extended
+        // through a literal class that happens to share the variable's
+        // source text: the synthetic key can never collide with a real
+        // qualified name.  A target bound to a dominating constant *is*
+        // resolvable and does extend the real class — tclsh 9.0.4/8.6.16
+        // agree — which is
+        // `oo_define_resolves_a_dominating_constant_target`'s case, not
+        // this one.
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "oo::class create Widget {\n    method real {} {}\n}\n\
+             proc addDynamic {class} {\n    oo::define $class method dynamic {} {}\n}\n",
+            "tcl8.6",
+        );
+        let widget = &r.all_classes["::Widget"];
+        assert!(widget.methods.contains_key("real"), "{widget:?}");
+        assert!(
+            !widget.methods.contains_key("dynamic"),
+            "the dynamic call must not extend the literal same-named class: {widget:?}",
+        );
+    }
+
+    // handle_oo_define_command
+
+    #[test]
+    fn handle_oo_define_recognises_canonical_form() {
+        let mut a = Analyser::new();
+        let handled = a.handle_oo_define_command(
+            "oo::define",
+            &["MyClass".to_string(), "method m {} {}".to_string()],
+            &[],
+            &[],
+            &[],
+        );
+        assert!(handled);
+    }
+
+    #[test]
+    fn handle_oo_define_no_args_returns_false() {
+        let mut a = Analyser::new();
+        let handled = a.handle_oo_define_command("oo::define", &[], &[], &[], &[]);
+        assert!(!handled);
+    }
+
+    // `incr` / `append` / `lappend` / `dict` — bound by role
+
+    #[test]
+    fn incr_binds_its_target_by_role() {
+        let mut a = Analyser::new();
+        dispatch_words(&mut a, &["incr", "counter"]);
+        assert!(a.result.global_scope.variables.contains_key("counter"));
+        // A read-modify-write target is read before it is written, so the
+        // binding is a side effect, never a "set but unused" write.
+        assert!(!a.result.global_scope.variables["counter"].warn_if_unused);
+    }
+
+    #[test]
+    fn handle_incr_with_amount() {
+        let mut a = Analyser::new();
+        dispatch_words(&mut a, &["incr", "counter", "5"]);
+        assert!(a.result.global_scope.variables.contains_key("counter"));
+        assert!(!a.result.global_scope.variables.contains_key("5"));
+    }
+
+    #[test]
+    fn handle_incr_no_args_no_op() {
+        let mut a = Analyser::new();
+        dispatch_words(&mut a, &["incr"]);
+        assert!(a.result.global_scope.variables.is_empty());
+    }
+
+    #[test]
+    fn a_written_array_element_binds_its_array_and_a_computed_name_binds_nothing() {
+        // `incr hits($word)` writes an element of `hits` whatever the key;
+        // `append $name x` and `incr $count` write a variable no static name
+        // spells.
+        let mut a = Analyser::new();
+        dispatch_words(&mut a, &["incr", "hits($word)"]);
+        dispatch_words(&mut a, &["append", "$name", "x"]);
+        dispatch_words(&mut a, &["incr", "$count"]);
+        dispatch_words(&mut a, &["lappend", "items", "x"]);
+        assert!(a.result.global_scope.variables.contains_key("hits"));
+        assert!(a.result.global_scope.variables.contains_key("items"));
+        assert!(!a.result.global_scope.variables.contains_key("name"));
+        assert!(!a.result.global_scope.variables.contains_key("count"));
+        assert!(!a.result.global_scope.variables.contains_key("$count"));
+    }
+
+    #[test]
+    fn dict_for_and_dict_update_bind_their_loop_variables_by_role() {
+        let mut a = Analyser::new();
+        dispatch_words(&mut a, &["dict", "for", "k v", "$d", ""]);
+        dispatch_words(&mut a, &["dict", "update", "d", "key", "w", ""]);
+        for name in ["k", "v", "w"] {
+            assert!(
+                a.result.global_scope.variables.contains_key(name),
+                "{name}: {:?}",
+                a.result.global_scope.variables.keys().collect::<Vec<_>>()
+            );
+        }
+        // Neither the key word nor the dictionary variable is a loop variable.
+        assert!(!a.result.global_scope.variables.contains_key("key"));
+    }
+
+    // ClassDef extended fields + UnknownProcInfo
+
+    #[test]
+    fn analyse_oo_class_records_metaclass_from_command_name() {
+        let mut a = crate::analyser::Analyser::new();
+        let r = a.analyse("oo::class create C {}", "tcl");
+        let cls = &r.all_classes["::C"];
+        assert_eq!(cls.metaclass, "oo::class");
+    }
+
+    #[test]
+    fn analyse_oo_class_body_records_constructors_and_destructor() {
+        let mut a = crate::analyser::Analyser::new();
+        let r = a.analyse(
+            "oo::class create C { constructor args { puts ctor }\ndestructor { puts dtor } }",
+            "tcl",
+        );
+        let cls = &r.all_classes["::C"];
+        assert_eq!(cls.constructors.len(), 1);
+        assert_eq!(cls.constructors[0].kind, "constructor");
+        assert!(cls.destructor.is_some());
+        assert_eq!(cls.destructor.as_ref().unwrap().kind, "destructor");
+    }
+
+    #[test]
+    fn analyse_oo_class_body_records_variables_filters_exports() {
+        let mut a = crate::analyser::Analyser::new();
+        let r = a.analyse(
+            "oo::class create C { variable x y\nfilter log\nexport foo bar\nunexport hidden }",
+            "tcl",
+        );
+        let cls = &r.all_classes["::C"];
+        assert_eq!(cls.variables, vec!["x", "y"]);
+        assert_eq!(cls.filters, vec!["log"]);
+        assert!(cls.exports.contains("foo"));
+        assert!(cls.exports.contains("bar"));
+        assert!(cls.unexports.contains("hidden"));
+    }
+
+    #[test]
+    fn analyse_oo_class_body_records_property_def() {
+        let mut a = crate::analyser::Analyser::new();
+        let r = a.analyse(
+            "oo::class create C { property colour -kind readwrite -get { return red } }",
+            "tcl",
+        );
+        let cls = &r.all_classes["::C"];
+        let pd = cls.properties.get("colour").expect("colour recorded");
+        assert_eq!(pd.kind, "readwrite");
+        assert!(pd.has_getter);
+        assert!(!pd.has_setter);
+    }
+
+    #[test]
+    fn analyse_unknown_proc_records_dispatch_targets_end_to_end() {
+        // End-to-end: a ``proc unknown {cmd args} {...}`` with
+        // an exact-match switch should populate
+        // ``result.unknown_proc_info`` with the arm labels as
+        // dispatch targets.  This is what gates W123.
+        let mut a = crate::analyser::Analyser::new();
+        let r = a.analyse(
+            "proc unknown {cmd args} { switch -exact $cmd { foo { return 1 } bar { return 2 } } }",
+            "tcl",
+        );
+        let info = r.unknown_proc_info.expect("unknown_proc_info populated");
+        assert!(!info.empty_stub);
+        assert!(info.dispatch_targets.contains("foo"));
+        assert!(info.dispatch_targets.contains("bar"));
+    }
+
+    #[test]
+    fn analyse_without_unknown_proc_leaves_unknown_proc_info_none() {
+        let mut a = crate::analyser::Analyser::new();
+        let r = a.analyse("proc foo {} { return 1 }", "tcl");
+        assert!(r.unknown_proc_info.is_none());
+    }
+
+    #[test]
+    fn analyse_unknown_proc_with_empty_body_marks_empty_stub() {
+        let mut a = crate::analyser::Analyser::new();
+        let r = a.analyse("proc unknown {cmd args} {}", "tcl");
+        let info = r.unknown_proc_info.expect("unknown_proc_info populated");
+        assert!(info.empty_stub);
+    }
+
+    /// `conditional_depth` is driven by
+    /// `Traits::BRANCH_SELECTED_BODY`, so exactly the branch-selected bodies
+    /// mark a `package require` conditional.
+    ///
+    /// `if` and `try` bodies are branch-selected: at most one runs, chosen at
+    /// run time, so nothing inside dominates the code after the command. A
+    /// `while` body is skippable *and* repeatable — a different question,
+    /// owned by `control_flow_body_depth` — and does **not** mark the require
+    /// conditional. A top-level require is unconditional.
+    #[test]
+    fn package_require_conditionality_follows_the_branch_selected_body_trait() {
+        let conditional_flags = |src: &str| -> Vec<bool> {
+            let mut a = crate::analyser::Analyser::new();
+            a.analyse(src, "tcl8.6")
+                .package_requires
+                .iter()
+                .map(|p| p.conditional)
+                .collect()
+        };
+        assert_eq!(conditional_flags("package require Tcl 8.6\n"), vec![false]);
+        assert_eq!(
+            conditional_flags("if {$x} { package require Tcl 8.6 }\n"),
+            vec![true],
+        );
+        assert_eq!(
+            conditional_flags("while {$x} { package require Tcl 8.6 }\n"),
+            vec![false],
+            "a loop body is skippable-and-repeatable, a different question",
+        );
+        // `try`'s bodies take the generic body walk at their clause's timing:
+        // the protected body is a guarded probe, so it is conditional like
+        // `if`'s.
+        assert_eq!(
+            conditional_flags("try { package require Tcl 8.6 } on error {} {}\n"),
+            vec![true],
+        );
+    }
+
+    /// The generic body walk raises the branch-selected depth per clause
+    /// timing (`body_depths`), so a `package require` records the right
+    /// conditionality wherever in a `try` it sits.
+    ///
+    /// Clause semantics are C Tcl's (Tcl 9.0.4 `try(n)`, `TclNRTryObjCmd` in
+    /// `generic/tclCmdMZ.c`): the main body may be cut short by an exception a
+    /// handler swallows and the `on`/`trap` handlers run only on a match — both
+    /// branch-selected — while `finally` always runs, so it is not.
+    #[test]
+    fn package_require_conditionality_per_try_clause_kind() {
+        let conditional_flags = |src: &str| -> Vec<bool> {
+            let mut a = crate::analyser::Analyser::new();
+            a.analyse(src, "tcl8.6")
+                .package_requires
+                .iter()
+                .map(|p| p.conditional)
+                .collect()
+        };
+        // TP — the guarded optional-dependency idiom.
+        assert_eq!(
+            conditional_flags("try { package require Foo } on error {} {}\n"),
+            vec![true],
+            "a require in the main try body is conditional",
+        );
+        // TP — an `on` handler body.
+        assert_eq!(
+            conditional_flags("try { set x 1 } on error {} { package require Foo }\n"),
+            vec![true],
+            "a require in an `on` handler is conditional",
+        );
+        // TP — a `trap` handler body.
+        assert_eq!(
+            conditional_flags(
+                "try { set x 1 } trap {POSIX ENOENT} {m o} { package require Foo }\n"
+            ),
+            vec![true],
+            "a require in a `trap` handler is conditional",
+        );
+        // TN — a `finally` body always runs, so it is not branch-selected.
+        assert_eq!(
+            conditional_flags("try { set x 1 } finally { package require Foo }\n"),
+            vec![false],
+            "a `finally` body always runs — the require is unconditional",
+        );
+        // TN — a top-level require, the control.
+        assert_eq!(conditional_flags("package require Foo\n"), vec![false]);
+        // FN guard — the depth is restored after the walk, so a require that
+        // follows the whole `try` command is still unconditional.
+        assert_eq!(
+            conditional_flags(
+                "try { package require A } on error {} { package require B } finally { package require C }\npackage require D\n"
+            ),
+            vec![true, true, false, false],
+            "main body + handler conditional; finally and the following \
+             top-level require unconditional",
+        );
+        // FP guard — nesting a `try` inside an `if` must not leave the depth
+        // stuck: the require after both is still unconditional.
+        assert_eq!(
+            conditional_flags(
+                "if {$x} { try { package require A } finally { set y 1 } }\npackage require B\n"
+            ),
+            vec![true, false],
+        );
+    }
+
+    /// `for`'s bodies take the generic body walk at their clause's timing
+    /// (D2.55), the reading the retired `handle_for_command` gave: `start`
+    /// runs once, at the enclosing depth; `next` and the body run per
+    /// iteration, at a control-flow depth. None is branch-selected.
+    #[test]
+    fn for_start_runs_at_the_enclosing_depth_and_next_and_body_per_iteration() {
+        let mut a = crate::analyser::Analyser::new();
+        let depths: Vec<(bool, bool)> = a
+            .analyse(
+                "for {package require A} {$i < 3} {package require B} {package require C}\n\
+                 package require D\n",
+                "tcl8.6",
+            )
+            .package_requires
+            .iter()
+            .map(|p| (p.conditional, p.control_flow))
+            .collect();
+        assert_eq!(
+            depths,
+            vec![(false, false), (false, true), (false, true), (false, false)],
+            "start straight-line; next and body control flow; the depth \
+             restored after the loop",
+        );
+    }
+
+    /// A `try` handler body is `Selected` — conditional and control flow — so
+    /// a `rename` there may never run and is not a straight-line deletion,
+    /// as one inside a loop body is not. A
+    /// `finally` body always runs, so its `rename` still is one.
+    #[test]
+    fn a_rename_in_a_try_handler_is_not_a_straight_line_deletion() {
+        let destroys_foo = |src: &str| {
+            let mut a = crate::analyser::Analyser::new();
+            a.analyse(src, "tcl8.6")
+                .destroyed_commands
+                .contains_key("::foo")
+        };
+        assert!(!destroys_foo(
+            "proc foo {} {}\ntry { set x 1 } on error {} { rename foo {} }\n"
+        ));
+        assert!(!destroys_foo(
+            "proc foo {} {}\ntry { set x 1 } trap {POSIX ENOENT} {} { rename foo {} }\n"
+        ));
+        assert!(destroys_foo(
+            "proc foo {} {}\ntry { set x 1 } finally { rename foo {} }\n"
+        ));
+        assert!(destroys_foo("proc foo {} {}\nrename foo {}\n"));
+    }
+
+    /// A `proc unknown` nested inside `namespace eval`
+    /// is an ordinary namespace proc, not the interpreter's handler, so it
+    /// must not seed `unknown_proc_info` and suppress W123 file-wide.
+    ///
+    /// The body is the dynamic (`exec`-dispatching) shape that *would*
+    /// suppress W123 file-wide if this were the global handler, so the test
+    /// isolates the scope question rather than the body-shape one.
+    ///
+    /// Oracle (tclsh8.6.14 and tclsh9.0.4): with
+    /// `namespace eval ::mylib { proc unknown {args} { return handled } }`,
+    /// calling `totallyBogusCommand` still fails
+    /// `invalid command name "totallyBogusCommand"` — only a *global*
+    /// `proc unknown` makes it return `handled`.
+    #[test]
+    fn analyse_namespace_local_unknown_proc_does_not_seed_the_global_handler() {
+        let mut a = crate::analyser::Analyser::new();
+        let r = a.analyse(
+            "namespace eval ::mylib { proc unknown {cmd args} { exec $cmd {*}$args } }\n\
+             totallyBogusCommand\n",
+            "tcl9.0",
+        );
+        assert!(
+            r.unknown_proc_info.is_none(),
+            "a namespace-local proc named unknown is not the global handler",
+        );
+        assert!(
+            r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W123),
+            "so the bogus command is still unresolved; got {:?}",
+            r.diagnostics,
+        );
+    }
+
+    /// TP guard — the global handler still seeds the info (and still
+    /// suppresses W123), which is the behaviour the C2 fix must not disturb.
+    #[test]
+    fn analyse_global_unknown_proc_still_seeds_the_handler() {
+        let mut a = crate::analyser::Analyser::new();
+        let r = a.analyse(
+            "proc unknown {cmd args} { exec $cmd {*}$args }\ntotallyBogusCommand\n",
+            "tcl9.0",
+        );
+        assert!(
+            r.unknown_proc_info.is_some(),
+            "a global proc unknown is the handler",
+        );
+        assert!(
+            !r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W123),
+            "and it suppresses the unresolved-command warning; got {:?}",
+            r.diagnostics,
+        );
+    }
+
+    #[test]
+    fn analyse_qualified_unknown_proc_also_populates_info() {
+        // ``::tcl::unknown`` (the canonical fully-qualified
+        // name) should trigger detection too.
+        let mut a = crate::analyser::Analyser::new();
+        let r = a.analyse("proc ::tcl::unknown {cmd args} { exec $cmd }", "tcl");
+        let info = r.unknown_proc_info.expect("unknown_proc_info populated");
+        assert!(info.has_exec);
+    }
+
+    // stray-close-bracket recovery
+
+    #[test]
+    fn analyse_top_level_repairs_stray_close_bracket() {
+        // ``set x string]`` is a typo for ``set x [string ...]``.
+        // The recovery should rewrite the third argv entry into
+        // a virtual ``CMD`` token before dispatch so the var
+        // record is registered with the recovered shape.
+        let mut a = crate::analyser::Analyser::new();
+        let r = a.analyse("set x string]", "tcl");
+        // ``x`` ends up in scope as a single-arg ``set`` (a var
+        // read), not as a two-arg ``set`` with the broken text
+        // — recovery yields the synthetic ``[string]`` command
+        // word so dispatch sees the intended shape.
+        assert!(r.global_scope.variables.contains_key("x"));
+    }
+
+    // unknown_proc_info / package require
+
+    #[test]
+    fn analyse_records_package_require() {
+        let mut a = crate::analyser::Analyser::new();
+        let r = a.analyse("package require Tcl 8.6", "tcl");
+        assert_eq!(r.package_requires.len(), 1);
+        let p = &r.package_requires[0];
+        assert_eq!(p.name, "Tcl");
+        assert_eq!(p.version.as_deref(), Some("8.6"));
+        assert_eq!(p.requirements, ["8.6"]);
+        assert!(!p.conditional);
+        assert!(!p.control_flow);
+        assert!(!p.exact, "no `-exact` word means the ranged requirement");
+    }
+
+    #[test]
+    fn analyse_records_every_package_requirement_alternative() {
+        let mut a = crate::analyser::Analyser::new();
+        let r = a.analyse("package require Foo 1.0 2.0-2.5", "tcl8.6");
+        let p = &r.package_requires[0];
+        assert_eq!(p.version.as_deref(), Some("1.0"));
+        assert_eq!(p.requirements, ["1.0", "2.0-2.5"]);
+    }
+
+    #[test]
+    fn analyse_marks_package_requires_in_control_flow() {
+        let cases = [
+            (
+                "while {$enabled} { package require WhileDep 1.0 }",
+                "tcl8.6",
+                "WhileDep",
+            ),
+            (
+                "foreach item $items { package require ForeachDep 1.0 }",
+                "tcl8.6",
+                "ForeachDep",
+            ),
+            (
+                "lmap item $items { package require LmapDep 1.0 }",
+                "tcl8.6",
+                "LmapDep",
+            ),
+            (
+                "dict for {key value} {} { package require DictForDep 1.0 }",
+                "tcl8.6",
+                "DictForDep",
+            ),
+            (
+                "dict map {key value} {} { package require DictMapDep 1.0 }",
+                "tcl8.6",
+                "DictMapDep",
+            ),
+            (
+                "::tcl::dict::for {key value} {} { package require QualifiedDictForDep 1.0 }",
+                "tcl8.6",
+                "QualifiedDictForDep",
+            ),
+            (
+                "array for {key value} values { package require ArrayForDep 1.0 }",
+                "tcl9.0",
+                "ArrayForDep",
+            ),
+            (
+                "switch $kind a { package require SwitchDep 1.0 }",
+                "tcl8.6",
+                "SwitchDep",
+            ),
+            (
+                "timerate { package require TimerateDep 1.0 } 10 1",
+                "tcl9.0",
+                "TimerateDep",
+            ),
+        ];
+        for (source, dialect, name) in cases {
+            let mut a = crate::analyser::Analyser::new();
+            let r = a.analyse(source, dialect);
+            let p = r
+                .package_requires
+                .iter()
+                .find(|p| p.name == name)
+                .unwrap_or_else(|| panic!("missing {name} from {source:?}"));
+            assert!(
+                p.control_flow,
+                "{name} is inside a skippable or repeatable body: {source:?}",
+            );
+        }
+    }
+
+    #[test]
+    fn analyse_marks_only_the_repeatable_for_scripts_as_control_flow() {
+        let mut a = crate::analyser::Analyser::new();
+        let r = a.analyse(
+            "for {package require InitDep 1.0} {$enabled} \
+             {package require NextDep 1.0} {package require BodyDep 1.0}\n\
+             package require TailDep 1.0",
+            "tcl8.6",
+        );
+        let flags: Vec<_> = r
+            .package_requires
+            .iter()
+            .map(|p| (p.name.as_str(), p.control_flow))
+            .collect();
+        assert_eq!(
+            flags,
+            [
+                ("InitDep", false),
+                ("NextDep", true),
+                ("BodyDep", true),
+                ("TailDep", false),
+            ],
+        );
+    }
+
+    #[test]
+    fn analyse_records_package_require_exact_flag() {
+        let mut a = crate::analyser::Analyser::new();
+        let r = a.analyse("package require -exact Tcl 8.6", "tcl");
+        let p = &r.package_requires[0];
+        assert_eq!(p.name, "Tcl");
+        assert_eq!(p.version.as_deref(), Some("8.6"));
+        // TP: the flag reaches the record, so the resolver can
+        // narrow `8.6` to the degenerate range `8.6-8.6`.
+        assert!(p.exact);
+        // A lone `-exact` is the option with no package after it — tclsh
+        // 8.4–9.0: `wrong # args` (`PkgRequireCore` compares the word with
+        // `strcmp(…, "-exact")` whatever follows) — so nothing is required.
+        let r = a.analyse("package require -exact", "tcl");
+        assert!(r.package_requires.is_empty(), "{:?}", r.package_requires);
+        // FP guard — only the exact spelling is the flag: `-e` is not
+        // `-exact` (tclsh: `package require -e Tcl` asks for a package named
+        // `-e`). The registry's option scan reads a dash word naming no
+        // option as a call Tcl rejects, so the layout is unproven and no
+        // requirement — exact or not — is recorded for it.
+        let r = a.analyse("package require -e 1.0", "tcl");
+        assert!(
+            !r.package_requires.iter().any(|p| p.exact),
+            "{:?}",
+            r.package_requires
+        );
+    }
+
+    /// `package ifneeded NAME VER SCRIPT` registers a load script; the
+    /// two-word query form registers nothing.
+    #[test]
+    fn analyse_records_package_ifneeded_registrations_only() {
+        let mut a = crate::analyser::Analyser::new();
+        // TP — the setter form, the shape every `pkgIndex.tcl` writes.
+        let r = a.analyse(
+            "package ifneeded base64 2.5 [list source [file join $dir base64.tcl]]",
+            "tcl",
+        );
+        assert_eq!(r.package_ifneededs.len(), 1);
+        assert_eq!(r.package_ifneededs[0].name, "base64");
+        assert_eq!(r.package_ifneededs[0].version, "2.5");
+        // TP — a braced script body is equally a registration.
+        let r = a.analyse("package ifneeded mylib 1.0 {source lib.tcl}", "tcl");
+        assert_eq!(r.package_ifneededs.len(), 1);
+        // TN — the two-word form is a *query*; it registers nothing, so a
+        // document that merely asks what is registered must not be read as
+        // making the package's loading dynamic.
+        let r = a.analyse("package ifneeded base64 2.5", "tcl");
+        assert_eq!(
+            r.package_ifneededs,
+            [] as [crate::analyser::types::PackageIfneeded; 0]
+        );
+    }
+
+    /// `package prefer latest` is recorded; every other spelling of the
+    /// subcommand changes no state and is not.
+    #[test]
+    fn analyse_records_package_prefer_latest() {
+        let mut a = crate::analyser::Analyser::new();
+        // TP — the one transition that exists.
+        let r = a.analyse("package prefer latest", "tcl");
+        assert_eq!(r.package_prefer_latest.len(), 1);
+        assert!(!r.package_prefer_latest[0].conditional);
+        // TP — inside a guarded branch the record carries `conditional`, so a
+        // consumer can refuse to flip the selection rule on it.
+        let r = a.analyse("catch {package prefer latest}", "tcl");
+        assert_eq!(r.package_prefer_latest.len(), 1);
+        assert!(r.package_prefer_latest[0].conditional);
+        // TN — `stable` is a no-op from the default and silently ineffective
+        // afterwards; the bare form is a query; a dynamic mode word is not
+        // guessed at.
+        for src in [
+            "package prefer stable",
+            "package prefer",
+            "package prefer $mode",
+            "package prefer [mode]",
+        ] {
+            let r = a.analyse(src, "tcl");
+            assert_eq!(r.package_prefer_latest.len(), 0, "{src}");
+        }
+    }
+
+    #[test]
+    fn analyse_w123_suppressed_when_package_require_seen() {
+        // W123 is suppressed when any package require is on
+        // file — package may load arbitrary commands.
+        let mut a = crate::analyser::Analyser::new();
+        let r = a.analyse("package require Foo\nbogus_command arg", "tcl");
+        assert!(!r.diagnostics.iter().any(|d| d.code == DiagCode::W123));
+    }
+
+    #[test]
+    fn analyse_w123_suppressed_when_unknown_proc_chains_original() {
+        // ``proc unknown`` that chains the original handler is
+        // a *dynamic* shape — W123 is suppressed entirely
+        // because runtime can resolve any command name.
+        let mut a = crate::analyser::Analyser::new();
+        let r = a.analyse(
+            "proc unknown {cmd args} { _original_unknown $cmd {*}$args }\nbogus_command arg",
+            "tcl",
+        );
+        assert!(!r.diagnostics.iter().any(|d| d.code == DiagCode::W123));
+    }
+
+    #[test]
+    fn analyse_w123_suppressed_for_every_chain_spelling_of_the_handler() {
+        // `chains_original` is the registry's
+        // `Traits::UNRESOLVED_COMMAND_HANDLER`, so every spelling of the
+        // handler counts.  The old `CHAIN_TARGETS` list named the `tcl::`
+        // pair by hand and omitted `unknown` / `::unknown` entirely, so a
+        // handler chaining through the plain spelling read as
+        // self-contained and every unresolved command in the file collected
+        // a spurious W123.
+        for chain in ["unknown", "::unknown", "::tcl::unknown", "_orig_unknown"] {
+            let mut a = crate::analyser::Analyser::new();
+            let src =
+                format!("proc unknown {{cmd args}} {{ {chain} $cmd {{*}}$args }}\nbogus_cmd arg");
+            let r = a.analyse(&src, "tcl");
+            assert!(
+                !r.diagnostics.iter().any(|d| d.code == DiagCode::W123),
+                "chaining through {chain} should suppress W123",
+            );
+        }
+    }
+
+    #[test]
+    fn analyse_w123_suppressed_when_unknown_proc_calls_exec() {
+        // ``exec $cmd`` inside ``unknown`` is a dynamic shape;
+        // any command may be a real binary on PATH.
+        let mut a = crate::analyser::Analyser::new();
+        let r = a.analyse(
+            "proc unknown {cmd args} { exec $cmd {*}$args }\nbogus_command arg",
+            "tcl",
+        );
+        assert!(!r.diagnostics.iter().any(|d| d.code == DiagCode::W123));
+    }
+
+    #[test]
+    fn analyse_w123_still_fires_outside_explicit_dispatch_targets() {
+        // ``proc unknown`` with ONLY explicit dispatch targets
+        // (no exec / auto_load / chain / pattern / case-fold)
+        // is *not* dynamic — W123 should still fire for
+        // commands not in the explicit target set.
+        let mut a = crate::analyser::Analyser::new();
+        let r = a.analyse(
+            "proc unknown {cmd args} { switch -exact $cmd { foo { return 1 } } }\nbogus_command arg",
+            "tcl",
+        );
+        assert!(
+            r.diagnostics.iter().any(|d| d.code == DiagCode::W123),
+            "W123 expected for ``bogus_command`` outside explicit dispatch targets; got {:?}",
+            r.diagnostics,
+        );
+    }
+
+    #[test]
+    fn analyse_w123_suppressed_for_explicit_dispatch_target() {
+        // ``foo`` is in the explicit dispatch_targets — even
+        // for the non-dynamic shape, the per-invocation loop
+        // suppresses W123 for it.
+        let mut a = crate::analyser::Analyser::new();
+        let r = a.analyse(
+            "proc unknown {cmd args} { switch -exact $cmd { foo { return 1 } } }\nfoo arg",
+            "tcl",
+        );
+        assert!(
+            !r.diagnostics
+                .iter()
+                .any(|d| d.code == DiagCode::W123 && d.message.contains("'foo'")),
+            "W123 should not fire for command listed in dispatch_targets; got {:?}",
+            r.diagnostics,
+        );
+    }
+
+    #[test]
+    fn analyse_w123_still_fires_for_empty_unknown_stub() {
+        // An empty ``unknown`` stub resolves nothing — W123
+        // should still emit.
+        let mut a = crate::analyser::Analyser::new();
+        let r = a.analyse("proc unknown {cmd args} {}\nbogus_command arg", "tcl");
+        // ``bogus_command`` should be flagged.
+        assert!(r.diagnostics.iter().any(|d| d.code == DiagCode::W123));
+    }
+
+    // deep_param_traits plumbing
+    //
+    // These tests pin the contract that flipping
+    // `Analyser::deep_param_traits` actually changes the
+    // `ProcDef.param_traits` surface: the shallow pass alone
+    // misses traits hidden inside braced bodies, the deep pass
+    // catches them, and the union of both is what the analyser
+    // exposes.  The call-graph / symbol-graph / dataflow-graph /
+    // semantic-graph builders flip this on.
+
+    #[test]
+    fn analyse_with_deep_param_traits_surfaces_nested_eval() {
+        // `$body` is buried inside a `foreach` body — the
+        // shallow pass walks only top-level commands and misses
+        // it.  Flipping `deep_param_traits` on must surface
+        // `Eval`.
+        let source = "proc f {items body} {\n  foreach item $items {\n    uplevel 1 $body\n  }\n}";
+        let mut shallow = crate::analyser::Analyser::new();
+        let shallow_r = shallow.analyse(source, "tcl");
+        let shallow_proc = shallow_r.all_procs.get("::f").expect("::f proc registered");
+        let shallow_body_traits = shallow_proc.param_traits.get("body");
+        assert!(
+            !shallow_body_traits.is_some_and(|s| s.contains(&crate::analyser::ProcArgTrait::Eval)),
+            "shallow pass should miss nested Eval, got {shallow_body_traits:?}",
+        );
+
+        let mut deep = crate::analyser::Analyser::new();
+        deep.deep_param_traits = true;
+        let deep_r = deep.analyse(source, "tcl");
+        let deep_proc = deep_r.all_procs.get("::f").expect("::f proc registered");
+        let deep_body_traits = deep_proc
+            .param_traits
+            .get("body")
+            .expect("body traits present with deep_param_traits on");
+        assert!(
+            deep_body_traits.contains(&crate::analyser::ProcArgTrait::Eval),
+            "deep pass should surface nested Eval, got {deep_body_traits:?}",
+        );
+    }
+
+    #[test]
+    fn deep_lambda_traits_follow_selected_original_words_and_document_offsets() {
+        for prefix in ["", "# λ shifts the original byte offsets\n", "\u{feff}"] {
+            let source = format!("{prefix}proc f {{body}} {{apply {{x {{eval $x}}}} $body}}");
+            let mut analyser = crate::analyser::Analyser::new();
+            analyser.deep_param_traits = true;
+            let result = analyser.analyse(&source, "tcl9.0");
+            let traits = result
+                .all_procs
+                .get("::f")
+                .and_then(|procedure| procedure.param_traits.get("body"));
+            assert!(
+                traits.is_some_and(|traits| traits.contains(&crate::analyser::ProcArgTrait::Eval)),
+                "selected original lambda source should carry Eval through its actual argument; prefix={prefix:?}, got {traits:?}",
+            );
+        }
+    }
+
+    #[test]
+    fn analyse_with_deep_param_traits_off_matches_shallow() {
+        // For procs without nested-body usage, deep + shallow
+        // produce the same trait map.  This pins that the deep
+        // pass doesn't accidentally lose any shallow trait.
+        let source = "proc g {body} { uplevel 1 $body }";
+        let mut shallow = crate::analyser::Analyser::new();
+        let shallow_r = shallow.analyse(source, "tcl");
+
+        let mut deep = crate::analyser::Analyser::new();
+        deep.deep_param_traits = true;
+        let deep_r = deep.analyse(source, "tcl");
+
+        let shallow_traits = shallow_r
+            .all_procs
+            .get("::g")
+            .expect("::g registered")
+            .param_traits
+            .clone();
+        let deep_traits = deep_r
+            .all_procs
+            .get("::g")
+            .expect("::g registered")
+            .param_traits
+            .clone();
+        assert_eq!(
+            shallow_traits, deep_traits,
+            "deep + shallow should match for top-level-only bodies",
+        );
+    }
+
+    #[test]
+    fn uplevel_nonzero_isolates_body_vars_from_proc() {
+        // `uplevel 1 {set x 5}` runs in the caller's frame, not the enclosing
+        // proc's — its `x` must not merge into the proc's locals (they are
+        // different variables), and it lands in an isolated `Uplevel` child
+        // scope tagged with the level word.
+        let mut a = crate::analyser::Analyser::new();
+        let r = a.analyse(
+            "proc f {} {\n    uplevel 1 {set x 5}\n    set y 1\n}\n",
+            "tcl8.6",
+        );
+        let f_scope = r
+            .global_scope
+            .children
+            .iter()
+            .find(|c| c.name == "f")
+            .expect("f proc scope");
+        assert!(f_scope.variables.contains_key("y"), "y is a proc local");
+        assert!(
+            !f_scope.variables.contains_key("x"),
+            "uplevel body's `x` must not merge into the proc scope",
+        );
+        let up = f_scope
+            .children
+            .iter()
+            .find(|c| c.kind == crate::analyser::ScopeKind::Uplevel)
+            .expect("isolated uplevel scope");
+        assert_eq!(up.name, "1", "the level word tags the frame");
+        assert!(up.variables.contains_key("x"));
+    }
+
+    #[test]
+    fn nested_def_in_qualified_encloser_does_not_overwrite_global() {
+        // `proc a::outer { proc helper ... }`: the nested `helper` homes to the
+        // encloser's *defining* namespace (`::a::helper`), not the lexical
+        // global — so the real global `proc helper` is preserved rather than
+        // overwritten in `all_procs`.
+        let mut a = crate::analyser::Analyser::new();
+        let r = a.analyse(
+            "proc helper {} { puts global }\nproc a::outer {} {\n    proc helper {} { puts nested }\n}\n",
+            "tcl8.6",
+        );
+        assert!(
+            r.all_procs.contains_key("::a::helper"),
+            "nested helper must home to ::a::helper: {:?}",
+            r.all_procs.keys().collect::<Vec<_>>(),
+        );
+        let global = r
+            .all_procs
+            .get("::helper")
+            .expect("global ::helper preserved");
+        assert_eq!(
+            global.name_span.start(),
+            5,
+            "::helper must remain the global declaration (line 0), not the nested one",
+        );
+        // The same for a nested class.
+        let mut b = crate::analyser::Analyser::new();
+        let rc = b.analyse(
+            "oo::class create Widget {}\nproc a::outer {} {\n    oo::class create Widget {}\n}\n",
+            "tcl8.6",
+        );
+        assert!(
+            rc.all_classes.contains_key("::a::Widget"),
+            "nested class homes to ::a::Widget: {:?}",
+            rc.all_classes.keys().collect::<Vec<_>>(),
+        );
+        assert!(
+            rc.all_classes.contains_key("::Widget"),
+            "global ::Widget preserved",
+        );
+    }
+
+    #[test]
+    fn variable_global_upvar_skip_dynamic_names() {
+        // A `variable` / `global` / `upvar` / `namespace upvar` whose name word
+        // is computed (`$dyn` / `[f]`) is not a static declaration — the literal
+        // substitution text must not be recorded as a variable.
+        let mut a = crate::analyser::Analyser::new();
+        let r = a.analyse(
+            "namespace eval ns {\n    variable $dyn\n    variable realvar 1\n}\nproc p {} {\n    global $g\n    upvar 1 other $loc\n}\n",
+            "tcl8.6",
+        );
+        let ns = r
+            .global_scope
+            .children
+            .iter()
+            .find(|c| c.name == "ns")
+            .expect("ns scope");
+        assert!(
+            ns.variables.contains_key("realvar"),
+            "a static `variable` name is still recorded",
+        );
+        assert!(
+            !ns.variables.contains_key("dyn"),
+            "`variable $dyn` must not record `dyn`: {:?}",
+            ns.variables.keys().collect::<Vec<_>>(),
+        );
+        let p = r
+            .global_scope
+            .children
+            .iter()
+            .find(|c| c.name == "p")
+            .expect("p scope");
+        assert!(
+            !p.variables.contains_key("g") && !p.variables.contains_key("loc"),
+            "dynamic `global`/`upvar` names must not be recorded: {:?}",
+            p.variables.keys().collect::<Vec<_>>(),
+        );
+    }
+
+    #[test]
+    fn uplevel_zero_still_resets_to_global_frame() {
+        // `uplevel #0` keeps the global-frame tag so variable resolution
+        // resolves outward to the global namespace (not the caller-frame
+        // abstention a non-`#0` level uses).
+        let mut a = crate::analyser::Analyser::new();
+        let r = a.analyse("proc g {} {\n    uplevel #0 {set z 5}\n}\n", "tcl8.6");
+        let g_scope = r
+            .global_scope
+            .children
+            .iter()
+            .find(|c| c.name == "g")
+            .expect("g proc scope");
+        let up = g_scope
+            .children
+            .iter()
+            .find(|c| c.kind == crate::analyser::ScopeKind::Uplevel)
+            .expect("uplevel scope");
+        assert_eq!(up.name, "#0");
+        assert!(up.variables.contains_key("z"));
+    }
+
+    // stub-overlay end-to-end
+    //
+    // These tests pin the contract that the stub overlay built
+    // from `# tcl-lsp: stub` directives during `analyse()`
+    // propagates into the per-proc `param_traits` map.
+
+    #[test]
+    fn analyse_with_declared_stub_propagates_role_to_param_traits() {
+        // The source declares a `# tcl-lsp: stub my_eval
+        // {script:body}` directive, then defines a proc that
+        // invokes `my_eval $body`.  The body arg's role flows
+        // from the stub overlay → `param_traits["body"]
+        // .contains(Body)`.
+        let source = "\
+# tcl-lsp: stubs-begin\n\
+# tcl-lsp: stub my_eval {script:body}\n\
+# tcl-lsp: stubs-end\n\
+proc runs {body} {\n\
+    my_eval $body\n\
+}\n";
+        let mut a = crate::analyser::Analyser::new();
+        let r = a.analyse(source, "tcl");
+        let proc = r.all_procs.get("::runs").expect("::runs registered");
+        let body_traits = proc
+            .param_traits
+            .get("body")
+            .expect("body param has traits");
+        assert!(
+            body_traits.contains(&crate::analyser::ProcArgTrait::Body),
+            "expected Body trait via stub overlay, got {body_traits:?}",
+        );
+    }
+
+    #[test]
+    fn analyse_without_stub_directive_leaves_body_untyped() {
+        // Same proc, no stub directive — without the overlay
+        // entry, `my_eval` isn't a known command, so the body
+        // arg has no recorded role and `param_traits` is empty
+        // for `body`.  This pins that the stub directive (not
+        // some background heuristic) is what gives the
+        // parameter its `Body` trait.
+        let source = "proc runs {body} { my_eval $body }";
+        let mut a = crate::analyser::Analyser::new();
+        let r = a.analyse(source, "tcl");
+        let proc = r.all_procs.get("::runs").expect("::runs registered");
+        assert!(
+            !proc
+                .param_traits
+                .get("body")
+                .is_some_and(|s| s.contains(&crate::analyser::ProcArgTrait::Body)),
+            "expected NO Body trait without stub directive, got {:?}",
+            proc.param_traits.get("body"),
+        );
+    }
+
+    // Safe-interp visibility survives `analyse_per_item`.
+
+    /// Conditional source visibility, independently of actual dispatch.
+    /// Original command/list operands and the enclosing source child are required.
+    #[test]
+    fn safe_interp_w129_reaches_deferred_proc_body_under_per_item_1001() {
+        let mut a = Analyser::new();
+        let r = a.analyse_per_item(
+            "interp create -safe s\ninterp eval s { proc f {} { source foo }; f }\n",
+            "tcl8.6",
+        );
+        assert!(
+            r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129
+                    && d.conditional_interpreter_visibility().is_some()),
+            "a hidden call inside a deferred proc body warns under \
+             incremental (per-item) analysis, matching `Analyser::analyse`: {:?}",
+            r.diagnostics
+        );
+    }
+
+    /// Conditional source visibility, independently of actual dispatch.
+    /// Original command/list operands and the enclosing source child are required.
+    #[test]
+    fn safe_interp_w129_reaches_deferred_apply_body_under_per_item_1001() {
+        // naming.interpreter.original-source-visibility-advice
+        // docs/design/analysis/name-resolution-proofs/interpreter-original-source-visibility-advice.md
+        let mut a = Analyser::new();
+        let r = a.analyse_per_item(
+            "interp create -safe s\ninterp eval s { apply {{} { source foo }} }\n",
+            "tcl8.6",
+        );
+        assert!(
+            r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129
+                    && d.conditional_interpreter_visibility().is_some()),
+            "a hidden call inside a deferred apply-lambda body warns under \
+             incremental (per-item) analysis: {:?}",
+            r.diagnostics
+        );
+    }
+
+    /// Conditional source visibility, independently of actual dispatch.
+    /// Original command/list operands and the enclosing source child are required.
+    #[test]
+    fn safe_interp_w129_reaches_deferred_method_body_under_per_item_1001() {
+        // naming.interpreter.original-source-visibility-advice
+        // docs/design/analysis/name-resolution-proofs/interpreter-original-source-visibility-advice.md
+        let mut a = Analyser::new();
+        let r = a.analyse_per_item(
+            "interp create -safe s\n\
+             interp eval s {\n\
+                 oo::class create C { method m {} { source foo } }\n\
+                 [C new] m\n\
+             }\n",
+            "tcl8.6",
+        );
+        assert!(
+            r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129
+                    && d.conditional_interpreter_visibility().is_some()),
+            "a hidden call inside a deferred TclOO method body warns under \
+             incremental (per-item) analysis: {:?}",
+            r.diagnostics
+        );
+    }
+
+    /// Conditional source visibility, independently of actual dispatch.
+    /// Original command/list operands and the enclosing source child are required.
+    #[test]
+    fn deferred_proc_body_outside_any_safe_interp_is_untouched_under_per_item_1001() {
+        let mut a = Analyser::new();
+        let r = a.analyse_per_item("proc f {} { source foo }\nf\n", "tcl8.6");
+        assert!(
+            !r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129),
+            "no safe interpreter is involved, so no W129 can ever fire: {:?}",
+            r.diagnostics
+        );
+    }
+
+    /// Conditional source visibility, independently of actual dispatch.
+    /// Original command/list operands and the enclosing source child are required.
+    #[test]
+    fn safe_interp_deferred_body_redefinition_updates_its_source_visibility() {
+        let mut a = Analyser::new();
+        let r = a.analyse_per_item(
+            "interp create -safe s\n\
+             interp eval s {\n\
+                 proc f {} { proc source {} { return ok }; source }\n\
+                 f\n\
+             }\n",
+            "tcl8.6",
+        );
+        assert!(
+            !r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129),
+            "the deferred body retains its own original source definition before the later call: {:?}",
+            r.diagnostics
+        );
+    }
+
+    /// Conditional source visibility, independently of actual dispatch.
+    /// Original command/list operands and the enclosing source child are required.
+    #[test]
+    fn safe_interp_w129_expand_list_quoted_apply_lambda_body_1001() {
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "interp create -safe s\n\
+             interp eval s { {*}[list apply {dir {source $dir/evil.tcl}} $env(HOME)] }\n",
+            "tcl8.6",
+        );
+        assert!(
+            r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129
+                    && d.conditional_interpreter_visibility().is_some()),
+            "hidden `source` nested inside a `{{*}}[list apply ...]`-invoked \
+             lambda body warns: {:?}",
+            r.diagnostics
+        );
+    }
+
+    /// Conditional source visibility, independently of actual dispatch.
+    /// Original command/list operands and the enclosing source child are required.
+    #[test]
+    fn safe_interp_w129_list_quoted_apply_package_ifneeded_then_require_1001() {
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "interp create -safe s\n\
+             interp eval s {\n\
+                 package ifneeded evil 1.0 [list apply {dir {source $dir/evil.tcl}} $env(HOME)]\n\
+                 package require evil\n\
+             }\n",
+            "tcl8.6",
+        );
+        assert!(
+            r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129
+                    && d.conditional_interpreter_visibility().is_some()),
+            "the deferred script's hidden `source` warns once `package \
+             require` is present too: {:?}",
+            r.diagnostics
+        );
+    }
+
+    // Namespace ensemble -map redirection.
+
+    /// Conditional source visibility, independently of actual dispatch.
+    /// A reporting ensemble map does not own the original mapped target.
+    #[test]
+    fn safe_interp_w129_ensemble_create_map_redirect_to_hidden_command_1001() {
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "interp create -safe s\n\
+             interp eval s {\n\
+                 namespace ensemble create -command myens -map {go source}\n\
+                 myens go pkg.tcl\n\
+             }\n",
+            "tcl8.6",
+        );
+        assert!(
+            !r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129),
+            "a reporting map does not supply an original mapped-target receipt: {:?}",
+            r.diagnostics
+        );
+    }
+
+    /// Conditional source visibility, independently of actual dispatch.
+    /// A reporting ensemble map does not own the original mapped target.
+    #[test]
+    fn safe_interp_w129_ensemble_configure_map_redirect_to_hidden_command_1001() {
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "interp create -safe s\n\
+             interp eval s {\n\
+                 namespace ensemble create -command myens\n\
+                 namespace ensemble configure myens -map {go source}\n\
+                 myens go pkg.tcl\n\
+             }\n",
+            "tcl8.6",
+        );
+        assert!(
+            !r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129),
+            "a reporting map does not supply an original mapped-target receipt: {:?}",
+            r.diagnostics
+        );
+    }
+
+    /// Conditional source visibility, independently of actual dispatch.
+    /// A reporting ensemble map does not own the original mapped target.
+    #[test]
+    fn safe_interp_w129_ensemble_default_name_map_redirect_to_hidden_command_1001() {
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "interp create -safe s\n\
+             interp eval s {\n\
+                 namespace eval myns { namespace ensemble create -map {go source} }\n\
+                 myns go pkg.tcl\n\
+             }\n",
+            "tcl8.6",
+        );
+        assert!(
+            !r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129),
+            "a reporting map does not supply an original mapped-target receipt: {:?}",
+            r.diagnostics
+        );
+    }
+
+    /// Conditional source visibility, independently of actual dispatch.
+    /// A reporting ensemble map does not own the original mapped target.
+    #[test]
+    fn safe_interp_w129_ensemble_map_redirect_to_safe_command_not_flagged_1001() {
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "interp create -safe s\n\
+             interp eval s {\n\
+                 namespace ensemble create -command myens -map {go puts}\n\
+                 myens go hi\n\
+             }\n",
+            "tcl8.6",
+        );
+        assert!(
+            !r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129),
+            "an ensemble redirect to a safe command must not warn: {:?}",
+            r.diagnostics
+        );
+    }
+
+    /// Conditional source visibility, independently of actual dispatch.
+    /// A reporting ensemble map does not own the original mapped target.
+    #[test]
+    fn ensemble_map_redirect_outside_any_safe_interp_is_untouched_1001() {
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "namespace ensemble create -command myens -map {go source}\n\
+             myens go pkg.tcl\n",
+            "tcl8.6",
+        );
+        assert!(
+            !r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129),
+            "no safe interpreter is involved, so no W129 can ever fire: {:?}",
+            r.diagnostics
+        );
+    }
+
+    /// Conditional source visibility, independently of actual dispatch.
+    /// A reporting ensemble map does not own the original mapped target.
+    #[test]
+    fn safe_interp_w129_ensemble_map_redirect_multiword_target_1001() {
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "interp create -safe s\n\
+             interp eval s {\n\
+                 namespace ensemble create -command myens -map {go {source b.tcl}}\n\
+                 myens go\n\
+             }\n",
+            "tcl8.6",
+        );
+        assert!(
+            !r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129),
+            "a multiword reporting prefix does not own its effective head: {:?}",
+            r.diagnostics
+        );
+    }
+
+    /// Conditional source visibility, independently of actual dispatch.
+    /// A reporting ensemble map does not own the original mapped target.
+    #[test]
+    fn safe_interp_w129_ensemble_configure_map_replaces_not_merges_1001() {
+        let mut a = Analyser::new();
+        let r = a.analyse(
+            "interp create -safe s\n\
+             interp eval s {\n\
+                 namespace ensemble create -command myens \
+                     -map {bad source ok puts}\n\
+                 namespace ensemble configure myens -map {ok puts}\n\
+                 myens bad\n\
+             }\n",
+            "tcl8.6",
+        );
+        assert!(
+            !r.diagnostics
+                .iter()
+                .any(|d| d.code == tcl_core_types::DiagCode::W129),
+            "a subcommand dropped by a later `-map` must not keep warning \
+             through its stale mapping: {:?}",
+            r.diagnostics
+        );
+    }
+}
+
+#[cfg(test)]
+mod original_native_namespace_path_tests {
+    use crate::analyser::Analyser;
+
+    #[test]
+    fn original_namespace_path_retains_all_native_children_after_quoted_escape_rendering() {
+        let source =
+            r#"namespace eval ::first {}; namespace path "::first ::opaque\uD800 ::third""#;
+        let result = Analyser::new().analyse(source, "tcl8.6");
+        let values = result
+            .namespace_refs
+            .iter()
+            .filter_map(|reference| reference.original_name_input.as_ref())
+            .filter(|input| {
+                input
+                    .original_static_list_container()
+                    .is_some_and(|container| !container.ordinals().is_empty())
+            })
+            .map(|input| input.bytes().to_vec())
+            .collect::<Vec<_>>();
+        assert_eq!(
+            values,
+            [
+                b"::first".to_vec(),
+                b"::opaque\xed\xa0\x80".to_vec(),
+                b"::third".to_vec()
+            ]
+        );
+    }
+}
+
+#[cfg(test)]
+mod original_static_declaration_tests {
+    use crate::analyser::Analyser;
+    use tcl_lexer::SourceImage;
+
+    #[test]
+    fn original_nested_procedure_metadata_retains_full_source_words_and_namespace_geometry() {
+        let source = r"namespace eval N {proc p\uD800 {} {return A}; proc p\uD801 {} {return B}}";
+        let mut result = Analyser::new().analyse(source, "tcl8.6");
+        let declarations = result.original_procedure_declarations().collect::<Vec<_>>();
+        assert_eq!(declarations.len(), 2);
+        assert_ne!(declarations[0].name().slot(), declarations[1].name().slot());
+        for (declaration, written, bytes) in [
+            (declarations[0], r"p\uD800", b"p\xed\xa0\x80".as_slice()),
+            (declarations[1], r"p\uD801", b"p\xed\xa0\x81".as_slice()),
+        ] {
+            assert_eq!(declaration.name_input().bytes(), bytes);
+            assert_eq!(
+                declaration.name_input().source_image(),
+                &SourceImage::document(source)
+            );
+            assert_eq!(
+                declaration.name_input().span().start(),
+                u32::try_from(source.find(written).unwrap()).unwrap()
+            );
+            assert_eq!(declaration.name().reported_full_name(), None);
+        }
+        let body = u32::try_from(source.find("proc p").unwrap()).unwrap();
+        let namespace = result.original_namespace_scope_at(body).unwrap().clone();
+        let input = crate::signature_scan::scope::SignatureSourceNameInput::OriginalWord(
+            declarations[0].name_input().clone(),
+        );
+        result.all_procs.clear();
+        result.global_scope.children[0].procs.clear();
+        assert_eq!(
+            result
+                .procedures_for_original_name(&input, &namespace)
+                .len(),
+            1
+        );
+    }
+
+    #[test]
+    fn original_static_declaration_advice_does_not_fabricate_a_computed_word() {
+        let source = r"proc $unknown {} {return A}";
+        let result = Analyser::new().analyse(source, "tcl8.6");
+        assert!(result.original_procedure_declarations().next().is_none());
+    }
+}
+
+#[cfg(test)]
+mod original_optlist_declaration_tests {
+    use crate::analyser::Analyser;
+
+    #[test]
+    fn original_optlist_procedure_retains_its_name_without_fabricating_native_formals() {
+        let source = r"tcl::OptProc p\uD800 {{-option DEFAULT}} {return $args}";
+        let mut result = Analyser::new().analyse(source, "tcl8.6");
+        let record = result.original_procedure_declarations().next().unwrap();
+        assert_eq!(record.name_input().bytes(), b"p\xed\xa0\x80");
+        assert_eq!(record.metadata().params.len(), 1);
+        assert_eq!(record.metadata().params[0].name, "args");
+        assert!(!record.metadata().params[0].has_default);
+        let input = crate::signature_scan::scope::SignatureSourceNameInput::OriginalWord(
+            record.name_input().clone(),
+        );
+        let namespace = result.original_namespace_scope_at(0).unwrap().clone();
+        result.all_procs.clear();
+        result.global_scope.procs.clear();
+        assert_eq!(
+            result
+                .procedures_for_original_name(&input, &namespace)
+                .len(),
+            1
+        );
+    }
+}
+
+#[cfg(test)]
+mod original_registry_symbol_tests {
+    use crate::analyser::Analyser;
+
+    #[test]
+    fn original_registry_symbol_names_keep_opaque_inputs_without_command_identity_from_labels() {
+        // Implementation contract: naming.compiler.original-symbol-declaration-advice
+        // docs/design/analysis/name-resolution-proofs/original-symbol-declaration-advice.md
+        let source = r"package require tcltest; tcltest::test case\uD800 {first} -body {} -result {}; tcltest::test case\uD801 {second} -body {} -result {}";
+        let result = Analyser::new().analyse(source, "tcl8.6");
+        assert_eq!(result.all_defined_symbols.len(), 2);
+        let original = result
+            .original_symbol_declarations()
+            .cloned()
+            .collect::<Vec<_>>();
+        assert_eq!(original.len(), 2);
+        assert!(original.iter().all(|record| {
+            record
+                .original_namespace()
+                .is_some_and(crate::signature_scan::scope::SignatureNamespaceScope::is_root)
+        }));
+        assert_ne!(
+            original[0].name_input().bytes(),
+            original[1].name_input().bytes()
+        );
+        let mut cleared = result.clone();
+        cleared.all_defined_symbols.clear();
+        cleared.global_scope.defined_symbols.clear();
+        assert_eq!(cleared.original_symbol_declarations().count(), 2);
+        assert!(original.iter().all(|record| record.matches_source(
+            &tcl_lexer::SourceImage::document(source),
+            result.body_lexer_config.unwrap()
+        )));
+        assert!(original.iter().all(|record| !record.matches_source(
+            &tcl_lexer::SourceImage::document(&format!("# displaced\n{source}")),
+            result.body_lexer_config.unwrap()
+        )));
+        let inputs = result
+            .all_defined_symbols
+            .iter()
+            .map(|symbol| symbol.original_name_input.as_ref().unwrap().bytes())
+            .collect::<Vec<_>>();
+        assert_eq!(
+            inputs,
+            [
+                b"case\xed\xa0\x80".as_slice(),
+                b"case\xed\xa0\x81".as_slice()
+            ]
+        );
+        assert_ne!(
+            result.all_defined_symbols[0].name,
+            result.all_defined_symbols[1].name
+        );
+        let shadow = Analyser::new().analyse(
+            "proc ::tcltest::test args {}; tcltest::test ordinary {description} -body {}",
+            "tcl8.6",
+        );
+        assert!(shadow.all_defined_symbols.is_empty());
+    }
+
+    #[test]
+    fn original_conditional_registry_symbol_cards_retain_unknown_applicability() {
+        // Implementation contract: naming.compiler.conditional-registry-source-metadata
+        // docs/design/analysis/name-resolution-proofs/conditional-registry-source-metadata.md
+        let source = r"package require tcltest; ::tcltest::test case\uD800 {first} -body {} -result {}; ::tcltest::test case\uD801 {second} -body {} -result {}";
+        let result = Analyser::new().analyse(source, "tcl8.6");
+        let cards = result.original_symbol_declarations().collect::<Vec<_>>();
+        assert_eq!(cards.len(), 2);
+        let registry = result.resolved_registry().unwrap();
+        for card in cards {
+            let metadata = card
+                .conditional_metadata()
+                .expect("unknown package execution stays explicit");
+            assert!(!metadata.obligations().is_empty());
+            assert!(metadata.matches_source(
+                &tcl_lexer::SourceImage::document(source),
+                result.body_lexer_config.unwrap()
+            ));
+            assert!(metadata.matches_registry(registry));
+            assert_eq!(
+                metadata.symbol_definition().as_ref(),
+                Some(card.descriptor())
+            );
+            assert!(!metadata.matches_source(
+                &tcl_lexer::SourceImage::document(&format!("# changed\n{source}")),
+                result.body_lexer_config.unwrap()
+            ));
+            assert!(!metadata.matches_registry(
+                tcl_registry::model::ingress::static_context_for("jimtcl").commands()
+            ));
+        }
+        assert!(
+            result.original_completed_command_world().is_none(),
+            "source cards do not close the execution world"
+        );
+    }
+
+    #[test]
+    fn original_registry_symbol_cards_retain_the_actual_namespace_geometry() {
+        // Implementation contract: naming.compiler.original-symbol-declaration-advice
+        // docs/design/analysis/name-resolution-proofs/original-symbol-declaration-advice.md
+        let source =
+            "namespace eval suite {::tcltest::test scoped {description} -body {} -result {}}";
+        let result = Analyser::new().analyse(source, "tcl8.6");
+        let cards = result.original_symbol_declarations().collect::<Vec<_>>();
+        assert_eq!(cards.len(), 1);
+        let scope = result
+            .global_scope
+            .children
+            .iter()
+            .find(|scope| scope.kind == super::super::types::ScopeKind::Namespace)
+            .unwrap();
+        assert!(cards[0].original_namespace().is_some());
+        assert_eq!(cards[0].original_namespace(), scope.naming_scope.as_ref());
+        assert!(!cards[0].original_namespace().unwrap().is_root());
+        assert!(cards[0].matches_source(
+            &tcl_lexer::SourceImage::document(source),
+            result.body_lexer_config.unwrap()
+        ));
+        assert!(!cards[0].matches_source(
+            &tcl_lexer::SourceImage::document(&format!("# changed\n{source}")),
+            result.body_lexer_config.unwrap()
+        ));
+    }
+
+    #[test]
+    fn original_registry_symbol_advice_preserves_hosted_source_event_declarations() {
+        // Implementation contract: naming.compiler.original-symbol-declaration-advice
+        // docs/design/analysis/name-resolution-proofs/original-symbol-declaration-advice.md
+        let result = Analyser::new().analyse("when HTTP_REQUEST {}", "f5-irules");
+        assert!(!result.allows_lexical_declaration_advice());
+        assert!(result.has_original_vendor_source_names());
+        let original = result.original_vendor_symbol_declarations().next().unwrap();
+        assert_eq!(
+            original.name_input().literal_units(original.purpose()),
+            Some(b"HTTP_REQUEST".as_slice())
+        );
+        assert!(original.metadata().original_name_input.is_none());
+        assert_eq!(result.all_defined_symbols.len(), 1);
+        assert_eq!(result.all_defined_symbols[0].name, "HTTP_REQUEST");
+        assert_eq!(
+            result.all_defined_symbols[0].kind,
+            tcl_registry::DefinedSymbolKind::Event
+        );
+        assert!(result.all_defined_symbols[0].original_name_input.is_none());
+        let invalid = Analyser::new().analyse("when HTTP_REQUEST set", "f5-irules");
+        assert!(invalid.all_defined_symbols.is_empty());
+        let shadowed =
+            Analyser::new().analyse("proc when {args} {}; when HTTP_REQUEST {}", "f5-irules");
+        assert_eq!(shadowed.original_vendor_symbol_declarations().count(), 0);
+        assert!(shadowed.all_defined_symbols.is_empty());
+        let uncertain =
+            Analyser::new().analyse("unknown_mutator; when HTTP_REQUEST {}", "f5-irules");
+        assert_eq!(
+            uncertain.original_vendor_symbol_declarations().count(),
+            1,
+            "unknown applicability retains a source card without a runtime claim"
+        );
+    }
+    #[test]
+    fn original_formal_counts_survive_procedure_and_signature_records() {
+        // naming.procedure.original-formal-count-shape
+        // docs/design/analysis/name-resolution-proofs/procedure-original-formal-count-shape.md
+        use crate::signature_scan::formal_count::SourceFormalCountOrigin;
+        let cases: &[(&str, &[usize], &[usize])] = &[
+            ("", &[0], &[0]),
+            ("a {b 2} c", &[3], &[2, 3]),
+            ("a args b", &[3], &[2, 3, 4, 5]),
+            ("a {args tail} b", &[3], &[2, 3, 4, 5]),
+            ("a args", &[1, 2, 3, 4, 5], &[1, 2, 3, 4, 5]),
+            ("a {b 2} args {c 3}", &[3, 4], &[1, 2, 3, 4, 5]),
+            ("{a 1} {b 2}", &[0, 1, 2], &[0, 1, 2]),
+        ];
+        for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+            for &(formals, c_counts, jim_counts) in cases {
+                let source = format!("proc target {{{formals}}} {{return ok}}");
+                let analysis = Analyser::new().analyse(&source, profile);
+                let proc = analysis.all_procs.get("::target").expect(profile);
+                let scan = crate::signature_scan::extract_signatures(
+                    &source,
+                    analysis.resolved_registry().unwrap(),
+                );
+                let signature = scan.procs.get("::target").expect(profile);
+                let expected = if profile == "jim" {
+                    jim_counts
+                } else {
+                    c_counts
+                };
+                assert_eq!(
+                    proc.formal_count_projection().origin(),
+                    SourceFormalCountOrigin::OriginalSource
+                );
+                assert_eq!(
+                    signature.formal_count_projection(),
+                    proc.formal_count_projection()
+                );
+                for count in 0..=5 {
+                    let accepts = |arity: tcl_registry::Arity| {
+                        usize::from(arity.min) <= count
+                            && (arity.is_unlimited() || count <= usize::from(arity.max))
+                    };
+                    assert_eq!(
+                        accepts(proc.arity()),
+                        expected.contains(&count),
+                        "{profile} {formals:?} argc={count}"
+                    );
+                    assert_eq!(
+                        accepts(signature.arity()),
+                        expected.contains(&count),
+                        "scanned {profile} {formals:?} argc={count}"
+                    );
+                }
+            }
+        }
+        // An extra grouping level is a legal single formal named "a b c";
+        // it cannot stand in for a malformed three-field parameter.
+        let legal = Analyser::new().analyse("proc target {{{a b c}}} {return ok}", "jim");
+        assert_eq!(
+            legal.all_procs["::target"]
+                .formal_count_projection()
+                .origin(),
+            SourceFormalCountOrigin::OriginalSource
+        );
+        assert_eq!(
+            legal.all_procs["::target"].arity(),
+            tcl_registry::Arity::exact(1)
+        );
+        for source in [
+            "proc target $formals {return ok}",
+            // Three fields in one formal, matching the native malformed row.
+            "proc target {{a b c}} {return ok}",
+        ] {
+            let analysis = Analyser::new().analyse(source, "jim");
+            let proc = analysis.all_procs.get("::target").unwrap();
+            assert_eq!(
+                proc.formal_count_projection().origin(),
+                SourceFormalCountOrigin::Unknown
+            );
+            assert_eq!(proc.arity(), tcl_registry::Arity::any());
+        }
+    }
+}
+
+#[cfg(test)]
+mod original_parent_purpose_tests {
+    use super::*;
+
+    #[test]
+    fn original_procedure_receipts_keep_file_config_and_extracted_body_bom() {
+        // naming.source.original-configured-script-completeness
+        // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
+        // Original declaration/body syntax, without entered procedure or frame authority.
+        let body = r"namespace eval N {proc p\uD800 {x} {return $x}}";
+        let mut prepared = Analyser::new();
+        let input = prepared.prepare_analysis_input("tcl9.1").unwrap();
+        for (supplied, source) in [
+            (None, format!("\u{feff}{body}")),
+            (Some(input.clone()), format!("\u{feff}{body}")),
+            (
+                {
+                    let mut content = input.clone();
+                    content.config.leading_bom = tcl_lexer::LeadingBom::Content;
+                    content.config.braced_var = tcl_lexer::BracedVarStyle::FirstClose;
+                    Some(content)
+                },
+                body.to_owned(),
+            ),
+        ] {
+            let mut analyser = supplied.as_ref().map_or_else(Analyser::new, |input| {
+                Analyser::new().with_resolved_input(input.clone())
+            });
+            analyser.analyse_and_retain_result_for_test(&source, "tcl9.1");
+            let config = analyser.file_lexer_config();
+            let image = tcl_lexer::SourceImage::document(&source);
+            let declarations = analyser
+                .result
+                .original_procedure_declarations()
+                .collect::<Vec<_>>();
+            let [declaration] = declarations.as_slice() else {
+                panic!("original nested declaration: {source}");
+            };
+            assert_eq!(declaration.name_input().bytes(), b"p\xed\xa0\x80");
+            assert_eq!(declaration.name_input().source_image(), &image);
+            assert_eq!(declaration.name_input().lexer_config(), config);
+            let name = u32::try_from(source.find(r"p\uD800").unwrap()).unwrap();
+            assert_eq!(declaration.name_input().span().start(), name);
+            if let Some(supplied) = supplied {
+                assert_eq!(analyser.result.resolved_input.as_ref(), Some(&supplied));
+            }
+            let mut foreign = config;
+            foreign.strict_quoting = !foreign.strict_quoting;
+            assert!(
+                !analyser
+                    .result
+                    .matches_original_source_image(&image, foreign)
+            );
+            assert!(!analyser.result.matches_original_source_image(
+                &tcl_lexer::SourceImage::document(&(source + "\n")),
+                config
+            ));
+        }
+        for bom in [tcl_lexer::LeadingBom::Skip, tcl_lexer::LeadingBom::Content] {
+            let mut supplied = input.clone();
+            supplied.config.leading_bom = bom;
+            let source = "proc p {} {\u{feff}set hidden 1; set visible 2}";
+            let mut analyser = Analyser::new().with_resolved_input(supplied.clone());
+            analyser.analyse_and_retain_result_for_test(source, "display-only");
+            let proc = analyser.result.all_procs.get("::p").unwrap();
+            let statements = analyser.direct_statements_in_span(proc.body_span).unwrap();
+            assert_eq!(
+                statements
+                    .iter()
+                    .map(SegmentedCommand::name)
+                    .collect::<Vec<_>>(),
+                ["\u{feff}set", "set"]
+            );
+            assert_eq!(
+                statements[0].argv[0].span.start(),
+                u32::try_from(source.find('\u{feff}').unwrap()).unwrap()
+            );
+            assert_eq!(analyser.result.resolved_input.as_ref(), Some(&supplied));
+        }
+    }
+}
+
+#[cfg(test)]
+mod retained_static_context_tests;
+
+#[cfg(test)]
+mod constructed_projection_tests {
+    use super::*;
+
+    #[test]
+    fn computed_creation_placeholder_preserves_constructed_procedure_holder() {
+        // Implementation contract: naming.analysis.constructed-key-consumer-projections
+        // docs/design/analysis/name-resolution-proofs/constructed-key-consumer-projections.md
+        // Only a metadata placeholder is constructed; no creation is executed.
+        for (procedure, expected) in [
+            ("p", "::${ns}::C"),
+            ("::a::p", "::a::${ns}::C"),
+            ("::a::::p", "::a::${ns}::C"),
+            ("::::::", ":::::${ns}::C"),
+            ("::é::λ", "::é::${ns}::C"),
+        ] {
+            let mut candidate = ParameterisedCreation {
+                proc_qname: procedure.to_owned(),
+                params: Vec::new(),
+                name_word: "${ns}::C".to_owned(),
+                call_off: 0,
+                control_path: Vec::new(),
+            };
+            assert_eq!(
+                Analyser::unresolved_class_name(&candidate).as_deref(),
+                Some(expected)
+            );
+            candidate.name_word = "C".to_owned();
+            assert!(Analyser::unresolved_class_name(&candidate).is_none());
+        }
+    }
+}

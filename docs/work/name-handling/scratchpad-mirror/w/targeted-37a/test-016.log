@@ -1,0 +1,22 @@
+
+running 1 test
+test project_token_inputs::tests::project_token_hints_withdraw_when_another_members_source_owner_is_unavailable ... 
+thread 'project_token_inputs::tests::project_token_hints_withdraw_when_another_members_source_owner_is_unavailable' (32379) panicked at rust/tcl-lsp-db/src/project_token_inputs/tests.rs:225:5:
+assertion failed: !project_proc_var_index_for_inputs(&db, project).is_empty()
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: tcl_lsp_db::project_token_inputs::tests::project_token_hints_withdraw_when_another_members_source_owner_is_unavailable
+   4: tcl_lsp_db::project_token_inputs::tests::project_token_hints_withdraw_when_another_members_source_owner_is_unavailable::{closure#0}
+   5: <tcl_lsp_db::project_token_inputs::tests::project_token_hints_withdraw_when_another_members_source_owner_is_unavailable::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+FAILED
+
+failures:
+
+failures:
+    project_token_inputs::tests::project_token_hints_withdraw_when_another_members_source_owner_is_unavailable
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 199 filtered out; finished in 1.54s
+

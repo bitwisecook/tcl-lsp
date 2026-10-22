@@ -1,0 +1,85 @@
+test namespace_symbol::original_namespace_surface_tests::computed_namespace_cursor_uses_readonly_value_and_exact_current_document ... FAILED
+test namespace_symbol::original_namespace_surface_tests::original_namespace_definition_uses_written_implicit_parent_geometry ... ok
+test namespace_symbol::original_namespace_surface_tests::opaque_namespace_cursor_and_hover_keep_distinct_native_units ... ok
+test namespace_symbol::tests::fn_inscope_is_a_reference_not_a_declaration ... ok
+test namespace_symbol::original_namespace_surface_tests::original_namespace_selection_is_shared_and_terminal_for_stale_or_unknown_inputs ... FAILED
+test namespace_symbol::tests::fn_references_from_the_declaration_reach_every_use ... ok
+test namespace_symbol::tests::fp_a_dynamic_lambda_namespace_element_records_nothing ... ok
+test namespace_symbol::tests::fp_a_branch_conditional_target_declares_nothing ... ok
+test namespace_symbol::tests::fp_a_path_word_carrying_substitution_records_nothing ... ok
+test namespace_symbol::tests::fp_a_two_element_lambda_records_no_namespace_reference ... ok
+test namespace_symbol::tests::fp_a_whole_word_dynamic_path_records_nothing_at_all ... ok
+test namespace_symbol::tests::fp_an_unrelated_namespace_gets_no_implicit_site ... ok
+test namespace_symbol::tests::constructed_colon_namespace_is_distinct_from_the_root ... ok
+test namespace_symbol::tests::namespace_containment_is_segment_wise ... ok
+test namespace_symbol::tests::fp_command_name_arguments_are_not_namespace_references ... ok
+test namespace_symbol::tests::fp_string_and_pattern_arguments_are_not_namespace_references ... ok
+test namespace_symbol::tests::tn_a_computed_target_with_no_constant_value_is_recorded_nowhere ... ok
+test namespace_symbol::tests::tn_braced_data_word_is_not_a_namespace_reference ... ok
+test namespace_symbol::tests::tn_comment_text_is_not_a_namespace_reference ... ok
+test namespace_symbol::tests::tn_hover_abstains_without_a_local_declaration ... ok
+test namespace_symbol::tests::tn_empty_literal_inside_a_namespace_names_a_namespace_that_cannot_exist ... FAILED
+test namespace_symbol::tests::tn_the_global_namespace_has_no_implicit_site ... ok
+test namespace_symbol::tests::tp_a_braced_path_element_gets_the_element_span_not_the_word ... ok
+test namespace_symbol::tests::namespace_navigation_withdraws_colliding_display_receipts ... ok
+test namespace_symbol::tests::tp_a_braced_path_word_that_looks_dynamic_is_still_split ... ok
+test namespace_symbol::tests::tp_a_braced_namespace_name_resolves ... ok
+test namespace_symbol::tests::tp_a_constant_computed_target_is_a_declaring_site ... FAILED
+test namespace_symbol::tests::tp_a_relatively_written_name_still_yields_the_written_prefix ... ok
+test namespace_symbol::tests::tp_a_relative_path_element_roots_against_the_declaring_namespace ... ok
+test namespace_symbol::tests::tp_an_apply_lambdas_namespace_element_is_a_reference ... ok
+test namespace_symbol::tests::tp_each_namespace_path_element_is_its_own_reference ... ok
+test namespace_symbol::tests::tp_empty_literal_is_the_global_namespace_at_global_scope ... ok
+test namespace_symbol::tests::tp_every_marked_subcommand_records_its_namespace_word ... FAILED
+test namespace_symbol::tests::tp_facts_merge_across_documents ... ok
+test namespace_symbol::tests::tp_global_namespace_spellings_are_one_symbol ... ok
+test namespace_symbol::tests::tp_hover_says_which_set_it_counted ... ok
+test namespace_symbol::tests::tp_hover_labels_an_implicitly_created_namespace_differently ... ok
+test namespace_symbol::tests::tp_hover_counts_declaring_blocks_and_references ... ok
+test namespace_symbol::tests::tp_implicit_parent_answers_with_the_covering_prefix ... ok
+test namespace_symbol::tests::tp_only_the_constant_computed_declaration_is_recorded ... FAILED
+test namespace_symbol::tests::tp_namespace_name_inside_command_substitution_resolves ... ok
+test namespace_symbol::tests::tp_namespace_name_argument_resolves_to_every_declaring_block ... ok
+test namespace_symbol::tests::tp_the_row_wise_covering_prefix_matches_the_document_form ... ok
+test namespace_symbol::tests::tp_relative_name_roots_against_the_enclosing_namespace ... ok
+---- namespace_symbol::original_namespace_surface_tests::computed_namespace_cursor_uses_readonly_value_and_exact_current_document stdout ----
+thread 'namespace_symbol::original_namespace_surface_tests::computed_namespace_cursor_uses_readonly_value_and_exact_current_document' (6219) panicked at rust/tcl-lsp-core/src/namespace_symbol.rs:1705:78:
+called `Option::unwrap()` on a `None` value
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- namespace_symbol::original_namespace_surface_tests::original_namespace_selection_is_shared_and_terminal_for_stale_or_unknown_inputs stdout ----
+
+thread 'namespace_symbol::original_namespace_surface_tests::original_namespace_selection_is_shared_and_terminal_for_stale_or_unknown_inputs' (6223) panicked at rust/tcl-lsp-core/src/namespace_symbol.rs:1629:9:
+assertion failed: matches!(crate::variable_symbol::select(unknown, &analysis, 0, cursor),
+    ControlFlow::Break(None))
+
+---- namespace_symbol::tests::tn_empty_literal_inside_a_namespace_names_a_namespace_that_cannot_exist stdout ----
+
+thread 'namespace_symbol::tests::tn_empty_literal_inside_a_namespace_names_a_namespace_that_cannot_exist' (6302) panicked at rust/tcl-lsp-core/src/namespace_symbol.rs:1280:9:
+assertion `left == right` failed
+  left: None
+ right: Some("::outer::")
+
+---- namespace_symbol::tests::tp_a_constant_computed_target_is_a_declaring_site stdout ----
+
+thread 'namespace_symbol::tests::tp_a_constant_computed_target_is_a_declaring_site' (6311) panicked at rust/tcl-lsp-core/src/namespace_symbol.rs:1544:9:
+assertion `left == right` failed
+  left: []
+ right: ["$ns"]
+
+---- namespace_symbol::tests::tp_every_marked_subcommand_records_its_namespace_word stdout ----
+
+thread 'namespace_symbol::tests::tp_every_marked_subcommand_records_its_namespace_word' (6319) panicked at rust/tcl-lsp-core/src/namespace_symbol.rs:917:9:
+assertion `left == right` failed: exists / delete / parent / upvar / inscope all reference `::a`: [NamespaceRef { original_name_input: Some(OriginalWord(SignatureSourceNameKey { original: NativeWord { arena: ExecutablePartArena { image: SourceImage { bytes: [110, 97, 109, 101, 115, 112, 97, 99, 101, 32, 101, 120, 105, 115, 116, 115, 32, 58, 58, 97, 10, 110, 97, 109, 101, 115, 112, 97, 99, 101, 32, 100, 101, 108, 101, 116, 101, 32, 58, 58, 97, 32, 58, 58, 98, 10, 110, 97, 109, 101, 115, 112, 97, 99, 101, 32, 112, 97, 114, 101, 110, 116, 32, 58, 58, 97, 10, 110, 97, 109, 101, 115, 112, 97, 99, 1
+  left: 4
+ right: 5
+
+---- namespace_symbol::tests::tp_only_the_constant_computed_declaration_is_recorded stdout ----
+
+thread 'namespace_symbol::tests::tp_only_the_constant_computed_declaration_is_recorded' (6373) panicked at rust/tcl-lsp-core/src/namespace_symbol.rs:998:9:
+assertion `left == right` failed: []
+  left: []
+ right: ["$ns"]
+
+
+test result: FAILED. 38 passed; 6 failed; 0 ignored; 0 measured; 3441 filtered out; finished in 32.98s

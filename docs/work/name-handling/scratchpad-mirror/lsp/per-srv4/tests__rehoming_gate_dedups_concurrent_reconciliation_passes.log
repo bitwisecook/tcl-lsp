@@ -1,0 +1,34 @@
+
+running 1 test
+test tests::rehoming_gate_dedups_concurrent_reconciliation_passes ... FAILED
+
+failures:
+
+---- tests::rehoming_gate_dedups_concurrent_reconciliation_passes stdout ----
+
+thread 'tests::rehoming_gate_dedups_concurrent_reconciliation_passes' (1216) panicked at rust/tcl-lsp-server/src/lib.rs:59301:9:
+the sourcing document's qualified call must still resolve: []
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: tcl_lsp_server::tests::rehoming_gate_dedups_concurrent_reconciliation_passes::{closure#0}
+   3: <core::pin::Pin<&mut dyn core::future::future::Future<Output = ()>> as core::future::future::Future>::poll
+   4: <tokio::runtime::park::CachedParkThread>::block_on::<core::pin::Pin<&mut dyn core::future::future::Future<Output = ()>>>::{closure#0}
+   5: <tokio::runtime::park::CachedParkThread>::block_on::<core::pin::Pin<&mut dyn core::future::future::Future<Output = ()>>>
+   6: <tokio::runtime::context::blocking::BlockingRegionGuard>::block_on::<core::pin::Pin<&mut dyn core::future::future::Future<Output = ()>>>
+   7: <tokio::runtime::scheduler::multi_thread::MultiThread>::block_on::<core::pin::Pin<&mut dyn core::future::future::Future<Output = ()>>>::{closure#0}
+   8: tokio::runtime::context::runtime::enter_runtime::<<tokio::runtime::scheduler::multi_thread::MultiThread>::block_on<core::pin::Pin<&mut dyn core::future::future::Future<Output = ()>>>::{closure#0}, ()>
+   9: <tokio::runtime::scheduler::multi_thread::MultiThread>::block_on::<core::pin::Pin<&mut dyn core::future::future::Future<Output = ()>>>
+  10: <tokio::runtime::runtime::Runtime>::block_on_inner::<core::pin::Pin<&mut dyn core::future::future::Future<Output = ()>>>
+  11: <tokio::runtime::runtime::Runtime>::block_on::<core::pin::Pin<&mut dyn core::future::future::Future<Output = ()>>>
+  12: tcl_lsp_server::tests::rehoming_gate_dedups_concurrent_reconciliation_passes
+  13: tcl_lsp_server::tests::rehoming_gate_dedups_concurrent_reconciliation_passes::{closure#0}
+  14: <tcl_lsp_server::tests::rehoming_gate_dedups_concurrent_reconciliation_passes::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+
+failures:
+    tests::rehoming_gate_dedups_concurrent_reconciliation_passes
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 839 filtered out; finished in 16.33s
+

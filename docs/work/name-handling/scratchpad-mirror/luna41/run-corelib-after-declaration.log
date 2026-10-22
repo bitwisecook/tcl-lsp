@@ -1,0 +1,80 @@
+test declaration::tests::conditional_declaration_preview_declines_explicit_body_replacements ... ok
+test declaration::tests::declaration_does_not_resolve_an_unclosed_braced_reference ... ok
+test declaration::tests::declaration_scan_abstains_for_a_builtin_shadowed_by_a_user_proc ... ok
+test declaration::original_declaration_region_purpose_tests::original_declaration_regions_keep_actual_parent_config_and_nested_bom_geometry ... ok
+test declaration::tests::declaration_scan_follows_a_renamed_scoping_command ... ok
+test declaration::original_body_content_geometry_tests::declaration_body_regions_use_original_word_contents_and_keep_lambda_data ... ok
+test declaration::tests::declaration_scan_keeps_conditional_lexical_advice_after_a_dynamic_binding ... ok
+test declaration::tests::declaration_scan_maps_a_prefixed_body_without_reparsing_alias_argv ... ok
+test declaration::tests::declaration_scan_follows_an_aliased_scoping_command ... ok
+test declaration::tests::declaration_scan_maps_alias_prefixes_to_original_local_operands ... ok
+test declaration::tests::declaration_var_decoration_vectors_preserve_incomplete_braces ... ok
+test declaration::tests::declaration_scan_uses_the_declared_local_tail_of_a_global_name ... FAILED
+test declaration::tests::declaration_scan_recurses_through_an_aliased_body_command ... ok
+test declaration::tests::global_declared_inside_apply_lambda_body_is_found ... FAILED
+test declaration::tests::global_declaration_in_proc_body ... ok
+test declaration::tests::global_declared_inside_apply_lambda_body_is_not_visible_outside_it ... ok
+test declaration::tests::namespace_variable_declaration_does_not_supply_a_global_bare_read ... ok
+test declaration::tests::global_declared_inside_control_flow_body_is_found ... FAILED
+test declaration::tests::non_variable_falls_back_to_definition ... ok
+test declaration::tests::original_declaration_navigation_declines_unowned_analysis_without_recapture ... ok
+test declaration::tests::logical_declaration_navigation_keeps_its_explicit_compatibility_scan ... ok
+test declaration::tests::original_alias_declaration_navigation_keeps_the_independent_local_operand ... ok
+test declaration::tests::original_logical_declarations_keep_qualified_targets_and_current_source_owners ... ok
+test declaration::tests::upvar_local_alias_is_a_declaration ... FAILED
+test declaration::tests::original_qualified_alias_declarations_keep_the_target_and_body_frame ... ok
+test declaration::tests::original_logical_declarations_join_global_aliases_without_local_root_stripping has been running for over 60 seconds
+test original_declaration::logical_session_tests::missing_random_allocation_withholds_logical_call_without_changing_legacy_wire ... ok
+test original_declaration::logical_session_tests::session_wire_bytes_are_lossless_and_legacy_shapes_stay_strict ... ok
+test declaration::tests::variable_declaration_in_namespace ... ok
+test original_declaration::own_object_identity_tests::original_own_object_identity_keeps_uri_currency_and_wire_reselection ... ok
+test original_declaration::property_source_census_unclassified_receiver_tests::unclassified_object_receivers_and_unknown_heads_preserve_partial_counts ... ok
+test original_declaration::readonly_source_reference_tests::readonly_member_census_stays_partial_for_other_class_families ... ok
+test original_declaration::readonly_source_reference_tests::readonly_member_reports_keep_source_spans_out_of_edit_inventories ... ok
+test original_declaration::readonly_source_reference_tests::readonly_method_census_completes_only_proven_self_dispatch_shapes ... ok
+test declaration::tests::original_logical_declarations_join_global_aliases_without_local_root_stripping ... ok
+test original_declaration::relationship_transport_purpose_tests::tagged_wrong_kind_decodes_without_becoming_legacy_authority ... ok
+test original_declaration::readonly_source_reference_tests::readonly_property_reports_promote_only_a_complete_typed_source_census ... FAILED
+test original_declaration::readonly_source_reference_tests::readonly_member_census_fails_closed_for_deferred_and_unproven_dispatch has been running for over 60 seconds
+test original_declaration::tests::original_declaration_handles_reselect_complete_source_uri_and_scanner ... ok
+test original_declaration::tests::original_class_inventory_keeps_equal_source_owners_and_current_occupied_headers ... ok
+test original_declaration::tests::original_declaration_reference_matching_keeps_opaque_slots_and_actual_lookup_owners ... ok
+test vendor_declaration::tests::original_vendor_cards_preserve_owned_unknown_units_without_reporting_maps ... ok
+test vendor_declaration::tests::original_vendor_event_cards_use_selected_metadata_and_current_whole_source ... ok
+test original_declaration::readonly_source_reference_tests::readonly_member_census_fails_closed_for_deferred_and_unproven_dispatch ... ok
+---- declaration::tests::declaration_scan_uses_the_declared_local_tail_of_a_global_name stdout ----
+thread 'declaration::tests::declaration_scan_uses_the_declared_local_tail_of_a_global_name' (11995) panicked at rust/tcl-lsp-core/src/declaration.rs:1161:9:
+assertion `left == right` failed
+  left: [0, 2]
+ right: [2]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- declaration::tests::global_declared_inside_apply_lambda_body_is_found stdout ----
+thread 'declaration::tests::global_declared_inside_apply_lambda_body_is_found' (11999) panicked at rust/tcl-lsp-core/src/declaration.rs:933:9:
+assertion `left == right` failed: []
+  left: 0
+ right: 1
+
+---- declaration::tests::global_declared_inside_control_flow_body_is_found stdout ----
+
+thread 'declaration::tests::global_declared_inside_control_flow_body_is_found' (12003) panicked at rust/tcl-lsp-core/src/declaration.rs:907:9:
+assertion `left == right` failed: []
+  left: 0
+ right: 1
+
+---- declaration::tests::upvar_local_alias_is_a_declaration stdout ----
+
+thread 'declaration::tests::upvar_local_alias_is_a_declaration' (12477) panicked at rust/tcl-lsp-core/src/declaration.rs:884:9:
+assertion `left == right` failed: []
+  left: 0
+ right: 1
+
+---- original_declaration::readonly_source_reference_tests::readonly_property_reports_promote_only_a_complete_typed_source_census stdout ----
+
+thread 'original_declaration::readonly_source_reference_tests::readonly_property_reports_promote_only_a_complete_typed_source_census' (12816) panicked at rust/tcl-lsp-core/src/original_declaration.rs:2343:9:
+assertion failed: readonly_reference_report(&identity, source, &foreign, true).is_none()
+
+
+failures:
+    declaration::tests::declaration_scan_uses_the_declared_local_tail_of_a_global_name
+test result: FAILED. 37 passed; 5 failed; 0 ignored; 0 measured; 3448 filtered out; finished in 198.70s

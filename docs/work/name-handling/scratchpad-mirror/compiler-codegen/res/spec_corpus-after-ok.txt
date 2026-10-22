@@ -1,0 +1,3 @@
+test corpus_watchdog_scales_with_work_requested
+test shared_analysis_fallbacks_are_never_silent
+test shared_unit_matches_legacy_for_representative_profiles

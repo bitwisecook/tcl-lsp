@@ -1,0 +1,12 @@
+test tcl_install::tests::config_path_precedence_is_platform_native ... ok
+test tcl_install::tests::discover_dedups_same_library ... ok
+test tcl_install::tests::discover_finds_a_library_subdir_and_its_auto_path ... ok
+test tcl_install::tests::library_paths_from_ini_multiline_and_comma_forms ... ok
+test tcl_install::tests::library_paths_keep_shared_section_key_and_single_line_rules ... ok
+test tcl_install::tests::library_paths_share_effective_ini_continuation_and_opaque_data ... ok
+test tcl_install::tests::discovery_list_data_preserves_literal_paths_and_refuses_release_ambiguity ... ok
+test tcl_install::tests::project_config_path_is_dot_tcl_lsp_ini ... ok
+test tcl_install::tests::notices_dir_precedence_is_platform_native ... ok
+test tcl_install::tests::version_from_a_bundled_library_path ... ok
+test tcl_install::tests::discover_treats_a_base_that_is_itself_a_library_dir ... ok
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 3474 filtered out; finished in 0.02s

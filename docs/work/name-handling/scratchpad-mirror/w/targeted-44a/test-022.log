@@ -1,0 +1,6 @@
+
+running 1 test
+test package_resolver::reachability::tests::original_requirement_words_preserve_literal_wrappers_and_configured_values ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 3483 filtered out; finished in 0.75s
+

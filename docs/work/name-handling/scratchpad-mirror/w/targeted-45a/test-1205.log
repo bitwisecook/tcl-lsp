@@ -1,0 +1,24 @@
+
+running 1 test
+test command_binding::source_transition_advice::source_class_reference::tests::original_class_factory_baseclass_replacement_keeps_exact_source_operand_condition ... 
+thread 'command_binding::source_transition_advice::source_class_reference::tests::original_class_factory_baseclass_replacement_keeps_exact_source_operand_condition' (875) panicked at rust/tcl-compiler/src/command_binding/source_transition_advice/source_class_reference.rs:388:64:
+called `Option::unwrap()` on a `None` value
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: core::option::unwrap_failed
+   4: tcl_compiler::command_binding::source_transition_advice::source_class_reference::tests::child_at
+   5: tcl_compiler::command_binding::source_transition_advice::source_class_reference::tests::original_class_factory_baseclass_replacement_keeps_exact_source_operand_condition
+   6: tcl_compiler::command_binding::source_transition_advice::source_class_reference::tests::original_class_factory_baseclass_replacement_keeps_exact_source_operand_condition::{closure#0}
+   7: <tcl_compiler::command_binding::source_transition_advice::source_class_reference::tests::original_class_factory_baseclass_replacement_keeps_exact_source_operand_condition::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+FAILED
+
+failures:
+
+failures:
+    command_binding::source_transition_advice::source_class_reference::tests::original_class_factory_baseclass_replacement_keeps_exact_source_operand_condition
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 10440 filtered out; finished in 0.68s
+

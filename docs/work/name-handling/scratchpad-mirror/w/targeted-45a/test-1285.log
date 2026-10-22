@@ -1,0 +1,23 @@
+
+running 1 test
+test registry_invocation::source_structure::project_class_cards::tests::project_class_cards_do_not_use_native_report_membership_as_instance_identity ... 
+thread 'registry_invocation::source_structure::project_class_cards::tests::project_class_cards_do_not_use_native_report_membership_as_instance_identity' (1061) panicked at rust/tcl-compiler/src/registry_invocation/source_structure/project_class_cards.rs:997:18:
+called `Option::unwrap()` on a `None` value
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: core::option::unwrap_failed
+   4: tcl_compiler::registry_invocation::source_structure::project_class_cards::tests::project_class_cards_do_not_use_native_report_membership_as_instance_identity
+   5: tcl_compiler::registry_invocation::source_structure::project_class_cards::tests::project_class_cards_do_not_use_native_report_membership_as_instance_identity::{closure#0}
+   6: <tcl_compiler::registry_invocation::source_structure::project_class_cards::tests::project_class_cards_do_not_use_native_report_membership_as_instance_identity::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+FAILED
+
+failures:
+
+failures:
+    registry_invocation::source_structure::project_class_cards::tests::project_class_cards_do_not_use_native_report_membership_as_instance_identity
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 10440 filtered out; finished in 1.16s
+

@@ -1,0 +1,9 @@
+{"scheduled":"2026-10-22T10:27:00Z",
+ "change_since_previous_report":{"integrated_LSP":0,"total_baseline_delta":0,"effective_delta":0,"verified_complete":0},
+ "admissions":{},
+ "committed":{"fad131306d":"external naming migration review (cbe6ff62a, against fcb7927f02) added to docs/work/name-handling/reviews/","b3ea121954":"user decision 2026-10-22T11:00Z: the review's section F gates the rust PR","7c69ddf4c4/4aa8822286":"WIP snapshots"},
+ "external_review":{"findings":"N01-N17 plus section 3.2/3.3 seams; transformation-safety first: N08 inliner LOCAL->GLOBAL, N04-N07 rename, N15 minifier, N17 SpecTcl $a:b grammar","triage":"review-triage agent replaying every repro on the current tree; output naming-migration-review-20261022-triage.md","routed":{"N17":"compiler-codegen (high priority)","N08-N10":"compiler (after triage)","N01-N03":"compiler-names (after triage)","N03-N07,N11-N16":"lsp (after triage)","section 4 scaling":"perf","C.1-C.2 Jim core packs and UPF hook coverage":"vm-runtime"}},
+ "progress_in_tree":{"lsp":"E0275 fixed; host-install survey memo re-landed as plain data (thread_local, 64 entries / 4 MiB, existence rechecked)","bigip-lsp":"all targeted BIG-IP server tests pass"},
+ "in_progress":{"vm-runtime":"active","compiler":"active","compiler-codegen":"active","compiler-names":"active","lsp":"active","bigip-lsp":"active","perf":"active","review-triage":"started 10:20Z"},
+ "resources":"disk 2.1 GB, RAM 2 GB available, /dev/shm 2.9 GB (perf asked to shrink)",
+ "next_report_utc":"2026-10-22T11:02:00Z"}

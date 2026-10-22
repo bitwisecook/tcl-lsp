@@ -1,0 +1,23 @@
+
+running 1 test
+test parse_cut::original_parse_descent_tests::original_parse_descent_keeps_recursive_wrapper_and_unavailable_geometry_distinct ... 
+thread 'parse_cut::original_parse_descent_tests::original_parse_descent_keeps_recursive_wrapper_and_unavailable_geometry_distinct' (21645) panicked at rust/tcl-lexer/src/parse_cut.rs:1540:13:
+assertion failed: first_parse_cut_channel_in_with_descent(&groups, &tokens, image.bytes(),
+        LexerConfig::default(), image.channel(), descent).is_err()
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: tcl_lexer::parse_cut::original_parse_descent_tests::original_parse_descent_keeps_recursive_wrapper_and_unavailable_geometry_distinct
+   4: tcl_lexer::parse_cut::original_parse_descent_tests::original_parse_descent_keeps_recursive_wrapper_and_unavailable_geometry_distinct::{closure#0}
+   5: <tcl_lexer::parse_cut::original_parse_descent_tests::original_parse_descent_keeps_recursive_wrapper_and_unavailable_geometry_distinct::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+FAILED
+
+failures:
+
+failures:
+    parse_cut::original_parse_descent_tests::original_parse_descent_keeps_recursive_wrapper_and_unavailable_geometry_distinct
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 584 filtered out; finished in 0.07s
+

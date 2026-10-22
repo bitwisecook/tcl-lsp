@@ -1,0 +1,25 @@
+
+running 1 test
+test package_resolver::original_names::tests::original_index_keeps_counted_literal_names_and_does_not_trim_indices ... 
+thread 'package_resolver::original_names::tests::original_index_keeps_counted_literal_names_and_does_not_trim_indices' (24370) panicked at rust/tcl-lsp-core/src/package_resolver/original_names.rs:1150:9:
+assertion `left == right` failed
+  left: []
+ right: [([112, 192, 128, 116, 97, 105, 108], "/library/p.tcl"), ([32, 115, 112, 97, 99, 101, 100, 32], "/library/q.tcl")]
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<alloc::vec::Vec<(&[u8], &std::path::Path)>, alloc::vec::Vec<(&[u8], &std::path::Path)>>
+   4: tcl_lsp_core::package_resolver::original_names::tests::original_index_keeps_counted_literal_names_and_does_not_trim_indices
+   5: tcl_lsp_core::package_resolver::original_names::tests::original_index_keeps_counted_literal_names_and_does_not_trim_indices::{closure#0}
+   6: <tcl_lsp_core::package_resolver::original_names::tests::original_index_keeps_counted_literal_names_and_does_not_trim_indices::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+FAILED
+
+failures:
+
+failures:
+    package_resolver::original_names::tests::original_index_keeps_counted_literal_names_and_does_not_trim_indices
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 3484 filtered out; finished in 1.89s
+

@@ -1,0 +1,19 @@
+{
+ "scheduled": "2026-10-18T10:15:00Z",
+ "late_note": "Container restarted at ~10:12 UTC; capture43 (integration42) and one drafting agent were stopped. Build43 ELF hashes re-verified; capture43 restarted at 10:16 from the start; the interrupted partial run is kept aside and not counted.",
+ "change_since_previous_report": {"integrated_LSP": 0, "total_baseline_delta": 0, "effective_delta": 0, "verified_complete": 0},
+ "admissions": {},
+ "validation_recorded_at_capture": {
+  "integration42": {"commit": "db5a1ba9a", "review": "Luna-15 ADMIT all three patches; re-ran all 21 fixtures with/without prelude on tclsh 8.6/9.0 and 19 H2 shapes", "build43": "PASS zero warnings", "capture43": "RESTARTED after container restart; interrupted run showed 0 gains / 0 losses on the first 263 core selectors"}
+ },
+ "partial_row_work": {
+  "lsp-linked-logical-name-geometry": "patch drafted (syntax-only body walk no longer erases a recipe-owning Logical call receipt); expected 628/629 flip; 626 open; row stays PARTIAL",
+  "lsp-signature-cursor-source-transport": "no admissible patch: test 513 matches tclsh `source` lone-CR semantics but the Core API is given un-normalised text; the correct fix is a shared lexer/analyser change; 608 needs one trace run",
+  "lsp-semantic-logical-receiver-selector": "typed collection lookup patch drafted; closes the recorded collection obligation at that site but none of the six failing selectors (they fail earlier in the direct-constructor/widget path, failing since capture21); diagnostic probe run queued; row stays PARTIAL",
+  "lsp-package-standalone-control-role-residue": "agent resumed after restart"
+ },
+ "user_decisions_still_open": ["Compiler221", "DB921 identity", "Server102/103 freshness vs snapshot", "Server108 validation cost", "confirm auto_import decision scope applied to five extra definition tests and test 025"],
+ "next_report_utc": "2026-10-18T10:47:00Z",
+ "green_PR": false,
+ "merge_or_issue_closure": false
+}

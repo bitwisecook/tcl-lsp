@@ -1,0 +1,19 @@
+{
+ "scheduled": "2026-10-18T18:16:08Z (delivered 19:04)",
+ "change_since_previous_report": {"integrated_LSP": 0, "total_baseline_delta": 0, "effective_delta": 0, "verified_complete": 0},
+ "admissions": {},
+ "user_decisions_since_previous_report": {"receipt": "docs/work/name-handling/handoff/reviews/resume-20261017-diagnosis/user-decisions-20261018T1750Z.json"},
+ "reviews_since_previous_report": {
+  "Luna-26": "Server102/103 snapshot patch ADMIT-WITH-CONDITIONS (contract docs, reopen-at-revision-0 note); Server108 v1 HOLD (flip came from unchosen parallelism; memo reads could block live Salsa publication and evict the 64-entry LRU)",
+  "Luna-27": "survey option (a) v1 ADMIT-WITH-CONDITIONS (stack depth, malformed if, suites); helper deletion ADMIT-WITH-CONDITIONS (two proof-doc sentences)",
+  "Sol-22 DB921 v2": "D1-D4 addressed; delta review by Luna-25 running"
+ },
+ "in_progress": {
+  "Sol-24": "exclusive tree: integration44 lone-CR completion/OO gap regressions and 8.4 vsatisfies new test; running core test suites",
+  "Sol-21": "Server102/103 v2 and Server108 v2 (Salsa-published fixture, no parallelism)",
+  "Sol-23": "survey v2 (malformed if, stack budget, doc fold-in)",
+  "Sol-25": "forced-import: offsets, prelude, whole-program exports on the definition route, -force onto existing command"
+ },
+ "user_decisions_still_open": [],
+ "next_report_utc": "2026-10-18T19:35:00Z"
+}

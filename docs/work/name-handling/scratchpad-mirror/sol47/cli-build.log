@@ -1,0 +1,5 @@
+   Compiling tcl-compiler v0.1.0 (/home/user/tcl-lsp/rust/tcl-compiler)
+   Compiling tcl-vm-cli v0.1.0 (/home/user/tcl-lsp/rust/tcl-vm-cli)
+    Finished `test` profile [unoptimized] target(s) in 1m 48s
+  Executable tests/script_errors.rs (/home/user/tcl-lsp/target/debug/deps/script_errors-4a56d8a826763fd1)
+  Executable tests/top_level_e2e.rs (/home/user/tcl-lsp/target/debug/deps/top_level_e2e-5c764563d06743d7)

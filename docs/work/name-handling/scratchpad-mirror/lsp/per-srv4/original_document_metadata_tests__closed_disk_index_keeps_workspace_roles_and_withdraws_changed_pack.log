@@ -1,0 +1,38 @@
+
+running 1 test
+test original_document_metadata_tests::closed_disk_index_keeps_workspace_roles_and_withdraws_changed_pack ... FAILED
+
+failures:
+
+---- original_document_metadata_tests::closed_disk_index_keeps_workspace_roles_and_withdraws_changed_pack stdout ----
+
+thread 'original_document_metadata_tests::closed_disk_index_keeps_workspace_roles_and_withdraws_changed_pack' (6198) panicked at rust/tcl-lsp-server/src/original_document_metadata_tests.rs:593:5:
+assertion `left == right` failed
+  left: 0
+ right: 1
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<usize, usize>
+   4: tcl_lsp_server::original_document_metadata_tests::closed_disk_index_keeps_workspace_roles_and_withdraws_changed_pack::{closure#0}
+   5: <core::pin::Pin<&mut dyn core::future::future::Future<Output = ()>> as core::future::future::Future>::poll
+   6: <tokio::runtime::park::CachedParkThread>::block_on::<core::pin::Pin<&mut dyn core::future::future::Future<Output = ()>>>::{closure#0}
+   7: <tokio::runtime::park::CachedParkThread>::block_on::<core::pin::Pin<&mut dyn core::future::future::Future<Output = ()>>>
+   8: <tokio::runtime::context::blocking::BlockingRegionGuard>::block_on::<core::pin::Pin<&mut dyn core::future::future::Future<Output = ()>>>
+   9: <tokio::runtime::scheduler::multi_thread::MultiThread>::block_on::<core::pin::Pin<&mut dyn core::future::future::Future<Output = ()>>>::{closure#0}
+  10: tokio::runtime::context::runtime::enter_runtime::<<tokio::runtime::scheduler::multi_thread::MultiThread>::block_on<core::pin::Pin<&mut dyn core::future::future::Future<Output = ()>>>::{closure#0}, ()>
+  11: <tokio::runtime::scheduler::multi_thread::MultiThread>::block_on::<core::pin::Pin<&mut dyn core::future::future::Future<Output = ()>>>
+  12: <tokio::runtime::runtime::Runtime>::block_on_inner::<core::pin::Pin<&mut dyn core::future::future::Future<Output = ()>>>
+  13: <tokio::runtime::runtime::Runtime>::block_on::<core::pin::Pin<&mut dyn core::future::future::Future<Output = ()>>>
+  14: tcl_lsp_server::original_document_metadata_tests::closed_disk_index_keeps_workspace_roles_and_withdraws_changed_pack
+  15: tcl_lsp_server::original_document_metadata_tests::closed_disk_index_keeps_workspace_roles_and_withdraws_changed_pack::{closure#0}
+  16: <tcl_lsp_server::original_document_metadata_tests::closed_disk_index_keeps_workspace_roles_and_withdraws_changed_pack::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+
+failures:
+    original_document_metadata_tests::closed_disk_index_keeps_workspace_roles_and_withdraws_changed_pack
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 839 filtered out; finished in 15.40s
+

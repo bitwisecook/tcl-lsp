@@ -1,0 +1,37 @@
+test method_symbol::tests::lexical_variable_name_units_do_not_select_a_method_operand ... ok
+test method_symbol::tests::logical_class_calls_keep_their_separate_source_consumer_domain ... FAILED
+test method_symbol::own_object_tests::original_own_object_candidates_keep_allocation_and_canonical_worker_without_class_tables ... FAILED
+test method_symbol::tests::original_class_call_method_candidates_keep_call_horizons_and_captured_selectors ... ok
+test method_symbol::tests::original_instance_member_advice_uses_complete_relations_and_never_class_side_mro ... FAILED
+test method_symbol::tests::original_local_method_providers_refuse_reporting_receiver_class_guesses ... ok
+test method_symbol::tests::original_local_method_providers_share_opaque_declaration_and_whole_source_currency ... ok
+test method_symbol::own_object_tests::original_own_object_generation_and_private_entries_block_class_advice ... ok
+test method_symbol::tests::original_method_lookup_owner_absence_is_terminal_before_reporting_assistance ... ok
+test method_symbol::tests::original_method_selection_leaves_lexical_variable_reads_with_the_variable_owner ... ok
+test method_symbol::tests::original_member_advice_stops_at_earlier_occupied_non_class_headers ... ok
+test method_symbol::tests::original_workspace_member_candidates_keep_opaque_inputs_and_document_owners ... FAILED
+test method_symbol::tests::original_workspace_class_method_candidates_use_current_slots_and_canonical_targets ... ok
+---- method_symbol::tests::logical_class_calls_keep_their_separate_source_consumer_domain stdout ----
+thread 'method_symbol::tests::logical_class_calls_keep_their_separate_source_consumer_domain' (32127) panicked at rust/tcl-lsp-core/src/method_symbol.rs:1273:9:
+assertion failed: result.original_class_declarations().next().is_none()
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- method_symbol::own_object_tests::original_own_object_candidates_keep_allocation_and_canonical_worker_without_class_tables stdout ----
+
+thread 'method_symbol::own_object_tests::original_own_object_candidates_keep_allocation_and_canonical_worker_without_class_tables' (32099) panicked at rust/tcl-lsp-core/src/method_symbol.rs:1737:13:
+assertion failed: own.has_call_point_entry()
+
+---- method_symbol::tests::original_instance_member_advice_uses_complete_relations_and_never_class_side_mro stdout ----
+
+thread 'method_symbol::tests::original_instance_member_advice_uses_complete_relations_and_never_class_side_mro' (32129) panicked at rust/tcl-lsp-core/src/method_symbol.rs:1632:64:
+called `Option::unwrap()` on a `None` value
+
+---- method_symbol::tests::original_workspace_member_candidates_keep_opaque_inputs_and_document_owners stdout ----
+
+thread 'method_symbol::tests::original_workspace_member_candidates_keep_opaque_inputs_and_document_owners' (32147) panicked at rust/tcl-lsp-core/src/method_symbol.rs:1590:13:
+exact own-table source candidate
+
+
+failures:
+    method_symbol::own_object_tests::original_own_object_candidates_keep_allocation_and_canonical_worker_without_class_tables
+test result: FAILED. 9 passed; 4 failed; 0 ignored; 0 measured; 3472 filtered out; finished in 15.52s

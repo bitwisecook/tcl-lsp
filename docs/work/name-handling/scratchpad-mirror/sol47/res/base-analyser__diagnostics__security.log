@@ -1,0 +1,75 @@
+test analyser::diagnostics::security::original_capture_edit_tests::original_captured_case_action_is_not_a_written_quoting_operand ... ok
+test analyser::diagnostics::security::original_catch_child_purpose_tests::original_catch_child_keeps_bom_teardown_alias_and_complete_parent_guards ... ok
+test analyser::diagnostics::security::original_capture_edit_tests::original_captured_advice_keeps_readonly_subjects_without_call_operand_edits ... ok
+test analyser::diagnostics::security::original_command_value_prefix_controls::qualified_filter_literal_prefix_uses_its_selected_command_descriptor ... ok
+test analyser::diagnostics::security::original_quoting_child_purpose_tests::original_quoting_child_keeps_bom_alias_and_complete_pattern_word ... FAILED
+test analyser::diagnostics::security::source_credentials::tests::lexical_credential_defaults_remain_independent_of_registry_selection ... ok
+test analyser::diagnostics::security::source_credentials::tests::original_credential_metadata_keeps_actual_availability_and_source_correspondence ... ok
+test analyser::diagnostics::security::source_credentials::tests::original_credential_metadata_keeps_alias_ordinals_and_original_literal_spans ... ok
+test analyser::diagnostics::security::source_crossing::tests::original_crossing_advice_keeps_selected_option_availability_and_missing_owner_refusals ... ok
+test analyser::diagnostics::security::source_credentials::tests::original_credential_metadata_refuses_replaced_targets_and_unknown_option_windows ... ok
+test analyser::diagnostics::security::source_crossing::tests::original_frame_reparse_keeps_possible_layouts_alias_prefixes_and_whole_words ... ok
+test analyser::diagnostics::security::source_crossing::tests::original_interpreter_reparse_uses_selected_script_words_without_path_or_value_drift ... ok
+test analyser::diagnostics::security::source_paths::tests::original_path_advice_keeps_alias_captures_literal_modes_and_unicode_spans ... ok
+test analyser::diagnostics::security::source_paths::tests::original_path_advice_requires_the_unchanged_analysis_input_and_image ... ok
+test analyser::diagnostics::security::source_paths::tests::original_path_advice_has_whole_source_and_per_item_value_parity ... ok
+test analyser::diagnostics::security::source_paths::tests::original_path_advice_respects_known_targets_options_and_actual_availability ... ok
+test analyser::diagnostics::security::source_paths::tests::original_path_values_use_the_complete_cu_at_the_written_source_point ... FAILED
+test analyser::diagnostics::security::source_paths::tests::original_source_path_warning_keeps_a_proven_option_and_unproven_filename ... FAILED
+test analyser::diagnostics::security::source_patterns::tests::original_pattern_list_geometry_keeps_the_full_selected_grammar ... ok
+test analyser::diagnostics::security::source_paths::tests::original_path_refinement_cannot_borrow_missing_foreign_or_stale_cu_inputs ... ok
+test analyser::diagnostics::security::source_patterns::tests::original_pattern_shape_keeps_a_proven_mode_and_original_literal_clause ... FAILED
+test analyser::diagnostics::security::source_patterns::tests::original_pattern_shape_keeps_captured_ordinals_and_list_field_spans ... ok
+test analyser::diagnostics::security::source_patterns::tests::original_pattern_shape_refuses_changed_or_missing_source_owners ... ok
+test analyser::diagnostics::security::source_patterns::tests::original_pattern_shape_keeps_whole_source_and_per_item_parity ... FAILED
+test analyser::diagnostics::security::source_patterns::tests::original_pattern_shape_values_require_the_complete_original_cu ... FAILED
+test analyser::diagnostics::security::source_patterns::tests::original_pattern_shape_uses_selected_modes_targets_and_availability ... ok
+test analyser::diagnostics::security::source_reparse::tests::original_nested_reparse_keeps_both_aliases_and_declines_replaced_child_or_parent ... FAILED
+test analyser::diagnostics::security::source_reparse::tests::original_list_idiom_uses_the_child_schema_and_retains_concat_and_shadow_warnings ... ok
+test analyser::diagnostics::security::source_reparse::tests::original_reparse_fix_keeps_whole_quoted_unicode_span_and_review_premise ... ok
+test analyser::diagnostics::security::source_reparse::tests::original_reparse_selection_retains_actual_availability_and_unavailable_owner_refusals ... ok
+test analyser::diagnostics::security::source_template::tests::original_template_advice_keeps_actual_option_availability ... ok
+test analyser::diagnostics::security::source_reparse::tests::original_reparse_diagnostics_keep_alias_targets_and_known_source_barriers ... ok
+test analyser::diagnostics::security::source_template::tests::original_template_advice_refuses_missing_foreign_and_stale_source_owners ... ok
+test analyser::diagnostics::security::source_template::tests::original_template_refinement_requires_matching_cu_and_selected_switch_values ... FAILED
+test analyser::diagnostics::security::source_template::tests::original_template_subject_keeps_captured_switches_and_whole_unicode_word ... ok
+test analyser::diagnostics::security::source_template::tests::original_template_diagnostics_follow_aliases_and_refuse_known_replacements ... ok
+---- analyser::diagnostics::security::original_quoting_child_purpose_tests::original_quoting_child_keeps_bom_alias_and_complete_pattern_word stdout ----
+thread 'analyser::diagnostics::security::original_quoting_child_purpose_tests::original_quoting_child_keeps_bom_alias_and_complete_pattern_word' (31250) panicked at rust/tcl-compiler/src/analyser/diagnostics/security.rs:1046:9:
+assertion failed: analyser.original_regex_quoting_substitution(word)
+---- analyser::diagnostics::security::source_paths::tests::original_path_values_use_the_complete_cu_at_the_written_source_point stdout ----
+thread 'analyser::diagnostics::security::source_paths::tests::original_path_values_use_the_complete_cu_at_the_written_source_point' (31410) panicked at rust/tcl-compiler/src/analyser/diagnostics/security/source_paths.rs:628:13:
+assertion `left == right` failed: proc f {} {set p literal.txt; open $p}: [Diagnostic { subject: Some(RegistrySource(RegistrySourceDiagnosticSubject { words: OriginalRegistryWords { command: "open", dialect: Some(InvocationDialect { native_family: Some(Tcl), core_point: None, lexer_grammar: LexerGra
+  left: 1
+ right: 0
+---- analyser::diagnostics::security::source_paths::tests::original_source_path_warning_keeps_a_proven_option_and_unproven_filename stdout ----
+thread 'analyser::diagnostics::security::source_paths::tests::original_source_path_warning_keeps_a_proven_option_and_unproven_filename' (31442) panicked at rust/tcl-compiler/src/analyser/diagnostics/security/source_paths.rs:677:9:
+assertion `left == right` failed: a proven option retains the unproven path warning
+  left: 0
+ right: 1
+---- analyser::diagnostics::security::source_patterns::tests::original_pattern_shape_keeps_a_proven_mode_and_original_literal_clause stdout ----
+thread 'analyser::diagnostics::security::source_patterns::tests::original_pattern_shape_keeps_a_proven_mode_and_original_literal_clause' (31444) panicked at rust/tcl-compiler/src/analyser/diagnostics/security/source_patterns.rs:597:9:
+assertion `left == right` failed
+  left: 0
+ right: 1
+---- analyser::diagnostics::security::source_patterns::tests::original_pattern_shape_keeps_whole_source_and_per_item_parity stdout ----
+thread 'analyser::diagnostics::security::source_patterns::tests::original_pattern_shape_keeps_whole_source_and_per_item_parity' (31446) panicked at rust/tcl-compiler/src/analyser/diagnostics/security/source_patterns.rs:657:13:
+assertion `left == right` failed
+  left: 0
+ right: 1
+---- analyser::diagnostics::security::source_patterns::tests::original_pattern_shape_values_require_the_complete_original_cu stdout ----
+thread 'analyser::diagnostics::security::source_patterns::tests::original_pattern_shape_values_require_the_complete_original_cu' (31478) panicked at rust/tcl-compiler/src/analyser/diagnostics/security/source_patterns.rs:516:13:
+assertion `left == right` failed: proc f {} {set p {(a+)+}; regexp $p literal}: [Diagnostic { subject: Some(RegistrySource(RegistrySourceDiagnosticSubject { words: OriginalRegistryWords { command: "regexp", dialect: Some(InvocationDialect { native_family: Some(Tcl), core_point: None, lexer_grammar: 
+  left: 0
+ right: 1
+---- analyser::diagnostics::security::source_reparse::tests::original_nested_reparse_keeps_both_aliases_and_declines_replaced_child_or_parent stdout ----
+thread 'analyser::diagnostics::security::source_reparse::tests::original_nested_reparse_keeps_both_aliases_and_declines_replaced_child_or_parent' (31511) panicked at rust/tcl-compiler/src/analyser/diagnostics/security/source_reparse.rs:348:13:
+assertion `left == right` failed: interp alias {} run {} eval {set local}; interp alias {} render {} subst -nocommands; run [render $tmpl]: [Diagnostic { subject: Some(RegistrySource(RegistrySourceDiagnosticSubject { words: OriginalRegistryWords { command: "subst", dialect: Some(InvocationDialect { 
+  left: 0
+ right: 1
+---- analyser::diagnostics::security::source_template::tests::original_template_refinement_requires_matching_cu_and_selected_switch_values stdout ----
+thread 'analyser::diagnostics::security::source_template::tests::original_template_refinement_requires_matching_cu_and_selected_switch_values' (31610) panicked at rust/tcl-compiler/src/analyser/diagnostics/security/source_template.rs:567:9:
+assertion `left == right` failed: genuine settled advisory record
+  left: 0
+ right: 1
+test result: FAILED. 28 passed; 8 failed; 0 ignored; 0 measured; 10415 filtered out; finished in 129.29s

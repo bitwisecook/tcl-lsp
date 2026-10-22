@@ -1,0 +1,7 @@
+/home/user/tcl-lsp/target/debug/deps/tcl_compiler-ef22ef87d0bd65a7
+y3-analyser__irules_event_checks: 70 ok / 18 failed; 1 result lines
+y3-irules_checks__: 55 ok / 61 failed; 1 result lines
+REGRESSIONS:
+GAINS: 5
+REGRESSIONS:
+GAINS: 0

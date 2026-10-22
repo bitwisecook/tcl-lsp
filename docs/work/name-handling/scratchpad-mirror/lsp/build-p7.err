@@ -1,0 +1,150 @@
+   Compiling libc v0.2.190
+   Compiling cfg-if v1.0.5
+   Compiling zeroize v1.9.1
+   Compiling subtle v2.6.1
+   Compiling syn v3.0.9
+   Compiling rand_core v0.10.1
+   Compiling typenum v1.20.1
+   Compiling cmov v0.5.4
+   Compiling ctutils v0.4.3
+   Compiling const-oid v0.10.2
+   Compiling memchr v2.8.3
+   Compiling hybrid-array v0.4.15
+   Compiling tcl-core-types v0.1.0 (/home/user/tcl-lsp/rust/tcl-core-types)
+   Compiling block-buffer v0.12.1
+   Compiling cpufeatures v0.3.1
+   Compiling bytecount v0.6.9
+   Compiling getrandom v0.4.3
+   Compiling libm v0.2.16
+   Compiling crypto-common v0.2.2
+   Compiling tcl-dialect v0.1.0 (/home/user/tcl-lsp/rust/tcl-dialect)
+   Compiling digest v0.11.3
+   Compiling sha2 v0.11.1
+   Compiling cc v1.8.0
+   Compiling base64ct v1.8.3
+   Compiling thiserror-impl v2.0.21
+   Compiling pem-rfc7468 v1.0.0
+   Compiling cpubits v0.1.1
+   Compiling tcl-platform v0.1.0 (/home/user/tcl-lsp/rust/tcl-platform)
+   Compiling crypto-bigint v0.7.5
+   Compiling der v0.8.2
+   Compiling thiserror v2.0.21
+   Compiling syn v2.0.119
+   Compiling tcl-lexer v0.1.0 (/home/user/tcl-lsp/rust/tcl-lexer)
+   Compiling tcl-syntax v0.1.0 (/home/user/tcl-lsp/rust/tcl-syntax)
+   Compiling smallvec v1.16.3
+   Compiling spki v0.8.1
+   Compiling sha1 v0.11.0
+   Compiling md-5 v0.11.0
+   Compiling ff v0.14.0
+   Compiling aho-corasick v1.1.5
+   Compiling regex-syntax v0.8.11
+   Compiling group v0.14.0
+   Compiling pkcs8 v0.11.0
+   Compiling equivalent v1.0.3
+   Compiling rustc-hash v2.1.3
+   Compiling base16ct v1.0.0
+   Compiling minimal-lexical v0.2.1
+   Compiling hashbrown v0.17.1
+   Compiling regex-automata v0.4.18
+   Compiling indexmap v2.14.2
+   Compiling nom v7.1.3
+   Compiling sec1 v0.8.1
+   Compiling tcl-runtime-api v0.1.0 (/home/user/tcl-lsp/rust/tcl-runtime-api)
+   Compiling zmij v1.0.23
+   Compiling synstructure v0.13.2
+   Compiling tcl-cmd-core v0.1.0 (/home/user/tcl-lsp/rust/tcl-cmd-core)
+   Compiling tcl-bytecode v0.1.0 (/home/user/tcl-lsp/rust/tcl-bytecode)
+   Compiling regex v1.13.1
+   Compiling itoa v1.0.18
+   Compiling deranged v0.5.9
+   Compiling foldhash v0.2.0
+   Compiling powerfmt v0.2.1
+   Compiling serde_json v1.0.154
+   Compiling asn1-rs-derive v0.6.0
+   Compiling rusticata-macros v4.1.0
+   Compiling elliptic-curve v0.14.1
+   Compiling time v0.3.55
+   Compiling unicode-general-category v1.1.0
+   Compiling asn1-rs-impl v0.2.0
+   Compiling primefield v0.14.0
+   Compiling tcl-host-c-abi v0.1.0 (/home/user/tcl-lsp/rust/tcl-host-c-abi)
+   Compiling displaydoc v0.2.7
+   Compiling serde_derive v1.0.229
+   Compiling hmac v0.13.0
+   Compiling signature v3.0.0
+   Compiling rfc6979 v0.6.0
+   Compiling wnaf v0.14.1
+   Compiling ring v0.17.14
+   Compiling pin-project-lite v0.2.17
+   Compiling asn1-rs v0.7.2
+   Compiling tcl-regex v0.1.0 (/home/user/tcl-lsp/rust/tcl-regex)
+   Compiling serde v1.0.229
+   Compiling primeorder v0.14.0
+   Compiling tcl-registry v0.1.0 (/home/user/tcl-lsp/rust/tcl-registry)
+   Compiling ecdsa v0.17.0
+   Compiling ref-cast-impl v1.0.27
+   Compiling getrandom v0.2.17
+   Compiling num-bigint v0.4.8
+   Compiling futures-core v0.3.34
+   Compiling untrusted v0.9.0
+   Compiling futures-sink v0.3.34
+   Compiling ref-cast v1.0.27
+   Compiling nix v0.31.3
+   Compiling oid-registry v0.8.1
+   Compiling crypto-primes v0.7.2
+   Compiling der-parser v10.0.0
+   Compiling pkcs1 v0.8.0-rc.4
+   Compiling data-encoding v2.11.1
+   Compiling borrow-or-share v0.2.4
+   Compiling lazy_static v1.5.1
+   Compiling fluent-uri v0.4.1
+   Compiling x509-parser v0.18.1
+   Compiling rsa v0.10.0-rc.18
+   Compiling tcl-host-native v0.1.0 (/home/user/tcl-lsp/rust/tcl-host-native)
+   Compiling futures-channel v0.3.34
+   Compiling p256 v0.14.0
+   Compiling p384 v0.14.0
+   Compiling futures-macro v0.3.34
+   Compiling futures-task v0.3.34
+   Compiling base64 v0.23.1
+   Compiling slab v0.4.12
+   Compiling futures-io v0.3.34
+   Compiling tcl-engine-api v0.1.0 (/home/user/tcl-lsp/rust/tcl-engine-api)
+   Compiling futures-util v0.3.34
+   Compiling scopeguard v1.2.0
+   Compiling ipnet v2.12.2
+   Compiling lock_api v0.4.14
+   Compiling parking_lot_core v0.9.12
+   Compiling crossbeam-utils v0.8.23
+   Compiling tokio v1.53.3
+   Compiling tracing-attributes v0.1.31
+   Compiling percent-encoding v2.3.2
+   Compiling tower-layer v0.3.3
+   Compiling tower-service v0.3.3
+   Compiling sync_wrapper v1.0.2
+   Compiling hashbrown v0.14.5
+   Compiling bytes v1.12.1
+   Compiling futures v0.3.34
+   Compiling tower v0.5.3
+   Compiling dashmap v6.2.1
+   Compiling tokio-util v0.7.20
+   Compiling ls-types v0.0.6
+   Compiling tracing v0.1.44
+   Compiling tcl-pkg-model v0.1.0 (/home/user/tcl-lsp/rust/tcl-pkg-model)
+   Compiling xxhash-rust v0.8.19
+   Compiling tcl-test-support v0.1.0 (/home/user/tcl-lsp/rust/tcl-test-support)
+   Compiling tower-lsp-server v0.23.0
+   Compiling tcl-compiler v0.1.0 (/home/user/tcl-lsp/rust/tcl-compiler)
+   Compiling tcl-vm v0.1.0 (/home/user/tcl-lsp/rust/tcl-vm)
+   Compiling tcl-sslictcl v0.1.0 (/home/user/tcl-lsp/rust/tcl-sslictcl)
+   Compiling tcl-irules v0.1.0 (/home/user/tcl-lsp/rust/tcl-irules)
+   Compiling tcl-engine-tclvm v0.1.0 (/home/user/tcl-lsp/rust/tcl-engine-tclvm)
+   Compiling tcl-spec-hooks v0.1.0 (/home/user/tcl-lsp/rust/tcl-spec-hooks)
+   Compiling tcl-bigip v0.1.0 (/home/user/tcl-lsp/rust/tcl-bigip)
+   Compiling tcl-lsp-core v0.1.0 (/home/user/tcl-lsp/rust/tcl-lsp-core)
+error: could not compile `tcl-compiler` (lib)
+
+Caused by:
+  process didn't exit successfully: `/root/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/rustc --crate-name tcl_compiler --edition=2024 rust/tcl-compiler/src/lib.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat --crate-type lib --emit=dep-info,metadata,link -C embed-bitcode=no '--warn=clippy::pedantic' --forbid=unsafe_code --warn=unexpected_cfgs '--allow=clippy::module_name_repetitions' '--allow=clippy::missing_panics_doc' '--allow=clippy::missing_errors_doc' --check-cfg 'cfg(tokio_unstable)' --check-cfg 'cfg(tokio_taskdump)' --check-cfg 'cfg(docsrs,test)' --check-cfg 'cfg(feature, values())' -C metadata=6ecfe8780b34549a -C extra-filename=-bb79d3fa4e7e58ef --out-dir /home/user/tcl-lsp/target/debug/deps -C strip=debuginfo -L dependency=/home/user/tcl-lsp/target/debug/deps --extern bitflags=/home/user/tcl-lsp/target/debug/deps/libbitflags-1fdf0fce4c11fa73.rmeta --extern num_bigint=/home/user/tcl-lsp/target/debug/deps/libnum_bigint-0d8571d427f93d3d.rmeta --extern num_integer=/home/user/tcl-lsp/target/debug/deps/libnum_integer-de14a98996d95faf.rmeta --extern num_traits=/home/user/tcl-lsp/target/debug/deps/libnum_traits-84554fa0bfb1fd1b.rmeta --extern regex=/home/user/tcl-lsp/target/debug/deps/libregex-38f976e9261f37f5.rmeta --extern rustc_hash=/home/user/tcl-lsp/target/debug/deps/librustc_hash-24b16ca29408e1a7.rmeta --extern tcl_bytecode=/home/user/tcl-lsp/target/debug/deps/libtcl_bytecode-4a5820395965c4a1.rmeta --extern tcl_cmd_core=/home/user/tcl-lsp/target/debug/deps/libtcl_cmd_core-eb400c1cff7ee531.rmeta --extern tcl_core_types=/home/user/tcl-lsp/target/debug/deps/libtcl_core_types-7a0c30e1b57eb98b.rmeta --extern tcl_dialect=/home/user/tcl-lsp/target/debug/deps/libtcl_dialect-051746368397d9ae.rmeta --extern tcl_lexer=/home/user/tcl-lsp/target/debug/deps/libtcl_lexer-6f03273bafefdc61.rmeta --extern tcl_registry=/home/user/tcl-lsp/target/debug/deps/libtcl_registry-05a3541972847273.rmeta --extern tcl_runtime_api=/home/user/tcl-lsp/target/debug/deps/libtcl_runtime_api-7eccabb429cce6f1.rmeta --extern tcl_syntax=/home/user/tcl-lsp/target/debug/deps/libtcl_syntax-2edf97badfe0711c.rmeta --extern thiserror=/home/user/tcl-lsp/target/debug/deps/libthiserror-33c43a4283bb49e4.rmeta --extern unicode_general_category=/home/user/tcl-lsp/target/debug/deps/libunicode_general_category-08e203d4bfdf5349.rmeta` (signal: 9, SIGKILL: kill)
+warning: build failed, waiting for other jobs to finish...

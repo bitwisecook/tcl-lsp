@@ -1,0 +1,6 @@
+test procedure_symbol::tests::checked_logical_procedure_catalogue_refuses_unparsed_root_tail ... ok
+test procedure_symbol::tests::logical_procedure_catalogue_keeps_every_original_header_and_source_coordinate ... ok
+test procedure_symbol::tests::logical_procedure_catalogue_refuses_unavailable_original_header ... ok
+test procedure_symbol::tests::original_procedure_tool_literal_values_use_the_selected_native_ingress ... ok
+test procedure_symbol::tests::original_procedure_tool_queries_keep_declarations_and_refuse_scope_guesses ... ok
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 3480 filtered out; finished in 13.78s

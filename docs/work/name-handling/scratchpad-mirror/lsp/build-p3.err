@@ -1,0 +1,10 @@
+    Blocking waiting for file lock on build directory
+   Compiling tcl-compiler v0.1.0 (/home/user/tcl-lsp/rust/tcl-compiler)
+   Compiling tcl-irules v0.1.0 (/home/user/tcl-lsp/rust/tcl-irules)
+   Compiling tcl-sslictcl v0.1.0 (/home/user/tcl-lsp/rust/tcl-sslictcl)
+   Compiling tcl-engine-tclvm v0.1.0 (/home/user/tcl-lsp/rust/tcl-engine-tclvm)
+   Compiling tcl-spec-hooks v0.1.0 (/home/user/tcl-lsp/rust/tcl-spec-hooks)
+   Compiling tcl-bigip v0.1.0 (/home/user/tcl-lsp/rust/tcl-bigip)
+   Compiling tcl-lsp-core v0.1.0 (/home/user/tcl-lsp/rust/tcl-lsp-core)
+   Compiling tcl-spectcl v0.1.0 (/home/user/tcl-lsp/rust/tcl-spectcl)
+    Finished `test` profile [unoptimized] target(s) in 29m 25s

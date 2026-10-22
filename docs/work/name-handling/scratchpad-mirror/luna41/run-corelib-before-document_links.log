@@ -1,0 +1,65 @@
+test document_links::authored_source_link_purpose_tests::authored_jim_path_advice_keeps_scope_without_becoming_public_native_value ... ok
+test document_links::original_document_link_tests::selected_source_links_preserve_a_posix_backslash_as_filename_data ... ok
+test document_links::original_document_link_tests::original_document_links_retain_package_inputs_and_versioned_source_grammar ... ok
+test document_links::original_document_link_tests::original_document_links_use_actual_handlers_values_and_current_source ... ok
+test document_links::original_link_parse_purpose_tests::original_link_anchors_parse_actual_substitution_content_without_file_prologue_rules ... ok
+test document_links::original_link_parse_purpose_tests::original_pack_links_keep_document_marks_distinct_from_include_body_content ... ok
+test document_links::original_hosted_document_link_tests::original_source_path_links_use_selected_operations_and_authentic_bound_values ... ok
+test document_links::original_logical_link_prefix_tests::logical_path_link_anchors_use_authentic_static_tail_words ... ok
+test document_links::original_logical_link_operand_order_tests::logical_path_prefix_constants_require_static_earlier_written_operands ... ok
+test document_links::original_hosted_document_link_tests::original_hosted_links_keep_source_schema_and_name_purposes_independent ... ok
+test document_links::tests::a_computed_source_link_anchors_on_the_file_name_only_775 ... ok
+test document_links::original_logical_link_prefix_tests::logical_path_links_use_the_original_prefix_before_invocation_effects ... ok
+test document_links::tests::a_chained_computed_source_path_resolves_775 ... FAILED
+test document_links::tests::a_computed_source_path_resolves_to_its_real_target_923_idx41 ... ok
+test document_links::tests::a_literal_file_join_link_anchors_on_the_file_name_only_775 ... ok
+test document_links::tests::a_computed_source_path_with_no_literal_word_produces_no_link_775 ... ok
+test document_links::tests::a_literal_source_link_still_covers_the_whole_word_775 ... ok
+test document_links::tests::a_pack_include_row_links_to_its_sibling_file ... ok
+test document_links::tests::a_pack_include_does_not_expand_a_tilde ... ok
+test document_links::tests::a_normalized_computed_source_path_resolves_775 ... ok
+test document_links::tests::a_surface_roster_include_is_not_a_file_link ... ok
+test document_links::tests::a_relative_computed_source_path_anchors_like_the_literal_beside_it_923_idx41 ... ok
+test document_links::tests::a_pack_include_with_path_structure_is_not_a_link ... ok
+test document_links::tests::absolute_path_surfaces_as_link ... ok
+test document_links::tests::an_ordinary_tcl_include_call_is_not_a_link ... ok
+test document_links::tests::bare_tilde_expands_to_home ... ok
+test document_links::tests::double_dash_terminator_skipped ... ok
+test document_links::tests::braced_and_quoted_path_range_excludes_delimiter ... ok
+test document_links::tests::dynamic_path_produces_no_link ... ok
+test document_links::tests::encoding_flag_skipped_before_path ... ok
+test document_links::tests::file_join_absolute_segment_resets_accumulator ... ok
+test document_links::tests::file_join_handles_quoted_and_braced_segments ... ok
+test document_links::tests::file_join_joins_literal_segments ... ok
+test document_links::tests::file_join_returns_none_for_non_file_join_subst ... ok
+test document_links::tests::file_join_returns_none_for_variable_segments ... ok
+test document_links::tests::file_uri_for_unix_absolute_path ... ok
+test document_links::tests::file_uri_for_windows_drive_letter_path ... ok
+test document_links::tests::file_uri_normalises_windows_backslashes ... ok
+test document_links::tests::empty_links_for_non_source_commands ... ok
+test document_links::tests::link_range_anchors_at_path_argument ... ok
+test document_links::tests::an_unfoldable_computed_source_path_produces_no_link_923_idx41 ... ok
+test document_links::tests::pack_include_navigation_uses_original_wrapped_unicode_names_and_first_pack ... ok
+test document_links::tests::original_namespace_source_links_use_typed_jim_local_scope_without_export ... ok
+test document_links::tests::percent_encode_path_escapes_non_ascii ... ok
+test document_links::tests::percent_encode_path_escapes_spaces_and_specials ... ok
+test document_links::tests::percent_encode_path_passes_unreserved_through ... ok
+test document_links::tests::relative_path_resolves_against_workspace_root ... ok
+test document_links::tests::pack_include_navigation_withholds_dynamic_and_nested_file_rows ... ok
+test document_links::tests::relative_path_without_root_produces_no_link ... ok
+test document_links::tests::source_with_absolute_file_join_segment_surfaces_link ... ok
+test document_links::tests::source_with_literal_file_join_surfaces_link ... ok
+test document_links::tests::original_source_links_use_actual_selected_navigation_and_decline_shadows_or_stale_input ... ok
+test document_links::tests::source_with_spaces_in_path_produces_escaped_uri ... ok
+test document_links::tests::source_links_keep_shared_host_base_and_literal_parent_path_policy ... ok
+test document_links::tests::tilde_expansion_uses_supplied_home ... ok
+test document_links::tests::tilde_without_home_produces_no_link ... ok
+test document_links::tests::trailing_slash_on_workspace_root_handled ... ok
+---- document_links::tests::a_chained_computed_source_path_resolves_775 stdout ----
+thread 'document_links::tests::a_chained_computed_source_path_resolves_775' (13984) panicked at rust/tcl-lsp-core/src/document_links.rs:1403:9:
+assertion `left == right` failed: [DocumentLink { start_line: 2, start_character: 29, end_line: 2, end_character: 47, target: "file:///proj/src/generalClasses.tcl", tooltip: Some("/proj/src/generalClasses.tcl") }]
+  left: ["file:///proj/src/generalClasses.tcl"]
+ right: ["file:///proj/src/generalClasses.tcl", "file:///proj/src/ngspice/netlistParserClassNgspice.tcl"]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+test result: FAILED. 56 passed; 1 failed; 0 ignored; 0 measured; 3428 filtered out; finished in 96.31s

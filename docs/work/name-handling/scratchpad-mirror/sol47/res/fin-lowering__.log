@@ -1,0 +1,830 @@
+test lowering::body_cache_eligible_tests::cross_item_constructs_disqualify ... ok
+test lowering::body_cache_eligible_tests::plain_bodies_are_eligible ... ok
+test lowering::body_cache_eligible_tests::isolated_body_profile_keeps_the_original_standalone_source_purpose ... FAILED
+test lowering::body_cache_eligible_tests::alias_in_scope_withdraws_isolated_cache_proof ... FAILED
+test lowering::body_cache_eligible_tests::rename_in_scope_withdraws_isolated_cache_proof ... FAILED
+test lowering::body_cache_eligible_tests::source_may_alias_commands_flags_interp ... ok
+test lowering::body_cache_eligible_tests::source_may_alias_commands_flags_rename ... ok
+test lowering::body_cache_eligible_tests::tab_separated_command_still_disqualifies ... ok
+test lowering::body_cache_eligible_tests::substring_only_use_is_safe ... ok
+test lowering::execution_regions::tests::case_list_possible_regions_enter_bodies_as_list_elements ... FAILED
+test lowering::execution_regions::tests::conditional_case_sources_decline_replaced_handlers ... ok
+test lowering::execution_regions::tests::conditional_case_sources_do_not_claim_entered_bodies ... FAILED
+test lowering::execution_regions::tests::direct_framework_callback_state_replacement_withdraws_phase_proof ... ok
+test lowering::execution_regions::tests::core_and_provider_namespace_shadows_withdraw_stock_proof ... ok
+test lowering::execution_regions::tests::captured_provider_metadata_keeps_actual_availability_and_missing_owner_refusal ... FAILED
+test lowering::execution_regions::tests::original_compilation_layout_advice_requires_its_retained_snapshot ... ok
+test lowering::execution_regions::tests::helper_replacement_and_phase_hook_installation_decline_the_plan ... ok
+test lowering::execution_regions::tests::possible_f5_conditional_retains_original_expression_ownership ... FAILED
+test lowering::execution_regions::tests::possible_handler_bodies_share_analysis_regions_without_opcode_permission ... FAILED
+test lowering::execution_regions::tests::qualified_and_imported_wrappers_share_the_same_lifecycle ... FAILED
+test lowering::execution_regions::tests::package_advertisement_and_replaced_wrapper_do_not_license_expansion ... ok
+test lowering::execution_regions::tests::repetition_value_contract_does_not_license_new_private_observers ... ok
+test lowering::execution_regions::tests::scoped_provider_lifecycle_retains_conditional_dependencies ... FAILED
+test lowering::hooks::control::tests::dispatcher_routes_return_through_try_lower_hook ... FAILED
+test lowering::hooks::control::tests::expr_braced_lowers_to_expr_eval ... FAILED
+test lowering::execution_regions::tests::unknown_version_optional_helpers_are_not_assumed_absent ... ok
+test lowering::hooks::control::tests::expr_multi_arg_falls_back_to_call ... ok
+test lowering::hooks::control::tests::expr_with_expansion_falls_back_to_call ... ok
+test lowering::hooks::control::tests::expr_zero_args_falls_back_to_call ... ok
+test lowering::hooks::control::tests::return_braced_value_marks_braced ... FAILED
+test lowering::execution_regions::tests::issue_2286_default_c_authoring_entry_uses_real_setup_definitions ... FAILED
+test lowering::hooks::control::tests::return_no_args_lowers_to_return ... FAILED
+test lowering::hooks::control::tests::return_value_lowers_to_return ... FAILED
+test lowering::hooks::control::tests::return_options_lower_as_the_registry_decodes_them ... FAILED
+test lowering::hooks::control::tests::return_with_expr_substitution_attaches_expr ... FAILED
+test lowering::hooks::control::tests::return_with_expansion_emits_barrier ... ok
+test lowering::hooks::control::tests::sole_return_option_spelling_is_original_result_data ... FAILED
+test lowering::hooks::control::tests::nested_return_expression_retains_original_parser_source_base ... FAILED
+test lowering::hooks::control::tests::unit_expr_expansion_returns_none ... ok
+test lowering::hooks::control::tests::unit_expr_multiword_arg_returns_none ... ok
+test lowering::hooks::control::tests::unit_expr_single_braced_arg_returns_some ... ok
+test lowering::hooks::control::tests::unit_return_braced_value_marks_braced ... ok
+test lowering::hooks::control::tests::unit_return_dash_first_arg_is_barrier ... ok
+test lowering::hooks::control::tests::unit_return_expansion_is_barrier ... ok
+test lowering::hooks::control::tests::unit_return_extra_values_preserve_runtime_arity_error ... FAILED
+test lowering::hooks::control::tests::unit_return_no_args ... ok
+test lowering::hooks::control::tests::unit_return_simple_value ... ok
+test lowering::hooks::control::tests::return_with_options_emits_barrier ... FAILED
+test lowering::hooks::incr::tests::incr_negative_amount_lowers_to_incr ... FAILED
+test lowering::hooks::incr::tests::incr_no_args_falls_back_to_call ... ok
+test lowering::hooks::incr::tests::incr_dispatcher_routes_through_try_lower_hook ... FAILED
+test lowering::hooks::incr::tests::incr_too_many_args_falls_back_to_call ... ok
+test lowering::hooks::control::tests::unentered_or_failed_return_value_does_not_gain_executable_expression_metadata ... FAILED
+test lowering::hooks::incr::tests::incr_single_arg_lowers_to_incr ... FAILED
+test lowering::hooks::incr::tests::incr_with_brace_expansion_falls_back_to_call ... ok
+test lowering::hooks::incr::tests::try_lower_incr_keeps_the_specialisation_for_a_spelled_out_name ... FAILED
+test lowering::hooks::incr::tests::incr_with_amount_lowers_to_incr ... FAILED
+test lowering::hooks::incr::tests::unit_incr_basic ... ok
+test lowering::hooks::incr::tests::unit_incr_empty_args_makes_call ... ok
+test lowering::hooks::incr::tests::unit_incr_expansion_makes_call ... ok
+test lowering::hooks::incr::tests::unit_incr_with_amount ... ok
+test lowering::native_body_context_tests::original_body_refusal_preserves_key_and_unknown_never_invents_one ... ok
+test lowering::hooks::incr::tests::try_lower_incr_leaves_the_expanded_name_word_on_its_existing_path ... ok
+test lowering::native_body_context_tests::original_colliding_namespace_displays_keep_both_body_contexts ... ok
+test lowering::native_body_context_tests::original_colon_procedure_body_keeps_definition_namespace ... FAILED
+test lowering::native_body_context_tests::original_event_body_keeps_conditional_frame_without_claiming_entry ... ok
+test lowering::hooks::incr::tests::try_lower_incr_refuses_a_computed_name_under_an_expansionless_grammar ... ok
+test lowering::native_body_context_tests::original_replaced_and_retired_declarations_keep_analysis_only_coverage ... ok
+test lowering::native_control_carrier_tests::original_control_carrier_rejects_changed_words_and_absent_compiler_entry ... ok
+test lowering::native_body_context_tests::shared_original_body_keeps_distinct_declaration_sites ... ok
+test lowering::native_control_carrier_tests::renamed_or_aliased_control_has_no_original_stock_compiler_carrier ... ok
+test lowering::original_body_word_geometry_tests::original_body_geometry_cannot_overwrite_an_actual_declaration_owner ... ok
+test lowering::native_control_carrier_tests::replaced_control_preserves_initial_compiler_selection_for_runtime_replay ... ok
+test lowering::original_body_word_geometry_tests::original_body_word_geometry_refuses_foreign_input_source_config_and_vector ... ok
+test lowering::original_body_word_geometry_tests::original_body_geometry_is_absent_without_namespace_descent_or_retained_owner ... ok
+test lowering::original_body_word_geometry_tests::original_derived_body_geometry_refuses_changed_parent_vector_span_and_input ... ok
+test lowering::original_body_word_geometry_tests::original_derived_body_geometry_refuses_counterfeit_source_ordinal_and_parent_site ... ok
+test lowering::original_body_word_geometry_tests::original_derived_body_geometry_retains_the_exact_parent_word_and_namespace ... FAILED
+test lowering::original_body_word_geometry_tests::original_jim_body_source_point_remains_without_a_proved_execution_target ... FAILED
+test lowering::original_script_purpose_tests::original_definer_targets_keep_literal_data_distinct_from_scalar_references ... FAILED
+test lowering::original_script_purpose_tests::original_materialised_zero_base_body_keeps_its_selected_point_owner ... ok
+test lowering::original_script_purpose_tests::original_selected_nested_body_keeps_parent_metadata_for_known_command_advice ... FAILED
+test lowering::original_script_purpose_tests::original_whole_and_zero_base_body_parsers_keep_distinct_bom_purposes ... ok
+test lowering::passive_metadata_tests::passive_class_body_metadata_uses_original_selection_and_supplied_availability ... FAILED
+test lowering::original_body_word_geometry_tests::original_conditional_body_retains_written_geometry_without_lookup_or_native_entry ... ok
+test lowering::passive_metadata_tests::passive_member_layout_uses_actual_release_and_original_optional_word_shape ... FAILED
+test lowering::passive_metadata_tests::trace_hazard_metadata_keeps_actual_availability_and_missing_owner_uncertainty ... FAILED
+test lowering::native_control_carrier_tests::original_control_compiler_enters_the_original_expression_worklist ... ok
+test lowering::source_body_syntax::tests::authored_original_expansion_never_enters_the_source_syntax_cache ... ok
+test lowering::source_body_syntax::tests::source_syntax_cache_keeps_complete_input_and_registry_generation ... ok
+test lowering::source_body_syntax::tests::source_syntax_cache_reuses_only_unchanged_dependencies_and_restores_current_receipts ... ok
+test lowering::source_body_syntax::tests::source_syntax_cache_declines_substitution_expansion_and_structured_lowering ... ok
+test lowering::structured::control_receiver_data_tests::computed_control_receiver_names_keep_runtime_dispatch ... ok
+test lowering::structured::control_receiver_data_tests::catch_and_try_receivers_keep_literal_sigils_elements_and_empty_data ... ok
+test lowering::structured::original_body_word_caller_tests::original_structured_body_caller_keeps_parent_ordinal_and_namespace ... FAILED
+test lowering::structured::original_body_word_caller_tests::original_structured_body_word_caller_refuses_full_extent_and_changed_parent ... ok
+test lowering::structured::original_dict_name_tests::dynamic_dictionary_targets_keep_original_dispatch_without_static_defs ... ok
+test lowering::structured::original_dict_name_tests::dictionary_prefix_and_expansion_keep_original_slot_ownership ... ok
+test lowering::structured::original_dict_name_tests::selected_dictionary_writes_keep_original_literal_variable_name_data ... ok
+test lowering::structured::switch_span_tests::switch_arm_and_default_spans_point_at_body_text ... ok
+test lowering::structured::tests::a_switch_records_how_each_word_was_delimited ... FAILED
+test lowering::structured::tests::case_clauses_the_arm_cannot_hold_are_barriers ... FAILED
+test lowering::structured::tests::case_does_not_lower_under_9 ... ok
+test lowering::structured::tests::case_lowers_as_an_opaque_glob_selection ... FAILED
+test lowering::structured::tests::catch_bracket_command_body_falls_through_to_barrier ... ok
+test lowering::structured::tests::catch_dollar_var_body_falls_through_to_barrier ... FAILED
+test lowering::structured::tests::catch_preserves_command_tokens ... ok
+test lowering::structured::retained_expression_lexer_configuration_tests::structured_conditions_preserve_the_actual_braced_variable_override ... ok
+test lowering::structured::tests::catch_with_vars ... ok
+test lowering::structured::tests::dict_for ... FAILED
+test lowering::structured::tests::dict_for_dollar_var_body_falls_through_to_barrier ... FAILED
+test lowering::structured::tests::dict_set ... FAILED
+test lowering::structured::tests::dict_for_grouped_var_element_binds_one_name ... FAILED
+test lowering::structured::tests::for_dollar_var_body_falls_through_to_barrier ... FAILED
+test lowering::structured::tests::foreach_dollar_var_body_falls_through_to_barrier ... FAILED
+test lowering::structured::tests::foreach_escaped_space_var_binds_one_name ... ok
+test lowering::structured::tests::foreach_grouped_var_element_binds_one_name ... ok
+test lowering::structured::tests::malformed_var_list_falls_through_to_barrier ... FAILED
+test lowering::structured::tests::foreach_plain_var_list_still_binds_every_name ... ok
+test lowering::structured::tests::switch_exact ... FAILED
+test lowering::structured::tests::switch_braced_block_sets_patterns_braced_true ... FAILED
+test lowering::structured::tests::switch_separate_words_sets_patterns_braced_false ... FAILED
+test lowering::structured::tests::switch_single_braced_body_is_lowered ... FAILED
+test lowering::structured::tests::switch_static_arm_body_still_lowers ... FAILED
+test lowering::structured::tests::switch_substituted_arm_body_barriers ... ok
+test lowering::structured::switch_span_tests::a_braced_case_list_decodes_its_elements_under_the_documents_escapes ... ok
+test lowering::structured::tests::try_braced_dash_handler_body_is_fallthrough ... ok
+test lowering::structured::tests::try_braced_escaped_dash_handler_body_is_not_fallthrough ... ok
+test lowering::structured::tests::try_backslash_escaped_dash_handler_body_is_fallthrough ... ok
+test lowering::structured::tests::try_consecutive_dash_handlers_are_fallthrough ... ok
+test lowering::structured::tests::try_dollar_var_body_falls_through_to_barrier ... FAILED
+test lowering::structured::tests::try_dollar_var_handler_body_falls_through_to_barrier ... FAILED
+test lowering::structured::tests::try_dollar_var_finally_body_falls_through_to_barrier ... FAILED
+test lowering::structured::tests::try_dash_handler_body_is_fallthrough ... ok
+test lowering::structured::tests::try_empty_brace_handler_body_is_not_fallthrough ... ok
+test lowering::structured::tests::try_trap_pattern_projection_preserves_tcl_word_literalness ... FAILED
+test lowering::structured::tests::try_quoted_dash_handler_body_is_fallthrough ... ok
+test lowering::structured::tests::try_trap_pattern_projection_uses_the_release_escape_grammar ... FAILED
+test lowering::structured::tests::try_with_handler ... ok
+test lowering::structured::tests::try_with_finally ... ok
+test lowering::structured::tests::while_dollar_var_body_falls_through_to_barrier ... FAILED
+test lowering::tests::apply_body_proc_registers_in_lambda_namespace_not_callers ... FAILED
+test lowering::tests::absolutely_named_nested_proc_is_unaffected ... FAILED
+test lowering::structured::tests::try_static_finally_and_handler_bodies_still_lower ... ok
+test lowering::tests::body_barrier_metadata_keeps_exact_selected_rooted_descriptor ... ok
+test lowering::tests::apply_relative_lambda_namespace_homes_globally_not_to_the_caller ... FAILED
+test lowering::tests::apply_body_proc_uses_explicit_lambda_namespace ... FAILED
+test lowering::tests::body_has_dynamic_barrier_dynamic_eval_body ... ok
+test lowering::tests::body_has_dynamic_barrier_covers_compound_eval_family ... ok
+test lowering::tests::body_has_dynamic_barrier_clean ... ok
+test lowering::tests::body_has_dynamic_barrier_non_body_command_is_clean ... ok
+test lowering::tests::body_has_dynamic_barrier_dynamic_uplevel_body ... ok
+test lowering::tests::body_has_dynamic_barrier_qualified_eval_uplevel ... ok
+test lowering::tests::body_has_dynamic_barrier_requires_proved_uplevel_level ... ok
+test lowering::tests::borrowed_lowering_retains_exact_ingress_before_finalisation ... ok
+test lowering::tests::brace_continuation_comes_from_the_dialect ... ok
+test lowering::tests::body_has_dynamic_barrier_uplevel_level_shapes_follow_the_registry ... ok
+test lowering::tests::body_relex_follows_the_document_dialect_not_the_default ... FAILED
+test lowering::tests::class_variable_source_union_keeps_decoded_names_and_slot_operation_boundaries ... ok
+test lowering::tests::class_variable_unknown_operands_keep_known_literal_protection_without_reference_parsing ... ok
+test lowering::tests::catch_options_specialisation_requires_the_selected_completion_grammar ... FAILED
+test lowering::tests::catch_statement ... ok
+test lowering::tests::colliding_method_reports_retain_distinct_bodies_and_constructor_purposes ... FAILED
+test lowering::tests::complete_source_input_declines_changed_unit_profile_without_authoring_fallback ... ok
+test lowering::tests::configured_source_ingress_retains_one_input_for_entry_and_module ... ok
+test lowering::tests::const_prop_disabled_at_top_level ... ok
+test lowering::tests::complete_logical_source_keeps_original_structure_and_native_absence ... ok
+test lowering::tests::const_prop_eval_list_literal ... FAILED
+test lowering::tests::const_prop_eval_brace_body_emits_block ... FAILED
+test lowering::tests::const_prop_does_not_leak_into_nested_proc ... FAILED
+test lowering::tests::const_prop_eval_list_with_dynamic_arg_rejected ... FAILED
+test lowering::tests::const_prop_eval_non_list_command_rejected ... FAILED
+test lowering::tests::const_prop_eval_resolves_set_var_body ... FAILED
+test lowering::tests::const_prop_inherited_into_catch_body ... FAILED
+test lowering::tests::const_prop_invalidated_on_reassignment ... FAILED
+test lowering::tests::const_prop_uplevel_resolves_set_var_body ... FAILED
+test lowering::tests::deferred_command_prefix_does_not_create_a_runtime_barrier ... ok
+test lowering::tests::deferred_tk_callback_does_not_hide_constructor_variable_defs ... FAILED
+test lowering::tests::definition_member_words_use_positioned_source_and_retained_grammar ... ok
+test lowering::tests::descriptor_binding_requirement_keeps_original_head_and_exact_metadata_without_native_receipt ... ok
+test lowering::tests::empty_source ... ok
+test lowering::tests::escaped_space_proc_param_is_one_parameter ... FAILED
+test lowering::tests::every_argv_shaped_hook_barriers_on_expansion ... FAILED
+test lowering::tests::every_unextracted_oo_body_shape_leaves_module_evidence ... ok
+test lowering::tests::expansion_barrier_leaves_unexpanded_and_non_structured_forms_alone ... ok
+test lowering::tests::expansion_barrier_reason_names_the_command ... FAILED
+test lowering::tests::extracts_oo_class_methods ... FAILED
+test lowering::tests::extracts_oo_define_methods_and_namespaced_class ... FAILED
+test lowering::tests::fatal_array_index_source_mask_follows_the_release ... ok
+test lowering::tests::for_loop ... ok
+test lowering::tests::foreach_line_cmd_body_routes_through_barrier ... ok
+test lowering::tests::foreach_line_lowers_to_foreach_statement ... FAILED
+test lowering::tests::foreach_line_var_body_routes_through_barrier ... FAILED
+test lowering::tests::foreach_loop ... FAILED
+test lowering::tests::formal_param_names_reject_what_tcl_rejects ... ok
+test lowering::tests::formal_param_names_take_the_specifier_name_only ... ok
+test lowering::tests::generic_command ... ok
+test lowering::tests::if_statement ... ok
+test lowering::tests::immediate_tcltest_body_remains_a_runtime_barrier ... ok
+test lowering::tests::incr_command ... FAILED
+test lowering::tests::irules_declaration_body_shape_gates_lowered_regions ... FAILED
+test lowering::tests::irules_declarations_only_lower_at_the_file_surface ... FAILED
+test lowering::tests::irules_event_priorities_follow_file_state_and_keep_repeated_handlers ... FAILED
+test lowering::tests::irules_priority_uses_proved_native_identity_and_frozen_argument_value ... FAILED
+test lowering::tests::itcl_class_bodies_produce_method_units ... FAILED
+test lowering::tests::jim_brace_continuation_binds_different_names ... ok
+test lowering::tests::jim_expr_sugar_lowers_as_an_anchored_expression ... FAILED
+test lowering::tests::list_word_rules_come_from_the_dialect ... ok
+test lowering::tests::local_body_literal_expression_and_value_evaluation_withdraw_unclosed_effects ... ok
+test lowering::tests::local_body_literal_generic_call_with_empty_defs_withdraws_all_retained_values ... ok
+test lowering::tests::local_body_literal_invalidation_distinguishes_literal_sigils_and_decodes_write_keys ... ok
+test lowering::tests::local_body_literal_opcode_without_original_quiet_source_owner_cannot_retain_contents ... ok
+test lowering::tests::local_body_literal_quiet_logical_source_retains_factory_names_and_bodies ... FAILED
+test lowering::tests::local_body_literal_reference_lookup_uses_whole_scalar_source_geometry ... ok
+test lowering::tests::local_body_literal_retention_requires_actual_assignment_and_decodes_the_written_key ... ok
+test lowering::tests::logical_original_declaration_layout_keeps_unicode_and_qualified_alias_heads ... ok
+test lowering::tests::logical_structure_does_not_grant_native_compilation ... ok
+test lowering::tests::lower_to_ir_public_api ... FAILED
+test lowering::tests::lowered_generic_metadata_keeps_supplied_context_and_refuses_missing_driver_input ... FAILED
+test lowering::tests::lowering_is_dialect_aware_via_expand_syntax ... FAILED
+test lowering::tests::lowers_oo_configurable_class_body ... FAILED
+test lowering::tests::malformed_list_word_binds_names_only_for_jim ... ok
+test lowering::tests::method_variable_advice_preserves_literal_names_and_captured_prefix_values ... FAILED
+test lowering::tests::multiple_commands ... ok
+test lowering::tests::namespace_directive_metadata_keeps_actual_availability_and_source_config ... FAILED
+test lowering::tests::namespace_directive_metadata_uses_frozen_handler_operands ... ok
+test lowering::tests::deeply_nested_if_survives_walk_for_trace ... ok
+test lowering::tests::nested_proc_homes_to_the_outer_procs_defining_namespace ... FAILED
+test lowering::tests::nested_proc_name_qualifier_beats_the_lexical_namespace_eval ... FAILED
+test lowering::tests::no_oo_methods_for_plain_script ... ok
+test lowering::tests::nested_proc_homing_composes_through_three_levels ... FAILED
+test lowering::tests::ns_export_recorded ... ok
+test lowering::tests::ns_import_handles_force_flag ... ok
+test lowering::tests::ns_import_dependencies_preserve_selected_literal_patterns_and_order ... ok
+test lowering::tests::ns_import_in_dead_branch_suppressed ... ok
+test lowering::tests::ns_import_in_static_true_else_suppressed ... FAILED
+test lowering::tests::ns_import_recorded_with_context_namespace ... ok
+test lowering::tests::ns_import_retains_relative_dependency_pattern ... ok
+test lowering::tests::objdefine_bodies_produce_per_object_method_units ... FAILED
+test lowering::tests::objdefine_command_substitution_receiver_abstains ... ok
+test lowering::tests::objdefine_variables_stay_out_of_the_class_union ... FAILED
+test lowering::tests::oo_method_params_use_the_formal_parameter_grammar ... FAILED
+test lowering::tests::original_formal_name_headers_use_selected_grammar_and_keep_activation_separate ... ok
+test lowering::tests::oo_method_nested_proc_not_registered_globally ... FAILED
+test lowering::tests::parse_uplevel_level_decimal ... ok
+test lowering::tests::parse_uplevel_level_dynamic_returns_none ... ok
+test lowering::tests::parse_uplevel_level_hash_form ... ok
+test lowering::tests::parse_uplevel_level_zero_keeps_absolute_and_relative_apart ... ok
+test lowering::tests::proc_body_namespace_peels_the_names_own_qualifier ... ok
+test lowering::tests::original_name_operand_publishes_a_body_without_borrowing_the_head_lookup ... ok
+test lowering::tests::proc_definition ... FAILED
+test lowering::tests::proc_dynamic_name_no_binding_stays_barrier ... FAILED
+test lowering::tests::proc_dynamic_name_picks_latest_set ... FAILED
+test lowering::tests::proc_dynamic_name_resolved_via_const_map ... FAILED
+test lowering::tests::proc_dynamic_params_routes_through_barrier ... ok
+test lowering::tests::proc_multi_token_body_word_is_dynamic ... ok
+test lowering::tests::proc_params_keep_defaults_and_args_as_names ... FAILED
+test lowering::tests::proc_params_tcl_rejects_fall_through_to_barrier ... FAILED
+test lowering::tests::proc_subst_computed_switch_word_refused ... ok
+test lowering::tests::proc_subst_nocommands_missing_var_skips_materialisation ... ok
+test lowering::tests::proc_subst_nocommands_body_materialised ... FAILED
+test lowering::tests::proc_subst_nocommands_nobackslashes_refused ... ok
+test lowering::tests::proc_subst_tcl91_positive_switches_materialised ... FAILED
+test lowering::tests::proc_var_body_unresolved_keeps_empty_body ... FAILED
+test lowering::tests::proc_var_body_const_map_materialised ... FAILED
+test lowering::tests::proc_with_command_substitution_in_name_stays_barrier ... ok
+test lowering::tests::qualify_proc_name_already_qualified ... ok
+test lowering::tests::qualify_proc_name_global ... ok
+test lowering::tests::qualify_proc_name_nested ... ok
+test lowering::tests::qualify_proc_name_preserves_colon_named_namespace_keys ... ok
+test lowering::tests::proc_with_trailing_colons_routes_through_barrier ... FAILED
+test lowering::tests::reference_only_command_prefix_does_not_create_a_runtime_barrier ... ok
+test lowering::tests::redefined_oo_method_retains_the_replacement_body ... FAILED
+test lowering::tests::registry_dispatch_catch_lowers_to_catch ... ok
+test lowering::tests::registry_dispatch_dict_empty_args_falls_through_to_default ... ok
+test lowering::tests::registry_dispatch_dict_lowers_via_lower_dict ... ok
+test lowering::tests::registry_dispatch_for_lowers_to_for ... ok
+test lowering::tests::registry_dispatch_eval_static_body_lowers_to_block ... FAILED
+test lowering::tests::registry_dispatch_foreach_line_wrong_arity_falls_through_to_default ... ok
+test lowering::tests::registry_dispatch_foreach_line_lowers_via_lower_foreach_line ... FAILED
+test lowering::tests::registry_dispatch_if_lowers_to_if ... ok
+test lowering::tests::registry_dispatch_foreach_lowers_to_foreach ... FAILED
+test lowering::tests::registry_dispatch_lmap_lowers_to_foreach ... FAILED
+test lowering::tests::registry_dispatch_namespace_non_eval_subcommand_falls_through ... ok
+test lowering::tests::registry_dispatch_namespace_eval_lowers_to_barrier ... FAILED
+test lowering::tests::registry_dispatch_proc_lowers_to_proc_call_and_registers_procedure ... FAILED
+test lowering::tests::registry_dispatch_proc_wrong_arity_falls_through_to_default ... ok
+test lowering::tests::registry_dispatch_switch_lowers_to_switch ... ok
+test lowering::tests::registry_dispatch_try_lowers_to_try ... ok
+test lowering::tests::registry_dispatch_uplevel_static_body_lowers_to_upframe ... FAILED
+test lowering::tests::registry_dispatch_unknown_command_falls_through_to_default ... ok
+test lowering::tests::registry_dispatch_when_lowers_via_lower_when_with_irules_loaded ... ok
+test lowering::tests::registry_dispatch_while_lowers_to_while ... ok
+test lowering::tests::registry_dispatch_when_without_irules_loaded_falls_through ... ok
+test lowering::tests::return_statement ... FAILED
+test lowering::tests::removed_legacy_trace_forms_do_not_donate_tcl9_transitions ... ok
+test lowering::tests::runtime_procedure_target_retains_its_actual_activation ... ok
+test lowering::tests::returned_module_snapshots_retain_their_actual_source_owner ... ok
+test lowering::tests::same_invocation_command_prefix_is_a_runtime_barrier ... FAILED
+test lowering::tests::set_with_variable_value ... FAILED
+test lowering::tests::shallow_nested_if_lowers_with_no_barrier ... ok
+test lowering::tests::simple_set ... FAILED
+test lowering::tests::snit_type_bodies_produce_method_units ... FAILED
+test lowering::tests::static_bool_accepts_unique_prefix_booleans ... ok
+test lowering::tests::snit_widget_bodies_see_win_and_hull ... FAILED
+test lowering::tests::tcloo_initialise_body_is_not_a_method_unit ... FAILED
+test lowering::tests::tcloo_self_constructor_and_destructor_lift_no_unit ... FAILED
+test lowering::tests::trace_add_execution_abbreviated_type_word_not_variable ... ok
+test lowering::tests::tcloo_wrapper_members_produce_units ... FAILED
+test lowering::tests::trace_add_execution_does_not_record_variable_trace ... ok
+test lowering::tests::trace_add_execution_dynamic_widens ... FAILED
+test lowering::tests::trace_add_execution_inside_proc_recorded ... FAILED
+test lowering::tests::trace_add_execution_literal_recorded ... ok
+test lowering::tests::trace_add_execution_qualified_canonicalised ... ok
+test lowering::tests::trace_add_execution_through_interp_alias_recorded ... ok
+test lowering::tests::trace_add_variable_does_not_record_execution_trace ... ok
+test lowering::tests::trace_add_variable_abbreviated_type_word_recorded ... ok
+test lowering::tests::trace_add_variable_inside_apply_body_recorded ... FAILED
+test lowering::tests::trace_add_variable_dynamic_widens ... FAILED
+test lowering::tests::trace_add_variable_inside_method_body_recorded ... FAILED
+test lowering::tests::trace_add_variable_inside_method_recorded ... FAILED
+test lowering::tests::trace_add_variable_inside_namespace_eval_body_recorded ... ok
+test lowering::tests::trace_add_variable_inside_proc_recorded ... ok
+test lowering::tests::trace_add_variable_literal_recorded ... ok
+test lowering::tests::trace_add_variable_qualified_canonicalised ... ok
+test lowering::tests::trace_add_variable_through_interp_alias_recorded ... ok
+test lowering::tests::trace_info_variable_does_not_record ... ok
+test lowering::tests::trace_legacy_vdelete_form_recorded ... FAILED
+test lowering::tests::trace_legacy_variable_form_recorded ... FAILED
+test lowering::tests::trace_remove_variable_abbreviated_type_word_recorded ... ok
+test lowering::tests::trace_remove_variable_literal_recorded ... ok
+test lowering::tests::trace_target_names_keep_empty_and_literal_sigil_data ... ok
+test lowering::tests::try_lower_eval_static_rejects_nested_dynamic_barrier ... ok
+test lowering::tests::unavailable_lowering_metadata_keeps_generic_dispatch_and_conservative_method_names ... ok
+test lowering::tests::try_lower_eval_static_clean_body_relaxes ... FAILED
+test lowering::tests::unqualified_outer_proc_leaves_nested_homing_unchanged ... FAILED
+test lowering::tests::unresolved_method_name_protection_keeps_original_source_text_without_reparsing ... ok
+test lowering::tests::uplevel_dynamic_body_falls_back_to_default ... ok
+test lowering::tests::unreadable_oo_members_flag_the_class_or_module ... FAILED
+test lowering::tests::uplevel_dynamic_level_falls_back_to_default ... ok
+test lowering::tests::uplevel_static_body_no_level ... FAILED
+test lowering::tests::uplevel_static_body_with_hash_zero ... FAILED
+test lowering::tests::uplevel_static_body_with_bare_zero_is_relative ... FAILED
+test lowering::tests::var_list_names_keep_grouped_elements_whole ... ok
+test lowering::tests::uplevel_static_body_with_level_one ... FAILED
+test native_lowering::cells::tests::bare_and_braced_literal_reads_share_one_native_shadow ... ok
+test native_lowering::cells::tests::completed_name_places_preserve_data_without_variable_word_grammar ... ok
+test native_lowering::cells::tests::element_and_whole_shadows_invalidate_each_other ... ok
+test native_lowering::cells::tests::intersect_keeps_only_shadows_both_paths_agree_on ... ok
+test native_lowering::cells::tests::name_words_split_elements_through_the_shared_rule ... ok
+test native_lowering::cells::tests::places_spell_themselves_as_tcl_does ... ok
+test native_lowering::cells::tests::variable_reference_close_uses_the_actual_release ... ok
+test native_lowering::cells::tests::variable_words_share_literal_element_identity_and_retain_index_evaluation ... ok
+test native_lowering::cells::tests::whole_reference_uses_native_braced_and_bare_grammar ... ok
+test native_lowering::elide::tests::a_disabled_pass_keeps_every_barrier_with_its_reason ... ok
+test native_lowering::elide::tests::the_ledger_decides_by_name_and_dynamic_targets ... ok
+test native_lowering::elide::tests::top_level_cells_are_never_demoted ... ok
+test native_lowering::elide::tests::trace_ledger_keeps_literal_namespace_array_and_unknown_protection ... ok
+test lowering::tests::while_loop ... ok
+test native_lowering::lower::evaluated_region_tests::evaluated_wrapper_is_rejected_before_native_operations_are_emitted ... ok
+test native_lowering::representation::tests::exact_constants_prove_their_arithmetic ... ok
+test native_lowering::representation::tests::floor_semantics_match_tcl ... ok
+test native_lowering::representation::tests::literal_texts_round_trip_through_their_native_constants ... ok
+test native_lowering::representation::tests::unprovable_results_keep_their_runtime_check ... ok
+test native_lowering::lower::original_entry_storage_tests::original_native_entry_keeps_cells_and_runtime_trace_guards_despite_escape_labels ... ok
+test native_lowering::tests::a_braced_operand_with_a_line_continuation_goes_to_the_runtime ... FAILED
+test native_lowering::tests::a_command_inside_an_expression_goes_to_the_runtime_expression_intrinsic ... FAILED
+test native_lowering::tests::a_definition_declines_a_body_the_statement_does_not_write_out ... FAILED
+test native_lowering::tests::a_definition_with_a_written_body_still_binds_under_the_same_proof ... FAILED
+test native_lowering::tests::a_mixed_comparison_past_the_exact_double_range_takes_the_runtime_edge ... FAILED
+test native_lowering::tests::a_dynamic_trace_target_guards_incr_with_the_runtime_trace_bit ... FAILED
+test native_lowering::tests::a_nested_generic_command_word_is_a_nested_invocation ... FAILED
+test native_lowering::tests::a_proc_statement_lowers_to_the_definition_shape ... FAILED
+test native_lowering::tests::a_second_definition_of_one_name_stays_a_generic_invocation ... FAILED
+test native_lowering::tests::a_statement_carries_the_site_its_error_frame_names ... FAILED
+test native_lowering::tests::argument_expansion_keeps_the_source_rung_with_its_reason ... FAILED
+test native_lowering::tests::a_traced_variable_keeps_its_barrier_and_its_runtime_incr ... FAILED
+test native_lowering::tests::double_division_takes_the_runtime_operator ... FAILED
+test native_lowering::tests::doubles_lower_to_native_f64_arithmetic ... FAILED
+test native_lowering::tests::empty_source_with_withdrawn_metadata_or_unknown_history_cannot_use_standalone_descriptors ... ok
+test native_lowering::tests::expression_operators_without_a_native_shape_use_the_runtime_operator ... FAILED
+test native_lowering::tests::native_lowering_cannot_bypass_an_unresolved_chunk_entry ... FAILED
+test native_lowering::tests::loop_counters_read_from_the_cell_take_the_dynamic_fast_path ... FAILED
+test native_lowering::tests::original_boolean_lowering_keeps_cell_objects_and_withholds_unproved_literal_caches ... ok
+test native_lowering::tests::original_boolean_lowering_keeps_reached_operand_purposes_and_c84_left_identity ... FAILED
+test native_lowering::tests::original_boolean_lowering_refuses_missing_point_or_changed_actual_source_owner ... ok
+test native_lowering::tests::original_boolean_lowering_separates_inline_and_public_expression_result_producers ... ok
+test native_lowering::tests::original_assignment_values_decode_actual_words_without_name_reinterpretation ... ok
+test native_lowering::tests::original_definition_without_argv_is_rejected_as_invalid_executable_ir ... ok
+test native_lowering::tests::original_inline_control_structure_retains_compiler_only_conditions_and_direct_refusal ... FAILED
+test lowering::tests::deeply_nested_if_past_max_lower_depth_barriers_not_crashes ... ok
+test native_lowering::tests::original_native_descriptor_queries_retain_child_bindings_and_current_module_input ... ok
+test native_lowering::tests::original_native_descriptor_queries_refuse_changed_source_input_or_foreign_carriers ... ok
+test native_lowering::tests::original_root_colon_definition_preserves_evaluated_publication_operand ... FAILED
+test native_lowering::tests::original_increment_amount_keeps_braced_data_and_actual_scalar_reads_separate ... ok
+test native_lowering::tests::original_publication_retains_body_without_native_dispatch_permission ... ok
+test native_lowering::tests::renaming_a_math_function_stops_the_native_arm ... FAILED
+test native_lowering::tests::representation_inference_off_boxes_every_value ... FAILED
+test native_lowering::tests::set_incr_puts_is_native_with_one_box_at_the_boundary ... FAILED
+test native_lowering::tests::original_substituted_name_retains_generic_evaluated_argv ... ok
+test native_lowering::tests::the_arithmetic_chain_is_straight_line_proven_i64 ... FAILED
+test native_lowering::tests::the_pass_gates_decline_with_typed_reasons ... FAILED
+test native_lowering::tests::the_top_level_script_and_a_procedure_body_take_different_entry_protocols ... FAILED
+test native_lowering::tests::original_unknown_name_and_replaced_definer_keep_generic_invocation ... ok
+test native_lowering::tests::trace_barrier_elision_off_re_reads_every_cell ... FAILED
+---- lowering::body_cache_eligible_tests::isolated_body_profile_keeps_the_original_standalone_source_purpose stdout ----
+thread 'lowering::body_cache_eligible_tests::isolated_body_profile_keeps_the_original_standalone_source_purpose' (21912) panicked at rust/tcl-compiler/src/lowering/mod.rs:7105:9:
+assertion `left == right` failed
+  left: None
+ right: Some(Standalone)
+---- lowering::body_cache_eligible_tests::alias_in_scope_withdraws_isolated_cache_proof stdout ----
+thread 'lowering::body_cache_eligible_tests::alias_in_scope_withdraws_isolated_cache_proof' (21910) panicked at rust/tcl-compiler/src/test_body_identity.rs:54:28:
+---- lowering::body_cache_eligible_tests::rename_in_scope_withdraws_isolated_cache_proof stdout ----
+thread 'lowering::body_cache_eligible_tests::rename_in_scope_withdraws_isolated_cache_proof' (21914) panicked at rust/tcl-compiler/src/test_body_identity.rs:54:28:
+---- lowering::execution_regions::tests::case_list_possible_regions_enter_bodies_as_list_elements stdout ----
+thread 'lowering::execution_regions::tests::case_list_possible_regions_enter_bodies_as_list_elements' (21920) panicked at rust/tcl-compiler/src/lowering/execution_regions.rs:1266:14:
+---- lowering::execution_regions::tests::conditional_case_sources_do_not_claim_entered_bodies stdout ----
+thread 'lowering::execution_regions::tests::conditional_case_sources_do_not_claim_entered_bodies' (21922) panicked at rust/tcl-compiler/src/test_body_identity.rs:54:28:
+---- lowering::execution_regions::tests::captured_provider_metadata_keeps_actual_availability_and_missing_owner_refusal stdout ----
+thread 'lowering::execution_regions::tests::captured_provider_metadata_keeps_actual_availability_and_missing_owner_refusal' (21919) panicked at rust/tcl-compiler/src/lowering/execution_regions.rs:1387:13:
+assertion failed: lowerer.selected_body_provider(&segment, &tokens).is_none()
+---- lowering::execution_regions::tests::possible_f5_conditional_retains_original_expression_ownership stdout ----
+thread 'lowering::execution_regions::tests::possible_f5_conditional_retains_original_expression_ownership' (21929) panicked at rust/tcl-compiler/src/lowering/execution_regions.rs:956:9:
+---- lowering::execution_regions::tests::possible_handler_bodies_share_analysis_regions_without_opcode_permission stdout ----
+thread 'lowering::execution_regions::tests::possible_handler_bodies_share_analysis_regions_without_opcode_permission' (21930) panicked at rust/tcl-compiler/src/lowering/execution_regions.rs:1036:46:
+---- lowering::execution_regions::tests::qualified_and_imported_wrappers_share_the_same_lifecycle stdout ----
+thread 'lowering::execution_regions::tests::qualified_and_imported_wrappers_share_the_same_lifecycle' (21931) panicked at rust/tcl-compiler/src/lowering/execution_regions.rs:1417:42:
+---- lowering::execution_regions::tests::scoped_provider_lifecycle_retains_conditional_dependencies stdout ----
+thread 'lowering::execution_regions::tests::scoped_provider_lifecycle_retains_conditional_dependencies' (21933) panicked at rust/tcl-compiler/src/lowering/execution_regions.rs:1509:38:
+---- lowering::hooks::control::tests::dispatcher_routes_return_through_try_lower_hook stdout ----
+thread 'lowering::hooks::control::tests::dispatcher_routes_return_through_try_lower_hook' (21935) panicked at rust/tcl-compiler/src/lowering/hooks/control.rs:654:9:
+assertion failed: fixture_id_if_present(&m.procedures, "::f").is_some()
+---- lowering::hooks::control::tests::expr_braced_lowers_to_expr_eval stdout ----
+thread 'lowering::hooks::control::tests::expr_braced_lowers_to_expr_eval' (21936) panicked at rust/tcl-compiler/src/lowering/hooks/control.rs:398:9:
+assertion failed: matches!(&m.top_level.statements[0], Statement::ExprEval
+---- lowering::hooks::control::tests::return_braced_value_marks_braced stdout ----
+thread 'lowering::hooks::control::tests::return_braced_value_marks_braced' (21941) panicked at rust/tcl-compiler/src/lowering/hooks/control.rs:471:22:
+---- lowering::execution_regions::tests::issue_2286_default_c_authoring_entry_uses_real_setup_definitions stdout ----
+thread 'lowering::execution_regions::tests::issue_2286_default_c_authoring_entry_uses_real_setup_definitions' (21926) panicked at rust/tcl-compiler/src/lowering/execution_regions.rs:1464:13:
+assertion failed: region(&unit.ir_module).is_some()
+---- lowering::hooks::control::tests::return_no_args_lowers_to_return stdout ----
+thread 'lowering::hooks::control::tests::return_no_args_lowers_to_return' (21942) panicked at rust/tcl-compiler/src/lowering/hooks/control.rs:439:9:
+assertion failed: matches!(&m.top_level.statements[0], Statement::Return { value: None, .. })
+---- lowering::hooks::control::tests::return_value_lowers_to_return stdout ----
+thread 'lowering::hooks::control::tests::return_value_lowers_to_return' (21944) panicked at rust/tcl-compiler/src/lowering/hooks/control.rs:459:22:
+---- lowering::hooks::control::tests::return_options_lower_as_the_registry_decodes_them stdout ----
+thread 'lowering::hooks::control::tests::return_options_lower_as_the_registry_decodes_them' (21943) panicked at rust/tcl-compiler/src/lowering/hooks/control.rs:558:14:
+---- lowering::hooks::control::tests::return_with_expr_substitution_attaches_expr stdout ----
+thread 'lowering::hooks::control::tests::return_with_expr_substitution_attaches_expr' (21946) panicked at rust/tcl-compiler/src/test_body_identity.rs:54:28:
+---- lowering::hooks::control::tests::sole_return_option_spelling_is_original_result_data stdout ----
+thread 'lowering::hooks::control::tests::sole_return_option_spelling_is_original_result_data' (21948) panicked at rust/tcl-compiler/src/lowering/hooks/control.rs:530:9:
+assertion failed: matches!(&module.top_level.statements[0], Statement::Return
+---- lowering::hooks::control::tests::nested_return_expression_retains_original_parser_source_base stdout ----
+thread 'lowering::hooks::control::tests::nested_return_expression_retains_original_parser_source_base' (21940) panicked at rust/tcl-compiler/src/test_body_identity.rs:54:28:
+---- lowering::hooks::control::tests::unit_return_extra_values_preserve_runtime_arity_error stdout ----
+thread 'lowering::hooks::control::tests::unit_return_extra_values_preserve_runtime_arity_error' (21956) panicked at rust/tcl-compiler/src/lowering/hooks/control.rs:771:9:
+assertion failed: matches!(try_lower_return(&cmd, &CommandAliasMap::new(), &reg(), None), None)
+---- lowering::hooks::control::tests::return_with_options_emits_barrier stdout ----
+thread 'lowering::hooks::control::tests::return_with_options_emits_barrier' (21947) panicked at rust/tcl-compiler/src/lowering/hooks/control.rs:545:22:
+---- lowering::hooks::incr::tests::incr_negative_amount_lowers_to_incr stdout ----
+thread 'lowering::hooks::incr::tests::incr_negative_amount_lowers_to_incr' (21960) panicked at rust/tcl-compiler/src/lowering/hooks/incr.rs:131:22:
+---- lowering::hooks::incr::tests::incr_dispatcher_routes_through_try_lower_hook stdout ----
+thread 'lowering::hooks::incr::tests::incr_dispatcher_routes_through_try_lower_hook' (21959) panicked at rust/tcl-compiler/src/lowering/hooks/incr.rs:264:9:
+assertion failed: matches!(stmts[0], Statement::AssignConst { .. })
+---- lowering::hooks::control::tests::unentered_or_failed_return_value_does_not_gain_executable_expression_metadata stdout ----
+thread 'lowering::hooks::control::tests::unentered_or_failed_return_value_does_not_gain_executable_expression_metadata' (21949) panicked at rust/tcl-compiler/src/test_body_identity.rs:54:28:
+---- lowering::hooks::incr::tests::incr_single_arg_lowers_to_incr stdout ----
+thread 'lowering::hooks::incr::tests::incr_single_arg_lowers_to_incr' (21962) panicked at rust/tcl-compiler/src/lowering/hooks/incr.rs:107:22:
+---- lowering::hooks::incr::tests::try_lower_incr_keeps_the_specialisation_for_a_spelled_out_name stdout ----
+thread 'lowering::hooks::incr::tests::try_lower_incr_keeps_the_specialisation_for_a_spelled_out_name' (21966) panicked at rust/tcl-compiler/src/lowering/hooks/incr.rs:225:17:
+---- lowering::hooks::incr::tests::incr_with_amount_lowers_to_incr stdout ----
+thread 'lowering::hooks::incr::tests::incr_with_amount_lowers_to_incr' (21964) panicked at rust/tcl-compiler/src/lowering/hooks/incr.rs:119:22:
+---- lowering::native_body_context_tests::original_colon_procedure_body_keeps_definition_namespace stdout ----
+thread 'lowering::native_body_context_tests::original_colon_procedure_body_keeps_definition_namespace' (21975) panicked at rust/tcl-compiler/src/lowering/native_body_context_tests.rs:45:10:
+---- lowering::original_body_word_geometry_tests::original_derived_body_geometry_retains_the_exact_parent_word_and_namespace stdout ----
+thread 'lowering::original_body_word_geometry_tests::original_derived_body_geometry_retains_the_exact_parent_word_and_namespace' (21992) panicked at rust/tcl-compiler/src/lowering/original_body_word_geometry_tests.rs:580:14:
+---- lowering::original_body_word_geometry_tests::original_jim_body_source_point_remains_without_a_proved_execution_target stdout ----
+thread 'lowering::original_body_word_geometry_tests::original_jim_body_source_point_remains_without_a_proved_execution_target' (21993) panicked at rust/tcl-compiler/src/lowering/original_body_word_geometry_tests.rs:495:5:
+assertion failed: binding.proved_execution_target().is_none()
+---- lowering::original_script_purpose_tests::original_definer_targets_keep_literal_data_distinct_from_scalar_references stdout ----
+thread 'lowering::original_script_purpose_tests::original_definer_targets_keep_literal_data_distinct_from_scalar_references' (21994) panicked at rust/tcl-compiler/src/lowering/mod.rs:12434:18:
+---- lowering::original_script_purpose_tests::original_selected_nested_body_keeps_parent_metadata_for_known_command_advice stdout ----
+thread 'lowering::original_script_purpose_tests::original_selected_nested_body_keeps_parent_metadata_for_known_command_advice' (21997) panicked at rust/tcl-compiler/src/lowering/mod.rs:12304:57:
+---- lowering::passive_metadata_tests::passive_class_body_metadata_uses_original_selection_and_supplied_availability stdout ----
+thread 'lowering::passive_metadata_tests::passive_class_body_metadata_uses_original_selection_and_supplied_availability' (21999) panicked at rust/tcl-compiler/src/lowering/passive_metadata_tests.rs:93:5:
+assertion failed: current.methods.values().any(|method| method.reporting_label() == "::C::run")
+---- lowering::passive_metadata_tests::passive_member_layout_uses_actual_release_and_original_optional_word_shape stdout ----
+thread 'lowering::passive_metadata_tests::passive_member_layout_uses_actual_release_and_original_optional_word_shape' (22000) panicked at rust/tcl-compiler/src/lowering/passive_metadata_tests.rs:157:5:
+assertion failed: current_module.methods.values().any(|method|
+---- lowering::passive_metadata_tests::trace_hazard_metadata_keeps_actual_availability_and_missing_owner_uncertainty stdout ----
+thread 'lowering::passive_metadata_tests::trace_hazard_metadata_keeps_actual_availability_and_missing_owner_uncertainty' (22001) panicked at rust/tcl-compiler/src/lowering/passive_metadata_tests.rs:41:5:
+assertion failed: original.traced_variables.contains("value")
+---- lowering::structured::original_body_word_caller_tests::original_structured_body_caller_keeps_parent_ordinal_and_namespace stdout ----
+thread 'lowering::structured::original_body_word_caller_tests::original_structured_body_caller_keeps_parent_ordinal_and_namespace' (22008) panicked at rust/tcl-compiler/src/lowering/structured.rs:2592:21:
+assertion `left == right` failed
+  left: None
+ right: Some(LexerConfig { expand_syntax: false, irules_brace_separator: false, brace_line_continuation: Terminates, strict_quoting: false, braced_var: FirstClose, array_index: Tcl8, base_offset: 0, base_line: 0, base_col: 0, leading_bom: Content, escapes: Tcl84, word_separators: Tcl, quote_terminat
+---- lowering::structured::tests::a_switch_records_how_each_word_was_delimited stdout ----
+thread 'lowering::structured::tests::a_switch_records_how_each_word_was_delimited' (22016) panicked at rust/tcl-compiler/src/lowering/structured.rs:1851:13:
+---- lowering::structured::tests::case_clauses_the_arm_cannot_hold_are_barriers stdout ----
+thread 'lowering::structured::tests::case_clauses_the_arm_cannot_hold_are_barriers' (22017) panicked at rust/tcl-compiler/src/lowering/structured.rs:1811:13:
+---- lowering::structured::tests::case_lowers_as_an_opaque_glob_selection stdout ----
+thread 'lowering::structured::tests::case_lowers_as_an_opaque_glob_selection' (22019) panicked at rust/tcl-compiler/src/lowering/structured.rs:1780:17:
+---- lowering::structured::tests::catch_dollar_var_body_falls_through_to_barrier stdout ----
+thread 'lowering::structured::tests::catch_dollar_var_body_falls_through_to_barrier' (22021) panicked at rust/tcl-compiler/src/lowering/structured.rs:2143:9:
+assertion failed: matches!(&m.top_level.statements[0], Statement::Barrier { reason, .. } if
+---- lowering::structured::tests::dict_for stdout ----
+thread 'lowering::structured::tests::dict_for' (22024) panicked at rust/tcl-compiler/src/lowering/structured.rs:2174:9:
+assertion failed: matches!(&m.top_level.statements[0], Statement::Foreach
+---- lowering::structured::tests::dict_for_dollar_var_body_falls_through_to_barrier stdout ----
+thread 'lowering::structured::tests::dict_for_dollar_var_body_falls_through_to_barrier' (22025) panicked at rust/tcl-compiler/src/lowering/structured.rs:2290:9:
+assertion failed: matches!(&m.top_level.statements[0], Statement::Barrier { reason, .. } if
+---- lowering::structured::tests::dict_set stdout ----
+thread 'lowering::structured::tests::dict_set' (22027) panicked at rust/tcl-compiler/src/lowering/structured.rs:2164:9:
+assertion failed: matches!(&m.top_level.statements[0], Statement::Call { command, defs, .. } if
+---- lowering::structured::tests::dict_for_grouped_var_element_binds_one_name stdout ----
+thread 'lowering::structured::tests::dict_for_grouped_var_element_binds_one_name' (22026) panicked at rust/tcl-compiler/src/lowering/structured.rs:2305:13:
+---- lowering::structured::tests::for_dollar_var_body_falls_through_to_barrier stdout ----
+thread 'lowering::structured::tests::for_dollar_var_body_falls_through_to_barrier' (22028) panicked at rust/tcl-compiler/src/lowering/structured.rs:2203:9:
+assertion failed: matches!(&m.top_level.statements[0], Statement::Barrier { reason, .. } if
+---- lowering::structured::tests::foreach_dollar_var_body_falls_through_to_barrier stdout ----
+thread 'lowering::structured::tests::foreach_dollar_var_body_falls_through_to_barrier' (22029) panicked at rust/tcl-compiler/src/lowering/structured.rs:2212:9:
+assertion failed: matches!(&m.top_level.statements[0], Statement::Barrier { reason, .. } if
+---- lowering::structured::tests::malformed_var_list_falls_through_to_barrier stdout ----
+thread 'lowering::structured::tests::malformed_var_list_falls_through_to_barrier' (22033) panicked at rust/tcl-compiler/src/lowering/structured.rs:2362:13:
+---- lowering::structured::tests::switch_exact stdout ----
+thread 'lowering::structured::tests::switch_exact' (22035) panicked at rust/tcl-compiler/src/lowering/structured.rs:1691:13:
+---- lowering::structured::tests::switch_braced_block_sets_patterns_braced_true stdout ----
+thread 'lowering::structured::tests::switch_braced_block_sets_patterns_braced_true' (22034) panicked at rust/tcl-compiler/src/lowering/structured.rs:1875:13:
+---- lowering::structured::tests::switch_separate_words_sets_patterns_braced_false stdout ----
+thread 'lowering::structured::tests::switch_separate_words_sets_patterns_braced_false' (22036) panicked at rust/tcl-compiler/src/lowering/structured.rs:1892:13:
+---- lowering::structured::tests::switch_single_braced_body_is_lowered stdout ----
+thread 'lowering::structured::tests::switch_single_braced_body_is_lowered' (22037) panicked at rust/tcl-compiler/src/lowering/structured.rs:1707:13:
+---- lowering::structured::tests::switch_static_arm_body_still_lowers stdout ----
+thread 'lowering::structured::tests::switch_static_arm_body_still_lowers' (22038) panicked at rust/tcl-compiler/src/lowering/structured.rs:1749:13:
+---- lowering::structured::tests::try_dollar_var_body_falls_through_to_barrier stdout ----
+thread 'lowering::structured::tests::try_dollar_var_body_falls_through_to_barrier' (22045) panicked at rust/tcl-compiler/src/lowering/structured.rs:2221:9:
+assertion failed: matches!(&m.top_level.statements[0], Statement::Barrier { reason, .. } if
+---- lowering::structured::tests::try_dollar_var_handler_body_falls_through_to_barrier stdout ----
+thread 'lowering::structured::tests::try_dollar_var_handler_body_falls_through_to_barrier' (22047) panicked at rust/tcl-compiler/src/lowering/structured.rs:2257:13:
+---- lowering::structured::tests::try_dollar_var_finally_body_falls_through_to_barrier stdout ----
+thread 'lowering::structured::tests::try_dollar_var_finally_body_falls_through_to_barrier' (22046) panicked at rust/tcl-compiler/src/lowering/structured.rs:2238:9:
+---- lowering::structured::tests::try_trap_pattern_projection_preserves_tcl_word_literalness stdout ----
+thread 'lowering::structured::tests::try_trap_pattern_projection_preserves_tcl_word_literalness' (22051) panicked at rust/tcl-compiler/src/lowering/structured.rs:1938:13:
+---- lowering::structured::tests::try_trap_pattern_projection_uses_the_release_escape_grammar stdout ----
+thread 'lowering::structured::tests::try_trap_pattern_projection_uses_the_release_escape_grammar' (22052) panicked at rust/tcl-compiler/src/lowering/structured.rs:1975:17:
+---- lowering::structured::tests::while_dollar_var_body_falls_through_to_barrier stdout ----
+thread 'lowering::structured::tests::while_dollar_var_body_falls_through_to_barrier' (22055) panicked at rust/tcl-compiler/src/lowering/structured.rs:2194:9:
+assertion failed: matches!(&m.top_level.statements[0], Statement::Barrier { reason, .. } if
+---- lowering::tests::apply_body_proc_registers_in_lambda_namespace_not_callers stdout ----
+thread 'lowering::tests::apply_body_proc_registers_in_lambda_namespace_not_callers' (22057) panicked at rust/tcl-compiler/src/lowering/mod.rs:8899:9:
+---- lowering::tests::absolutely_named_nested_proc_is_unaffected stdout ----
+thread 'lowering::tests::absolutely_named_nested_proc_is_unaffected' (22056) panicked at rust/tcl-compiler/src/lowering/mod.rs:9314:9:
+assertion failed: fixture_id_if_present(&m.procedures, "::abs").is_some()
+---- lowering::tests::apply_relative_lambda_namespace_homes_globally_not_to_the_caller stdout ----
+thread 'lowering::tests::apply_relative_lambda_namespace_homes_globally_not_to_the_caller' (22059) panicked at rust/tcl-compiler/src/lowering/mod.rs:8932:9:
+---- lowering::tests::apply_body_proc_uses_explicit_lambda_namespace stdout ----
+thread 'lowering::tests::apply_body_proc_uses_explicit_lambda_namespace' (22058) panicked at rust/tcl-compiler/src/lowering/mod.rs:8916:9:
+---- lowering::tests::body_relex_follows_the_document_dialect_not_the_default stdout ----
+thread 'lowering::tests::body_relex_follows_the_document_dialect_not_the_default' (22069) panicked at rust/tcl-compiler/src/lowering/mod.rs:12085:9:
+---- lowering::tests::catch_options_specialisation_requires_the_selected_completion_grammar stdout ----
+thread 'lowering::tests::catch_options_specialisation_requires_the_selected_completion_grammar' (22072) panicked at rust/tcl-compiler/src/lowering/mod.rs:7954:17:
+assertion failed: matches!(module.top_level.statements[0], Statement::Barrier { .. })
+---- lowering::tests::colliding_method_reports_retain_distinct_bodies_and_constructor_purposes stdout ----
+thread 'lowering::tests::colliding_method_reports_retain_distinct_bodies_and_constructor_purposes' (22076) panicked at rust/tcl-compiler/src/lowering/mod.rs:8732:9:
+assertion `left == right` failed
+  left: 0
+ right: 4
+---- lowering::tests::const_prop_eval_list_literal stdout ----
+thread 'lowering::tests::const_prop_eval_list_literal' (22084) panicked at rust/tcl-compiler/src/lowering/mod.rs:9775:14:
+---- lowering::tests::const_prop_eval_brace_body_emits_block stdout ----
+thread 'lowering::tests::const_prop_eval_brace_body_emits_block' (22083) panicked at rust/tcl-compiler/src/lowering/mod.rs:9732:14:
+---- lowering::tests::const_prop_does_not_leak_into_nested_proc stdout ----
+thread 'lowering::tests::const_prop_does_not_leak_into_nested_proc' (22082) panicked at rust/tcl-compiler/src/lowering/mod.rs:9812:14:
+---- lowering::tests::const_prop_eval_list_with_dynamic_arg_rejected stdout ----
+thread 'lowering::tests::const_prop_eval_list_with_dynamic_arg_rejected' (22085) panicked at rust/tcl-compiler/src/lowering/mod.rs:9786:14:
+---- lowering::tests::const_prop_eval_non_list_command_rejected stdout ----
+thread 'lowering::tests::const_prop_eval_non_list_command_rejected' (22086) panicked at rust/tcl-compiler/src/lowering/mod.rs:9797:14:
+---- lowering::tests::const_prop_eval_resolves_set_var_body stdout ----
+thread 'lowering::tests::const_prop_eval_resolves_set_var_body' (22087) panicked at rust/tcl-compiler/src/lowering/mod.rs:9716:14:
+---- lowering::tests::const_prop_inherited_into_catch_body stdout ----
+thread 'lowering::tests::const_prop_inherited_into_catch_body' (22088) panicked at rust/tcl-compiler/src/lowering/mod.rs:10390:14:
+---- lowering::tests::const_prop_invalidated_on_reassignment stdout ----
+thread 'lowering::tests::const_prop_invalidated_on_reassignment' (22089) panicked at rust/tcl-compiler/src/lowering/mod.rs:9761:14:
+---- lowering::tests::const_prop_uplevel_resolves_set_var_body stdout ----
+thread 'lowering::tests::const_prop_uplevel_resolves_set_var_body' (22090) panicked at rust/tcl-compiler/src/lowering/mod.rs:9698:14:
+---- lowering::tests::deferred_tk_callback_does_not_hide_constructor_variable_defs stdout ----
+thread 'lowering::tests::deferred_tk_callback_does_not_hide_constructor_variable_defs' (22096) panicked at rust/tcl-compiler/src/lowering/mod.rs:11387:17:
+assertion `left == right` failed
+  left: []
+ right: ["::input"]
+---- lowering::tests::escaped_space_proc_param_is_one_parameter stdout ----
+thread 'lowering::tests::escaped_space_proc_param_is_one_parameter' (22100) panicked at rust/tcl-compiler/src/lowering/mod.rs:9457:32:
+---- lowering::tests::every_argv_shaped_hook_barriers_on_expansion stdout ----
+thread 'lowering::tests::every_argv_shaped_hook_barriers_on_expansion' (22102) panicked at rust/tcl-compiler/src/lowering/mod.rs:8218:13:
+---- lowering::tests::expansion_barrier_reason_names_the_command stdout ----
+thread 'lowering::tests::expansion_barrier_reason_names_the_command' (22107) panicked at rust/tcl-compiler/src/lowering/mod.rs:8262:13:
+---- lowering::tests::extracts_oo_class_methods stdout ----
+thread 'lowering::tests::extracts_oo_class_methods' (22109) panicked at rust/tcl-compiler/src/lowering/mod.rs:8321:9:
+assertion `left == right` failed: methods: []
+  left: []
+ right: ["::Counter::<constructor>", "::Counter::bump", "::Counter::get"]
+---- lowering::tests::extracts_oo_define_methods_and_namespaced_class stdout ----
+thread 'lowering::tests::extracts_oo_define_methods_and_namespaced_class' (22111) panicked at rust/tcl-compiler/src/lowering/mod.rs:8407:9:
+---- lowering::tests::foreach_line_lowers_to_foreach_statement stdout ----
+thread 'lowering::tests::foreach_line_lowers_to_foreach_statement' (22121) panicked at rust/tcl-compiler/src/lowering/mod.rs:10001:22:
+---- lowering::tests::foreach_line_var_body_routes_through_barrier stdout ----
+thread 'lowering::tests::foreach_line_var_body_routes_through_barrier' (22122) panicked at rust/tcl-compiler/src/lowering/mod.rs:10024:22:
+---- lowering::tests::foreach_loop stdout ----
+thread 'lowering::tests::foreach_loop' (22123) panicked at rust/tcl-compiler/src/lowering/mod.rs:9023:9:
+assertion failed: matches!(&m.top_level.statements[0], Statement::Foreach { .. })
+---- lowering::tests::incr_command stdout ----
+thread 'lowering::tests::incr_command' (22161) panicked at rust/tcl-compiler/src/lowering/mod.rs:8297:9:
+assertion failed: matches!(&m.top_level.statements[0], Statement::Incr { name, .. } if name ==
+---- lowering::tests::irules_declaration_body_shape_gates_lowered_regions stdout ----
+thread 'lowering::tests::irules_declaration_body_shape_gates_lowered_regions' (22163) panicked at rust/tcl-compiler/src/lowering/mod.rs:8083:9:
+assertion failed: fixture_id_if_present(&module.procedures, "::valid_proc").is_some()
+---- lowering::tests::irules_declarations_only_lower_at_the_file_surface stdout ----
+thread 'lowering::tests::irules_declarations_only_lower_at_the_file_surface' (22165) panicked at rust/tcl-compiler/src/lowering/mod.rs:8140:9:
+assertion failed: fixture_id_if_present(&module.procedures, "::helper").is_some()
+---- lowering::tests::irules_event_priorities_follow_file_state_and_keep_repeated_handlers stdout ----
+thread 'lowering::tests::irules_event_priorities_follow_file_state_and_keep_repeated_handlers' (22166) panicked at rust/tcl-compiler/src/lowering/mod.rs:8052:9:
+assertion `left == right` failed
+  left: [700, 700, 200, 700]
+ right: [700, 400, 200, 400]
+---- lowering::tests::irules_priority_uses_proved_native_identity_and_frozen_argument_value stdout ----
+thread 'lowering::tests::irules_priority_uses_proved_native_identity_and_frozen_argument_value' (22170) panicked at rust/tcl-compiler/src/lowering/mod.rs:8011:13:
+assertion `left == right` failed
+  left: 500
+ right: 700
+---- lowering::tests::itcl_class_bodies_produce_method_units stdout ----
+thread 'lowering::tests::itcl_class_bodies_produce_method_units' (22173) panicked at rust/tcl-compiler/src/lowering/mod.rs:8550:32:
+---- lowering::tests::jim_expr_sugar_lowers_as_an_anchored_expression stdout ----
+thread 'lowering::tests::jim_expr_sugar_lowers_as_an_anchored_expression' (22175) panicked at rust/tcl-compiler/src/lowering/mod.rs:12149:22:
+---- lowering::tests::local_body_literal_quiet_logical_source_retains_factory_names_and_bodies stdout ----
+thread 'lowering::tests::local_body_literal_quiet_logical_source_retains_factory_names_and_bodies' (22181) panicked at rust/tcl-compiler/src/lowering/mod.rs:10937:14:
+---- lowering::tests::lower_to_ir_public_api stdout ----
+thread 'lowering::tests::lower_to_ir_public_api' (22187) panicked at rust/tcl-compiler/src/lowering/mod.rs:9106:9:
+assertion failed: fixture_id_if_present(&m.procedures, "::foo").is_some()
+---- lowering::tests::lowered_generic_metadata_keeps_supplied_context_and_refuses_missing_driver_input stdout ----
+thread 'lowering::tests::lowered_generic_metadata_keeps_supplied_context_and_refuses_missing_driver_input' (22190) panicked at rust/tcl-compiler/src/lowering/mod.rs:11630:18:
+---- lowering::tests::lowering_is_dialect_aware_via_expand_syntax stdout ----
+thread 'lowering::tests::lowering_is_dialect_aware_via_expand_syntax' (22193) panicked at rust/tcl-compiler/src/lowering/mod.rs:8177:9:
+---- lowering::tests::lowers_oo_configurable_class_body stdout ----
+thread 'lowering::tests::lowers_oo_configurable_class_body' (22267) panicked at rust/tcl-compiler/src/lowering/mod.rs:8377:9:
+---- lowering::tests::method_variable_advice_preserves_literal_names_and_captured_prefix_values stdout ----
+thread 'lowering::tests::method_variable_advice_preserves_literal_names_and_captured_prefix_values' (22269) panicked at rust/tcl-compiler/src/lowering/mod.rs:10788:9:
+assertion `left == right` failed
+  left: ["", "", "$counter", "$counter", "brace{name}", "brace{name}", "-dash", "-dash"]
+ right: ["", "$counter", "brace{name}", "-dash"]
+---- lowering::tests::namespace_directive_metadata_keeps_actual_availability_and_source_config stdout ----
+thread 'lowering::tests::namespace_directive_metadata_keeps_actual_availability_and_source_config' (22271) panicked at rust/tcl-compiler/src/lowering/mod.rs:10295:9:
+assertion failed: unavailable.namespace_exports.is_empty()
+---- lowering::tests::nested_proc_homes_to_the_outer_procs_defining_namespace stdout ----
+thread 'lowering::tests::nested_proc_homes_to_the_outer_procs_defining_namespace' (22275) panicked at rust/tcl-compiler/src/lowering/mod.rs:9243:9:
+---- lowering::tests::nested_proc_name_qualifier_beats_the_lexical_namespace_eval stdout ----
+thread 'lowering::tests::nested_proc_name_qualifier_beats_the_lexical_namespace_eval' (22281) panicked at rust/tcl-compiler/src/lowering/mod.rs:9279:9:
+---- lowering::tests::nested_proc_homing_composes_through_three_levels stdout ----
+thread 'lowering::tests::nested_proc_homing_composes_through_three_levels' (22280) panicked at rust/tcl-compiler/src/lowering/mod.rs:9262:9:
+assertion failed: fixture_id_if_present(&m.procedures, "::g::o7b").is_some()
+---- lowering::tests::ns_import_in_static_true_else_suppressed stdout ----
+thread 'lowering::tests::ns_import_in_static_true_else_suppressed' (22291) panicked at rust/tcl-compiler/src/lowering/mod.rs:10377:9:
+assertion `left == right` failed
+  left: 0
+ right: 1
+---- lowering::tests::objdefine_bodies_produce_per_object_method_units stdout ----
+thread 'lowering::tests::objdefine_bodies_produce_per_object_method_units' (22294) panicked at rust/tcl-compiler/src/lowering/mod.rs:8441:32:
+---- lowering::tests::objdefine_variables_stay_out_of_the_class_union stdout ----
+thread 'lowering::tests::objdefine_variables_stay_out_of_the_class_union' (22296) panicked at rust/tcl-compiler/src/lowering/mod.rs:8464:60:
+---- lowering::tests::oo_method_params_use_the_formal_parameter_grammar stdout ----
+thread 'lowering::tests::oo_method_params_use_the_formal_parameter_grammar' (22298) panicked at rust/tcl-compiler/src/lowering/mod.rs:9514:13:
+---- lowering::tests::oo_method_nested_proc_not_registered_globally stdout ----
+thread 'lowering::tests::oo_method_nested_proc_not_registered_globally' (22297) panicked at rust/tcl-compiler/src/lowering/mod.rs:8871:9:
+---- lowering::tests::proc_definition stdout ----
+thread 'lowering::tests::proc_definition' (22306) panicked at rust/tcl-compiler/src/lowering/mod.rs:8955:9:
+assertion failed: fixture_id_if_present(&m.procedures, "::greet").is_some()
+---- lowering::tests::proc_dynamic_name_no_binding_stays_barrier stdout ----
+thread 'lowering::tests::proc_dynamic_name_no_binding_stays_barrier' (22308) panicked at rust/tcl-compiler/src/lowering/mod.rs:9893:14:
+---- lowering::tests::proc_dynamic_name_picks_latest_set stdout ----
+thread 'lowering::tests::proc_dynamic_name_picks_latest_set' (22309) panicked at rust/tcl-compiler/src/lowering/mod.rs:10237:9:
+assertion failed: fixture_id_if_present(&m.procedures, "::Second").is_some()
+---- lowering::tests::proc_dynamic_name_resolved_via_const_map stdout ----
+thread 'lowering::tests::proc_dynamic_name_resolved_via_const_map' (22312) panicked at rust/tcl-compiler/src/lowering/mod.rs:9880:9:
+---- lowering::tests::proc_params_keep_defaults_and_args_as_names stdout ----
+thread 'lowering::tests::proc_params_keep_defaults_and_args_as_names' (22318) panicked at rust/tcl-compiler/src/lowering/mod.rs:9457:32:
+---- lowering::tests::proc_params_tcl_rejects_fall_through_to_barrier stdout ----
+thread 'lowering::tests::proc_params_tcl_rejects_fall_through_to_barrier' (22320) panicked at rust/tcl-compiler/src/lowering/mod.rs:9499:13:
+---- lowering::tests::proc_subst_nocommands_body_materialised stdout ----
+thread 'lowering::tests::proc_subst_nocommands_body_materialised' (22323) panicked at rust/tcl-compiler/src/lowering/mod.rs:9970:14:
+---- lowering::tests::proc_subst_tcl91_positive_switches_materialised stdout ----
+thread 'lowering::tests::proc_subst_tcl91_positive_switches_materialised' (22329) panicked at rust/tcl-compiler/src/lowering/mod.rs:10172:14:
+---- lowering::tests::proc_var_body_unresolved_keeps_empty_body stdout ----
+thread 'lowering::tests::proc_var_body_unresolved_keeps_empty_body' (22331) panicked at rust/tcl-compiler/src/lowering/mod.rs:10068:14:
+---- lowering::tests::proc_var_body_const_map_materialised stdout ----
+thread 'lowering::tests::proc_var_body_const_map_materialised' (22330) panicked at rust/tcl-compiler/src/lowering/mod.rs:10048:14:
+---- lowering::tests::proc_with_trailing_colons_routes_through_barrier stdout ----
+thread 'lowering::tests::proc_with_trailing_colons_routes_through_barrier' (22333) panicked at rust/tcl-compiler/src/lowering/mod.rs:9937:22:
+---- lowering::tests::redefined_oo_method_retains_the_replacement_body stdout ----
+thread 'lowering::tests::redefined_oo_method_retains_the_replacement_body' (22338) panicked at rust/tcl-compiler/src/lowering/mod.rs:8785:9:
+assertion failed: m.methods.values().any(|method| method.reporting_label() == "::C::m")
+---- lowering::tests::registry_dispatch_eval_static_body_lowers_to_block stdout ----
+thread 'lowering::tests::registry_dispatch_eval_static_body_lowers_to_block' (22343) panicked at rust/tcl-compiler/src/lowering/mod.rs:11340:9:
+---- lowering::tests::registry_dispatch_foreach_line_lowers_via_lower_foreach_line stdout ----
+thread 'lowering::tests::registry_dispatch_foreach_line_lowers_via_lower_foreach_line' (22397) panicked at rust/tcl-compiler/src/lowering/mod.rs:11931:9:
+---- lowering::tests::registry_dispatch_foreach_lowers_to_foreach stdout ----
+thread 'lowering::tests::registry_dispatch_foreach_lowers_to_foreach' (22399) panicked at rust/tcl-compiler/src/lowering/mod.rs:11811:9:
+---- lowering::tests::registry_dispatch_lmap_lowers_to_foreach stdout ----
+thread 'lowering::tests::registry_dispatch_lmap_lowers_to_foreach' (22401) panicked at rust/tcl-compiler/src/lowering/mod.rs:11823:9:
+---- lowering::tests::registry_dispatch_namespace_eval_lowers_to_barrier stdout ----
+thread 'lowering::tests::registry_dispatch_namespace_eval_lowers_to_barrier' (22402) panicked at rust/tcl-compiler/src/lowering/mod.rs:11788:22:
+---- lowering::tests::registry_dispatch_proc_lowers_to_proc_call_and_registers_procedure stdout ----
+thread 'lowering::tests::registry_dispatch_proc_lowers_to_proc_call_and_registers_procedure' (22405) panicked at rust/tcl-compiler/src/lowering/mod.rs:11751:9:
+---- lowering::tests::registry_dispatch_uplevel_static_body_lowers_to_upframe stdout ----
+thread 'lowering::tests::registry_dispatch_uplevel_static_body_lowers_to_upframe' (22413) panicked at rust/tcl-compiler/src/lowering/mod.rs:11352:9:
+---- lowering::tests::return_statement stdout ----
+thread 'lowering::tests::return_statement' (22421) panicked at rust/tcl-compiler/src/lowering/mod.rs:9059:9:
+assertion failed: matches!(&m.top_level.statements[0], Statement::Return { value: Some(v), .. }
+---- lowering::tests::same_invocation_command_prefix_is_a_runtime_barrier stdout ----
+thread 'lowering::tests::same_invocation_command_prefix_is_a_runtime_barrier' (22427) panicked at rust/tcl-compiler/src/lowering/mod.rs:7735:13:
+---- lowering::tests::set_with_variable_value stdout ----
+thread 'lowering::tests::set_with_variable_value' (22429) panicked at rust/tcl-compiler/src/lowering/mod.rs:8287:9:
+assertion failed: matches!(&m.top_level.statements[0], Statement::AssignValue { name, .. } if
+---- lowering::tests::simple_set stdout ----
+thread 'lowering::tests::simple_set' (22431) panicked at rust/tcl-compiler/src/lowering/mod.rs:8277:9:
+assertion failed: matches!(&m.top_level.statements[0], Statement::AssignConst
+---- lowering::tests::snit_type_bodies_produce_method_units stdout ----
+thread 'lowering::tests::snit_type_bodies_produce_method_units' (22433) panicked at rust/tcl-compiler/src/lowering/mod.rs:8488:32:
+---- lowering::tests::snit_widget_bodies_see_win_and_hull stdout ----
+thread 'lowering::tests::snit_widget_bodies_see_win_and_hull' (22434) panicked at rust/tcl-compiler/src/lowering/mod.rs:8528:32:
+---- lowering::tests::tcloo_initialise_body_is_not_a_method_unit stdout ----
+thread 'lowering::tests::tcloo_initialise_body_is_not_a_method_unit' (22436) panicked at rust/tcl-compiler/src/lowering/mod.rs:8658:9:
+assertion failed: m.methods.values().any(|method| method.reporting_label() == "::I::read")
+---- lowering::tests::tcloo_self_constructor_and_destructor_lift_no_unit stdout ----
+thread 'lowering::tests::tcloo_self_constructor_and_destructor_lift_no_unit' (22437) panicked at rust/tcl-compiler/src/lowering/mod.rs:8688:9:
+assertion failed: m.methods.values().any(|method| method.reporting_label() == "::S::m")
+---- lowering::tests::tcloo_wrapper_members_produce_units stdout ----
+thread 'lowering::tests::tcloo_wrapper_members_produce_units' (22439) panicked at rust/tcl-compiler/src/lowering/mod.rs:8622:20:
+---- lowering::tests::trace_add_execution_dynamic_widens stdout ----
+thread 'lowering::tests::trace_add_execution_dynamic_widens' (22442) panicked at rust/tcl-compiler/src/lowering/mod.rs:10420:9:
+assertion failed: m.has_dynamic_trace
+---- lowering::tests::trace_add_execution_inside_proc_recorded stdout ----
+thread 'lowering::tests::trace_add_execution_inside_proc_recorded' (22444) panicked at rust/tcl-compiler/src/lowering/mod.rs:10616:9:
+---- lowering::tests::trace_add_variable_inside_apply_body_recorded stdout ----
+thread 'lowering::tests::trace_add_variable_inside_apply_body_recorded' (22456) panicked at rust/tcl-compiler/src/lowering/mod.rs:10664:9:
+---- lowering::tests::trace_add_variable_dynamic_widens stdout ----
+thread 'lowering::tests::trace_add_variable_dynamic_widens' (22454) panicked at rust/tcl-compiler/src/lowering/mod.rs:10516:9:
+assertion failed: m.has_dynamic_variable_trace
+---- lowering::tests::trace_add_variable_inside_method_body_recorded stdout ----
+thread 'lowering::tests::trace_add_variable_inside_method_body_recorded' (22459) panicked at rust/tcl-compiler/src/lowering/mod.rs:10673:9:
+---- lowering::tests::trace_add_variable_inside_method_recorded stdout ----
+thread 'lowering::tests::trace_add_variable_inside_method_recorded' (22460) panicked at rust/tcl-compiler/src/lowering/mod.rs:10538:9:
+---- lowering::tests::trace_legacy_vdelete_form_recorded stdout ----
+thread 'lowering::tests::trace_legacy_vdelete_form_recorded' (22468) panicked at rust/tcl-compiler/src/lowering/mod.rs:10555:9:
+---- lowering::tests::trace_legacy_variable_form_recorded stdout ----
+thread 'lowering::tests::trace_legacy_variable_form_recorded' (22467) panicked at rust/tcl-compiler/src/lowering/mod.rs:10548:9:
+---- lowering::tests::try_lower_eval_static_clean_body_relaxes stdout ----
+thread 'lowering::tests::try_lower_eval_static_clean_body_relaxes' (22472) panicked at rust/tcl-compiler/src/lowering/mod.rs:11322:13:
+---- lowering::tests::unqualified_outer_proc_leaves_nested_homing_unchanged stdout ----
+thread 'lowering::tests::unqualified_outer_proc_leaves_nested_homing_unchanged' (22475) panicked at rust/tcl-compiler/src/lowering/mod.rs:9293:9:
+assertion failed: fixture_id_if_present(&m.procedures, "::inner").is_some()
+---- lowering::tests::unreadable_oo_members_flag_the_class_or_module stdout ----
+thread 'lowering::tests::unreadable_oo_members_flag_the_class_or_module' (22476) panicked at rust/tcl-compiler/src/lowering/mod.rs:8816:9:
+---- lowering::tests::uplevel_static_body_no_level stdout ----
+thread 'lowering::tests::uplevel_static_body_no_level' (22481) panicked at rust/tcl-compiler/src/lowering/mod.rs:9612:22:
+---- lowering::tests::uplevel_static_body_with_hash_zero stdout ----
+thread 'lowering::tests::uplevel_static_body_with_hash_zero' (22488) panicked at rust/tcl-compiler/src/lowering/mod.rs:9644:22:
+---- lowering::tests::uplevel_static_body_with_bare_zero_is_relative stdout ----
+thread 'lowering::tests::uplevel_static_body_with_bare_zero_is_relative' (22482) panicked at rust/tcl-compiler/src/lowering/mod.rs:9663:22:
+---- lowering::tests::uplevel_static_body_with_level_one stdout ----
+thread 'lowering::tests::uplevel_static_body_with_level_one' (22515) panicked at rust/tcl-compiler/src/lowering/mod.rs:9628:22:
+---- native_lowering::tests::a_braced_operand_with_a_line_continuation_goes_to_the_runtime stdout ----
+thread 'native_lowering::tests::a_braced_operand_with_a_line_continuation_goes_to_the_runtime' (22539) panicked at rust/tcl-compiler/src/native_lowering/tests.rs:49:10:
+---- native_lowering::tests::a_command_inside_an_expression_goes_to_the_runtime_expression_intrinsic stdout ----
+thread 'native_lowering::tests::a_command_inside_an_expression_goes_to_the_runtime_expression_intrinsic' (22540) panicked at rust/tcl-compiler/src/native_lowering/tests.rs:49:10:
+---- native_lowering::tests::a_definition_declines_a_body_the_statement_does_not_write_out stdout ----
+thread 'native_lowering::tests::a_definition_declines_a_body_the_statement_does_not_write_out' (22542) panicked at rust/tcl-compiler/src/native_lowering/tests.rs:816:10:
+---- native_lowering::tests::a_definition_with_a_written_body_still_binds_under_the_same_proof stdout ----
+thread 'native_lowering::tests::a_definition_with_a_written_body_still_binds_under_the_same_proof' (22543) panicked at rust/tcl-compiler/src/native_lowering/tests.rs:869:10:
+---- native_lowering::tests::a_mixed_comparison_past_the_exact_double_range_takes_the_runtime_edge stdout ----
+thread 'native_lowering::tests::a_mixed_comparison_past_the_exact_double_range_takes_the_runtime_edge' (22545) panicked at rust/tcl-compiler/src/native_lowering/tests.rs:49:10:
+---- native_lowering::tests::a_dynamic_trace_target_guards_incr_with_the_runtime_trace_bit stdout ----
+thread 'native_lowering::tests::a_dynamic_trace_target_guards_incr_with_the_runtime_trace_bit' (22544) panicked at rust/tcl-compiler/src/native_lowering/tests.rs:49:10:
+---- native_lowering::tests::a_nested_generic_command_word_is_a_nested_invocation stdout ----
+thread 'native_lowering::tests::a_nested_generic_command_word_is_a_nested_invocation' (22546) panicked at rust/tcl-compiler/src/native_lowering/tests.rs:49:10:
+---- native_lowering::tests::a_proc_statement_lowers_to_the_definition_shape stdout ----
+thread 'native_lowering::tests::a_proc_statement_lowers_to_the_definition_shape' (22547) panicked at rust/tcl-compiler/src/native_lowering/tests.rs:49:10:
+---- native_lowering::tests::a_second_definition_of_one_name_stays_a_generic_invocation stdout ----
+thread 'native_lowering::tests::a_second_definition_of_one_name_stays_a_generic_invocation' (22548) panicked at rust/tcl-compiler/src/native_lowering/tests.rs:49:10:
+---- native_lowering::tests::a_statement_carries_the_site_its_error_frame_names stdout ----
+thread 'native_lowering::tests::a_statement_carries_the_site_its_error_frame_names' (22549) panicked at rust/tcl-compiler/src/native_lowering/tests.rs:49:10:
+---- native_lowering::tests::argument_expansion_keeps_the_source_rung_with_its_reason stdout ----
+thread 'native_lowering::tests::argument_expansion_keeps_the_source_rung_with_its_reason' (22551) panicked at rust/tcl-compiler/src/native_lowering/tests.rs:49:10:
+---- native_lowering::tests::a_traced_variable_keeps_its_barrier_and_its_runtime_incr stdout ----
+thread 'native_lowering::tests::a_traced_variable_keeps_its_barrier_and_its_runtime_incr' (22550) panicked at rust/tcl-compiler/src/native_lowering/tests.rs:49:10:
+---- native_lowering::tests::double_division_takes_the_runtime_operator stdout ----
+thread 'native_lowering::tests::double_division_takes_the_runtime_operator' (22552) panicked at rust/tcl-compiler/src/native_lowering/tests.rs:49:10:
+---- native_lowering::tests::doubles_lower_to_native_f64_arithmetic stdout ----
+thread 'native_lowering::tests::doubles_lower_to_native_f64_arithmetic' (22553) panicked at rust/tcl-compiler/src/native_lowering/tests.rs:49:10:
+---- native_lowering::tests::expression_operators_without_a_native_shape_use_the_runtime_operator stdout ----
+thread 'native_lowering::tests::expression_operators_without_a_native_shape_use_the_runtime_operator' (22555) panicked at rust/tcl-compiler/src/native_lowering/tests.rs:49:10:
+---- native_lowering::tests::native_lowering_cannot_bypass_an_unresolved_chunk_entry stdout ----
+thread 'native_lowering::tests::native_lowering_cannot_bypass_an_unresolved_chunk_entry' (22575) panicked at rust/tcl-compiler/src/native_lowering/tests.rs:905:54:
+---- native_lowering::tests::loop_counters_read_from_the_cell_take_the_dynamic_fast_path stdout ----
+thread 'native_lowering::tests::loop_counters_read_from_the_cell_take_the_dynamic_fast_path' (22556) panicked at rust/tcl-compiler/src/native_lowering/tests.rs:353:5:
+assertion failed: count(&function, |op| matches!(op, NativeOp::DynamicCompare { .. })) >= 2
+---- native_lowering::tests::original_boolean_lowering_keeps_reached_operand_purposes_and_c84_left_identity stdout ----
+thread 'native_lowering::tests::original_boolean_lowering_keeps_reached_operand_purposes_and_c84_left_identity' (22583) panicked at rust/tcl-compiler/src/native_lowering/tests.rs:977:9:
+---- native_lowering::tests::original_inline_control_structure_retains_compiler_only_conditions_and_direct_refusal stdout ----
+thread 'native_lowering::tests::original_inline_control_structure_retains_compiler_only_conditions_and_direct_refusal' (22592) panicked at rust/tcl-compiler/src/native_lowering/tests.rs:1196:9:
+assertion failed: unit.ir_module.top_level.statements.iter().all(|statement|
+---- native_lowering::tests::original_root_colon_definition_preserves_evaluated_publication_operand stdout ----
+thread 'native_lowering::tests::original_root_colon_definition_preserves_evaluated_publication_operand' (22649) panicked at rust/tcl-compiler/src/native_lowering/tests.rs:1361:9:
+assertion `left == right` failed: a QName-only or wholly declined control cannot establish the transport
+  left: [GenericInvoke, GenericInvoke]
+ right: [NativeDefinition, GenericInvoke]
+---- native_lowering::tests::renaming_a_math_function_stops_the_native_arm stdout ----
+thread 'native_lowering::tests::renaming_a_math_function_stops_the_native_arm' (22656) panicked at rust/tcl-compiler/src/native_lowering/tests.rs:49:10:
+---- native_lowering::tests::representation_inference_off_boxes_every_value stdout ----
+thread 'native_lowering::tests::representation_inference_off_boxes_every_value' (22658) panicked at rust/tcl-compiler/src/native_lowering/tests.rs:49:10:
+---- native_lowering::tests::set_incr_puts_is_native_with_one_box_at_the_boundary stdout ----
+thread 'native_lowering::tests::set_incr_puts_is_native_with_one_box_at_the_boundary' (22659) panicked at rust/tcl-compiler/src/native_lowering/tests.rs:49:10:
+---- native_lowering::tests::the_arithmetic_chain_is_straight_line_proven_i64 stdout ----
+thread 'native_lowering::tests::the_arithmetic_chain_is_straight_line_proven_i64' (22660) panicked at rust/tcl-compiler/src/native_lowering/tests.rs:49:10:
+---- native_lowering::tests::the_pass_gates_decline_with_typed_reasons stdout ----
+thread 'native_lowering::tests::the_pass_gates_decline_with_typed_reasons' (22661) panicked at rust/tcl-compiler/src/native_lowering/tests.rs:49:10:
+---- native_lowering::tests::the_top_level_script_and_a_procedure_body_take_different_entry_protocols stdout ----
+thread 'native_lowering::tests::the_top_level_script_and_a_procedure_body_take_different_entry_protocols' (22662) panicked at rust/tcl-compiler/src/native_lowering/tests.rs:49:10:
+---- native_lowering::tests::trace_barrier_elision_off_re_reads_every_cell stdout ----
+thread 'native_lowering::tests::trace_barrier_elision_off_re_reads_every_cell' (22663) panicked at rust/tcl-compiler/src/native_lowering/tests.rs:49:10:
+test result: FAILED. 229 passed; 176 failed; 0 ignored; 0 measured; 10046 filtered out; finished in 63.80s

@@ -1,0 +1,31 @@
+
+running 29 tests
+test a_body_that_substitutes_a_command_is_not_given_the_callers_namespace_to_resolve_it_in ... FAILED
+test a_body_with_a_return_before_its_end_answers_through_the_splice ... FAILED
+test a_braced_literal_stays_literal_through_the_wrap ... FAILED
+test a_braced_word_in_an_inlined_body_stays_literal ... FAILED
+test a_body_that_reads_through_an_operand_kept_as_text_stays_a_call ... ok
+test a_call_whose_body_is_a_branch_is_not_given_the_value_of_an_arm ... FAILED
+test a_changed_pack_invalidates_the_site ... FAILED
+test a_direct_dependencys_reference_body_is_dropped_at_load ... FAILED
+test a_definition_in_a_namespace_resolves_its_commands_as_it_did ... FAILED
+test a_function_claims_a_splice_only_where_it_emits_it ... FAILED
+test a_pack_fold_is_admitted_only_under_its_pack_s_facts ... FAILED
+test a_pack_text_body_that_diverges_turns_the_site_plain ... FAILED
+test a_package_source_body_is_a_declared_implementation_too ... ok
+test a_host_native_backing_never_defines_a_proc ... FAILED
+test a_package_source_body_is_read_at_load_through_the_store ... FAILED
+test a_package_source_that_cannot_be_read_is_said_and_not_inlined ... ok
+test a_proc_at_the_pack_name_recompiles_plain ... FAILED
+test a_service_for_the_packs_overlay_compiles_against_the_generation_they_installed ... FAILED
+test a_site_compiled_through_the_service_stamps_the_bases_overlay_generation ... FAILED
+test a_tcl_body_backed_command_is_inlined_and_admitted ... FAILED
+test a_workspace_stamp_is_refused_and_specialises_nothing ... FAILED
+test an_admitted_alias_stamp_records_the_targets_identity ... FAILED
+test an_inlined_body_in_an_lmap_body_gives_the_list_each_iterations_value ... FAILED
+test an_inlined_body_inside_a_static_eval_keeps_its_value ... FAILED
+test a_variable_a_substituted_command_names_is_the_definitions_own ... FAILED
+test an_inlined_body_reads_only_what_its_definition_binds ... ok
+test an_inlined_body_resolves_the_commands_it_calls_as_its_definition_did ... ok
+test the_vm_admits_it_through_the_alias_hop ... FAILED
+test every_shape_of_inlined_body_answers_as_its_definition_does_at_every_site has been running for over 60 seconds

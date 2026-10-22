@@ -1,0 +1,6 @@
+
+running 1 test
+test structural_index::tests::command_boundaries_are_complete_prefixes ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 584 filtered out; finished in 0.01s
+

@@ -1,0 +1,432 @@
+test sccp::original_value_facts::tests::a_literal_keeps_its_surrounding_whitespace ... ok
+test sccp::original_value_facts::tests::an_unnameable_rename_subject_distrusts_where_an_unknown_head_does_not ... FAILED
+test sccp::original_value_facts::tests::an_unnameable_rename_subject_inside_an_alias_defined_body_also_distrusts ... FAILED
+test sccp::original_value_facts::tests::barrier_own_defs_become_overdefined ... ok
+test sccp::original_value_facts::tests::both_stances_decline_a_builtin_a_proc_shadows ... FAILED
+test sccp::original_value_facts::tests::analysis_value_keeps_native_conversion_obligations_out_of_execution_constants ... ok
+test sccp::original_value_facts::tests::branch_deferrable_optimism ... ok
+test sccp::original_value_facts::tests::braced_expr_with_string_var_retains_numeric_comparison_obligations ... FAILED
+test sccp::original_value_facts::tests::cfg_order_appends_unreachable_blocks ... ok
+test sccp::original_value_facts::tests::cfg_order_starts_at_entry ... ok
+test sccp::original_value_facts::tests::evaluate_def_assign_const_produces_int_or_string ... ok
+test sccp::original_value_facts::tests::canonical_root_cells_fold_until_a_proved_mutation_dependency ... FAILED
+test sccp::original_value_facts::tests::evaluate_def_assign_value_folds_expr_cmd_subst ... ok
+test sccp::original_value_facts::tests::evaluate_def_assign_value_folds_format_literal ... ok
+test sccp::original_value_facts::tests::evaluate_def_assign_value_folds_list_cmd ... ok
+test sccp::original_value_facts::tests::evaluate_def_assign_value_folds_llength_literal ... ok
+test sccp::original_value_facts::tests::evaluate_def_assign_value_folds_string_length ... ok
+test sccp::original_value_facts::tests::evaluate_def_assign_value_integer_literal ... ok
+test sccp::original_value_facts::tests::evaluate_def_assign_value_llength_via_lattice_var ... ok
+test sccp::original_value_facts::tests::evaluate_def_assign_value_plain_literal ... ok
+test sccp::original_value_facts::tests::evaluate_def_assign_value_resolves_var_ref ... ok
+test sccp::original_value_facts::tests::evaluate_def_assign_value_unknown_cmd_widens ... ok
+test sccp::original_value_facts::tests::evaluate_def_folds_irules_word_operator_only_under_an_irules_policy ... FAILED
+test sccp::original_value_facts::tests::evaluate_def_foreach_list_cmd_subst_folds_constset ... ok
+test sccp::original_value_facts::tests::evaluate_def_foreach_literal_list_folds_constset ... ok
+test sccp::original_value_facts::tests::evaluate_def_foreach_multi_var_widens ... ok
+test sccp::original_value_facts::tests::evaluate_def_foreach_nested_braced_elements_folds_constset ... ok
+test sccp::original_value_facts::tests::evaluate_def_foreach_single_element_folds_const ... ok
+test sccp::original_value_facts::tests::evaluate_def_foreach_unbound_var_widens ... ok
+test sccp::original_value_facts::tests::evaluate_def_foreach_via_lattice_var ... ok
+test sccp::original_value_facts::tests::evaluate_def_incr_default_amount ... ok
+test sccp::original_value_facts::tests::evaluate_def_incr_integer_literal_amount ... ok
+test sccp::original_value_facts::tests::evaluate_def_incr_negative_literal_amount ... ok
+test sccp::original_value_facts::tests::evaluate_def_incr_non_integer_amount_widens ... ok
+test sccp::original_value_facts::tests::evaluate_def_incr_overdefined_base_widens ... ok
+test sccp::original_value_facts::tests::evaluate_def_incr_unknown_base_propagates_unknown ... ok
+test sccp::original_value_facts::tests::evaluate_def_incr_var_ref_amount ... ok
+test sccp::original_value_facts::tests::evaluate_def_assign_expr_retains_numeric_precision_and_conversion ... FAILED
+test sccp::original_value_facts::tests::existence_fold_resolves_nested_upframe_alias_unset_mutation ... FAILED
+test sccp::original_value_facts::tests::existence_fold_resolves_literal_upframe_and_declines_dynamic_body ... FAILED
+test sccp::original_value_facts::tests::existence_inventory_keeps_literal_destination_names_and_unknown_targets ... ok
+test sccp::original_value_facts::tests::extract_foreach_elements_empty_list_returns_empty ... ok
+test sccp::original_value_facts::tests::extract_foreach_elements_literal_list ... ok
+test sccp::original_value_facts::tests::extract_foreach_elements_quoted_word_already_delimiter_stripped ... ok
+test sccp::original_value_facts::tests::extract_foreach_elements_rejects_substitutions ... ok
+test sccp::original_value_facts::tests::extract_foreach_elements_single_element_braced_list_not_double_stripped ... ok
+test sccp::original_value_facts::tests::extract_foreach_elements_splits_nested_braces_as_tcl_list ... ok
+test sccp::original_value_facts::tests::extract_foreach_elements_two_braced_elements_not_double_stripped ... ok
+test sccp::original_value_facts::tests::existence_folding_requires_actual_entry_and_selected_query ... FAILED
+test sccp::original_value_facts::tests::head_word_arms_decline_only_for_the_name_the_unit_touched ... FAILED
+test sccp::original_value_facts::tests::join_distinct_consts_widens_to_set ... ok
+test sccp::original_value_facts::tests::join_existing_set_absorbs_member ... ok
+test sccp::original_value_facts::tests::join_identical_const_stays_const ... ok
+test sccp::original_value_facts::tests::join_overdefined_is_absorbing ... ok
+test sccp::original_value_facts::tests::join_unknown_absorbs ... ok
+test sccp::original_value_facts::tests::join_widens_large_sets_to_overdefined ... ok
+test sccp::original_value_facts::tests::later_opaque_effects_do_not_destroy_an_earlier_branch_proof ... FAILED
+test sccp::original_value_facts::tests::lazy_semantic_projection_preserves_independent_fold_owner_and_purity ... ok
+test sccp::original_value_facts::tests::lazy_semantic_projection_retains_original_callback_inventory_and_carrierless_refusal ... FAILED
+test sccp::original_value_facts::tests::list_arm_declines_once_the_unit_renames_list ... FAILED
+test sccp::original_value_facts::tests::global_alias_contents_are_precise_until_an_actual_reentry_dependency ... ok
+test sccp::original_value_facts::tests::native_result_protocols_do_not_become_contents_only_execution_constants ... FAILED
+test sccp::original_value_facts::tests::nominal_destroy_inventory_uses_selected_roles_and_keeps_unknown_argv ... ok
+test sccp::original_value_facts::tests::only_the_rewrite_stance_declines_on_the_unbounded_top ... ok
+test sccp::original_value_facts::tests::original_value_reference_consumers_require_grammar_and_scalar_shape ... ok
+test sccp::original_value_facts::tests::parse_literal_value_prefers_int ... ok
+test sccp::original_value_facts::tests::phi_join_defaults_missing_version_zero_feed_to_overdefined ... ok
+test sccp::original_value_facts::tests::phi_join_widens_version_zero_livein_to_overdefined ... ok
+test sccp::original_value_facts::tests::materialised_condition_values_do_not_license_branch_erasure ... FAILED
+test sccp::original_value_facts::tests::point_expression_environment_preserves_alias_spelling_and_retargeting ... ok
+test sccp::original_value_facts::tests::predecessors_simple_chain ... ok
+test sccp::original_value_facts::tests::quoted_expr_with_numeric_var_retains_known_contents ... ok
+test sccp::original_value_facts::tests::quoted_expr_with_string_var_does_not_fold ... ok
+test sccp::original_value_facts::tests::resolve_simple_var_ref_accepts_bare_and_braced ... ok
+test sccp::original_value_facts::tests::sccp_constant_branch_detected_and_taken_target_marked ... ok
+test sccp::original_value_facts::tests::sccp_false_branch_prunes_true_target ... ok
+test sccp::original_value_facts::tests::positioned_constants_do_not_cross_unrepresented_mutations_or_observers ... ok
+test sccp::original_value_facts::tests::sccp_foreach_nested_braced_list_constset_not_corrupted ... FAILED
+test sccp::original_value_facts::tests::sccp_marks_entry_executable_and_propagates_const ... ok
+test sccp::original_value_facts::tests::sccp_unknown_branch_executes_both_targets ... ok
+test sccp::original_value_facts::tests::sccp_widens_across_upframe_from_literal_uplevel ... ok
+test sccp::original_value_facts::tests::semantic_math_dependencies_survive_only_successful_reached_evaluations ... FAILED
+test sccp::original_value_facts::tests::semantic_solver_keeps_selected_native_result_bytes_separate_from_number ... ok
+test sccp::original_value_facts::tests::semantic_solver_propagates_numeric_contents_without_erasing_producer_effects ... FAILED
+test sccp::original_value_facts::tests::set_value_tracks_change ... ok
+test sccp::original_value_facts::tests::source_destroy_inventory_keeps_original_empty_sigil_and_array_name_data ... FAILED
+test sccp::original_value_facts::tests::split_head_basic ... ok
+test sccp::original_value_facts::tests::string_length_fold_counts_in_the_selected_dialects_character_model ... ok
+test sccp::original_value_facts::tests::strip_one_level_braces_and_quotes ... ok
+test sccp::original_value_facts::tests::successful_lazy_expression_analysis_retains_preparation_without_reached_calls ... ok
+test sccp::original_value_facts::tests::upframe_body_models_upvar_alias_unset_in_the_caller_frame ... FAILED
+test sccp::tests::a_barrier_ends_the_refinement ... FAILED
+test sccp::tests::a_contradiction_drops_only_its_own_loop ... ok
+test sccp::tests::a_fused_expression_answers_its_full_value ... FAILED
+test sccp::tests::a_literal_keeps_its_surrounding_whitespace ... ok
+test sccp::tests::a_missing_use_declines_the_prior_store ... ok
+test sccp::tests::a_negated_guard_never_refines_a_special_variable ... ok
+test sccp::tests::a_nested_write_is_the_definition_its_embedded_call_makes_and_the_host_takes_the_result ... FAILED
+test sccp::tests::a_quoted_expression_word_is_substituted_before_it_is_parsed ... FAILED
+test sccp::tests::a_return_that_leaves_the_procedure_widens_nothing ... FAILED
+test sccp::tests::a_value_refinement_holds_where_every_path_carries_it ... FAILED
+test sccp::tests::a_write_a_commands_word_makes_is_a_write_of_the_statement ... FAILED
+test sccp::tests::a_write_only_some_inputs_make_is_joined_over_the_members ... FAILED
+test sccp::tests::an_error_in_the_middle_leaves_the_writes_made_before_it_inside_a_catch ... FAILED
+test sccp::tests::an_externally_mutable_place_is_never_refined ... FAILED
+test sccp::tests::an_impure_operand_ends_the_facts_before_it ... FAILED
+test sccp::tests::an_opaque_switch_arm_leaves_what_it_writes_without_a_constant_or_a_settled_existence ... FAILED
+test sccp::tests::an_opaque_switch_arm_that_runs_a_writer_or_a_barrier_leaves_the_name_unsettled ... FAILED
+test sccp::tests::an_unnameable_rename_subject_distrusts_where_an_unknown_head_does_not ... FAILED
+test sccp::tests::an_unnameable_rename_subject_inside_an_alias_defined_body_also_distrusts ... FAILED
+test sccp::tests::an_unseen_call_leaves_no_name_with_a_settled_existence ... FAILED
+test sccp::tests::an_unseen_call_widens_the_versions_it_leaves_and_no_earlier_or_later_one ... FAILED
+test sccp::tests::barrier_own_defs_become_overdefined ... ok
+test sccp::tests::both_stances_decline_a_builtin_a_proc_shadows ... FAILED
+test sccp::tests::braced_expr_with_string_var_folds_as_string_compare ... FAILED
+test sccp::tests::branch_deferrable_optimism ... ok
+test sccp::tests::cfg_order_appends_unreachable_blocks ... ok
+test sccp::tests::cfg_order_starts_at_entry ... ok
+test sccp::tests::each_shape_refines_the_edge_its_table_row_names ... FAILED
+test sccp::tests::evaluate_branch_resolves_a_nested_command ... FAILED
+test sccp::tests::evaluate_def_append_call_folds_through_the_cell_update ... FAILED
+test sccp::tests::evaluate_def_append_var_piece_reads_the_lattice_exactly ... FAILED
+test sccp::tests::evaluate_def_assign_const_produces_int_or_string ... ok
+test sccp::tests::evaluate_def_assign_expr_folds_with_lattice ... FAILED
+test sccp::tests::evaluate_def_assign_value_folds_expr_cmd_subst ... ok
+test sccp::tests::evaluate_def_assign_value_folds_format_literal ... ok
+test sccp::tests::evaluate_def_assign_value_folds_list_cmd ... ok
+test sccp::tests::evaluate_def_assign_value_folds_llength_literal ... ok
+test sccp::tests::evaluate_def_assign_value_folds_string_length ... ok
+test sccp::tests::evaluate_def_assign_value_folds_string_range_under_the_release ... FAILED
+test sccp::tests::evaluate_def_assign_value_integer_literal ... ok
+test sccp::tests::evaluate_def_assign_value_llength_via_lattice_var ... ok
+test sccp::tests::evaluate_def_assign_value_plain_literal ... ok
+test sccp::tests::evaluate_def_assign_value_resolves_var_ref ... ok
+test sccp::tests::evaluate_def_assign_value_unknown_cmd_widens ... ok
+test sccp::tests::evaluate_def_call_without_a_plan_widens ... ok
+test sccp::tests::evaluate_def_dict_incr_writes_the_dictionary ... FAILED
+test sccp::tests::evaluate_def_folds_irules_word_operator_only_under_an_irules_policy ... FAILED
+test sccp::tests::evaluate_def_foreach_list_cmd_subst_folds_constset ... ok
+test sccp::tests::evaluate_def_foreach_literal_list_folds_constset ... ok
+test sccp::tests::evaluate_def_foreach_multi_var_binds_each_its_elements ... FAILED
+test sccp::tests::evaluate_def_foreach_nested_braced_elements_folds_constset ... ok
+test sccp::tests::evaluate_def_foreach_single_element_folds_const ... ok
+test sccp::tests::evaluate_def_foreach_unbound_var_widens ... ok
+test sccp::tests::evaluate_def_foreach_via_lattice_var ... ok
+test sccp::tests::evaluate_def_incr_default_amount ... ok
+test sccp::tests::evaluate_def_incr_integer_literal_amount ... ok
+test sccp::tests::evaluate_def_incr_lifts_over_one_finite_input ... FAILED
+test sccp::tests::evaluate_def_incr_negative_literal_amount ... ok
+test sccp::tests::evaluate_def_incr_non_integer_amount_widens ... ok
+test sccp::tests::evaluate_def_incr_overdefined_base_widens ... ok
+test sccp::tests::evaluate_def_incr_reads_the_base_under_the_targets_release ... FAILED
+test sccp::tests::evaluate_def_incr_unknown_base_propagates_unknown ... ok
+test sccp::tests::evaluate_def_incr_var_ref_amount ... ok
+test sccp::tests::evaluate_def_lappend_call_renders_the_canonical_list ... FAILED
+test sccp::tests::evaluate_def_set_read_in_value_position_folds ... FAILED
+test sccp::tests::evaluate_def_without_the_trust_fact_answers_for_no_command ... FAILED
+test sccp::tests::existence_fold_abstains_for_a_live_upframe ... FAILED
+test sccp::tests::existence_fold_abstains_for_nested_upframe_alias_unset_mutation ... FAILED
+test sccp::tests::extract_foreach_elements_empty_list_returns_empty ... ok
+test sccp::tests::extract_foreach_elements_literal_list ... ok
+test sccp::tests::extract_foreach_elements_quoted_word_already_delimiter_stripped ... ok
+test sccp::tests::extract_foreach_elements_rejects_substitutions ... ok
+test sccp::tests::extract_foreach_elements_single_element_braced_list_not_double_stripped ... ok
+test sccp::tests::extract_foreach_elements_splits_nested_braces_as_tcl_list ... ok
+test sccp::tests::extract_foreach_elements_two_braced_elements_not_double_stripped ... ok
+test sccp::tests::head_word_arms_decline_only_for_the_name_the_unit_touched ... FAILED
+test sccp::tests::join_distinct_consts_widens_to_set ... ok
+test sccp::tests::join_existing_set_absorbs_member ... ok
+test sccp::tests::join_identical_const_stays_const ... ok
+test sccp::tests::join_overdefined_is_absorbing ... ok
+test sccp::tests::join_unknown_absorbs ... ok
+test sccp::tests::join_widens_large_sets_to_overdefined ... ok
+test sccp::tests::lattice_reference_shapes_keep_actual_grammar_and_refuse_compound_or_array_names ... ok
+test sccp::tests::list_arm_declines_once_the_unit_renames_list ... FAILED
+test sccp::tests::only_the_rewrite_stance_declines_on_the_unbounded_top ... ok
+test sccp::tests::parse_literal_value_prefers_int ... ok
+test sccp::tests::phi_join_defaults_missing_version_zero_feed_to_overdefined ... ok
+test sccp::tests::phi_join_widens_version_zero_livein_to_overdefined ... ok
+test sccp::tests::predecessors_simple_chain ... ok
+test sccp::tests::quoted_expr_with_numeric_var_still_folds ... FAILED
+test sccp::tests::quoted_expr_with_string_var_does_not_fold ... ok
+test sccp::tests::resolve_simple_var_ref_accepts_bare_and_braced ... ok
+test sccp::tests::sccp_constant_branch_detected_and_taken_target_marked ... ok
+test sccp::tests::sccp_false_branch_prunes_true_target ... ok
+test sccp::tests::sccp_folds_post_loop_branch_via_static_summary ... FAILED
+test sccp::tests::sccp_foreach_nested_braced_list_constset_not_corrupted ... FAILED
+test sccp::tests::sccp_marks_entry_executable_and_propagates_const ... ok
+test sccp::tests::sccp_records_a_route_explanation_per_statement ... FAILED
+test sccp::tests::sccp_unknown_branch_executes_both_targets ... ok
+test sccp::tests::sccp_widens_across_upframe_from_literal_uplevel ... ok
+test sccp::tests::sccp_widens_global_aliased_var_to_overdefined ... FAILED
+test sccp::tests::set_unset_info_exists_decides_zero ... FAILED
+test sccp::tests::set_value_tracks_change ... ok
+test sccp::tests::string_length_fold_counts_in_the_selected_dialects_character_model ... FAILED
+test sccp::tests::string_range_in_value_position_reads_cooked_escapes ... FAILED
+test sccp::tests::the_existence_guard_refines_its_edges ... FAILED
+test sccp::tests::the_names_a_callback_writes_are_never_constant ... FAILED
+test sccp::tests::typed_element_base_keeps_literal_name_data_and_distinct_root_symbols ... ok
+test sccp::tests::upframe_body_models_upvar_alias_unset_in_the_caller_frame ... FAILED
+test sccp::tests::what_the_state_cannot_own_keeps_the_conservative_answer ... FAILED
+test sccp::original_value_facts::tests::sccp_folds_post_loop_branch_via_static_summary has been running for over 60 seconds
+test sccp::original_value_facts::tests::sccp_folds_post_loop_branch_via_static_summary ... FAILED
+---- sccp::original_value_facts::tests::an_unnameable_rename_subject_distrusts_where_an_unknown_head_does_not stdout ----
+thread 'sccp::original_value_facts::tests::an_unnameable_rename_subject_distrusts_where_an_unknown_head_does_not' (3494) panicked at rust/tcl-compiler/src/sccp/original_value_facts.rs:6267:9:
+---- sccp::original_value_facts::tests::an_unnameable_rename_subject_inside_an_alias_defined_body_also_distrusts stdout ----
+thread 'sccp::original_value_facts::tests::an_unnameable_rename_subject_inside_an_alias_defined_body_also_distrusts' (3495) panicked at rust/tcl-compiler/src/sccp/original_value_facts.rs:6329:9:
+---- sccp::original_value_facts::tests::both_stances_decline_a_builtin_a_proc_shadows stdout ----
+thread 'sccp::original_value_facts::tests::both_stances_decline_a_builtin_a_proc_shadows' (3499) panicked at rust/tcl-compiler/src/sccp/original_value_facts.rs:6190:9:
+assertion `left == right` failed: the lattice must not answer with builtin semantics for a shadowed name
+  left: Const(Int(3))
+ right: Overdefined
+---- sccp::original_value_facts::tests::braced_expr_with_string_var_retains_numeric_comparison_obligations stdout ----
+thread 'sccp::original_value_facts::tests::braced_expr_with_string_var_retains_numeric_comparison_obligations' (3500) panicked at rust/tcl-compiler/src/sccp/original_value_facts.rs:6571:9:
+---- sccp::original_value_facts::tests::canonical_root_cells_fold_until_a_proved_mutation_dependency stdout ----
+thread 'sccp::original_value_facts::tests::canonical_root_cells_fold_until_a_proved_mutation_dependency' (3502) panicked at rust/tcl-compiler/src/sccp/original_value_facts.rs:6865:9:
+---- sccp::original_value_facts::tests::evaluate_def_folds_irules_word_operator_only_under_an_irules_policy stdout ----
+thread 'sccp::original_value_facts::tests::evaluate_def_folds_irules_word_operator_only_under_an_irules_policy' (3517) panicked at rust/tcl-compiler/src/sccp/original_value_facts.rs:5336:9:
+assertion `left == right` failed: `$s contains "cd"` with $s = abcde must fold to 1 under an iRules policy
+  left: Overdefined
+ right: Const(Int(1))
+---- sccp::original_value_facts::tests::evaluate_def_assign_expr_retains_numeric_precision_and_conversion stdout ----
+thread 'sccp::original_value_facts::tests::evaluate_def_assign_expr_retains_numeric_precision_and_conversion' (3506) panicked at rust/tcl-compiler/src/sccp/original_value_facts.rs:5269:9:
+---- sccp::original_value_facts::tests::existence_fold_resolves_nested_upframe_alias_unset_mutation stdout ----
+thread 'sccp::original_value_facts::tests::existence_fold_resolves_nested_upframe_alias_unset_mutation' (3533) panicked at rust/tcl-compiler/src/sccp/original_value_facts.rs:4769:18:
+---- sccp::original_value_facts::tests::existence_fold_resolves_literal_upframe_and_declines_dynamic_body stdout ----
+thread 'sccp::original_value_facts::tests::existence_fold_resolves_literal_upframe_and_declines_dynamic_body' (3532) panicked at rust/tcl-compiler/src/sccp/original_value_facts.rs:4725:36:
+---- sccp::original_value_facts::tests::existence_folding_requires_actual_entry_and_selected_query stdout ----
+thread 'sccp::original_value_facts::tests::existence_folding_requires_actual_entry_and_selected_query' (3534) panicked at rust/tcl-compiler/src/sccp/original_value_facts.rs:4877:14:
+---- sccp::original_value_facts::tests::head_word_arms_decline_only_for_the_name_the_unit_touched stdout ----
+thread 'sccp::original_value_facts::tests::head_word_arms_decline_only_for_the_name_the_unit_touched' (3544) panicked at rust/tcl-compiler/src/sccp/original_value_facts.rs:6136:9:
+assertion `left == right` failed: a renamed `llength` must not fold to the builtin's answer
+  left: Const(Int(4))
+ right: Overdefined
+---- sccp::original_value_facts::tests::later_opaque_effects_do_not_destroy_an_earlier_branch_proof stdout ----
+thread 'sccp::original_value_facts::tests::later_opaque_effects_do_not_destroy_an_earlier_branch_proof' (3551) panicked at rust/tcl-compiler/src/sccp/original_value_facts.rs:6942:9:
+---- sccp::original_value_facts::tests::lazy_semantic_projection_retains_original_callback_inventory_and_carrierless_refusal stdout ----
+thread 'sccp::original_value_facts::tests::lazy_semantic_projection_retains_original_callback_inventory_and_carrierless_refusal' (3553) panicked at rust/tcl-compiler/src/sccp/original_value_facts.rs:3930:13:
+assertion `left == right` failed: after 0 {set callback_only CALLBACK}; set local VALUE
+  left: true
+ right: false
+---- sccp::original_value_facts::tests::list_arm_declines_once_the_unit_renames_list stdout ----
+thread 'sccp::original_value_facts::tests::list_arm_declines_once_the_unit_renames_list' (3554) panicked at rust/tcl-compiler/src/sccp/original_value_facts.rs:6118:9:
+assertion `left == right` failed: a renamed `list` must not fold to the builtin's answer
+  left: Const(String("a b c"))
+ right: Overdefined
+---- sccp::original_value_facts::tests::native_result_protocols_do_not_become_contents_only_execution_constants stdout ----
+thread 'sccp::original_value_facts::tests::native_result_protocols_do_not_become_contents_only_execution_constants' (3556) panicked at rust/tcl-compiler/src/sccp/original_value_facts.rs:4324:17:
+---- sccp::original_value_facts::tests::materialised_condition_values_do_not_license_branch_erasure stdout ----
+thread 'sccp::original_value_facts::tests::materialised_condition_values_do_not_license_branch_erasure' (3555) panicked at rust/tcl-compiler/src/sccp/original_value_facts.rs:6534:9:
+assertion failed: known.result.constant_branches.iter().any(|branch|
+---- sccp::original_value_facts::tests::sccp_foreach_nested_braced_list_constset_not_corrupted stdout ----
+thread 'sccp::original_value_facts::tests::sccp_foreach_nested_braced_list_constset_not_corrupted' (3578) panicked at rust/tcl-compiler/src/sccp/original_value_facts.rs:6788:9:
+---- sccp::original_value_facts::tests::semantic_math_dependencies_survive_only_successful_reached_evaluations stdout ----
+thread 'sccp::original_value_facts::tests::semantic_math_dependencies_survive_only_successful_reached_evaluations' (3582) panicked at rust/tcl-compiler/src/sccp/original_value_facts.rs:4085:13:
+assertion `left == right` failed: set x [expr {abs(-3)}]
+  left: 0
+ right: 1
+---- sccp::original_value_facts::tests::semantic_solver_propagates_numeric_contents_without_erasing_producer_effects stdout ----
+thread 'sccp::original_value_facts::tests::semantic_solver_propagates_numeric_contents_without_erasing_producer_effects' (3584) panicked at rust/tcl-compiler/src/sccp/original_value_facts.rs:4251:9:
+assertion failed: analyses.iter().all(|analysis| !analysis.evaluation.coercions.is_empty())
+---- sccp::original_value_facts::tests::source_destroy_inventory_keeps_original_empty_sigil_and_array_name_data stdout ----
+thread 'sccp::original_value_facts::tests::source_destroy_inventory_keeps_original_empty_sigil_and_array_name_data' (3586) panicked at rust/tcl-compiler/src/sccp/original_value_facts.rs:3812:13:
+---- sccp::original_value_facts::tests::upframe_body_models_upvar_alias_unset_in_the_caller_frame stdout ----
+thread 'sccp::original_value_facts::tests::upframe_body_models_upvar_alias_unset_in_the_caller_frame' (3591) panicked at rust/tcl-compiler/src/sccp/original_value_facts.rs:4907:36:
+---- sccp::tests::a_barrier_ends_the_refinement stdout ----
+thread 'sccp::tests::a_barrier_ends_the_refinement' (3592) panicked at rust/tcl-compiler/src/sccp.rs:5581:36:
+---- sccp::tests::a_fused_expression_answers_its_full_value stdout ----
+thread 'sccp::tests::a_fused_expression_answers_its_full_value' (3594) panicked at rust/tcl-compiler/src/sccp.rs:6634:13:
+assertion `left == right` failed: tcl8.4: expr {"x"}
+  left: Overdefined
+ right: Const(String("x"))
+---- sccp::tests::a_nested_write_is_the_definition_its_embedded_call_makes_and_the_host_takes_the_result stdout ----
+thread 'sccp::tests::a_nested_write_is_the_definition_its_embedded_call_makes_and_the_host_takes_the_result' (3598) panicked at rust/tcl-compiler/src/sccp.rs:8571:35:
+---- sccp::tests::a_quoted_expression_word_is_substituted_before_it_is_parsed stdout ----
+thread 'sccp::tests::a_quoted_expression_word_is_substituted_before_it_is_parsed' (3599) panicked at rust/tcl-compiler/src/sccp.rs:6664:9:
+assertion `left == right` failed
+  left: Overdefined
+ right: Const(Int(3))
+---- sccp::tests::a_return_that_leaves_the_procedure_widens_nothing stdout ----
+thread 'sccp::tests::a_return_that_leaves_the_procedure_widens_nothing' (3600) panicked at rust/tcl-compiler/src/sccp.rs:5556:40:
+---- sccp::tests::a_value_refinement_holds_where_every_path_carries_it stdout ----
+thread 'sccp::tests::a_value_refinement_holds_where_every_path_carries_it' (3601) panicked at rust/tcl-compiler/src/sccp.rs:5879:36:
+---- sccp::tests::a_write_a_commands_word_makes_is_a_write_of_the_statement stdout ----
+thread 'sccp::tests::a_write_a_commands_word_makes_is_a_write_of_the_statement' (3604) panicked at rust/tcl-compiler/src/sccp.rs:8571:35:
+---- sccp::tests::a_write_only_some_inputs_make_is_joined_over_the_members stdout ----
+thread 'sccp::tests::a_write_only_some_inputs_make_is_joined_over_the_members' (3606) panicked at rust/tcl-compiler/src/sccp.rs:8571:35:
+---- sccp::tests::an_error_in_the_middle_leaves_the_writes_made_before_it_inside_a_catch stdout ----
+thread 'sccp::tests::an_error_in_the_middle_leaves_the_writes_made_before_it_inside_a_catch' (3607) panicked at rust/tcl-compiler/src/sccp.rs:8571:35:
+---- sccp::tests::an_externally_mutable_place_is_never_refined stdout ----
+thread 'sccp::tests::an_externally_mutable_place_is_never_refined' (3608) panicked at rust/tcl-compiler/src/sccp.rs:5401:45:
+---- sccp::tests::an_impure_operand_ends_the_facts_before_it stdout ----
+thread 'sccp::tests::an_impure_operand_ends_the_facts_before_it' (3609) panicked at rust/tcl-compiler/src/sccp.rs:5489:36:
+---- sccp::tests::an_opaque_switch_arm_leaves_what_it_writes_without_a_constant_or_a_settled_existence stdout ----
+thread 'sccp::tests::an_opaque_switch_arm_leaves_what_it_writes_without_a_constant_or_a_settled_existence' (3611) panicked at rust/tcl-compiler/src/sccp.rs:8482:40:
+---- sccp::tests::an_opaque_switch_arm_that_runs_a_writer_or_a_barrier_leaves_the_name_unsettled stdout ----
+thread 'sccp::tests::an_opaque_switch_arm_that_runs_a_writer_or_a_barrier_leaves_the_name_unsettled' (3612) panicked at rust/tcl-compiler/src/sccp.rs:8510:40:
+---- sccp::tests::an_unnameable_rename_subject_distrusts_where_an_unknown_head_does_not stdout ----
+thread 'sccp::tests::an_unnameable_rename_subject_distrusts_where_an_unknown_head_does_not' (3613) panicked at rust/tcl-compiler/src/sccp.rs:7940:9:
+---- sccp::tests::an_unnameable_rename_subject_inside_an_alias_defined_body_also_distrusts stdout ----
+thread 'sccp::tests::an_unnameable_rename_subject_inside_an_alias_defined_body_also_distrusts' (3614) panicked at rust/tcl-compiler/src/sccp.rs:7990:9:
+---- sccp::tests::an_unseen_call_leaves_no_name_with_a_settled_existence stdout ----
+thread 'sccp::tests::an_unseen_call_leaves_no_name_with_a_settled_existence' (3615) panicked at rust/tcl-compiler/src/sccp.rs:6236:43:
+---- sccp::tests::an_unseen_call_widens_the_versions_it_leaves_and_no_earlier_or_later_one stdout ----
+thread 'sccp::tests::an_unseen_call_widens_the_versions_it_leaves_and_no_earlier_or_later_one' (3616) panicked at rust/tcl-compiler/src/sccp.rs:8822:46:
+---- sccp::tests::both_stances_decline_a_builtin_a_proc_shadows stdout ----
+thread 'sccp::tests::both_stances_decline_a_builtin_a_proc_shadows' (3618) panicked at rust/tcl-compiler/src/sccp.rs:7859:9:
+assertion `left == right` failed: the lattice must not answer with builtin semantics for a shadowed name
+  left: Const(Int(3))
+ right: Overdefined
+---- sccp::tests::braced_expr_with_string_var_folds_as_string_compare stdout ----
+thread 'sccp::tests::braced_expr_with_string_var_folds_as_string_compare' (3619) panicked at rust/tcl-compiler/src/sccp.rs:8135:9:
+assertion `left == right` failed
+  left: Overdefined
+ right: Const(Int(0))
+---- sccp::tests::each_shape_refines_the_edge_its_table_row_names stdout ----
+thread 'sccp::tests::each_shape_refines_the_edge_its_table_row_names' (3623) panicked at rust/tcl-compiler/src/sccp.rs:5838:13:
+assertion `left == right` failed: a1
+  left: []
+ right: [(true, "x", "= a")]
+---- sccp::tests::evaluate_branch_resolves_a_nested_command stdout ----
+thread 'sccp::tests::evaluate_branch_resolves_a_nested_command' (3626) panicked at rust/tcl-compiler/src/sccp.rs:8229:38:
+---- sccp::tests::evaluate_def_append_call_folds_through_the_cell_update stdout ----
+thread 'sccp::tests::evaluate_def_append_call_folds_through_the_cell_update' (3627) panicked at rust/tcl-compiler/src/sccp.rs:6898:9:
+assertion `left == right` failed
+  left: Overdefined
+ right: Const(String("hello world!"))
+---- sccp::tests::evaluate_def_append_var_piece_reads_the_lattice_exactly stdout ----
+thread 'sccp::tests::evaluate_def_append_var_piece_reads_the_lattice_exactly' (3628) panicked at rust/tcl-compiler/src/sccp.rs:6922:9:
+assertion `left == right` failed
+  left: Overdefined
+ right: Const(String("hello again"))
+---- sccp::tests::evaluate_def_assign_expr_folds_with_lattice stdout ----
+thread 'sccp::tests::evaluate_def_assign_expr_folds_with_lattice' (3630) panicked at rust/tcl-compiler/src/sccp.rs:6464:9:
+assertion `left == right` failed
+  left: Overdefined
+ right: Const(Int(5))
+---- sccp::tests::evaluate_def_assign_value_folds_string_range_under_the_release stdout ----
+thread 'sccp::tests::evaluate_def_assign_value_folds_string_range_under_the_release' (3636) panicked at rust/tcl-compiler/src/sccp.rs:7236:9:
+assertion `left == right` failed
+  left: Overdefined
+ right: Const(String("ijkl"))
+---- sccp::tests::evaluate_def_dict_incr_writes_the_dictionary stdout ----
+thread 'sccp::tests::evaluate_def_dict_incr_writes_the_dictionary' (3643) panicked at rust/tcl-compiler/src/sccp.rs:6995:9:
+assertion `left == right` failed
+  left: Overdefined
+ right: Const(String("a 2 b 2"))
+---- sccp::tests::evaluate_def_folds_irules_word_operator_only_under_an_irules_policy stdout ----
+thread 'sccp::tests::evaluate_def_folds_irules_word_operator_only_under_an_irules_policy' (3644) panicked at rust/tcl-compiler/src/sccp.rs:6532:9:
+assertion `left == right` failed: `$s contains "cd"` with $s = abcde must fold to 1 under an iRules policy
+  left: Overdefined
+ right: Const(Int(1))
+---- sccp::tests::evaluate_def_foreach_multi_var_binds_each_its_elements stdout ----
+thread 'sccp::tests::evaluate_def_foreach_multi_var_binds_each_its_elements' (3647) panicked at rust/tcl-compiler/src/sccp.rs:7623:9:
+assertion `left == right` failed
+  left: Overdefined
+ right: Const(String("a"))
+---- sccp::tests::evaluate_def_incr_lifts_over_one_finite_input stdout ----
+thread 'sccp::tests::evaluate_def_incr_lifts_over_one_finite_input' (3654) panicked at rust/tcl-compiler/src/sccp.rs:7041:9:
+assertion `left == right` failed
+  left: Overdefined
+ right: ConstSet([Int(11), Int(12)])
+---- sccp::tests::evaluate_def_incr_reads_the_base_under_the_targets_release stdout ----
+thread 'sccp::tests::evaluate_def_incr_reads_the_base_under_the_targets_release' (3658) panicked at rust/tcl-compiler/src/sccp.rs:7106:9:
+assertion `left == right` failed
+  left: Overdefined
+ right: Const(Int(9))
+---- sccp::tests::evaluate_def_lappend_call_renders_the_canonical_list stdout ----
+thread 'sccp::tests::evaluate_def_lappend_call_renders_the_canonical_list' (3661) panicked at rust/tcl-compiler/src/sccp.rs:6941:9:
+assertion `left == right` failed
+  left: Overdefined
+ right: Const(String("a b c {d e}"))
+---- sccp::tests::evaluate_def_set_read_in_value_position_folds stdout ----
+thread 'sccp::tests::evaluate_def_set_read_in_value_position_folds' (3662) panicked at rust/tcl-compiler/src/sccp.rs:7185:9:
+assertion `left == right` failed
+  left: Overdefined
+ right: Const(String("hello"))
+---- sccp::tests::evaluate_def_without_the_trust_fact_answers_for_no_command stdout ----
+thread 'sccp::tests::evaluate_def_without_the_trust_fact_answers_for_no_command' (3663) panicked at rust/tcl-compiler/src/sccp.rs:6790:9:
+assertion `left == right` failed
+  left: Const(Int(6))
+ right: Overdefined
+---- sccp::tests::existence_fold_abstains_for_a_live_upframe stdout ----
+thread 'sccp::tests::existence_fold_abstains_for_a_live_upframe' (3664) panicked at rust/tcl-compiler/src/sccp.rs:5358:36:
+---- sccp::tests::existence_fold_abstains_for_nested_upframe_alias_unset_mutation stdout ----
+thread 'sccp::tests::existence_fold_abstains_for_nested_upframe_alias_unset_mutation' (3665) panicked at rust/tcl-compiler/src/sccp.rs:5927:18:
+---- sccp::tests::head_word_arms_decline_only_for_the_name_the_unit_touched stdout ----
+thread 'sccp::tests::head_word_arms_decline_only_for_the_name_the_unit_touched' (3673) panicked at rust/tcl-compiler/src/sccp.rs:7805:9:
+assertion `left == right` failed: a renamed `llength` must not fold to the builtin's answer
+  left: Const(Int(4))
+ right: Overdefined
+---- sccp::tests::list_arm_declines_once_the_unit_renames_list stdout ----
+thread 'sccp::tests::list_arm_declines_once_the_unit_renames_list' (3681) panicked at rust/tcl-compiler/src/sccp.rs:7787:9:
+assertion `left == right` failed: a renamed `list` must not fold to the builtin's answer
+  left: Const(String("a b c"))
+ right: Overdefined
+---- sccp::tests::quoted_expr_with_numeric_var_still_folds stdout ----
+thread 'sccp::tests::quoted_expr_with_numeric_var_still_folds' (3687) panicked at rust/tcl-compiler/src/sccp.rs:8110:9:
+assertion `left == right` failed
+  left: Overdefined
+ right: Const(Int(7))
+---- sccp::tests::sccp_folds_post_loop_branch_via_static_summary stdout ----
+thread 'sccp::tests::sccp_folds_post_loop_branch_via_static_summary' (3692) panicked at rust/tcl-compiler/src/sccp.rs:8261:36:
+---- sccp::tests::sccp_foreach_nested_braced_list_constset_not_corrupted stdout ----
+thread 'sccp::tests::sccp_foreach_nested_braced_list_constset_not_corrupted' (3693) panicked at rust/tcl-compiler/src/sccp.rs:8310:36:
+---- sccp::tests::sccp_records_a_route_explanation_per_statement stdout ----
+thread 'sccp::tests::sccp_records_a_route_explanation_per_statement' (3695) panicked at rust/tcl-compiler/src/sccp.rs:7268:14:
+---- sccp::tests::sccp_widens_global_aliased_var_to_overdefined stdout ----
+thread 'sccp::tests::sccp_widens_global_aliased_var_to_overdefined' (3699) panicked at rust/tcl-compiler/src/sccp.rs:8414:37:
+---- sccp::tests::set_unset_info_exists_decides_zero stdout ----
+thread 'sccp::tests::set_unset_info_exists_decides_zero' (3700) panicked at rust/tcl-compiler/src/sccp.rs:5385:36:
+---- sccp::tests::string_length_fold_counts_in_the_selected_dialects_character_model stdout ----
+thread 'sccp::tests::string_length_fold_counts_in_the_selected_dialects_character_model' (3702) panicked at rust/tcl-compiler/src/sccp.rs:8022:9:
+assertion `left == right` failed
+  left: Const(Int(2))
+ right: Overdefined
+---- sccp::tests::string_range_in_value_position_reads_cooked_escapes stdout ----
+thread 'sccp::tests::string_range_in_value_position_reads_cooked_escapes' (3703) panicked at rust/tcl-compiler/src/sccp.rs:7212:9:
+assertion `left == right` failed
+  left: Overdefined
+ right: Const(String("a\t"))
+---- sccp::tests::the_existence_guard_refines_its_edges stdout ----
+thread 'sccp::tests::the_existence_guard_refines_its_edges' (3704) panicked at rust/tcl-compiler/src/sccp.rs:5438:36:
+---- sccp::tests::the_names_a_callback_writes_are_never_constant stdout ----
+thread 'sccp::tests::the_names_a_callback_writes_are_never_constant' (3705) panicked at rust/tcl-compiler/src/sccp.rs:8552:36:
+---- sccp::tests::upframe_body_models_upvar_alias_unset_in_the_caller_frame stdout ----
+thread 'sccp::tests::upframe_body_models_upvar_alias_unset_in_the_caller_frame' (3707) panicked at rust/tcl-compiler/src/sccp.rs:5977:36:
+---- sccp::tests::what_the_state_cannot_own_keeps_the_conservative_answer stdout ----
+thread 'sccp::tests::what_the_state_cannot_own_keeps_the_conservative_answer' (3708) panicked at rust/tcl-compiler/src/sccp.rs:8571:35:
+---- sccp::original_value_facts::tests::sccp_folds_post_loop_branch_via_static_summary stdout ----
+thread 'sccp::original_value_facts::tests::sccp_folds_post_loop_branch_via_static_summary' (3577) panicked at rust/tcl-compiler/src/sccp/original_value_facts.rs:6699:17:
+test result: FAILED. 131 passed; 71 failed; 0 ignored; 0 measured; 10257 filtered out; finished in 118.81s

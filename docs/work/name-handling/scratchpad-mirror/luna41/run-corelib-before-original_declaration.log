@@ -1,0 +1,21 @@
+test original_declaration::logical_session_tests::session_wire_bytes_are_lossless_and_legacy_shapes_stay_strict ... ok
+test original_declaration::logical_session_tests::missing_random_allocation_withholds_logical_call_without_changing_legacy_wire ... ok
+test original_declaration::own_object_identity_tests::original_own_object_identity_keeps_uri_currency_and_wire_reselection ... ok
+test original_declaration::readonly_source_reference_tests::readonly_member_census_stays_partial_for_other_class_families ... ok
+test original_declaration::property_source_census_unclassified_receiver_tests::unclassified_object_receivers_and_unknown_heads_preserve_partial_counts ... ok
+test original_declaration::readonly_source_reference_tests::readonly_member_reports_keep_source_spans_out_of_edit_inventories ... ok
+test original_declaration::readonly_source_reference_tests::readonly_method_census_completes_only_proven_self_dispatch_shapes ... ok
+test original_declaration::readonly_source_reference_tests::readonly_property_reports_promote_only_a_complete_typed_source_census ... FAILED
+test original_declaration::relationship_transport_purpose_tests::tagged_wrong_kind_decodes_without_becoming_legacy_authority ... ok
+test original_declaration::tests::original_declaration_handles_reselect_complete_source_uri_and_scanner ... ok
+test original_declaration::tests::original_class_inventory_keeps_equal_source_owners_and_current_occupied_headers ... ok
+test original_declaration::tests::original_declaration_reference_matching_keeps_opaque_slots_and_actual_lookup_owners ... ok
+test original_declaration::readonly_source_reference_tests::readonly_member_census_fails_closed_for_deferred_and_unproven_dispatch ... ok
+---- original_declaration::readonly_source_reference_tests::readonly_property_reports_promote_only_a_complete_typed_source_census stdout ----
+thread 'original_declaration::readonly_source_reference_tests::readonly_property_reports_promote_only_a_complete_typed_source_census' (6752) panicked at rust/tcl-lsp-core/src/original_declaration.rs:2346:9:
+assertion failed: readonly_reference_report(&identity, source, &foreign, true).is_none()
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+test result: FAILED. 12 passed; 1 failed; 0 ignored; 0 measured; 3472 filtered out; finished in 59.26s

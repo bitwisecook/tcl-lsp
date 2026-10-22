@@ -1,0 +1,80 @@
+# spectcl golden snapshot v1
+# regenerate with `cargo xtask pack-goldens`; do not edit by hand
+pack upf dsl 2.1 display Some("IEEE 1801 UPF") load_error None
+target_dependent false
+file_extensions [FileExtension { extension: "upf", display_name: Some("Unified Power Format"), dialect: Some("synopsys-eda-tcl"), line: 31, file: "" }]
+provides []
+co_provides []
+ambient_packages []
+environments []
+dialects []
+registrations 71
+notices 0
+commands 67
+command add_parameter line 36 overrides false degraded false spec c3acb44fbed7cafe hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command add_port_state line 60 overrides false degraded false spec ab239f39af74510c hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command add_power_state line 80 overrides false degraded false spec 577ea98a2fb4d73e hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command add_pst_state line 116 overrides false degraded false spec ef51e1431fa00167 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command add_state_transition line 142 overrides false degraded false spec 0a9ed08d64fb5961 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command add_supply_state line 175 overrides false degraded false spec 12b43a5f87e644df hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command apply_power_model line 196 overrides false degraded false spec d126cf3670e64338 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command associate_supply_set line 224 overrides false degraded false spec 1d06a2fddd991178 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command begin_power_model line 242 overrides false degraded false spec 3e08e37c5ced145f hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command bind_checker line 265 overrides false degraded false spec ba44c125e0e8f958 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command connect_logic_net line 294 overrides false degraded false spec dd65bdf15021f23a hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command connect_supply_net line 314 overrides false degraded false spec 62fe91beb5b85b46 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command connect_supply_set line 349 overrides false degraded false spec 4eef873fd113a68b hooks 88151924583a0ba2 grammar 715ea0deb6f6f5f9
+command create_abstract_power_source line 376 overrides false degraded false spec e484b4c17a85c088 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command create_composite_domain line 423 overrides false degraded false spec 86d9d7802fef90a1 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command create_hdl2upf_vct line 446 overrides false degraded false spec 515efa23a34303f8 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command create_logic_net line 471 overrides false degraded false spec b086a0014a1df5b5 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command create_logic_port line 486 overrides false degraded false spec c20438064629006b hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command create_power_domain line 505 overrides false degraded false spec 884be4e4e366e451 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command create_power_state_group line 543 overrides false degraded false spec 04e7cb9c33312dd3 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command create_power_switch line 558 overrides false degraded false spec 60ecc15bcb467f91 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command create_pst line 607 overrides false degraded false spec 14bec9ae95518a89 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command create_supply_net line 627 overrides false degraded false spec 7d1544b19a305310 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command create_supply_port line 657 overrides false degraded false spec 54448e3e5e411bea hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command create_supply_set line 679 overrides false degraded false spec 040678c09c60d11f hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command create_upf2hdl_vct line 705 overrides false degraded false spec 4ff26c617b868573 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command create_upf_library line 735 overrides false degraded false spec 77a74e2d60be34e2 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command create_vcm line 756 overrides false degraded false spec 30138387cc04bc29 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command define_power_model line 815 overrides false degraded false spec f5930c17a948a144 hooks 74e138fed01371be grammar 715ea0deb6f6f5f9
+command end_power_model line 853 overrides false degraded false spec 22e695b817d93345 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command find_objects line 869 overrides false degraded false spec dd3226277d677c64 hooks 88151924583a0ba2 grammar 715ea0deb6f6f5f9
+command load_simstate_behavior line 921 overrides false degraded false spec 65439182bb9923f7 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command load_upf line 941 overrides false degraded false spec 75143a4f1bacf131 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command load_upf_library line 969 overrides false degraded false spec 5b3938b523ee87b9 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command map_power_switch line 986 overrides false degraded false spec 9c1d9d756b90dcf5 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command map_repeater_cell line 1014 overrides false degraded false spec cb27bc95d2c53091 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command map_retention_cell line 1040 overrides false degraded false spec b46c72e4001d3d8a hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command map_retention_clamp_cell line 1076 overrides false degraded false spec 788462839423941b hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command name_format line 1102 overrides false degraded false spec 97bf8263d87ef816 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command save_upf line 1133 overrides false degraded false spec f796b8255787bea9 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command set_correlated line 1154 overrides false degraded false spec 8a0bc6474483bfa3 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command set_design_attributes line 1177 overrides false degraded false spec e808c217a8a9fe60 hooks 547b824fff5e6b24 grammar 715ea0deb6f6f5f9
+command set_design_top line 1224 overrides false degraded false spec 2fa97dbff1ea8836 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command set_domain_supply_net line 1239 overrides false degraded false spec 567111f4c4ccb2bd hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command set_equivalent line 1261 overrides false degraded false spec 9eff93f84ec59833 hooks 51bc05e2fcbcdabb grammar 715ea0deb6f6f5f9
+command set_isolation line 1289 overrides false degraded false spec b3924c4503d4a28f hooks 56c538691445a54b grammar 715ea0deb6f6f5f9
+command set_level_shifter line 1387 overrides false degraded false spec 5bfa0856c1b5292c hooks 700371c89aacb0a9 grammar 715ea0deb6f6f5f9
+command set_partial_on_translation line 1458 overrides false degraded false spec c3ed38ee032983e6 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command set_port_attributes line 1475 overrides false degraded false spec 1e8e6956fcc29d51 hooks 7a8c4942b9a196b0 grammar 715ea0deb6f6f5f9
+command set_repeater line 1544 overrides false degraded false spec 03e4a698f2f37590 hooks 700371c89aacb0a9 grammar 715ea0deb6f6f5f9
+command set_retention line 1587 overrides false degraded false spec 51ff3293fcabe469 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command set_retention_elements line 1657 overrides false degraded false spec e4eda37adf2a67fe hooks 88151924583a0ba2 grammar 715ea0deb6f6f5f9
+command set_scope line 1685 overrides false degraded false spec 799f3dbf45f97924 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command set_simstate_behavior line 1701 overrides false degraded false spec 0fabf77dcd3c6016 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command set_variation line 1733 overrides false degraded false spec 33985f07afe81753 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command sim_assertion_control line 1753 overrides false degraded false spec fd21fd9fd5d3efe8 hooks 88151924583a0ba2 grammar 715ea0deb6f6f5f9
+command sim_corruption_control line 1786 overrides false degraded false spec 1a12526f5cda1f64 hooks 88151924583a0ba2 grammar 715ea0deb6f6f5f9
+command sim_replay_control line 1816 overrides false degraded false spec c74114e16c9d02a2 hooks 88151924583a0ba2 grammar 715ea0deb6f6f5f9
+command upf_version line 1846 overrides false degraded false spec 065e79afb9361805 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command use_interface_cell line 1865 overrides false degraded false spec d22fdc68c1797183 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command use_upf_library line 1902 overrides false degraded false spec 35322e6d4c507795 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command define_always_on_cell line 1923 overrides false degraded false spec 24b16a40f6135f0a hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command define_diode_clamp line 1957 overrides false degraded false spec 2de7298c982daf46 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command define_isolation_cell line 1981 overrides false degraded false spec 287b12331f092876 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command define_level_shifter_cell line 2030 overrides false degraded false spec 91a94ebb66aee170 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command define_power_switch_cell line 2098 overrides false degraded false spec c7d4441ead76257c hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command define_retention_cell line 2147 overrides false degraded false spec b1076a5928e334c4 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9

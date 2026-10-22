@@ -1,0 +1,105 @@
+diff --git a/rust/tcl-compiler/src/compile_service.rs b/rust/tcl-compiler/src/compile_service.rs
+index 187c54aad5..871badb18a 100644
+--- a/rust/tcl-compiler/src/compile_service.rs
++++ b/rust/tcl-compiler/src/compile_service.rs
+@@ -311,7 +311,9 @@ impl BytecodeCompileService {
+             config,
+             profile,
+             plain_command_dispatch,
+-            Self::source_analysis_options(policy, registry, config, profile),
++            Some(Self::source_analysis_options(
++                policy, registry, config, profile,
++            )),
+         );
+         let mut ir = crate::inlining::inline_reference_bodies(ir, registry, config, profile);
+         ir.top_level_evaluation = target.evaluation;
+@@ -367,10 +369,13 @@ impl BytecodeCompileService {
+         registry: &CommandRegistry,
+         config: LexerConfig,
+         profile: Option<&'static DialectProfile>,
+-    ) -> Option<crate::command_binding::SourceAnalysisOptions<'a>> {
+-        if policy.scope == ModuleEmissionScope::WholeModule && policy.entry.is_none() {
+-            return None;
+-        }
++    ) -> crate::command_binding::SourceAnalysisOptions<'a> {
++        // A whole module compiled with no explicit entry is a document a
++        // fresh interpreter of its profile runs, as `tclsh file.tcl` does
++        // (user decision 2026-10-19T14:20Z): it takes that profile's
++        // authored entry, the same one whole-document analysis takes
++        // (`SourceAnalysisEntry::for_supplied_source`). A supplied runtime
++        // entry keeps its own facts, and an unknown one still refuses.
+         let mut options = policy.entry.map_or_else(
+             || crate::command_binding::SourceAnalysisOptions {
+                 invocation_realm: tcl_dialect::model::InvocationRealm::RuleLoader,
+@@ -383,7 +388,7 @@ impl BytecodeCompileService {
+             |entry| Self::native_entry_options(entry, profile),
+         );
+         options.compilation_scope = policy.scope;
+-        Some(options)
++        options
+     }
+ 
+     /// Select a measured interpreter lexical grammar for runtime compilation.
+@@ -424,12 +429,12 @@ impl BytecodeCompileService {
+             config,
+             Some(profile),
+             plain_command_dispatch,
+-            Self::source_analysis_options(
++            Some(Self::source_analysis_options(
+                 CompileSourcePolicy::entered(native_entry),
+                 registry,
+                 config,
+                 Some(profile),
+-            ),
++            )),
+         );
+         let ir = crate::inlining::inline_reference_bodies(ir, registry, config, Some(profile));
+         let prepared = prepare_cfg_context_bundle(&ir, registry);
+@@ -473,12 +478,12 @@ impl BytecodeCompileService {
+             config,
+             Some(profile),
+             plain,
+-            Self::source_analysis_options(
++            Some(Self::source_analysis_options(
+                 CompileSourcePolicy::entered(entry),
+                 registry,
+                 config,
+                 Some(profile),
+-            ),
++            )),
+         )
+         .map_err(native_word_compile_error)?;
+         let prepared = prepare_cfg_context_bundle(&ir, registry);
+@@ -517,12 +522,12 @@ impl BytecodeCompileService {
+             config,
+             Some(profile),
+             plain,
+-            Self::source_analysis_options(
++            Some(Self::source_analysis_options(
+                 CompileSourcePolicy::entered(entry),
+                 registry,
+                 config,
+                 Some(profile),
+-            ),
++            )),
+         )
+         .map_err(native_word_compile_error)?;
+         let prepared = prepare_cfg_context_bundle(&ir, registry);
+@@ -1867,7 +1872,7 @@ mod tests {
+                 config,
+                 Some(profile),
+                 false,
+-                options,
++                Some(options),
+             );
+             assert_eq!(ir.source_entry.compilation_scope, scope);
+             let entered = scope == ModuleEmissionScope::EnteredSource;
+@@ -1918,7 +1923,7 @@ mod tests {
+                 config,
+                 Some(profile),
+                 false,
+-                options,
++                Some(options),
+             );
+             let entered = scope == ModuleEmissionScope::EnteredSource;
+             assert_eq!(ir.procedures.is_empty(), entered);

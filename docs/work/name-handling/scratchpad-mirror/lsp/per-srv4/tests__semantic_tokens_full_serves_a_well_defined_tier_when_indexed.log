@@ -1,0 +1,36 @@
+
+running 1 test
+test tests::semantic_tokens_full_serves_a_well_defined_tier_when_indexed ... FAILED
+
+failures:
+
+---- tests::semantic_tokens_full_serves_a_well_defined_tier_when_indexed stdout ----
+
+thread 'tests::semantic_tokens_full_serves_a_well_defined_tier_when_indexed' (4502) panicked at rust/tcl-lsp-server/src/lib.rs:64927:14:
+ok: Error { code: ContentModified, message: "Coarse semantic token source or configured input changed", data: None }
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::result::unwrap_failed
+   3: <core::result::Result<core::option::Option<ls_types::semantic_tokens::SemanticTokensResult>, tower_lsp_server::jsonrpc::error::Error>>::expect
+   4: tcl_lsp_server::tests::semantic_tokens_full_serves_a_well_defined_tier_when_indexed::{closure#0}
+   5: <core::pin::Pin<&mut dyn core::future::future::Future<Output = ()>> as core::future::future::Future>::poll
+   6: <tokio::runtime::park::CachedParkThread>::block_on::<core::pin::Pin<&mut dyn core::future::future::Future<Output = ()>>>::{closure#0}
+   7: <tokio::runtime::park::CachedParkThread>::block_on::<core::pin::Pin<&mut dyn core::future::future::Future<Output = ()>>>
+   8: <tokio::runtime::context::blocking::BlockingRegionGuard>::block_on::<core::pin::Pin<&mut dyn core::future::future::Future<Output = ()>>>
+   9: <tokio::runtime::scheduler::multi_thread::MultiThread>::block_on::<core::pin::Pin<&mut dyn core::future::future::Future<Output = ()>>>::{closure#0}
+  10: tokio::runtime::context::runtime::enter_runtime::<<tokio::runtime::scheduler::multi_thread::MultiThread>::block_on<core::pin::Pin<&mut dyn core::future::future::Future<Output = ()>>>::{closure#0}, ()>
+  11: <tokio::runtime::scheduler::multi_thread::MultiThread>::block_on::<core::pin::Pin<&mut dyn core::future::future::Future<Output = ()>>>
+  12: <tokio::runtime::runtime::Runtime>::block_on_inner::<core::pin::Pin<&mut dyn core::future::future::Future<Output = ()>>>
+  13: <tokio::runtime::runtime::Runtime>::block_on::<core::pin::Pin<&mut dyn core::future::future::Future<Output = ()>>>
+  14: tcl_lsp_server::tests::semantic_tokens_full_serves_a_well_defined_tier_when_indexed
+  15: tcl_lsp_server::tests::semantic_tokens_full_serves_a_well_defined_tier_when_indexed::{closure#0}
+  16: <tcl_lsp_server::tests::semantic_tokens_full_serves_a_well_defined_tier_when_indexed::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+
+failures:
+    tests::semantic_tokens_full_serves_a_well_defined_tier_when_indexed
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 839 filtered out; finished in 6.84s
+

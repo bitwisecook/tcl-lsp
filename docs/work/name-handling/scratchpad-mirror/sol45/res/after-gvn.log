@@ -1,0 +1,182 @@
+test gvn::tests::aliasing_over_the_candidate_command_suppresses_reuse ... FAILED
+test gvn::tests::aliasing_an_unrelated_name_abstains_on_the_declared_policy_write ... FAILED
+test gvn::tests::a_variable_store_write_between_candidates_keeps_reuse ... FAILED
+test gvn::tests::argument_expansion_fails_closed ... FAILED
+test gvn::tests::build_call_key_for_pure_command ... ok
+test gvn::tests::canonicalise_braced_var_follows_the_release_rule ... ok
+test gvn::tests::canonicalise_empty_uses_returns_input ... ok
+test gvn::tests::canonicalise_ignores_unmentioned_variables ... ok
+test gvn::tests::canonicalise_replaces_bare_and_braced ... ok
+test gvn::tests::canonicalise_sorts_by_name_length_desc ... ok
+test gvn::tests::command_rename_trace_on_the_candidate_suppresses_reuse ... FAILED
+test gvn::tests::creating_a_child_interpreter_only_invalidates_the_child_binding ... FAILED
+test gvn::tests::creating_a_safe_child_interpreter_keeps_reuse ... FAILED
+test gvn::tests::dominates_trivial_and_chain ... ok
+test gvn::tests::dominator_intervals_answer_siblings_and_unreachable ... ok
+test gvn::tests::command_substitution_in_an_operand_word_fails_closed ... FAILED
+test gvn::tests::expr_occurrence_carries_variable_uses ... ok
+test gvn::tests::eval_source_and_package_barriers_suppress_reuse ... FAILED
+test gvn::tests::find_loop_invariants_detects_hoistable_llength ... ok
+test gvn::tests::find_loop_invariants_no_loops_empty ... ok
+test gvn::tests::find_loop_invariants_skips_branch_that_does_not_dominate_latch ... ok
+test gvn::tests::find_loop_invariants_skips_loop_defined_var ... ok
+test gvn::tests::find_partial_redundancies_if_diamond ... ok
+test gvn::tests::find_partial_redundancies_none_on_linear_chain ... ok
+test gvn::tests::find_redundancies_descends_dominator_tree ... ok
+test gvn::tests::find_redundancies_detects_same_block_duplicate ... ok
+test gvn::tests::find_redundancies_empty_for_no_blocks ... ok
+test gvn::tests::find_redundancies_global_write_invalidates_cache ... ok
+test gvn::tests::find_redundancies_ignores_different_ssa_version ... ok
+test gvn::tests::format_expression_text_no_args ... ok
+test gvn::tests::format_expression_text_with_args ... ok
+test gvn::tests::failed_execution_trace_installation_does_not_reach_later_calls ... FAILED
+test gvn::tests::detects_redundant_ensemble_subcommand_cse ... FAILED
+test gvn::tests::function_level_gvn_declines_volatile_result_despite_closed_effects ... ok
+test gvn::tests::function_level_gvn_declines_without_a_selected_semantic_dialect ... FAILED
+test gvn::tests::function_level_gvn_declines_clock_seconds_and_versioned_clock_context ... ok
+test gvn::tests::dynamic_execution_trace_removal_abstains ... FAILED
+test gvn::tests::function_level_gvn_maps_calls_inside_a_structured_conditional_body ... FAILED
+test gvn::tests::function_level_gvn_proves_llength_dispatch_and_reports_o105 ... FAILED
+test gvn::tests::insert_and_lookup_in_root ... ok
+test gvn::tests::function_level_gvn_proves_exact_mapped_closed_pure_call ... FAILED
+test gvn::tests::is_pure_command_picks_up_registry_pure_trait ... ok
+test gvn::tests::is_pure_command_recurses_into_impure_substitution ... ok
+test gvn::tests::is_pure_command_with_traces_dynamic_trace_inhibits_all ... ok
+test gvn::tests::is_pure_command_with_traces_qualified_name_canonicalised ... ok
+test gvn::tests::is_pure_command_with_traces_traced_command_not_pure ... ok
+test gvn::tests::is_pure_command_with_traces_untraced_command_still_pure ... ok
+test gvn::tests::is_worth_reporting_unknown_command_is_false ... ok
+test gvn::tests::function_level_gvn_proves_other_stable_commands ... FAILED
+test gvn::tests::kill_all_drops_every_scope ... ok
+test gvn::tests::kill_all_mid_branch_does_not_leak_to_sibling ... ok
+test gvn::tests::hiding_the_candidate_in_the_current_interpreter_suppresses_reuse ... FAILED
+test gvn::tests::installing_an_alias_into_a_child_interpreter_abstains ... FAILED
+test gvn::tests::literal_execution_trace_removal_restores_stable_call_reuse ... FAILED
+test gvn::tests::lookup_shadows_outer_scope_first ... ok
+test gvn::tests::message_builders_include_expression_text ... ok
+test gvn::tests::live_execution_trace_keeps_o105_suppressed ... FAILED
+test gvn::tests::kill_all_does_not_leak_across_sibling_branches ... ok
+test gvn::tests::kill_all_preserves_within_path_detection ... FAILED
+test gvn::tests::namespace_unknown_abstains_on_its_declared_lookup_and_policy_writes ... FAILED
+test gvn::tests::namespace_import_suppresses_reuse ... FAILED
+test gvn::tests::mutating_ensemble_subcommand_is_not_cse ... ok
+test gvn::tests::opaque_native_call_kills_common_value_numbering_without_text_classification ... ok
+test gvn::tests::pop_scope_discards_inner_entries_only ... ok
+test gvn::tests::pop_scope_preserves_root_scope ... ok
+test gvn::tests::oo_class_creation_suppresses_reuse_through_its_constructor_barrier ... FAILED
+test gvn::tests::redundant_computation_constructor ... ok
+test gvn::tests::original_token_purity_requires_actual_availability_and_complete_children ... FAILED
+test gvn::tests::non_step_execution_trace_on_an_unrelated_command_keeps_reuse ... FAILED
+test gvn::tests::renaming_an_unrelated_command_keeps_reuse_per_subject ... FAILED
+test gvn::tests::scan_bracketed_commands_handles_backslash_escape ... ok
+test gvn::tests::scan_bracketed_commands_nested ... ok
+test gvn::tests::scan_bracketed_commands_simple ... ok
+test gvn::tests::scan_bracketed_commands_skips_braced_regions ... ok
+test gvn::tests::scoped_table_root_scope_always_present ... ok
+test gvn::tests::split_cmd_text_braced_and_quoted_words ... ok
+test gvn::tests::procedure_units_abstain_under_the_unknown_world_entry_assumption ... FAILED
+test gvn::tests::statement_occurrences_emits_nothing_for_non_call_stmts ... ok
+test gvn::tests::statement_occurrences_includes_embedded_in_assign_value ... ok
+test gvn::tests::statement_occurrences_skips_impure_commands ... ok
+test gvn::tests::statement_occurrences_includes_embedded_pure_cmd ... ok
+test gvn::tests::statement_writes_state_false_for_proc_local_set ... ok
+test gvn::tests::statement_writes_state_false_for_pure_expr ... ok
+test gvn::tests::statement_writes_state_true_for_global_write ... ok
+test gvn::tests::statement_writes_state_true_for_barrier ... ok
+test gvn::tests::static_llength_candidate_requires_coverage_of_registry_dispatch_dependencies ... ok
+test gvn::tests::transfer_occurrence_keys_kill_clears_state ... ok
+test gvn::tests::renaming_the_candidate_command_suppresses_reuse ... FAILED
+test gvn::tests::repeated_stable_calls_in_a_while_body_are_mapped ... FAILED
+test gvn::tests::step_execution_trace_on_an_unrelated_command_suppresses_every_site ... FAILED
+test gvn::tests::variable_read_trace_on_an_argument_variable_suppresses_reuse ... FAILED
+test gvn::tests::versioned_world_results_key_on_the_read_domain_version ... FAILED
+test gvn::tests::variable_trace_removal_restores_argument_variable_reuse ... FAILED
+test gvn::tests::variable_write_trace_on_another_variable_keeps_reuse ... FAILED
+---- gvn::tests::aliasing_over_the_candidate_command_suppresses_reuse stdout ----
+thread 'gvn::tests::aliasing_over_the_candidate_command_suppresses_reuse' (9461) panicked at rust/tcl-compiler/src/gvn.rs:3713:9:
+---- gvn::tests::aliasing_an_unrelated_name_abstains_on_the_declared_policy_write stdout ----
+thread 'gvn::tests::aliasing_an_unrelated_name_abstains_on_the_declared_policy_write' (9460) panicked at rust/tcl-compiler/src/gvn.rs:3713:9:
+---- gvn::tests::a_variable_store_write_between_candidates_keeps_reuse stdout ----
+thread 'gvn::tests::a_variable_store_write_between_candidates_keeps_reuse' (9459) panicked at rust/tcl-compiler/src/gvn.rs:3713:9:
+---- gvn::tests::argument_expansion_fails_closed stdout ----
+thread 'gvn::tests::argument_expansion_fails_closed' (9462) panicked at rust/tcl-compiler/src/gvn.rs:3713:9:
+---- gvn::tests::command_rename_trace_on_the_candidate_suppresses_reuse stdout ----
+thread 'gvn::tests::command_rename_trace_on_the_candidate_suppresses_reuse' (9469) panicked at rust/tcl-compiler/src/gvn.rs:3713:9:
+---- gvn::tests::creating_a_child_interpreter_only_invalidates_the_child_binding stdout ----
+thread 'gvn::tests::creating_a_child_interpreter_only_invalidates_the_child_binding' (9471) panicked at rust/tcl-compiler/src/gvn.rs:3713:9:
+---- gvn::tests::creating_a_safe_child_interpreter_keeps_reuse stdout ----
+thread 'gvn::tests::creating_a_safe_child_interpreter_keeps_reuse' (9472) panicked at rust/tcl-compiler/src/gvn.rs:3713:9:
+---- gvn::tests::command_substitution_in_an_operand_word_fails_closed stdout ----
+thread 'gvn::tests::command_substitution_in_an_operand_word_fails_closed' (9470) panicked at rust/tcl-compiler/src/gvn.rs:3713:9:
+---- gvn::tests::eval_source_and_package_barriers_suppress_reuse stdout ----
+thread 'gvn::tests::eval_source_and_package_barriers_suppress_reuse' (9477) panicked at rust/tcl-compiler/src/gvn.rs:3713:9:
+---- gvn::tests::failed_execution_trace_installation_does_not_reach_later_calls stdout ----
+thread 'gvn::tests::failed_execution_trace_installation_does_not_reach_later_calls' (9479) panicked at rust/tcl-compiler/src/gvn.rs:3713:9:
+---- gvn::tests::detects_redundant_ensemble_subcommand_cse stdout ----
+thread 'gvn::tests::detects_redundant_ensemble_subcommand_cse' (9473) panicked at rust/tcl-compiler/src/gvn.rs:3649:9:
+assertion `left == right` failed
+  left: []
+ right: ["string length $a"]
+---- gvn::tests::function_level_gvn_declines_without_a_selected_semantic_dialect stdout ----
+thread 'gvn::tests::function_level_gvn_declines_without_a_selected_semantic_dialect' (9495) panicked at rust/tcl-compiler/src/gvn.rs:2030:9:
+assertion `left != right` failed
+  left: []
+ right: []
+---- gvn::tests::dynamic_execution_trace_removal_abstains stdout ----
+thread 'gvn::tests::dynamic_execution_trace_removal_abstains' (9476) panicked at rust/tcl-compiler/src/gvn.rs:3713:9:
+---- gvn::tests::function_level_gvn_maps_calls_inside_a_structured_conditional_body stdout ----
+thread 'gvn::tests::function_level_gvn_maps_calls_inside_a_structured_conditional_body' (9496) panicked at rust/tcl-compiler/src/gvn.rs:2048:9:
+---- gvn::tests::function_level_gvn_proves_llength_dispatch_and_reports_o105 stdout ----
+thread 'gvn::tests::function_level_gvn_proves_llength_dispatch_and_reports_o105' (9498) panicked at rust/tcl-compiler/src/gvn.rs:1994:9:
+---- gvn::tests::function_level_gvn_proves_exact_mapped_closed_pure_call stdout ----
+thread 'gvn::tests::function_level_gvn_proves_exact_mapped_closed_pure_call' (9497) panicked at rust/tcl-compiler/src/gvn.rs:2089:9:
+assertion failed: matches!(cu.top_level.semantic_facts.executable(),
+---- gvn::tests::function_level_gvn_proves_other_stable_commands stdout ----
+thread 'gvn::tests::function_level_gvn_proves_other_stable_commands' (9499) panicked at rust/tcl-compiler/src/gvn.rs:2121:13:
+assertion `left == right` failed: closed stable registry category with a live dispatch proof reuses: format %s x
+  left: 0
+ right: 1
+---- gvn::tests::hiding_the_candidate_in_the_current_interpreter_suppresses_reuse stdout ----
+thread 'gvn::tests::hiding_the_candidate_in_the_current_interpreter_suppresses_reuse' (9500) panicked at rust/tcl-compiler/src/gvn.rs:3713:9:
+---- gvn::tests::installing_an_alias_into_a_child_interpreter_abstains stdout ----
+thread 'gvn::tests::installing_an_alias_into_a_child_interpreter_abstains' (9502) panicked at rust/tcl-compiler/src/gvn.rs:3713:9:
+---- gvn::tests::literal_execution_trace_removal_restores_stable_call_reuse stdout ----
+thread 'gvn::tests::literal_execution_trace_removal_restores_stable_call_reuse' (9514) panicked at rust/tcl-compiler/src/gvn.rs:3713:9:
+---- gvn::tests::live_execution_trace_keeps_o105_suppressed stdout ----
+thread 'gvn::tests::live_execution_trace_keeps_o105_suppressed' (9515) panicked at rust/tcl-compiler/src/gvn.rs:2212:9:
+assertion failed: cu.top_level.semantic_facts.executable().function().is_some()
+---- gvn::tests::kill_all_preserves_within_path_detection stdout ----
+thread 'gvn::tests::kill_all_preserves_within_path_detection' (9513) panicked at rust/tcl-compiler/src/gvn.rs:3693:9:
+assertion `left == right` failed
+  left: []
+ right: ["llength $lst"]
+---- gvn::tests::namespace_unknown_abstains_on_its_declared_lookup_and_policy_writes stdout ----
+thread 'gvn::tests::namespace_unknown_abstains_on_its_declared_lookup_and_policy_writes' (9520) panicked at rust/tcl-compiler/src/gvn.rs:3713:9:
+---- gvn::tests::namespace_import_suppresses_reuse stdout ----
+thread 'gvn::tests::namespace_import_suppresses_reuse' (9519) panicked at rust/tcl-compiler/src/gvn.rs:3713:9:
+---- gvn::tests::oo_class_creation_suppresses_reuse_through_its_constructor_barrier stdout ----
+thread 'gvn::tests::oo_class_creation_suppresses_reuse_through_its_constructor_barrier' (9522) panicked at rust/tcl-compiler/src/gvn.rs:3713:9:
+---- gvn::tests::original_token_purity_requires_actual_availability_and_complete_children stdout ----
+thread 'gvn::tests::original_token_purity_requires_actual_availability_and_complete_children' (9524) panicked at rust/tcl-compiler/src/gvn.rs:4395:9:
+assertion failed: super::is_pure_tokens_with_metadata_context(registry, Some(current.into()),
+---- gvn::tests::non_step_execution_trace_on_an_unrelated_command_keeps_reuse stdout ----
+thread 'gvn::tests::non_step_execution_trace_on_an_unrelated_command_keeps_reuse' (9521) panicked at rust/tcl-compiler/src/gvn.rs:3713:9:
+---- gvn::tests::renaming_an_unrelated_command_keeps_reuse_per_subject stdout ----
+thread 'gvn::tests::renaming_an_unrelated_command_keeps_reuse_per_subject' (9529) panicked at rust/tcl-compiler/src/gvn.rs:3713:9:
+---- gvn::tests::procedure_units_abstain_under_the_unknown_world_entry_assumption stdout ----
+thread 'gvn::tests::procedure_units_abstain_under_the_unknown_world_entry_assumption' (9527) panicked at rust/tcl-compiler/src/gvn.rs:4186:14:
+---- gvn::tests::renaming_the_candidate_command_suppresses_reuse stdout ----
+thread 'gvn::tests::renaming_the_candidate_command_suppresses_reuse' (9530) panicked at rust/tcl-compiler/src/gvn.rs:3713:9:
+---- gvn::tests::repeated_stable_calls_in_a_while_body_are_mapped stdout ----
+thread 'gvn::tests::repeated_stable_calls_in_a_while_body_are_mapped' (9531) panicked at rust/tcl-compiler/src/gvn.rs:4222:9:
+---- gvn::tests::step_execution_trace_on_an_unrelated_command_suppresses_every_site stdout ----
+thread 'gvn::tests::step_execution_trace_on_an_unrelated_command_suppresses_every_site' (9547) panicked at rust/tcl-compiler/src/gvn.rs:3713:9:
+---- gvn::tests::variable_read_trace_on_an_argument_variable_suppresses_reuse stdout ----
+thread 'gvn::tests::variable_read_trace_on_an_argument_variable_suppresses_reuse' (9549) panicked at rust/tcl-compiler/src/gvn.rs:3713:9:
+---- gvn::tests::versioned_world_results_key_on_the_read_domain_version stdout ----
+thread 'gvn::tests::versioned_world_results_key_on_the_read_domain_version' (9552) panicked at rust/tcl-compiler/src/gvn.rs:3713:9:
+---- gvn::tests::variable_trace_removal_restores_argument_variable_reuse stdout ----
+thread 'gvn::tests::variable_trace_removal_restores_argument_variable_reuse' (9550) panicked at rust/tcl-compiler/src/gvn.rs:3713:9:
+---- gvn::tests::variable_write_trace_on_another_variable_keeps_reuse stdout ----
+thread 'gvn::tests::variable_write_trace_on_another_variable_keeps_reuse' (9551) panicked at rust/tcl-compiler/src/gvn.rs:3713:9:
+test result: FAILED. 58 passed; 36 failed; 0 ignored; 0 measured; 10357 filtered out; finished in 5.24s

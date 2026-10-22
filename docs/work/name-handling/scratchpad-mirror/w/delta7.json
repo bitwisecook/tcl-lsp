@@ -1,0 +1,13 @@
+{
+ "scheduled": "2026-10-17T23:40:00Z",
+ "change_since_previous_report": {"integrated_LSP": 0, "total_baseline_delta": 0, "effective_delta": 0, "verified_complete": 0},
+ "admissions": {},
+ "validation_recorded_at_capture": {
+  "clippy_gate": {"status": "cleanup in progress (uncommitted)", "files_changed": 97, "crates": {"tcl-registry": 47, "tcl-cmd-core": 19, "tcl-syntax": 14, "tcl-lexer": 7, "tcl-runtime-api": 5, "tcl-vm": 3, "tcl-compiler": 1, "tcl-host-c-abi": 1, "tcl-test-support": 1}, "scope_note": "clippy lints path dependencies; VM/runtime-crate edits restricted to lint-mechanical fixes and listed separately, consistent with the paused VM/runtime migration"},
+  "next": "commit clippy cleanup as one reviewed change; integration40 adds namespaced definition-body V2 and the namespace-eval DocumentSequence fix; rebuild; full guarded capture"
+ },
+ "user_decisions_still_open": ["Compiler221", "DB921 identity", "Server102/103 freshness vs snapshot", "Server108 validation cost"],
+ "next_report_utc": "2026-10-18T00:10:00Z",
+ "green_PR": false,
+ "merge_or_issue_closure": false
+}

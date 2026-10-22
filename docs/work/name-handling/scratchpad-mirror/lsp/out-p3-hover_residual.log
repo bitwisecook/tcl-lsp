@@ -1,0 +1,153 @@
+
+running 36 tests
+test residual_find_var_at_position_braced_array_index ... ok
+test residual_find_word_span_namespace_qualified_token ... ok
+test residual_find_var_at_position_none_in_plain_word ... ok
+test residual_hover_binary_format_braced_spec_renders_field_table ... ok
+test residual_hover_binary_absolute_seek_byte_math ... ok
+test residual_hover_binary_scan_labels_fields_with_var_names ... ok
+test residual_hover_class_lists_class_methods ... FAILED
+test residual_hover_class_lists_superclass_and_instance_variables ... ok
+test residual_hover_class_member_constructor_arity ... FAILED
+test residual_hover_class_member_property_inside_body ... ok
+test residual_hover_class_member_destructor_keyword ... FAILED
+test residual_hover_cursor_on_command_word_is_not_subcommand ... ok
+test residual_hover_class_with_mixin_and_doc_comment ... FAILED
+test residual_hover_glob_char_class_via_string_match ... ok
+test residual_hover_glob_via_lsearch_dash_glob ... ok
+test residual_hover_in_comment_line_is_none ... ok
+test residual_hover_interp_alias_shows_target ... ok
+test residual_hover_interp_alias_with_prefix_args_in_target ... ok
+test residual_hover_ipv4_link_local_and_multicast ... ok
+test residual_hover_ipv4_unspecified_broadcast_documentation ... ok
+test residual_hover_ipv4_with_cidr_prefix ... ok
+test residual_hover_ipv6_link_local_word ... ok
+test residual_hover_ipv6_mapped_shows_ipv4_form ... ok
+test residual_hover_lsearch_dynamic_mode_keeps_pattern_ambiguous ... ok
+test residual_hover_lsearch_final_option_shaped_operands_stay_positional ... ok
+test residual_hover_obj_method_dispatch_to_instance_method ... ok
+test residual_hover_lsearch_invalid_option_prefix_abstains ... ok
+test residual_hover_on_operator_char_is_none ... ok
+test residual_hover_option_word_of_command ... FAILED
+test residual_hover_regexp_literal_pattern_notes_no_metacharacters ... FAILED
+test residual_hover_proc_renders_doc_comment_tags ... ok
+test residual_hover_regexp_pattern_anchors_and_class ... FAILED
+test residual_hover_regsub_subspec_backreference_table ... ok
+test residual_hover_unknown_command_with_registry_is_none ... ok
+test residual_hover_var_intrep_string_with_registry ... ok
+test residual_hover_var_without_registry_omits_intrep ... ok
+
+failures:
+
+---- residual_hover_class_lists_class_methods stdout ----
+
+thread 'residual_hover_class_lists_class_methods' (9270) panicked at rust/tcl-lsp-core/tests/hover_residual.rs:496:5:
+expected class-methods section: ```tcl
+oo::class create ::Factory
+```
+
+**Methods**: use
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: hover_residual::residual_hover_class_lists_class_methods
+   3: hover_residual::residual_hover_class_lists_class_methods::{closure#0}
+   4: <hover_residual::residual_hover_class_lists_class_methods::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- residual_hover_class_member_constructor_arity stdout ----
+
+thread 'residual_hover_class_member_constructor_arity' (9279) panicked at rust/tcl-lsp-core/tests/hover_residual.rs:593:48:
+constructor member hover
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::option::expect_failed
+   3: <core::option::Option<tcl_lsp_core::hover::Hover>>::expect
+   4: hover_residual::residual_hover_class_member_constructor_arity
+   5: hover_residual::residual_hover_class_member_constructor_arity::{closure#0}
+   6: <hover_residual::residual_hover_class_member_constructor_arity::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- residual_hover_class_member_destructor_keyword stdout ----
+
+thread 'residual_hover_class_member_destructor_keyword' (9287) panicked at rust/tcl-lsp-core/tests/hover_residual.rs:615:48:
+destructor member hover
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::option::expect_failed
+   3: <core::option::Option<tcl_lsp_core::hover::Hover>>::expect
+   4: hover_residual::residual_hover_class_member_destructor_keyword
+   5: hover_residual::residual_hover_class_member_destructor_keyword::{closure#0}
+   6: <hover_residual::residual_hover_class_member_destructor_keyword::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- residual_hover_class_with_mixin_and_doc_comment stdout ----
+
+thread 'residual_hover_class_with_mixin_and_doc_comment' (9321) panicked at rust/tcl-lsp-core/tests/hover_residual.rs:550:48:
+class+mixin hover
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::option::expect_failed
+   3: <core::option::Option<tcl_lsp_core::hover::Hover>>::expect
+   4: hover_residual::residual_hover_class_with_mixin_and_doc_comment
+   5: hover_residual::residual_hover_class_with_mixin_and_doc_comment::{closure#0}
+   6: <hover_residual::residual_hover_class_with_mixin_and_doc_comment::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- residual_hover_option_word_of_command stdout ----
+
+thread 'residual_hover_option_word_of_command' (9442) panicked at rust/tcl-lsp-core/tests/hover_residual.rs:407:54:
+option hover
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::option::expect_failed
+   3: <core::option::Option<tcl_lsp_core::hover::Hover>>::expect
+   4: hover_residual::residual_hover_option_word_of_command
+   5: hover_residual::residual_hover_option_word_of_command::{closure#0}
+   6: <hover_residual::residual_hover_option_word_of_command::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- residual_hover_regexp_literal_pattern_notes_no_metacharacters stdout ----
+
+thread 'residual_hover_regexp_literal_pattern_notes_no_metacharacters' (9499) panicked at rust/tcl-lsp-core/tests/hover_residual.rs:293:48:
+regexp literal hover
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::option::expect_failed
+   3: <core::option::Option<tcl_lsp_core::hover::Hover>>::expect
+   4: hover_residual::residual_hover_regexp_literal_pattern_notes_no_metacharacters
+   5: hover_residual::residual_hover_regexp_literal_pattern_notes_no_metacharacters::{closure#0}
+   6: <hover_residual::residual_hover_regexp_literal_pattern_notes_no_metacharacters::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- residual_hover_regexp_pattern_anchors_and_class stdout ----
+
+thread 'residual_hover_regexp_pattern_anchors_and_class' (9505) panicked at rust/tcl-lsp-core/tests/hover_residual.rs:266:48:
+regexp hover
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::option::expect_failed
+   3: <core::option::Option<tcl_lsp_core::hover::Hover>>::expect
+   4: hover_residual::residual_hover_regexp_pattern_anchors_and_class
+   5: hover_residual::residual_hover_regexp_pattern_anchors_and_class::{closure#0}
+   6: <hover_residual::residual_hover_regexp_pattern_anchors_and_class::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+
+failures:
+    residual_hover_class_lists_class_methods
+    residual_hover_class_member_constructor_arity
+    residual_hover_class_member_destructor_keyword
+    residual_hover_class_with_mixin_and_doc_comment
+    residual_hover_option_word_of_command
+    residual_hover_regexp_literal_pattern_notes_no_metacharacters
+    residual_hover_regexp_pattern_anchors_and_class
+
+test result: FAILED. 29 passed; 7 failed; 0 ignored; 0 measured; 0 filtered out; finished in 33.60s
+

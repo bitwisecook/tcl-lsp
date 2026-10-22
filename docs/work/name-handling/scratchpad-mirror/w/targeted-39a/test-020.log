@@ -1,0 +1,6 @@
+
+running 1 test
+test workspace_index::original_source_order_transport_tests::workspace_order_keeps_original_export_evidence_without_conditional_clear_completion ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 3479 filtered out; finished in 0.86s
+

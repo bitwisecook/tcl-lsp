@@ -1,0 +1,7 @@
+test analyser::diagnostics::fp::sh::fp_sh_21_braced_list_literal_in_foreach_silent ... ok
+test analyser::diagnostics::fp::sh::fp_sh_21_committed_dict_in_foreach_still_fires ... ok
+test analyser::diagnostics::fp::sh::fp_sh_21_committed_list_as_string_still_fires ... ok
+test analyser::diagnostics::fp::sh::fp_sh_21_dict_literal_in_dict_for_silent ... FAILED
+test analyser::diagnostics::fp::sh::fp_sh_21_empty_braces_in_foreach_silent ... ok
+test analyser::diagnostics::fp::sh::fp_sh_21_incr_on_non_integer_literal_still_fires ... ok
+test analyser::diagnostics::fp::sh::fp_sh_21_scalar_literal_as_list_silent ... ok

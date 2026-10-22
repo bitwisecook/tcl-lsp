@@ -1,0 +1,29 @@
+base fp: 442 ok / 139 failed; 1 result lines
+after fp: 464 ok / 117 failed; 1 result lines
+== fp regressions (ok at base, FAILED after):
+analyser::diagnostics::fp::sh::fp_sh_21_dict_literal_in_dict_for_silent
+analyser::diagnostics::fp::sh::fp_sh_21_scalar_literal_as_list_silent
+analyser::diagnostics::fp::sh::fp_sh_23_committed_element_arithmetic_silent
+analyser::diagnostics::fp::tnt::fp_tnt_03_interp_eval_list_literal_head_no_t105
+== fp fixed: 26; base ok=442 after ok=464
+base security: 28 ok / 8 failed; 1 result lines
+after security: 28 ok / 8 failed; 1 result lines
+== security regressions (ok at base, FAILED after):
+== security fixed: 0; base ok=28 after ok=28
+base cu: 33 ok / 65 failed; 1 result lines
+after cu: 35 ok / 63 failed; 1 result lines
+== cu regressions (ok at base, FAILED after):
+compilation_unit::tests::default_unit_source_profile_keeps_explicit_standalone_authoring_purpose
+== cu fixed: 3; base ok=33 after ok=35
+base gvn: 58 ok / 36 failed; 1 result lines
+after gvn: 60 ok / 34 failed; 1 result lines
+== gvn regressions (ok at base, FAILED after):
+== gvn fixed: 2; base ok=58 after ok=60
+base lowhooks: 22 ok / 6 failed; 1 result lines
+after lowhooks: 23 ok / 5 failed; 1 result lines
+== lowhooks regressions (ok at base, FAILED after):
+== lowhooks fixed: 1; base ok=22 after ok=23
+base irchecks: 55 ok / 61 failed; 1 result lines
+after irchecks: 55 ok / 61 failed; 1 result lines
+== irchecks regressions (ok at base, FAILED after):
+== irchecks fixed: 0; base ok=55 after ok=55

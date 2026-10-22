@@ -1,0 +1,140 @@
+
+running 10 tests
+test call_hierarchy_prepare_roots_at_the_reached_proc ... FAILED
+test code_actions_offer_the_reached_body_for_inlining ... FAILED
+test definition_follows_the_shadow ... FAILED
+test inlay_hints_label_the_reached_proc_not_the_shadowed_local ... FAILED
+test inline_proc_inlines_the_reached_body_not_the_shadowed_local ... FAILED
+test prepare_rename_offers_the_reached_definition ... FAILED
+test rename_retargets_with_the_shadow ... FAILED
+test signature_help_describes_the_reached_proc_not_the_shadowed_local ... FAILED
+test the_legacy_entry_points_still_equal_the_document_only_program_view ... ok
+test without_a_workspace_view_every_provider_keeps_the_document_only_answer ... ok
+
+failures:
+
+---- call_hierarchy_prepare_roots_at_the_reached_proc stdout ----
+
+thread 'call_hierarchy_prepare_roots_at_the_reached_proc' (18530) panicked at rust/tcl-lsp-core/tests/force_import_shadow_consumers.rs:268:5:
+assertion `left == right` failed: a live -force shadow roots the hierarchy at `::src::helper {alpha beta}`
+  left: ["(1 params)"]
+ right: ["(2 params)"]
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<alloc::vec::Vec<alloc::string::String>, alloc::vec::Vec<alloc::string::String>>
+   4: force_import_shadow_consumers::call_hierarchy_prepare_roots_at_the_reached_proc
+   5: force_import_shadow_consumers::call_hierarchy_prepare_roots_at_the_reached_proc::{closure#0}
+   6: <force_import_shadow_consumers::call_hierarchy_prepare_roots_at_the_reached_proc::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- code_actions_offer_the_reached_body_for_inlining stdout ----
+
+thread 'code_actions_offer_the_reached_body_for_inlining' (18531) panicked at rust/tcl-lsp-core/tests/force_import_shadow_consumers.rs:341:5:
+a live -force shadow must offer the imported body: ""
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: force_import_shadow_consumers::code_actions_offer_the_reached_body_for_inlining
+   3: force_import_shadow_consumers::code_actions_offer_the_reached_body_for_inlining::{closure#0}
+   4: <force_import_shadow_consumers::code_actions_offer_the_reached_body_for_inlining::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- definition_follows_the_shadow stdout ----
+
+thread 'definition_follows_the_shadow' (18638) panicked at rust/tcl-lsp-core/tests/force_import_shadow_consumers.rs:179:5:
+assertion `left == right` failed: the import replaced ::helper
+  left: [5]
+ right: [1]
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<alloc::vec::Vec<u32>, alloc::vec::Vec<u32>>
+   4: force_import_shadow_consumers::definition_follows_the_shadow
+   5: force_import_shadow_consumers::definition_follows_the_shadow::{closure#0}
+   6: <force_import_shadow_consumers::definition_follows_the_shadow::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- inlay_hints_label_the_reached_proc_not_the_shadowed_local stdout ----
+
+thread 'inlay_hints_label_the_reached_proc_not_the_shadowed_local' (18657) panicked at rust/tcl-lsp-core/tests/force_import_shadow_consumers.rs:208:5:
+a live -force shadow must label the imported proc's parameters: ["namespace:", "arg:", "name:", "args:", "body:", "name:", "args:", "body:", "string:", "name:", "args:", "body:", "string:"]
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: force_import_shadow_consumers::inlay_hints_label_the_reached_proc_not_the_shadowed_local
+   3: force_import_shadow_consumers::inlay_hints_label_the_reached_proc_not_the_shadowed_local::{closure#0}
+   4: <force_import_shadow_consumers::inlay_hints_label_the_reached_proc_not_the_shadowed_local::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- inline_proc_inlines_the_reached_body_not_the_shadowed_local stdout ----
+
+thread 'inline_proc_inlines_the_reached_body_not_the_shadowed_local' (18722) panicked at rust/tcl-lsp-core/tests/force_import_shadow_consumers.rs:303:5:
+a live -force shadow must inline the imported body: ""
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: force_import_shadow_consumers::inline_proc_inlines_the_reached_body_not_the_shadowed_local
+   3: force_import_shadow_consumers::inline_proc_inlines_the_reached_body_not_the_shadowed_local::{closure#0}
+   4: <force_import_shadow_consumers::inline_proc_inlines_the_reached_body_not_the_shadowed_local::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- prepare_rename_offers_the_reached_definition stdout ----
+
+thread 'prepare_rename_offers_the_reached_definition' (18732) panicked at rust/tcl-lsp-core/tests/force_import_shadow_consumers.rs:563:5:
+assertion `left == right` failed: prepare follows the shadow
+  left: None
+ right: Some(1)
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<core::option::Option<u32>, core::option::Option<u32>>
+   4: force_import_shadow_consumers::prepare_rename_offers_the_reached_definition
+   5: force_import_shadow_consumers::prepare_rename_offers_the_reached_definition::{closure#0}
+   6: <force_import_shadow_consumers::prepare_rename_offers_the_reached_definition::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- rename_retargets_with_the_shadow stdout ----
+
+thread 'rename_retargets_with_the_shadow' (18832) panicked at rust/tcl-lsp-core/tests/force_import_shadow_consumers.rs:506:10:
+no refusal on a resolvable call: RenameRefusal { reason: "unclosed-original-name-link-edits: name links, observers or callback prefixes lack complete separately authorised edit coverage", range: Some(LspRange { start_line: 5, start_character: 5, end_line: 5, end_character: 11 }) }
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::result::unwrap_failed
+   3: <core::result::Result<alloc::vec::Vec<tcl_lsp_core::rename::TextEdit>, tcl_lsp_core::rename_safety::RenameRefusal>>::expect
+   4: force_import_shadow_consumers::rename_retargets_with_the_shadow::{closure#0}
+   5: force_import_shadow_consumers::both_directions::<alloc::vec::Vec<u32>, force_import_shadow_consumers::rename_retargets_with_the_shadow::{closure#0}>
+   6: force_import_shadow_consumers::rename_retargets_with_the_shadow
+   7: force_import_shadow_consumers::rename_retargets_with_the_shadow::{closure#0}
+   8: <force_import_shadow_consumers::rename_retargets_with_the_shadow::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- signature_help_describes_the_reached_proc_not_the_shadowed_local stdout ----
+
+thread 'signature_help_describes_the_reached_proc_not_the_shadowed_local' (18846) panicked at rust/tcl-lsp-core/tests/force_import_shadow_consumers.rs:238:5:
+a live -force shadow must render `::src::helper`'s signature: "helper args"
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: force_import_shadow_consumers::signature_help_describes_the_reached_proc_not_the_shadowed_local
+   3: force_import_shadow_consumers::signature_help_describes_the_reached_proc_not_the_shadowed_local::{closure#0}
+   4: <force_import_shadow_consumers::signature_help_describes_the_reached_proc_not_the_shadowed_local::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+
+failures:
+    call_hierarchy_prepare_roots_at_the_reached_proc
+    code_actions_offer_the_reached_body_for_inlining
+    definition_follows_the_shadow
+    inlay_hints_label_the_reached_proc_not_the_shadowed_local
+    inline_proc_inlines_the_reached_body_not_the_shadowed_local
+    prepare_rename_offers_the_reached_definition
+    rename_retargets_with_the_shadow
+    signature_help_describes_the_reached_proc_not_the_shadowed_local
+
+test result: FAILED. 2 passed; 8 failed; 0 ignored; 0 measured; 0 filtered out; finished in 99.15s
+

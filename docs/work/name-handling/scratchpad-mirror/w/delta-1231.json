@@ -1,0 +1,6 @@
+{"scheduled":"2026-10-19T12:27:00Z",
+ "change_since_previous_report":{"integrated_LSP":0,"total_baseline_delta":0,"effective_delta":0,"verified_complete":0},
+ "admissions":{},
+ "candidates":{"integration45":{"commits":["aff99dc7e","82617ee15"],"status":"build48 passed source/provider guards; guarded capture lsp-48 in progress (core, db and server runners started); admission requires zero PASS->FAIL against capture46"}},
+ "merge_bar":"origin/rust fcb7927f0 CI is green; the work branch must reach a green full workspace suite. Next after admission: one full CI-equivalent run (make test-rust) to inventory every failure, then drive them to zero.",
+ "next_report_utc":"2026-10-19T13:01:00Z"}

@@ -1,0 +1,16 @@
+# spectcl golden snapshot v1
+# regenerate with `cargo xtask pack-goldens`; do not edit by hand
+pack tcl dsl 1.1 display None load_error None
+target_dependent false
+file_extensions []
+provides []
+co_provides []
+ambient_packages []
+environments []
+dialects []
+registrations 1
+notices 2
+notice command lsort 22 presentation `-positionals` is SpecTcl 2.1 vocabulary, but this pack declares vocabulary 1.1; a 1.1 loader drops the word — declare `speclib tcl 2.1`
+notice command lsort 25 presentation `script_lookup_scope` is SpecTcl 2.0 vocabulary, but this pack declares vocabulary 1.1; a 1.1 loader drops the word — declare `speclib tcl 2.0`
+commands 1
+command lsort line 9 overrides false degraded false spec bd5556f36b0791f1 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9

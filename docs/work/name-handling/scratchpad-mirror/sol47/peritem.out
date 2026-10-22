@@ -1,0 +1,4 @@
+base ordinary_large_body_stays_on_the_fast_path: test analyser::per_item::tests::ordinary_large_body_stays_on_the_fast_path ...  900s
+base many_small_bodies_totalling_over_the_threshold_stay_fast: test analyser::per_item::tests::many_small_bodies_totalling_over_the_threshold_stay_fast ...  358s
+a3 ordinary_large_body_stays_on_the_fast_path:  0s
+a3 many_small_bodies_totalling_over_the_threshold_stay_fast:  0s

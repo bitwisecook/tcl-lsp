@@ -1,0 +1,25 @@
+
+running 1 test
+test registry_invocation::source_structure::source_word_dialect_tests::original_package_insertion_includes_actual_command_terminator ... 
+thread 'registry_invocation::source_structure::source_word_dialect_tests::original_package_insertion_includes_actual_command_terminator' (1131) panicked at rust/tcl-compiler/src/registry_invocation/source_structure.rs:6162:9:
+assertion `left == right` failed
+  left: Some(21)
+ right: Some(20)
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<core::option::Option<u32>, core::option::Option<u32>>
+   4: tcl_compiler::registry_invocation::source_structure::source_word_dialect_tests::original_package_insertion_includes_actual_command_terminator
+   5: tcl_compiler::registry_invocation::source_structure::source_word_dialect_tests::original_package_insertion_includes_actual_command_terminator::{closure#0}
+   6: <tcl_compiler::registry_invocation::source_structure::source_word_dialect_tests::original_package_insertion_includes_actual_command_terminator::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+FAILED
+
+failures:
+
+failures:
+    registry_invocation::source_structure::source_word_dialect_tests::original_package_insertion_includes_actual_command_terminator
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 10440 filtered out; finished in 0.77s
+

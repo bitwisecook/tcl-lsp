@@ -1,0 +1,21 @@
+
+running 1 test
+test workspace_index::tests::a_same_file_forget_after_the_import_still_revokes ... 
+thread 'workspace_index::tests::a_same_file_forget_after_the_import_still_revokes' (6013) panicked at rust/tcl-lsp-core/src/workspace_index.rs:12405:9:
+Some("::mymod::helper")
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: tcl_lsp_core::workspace_index::tests::a_same_file_forget_after_the_import_still_revokes
+   3: tcl_lsp_core::workspace_index::tests::a_same_file_forget_after_the_import_still_revokes::{closure#0}
+   4: <tcl_lsp_core::workspace_index::tests::a_same_file_forget_after_the_import_still_revokes::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+FAILED
+
+failures:
+
+failures:
+    workspace_index::tests::a_same_file_forget_after_the_import_still_revokes
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 3479 filtered out; finished in 1.75s
+

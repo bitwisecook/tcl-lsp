@@ -1,0 +1,21 @@
+test signature_scan::arity::tests::trailing_args_default_is_ignored ... ok
+test signature_scan::ctx::original_hosted_source_metadata_tests::original_hosted_standalone_scan_retains_symbolic_metadata_and_nested_bom_purpose ... FAILED
+test signature_scan::factory::tests::selected_factory_requires_exact_scalar_formal_roots ... FAILED
+test signature_scan::factory::tests::selected_source_factory_uses_registry_definer_and_inner_procedure_layouts ... FAILED
+test signature_scan::formal_parameters::tests::original_readonly_lambda_formal_value_preserves_ancestry_and_source_fields ... FAILED
+test signature_scan::formal_parameters::tests::original_readonly_worker_formal_fields_keep_exact_child_inputs_and_extents ... FAILED
+test signature_scan::tests::signature_publication_keys_match_six_native_namespace_controls ... FAILED
+test signature_scan::variable_name::tests::original_logical_roots_keep_exact_document_geometry_and_native_refusal ... FAILED
+test signature_scan::variable_symbol::tests::original_trace_source_geometry_and_rename_preserve_ignored_original_suffix ... ok
+test signature_scan::walker::tests::multiple_handlers_dispatch_correctly ... FAILED
+test signature_scan::original_name::original_import_publication_tests::actual_import_publications_keep_selected_search_and_original_tail ... FAILED
+thread 'signature_scan::ctx::original_hosted_source_metadata_tests::original_hosted_standalone_scan_retains_symbolic_metadata_and_nested_bom_purpose' (28693) panicked at rust/tcl-compiler/src/signature_scan/ctx/original_hosted_source_metadata_tests.rs:57:40:
+thread 'signature_scan::factory::tests::selected_factory_requires_exact_scalar_formal_roots' (28745) panicked at rust/tcl-compiler/src/signature_scan/factory.rs:558:9:
+thread 'signature_scan::factory::tests::selected_source_factory_uses_registry_definer_and_inner_procedure_layouts' (28748) panicked at rust/tcl-compiler/src/signature_scan/factory.rs:370:9:
+thread 'signature_scan::formal_parameters::tests::original_readonly_lambda_formal_value_preserves_ancestry_and_source_fields' (28752) panicked at rust/tcl-compiler/src/signature_scan/formal_parameters.rs:627:55:
+thread 'signature_scan::formal_parameters::tests::original_readonly_worker_formal_fields_keep_exact_child_inputs_and_extents' (28753) panicked at rust/tcl-compiler/src/signature_scan/formal_parameters.rs:675:60:
+thread 'signature_scan::tests::signature_publication_keys_match_six_native_namespace_controls' (29016) panicked at rust/tcl-compiler/src/signature_scan/mod.rs:394:17:
+thread 'signature_scan::variable_name::tests::original_logical_roots_keep_exact_document_geometry_and_native_refusal' (29079) panicked at rust/tcl-compiler/src/signature_scan/variable_name.rs:281:9:
+thread 'signature_scan::walker::tests::multiple_handlers_dispatch_correctly' (29317) panicked at rust/tcl-compiler/src/signature_scan/walker.rs:1245:9:
+thread 'signature_scan::original_name::original_import_publication_tests::actual_import_publications_keep_selected_search_and_original_tail' (28914) panicked at rust/tcl-compiler/src/signature_scan/original_name.rs:1085:76:
+test result: FAILED. 188 passed; 9 failed; 0 ignored; 0 measured; 10265 filtered out; finished in 82.19s

@@ -1,0 +1,6 @@
+
+running 1 test
+test original_call_hierarchy::own_object_call_tests::original_own_object_calls_and_references_keep_the_canonical_object_worker ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 3479 filtered out; finished in 1.07s
+

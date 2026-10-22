@@ -1,0 +1,6 @@
+
+running 1 test
+test source_map::document_line_ending_projection_tests::document_projection_round_trips_whole_unicode_words_across_mixed_endings ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 584 filtered out; finished in 0.00s
+

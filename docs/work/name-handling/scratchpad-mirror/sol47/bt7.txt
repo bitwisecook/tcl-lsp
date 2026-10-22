@@ -1,0 +1,45 @@
+<tcl_dialect::grammar::BraceLineContinuation>::continues
+<tcl_lexer::lexer::Lexer>::newline_continues_command
+<tcl_lexer::lexer::Lexer as core::iter::traits::iterator::Iterator>::next
+<&mut tcl_lexer::lexer::Lexer as core::iter::traits::iterator::Iterator>::next
+<tcl_lexer::lexer::Lexer>::tokenise_all_with_warnings
+tcl_compiler::parsing::syntax::build::build_document_mapped
+tcl_compiler::parsing::syntax::build::build_document_image
+tcl_compiler::segmenter::segment_commands_image_with_offset_and_config
+<tcl_compiler::lowering::Lowerer>::segment_source
+<tcl_compiler::lowering::Lowerer>::lower_body_inner
+<tcl_compiler::lowering::Lowerer>::lower_body_in_irules_context
+<tcl_compiler::lowering::Lowerer>::lower_body
+<tcl_compiler::lowering::Lowerer>::lower_into_script_with_boxed_bindings
+<tcl_compiler::lowering::Lowerer>::lower_executed_script_in_context
+<tcl_compiler::lowering::Lowerer>::prove_possible_bodies
+<tcl_compiler::lowering::Lowerer>::attach_evaluated_body
+<tcl_compiler::lowering::Lowerer>::lower_default
+<tcl_compiler::lowering::Lowerer>::lower_default_boxed
+<tcl_compiler::lowering::Lowerer>::try_dispatch_structured_hook
+<tcl_compiler::lowering::Lowerer>::lower_command
+<tcl_compiler::lowering::Lowerer>::lower_segmented
+<tcl_compiler::lowering::Lowerer>::lower_body_inner::{closure#0}
+<tcl_compiler::lowering::Lowerer>::in_word_space::<alloc::vec::Vec<tcl_compiler::ir::Statement>, <tcl_compiler::lowering::Lowerer>::lower_body_inner::{closure#0}>
+<tcl_compiler::lowering::Lowerer>::lower_body_inner
+<tcl_compiler::lowering::Lowerer>::lower_body_in_irules_context
+<tcl_compiler::lowering::Lowerer>::lower_body
+<tcl_compiler::lowering::Lowerer>::lower_into_script_with_boxed_bindings
+<tcl_compiler::lowering::Lowerer>::lower_executed_script_in_context
+<tcl_compiler::lowering::Lowerer>::prove_possible_bodies
+<tcl_compiler::lowering::Lowerer>::attach_evaluated_body
+<tcl_compiler::lowering::Lowerer>::lower_default
+<tcl_compiler::lowering::Lowerer>::lower_default_boxed
+<tcl_compiler::lowering::Lowerer>::try_dispatch_structured_hook
+<tcl_compiler::lowering::Lowerer>::lower_command
+<tcl_compiler::lowering::Lowerer>::lower_segmented
+<tcl_compiler::lowering::Lowerer>::lower_body_inner::{closure#0}
+<tcl_compiler::lowering::Lowerer>::in_word_space::<alloc::vec::Vec<tcl_compiler::ir::Statement>, <tcl_compiler::lowering::Lowerer>::lower_body_inner::{closure#0}>
+<tcl_compiler::lowering::Lowerer>::lower_body_inner
+<tcl_compiler::lowering::Lowerer>::lower_body_in_irules_context
+<tcl_compiler::lowering::Lowerer>::lower_body
+<tcl_compiler::lowering::Lowerer>::lower_into_script_with_boxed_bindings
+<tcl_compiler::lowering::Lowerer>::lower_executed_script_in_context
+<tcl_compiler::lowering::Lowerer>::prove_possible_bodies
+<tcl_compiler::lowering::Lowerer>::attach_evaluated_body
+<tcl_compiler::lowering::Lowerer>::lower_default

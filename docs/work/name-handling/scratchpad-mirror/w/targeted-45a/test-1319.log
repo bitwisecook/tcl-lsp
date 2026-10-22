@@ -1,0 +1,21 @@
+
+running 1 test
+test registry_invocation::source_structure::tests::original_deferred_source_schema_keeps_future_entry_and_current_lookup_distinct ... 
+thread 'registry_invocation::source_structure::tests::original_deferred_source_schema_keeps_future_entry_and_current_lookup_distinct' (1154) panicked at rust/tcl-compiler/src/registry_invocation/source_structure.rs:5628:17:
+future syntax cannot become selected document lookup
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: tcl_compiler::registry_invocation::source_structure::tests::original_deferred_source_schema_keeps_future_entry_and_current_lookup_distinct
+   3: tcl_compiler::registry_invocation::source_structure::tests::original_deferred_source_schema_keeps_future_entry_and_current_lookup_distinct::{closure#0}
+   4: <tcl_compiler::registry_invocation::source_structure::tests::original_deferred_source_schema_keeps_future_entry_and_current_lookup_distinct::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+FAILED
+
+failures:
+
+failures:
+    registry_invocation::source_structure::tests::original_deferred_source_schema_keeps_future_entry_and_current_lookup_distinct
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 10440 filtered out; finished in 0.96s
+

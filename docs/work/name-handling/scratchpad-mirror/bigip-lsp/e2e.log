@@ -1,0 +1,465 @@
+    Blocking waiting for file lock on build directory
+   Compiling syn v3.0.9
+   Compiling syn v2.0.119
+   Compiling indexmap v2.14.2
+   Compiling parking_lot_core v0.9.12
+   Compiling once_cell v1.21.4
+   Compiling tracing-core v0.1.36
+   Compiling serde_json v1.0.154
+   Compiling parking_lot v0.12.5
+   Compiling dashmap v6.2.1
+   Compiling tcl-version v0.1.0 (/home/user/tcl-lsp/rust/tcl-version)
+   Compiling httparse v1.10.1
+   Compiling temp-env v0.3.6
+   Compiling synstructure v0.13.2
+   Compiling asn1-rs-derive v0.6.0
+   Compiling asn1-rs-impl v0.2.0
+   Compiling tracing-attributes v0.1.31
+   Compiling thiserror-impl v2.0.21
+   Compiling serde_derive v1.0.229
+   Compiling displaydoc v0.2.7
+   Compiling ref-cast-impl v1.0.27
+   Compiling thiserror v2.0.21
+   Compiling futures-macro v0.3.34
+   Compiling tcl-lexer v0.1.0 (/home/user/tcl-lsp/rust/tcl-lexer)
+   Compiling asn1-rs v0.7.2
+   Compiling ref-cast v1.0.27
+   Compiling fluent-uri v0.4.1
+   Compiling tcl-syntax v0.1.0 (/home/user/tcl-lsp/rust/tcl-syntax)
+   Compiling der-parser v10.0.0
+   Compiling oid-registry v0.8.1
+   Compiling futures-util v0.3.34
+   Compiling serde v1.0.229
+   Compiling x509-parser v0.18.1
+   Compiling tracing v0.1.44
+   Compiling tokio-macros v2.7.2
+   Compiling tokio v1.53.3
+   Compiling salsa-macros v0.28.5
+   Compiling futures v0.3.34
+   Compiling tower v0.5.3
+   Compiling ls-types v0.0.6
+   Compiling tcl-runtime-api v0.1.0 (/home/user/tcl-lsp/rust/tcl-runtime-api)
+   Compiling tcl-pkg-model v0.1.0 (/home/user/tcl-lsp/rust/tcl-pkg-model)
+   Compiling tcl-cmd-core v0.1.0 (/home/user/tcl-lsp/rust/tcl-cmd-core)
+   Compiling tcl-bytecode v0.1.0 (/home/user/tcl-lsp/rust/tcl-bytecode)
+   Compiling tcl-engine-api v0.1.0 (/home/user/tcl-lsp/rust/tcl-engine-api)
+   Compiling tokio-util v0.7.20
+   Compiling salsa v0.28.5
+   Compiling tcl-regex v0.1.0 (/home/user/tcl-lsp/rust/tcl-regex)
+   Compiling tcl-registry v0.1.0 (/home/user/tcl-lsp/rust/tcl-registry)
+   Compiling tower-lsp-server v0.23.0
+   Compiling tcl-compiler v0.1.0 (/home/user/tcl-lsp/rust/tcl-compiler)
+   Compiling tcl-vm v0.1.0 (/home/user/tcl-lsp/rust/tcl-vm)
+   Compiling tcl-irules v0.1.0 (/home/user/tcl-lsp/rust/tcl-irules)
+   Compiling tcl-sslictcl v0.1.0 (/home/user/tcl-lsp/rust/tcl-sslictcl)
+   Compiling tcl-engine-tclvm v0.1.0 (/home/user/tcl-lsp/rust/tcl-engine-tclvm)
+   Compiling tcl-spec-hooks v0.1.0 (/home/user/tcl-lsp/rust/tcl-spec-hooks)
+   Compiling tcl-diagram v0.1.0 (/home/user/tcl-lsp/rust/tcl-diagram)
+   Compiling tcl-bigip v0.1.0 (/home/user/tcl-lsp/rust/tcl-bigip)
+   Compiling tcl-lsp-core v0.1.0 (/home/user/tcl-lsp/rust/tcl-lsp-core)
+   Compiling tcl-bigip-query v0.1.0 (/home/user/tcl-lsp/rust/tcl-bigip-query)
+   Compiling tcl-spectcl v0.1.0 (/home/user/tcl-lsp/rust/tcl-spectcl)
+   Compiling f5-xc v0.1.0 (/home/user/tcl-lsp/rust/f5-xc)
+   Compiling tcl-lsp-db v0.1.0 (/home/user/tcl-lsp/rust/tcl-lsp-db)
+   Compiling tcl-explorer v0.1.0 (/home/user/tcl-lsp/rust/tcl-explorer)
+   Compiling tcl-lsp-server v0.1.0 (/home/user/tcl-lsp/rust/tcl-lsp-server)
+    Finished `test` profile [unoptimized] target(s) in 26m 16s
+     Running tests/e2e.rs (target/debug/deps/e2e-b3fb3570cd4bdf0e)
+
+running 22 tests
+test commands::xc_translate_is_null_for_blank_source ... ok
+test commands::xc_translate_console_format_returns_pasteable_documents ... FAILED
+test commands::xc_translate_items_are_status_tagged ... FAILED
+test commands::xc_translate_honours_the_output_format_argument ... ok
+test issue1326_encoding::w109_disabled_still_abstains_for_bigip_and_apl_documents ... FAILED
+test commands::xc_translate_returns_terraform_and_json_documents ... FAILED
+test issue1707_ilx_methods::a_closed_sibling_rule_is_scanned_under_its_own_input has been running for over 60 seconds
+test issue1707_ilx_methods::a_declaration_outside_its_folder_reaches_both_ends has been running for over 60 seconds
+test issue1707_ilx_methods::a_declared_plugin_resolves_where_the_directory_name_cannot has been running for over 60 seconds
+test issue1707_ilx_methods::a_duplicate_registration_is_reported_not_guessed has been running for over 60 seconds
+test issue1707_ilx_methods::a_declaration_outside_its_folder_reaches_both_ends ... FAILED
+test issue1707_ilx_methods::a_duplicate_registration_is_reported_not_guessed ... FAILED
+test issue1707_ilx_methods::a_closed_sibling_rule_is_scanned_under_its_own_input ... FAILED
+test issue1707_ilx_methods::a_dynamic_handle_abstains_instead_of_guessing ... ok
+test issue1707_ilx_methods::a_declared_plugin_resolves_where_the_directory_name_cannot ... FAILED
+test issue1707_ilx_methods::a_handle_only_reaches_bodies_that_share_its_frame has been running for over 60 seconds
+test issue1707_ilx_methods::a_removed_method_resolves_to_nothing has been running for over 60 seconds
+test issue1707_ilx_methods::a_removed_method_resolves_to_nothing ... FAILED
+test issue1707_ilx_methods::an_unregistered_method_resolves_to_nothing_and_no_diagnostic has been running for over 60 seconds
+test issue1707_ilx_methods::an_unsaved_edit_to_the_extension_is_what_navigation_reads has been running for over 60 seconds
+test issue1707_ilx_methods::an_unregistered_method_resolves_to_nothing_and_no_diagnostic ... ok
+test issue1707_ilx_methods::a_handle_only_reaches_bodies_that_share_its_frame ... FAILED
+test issue1707_ilx_methods::declared_rule_directories_reach_a_caller_outside_the_workspace has been running for over 60 seconds
+test issue1707_ilx_methods::an_unsaved_edit_to_the_extension_is_what_navigation_reads ... FAILED
+test issue1707_ilx_methods::declared_rule_directories_reach_a_caller_outside_the_workspace ... FAILED
+test issue1707_ilx_methods::go_to_definition_crosses_into_the_extension_javascript has been running for over 60 seconds
+test issue1707_ilx_methods::hover_names_the_extension_the_file_and_the_dispatch has been running for over 60 seconds
+test issue1707_ilx_methods::ordinary_tcl_named_ilx_call_is_untouched has been running for over 60 seconds
+test issue1707_ilx_methods::references_span_both_languages_from_either_end has been running for over 60 seconds
+test issue1707_ilx_methods::go_to_definition_crosses_into_the_extension_javascript ... FAILED
+test issue1707_ilx_methods::hover_names_the_extension_the_file_and_the_dispatch ... FAILED
+test issue1707_ilx_methods::references_span_both_languages_from_either_end ... FAILED
+test issue1707_ilx_methods::ordinary_tcl_named_ilx_call_is_untouched ... FAILED
+test issue1707_ilx_methods::the_ilx_references_command_ignores_an_ordinary_javascript_file has been running for over 60 seconds
+test issue1707_ilx_methods::the_javascript_end_answers_through_the_ilx_references_command has been running for over 60 seconds
+test issue1707_ilx_methods::the_ilx_references_command_ignores_an_ordinary_javascript_file ... FAILED
+test issue1707_ilx_methods::the_javascript_end_answers_through_the_ilx_references_command ... FAILED
+
+failures:
+
+---- commands::xc_translate_console_format_returns_pasteable_documents stdout ----
+
+thread 'commands::xc_translate_console_format_returns_pasteable_documents' (25311) panicked at rust/tcl-lsp-server/tests/e2e/commands.rs:574:5:
+["http_loadbalancer"]
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: e2e::commands::xc_translate_console_format_returns_pasteable_documents
+   3: e2e::commands::xc_translate_console_format_returns_pasteable_documents::{closure#0}
+   4: <e2e::commands::xc_translate_console_format_returns_pasteable_documents::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- commands::xc_translate_items_are_status_tagged stdout ----
+
+thread 'commands::xc_translate_items_are_status_tagged' (25314) panicked at rust/tcl-lsp-server/tests/e2e/commands.rs:503:5:
+{"terraform":"# iRule → F5 XC Translation\n# Coverage: 0.0%\n# Translated: 0  |  Partial: 0  |  Untranslatable: 2\n#\n# Untranslatable constructs:\n#   - if: Condition commands have no current original source owner\n#   - if: Condition commands have no current original source owner\n\n\nterraform {\n  required_providers {\n    volterra = {\n      source  = \"volterraedge/volterra\"\n      version = \">= 0.11.47\"\n    }\n  }\n}\n\n\nresource \"volterra_http_loadbalancer\" \"translated-lb\" {\n  name      = \"translated-lb\"\n  namespace = \"default\"\n\n  # TODO: Configure domains and advertise policy\n  domains = [\"example.com\"]  # TODO: Set actual domains\n\n  http {\n    dns_volterra_managed = false\n  }\n}\n","json_api":{"http_loadbalancer":{"metadata":{"name":"translated-lb","namespace":"default"},"spec":{"domains":["example.com"],"http":{"dns_volterra_managed":false}}},"summary":{"coverage_pct":0.0,"translatable":0,"partial":0,"untranslatable":2,"advisory":0,"items":[{"status":"untranslatable","kind":"note","command":"if","xc_description":"Condition commands have no current original source owner","note":"","diagnostic_code":"XC203"},{"status":"untranslatable","kind":"note","command":"if","xc_description":"Condition commands have no current original source owner","note":"","diagnostic_code":"XC203"}]}},"coverage_pct":0.0,"translatable":[],"untranslatable":[{"command":"if","reason":"Condition commands have no current original source owner","suggestion":"","diagnostic_code":"XC203"},{"command":"if","reason":"Condition commands have no current original source owner","suggestion":"","diagnostic_code":"XC203"}],"partial":[],"advisory":[],"items":[{"status":"untranslatable","kind":"note","command":"if","xc_description":"Condition commands have no current original source owner","note":"","diagnostic_code":"XC203"},{"status":"untranslatable","kind":"note","command":"if","xc_description":"Condition commands have no current original source owner","note":"","diagnostic_code":"XC203"}],"translatable_count":0,"partial_count":0,"untranslatable_count":2,"advisory_count":0,"summary":"Coverage: 0.0% — 0 translatable, 0 partial, 2 untranslatable, 0 advisory"}
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: e2e::commands::xc_translate_items_are_status_tagged
+   3: e2e::commands::xc_translate_items_are_status_tagged::{closure#0}
+   4: <e2e::commands::xc_translate_items_are_status_tagged::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- issue1326_encoding::w109_disabled_still_abstains_for_bigip_and_apl_documents stdout ----
+
+thread 'issue1326_encoding::w109_disabled_still_abstains_for_bigip_and_apl_documents' (25427) panicked at rust/tcl-lsp-server/tests/e2e/common/mod.rs:855:13:
+textDocument/diagnostic -> error {"code":-32801,"message":"Current diagnostic report is unavailable","data":{"reason":"unsupported"}}
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: <e2e::common::Lsp>::request_timeout
+   3: <e2e::common::Lsp>::request
+   4: <e2e::common::Lsp>::pull_diagnostics
+   5: e2e::issue1326_encoding::w109_disabled_still_abstains_for_bigip_and_apl_documents
+   6: e2e::issue1326_encoding::w109_disabled_still_abstains_for_bigip_and_apl_documents::{closure#0}
+   7: <e2e::issue1326_encoding::w109_disabled_still_abstains_for_bigip_and_apl_documents::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- commands::xc_translate_returns_terraform_and_json_documents stdout ----
+
+thread 'commands::xc_translate_returns_terraform_and_json_documents' (25401) panicked at rust/tcl-lsp-server/tests/e2e/commands.rs:468:5:
+# iRule → F5 XC Translation
+# Coverage: 0.0%
+# Translated: 0  |  Partial: 0  |  Untranslatable: 2
+#
+# Untranslatable constructs:
+#   - if: Condition commands have no current original source owner
+#   - if: Condition commands have no current original source owner
+
+
+terraform {
+  required_providers {
+    volterra = {
+      source  = "volterraedge/volterra"
+      version = ">= 0.11.47"
+    }
+  }
+}
+
+
+resource "volterra_http_loadbalancer" "translated-lb" {
+  name      = "translated-lb"
+  namespace = "default"
+
+  # TODO: Configure domains and advertise policy
+  domains = ["example.com"]  # TODO: Set actual domains
+
+  http {
+    dns_volterra_managed = false
+  }
+}
+
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: e2e::commands::xc_translate_returns_terraform_and_json_documents
+   3: e2e::commands::xc_translate_returns_terraform_and_json_documents::{closure#0}
+   4: <e2e::commands::xc_translate_returns_terraform_and_json_documents::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- issue1707_ilx_methods::a_declaration_outside_its_folder_reaches_both_ends stdout ----
+
+thread 'issue1707_ilx_methods::a_declaration_outside_its_folder_reaches_both_ends' (25462) panicked at rust/tcl-lsp-server/tests/e2e/issue1707_ilx_methods.rs:731:5:
+assertion `left == right` failed: []
+  left: 0
+ right: 1
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<usize, usize>
+   4: e2e::issue1707_ilx_methods::a_declaration_outside_its_folder_reaches_both_ends
+   5: e2e::issue1707_ilx_methods::a_declaration_outside_its_folder_reaches_both_ends::{closure#0}
+   6: <e2e::issue1707_ilx_methods::a_declaration_outside_its_folder_reaches_both_ends::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- issue1707_ilx_methods::a_duplicate_registration_is_reported_not_guessed stdout ----
+
+thread 'issue1707_ilx_methods::a_duplicate_registration_is_reported_not_guessed' (25539) panicked at rust/tcl-lsp-server/tests/e2e/issue1707_ilx_methods.rs:302:5:
+**iRulesLX method** `my_js_function`
+
+Extension unknown.
+
+Not resolved: the evaluated handle identity is unavailable; source constructor labels do not select an extension.
+
+Written with `ILX::call` — synchronous call.
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: e2e::issue1707_ilx_methods::a_duplicate_registration_is_reported_not_guessed
+   3: e2e::issue1707_ilx_methods::a_duplicate_registration_is_reported_not_guessed::{closure#0}
+   4: <e2e::issue1707_ilx_methods::a_duplicate_registration_is_reported_not_guessed::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- issue1707_ilx_methods::a_closed_sibling_rule_is_scanned_under_its_own_input stdout ----
+
+thread 'issue1707_ilx_methods::a_closed_sibling_rule_is_scanned_under_its_own_input' (25451) panicked at rust/tcl-lsp-server/tests/e2e/issue1707_ilx_methods.rs:250:5:
+assertion `left == right` failed: both closed-sibling sites: [Loc { uri: "file:///tmp/tcl-lsp-e2e-1707-ilx_closedsib_25310/ilx_closedsib_25310/rules/rule1.tcl", range: Object {"start": Object {"line": Number(2), "character": Number(33)}, "end": Object {"line": Number(2), "character": Number(47)}} }]
+  left: 0
+ right: 2
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<usize, usize>
+   4: e2e::issue1707_ilx_methods::a_closed_sibling_rule_is_scanned_under_its_own_input
+   5: e2e::issue1707_ilx_methods::a_closed_sibling_rule_is_scanned_under_its_own_input::{closure#0}
+   6: <e2e::issue1707_ilx_methods::a_closed_sibling_rule_is_scanned_under_its_own_input::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- issue1707_ilx_methods::a_declared_plugin_resolves_where_the_directory_name_cannot stdout ----
+
+thread 'issue1707_ilx_methods::a_declared_plugin_resolves_where_the_directory_name_cannot' (25503) panicked at rust/tcl-lsp-server/tests/e2e/issue1707_ilx_methods.rs:554:5:
+assertion `left == right` failed: []
+  left: 0
+ right: 1
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<usize, usize>
+   4: e2e::issue1707_ilx_methods::a_declared_plugin_resolves_where_the_directory_name_cannot
+   5: e2e::issue1707_ilx_methods::a_declared_plugin_resolves_where_the_directory_name_cannot::{closure#0}
+   6: <e2e::issue1707_ilx_methods::a_declared_plugin_resolves_where_the_directory_name_cannot::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- issue1707_ilx_methods::a_removed_method_resolves_to_nothing stdout ----
+
+thread 'issue1707_ilx_methods::a_removed_method_resolves_to_nothing' (26334) panicked at rust/tcl-lsp-server/tests/e2e/issue1707_ilx_methods.rs:320:5:
+hover must report the empty table, not a target: **iRulesLX method** `my_js_function`
+
+Extension unknown.
+
+Not resolved: the evaluated handle identity is unavailable; source constructor labels do not select an extension.
+
+Written with `ILX::call` — synchronous call.
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: e2e::issue1707_ilx_methods::a_removed_method_resolves_to_nothing
+   3: e2e::issue1707_ilx_methods::a_removed_method_resolves_to_nothing::{closure#0}
+   4: <e2e::issue1707_ilx_methods::a_removed_method_resolves_to_nothing::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- issue1707_ilx_methods::a_handle_only_reaches_bodies_that_share_its_frame stdout ----
+
+thread 'issue1707_ilx_methods::a_handle_only_reaches_bodies_that_share_its_frame' (26301) panicked at rust/tcl-lsp-server/tests/e2e/issue1707_ilx_methods.rs:362:5:
+assertion `left == right` failed: an `if` body shares the frame and still resolves
+  left: []
+ right: ["file:///tmp/tcl-lsp-e2e-1707-ilx_procscope_25310/ilx_procscope_25310/extensions/my_extension/index.js"]
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<alloc::vec::Vec<alloc::string::String>, alloc::vec::Vec<alloc::string::String>>
+   4: e2e::issue1707_ilx_methods::a_handle_only_reaches_bodies_that_share_its_frame
+   5: e2e::issue1707_ilx_methods::a_handle_only_reaches_bodies_that_share_its_frame::{closure#0}
+   6: <e2e::issue1707_ilx_methods::a_handle_only_reaches_bodies_that_share_its_frame::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- issue1707_ilx_methods::an_unsaved_edit_to_the_extension_is_what_navigation_reads stdout ----
+
+thread 'issue1707_ilx_methods::an_unsaved_edit_to_the_extension_is_what_navigation_reads' (26576) panicked at rust/tcl-lsp-server/tests/e2e/issue1707_ilx_methods.rs:401:5:
+assertion `left == right` failed: []
+  left: 0
+ right: 1
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<usize, usize>
+   4: e2e::issue1707_ilx_methods::an_unsaved_edit_to_the_extension_is_what_navigation_reads
+   5: e2e::issue1707_ilx_methods::an_unsaved_edit_to_the_extension_is_what_navigation_reads::{closure#0}
+   6: <e2e::issue1707_ilx_methods::an_unsaved_edit_to_the_extension_is_what_navigation_reads::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- issue1707_ilx_methods::declared_rule_directories_reach_a_caller_outside_the_workspace stdout ----
+
+thread 'issue1707_ilx_methods::declared_rule_directories_reach_a_caller_outside_the_workspace' (26713) panicked at rust/tcl-lsp-server/tests/e2e/issue1707_ilx_methods.rs:566:5:
+assertion `left == right` failed: the declared directory's caller must be found: [Loc { uri: "file:///tmp/tcl-lsp-e2e-1707d-prod_outside_25310/ws_alpha/rules/rule1.tcl", range: Object {"start": Object {"line": Number(2), "character": Number(33)}, "end": Object {"line": Number(2), "character": Number(47)}} }]
+  left: 0
+ right: 2
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<usize, usize>
+   4: e2e::issue1707_ilx_methods::declared_rule_directories_reach_a_caller_outside_the_workspace
+   5: e2e::issue1707_ilx_methods::declared_rule_directories_reach_a_caller_outside_the_workspace::{closure#0}
+   6: <e2e::issue1707_ilx_methods::declared_rule_directories_reach_a_caller_outside_the_workspace::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- issue1707_ilx_methods::go_to_definition_crosses_into_the_extension_javascript stdout ----
+
+thread 'issue1707_ilx_methods::go_to_definition_crosses_into_the_extension_javascript' (26939) panicked at rust/tcl-lsp-server/tests/e2e/common/mod.rs:1327:17:
+no publishDiagnostics for "file:///tmp/tcl-lsp-e2e-1707-ilx_def_25310/ilx_def_25310/rules/rule1.tcl" version Some(1) within 30s
+
+LATENCY-BARRIER-TIMEOUT — this is a TIMEOUT (the server did not respond in time), NOT an oracle/content divergence (those fail with "diverged" / "alignment broke").
+PROBE: CPU STARVATION CONFIRMED — a 20ms sleep is waking 1.1x late and the run queue is 5.9x oversubscribed right now, so the OS is denying this test process CPU. Note that the barrier had ALREADY been stretched by the measured load factor before it expired (see `scaled_timeout`), so this is a machine that got slower *during* the wait — or a genuinely wedged server.
+CONTEXT: every barrier deadline in this harness is multiplied by the measured capacity factor (`load_factor`), so a merely-busy machine should not reach this message; the latency-sensitive stress tests are additionally isolated into the single-slot `heavy-lsp-e2e` nextest group (.config/nextest.toml) so they never starve each other.
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: <e2e::common::Lsp>::await_diagnostics_version
+   3: <e2e::common::Lsp>::open_ready_lang_timeout
+   4: <e2e::common::Lsp>::open_ready_lang
+   5: <e2e::issue1707_ilx_methods::Fixture>::serve
+   6: e2e::issue1707_ilx_methods::go_to_definition_crosses_into_the_extension_javascript
+   7: e2e::issue1707_ilx_methods::go_to_definition_crosses_into_the_extension_javascript::{closure#0}
+   8: <e2e::issue1707_ilx_methods::go_to_definition_crosses_into_the_extension_javascript::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- issue1707_ilx_methods::hover_names_the_extension_the_file_and_the_dispatch stdout ----
+
+thread 'issue1707_ilx_methods::hover_names_the_extension_the_file_and_the_dispatch' (26970) panicked at rust/tcl-lsp-server/tests/e2e/common/mod.rs:1327:17:
+no publishDiagnostics for "file:///tmp/tcl-lsp-e2e-1707-ilx_hover_25310/ilx_hover_25310/rules/rule1.tcl" version Some(1) within 30s
+
+LATENCY-BARRIER-TIMEOUT — this is a TIMEOUT (the server did not respond in time), NOT an oracle/content divergence (those fail with "diverged" / "alignment broke").
+PROBE: CPU STARVATION CONFIRMED — a 20ms sleep is waking 1.0x late and the run queue is 6.0x oversubscribed right now, so the OS is denying this test process CPU. Note that the barrier had ALREADY been stretched by the measured load factor before it expired (see `scaled_timeout`), so this is a machine that got slower *during* the wait — or a genuinely wedged server.
+CONTEXT: every barrier deadline in this harness is multiplied by the measured capacity factor (`load_factor`), so a merely-busy machine should not reach this message; the latency-sensitive stress tests are additionally isolated into the single-slot `heavy-lsp-e2e` nextest group (.config/nextest.toml) so they never starve each other.
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: <e2e::common::Lsp>::await_diagnostics_version
+   3: <e2e::common::Lsp>::open_ready_lang_timeout
+   4: <e2e::common::Lsp>::open_ready_lang
+   5: <e2e::issue1707_ilx_methods::Fixture>::serve
+   6: e2e::issue1707_ilx_methods::hover_names_the_extension_the_file_and_the_dispatch
+   7: e2e::issue1707_ilx_methods::hover_names_the_extension_the_file_and_the_dispatch::{closure#0}
+   8: <e2e::issue1707_ilx_methods::hover_names_the_extension_the_file_and_the_dispatch::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- issue1707_ilx_methods::references_span_both_languages_from_either_end stdout ----
+
+thread 'issue1707_ilx_methods::references_span_both_languages_from_either_end' (27069) panicked at rust/tcl-lsp-server/tests/e2e/common/mod.rs:1327:17:
+no publishDiagnostics for "file:///tmp/tcl-lsp-e2e-1707-ilx_refs_25310/ilx_refs_25310/rules/rule1.tcl" version Some(1) within 30s
+
+LATENCY-BARRIER-TIMEOUT — this is a TIMEOUT (the server did not respond in time), NOT an oracle/content divergence (those fail with "diverged" / "alignment broke").
+PROBE: CPU STARVATION CONFIRMED — a 20ms sleep is waking 1.0x late and the run queue is 6.0x oversubscribed right now, so the OS is denying this test process CPU. Note that the barrier had ALREADY been stretched by the measured load factor before it expired (see `scaled_timeout`), so this is a machine that got slower *during* the wait — or a genuinely wedged server.
+CONTEXT: every barrier deadline in this harness is multiplied by the measured capacity factor (`load_factor`), so a merely-busy machine should not reach this message; the latency-sensitive stress tests are additionally isolated into the single-slot `heavy-lsp-e2e` nextest group (.config/nextest.toml) so they never starve each other.
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: <e2e::common::Lsp>::await_diagnostics_version
+   3: <e2e::common::Lsp>::open_ready_lang_timeout
+   4: <e2e::common::Lsp>::open_ready_lang
+   5: <e2e::issue1707_ilx_methods::Fixture>::serve
+   6: e2e::issue1707_ilx_methods::references_span_both_languages_from_either_end
+   7: e2e::issue1707_ilx_methods::references_span_both_languages_from_either_end::{closure#0}
+   8: <e2e::issue1707_ilx_methods::references_span_both_languages_from_either_end::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- issue1707_ilx_methods::ordinary_tcl_named_ilx_call_is_untouched stdout ----
+
+thread 'issue1707_ilx_methods::ordinary_tcl_named_ilx_call_is_untouched' (27045) panicked at rust/tcl-lsp-server/tests/e2e/common/mod.rs:1327:17:
+no publishDiagnostics for "file:///tmp/tcl-lsp-e2e-1707-ilx_plaintcl_25310/ilx_plaintcl_25310/rules/plain.tcl" version Some(1) within 30s
+
+LATENCY-BARRIER-TIMEOUT — this is a TIMEOUT (the server did not respond in time), NOT an oracle/content divergence (those fail with "diverged" / "alignment broke").
+PROBE: CPU STARVATION CONFIRMED — a 20ms sleep is waking 1.0x late and the run queue is 5.7x oversubscribed right now, so the OS is denying this test process CPU. Note that the barrier had ALREADY been stretched by the measured load factor before it expired (see `scaled_timeout`), so this is a machine that got slower *during* the wait — or a genuinely wedged server.
+CONTEXT: every barrier deadline in this harness is multiplied by the measured capacity factor (`load_factor`), so a merely-busy machine should not reach this message; the latency-sensitive stress tests are additionally isolated into the single-slot `heavy-lsp-e2e` nextest group (.config/nextest.toml) so they never starve each other.
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: <e2e::common::Lsp>::await_diagnostics_version
+   3: <e2e::common::Lsp>::open_ready_lang_timeout
+   4: <e2e::common::Lsp>::open_ready_lang
+   5: e2e::issue1707_ilx_methods::ordinary_tcl_named_ilx_call_is_untouched
+   6: e2e::issue1707_ilx_methods::ordinary_tcl_named_ilx_call_is_untouched::{closure#0}
+   7: <e2e::issue1707_ilx_methods::ordinary_tcl_named_ilx_call_is_untouched::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- issue1707_ilx_methods::the_ilx_references_command_ignores_an_ordinary_javascript_file stdout ----
+
+thread 'issue1707_ilx_methods::the_ilx_references_command_ignores_an_ordinary_javascript_file' (27421) panicked at rust/tcl-lsp-server/tests/e2e/common/mod.rs:1327:17:
+no publishDiagnostics for "file:///tmp/tcl-lsp-e2e-1707d-prod_plainjs_25310/ws_alpha/rules/rule1.tcl" version Some(1) within 30s
+
+LATENCY-BARRIER-TIMEOUT — this is a TIMEOUT (the server did not respond in time), NOT an oracle/content divergence (those fail with "diverged" / "alignment broke").
+PROBE: CPU STARVATION CONFIRMED — a 20ms sleep is waking 1.5x late and the run queue is 5.0x oversubscribed right now, so the OS is denying this test process CPU. Note that the barrier had ALREADY been stretched by the measured load factor before it expired (see `scaled_timeout`), so this is a machine that got slower *during* the wait — or a genuinely wedged server.
+CONTEXT: every barrier deadline in this harness is multiplied by the measured capacity factor (`load_factor`), so a merely-busy machine should not reach this message; the latency-sensitive stress tests are additionally isolated into the single-slot `heavy-lsp-e2e` nextest group (.config/nextest.toml) so they never starve each other.
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: <e2e::common::Lsp>::await_diagnostics_version
+   3: <e2e::common::Lsp>::open_ready_lang_timeout
+   4: <e2e::common::Lsp>::open_ready_lang
+   5: <e2e::issue1707_ilx_methods::DeclaredFixture>::serve
+   6: e2e::issue1707_ilx_methods::the_ilx_references_command_ignores_an_ordinary_javascript_file
+   7: e2e::issue1707_ilx_methods::the_ilx_references_command_ignores_an_ordinary_javascript_file::{closure#0}
+   8: <e2e::issue1707_ilx_methods::the_ilx_references_command_ignores_an_ordinary_javascript_file::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- issue1707_ilx_methods::the_javascript_end_answers_through_the_ilx_references_command stdout ----
+
+thread 'issue1707_ilx_methods::the_javascript_end_answers_through_the_ilx_references_command' (27432) panicked at rust/tcl-lsp-server/tests/e2e/common/mod.rs:1327:17:
+no publishDiagnostics for "file:///tmp/tcl-lsp-e2e-1707d-prod_jscmd_25310/ws_alpha/rules/rule1.tcl" version Some(1) within 30s
+
+LATENCY-BARRIER-TIMEOUT — this is a TIMEOUT (the server did not respond in time), NOT an oracle/content divergence (those fail with "diverged" / "alignment broke").
+PROBE: CPU STARVATION CONFIRMED — a 20ms sleep is waking 1.0x late and the run queue is 5.0x oversubscribed right now, so the OS is denying this test process CPU. Note that the barrier had ALREADY been stretched by the measured load factor before it expired (see `scaled_timeout`), so this is a machine that got slower *during* the wait — or a genuinely wedged server.
+CONTEXT: every barrier deadline in this harness is multiplied by the measured capacity factor (`load_factor`), so a merely-busy machine should not reach this message; the latency-sensitive stress tests are additionally isolated into the single-slot `heavy-lsp-e2e` nextest group (.config/nextest.toml) so they never starve each other.
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: <e2e::common::Lsp>::await_diagnostics_version
+   3: <e2e::common::Lsp>::open_ready_lang_timeout
+   4: <e2e::common::Lsp>::open_ready_lang
+   5: <e2e::issue1707_ilx_methods::DeclaredFixture>::serve
+   6: e2e::issue1707_ilx_methods::the_javascript_end_answers_through_the_ilx_references_command
+   7: e2e::issue1707_ilx_methods::the_javascript_end_answers_through_the_ilx_references_command::{closure#0}
+   8: <e2e::issue1707_ilx_methods::the_javascript_end_answers_through_the_ilx_references_command::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+
+failures:
+    commands::xc_translate_console_format_returns_pasteable_documents
+    commands::xc_translate_items_are_status_tagged
+    commands::xc_translate_returns_terraform_and_json_documents
+    issue1326_encoding::w109_disabled_still_abstains_for_bigip_and_apl_documents
+    issue1707_ilx_methods::a_closed_sibling_rule_is_scanned_under_its_own_input
+    issue1707_ilx_methods::a_declaration_outside_its_folder_reaches_both_ends
+    issue1707_ilx_methods::a_declared_plugin_resolves_where_the_directory_name_cannot
+    issue1707_ilx_methods::a_duplicate_registration_is_reported_not_guessed
+    issue1707_ilx_methods::a_handle_only_reaches_bodies_that_share_its_frame
+    issue1707_ilx_methods::a_removed_method_resolves_to_nothing
+    issue1707_ilx_methods::an_unsaved_edit_to_the_extension_is_what_navigation_reads
+    issue1707_ilx_methods::declared_rule_directories_reach_a_caller_outside_the_workspace
+    issue1707_ilx_methods::go_to_definition_crosses_into_the_extension_javascript
+    issue1707_ilx_methods::hover_names_the_extension_the_file_and_the_dispatch
+    issue1707_ilx_methods::ordinary_tcl_named_ilx_call_is_untouched
+    issue1707_ilx_methods::references_span_both_languages_from_either_end
+    issue1707_ilx_methods::the_ilx_references_command_ignores_an_ordinary_javascript_file
+    issue1707_ilx_methods::the_javascript_end_answers_through_the_ilx_references_command
+
+test result: FAILED. 4 passed; 18 failed; 0 ignored; 0 measured; 1615 filtered out; finished in 675.79s
+
+error: test failed, to rerun pass `-p tcl-lsp-server --test e2e`

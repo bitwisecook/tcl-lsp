@@ -1,0 +1,70 @@
+test folding::tests::backslash_continuation_folds_first_to_last_line ... ok
+test folding::tests::backslash_continuation_spans_three_lines ... ok
+test folding::tests::apply_lambda_body_folds_and_recurses_into_nested_blocks ... ok
+test folding::tests::braced_data_comment_lines_do_not_fold ... ok
+test folding::tests::comment_block_of_three_lines_folds ... ok
+test folding::tests::empty_source_yields_no_folds ... ok
+test folding::tests::elseif_chain_yields_four_disjoint_folds ... ok
+test folding::tests::expect_ambiguous_brace_prefix_does_not_open_a_clause_list ... ok
+test folding::tests::expect_brace_outer_shape_folds_list_and_arm ... ok
+test folding::tests::expect_clause_list_folds_without_a_body_role ... ok
+test folding::tests::expect_inline_clause_actions_fold_from_descriptor_indices ... ok
+test folding::tests::expect_list_comment_and_separator_patterns_fold_their_arms ... ok
+test folding::tests::fold_kind_wire_form ... ok
+test folding::tests::expect_outer_value_options_do_not_open_a_clause_list ... ok
+test folding::tests::folding_abstains_for_a_dynamic_binding ... ok
+test folding::tests::folding_abstains_for_a_builtin_shadowed_by_a_user_proc ... ok
+test folding::tests::folding_abstains_when_a_renamed_away_expect_spelling_is_written ... ok
+test folding::tests::folding_folds_a_renamed_body_command_and_drops_the_old_name ... ok
+test folding::tests::if_body_emits_at_least_one_region_fold ... ok
+test folding::tests::folding_folds_an_aliased_body_command ... ok
+test folding::tests::incomplete_body_still_folds ... ok
+test folding::tests::if_else_bodies_are_disjoint ... ok
+test folding::tests::logical_folding_does_not_promote_reporting_scope_spans_into_body_roles ... ok
+test folding::tests::namespace_body_emits_fold_at_line_zero ... ok
+test folding::tests::nested_if_else_keeps_siblings_disjoint ... ok
+test folding::tests::logical_folding_uses_original_bodies_after_reporting_scope_clear ... ok
+test folding::tests::no_continuation_fold_without_backslash ... ok
+test folding::tests::normalise_overlaps_dedups_after_trimming ... ok
+test folding::tests::normalise_overlaps_empty_input ... ok
+test folding::tests::normalise_overlaps_is_idempotent ... ok
+test folding::tests::normalise_overlaps_shared_boundary_trims_earlier ... ok
+test folding::tests::original_folding_keeps_actual_availability_without_native_body_entry ... ok
+test folding::tests::deeply_nested_bodies_fold_past_the_old_depth_cap has been running for over 60 seconds
+test folding::tests::original_folding_keeps_captured_body_ordinals_and_source_replacements ... ok
+test folding::tests::no_fold_ends_past_the_last_line_for_eof_shapes ... ok
+test folding::tests::outer_oo_body_indices_resolve_via_registry ... ok
+test folding::tests::original_folding_uses_retained_full_config_and_body_records ... ok
+test folding::tests::proc_body_folds_to_close_brace_minus_one ... ok
+test folding::tests::single_comment_line_does_not_fold ... ok
+test folding::tests::proc_fold_end_leaves_outer_close_brace_visible ... ok
+test folding::tests::single_line_proc_has_no_fold ... ok
+test folding::tests::switch_arm_bodies_recurse_into_nested_blocks ... FAILED
+test folding::tests::switch_arms_each_fold ... ok
+test folding::tests::switch_fallthrough_arm_contributes_no_fold ... ok
+test folding::tests::tcloo_class_closing_at_eof_with_crlf_endings_stays_in_bounds ... FAILED
+test folding::tests::switch_inline_pair_form_still_folds_each_body ... ok
+test folding::tests::tcloo_class_closing_at_eof_with_trailing_newline_stays_in_bounds ... ok
+test folding::tests::tcloo_class_closing_at_eof_without_trailing_newline_stays_in_bounds ... ok
+test folding::tests::tcloo_class_fixture_meets_the_sticky_scroll_bounds_contract ... ok
+test folding::tests::tcloo_method_body_inside_configurable_emits_a_fold ... ok
+test folding::tests::tcloo_method_body_inside_define_emits_a_fold ... ok
+test folding::tests::tcloo_method_visibility_folding_respects_the_selected_profile ... ok
+test folding::tests::top_level_method_is_not_an_oo_definition ... ok
+test folding::tests::two_separate_continued_commands_fold_independently ... ok
+test folding::tests::while_body_emits_at_least_one_region_fold ... ok
+test folding::tests::deeply_nested_bodies_fold_past_the_old_depth_cap ... ok
+---- folding::tests::switch_arm_bodies_recurse_into_nested_blocks stdout ----
+thread 'folding::tests::switch_arm_bodies_recurse_into_nested_blocks' (15659) panicked at rust/tcl-lsp-core/src/folding.rs:987:9:
+the `foreach` inside the arm must fold: [(0, 6), (1, 5)]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- folding::tests::tcloo_class_closing_at_eof_with_crlf_endings_stays_in_bounds stdout ----
+
+thread 'folding::tests::tcloo_class_closing_at_eof_with_crlf_endings_stays_in_bounds' (15675) panicked at rust/tcl-lexer/src/word_parts.rs:702:5:
+assertion `left == right` failed: caller must point at a `$`
+  left: Some(98)
+ right: Some(36)
+
+
+test result: FAILED. 53 passed; 2 failed; 0 ignored; 0 measured; 3430 filtered out; finished in 220.28s

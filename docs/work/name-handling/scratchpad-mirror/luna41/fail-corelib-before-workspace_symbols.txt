@@ -1,0 +1,3 @@
+FAILED workspace_symbols::tests::constraint_and_matcher_surface_with_own_kinds
+FAILED workspace_symbols::tests::tcltest_test_surfaces_as_workspace_symbol
+FAILED workspace_symbols::tests::test_case_in_namespace_has_container

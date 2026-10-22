@@ -1,0 +1,250 @@
+
+running 1 test
+test command_binding::tests::source_body_namespace_statements_with_a_closed_prelude_keep_lookup_closed ... 
+thread 'command_binding::tests::source_body_namespace_statements_with_a_closed_prelude_keep_lookup_closed' (9665) panicked at rust/tcl-compiler/src/command_binding.rs:21394:13:
+namespace export: SourceInvocationBinding {
+    compiled_candidates: [],
+    compiled_named_candidates: [],
+    may_use_live_dispatch: true,
+    compiled_execution_residual: Closed,
+    native_compilation_admission: None,
+    native_compiler_admission: None,
+    original_compiler_preserves_names: Unknown,
+    native_structured_preparation: None,
+    native_switch_preparation: None,
+    runtime_reachability: Unknown,
+    entered_execution_observer: Unobserved,
+    native_inline_rejection: None,
+    native_handler_envelope: None,
+    invocation_variable_reads: None,
+    lookup_state: None,
+    compiler_lookup_state: None,
+    original_logical_source_advice: None,
+    original_analysis_owner: None,
+    original_source_operand_attachment: None,
+    original_authored_source_body_scope: None,
+    original_native_source_command: None,
+    declaration_layout_observations: None,
+    declaration_flow_inventory: None,
+    original_logical_declaration_targets: None,
+    compiler_policy: None,
+    original_compiler_words: None,
+    original_written_words: None,
+    conditional_expression_evaluations: None,
+    lookup_namespace: "",
+    lookup_namespace_key: Authored(
+        "::",
+    ),
+    lookup_word: None,
+    dispatch_site: None,
+    provider_state_taint: [],
+    declared_command: None,
+    catalogue_command: None,
+    variable_context: ResolveContext {
+        namespace: "::",
+        namespace_identity: None,
+        namespace_identities: {},
+        namespace_addressable_identities: {},
+        namespace_inventory: Open,
+        namespace_name_protocol: None,
+        execution_name_policy: None,
+        namespace_objects: {},
+        authored_tmm_static: None,
+        namespace_known: true,
+        invocation_dialect: None,
+        source_read_configuration: Standalone,
+        selected_frame: None,
+        activation: None,
+        globals: {},
+        ns_vars: {},
+        upvar_aliases: {},
+        traced: VariableCellSet(
+            {},
+        ),
+        trace_registrations: VariableCellTable(
+            {},
+        ),
+        trace_registration_receivers: VariableCellTable(
+            {},
+        ),
+        possible_trace_registrations: [],
+        untracked_traces: VariableCellSet(
+            {},
+        ),
+        instance_vars: {},
+        instance_owner: "",
+        frame_kind: Local,
+        interpreter: None,
+        hosted_execution_context: None,
+        execution: None,
+        alias_bindings: VariableCellTable(
+            {},
+        ),
+        namespace_alias_bindings: VariableCellTable(
+            {},
+        ),
+        name_alias_bindings: VariableCellTable(
+            {},
+        ),
+        namespace_name_alias_bindings: VariableCellTable(
+            {},
+        ),
+        outward_namespace_destructions: VariableNamespaceSet(
+            {},
+        ),
+        pending_namespace_retirements: {},
+        raw_bindings: RawBindingArena {
+            slots: VariableCellTable(
+                {},
+            ),
+            bindings: VariableCellTable(
+                {},
+            ),
+            pinned: VariableCellSet(
+                {},
+            ),
+            static_bindings: VariableCellSet(
+                {},
+            ),
+            retiring_arrays: VariableCellSet(
+                {},
+            ),
+            retired_array_members: VariableCellTable(
+                {},
+            ),
+        },
+        captured_cells: CapturedCellArena {
+            leases: {},
+        },
+        caller: None,
+        constant_values: VariableCellTable(
+            {},
+        ),
+        closed_literal_contents: VariableCellTable(
+            {},
+        ),
+        original_formal_topology: None,
+        original_receiver_variable_candidates: None,
+        original_name_values: VariableCellTable(
+            {},
+        ),
+        dictionary_scopes: {},
+        value_representations: VariableCellTable(
+            {},
+        ),
+        representation_epoch: Some(
+            0,
+        ),
+        representation_epoch_high_water: Some(
+            0,
+        ),
+        original_contents_epoch: Some(
+            0,
+        ),
+        original_contents_epoch_high_water: Some(
+            0,
+        ),
+        contents_origins: VariableCellTable(
+            {},
+        ),
+        contents_source_proofs: ContentsSourceProofs {
+            active: None,
+            sources: VariableCellTable(
+                {},
+            ),
+        },
+        contents_presence: VariableCellTable(
+            {},
+        ),
+        contents_presence_slots: VariableCellTable(
+            {},
+        ),
+        contents_kinds: VariableCellTable(
+            {},
+        ),
+        contents_world: Tracked,
+        activation_contents_world: None,
+        activation_observer_inventory: Open,
+        closed_observer_allocations: {},
+        contents_unknown_namespaces: VariableNamespaceSet(
+            {},
+        ),
+        contents_unknown_arrays: VariableCellSet(
+            {},
+        ),
+        closed_array_roots: VariableCellSet(
+            {},
+        ),
+        unknown_bindings: VariableCellSet(
+            {},
+        ),
+        dynamic_bindings: false,
+        known_namespaces: {
+            "::",
+        },
+        namespace_cells: NamespaceCellPresence {
+            present: VariableCellSet(
+                {},
+            ),
+            possible: VariableCellSet(
+                {},
+            ),
+            closed: false,
+            closed_namespaces: VariableNamespaceSet(
+                {},
+            ),
+        },
+        generations: VariableCellTable(
+            {},
+        ),
+        binding_identity: Legacy,
+        dynamic_traces: false,
+    },
+    original_argument_completion: Unknown,
+    normal_variable_continuation: None,
+    original_variable_operands: None,
+    normal_result_observations: None,
+    rhs_read_store_observations: None,
+    object_callback_effects: None,
+    variable_frame: Unknown,
+    existing_namespace_cells: [],
+    namespace_cell_presence: NamespaceCellPresence {
+        present: VariableCellSet(
+            {},
+        ),
+        possible: VariableCellSet(
+            {},
+        ),
+        closed: false,
+        closed_namespaces: VariableNamespaceSet(
+            {},
+        ),
+    },
+    known_namespaces: [],
+    evaluated_argument_values: [],
+    evaluated_argument_words: [],
+    frozen_written_words: None,
+    frozen_written_names: None,
+    frozen_head_object: None,
+    method_prefix_arguments: [],
+    native_operand_layout: None,
+    targets: [],
+    may_be_absent: false,
+    unknown: true,
+}
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: tcl_compiler::command_binding::tests::source_body_namespace_statements_with_a_closed_prelude_keep_lookup_closed
+   3: tcl_compiler::command_binding::tests::source_body_namespace_statements_with_a_closed_prelude_keep_lookup_closed::{closure#0}
+   4: <tcl_compiler::command_binding::tests::source_body_namespace_statements_with_a_closed_prelude_keep_lookup_closed::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+FAILED
+
+failures:
+
+failures:
+    command_binding::tests::source_body_namespace_statements_with_a_closed_prelude_keep_lookup_closed
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 10434 filtered out; finished in 0.23s
+

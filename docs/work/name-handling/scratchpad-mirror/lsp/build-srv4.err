@@ -1,0 +1,18 @@
+    Blocking waiting for file lock on build directory
+   Compiling tcl-compiler v0.1.0 (/home/user/tcl-lsp/rust/tcl-compiler)
+   Compiling tcl-vm v0.1.0 (/home/user/tcl-lsp/rust/tcl-vm)
+   Compiling tcl-version v0.1.0 (/home/user/tcl-lsp/rust/tcl-version)
+   Compiling tcl-irules v0.1.0 (/home/user/tcl-lsp/rust/tcl-irules)
+   Compiling tcl-sslictcl v0.1.0 (/home/user/tcl-lsp/rust/tcl-sslictcl)
+   Compiling tcl-engine-tclvm v0.1.0 (/home/user/tcl-lsp/rust/tcl-engine-tclvm)
+   Compiling tcl-spec-hooks v0.1.0 (/home/user/tcl-lsp/rust/tcl-spec-hooks)
+   Compiling tcl-diagram v0.1.0 (/home/user/tcl-lsp/rust/tcl-diagram)
+   Compiling tcl-bigip v0.1.0 (/home/user/tcl-lsp/rust/tcl-bigip)
+   Compiling tcl-lsp-core v0.1.0 (/home/user/tcl-lsp/rust/tcl-lsp-core)
+   Compiling tcl-bigip-query v0.1.0 (/home/user/tcl-lsp/rust/tcl-bigip-query)
+   Compiling tcl-spectcl v0.1.0 (/home/user/tcl-lsp/rust/tcl-spectcl)
+   Compiling f5-xc v0.1.0 (/home/user/tcl-lsp/rust/f5-xc)
+   Compiling tcl-lsp-db v0.1.0 (/home/user/tcl-lsp/rust/tcl-lsp-db)
+   Compiling tcl-explorer v0.1.0 (/home/user/tcl-lsp/rust/tcl-explorer)
+   Compiling tcl-lsp-server v0.1.0 (/home/user/tcl-lsp/rust/tcl-lsp-server)
+    Finished `test` profile [unoptimized] target(s) in 11m 41s

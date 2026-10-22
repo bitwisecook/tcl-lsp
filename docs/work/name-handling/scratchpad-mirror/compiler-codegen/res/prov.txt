@@ -1,0 +1,24 @@
+ZZ_CCG_PROVIDER rust/tcl-compiler/src/command_binding/compiled_preflight/original_preparation.rs:739:18
+RELPROBE tcl8.4 "expr {1 + 2}": admission=Some(Some((true, false))) failure=Some(false) result=Err(NativeCompilationAdmission(NativePreflightRequired))
+RELPROBE tcl8.4 "set x 1": admission=Some(None) failure=Some(false) result=Ok(NotRequired)
+RELPROBE tcl8.4 "catch {error x} msg": admission=Some(None) failure=Some(false) result=Ok(NotRequired)
+RELPROBE tcl8.4 "proc p {} {return 1}": admission=Some(None) failure=Some(false) result=Ok(NotRequired)
+ZZ_CCG_PROVIDER rust/tcl-compiler/src/command_binding/compiled_preflight/original_preparation.rs:739:18
+RELPROBE tcl8.5 "expr {1 + 2}": admission=Some(Some((true, false))) failure=Some(false) result=Err(NativeCompilationAdmission(NativePreflightRequired))
+RELPROBE tcl8.5 "set x 1": admission=Some(None) failure=Some(false) result=Ok(NotRequired)
+RELPROBE tcl8.5 "catch {error x} msg": admission=Some(None) failure=Some(false) result=Ok(NotRequired)
+RELPROBE tcl8.5 "proc p {} {return 1}": admission=Some(None) failure=Some(false) result=Ok(NotRequired)
+ZZ_CCG_PROVIDER rust/tcl-compiler/src/command_binding/compiled_preflight/original_preparation.rs:739:18
+RELPROBE tcl8.6 "expr {1 + 2}": admission=Some(Some((true, false))) failure=Some(false) result=Err(NativeCompilationAdmission(NativePreflightRequired))
+RELPROBE tcl8.6 "set x 1": admission=Some(None) failure=Some(false) result=Ok(NotRequired)
+RELPROBE tcl8.6 "catch {error x} msg": admission=Some(None) failure=Some(false) result=Ok(NotRequired)
+RELPROBE tcl8.6 "proc p {} {return 1}": admission=Some(None) failure=Some(false) result=Ok(NotRequired)
+ZZ_CCG_PROVIDER rust/tcl-compiler/src/command_binding/compiled_preflight/original_preparation.rs:739:18
+RELPROBE tcl9.0 "expr {1 + 2}": admission=Some(Some((true, false))) failure=Some(false) result=Err(NativeCompilationAdmission(NativePreflightRequired))
+RELPROBE tcl9.0 "set x 1": admission=Some(None) failure=Some(false) result=Ok(NotRequired)
+RELPROBE tcl9.0 "catch {error x} msg": admission=Some(None) failure=Some(false) result=Ok(NotRequired)
+RELPROBE tcl9.0 "proc p {} {return 1}": admission=Some(None) failure=Some(false) result=Ok(NotRequired)
+RELPROBE f5-irules "expr {1 + 2}": admission=Some(None) failure=Some(false) result=Ok(NotRequired)
+RELPROBE f5-irules "set x 1": admission=Some(None) failure=Some(false) result=Ok(NotRequired)
+RELPROBE f5-irules "catch {error x} msg": admission=Some(None) failure=Some(false) result=Ok(NotRequired)
+RELPROBE f5-irules "proc p {} {return 1}": admission=Some(None) failure=Some(false) result=Ok(NotRequired)

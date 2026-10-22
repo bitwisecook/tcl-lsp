@@ -1,0 +1,1012 @@
+
+running 116 tests
+test irules_checks::original_collection_source_tests::assigned_collection_substitution_uses_its_original_child_once ... ok
+test irules_checks::original_collection_source_tests::collection_query_uses_actual_function_config_and_separates_standalone ... ok
+test irules_checks::original_collection_source_tests::collection_source_metadata_keeps_original_names_and_ignores_report_labels ... ok
+test irules_checks::original_collection_source_tests::collection_source_keeps_original_template_index_and_head_substitutions ... ok
+test irules_checks::original_collection_source_tests::collection_source_retains_admitted_nonregistry_commands ... ok
+test irules_checks::original_collection_source_tests::collection_withdrawal_is_unavailable_instead_of_an_empty_pairing_inventory ... FAILED
+test irules_checks::original_collection_source_tests::conditional_collection_pairings_require_a_closed_source_census ... FAILED
+test irules_checks::original_collection_source_tests::conditional_leaf_census_does_not_treat_selected_lambda_roles_as_empty_scripts ... ok
+test irules_checks::original_collection_source_tests::conditional_source_flow_retains_phase_and_normal_continuation_obligations ... FAILED
+test irules_checks::original_collection_source_tests::unknown_collection_effects_keep_source_calls_without_certifying_absence ... ok
+test irules_checks::original_event_owner_tests::explicitly_standalone_source_retains_events_without_report_name_assistance ... FAILED
+test irules_checks::original_event_owner_tests::event_projection_withdraws_changed_or_missing_complete_owners ... FAILED
+test irules_checks::original_event_owner_tests::ordinary_procedure_with_an_event_shaped_name_has_no_event_semantics ... FAILED
+test irules_checks::original_event_owner_tests::source_flow_evaluates_original_header_and_return_arguments_before_dispatch ... FAILED
+test irules_checks::original_event_owner_tests::selected_custom_event_definer_and_report_names_use_the_original_descriptor ... FAILED
+test irules_checks::original_getter_source_config_tests::getter_source_keeps_function_config_and_selects_nested_parser_purpose ... ok
+test irules_checks::original_event_owner_tests::source_flow_requires_actual_selected_commands_and_original_children ... FAILED
+test irules_checks::original_getter_source_config_tests::getter_source_refuses_missing_foreign_and_changed_actual_owners ... ok
+test irules_checks::tests::arch3_normalised_option_is_registry_driven ... FAILED
+test irules_checks::tests::bare_redirect_commits_response ... ok
+test irules_checks::original_getter_source_config_tests::getter_source_keeps_original_children_and_ignores_report_values ... ok
+test irules_checks::tests::collect_flow_only_in_irules_dialect ... ok
+test irules_checks::tests::collect_inside_clientside_body_is_seen ... ok
+test irules_checks::tests::every_explicit_payload_family_warns_without_collect ... FAILED
+test irules_checks::tests::generic_static_warning_declines_foreign_module_source_without_spelling_fallback ... FAILED
+test irules_checks::tests::generic_static_warning_uses_resolved_root_keys_aliases_and_original_source_locations ... FAILED
+test irules_checks::tests::http_data_event_implicitly_releases_collection ... ok
+test irules_checks::tests::event_owned_payload_families_do_not_invent_collect_lifecycles ... ok
+test irules_checks::tests::http_response_data_implicitly_releases_server_side_collection ... ok
+test irules_checks::tests::irule1005_http_data_event_without_collect_fires ... FAILED
+test irules_checks::tests::irule1005_satisfied_by_matching_collect ... ok
+test irules_checks::tests::irule1005_retains_the_original_event_operand_instead_of_a_body_anchor ... FAILED
+test irules_checks::tests::irule1006_payload_without_collect_fires ... FAILED
+test irules_checks::tests::irule1007_ignores_a_collect_in_a_dead_side_switch_arm ... FAILED
+test irules_checks::tests::irule1007_collect_without_release_fires ... FAILED
+test irules_checks::tests::irule1008_release_without_collect_fires ... FAILED
+test irules_checks::tests::irule1007_satisfied_by_matching_release_same_side ... ok
+test irules_checks::tests::irule1201_catch_body_without_return_still_continues ... FAILED
+test irules_checks::tests::irule1201_allows_the_registered_response_state_query ... ok
+test irules_checks::tests::irule1201_catch_without_respond_no_warning ... ok
+test irules_checks::tests::irule1201_clean_when_respond_followed_by_return_only ... ok
+test irules_checks::tests::irule1201_fires_through_catch_body ... FAILED
+test irules_checks::tests::irule1201_http_after_respond_fires ... FAILED
+test irules_checks::tests::irule1201_only_in_http_events ... ok
+test irules_checks::tests::irule1201_quiet_on_unregistered_http_subcommand ... ok
+test irules_checks::tests::irule1201_quiet_when_respond_and_use_are_exclusive ... ok
+test irules_checks::tests::irule1201_reads_a_flag_a_switch_arm_sets ... FAILED
+test irules_checks::tests::irule1201_respond_then_return_inside_catch_warns ... FAILED
+test irules_checks::tests::irule1201_uses_the_event_profile_instead_of_its_name ... FAILED
+test irules_checks::tests::irule1202_double_respond_fires ... FAILED
+test irules_checks::tests::irule1201_ignores_a_respond_in_a_dead_arm ... FAILED
+test irules_checks::tests::irule1202_fires_after_loop_respond ... FAILED
+test irules_checks::tests::irule1202_quiet_on_mutually_exclusive_branches ... ok
+test irules_checks::tests::irule1202_reports_one_diagnostic_for_multiple_predecessor_proofs ... FAILED
+test irules_checks::tests::irule3102_also_fires_inside_assign_value_cmd_sub ... FAILED
+test irules_checks::tests::irule3102_clean_when_normalized_flag_present ... ok
+test irules_checks::tests::irule1202_ignores_a_respond_in_a_dead_arm ... FAILED
+test irules_checks::tests::irule3102_non_irules_dialect_returns_empty ... ok
+test irules_checks::tests::irule3102_fires_on_http_path_without_flag ... FAILED
+test irules_checks::tests::irule3102_silent_for_constant_sink_argument ... ok
+test irules_checks::tests::irule3102_setter_form_not_flagged ... ok
+test irules_checks::tests::irule3102_warns_on_bare_http_uri_getter ... FAILED
+test irules_checks::tests::irule3102_silent_for_normalized_getter_in_sink_argument ... ok
+test irules_checks::tests::irule3102_warns_on_getter_nested_in_sink_argument ... FAILED
+test irules_checks::tests::irule4002_custom_patterns_replace_defaults ... FAILED
+test irules_checks::tests::irule4002_deduplicates_across_events ... FAILED
+test irules_checks::tests::irule4002_empty_patterns_disable_check ... ok
+test irules_checks::tests::irule4002_fires_for_generic_static_name ... FAILED
+test irules_checks::tests::irule4002_ignores_a_static_in_a_dead_arm ... FAILED
+test irules_checks::tests::irule4002_only_in_irules_dialect ... ok
+test irules_checks::tests::irule4002_quiet_for_specific_static_name ... ok
+test irules_checks::tests::irule4004_array_and_static_destinations_abstain ... ok
+test irules_checks::tests::irule4004_counts_only_the_writes_that_run ... FAILED
+test irules_checks::tests::irule4004_conditional_literal_set_is_not_hoistable ... ok
+test irules_checks::tests::irule4004_counts_the_writes_a_switch_arm_makes ... FAILED
+test irules_checks::tests::irule4004_cross_event_write_is_not_hoistable ... ok
+test irules_checks::tests::irule4004_dynamic_set_clean ... ok
+test irules_checks::tests::irule4004_literal_set_in_per_request_event_fires ... FAILED
+test irules_checks::tests::irule4004_only_in_irules_dialect ... ok
+test irules_checks::tests::irule4004_per_request_reset_is_not_hoistable ... ok
+test irules_checks::tests::irule4004_proven_command_value_is_hoistable ... FAILED
+test irules_checks::tests::irule4004_registry_only_per_request_event_fires ... FAILED
+test irules_checks::tests::irule4004_set_in_once_per_connection_clean ... ok
+test irules_checks::tests::irule4004_unknown_event_abstains ... ok
+test irules_checks::tests::irule4004_var_substitution_clean ... ok
+test irules_checks::tests::irule5002_carries_insertion_fix ... FAILED
+test irules_checks::tests::irule5002_catch_body_without_return_still_warns_drop ... FAILED
+test irules_checks::tests::irule5002_catch_without_drop_no_warning ... ok
+test irules_checks::tests::irule5002_drop_and_return_inside_catch_still_warns ... FAILED
+test irules_checks::tests::irule5002_drop_followed_by_event_disable_all_clean ... ok
+test irules_checks::tests::irule5002_drop_followed_by_return_clean ... ok
+test irules_checks::tests::irule5002_drop_points_at_the_drop_command ... FAILED
+test irules_checks::tests::irule5002_drop_without_return_fires ... FAILED
+test irules_checks::tests::irule5002_fires_when_only_one_branch_guarded ... FAILED
+test irules_checks::tests::irule4004_counts_writes_in_complexity_guarded_events ... ok
+test irules_checks::tests::irule5002_only_in_irules_dialect ... ok
+test irules_checks::tests::irule5002_quiet_when_every_branch_guarded ... ok
+test irules_checks::tests::irule5002_ignores_a_drop_in_a_dead_arm ... FAILED
+test irules_checks::tests::irule5002_reads_a_flag_a_switch_arm_sets ... FAILED
+test irules_checks::tests::irule5004_carries_insertion_fix ... FAILED
+test irules_checks::tests::irule5002_reject_also_fires ... FAILED
+test irules_checks::tests::irule5004_dns_return_and_return_inside_catch_still_warns ... FAILED
+test irules_checks::tests::irule5004_dns_return_followed_by_return_clean ... ok
+test irules_checks::tests::irule5004_dns_return_without_return_fires ... FAILED
+test irules_checks::tests::irule5004_fires_through_catch_body ... FAILED
+test irules_checks::tests::is_generic_static_name_matches_default_set ... ok
+test irules_checks::tests::is_getter_form_recognises_flags_only ... ok
+test irules_checks::tests::irule5004_ignores_a_dns_return_in_a_dead_arm ... FAILED
+test irules_checks::tests::mqtt_payload_call_forms_have_distinct_collection_requirements ... FAILED
+test irules_checks::tests::mqtt_collection_lifecycle_balances_across_registry_events ... ok
+test irules_checks::tests::nested_side_switch_warning_keeps_its_absolute_source_span ... FAILED
+test irules_checks::tests::no_drop_warnings_for_clean_when_body ... ok
+test irules_checks::tests::recollect_inside_http_data_event_still_needs_a_later_release ... FAILED
+test irules_checks::tests::side_switch_specs_have_body_role_and_arity ... ok
+test irules_checks::tests::peer_flips_side_for_collect_flow ... FAILED
+test irules_checks::tests::udp_and_asm_payloads_do_not_require_collect ... ok
+
+failures:
+
+---- irules_checks::original_collection_source_tests::collection_withdrawal_is_unavailable_instead_of_an_empty_pairing_inventory stdout ----
+
+thread 'irules_checks::original_collection_source_tests::collection_withdrawal_is_unavailable_instead_of_an_empty_pairing_inventory' (22628) panicked at rust/tcl-compiler/src/irules_checks.rs:5291:9:
+assertion failed: collect_flow_state(&source).is_some()
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: tcl_compiler::irules_checks::original_collection_source_tests::collection_withdrawal_is_unavailable_instead_of_an_empty_pairing_inventory
+   4: tcl_compiler::irules_checks::original_collection_source_tests::collection_withdrawal_is_unavailable_instead_of_an_empty_pairing_inventory::{closure#0}
+   5: <tcl_compiler::irules_checks::original_collection_source_tests::collection_withdrawal_is_unavailable_instead_of_an_empty_pairing_inventory::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- irules_checks::original_collection_source_tests::conditional_collection_pairings_require_a_closed_source_census stdout ----
+
+thread 'irules_checks::original_collection_source_tests::conditional_collection_pairings_require_a_closed_source_census' (22629) panicked at rust/tcl-compiler/src/irules_checks.rs:4952:14:
+the complete original leaf handler has conditional source advice
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::option::expect_failed
+   3: <core::option::Option<tcl_compiler::irules_checks::ConditionalCollectionSourcePairingAdvice>>::expect
+   4: tcl_compiler::irules_checks::original_collection_source_tests::conditional_collection_pairings_require_a_closed_source_census
+   5: tcl_compiler::irules_checks::original_collection_source_tests::conditional_collection_pairings_require_a_closed_source_census::{closure#0}
+   6: <tcl_compiler::irules_checks::original_collection_source_tests::conditional_collection_pairings_require_a_closed_source_census::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- irules_checks::original_collection_source_tests::conditional_source_flow_retains_phase_and_normal_continuation_obligations stdout ----
+
+thread 'irules_checks::original_collection_source_tests::conditional_source_flow_retains_phase_and_normal_continuation_obligations' (22631) panicked at rust/tcl-compiler/src/irules_checks.rs:4879:14:
+complete leaf source retains possible actions without executing them
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::option::expect_failed
+   3: <core::option::Option<tcl_compiler::irules_checks::ConditionalIruleSourceFlowAdvice>>::expect
+   4: tcl_compiler::irules_checks::original_collection_source_tests::conditional_source_flow_retains_phase_and_normal_continuation_obligations
+   5: tcl_compiler::irules_checks::original_collection_source_tests::conditional_source_flow_retains_phase_and_normal_continuation_obligations::{closure#0}
+   6: <tcl_compiler::irules_checks::original_collection_source_tests::conditional_source_flow_retains_phase_and_normal_continuation_obligations::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- irules_checks::original_event_owner_tests::explicitly_standalone_source_retains_events_without_report_name_assistance stdout ----
+
+thread 'irules_checks::original_event_owner_tests::explicitly_standalone_source_retains_events_without_report_name_assistance' (22634) panicked at rust/tcl-compiler/src/irules_checks.rs:5699:9:
+assertion failed: find_unguarded_drop_warnings(&unit,
+            Some(SurfaceQuery::any_release(Family::F5Irules))).iter().any(|warning|
+        warning.code == DiagCode::Irule5002)
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: tcl_compiler::irules_checks::original_event_owner_tests::explicitly_standalone_source_retains_events_without_report_name_assistance
+   4: tcl_compiler::irules_checks::original_event_owner_tests::explicitly_standalone_source_retains_events_without_report_name_assistance::{closure#0}
+   5: <tcl_compiler::irules_checks::original_event_owner_tests::explicitly_standalone_source_retains_events_without_report_name_assistance::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- irules_checks::original_event_owner_tests::event_projection_withdraws_changed_or_missing_complete_owners stdout ----
+
+thread 'irules_checks::original_event_owner_tests::event_projection_withdraws_changed_or_missing_complete_owners' (22633) panicked at rust/tcl-compiler/src/irules_checks.rs:5601:9:
+assertion failed: !event_warnings(&unit, context.commands()).is_empty()
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: tcl_compiler::irules_checks::original_event_owner_tests::event_projection_withdraws_changed_or_missing_complete_owners
+   4: tcl_compiler::irules_checks::original_event_owner_tests::event_projection_withdraws_changed_or_missing_complete_owners::{closure#0}
+   5: <tcl_compiler::irules_checks::original_event_owner_tests::event_projection_withdraws_changed_or_missing_complete_owners::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- irules_checks::original_event_owner_tests::ordinary_procedure_with_an_event_shaped_name_has_no_event_semantics stdout ----
+
+thread 'irules_checks::original_event_owner_tests::ordinary_procedure_with_an_event_shaped_name_has_no_event_semantics' (22636) panicked at rust/tcl-compiler/src/irules_checks.rs:5530:9:
+assertion failed: fixture_id_if_present(&unit.procedures, "::when::HTTP_REQUEST").is_some()
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: tcl_compiler::irules_checks::original_event_owner_tests::ordinary_procedure_with_an_event_shaped_name_has_no_event_semantics
+   4: tcl_compiler::irules_checks::original_event_owner_tests::ordinary_procedure_with_an_event_shaped_name_has_no_event_semantics::{closure#0}
+   5: <tcl_compiler::irules_checks::original_event_owner_tests::ordinary_procedure_with_an_event_shaped_name_has_no_event_semantics::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- irules_checks::original_event_owner_tests::source_flow_evaluates_original_header_and_return_arguments_before_dispatch stdout ----
+
+thread 'irules_checks::original_event_owner_tests::source_flow_evaluates_original_header_and_return_arguments_before_dispatch' (22638) panicked at rust/tcl-compiler/src/irules_checks.rs:5490:13:
+assertion `left == right` failed: when HTTP_REQUEST {HTTP::respond 200; return [HTTP::header value X]}: []
+  left: 0
+ right: 1
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<usize, usize>
+   4: tcl_compiler::irules_checks::original_event_owner_tests::source_flow_evaluates_original_header_and_return_arguments_before_dispatch
+   5: tcl_compiler::irules_checks::original_event_owner_tests::source_flow_evaluates_original_header_and_return_arguments_before_dispatch::{closure#0}
+   6: <tcl_compiler::irules_checks::original_event_owner_tests::source_flow_evaluates_original_header_and_return_arguments_before_dispatch::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- irules_checks::original_event_owner_tests::selected_custom_event_definer_and_report_names_use_the_original_descriptor stdout ----
+
+thread 'irules_checks::original_event_owner_tests::selected_custom_event_definer_and_report_names_use_the_original_descriptor' (22637) panicked at rust/tcl-compiler/src/irules_checks.rs:5555:9:
+assertion failed: baseline.iter().any(|warning| warning.code == DiagCode::Irule1201)
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: tcl_compiler::irules_checks::original_event_owner_tests::selected_custom_event_definer_and_report_names_use_the_original_descriptor
+   4: tcl_compiler::irules_checks::original_event_owner_tests::selected_custom_event_definer_and_report_names_use_the_original_descriptor::{closure#0}
+   5: <tcl_compiler::irules_checks::original_event_owner_tests::selected_custom_event_definer_and_report_names_use_the_original_descriptor::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- irules_checks::original_event_owner_tests::source_flow_requires_actual_selected_commands_and_original_children stdout ----
+
+thread 'irules_checks::original_event_owner_tests::source_flow_requires_actual_selected_commands_and_original_children' (22639) panicked at rust/tcl-compiler/src/irules_checks.rs:5456:13:
+when HTTP_REQUEST {::drop}
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: tcl_compiler::irules_checks::original_event_owner_tests::source_flow_requires_actual_selected_commands_and_original_children
+   3: tcl_compiler::irules_checks::original_event_owner_tests::source_flow_requires_actual_selected_commands_and_original_children::{closure#0}
+   4: <tcl_compiler::irules_checks::original_event_owner_tests::source_flow_requires_actual_selected_commands_and_original_children::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- irules_checks::tests::arch3_normalised_option_is_registry_driven stdout ----
+
+thread 'irules_checks::tests::arch3_normalised_option_is_registry_driven' (22643) panicked at rust/tcl-compiler/src/irules_checks.rs:3106:9:
+expected IRULE3102 on HTTP::uri, got []
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: tcl_compiler::irules_checks::tests::arch3_normalised_option_is_registry_driven
+   3: tcl_compiler::irules_checks::tests::arch3_normalised_option_is_registry_driven::{closure#0}
+   4: <tcl_compiler::irules_checks::tests::arch3_normalised_option_is_registry_driven::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- irules_checks::tests::every_explicit_payload_family_warns_without_collect stdout ----
+
+thread 'irules_checks::tests::every_explicit_payload_family_warns_without_collect' (22648) panicked at rust/tcl-compiler/src/irules_checks.rs:3606:13:
+MR payload without collect must warn, got []
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: tcl_compiler::irules_checks::tests::every_explicit_payload_family_warns_without_collect
+   3: tcl_compiler::irules_checks::tests::every_explicit_payload_family_warns_without_collect::{closure#0}
+   4: <tcl_compiler::irules_checks::tests::every_explicit_payload_family_warns_without_collect::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- irules_checks::tests::generic_static_warning_declines_foreign_module_source_without_spelling_fallback stdout ----
+
+thread 'irules_checks::tests::generic_static_warning_declines_foreign_module_source_without_spelling_fallback' (22649) panicked at rust/tcl-compiler/src/irules_checks.rs:4446:9:
+assertion `left == right` failed
+  left: 0
+ right: 1
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<usize, usize>
+   4: tcl_compiler::irules_checks::tests::generic_static_warning_declines_foreign_module_source_without_spelling_fallback
+   5: tcl_compiler::irules_checks::tests::generic_static_warning_declines_foreign_module_source_without_spelling_fallback::{closure#0}
+   6: <tcl_compiler::irules_checks::tests::generic_static_warning_declines_foreign_module_source_without_spelling_fallback::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- irules_checks::tests::generic_static_warning_uses_resolved_root_keys_aliases_and_original_source_locations stdout ----
+
+thread 'irules_checks::tests::generic_static_warning_uses_resolved_root_keys_aliases_and_original_source_locations' (22650) panicked at rust/tcl-compiler/src/irules_checks.rs:4399:13:
+assertion `left == right` failed: when RULE_INIT {set static::debug 1}: []
+  left: 0
+ right: 1
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<usize, usize>
+   4: tcl_compiler::irules_checks::tests::generic_static_warning_uses_resolved_root_keys_aliases_and_original_source_locations
+   5: tcl_compiler::irules_checks::tests::generic_static_warning_uses_resolved_root_keys_aliases_and_original_source_locations::{closure#0}
+   6: <tcl_compiler::irules_checks::tests::generic_static_warning_uses_resolved_root_keys_aliases_and_original_source_locations::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- irules_checks::tests::irule1005_http_data_event_without_collect_fires stdout ----
+
+thread 'irules_checks::tests::irule1005_http_data_event_without_collect_fires' (22655) panicked at rust/tcl-compiler/src/irules_checks.rs:3446:9:
+expected IRULE1005, got []
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: tcl_compiler::irules_checks::tests::irule1005_http_data_event_without_collect_fires
+   3: tcl_compiler::irules_checks::tests::irule1005_http_data_event_without_collect_fires::{closure#0}
+   4: <tcl_compiler::irules_checks::tests::irule1005_http_data_event_without_collect_fires::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- irules_checks::tests::irule1005_retains_the_original_event_operand_instead_of_a_body_anchor stdout ----
+
+thread 'irules_checks::tests::irule1005_retains_the_original_event_operand_instead_of_a_body_anchor' (22656) panicked at rust/tcl-compiler/src/irules_checks.rs:3471:18:
+source event requiring collection
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::option::expect_failed
+   3: <core::option::Option<&tcl_compiler::irules_checks::IrulesCheckWarning>>::expect
+   4: tcl_compiler::irules_checks::tests::irule1005_retains_the_original_event_operand_instead_of_a_body_anchor
+   5: tcl_compiler::irules_checks::tests::irule1005_retains_the_original_event_operand_instead_of_a_body_anchor::{closure#0}
+   6: <tcl_compiler::irules_checks::tests::irule1005_retains_the_original_event_operand_instead_of_a_body_anchor::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- irules_checks::tests::irule1006_payload_without_collect_fires stdout ----
+
+thread 'irules_checks::tests::irule1006_payload_without_collect_fires' (22658) panicked at rust/tcl-compiler/src/irules_checks.rs:3516:9:
+expected IRULE1006 on HTTP::payload without HTTP::collect, got []
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: tcl_compiler::irules_checks::tests::irule1006_payload_without_collect_fires
+   3: tcl_compiler::irules_checks::tests::irule1006_payload_without_collect_fires::{closure#0}
+   4: <tcl_compiler::irules_checks::tests::irule1006_payload_without_collect_fires::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- irules_checks::tests::irule1007_ignores_a_collect_in_a_dead_side_switch_arm stdout ----
+
+thread 'irules_checks::tests::irule1007_ignores_a_collect_in_a_dead_side_switch_arm' (22660) panicked at rust/tcl-compiler/src/irules_checks.rs:3769:9:
+expected IRULE1007, got []
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: tcl_compiler::irules_checks::tests::irule1007_ignores_a_collect_in_a_dead_side_switch_arm
+   3: tcl_compiler::irules_checks::tests::irule1007_ignores_a_collect_in_a_dead_side_switch_arm::{closure#0}
+   4: <tcl_compiler::irules_checks::tests::irule1007_ignores_a_collect_in_a_dead_side_switch_arm::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- irules_checks::tests::irule1007_collect_without_release_fires stdout ----
+
+thread 'irules_checks::tests::irule1007_collect_without_release_fires' (22659) panicked at rust/tcl-compiler/src/irules_checks.rs:3639:9:
+expected IRULE1007, got []
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: tcl_compiler::irules_checks::tests::irule1007_collect_without_release_fires
+   3: tcl_compiler::irules_checks::tests::irule1007_collect_without_release_fires::{closure#0}
+   4: <tcl_compiler::irules_checks::tests::irule1007_collect_without_release_fires::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- irules_checks::tests::irule1008_release_without_collect_fires stdout ----
+
+thread 'irules_checks::tests::irule1008_release_without_collect_fires' (22662) panicked at rust/tcl-compiler/src/irules_checks.rs:3648:9:
+expected IRULE1008, got []
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: tcl_compiler::irules_checks::tests::irule1008_release_without_collect_fires
+   3: tcl_compiler::irules_checks::tests::irule1008_release_without_collect_fires::{closure#0}
+   4: <tcl_compiler::irules_checks::tests::irule1008_release_without_collect_fires::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- irules_checks::tests::irule1201_catch_body_without_return_still_continues stdout ----
+
+thread 'irules_checks::tests::irule1201_catch_body_without_return_still_continues' (22664) panicked at rust/tcl-compiler/src/irules_checks.rs:3942:9:
+assertion `left == right` failed: expected one IRULE1201, got []
+  left: 0
+ right: 1
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<usize, usize>
+   4: tcl_compiler::irules_checks::tests::irule1201_catch_body_without_return_still_continues
+   5: tcl_compiler::irules_checks::tests::irule1201_catch_body_without_return_still_continues::{closure#0}
+   6: <tcl_compiler::irules_checks::tests::irule1201_catch_body_without_return_still_continues::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- irules_checks::tests::irule1201_fires_through_catch_body stdout ----
+
+thread 'irules_checks::tests::irule1201_fires_through_catch_body' (22667) panicked at rust/tcl-compiler/src/irules_checks.rs:4052:9:
+assertion failed: http_codes("when HTTP_REQUEST { catch { HTTP::respond 200 content a }; HTTP::header insert Foo bar }").contains(&"IRULE1201".to_string())
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: tcl_compiler::irules_checks::tests::irule1201_fires_through_catch_body
+   4: tcl_compiler::irules_checks::tests::irule1201_fires_through_catch_body::{closure#0}
+   5: <tcl_compiler::irules_checks::tests::irule1201_fires_through_catch_body::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- irules_checks::tests::irule1201_http_after_respond_fires stdout ----
+
+thread 'irules_checks::tests::irule1201_http_after_respond_fires' (22668) panicked at rust/tcl-compiler/src/irules_checks.rs:3865:9:
+expected IRULE1201, got []
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: tcl_compiler::irules_checks::tests::irule1201_http_after_respond_fires
+   3: tcl_compiler::irules_checks::tests::irule1201_http_after_respond_fires::{closure#0}
+   4: <tcl_compiler::irules_checks::tests::irule1201_http_after_respond_fires::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- irules_checks::tests::irule1201_reads_a_flag_a_switch_arm_sets stdout ----
+
+thread 'irules_checks::tests::irule1201_reads_a_flag_a_switch_arm_sets' (22674) panicked at rust/tcl-compiler/src/irules_checks.rs:4581:9:
+expected IRULE1201, got []
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: tcl_compiler::irules_checks::tests::irule1201_reads_a_flag_a_switch_arm_sets
+   3: tcl_compiler::irules_checks::tests::irule1201_reads_a_flag_a_switch_arm_sets::{closure#0}
+   4: <tcl_compiler::irules_checks::tests::irule1201_reads_a_flag_a_switch_arm_sets::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- irules_checks::tests::irule1201_respond_then_return_inside_catch_warns stdout ----
+
+thread 'irules_checks::tests::irule1201_respond_then_return_inside_catch_warns' (22675) panicked at rust/tcl-compiler/src/irules_checks.rs:3924:9:
+assertion `left == right` failed: expected one IRULE1201, got []
+  left: 0
+ right: 1
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<usize, usize>
+   4: tcl_compiler::irules_checks::tests::irule1201_respond_then_return_inside_catch_warns
+   5: tcl_compiler::irules_checks::tests::irule1201_respond_then_return_inside_catch_warns::{closure#0}
+   6: <tcl_compiler::irules_checks::tests::irule1201_respond_then_return_inside_catch_warns::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- irules_checks::tests::irule1201_uses_the_event_profile_instead_of_its_name stdout ----
+
+thread 'irules_checks::tests::irule1201_uses_the_event_profile_instead_of_its_name' (22676) panicked at rust/tcl-compiler/src/irules_checks.rs:3878:9:
+expected profile-driven IRULE1201, got []
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: tcl_compiler::irules_checks::tests::irule1201_uses_the_event_profile_instead_of_its_name
+   3: tcl_compiler::irules_checks::tests::irule1201_uses_the_event_profile_instead_of_its_name::{closure#0}
+   4: <tcl_compiler::irules_checks::tests::irule1201_uses_the_event_profile_instead_of_its_name::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- irules_checks::tests::irule1202_double_respond_fires stdout ----
+
+thread 'irules_checks::tests::irule1202_double_respond_fires' (22677) panicked at rust/tcl-compiler/src/irules_checks.rs:3854:9:
+expected IRULE1202, got []
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: tcl_compiler::irules_checks::tests::irule1202_double_respond_fires
+   3: tcl_compiler::irules_checks::tests::irule1202_double_respond_fires::{closure#0}
+   4: <tcl_compiler::irules_checks::tests::irule1202_double_respond_fires::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- irules_checks::tests::irule1201_ignores_a_respond_in_a_dead_arm stdout ----
+
+thread 'irules_checks::tests::irule1201_ignores_a_respond_in_a_dead_arm' (22669) panicked at rust/tcl-compiler/src/irules_checks.rs:4120:13:
+when HTTP_REQUEST { if {1} { HTTP::respond 200 }; HTTP::header insert X-Custom val }: []
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: tcl_compiler::irules_checks::tests::irule1201_ignores_a_respond_in_a_dead_arm
+   3: tcl_compiler::irules_checks::tests::irule1201_ignores_a_respond_in_a_dead_arm::{closure#0}
+   4: <tcl_compiler::irules_checks::tests::irule1201_ignores_a_respond_in_a_dead_arm::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- irules_checks::tests::irule1202_fires_after_loop_respond stdout ----
+
+thread 'irules_checks::tests::irule1202_fires_after_loop_respond' (22678) panicked at rust/tcl-compiler/src/irules_checks.rs:4072:9:
+assertion failed: http_codes("when HTTP_REQUEST { foreach i $list { HTTP::respond 200 content a }; \
+             HTTP::respond 404 content b }").contains(&"IRULE1202".to_string())
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: tcl_compiler::irules_checks::tests::irule1202_fires_after_loop_respond
+   4: tcl_compiler::irules_checks::tests::irule1202_fires_after_loop_respond::{closure#0}
+   5: <tcl_compiler::irules_checks::tests::irule1202_fires_after_loop_respond::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- irules_checks::tests::irule1202_reports_one_diagnostic_for_multiple_predecessor_proofs stdout ----
+
+thread 'irules_checks::tests::irule1202_reports_one_diagnostic_for_multiple_predecessor_proofs' (22681) panicked at rust/tcl-compiler/src/irules_checks.rs:4027:9:
+assertion `left == right` failed: one source command must produce one diagnostic, got []
+  left: 0
+ right: 1
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<usize, usize>
+   4: tcl_compiler::irules_checks::tests::irule1202_reports_one_diagnostic_for_multiple_predecessor_proofs
+   5: tcl_compiler::irules_checks::tests::irule1202_reports_one_diagnostic_for_multiple_predecessor_proofs::{closure#0}
+   6: <tcl_compiler::irules_checks::tests::irule1202_reports_one_diagnostic_for_multiple_predecessor_proofs::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- irules_checks::tests::irule3102_also_fires_inside_assign_value_cmd_sub stdout ----
+
+thread 'irules_checks::tests::irule3102_also_fires_inside_assign_value_cmd_sub' (22682) panicked at rust/tcl-compiler/src/irules_checks.rs:3057:9:
+assertion `left == right` failed: expected IRULE3102 for HTTP::query, got []
+  left: 0
+ right: 1
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<usize, usize>
+   4: tcl_compiler::irules_checks::tests::irule3102_also_fires_inside_assign_value_cmd_sub
+   5: tcl_compiler::irules_checks::tests::irule3102_also_fires_inside_assign_value_cmd_sub::{closure#0}
+   6: <tcl_compiler::irules_checks::tests::irule3102_also_fires_inside_assign_value_cmd_sub::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- irules_checks::tests::irule1202_ignores_a_respond_in_a_dead_arm stdout ----
+
+thread 'irules_checks::tests::irule1202_ignores_a_respond_in_a_dead_arm' (22679) panicked at rust/tcl-compiler/src/irules_checks.rs:4149:13:
+when HTTP_REQUEST { HTTP::respond 200; if {1} { HTTP::respond 404 } }: []
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: tcl_compiler::irules_checks::tests::irule1202_ignores_a_respond_in_a_dead_arm
+   3: tcl_compiler::irules_checks::tests::irule1202_ignores_a_respond_in_a_dead_arm::{closure#0}
+   4: <tcl_compiler::irules_checks::tests::irule1202_ignores_a_respond_in_a_dead_arm::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- irules_checks::tests::irule3102_fires_on_http_path_without_flag stdout ----
+
+thread 'irules_checks::tests::irule3102_fires_on_http_path_without_flag' (22684) panicked at rust/tcl-compiler/src/irules_checks.rs:3064:9:
+assertion `left == right` failed
+  left: 0
+ right: 1
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<usize, usize>
+   4: tcl_compiler::irules_checks::tests::irule3102_fires_on_http_path_without_flag
+   5: tcl_compiler::irules_checks::tests::irule3102_fires_on_http_path_without_flag::{closure#0}
+   6: <tcl_compiler::irules_checks::tests::irule3102_fires_on_http_path_without_flag::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- irules_checks::tests::irule3102_warns_on_bare_http_uri_getter stdout ----
+
+thread 'irules_checks::tests::irule3102_warns_on_bare_http_uri_getter' (22689) panicked at rust/tcl-compiler/src/irules_checks.rs:2986:9:
+assertion `left == right` failed: expected one IRULE3102, got []
+  left: 0
+ right: 1
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<usize, usize>
+   4: tcl_compiler::irules_checks::tests::irule3102_warns_on_bare_http_uri_getter
+   5: tcl_compiler::irules_checks::tests::irule3102_warns_on_bare_http_uri_getter::{closure#0}
+   6: <tcl_compiler::irules_checks::tests::irule3102_warns_on_bare_http_uri_getter::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- irules_checks::tests::irule3102_warns_on_getter_nested_in_sink_argument stdout ----
+
+thread 'irules_checks::tests::irule3102_warns_on_getter_nested_in_sink_argument' (22690) panicked at rust/tcl-compiler/src/irules_checks.rs:3012:9:
+assertion `left == right` failed: expected one IRULE3102, got []
+  left: 0
+ right: 1
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<usize, usize>
+   4: tcl_compiler::irules_checks::tests::irule3102_warns_on_getter_nested_in_sink_argument
+   5: tcl_compiler::irules_checks::tests::irule3102_warns_on_getter_nested_in_sink_argument::{closure#0}
+   6: <tcl_compiler::irules_checks::tests::irule3102_warns_on_getter_nested_in_sink_argument::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- irules_checks::tests::irule4002_custom_patterns_replace_defaults stdout ----
+
+thread 'irules_checks::tests::irule4002_custom_patterns_replace_defaults' (22691) panicked at rust/tcl-compiler/src/irules_checks.rs:4549:9:
+expected IRULE4002 for static::myapp_token under custom patterns, got []
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: tcl_compiler::irules_checks::tests::irule4002_custom_patterns_replace_defaults
+   3: tcl_compiler::irules_checks::tests::irule4002_custom_patterns_replace_defaults::{closure#0}
+   4: <tcl_compiler::irules_checks::tests::irule4002_custom_patterns_replace_defaults::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- irules_checks::tests::irule4002_deduplicates_across_events stdout ----
+
+thread 'irules_checks::tests::irule4002_deduplicates_across_events' (22692) panicked at rust/tcl-compiler/src/irules_checks.rs:4492:9:
+assertion `left == right` failed: expected a single deduplicated IRULE4002, got []
+  left: 0
+ right: 1
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<usize, usize>
+   4: tcl_compiler::irules_checks::tests::irule4002_deduplicates_across_events
+   5: tcl_compiler::irules_checks::tests::irule4002_deduplicates_across_events::{closure#0}
+   6: <tcl_compiler::irules_checks::tests::irule4002_deduplicates_across_events::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- irules_checks::tests::irule4002_fires_for_generic_static_name stdout ----
+
+thread 'irules_checks::tests::irule4002_fires_for_generic_static_name' (22694) panicked at rust/tcl-compiler/src/irules_checks.rs:4471:9:
+expected IRULE4002 for static::debug, got []
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: tcl_compiler::irules_checks::tests::irule4002_fires_for_generic_static_name
+   3: tcl_compiler::irules_checks::tests::irule4002_fires_for_generic_static_name::{closure#0}
+   4: <tcl_compiler::irules_checks::tests::irule4002_fires_for_generic_static_name::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- irules_checks::tests::irule4002_ignores_a_static_in_a_dead_arm stdout ----
+
+thread 'irules_checks::tests::irule4002_ignores_a_static_in_a_dead_arm' (22695) panicked at rust/tcl-compiler/src/irules_checks.rs:4505:9:
+assertion failed: generic_warnings("when RULE_INIT { if {$x} { set static::debug 1 } }").iter().any(|w|
+        w.code == DiagCode::Irule4002)
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: tcl_compiler::irules_checks::tests::irule4002_ignores_a_static_in_a_dead_arm
+   4: tcl_compiler::irules_checks::tests::irule4002_ignores_a_static_in_a_dead_arm::{closure#0}
+   5: <tcl_compiler::irules_checks::tests::irule4002_ignores_a_static_in_a_dead_arm::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- irules_checks::tests::irule4004_counts_only_the_writes_that_run stdout ----
+
+thread 'irules_checks::tests::irule4004_counts_only_the_writes_that_run' (22700) panicked at rust/tcl-compiler/src/irules_checks.rs:4297:13:
+when HTTP_REQUEST { set svc foo; if {0} { set svc bar } }
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: tcl_compiler::irules_checks::tests::irule4004_counts_only_the_writes_that_run
+   3: tcl_compiler::irules_checks::tests::irule4004_counts_only_the_writes_that_run::{closure#0}
+   4: <tcl_compiler::irules_checks::tests::irule4004_counts_only_the_writes_that_run::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- irules_checks::tests::irule4004_counts_the_writes_a_switch_arm_makes stdout ----
+
+thread 'irules_checks::tests::irule4004_counts_the_writes_a_switch_arm_makes' (22701) panicked at rust/tcl-compiler/src/irules_checks.rs:4634:9:
+expected IRULE4004 when no arm writes svc, got []
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: tcl_compiler::irules_checks::tests::irule4004_counts_the_writes_a_switch_arm_makes
+   3: tcl_compiler::irules_checks::tests::irule4004_counts_the_writes_a_switch_arm_makes::{closure#0}
+   4: <tcl_compiler::irules_checks::tests::irule4004_counts_the_writes_a_switch_arm_makes::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- irules_checks::tests::irule4004_literal_set_in_per_request_event_fires stdout ----
+
+thread 'irules_checks::tests::irule4004_literal_set_in_per_request_event_fires' (22707) panicked at rust/tcl-compiler/src/irules_checks.rs:4175:9:
+expected IRULE4004, got []
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: tcl_compiler::irules_checks::tests::irule4004_literal_set_in_per_request_event_fires
+   3: tcl_compiler::irules_checks::tests::irule4004_literal_set_in_per_request_event_fires::{closure#0}
+   4: <tcl_compiler::irules_checks::tests::irule4004_literal_set_in_per_request_event_fires::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- irules_checks::tests::irule4004_proven_command_value_is_hoistable stdout ----
+
+thread 'irules_checks::tests::irule4004_proven_command_value_is_hoistable' (22710) panicked at rust/tcl-compiler/src/irules_checks.rs:4209:9:
+expected IRULE4004 on a proven value, got []
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: tcl_compiler::irules_checks::tests::irule4004_proven_command_value_is_hoistable
+   3: tcl_compiler::irules_checks::tests::irule4004_proven_command_value_is_hoistable::{closure#0}
+   4: <tcl_compiler::irules_checks::tests::irule4004_proven_command_value_is_hoistable::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- irules_checks::tests::irule4004_registry_only_per_request_event_fires stdout ----
+
+thread 'irules_checks::tests::irule4004_registry_only_per_request_event_fires' (22711) panicked at rust/tcl-compiler/src/irules_checks.rs:4186:9:
+expected registry-driven IRULE4004, got []
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: tcl_compiler::irules_checks::tests::irule4004_registry_only_per_request_event_fires
+   3: tcl_compiler::irules_checks::tests::irule4004_registry_only_per_request_event_fires::{closure#0}
+   4: <tcl_compiler::irules_checks::tests::irule4004_registry_only_per_request_event_fires::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- irules_checks::tests::irule5002_carries_insertion_fix stdout ----
+
+thread 'irules_checks::tests::irule5002_carries_insertion_fix' (22716) panicked at rust/tcl-compiler/src/irules_checks.rs:3286:14:
+IRULE5002
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::option::expect_failed
+   3: <core::option::Option<&tcl_compiler::irules_checks::IrulesCheckWarning>>::expect
+   4: tcl_compiler::irules_checks::tests::irule5002_carries_insertion_fix
+   5: tcl_compiler::irules_checks::tests::irule5002_carries_insertion_fix::{closure#0}
+   6: <tcl_compiler::irules_checks::tests::irule5002_carries_insertion_fix::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- irules_checks::tests::irule5002_catch_body_without_return_still_warns_drop stdout ----
+
+thread 'irules_checks::tests::irule5002_catch_body_without_return_still_warns_drop' (22717) panicked at rust/tcl-compiler/src/irules_checks.rs:3342:9:
+assertion `left == right` failed: expected one IRULE5002, got []
+  left: 0
+ right: 1
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<usize, usize>
+   4: tcl_compiler::irules_checks::tests::irule5002_catch_body_without_return_still_warns_drop
+   5: tcl_compiler::irules_checks::tests::irule5002_catch_body_without_return_still_warns_drop::{closure#0}
+   6: <tcl_compiler::irules_checks::tests::irule5002_catch_body_without_return_still_warns_drop::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- irules_checks::tests::irule5002_drop_and_return_inside_catch_still_warns stdout ----
+
+thread 'irules_checks::tests::irule5002_drop_and_return_inside_catch_still_warns' (22719) panicked at rust/tcl-compiler/src/irules_checks.rs:3329:9:
+assertion `left == right` failed: expected one IRULE5002, got []
+  left: 0
+ right: 1
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<usize, usize>
+   4: tcl_compiler::irules_checks::tests::irule5002_drop_and_return_inside_catch_still_warns
+   5: tcl_compiler::irules_checks::tests::irule5002_drop_and_return_inside_catch_still_warns::{closure#0}
+   6: <tcl_compiler::irules_checks::tests::irule5002_drop_and_return_inside_catch_still_warns::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- irules_checks::tests::irule5002_drop_points_at_the_drop_command stdout ----
+
+thread 'irules_checks::tests::irule5002_drop_points_at_the_drop_command' (22723) panicked at rust/tcl-compiler/src/irules_checks.rs:3273:14:
+IRULE5002
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::option::expect_failed
+   3: <core::option::Option<&tcl_compiler::irules_checks::IrulesCheckWarning>>::expect
+   4: tcl_compiler::irules_checks::tests::irule5002_drop_points_at_the_drop_command
+   5: tcl_compiler::irules_checks::tests::irule5002_drop_points_at_the_drop_command::{closure#0}
+   6: <tcl_compiler::irules_checks::tests::irule5002_drop_points_at_the_drop_command::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- irules_checks::tests::irule5002_drop_without_return_fires stdout ----
+
+thread 'irules_checks::tests::irule5002_drop_without_return_fires' (22724) panicked at rust/tcl-compiler/src/irules_checks.rs:3130:9:
+expected IRULE5002, got []
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: tcl_compiler::irules_checks::tests::irule5002_drop_without_return_fires
+   3: tcl_compiler::irules_checks::tests::irule5002_drop_without_return_fires::{closure#0}
+   4: <tcl_compiler::irules_checks::tests::irule5002_drop_without_return_fires::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- irules_checks::tests::irule5002_fires_when_only_one_branch_guarded stdout ----
+
+thread 'irules_checks::tests::irule5002_fires_when_only_one_branch_guarded' (22725) panicked at rust/tcl-compiler/src/irules_checks.rs:3211:9:
+assertion failed: drop_codes("when CLIENT_ACCEPTED { if {$x} { drop } else { return } }").contains(&"IRULE5002".to_string())
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: tcl_compiler::irules_checks::tests::irule5002_fires_when_only_one_branch_guarded
+   4: tcl_compiler::irules_checks::tests::irule5002_fires_when_only_one_branch_guarded::{closure#0}
+   5: <tcl_compiler::irules_checks::tests::irule5002_fires_when_only_one_branch_guarded::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- irules_checks::tests::irule5002_ignores_a_drop_in_a_dead_arm stdout ----
+
+thread 'irules_checks::tests::irule5002_ignores_a_drop_in_a_dead_arm' (22726) panicked at rust/tcl-compiler/src/irules_checks.rs:3247:13:
+when CLIENT_ACCEPTED { if {1} { drop } }: []
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: tcl_compiler::irules_checks::tests::irule5002_ignores_a_drop_in_a_dead_arm
+   3: tcl_compiler::irules_checks::tests::irule5002_ignores_a_drop_in_a_dead_arm::{closure#0}
+   4: <tcl_compiler::irules_checks::tests::irule5002_ignores_a_drop_in_a_dead_arm::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- irules_checks::tests::irule5002_reads_a_flag_a_switch_arm_sets stdout ----
+
+thread 'irules_checks::tests::irule5002_reads_a_flag_a_switch_arm_sets' (22730) panicked at rust/tcl-compiler/src/irules_checks.rs:4603:9:
+[]
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: tcl_compiler::irules_checks::tests::irule5002_reads_a_flag_a_switch_arm_sets
+   3: tcl_compiler::irules_checks::tests::irule5002_reads_a_flag_a_switch_arm_sets::{closure#0}
+   4: <tcl_compiler::irules_checks::tests::irule5002_reads_a_flag_a_switch_arm_sets::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- irules_checks::tests::irule5004_carries_insertion_fix stdout ----
+
+thread 'irules_checks::tests::irule5004_carries_insertion_fix' (22732) panicked at rust/tcl-compiler/src/irules_checks.rs:3302:14:
+IRULE5004
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::option::expect_failed
+   3: <core::option::Option<&tcl_compiler::irules_checks::IrulesCheckWarning>>::expect
+   4: tcl_compiler::irules_checks::tests::irule5004_carries_insertion_fix
+   5: tcl_compiler::irules_checks::tests::irule5004_carries_insertion_fix::{closure#0}
+   6: <tcl_compiler::irules_checks::tests::irule5004_carries_insertion_fix::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- irules_checks::tests::irule5002_reject_also_fires stdout ----
+
+thread 'irules_checks::tests::irule5002_reject_also_fires' (22731) panicked at rust/tcl-compiler/src/irules_checks.rs:3157:9:
+expected IRULE5002 on `reject`, got []
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: tcl_compiler::irules_checks::tests::irule5002_reject_also_fires
+   3: tcl_compiler::irules_checks::tests::irule5002_reject_also_fires::{closure#0}
+   4: <tcl_compiler::irules_checks::tests::irule5002_reject_also_fires::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- irules_checks::tests::irule5004_dns_return_and_return_inside_catch_still_warns stdout ----
+
+thread 'irules_checks::tests::irule5004_dns_return_and_return_inside_catch_still_warns' (22733) panicked at rust/tcl-compiler/src/irules_checks.rs:3368:9:
+assertion `left == right` failed: expected one IRULE5004, got []
+  left: 0
+ right: 1
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<usize, usize>
+   4: tcl_compiler::irules_checks::tests::irule5004_dns_return_and_return_inside_catch_still_warns
+   5: tcl_compiler::irules_checks::tests::irule5004_dns_return_and_return_inside_catch_still_warns::{closure#0}
+   6: <tcl_compiler::irules_checks::tests::irule5004_dns_return_and_return_inside_catch_still_warns::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- irules_checks::tests::irule5004_dns_return_without_return_fires stdout ----
+
+thread 'irules_checks::tests::irule5004_dns_return_without_return_fires' (22735) panicked at rust/tcl-compiler/src/irules_checks.rs:3176:9:
+expected IRULE5004, got []
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: tcl_compiler::irules_checks::tests::irule5004_dns_return_without_return_fires
+   3: tcl_compiler::irules_checks::tests::irule5004_dns_return_without_return_fires::{closure#0}
+   4: <tcl_compiler::irules_checks::tests::irule5004_dns_return_without_return_fires::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- irules_checks::tests::irule5004_fires_through_catch_body stdout ----
+
+thread 'irules_checks::tests::irule5004_fires_through_catch_body' (22736) panicked at rust/tcl-compiler/src/irules_checks.rs:3314:9:
+assertion failed: drop_codes("when DNS_REQUEST { catch { DNS::return } }").contains(&"IRULE5004".to_string())
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: tcl_compiler::irules_checks::tests::irule5004_fires_through_catch_body
+   4: tcl_compiler::irules_checks::tests::irule5004_fires_through_catch_body::{closure#0}
+   5: <tcl_compiler::irules_checks::tests::irule5004_fires_through_catch_body::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- irules_checks::tests::irule5004_ignores_a_dns_return_in_a_dead_arm stdout ----
+
+thread 'irules_checks::tests::irule5004_ignores_a_dns_return_in_a_dead_arm' (22737) panicked at rust/tcl-compiler/src/irules_checks.rs:3258:9:
+assertion failed: drop_codes("when DNS_REQUEST { if {$x} { DNS::return \"1.2.3.4\" } }").contains(&"IRULE5004".to_owned())
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: tcl_compiler::irules_checks::tests::irule5004_ignores_a_dns_return_in_a_dead_arm
+   4: tcl_compiler::irules_checks::tests::irule5004_ignores_a_dns_return_in_a_dead_arm::{closure#0}
+   5: <tcl_compiler::irules_checks::tests::irule5004_ignores_a_dns_return_in_a_dead_arm::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- irules_checks::tests::mqtt_payload_call_forms_have_distinct_collection_requirements stdout ----
+
+thread 'irules_checks::tests::mqtt_payload_call_forms_have_distinct_collection_requirements' (22741) panicked at rust/tcl-compiler/src/irules_checks.rs:3544:9:
+bare MQTT payload requires a prior MQTT::collect, got []
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: tcl_compiler::irules_checks::tests::mqtt_payload_call_forms_have_distinct_collection_requirements
+   3: tcl_compiler::irules_checks::tests::mqtt_payload_call_forms_have_distinct_collection_requirements::{closure#0}
+   4: <tcl_compiler::irules_checks::tests::mqtt_payload_call_forms_have_distinct_collection_requirements::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- irules_checks::tests::nested_side_switch_warning_keeps_its_absolute_source_span stdout ----
+
+thread 'irules_checks::tests::nested_side_switch_warning_keeps_its_absolute_source_span' (22742) panicked at rust/tcl-compiler/src/irules_checks.rs:3794:14:
+server-side payload without collect
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::option::expect_failed
+   3: <core::option::Option<tcl_compiler::irules_checks::IrulesCheckWarning>>::expect
+   4: tcl_compiler::irules_checks::tests::nested_side_switch_warning_keeps_its_absolute_source_span
+   5: tcl_compiler::irules_checks::tests::nested_side_switch_warning_keeps_its_absolute_source_span::{closure#0}
+   6: <tcl_compiler::irules_checks::tests::nested_side_switch_warning_keeps_its_absolute_source_span::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- irules_checks::tests::recollect_inside_http_data_event_still_needs_a_later_release stdout ----
+
+thread 'irules_checks::tests::recollect_inside_http_data_event_still_needs_a_later_release' (22746) panicked at rust/tcl-compiler/src/irules_checks.rs:3711:9:
+assertion `left == right` failed: the setup collect is implicit-release safe, but the DATA-event recollect is not: []
+  left: 0
+ right: 1
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<usize, usize>
+   4: tcl_compiler::irules_checks::tests::recollect_inside_http_data_event_still_needs_a_later_release
+   5: tcl_compiler::irules_checks::tests::recollect_inside_http_data_event_still_needs_a_later_release::{closure#0}
+   6: <tcl_compiler::irules_checks::tests::recollect_inside_http_data_event_still_needs_a_later_release::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- irules_checks::tests::peer_flips_side_for_collect_flow stdout ----
+
+thread 'irules_checks::tests::peer_flips_side_for_collect_flow' (22745) panicked at rust/tcl-compiler/src/irules_checks.rs:3752:9:
+assertion `left == right` failed: expected exactly one IRULE1005 (CLIENTSSL_DATA only), got []
+  left: 0
+ right: 1
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<usize, usize>
+   4: tcl_compiler::irules_checks::tests::peer_flips_side_for_collect_flow
+   5: tcl_compiler::irules_checks::tests::peer_flips_side_for_collect_flow::{closure#0}
+   6: <tcl_compiler::irules_checks::tests::peer_flips_side_for_collect_flow::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+
+failures:
+    irules_checks::original_collection_source_tests::collection_withdrawal_is_unavailable_instead_of_an_empty_pairing_inventory
+    irules_checks::original_collection_source_tests::conditional_collection_pairings_require_a_closed_source_census
+    irules_checks::original_collection_source_tests::conditional_source_flow_retains_phase_and_normal_continuation_obligations
+    irules_checks::original_event_owner_tests::event_projection_withdraws_changed_or_missing_complete_owners
+    irules_checks::original_event_owner_tests::explicitly_standalone_source_retains_events_without_report_name_assistance
+    irules_checks::original_event_owner_tests::ordinary_procedure_with_an_event_shaped_name_has_no_event_semantics
+    irules_checks::original_event_owner_tests::selected_custom_event_definer_and_report_names_use_the_original_descriptor
+    irules_checks::original_event_owner_tests::source_flow_evaluates_original_header_and_return_arguments_before_dispatch
+    irules_checks::original_event_owner_tests::source_flow_requires_actual_selected_commands_and_original_children
+    irules_checks::tests::arch3_normalised_option_is_registry_driven
+    irules_checks::tests::every_explicit_payload_family_warns_without_collect
+    irules_checks::tests::generic_static_warning_declines_foreign_module_source_without_spelling_fallback
+    irules_checks::tests::generic_static_warning_uses_resolved_root_keys_aliases_and_original_source_locations
+    irules_checks::tests::irule1005_http_data_event_without_collect_fires
+    irules_checks::tests::irule1005_retains_the_original_event_operand_instead_of_a_body_anchor
+    irules_checks::tests::irule1006_payload_without_collect_fires
+    irules_checks::tests::irule1007_collect_without_release_fires
+    irules_checks::tests::irule1007_ignores_a_collect_in_a_dead_side_switch_arm
+    irules_checks::tests::irule1008_release_without_collect_fires
+    irules_checks::tests::irule1201_catch_body_without_return_still_continues
+    irules_checks::tests::irule1201_fires_through_catch_body
+    irules_checks::tests::irule1201_http_after_respond_fires
+    irules_checks::tests::irule1201_ignores_a_respond_in_a_dead_arm
+    irules_checks::tests::irule1201_reads_a_flag_a_switch_arm_sets
+    irules_checks::tests::irule1201_respond_then_return_inside_catch_warns
+    irules_checks::tests::irule1201_uses_the_event_profile_instead_of_its_name
+    irules_checks::tests::irule1202_double_respond_fires
+    irules_checks::tests::irule1202_fires_after_loop_respond
+    irules_checks::tests::irule1202_ignores_a_respond_in_a_dead_arm
+    irules_checks::tests::irule1202_reports_one_diagnostic_for_multiple_predecessor_proofs
+    irules_checks::tests::irule3102_also_fires_inside_assign_value_cmd_sub
+    irules_checks::tests::irule3102_fires_on_http_path_without_flag
+    irules_checks::tests::irule3102_warns_on_bare_http_uri_getter
+    irules_checks::tests::irule3102_warns_on_getter_nested_in_sink_argument
+    irules_checks::tests::irule4002_custom_patterns_replace_defaults
+    irules_checks::tests::irule4002_deduplicates_across_events
+    irules_checks::tests::irule4002_fires_for_generic_static_name
+    irules_checks::tests::irule4002_ignores_a_static_in_a_dead_arm
+    irules_checks::tests::irule4004_counts_only_the_writes_that_run
+    irules_checks::tests::irule4004_counts_the_writes_a_switch_arm_makes
+    irules_checks::tests::irule4004_literal_set_in_per_request_event_fires
+    irules_checks::tests::irule4004_proven_command_value_is_hoistable
+    irules_checks::tests::irule4004_registry_only_per_request_event_fires
+    irules_checks::tests::irule5002_carries_insertion_fix
+    irules_checks::tests::irule5002_catch_body_without_return_still_warns_drop
+    irules_checks::tests::irule5002_drop_and_return_inside_catch_still_warns
+    irules_checks::tests::irule5002_drop_points_at_the_drop_command
+    irules_checks::tests::irule5002_drop_without_return_fires
+    irules_checks::tests::irule5002_fires_when_only_one_branch_guarded
+    irules_checks::tests::irule5002_ignores_a_drop_in_a_dead_arm
+    irules_checks::tests::irule5002_reads_a_flag_a_switch_arm_sets
+    irules_checks::tests::irule5002_reject_also_fires
+    irules_checks::tests::irule5004_carries_insertion_fix
+    irules_checks::tests::irule5004_dns_return_and_return_inside_catch_still_warns
+    irules_checks::tests::irule5004_dns_return_without_return_fires
+    irules_checks::tests::irule5004_fires_through_catch_body
+    irules_checks::tests::irule5004_ignores_a_dns_return_in_a_dead_arm
+    irules_checks::tests::mqtt_payload_call_forms_have_distinct_collection_requirements
+    irules_checks::tests::nested_side_switch_warning_keeps_its_absolute_source_span
+    irules_checks::tests::peer_flips_side_for_collect_flow
+    irules_checks::tests::recollect_inside_http_data_event_still_needs_a_later_release
+
+test result: FAILED. 55 passed; 61 failed; 0 ignored; 0 measured; 10335 filtered out; finished in 17.45s
+

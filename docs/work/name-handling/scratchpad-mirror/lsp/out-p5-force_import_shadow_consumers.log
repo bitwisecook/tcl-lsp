@@ -1,0 +1,78 @@
+
+running 10 tests
+test call_hierarchy_prepare_roots_at_the_reached_proc ... ok
+test code_actions_offer_the_reached_body_for_inlining ... FAILED
+test definition_follows_the_shadow ... ok
+test inlay_hints_label_the_reached_proc_not_the_shadowed_local ... ok
+test inline_proc_inlines_the_reached_body_not_the_shadowed_local ... FAILED
+test prepare_rename_offers_the_reached_definition ... FAILED
+test rename_retargets_with_the_shadow ... FAILED
+test signature_help_describes_the_reached_proc_not_the_shadowed_local ... ok
+test without_a_workspace_view_every_provider_keeps_the_document_only_answer ... ok
+test the_legacy_entry_points_still_equal_the_document_only_program_view ... ok
+
+failures:
+
+---- code_actions_offer_the_reached_body_for_inlining stdout ----
+
+thread 'code_actions_offer_the_reached_body_for_inlining' (25404) panicked at rust/tcl-lsp-core/tests/force_import_shadow_consumers.rs:379:5:
+with no covering export the local body is offered: ""
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: force_import_shadow_consumers::code_actions_offer_the_reached_body_for_inlining
+   3: force_import_shadow_consumers::code_actions_offer_the_reached_body_for_inlining::{closure#0}
+   4: <force_import_shadow_consumers::code_actions_offer_the_reached_body_for_inlining::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- inline_proc_inlines_the_reached_body_not_the_shadowed_local stdout ----
+
+thread 'inline_proc_inlines_the_reached_body_not_the_shadowed_local' (25442) panicked at rust/tcl-lsp-core/tests/force_import_shadow_consumers.rs:337:5:
+with no covering export the local body is the right substitution: ""
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: force_import_shadow_consumers::inline_proc_inlines_the_reached_body_not_the_shadowed_local
+   3: force_import_shadow_consumers::inline_proc_inlines_the_reached_body_not_the_shadowed_local::{closure#0}
+   4: <force_import_shadow_consumers::inline_proc_inlines_the_reached_body_not_the_shadowed_local::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- prepare_rename_offers_the_reached_definition stdout ----
+
+thread 'prepare_rename_offers_the_reached_definition' (25457) panicked at rust/tcl-lsp-core/tests/force_import_shadow_consumers.rs:606:5:
+assertion `left == right` failed: prepare keeps the local when nothing is imported
+  left: None
+ right: Some(5)
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<core::option::Option<u32>, core::option::Option<u32>>
+   4: force_import_shadow_consumers::prepare_rename_offers_the_reached_definition
+   5: force_import_shadow_consumers::prepare_rename_offers_the_reached_definition::{closure#0}
+   6: <force_import_shadow_consumers::prepare_rename_offers_the_reached_definition::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- rename_retargets_with_the_shadow stdout ----
+
+thread 'rename_retargets_with_the_shadow' (25472) panicked at rust/tcl-lsp-core/tests/force_import_shadow_consumers.rs:572:33:
+no refusal on a resolvable call: RenameRefusal { reason: "unknown-completed-command-world: a completed original command world is unavailable for collision coverage", range: Some(LspRange { start_line: 5, start_character: 5, end_line: 5, end_character: 11 }) }
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::result::unwrap_failed
+   3: <core::result::Result<alloc::vec::Vec<u32>, tcl_lsp_core::rename_safety::RenameRefusal>>::expect
+   4: force_import_shadow_consumers::rename_retargets_with_the_shadow
+   5: force_import_shadow_consumers::rename_retargets_with_the_shadow::{closure#0}
+   6: <force_import_shadow_consumers::rename_retargets_with_the_shadow::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+
+failures:
+    code_actions_offer_the_reached_body_for_inlining
+    inline_proc_inlines_the_reached_body_not_the_shadowed_local
+    prepare_rename_offers_the_reached_definition
+    rename_retargets_with_the_shadow
+
+test result: FAILED. 6 passed; 4 failed; 0 ignored; 0 measured; 0 filtered out; finished in 47.57s
+

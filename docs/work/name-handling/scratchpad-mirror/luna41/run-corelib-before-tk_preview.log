@@ -1,0 +1,47 @@
+test tk_preview::tests::accepts_real_tk_path_components_and_marks_lifecycle_mutations_uncertain ... ok
+test tk_preview::tests::all_registry_geometry_managers_are_consumed_without_a_command_list ... ok
+test tk_preview::tests::absent_or_lifecycle_ambiguous_containers_cannot_form_definite_conflicts ... ok
+test tk_preview::tests::argument_sensitive_widget_queries_do_not_look_like_mutations has been running for over 60 seconds
+test tk_preview::tests::cap_includes_unknown_parent_uncertainties_added_during_hierarchy_building has been running for over 60 seconds
+test tk_preview::tests::caps_repetitive_uncertainty_detail_and_reports_the_omitted_count has been running for over 60 seconds
+test tk_preview::tests::argument_sensitive_widget_queries_do_not_look_like_mutations ... ok
+test tk_preview::tests::cap_includes_unknown_parent_uncertainties_added_during_hierarchy_building ... ok
+test tk_preview::tests::command_table_lifecycle_uses_only_rename_old_name ... ok
+test tk_preview::tests::computed_unknown_and_ambiguous_widget_operations_keep_parent_mutation_fallback ... ok
+test tk_preview::tests::caps_repetitive_uncertainty_detail_and_reports_the_omitted_count ... ok
+test tk_preview::tests::destroying_the_root_releases_descendant_geometry_and_lifetimes ... ok
+test tk_preview::tests::dynamic_paths_and_manager_forms_abstain ... ok
+test tk_preview::tests::finds_multiline_semicolon_and_quoted_literal_widgets_with_sources ... ok
+test tk_preview::tests::caps_retained_widgets_and_reports_the_complete_static_count has been running for over 60 seconds
+test tk_preview::tests::deferred_mutation_before_constructor_downgrades_the_later_widget ... ok
+test tk_preview::tests::follows_imported_and_qualified_heads_but_not_rebound_ones ... ok
+test tk_preview::tests::geometry_release_and_query_forms_do_not_place_widgets ... ok
+test tk_preview::tests::nested_missing_parents_are_rendered_once_as_one_orphan_subtree ... ok
+test tk_preview::tests::one_direct_manager_call_places_every_literal_leading_target ... ok
+test tk_preview::tests::geometry_conflicts_use_registry_policy_and_effective_in_container ... ok
+test tk_preview::tests::one_widget_can_switch_managers_without_a_conflict ... ok
+test tk_preview::tests::original_tk_literals_decode_escapes_and_retain_complete_word_spans ... ok
+test tk_preview::tests::original_tk_literals_keep_braced_data_and_the_actual_full_configuration ... ok
+test tk_preview::tests::original_tk_literals_refuse_substitution_expansion_and_foreign_source ... ok
+test tk_preview::tests::original_tk_source_context_keeps_explicit_store_version_and_operand_boundaries ... ok
+test tk_preview::tests::potential_bodies_do_not_activate_tk_or_create_definite_conflicts ... ok
+test tk_preview::tests::plain_tcl_requires_a_resolved_literal_tk_package_request ... ok
+test tk_preview::tests::preview_filters_constructors_by_the_resolved_tk_floor ... ok
+test tk_preview::tests::preview_filters_options_before_resolving_abbreviations ... ok
+test tk_preview::tests::projects_source_parent_for_root_regular_and_orphan_widgets ... ok
+test tk_preview::tests::recreated_widget_cannot_inherit_an_earlier_instances_geometry ... ok
+test tk_preview::tests::registry_option_abbreviations_keep_literal_options ... ok
+test tk_preview::tests::reports_mixed_geometry_managers_and_unknown_parent ... ok
+test tk_preview::tests::serializes_versioned_host_metadata_only_when_stamped ... ok
+test tk_preview::tests::tk_widget_deserializes_legacy_payload_without_source_parent_path ... ok
+test tk_preview::tests::supplied_tk_preview_keeps_actual_availability_and_refuses_withheld_source ... FAILED
+test tk_preview::tests::visits_registry_declared_nested_bodies ... ok
+test tk_preview::tests::caps_retained_widgets_and_reports_the_complete_static_count ... ok
+---- tk_preview::tests::supplied_tk_preview_keeps_actual_availability_and_refuses_withheld_source stdout ----
+thread 'tk_preview::tests::supplied_tk_preview_keeps_actual_availability_and_refuses_withheld_source' (20801) panicked at rust/tcl-lsp-core/src/tk_preview.rs:1872:9:
+assertion `left == right` failed
+  left: []
+ right: [".kept", ".new"]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+test result: FAILED. 34 passed; 1 failed; 0 ignored; 0 measured; 3450 filtered out; finished in 671.51s

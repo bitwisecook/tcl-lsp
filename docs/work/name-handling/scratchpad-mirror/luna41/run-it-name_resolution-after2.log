@@ -1,0 +1,162 @@
+test apply_lambda::fp_variable_lambda_not_recursed ... ok
+test apply_lambda::tp_bare_arglist_param_and_body ... ok
+test apply_lambda::tp_braced_arglist_params ... ok
+test classmethod_dispatch::fn_to_tp_itcl_class_proc_colon_dispatch_is_a_reference ... FAILED
+test classmethod_dispatch::fp_instance_method_gets_no_bare_class_command_dispatch ... ok
+test classmethod_dispatch::fp_itcl_bare_two_word_text_is_not_confused_with_class_proc_dispatch ... ok
+test classmethod_dispatch::a_superclass_self_method_is_not_inherited_by_the_subclass_object ... ok
+test classmethod_dispatch::fp_overriding_subclass_dispatch_excluded_from_ancestor ... ok
+test classmethod_dispatch::tcl86_rejects_classmethod_so_nothing_resolves ... ok
+test classmethod_dispatch::tn_uncalled_classmethod_only_declaration ... ok
+test classmethod_dispatch::tp_bare_class_command_dispatch_is_a_reference ... ok
+test classmethod_dispatch::tp_bare_class_command_dispatch_resolves_from_the_call_site_itself ... ok
+test classmethod_dispatch::tp_inheriting_subclass_own_command_dispatch_is_a_reference ... ok
+test classmethod_dispatch::tp_snit_typemethod_bare_dispatch_is_a_reference ... FAILED
+test itcl_class_proc_dispatch::fp_a_shadowing_proc_wins_over_the_class_proc ... FAILED
+test itcl_class_proc_dispatch::fp_instance_method_is_not_addressable_as_a_qualified_name ... ok
+test itcl_class_proc_dispatch::fn_to_tp_the_class_resolver_pre_empts_a_global_namespace_proc ... FAILED
+test itcl_class_proc_dispatch::fp_sibling_class_simple_name_does_not_resolve_from_another_class_body ... ok
+test itcl_class_proc_dispatch::tn_plain_namespace_qualified_proc_call_is_still_a_proc_reference ... ok
+test itcl_class_proc_dispatch::tn_unreachable_spelling_is_not_a_reference ... ok
+test itcl_class_proc_dispatch::tp_every_dispatch_spelling_is_a_reference ... FAILED
+test itcl_class_proc_dispatch::tp_references_from_the_call_site_match_the_declaration ... FAILED
+test mathfunc_expr::fp_other_mathfunc_excluded ... ok
+test mathfunc_expr::tn_unused_mathfunc_only_declaration ... ok
+test mathfunc_expr::tp_mathfunc_in_nested_expr_subst ... ok
+test my_method_dispatch::fp_bare_head_is_not_a_call ... ok
+test mathfunc_expr::tp_mathfunc_in_top_level_expr ... ok
+test my_method_dispatch::fp_my_other_method_excluded ... ok
+test my_method_dispatch::irules_switch_glob_body_is_followed ... FAILED
+test my_method_dispatch::fp_my_other_method_excluded_when_control_flow_nested ... ok
+test my_method_dispatch::tp_my_dispatch_deeply_nested_combination ... ok
+test my_method_dispatch::tn_uplevel_and_apply_bodies_conservatively_not_followed ... ok
+test my_method_dispatch::tp_my_dispatch_in_command_substitution ... ok
+test my_method_dispatch::tp_my_dispatch_in_compound_word ... ok
+test my_method_dispatch::tp_my_dispatch_in_quoted_word ... ok
+test my_method_dispatch::tp_my_dispatch_in_switch_braced_form ... ok
+test my_method_dispatch::tp_my_dispatch_in_switch_inline_form ... ok
+test my_method_dispatch::tp_my_dispatch_nested_in_dict_for ... ok
+test my_method_dispatch::tp_my_dispatch_nested_in_eval ... ok
+test my_method_dispatch::tp_my_dispatch_nested_in_foreach ... ok
+test my_method_dispatch::tp_my_dispatch_nested_in_if ... ok
+test my_method_dispatch::tp_my_dispatch_nested_in_while ... ok
+test my_method_dispatch::tp_my_dispatch_nested_in_try_and_catch ... ok
+test my_method_dispatch::tp_my_dispatch_top_level ... ok
+test namespace_scoped_class_dispatch::fn_to_tp_an_explicit_namespace_import_is_followed ... FAILED
+test namespace_scoped_class_dispatch::fp_a_shadowing_proc_in_the_calling_namespace_wins ... ok
+test namespace_scoped_class_dispatch::fp_an_unrelated_import_does_not_match ... ok
+test my_method_dispatch::two_argument_switch_body_follows_tcl_release ... ok
+test namespace_scoped_class_dispatch::tn_a_wildcard_import_is_not_followed ... ok
+test namespace_scoped_class_dispatch::tn_dispatch_with_no_reachable_candidate_matches_nothing ... ok
+test namespace_scoped_class_dispatch::tn_bare_dispatch_in_a_sibling_namespace_is_not_cross_linked ... ok
+test namespace_scoped_class_dispatch::tn_the_mirror_direction_is_scoped_too ... ok
+test namespace_scoped_class_dispatch::tp_global_fallback_dispatch_still_matches ... ok
+test namespace_scoped_class_dispatch::tn_object_command_dispatch_is_scoped_to_its_creation_namespace ... FAILED
+test namespace_scoped_class_dispatch::tp_object_command_dispatch_still_matches ... ok
+test next_dispatch::fp_superclass_declaration_excludes_subclass_next_site ... ok
+test next_dispatch::tp_next_dispatch_nested_in_if ... FAILED
+test next_dispatch::tp_nextto_dispatch_top_level ... FAILED
+test non_identifier_method_names::tn_option_flag_is_not_a_method_reference ... ok
+test non_identifier_method_names::fp_subtraction_on_an_object_variable_is_not_a_method_call ... ok
+test non_identifier_method_names::tp_angle_bracketed_property_accessor_my_dispatch_is_a_reference ... ok
+test non_identifier_method_names::tp_dotted_method_call_site_is_a_reference ... ok
+test non_identifier_method_names::tp_hyphenated_method_call_site_is_a_reference ... ok
+test non_identifier_method_names::tp_hyphenated_method_references_from_the_call_site ... ok
+test obj_method_dispatch::fn_to_tp_exact_issue_956_repro_with_constructor_and_variable ... ok
+test obj_method_dispatch::fp_obj_dispatch_other_method_excluded_when_control_flow_nested ... ok
+test obj_method_dispatch::tn_no_dispatch_only_declaration ... ok
+test obj_method_dispatch::fp_unrelated_class_same_method_excluded ... ok
+test obj_method_dispatch::tp_obj_dispatch_in_quoted_word ... ok
+test obj_method_dispatch::tp_obj_dispatch_is_a_reference ... ok
+test obj_method_dispatch::tp_object_command_dispatch_is_a_reference ... ok
+test obj_method_dispatch::tp_obj_dispatch_nested_in_top_level_control_flow ... ok
+test pkgindex_dir::fp_dir_read_in_ordinary_file_still_fires ... ok
+test pkgindex_dir::fp_lookalike_filename_still_fires ... ok
+test pkgindex_dir::fp_other_undefined_var_in_pkgindex_still_fires ... FAILED
+test pkgindex_dir::tn_locally_set_dir_is_clean ... ok
+test pkgindex_dir::tp_dir_read_in_pkgindex_suppressed ... ok
+---- classmethod_dispatch::fn_to_tp_itcl_class_proc_colon_dispatch_is_a_reference stdout ----
+thread 'classmethod_dispatch::fn_to_tp_itcl_class_proc_colon_dispatch_is_a_reference' (16712) panicked at rust/tcl-lsp-core/tests/name_resolution.rs:398:9:
+assertion `left == right` failed: decl + the `Factory::make` class-proc dispatch
+  left: [1]
+ right: [1, 5]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- classmethod_dispatch::tp_snit_typemethod_bare_dispatch_is_a_reference stdout ----
+thread 'classmethod_dispatch::tp_snit_typemethod_bare_dispatch_is_a_reference' (16776) panicked at rust/tcl-lsp-core/tests/name_resolution.rs:381:9:
+assertion `left == right` failed: decl + `Factory make` (snit typemethod)
+  left: [1]
+ right: [1, 5]
+
+---- itcl_class_proc_dispatch::fp_a_shadowing_proc_wins_over_the_class_proc stdout ----
+
+thread 'itcl_class_proc_dispatch::fp_a_shadowing_proc_wins_over_the_class_proc' (16790) panicked at rust/tcl-lsp-core/tests/name_resolution.rs:626:9:
+assertion `left == right` failed: the shadowing proc's declaration + the `::app` call — not the class proc, and not the global call that still reaches the class proc
+  left: []
+ right: [5, 6]
+
+---- itcl_class_proc_dispatch::fn_to_tp_the_class_resolver_pre_empts_a_global_namespace_proc stdout ----
+
+thread 'itcl_class_proc_dispatch::fn_to_tp_the_class_resolver_pre_empts_a_global_namespace_proc' (16782) panicked at rust/tcl-lsp-core/tests/name_resolution.rs:602:9:
+assertion `left == right` failed: go-to-definition from global reaches the plain proc
+  left: []
+ right: [0]
+
+---- itcl_class_proc_dispatch::tp_every_dispatch_spelling_is_a_reference stdout ----
+
+thread 'itcl_class_proc_dispatch::tp_every_dispatch_spelling_is_a_reference' (16855) panicked at rust/tcl-lsp-core/tests/name_resolution.rs:464:9:
+assertion `left == right` failed: decl + bare sibling + self-qualified + namespace-relative + absolute + global-relative
+  left: [2]
+ right: [2, 3, 4, 6, 8, 9]
+
+---- itcl_class_proc_dispatch::tp_references_from_the_call_site_match_the_declaration stdout ----
+
+thread 'itcl_class_proc_dispatch::tp_references_from_the_call_site_match_the_declaration' (16886) panicked at rust/tcl-lsp-core/tests/name_resolution.rs:476:9:
+assertion `left == right` failed
+  left: []
+ right: [2]
+
+---- my_method_dispatch::irules_switch_glob_body_is_followed stdout ----
+
+thread 'my_method_dispatch::irules_switch_glob_body_is_followed' (17076) panicked at rust/tcl-lsp-core/tests/name_resolution.rs:808:9:
+assertion `left == right` failed: iRules switch -glob must descend its clause-list body
+  left: []
+ right: [0, 3]
+
+---- namespace_scoped_class_dispatch::fn_to_tp_an_explicit_namespace_import_is_followed stdout ----
+
+thread 'namespace_scoped_class_dispatch::fn_to_tp_an_explicit_namespace_import_is_followed' (17225) panicked at rust/tcl-lsp-core/tests/name_resolution.rs:1350:9:
+assertion `left == right` failed: decl + the bare dispatch through the imported name
+  left: [2]
+ right: [2, 8]
+
+---- namespace_scoped_class_dispatch::tn_object_command_dispatch_is_scoped_to_its_creation_namespace stdout ----
+
+thread 'namespace_scoped_class_dispatch::tn_object_command_dispatch_is_scoped_to_its_creation_namespace' (17426) panicked at rust/tcl-lsp-core/tests/name_resolution.rs:1316:9:
+assertion `left == right` failed: ::b::Widget::make: decl + its OWN `rex make`, never ::a's
+  left: [9]
+ right: [9, 12]
+
+---- next_dispatch::tp_next_dispatch_nested_in_if stdout ----
+
+thread 'next_dispatch::tp_next_dispatch_nested_in_if' (17595) panicked at rust/tcl-lsp-core/tests/name_resolution.rs:900:9:
+assertion `left == right` failed: Bar decl + nested `next` site
+  left: [5]
+ right: [5, 7]
+
+---- next_dispatch::tp_nextto_dispatch_top_level stdout ----
+
+thread 'next_dispatch::tp_nextto_dispatch_top_level' (17608) panicked at rust/tcl-lsp-core/tests/name_resolution.rs:911:9:
+assertion `left == right` failed: Bar decl + `nextto` site
+  left: [5]
+ right: [5, 6]
+
+---- pkgindex_dir::fp_other_undefined_var_in_pkgindex_still_fires stdout ----
+
+thread 'pkgindex_dir::fp_other_undefined_var_in_pkgindex_still_fires' (17761) panicked at rust/tcl-lsp-core/tests/name_resolution.rs:998:9:
+an undefined `$missing` is still read-before-set in pkgIndex.tcl
+
+
+failures:
+    classmethod_dispatch::fn_to_tp_itcl_class_proc_colon_dispatch_is_a_reference
+test result: FAILED. 65 passed; 12 failed; 0 ignored; 0 measured; 0 filtered out; finished in 238.80s

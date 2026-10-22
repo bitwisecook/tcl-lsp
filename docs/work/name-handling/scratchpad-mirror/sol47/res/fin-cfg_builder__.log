@@ -1,0 +1,840 @@
+test cfg_builder::cfg_lower::tests::a_registry_with_no_profile_reads_no_release_for_the_option_scan ... FAILED
+test cfg_builder::cfg_lower::tests::a_subject_a_release_may_read_as_an_option_stays_one_statement ... FAILED
+test cfg_builder::cfg_lower::tests::codegen_flattens_the_switch_the_release_compiles ... FAILED
+test cfg_builder::cfg_lower::tests::for_loop_creates_header_body_step ... ok
+test cfg_builder::cfg_lower::tests::foreach_creates_loop ... ok
+test cfg_builder::cfg_lower::tests::original_try_handler_codes_keep_source_grammar_over_catalogue_availability ... ok
+test cfg_builder::cfg_lower::tests::switch_exact_creates_branches ... ok
+test cfg_builder::cfg_lower::tests::switch_glob_stays_opaque ... FAILED
+test cfg_builder::cfg_lower::tests::switch_regexp_stays_opaque ... ok
+test cfg_builder::cfg_lower::tests::the_chain_compares_the_values_of_a_switch_words ... FAILED
+test cfg_builder::cfg_lower::tests::try_finally_creates_finally_block ... ok
+test cfg_builder::cfg_lower::tests::try_with_handler ... ok
+test cfg_builder::cfg_lower::tests::while_loop_creates_header_body ... ok
+test cfg_builder::execution_regions::tests::backend_cfg_keeps_original_invocation_and_omits_analysis_phases ... FAILED
+test cfg_builder::execution_regions::tests::captured_lifecycle_requires_trusted_original_provider ... FAILED
+test cfg_builder::execution_regions::tests::captured_return_routes_to_cleanup_without_leaving_procedure ... FAILED
+test cfg_builder::execution_regions::tests::conditional_completion_does_not_borrow_changed_or_unknown_exit_lookup ... FAILED
+test cfg_builder::execution_regions::tests::generic_catch_shares_captured_return_and_partial_write_routing ... FAILED
+test cfg_builder::execution_regions::tests::literal_exit_in_catch_has_no_captured_resume_edge ... FAILED
+test cfg_builder::execution_regions::tests::nested_conditional_completion_requires_unchanged_original_exit_lookup ... FAILED
+test cfg_builder::execution_regions::tests::nested_process_exit_does_not_gain_a_cleanup_resume_edge ... FAILED
+test cfg_builder::execution_regions::tests::process_exit_remains_terminal_inside_a_captured_phase ... FAILED
+test cfg_builder::execution_regions::tests::repeated_lifecycle_adds_a_normal_backedge_without_re_evaluating_argv ... FAILED
+test cfg_builder::execution_regions::tests::setup_definitions_reach_body_through_normal_completion ... FAILED
+test cfg_builder::execution_regions::tests::skipped_region_never_manufactures_script_definitions ... FAILED
+test cfg_builder::global_write_info::tests::alias_baked_custom_varwrite_target_uses_its_registry_descriptor ... FAILED
+test cfg_builder::global_write_info::tests::alias_baked_global_literal_body_resolves_late_inner_alias ... FAILED
+test cfg_builder::global_write_info::tests::alias_baked_global_uplevel_frame_is_resolved_from_invocation_facts ... FAILED
+test cfg_builder::global_write_info::tests::alias_baked_level_is_part_of_exact_transition_resolution ... FAILED
+test cfg_builder::global_write_info::tests::alias_baked_namespace_upvar_prefix_is_part_of_exact_transition_resolution ... FAILED
+test cfg_builder::global_write_info::tests::alias_baked_set_target_is_a_global_value_write ... FAILED
+test cfg_builder::global_write_info::tests::alias_baked_variable_name_still_records_value_write ... FAILED
+test cfg_builder::global_write_info::tests::alias_chain_composes_every_baked_argument_in_order ... FAILED
+test cfg_builder::global_write_info::tests::alias_created_in_namespaced_proc_is_global_in_source_interpreter ... FAILED
+test cfg_builder::global_write_info::tests::alias_defined_after_the_procedure_is_live_when_the_body_runs ... FAILED
+test cfg_builder::global_write_info::tests::alias_established_by_another_callable_procedure_is_in_the_may_state ... FAILED
+test cfg_builder::global_write_info::tests::alias_established_in_evaluated_substitution_applies_to_later_calls ... FAILED
+test cfg_builder::global_write_info::tests::alias_established_inside_the_procedure_applies_to_later_calls ... FAILED
+test cfg_builder::global_write_info::tests::alias_global_target_survives_same_tail_namespace_collision ... FAILED
+test cfg_builder::global_write_info::tests::alias_target_prefix_resolves_in_the_target_interpreters_global_namespace ... FAILED
+test cfg_builder::global_write_info::tests::branch_alternative_outer_aliases_are_unioned ... FAILED
+test cfg_builder::global_write_info::tests::caller_frame_upvar_is_not_a_global_write ... FAILED
+test cfg_builder::global_write_info::tests::canonical_alias_target_participates_in_transitive_write_closure ... FAILED
+test cfg_builder::global_write_info::tests::conditional_alias_override_joins_both_live_bindings ... FAILED
+test cfg_builder::global_write_info::tests::conditional_namespace_alias_keeps_global_fallback_live ... FAILED
+test cfg_builder::global_write_info::tests::constructed_global_body_with_dynamic_operand_is_opaque ... ok
+test cfg_builder::global_write_info::tests::constructed_global_uplevel_resolves_command_in_global_namespace ... FAILED
+test cfg_builder::global_write_info::tests::custom_replacement_under_builtin_spelling_uses_its_own_descriptor ... FAILED
+test cfg_builder::global_write_info::tests::declaration_after_write_still_counted ... FAILED
+test cfg_builder::global_write_info::tests::direct_global_write_recorded ... FAILED
+test cfg_builder::global_write_info::tests::dynamic_command_binding_transition_widens_the_global_frame_summary ... ok
+test cfg_builder::global_write_info::tests::dynamic_eval_body_widens_later_command_binding_resolution ... ok
+test cfg_builder::global_write_info::tests::dynamic_namespace_alias_target_widens_the_global_frame ... ok
+test cfg_builder::global_write_info::tests::dynamic_outer_alias_target_widens_the_global_frame ... ok
+test cfg_builder::global_write_info::tests::embedded_alias_prefix_preserves_global_alias_arguments ... FAILED
+test cfg_builder::global_write_info::tests::embedded_global_alias_transition_maps_later_local_write ... FAILED
+test cfg_builder::global_write_info::tests::embedded_incr_in_command_substitution_recorded ... FAILED
+test cfg_builder::global_write_info::tests::embedded_namespace_alias_transition_maps_later_local_write ... FAILED
+test cfg_builder::global_write_info::tests::embedded_proc_call_in_assign_value_propagates_global_write ... FAILED
+test cfg_builder::global_write_info::tests::embedded_proc_call_in_return_propagates_global_write ... FAILED
+test cfg_builder::global_write_info::tests::embedded_proc_calls_in_assign_expr_and_expr_eval_propagate_global_write ... FAILED
+test cfg_builder::global_write_info::tests::embedded_proc_calls_in_if_and_while_conditions_propagate_global_write ... FAILED
+test cfg_builder::global_write_info::tests::empty_module_has_no_writes ... ok
+test cfg_builder::global_write_info::tests::expanded_global_write_target_widens_the_global_frame ... ok
+test cfg_builder::global_write_info::tests::global_body_summaries_use_issued_identity_and_preserve_current_header_truth ... FAILED
+test cfg_builder::global_write_info::tests::late_alias_summary_is_published_under_its_source_spelling ... FAILED
+test cfg_builder::global_write_info::tests::late_alias_to_eval_inside_global_frame_stays_global ... FAILED
+test cfg_builder::global_write_info::tests::late_alias_to_relative_zero_inside_global_frame_stays_global ... FAILED
+test cfg_builder::global_write_info::tests::late_namespaced_alias_resolves_inside_namespace_eval_block ... FAILED
+test cfg_builder::global_write_info::tests::logical_nested_write_projection_requires_original_children_not_literal_brackets ... ok
+test cfg_builder::global_write_info::tests::logical_source_child_effects_keep_readonly_ownership_and_refuse_stale_modules ... ok
+test cfg_builder::global_write_info::tests::mutually_recursive_procs_share_the_write ... FAILED
+test cfg_builder::global_write_info::tests::namespace_upvar_rename_resolves_to_outer_name ... FAILED
+test cfg_builder::global_write_info::tests::nested_relative_zero_inside_global_upframe_stays_global ... FAILED
+test cfg_builder::global_write_info::tests::non_mutating_alias_alternative_preserves_the_incoming_binding ... FAILED
+test cfg_builder::global_write_info::tests::original_global_alias_writes_keep_empty_local_and_remote_names ... FAILED
+test cfg_builder::global_write_info::tests::original_global_source_write_keeps_empty_scalar_and_array_root ... FAILED
+test cfg_builder::global_write_info::tests::original_immediate_body_inventory_keeps_protected_children_and_refusals ... ok
+test cfg_builder::global_write_info::tests::original_logical_outer_writes_retain_typed_alias_targets_and_incomplete_coverage ... FAILED
+test cfg_builder::global_write_info::tests::original_substitution_protected_bodies_share_global_write_coverage ... FAILED
+test cfg_builder::global_write_info::tests::proc_with_no_global_write_is_empty ... FAILED
+test cfg_builder::global_write_info::tests::protected_child_substitutions_retain_their_own_source_effect_carriers ... FAILED
+test cfg_builder::global_write_info::tests::read_only_global_is_not_a_write ... FAILED
+test cfg_builder::global_write_info::tests::rebound_list_constructor_widens_global_frame_effects ... ok
+test cfg_builder::global_write_info::tests::recovered_procedure_without_a_published_summary_is_opaque ... ok
+test cfg_builder::global_write_info::tests::recursive_proc_terminates_and_includes_write ... FAILED
+test cfg_builder::global_write_info::tests::redefined_procedure_generation_is_an_opaque_global_effect ... FAILED
+test cfg_builder::global_write_info::tests::rename_preserves_every_module_live_alias_state_with_its_baked_arguments ... FAILED
+test cfg_builder::global_write_info::tests::renamed_global_descriptor_establishes_alias_without_counting_declaration_as_write ... FAILED
+test cfg_builder::global_write_info::tests::renamed_trace_descriptor_is_not_mistaken_for_a_value_write ... FAILED
+test cfg_builder::global_write_info::tests::same_tailed_bodies_retain_independent_write_summaries ... FAILED
+test cfg_builder::global_write_info::tests::standalone_frame_write_advice_keeps_unprofiled_catalogue_separate_from_missing_input ... ok
+test cfg_builder::global_write_info::tests::supplied_global_write_call_closure_includes_source_expression_targets ... FAILED
+test cfg_builder::global_write_info::tests::supplied_global_write_metadata_keeps_alias_arguments_and_literal_names ... FAILED
+test cfg_builder::global_write_info::tests::supplied_global_write_summary_refuses_missing_foreign_and_stale_grammar ... FAILED
+test cfg_builder::global_write_info::tests::supplied_script_write_projection_uses_current_roles_instead_of_call_defs ... ok
+test cfg_builder::global_write_info::tests::transitive_closure_through_direct_call ... FAILED
+test cfg_builder::global_write_info::tests::transparent_eval_inside_global_upframe_resolves_a_late_global_alias ... FAILED
+test cfg_builder::global_write_info::tests::transparent_eval_inside_global_upframe_uses_global_command_resolution ... FAILED
+test cfg_builder::global_write_info::tests::unrelated_global_write_is_not_confused_with_other_procs ... FAILED
+test cfg_builder::global_write_info::tests::uplevel_caller_frame_is_not_a_global_write ... FAILED
+test cfg_builder::global_write_info::tests::uplevel_hash_zero_constructed_list_records_global_writes ... FAILED
+test cfg_builder::global_write_info::tests::uplevel_hash_zero_dynamic_script_is_opaque ... ok
+test cfg_builder::global_write_info::tests::uplevel_hash_zero_dynamic_write_target_in_literal_body_is_opaque ... ok
+test cfg_builder::global_write_info::tests::uplevel_hash_zero_literal_body_records_global_writes ... FAILED
+test cfg_builder::global_write_info::tests::uplevel_hash_zero_literal_body_resolves_late_alias_prefix_write ... FAILED
+test cfg_builder::global_write_info::tests::uplevel_hash_zero_non_writing_script_stays_empty ... FAILED
+test cfg_builder::global_write_info::tests::uplevel_hash_zero_opaqueness_is_transitive ... ok
+test cfg_builder::global_write_info::tests::upvar_hash_zero_counts_as_global ... FAILED
+test cfg_builder::global_write_info::tests::variable_declaration_without_value_is_not_a_write ... FAILED
+test cfg_builder::global_write_info::tests::variable_mixed_pairs_only_record_value_bearing_cells ... FAILED
+test cfg_builder::global_write_info::tests::variable_namespace_write_recorded ... FAILED
+test cfg_builder::global_write_info::tests::variable_value_form_records_the_namespace_value_write ... FAILED
+test cfg_builder::global_write_info::tests::write_on_conditional_branch_still_counted ... FAILED
+test cfg_builder::tests::a_callee_an_opaque_catch_body_calls_may_define_the_name_it_writes ... FAILED
+test cfg_builder::tests::a_computed_head_is_an_unseen_call ... FAILED
+test cfg_builder::tests::a_declared_plain_call_brings_the_frame_effect_it_states ... FAILED
+test cfg_builder::tests::a_deferred_try_states_what_its_scripts_write_as_may_definitions ... FAILED
+test cfg_builder::tests::a_substitution_marks_the_unseen_code_in_every_word_its_command_runs ... FAILED
+test cfg_builder::tests::alias_chain_preserves_prefix_order_for_upvar_proc_arguments ... FAILED
+test cfg_builder::tests::alias_terminal_proc_propagates_a_beyond_caller_effect ... FAILED
+test cfg_builder::tests::alias_to_upvar_uses_its_prepended_frame_level ... FAILED
+test cfg_builder::tests::an_omitted_upvar_parameter_defines_its_default ... FAILED
+test cfg_builder::tests::an_opaque_catch_marks_the_unseen_code_and_the_barrier_its_body_runs ... FAILED
+test cfg_builder::tests::an_opaque_catch_states_what_its_body_writes_as_may_definitions_ahead_of_the_call ... FAILED
+test cfg_builder::tests::body_summary_selection_declines_foreign_id_at_the_original_declaration ... FAILED
+test cfg_builder::tests::braced_switch_words_do_not_invalidate_before_dispatch ... FAILED
+test cfg_builder::tests::build_cfg_function_does_not_apply_upvar_wiring ... ok
+test cfg_builder::tests::build_cfg_module ... ok
+test cfg_builder::tests::catch_with_terminating_body_stays_opaque ... ok
+test cfg_builder::tests::cfg_and_binding_analysis_retain_the_same_registry_generation ... ok
+test cfg_builder::tests::cfg_class_helpers_keep_site_normalisation ... ok
+test cfg_builder::tests::cfg_condition_possible_writes_keep_original_aliases_and_replacements ... FAILED
+test cfg_builder::tests::computed_or_expanded_direct_head_is_not_misidentified_as_a_static_callee ... FAILED
+test cfg_builder::tests::condition_out_vars_recovers_catch_scan_gets_regexp_and_upvar_procs ... FAILED
+test cfg_builder::tests::condition_var_writes_use_the_exact_custom_registry_roles ... FAILED
+test cfg_builder::tests::cross_proc_call_inside_proc_body_augments_defs ... FAILED
+test cfg_builder::tests::dedup_preserves_order ... ok
+test cfg_builder::tests::deeply_nested_if_survives_escaping_loop_jumps ... ok
+test cfg_builder::tests::detect_upvar_procs_does_not_propagate_a_global_or_own_frame_level ... FAILED
+test cfg_builder::tests::detect_upvar_procs_does_not_propagate_through_a_plain_call_wrapper ... FAILED
+test cfg_builder::tests::detect_upvar_procs_does_not_propagate_when_args_are_not_passed_through ... FAILED
+test cfg_builder::tests::detect_upvar_procs_propagates_a_beyond_caller_effect_one_plain_hop ... ok
+test cfg_builder::tests::detect_upvar_procs_publishes_no_plain_call_bookkeeping ... ok
+test cfg_builder::tests::detect_upvar_procs_retains_issued_body_effects ... FAILED
+test cfg_builder::tests::distinct_body_summaries_preserve_conflicting_alias_targets ... FAILED
+test cfg_builder::tests::drop_word_keeps_structured_words_aligned ... ok
+test cfg_builder::tests::early_and_late_aliases_to_upvar_proc_prepend_the_caller_target ... FAILED
+test cfg_builder::tests::embedded_alias_prefix_terminal_proc_invalidates_its_caller_target ... FAILED
+test cfg_builder::tests::embedded_subst_in_assign_expr_and_expr_eval_emits_invalidation ... FAILED
+test cfg_builder::tests::embedded_subst_in_assign_value_emits_its_word_effects ... FAILED
+test cfg_builder::tests::embedded_subst_in_call_arg_merges_into_call_defs ... FAILED
+test cfg_builder::tests::embedded_subst_in_return_emits_its_word_effects_before_terminator ... FAILED
+test cfg_builder::tests::embedded_subst_no_bracket_in_text_short_circuits ... ok
+test cfg_builder::tests::embedded_subst_param_form_resolves_call_site_arg ... FAILED
+test cfg_builder::tests::embedded_subst_recovers_a_wrapped_upvar_proc_call ... FAILED
+test cfg_builder::tests::embedded_subst_synthetic_appears_before_host_assign ... FAILED
+test cfg_builder::tests::embedded_subst_unknown_command_ignored ... ok
+test cfg_builder::tests::embedded_terminal_proc_honours_namespace_and_unknown_resolution ... FAILED
+test cfg_builder::tests::empty_module_no_upvar_context_no_panic ... ok
+test cfg_builder::tests::empty_script_produces_entry_exit ... ok
+test cfg_builder::tests::escaping_loop_jumps_follows_try_but_not_catch ... FAILED
+test cfg_builder::tests::escaping_loop_jumps_stops_after_non_completing_stmt ... ok
+test cfg_builder::tests::expanded_upvar_actual_is_opaque_not_a_literal_def ... FAILED
+test cfg_builder::tests::folded_eval_keeps_a_separate_executable_compilation_boundary ... FAILED
+test cfg_builder::tests::for_initialisation_does_not_publish_array_elements_as_scalar_constants ... FAILED
+test cfg_builder::tests::foreach_synthetic_call_records_iterator_group_sizes ... ok
+test cfg_builder::tests::frozen_for_condition_carries_upvar_proc_defs ... FAILED
+test cfg_builder::tests::frozen_while_condition_carries_upvar_proc_defs ... FAILED
+test cfg_builder::tests::frozen_while_condition_with_no_upvar_proc_omits_synthetic_cond ... ok
+test cfg_builder::tests::if_creates_branches ... ok
+test cfg_builder::tests::late_alias_call_inside_proc_uses_projected_global_write_summary ... FAILED
+test cfg_builder::tests::linear_script ... ok
+test cfg_builder::tests::literal_upvar_proc_call_augments_defs ... FAILED
+test cfg_builder::tests::non_upvar_proc_call_unchanged ... ok
+test cfg_builder::tests::observed_completion_never_manufactures_a_procedure_return ... FAILED
+test cfg_builder::tests::opaque_host_barriers_match_calls_for_every_registry_proc_exit_command ... FAILED
+test cfg_builder::tests::original_cfg_metadata_preserves_explicit_standalone_and_missing_purposes ... FAILED
+test cfg_builder::tests::param_upvar_proc_call_resolves_call_site_arg ... FAILED
+test cfg_builder::tests::prepare_cfg_context_registers_params_for_all_procs ... FAILED
+test cfg_builder::tests::prepared_cfg_refuses_changed_module_profile_and_body_configuration ... FAILED
+test cfg_builder::tests::prepared_cfg_source_metadata_is_shared_by_module_and_body_builders ... FAILED
+test cfg_builder::tests::prepared_cfg_source_metadata_preserves_availability_and_refuses_missing_owners ... FAILED
+test cfg_builder::tests::prepared_context_cfg_matches_compatibility_entry_point ... ok
+test cfg_builder::tests::proc_exit_host_barriers_terminate_direct_and_opaque_switch_forms ... FAILED
+test cfg_builder::tests::qualified_call_resolves_via_qualified_key ... FAILED
+test cfg_builder::tests::read_beside_writes_uses_original_roles_and_preserves_refusals ... FAILED
+test cfg_builder::tests::recovered_procedure_without_a_published_summary_is_opaque ... FAILED
+test cfg_builder::tests::redefined_procedure_generation_is_an_opaque_frame_effect ... FAILED
+test cfg_builder::tests::registry_derived_cfg_classes_match_previous_hardcodes ... ok
+test cfg_builder::tests::return_terminates ... ok
+test cfg_builder::tests::rooted_regexp_value_form_does_not_widen_runtime_selected_method_frame ... FAILED
+test cfg_builder::tests::straight_line_catch_lowers_to_real_blocks ... ok
+test cfg_builder::tests::structured_cfg_writes_keep_literal_name_data_and_dynamic_unknowns ... ok
+test cfg_builder::tests::substituted_upvar_actual_is_opaque_not_a_literal_def ... FAILED
+test cfg_builder::tests::summary_keys_decline_one_changed_member_and_foreign_module_source ... FAILED
+test cfg_builder::tests::summary_parameters_retain_each_original_signature ... FAILED
+test cfg_builder::tests::switch_word_substitutions_invalidate_before_dispatch ... FAILED
+test cfg_builder::tests::the_call_carrying_a_write_leaves_a_place_its_statement_never_reads_alone ... FAILED
+test cfg_builder::tests::the_call_carrying_a_write_reads_the_place_its_statement_reads ... FAILED
+test cfg_builder::tests::the_marker_for_a_call_follows_it_and_states_no_name ... FAILED
+test cfg_builder::tests::trailing_expansion_preserves_a_known_upvar_actual_prefix ... FAILED
+test cfg_builder::tests::try_handler_return_options_terminates ... FAILED
+test cfg_builder::tests::upvar_call_inside_if_branch_augments_defs ... FAILED
+test cfg_builder::tests::whole_module_cfg_uses_the_exact_custom_registry_traits ... ok
+test cfg_builder::upvar_info::tests::absolute_constructed_set_is_exact_while_relative_set_is_opaque ... FAILED
+test cfg_builder::upvar_info::tests::alias_prefixed_alias_pairs_keep_their_effective_operands ... FAILED
+test cfg_builder::upvar_info::tests::args_tail_upvar_recorded ... FAILED
+test cfg_builder::upvar_info::tests::caller_alias_inside_the_selected_caller_frame_reaches_past_it ... FAILED
+test cfg_builder::upvar_info::tests::caller_frame_metadata_keeps_actual_availability_and_missing_owner_hazards ... FAILED
+test cfg_builder::upvar_info::tests::caller_side_defs_args_tail_upvar_positional ... ok
+test cfg_builder::upvar_info::tests::caller_side_defs_dedup ... ok
+test cfg_builder::upvar_info::tests::caller_side_defs_dynamic_arg_normalises_to_empty_skipped ... ok
+test cfg_builder::upvar_info::tests::caller_side_defs_literal_only ... ok
+test cfg_builder::upvar_info::tests::caller_side_defs_literal_plus_param ... ok
+test cfg_builder::upvar_info::tests::caller_side_defs_missing_param_skipped ... ok
+test cfg_builder::upvar_info::tests::caller_side_defs_param_dollar_normalisation ... ok
+test cfg_builder::upvar_info::tests::caller_side_defs_param_resolution ... ok
+test cfg_builder::upvar_info::tests::current_frame_alias_pairs_compose_inside_the_selected_caller_frame ... FAILED
+test cfg_builder::upvar_info::tests::current_frame_body_retains_nested_caller_frame_effects ... FAILED
+test cfg_builder::upvar_info::tests::dollar_var_skipped_when_not_a_param ... ok
+test cfg_builder::upvar_info::tests::dynamic_current_frame_alias_target_widens_the_selected_caller_frame ... ok
+test cfg_builder::upvar_info::tests::dynamic_destination_with_dynamic_source_widens ... ok
+test cfg_builder::upvar_info::tests::dynamic_destination_with_literal_source_still_names_the_caller_var ... ok
+test cfg_builder::upvar_info::tests::dynamic_destination_with_param_source_resolves_at_the_call_site ... FAILED
+test cfg_builder::upvar_info::tests::empty_body_has_no_upvars ... ok
+test cfg_builder::upvar_info::tests::fully_dynamic_source_widens_summary ... FAILED
+test cfg_builder::upvar_info::tests::is_empty_helper ... ok
+test cfg_builder::upvar_info::tests::late_alias_to_eval_preserves_an_enclosing_caller_frame ... FAILED
+test cfg_builder::upvar_info::tests::late_alias_to_relative_one_uplevel_reaches_past_an_enclosing_caller_frame ... FAILED
+test cfg_builder::upvar_info::tests::late_alias_to_relative_zero_uplevel_preserves_an_enclosing_caller_frame ... FAILED
+test cfg_builder::upvar_info::tests::level_beyond_the_caller_widens_rather_than_binding ... ok
+test cfg_builder::upvar_info::tests::level_hash_zero_is_not_a_caller_frame_binding ... ok
+test cfg_builder::upvar_info::tests::level_omitted_defaults_to_one ... ok
+test cfg_builder::upvar_info::tests::level_word_presence_follows_argument_count_parity ... ok
+test cfg_builder::upvar_info::tests::level_zero_is_the_callees_own_frame_and_contributes_nothing ... ok
+test cfg_builder::upvar_info::tests::literal_target_recorded ... ok
+test cfg_builder::upvar_info::tests::logical_frame_aliases_keep_real_formals_and_literal_dollar_names ... ok
+test cfg_builder::upvar_info::tests::method_frame_summary_keeps_the_issued_header_and_actual_registry ... FAILED
+test cfg_builder::upvar_info::tests::multiple_literal_targets_recorded ... ok
+test cfg_builder::upvar_info::tests::native_frame_aliases_distinguish_written_scalar_reads_from_literal_values ... ok
+test cfg_builder::upvar_info::tests::nested_relative_one_reaches_past_the_caller ... FAILED
+test cfg_builder::upvar_info::tests::nested_relative_zero_preserves_the_caller_frame ... FAILED
+test cfg_builder::upvar_info::tests::original_caller_argument_values_preserve_literal_scalar_names ... ok
+test cfg_builder::upvar_info::tests::original_protected_substitution_keeps_caller_alias_pairs ... FAILED
+test cfg_builder::upvar_info::tests::param_target_recorded_when_param_exists ... FAILED
+test cfg_builder::upvar_info::tests::rebound_list_constructor_widens_caller_frame_effects ... ok
+test cfg_builder::upvar_info::tests::relative_constructed_bodies_do_not_borrow_callee_namespace ... FAILED
+test cfg_builder::upvar_info::tests::relative_upframe_does_not_borrow_the_callee_namespace_alias ... FAILED
+test cfg_builder::upvar_info::tests::resolve_literal_or_param_dynamic_param_returns_none ... ok
+test cfg_builder::upvar_info::tests::resolve_literal_or_param_literal ... ok
+test cfg_builder::upvar_info::tests::resolve_literal_or_param_unknown_local_returns_none ... ok
+test cfg_builder::upvar_info::tests::resolve_literal_or_param_via_param ... ok
+test cfg_builder::upvar_info::tests::standalone_alias_pairs_keep_original_reference_grammar_and_literal_data ... FAILED
+test cfg_builder::upvar_info::tests::uplevel_at_the_current_or_global_frame_is_not_a_caller_effect ... ok
+test cfg_builder::upvar_info::tests::uplevel_constructed_list_resolves_the_written_name ... ok
+test cfg_builder::upvar_info::tests::uplevel_dynamic_body_is_an_opaque_caller_frame_barrier ... ok
+test cfg_builder::upvar_info::tests::uplevel_literal_body_records_caller_frame_writes ... ok
+test cfg_builder::upvar_info::tests::uplevel_literal_body_resolves_late_alias_prefix_write ... FAILED
+test cfg_builder::upvar_info::tests::uplevel_of_a_side_effect_free_command_has_no_caller_effect ... FAILED
+test cfg_builder::upvar_info::tests::upvar_inside_if_body_collected ... ok
+test cfg_builder::upvar_info::tests::upvar_inside_while_body_collected ... ok
+---- cfg_builder::cfg_lower::tests::a_registry_with_no_profile_reads_no_release_for_the_option_scan stdout ----
+thread 'cfg_builder::cfg_lower::tests::a_registry_with_no_profile_reads_no_release_for_the_option_scan' (18178) panicked at rust/tcl-compiler/src/cfg_builder/cfg_lower.rs:3041:9:
+assertion failed: matches!(func.blocks[&func.entry].terminator, Some(Terminator::Branch { .. }))
+---- cfg_builder::cfg_lower::tests::a_subject_a_release_may_read_as_an_option_stays_one_statement stdout ----
+thread 'cfg_builder::cfg_lower::tests::a_subject_a_release_may_read_as_an_option_stays_one_statement' (18180) panicked at rust/tcl-compiler/src/cfg_builder/cfg_lower.rs:2966:17:
+assertion `left == right` failed: tcl8.5: switch $x {a {puts A}}
+  left: false
+ right: true
+---- cfg_builder::cfg_lower::tests::codegen_flattens_the_switch_the_release_compiles stdout ----
+thread 'cfg_builder::cfg_lower::tests::codegen_flattens_the_switch_the_release_compiles' (18189) panicked at rust/tcl-compiler/src/cfg_builder/cfg_lower.rs:3025:13:
+assertion `left == right` failed: tcl8.5: switch $x {a {puts A}}
+  left: false
+ right: true
+---- cfg_builder::cfg_lower::tests::switch_glob_stays_opaque stdout ----
+thread 'cfg_builder::cfg_lower::tests::switch_glob_stays_opaque' (18198) panicked at rust/tcl-compiler/src/cfg_builder/cfg_lower.rs:2823:9:
+assertion `left == right` failed: opaque switch is one statement
+  left: 2
+ right: 1
+---- cfg_builder::cfg_lower::tests::the_chain_compares_the_values_of_a_switch_words stdout ----
+thread 'cfg_builder::cfg_lower::tests::the_chain_compares_the_values_of_a_switch_words' (18201) panicked at rust/tcl-compiler/src/cfg_builder/cfg_lower.rs:2923:74:
+---- cfg_builder::execution_regions::tests::backend_cfg_keeps_original_invocation_and_omits_analysis_phases stdout ----
+thread 'cfg_builder::execution_regions::tests::backend_cfg_keeps_original_invocation_and_omits_analysis_phases' (18211) panicked at rust/tcl-compiler/src/test_body_identity.rs:54:28:
+---- cfg_builder::execution_regions::tests::captured_lifecycle_requires_trusted_original_provider stdout ----
+thread 'cfg_builder::execution_regions::tests::captured_lifecycle_requires_trusted_original_provider' (18232) panicked at rust/tcl-compiler/src/test_body_identity.rs:54:28:
+---- cfg_builder::execution_regions::tests::captured_return_routes_to_cleanup_without_leaving_procedure stdout ----
+thread 'cfg_builder::execution_regions::tests::captured_return_routes_to_cleanup_without_leaving_procedure' (18234) panicked at rust/tcl-compiler/src/test_body_identity.rs:54:28:
+---- cfg_builder::execution_regions::tests::conditional_completion_does_not_borrow_changed_or_unknown_exit_lookup stdout ----
+thread 'cfg_builder::execution_regions::tests::conditional_completion_does_not_borrow_changed_or_unknown_exit_lookup' (18238) panicked at rust/tcl-compiler/src/test_body_identity.rs:54:28:
+---- cfg_builder::execution_regions::tests::generic_catch_shares_captured_return_and_partial_write_routing stdout ----
+thread 'cfg_builder::execution_regions::tests::generic_catch_shares_captured_return_and_partial_write_routing' (18239) panicked at rust/tcl-compiler/src/test_body_identity.rs:54:28:
+---- cfg_builder::execution_regions::tests::literal_exit_in_catch_has_no_captured_resume_edge stdout ----
+thread 'cfg_builder::execution_regions::tests::literal_exit_in_catch_has_no_captured_resume_edge' (18243) panicked at rust/tcl-compiler/src/test_body_identity.rs:54:28:
+---- cfg_builder::execution_regions::tests::nested_conditional_completion_requires_unchanged_original_exit_lookup stdout ----
+thread 'cfg_builder::execution_regions::tests::nested_conditional_completion_requires_unchanged_original_exit_lookup' (18247) panicked at rust/tcl-compiler/src/test_body_identity.rs:54:28:
+---- cfg_builder::execution_regions::tests::nested_process_exit_does_not_gain_a_cleanup_resume_edge stdout ----
+thread 'cfg_builder::execution_regions::tests::nested_process_exit_does_not_gain_a_cleanup_resume_edge' (18248) panicked at rust/tcl-compiler/src/test_body_identity.rs:54:28:
+---- cfg_builder::execution_regions::tests::process_exit_remains_terminal_inside_a_captured_phase stdout ----
+thread 'cfg_builder::execution_regions::tests::process_exit_remains_terminal_inside_a_captured_phase' (18251) panicked at rust/tcl-compiler/src/test_body_identity.rs:54:28:
+---- cfg_builder::execution_regions::tests::repeated_lifecycle_adds_a_normal_backedge_without_re_evaluating_argv stdout ----
+thread 'cfg_builder::execution_regions::tests::repeated_lifecycle_adds_a_normal_backedge_without_re_evaluating_argv' (18253) panicked at rust/tcl-compiler/src/test_body_identity.rs:54:28:
+---- cfg_builder::execution_regions::tests::setup_definitions_reach_body_through_normal_completion stdout ----
+thread 'cfg_builder::execution_regions::tests::setup_definitions_reach_body_through_normal_completion' (18255) panicked at rust/tcl-compiler/src/test_body_identity.rs:54:28:
+---- cfg_builder::execution_regions::tests::skipped_region_never_manufactures_script_definitions stdout ----
+thread 'cfg_builder::execution_regions::tests::skipped_region_never_manufactures_script_definitions' (18259) panicked at rust/tcl-compiler/src/test_body_identity.rs:54:28:
+---- cfg_builder::global_write_info::tests::alias_baked_custom_varwrite_target_uses_its_registry_descriptor stdout ----
+thread 'cfg_builder::global_write_info::tests::alias_baked_custom_varwrite_target_uses_its_registry_descriptor' (18263) panicked at rust/tcl-compiler/src/cfg_builder/global_write_info.rs:2768:9:
+assertion `left == right` failed
+  left: {}
+ right: {"x"}
+---- cfg_builder::global_write_info::tests::alias_baked_global_literal_body_resolves_late_inner_alias stdout ----
+thread 'cfg_builder::global_write_info::tests::alias_baked_global_literal_body_resolves_late_inner_alias' (18266) panicked at rust/tcl-compiler/src/cfg_builder/global_write_info.rs:3042:9:
+assertion `left == right` failed
+  left: {}
+ right: {"x"}
+---- cfg_builder::global_write_info::tests::alias_baked_global_uplevel_frame_is_resolved_from_invocation_facts stdout ----
+thread 'cfg_builder::global_write_info::tests::alias_baked_global_uplevel_frame_is_resolved_from_invocation_facts' (18270) panicked at rust/tcl-compiler/src/cfg_builder/global_write_info.rs:3190:9:
+assertion `left == right` failed
+  left: {}
+ right: {"x"}
+---- cfg_builder::global_write_info::tests::alias_baked_level_is_part_of_exact_transition_resolution stdout ----
+thread 'cfg_builder::global_write_info::tests::alias_baked_level_is_part_of_exact_transition_resolution' (18274) panicked at rust/tcl-compiler/src/cfg_builder/global_write_info.rs:2386:9:
+assertion `left == right` failed
+  left: {}
+ right: {"x"}
+---- cfg_builder::global_write_info::tests::alias_baked_namespace_upvar_prefix_is_part_of_exact_transition_resolution stdout ----
+thread 'cfg_builder::global_write_info::tests::alias_baked_namespace_upvar_prefix_is_part_of_exact_transition_resolution' (18278) panicked at rust/tcl-compiler/src/cfg_builder/global_write_info.rs:2718:9:
+assertion `left == right` failed
+  left: {}
+ right: {"x"}
+---- cfg_builder::global_write_info::tests::alias_baked_set_target_is_a_global_value_write stdout ----
+thread 'cfg_builder::global_write_info::tests::alias_baked_set_target_is_a_global_value_write' (18282) panicked at rust/tcl-compiler/src/cfg_builder/global_write_info.rs:2748:9:
+assertion `left == right` failed
+  left: {}
+ right: {"x"}
+---- cfg_builder::global_write_info::tests::alias_baked_variable_name_still_records_value_write stdout ----
+thread 'cfg_builder::global_write_info::tests::alias_baked_variable_name_still_records_value_write' (18285) panicked at rust/tcl-compiler/src/cfg_builder/global_write_info.rs:2733:9:
+assertion `left == right` failed
+  left: {}
+ right: {"x"}
+---- cfg_builder::global_write_info::tests::alias_chain_composes_every_baked_argument_in_order stdout ----
+thread 'cfg_builder::global_write_info::tests::alias_chain_composes_every_baked_argument_in_order' (18287) panicked at rust/tcl-compiler/src/cfg_builder/global_write_info.rs:2589:9:
+assertion `left == right` failed
+  left: {}
+ right: {"x"}
+---- cfg_builder::global_write_info::tests::alias_created_in_namespaced_proc_is_global_in_source_interpreter stdout ----
+thread 'cfg_builder::global_write_info::tests::alias_created_in_namespaced_proc_is_global_in_source_interpreter' (18292) panicked at rust/tcl-compiler/src/cfg_builder/global_write_info.rs:2478:9:
+assertion `left == right` failed
+  left: {}
+ right: {"x"}
+---- cfg_builder::global_write_info::tests::alias_defined_after_the_procedure_is_live_when_the_body_runs stdout ----
+thread 'cfg_builder::global_write_info::tests::alias_defined_after_the_procedure_is_live_when_the_body_runs' (18295) panicked at rust/tcl-compiler/src/cfg_builder/global_write_info.rs:2401:9:
+assertion `left == right` failed
+  left: {}
+ right: {"x"}
+---- cfg_builder::global_write_info::tests::alias_established_by_another_callable_procedure_is_in_the_may_state stdout ----
+thread 'cfg_builder::global_write_info::tests::alias_established_by_another_callable_procedure_is_in_the_may_state' (18298) panicked at rust/tcl-compiler/src/cfg_builder/global_write_info.rs:2463:9:
+assertion `left == right` failed
+  left: {}
+ right: {"x"}
+---- cfg_builder::global_write_info::tests::alias_established_in_evaluated_substitution_applies_to_later_calls stdout ----
+thread 'cfg_builder::global_write_info::tests::alias_established_in_evaluated_substitution_applies_to_later_calls' (18303) panicked at rust/tcl-compiler/src/cfg_builder/global_write_info.rs:2433:9:
+assertion `left == right` failed
+  left: {}
+ right: {"x"}
+---- cfg_builder::global_write_info::tests::alias_established_inside_the_procedure_applies_to_later_calls stdout ----
+thread 'cfg_builder::global_write_info::tests::alias_established_inside_the_procedure_applies_to_later_calls' (18307) panicked at rust/tcl-compiler/src/cfg_builder/global_write_info.rs:2415:9:
+assertion `left == right` failed
+  left: {}
+ right: {"x"}
+---- cfg_builder::global_write_info::tests::alias_global_target_survives_same_tail_namespace_collision stdout ----
+thread 'cfg_builder::global_write_info::tests::alias_global_target_survives_same_tail_namespace_collision' (18310) panicked at rust/tcl-compiler/src/cfg_builder/global_write_info.rs:1644:9:
+assertion `left == right` failed: authored fixture summary "call_mutate" must identify one body
+  left: 0
+ right: 1
+---- cfg_builder::global_write_info::tests::alias_target_prefix_resolves_in_the_target_interpreters_global_namespace stdout ----
+thread 'cfg_builder::global_write_info::tests::alias_target_prefix_resolves_in_the_target_interpreters_global_namespace' (18315) panicked at rust/tcl-compiler/src/cfg_builder/global_write_info.rs:2651:9:
+assertion `left == right` failed
+  left: {}
+ right: {"x"}
+---- cfg_builder::global_write_info::tests::branch_alternative_outer_aliases_are_unioned stdout ----
+thread 'cfg_builder::global_write_info::tests::branch_alternative_outer_aliases_are_unioned' (18319) panicked at rust/tcl-compiler/src/cfg_builder/global_write_info.rs:2246:9:
+assertion `left == right` failed
+  left: {}
+ right: {"a", "b"}
+---- cfg_builder::global_write_info::tests::caller_frame_upvar_is_not_a_global_write stdout ----
+thread 'cfg_builder::global_write_info::tests::caller_frame_upvar_is_not_a_global_write' (18327) panicked at rust/tcl-compiler/src/cfg_builder/global_write_info.rs:2280:9:
+assertion failed: info.get(&summary_id(&m, "::p")).unwrap().is_empty()
+---- cfg_builder::global_write_info::tests::canonical_alias_target_participates_in_transitive_write_closure stdout ----
+thread 'cfg_builder::global_write_info::tests::canonical_alias_target_participates_in_transitive_write_closure' (18332) panicked at rust/tcl-compiler/src/cfg_builder/global_write_info.rs:2505:9:
+assertion `left == right` failed
+  left: {}
+ right: {"x"}
+---- cfg_builder::global_write_info::tests::conditional_alias_override_joins_both_live_bindings stdout ----
+thread 'cfg_builder::global_write_info::tests::conditional_alias_override_joins_both_live_bindings' (18338) panicked at rust/tcl-compiler/src/cfg_builder/global_write_info.rs:2667:9:
+assertion `left == right` failed
+  left: {}
+ right: {"x"}
+---- cfg_builder::global_write_info::tests::conditional_namespace_alias_keeps_global_fallback_live stdout ----
+thread 'cfg_builder::global_write_info::tests::conditional_namespace_alias_keeps_global_fallback_live' (18345) panicked at rust/tcl-compiler/src/cfg_builder/global_write_info.rs:2685:9:
+assertion `left == right` failed
+  left: {}
+ right: {"x"}
+---- cfg_builder::global_write_info::tests::constructed_global_uplevel_resolves_command_in_global_namespace stdout ----
+thread 'cfg_builder::global_write_info::tests::constructed_global_uplevel_resolves_command_in_global_namespace' (18356) panicked at rust/tcl-compiler/src/cfg_builder/global_write_info.rs:3207:9:
+assertion `left == right` failed
+  left: {}
+ right: {"x"}
+---- cfg_builder::global_write_info::tests::custom_replacement_under_builtin_spelling_uses_its_own_descriptor stdout ----
+thread 'cfg_builder::global_write_info::tests::custom_replacement_under_builtin_spelling_uses_its_own_descriptor' (18359) panicked at rust/tcl-compiler/src/cfg_builder/global_write_info.rs:2341:9:
+assertion `left == right` failed
+  left: {}
+ right: {"x"}
+---- cfg_builder::global_write_info::tests::declaration_after_write_still_counted stdout ----
+thread 'cfg_builder::global_write_info::tests::declaration_after_write_still_counted' (18363) panicked at rust/tcl-compiler/src/cfg_builder/global_write_info.rs:2793:9:
+assertion failed: info.get(&summary_id(&m, "::p")).unwrap().names.contains("x")
+---- cfg_builder::global_write_info::tests::direct_global_write_recorded stdout ----
+thread 'cfg_builder::global_write_info::tests::direct_global_write_recorded' (18389) panicked at rust/tcl-compiler/src/cfg_builder/global_write_info.rs:2175:9:
+assertion failed: info.get(&summary_id(&m, "::mutate")).unwrap().names.contains("x")
+---- cfg_builder::global_write_info::tests::embedded_alias_prefix_preserves_global_alias_arguments stdout ----
+thread 'cfg_builder::global_write_info::tests::embedded_alias_prefix_preserves_global_alias_arguments' (18409) panicked at rust/tcl-compiler/src/cfg_builder/global_write_info.rs:2619:9:
+assertion `left == right` failed
+  left: {}
+ right: {"g"}
+---- cfg_builder::global_write_info::tests::embedded_global_alias_transition_maps_later_local_write stdout ----
+thread 'cfg_builder::global_write_info::tests::embedded_global_alias_transition_maps_later_local_write' (18411) panicked at rust/tcl-compiler/src/cfg_builder/global_write_info.rs:2603:9:
+assertion `left == right` failed
+  left: {}
+ right: {"g"}
+---- cfg_builder::global_write_info::tests::embedded_incr_in_command_substitution_recorded stdout ----
+thread 'cfg_builder::global_write_info::tests::embedded_incr_in_command_substitution_recorded' (18415) panicked at rust/tcl-compiler/src/cfg_builder/global_write_info.rs:2841:9:
+assertion failed: info.get(&summary_id(&m, "::p")).unwrap().names.contains("x")
+---- cfg_builder::global_write_info::tests::embedded_namespace_alias_transition_maps_later_local_write stdout ----
+thread 'cfg_builder::global_write_info::tests::embedded_namespace_alias_transition_maps_later_local_write' (18419) panicked at rust/tcl-compiler/src/cfg_builder/global_write_info.rs:2634:9:
+assertion `left == right` failed
+  left: {}
+ right: {"x"}
+---- cfg_builder::global_write_info::tests::embedded_proc_call_in_assign_value_propagates_global_write stdout ----
+thread 'cfg_builder::global_write_info::tests::embedded_proc_call_in_assign_value_propagates_global_write' (18422) panicked at rust/tcl-compiler/src/cfg_builder/global_write_info.rs:2863:9:
+assertion failed: info[&summary_id(&m, "::outer")].names.contains("x")
+---- cfg_builder::global_write_info::tests::embedded_proc_call_in_return_propagates_global_write stdout ----
+thread 'cfg_builder::global_write_info::tests::embedded_proc_call_in_return_propagates_global_write' (18428) panicked at rust/tcl-compiler/src/cfg_builder/global_write_info.rs:2900:9:
+assertion failed: info[&summary_id(&m, "::outer")].names.contains("x")
+---- cfg_builder::global_write_info::tests::embedded_proc_calls_in_assign_expr_and_expr_eval_propagate_global_write stdout ----
+thread 'cfg_builder::global_write_info::tests::embedded_proc_calls_in_assign_expr_and_expr_eval_propagate_global_write' (18436) panicked at rust/tcl-compiler/src/cfg_builder/global_write_info.rs:2911:9:
+assertion failed: info[&summary_id(&m, "::assign_expr")].names.contains("x")
+---- cfg_builder::global_write_info::tests::embedded_proc_calls_in_if_and_while_conditions_propagate_global_write stdout ----
+thread 'cfg_builder::global_write_info::tests::embedded_proc_calls_in_if_and_while_conditions_propagate_global_write' (18442) panicked at rust/tcl-compiler/src/cfg_builder/global_write_info.rs:2923:9:
+assertion failed: info[&summary_id(&m, "::conditional")].names.contains("x")
+---- cfg_builder::global_write_info::tests::global_body_summaries_use_issued_identity_and_preserve_current_header_truth stdout ----
+thread 'cfg_builder::global_write_info::tests::global_body_summaries_use_issued_identity_and_preserve_current_header_truth' (18474) panicked at rust/tcl-compiler/src/cfg_builder/global_write_info.rs:3294:9:
+assertion failed: expected[&id].names.contains("x")
+---- cfg_builder::global_write_info::tests::late_alias_summary_is_published_under_its_source_spelling stdout ----
+thread 'cfg_builder::global_write_info::tests::late_alias_summary_is_published_under_its_source_spelling' (18476) panicked at rust/tcl-compiler/src/cfg_builder/global_write_info.rs:1634:30:
+---- cfg_builder::global_write_info::tests::late_alias_to_eval_inside_global_frame_stays_global stdout ----
+thread 'cfg_builder::global_write_info::tests::late_alias_to_eval_inside_global_frame_stays_global' (18477) panicked at rust/tcl-compiler/src/cfg_builder/global_write_info.rs:3090:9:
+assertion `left == right` failed
+  left: {}
+ right: {"g"}
+---- cfg_builder::global_write_info::tests::late_alias_to_relative_zero_inside_global_frame_stays_global stdout ----
+thread 'cfg_builder::global_write_info::tests::late_alias_to_relative_zero_inside_global_frame_stays_global' (18478) panicked at rust/tcl-compiler/src/cfg_builder/global_write_info.rs:3074:9:
+assertion `left == right` failed
+  left: {}
+ right: {"g"}
+---- cfg_builder::global_write_info::tests::late_namespaced_alias_resolves_inside_namespace_eval_block stdout ----
+thread 'cfg_builder::global_write_info::tests::late_namespaced_alias_resolves_inside_namespace_eval_block' (18479) panicked at rust/tcl-compiler/src/cfg_builder/global_write_info.rs:2448:9:
+assertion `left == right` failed
+  left: {}
+ right: {"x"}
+---- cfg_builder::global_write_info::tests::mutually_recursive_procs_share_the_write stdout ----
+thread 'cfg_builder::global_write_info::tests::mutually_recursive_procs_share_the_write' (18483) panicked at rust/tcl-compiler/src/cfg_builder/global_write_info.rs:2974:9:
+assertion failed: info.get(&summary_id(&m, "::a")).unwrap().names.contains("x")
+---- cfg_builder::global_write_info::tests::namespace_upvar_rename_resolves_to_outer_name stdout ----
+thread 'cfg_builder::global_write_info::tests::namespace_upvar_rename_resolves_to_outer_name' (18484) panicked at rust/tcl-compiler/src/cfg_builder/global_write_info.rs:2227:9:
+assertion failed: info.get(&summary_id(&m, "::ns::p")).unwrap().names.contains("nsvar")
+---- cfg_builder::global_write_info::tests::nested_relative_zero_inside_global_upframe_stays_global stdout ----
+thread 'cfg_builder::global_write_info::tests::nested_relative_zero_inside_global_upframe_stays_global' (18485) panicked at rust/tcl-compiler/src/cfg_builder/global_write_info.rs:3055:9:
+---- cfg_builder::global_write_info::tests::non_mutating_alias_alternative_preserves_the_incoming_binding stdout ----
+thread 'cfg_builder::global_write_info::tests::non_mutating_alias_alternative_preserves_the_incoming_binding' (18486) panicked at rust/tcl-compiler/src/cfg_builder/global_write_info.rs:2703:9:
+assertion `left == right` failed
+  left: {}
+ right: {"x"}
+---- cfg_builder::global_write_info::tests::original_global_alias_writes_keep_empty_local_and_remote_names stdout ----
+thread 'cfg_builder::global_write_info::tests::original_global_alias_writes_keep_empty_local_and_remote_names' (18487) panicked at rust/tcl-compiler/src/cfg_builder/global_write_info.rs:1919:13:
+---- cfg_builder::global_write_info::tests::original_global_source_write_keeps_empty_scalar_and_array_root stdout ----
+thread 'cfg_builder::global_write_info::tests::original_global_source_write_keeps_empty_scalar_and_array_root' (18489) panicked at rust/tcl-compiler/src/cfg_builder/global_write_info.rs:1737:13:
+assertion failed: summaries[&summary_id(&module, "::p")].names.contains("")
+---- cfg_builder::global_write_info::tests::original_logical_outer_writes_retain_typed_alias_targets_and_incomplete_coverage stdout ----
+thread 'cfg_builder::global_write_info::tests::original_logical_outer_writes_retain_typed_alias_targets_and_incomplete_coverage' (18519) panicked at rust/tcl-compiler/src/cfg_builder/global_write_info.rs:1685:14:
+---- cfg_builder::global_write_info::tests::original_substitution_protected_bodies_share_global_write_coverage stdout ----
+thread 'cfg_builder::global_write_info::tests::original_substitution_protected_bodies_share_global_write_coverage' (18520) panicked at rust/tcl-compiler/src/cfg_builder/global_write_info.rs:1902:13:
+---- cfg_builder::global_write_info::tests::proc_with_no_global_write_is_empty stdout ----
+thread 'cfg_builder::global_write_info::tests::proc_with_no_global_write_is_empty' (18522) panicked at rust/tcl-compiler/src/cfg_builder/global_write_info.rs:2165:9:
+assertion failed: info.get(&summary_id(&m, "::p")).unwrap().is_empty()
+---- cfg_builder::global_write_info::tests::protected_child_substitutions_retain_their_own_source_effect_carriers stdout ----
+thread 'cfg_builder::global_write_info::tests::protected_child_substitutions_retain_their_own_source_effect_carriers' (18523) panicked at rust/tcl-compiler/src/cfg_builder/global_write_info.rs:1876:10:
+---- cfg_builder::global_write_info::tests::read_only_global_is_not_a_write stdout ----
+thread 'cfg_builder::global_write_info::tests::read_only_global_is_not_a_write' (18524) panicked at rust/tcl-compiler/src/cfg_builder/global_write_info.rs:2287:9:
+---- cfg_builder::global_write_info::tests::recursive_proc_terminates_and_includes_write stdout ----
+thread 'cfg_builder::global_write_info::tests::recursive_proc_terminates_and_includes_write' (18527) panicked at rust/tcl-compiler/src/cfg_builder/global_write_info.rs:2962:9:
+assertion failed: info.get(&summary_id(&m, "::p")).unwrap().names.contains("x")
+---- cfg_builder::global_write_info::tests::redefined_procedure_generation_is_an_opaque_global_effect stdout ----
+thread 'cfg_builder::global_write_info::tests::redefined_procedure_generation_is_an_opaque_global_effect' (18529) panicked at rust/tcl-compiler/src/cfg_builder/global_write_info.rs:1644:9:
+assertion `left == right` failed: authored fixture summary "::p" must identify one body
+  left: 2
+ right: 1
+---- cfg_builder::global_write_info::tests::rename_preserves_every_module_live_alias_state_with_its_baked_arguments stdout ----
+thread 'cfg_builder::global_write_info::tests::rename_preserves_every_module_live_alias_state_with_its_baked_arguments' (18530) panicked at rust/tcl-compiler/src/cfg_builder/global_write_info.rs:2563:9:
+assertion `left == right` failed
+  left: {}
+ right: {"x"}
+---- cfg_builder::global_write_info::tests::renamed_global_descriptor_establishes_alias_without_counting_declaration_as_write stdout ----
+thread 'cfg_builder::global_write_info::tests::renamed_global_descriptor_establishes_alias_without_counting_declaration_as_write' (18535) panicked at rust/tcl-compiler/src/cfg_builder/global_write_info.rs:2303:9:
+assertion `left == right` failed
+  left: {}
+ right: {"x"}
+---- cfg_builder::global_write_info::tests::renamed_trace_descriptor_is_not_mistaken_for_a_value_write stdout ----
+thread 'cfg_builder::global_write_info::tests::renamed_trace_descriptor_is_not_mistaken_for_a_value_write' (18536) panicked at rust/tcl-compiler/src/cfg_builder/global_write_info.rs:2318:9:
+assertion failed: info[&summary_id(&m, "::p")].is_empty()
+---- cfg_builder::global_write_info::tests::same_tailed_bodies_retain_independent_write_summaries stdout ----
+thread 'cfg_builder::global_write_info::tests::same_tailed_bodies_retain_independent_write_summaries' (18537) panicked at rust/tcl-compiler/src/cfg_builder/global_write_info.rs:2153:9:
+assertion `left == right` failed
+  left: {}
+ right: {"aaa"}
+---- cfg_builder::global_write_info::tests::supplied_global_write_call_closure_includes_source_expression_targets stdout ----
+thread 'cfg_builder::global_write_info::tests::supplied_global_write_call_closure_includes_source_expression_targets' (18575) panicked at rust/tcl-compiler/src/cfg_builder/global_write_info.rs:2126:9:
+assertion failed: detect_global_write_procs(&module)[&summary_id(&module,
+---- cfg_builder::global_write_info::tests::supplied_global_write_metadata_keeps_alias_arguments_and_literal_names stdout ----
+thread 'cfg_builder::global_write_info::tests::supplied_global_write_metadata_keeps_alias_arguments_and_literal_names' (18577) panicked at rust/tcl-compiler/src/cfg_builder/global_write_info.rs:2010:13:
+---- cfg_builder::global_write_info::tests::supplied_global_write_summary_refuses_missing_foreign_and_stale_grammar stdout ----
+thread 'cfg_builder::global_write_info::tests::supplied_global_write_summary_refuses_missing_foreign_and_stale_grammar' (18578) panicked at rust/tcl-compiler/src/cfg_builder/global_write_info.rs:2037:9:
+assertion failed: detect_global_write_procs_with_registry(&module,
+---- cfg_builder::global_write_info::tests::transitive_closure_through_direct_call stdout ----
+thread 'cfg_builder::global_write_info::tests::transitive_closure_through_direct_call' (18604) panicked at rust/tcl-compiler/src/cfg_builder/global_write_info.rs:2948:9:
+assertion failed: info.get(&summary_id(&m, "::outer")).unwrap().names.contains("x")
+---- cfg_builder::global_write_info::tests::transparent_eval_inside_global_upframe_resolves_a_late_global_alias stdout ----
+thread 'cfg_builder::global_write_info::tests::transparent_eval_inside_global_upframe_resolves_a_late_global_alias' (18619) panicked at rust/tcl-compiler/src/cfg_builder/global_write_info.rs:1644:9:
+assertion `left == right` failed: authored fixture summary "::n::setter" must identify one body
+  left: 0
+ right: 1
+---- cfg_builder::global_write_info::tests::transparent_eval_inside_global_upframe_uses_global_command_resolution stdout ----
+thread 'cfg_builder::global_write_info::tests::transparent_eval_inside_global_upframe_uses_global_command_resolution' (18643) panicked at rust/tcl-compiler/src/cfg_builder/global_write_info.rs:1644:9:
+assertion `left == right` failed: authored fixture summary "::n::setter" must identify one body
+  left: 0
+ right: 1
+---- cfg_builder::global_write_info::tests::unrelated_global_write_is_not_confused_with_other_procs stdout ----
+thread 'cfg_builder::global_write_info::tests::unrelated_global_write_is_not_confused_with_other_procs' (18644) panicked at rust/tcl-compiler/src/cfg_builder/global_write_info.rs:3275:9:
+assertion failed: info.get(&summary_id(&m, "::p")).unwrap().names.contains("x")
+---- cfg_builder::global_write_info::tests::uplevel_caller_frame_is_not_a_global_write stdout ----
+thread 'cfg_builder::global_write_info::tests::uplevel_caller_frame_is_not_a_global_write' (18648) panicked at rust/tcl-compiler/src/cfg_builder/global_write_info.rs:3254:9:
+assertion failed: info.get(&summary_id(&m, "::p")).unwrap().is_empty()
+---- cfg_builder::global_write_info::tests::uplevel_hash_zero_constructed_list_records_global_writes stdout ----
+thread 'cfg_builder::global_write_info::tests::uplevel_hash_zero_constructed_list_records_global_writes' (18663) panicked at rust/tcl-compiler/src/cfg_builder/global_write_info.rs:3148:9:
+assertion failed: info.get(&summary_id(&m, "::s3")).unwrap().names.contains("k")
+---- cfg_builder::global_write_info::tests::uplevel_hash_zero_literal_body_records_global_writes stdout ----
+thread 'cfg_builder::global_write_info::tests::uplevel_hash_zero_literal_body_records_global_writes' (18685) panicked at rust/tcl-compiler/src/cfg_builder/global_write_info.rs:2995:9:
+assertion failed: info.get(&summary_id(&m, "::setter")).unwrap().names.contains("x")
+---- cfg_builder::global_write_info::tests::uplevel_hash_zero_literal_body_resolves_late_alias_prefix_write stdout ----
+thread 'cfg_builder::global_write_info::tests::uplevel_hash_zero_literal_body_resolves_late_alias_prefix_write' (18689) panicked at rust/tcl-compiler/src/cfg_builder/global_write_info.rs:3022:9:
+assertion `left == right` failed
+  left: {}
+ right: {"x"}
+---- cfg_builder::global_write_info::tests::uplevel_hash_zero_non_writing_script_stays_empty stdout ----
+thread 'cfg_builder::global_write_info::tests::uplevel_hash_zero_non_writing_script_stays_empty' (18693) panicked at rust/tcl-compiler/src/cfg_builder/global_write_info.rs:3243:9:
+assertion failed: info.get(&summary_id(&m, "::shout")).unwrap().is_empty()
+---- cfg_builder::global_write_info::tests::upvar_hash_zero_counts_as_global stdout ----
+thread 'cfg_builder::global_write_info::tests::upvar_hash_zero_counts_as_global' (18703) panicked at rust/tcl-compiler/src/cfg_builder/global_write_info.rs:2206:9:
+assertion failed: info.get(&summary_id(&m, "::p")).unwrap().names.contains("g")
+---- cfg_builder::global_write_info::tests::variable_declaration_without_value_is_not_a_write stdout ----
+thread 'cfg_builder::global_write_info::tests::variable_declaration_without_value_is_not_a_write' (18716) panicked at rust/tcl-compiler/src/cfg_builder/global_write_info.rs:2352:9:
+assertion failed: info[&summary_id(&m, "::p")].is_empty()
+---- cfg_builder::global_write_info::tests::variable_mixed_pairs_only_record_value_bearing_cells stdout ----
+thread 'cfg_builder::global_write_info::tests::variable_mixed_pairs_only_record_value_bearing_cells' (18726) panicked at rust/tcl-compiler/src/cfg_builder/global_write_info.rs:2371:9:
+assertion `left == right` failed
+  left: {}
+ right: {"x"}
+---- cfg_builder::global_write_info::tests::variable_namespace_write_recorded stdout ----
+thread 'cfg_builder::global_write_info::tests::variable_namespace_write_recorded' (18735) panicked at rust/tcl-compiler/src/cfg_builder/global_write_info.rs:2194:9:
+assertion failed: info.get(&summary_id(&m, "::ns::p")).unwrap().names.contains("v")
+---- cfg_builder::global_write_info::tests::variable_value_form_records_the_namespace_value_write stdout ----
+thread 'cfg_builder::global_write_info::tests::variable_value_form_records_the_namespace_value_write' (18747) panicked at rust/tcl-compiler/src/cfg_builder/global_write_info.rs:2360:9:
+assertion `left == right` failed
+  left: {}
+ right: {"x"}
+---- cfg_builder::global_write_info::tests::write_on_conditional_branch_still_counted stdout ----
+thread 'cfg_builder::global_write_info::tests::write_on_conditional_branch_still_counted' (18757) panicked at rust/tcl-compiler/src/cfg_builder/global_write_info.rs:2780:9:
+assertion failed: info.get(&summary_id(&m, "::p")).unwrap().names.contains("x")
+---- cfg_builder::tests::a_callee_an_opaque_catch_body_calls_may_define_the_name_it_writes stdout ----
+thread 'cfg_builder::tests::a_callee_an_opaque_catch_body_calls_may_define_the_name_it_writes' (18779) panicked at rust/tcl-compiler/src/cfg_builder/mod.rs:7452:14:
+---- cfg_builder::tests::a_computed_head_is_an_unseen_call stdout ----
+thread 'cfg_builder::tests::a_computed_head_is_an_unseen_call' (18811) panicked at rust/tcl-compiler/src/test_body_identity.rs:54:28:
+---- cfg_builder::tests::a_declared_plain_call_brings_the_frame_effect_it_states stdout ----
+thread 'cfg_builder::tests::a_declared_plain_call_brings_the_frame_effect_it_states' (18845) panicked at rust/tcl-compiler/src/cfg_builder/mod.rs:7653:17:
+---- cfg_builder::tests::a_deferred_try_states_what_its_scripts_write_as_may_definitions stdout ----
+thread 'cfg_builder::tests::a_deferred_try_states_what_its_scripts_write_as_may_definitions' (18849) panicked at rust/tcl-compiler/src/cfg_builder/mod.rs:7795:9:
+---- cfg_builder::tests::a_substitution_marks_the_unseen_code_in_every_word_its_command_runs stdout ----
+thread 'cfg_builder::tests::a_substitution_marks_the_unseen_code_in_every_word_its_command_runs' (18869) panicked at rust/tcl-compiler/src/cfg_builder/mod.rs:7757:13:
+---- cfg_builder::tests::alias_chain_preserves_prefix_order_for_upvar_proc_arguments stdout ----
+thread 'cfg_builder::tests::alias_chain_preserves_prefix_order_for_upvar_proc_arguments' (19040) panicked at rust/tcl-compiler/src/cfg_builder/mod.rs:7050:9:
+---- cfg_builder::tests::alias_terminal_proc_propagates_a_beyond_caller_effect stdout ----
+thread 'cfg_builder::tests::alias_terminal_proc_propagates_a_beyond_caller_effect' (19053) panicked at rust/tcl-compiler/src/cfg_builder/mod.rs:5309:9:
+assertion `left == right` failed: authored fixture summary "::middle" must identify one body
+  left: 0
+ right: 1
+---- cfg_builder::tests::alias_to_upvar_uses_its_prepended_frame_level stdout ----
+thread 'cfg_builder::tests::alias_to_upvar_uses_its_prepended_frame_level' (19054) panicked at rust/tcl-compiler/src/cfg_builder/mod.rs:6992:9:
+---- cfg_builder::tests::an_omitted_upvar_parameter_defines_its_default stdout ----
+thread 'cfg_builder::tests::an_omitted_upvar_parameter_defines_its_default' (19055) panicked at rust/tcl-compiler/src/cfg_builder/mod.rs:7133:9:
+assertion `left == right` failed
+  left: []
+ right: ["n"]
+---- cfg_builder::tests::an_opaque_catch_marks_the_unseen_code_and_the_barrier_its_body_runs stdout ----
+thread 'cfg_builder::tests::an_opaque_catch_marks_the_unseen_code_and_the_barrier_its_body_runs' (19059) panicked at rust/tcl-compiler/src/test_body_identity.rs:54:28:
+---- cfg_builder::tests::an_opaque_catch_states_what_its_body_writes_as_may_definitions_ahead_of_the_call stdout ----
+thread 'cfg_builder::tests::an_opaque_catch_states_what_its_body_writes_as_may_definitions_ahead_of_the_call' (19107) panicked at rust/tcl-compiler/src/cfg_builder/mod.rs:7420:32:
+---- cfg_builder::tests::body_summary_selection_declines_foreign_id_at_the_original_declaration stdout ----
+thread 'cfg_builder::tests::body_summary_selection_declines_foreign_id_at_the_original_declaration' (19116) panicked at rust/tcl-compiler/src/cfg_builder/mod.rs:5309:9:
+assertion `left == right` failed: authored fixture summary "::writer" must identify one body
+  left: 0
+ right: 1
+---- cfg_builder::tests::braced_switch_words_do_not_invalidate_before_dispatch stdout ----
+thread 'cfg_builder::tests::braced_switch_words_do_not_invalidate_before_dispatch' (19124) panicked at rust/tcl-compiler/src/cfg_builder/mod.rs:7886:14:
+---- cfg_builder::tests::cfg_condition_possible_writes_keep_original_aliases_and_replacements stdout ----
+thread 'cfg_builder::tests::cfg_condition_possible_writes_keep_original_aliases_and_replacements' (19133) panicked at rust/tcl-compiler/src/cfg_builder/mod.rs:5738:64:
+---- cfg_builder::tests::computed_or_expanded_direct_head_is_not_misidentified_as_a_static_callee stdout ----
+thread 'cfg_builder::tests::computed_or_expanded_direct_head_is_not_misidentified_as_a_static_callee' (19134) panicked at rust/tcl-compiler/src/cfg_builder/mod.rs:7160:13:
+assertion `left == right` failed: call=$command target
+  left: DynamicNameBarrier { writes: true, destroys: true, reads: true }
+ right: DynamicNameBarrier { writes: false, destroys: false, reads: false }
+---- cfg_builder::tests::condition_out_vars_recovers_catch_scan_gets_regexp_and_upvar_procs stdout ----
+thread 'cfg_builder::tests::condition_out_vars_recovers_catch_scan_gets_regexp_and_upvar_procs' (19143) panicked at rust/tcl-compiler/src/cfg_builder/mod.rs:8108:54:
+---- cfg_builder::tests::condition_var_writes_use_the_exact_custom_registry_roles stdout ----
+thread 'cfg_builder::tests::condition_var_writes_use_the_exact_custom_registry_roles' (19166) panicked at rust/tcl-compiler/src/cfg_builder/mod.rs:6011:14:
+---- cfg_builder::tests::cross_proc_call_inside_proc_body_augments_defs stdout ----
+thread 'cfg_builder::tests::cross_proc_call_inside_proc_body_augments_defs' (19171) panicked at rust/tcl-compiler/src/cfg_builder/mod.rs:7207:14:
+---- cfg_builder::tests::detect_upvar_procs_does_not_propagate_a_global_or_own_frame_level stdout ----
+thread 'cfg_builder::tests::detect_upvar_procs_does_not_propagate_a_global_or_own_frame_level' (19333) panicked at rust/tcl-compiler/src/cfg_builder/mod.rs:6918:13:
+---- cfg_builder::tests::detect_upvar_procs_does_not_propagate_through_a_plain_call_wrapper stdout ----
+thread 'cfg_builder::tests::detect_upvar_procs_does_not_propagate_through_a_plain_call_wrapper' (19334) panicked at rust/tcl-compiler/src/cfg_builder/mod.rs:6819:9:
+---- cfg_builder::tests::detect_upvar_procs_does_not_propagate_when_args_are_not_passed_through stdout ----
+thread 'cfg_builder::tests::detect_upvar_procs_does_not_propagate_when_args_are_not_passed_through' (19335) panicked at rust/tcl-compiler/src/cfg_builder/mod.rs:6845:9:
+---- cfg_builder::tests::detect_upvar_procs_retains_issued_body_effects stdout ----
+thread 'cfg_builder::tests::detect_upvar_procs_retains_issued_body_effects' (19341) panicked at rust/tcl-compiler/src/cfg_builder/mod.rs:5309:9:
+assertion `left == right` failed: authored fixture summary "::ns::p2" must identify one body
+  left: 0
+ right: 1
+---- cfg_builder::tests::distinct_body_summaries_preserve_conflicting_alias_targets stdout ----
+thread 'cfg_builder::tests::distinct_body_summaries_preserve_conflicting_alias_targets' (19342) panicked at rust/tcl-compiler/src/cfg_builder/mod.rs:5309:9:
+assertion `left == right` failed: authored fixture summary "::a::bind" must identify one body
+  left: 0
+ right: 1
+---- cfg_builder::tests::early_and_late_aliases_to_upvar_proc_prepend_the_caller_target stdout ----
+thread 'cfg_builder::tests::early_and_late_aliases_to_upvar_proc_prepend_the_caller_target' (19344) panicked at rust/tcl-compiler/src/cfg_builder/mod.rs:7030:18:
+---- cfg_builder::tests::embedded_alias_prefix_terminal_proc_invalidates_its_caller_target stdout ----
+thread 'cfg_builder::tests::embedded_alias_prefix_terminal_proc_invalidates_its_caller_target' (19345) panicked at rust/tcl-compiler/src/cfg_builder/mod.rs:7971:14:
+---- cfg_builder::tests::embedded_subst_in_assign_expr_and_expr_eval_emits_invalidation stdout ----
+thread 'cfg_builder::tests::embedded_subst_in_assign_expr_and_expr_eval_emits_invalidation' (19346) panicked at rust/tcl-compiler/src/test_body_identity.rs:54:28:
+---- cfg_builder::tests::embedded_subst_in_assign_value_emits_its_word_effects stdout ----
+thread 'cfg_builder::tests::embedded_subst_in_assign_value_emits_its_word_effects' (19355) panicked at rust/tcl-compiler/src/cfg_builder/mod.rs:7316:14:
+---- cfg_builder::tests::embedded_subst_in_call_arg_merges_into_call_defs stdout ----
+thread 'cfg_builder::tests::embedded_subst_in_call_arg_merges_into_call_defs' (19356) panicked at rust/tcl-compiler/src/cfg_builder/mod.rs:7924:9:
+---- cfg_builder::tests::embedded_subst_in_return_emits_its_word_effects_before_terminator stdout ----
+thread 'cfg_builder::tests::embedded_subst_in_return_emits_its_word_effects_before_terminator' (19357) panicked at rust/tcl-compiler/src/cfg_builder/mod.rs:7808:14:
+---- cfg_builder::tests::embedded_subst_param_form_resolves_call_site_arg stdout ----
+thread 'cfg_builder::tests::embedded_subst_param_form_resolves_call_site_arg' (19359) panicked at rust/tcl-compiler/src/cfg_builder/mod.rs:7949:14:
+---- cfg_builder::tests::embedded_subst_recovers_a_wrapped_upvar_proc_call stdout ----
+thread 'cfg_builder::tests::embedded_subst_recovers_a_wrapped_upvar_proc_call' (19370) panicked at rust/tcl-compiler/src/cfg_builder/mod.rs:8092:14:
+---- cfg_builder::tests::embedded_subst_synthetic_appears_before_host_assign stdout ----
+thread 'cfg_builder::tests::embedded_subst_synthetic_appears_before_host_assign' (19371) panicked at rust/tcl-compiler/src/cfg_builder/mod.rs:8068:31:
+---- cfg_builder::tests::embedded_terminal_proc_honours_namespace_and_unknown_resolution stdout ----
+thread 'cfg_builder::tests::embedded_terminal_proc_honours_namespace_and_unknown_resolution' (19373) panicked at rust/tcl-compiler/src/cfg_builder/mod.rs:7989:14:
+---- cfg_builder::tests::escaping_loop_jumps_follows_try_but_not_catch stdout ----
+thread 'cfg_builder::tests::escaping_loop_jumps_follows_try_but_not_catch' (19377) panicked at rust/tcl-compiler/src/cfg_builder/mod.rs:6565:9:
+assertion `left == right` failed: try propagates break
+  left: (false, false)
+ right: (true, false)
+---- cfg_builder::tests::expanded_upvar_actual_is_opaque_not_a_literal_def stdout ----
+thread 'cfg_builder::tests::expanded_upvar_actual_is_opaque_not_a_literal_def' (19379) panicked at rust/tcl-compiler/src/cfg_builder/mod.rs:7110:9:
+assertion `left == right` failed
+  left: DynamicNameBarrier { writes: true, destroys: true, reads: true }
+ right: DynamicNameBarrier { writes: true, destroys: false, reads: false }
+---- cfg_builder::tests::folded_eval_keeps_a_separate_executable_compilation_boundary stdout ----
+thread 'cfg_builder::tests::folded_eval_keeps_a_separate_executable_compilation_boundary' (19380) panicked at rust/tcl-compiler/src/test_body_identity.rs:54:28:
+---- cfg_builder::tests::for_initialisation_does_not_publish_array_elements_as_scalar_constants stdout ----
+thread 'cfg_builder::tests::for_initialisation_does_not_publish_array_elements_as_scalar_constants' (19381) panicked at rust/tcl-compiler/src/cfg_builder/mod.rs:6215:17:
+---- cfg_builder::tests::frozen_for_condition_carries_upvar_proc_defs stdout ----
+thread 'cfg_builder::tests::frozen_for_condition_carries_upvar_proc_defs' (19383) panicked at rust/tcl-compiler/src/cfg_builder/mod.rs:8159:54:
+---- cfg_builder::tests::frozen_while_condition_carries_upvar_proc_defs stdout ----
+thread 'cfg_builder::tests::frozen_while_condition_carries_upvar_proc_defs' (19384) panicked at rust/tcl-compiler/src/cfg_builder/mod.rs:8131:54:
+---- cfg_builder::tests::late_alias_call_inside_proc_uses_projected_global_write_summary stdout ----
+thread 'cfg_builder::tests::late_alias_call_inside_proc_uses_projected_global_write_summary' (19387) panicked at rust/tcl-compiler/src/cfg_builder/mod.rs:7226:14:
+---- cfg_builder::tests::literal_upvar_proc_call_augments_defs stdout ----
+thread 'cfg_builder::tests::literal_upvar_proc_call_augments_defs' (19389) panicked at rust/tcl-compiler/src/cfg_builder/mod.rs:6972:9:
+---- cfg_builder::tests::observed_completion_never_manufactures_a_procedure_return stdout ----
+thread 'cfg_builder::tests::observed_completion_never_manufactures_a_procedure_return' (19394) panicked at rust/tcl-compiler/src/cfg_builder/mod.rs:5614:17:
+---- cfg_builder::tests::opaque_host_barriers_match_calls_for_every_registry_proc_exit_command stdout ----
+thread 'cfg_builder::tests::opaque_host_barriers_match_calls_for_every_registry_proc_exit_command' (19395) panicked at rust/tcl-compiler/src/cfg_builder/mod.rs:6081:21:
+assertion `left == right` failed: Call error must keep following statements unreachable
+  left: 3
+ right: 1
+---- cfg_builder::tests::original_cfg_metadata_preserves_explicit_standalone_and_missing_purposes stdout ----
+thread 'cfg_builder::tests::original_cfg_metadata_preserves_explicit_standalone_and_missing_purposes' (19396) panicked at rust/tcl-compiler/src/cfg_builder/mod.rs:5866:9:
+assertion failed: module.source_entry.metadata_context.is_standalone()
+---- cfg_builder::tests::param_upvar_proc_call_resolves_call_site_arg stdout ----
+thread 'cfg_builder::tests::param_upvar_proc_call_resolves_call_site_arg' (19397) panicked at rust/tcl-compiler/src/cfg_builder/mod.rs:7010:9:
+---- cfg_builder::tests::prepare_cfg_context_registers_params_for_all_procs stdout ----
+thread 'cfg_builder::tests::prepare_cfg_context_registers_params_for_all_procs' (19398) panicked at rust/tcl-compiler/src/cfg_builder/mod.rs:5309:9:
+assertion `left == right` failed: authored fixture summary "::q" must identify one body
+  left: 0
+ right: 1
+---- cfg_builder::tests::prepared_cfg_refuses_changed_module_profile_and_body_configuration stdout ----
+thread 'cfg_builder::tests::prepared_cfg_refuses_changed_module_profile_and_body_configuration' (19399) panicked at rust/tcl-compiler/src/cfg_builder/mod.rs:5795:64:
+---- cfg_builder::tests::prepared_cfg_source_metadata_is_shared_by_module_and_body_builders stdout ----
+thread 'cfg_builder::tests::prepared_cfg_source_metadata_is_shared_by_module_and_body_builders' (19400) panicked at rust/tcl-compiler/src/cfg_builder/mod.rs:5929:13:
+---- cfg_builder::tests::prepared_cfg_source_metadata_preserves_availability_and_refuses_missing_owners stdout ----
+thread 'cfg_builder::tests::prepared_cfg_source_metadata_preserves_availability_and_refuses_missing_owners' (19401) panicked at rust/tcl-compiler/src/cfg_builder/mod.rs:5652:9:
+assertion failed: prepared.command_classes.logical_structured_invocation(tokens).is_some()
+---- cfg_builder::tests::proc_exit_host_barriers_terminate_direct_and_opaque_switch_forms stdout ----
+thread 'cfg_builder::tests::proc_exit_host_barriers_terminate_direct_and_opaque_switch_forms' (19403) panicked at rust/tcl-compiler/src/cfg_builder/mod.rs:6127:9:
+assertion failed: matches!(entry.statements.as_slice(), [Statement::Switch { .. }])
+---- cfg_builder::tests::qualified_call_resolves_via_qualified_key stdout ----
+thread 'cfg_builder::tests::qualified_call_resolves_via_qualified_key' (19404) panicked at rust/tcl-compiler/src/cfg_builder/mod.rs:7190:9:
+---- cfg_builder::tests::read_beside_writes_uses_original_roles_and_preserves_refusals stdout ----
+thread 'cfg_builder::tests::read_beside_writes_uses_original_roles_and_preserves_refusals' (19405) panicked at rust/tcl-compiler/src/cfg_builder/mod.rs:8360:13:
+assertion `left == right` failed: puts [set x 2] [info exists x]
+  left: ["x", "unrelated"]
+ right: ["x"]
+---- cfg_builder::tests::recovered_procedure_without_a_published_summary_is_opaque stdout ----
+thread 'cfg_builder::tests::recovered_procedure_without_a_published_summary_is_opaque' (19406) panicked at rust/tcl-compiler/src/test_body_identity.rs:54:28:
+---- cfg_builder::tests::redefined_procedure_generation_is_an_opaque_frame_effect stdout ----
+thread 'cfg_builder::tests::redefined_procedure_generation_is_an_opaque_frame_effect' (19407) panicked at rust/tcl-compiler/src/cfg_builder/mod.rs:6747:9:
+assertion `left == right` failed
+  left: 0
+ right: 1
+---- cfg_builder::tests::rooted_regexp_value_form_does_not_widen_runtime_selected_method_frame stdout ----
+thread 'cfg_builder::tests::rooted_regexp_value_form_does_not_widen_runtime_selected_method_frame' (19410) panicked at rust/tcl-compiler/src/test_body_identity.rs:54:28:
+---- cfg_builder::tests::substituted_upvar_actual_is_opaque_not_a_literal_def stdout ----
+thread 'cfg_builder::tests::substituted_upvar_actual_is_opaque_not_a_literal_def' (19413) panicked at rust/tcl-compiler/src/cfg_builder/mod.rs:7075:9:
+assertion `left == right` failed
+  left: DynamicNameBarrier { writes: true, destroys: true, reads: true }
+ right: DynamicNameBarrier { writes: true, destroys: false, reads: false }
+---- cfg_builder::tests::summary_keys_decline_one_changed_member_and_foreign_module_source stdout ----
+thread 'cfg_builder::tests::summary_keys_decline_one_changed_member_and_foreign_module_source' (19414) panicked at rust/tcl-compiler/src/test_body_identity.rs:54:28:
+---- cfg_builder::tests::summary_parameters_retain_each_original_signature stdout ----
+thread 'cfg_builder::tests::summary_parameters_retain_each_original_signature' (19415) panicked at rust/tcl-compiler/src/cfg_builder/mod.rs:8261:9:
+assertion `left == right` failed
+  left: 0
+ right: 8
+---- cfg_builder::tests::switch_word_substitutions_invalidate_before_dispatch stdout ----
+thread 'cfg_builder::tests::switch_word_substitutions_invalidate_before_dispatch' (19416) panicked at rust/tcl-compiler/src/cfg_builder/mod.rs:7834:14:
+---- cfg_builder::tests::the_call_carrying_a_write_leaves_a_place_its_statement_never_reads_alone stdout ----
+thread 'cfg_builder::tests::the_call_carrying_a_write_leaves_a_place_its_statement_never_reads_alone' (19417) panicked at rust/tcl-compiler/src/cfg_builder/mod.rs:7397:18:
+---- cfg_builder::tests::the_call_carrying_a_write_reads_the_place_its_statement_reads stdout ----
+thread 'cfg_builder::tests::the_call_carrying_a_write_reads_the_place_its_statement_reads' (19418) panicked at rust/tcl-compiler/src/cfg_builder/mod.rs:7368:18:
+---- cfg_builder::tests::the_marker_for_a_call_follows_it_and_states_no_name stdout ----
+thread 'cfg_builder::tests::the_marker_for_a_call_follows_it_and_states_no_name' (19419) panicked at rust/tcl-compiler/src/cfg_builder/mod.rs:7565:13:
+assertion `left == right` failed: set cmd puts
+  left: [("set", ["cmd"]), ("${cmd}", []), ("<unseen-call>", [])]
+ right: [("${cmd}", []), ("<unseen-call>", [])]
+---- cfg_builder::tests::trailing_expansion_preserves_a_known_upvar_actual_prefix stdout ----
+thread 'cfg_builder::tests::trailing_expansion_preserves_a_known_upvar_actual_prefix' (19421) panicked at rust/tcl-compiler/src/cfg_builder/mod.rs:7094:9:
+---- cfg_builder::tests::try_handler_return_options_terminates stdout ----
+thread 'cfg_builder::tests::try_handler_return_options_terminates' (19422) panicked at rust/tcl-compiler/src/cfg_builder/mod.rs:8192:14:
+---- cfg_builder::tests::upvar_call_inside_if_branch_augments_defs stdout ----
+thread 'cfg_builder::tests::upvar_call_inside_if_branch_augments_defs' (19423) panicked at rust/tcl-compiler/src/cfg_builder/mod.rs:7248:9:
+---- cfg_builder::upvar_info::tests::absolute_constructed_set_is_exact_while_relative_set_is_opaque stdout ----
+thread 'cfg_builder::upvar_info::tests::absolute_constructed_set_is_exact_while_relative_set_is_opaque' (19425) panicked at rust/tcl-compiler/src/cfg_builder/upvar_info.rs:2878:9:
+assertion `left == right` failed: got UpvarInfo { literal_targets: {}, param_targets: {}, args_tail_upvar: [], has_unresolvable_caller_target: false, uplevel_literal_writes: {}, uplevel_param_writes: {}, uplevel_forwarded_calls: [], caller_frame_opaque_writes: true, caller_frame_opaque_reads: true, 
+  left: {}
+ right: {"fixed"}
+---- cfg_builder::upvar_info::tests::alias_prefixed_alias_pairs_keep_their_effective_operands stdout ----
+thread 'cfg_builder::upvar_info::tests::alias_prefixed_alias_pairs_keep_their_effective_operands' (19426) panicked at rust/tcl-compiler/src/cfg_builder/upvar_info.rs:2783:9:
+---- cfg_builder::upvar_info::tests::args_tail_upvar_recorded stdout ----
+thread 'cfg_builder::upvar_info::tests::args_tail_upvar_recorded' (19427) panicked at rust/tcl-compiler/src/cfg_builder/upvar_info.rs:2565:9:
+assertion `left == right` failed
+  left: []
+ right: ["y"]
+---- cfg_builder::upvar_info::tests::caller_alias_inside_the_selected_caller_frame_reaches_past_it stdout ----
+thread 'cfg_builder::upvar_info::tests::caller_alias_inside_the_selected_caller_frame_reaches_past_it' (19428) panicked at rust/tcl-compiler/src/cfg_builder/upvar_info.rs:2801:9:
+assertion `left == right` failed: got UpvarInfo { literal_targets: {}, param_targets: {}, args_tail_upvar: [], has_unresolvable_caller_target: false, uplevel_literal_writes: {"local"}, uplevel_param_writes: {}, uplevel_forwarded_calls: [], caller_frame_opaque_writes: true, caller_frame_opaque_reads:
+  left: NoFurtherThanTheCaller
+ right: PastTheCaller
+---- cfg_builder::upvar_info::tests::caller_frame_metadata_keeps_actual_availability_and_missing_owner_hazards stdout ----
+thread 'cfg_builder::upvar_info::tests::caller_frame_metadata_keeps_actual_availability_and_missing_owner_hazards' (19429) panicked at rust/tcl-compiler/src/cfg_builder/upvar_info.rs:3213:9:
+assertion failed: selected[&body_id].uplevel_literal_writes.contains("target")
+---- cfg_builder::upvar_info::tests::current_frame_alias_pairs_compose_inside_the_selected_caller_frame stdout ----
+thread 'cfg_builder::upvar_info::tests::current_frame_alias_pairs_compose_inside_the_selected_caller_frame' (19438) panicked at rust/tcl-compiler/src/cfg_builder/upvar_info.rs:2773:9:
+---- cfg_builder::upvar_info::tests::current_frame_body_retains_nested_caller_frame_effects stdout ----
+thread 'cfg_builder::upvar_info::tests::current_frame_body_retains_nested_caller_frame_effects' (19439) panicked at rust/tcl-compiler/src/cfg_builder/upvar_info.rs:2811:9:
+---- cfg_builder::upvar_info::tests::dynamic_destination_with_param_source_resolves_at_the_call_site stdout ----
+thread 'cfg_builder::upvar_info::tests::dynamic_destination_with_param_source_resolves_at_the_call_site' (19456) panicked at rust/tcl-compiler/src/cfg_builder/upvar_info.rs:2992:9:
+---- cfg_builder::upvar_info::tests::fully_dynamic_source_widens_summary stdout ----
+thread 'cfg_builder::upvar_info::tests::fully_dynamic_source_widens_summary' (19458) panicked at rust/tcl-compiler/src/cfg_builder/upvar_info.rs:2556:9:
+assertion failed: !info.has_unresolvable_caller_target
+---- cfg_builder::upvar_info::tests::late_alias_to_eval_preserves_an_enclosing_caller_frame stdout ----
+thread 'cfg_builder::upvar_info::tests::late_alias_to_eval_preserves_an_enclosing_caller_frame' (19460) panicked at rust/tcl-compiler/src/cfg_builder/upvar_info.rs:2743:9:
+---- cfg_builder::upvar_info::tests::late_alias_to_relative_one_uplevel_reaches_past_an_enclosing_caller_frame stdout ----
+thread 'cfg_builder::upvar_info::tests::late_alias_to_relative_one_uplevel_reaches_past_an_enclosing_caller_frame' (19462) panicked at rust/tcl-compiler/src/cfg_builder/upvar_info.rs:2763:9:
+assertion `left == right` failed: got UpvarInfo { literal_targets: {}, param_targets: {}, args_tail_upvar: [], has_unresolvable_caller_target: false, uplevel_literal_writes: {}, uplevel_param_writes: {}, uplevel_forwarded_calls: [], caller_frame_opaque_writes: true, caller_frame_opaque_reads: true, 
+  left: NoFurtherThanTheCaller
+ right: PastTheCaller
+---- cfg_builder::upvar_info::tests::late_alias_to_relative_zero_uplevel_preserves_an_enclosing_caller_frame stdout ----
+thread 'cfg_builder::upvar_info::tests::late_alias_to_relative_zero_uplevel_preserves_an_enclosing_caller_frame' (19464) panicked at rust/tcl-compiler/src/cfg_builder/upvar_info.rs:2753:9:
+---- cfg_builder::upvar_info::tests::method_frame_summary_keeps_the_issued_header_and_actual_registry stdout ----
+thread 'cfg_builder::upvar_info::tests::method_frame_summary_keeps_the_issued_header_and_actual_registry' (19475) panicked at rust/tcl-compiler/src/cfg_builder/upvar_info.rs:2348:9:
+assertion `left == right` failed
+  left: 0
+ right: 1
+---- cfg_builder::upvar_info::tests::nested_relative_one_reaches_past_the_caller stdout ----
+thread 'cfg_builder::upvar_info::tests::nested_relative_one_reaches_past_the_caller' (19485) panicked at rust/tcl-compiler/src/cfg_builder/upvar_info.rs:2822:9:
+assertion `left == right` failed: got UpvarInfo { literal_targets: {}, param_targets: {}, args_tail_upvar: [], has_unresolvable_caller_target: false, uplevel_literal_writes: {}, uplevel_param_writes: {}, uplevel_forwarded_calls: [], caller_frame_opaque_writes: true, caller_frame_opaque_reads: true, 
+  left: NoFurtherThanTheCaller
+ right: PastTheCaller
+---- cfg_builder::upvar_info::tests::nested_relative_zero_preserves_the_caller_frame stdout ----
+thread 'cfg_builder::upvar_info::tests::nested_relative_zero_preserves_the_caller_frame' (19487) panicked at rust/tcl-compiler/src/cfg_builder/upvar_info.rs:2732:9:
+---- cfg_builder::upvar_info::tests::original_protected_substitution_keeps_caller_alias_pairs stdout ----
+thread 'cfg_builder::upvar_info::tests::original_protected_substitution_keeps_caller_alias_pairs' (19490) panicked at rust/tcl-compiler/src/cfg_builder/upvar_info.rs:2657:13:
+assertion `left == right` failed: catch {upvar 1 target local}
+  left: None
+ right: Some("target")
+---- cfg_builder::upvar_info::tests::param_target_recorded_when_param_exists stdout ----
+thread 'cfg_builder::upvar_info::tests::param_target_recorded_when_param_exists' (19492) panicked at rust/tcl-compiler/src/cfg_builder/upvar_info.rs:2524:9:
+assertion `left == right` failed
+  left: None
+ right: Some("name")
+---- cfg_builder::upvar_info::tests::relative_constructed_bodies_do_not_borrow_callee_namespace stdout ----
+thread 'cfg_builder::upvar_info::tests::relative_constructed_bodies_do_not_borrow_callee_namespace' (19494) panicked at rust/tcl-compiler/src/test_body_identity.rs:54:28:
+---- cfg_builder::upvar_info::tests::relative_upframe_does_not_borrow_the_callee_namespace_alias stdout ----
+thread 'cfg_builder::upvar_info::tests::relative_upframe_does_not_borrow_the_callee_namespace_alias' (19495) panicked at rust/tcl-compiler/src/test_body_identity.rs:54:28:
+---- cfg_builder::upvar_info::tests::standalone_alias_pairs_keep_original_reference_grammar_and_literal_data stdout ----
+thread 'cfg_builder::upvar_info::tests::standalone_alias_pairs_keep_original_reference_grammar_and_literal_data' (19500) panicked at rust/tcl-compiler/src/cfg_builder/upvar_info.rs:2481:13:
+assertion `left == right` failed
+  left: None
+ right: Some("odd name")
+---- cfg_builder::upvar_info::tests::uplevel_literal_body_resolves_late_alias_prefix_write stdout ----
+thread 'cfg_builder::upvar_info::tests::uplevel_literal_body_resolves_late_alias_prefix_write' (19508) panicked at rust/tcl-compiler/src/cfg_builder/upvar_info.rs:2722:9:
+---- cfg_builder::upvar_info::tests::uplevel_of_a_side_effect_free_command_has_no_caller_effect stdout ----
+thread 'cfg_builder::upvar_info::tests::uplevel_of_a_side_effect_free_command_has_no_caller_effect' (19509) panicked at rust/tcl-compiler/src/cfg_builder/upvar_info.rs:2962:9:
+test result: FAILED. 86 passed; 176 failed; 0 ignored; 0 measured; 10189 filtered out; finished in 151.84s

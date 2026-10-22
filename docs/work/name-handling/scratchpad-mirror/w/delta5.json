@@ -1,0 +1,24 @@
+{
+ "scheduled": "2026-10-17T22:01:00Z",
+ "late_note": "The 22:01 report was missed: the session container restarted at about 22:30 UTC. Filesystem state survived; running processes (capture38) were killed.",
+ "change_since_previous_report": {"integrated_LSP": 0, "total_baseline_delta": 0, "effective_delta": 0, "verified_complete": 0},
+ "admissions": {},
+ "validation_recorded_at_capture": {
+  "capture37_final": {"completed": 1085, "passed": 848, "failed": 237, "timeouts": 1, "guards": "PASS", "vs_capture36": "+10 net; one regression (server 69) corrected in integration38"},
+  "build38": {"status": "PASS", "warnings": 0, "artifacts_sha256": "16d2fcb1c7c10e881903a0d7b3d9d7c569fda57eea38eaf49e2ade52a3d5ccbf", "commit": "1433f2ffe (candidate)"},
+  "targeted38": {"passed": 34, "of": 40, "unexpected": ["two new qualified nextto tests (cause found: namespace advice withdrawal after TclOO bodies in namespace eval)", "property my dispatch 059 stays Partial (fail-closed; tclsh 9.0.4 reports my size on a property as unknown method)", "admission26 control now fails later, at the separate foreign-input assertion"]},
+  "capture38": {"status": "INTERRUPTED by container restart; not counted", "core_complete": [664, 543], "server_partial": [107, 97], "extra5_pin_drift": "three of five control sources changed by census V4; recorded and run under a separate label, pins not refreshed"}
+ },
+ "user_decisions_since_previous_report": {"same_document_controls": "All three 1b45c540e controls may change for the same-document shape (user, 22:3x UTC)."},
+ "reviews_since_previous_report": {
+  "member_census": "V3 ADMIT, V4 applies F1-F3 (in integration38 candidate)",
+  "same_document_order": "V5 ADMIT after V2-V4 holds (import conflict, no-query revocation, end-of-document exits, math-function calls)",
+  "inline_objdefine_producer": "V2 ADMIT; changed object_instance row confirmed non-original and Tcl-correct",
+  "lifecycle_next_chain": "V2 with reviewer amendments A/B (in integration38 candidate)",
+  "namespaced_definition_body": "Sol-11 found the qualified-nextto cause in the compiler source-transition walk; Luna-11 review running"
+ },
+ "user_decisions_still_open": ["Compiler221", "DB921 identity", "Server102/103 freshness vs snapshot", "Server108 validation cost"],
+ "next_report_utc": "2026-10-17T23:08:00Z",
+ "green_PR": false,
+ "merge_or_issue_closure": false
+}

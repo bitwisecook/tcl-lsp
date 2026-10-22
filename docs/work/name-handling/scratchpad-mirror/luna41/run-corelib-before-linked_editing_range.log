@@ -1,0 +1,39 @@
+test linked_editing_range::retained_source_spelling_tests::linked_spelling_lifts_lone_cr_source_with_the_actual_lsp_line_geometry ... FAILED
+test linked_editing_range::original_linked_tests::original_linked_editing_does_not_mirror_escapes_computed_heads_or_unrelated_body_words ... ok
+test linked_editing_range::retained_source_spelling_tests::linked_spelling_rejects_surrogate_interior_cursor_and_same_named_data ... ok
+test linked_editing_range::retained_source_spelling_tests::logical_linked_spelling_uses_the_actual_header_and_direct_call_after_reports_are_removed ... FAILED
+test linked_editing_range::original_linked_tests::original_linked_editing_keeps_qualified_unicode_tail_and_refuses_stale_source ... FAILED
+test linked_editing_range::tests::identical_text_subspan_matches_whole_and_tail ... ok
+test linked_editing_range::tests::cursor_inside_body_also_links ... ok
+test linked_editing_range::tests::links_recursive_self_call_to_declaration ... ok
+test linked_editing_range::retained_source_spelling_tests::original_source_tail_geometry_refuses_changed_full_config_and_escaped_components ... ok
+test linked_editing_range::tests::qualified_self_call_links_only_the_name_tail ... ok
+test linked_editing_range::tests::original_logical_linked_edits_require_the_current_whole_source_owner ... FAILED
+test linked_editing_range::tests::returns_none_for_non_proc_word ... ok
+test linked_editing_range::tests::linked_edits_select_the_actual_self_head_and_refuse_same_named_data ... ok
+test linked_editing_range::tests::replaced_self_name_does_not_borrow_the_original_proc_links ... ok
+test linked_editing_range::tests::returns_none_for_proc_with_no_self_calls ... ok
+---- linked_editing_range::retained_source_spelling_tests::linked_spelling_lifts_lone_cr_source_with_the_actual_lsp_line_geometry stdout ----
+thread 'linked_editing_range::retained_source_spelling_tests::linked_spelling_lifts_lone_cr_source_with_the_actual_lsp_line_geometry' (31878) panicked at rust/tcl-lsp-core/src/linked_editing_range.rs:474:14:
+actual declaration and self-call after a lone CR
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- linked_editing_range::retained_source_spelling_tests::logical_linked_spelling_uses_the_actual_header_and_direct_call_after_reports_are_removed stdout ----
+
+thread 'linked_editing_range::retained_source_spelling_tests::logical_linked_spelling_uses_the_actual_header_and_direct_call_after_reports_are_removed' (31915) panicked at rust/tcl-lsp-core/src/linked_editing_range.rs:411:18:
+actual Logical source header and direct original self-call
+
+---- linked_editing_range::original_linked_tests::original_linked_editing_keeps_qualified_unicode_tail_and_refuses_stale_source stdout ----
+
+thread 'linked_editing_range::original_linked_tests::original_linked_editing_keeps_qualified_unicode_tail_and_refuses_stale_source' (31877) panicked at rust/tcl-lsp-core/src/linked_editing_range.rs:347:78:
+jimtcl
+
+---- linked_editing_range::tests::original_logical_linked_edits_require_the_current_whole_source_owner stdout ----
+
+thread 'linked_editing_range::tests::original_logical_linked_edits_require_the_current_whole_source_owner' (31960) panicked at rust/tcl-lsp-core/src/linked_editing_range.rs:179:51:
+actual declaration and recursive call
+
+
+failures:
+    linked_editing_range::original_linked_tests::original_linked_editing_keeps_qualified_unicode_tail_and_refuses_stale_source
+test result: FAILED. 11 passed; 4 failed; 0 ignored; 0 measured; 3470 filtered out; finished in 26.86s

@@ -1,0 +1,35 @@
+
+running 1 test
+test policy_truth_table::every_rewrite_row_applies_through_optimise_document ... FAILED
+
+failures:
+
+---- policy_truth_table::every_rewrite_row_applies_through_optimise_document stdout ----
+
+thread 'policy_truth_table::every_rewrite_row_applies_through_optimise_document' (8362) panicked at rust/tcl-lsp-server/src/policy_truth_table.rs:234:5:
+row `a_rewrite_shows_under_its_profile` on LspRewrite: O101: expected [Expect { code: O101, line: Some(1), want: Applied(true) }] not observed; observed [Observed { code: O101, line: Some(1), state: Applied(false) }] not expected
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic_display::<alloc::string::String>
+   3: tcl_lsp_server::policy_truth_table::every_rewrite_row_applies_through_optimise_document::{closure#0}
+   4: <core::pin::Pin<&mut dyn core::future::future::Future<Output = ()>> as core::future::future::Future>::poll
+   5: <tokio::runtime::park::CachedParkThread>::block_on::<core::pin::Pin<&mut dyn core::future::future::Future<Output = ()>>>::{closure#0}
+   6: <tokio::runtime::park::CachedParkThread>::block_on::<core::pin::Pin<&mut dyn core::future::future::Future<Output = ()>>>
+   7: <tokio::runtime::context::blocking::BlockingRegionGuard>::block_on::<core::pin::Pin<&mut dyn core::future::future::Future<Output = ()>>>
+   8: <tokio::runtime::scheduler::multi_thread::MultiThread>::block_on::<core::pin::Pin<&mut dyn core::future::future::Future<Output = ()>>>::{closure#0}
+   9: tokio::runtime::context::runtime::enter_runtime::<<tokio::runtime::scheduler::multi_thread::MultiThread>::block_on<core::pin::Pin<&mut dyn core::future::future::Future<Output = ()>>>::{closure#0}, ()>
+  10: <tokio::runtime::scheduler::multi_thread::MultiThread>::block_on::<core::pin::Pin<&mut dyn core::future::future::Future<Output = ()>>>
+  11: <tokio::runtime::runtime::Runtime>::block_on_inner::<core::pin::Pin<&mut dyn core::future::future::Future<Output = ()>>>
+  12: <tokio::runtime::runtime::Runtime>::block_on::<core::pin::Pin<&mut dyn core::future::future::Future<Output = ()>>>
+  13: tcl_lsp_server::policy_truth_table::every_rewrite_row_applies_through_optimise_document
+  14: tcl_lsp_server::policy_truth_table::every_rewrite_row_applies_through_optimise_document::{closure#0}
+  15: <tcl_lsp_server::policy_truth_table::every_rewrite_row_applies_through_optimise_document::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+
+failures:
+    policy_truth_table::every_rewrite_row_applies_through_optimise_document
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 839 filtered out; finished in 42.38s
+

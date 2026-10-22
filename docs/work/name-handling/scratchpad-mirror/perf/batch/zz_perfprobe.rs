@@ -1,0 +1,112 @@
+//! Temporary perf probe (perf agent). Delete when done.
+use std::sync::atomic::Ordering;
+use std::time::Instant;
+use tcl_compiler::analyser::Analyser;
+
+fn generate(kind: &str, n: usize) -> String {
+    let mut s = String::new();
+    match kind {
+        "calls" => {
+            s.push_str("proc p {a} {return $a}\n");
+            for _ in 0..n {
+                s.push_str("p 1\n");
+            }
+        }
+        "procs" => {
+            for i in 0..n {
+                s.push_str(&format!("proc capped_{i} {{}} {{}}\n"));
+            }
+        }
+        "sets" => {
+            for i in 0..n {
+                s.push_str(&format!("set v{i} {i}\n"));
+            }
+        }
+        "upvar" => {
+            s.push_str("proc inc {name} {upvar 1 $name v; incr v}\n");
+            for i in 0..n {
+                s.push_str(&format!("proc c{i} {{}} {{set x{i} 1; inc x{i}; return $x{i}}}\nc{i}\n"));
+            }
+        }
+        _ => panic!("kind"),
+    }
+    s
+}
+
+fn analyse_mode(src: &str, dialect: &str, old: bool) -> (u128, tcl_compiler::analyser::AnalysisResult) {
+    tcl_compiler::realm::ZZ_NO_MEMO.store(old, Ordering::Relaxed);
+    tcl_lexer::ZZ_OLD.store(old, Ordering::Relaxed);
+    let t = Instant::now();
+    let r = Analyser::new().analyse(src, dialect);
+    let ms = t.elapsed().as_millis();
+    tcl_compiler::realm::ZZ_NO_MEMO.store(false, Ordering::Relaxed);
+    tcl_lexer::ZZ_OLD.store(false, Ordering::Relaxed);
+    (ms, r)
+}
+
+fn diff(r0: &tcl_compiler::analyser::AnalysisResult, r1: &tcl_compiler::analyser::AnalysisResult) {
+    let d0: Vec<_> = r0.diagnostics.iter().map(|d| format!("{d:?}")).collect();
+    let d1: Vec<_> = r1.diagnostics.iter().map(|d| format!("{d:?}")).collect();
+    eprintln!("MISMATCH diagnostics_equal={}", d0 == d1);
+    if std::env::var_os("ZZ_DIFF").is_some() {
+        let a = format!("{r0:#?}");
+        let b = format!("{r1:#?}");
+        let sa: std::collections::BTreeSet<&str> = a.lines().collect();
+        let sb: std::collections::BTreeSet<&str> = b.lines().collect();
+        for l in sa.difference(&sb).take(15) { eprintln!("- {l}"); }
+        for l in sb.difference(&sa).take(15) { eprintln!("+ {l}"); }
+    }
+}
+
+/// old1, new, old2: `det` is old1 == old2; `eq` is new == old2 (or old1).
+fn run(src: &str, dialect: &str, compare: bool) -> (u128, u128, bool) {
+    if !compare {
+        let (ms, _) = analyse_mode(src, dialect, false);
+        return (ms, 0, true);
+    }
+    let (_, old1) = analyse_mode(src, dialect, true);
+    let (new_ms, new) = analyse_mode(src, dialect, false);
+    let (old_ms, old2) = analyse_mode(src, dialect, true);
+    let det = old1 == old2;
+    let eq = new == old2 || new == old1;
+    if !det {
+        eprintln!("NONDETERMINISTIC old1!=old2");
+    }
+    if !eq {
+        diff(&old2, &new);
+    }
+    println!("det={det}");
+    (new_ms, old_ms, eq)
+}
+
+fn main() {
+    let args: Vec<String> = std::env::args().collect();
+    let kind = args[1].as_str();
+    let compare = std::env::var_os("ZZ_COMPARE").is_some();
+    let dialect = std::env::var("ZZ_DIALECT").unwrap_or_else(|_| "tcl8.6".into());
+    if kind == "files" {
+        let mut bad = 0;
+        let mut total = 0;
+        for path in &args[2..] {
+            let Ok(src) = std::fs::read_to_string(path) else { continue };
+            let res = std::panic::catch_unwind(|| run(&src, &dialect, compare));
+            total += 1;
+            match res {
+                Ok((m, p, eq)) => {
+                    if !eq {
+                        bad += 1;
+                    }
+                    println!("{} memo_ms={m} plain_ms={p} eq={eq} {path}", if eq { "OK" } else { "BAD" });
+                }
+                Err(_) => println!("PANIC {path}"),
+            }
+        }
+        println!("files={total} mismatches={bad}");
+        return;
+    }
+    for n in args[2].split(',').map(|x| x.parse::<usize>().unwrap()) {
+        let src = generate(kind, n);
+        let (m, p, eq) = run(&src, &dialect, compare);
+        println!("{kind} n={n} memo_ms={m} plain_ms={p} eq={eq}");
+    }
+}

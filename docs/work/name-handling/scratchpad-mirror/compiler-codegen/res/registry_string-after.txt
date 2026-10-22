@@ -1,0 +1,5 @@
+test native_string_operand_compilation::tests::string_cat_compiles_from_8_6_at_every_operand_count ... ok
+test native_string_operand_compilation::tests::private_workers_consume_only_their_operands ... ok
+test native_string_operand_compilation::tests::original_string_operand_windows_follow_each_release ... ok
+test native_string_operand_compilation::tests::refused_operand_counts_keep_the_actual_fallback ... ok
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 1891 filtered out; finished in 0.01s

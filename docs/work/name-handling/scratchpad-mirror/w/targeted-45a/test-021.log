@@ -1,0 +1,6 @@
+
+running 1 test
+test expr_lexer::tests::a_comment_may_obscure_a_function_call_paren ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 584 filtered out; finished in 0.00s
+

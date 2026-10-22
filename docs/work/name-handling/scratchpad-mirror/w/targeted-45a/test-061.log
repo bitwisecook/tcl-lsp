@@ -1,0 +1,6 @@
+
+running 1 test
+test jim_script_tokens::original_script_syntax_tests::original_jim_syntax_roster_keeps_channel_and_native_value_ingress_separate ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 584 filtered out; finished in 0.00s
+

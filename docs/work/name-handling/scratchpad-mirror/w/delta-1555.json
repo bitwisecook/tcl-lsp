@@ -1,0 +1,9 @@
+{"scheduled":"2026-10-21T15:52:00Z",
+ "change_since_previous_report":{"integrated_LSP":0,"total_baseline_delta":0,"effective_delta":0,"verified_complete":0},
+ "admissions":{},
+ "committed":{"0cffd94ecf":"runtime/rust executes the native StringOperand plan (CI compile blocker); validation confirms runtime engine compile passes"},
+ "validation_feed":"LSP integration targets regress vs origin/rust: name_resolution 46/29 of 75 (rust 75/0), provider targets 164/75 of 239 (rust 239/0); resolution-oracles workflow now dispatches (row 10a pass) but tcl-test-support C84 formatter reference identity mismatch stops the suite; codegen_stamps 1/28 confirmed; call hierarchy 7/0 and inlay hints 9/0 pass",
+ "routing":{"lsp agent":"integration regressions vs rust now top priority, then lib losses, WASM/WASI, timeouts, link 136","vm-runtime agent":"runtime string tests, eval_loader, codegen_stamps","unassigned":"tcl-test-support C84 native formatter reference identity mismatch (resolution-oracles), 26 python ty errors, 4 cargo-deny advisories"},
+ "in_progress":{"vm-runtime agent":"active","compiler agent":"active","lsp agent":"active","bigip lsp agent":"active"},
+ "disk_free_gb":3.1,
+ "next_report_utc":"2026-10-21T16:24:00Z"}

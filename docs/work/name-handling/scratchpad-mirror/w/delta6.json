@@ -1,0 +1,18 @@
+{
+ "scheduled": "2026-10-17T23:09:00Z",
+ "change_since_previous_report": {"integrated_LSP": 0, "total_baseline_delta": 0, "effective_delta": 0, "verified_complete": 0},
+ "admissions": {},
+ "validation_recorded_at_capture": {
+  "integration39_candidate": {"commit": "e46e88617", "pieces": ["same-document order V5", "inline objdefine producer V2", "tcl-dialect doc_markdown fix"], "build39": "PASS, zero warnings, artifacts 1455488f…", "targeted": {"passed": 22, "of": 31, "notes": "test-400 and the three same-document controls pass; 404/406 and five same-file workspace tests stay withheld because commands inside a root namespace eval body are not yet DocumentSequence (fail-closed); one non-selected own-object method_symbol test fails, prior state unknown because build38's ELF was overwritten at the same path"}},
+  "clippy_gate": {"status": "FAILING, cleanup in progress", "first_wave": "tcl-dialect doc_markdown (fixed); tcl-lexer 25 errors (cast truncation, doc_markdown, too_many_lines, needless_pass_by_value, redundant_closure, ok().is_some_and); tcl-host-c-abi useless_conversion", "attribution": "five lexer errors come from this session's memo patch; the rest predate it", "rule": "no allow attributes, behaviour-preserving"},
+  "full_capture_on_38_or_39": "not yet completed (capture38 interrupted by restart); next full capture after clippy cleanup"
+ },
+ "reviews_since_previous_report": {
+  "namespaced_definition_body": "Luna-11 sound with R1-R4; Sol-11 V2 delivers R1 comment, R2 contract sentence, R4 regression tests; R3 full capture pending",
+  "same_document_namespace_eval_gap": "Sol-5 diagnosing with build39 binary copies"
+ },
+ "user_decisions_still_open": ["Compiler221", "DB921 identity", "Server102/103 freshness vs snapshot", "Server108 validation cost"],
+ "next_report_utc": "2026-10-17T23:39:00Z",
+ "green_PR": false,
+ "merge_or_issue_closure": false
+}

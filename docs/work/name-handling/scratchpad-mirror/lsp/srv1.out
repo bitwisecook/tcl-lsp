@@ -1,0 +1,3 @@
+disk avail 3073M
+BUILD FAILED rc=101
+error: could not compile `tcl-lsp-server` (lib test) due to 1 previous error

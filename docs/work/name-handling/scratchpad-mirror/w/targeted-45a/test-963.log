@@ -1,0 +1,25 @@
+
+running 1 test
+test completion::original_context::selected_argument_gap_tests::original_registry_argument_slots_use_selected_separator_and_continuation_grammar ... 
+thread 'completion::original_context::selected_argument_gap_tests::original_registry_argument_slots_use_selected_separator_and_continuation_grammar' (23272) panicked at rust/tcl-lsp-core/src/completion/original_context.rs:529:13:
+assertion `left == right` failed: "\r"
+  left: Some(1)
+ right: None
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<core::option::Option<usize>, core::option::Option<usize>>
+   4: tcl_lsp_core::completion::original_context::selected_argument_gap_tests::original_registry_argument_slots_use_selected_separator_and_continuation_grammar
+   5: tcl_lsp_core::completion::original_context::selected_argument_gap_tests::original_registry_argument_slots_use_selected_separator_and_continuation_grammar::{closure#0}
+   6: <tcl_lsp_core::completion::original_context::selected_argument_gap_tests::original_registry_argument_slots_use_selected_separator_and_continuation_grammar::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+FAILED
+
+failures:
+
+failures:
+    completion::original_context::selected_argument_gap_tests::original_registry_argument_slots_use_selected_separator_and_continuation_grammar
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 3484 filtered out; finished in 1.05s
+

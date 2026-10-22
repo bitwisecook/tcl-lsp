@@ -1,0 +1,6 @@
+
+running 1 test
+test package_resolver::reachability::tests::a_declaration_inside_an_apply_lambda_and_a_foreach_is_conditional ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 3483 filtered out; finished in 0.67s
+

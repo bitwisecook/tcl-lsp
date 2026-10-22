@@ -1,0 +1,5 @@
+/home/user/tcl-lsp/target/debug/deps/tcl_compiler-ef22ef87d0bd65a7
+test command_binding::hosted_procedure_body::tests::hosted_declaration_body_keeps_real_words_scope_and_unknown_handlers ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 10455 filtered out; finished in 0.20s
+      6 ZZ body_operand off=16 idx=3 selected=false at rust/tcl-compiler/src/command_binding.rs:11748:33
+      6 ZZ body_operand off=16 idx=2 selected=true at rust/tcl-compiler/src/command_binding.rs:11748:33

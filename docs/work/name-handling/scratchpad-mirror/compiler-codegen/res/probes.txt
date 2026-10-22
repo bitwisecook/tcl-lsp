@@ -1,0 +1,26 @@
+RELPROBE tcl8.4 "expr {1 + 2}": admission=Some(None) failure=Some(false) result=Ok(NotRequired)
+O129PROBE None "proc ::f {} {\n    set y [string length abcde]\n}\n": []
+RELPROBE tcl8.4 "set x 1": admission=Some(None) failure=Some(false) result=Ok(NotRequired)
+O129PROBE None "set y [string length abcde]\n": []
+RELPROBE tcl8.4 "catch {error x} msg": admission=Some(None) failure=Some(false) result=Ok(NotRequired)
+RELPROBE tcl8.4 "proc p {} {return 1}": admission=Some(None) failure=Some(false) result=Ok(NotRequired)
+O129PROBE Some("tcl8.6") "proc ::f {} {\n    set y [string length abcde]\n}\n": [("O129", "5")]
+RELPROBE tcl8.5 "expr {1 + 2}": admission=Some(None) failure=Some(false) result=Ok(NotRequired)
+RELPROBE tcl8.5 "set x 1": admission=Some(None) failure=Some(false) result=Ok(NotRequired)
+O129PROBE Some("tcl8.6") "set y [string length abcde]\n": [("O129", "5")]
+RELPROBE tcl8.5 "catch {error x} msg": admission=Some(None) failure=Some(false) result=Ok(NotRequired)
+O129PROBE None "proc ::f {} {\n    set y [string length abcde]\n}\n::f\n": []
+RELPROBE tcl8.5 "proc p {} {return 1}": admission=Some(None) failure=Some(false) result=Ok(NotRequired)
+RELPROBE tcl8.6 "expr {1 + 2}": admission=Some(None) failure=Some(false) result=Ok(NotRequired)
+RELPROBE tcl8.6 "set x 1": admission=Some(None) failure=Some(false) result=Ok(NotRequired)
+RELPROBE tcl8.6 "catch {error x} msg": admission=Some(None) failure=Some(false) result=Ok(NotRequired)
+RELPROBE tcl8.6 "proc p {} {return 1}": admission=Some(None) failure=Some(false) result=Ok(NotRequired)
+RELPROBE tcl9.0 "expr {1 + 2}": admission=Some(None) failure=Some(false) result=Ok(NotRequired)
+RELPROBE tcl9.0 "set x 1": admission=Some(None) failure=Some(false) result=Ok(NotRequired)
+RELPROBE tcl9.0 "catch {error x} msg": admission=Some(None) failure=Some(false) result=Ok(NotRequired)
+RELPROBE tcl9.0 "proc p {} {return 1}": admission=Some(None) failure=Some(false) result=Ok(NotRequired)
+RELPROBE f5-irules "expr {1 + 2}": admission=Some(None) failure=Some(false) result=Ok(NotRequired)
+RELPROBE f5-irules "set x 1": admission=Some(None) failure=Some(false) result=Ok(NotRequired)
+RELPROBE f5-irules "catch {error x} msg": admission=Some(None) failure=Some(false) result=Ok(NotRequired)
+RELPROBE f5-irules "proc p {} {return 1}": admission=Some(None) failure=Some(false) result=Ok(NotRequired)
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 10472 filtered out; finished in 7.46s

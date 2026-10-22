@@ -1,0 +1,9 @@
+{"scheduled":"2026-10-21T18:34:00Z",
+ "change_since_previous_report":{"integrated_LSP":0,"total_baseline_delta":0,"effective_delta":0,"verified_complete":0},
+ "admissions":{},
+ "committed":{"f3aed2a40e":"BIG-IP LSP agent: VS Code CI blockers fixed; 22 of 35 BIG-IP units done, 3 partial, 3 already current, 7 remaining (registry `when` layout, xtask generator targets)"},
+ "progress_uncommitted":{"name_resolution":"65/77 (from 46/75; origin/rust 75/0)","compiler_names":"command-substitution invocations carry original lookup again; math functions in [expr] and method-body self-dispatch recorded in all nested forms","tcl9_classmethod":"superclass delegate chain for Tcl 9 profiles with contract amendment and 8.6/9.0 controls"},
+ "routing":{"compiler-names agent":"namespace import alias lookup; W210 inside [..] in pkgIndex; next/nextto recheck","compiler agent":"itcl/snit definers; iRules top-level switch declaration refs (BIG-IP docs decide the call site)","lsp agent":"object-command creation-namespace scoping; references_rename rebuild with rename-safety fixes"},
+ "in_progress":{"vm-runtime agent":"golden_packs, codegen_stamps","compiler agent":"lowering stack overflow, definers, iRules","compiler-codegen agent":"compile service","compiler-names agent":"import alias, W210","lsp agent":"references_rename","gates agent":"owner-resolution, python ty, cargo-deny"},
+ "disk_free_gb":2.1,
+ "next_report_utc":"2026-10-21T19:05:00Z"}

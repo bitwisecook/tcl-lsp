@@ -1,0 +1,41 @@
+---- a_loop_body_is_declared_at_each_arity stdout ----
+
+thread 'a_loop_body_is_declared_at_each_arity' (20333) panicked at rust/tcl-spectcl/tests/jim_own_surface.rs:273:5:
+assertion `left == right` failed
+  left: []
+ right: [2]
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<alloc::vec::Vec<usize>, alloc::vec::Vec<usize>>
+   4: jim_own_surface::a_loop_body_is_declared_at_each_arity
+   5: jim_own_surface::a_loop_body_is_declared_at_each_arity::{closure#0}
+   6: <jim_own_surface::a_loop_body_is_declared_at_each_arity::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+
+failures:
+    a_jim_document_resolves_every_declared_command
+    a_loop_body_is_declared_at_each_arity
+    a_pack_carrying_jim_store_keeps_jims_own_surface
+
+test result: FAILED. 8 passed; 3 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.81s
+
+error: test failed, to rerun pass `-p tcl-spectcl --test jim_own_surface`
+===
+   1: core::panicking::panic_fmt
+   2: core::result::unwrap_failed
+   3: <core::result::Result<alloc::sync::Arc<tcl_registry::model::assembly::ContextRegistry>, tcl_registry::model::assembly::OverlayMiss>>::expect
+   4: tcl_explorer::tests::jim_own_commands_resolve_with_packs_loaded
+   5: tcl_explorer::tests::jim_own_commands_resolve_with_packs_loaded::{closure#0}
+   6: <tcl_explorer::tests::jim_own_commands_resolve_with_packs_loaded::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+
+failures:
+    tests::jim_own_commands_resolve_with_packs_loaded
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 140 filtered out; finished in 19.14s
+
+error: test failed, to rerun pass `-p tcl-explorer --lib`

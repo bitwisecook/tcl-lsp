@@ -1,0 +1,9 @@
+{
+ "scheduled": "2026-10-19T09:10:56Z",
+ "change_since_previous_report": {"integrated_LSP": 0, "total_baseline_delta": 0, "effective_delta": 0, "verified_complete": 0},
+ "admissions": {},
+ "candidates": {"integration45": {"commit": "aff99dc7e", "status": "held: nested-wrapper test at the 180 s budget (capture47)"}},
+ "in_progress": {"Sol-28": "exclusive tree: profiling the nested-wrapper test and Server108 analysis cost (no report yet)"},
+ "queued_after_admission": ["forced-import A2 + source-order proof v5"],
+ "next_report_utc": "2026-10-19T09:41:00Z"
+}

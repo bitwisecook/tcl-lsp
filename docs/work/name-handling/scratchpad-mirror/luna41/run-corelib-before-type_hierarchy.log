@@ -1,0 +1,78 @@
+test type_hierarchy::known_relation_selection_receipt_tests::ordinary_relation_keeps_original_operand_and_rejects_changed_receiver ... FAILED
+test type_hierarchy::conditional_local_hierarchy_tests::conditional_relation_operand_keeps_namespace_and_original_labels_with_prefix_debt ... FAILED
+test type_hierarchy::logical_source_selection_tests::logical_hierarchy_joins_actual_source_operands_and_coordinates_not_report_names ... FAILED
+test type_hierarchy::logical_source_selection_tests::logical_hierarchy_lifts_lone_cr_source_positions ... ok
+test type_hierarchy::conditional_local_hierarchy_tests::conditional_relation_selection_withholds_dynamic_body_and_changed_owner ... FAILED
+test type_hierarchy::logical_workspace_hierarchy_tests::logical_workspace_hierarchy_preserves_real_uris_and_namespace_relation_operands ... FAILED
+test type_hierarchy::logical_workspace_hierarchy_tests::logical_workspace_hierarchy_retains_duplicate_candidates_and_missing_target_debt ... FAILED
+test type_hierarchy::logical_source_selection_tests::logical_hierarchy_withholds_dynamic_or_unrepresented_relation_coverage ... ok
+test type_hierarchy::logical_workspace_hierarchy_tests::logical_workspace_hierarchy_wire_does_not_accept_labels_foreign_owner_or_stale_input ... ok
+test type_hierarchy::logical_workspace_hierarchy_tests::logical_workspace_hierarchy_uses_authored_slot_operations_and_preserves_local_occupants ... FAILED
+test type_hierarchy::original_hierarchy_tests::original_hierarchy_earlier_nonclass_headers_block_later_class_candidates ... ok
+test type_hierarchy::original_hierarchy_tests::original_hierarchy_preserves_document_owners_and_refuses_duplicate_providers ... ok
+test type_hierarchy::original_lsp_geometry_tests::original_hierarchy_lifts_lone_cr_source_positions ... ok
+test type_hierarchy::original_hierarchy_tests::original_hierarchy_uses_exact_opaque_relations_and_current_source_identity ... FAILED
+test type_hierarchy::retained_hierarchy_applicability_tests::prepared_operand_identity_keeps_debt_and_revalidates_both_current_snapshots ... FAILED
+test type_hierarchy::tests::prepare_of_non_class_word_is_empty ... ok
+test type_hierarchy::tests::prepare_resolves_class_at_cursor ... ok
+test type_hierarchy::tests::prepare_disambiguates_same_name_across_namespaces ... ok
+test type_hierarchy::tests::subtypes_returns_direct_subclasses ... ok
+test type_hierarchy::tests::supertypes_never_lists_the_class_itself ... ok
+test type_hierarchy::tests::subtypes_disambiguate_same_name_across_namespaces ... ok
+test type_hierarchy::tests::supertypes_of_unknown_class_is_empty ... ok
+test type_hierarchy::tests::supertypes_returns_superclasses_and_mixins ... ok
+test type_hierarchy::tests::supertypes_resolve_bare_namespaced_base_owner_aware ... ok
+---- type_hierarchy::known_relation_selection_receipt_tests::ordinary_relation_keeps_original_operand_and_rejects_changed_receiver stdout ----
+thread 'type_hierarchy::known_relation_selection_receipt_tests::ordinary_relation_keeps_original_operand_and_rejects_changed_receiver' (22418) panicked at rust/tcl-lsp-core/src/type_hierarchy.rs:1605:9:
+assertion failed: analysis.logical_source_class_at(&tcl_lexer::SourceImage::document(source),
+        analysis.body_lexer_config.unwrap(), cursor).is_some()
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- type_hierarchy::conditional_local_hierarchy_tests::conditional_relation_operand_keeps_namespace_and_original_labels_with_prefix_debt stdout ----
+
+thread 'type_hierarchy::conditional_local_hierarchy_tests::conditional_relation_operand_keeps_namespace_and_original_labels_with_prefix_debt' (22416) panicked at rust/tcl-lsp-core/src/type_hierarchy.rs:1455:42:
+no entry found for key
+
+---- type_hierarchy::logical_source_selection_tests::logical_hierarchy_joins_actual_source_operands_and_coordinates_not_report_names stdout ----
+
+thread 'type_hierarchy::logical_source_selection_tests::logical_hierarchy_joins_actual_source_operands_and_coordinates_not_report_names' (22429) panicked at rust/tcl-lsp-core/src/type_hierarchy.rs:1183:9:
+assertion `left == right` failed
+  left: []
+ right: ["::N::Base"]
+
+---- type_hierarchy::conditional_local_hierarchy_tests::conditional_relation_selection_withholds_dynamic_body_and_changed_owner stdout ----
+
+thread 'type_hierarchy::conditional_local_hierarchy_tests::conditional_relation_selection_withholds_dynamic_body_and_changed_owner' (22417) panicked at rust/tcl-lsp-core/src/type_hierarchy.rs:1529:9:
+assertion failed: logical_class_at("", source, &analysis, cursor).is_some()
+
+---- type_hierarchy::logical_workspace_hierarchy_tests::logical_workspace_hierarchy_preserves_real_uris_and_namespace_relation_operands stdout ----
+
+thread 'type_hierarchy::logical_workspace_hierarchy_tests::logical_workspace_hierarchy_preserves_real_uris_and_namespace_relation_operands' (22432) panicked at rust/tcl-lsp-core/src/type_hierarchy.rs:1284:10:
+removal index (is 0) should be < len (is 0)
+
+---- type_hierarchy::logical_workspace_hierarchy_tests::logical_workspace_hierarchy_retains_duplicate_candidates_and_missing_target_debt stdout ----
+
+thread 'type_hierarchy::logical_workspace_hierarchy_tests::logical_workspace_hierarchy_retains_duplicate_candidates_and_missing_target_debt' (22435) panicked at rust/tcl-lsp-core/src/type_hierarchy.rs:1354:80:
+called `Option::unwrap()` on a `None` value
+
+---- type_hierarchy::logical_workspace_hierarchy_tests::logical_workspace_hierarchy_uses_authored_slot_operations_and_preserves_local_occupants stdout ----
+
+thread 'type_hierarchy::logical_workspace_hierarchy_tests::logical_workspace_hierarchy_uses_authored_slot_operations_and_preserves_local_occupants' (22438) panicked at rust/tcl-lsp-core/src/type_hierarchy.rs:1383:80:
+called `Option::unwrap()` on a `None` value
+
+---- type_hierarchy::original_hierarchy_tests::original_hierarchy_uses_exact_opaque_relations_and_current_source_identity stdout ----
+
+thread 'type_hierarchy::original_hierarchy_tests::original_hierarchy_uses_exact_opaque_relations_and_current_source_identity' (22442) panicked at rust/tcl-lsp-core/src/type_hierarchy.rs:1036:9:
+assertion `left == right` failed
+  left: 0
+ right: 2
+
+---- type_hierarchy::retained_hierarchy_applicability_tests::prepared_operand_identity_keeps_debt_and_revalidates_both_current_snapshots stdout ----
+
+thread 'type_hierarchy::retained_hierarchy_applicability_tests::prepared_operand_identity_keeps_debt_and_revalidates_both_current_snapshots' (22444) panicked at rust/tcl-lsp-core/src/type_hierarchy.rs:1564:10:
+called `Option::unwrap()` on a `None` value
+
+
+failures:
+    type_hierarchy::conditional_local_hierarchy_tests::conditional_relation_operand_keeps_namespace_and_original_labels_with_prefix_debt
+test result: FAILED. 15 passed; 9 failed; 0 ignored; 0 measured; 3461 filtered out; finished in 14.21s

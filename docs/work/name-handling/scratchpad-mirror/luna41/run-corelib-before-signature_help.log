@@ -1,0 +1,54 @@
+test signature_help::original_logical_query_tests::current_argument_cursor_retains_unclosed_source_without_a_repaired_word ... ok
+test signature_help::original_logical_query_tests::signature_cursor_unicode_cr_and_utf16_positions_do_not_clamp ... ok
+test signature_help::original_logical_query_tests::signature_preserves_unknown_lookup_and_dynamic_argument_applicability ... ok
+test signature_help::original_schema_tests::original_signature_jim_selector_uses_its_own_source_schema ... ok
+test signature_help::original_logical_query_tests::signature_uses_genuine_logical_header_horizon_and_alias_prefix_without_report_maps ... ok
+test signature_help::original_schema_tests::original_signature_keeps_conditional_source_schema_and_alias_prefixes ... FAILED
+test signature_help::original_schema_tests::original_signature_keeps_explicit_logical_advice_separate ... ok
+test signature_help::tests::active_param_advances_with_typed_args ... ok
+test signature_help::original_schema_tests::original_signature_schema_rejects_foreign_context_source_and_known_shadow ... ok
+test signature_help::tests::alias_chain_returns_target_through_multiple_hops ... ok
+test signature_help::tests::alias_resolves_to_target_proc_signature ... ok
+test signature_help::original_logical_query_tests::signature_keeps_real_namespace_frame_and_declines_unowned_equal_spelling ... ok
+test signature_help::tests::bare_global_call_cannot_select_an_unrelated_namespace_proc ... ok
+test signature_help::tests::builtin_signature_documentation_surfaces_summary ... ok
+test signature_help::tests::builtin_signature_active_param_advances ... ok
+test signature_help::tests::bare_global_call_selects_the_genuine_namespace_path_proc ... ok
+test signature_help::tests::builtin_signature_returns_none_without_registry ... ok
+test signature_help::tests::builtin_signature_surfaces_for_known_command ... ok
+test signature_help::tests::help_clamps_active_param_to_last_known ... ok
+test signature_help::tests::disabled_builtin_signatures_do_not_disable_other_commands_or_procs ... ok
+test signature_help::tests::empty_registry_declared_scripts_are_nested_cursor_regions ... ok
+test signature_help::tests::help_on_first_argument ... ok
+test signature_help::tests::help_returns_none_for_unknown_command ... ok
+test signature_help::tests::no_help_at_command_name ... ok
+test signature_help::tests::namespaced_proc_does_not_hijack_builtin_from_global ... ok
+test signature_help::tests::original_signature_currency_and_registry_survive_reporting_counterfactuals ... ok
+test signature_help::tests::proc_doc_surfaces_as_documentation ... ok
+test signature_help::tests::proc_signature_stops_at_its_script_body ... ok
+test signature_help::tests::qualified_call_resolves_to_namespaced_proc ... ok
+test signature_help::tests::signature_help_continues_across_open_brace ... ok
+test signature_help::tests::signature_help_is_available_in_proc_header_and_nested_proc_call ... ok
+test signature_help::tests::signature_help_resets_on_semicolon ... ok
+test signature_help::tests::original_signature_expansion_cursor_selects_its_own_list_child ... ok
+test signature_help::tests::signature_uses_the_original_call_point_before_replacement ... ok
+test signature_help::tests::subcommand_signature_none_for_unknown_subcommand ... ok
+test signature_help::tests::subcommand_signature_resolves_for_string_length ... ok
+test signature_help::tests::original_signature_argument_mapping_keeps_captured_prefixes_without_source_anchors ... ok
+test signature_help::tests::substitution_free_quoted_proc_body_is_a_nested_script_region ... FAILED
+test signature_help::tests::user_proc_wins_over_builtin_with_same_name ... ok
+test signature_help::tests::signature_subcommands_use_original_values_and_shared_prefix_rules ... ok
+---- signature_help::original_schema_tests::original_signature_keeps_conditional_source_schema_and_alias_prefixes stdout ----
+thread 'signature_help::original_schema_tests::original_signature_keeps_conditional_source_schema_and_alias_prefixes' (18895) panicked at rust/tcl-lsp-core/src/signature_help.rs:1334:13:
+assertion failed: matches!(words.source, OriginalRegistrySource::Conditional(_))
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- signature_help::tests::substitution_free_quoted_proc_body_is_a_nested_script_region stdout ----
+
+thread 'signature_help::tests::substitution_free_quoted_proc_body_is_a_nested_script_region' (19331) panicked at rust/tcl-lsp-core/src/signature_help.rs:1120:14:
+unterminated quoted body command signature
+
+
+failures:
+    signature_help::original_schema_tests::original_signature_keeps_conditional_source_schema_and_alias_prefixes
+test result: FAILED. 38 passed; 2 failed; 0 ignored; 0 measured; 3445 filtered out; finished in 82.53s

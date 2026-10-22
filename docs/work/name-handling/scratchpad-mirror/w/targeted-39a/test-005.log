@@ -1,0 +1,21 @@
+
+running 1 test
+test definition::tests::a_forget_after_the_import_stops_resolving_the_alias ... 
+thread 'definition::tests::a_forget_after_the_import_stops_resolving_the_alias' (5979) panicked at rust/tcl-lsp-core/src/definition.rs:6046:9:
+a forgotten alias must stop resolving after the forget: Some(ProcDef { source_name: Some(SignatureSourceCommand { publication: NamedCommand, policy: NamePolicyProtocol { recipe: C(V8_6), authority: AuthoredSimulation }, slot: CommandSlot { namespace: ByteNamespacePath([NameBytes([115, 114, 99])]), simple: NameBytes([112]) } }), name: "p", qualified_name: "::src::p", params: [], formal_count: Original(SignatureSourceFormalParameters { input: SignatureSourceNameKey { original: NativeWord { arena: ExecutablePartArena { image: SourceImage { bytes: [110, 97, 109, 101, 115, 112, 97, 99, 101, 32, 101, 118, 97, 108, 32, 115, 114, 99, 32, 123, 10, 32, 32, 32, 32, 112, 114, 111, 99, 32, 112, 32, 123, 125, 32, 123, 32, 114, 101, 116, 117, 114, 110, 32, 80, 32, 125, 10, 32, 32, 32, 32, 110, 97, 109, 101, 115, 112, 97, 99, 101, 32, 101, 120, 112, 111, 114, 116, 32, 112, 10, 125, 10, 110, 97, 109, 101, 115, 112, 97, 99, 101, 32, 101, 118, 97, 108, 32, 100, 115, 116, 32, 123, 10, 32, 32, 32, 32, 110, 97, 109, 101, 115, 112, 97, 99, 101, 32, 105, 109, 112, 111, 114, 116, 32, 58, 58, 115, 114, 99, 58, 58, 42, 10, 125, 10, 110, 97, 109, 101, 115, 112, 97, 99, 101, 32, 101, 118, 97, 108, 32, 100, 115, 116, 32, 123, 10, 32, 32, 32, 32, 110, 97, 109, 101, 115, 112, 97, 99, 101, 32, 102, 111, 114, 103, 101, 116, 32, 58, 58, 115, 114, 99, 58, 58, 112, 10, 125, 10], channel: Document, geometry: SourceImageGeometry { byte_hash: 10194302718654517667, line_index: Some(LineIndex { line_starts: [0, 21, 48, 71, 73, 94, 124, 126, 147, 177, 179] }) } }, config: LexerConfig { expand_syntax: true, irules_brace_separator: false, brace_line_continuation: Terminates, strict_quoting: false, braced_var: FirstClose, array_index: Tcl8, base_offset: 0, base_line: 0, base_col: 0, leading_bom: Content, escapes: Tcl86, word_separators: Tcl, quote_termination: Strict, var_syntax: Tcl, brace_backslash_newline: Folds, list_parse: Strict }, variables: WrittenWord, lists: [[SpannedExecutablePart { part: Text(Original), span: Span { start: 33, end: 33 }, source_span: Span { start: 33, end: 33 }, error_term: None, error_kind: None }]] }, config: LexerConfig { expand_syntax: true, irules_brace_separator: false, brace_line_continuation: Terminates, strict_quoting: false, braced_var: FirstClose, array_index: Tcl8, base_offset: 0, base_line: 0, base_col: 0, leading_bom: Content, escapes: Tcl86, word_separators: Tcl, quote_termination: Strict, var_syntax: Tcl, brace_backslash_newline: Folds, list_parse: Strict }, group: WordSpan { kind: Braced, expand: false, tokens: 0..1, span: Span { start: 32, end: 34 }, welded_after_close: false, welded_after_close_quote: false }, tokens: [Token { kind: Str, span: Span { start: 32, end: 34 }, content_offset: 1, in_quote: false }], written: Span { start: 32, end: 34 }, operand: Span { start: 32, end: 34 } }, bytes: NameBytes([]), rules: WordValueRules { brace: Folds, list: Strict }, policy: NamePolicyProtocol { recipe: C(V8_6), authority: AuthoredSimulation } }, parameters: [], grammar: Tcl }), params_computed: false, name_span: Span { start: 30, end: 31 }, body_span: Span { start: 35, end: 46 }, doc: "", param_traits: {}, caller_frame_params: {}, caller_frame_literals: {} })
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: tcl_lsp_core::definition::tests::a_forget_after_the_import_stops_resolving_the_alias
+   3: tcl_lsp_core::definition::tests::a_forget_after_the_import_stops_resolving_the_alias::{closure#0}
+   4: <tcl_lsp_core::definition::tests::a_forget_after_the_import_stops_resolving_the_alias::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+FAILED
+
+failures:
+
+failures:
+    definition::tests::a_forget_after_the_import_stops_resolving_the_alias
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 3479 filtered out; finished in 1.65s
+

@@ -1,0 +1,6 @@
+/home/user/tcl-lsp/target/debug/deps/tcl_compiler-ef22ef87d0bd65a7
+test interprocedural::tests::used_in_condition_detected ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 10455 filtered out; finished in 1.27s
+      2 ORIGINAL_GENERIC_BINDING site=0 available=true unknown=false absent=false targets=1
+      2 ORIGINAL_GENERIC_BINDING site=16 available=true unknown=false absent=false targets=1
+      4 ORIGINAL_GENERIC_BINDING site=36 available=true unknown=false absent=false targets=1

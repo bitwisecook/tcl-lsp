@@ -1,0 +1,8 @@
+{"scheduled":"2026-10-22T09:55:00Z",
+ "change_since_previous_report":{"integrated_LSP":0,"total_baseline_delta":0,"effective_delta":0,"verified_complete":0},
+ "admissions":{},
+ "committed":{"3cd285bf1d/25bdb93978/5e1e9a7d7d/3f1f1a047a/12cd8f3aa0":"WIP snapshots"},
+ "progress_in_tree":{"perf":"SpecTcl load_embedded 7.3 s -> 1.9-2.5 s (opt-level 1) with identical PackSet output; debug invariant checked inductively plus a full-chain unit test; Analyser memo equality proof in progress","bigip-lsp":"all targeted BIG-IP server tests pass (xc_*, decoded basename, partition rename code action, action-command forwarding)","lsp":"workspace_folder_add hang root cause: test backend analyses host tclIndex files under the quadratic Analyser; implemented decision 2026-10-19T11:00Z (test backend does not scan the host install; pinned-install test; per-index survey memo)","compiler":"build blocked by E0275 in tcl-lsp-core's new static memo (lsp agent fixing: store plain index entries)"},
+ "in_progress":{"vm-runtime":"active","compiler":"blocked on E0275 then active","compiler-codegen":"active","compiler-names":"active","lsp":"fixing E0275","bigip-lsp":"active","perf":"active"},
+ "resources":"disk 3.2 GB (3.55 GB superseded libraries pruned at 09:35Z), RAM 4 GB available, /dev/shm 2.0 GB",
+ "next_report_utc":"2026-10-22T10:27:00Z"}

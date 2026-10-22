@@ -1,0 +1,666 @@
+test codegen::cmd_subst::tests::a_literal_end_offset_past_int_is_fixed_where_the_release_compiles_it ... ok
+test codegen::cmd_subst::tests::a_literal_insert_index_past_int_is_respelt_where_the_release_compiles_it ... ok
+test codegen::cmd_subst::tests::catch_body_only_hooks_stay_generic_in_value_position ... ok
+test codegen::cmd_subst::tests::a_statement_hook_declines_an_unproved_named_string_invocation ... ok
+test codegen::cmd_subst::tests::compiled_error_retains_optional_original_values_and_operation_context ... ok
+test codegen::cmd_subst::tests::emit_arg_literal ... ok
+test codegen::cmd_subst::tests::emit_arg_var_ref ... ok
+test codegen::cmd_subst::tests::emit_braced_arg_as_exact_verbatim_literal ... ok
+test codegen::cmd_subst::tests::emit_generic_simple ... ok
+test codegen::cmd_subst::tests::coroutine_emitters_preserve_native_namespace_and_expansion_segments ... ok
+test codegen::cmd_subst::tests::inline_expr ... ok
+test codegen::cmd_subst::tests::inline_cmd_subst_expansion_uses_the_profiled_registry_grammar ... ok
+test codegen::cmd_subst::tests::inline_expr_subst_respects_the_target_release ... ok
+test codegen::cmd_subst::tests::inline_incr_braced_amount_does_not_evaluate_its_command_text ... ok
+test codegen::cmd_subst::tests::inline_incr_proc ... ok
+test codegen::cmd_subst::tests::inline_list ... ok
+test codegen::cmd_subst::tests::inline_expr_subst_parses_under_the_compile_dialect ... ok
+test codegen::cmd_subst::tests::inline_lrange_end_plus_n_falls_back_to_non_imm ... ok
+test codegen::cmd_subst::tests::inline_list_control_requires_owned_registry_control_hooks ... ok
+test codegen::cmd_subst::tests::inline_lrange_end_uses_imm ... ok
+test codegen::cmd_subst::tests::inline_lrange_variable_indices_no_double_push ... ok
+test codegen::cmd_subst::tests::inline_multicommand_falls_back ... ok
+test codegen::cmd_subst::tests::inline_string_compare_nested_cmd_label_resolves ... ok
+test codegen::cmd_subst::tests::inline_string_equal_nested_cmd_label_resolves ... ok
+test codegen::cmd_subst::tests::inline_string_length ... ok
+test codegen::cmd_subst::tests::inline_source_recovery_keeps_ingress_expansion_and_quote_grammar ... ok
+test codegen::cmd_subst::tests::list_expand_concat_keeps_configured_whole_scalar_words ... ok
+test codegen::cmd_subst::tests::list_expand_concat_requires_the_owned_registry_list_hook ... ok
+test codegen::cmd_subst::tests::namespace_code_literal_builder_is_shared_by_every_result_context ... FAILED
+test codegen::cmd_subst::tests::no_separator ... ok
+test codegen::cmd_subst::tests::original_argument_emission_refuses_missing_stale_and_unavailable_lexical_receipts ... ok
+test codegen::cmd_subst::tests::original_argument_ordinals_keep_worker_prefixes_and_derived_heads_separate ... ok
+test codegen::cmd_subst::tests::original_inline_argument_emitters_keep_lexical_nul_and_escape_values ... ok
+test codegen::cmd_subst::tests::current_namespace_emission_requires_its_actual_native_compiler_hook ... FAILED
+test codegen::cmd_subst::tests::original_regexp_argument_indices_survive_consumed_options ... ok
+test codegen::cmd_subst::tests::original_substitution_geometry_preserves_braces_quotes_and_comments ... ok
+test codegen::cmd_subst::tests::parse_braced_arg ... ok
+test codegen::cmd_subst::tests::parse_nested_cmd ... ok
+test codegen::cmd_subst::tests::parse_quoted_arg ... ok
+test codegen::cmd_subst::tests::parse_simple_cmd ... ok
+test codegen::cmd_subst::tests::pure_cmd_subst_nested ... ok
+test codegen::cmd_subst::tests::pure_cmd_subst_not ... ok
+test codegen::cmd_subst::tests::pure_cmd_subst_simple ... ok
+test codegen::cmd_subst::tests::qualified_head_word_compiles_as_the_builtin ... ok
+test codegen::cmd_subst::tests::registry_hook_alone_does_not_capture_a_generic_string_fallback ... ok
+test codegen::cmd_subst::tests::registry_hook_alone_does_not_turn_a_named_string_call_into_a_token_capture ... ok
+test codegen::cmd_subst::tests::original_native_operation_range_survives_argv_worker_replacement ... ok
+test codegen::cmd_subst::tests::registry_inline_hook_stamping_matches_previous_hardcoded_dispatch ... ok
+test codegen::cmd_subst::tests::separator_in_braces_ignored ... ok
+test codegen::cmd_subst::tests::separator_in_quotes_ignored ... ok
+test codegen::cmd_subst::tests::separator_newline ... ok
+test codegen::cmd_subst::tests::separator_semicolon ... ok
+test codegen::cmd_subst::tests::standalone_default_source_parts_preserve_outer_presentation_whitespace ... ok
+test codegen::cmd_subst::tests::tailcall_empty_and_expanded_native_lists_are_selected_only_in_91 ... ok
+test codegen::cmd_subst::tests::tailcall_value_emission_retains_native_namespace_and_original_words ... ok
+test codegen::cmd_subst::tests::try_inline_list_with_break_emits_jump_to_target ... ok
+test codegen::cmd_subst::tests::try_inline_list_without_break_returns_false ... ok
+test codegen::cmd_subst::tests::try_inline_list_without_target_emits_break_as_literal ... ok
+test codegen::cmd_subst::tests::try_list_expand_concat_matches_two_vars ... ok
+test codegen::cmd_subst::tests::try_list_expand_concat_rejects_non_expanded_arg ... ok
+test codegen::cmd_subst::tests::try_list_expand_concat_rejects_single_var ... ok
+test codegen::cmd_subst::tests::try_list_expand_concat_rejects_three_vars ... ok
+test codegen::cmd_subst::tests::unavailable_configured_word_projection_keeps_the_actual_script_for_eval ... ok
+test codegen::cmd_subst::tests::unroll_not_nested ... ok
+test codegen::cmd_subst::tests::unroll_simple ... ok
+test codegen::control_flow::tests::catch_body_break_emits_break_op ... ok
+test codegen::control_flow::tests::catch_body_expr_follows_the_compile_target_release ... ok
+test codegen::control_flow::tests::catch_body_preserves_argument_expansion ... ok
+test codegen::control_flow::tests::catch_body_qualified_error_compiles_as_error ... ok
+test codegen::control_flow::tests::catch_body_throw_stays_generic ... ok
+test codegen::control_flow::tests::catch_body_wrapping_declines_an_unavailable_compilation_scope ... FAILED
+test codegen::control_flow::tests::catch_error_emits_return_imm ... ok
+test codegen::control_flow::tests::catch_inline_emits_begin_end_catch ... ok
+test codegen::control_flow::tests::catch_inline_incomplete_body_uses_the_shared_parse_failure ... ok
+test codegen::cmd_subst::tests::retained_source_lexing_does_not_supply_native_invocation_admission ... ok
+test codegen::control_flow::tests::catch_inline_runs_complete_prefix_before_fatal_command_tail ... ok
+test codegen::control_flow::tests::catch_inline_stores_result_var ... ok
+test codegen::control_flow::tests::catch_inline_with_options_declines_without_selection ... ok
+test codegen::control_flow::tests::catch_return_simple ... ok
+test codegen::control_flow::tests::catch_return_with_code ... ok
+test codegen::control_flow::tests::detect_div_by_zero ... ok
+test codegen::control_flow::tests::dictionary_bodies_keep_abrupt_completions_in_their_original_activation ... ok
+test codegen::control_flow::tests::dictionary_iterations_close_the_same_indexed_search_on_both_exits ... ok
+test codegen::control_flow::tests::inline_body_instructions_keep_the_inner_command_source_and_restore_the_parent ... ok
+test codegen::control_flow::tests::inline_catch_ignores_a_trailing_unseen_call_marker ... ok
+test codegen::control_flow::tests::needs_start_cmd_trait_matches_previous_hardcoded_set ... ok
+test codegen::control_flow::tests::nested_try_binds_both_typed_handler_variables ... ok
+test codegen::control_flow::tests::nested_try_declines_unbraced_dynamic_phase_words ... ok
+test codegen::control_flow::tests::nested_try_multicommand_phases_keep_live_ranges_and_boundaries ... ok
+test codegen::cmd_subst::tests::namespace_origin_opcode_is_shared_by_every_result_context ... FAILED
+test codegen::control_flow::tests::no_error_for_non_zero ... ok
+test codegen::control_flow::tests::catch_inline_multicommand_body_preserves_each_command_boundary ... FAILED
+test codegen::control_flow::tests::original_try_handler_argument_emission_keeps_the_child_source_scope ... ok
+test codegen::control_flow::tests::nested_try_receiver_name_data_retains_generic_output_protocol ... FAILED
+test codegen::emitter::bytecoded::tests::append_array_element_uses_append_array1 ... ok
+test codegen::emitter::bytecoded::tests::append_multi_uses_reverse_then_append_per_value ... ok
+test codegen::emitter::bytecoded::tests::append_qualified_and_dynamic_names_use_the_stack_once ... ok
+test codegen::emitter::bytecoded::tests::append_scalar_single_uses_append_scalar1 ... ok
+test codegen::emitter::bytecoded::tests::append_toplevel_uses_the_evaluated_stack_name ... ok
+test codegen::emitter::bytecoded::tests::array_in_proc_context_rejects ... ok
+test codegen::emitter::bytecoded::tests::array_names_emits_fq_invoke ... ok
+test codegen::control_flow::tests::original_inline_body_tokens_keep_nested_bom_and_parent_point_correspondence ... ok
+test codegen::emitter::bytecoded::tests::concat_all_literal_folds ... ok
+test codegen::emitter::bytecoded::tests::captured_upvar_prefix_without_written_remote_words_declines_the_whole_layout ... ok
+test codegen::emitter::bytecoded::tests::concat_backslash_arg_not_folded ... ok
+test codegen::emitter::bytecoded::tests::concat_no_args_pushes_empty ... ok
+test codegen::emitter::bytecoded::tests::concat_fold_trims_and_drops_empties ... ok
+test codegen::emitter::bytecoded::tests::concat_with_substitution_uses_concat_stk ... ok
+test codegen::emitter::bytecoded::tests::dict_append_uses_dict_append_opcode ... ok
+test codegen::emitter::bytecoded::tests::ctx_registry_drives_codegen_hook_resolution ... ok
+test codegen::emitter::bytecoded::tests::dict_incr_rejects_non_integer_amount ... ok
+test codegen::emitter::bytecoded::tests::dict_incr_with_default_amount ... ok
+test codegen::emitter::bytecoded::tests::dict_incr_with_explicit_amount ... ok
+test codegen::emitter::bytecoded::tests::dict_lappend_uses_dict_lappend_opcode ... ok
+test codegen::emitter::bytecoded::tests::dict_set_proc_uses_dict_set_opcode ... ok
+test codegen::emitter::bytecoded::tests::dict_unset_uses_dict_unset_opcode ... ok
+test codegen::emitter::bytecoded::tests::dict_in_non_proc_context_uses_ensemble ... ok
+test codegen::emitter::bytecoded::tests::global_multi_reuses_namespace ... ok
+test codegen::emitter::bytecoded::tests::global_qualified_or_toplevel_falls_back ... ok
+test codegen::emitter::bytecoded::tests::global_single_uses_nsupvar ... ok
+test codegen::emitter::bytecoded::tests::lappend_array_element_uses_lappend_array1 ... ok
+test codegen::emitter::bytecoded::tests::dict_with_qualified_name_uses_ensemble ... ok
+test codegen::emitter::bytecoded::tests::lappend_multi_array_captures_one_key_and_builds_one_list ... ok
+test codegen::emitter::bytecoded::tests::lappend_multi_builds_list_then_lappend_list ... ok
+test codegen::emitter::bytecoded::tests::lappend_scalar_single_uses_lappend_scalar1 ... ok
+test codegen::emitter::bytecoded::tests::lassign_emits_expected_sequence ... ok
+test codegen::emitter::bytecoded::tests::lassign_rejects_wrong_arity ... ok
+test codegen::emitter::bytecoded::tests::link_local_operand_uses_typed_literal_data_without_reference_prefixes ... ok
+test codegen::emitter::bytecoded::tests::linsert_emits_lreplace4_with_op2 ... ok
+test codegen::emitter::bytecoded::tests::llength_single_arg ... ok
+test codegen::emitter::bytecoded::tests::llength_wrong_arity_rejects ... ok
+test codegen::emitter::bytecoded::tests::lrange_non_constant_indices_rejects ... ok
+test codegen::emitter::bytecoded::tests::lrange_constant_indices ... ok
+test codegen::emitter::bytecoded::tests::lset_array_reuses_the_captured_key_for_post_argv_load_and_store ... ok
+test codegen::emitter::bytecoded::tests::lset_proc_multi_index_uses_lset_flat ... ok
+test codegen::emitter::bytecoded::tests::lset_proc_single_index_uses_lset_list ... ok
+test codegen::emitter::bytecoded::tests::lset_rejects_too_few_args ... ok
+test codegen::emitter::bytecoded::tests::lset_toplevel_uses_stk_form ... ok
+test codegen::emitter::bytecoded::tests::lset_without_indices_replaces_value_after_loading_the_original_cell ... ok
+test codegen::emitter::bytecoded::tests::registry_append_lappend_specs_carry_codegen_hook ... ok
+test codegen::emitter::bytecoded::tests::registry_concat_spec_carries_codegen_hook ... ok
+test codegen::emitter::bytecoded::tests::registry_dict_spec_carries_codegen_hook ... ok
+test codegen::emitter::bytecoded::tests::registry_global_upvar_specs_carry_codegen_hook ... ok
+test codegen::emitter::bytecoded::tests::registry_llength_spec_carries_codegen_hook ... ok
+test codegen::emitter::bytecoded::tests::registry_tailcall_spec_carries_codegen_hook ... ok
+test codegen::emitter::bytecoded::tests::registry_unset_spec_carries_codegen_hook ... ok
+test codegen::emitter::bytecoded::tests::resolve_call_irules_http_header_form ... ok
+test codegen::emitter::bytecoded::tests::resolve_call_routes_dict_set_subcommand_to_dict_hook ... ok
+test codegen::emitter::bytecoded::tests::private_ensemble_rewrites_require_a_native_implementation ... ok
+test codegen::emitter::bytecoded::tests::standalone_computed_name_models_do_not_claim_literal_local_slots ... ok
+test codegen::emitter::bytecoded::tests::standalone_local_name_models_preserve_literal_sigils_and_empty_data ... ok
+test codegen::emitter::bytecoded::tests::standalone_upvar_uses_the_shared_compiler_probe_before_emission ... ok
+test codegen::emitter::bytecoded::tests::tailcall_captures_namespace_after_legacy_arguments ... ok
+test codegen::emitter::bytecoded::tests::tailcall_no_args_falls_back ... ok
+test codegen::emitter::bytecoded::tests::unknown_command_returns_false ... ok
+test codegen::emitter::bytecoded::tests::unset_array_uses_unset_array ... ok
+test codegen::emitter::bytecoded::tests::unset_double_dash_ends_options ... ok
+test codegen::emitter::bytecoded::tests::unset_literal_operand_keeps_name_and_index_data_in_compiler_slots ... ok
+test codegen::emitter::bytecoded::tests::unset_multi_unsets_each_then_one_result ... ok
+test codegen::emitter::bytecoded::tests::unset_no_names_falls_back ... ok
+test codegen::emitter::bytecoded::tests::unset_nocomplain_clears_flag ... ok
+test codegen::emitter::bytecoded::tests::unset_qualified_uses_stk_form ... ok
+test codegen::emitter::bytecoded::tests::unset_scalar_uses_unset_scalar ... ok
+test codegen::emitter::bytecoded::tests::source_link_operands_without_original_compiler_ownership_emit_no_partial_links ... ok
+test codegen::emitter::bytecoded::tests::unset_toplevel_falls_back ... ok
+test codegen::emitter::bytecoded::tests::unset_unknown_and_repeated_options_remain_variable_operands ... ok
+test codegen::emitter::bytecoded::tests::upvar_hash_level_recognised ... ok
+test codegen::emitter::bytecoded::tests::upvar_multi_pair_reuses_level ... ok
+test codegen::emitter::bytecoded::tests::upvar_qualified_local_falls_back ... ok
+test codegen::emitter::bytecoded::tests::upvar_with_level_uses_upvar_op ... ok
+test codegen::emitter::bytecoded::tests::upvar_without_level_defaults_to_one ... ok
+test codegen::emitter::generate::tests::analysis_completion_graph_is_rejected_before_any_emission ... ok
+test codegen::emitter::bytecoded::tests::unset_source_without_original_compiler_ownership_emits_no_partial_mutation ... ok
+test codegen::emitter::generate::tests::generate_empty_toplevel_terminates ... ok
+test codegen::emitter::generate::tests::generate_proc_empty_body ... ok
+test codegen::emitter::generate::tests::generate_if_diamond ... ok
+test codegen::emitter::generate::tests::generate_stamps_statement_source_span ... ok
+test codegen::emitter::generate::tests::generate_simple_set ... ok
+test codegen::control_flow::tests::the_release_compiles_a_substituted_catch_try_or_for_script_word ... ok
+test codegen::emitter::generate::tests::inline_body_error_region_uses_semantic_context_not_command_text ... ok
+test codegen::emitter::loop_blocks::tests::foreach_detection_refuses_missing_or_changed_operation_correspondence ... ok
+test codegen::emitter::ordering::tests::fold_const_branch_binary_none ... ok
+test codegen::emitter::ordering::tests::fold_const_branch_bool_words ... ok
+test codegen::emitter::ordering::tests::fold_const_branch_int ... ok
+test codegen::emitter::ordering::tests::fold_const_branch_var_none ... ok
+test codegen::emitter::ordering::tests::linearise_dead_branch_eliminated ... ok
+test codegen::emitter::ordering::tests::linearise_diamond ... ok
+test codegen::emitter::ordering::tests::linearise_single_block ... ok
+test codegen::emitter::ordering::tests::starts_with_any_matches ... ok
+test codegen::emitter::loop_blocks::tests::foreach_detection_uses_typed_loop_owners_instead_of_reported_command_names ... ok
+test codegen::emitter::original_top_namespace_tests::explicit_script_target_keeps_its_typed_source_namespace ... ok
+test codegen::emitter::original_byte_top_namespace_tests::opaque_byte_target_retains_its_original_path_and_rejects_donated_geometry ... ok
+test codegen::emitter::original_top_namespace_tests::missing_top_namespace_refuses_the_artifact_and_preserves_original_source ... ok
+test codegen::emitter::terminator::tests::emit_branch_const_false ... ok
+test codegen::emitter::terminator::tests::emit_branch_const_true ... ok
+test codegen::emitter::terminator::tests::emit_branch_runtime ... ok
+test codegen::emitter::terminator::tests::emit_goto_with_fallthrough ... ok
+test codegen::emitter::terminator::tests::emit_goto_without_fallthrough ... ok
+test codegen::emitter::terminator::tests::emit_return_proc_emits_done ... ok
+test codegen::emitter::terminator::tests::emit_return_toplevel_emits_return_imm ... ok
+test codegen::emitter::terminator::tests::jump_table_emitted_for_str_eq_chain ... ok
+test codegen::emitter::terminator::tests::jump_table_not_for_plain_branch ... ok
+test codegen::emitter::terminator::tests::scalar_command_conditions_use_result_geometry_without_command_name_classification ... ok
+test codegen::emitter::tests::an_uncatalogued_dialect_keeps_the_target_numeral_grammar ... ok
+test codegen::emitter::tests::every_named_dialect_resolves_to_some_profile ... ok
+test codegen::emitter::original_top_namespace_tests::top_artifact_namespace_uses_original_entry_and_ignores_reporting_labels ... ok
+test codegen::emitter::tests::procedure_emission_keeps_body_geometry_separate_from_its_display_name ... FAILED
+test codegen::emitter::tests::unavailable_procedure_namespace_keeps_the_original_declaration_call ... FAILED
+test codegen::expressions::tests::a_non_numeral_literal_is_pushed_verbatim_not_diagnosed ... ok
+test codegen::expressions::tests::a_pre_floor_operator_is_not_constant_folded_either ... ok
+test codegen::expressions::tests::a_valid_numeral_is_pushed_as_its_spelling_not_its_value ... ok
+test codegen::expressions::tests::constant_pooling_requires_the_selected_native_compiler_recipe ... ok
+test codegen::expressions::tests::deeply_nested_expr_emission_survives ... ok
+test codegen::expressions::tests::emit_binary_add ... ok
+test codegen::expressions::tests::emit_binary_const_folds ... ok
+test codegen::expressions::tests::emit_binary_in ... ok
+test codegen::expressions::tests::emit_binary_streq ... ok
+test codegen::expressions::tests::emit_call_max_two_args ... ok
+test codegen::expressions::tests::emit_call_sin ... ok
+test codegen::expressions::tests::emit_command_pushes_the_word_without_re_evaluating_it ... ok
+test codegen::expressions::tests::emit_irules_contains ... ok
+test codegen::expressions::tests::emit_irules_op_not_folded ... ok
+test codegen::expressions::tests::emit_irules_word_not ... ok
+test codegen::expressions::tests::emit_literal ... ok
+test codegen::expressions::tests::emit_literal_invalid_prefix ... ok
+test codegen::expressions::tests::emit_literal_valid_hex ... ok
+test codegen::expressions::tests::emit_nested_binary ... ok
+test codegen::expressions::tests::emit_nested_const_folds ... ok
+test codegen::expressions::tests::emit_raw_dollar_equals_is_not_a_var_ref ... ok
+test codegen::expressions::tests::emit_raw_unknown ... ok
+test codegen::expressions::tests::emit_raw_var_ref ... ok
+test codegen::expressions::tests::emit_short_circuit_and ... ok
+test codegen::expressions::tests::emit_short_circuit_or ... ok
+test codegen::expressions::tests::emit_string_backslash_escape ... ok
+test codegen::expressions::tests::emit_string_braced ... ok
+test codegen::expressions::tests::emit_string_quoted ... ok
+test codegen::expressions::tests::emit_ternary ... ok
+test codegen::expressions::tests::emit_unary_bitnot ... ok
+test codegen::expressions::tests::emit_unary_const_folds ... ok
+test codegen::expressions::tests::emit_unary_neg ... ok
+test codegen::expressions::tests::emit_unary_not ... ok
+test codegen::expressions::tests::emit_var_array ... ok
+test codegen::expressions::tests::emit_var_scalar ... ok
+test codegen::expressions::tests::expr_operators_are_specialised_only_from_their_release_floor ... ok
+test codegen::expressions::tests::irules_word_operators_need_the_irules_dialect ... ok
+test codegen::expressions::tests::moderate_depth_expr_emission_unchanged ... ok
+test codegen::expressions::tests::numeral_validity_follows_the_target_release ... ok
+test codegen::helpers::tests::hash_table_order_bucket_growth ... ok
+test codegen::helpers::tests::hash_table_order_preserves_all ... ok
+test codegen::helpers::tests::jim_literal_fragments_keep_raw_escape_bytes ... ok
+test codegen::helpers::tests::split_list_simple_backslash ... ok
+test codegen::helpers::tests::split_list_simple_basic ... ok
+test codegen::helpers::tests::split_list_simple_braces ... ok
+test codegen::helpers::tests::split_list_simple_empty ... ok
+test codegen::helpers::tests::split_list_simple_nested_braces ... ok
+test codegen::helpers::tests::split_list_simple_quotes ... ok
+test codegen::helpers::tests::subst_template_backslash ... ok
+test codegen::helpers::tests::subst_template_bare_dollar_is_literal_text ... ok
+test codegen::helpers::tests::subst_template_braced_var ... ok
+test codegen::helpers::tests::subst_template_cmd ... ok
+test codegen::helpers::tests::subst_template_dollar_equals_is_not_a_marker ... ok
+test codegen::helpers::tests::subst_template_empty ... ok
+test codegen::helpers::tests::subst_template_empty_array_name_is_a_reference ... ok
+test codegen::helpers::tests::subst_template_escaped_dollar_and_bracket_stay_literal ... ok
+test codegen::helpers::tests::subst_template_escaped_dollar_before_real_var ... ok
+test codegen::helpers::tests::subst_template_hex_escape_then_array_var ... ok
+test codegen::helpers::tests::subst_template_hex_escape_then_var ... ok
+test codegen::helpers::tests::subst_template_lit_only ... ok
+test codegen::helpers::tests::subst_template_literals_decode_for_the_target_release ... ok
+test codegen::helpers::tests::subst_template_lone_colon_ends_var_name ... ok
+test codegen::helpers::tests::subst_template_multibyte_literal_text_with_var ... ok
+test codegen::helpers::tests::subst_template_namespace_qualified_var ... ok
+test codegen::helpers::tests::subst_template_octal_escape ... ok
+test codegen::helpers::tests::subst_template_unicode_escape ... ok
+test codegen::helpers::tests::subst_template_var ... ok
+test codegen::helpers::tests::subst_template_wide_unicode_escape ... ok
+test codegen::helpers::tests::substitution_operands_preserve_braced_element_keys_and_actual_grammar ... ok
+test codegen::helpers::tests::tcl_list_element_backslash_end ... ok
+test codegen::helpers::tests::tcl_list_element_empty ... ok
+test codegen::helpers::tests::tcl_list_element_simple ... ok
+test codegen::helpers::tests::tcl_list_element_space ... ok
+test codegen::helpers::tests::tcl_string_hash_deterministic ... ok
+test codegen::helpers::tests::tcl_string_hash_different ... ok
+test codegen::helpers::tests::tcl_string_hash_empty ... ok
+test codegen::emitter::try_blocks::tests::captured_outputs_retain_argument_positions_when_a_definition_is_withdrawn ... FAILED
+test codegen::hook_operands::tests::private_array_worker_maps_its_original_local_operand ... ok
+test codegen::emitter::generate::tests::original_empty_script_uses_the_selected_native_literal_producer ... ok
+test codegen::hook_operands::tests::private_string_worker_uses_the_logical_selector_without_emitting_it ... ok
+test codegen::native_compiler_pass::tests::compact_pass_omits_markers_without_losing_labels_or_original_selection ... ok
+test codegen::native_compiler_pass::tests::opcode_hazards_are_captured_before_peepholes ... ok
+test codegen::hook_operands::tests::admitted_lappend_result_hooks_preserve_protected_and_value_contexts ... FAILED
+test codegen::hook_operands::tests::stack_level_hook_emits_the_original_zero_or_one_operand ... ok
+test codegen::native_failure::tests::closed_fixed_math_absence_is_the_original_rejection_before_later_catch ... ok
+test codegen::native_failure::tests::compiler_rejection_retains_undispatched_native_guard_and_no_analysis_effects ... ok
+test codegen::native_failure::tests::entry_rejection_retains_original_prefix_guards_without_later_emission ... ok
+test codegen::native_failure::tests::entry_rejection_retains_the_original_prefix_fixed_math_table ... ok
+test codegen::native_failure::tests::missing_original_entry_keeps_compiler_rejection_as_an_admission_obligation ... ok
+test codegen::native_failure::tests::missing_original_entry_does_not_invent_a_guest_compiler_error ... ok
+test codegen::native_compiler_pass::tests::original_array_compiler_replays_with_same_local_table_and_discarded_literal_array ... ok
+test codegen::native_failure::tests::original_c84_inline_script_parse_cut_retains_compiler_failure_context ... ok
+test codegen::native_failure::tests::rejected_command_compiler_guard_withdraws_on_original_registration_mutation ... ok
+test codegen::peephole::tests::discarded_substituting_push_retains_word_execution ... ok
+test codegen::native_failure::tests::unpresented_failure_is_a_host_admission_obligation ... ok
+test codegen::peephole::tests::empty_terminal_marker_preserves_catch_epilogue_and_operation_guards ... ok
+test codegen::peephole::tests::empty_terminal_marker_preserves_the_final_command_result ... ok
+test codegen::peephole::tests::fold_const_push_pop_nops_basic ... ok
+test codegen::peephole::tests::fixup_top_level_removes_generic_tagged ... ok
+test codegen::peephole::tests::fold_tail_return_level_zero_preserved ... ok
+test codegen::peephole::tests::fold_tail_return_to_done_proc ... ok
+test codegen::peephole::tests::fold_tail_return_non_zero_preserved ... ok
+test codegen::peephole::tests::fold_tail_return_toplevel_noop ... ok
+test codegen::peephole::tests::remove_trailing_pop_basic ... ok
+test codegen::peephole::tests::remove_trailing_pop_preserves_catch ... ok
+test codegen::peephole::tests::strip_empty_start_cmd_removes_zero_width_replay_range ... ok
+test codegen::peephole::tests::strip_nodedup_tags_basic ... ok
+test codegen::peephole::tests::strip_unused_start_cmd_no_generic ... ok
+test codegen::peephole::tests::strip_unused_start_cmd_non_plain_return_is_generic ... ok
+test codegen::peephole::tests::strip_unused_start_cmd_plain_return_is_not_generic ... ok
+test codegen::peephole::tests::strip_unused_start_cmd_preserves_inline_replay_without_generic_invoke ... ok
+test codegen::peephole::tests::strip_unused_start_cmd_proc_always_keeps ... ok
+test codegen::peephole::tests::strip_unused_start_cmd_with_generic ... ok
+test codegen::peephole::tests::tail_return_fold_keeps_selection_before_arguments ... ok
+test codegen::peephole::tests::trailing_pop_keeps_the_operation_entry_boundary ... ok
+test codegen::native_failure::tests::unresolved_earlier_compiler_visit_withdraws_later_rejection_presentation ... ok
+test codegen::statements::native_coroutine::tests::original_coroutine_emission_keeps_native_head_namespace_and_operand_order ... ok
+test codegen::statements::native_concat_tests::original_concat_changed_worker_keeps_generic_dispatch_and_unknown_withdrawal ... ok
+test codegen::statements::native_concat_tests::original_concat_emits_shared_recipe_with_captured_compiler_guards ... ok
+test codegen::statements::native_error::tests::original_error_emission_matches_native_options_and_local_order ... ok
+test codegen::statements::native_error::tests::original_error_registration_is_absent_before_c86 ... ok
+test codegen::statements::native_each::tests::original_each_emission_matches_85_native_auxiliary_and_local_windows ... ok
+test codegen::statements::native_introspection::tests::original_info_commands_compiler_requires_literal_pattern_and_actual_worker ... ok
+test codegen::statements::native_introspection::tests::original_namespace_which_compiler_requires_the_selected_worker_hook ... ok
+test codegen::statements::native_introspection::tests::original_info_commands_compiler_keeps_conditional_list_geometry ... ok
+test codegen::statements::native_introspection::tests::original_namespace_which_compiler_selects_only_the_command_name_operand ... ok
+test codegen::statements::native_list_index_tests::original_list_index_emission_retains_native_coordinates_and_compiler_boundaries ... ok
+test codegen::statements::native_list_index_tests::original_list_index_withdraws_unknown_or_missing_entry_but_keeps_actual_decline ... ok
+test codegen::statements::native_each::tests::compile_service_visits_original_each_values_before_body_locals ... ok
+test codegen::statements::native_namespace_string::tests::original_namespace_tail_emits_the_observed_counted_compiler_program ... ok
+test codegen::statements::native_namespace_string::tests::original_namespace_qualifiers_emits_the_observed_counted_compiler_loop ... ok
+test codegen::statements::native_namespace_string::tests::original_namespace_tail_unknown_worker_withdraws_the_compiler_program ... ok
+test codegen::statements::native_namespace_upvar::tests::monolithic_namespace_compiler_owns_original_member_coordinates ... ok
+test codegen::statements::native_namespace_upvar::tests::compile_service_preserves_original_namespace_upvar_preparation ... FAILED
+test codegen::statements::native_namespace_upvar::tests::original_c85_namespace_upvar_preserves_ordered_preparation_and_rollback ... ok
+test codegen::statements::native_mathop::tests::original_comparison_preparation_reaches_nested_words_without_an_inline_hook ... ok
+test codegen::statements::native_switch::tests::compile_service_keeps_masked_switch_arms_out_of_executable_visits ... ok
+test codegen::statements::native_try::tests::protected_try_emits_native_return_and_real_unnamed_slots ... ok
+test codegen::statements::native_unset::tests::original_unset_changed_worker_keeps_generic_and_unknown_hook_withdrawal ... ok
+test codegen::statements::native_switch::tests::unentered_switch_arms_keep_original_cpp_namespace_and_return_operands ... ok
+test codegen::statements::native_unset::tests::original_unset_emits_native_receivers_and_sequential_callback_operands ... ok
+test codegen::statements::native_variable_preparation_tests::original_c91_uplevel_emits_native_frame_operation_and_defers_body_compilation ... ok
+test codegen::statements::native_variable_preparation_tests::original_dynamic_variable_target_keeps_stack_lookup_and_original_local_operand ... ok
+test codegen::statements::tests::an_unmarked_call_named_like_a_marker_is_still_dispatched ... ok
+test codegen::statements::tests::assign_expr_with_whole_unit_mutation_retains_the_runtime_binding ... ok
+test codegen::statements::tests::emit_assign_const_proc ... ok
+test codegen::statements::tests::emit_assign_const_toplevel ... ok
+test codegen::statements::tests::emit_assign_expr ... ok
+test codegen::statements::tests::emit_barrier_with_command ... ok
+test codegen::statements::tests::emit_barrier_without_command ... ok
+test codegen::statements::tests::emit_call_break_in_loop ... ok
+test codegen::statements::tests::emit_call_generic ... ok
+test codegen::statements::tests::emit_empty_clause ... ok
+test codegen::statements::tests::emit_expanded_call_basic ... ok
+test codegen::statements::tests::emit_expr_eval ... ok
+test codegen::statements::tests::emit_incr_stmt ... ok
+test codegen::statements::tests::emit_return_empty ... ok
+test codegen::statements::tests::emit_stmt_with_start_cmd_numbering ... ok
+test codegen::statements::tests::folded_script_without_original_words_requires_a_provider ... ok
+test codegen::statements::tests::literal_script_value_retains_its_word_line_separately_from_the_command ... ok
+test codegen::statements::tests::native_array_indices_emit_iteratively_from_the_full_original_arena ... ok
+test codegen::statements::native_variable_preparation_tests::original_variable_read_uses_selected_plan_and_withdraws_missing_compiler_receipts ... ok
+test codegen::statements::tests::native_namespace_emission_matches_all_100_instruction_and_local_windows ... ok
+test codegen::statements::tests::native_registered_return_keeps_original_result_and_exception_range_exit ... ok
+test codegen::statements::tests::native_source_word_without_selected_string_protocol_requires_provider ... ok
+test codegen::statements::tests::native_word_emission_keeps_document_and_counted_value_units_distinct ... ok
+test codegen::statements::tests::nested_value_emission_retains_only_the_owning_source_dispatch ... ok
+test codegen::statements::tests::nested_value_tokens_keep_the_retained_lexer_policy_without_lookup_permission ... ok
+test codegen::statements::tests::opaque_native_statement_emits_original_literal_bytes_and_generic_dispatch ... ok
+test codegen::statements::tests::original_byte_commands_retain_exact_boundaries_and_restore_enclosing_source ... ok
+test codegen::statements::tests::native_registered_return_options_keep_private_literals_and_ordered_stack_operands ... ok
+test codegen::statements::tests::original_c_source_reporting_retains_parser_extent_without_promoting_vectors_or_jim ... FAILED
+test codegen::statements::tests::plain_dispatch_keeps_internal_dict_loops_as_runtime_calls ... ok
+test codegen::statements::tests::original_expanded_calls_keep_complete_words_and_lexical_nul_values ... ok
+test codegen::statements::tests::plain_dispatch_keeps_loop_control_spellings_as_runtime_calls ... ok
+test codegen::statements::tests::retained_quoted_components_execute_but_braced_and_rewritten_values_do_not ... ok
+test codegen::statements::tests::syntax_owned_assign_expr_ignores_command_mutation ... ok
+test codegen::statements::tests::the_unseen_call_marker_is_not_dispatched ... ok
+test codegen::statements::tests::the_unseen_call_marker_keeps_the_next_command_boundary ... ok
+test codegen::structured::original_configured_span_tests::original_command_quote_widening_requires_current_image_config_and_channel ... ok
+test codegen::statements::tests::the_unseen_call_marker_under_start_cmd_does_not_advance_command_index ... ok
+test codegen::structured::tests::break_outside_a_loop_is_an_ordinary_command ... ok
+test codegen::structured::tests::clause_text_derives_content_bounds_from_the_word_class ... ok
+test codegen::structured::tests::command_text_restores_only_a_missing_final_quote ... ok
+test codegen::structured::tests::break_and_continue_are_completion_codes_in_a_loop ... FAILED
+test codegen::statements::native_switch::tests::native_switch_emission_matches_56_original_compiler_frontiers ... ok
+test codegen::structured::tests::elseif_desugars_to_nested_if ... ok
+test codegen::structured::tests::empty_for_condition_means_no_guard ... ok
+test codegen::structured::tests::for_runs_init_then_loop_with_step ... ok
+test codegen::structured::tests::for_step_clause_is_emitted_whole ... ok
+test codegen::structured::tests::foreach_is_one_opaque_command ... ok
+test codegen::structured::tests::if_without_else_has_no_else_arm ... ok
+test codegen::structured::tests::if_else_two_arms ... ok
+test codegen::structured::tests::linear_emits_commands_in_order ... ok
+test codegen::structured::tests::return_diverges_and_suppresses_dead_code ... ok
+test codegen::structured::tests::reported_loop_control_names_cannot_replace_an_original_call ... ok
+test codegen::structured::tests::statement_after_break_in_loop_is_dead ... FAILED
+test codegen::structured::tests::shadowed_loop_control_commands_keep_runtime_dispatch_and_the_normal_successor ... FAILED
+test codegen::structured::tests::while_and_if_conditions_are_emitted_whole ... ok
+test codegen::structured::tests::while_drives_the_loop_protocol ... ok
+test codegen::tests::inline_lowering_declines_unavailable_scope_and_retained_unknown_source ... ok
+test codegen::tests::native_source_boundaries_keep_opaque_bytes_and_constructed_namespace ... ok
+test codegen::tests::preparation_guard_declines_a_different_native_engine ... ok
+test codegen::tests::preparation_guard_survives_without_reached_math_calls ... ok
+test codegen::tests::script_preparation_retains_chunk_entry_guards_atomically ... ok
+test codegen::tests::source_lines_are_indexed_at_byte_boundaries ... ok
+test codegen::values::tests::a_folded_list_pushes_a_list_and_a_word_read_apart_stays_unfolded ... ok
+test codegen::values::tests::begin_end_command ... ok
+test codegen::values::tests::borrowed_native_commands_reuse_cells_without_declaring_slots ... ok
+test codegen::values::tests::compiled_word_emission_keeps_jim_expression_deferred_and_finished_data_exact ... ok
+test codegen::values::tests::consumed_value_fold_retains_an_executable_replay_boundary ... ok
+test codegen::values::tests::dollar_equals_word_is_a_literal_not_a_variable_load ... ok
+test codegen::values::tests::emit_incr_default_proc ... ok
+test codegen::values::tests::emit_incr_default_toplevel ... ok
+test codegen::values::tests::emit_incr_large_amount_proc ... ok
+test codegen::values::tests::emit_incr_large_amount_toplevel ... ok
+test codegen::values::tests::emit_incr_literal_amount_proc ... ok
+test codegen::values::tests::folded_dict_payload_is_verbatim_before_verification ... ok
+test codegen::values::tests::full_depth_text_indices_use_the_same_iterative_operand_emitter ... ok
+test codegen::values::tests::generic_original_operands_share_native_source_channel_and_escape_rules ... ok
+test codegen::values::tests::integer_literal_negative ... ok
+test codegen::values::tests::integer_literal_non_integer ... ok
+test codegen::values::tests::integer_literal_positive ... ok
+test codegen::values::tests::is_array_ref_no ... ok
+test codegen::values::tests::is_array_ref_yes ... ok
+test codegen::values::tests::is_qualified_no ... ok
+test codegen::values::tests::is_qualified_yes ... ok
+test codegen::values::tests::load_var_array_proc ... ok
+test codegen::values::tests::load_var_array_toplevel ... ok
+test codegen::values::tests::load_var_qualified_in_proc ... ok
+test codegen::values::tests::load_var_scalar_proc ... ok
+test codegen::values::tests::load_var_scalar_toplevel ... ok
+test codegen::values::tests::named_unit_dependencies_require_the_original_entry_world ... ok
+test codegen::values::tests::native_command_literal_actions_retain_data_first_and_hide_only_c85_one_word ... ok
+test codegen::values::tests::native_decoded_literals_are_exact_bytes_and_never_replayed_as_source ... ok
+test codegen::values::tests::nested_value_fold_retains_every_resolved_command_binding ... ok
+test codegen::values::tests::original_c84_direct_source_preserves_words_without_compiler_pool_actions ... ok
+test codegen::values::tests::original_lexical_cache_keeps_the_retained_invocation_source_owner ... ok
+test codegen::values::tests::original_lexical_cache_keys_allocation_channel_and_full_configuration ... ok
+test codegen::values::tests::original_lexical_cache_rechecks_protocol_and_current_entry_issuer ... ok
+test codegen::values::tests::original_lexical_cache_reuses_one_vector_and_restores_nested_scope ... ok
+test codegen::values::tests::original_scalar_operand_slot_borrows_only_current_existing_layout_names ... ok
+test codegen::values::tests::original_upvar_level_layout_uses_current_compiler_words_and_release ... ok
+test codegen::values::tests::original_variable_operands_keep_literal_keys_and_evaluate_bare_indices ... ok
+test codegen::values::tests::original_variable_projection_keeps_the_final_substitution_closer ... ok
+test codegen::values::tests::parse_simple_var_ref_bare_dollar ... ok
+test codegen::values::tests::parse_simple_var_ref_basic ... ok
+test codegen::values::tests::parse_simple_var_ref_nested ... ok
+test codegen::values::tests::parse_simple_var_ref_no_close ... ok
+test codegen::values::tests::parse_simple_var_ref_qualified ... ok
+test codegen::values::tests::push_lit_dedup ... ok
+test codegen::values::tests::push_lit_no_dedup_creates_fresh_slot ... ok
+test codegen::values::tests::resolved_targets_prepare_slot_and_stack_operands ... ok
+test codegen::values::tests::source_increment_uses_physical_amount_recipe_and_original_array_layout ... ok
+test codegen::values::tests::source_local_loads_select_counted_compiler_purposes_before_runtime_names ... ok
+test codegen::values::tests::split_array_ref_basic ... ok
+test codegen::values::tests::split_array_ref_matches_the_owners_edges ... ok
+test codegen::values::tests::split_array_ref_nested ... ok
+test codegen::values::tests::split_array_ref_no_parens ... ok
+test codegen::values::tests::store_var_proc ... ok
+test codegen::values::tests::store_var_toplevel ... ok
+test codegen::values::tests::supplied_unknown_compiler_point_cannot_borrow_authoring_increment_rules ... ok
+test codegen::values::tests::unlocated_increment_amount_is_an_evaluated_value ... ok
+test codegen::values::tests::value_fold_obeys_owned_registry_removal_for_every_old_fast_path ... ok
+test codegen::values::tests::value_fold_uses_the_owned_registry_callback_and_binding ... ok
+test codegen::wasm::backend::original_bind_tests::original_analysed_binding_host_and_entry_failures_finish_parameter_cleanup ... FAILED
+test codegen::wasm::backend::original_bind_tests::original_analysed_binding_nonzero_status_retires_unbound_parameters_before_body ... FAILED
+test codegen::wasm::backend::original_bind_tests::original_analysed_binding_success_reaches_expression_and_retires_bound_cells ... FAILED
+test codegen::wasm::backend::tests::a_substituted_definition_body_is_left_to_the_runtimes_own_proc ... FAILED
+test codegen::wasm::backend::tests::a_top_level_written_out_definition_retains_original_name_operand ... ok
+test codegen::wasm::backend::tests::a_written_out_definition_body_keeps_original_generic_argv ... ok
+test codegen::wasm::backend::tests::assignment_plans_retain_decoded_original_names_separately_from_spelling ... ok
+test codegen::wasm::backend::tests::assignment_source_metadata_retains_nested_lexer_overlays ... ok
+test codegen::wasm::backend::tests::constructed_procedure_calls_require_the_original_native_trace_owner ... FAILED
+test codegen::wasm::backend::tests::host_script_admission_boxes_the_complete_original_byte_image ... ok
+test codegen::wasm::backend::tests::original_assignment_literals_keep_decoding_separate_from_execution_authority ... ok
+test codegen::wasm::backend::tests::original_publication_names_ignore_reports_and_keep_duplicate_issued_ids ... ok
+test codegen::wasm::backend::tests::provable_words_select_a_prebuilt_argv_plan ... ok
+test codegen::wasm::backend::tests::structural_assignments_need_unanimous_original_source_carriers ... ok
+test codegen::wasm::backend::tests::structural_assignments_require_actual_availability_and_grammar ... ok
+test codegen::wasm::backend::tests::unprovable_words_record_their_typed_decline ... ok
+test codegen::wasm::encoding::tests::known_leb128_encodings ... ok
+test codegen::wasm::encoding::tests::signed_leb128_roundtrips ... ok
+test codegen::wasm::encoding::tests::string_and_vector_encoding ... ok
+test codegen::wasm::encoding::tests::unsigned_leb128_roundtrips ... ok
+test codegen::wasm::ir::tests::a_declarative_element_segment_names_every_ref_func_target ... ok
+test codegen::wasm::ir::tests::a_manifest_is_the_last_section_and_no_manifest_is_no_section ... ok
+test codegen::wasm::ir::tests::a_module_that_installs_nothing_keeps_its_previous_shape ... ok
+test codegen::wasm::ir::tests::a_mutable_global_carries_its_type_and_constant_initialiser ... ok
+test codegen::wasm::ir::tests::a_table_installing_module_emits_its_sections_in_ascending_id_order ... ok
+test codegen::wasm::ir::tests::add_import_interns_signature_into_type_section ... ok
+test codegen::wasm::ir::tests::encode_body_compresses_locals_and_appends_end ... ok
+test codegen::wasm::ir::tests::memory_only_module_still_declares_imported_memory ... ok
+test codegen::wasm::ir::tests::the_reference_ops_encode_their_prefixes_and_render_their_operands ... ok
+test codegen::wasm::ir::tests::the_table_import_matches_any_runtime_table ... ok
+test codegen::wasm::ir::tests::to_bytes_emits_valid_header_and_sections ... ok
+test codegen::wasm::ir::tests::to_wat_arbitrary_names_parse_with_wasmtime_when_available ... ok
+test codegen::wasm::ir::tests::to_wat_escapes_data_segments_without_changing_bytes ... ok
+test codegen::wasm::ir::tests::to_wat_preserves_external_name_bytes_and_actual_index_spaces ... ok
+test codegen::wasm::ir::tests::to_wat_renders_module_function_and_body ... ok
+test codegen::wasm::ir::tests::type_section_matches_the_emitted_type_table ... ok
+test codegen::wasm::leaf_invoke::tests::array_and_brace_spellings_are_told_apart ... ok
+test codegen::wasm::leaf_invoke::tests::backslash_substitution_declines ... ok
+test codegen::wasm::leaf_invoke::tests::braced_variable_spelling_stays_a_scalar_name ... ok
+test codegen::wasm::leaf_invoke::tests::braced_words_keep_their_unsubstituted_value ... ok
+test codegen::wasm::leaf_invoke::tests::command_substitution_plans_a_nested_invocation ... ok
+test codegen::wasm::leaf_invoke::tests::dynamic_array_keys_decline ... ok
+test codegen::wasm::leaf_invoke::tests::every_decline_has_a_stable_spelling ... ok
+test codegen::wasm::leaf_invoke::tests::expansion_declines ... ok
+test codegen::wasm::leaf_invoke::tests::literal_words_plan_a_flat_argv ... ok
+test codegen::wasm::leaf_invoke::tests::quoted_words_plan_a_concatenation ... ok
+test codegen::wasm::leaf_invoke::tests::scalar_variable_words_plan_a_named_read ... ok
+test codegen::wasm::leaf_invoke::tests::the_registry_reports_the_typed_word_decline ... ok
+test codegen::wasm::leaf_invoke::tests::the_registry_selects_the_generic_invocation_plan ... ok
+test codegen::wasm::native_add::tests::a_hosted_compile_names_the_environment_the_passes_and_what_they_take_down ... FAILED
+test codegen::wasm::native_add::tests::a_program_without_a_procedure_call_names_the_missing_call ... ok
+test codegen::wasm::native_add::tests::a_rejected_body_records_each_premise_it_takes_down ... FAILED
+test codegen::wasm::native_add::tests::a_second_call_to_the_callee_is_recorded_at_both_sites ... FAILED
+test codegen::wasm::native_add::tests::a_selected_addition_records_no_decline ... FAILED
+test codegen::wasm::native_add::tests::a_surviving_statement_rejects_the_closed_program_and_the_actuals_it_hides ... FAILED
+test codegen::wasm::native_add::tests::an_addition_nobody_asked_for_records_the_options_premises_alone ... ok
+test codegen::wasm::native_add::tests::the_target_and_its_packaging_are_premises_too ... FAILED
+test codegen::wasm::native_emit::original_boolean_transport_tests::original_boolean_stage_imports_check_first_host_cause_before_guest_status_or_out_slots ... ok
+test codegen::wasm::pipeline::tests::a_bad_uncalled_procedure_remains_lazy_source_instead_of_a_native_export ... FAILED
+test codegen::wasm::pipeline::tests::broad_source_records_typed_semantic_decline_on_general_plan ... FAILED
+test codegen::wasm::pipeline::tests::compiler_admission_evaluates_one_original_chunk_before_any_stores_or_exports ... ok
+test codegen::wasm::pipeline::tests::general_wasm_plan_retains_mixed_region_evidence_without_selecting_it ... FAILED
+test codegen::wasm::pipeline::tests::guarded_intrinsic_enablement_emits_runtime_guarded_argv_path ... FAILED
+test codegen::wasm::pipeline::tests::hosted_literal_invocation_selects_executable_generic_argv_plan ... FAILED
+test codegen::wasm::pipeline::tests::incoming_native_operands_use_declared_arguments_without_inventing_ssa ... FAILED
+test codegen::wasm::pipeline::tests::invalid_semantic_layout_declines_before_the_single_emitter_runs ... FAILED
+test codegen::wasm::pipeline::tests::missing_original_compilation_source_is_a_typed_host_refusal ... ok
+test codegen::wasm::pipeline::tests::native_i64_add_declines_when_an_extra_top_level_statement_survives ... ok
+test codegen::wasm::pipeline::tests::native_i64_add_requires_every_opt_in_and_a_sealed_environment ... ok
+test codegen::wasm::pipeline::tests::sealed_common_proofs_emit_native_i64_add_at_a_boxed_boundary ... FAILED
+test codegen::wasm::pipeline::tests::sealed_native_i64_add_preserves_standalone_bootstrap_decline ... ok
+test codegen::wasm::pipeline::tests::standalone_records_packaging_decline_on_the_same_emitter ... ok
+test codegen::wasm::pipeline::tests::the_native_tier_emits_the_t0_program_without_source_or_expression_rungs ... FAILED
+test codegen::wasm::pipeline::tests::the_native_tier_is_off_by_default ... ok
+test codegen::wasm::pipeline::tests::the_native_tier_records_a_declined_function_and_keeps_the_legacy_walk ... FAILED
+test codegen::wasm::pipeline::tests::unavailable_executable_ir_retains_typed_region_plan_availability ... FAILED
+test codegen::wasm::semantic_plan::evaluated_region_tests::evaluated_wrapper_cannot_select_an_inner_invoke_as_the_whole_plan ... ok
+test codegen::structured::tests::deeply_nested_if_survives_structured_walk ... ok
+test codegen::structured::tests::very_long_elseif_chain_survives_structured_walk ... ok
+---- codegen::cmd_subst::tests::namespace_code_literal_builder_is_shared_by_every_result_context stdout ----
+thread 'codegen::cmd_subst::tests::namespace_code_literal_builder_is_shared_by_every_result_context' (31545) panicked at rust/tcl-vm/src/exec.rs:10043:9:
+---- codegen::cmd_subst::tests::current_namespace_emission_requires_its_actual_native_compiler_hook stdout ----
+thread 'codegen::cmd_subst::tests::current_namespace_emission_requires_its_actual_native_compiler_hook' (31522) panicked at rust/tcl-compiler/src/codegen/cmd_subst.rs:4069:18:
+---- codegen::control_flow::tests::catch_body_wrapping_declines_an_unavailable_compilation_scope stdout ----
+thread 'codegen::control_flow::tests::catch_body_wrapping_declines_an_unavailable_compilation_scope' (31591) panicked at rust/tcl-compiler/src/codegen/mod.rs:784:13:
+---- codegen::cmd_subst::tests::namespace_origin_opcode_is_shared_by_every_result_context stdout ----
+thread 'codegen::cmd_subst::tests::namespace_origin_opcode_is_shared_by_every_result_context' (31546) panicked at rust/tcl-compiler/src/codegen/cmd_subst.rs:4034:22:
+---- codegen::control_flow::tests::catch_inline_multicommand_body_preserves_each_command_boundary stdout ----
+thread 'codegen::control_flow::tests::catch_inline_multicommand_body_preserves_each_command_boundary' (31595) panicked at rust/tcl-compiler/src/codegen/control_flow.rs:2789:9:
+---- codegen::control_flow::tests::nested_try_receiver_name_data_retains_generic_output_protocol stdout ----
+thread 'codegen::control_flow::tests::nested_try_receiver_name_data_retains_generic_output_protocol' (31610) panicked at rust/tcl-compiler/src/codegen/control_flow.rs:3124:13:
+---- codegen::emitter::tests::procedure_emission_keeps_body_geometry_separate_from_its_display_name stdout ----
+thread 'codegen::emitter::tests::procedure_emission_keeps_body_geometry_separate_from_its_display_name' (31726) panicked at rust/tcl-compiler/src/test_body_identity.rs:54:28:
+---- codegen::emitter::tests::unavailable_procedure_namespace_keeps_the_original_declaration_call stdout ----
+thread 'codegen::emitter::tests::unavailable_procedure_namespace_keeps_the_original_declaration_call' (31727) panicked at rust/tcl-compiler/src/test_body_identity.rs:54:28:
+---- codegen::emitter::try_blocks::tests::captured_outputs_retain_argument_positions_when_a_definition_is_withdrawn stdout ----
+thread 'codegen::emitter::try_blocks::tests::captured_outputs_retain_argument_positions_when_a_definition_is_withdrawn' (31728) panicked at rust/tcl-compiler/src/codegen/emitter/try_blocks.rs:231:44:
+---- codegen::hook_operands::tests::admitted_lappend_result_hooks_preserve_protected_and_value_contexts stdout ----
+thread 'codegen::hook_operands::tests::admitted_lappend_result_hooks_preserve_protected_and_value_contexts' (31805) panicked at rust/tcl-compiler/src/codegen/hook_operands.rs:149:17:
+assertion `left == right` failed: tcl9.1: set a(k) OLD; catch {lappend a(k)} r
+  left: false
+ right: true
+---- codegen::statements::native_namespace_upvar::tests::compile_service_preserves_original_namespace_upvar_preparation stdout ----
+thread 'codegen::statements::native_namespace_upvar::tests::compile_service_preserves_original_namespace_upvar_preparation' (31860) panicked at rust/tcl-compiler/src/codegen/native_namespace_upvar_tests.rs:228:9:
+assertion `left == right` failed: literal-expansion
+  left: 0
+ right: 1
+---- codegen::statements::tests::original_c_source_reporting_retains_parser_extent_without_promoting_vectors_or_jim stdout ----
+thread 'codegen::statements::tests::original_c_source_reporting_retains_parser_extent_without_promoting_vectors_or_jim' (31901) panicked at rust/tcl-compiler/src/codegen/statements.rs:4439:54:
+---- codegen::structured::tests::break_and_continue_are_completion_codes_in_a_loop stdout ----
+thread 'codegen::structured::tests::break_and_continue_are_completion_codes_in_a_loop' (31911) panicked at rust/tcl-compiler/src/codegen/structured.rs:884:9:
+assertion `left == right` failed
+  left: ["loop{", "test(1)", "body{", "if($x)", "cmd(break)", "else", "cmd(continue)", "endif", "}body", "}loop"]
+ right: ["loop{", "test(1)", "body{", "if($x)", "break", "else", "continue", "endif", "}body", "}loop"]
+---- codegen::structured::tests::statement_after_break_in_loop_is_dead stdout ----
+thread 'codegen::structured::tests::statement_after_break_in_loop_is_dead' (31928) panicked at rust/tcl-compiler/src/codegen/structured.rs:952:9:
+assertion `left == right` failed
+  left: ["loop{", "test(1)", "body{", "cmd(break)", "cmd(puts never)", "}body", "}loop"]
+ right: ["loop{", "test(1)", "body{", "break", "}body", "}loop"]
+---- codegen::structured::tests::shadowed_loop_control_commands_keep_runtime_dispatch_and_the_normal_successor stdout ----
+thread 'codegen::structured::tests::shadowed_loop_control_commands_keep_runtime_dispatch_and_the_normal_successor' (31927) panicked at rust/tcl-compiler/src/codegen/structured.rs:905:13:
+---- codegen::wasm::backend::original_bind_tests::original_analysed_binding_host_and_entry_failures_finish_parameter_cleanup stdout ----
+thread 'codegen::wasm::backend::original_bind_tests::original_analysed_binding_host_and_entry_failures_finish_parameter_cleanup' (31998) panicked at rust/tcl-compiler/src/codegen/wasm/backend/original_bind_tests.rs:33:10:
+---- codegen::wasm::backend::original_bind_tests::original_analysed_binding_nonzero_status_retires_unbound_parameters_before_body stdout ----
+thread 'codegen::wasm::backend::original_bind_tests::original_analysed_binding_nonzero_status_retires_unbound_parameters_before_body' (31999) panicked at rust/tcl-compiler/src/codegen/wasm/backend/original_bind_tests.rs:33:10:
+---- codegen::wasm::backend::original_bind_tests::original_analysed_binding_success_reaches_expression_and_retires_bound_cells stdout ----
+thread 'codegen::wasm::backend::original_bind_tests::original_analysed_binding_success_reaches_expression_and_retires_bound_cells' (32000) panicked at rust/tcl-compiler/src/codegen/wasm/backend/original_bind_tests.rs:33:10:
+---- codegen::wasm::backend::tests::a_substituted_definition_body_is_left_to_the_runtimes_own_proc stdout ----
+thread 'codegen::wasm::backend::tests::a_substituted_definition_body_is_left_to_the_runtimes_own_proc' (32001) panicked at rust/tcl-compiler/src/codegen/wasm/backend.rs:3485:14:
+---- codegen::wasm::backend::tests::constructed_procedure_calls_require_the_original_native_trace_owner stdout ----
+thread 'codegen::wasm::backend::tests::constructed_procedure_calls_require_the_original_native_trace_owner' (32006) panicked at rust/tcl-compiler/src/codegen/wasm/backend.rs:3664:9:
+assertion failed: traced.ir_module.traced_commands.contains("other")
+---- codegen::wasm::native_add::tests::a_hosted_compile_names_the_environment_the_passes_and_what_they_take_down stdout ----
+thread 'codegen::wasm::native_add::tests::a_hosted_compile_names_the_environment_the_passes_and_what_they_take_down' (32066) panicked at rust/tcl-compiler/src/codegen/wasm/native_add.rs:711:9:
+assertion `left == right` failed
+  left: ["sealed-program: hosted-environment", "pass direct-proc: pass-disabled", "pass native-integer: pass-disabled", "coverage: excluded-surface", "closed-program: hosted-environment", "direct-call: no-direct-call"]
+ right: ["sealed-program: hosted-environment", "pass direct-proc: pass-disabled", "pass native-integer: pass-disabled", "closed-program: hosted-environment", "direct-call: pass-disabled x1"]
+---- codegen::wasm::native_add::tests::a_rejected_body_records_each_premise_it_takes_down stdout ----
+thread 'codegen::wasm::native_add::tests::a_rejected_body_records_each_premise_it_takes_down' (32068) panicked at rust/tcl-compiler/src/codegen/wasm/native_add.rs:733:9:
+assertion `left == right` failed
+  left: ["pass native-integer: pass-disabled", "coverage: excluded-surface", "closed-program: uncovered-statement", "direct-call: no-direct-call"]
+ right: ["pass native-integer: pass-disabled", "direct-body: native-integer-pass-disabled x1", "frame: frame-not-elidable x1", "native-integer: pass-disabled x1"]
+---- codegen::wasm::native_add::tests::a_second_call_to_the_callee_is_recorded_at_both_sites stdout ----
+thread 'codegen::wasm::native_add::tests::a_second_call_to_the_callee_is_recorded_at_both_sites' (32069) panicked at rust/tcl-compiler/src/codegen/wasm/native_add.rs:788:9:
+assertion `left == right` failed
+  left: ["coverage: excluded-surface", "closed-program: uncovered-statement", "direct-call: no-direct-call"]
+ right: ["closed-program: closed-program-shape x2", "native-integer: caller-set-differs x2"]
+---- codegen::wasm::native_add::tests::a_selected_addition_records_no_decline stdout ----
+thread 'codegen::wasm::native_add::tests::a_selected_addition_records_no_decline' (32070) panicked at rust/tcl-compiler/src/codegen/wasm/native_add.rs:673:9:
+assertion failed: matches!(plan, WasmCodegenPlan::NativeI64Add { .. })
+---- codegen::wasm::native_add::tests::a_surviving_statement_rejects_the_closed_program_and_the_actuals_it_hides stdout ----
+thread 'codegen::wasm::native_add::tests::a_surviving_statement_rejects_the_closed_program_and_the_actuals_it_hides' (32071) panicked at rust/tcl-compiler/src/codegen/wasm/native_add.rs:762:9:
+assertion `left == right` failed
+  left: ["coverage: excluded-surface", "closed-program: uncovered-statement", "direct-call: no-direct-call"]
+ right: ["closed-program: uncovered-statement", "actuals: no-local-slot x1"]
+---- codegen::wasm::native_add::tests::the_target_and_its_packaging_are_premises_too stdout ----
+thread 'codegen::wasm::native_add::tests::the_target_and_its_packaging_are_premises_too' (32073) panicked at rust/tcl-compiler/src/codegen/wasm/native_add.rs:806:9:
+assertion `left == right` failed
+  left: ["semantic-plans: eval-only-test-host", "packaging: standalone-bootstrap", "coverage: excluded-surface", "closed-program: uncovered-statement", "direct-call: no-direct-call"]
+ right: ["semantic-plans: eval-only-test-host", "packaging: standalone-bootstrap"]
+---- codegen::wasm::pipeline::tests::a_bad_uncalled_procedure_remains_lazy_source_instead_of_a_native_export stdout ----
+thread 'codegen::wasm::pipeline::tests::a_bad_uncalled_procedure_remains_lazy_source_instead_of_a_native_export' (32075) panicked at rust/tcl-compiler/src/test_body_identity.rs:54:28:
+---- codegen::wasm::pipeline::tests::broad_source_records_typed_semantic_decline_on_general_plan stdout ----
+thread 'codegen::wasm::pipeline::tests::broad_source_records_typed_semantic_decline_on_general_plan' (32076) panicked at rust/tcl-compiler/src/codegen/wasm/pipeline.rs:1434:13:
+---- codegen::wasm::pipeline::tests::general_wasm_plan_retains_mixed_region_evidence_without_selecting_it stdout ----
+thread 'codegen::wasm::pipeline::tests::general_wasm_plan_retains_mixed_region_evidence_without_selecting_it' (32078) panicked at rust/tcl-compiler/src/codegen/wasm/pipeline.rs:1454:13:
+---- codegen::wasm::pipeline::tests::guarded_intrinsic_enablement_emits_runtime_guarded_argv_path stdout ----
+thread 'codegen::wasm::pipeline::tests::guarded_intrinsic_enablement_emits_runtime_guarded_argv_path' (32079) panicked at rust/tcl-compiler/src/codegen/wasm/pipeline.rs:1088:57:
+---- codegen::wasm::pipeline::tests::hosted_literal_invocation_selects_executable_generic_argv_plan stdout ----
+thread 'codegen::wasm::pipeline::tests::hosted_literal_invocation_selects_executable_generic_argv_plan' (32080) panicked at rust/tcl-compiler/src/codegen/wasm/pipeline.rs:1064:9:
+assertion failed: matches!(output.plan, WasmCodegenPlan::GenericInvoke { .. })
+---- codegen::wasm::pipeline::tests::incoming_native_operands_use_declared_arguments_without_inventing_ssa stdout ----
+thread 'codegen::wasm::pipeline::tests::incoming_native_operands_use_declared_arguments_without_inventing_ssa' (32081) panicked at rust/tcl-compiler/src/codegen/wasm/pipeline.rs:1179:14:
+---- codegen::wasm::pipeline::tests::invalid_semantic_layout_declines_before_the_single_emitter_runs stdout ----
+thread 'codegen::wasm::pipeline::tests::invalid_semantic_layout_declines_before_the_single_emitter_runs' (32084) panicked at rust/tcl-compiler/src/codegen/wasm/pipeline.rs:1532:9:
+assertion failed: matches!(output.plan, WasmCodegenPlan::General
+---- codegen::wasm::pipeline::tests::sealed_common_proofs_emit_native_i64_add_at_a_boxed_boundary stdout ----
+thread 'codegen::wasm::pipeline::tests::sealed_common_proofs_emit_native_i64_add_at_a_boxed_boundary' (32088) panicked at rust/tcl-compiler/src/codegen/wasm/pipeline.rs:1254:9:
+assertion failed: matches!(output.plan, WasmCodegenPlan::NativeI64Add { .. })
+---- codegen::wasm::pipeline::tests::the_native_tier_emits_the_t0_program_without_source_or_expression_rungs stdout ----
+thread 'codegen::wasm::pipeline::tests::the_native_tier_emits_the_t0_program_without_source_or_expression_rungs' (32091) panicked at rust/tcl-compiler/src/codegen/wasm/pipeline.rs:985:9:
+assertion `left == right` failed
+  left: Some(Declined(NoExecutableFunction))
+ right: Some(Lowered)
+---- codegen::wasm::pipeline::tests::the_native_tier_records_a_declined_function_and_keeps_the_legacy_walk stdout ----
+thread 'codegen::wasm::pipeline::tests::the_native_tier_records_a_declined_function_and_keeps_the_legacy_walk' (32093) panicked at rust/tcl-compiler/src/codegen/wasm/pipeline.rs:1031:9:
+assertion `left == right` failed
+  left: Some(Declined(NoExecutableFunction))
+ right: Some(Declined(UnloweredInstruction("operand-expression")))
+---- codegen::wasm::pipeline::tests::unavailable_executable_ir_retains_typed_region_plan_availability stdout ----
+thread 'codegen::wasm::pipeline::tests::unavailable_executable_ir_retains_typed_region_plan_availability' (32094) panicked at rust/tcl-compiler/src/codegen/wasm/pipeline.rs:1489:9:
+assertion failed: matches!(output.plan.semantic_decline(),
+test result: FAILED. 515 passed; 37 failed; 0 ignored; 0 measured; 9899 filtered out; finished in 64.77s

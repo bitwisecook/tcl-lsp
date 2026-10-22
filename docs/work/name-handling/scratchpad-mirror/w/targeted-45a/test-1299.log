@@ -1,0 +1,25 @@
+
+running 1 test
+test registry_invocation::source_structure::project_procedure_roles::arity_prefix_tests::project_roles_keep_original_prefix_arity_applicability_separate_from_mutations ... 
+thread 'registry_invocation::source_structure::project_procedure_roles::arity_prefix_tests::project_roles_keep_original_prefix_arity_applicability_separate_from_mutations' (1097) panicked at rust/tcl-compiler/src/registry_invocation/source_structure/project_procedure_roles.rs:714:17:
+assertion `left == right` failed: jim: llength ONE; reader retained
+  left: false
+ right: true
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<bool, bool>
+   4: tcl_compiler::registry_invocation::source_structure::project_procedure_roles::arity_prefix_tests::project_roles_keep_original_prefix_arity_applicability_separate_from_mutations
+   5: tcl_compiler::registry_invocation::source_structure::project_procedure_roles::arity_prefix_tests::project_roles_keep_original_prefix_arity_applicability_separate_from_mutations::{closure#0}
+   6: <tcl_compiler::registry_invocation::source_structure::project_procedure_roles::arity_prefix_tests::project_roles_keep_original_prefix_arity_applicability_separate_from_mutations::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+FAILED
+
+failures:
+
+failures:
+    registry_invocation::source_structure::project_procedure_roles::arity_prefix_tests::project_roles_keep_original_prefix_arity_applicability_separate_from_mutations
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 10440 filtered out; finished in 13.01s
+

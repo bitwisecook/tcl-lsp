@@ -1,0 +1,697 @@
+
+running 45 tests
+test dataflow_alias_detection ... FAILED
+test dataflow_alias_info_present ... FAILED
+test dataflow_empty_source ... ok
+test dataflow_dead_definition_detected ... FAILED
+test dataflow_extract_function_dataflow_directly ... FAILED
+test dataflow_graph_has_nodes_and_edges ... FAILED
+test dataflow_multi_proc_module ... FAILED
+test dataflow_prebuilt_cu ... FAILED
+test dataflow_phi_edges ... FAILED
+test dataflow_proc_extraction ... FAILED
+test dataflow_simple_linear ... FAILED
+test dataflow_total_aliases_property ... FAILED
+test dce_command_subst_rhs_not_a_dead_store ... FAILED
+test dce_dead_store_inside_for_body ... FAILED
+test dce_global_write_not_a_dead_store ... FAILED
+test dce_dead_store_inside_if_clause ... FAILED
+test dce_multiple_writes_both_unread_are_dead ... FAILED
+test dce_no_dead_stores_when_none ... FAILED
+test dce_non_terminal_dead_set_still_dead ... FAILED
+test dce_pure_literal_assign_still_dead ... FAILED
+test dce_terminal_set_is_unread_but_implicit_return ... FAILED
+test dce_top_level_unused_is_dead ... FAILED
+test dce_unused_literal_store_is_dead ... FAILED
+test dce_used_var_inside_nested_if_not_dead ... FAILED
+test dce_used_var_not_dead ... FAILED
+test dce_var_used_in_braced_substitution_not_dead ... FAILED
+test dce_var_used_in_expr_not_dead ... FAILED
+test def_use_branch_condition_is_use ... FAILED
+test def_use_chain_for_returns_none ... ok
+test def_use_dead_chains_property ... FAILED
+test def_use_dead_store ... FAILED
+test def_use_foreach_loop ... ok
+test def_use_has_phi_use ... FAILED
+test def_use_if_inside_while ... FAILED
+test def_use_is_dead_method ... FAILED
+test def_use_is_dead_nonexistent_key ... FAILED
+test def_use_if_merge_creates_phi_chain ... FAILED
+test def_use_loop_phi ... FAILED
+test def_use_linear_single_use ... FAILED
+test def_use_multiple_uses ... FAILED
+test def_use_phi_incoming_edges_are_uses ... FAILED
+test def_use_proc_parameters ... FAILED
+test def_use_reaching_defs ... FAILED
+test def_use_while_condition_is_use ... FAILED
+test def_use_total_counts ... FAILED
+
+failures:
+
+---- dataflow_alias_detection stdout ----
+
+thread 'dataflow_alias_detection' (24972) panicked at rust/tcl-compiler/tests/dataflow.rs:428:10:
+bar function present
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::option::expect_failed
+   3: <core::option::Option<&tcl_compiler::dataflow_graph::FunctionDataFlowGraph>>::expect
+   4: dataflow::dataflow_alias_detection
+   5: dataflow::dataflow_alias_detection::{closure#0}
+   6: <dataflow::dataflow_alias_detection::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- dataflow_alias_info_present stdout ----
+
+thread 'dataflow_alias_info_present' (24973) panicked at rust/tcl-compiler/tests/dataflow.rs:458:10:
+bar function present
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::option::expect_failed
+   3: <core::option::Option<&tcl_compiler::dataflow_graph::FunctionDataFlowGraph>>::expect
+   4: dataflow::dataflow_alias_info_present
+   5: dataflow::dataflow_alias_info_present::{closure#0}
+   6: <dataflow::dataflow_alias_info_present::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- dataflow_dead_definition_detected stdout ----
+
+thread 'dataflow_dead_definition_detected' (24979) panicked at rust/tcl-compiler/tests/dataflow.rs:408:5:
+dead vars: []
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: dataflow::dataflow_dead_definition_detected
+   3: dataflow::dataflow_dead_definition_detected::{closure#0}
+   4: <dataflow::dataflow_dead_definition_detected::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- dataflow_extract_function_dataflow_directly stdout ----
+
+thread 'dataflow_extract_function_dataflow_directly' (24984) panicked at rust/tcl-compiler/tests/dataflow.rs:495:5:
+assertion failed: fg.total_defs >= 2
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: dataflow::dataflow_extract_function_dataflow_directly
+   4: dataflow::dataflow_extract_function_dataflow_directly::{closure#0}
+   5: <dataflow::dataflow_extract_function_dataflow_directly::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- dataflow_graph_has_nodes_and_edges stdout ----
+
+thread 'dataflow_graph_has_nodes_and_edges' (24985) panicked at rust/tcl-compiler/tests/dataflow.rs:522:5:
+assertion failed: func.nodes.len() >= 2
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: dataflow::dataflow_graph_has_nodes_and_edges
+   4: dataflow::dataflow_graph_has_nodes_and_edges::{closure#0}
+   5: <dataflow::dataflow_graph_has_nodes_and_edges::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- dataflow_multi_proc_module stdout ----
+
+thread 'dataflow_multi_proc_module' (24986) panicked at rust/tcl-compiler/tests/dataflow.rs:476:5:
+assertion failed: g.functions.len() >= 3
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: dataflow::dataflow_multi_proc_module
+   4: dataflow::dataflow_multi_proc_module::{closure#0}
+   5: <dataflow::dataflow_multi_proc_module::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- dataflow_prebuilt_cu stdout ----
+
+thread 'dataflow_prebuilt_cu' (24988) panicked at rust/tcl-compiler/tests/dataflow.rs:506:5:
+assertion failed: g.total_defs() >= 2
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: dataflow::dataflow_prebuilt_cu
+   4: dataflow::dataflow_prebuilt_cu::{closure#0}
+   5: <dataflow::dataflow_prebuilt_cu::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- dataflow_phi_edges stdout ----
+
+thread 'dataflow_phi_edges' (24987) panicked at rust/tcl-compiler/tests/dataflow.rs:447:5:
+expected ≥2 phi edges, got 0
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: dataflow::dataflow_phi_edges
+   3: dataflow::dataflow_phi_edges::{closure#0}
+   4: <dataflow::dataflow_phi_edges::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- dataflow_proc_extraction stdout ----
+
+thread 'dataflow_proc_extraction' (24989) panicked at rust/tcl-compiler/tests/dataflow.rs:415:5:
+assertion failed: g.functions.len() >= 2
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: dataflow::dataflow_proc_extraction
+   4: dataflow::dataflow_proc_extraction::{closure#0}
+   5: <dataflow::dataflow_proc_extraction::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- dataflow_simple_linear stdout ----
+
+thread 'dataflow_simple_linear' (24990) panicked at rust/tcl-compiler/tests/dataflow.rs:392:5:
+assertion failed: g.total_defs() >= 2
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: dataflow::dataflow_simple_linear
+   4: dataflow::dataflow_simple_linear::{closure#0}
+   5: <dataflow::dataflow_simple_linear::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- dataflow_total_aliases_property stdout ----
+
+thread 'dataflow_total_aliases_property' (24991) panicked at rust/tcl-compiler/tests/dataflow.rs:469:5:
+assertion failed: g.total_aliases() >= 1
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: dataflow::dataflow_total_aliases_property
+   4: dataflow::dataflow_total_aliases_property::{closure#0}
+   5: <dataflow::dataflow_total_aliases_property::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- dce_command_subst_rhs_not_a_dead_store stdout ----
+
+thread 'dce_command_subst_rhs_not_a_dead_store' (24992) panicked at rust/tcl-compiler/tests/dataflow.rs:109:28:
+function ::f not found
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: dataflow::proc_fu::{closure#0}
+   3: <core::option::Option<&tcl_compiler::compilation_unit::FunctionUnit>>::unwrap_or_else::<dataflow::proc_fu::{closure#0}>
+   4: dataflow::proc_fu
+   5: dataflow::dead_store_vars
+   6: dataflow::dce_command_subst_rhs_not_a_dead_store
+   7: dataflow::dce_command_subst_rhs_not_a_dead_store::{closure#0}
+   8: <dataflow::dce_command_subst_rhs_not_a_dead_store::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- dce_dead_store_inside_for_body stdout ----
+
+thread 'dce_dead_store_inside_for_body' (24993) panicked at rust/tcl-compiler/tests/dataflow.rs:109:28:
+function ::f not found
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: dataflow::proc_fu::{closure#0}
+   3: <core::option::Option<&tcl_compiler::compilation_unit::FunctionUnit>>::unwrap_or_else::<dataflow::proc_fu::{closure#0}>
+   4: dataflow::proc_fu
+   5: dataflow::dead_store_vars
+   6: dataflow::dce_dead_store_inside_for_body
+   7: dataflow::dce_dead_store_inside_for_body::{closure#0}
+   8: <dataflow::dce_dead_store_inside_for_body::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- dce_global_write_not_a_dead_store stdout ----
+
+thread 'dce_global_write_not_a_dead_store' (24995) panicked at rust/tcl-compiler/tests/dataflow.rs:109:28:
+function ::f not found
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: dataflow::proc_fu::{closure#0}
+   3: <core::option::Option<&tcl_compiler::compilation_unit::FunctionUnit>>::unwrap_or_else::<dataflow::proc_fu::{closure#0}>
+   4: dataflow::proc_fu
+   5: dataflow::dead_store_vars
+   6: dataflow::dce_global_write_not_a_dead_store
+   7: dataflow::dce_global_write_not_a_dead_store::{closure#0}
+   8: <dataflow::dce_global_write_not_a_dead_store::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- dce_dead_store_inside_if_clause stdout ----
+
+thread 'dce_dead_store_inside_if_clause' (24994) panicked at rust/tcl-compiler/tests/dataflow.rs:109:28:
+function ::f not found
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: dataflow::proc_fu::{closure#0}
+   3: <core::option::Option<&tcl_compiler::compilation_unit::FunctionUnit>>::unwrap_or_else::<dataflow::proc_fu::{closure#0}>
+   4: dataflow::proc_fu
+   5: dataflow::dead_store_vars
+   6: dataflow::dce_dead_store_inside_if_clause
+   7: dataflow::dce_dead_store_inside_if_clause::{closure#0}
+   8: <dataflow::dce_dead_store_inside_if_clause::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- dce_multiple_writes_both_unread_are_dead stdout ----
+
+thread 'dce_multiple_writes_both_unread_are_dead' (24996) panicked at rust/tcl-compiler/tests/dataflow.rs:109:28:
+function ::f not found
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: dataflow::proc_fu::{closure#0}
+   3: <core::option::Option<&tcl_compiler::compilation_unit::FunctionUnit>>::unwrap_or_else::<dataflow::proc_fu::{closure#0}>
+   4: dataflow::proc_fu
+   5: dataflow::dead_store_vars
+   6: dataflow::dce_multiple_writes_both_unread_are_dead
+   7: dataflow::dce_multiple_writes_both_unread_are_dead::{closure#0}
+   8: <dataflow::dce_multiple_writes_both_unread_are_dead::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- dce_no_dead_stores_when_none stdout ----
+
+thread 'dce_no_dead_stores_when_none' (24997) panicked at rust/tcl-compiler/tests/dataflow.rs:109:28:
+function ::f not found
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: dataflow::proc_fu::{closure#0}
+   3: <core::option::Option<&tcl_compiler::compilation_unit::FunctionUnit>>::unwrap_or_else::<dataflow::proc_fu::{closure#0}>
+   4: dataflow::proc_fu
+   5: dataflow::dead_store_vars
+   6: dataflow::dce_no_dead_stores_when_none
+   7: dataflow::dce_no_dead_stores_when_none::{closure#0}
+   8: <dataflow::dce_no_dead_stores_when_none::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- dce_non_terminal_dead_set_still_dead stdout ----
+
+thread 'dce_non_terminal_dead_set_still_dead' (24998) panicked at rust/tcl-compiler/tests/dataflow.rs:109:28:
+function ::p not found
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: dataflow::proc_fu::{closure#0}
+   3: <core::option::Option<&tcl_compiler::compilation_unit::FunctionUnit>>::unwrap_or_else::<dataflow::proc_fu::{closure#0}>
+   4: dataflow::proc_fu
+   5: dataflow::dead_store_vars
+   6: dataflow::dce_non_terminal_dead_set_still_dead
+   7: dataflow::dce_non_terminal_dead_set_still_dead::{closure#0}
+   8: <dataflow::dce_non_terminal_dead_set_still_dead::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- dce_pure_literal_assign_still_dead stdout ----
+
+thread 'dce_pure_literal_assign_still_dead' (24999) panicked at rust/tcl-compiler/tests/dataflow.rs:109:28:
+function ::f not found
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: dataflow::proc_fu::{closure#0}
+   3: <core::option::Option<&tcl_compiler::compilation_unit::FunctionUnit>>::unwrap_or_else::<dataflow::proc_fu::{closure#0}>
+   4: dataflow::proc_fu
+   5: dataflow::dead_store_vars
+   6: dataflow::dce_pure_literal_assign_still_dead
+   7: dataflow::dce_pure_literal_assign_still_dead::{closure#0}
+   8: <dataflow::dce_pure_literal_assign_still_dead::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- dce_terminal_set_is_unread_but_implicit_return stdout ----
+
+thread 'dce_terminal_set_is_unread_but_implicit_return' (25000) panicked at rust/tcl-compiler/tests/dataflow.rs:109:28:
+function ::p not found
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: dataflow::proc_fu::{closure#0}
+   3: <core::option::Option<&tcl_compiler::compilation_unit::FunctionUnit>>::unwrap_or_else::<dataflow::proc_fu::{closure#0}>
+   4: dataflow::proc_fu
+   5: dataflow::dead_store_vars
+   6: dataflow::dce_terminal_set_is_unread_but_implicit_return
+   7: dataflow::dce_terminal_set_is_unread_but_implicit_return::{closure#0}
+   8: <dataflow::dce_terminal_set_is_unread_but_implicit_return::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- dce_top_level_unused_is_dead stdout ----
+
+thread 'dce_top_level_unused_is_dead' (25001) panicked at rust/tcl-compiler/tests/dataflow.rs:684:5:
+dead: []
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: dataflow::dce_top_level_unused_is_dead
+   3: dataflow::dce_top_level_unused_is_dead::{closure#0}
+   4: <dataflow::dce_top_level_unused_is_dead::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- dce_unused_literal_store_is_dead stdout ----
+
+thread 'dce_unused_literal_store_is_dead' (25002) panicked at rust/tcl-compiler/tests/dataflow.rs:109:28:
+function ::f not found
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: dataflow::proc_fu::{closure#0}
+   3: <core::option::Option<&tcl_compiler::compilation_unit::FunctionUnit>>::unwrap_or_else::<dataflow::proc_fu::{closure#0}>
+   4: dataflow::proc_fu
+   5: dataflow::dead_store_vars
+   6: dataflow::dce_unused_literal_store_is_dead
+   7: dataflow::dce_unused_literal_store_is_dead::{closure#0}
+   8: <dataflow::dce_unused_literal_store_is_dead::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- dce_used_var_inside_nested_if_not_dead stdout ----
+
+thread 'dce_used_var_inside_nested_if_not_dead' (25003) panicked at rust/tcl-compiler/tests/dataflow.rs:109:28:
+function ::f not found
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: dataflow::proc_fu::{closure#0}
+   3: <core::option::Option<&tcl_compiler::compilation_unit::FunctionUnit>>::unwrap_or_else::<dataflow::proc_fu::{closure#0}>
+   4: dataflow::proc_fu
+   5: dataflow::dead_store_vars
+   6: dataflow::dce_used_var_inside_nested_if_not_dead
+   7: dataflow::dce_used_var_inside_nested_if_not_dead::{closure#0}
+   8: <dataflow::dce_used_var_inside_nested_if_not_dead::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- dce_used_var_not_dead stdout ----
+
+thread 'dce_used_var_not_dead' (25004) panicked at rust/tcl-compiler/tests/dataflow.rs:109:28:
+function ::f not found
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: dataflow::proc_fu::{closure#0}
+   3: <core::option::Option<&tcl_compiler::compilation_unit::FunctionUnit>>::unwrap_or_else::<dataflow::proc_fu::{closure#0}>
+   4: dataflow::proc_fu
+   5: dataflow::dead_store_vars
+   6: dataflow::dce_used_var_not_dead
+   7: dataflow::dce_used_var_not_dead::{closure#0}
+   8: <dataflow::dce_used_var_not_dead::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- dce_var_used_in_braced_substitution_not_dead stdout ----
+
+thread 'dce_var_used_in_braced_substitution_not_dead' (25005) panicked at rust/tcl-compiler/tests/dataflow.rs:109:28:
+function ::f not found
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: dataflow::proc_fu::{closure#0}
+   3: <core::option::Option<&tcl_compiler::compilation_unit::FunctionUnit>>::unwrap_or_else::<dataflow::proc_fu::{closure#0}>
+   4: dataflow::proc_fu
+   5: dataflow::dead_store_vars
+   6: dataflow::dce_var_used_in_braced_substitution_not_dead
+   7: dataflow::dce_var_used_in_braced_substitution_not_dead::{closure#0}
+   8: <dataflow::dce_var_used_in_braced_substitution_not_dead::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- dce_var_used_in_expr_not_dead stdout ----
+
+thread 'dce_var_used_in_expr_not_dead' (25006) panicked at rust/tcl-compiler/tests/dataflow.rs:109:28:
+function ::f not found
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: dataflow::proc_fu::{closure#0}
+   3: <core::option::Option<&tcl_compiler::compilation_unit::FunctionUnit>>::unwrap_or_else::<dataflow::proc_fu::{closure#0}>
+   4: dataflow::proc_fu
+   5: dataflow::dead_store_vars
+   6: dataflow::dce_var_used_in_expr_not_dead
+   7: dataflow::dce_var_used_in_expr_not_dead::{closure#0}
+   8: <dataflow::dce_var_used_in_expr_not_dead::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- def_use_branch_condition_is_use stdout ----
+
+thread 'def_use_branch_condition_is_use' (25007) panicked at rust/tcl-compiler/tests/dataflow.rs:264:37:
+cond#1
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::option::expect_failed
+   3: <core::option::Option<&tcl_compiler::def_use::DefUseChain>>::expect
+   4: dataflow::def_use_branch_condition_is_use
+   5: dataflow::def_use_branch_condition_is_use::{closure#0}
+   6: <dataflow::def_use_branch_condition_is_use::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- def_use_dead_chains_property stdout ----
+
+thread 'def_use_dead_chains_property' (25009) panicked at rust/tcl-compiler/tests/dataflow.rs:207:5:
+assertion `left == right` failed
+  left: 0
+ right: 2
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<usize, usize>
+   4: dataflow::def_use_dead_chains_property
+   5: dataflow::def_use_dead_chains_property::{closure#0}
+   6: <dataflow::def_use_dead_chains_property::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- def_use_dead_store stdout ----
+
+thread 'def_use_dead_store' (25010) panicked at rust/tcl-compiler/tests/dataflow.rs:182:31:
+x#1
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::option::expect_failed
+   3: <core::option::Option<&tcl_compiler::def_use::DefUseChain>>::expect
+   4: dataflow::def_use_dead_store
+   5: dataflow::def_use_dead_store::{closure#0}
+   6: <dataflow::def_use_dead_store::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- def_use_has_phi_use stdout ----
+
+thread 'def_use_has_phi_use' (25012) panicked at rust/tcl-compiler/tests/dataflow.rs:362:5:
+assertion failed: has_phi
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: dataflow::def_use_has_phi_use
+   4: dataflow::def_use_has_phi_use::{closure#0}
+   5: <dataflow::def_use_has_phi_use::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- def_use_if_inside_while stdout ----
+
+thread 'def_use_if_inside_while' (25013) panicked at rust/tcl-compiler/tests/dataflow.rs:372:5:
+assertion failed: reaching_defs(fu, "i").len() >= 2
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: dataflow::def_use_if_inside_while
+   4: dataflow::def_use_if_inside_while::{closure#0}
+   5: <dataflow::def_use_if_inside_while::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- def_use_is_dead_method stdout ----
+
+thread 'def_use_is_dead_method' (25015) panicked at rust/tcl-compiler/tests/dataflow.rs:332:56:
+called `Option::unwrap()` on a `None` value
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: core::option::unwrap_failed
+   4: dataflow::def_use_is_dead_method
+   5: dataflow::def_use_is_dead_method::{closure#0}
+   6: <dataflow::def_use_is_dead_method::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- def_use_is_dead_nonexistent_key stdout ----
+
+thread 'def_use_is_dead_nonexistent_key' (25016) panicked at rust/tcl-compiler/tests/dataflow.rs:341:55:
+called `Option::unwrap()` on a `None` value
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: core::option::unwrap_failed
+   4: dataflow::def_use_is_dead_nonexistent_key
+   5: dataflow::def_use_is_dead_nonexistent_key::{closure#0}
+   6: <dataflow::def_use_is_dead_nonexistent_key::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- def_use_if_merge_creates_phi_chain stdout ----
+
+thread 'def_use_if_merge_creates_phi_chain' (25014) panicked at rust/tcl-compiler/tests/dataflow.rs:234:5:
+expected ≥1 phi def for `a`
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: dataflow::def_use_if_merge_creates_phi_chain
+   3: dataflow::def_use_if_merge_creates_phi_chain::{closure#0}
+   4: <dataflow::def_use_if_merge_creates_phi_chain::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- def_use_loop_phi stdout ----
+
+thread 'def_use_loop_phi' (25018) panicked at rust/tcl-compiler/tests/dataflow.rs:293:5:
+expected ≥2 defs for i, got 0
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: dataflow::def_use_loop_phi
+   3: dataflow::def_use_loop_phi::{closure#0}
+   4: <dataflow::def_use_loop_phi::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- def_use_linear_single_use stdout ----
+
+thread 'def_use_linear_single_use' (25017) panicked at rust/tcl-compiler/tests/dataflow.rs:170:31:
+x#1 chain
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::option::expect_failed
+   3: <core::option::Option<&tcl_compiler::def_use::DefUseChain>>::expect
+   4: dataflow::def_use_linear_single_use
+   5: dataflow::def_use_linear_single_use::{closure#0}
+   6: <dataflow::def_use_linear_single_use::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- def_use_multiple_uses stdout ----
+
+thread 'def_use_multiple_uses' (25019) panicked at rust/tcl-compiler/tests/dataflow.rs:191:34:
+x#1
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::option::expect_failed
+   3: <core::option::Option<&tcl_compiler::def_use::DefUseChain>>::expect
+   4: dataflow::def_use_multiple_uses
+   5: dataflow::def_use_multiple_uses::{closure#0}
+   6: <dataflow::def_use_multiple_uses::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- def_use_phi_incoming_edges_are_uses stdout ----
+
+thread 'def_use_phi_incoming_edges_are_uses' (25020) panicked at rust/tcl-compiler/tests/dataflow.rs:252:5:
+expected phi-incoming uses for both branches
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: dataflow::def_use_phi_incoming_edges_are_uses
+   3: dataflow::def_use_phi_incoming_edges_are_uses::{closure#0}
+   4: <dataflow::def_use_phi_incoming_edges_are_uses::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- def_use_proc_parameters stdout ----
+
+thread 'def_use_proc_parameters' (25021) panicked at rust/tcl-compiler/tests/dataflow.rs:109:28:
+function ::foo not found
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: dataflow::proc_fu::{closure#0}
+   3: <core::option::Option<&tcl_compiler::compilation_unit::FunctionUnit>>::unwrap_or_else::<dataflow::proc_fu::{closure#0}>
+   4: dataflow::proc_fu
+   5: dataflow::def_use_proc_parameters
+   6: dataflow::def_use_proc_parameters::{closure#0}
+   7: <dataflow::def_use_proc_parameters::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- def_use_reaching_defs stdout ----
+
+thread 'def_use_reaching_defs' (25022) panicked at rust/tcl-compiler/tests/dataflow.rs:199:5:
+assertion `left == right` failed
+  left: 0
+ right: 3
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<usize, usize>
+   4: dataflow::def_use_reaching_defs
+   5: dataflow::def_use_reaching_defs::{closure#0}
+   6: <dataflow::def_use_reaching_defs::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- def_use_while_condition_is_use stdout ----
+
+thread 'def_use_while_condition_is_use' (25024) panicked at rust/tcl-compiler/tests/dataflow.rs:281:5:
+expected a TERMINATOR use for the loop condition
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: dataflow::def_use_while_condition_is_use
+   3: dataflow::def_use_while_condition_is_use::{closure#0}
+   4: <dataflow::def_use_while_condition_is_use::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- def_use_total_counts stdout ----
+
+thread 'def_use_total_counts' (25023) panicked at rust/tcl-compiler/tests/dataflow.rs:215:5:
+assertion `left == right` failed
+  left: 0
+ right: 2
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<usize, usize>
+   4: dataflow::def_use_total_counts
+   5: dataflow::def_use_total_counts::{closure#0}
+   6: <dataflow::def_use_total_counts::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+
+failures:
+    dataflow_alias_detection
+    dataflow_alias_info_present
+    dataflow_dead_definition_detected
+    dataflow_extract_function_dataflow_directly
+    dataflow_graph_has_nodes_and_edges
+    dataflow_multi_proc_module
+    dataflow_phi_edges
+    dataflow_prebuilt_cu
+    dataflow_proc_extraction
+    dataflow_simple_linear
+    dataflow_total_aliases_property
+    dce_command_subst_rhs_not_a_dead_store
+    dce_dead_store_inside_for_body
+    dce_dead_store_inside_if_clause
+    dce_global_write_not_a_dead_store
+    dce_multiple_writes_both_unread_are_dead
+    dce_no_dead_stores_when_none
+    dce_non_terminal_dead_set_still_dead
+    dce_pure_literal_assign_still_dead
+    dce_terminal_set_is_unread_but_implicit_return
+    dce_top_level_unused_is_dead
+    dce_unused_literal_store_is_dead
+    dce_used_var_inside_nested_if_not_dead
+    dce_used_var_not_dead
+    dce_var_used_in_braced_substitution_not_dead
+    dce_var_used_in_expr_not_dead
+    def_use_branch_condition_is_use
+    def_use_dead_chains_property
+    def_use_dead_store
+    def_use_has_phi_use
+    def_use_if_inside_while
+    def_use_if_merge_creates_phi_chain
+    def_use_is_dead_method
+    def_use_is_dead_nonexistent_key
+    def_use_linear_single_use
+    def_use_loop_phi
+    def_use_multiple_uses
+    def_use_phi_incoming_edges_are_uses
+    def_use_proc_parameters
+    def_use_reaching_defs
+    def_use_total_counts
+    def_use_while_condition_is_use
+
+test result: FAILED. 3 passed; 42 failed; 0 ignored; 0 measured; 0 filtered out; finished in 8.56s
+

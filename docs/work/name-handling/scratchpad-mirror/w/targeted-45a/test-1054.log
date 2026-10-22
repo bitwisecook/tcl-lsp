@@ -1,0 +1,6 @@
+
+running 1 test
+test package_resolver::tests::logical_source_command_coordinate_selects_tcl_index_without_name_roundtrip ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 3484 filtered out; finished in 0.00s
+

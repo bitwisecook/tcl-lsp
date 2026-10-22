@@ -1,0 +1,17 @@
+
+running 12 tests
+test a_member_row_without_an_effect_is_dropped_with_a_notice ... ok
+test braced_prose_survives_byte_for_byte ... ok
+test derivations_are_recorded_as_derivations ... ok
+test hook_bodies_are_carried_as_text_with_their_family_metadata ... ok
+test implicit_receiver_roles_round_trip_without_becoming_all_implicit_variables ... ok
+test the_clause_grammar_derivation_agrees_with_the_shipped_walk ... ok
+test every_port_loads_and_matches_its_shipped_spec ... ok
+test the_manufacturer_derivation_agrees_with_the_shipped_resolver ... ok
+test the_inline_snit_grammar_matches_the_shipped_constant ... ok
+test unknown_vocabulary_drops_with_a_notice_rather_than_failing ... ok
+test upvar_carries_its_frame_effect_verbatim ... ok
+test the_subst_port_answers_the_same_kinds_as_the_shipped_spec ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 4.69s
+

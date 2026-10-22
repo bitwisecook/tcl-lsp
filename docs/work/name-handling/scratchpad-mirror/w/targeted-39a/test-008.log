@@ -1,0 +1,22 @@
+
+running 1 test
+test method_symbol::own_object_tests::original_own_object_candidates_keep_allocation_and_canonical_worker_without_class_tables ... 
+thread 'method_symbol::own_object_tests::original_own_object_candidates_keep_allocation_and_canonical_worker_without_class_tables' (5985) panicked at rust/tcl-lsp-core/src/method_symbol.rs:1737:13:
+assertion failed: own.has_call_point_entry()
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: tcl_lsp_core::method_symbol::own_object_tests::original_own_object_candidates_keep_allocation_and_canonical_worker_without_class_tables
+   4: tcl_lsp_core::method_symbol::own_object_tests::original_own_object_candidates_keep_allocation_and_canonical_worker_without_class_tables::{closure#0}
+   5: <tcl_lsp_core::method_symbol::own_object_tests::original_own_object_candidates_keep_allocation_and_canonical_worker_without_class_tables::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+FAILED
+
+failures:
+
+failures:
+    method_symbol::own_object_tests::original_own_object_candidates_keep_allocation_and_canonical_worker_without_class_tables
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 3479 filtered out; finished in 1.40s
+

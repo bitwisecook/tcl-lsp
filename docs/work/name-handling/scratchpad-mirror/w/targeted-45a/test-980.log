@@ -1,0 +1,6 @@
+
+running 1 test
+test package_resolver::original_names::file_candidates::tests::original_package_file_currency_keeps_file_ingress_and_nested_bom_distinct ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 3484 filtered out; finished in 8.26s
+

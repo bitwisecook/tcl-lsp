@@ -1,0 +1,164 @@
+test package_resolver::original_names::file_candidates::tests::original_package_file_candidates_require_potential_loader_evaluation ... ok
+test package_resolver::original_names::file_candidates::tests::original_package_file_scanner_keeps_the_full_input_generation ... ok
+test package_resolver::original_names::file_candidates::tests::original_package_file_advice_keeps_future_values_shadow_arity_and_currency_separate ... ok
+test package_resolver::original_names::index_loader::selected_source_form_tests::index_filename_uses_selected_source_form_before_computed_path_value ... ok
+test package_resolver::original_names::index_loader::tests::loader_value_advice_requires_the_original_complete_source_and_input ... ok
+test package_resolver::original_names::index_loader::tests::loader_value_schemas_keep_unicode_literals_and_unknown_operand_kinds ... ok
+test package_resolver::original_names::index_loader::tests::standalone_filename_geometry_requires_actual_source_and_full_configuration ... ok
+test package_resolver::original_names::original_filename_parser_purpose_tests::original_auto_index_filename_keeps_supplied_grammar_and_nested_command_bom ... ok
+test package_resolver::original_names::file_candidates::tests::original_package_file_currency_keeps_file_ingress_and_nested_bom_distinct ... ok
+test package_resolver::original_names::original_index_filename_data_tests::original_index_filename_candidates_preserve_oracle_literal_data_and_join_components ... FAILED
+test package_resolver::original_names::original_index_body_purpose_tests::original_auto_index_stored_script_keeps_body_bom_distinct_from_file_prologue ... ok
+test package_resolver::original_names::file_candidates::tests::original_package_files_keep_source_ordinals_data_and_directory_hints_distinct ... ok
+test package_resolver::original_names::tests::original_index_grammar_requires_the_current_registry_implementation ... ok
+test package_resolver::original_names::tests::original_old_index_uses_list_grammar_and_translated_line_boundaries ... ok
+test package_resolver::original_names::tests::original_package_advice_keeps_unowned_reports_and_metadata_distinct ... ok
+test package_resolver::original_names::tests::original_index_keeps_counted_literal_names_and_does_not_trim_indices ... FAILED
+test package_resolver::original_names::tests::original_package_keys_keep_opaque_names_and_nested_source_owners ... FAILED
+test package_resolver::reachability::original::complete_vector_control::complete_source_vectors_keep_quoted_and_braced_data_in_one_command ... ok
+test package_resolver::reachability::original::coverage_controls::original_coverage_checks_omitted_operands_before_registration_and_stop ... ok
+test package_resolver::reachability::original::coverage_controls::original_coverage_keeps_complete_and_stopped_distinct ... ok
+test package_resolver::reachability::original::coverage_controls::original_coverage_keeps_malformed_source_and_missing_schema_incomplete ... ok
+test package_resolver::reachability::original::coverage_controls::original_coverage_keeps_unknown_expression_and_missing_body_incomplete ... ok
+test package_resolver::reachability::original::coverage_controls::original_coverage_preserves_known_registration_callbacks ... ok
+test package_resolver::original_names::original_index_filename_data_tests::original_index_source_operand_grammar_and_real_producers_refuse_guessed_filenames ... FAILED
+test package_resolver::reachability::original::coverage_controls::original_coverage_rejects_foreign_source_without_callbacks ... ok
+test package_resolver::reachability::original::original_package_region_purpose_tests::original_package_body_words_keep_parent_image_and_nested_bom_geometry ... ok
+test package_resolver::reachability::original::tests::original_package_paths_preserve_current_loader_axes_and_version_uncertainty ... ok
+test package_resolver::reachability::source_advertisement_value_boundary_tests::original_projection_preserves_legacy_nul_value_refusal ... ok
+test package_resolver::reachability::source_clause_selection_tests::loops_do_not_become_first_match_source_guards ... ok
+test package_resolver::reachability::source_clause_selection_tests::unreachable_source_body_uncertainty_does_not_retire_outer_guard_path ... ok
+test package_resolver::reachability::original::tests::original_package_paths_use_current_control_roles_and_completion_options ... FAILED
+test package_resolver::reachability::source_lambda_namespace_tests::logical_lambda_namespace_is_its_own_original_source_owner ... ok
+test package_resolver::reachability::source_survey_owner_tests::decoded_registration_retains_native_value_original_words ... FAILED
+test package_resolver::reachability::source_possible_occupant_tests::definitions_from_entered_conditions_and_bodies_keep_namespace_shadows ... ok
+test package_resolver::reachability::source_survey_owner_tests::known_false_source_body_keeps_unavailable_advertisement_without_entered_claim ... ok
+test package_resolver::reachability::source_survey_owner_tests::fixed_source_guard_retains_real_query_and_advertisement_dependencies ... ok
+test package_resolver::reachability::source_uncertain_continuation_tests::unknown_branch_continuations_do_not_become_definite_all_branch_stop ... ok
+test package_resolver::reachability::tests::a_constant_false_branch_never_registers_1017 ... ok
+test package_resolver::reachability::source_survey_owner_tests::opaque_or_package_history_does_not_restore_target_release_model ... ok
+test package_resolver::reachability::tests::a_constant_true_early_return_gates_the_declaration_1017 ... ok
+test package_resolver::reachability::tests::a_dynamic_lambda_is_not_descended ... ok
+test package_resolver::reachability::tests::a_declaration_inside_an_apply_lambda_and_a_foreach_is_conditional ... ok
+test package_resolver::reachability::tests::a_non_terminating_guard_body_does_not_gate_what_follows ... ok
+test package_resolver::reachability::tests::a_multi_requirement_vsatisfies_raises_on_tcl_8_4 ... ok
+test package_resolver::reachability::tests::a_patch_level_requirement_the_line_disagrees_about_stays_conditional ... ok
+test package_resolver::reachability::tests::a_satisfied_two_component_requirement_still_decides_beside_a_patch_level_one ... ok
+test package_resolver::reachability::tests::a_vsatisfies_early_return_gates_the_declaration_1017 ... ok
+test package_resolver::reachability::tests::an_elseif_chain_selects_one_arm_per_release ... ok
+test package_resolver::reachability::tests::an_unguarded_declaration_is_available_everywhere ... ok
+test package_resolver::reachability::tests::an_unmodelled_guard_leaves_the_declaration_conditional ... ok
+test package_resolver::reachability::tests::any_registry_terminator_ends_the_index ... ok
+test package_resolver::reachability::tests::both_arms_of_a_tea_version_branch_declare_the_package_923_idx42 ... ok
+test package_resolver::reachability::tests::configured_body_values_and_command_children_keep_distinct_original_grammar ... FAILED
+test package_resolver::reachability::tests::if_branches_keep_their_symbolic_conditions ... ok
+test package_resolver::reachability::tests::every_body_taking_command_is_descended ... ok
+test package_resolver::reachability::tests::original_requirement_words_preserve_literal_wrappers_and_configured_values ... ok
+test package_resolver::reachability::tests::the_body_descent_leaves_top_level_declarations_alone ... ok
+test package_resolver::reachability::tests::the_real_tcllib_try_index_resolves_per_release ... FAILED
+test package_resolver::reachability::tests::the_tcl9_zipfs_index_shape_declares_its_packages ... ok
+test package_resolver::reachability::tests::the_tcllib_head_guard_admits_both_supported_releases ... ok
+test package_resolver::reachability::tests::the_then_noise_word_and_a_braceless_return_are_understood ... ok
+test package_resolver::reachability::tests::pathological_nesting_terminates ... ok
+test package_resolver::reachability::tests::the_two_component_requirement_matrix_is_unchanged ... ok
+test package_resolver::reachability::tests::written_head_tests::authored_index_written_heads_keep_complete_colon_runs_and_literal_boundaries ... ok
+test package_resolver::standalone_filename_data_tests::standalone_indices_keep_actual_filename_values_and_default_source_grammar ... ok
+test package_resolver::reachability::tests::written_head_tests::authored_index_written_heads_keep_version_and_termination_conditions ... ok
+test package_resolver::standalone_filename_data_tests::standalone_loader_candidates_refuse_unknown_expanded_and_malformed_data ... ok
+test package_resolver::tests::a_latest_default_holds_at_every_position ... ok
+test package_resolver::original_names::tests::original_package_requirement_closure_keeps_versions_and_preference ... ok
+test package_resolver::tests::auto_loads_command_false_for_unknown_name ... ok
+test package_resolver::tests::auto_qualify_differential_against_tclsh ... ok
+test package_resolver::tests::auto_qualify_matches_c_tcl_documented_cases ... ok
+test package_resolver::tests::auto_loads_command_respects_namespace_qualification ... ok
+test package_resolver::tests::auto_loads_command_true_for_tclindex_global_proc ... ok
+test package_resolver::tests::logical_source_command_coordinate_selects_tcl_index_without_name_roundtrip ... ok
+test package_resolver::tests::package_defined_commands_unions_available_package_sources ... ok
+test package_resolver::tests::equal_comparing_providers_all_contribute_their_files ... ok
+test package_resolver::tests::package_reference_names_use_original_values_and_selected_source_ordinals ... ok
+test package_resolver::tests::package_registration_names_and_versions_use_original_values_and_selected_roles ... ok
+test package_resolver::tests::package_requires_in_collects_require_and_provide_names ... ok
+test package_resolver::tests::parse_pkg_index_differential_against_pkg_mkindex ... ok
+test package_resolver::tests::parse_pkg_index_multi_component_file_join_uses_slash ... ok
+test package_resolver::tests::parse_pkg_index_quoted_and_dir_slash_forms ... ok
+test package_resolver::tests::package_prefer_state_is_ordered_against_the_require ... ok
+test package_resolver::tests::parse_pkg_index_standard_form ... ok
+test package_resolver::tests::parse_pkg_index_rejects_bad_version_and_falls_back_to_dir_listing ... ok
+test package_resolver::tests::parse_tcl_index_differential_against_auto_mkindex ... ok
+test package_resolver::tests::parse_tcl_index_v2_and_old_formats ... ok
+test package_resolver::tests::prefer_latest_selects_the_prerelease ... ok
+test package_resolver::tests::requirement_candidates_respect_release_and_keep_unpinned_alternatives ... ok
+test package_resolver::tests::exact_require_selects_that_release_or_nothing ... FAILED
+test package_resolver::tests::parse_pkg_index_survives_deeply_nested_source_wrapper ... ok
+test package_resolver::tests::resolve_picks_the_highest_release_satisfying_the_constraint ... ok
+test package_resolver::tests::resolver_auto_command_uses_auto_qualify_candidates ... ok
+test package_resolver::tests::resolver_autoload_keys_preserve_unicode_through_colon_normalisation ... ok
+test package_resolver::tests::retained_registration_transport_keeps_full_script_words_store_and_config ... ok
+test package_resolver::tests::retained_registration_transport_keeps_nested_survey_source_and_body_ordinals ... ok
+test package_resolver::tests::resolver_scans_immediate_subdirs_like_tcl_pkg_unknown ... ok
+test package_resolver::tests::resolver_first_provider_wins ... ok
+test package_resolver::tests::select_provider_reports_the_chosen_declaration ... ok
+test package_resolver::tests::transitive_closure_pulls_in_tk_through_a_wrapper_package ... ok
+test package_resolver::tests::unconstrained_require_prefers_the_highest_stable_release ... ok
+---- package_resolver::original_names::original_index_filename_data_tests::original_index_filename_candidates_preserve_oracle_literal_data_and_join_components stdout ----
+thread 'package_resolver::original_names::original_index_filename_data_tests::original_index_filename_candidates_preserve_oracle_literal_data_and_join_components' (7597) panicked at rust/tcl-lsp-core/src/package_resolver/original_names.rs:1334:17:
+assertion `left == right` failed: V8_4: set {auto_index( spaced key )} [list source [file join $dir { spaced.tcl }]]
+  left: 0
+ right: 1
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- package_resolver::original_names::tests::original_index_keeps_counted_literal_names_and_does_not_trim_indices stdout ----
+thread 'package_resolver::original_names::tests::original_index_keeps_counted_literal_names_and_does_not_trim_indices' (7639) panicked at rust/tcl-lsp-core/src/package_resolver/original_names.rs:1150:9:
+assertion `left == right` failed
+  left: []
+ right: [([112, 192, 128, 116, 97, 105, 108], "/library/p.tcl"), ([32, 115, 112, 97, 99, 101, 100, 32], "/library/q.tcl")]
+
+---- package_resolver::original_names::tests::original_package_keys_keep_opaque_names_and_nested_source_owners stdout ----
+
+thread 'package_resolver::original_names::tests::original_package_keys_keep_opaque_names_and_nested_source_owners' (7644) panicked at rust/tcl-lsp-core/src/package_resolver/original_names.rs:1048:13:
+assertion `left == right` failed: V8_4
+  left: 1
+ right: 2
+
+---- package_resolver::original_names::original_index_filename_data_tests::original_index_source_operand_grammar_and_real_producers_refuse_guessed_filenames stdout ----
+
+thread 'package_resolver::original_names::original_index_filename_data_tests::original_index_source_operand_grammar_and_real_producers_refuse_guessed_filenames' (7624) panicked at rust/tcl-lsp-core/src/package_resolver/original_names.rs:1368:17:
+assertion `left == right` failed: V8_5: set auto_index(p) [list source -encoding utf-8 [file join $dir { spaced.tcl }]]
+  left: 0
+ right: 1
+
+---- package_resolver::reachability::original::tests::original_package_paths_use_current_control_roles_and_completion_options stdout ----
+
+thread 'package_resolver::reachability::original::tests::original_package_paths_use_current_control_roles_and_completion_options' (7841) panicked at rust/tcl-lsp-core/src/package_resolver/reachability/original.rs:701:13:
+assertion `left == right` failed: if {1} {package ifneeded p 1.0 {source p.tcl}}
+  left: [("p", Conditional)]
+ right: [("p", Available)]
+
+---- package_resolver::reachability::source_survey_owner_tests::decoded_registration_retains_native_value_original_words stdout ----
+
+thread 'package_resolver::reachability::source_survey_owner_tests::decoded_registration_retains_native_value_original_words' (7909) panicked at rust/tcl-lsp-core/src/package_resolver/reachability.rs:590:9:
+assertion `left == right` failed
+  left: []
+ right: ["café"]
+
+---- package_resolver::reachability::tests::configured_body_values_and_command_children_keep_distinct_original_grammar stdout ----
+
+thread 'package_resolver::reachability::tests::configured_body_values_and_command_children_keep_distinct_original_grammar' (8040) panicked at rust/tcl-lsp-core/src/package_resolver/reachability/tests.rs:560:13:
+tcl8.4: decoded return stops the original script
+
+---- package_resolver::reachability::tests::the_real_tcllib_try_index_resolves_per_release stdout ----
+
+thread 'package_resolver::reachability::tests::the_real_tcllib_try_index_resolves_per_release' (8476) panicked at rust/tcl-lsp-core/src/package_resolver/reachability/tests.rs:204:5:
+assertion `left == right` failed
+  left: [("try", Available), ("throw", Available), ("file::home", Conditional)]
+ right: [("try", Available), ("throw", Available), ("file::home", Available)]
+
+---- package_resolver::tests::exact_require_selects_that_release_or_nothing stdout ----
+
+thread 'package_resolver::tests::exact_require_selects_that_release_or_nothing' (9161) panicked at rust/tcl-lsp-core/src/package_resolver/tests.rs:539:5:
+assertion `left == right` failed
+  left: []
+ right: ["/tmp/tcl-lsp-pkgres-exact-7528-4/v3/widgetv3.tcl"]
+
+
+test result: FAILED. 93 passed; 9 failed; 0 ignored; 0 measured; 3383 filtered out; finished in 186.49s

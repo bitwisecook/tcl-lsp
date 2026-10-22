@@ -1,0 +1,2 @@
+FAILED folding::tests::switch_arm_bodies_recurse_into_nested_blocks
+FAILED folding::tests::tcloo_class_closing_at_eof_with_crlf_endings_stays_in_bounds

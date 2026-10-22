@@ -1,0 +1,6 @@
+{"scheduled":"2026-10-19T18:35:00Z",
+ "change_since_previous_report":{"integrated_LSP":0,"total_baseline_delta":0,"effective_delta":0,"verified_complete":0},
+ "admissions":{},
+ "merge":{"state":"origin/rust merge still in progress (uncommitted). Sol-40's latest check rounds: root workspace cargo check --all-targets --all-features 0 errors / 0 warnings (round 14), runtime/rust workspace 0/0, tcl-lsp-server-wasm 0/0, tcl-lsp-server-wasi 0/0, tcl-vm wasm 0/0. Formatting and notes pending; then merge commit, tests, the 10 tclvm ports, re-dispatch CI."},
+ "note":"Committed after the merge commit.",
+ "next_report_utc":"2026-10-19T19:06:00Z"}

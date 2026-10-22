@@ -1,0 +1,3 @@
+    Blocking waiting for file lock on build directory
+    Finished `test` profile [unoptimized] target(s) in 11m 31s
+  Executable unittests src/lib.rs (/home/user/tcl-lsp/target/debug/deps/tcl_compiler-ef22ef87d0bd65a7)

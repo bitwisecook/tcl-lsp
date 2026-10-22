@@ -1,0 +1,10 @@
+test source_graph::event_function_owner_tests::event_function_owner_uses_actual_body_identity_and_ignores_report_names ... ok
+test source_graph::event_function_owner_tests::ordinary_rule_init_reporting_name_cannot_suppress_worker_state_warning ... FAILED
+test source_graph::event_function_owner_tests::ordinary_rule_init_reporting_name_cannot_authorise_unqualified_global_fix ... FAILED
+---- source_graph::event_function_owner_tests::ordinary_rule_init_reporting_name_cannot_suppress_worker_state_warning stdout ----
+thread 'source_graph::event_function_owner_tests::ordinary_rule_init_reporting_name_cannot_suppress_worker_state_warning' (22334) panicked at rust/tcl-compiler/src/source_graph.rs:571:9:
+assertion failed: diagnostics.iter().any(|diagnostic|
+---- source_graph::event_function_owner_tests::ordinary_rule_init_reporting_name_cannot_authorise_unqualified_global_fix stdout ----
+thread 'source_graph::event_function_owner_tests::ordinary_rule_init_reporting_name_cannot_authorise_unqualified_global_fix' (22333) panicked at rust/tcl-compiler/src/source_graph.rs:585:9:
+assertion failed: !diagnostics.is_empty()
+test result: FAILED. 1 passed; 2 failed; 0 ignored; 0 measured; 10475 filtered out; finished in 2.36s

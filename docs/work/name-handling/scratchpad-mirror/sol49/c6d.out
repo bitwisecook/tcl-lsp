@@ -1,0 +1,25 @@
+/home/user/tcl-lsp/target/debug/deps/tcl_compiler-ef22ef87d0bd65a7
+test analyser::diagnostics::fp::tnt::fp_tnt_03_eval_list_literal_head_no_t100 ... ok
+test analyser::diagnostics::fp::tnt::fp_tnt_03_eval_list_via_var_still_fires ... ok
+test analyser::diagnostics::fp::tnt::fp_tnt_03_eval_list_tainted_head_fires_t100 ... FAILED
+test analyser::diagnostics::fp::tnt::fp_tnt_03_interp_eval_list_literal_head_no_t105 ... FAILED
+test analyser::diagnostics::fp::tnt::fp_tnt_03_interp_eval_list_tainted_head_fires_t105 ... ok
+test analyser::diagnostics::fp::tnt::fp_tnt_03_uplevel_list_tainted_head_fires_t100 ... FAILED
+test result: FAILED. 3 passed; 3 failed; 0 ignored; 0 measured; 10450 filtered out; finished in 10.51s
+test command_binding::hosted_procedure_body::tests::hosted_declaration_body_keeps_real_words_scope_and_unknown_handlers ... FAILED
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 10455 filtered out; finished in 0.31s
+test registry_invocation::tests::hosted_original_source_assistance_keeps_metadata_and_execution_uncertainty_separate ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 10455 filtered out; finished in 0.72s
+test analyser::diagnostics::fp::sh::fp_sh_21_committed_list_as_string_still_fires ... ok
+test analyser::diagnostics::fp::sh::fp_sh_21_committed_dict_in_foreach_still_fires ... ok
+test analyser::diagnostics::fp::sh::fp_sh_21_dict_literal_in_dict_for_silent ... FAILED
+test analyser::diagnostics::fp::sh::fp_sh_21_braced_list_literal_in_foreach_silent ... ok
+test analyser::diagnostics::fp::sh::fp_sh_21_incr_on_non_integer_literal_still_fires ... ok
+test analyser::diagnostics::fp::sh::fp_sh_21_empty_braces_in_foreach_silent ... ok
+test analyser::diagnostics::fp::sh::fp_sh_21_scalar_literal_as_list_silent ... ok
+test result: FAILED. 6 passed; 1 failed; 0 ignored; 0 measured; 10449 filtered out; finished in 20.91s
+FUNC top points=true 
+   ST AssignConst { span: Span { start: 0, end: 15 }, name: "d", name_braced: false, value: "a 1 b 2", value_span: Some(Span { start: 7, end: 14 }) }
+   ST Call { span: Span { start: 16, end: 50 }, command: "dict", canonical_command: None, args: ["for", "k v", "${d}", " puts \"$k=$v\" "], defs: [], reads: [], reads_own_defs: false, safe_on_uninit: false, tokens: Some(CommandTokens { argv: [Span { 
+   ST Call { span: Span { start: 16, end: 50 }, command: "dict for", canonical_command: None, args: ["${d}"], defs: ["k", "v"], reads: [], reads_own_defs: false, safe_on_uninit: false, tokens: Some(CommandTokens { argv: [Span { start: 16, end: 50 }, 
+   ST Barrier { span: Span { start: 35, end: 49 }, reason: "original body namespace context is unavailable", command: "", canonical_command: None, args: [], tokens: None }

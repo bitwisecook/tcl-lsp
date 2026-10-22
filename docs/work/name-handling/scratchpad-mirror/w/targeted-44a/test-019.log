@@ -1,0 +1,21 @@
+
+running 1 test
+test package_resolver::reachability::tests::configured_body_values_and_command_children_keep_distinct_original_grammar ... 
+thread 'package_resolver::reachability::tests::configured_body_values_and_command_children_keep_distinct_original_grammar' (18537) panicked at rust/tcl-lsp-core/src/package_resolver/reachability/tests.rs:549:13:
+tcl8.4: decoded return stops the original script
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: tcl_lsp_core::package_resolver::reachability::tests::configured_body_values_and_command_children_keep_distinct_original_grammar
+   3: tcl_lsp_core::package_resolver::reachability::tests::configured_body_values_and_command_children_keep_distinct_original_grammar::{closure#0}
+   4: <tcl_lsp_core::package_resolver::reachability::tests::configured_body_values_and_command_children_keep_distinct_original_grammar::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+FAILED
+
+failures:
+
+failures:
+    package_resolver::reachability::tests::configured_body_values_and_command_children_keep_distinct_original_grammar
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 3483 filtered out; finished in 0.40s
+

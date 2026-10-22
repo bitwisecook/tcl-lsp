@@ -1,0 +1,6 @@
+
+running 1 test
+test model::inherited_surface::tests::a_roster_is_refused_off_its_edge_or_below_the_trust_floor ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 197 filtered out; finished in 0.00s
+

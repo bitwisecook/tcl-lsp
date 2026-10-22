@@ -1,0 +1,42 @@
+   Compiling syn v3.0.6
+   Compiling serde_json v1.0.151
+   Compiling tokio v1.53.2
+   Compiling dashmap v6.2.1
+   Compiling tokio-util v0.7.19
+   Compiling thiserror-impl v2.0.21
+   Compiling serde_derive v1.0.229
+   Compiling displaydoc v0.2.7
+   Compiling ref-cast-impl v1.0.27
+   Compiling ref-cast v1.0.27
+   Compiling fluent-uri v0.4.1
+   Compiling futures-macro v0.3.34
+   Compiling thiserror v2.0.21
+   Compiling tcl-lexer v0.1.0 (/home/user/tcl-lsp/rust/tcl-lexer)
+   Compiling asn1-rs v0.7.2
+   Compiling futures-util v0.3.34
+   Compiling tcl-syntax v0.1.0 (/home/user/tcl-lsp/rust/tcl-syntax)
+   Compiling der-parser v10.0.0
+   Compiling serde v1.0.229
+   Compiling oid-registry v0.8.1
+   Compiling x509-parser v0.18.1
+   Compiling ls-types v0.0.6
+   Compiling futures v0.3.34
+   Compiling tower v0.5.3
+   Compiling tcl-runtime-api v0.1.0 (/home/user/tcl-lsp/rust/tcl-runtime-api)
+   Compiling tcl-pkg-model v0.1.0 (/home/user/tcl-lsp/rust/tcl-pkg-model)
+   Compiling tcl-cmd-core v0.1.0 (/home/user/tcl-lsp/rust/tcl-cmd-core)
+   Compiling tcl-bytecode v0.1.0 (/home/user/tcl-lsp/rust/tcl-bytecode)
+   Compiling tcl-engine-api v0.1.0 (/home/user/tcl-lsp/rust/tcl-engine-api)
+   Compiling tcl-regex v0.1.0 (/home/user/tcl-lsp/rust/tcl-regex)
+   Compiling tcl-registry v0.1.0 (/home/user/tcl-lsp/rust/tcl-registry)
+   Compiling tower-lsp-server v0.23.0
+   Compiling tcl-compiler v0.1.0 (/home/user/tcl-lsp/rust/tcl-compiler)
+   Compiling tcl-vm v0.1.0 (/home/user/tcl-lsp/rust/tcl-vm)
+   Compiling tcl-irules v0.1.0 (/home/user/tcl-lsp/rust/tcl-irules)
+   Compiling tcl-sslictcl v0.1.0 (/home/user/tcl-lsp/rust/tcl-sslictcl)
+   Compiling tcl-engine-tclvm v0.1.0 (/home/user/tcl-lsp/rust/tcl-engine-tclvm)
+   Compiling tcl-spec-hooks v0.1.0 (/home/user/tcl-lsp/rust/tcl-spec-hooks)
+   Compiling tcl-bigip v0.1.0 (/home/user/tcl-lsp/rust/tcl-bigip)
+   Compiling tcl-lsp-core v0.1.0 (/home/user/tcl-lsp/rust/tcl-lsp-core)
+   Compiling tcl-spectcl v0.1.0 (/home/user/tcl-lsp/rust/tcl-spectcl)
+    Finished `test` profile [unoptimized] target(s) in 5m 43s

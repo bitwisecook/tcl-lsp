@@ -1,0 +1,3 @@
+test source_graph::event_function_owner_tests::event_function_owner_uses_actual_body_identity_and_ignores_report_names ... ok
+test source_graph::event_function_owner_tests::ordinary_rule_init_reporting_name_cannot_authorise_unqualified_global_fix ... FAILED
+test source_graph::event_function_owner_tests::ordinary_rule_init_reporting_name_cannot_suppress_worker_state_warning ... FAILED

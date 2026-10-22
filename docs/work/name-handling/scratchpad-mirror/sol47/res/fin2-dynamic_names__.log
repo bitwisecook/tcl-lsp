@@ -1,0 +1,97 @@
+test dynamic_names::tests::a_bare_substitution_can_spell_any_cell ... ok
+test dynamic_names::braced_var_close_rule_tests::wildcard_extent_follows_the_release_close_rule ... ok
+test dynamic_names::tests::a_computed_template_blinds_reads_while_it_substitutes ... FAILED
+test dynamic_names::tests::a_captured_literal_name_is_not_a_source_substitution ... FAILED
+test dynamic_names::tests::a_computed_head_uses_its_retained_handler_for_name_hazards ... FAILED
+test dynamic_names::tests::a_relative_prefix_still_excludes_unrelated_cells ... ok
+test dynamic_names::tests::a_literal_name_stays_clear_under_every_dialect ... FAILED
+test dynamic_names::tests::a_spelled_out_incr_stays_clear_under_every_dialect ... FAILED
+test dynamic_names::tests::a_written_affix_constrains_the_name ... ok
+test dynamic_names::tests::a_written_namespace_prefix_confines_the_name ... ok
+test dynamic_names::tests::a_spelled_out_set_stays_clear_under_every_dialect ... FAILED
+test dynamic_names::tests::an_84_expansionless_name_word_is_still_a_dynamic_write ... ok
+test dynamic_names::tests::an_expanded_computed_name_statement_still_raises_the_write_barrier ... ok
+test dynamic_names::tests::an_expansion_after_a_fixed_name_does_not_make_the_name_dynamic ... FAILED
+test dynamic_names::tests::array_element_with_dynamic_key_is_not_a_name_barrier ... ok
+test dynamic_names::tests::an_expansionless_computed_name_statement_raises_the_write_barrier ... ok
+test dynamic_names::tests::a_dynamic_write_raises_the_barrier_under_every_dialect ... ok
+test dynamic_names::tests::brace_quoted_destroy_target_is_not_a_barrier ... FAILED
+test dynamic_names::tests::braced_substitution_is_dynamic_plain_name_is_not ... ok
+test dynamic_names::tests::brace_quoted_write_target_is_not_a_barrier ... FAILED
+test dynamic_names::tests::brace_quoted_read_target_is_not_a_barrier ... FAILED
+test dynamic_names::tests::dynamic_array_set_is_a_write_barrier ... FAILED
+test dynamic_names::tests::dynamic_name_in_a_branch_condition_is_seen ... ok
+test dynamic_names::tests::dynamic_name_nested_in_a_command_substitution_is_seen ... ok
+test dynamic_names::tests::dynamic_one_arg_set_sets_the_read_flag_only ... FAILED
+test dynamic_names::tests::dynamic_set_sets_the_write_flag_only ... FAILED
+test dynamic_names::tests::dynamic_subst_template_sets_the_read_flag ... ok
+test dynamic_names::tests::dynamic_unset_sets_the_destroy_flag_only ... FAILED
+test dynamic_names::tests::every_relative_spelling_of_the_cell_is_considered ... ok
+test dynamic_names::tests::fallback_role_scan_distinguishes_unknown_options_from_ordinary_values ... ok
+test dynamic_names::tests::dialect_specific_word_shapes_do_not_hide_a_dynamic_write ... ok
+test dynamic_names::tests::incr_of_a_computed_name_raises_the_write_barrier ... ok
+test dynamic_names::tests::literal_name_patterns_keep_closed_element_and_open_root_distinct ... ok
+test dynamic_names::tests::literal_head_with_a_computed_name_still_raises_the_write_flag ... ok
+test dynamic_names::tests::original_substitution_name_effects_keep_native_child_receipts ... FAILED
+test dynamic_names::tests::plain_proc_has_no_barrier ... FAILED
+test dynamic_names::tests::qualified_name_with_a_dynamic_namespace_binds_a_static_tail ... ok
+test dynamic_names::tests::substituted_and_bracketed_names_are_dynamic ... ok
+test dynamic_names::tests::literal_subst_template_is_not_a_barrier ... FAILED
+test dynamic_names::tests::supplied_logical_name_patterns_require_an_actual_authored_c_policy ... ok
+test dynamic_names::tests::substituted_command_head_raises_no_flag ... FAILED
+test dynamic_names::tests::supplied_name_patterns_keep_variable_root_and_namespace_name_purposes ... ok
+test dynamic_names::tests::the_element_suffix_is_not_part_of_the_name ... ok
+test dynamic_names::tests::unbraced_substituted_target_still_raises_the_write_flag ... ok
+test dynamic_names::tests::word_facts_survive_the_segmenter_mapping ... FAILED
+test dynamic_names::tests::word_splitting_follows_the_dialect ... ok
+test dynamic_names::tests::supplied_name_patterns_do_not_borrow_native_hosted_or_display_identity ... ok
+test dynamic_names::tests::bracket_depth_exhaustion_fails_closed_for_dynamic_name_facts has been running for over 60 seconds
+test dynamic_names::tests::bracket_depth_exhaustion_fails_closed_for_dynamic_name_facts ... ok
+---- dynamic_names::tests::a_computed_template_blinds_reads_while_it_substitutes stdout ----
+thread 'dynamic_names::tests::a_computed_template_blinds_reads_while_it_substitutes' (3388) panicked at rust/tcl-compiler/src/dynamic_names.rs:2186:9:
+---- dynamic_names::tests::a_captured_literal_name_is_not_a_source_substitution stdout ----
+thread 'dynamic_names::tests::a_captured_literal_name_is_not_a_source_substitution' (3386) panicked at rust/tcl-compiler/src/dynamic_names.rs:2216:9:
+---- dynamic_names::tests::a_computed_head_uses_its_retained_handler_for_name_hazards stdout ----
+thread 'dynamic_names::tests::a_computed_head_uses_its_retained_handler_for_name_hazards' (3387) panicked at rust/tcl-compiler/src/dynamic_names.rs:2229:9:
+assertion failed: !barrier.destroys
+---- dynamic_names::tests::a_literal_name_stays_clear_under_every_dialect stdout ----
+thread 'dynamic_names::tests::a_literal_name_stays_clear_under_every_dialect' (3390) panicked at rust/tcl-compiler/src/dynamic_names.rs:2491:13:
+---- dynamic_names::tests::a_spelled_out_incr_stays_clear_under_every_dialect stdout ----
+thread 'dynamic_names::tests::a_spelled_out_incr_stays_clear_under_every_dialect' (3392) panicked at rust/tcl-compiler/src/dynamic_names.rs:2613:17:
+---- dynamic_names::tests::a_spelled_out_set_stays_clear_under_every_dialect stdout ----
+thread 'dynamic_names::tests::a_spelled_out_set_stays_clear_under_every_dialect' (3393) panicked at rust/tcl-compiler/src/dynamic_names.rs:2574:17:
+---- dynamic_names::tests::an_expansion_after_a_fixed_name_does_not_make_the_name_dynamic stdout ----
+thread 'dynamic_names::tests::an_expansion_after_a_fixed_name_does_not_make_the_name_dynamic' (3398) panicked at rust/tcl-compiler/src/dynamic_names.rs:2557:17:
+---- dynamic_names::tests::brace_quoted_destroy_target_is_not_a_barrier stdout ----
+thread 'dynamic_names::tests::brace_quoted_destroy_target_is_not_a_barrier' (3401) panicked at rust/tcl-compiler/src/dynamic_names.rs:2274:9:
+---- dynamic_names::tests::brace_quoted_write_target_is_not_a_barrier stdout ----
+thread 'dynamic_names::tests::brace_quoted_write_target_is_not_a_barrier' (3403) panicked at rust/tcl-compiler/src/dynamic_names.rs:2258:9:
+---- dynamic_names::tests::brace_quoted_read_target_is_not_a_barrier stdout ----
+thread 'dynamic_names::tests::brace_quoted_read_target_is_not_a_barrier' (3402) panicked at rust/tcl-compiler/src/dynamic_names.rs:2268:9:
+---- dynamic_names::tests::dynamic_array_set_is_a_write_barrier stdout ----
+thread 'dynamic_names::tests::dynamic_array_set_is_a_write_barrier' (3407) panicked at rust/tcl-compiler/src/dynamic_names.rs:2207:9:
+---- dynamic_names::tests::dynamic_one_arg_set_sets_the_read_flag_only stdout ----
+thread 'dynamic_names::tests::dynamic_one_arg_set_sets_the_read_flag_only' (3410) panicked at rust/tcl-compiler/src/dynamic_names.rs:2157:9:
+assertion failed: !b.writes
+---- dynamic_names::tests::dynamic_set_sets_the_write_flag_only stdout ----
+thread 'dynamic_names::tests::dynamic_set_sets_the_write_flag_only' (3411) panicked at rust/tcl-compiler/src/dynamic_names.rs:2096:9:
+assertion failed: !b.reads
+---- dynamic_names::tests::dynamic_unset_sets_the_destroy_flag_only stdout ----
+thread 'dynamic_names::tests::dynamic_unset_sets_the_destroy_flag_only' (3413) panicked at rust/tcl-compiler/src/dynamic_names.rs:2165:9:
+assertion failed: !b.writes
+---- dynamic_names::tests::original_substitution_name_effects_keep_native_child_receipts stdout ----
+thread 'dynamic_names::tests::original_substitution_name_effects_keep_native_child_receipts' (3420) panicked at rust/tcl-compiler/src/dynamic_names.rs:1960:9:
+assertion failed: barrier_for("set x [list]; lappend x a; puts $x").is_clear()
+---- dynamic_names::tests::plain_proc_has_no_barrier stdout ----
+thread 'dynamic_names::tests::plain_proc_has_no_barrier' (3421) panicked at rust/tcl-compiler/src/dynamic_names.rs:2089:9:
+assertion failed: barrier_for("proc f {} { set a 1; return $a }\n").is_clear()
+---- dynamic_names::tests::literal_subst_template_is_not_a_barrier stdout ----
+thread 'dynamic_names::tests::literal_subst_template_is_not_a_barrier' (3419) panicked at rust/tcl-compiler/src/dynamic_names.rs:2199:9:
+---- dynamic_names::tests::substituted_command_head_raises_no_flag stdout ----
+thread 'dynamic_names::tests::substituted_command_head_raises_no_flag' (3424) panicked at rust/tcl-compiler/src/dynamic_names.rs:2294:9:
+---- dynamic_names::tests::word_facts_survive_the_segmenter_mapping stdout ----
+thread 'dynamic_names::tests::word_facts_survive_the_segmenter_mapping' (3430) panicked at rust/tcl-compiler/src/dynamic_names.rs:2393:9:
+assertion `left == right` failed
+  left: ["set", "$x", "{a $b}"]
+ right: ["set", "$x", "{a $b"]
+test result: FAILED. 29 passed; 19 failed; 0 ignored; 0 measured; 10403 filtered out; finished in 761.47s

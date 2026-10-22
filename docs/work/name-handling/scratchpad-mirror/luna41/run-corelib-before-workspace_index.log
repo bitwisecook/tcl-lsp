@@ -1,0 +1,741 @@
+test workspace_index::logical_cross_document_class_member_tests::unexported_or_instance_members_are_not_public_class_object_cards ... ok
+test workspace_index::logical_cross_document_class_member_tests::external_class_selector_keeps_original_header_member_and_call_allocations ... ok
+test workspace_index::logical_indexed_declaration_membership_tests::logical_class_cards_are_source_factories_not_equal_report_names ... ok
+test workspace_index::logical_class_navigation_candidate_tests::logical_class_navigation_candidate_requires_the_selected_original_factory ... ok
+test workspace_index::logical_indexed_declaration_membership_tests::logical_target_cards_retain_actual_call_and_declaration_allocations ... ok
+test workspace_index::logical_indexed_namespace_locations_tests::namespace_locations_keep_source_issuer_and_represented_parent_geometry ... ok
+test workspace_index::logical_indexed_variable_location_tests::logical_namespace_variable_locations_retain_the_actual_recipe ... ok
+test workspace_index::logical_library_input_correspondence_tests::library_source_candidates_do_not_mix_same_slots_from_foreign_complete_inputs ... ok
+test workspace_index::logical_namespace_request_symbol_tests::a_retained_namespace_request_cannot_select_an_unrelated_genuine_symbol ... ok
+test workspace_index::logical_library_input_correspondence_tests::expression_source_candidates_do_not_mix_same_slots_from_foreign_complete_inputs ... ok
+test workspace_index::logical_self_member_source_tests::original_self_selector_keeps_member_side_and_saved_source_owner ... FAILED
+test workspace_index::logical_variable_input_correspondence_tests::same_variable_geometry_cannot_join_a_different_complete_input ... ok
+test workspace_index::original_namespace_export_index_tests::original_export_snapshot_joins_opaque_slots_and_rejects_ui_and_policy_substitutes ... ok
+test workspace_index::original_namespace_export_index_tests::original_export_unknown_operand_blocks_source_absence_and_match_advice ... ok
+test workspace_index::logical_navigation_candidate_tests::logical_workspace_navigation_matches_original_coordinates_and_retains_ambiguity ... ok
+test workspace_index::original_namespace_export_index_tests::original_import_index_retains_opaque_patterns_without_reporting_rows ... ok
+test workspace_index::original_settlement_transport_tests::diagnostic_source_context_retains_currency_and_clears_reused_slots ... ok
+test workspace_index::logical_navigation_candidate_tests::logical_workspace_navigation_keeps_source_occupants_and_deleted_alternatives ... ok
+test workspace_index::original_settlement_transport_tests::host_roster_must_be_complete_before_lexical_rename_advice_is_allowed ... ok
+test workspace_index::original_settlement_transport_tests::lexical_rename_advice_requires_every_captured_provider_and_refuses_vendor_contexts ... ok
+test workspace_index::original_settlement_transport_tests::original_body_only_replacement_keeps_minimal_settlement_dependencies ... FAILED
+test workspace_index::original_settlement_transport_tests::original_reverse_index_does_not_replace_missing_lookup_with_reports ... ok
+test workspace_index::original_settlement_transport_tests::original_reverse_index_keeps_opaque_slots_after_reporting_is_cleared ... FAILED
+test workspace_index::original_settlement_transport_tests::original_reverse_index_rejects_input_from_another_retained_source ... ok
+test workspace_index::original_settlement_transport_tests::original_source_class_candidates_require_the_retained_input_and_availability ... ok
+test workspace_index::original_settlement_transport_tests::logical_declaration_source_views_use_original_occurrences_and_current_input ... ok
+test workspace_index::original_settlement_transport_tests::original_source_class_candidates_share_current_slots_and_canonical_navigation ... ok
+test workspace_index::original_settlement_transport_tests::original_source_class_dependencies_retain_mutation_premises_and_known_barriers ... ok
+test workspace_index::original_settlement_transport_tests::original_source_procedure_candidates_share_slots_and_reindex_currency ... ok
+test workspace_index::original_source_order_transport_tests::indexed_order_context_is_replaced_and_missing_full_input_remains_unknown ... ok
+test workspace_index::original_settlement_transport_tests::workspace_symbols_require_current_source_context_before_report_advice ... ok
+test workspace_index::original_source_order_transport_tests::workspace_order_keeps_cross_document_clear_conditional ... ok
+test workspace_index::original_source_order_transport_tests::workspace_order_keeps_original_export_evidence_without_conditional_clear_completion ... ok
+test workspace_index::retained_logical_call_membership_tests::accumulated_source_view_keeps_actual_call_but_replacement_retracts_it ... ok
+test workspace_index::retained_store_consumer_tests::indexed_class_family_retains_its_actual_store_and_unknown_stays_unknown ... ok
+test workspace_index::retained_store_consumer_tests::indexed_registry_borrow_rejects_foreign_input_and_cleared_slot ... ok
+test workspace_index::retained_store_consumer_tests::actual_import_metadata_store_change_invalidates_warmed_same_profile_settlement ... FAILED
+test workspace_index::selected_import_export_policy_tests::jim_import_search_uses_actual_tail_without_a_c_export_requirement ... FAILED
+test workspace_index::tests::a_body_local_call_before_an_import_in_that_same_body_does_not_resolve ... FAILED
+test workspace_index::tests::a_body_local_call_resolves_through_an_import_written_later_in_its_file ... ok
+test workspace_index::tests::a_body_local_exact_import_survives_a_top_level_forget ... ok
+test workspace_index::tests::a_body_local_source_route_imports_nothing_1368 ... ok
+test workspace_index::tests::a_body_local_import_conflicts_with_a_later_top_level_import ... FAILED
+test workspace_index::tests::a_call_before_an_import_in_another_file_still_resolves ... ok
+test workspace_index::tests::a_branch_forget_between_two_imports_does_not_make_the_later_one_conflict ... ok
+test workspace_index::tests::a_clear_after_a_package_require_revokes_the_providers_export ... FAILED
+test workspace_index::tests::a_clear_in_the_sourcing_document_stays_conditional_for_the_sourced_export ... ok
+test workspace_index::tests::a_computed_cross_file_arrival_abstains ... ok
+test workspace_index::tests::a_conditional_or_dynamic_require_orders_nothing ... ok
+test workspace_index::tests::a_conditional_provide_does_not_make_a_document_the_provider ... FAILED
+test workspace_index::tests::a_cross_file_arrival_is_side_scoped_in_enumeration ... FAILED
+test workspace_index::tests::a_cross_file_arrival_keeps_the_sources_visibility ... FAILED
+test workspace_index::tests::a_cross_file_arrival_re_keys_member_enumeration ... FAILED
+test workspace_index::tests::a_cross_file_chain_hop_that_was_never_re_exported_abstains ... ok
+test workspace_index::tests::a_cross_file_constant_resolves_a_readers_source_rows_1368 ... FAILED
+test workspace_index::tests::a_cross_file_deletemethod_records_no_arrival ... FAILED
+test workspace_index::tests::a_cross_file_deletion_drops_the_member_from_enumeration ... FAILED
+test workspace_index::tests::a_cross_file_exact_link_conflicts_with_an_earlier_different_source ... FAILED
+test workspace_index::tests::a_cross_file_forced_import_replaces_a_live_alias ... ok
+test workspace_index::tests::a_cross_file_forget_cannot_revoke_on_unrelated_offsets ... ok
+test workspace_index::shared_import_pattern_classification_tests::escaped_import_patterns_retain_original_names_in_each_supported_oracle ... FAILED
+test workspace_index::tests::a_cross_file_import_chain_follows_to_the_original_source ... FAILED
+test workspace_index::tests::a_cross_file_renamed_member_dispatches_under_its_new_name ... ok
+test workspace_index::tests::a_cross_file_retraction_does_not_reach_an_inherited_provider ... FAILED
+test workspace_index::tests::a_cross_file_live_alias_is_an_import_conflict_for_a_different_source ... FAILED
+test workspace_index::tests::a_cross_file_import_conflict_is_decided_by_the_source_order ... FAILED
+test workspace_index::tests::a_cross_file_self_export_revives_a_class_side_member ... FAILED
+test workspace_index::tests::a_cross_file_self_deletemethod_empties_only_the_class_chain ... FAILED
+test workspace_index::tests::a_cross_file_self_unexport_removes_the_member_from_class_dispatch ... FAILED
+test workspace_index::tests::a_cross_file_stub_renamemethod_records_the_arrival_name ... FAILED
+test workspace_index::tests::a_forced_exact_import_still_installs_its_link ... ok
+test workspace_index::tests::a_destroyed_source_kills_a_body_local_exact_import_link ... ok
+test workspace_index::tests::a_foldable_computed_source_path_orders_its_export ... FAILED
+test workspace_index::tests::a_forced_import_onto_an_existing_workspace_command_installs ... ok
+test workspace_index::tests::a_forced_exact_import_still_replaces_a_live_glob_alias ... ok
+test workspace_index::tests::a_forced_wildcard_import_still_shadows_a_registry_builtin ... FAILED
+test workspace_index::tests::a_forget_in_another_file_revokes_nothing ... ok
+test workspace_index::tests::a_glob_export_pattern_still_covers_the_names_it_matches ... FAILED
+test workspace_index::tests::a_forget_written_after_the_source_revokes_the_sourced_import ... FAILED
+test workspace_index::tests::a_global_rooted_exact_import_is_export_gated ... ok
+test workspace_index::tests::a_glob_import_conflicts_with_a_later_exact_import_of_the_same_name ... FAILED
+test workspace_index::tests::a_global_rooted_exact_import_of_an_exported_name_still_binds ... ok
+test workspace_index::tests::a_glob_import_in_another_file_does_not_conflict_with_an_exact_one ... ok
+test workspace_index::tests::a_global_rooted_glob_import_is_export_gated ... ok
+test workspace_index::tests::a_later_alias_does_not_retarget_an_earlier_definition_call ... ok
+test workspace_index::tests::a_live_mixin_branch_outranks_the_spine_across_files ... ok
+test workspace_index::tests::a_mixin_branch_decides_its_own_providers_visibility_across_files ... ok
+test workspace_index::tests::a_later_import_in_the_same_body_has_not_run_yet ... FAILED
+test workspace_index::tests::a_mutually_importing_pair_terminates_cross_file ... ok
+test workspace_index::tests::a_mixins_unexport_does_not_suppress_the_spine_provider ... ok
+test workspace_index::tests::a_mixin_branch_revives_its_own_bases_unexported_member_across_files ... ok
+test workspace_index::tests::a_receivers_export_stub_decides_the_inherited_members_visibility ... ok
+test workspace_index::tests::a_receivers_export_stub_revives_an_unexported_inherited_member ... ok
+test workspace_index::tests::a_relative_namespace_word_is_indexed_rooted ... ok
+test workspace_index::tests::a_re_sourced_export_file_keeps_abstaining ... ok
+test workspace_index::tests::a_row_indexed_twice_is_admitted_once ... ok
+test workspace_index::tests::a_same_document_retraction_does_not_cancel_another_document ... FAILED
+test workspace_index::tests::a_same_file_forget_after_the_import_still_revokes ... FAILED
+test workspace_index::tests::a_superseded_export_does_not_outrank_the_last_unexport ... ok
+test workspace_index::tests::a_top_level_call_before_its_own_import_does_not_resolve ... FAILED
+test workspace_index::tests::a_sourced_forget_between_two_imports_does_not_make_the_later_one_conflict ... ok
+test workspace_index::tests::a_wildcard_import_does_not_bind_a_name_the_registry_already_declares ... ok
+test workspace_index::tests::a_wildcard_import_of_a_non_builtin_name_is_unaffected ... FAILED
+test workspace_index::tests::a_top_level_import_is_not_conflicted_by_a_later_top_level_one ... FAILED
+test workspace_index::tests::abstention_1_two_documents_providing_one_package_order_nothing ... ok
+test workspace_index::tests::abstention_3_an_indexed_ifneeded_script_orders_nothing ... ok
+test workspace_index::tests::abstention_2_a_statement_above_the_require_stays_unordered ... ok
+test workspace_index::tests::alias_and_rename_links_are_never_export_gated ... ok
+test workspace_index::tests::admitting_matches_a_full_scan_in_order ... ok
+test workspace_index::tests::an_assignment_after_the_source_does_not_import_1368 ... ok
+test workspace_index::tests::an_exact_import_link_dies_on_a_same_file_forget ... FAILED
+test workspace_index::tests::an_exact_import_conflicts_with_a_later_glob_import_of_the_same_name ... FAILED
+test workspace_index::tests::an_exact_import_link_dies_when_the_imported_name_is_redefined ... ok
+test workspace_index::tests::an_exact_import_link_dies_when_the_source_command_is_destroyed ... ok
+test workspace_index::tests::alias_target_navigation_uses_selected_global_or_caller_context ... FAILED
+test workspace_index::tests::an_exact_import_link_ignores_a_forget_in_another_file ... ok
+test workspace_index::tests::an_exact_import_link_survives_a_forget_written_before_it ... ok
+test workspace_index::tests::an_exact_import_of_a_registry_builtin_installs_no_link ... ok
+test workspace_index::tests::an_exact_import_link_keeps_a_conditional_same_file_forget ... ok
+test workspace_index::tests::an_exact_import_onto_an_existing_workspace_command_installs_no_link ... ok
+test workspace_index::tests::an_import_of_an_unexporting_namespace_admits_no_word ... ok
+test workspace_index::tests::an_export_sourced_after_the_import_is_not_retroactive ... FAILED
+test workspace_index::tests::an_export_sourced_before_the_import_resolves ... ok
+test workspace_index::tests::an_unforced_import_onto_an_existing_workspace_command_installs_nothing ... FAILED
+test workspace_index::tests::an_unwrapped_cross_file_unexport_leaves_the_class_side_dispatchable ... ok
+test workspace_index::tests::an_unfoldable_computed_source_path_orders_nothing ... ok
+test workspace_index::tests::bare_call_without_path_does_not_reach_unrelated_namespace ... ok
+test workspace_index::tests::body_only_replacement_re_settles_only_the_changed_document ... FAILED
+test workspace_index::tests::both_tiers_keep_the_local_when_the_whole_program_exports_nothing ... FAILED
+test workspace_index::tests::both_tiers_shadow_when_the_source_namespace_is_wholly_in_another_file ... ok
+test workspace_index::tests::both_tiers_shadow_when_another_file_holds_the_covering_export ... FAILED
+test workspace_index::tests::cell_alias_index_does_not_match_a_different_cell ... ok
+test workspace_index::tests::class_command_retirement_is_shared_by_command_and_class_lookups ... ok
+test workspace_index::tests::command_link_map_is_cached_per_generation ... ok
+test workspace_index::tests::command_names_are_cached_until_the_index_changes ... ok
+test workspace_index::tests::colon_run_glob_import_drives_cross_file_navigation_references_and_w123 ... ok
+test workspace_index::tests::class_member_suppression_reads_the_same_chain_as_resolution ... FAILED
+test workspace_index::tests::command_retirement_hides_the_vacated_name_but_keeps_the_rename_target ... ok
+test workspace_index::tests::conditional_revision_removal_preserves_a_newer_replacement ... ok
+test workspace_index::tests::conditional_namespace_horizon_keeps_binding_and_report_purposes_separate ... FAILED
+test workspace_index::tests::conditional_namespace_forget_preserves_unknowns_and_current_index_owner ... FAILED
+test workspace_index::tests::cross_file_call_before_the_forget_still_resolves ... ok
+test workspace_index::tests::cross_file_define_stub_retraction_removes_the_method_from_dispatch ... FAILED
+test workspace_index::tests::cross_file_method_inheritor_classes ... ok
+test workspace_index::tests::cross_file_forget_after_the_import_stops_resolving ... FAILED
+test workspace_index::tests::cross_file_oo_define_stub_does_not_hide_superclass ... ok
+test workspace_index::tests::cross_file_source_deletion_kills_the_alias ... FAILED
+test workspace_index::tests::cross_file_method_override_family ... ok
+test workspace_index::tests::defined_command_names_are_cached_per_generation ... ok
+test workspace_index::tests::cross_file_source_rename_leaves_the_alias_alive ... ok
+test workspace_index::tests::cross_file_supertypes_and_subtypes ... ok
+test workspace_index::tests::document_revision_changes_only_with_that_document ... ok
+test workspace_index::tests::defined_command_names_are_cached_per_reading_and_dropped_on_mutation ... ok
+test workspace_index::tests::document_revision_survives_slot_reuse_aba_1854 ... ok
+test workspace_index::tests::disagreeing_parents_import_nothing_1368 ... ok
+test workspace_index::tests::exact_import_from_an_unseen_namespace_keeps_its_link ... ok
+test workspace_index::tests::enumeration_without_a_retraction_is_the_declared_table ... FAILED
+test workspace_index::tests::exact_import_of_an_unexported_name_installs_no_link ... ok
+test workspace_index::tests::exact_import_ignores_an_export_written_after_it ... FAILED
+test workspace_index::tests::exact_import_survives_a_later_export_clear ... ok
+test workspace_index::tests::generation_advances_on_every_mutation ... ok
+test workspace_index::tests::export_replacement_re_settles_wildcard_import_callers ... FAILED
+test workspace_index::tests::glob_import_introduces_no_command_link ... ok
+test workspace_index::tests::importing_a_builtin_name_into_a_sub_namespace_still_binds ... ok
+test workspace_index::tests::indexes_and_removes_package_requires ... ok
+test workspace_index::tests::importing_an_operator_name_into_the_global_namespace_still_binds ... FAILED
+test workspace_index::tests::indexes_a_cell_alias_written_from_another_namespace ... FAILED
+test workspace_index::tests::indexes_classes ... ok
+test workspace_index::tests::indexes_invocation_sites_per_document ... FAILED
+test workspace_index::tests::indexes_namespace_variables_and_their_qualified_occurrences ... ok
+test workspace_index::tests::indexes_procs_from_multiple_documents ... ok
+test workspace_index::tests::interp_alias_call_site_references_the_target_command ... FAILED
+test workspace_index::tests::invocations_of_excludes_current_doc ... FAILED
+test workspace_index::tests::invocations_of_finds_namespaced_call_all_spellings ... FAILED
+test workspace_index::tests::invocations_of_does_not_cross_link_the_colliding_namespace ... ok
+test workspace_index::tests::literal_colon_alias_targets_survive_workspace_and_indirection ... ok
+test workspace_index::tests::later_redefinition_revives_a_retired_command_name ... ok
+test workspace_index::tests::invocations_of_resolves_namespace_path_across_files ... ok
+test workspace_index::tests::literal_colon_import_sources_survive_workspace_ingestion ... FAILED
+test workspace_index::tests::literal_colon_namespace_keys_keep_definitions_and_variables_distinct ... FAILED
+test workspace_index::tests::method_inheritor_abstains_on_disjoint_definer_ancestor ... ok
+test workspace_index::tests::namespace_declarations_and_refs_are_indexed_across_documents ... ok
+test workspace_index::tests::namespace_declarations_under_finds_implicit_parent_rows ... FAILED
+test workspace_index::tests::namespace_rows_are_dropped_with_their_document ... ok
+test workspace_index::tests::namespace_import_call_site_references_the_source_command ... ok
+test workspace_index::tests::nested_alias_workspace_command_exists_for_call_excludes_it_from_a_builtin ... ok
+test workspace_index::tests::nested_proc_flagged_and_workspace_command_exists_for_call_excludes_it_from_a_builtin ... ok
+test workspace_index::tests::oo_forward_target_is_a_reference_to_the_command ... ok
+test workspace_index::tests::non_suffix_glob_import_resolves_cross_file_reference ... ok
+test workspace_index::tests::original_requirement_graph_keeps_constraints_preference_and_unknowns ... FAILED
+test workspace_index::tests::original_declaration_inventory_retains_bytes_and_document_ownership ... ok
+test workspace_index::tests::one_provider_required_from_many_documents_orders_each_of_them ... FAILED
+test workspace_index::tests::package_prefers_are_dropped_with_their_document ... ok
+test workspace_index::tests::path_inventory_reset_and_snapshot_preserve_empty_policy_changes ... ok
+test workspace_index::tests::owner_aware_super_resolution_picks_same_namespace_and_abstains_on_ambiguity ... FAILED
+test workspace_index::tests::proc_definitions_resolves_cross_document ... ok
+test workspace_index::tests::positioned_import_definition_keeps_linked_and_editable_views_separate ... FAILED
+test workspace_index::tests::positioned_definition_precedes_later_forced_import_assistance ... FAILED
+test workspace_index::tests::proc_locals_are_not_indexed_as_namespace_variables ... ok
+test workspace_index::tests::remove_document_drops_invocations_too ... ok
+test workspace_index::tests::procs_matching_excludes_current_doc_and_filters_prefix ... ok
+test workspace_index::tests::re_indexing_a_document_keeps_its_size_and_its_place ... ok
+test workspace_index::tests::removing_an_unindexed_document_changes_nothing ... ok
+test workspace_index::tests::remove_document_drops_its_entries ... ok
+test workspace_index::tests::rename_new_name_call_site_references_the_old_command ... FAILED
+test workspace_index::tests::remove_document_leaves_the_other_documents_alone ... ok
+test workspace_index::tests::resolution_input_replacement_re_settles_cross_document_callers ... FAILED
+test workspace_index::tests::resolve_command_target_follows_a_chain_and_leaves_plain_names ... FAILED
+test workspace_index::tests::resolve_wildcard_import_ignores_a_same_file_export_written_after_the_import ... FAILED
+test workspace_index::tests::resolve_wildcard_import_does_not_resolve_unexported_sibling_cross_document ... ok
+test workspace_index::tests::resolve_wildcard_import_resolves_exported_class_cross_document ... ok
+test workspace_index::tests::resolve_wildcard_import_is_not_restricted_to_the_calling_document ... ok
+test workspace_index::tests::resolve_wildcard_import_keeps_answering_when_the_export_is_in_another_file ... ok
+test workspace_index::tests::resolve_wildcard_import_resolves_exported_proc_cross_document ... ok
+test workspace_index::tests::retained_source_routes_share_original_plans_across_graph_consumers ... FAILED
+test workspace_index::tests::resolve_wildcard_import_survives_a_later_export_clear_in_the_import_file ... ok
+test workspace_index::tests::settled_class_invocations_are_position_sensitive_across_destruction ... ok
+test workspace_index::tests::settled_target_index_is_cached_until_its_inputs_change ... FAILED
+test workspace_index::tests::settled_invocations_fall_back_after_a_local_definition_is_deleted ... ok
+test workspace_index::tests::settled_invocations_keep_a_definition_called_before_its_later_deletion ... ok
+test workspace_index::tests::several_views_of_one_document_accumulate_and_drop_together ... ok
+test workspace_index::tests::source_ancestor_requires_ignores_nonliteral_sources ... ok
+test workspace_index::tests::source_ancestor_requires_walks_the_graph ... ok
+test workspace_index::tests::source_ancestor_prefer_latest_crosses_documents ... ok
+test workspace_index::tests::symbol_exclusions_apply_before_the_limit_and_member_fold ... ok
+test workspace_index::tests::subclass_provided_methods_matches_the_per_class_linearisation ... ok
+test workspace_index::tests::symbol_exclusions_rebuild_duplicate_retractions_from_live_documents ... FAILED
+test workspace_index::tests::the_admission_index_still_resolves_a_wildcard_imported_call ... FAILED
+test workspace_index::tests::the_body_span_column_matches_the_per_offset_lookup ... ok
+test workspace_index::tests::the_export_snapshot_answers_unknown_for_a_namespace_no_file_declares ... FAILED
+test workspace_index::tests::the_builtin_gate_reads_each_documents_own_dialect ... ok
+test workspace_index::tests::the_precomputed_export_gate_still_admits_exactly_what_is_exported ... FAILED
+test workspace_index::tests::the_settled_call_moves_to_the_import_source_when_the_shadow_is_live ... ok
+test workspace_index::tests::the_settled_call_stays_local_when_the_program_exports_nothing ... ok
+test workspace_index::tests::settling_invocations_does_not_scale_with_imports_times_exports has been running for over 60 seconds
+test workspace_index::tests::the_two_sides_visibility_channels_never_cross ... FAILED
+test workspace_index::tests::top_level_alias_workspace_command_exists_for_call_regardless_of_builtin ... ok
+test workspace_index::tests::top_level_proc_workspace_command_exists_for_call_regardless_of_builtin ... ok
+test workspace_index::tests::typed_source_imports_export_global_homes_and_keep_original_site_scope ... ok
+test workspace_index::tests::wildcard_import_call_site_is_a_reference_to_the_source_command ... ok
+test workspace_index::tests::the_settled_target_view_is_served_from_cache_within_a_generation ... ok
+test workspace_index::tests::wildcard_import_inside_a_body_sees_a_later_top_level_export ... ok
+test workspace_index::tests::wildcard_import_inside_a_body_still_refuses_an_export_in_that_same_body ... ok
+test workspace_index::tests::wildcard_import_unexported_sibling_call_site_is_not_a_reference ... ok
+test workspace_index::tests::without_a_resolver_the_same_workspace_keeps_abstaining ... ok
+test workspace_index::tests::workspace_command_exists_covers_procs_and_classes ... ok
+test workspace_index::typed_variable_source_index_tests::unavailable_alias_source_coverage_and_missing_inputs_are_not_absence ... FAILED
+test workspace_index::typed_variable_source_index_tests::variable_index_uses_typed_source_declarations_and_literal_alias_targets ... ok
+test workspace_index::tests::settling_invocations_does_not_scale_with_imports_times_exports ... ok
+---- workspace_index::logical_self_member_source_tests::original_self_selector_keeps_member_side_and_saved_source_owner stdout ----
+thread 'workspace_index::logical_self_member_source_tests::original_self_selector_keeps_member_side_and_saved_source_owner' (10718) panicked at rust/tcl-lsp-core/src/workspace_index.rs:16991:14:
+called `Option::unwrap()` on a `None` value
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- workspace_index::original_settlement_transport_tests::original_body_only_replacement_keeps_minimal_settlement_dependencies stdout ----
+
+thread 'workspace_index::original_settlement_transport_tests::original_body_only_replacement_keeps_minimal_settlement_dependencies' (10781) panicked at rust/tcl-lsp-core/src/workspace_index.rs:15705:13:
+assertion `left == right` failed
+  left: 0
+ right: 1
+
+---- workspace_index::original_settlement_transport_tests::original_reverse_index_keeps_opaque_slots_after_reporting_is_cleared stdout ----
+
+thread 'workspace_index::original_settlement_transport_tests::original_reverse_index_keeps_opaque_slots_after_reporting_is_cleared' (10787) panicked at rust/tcl-lsp-core/src/workspace_index.rs:15360:13:
+assertion `left == right` failed
+  left: 0
+ right: 1
+
+---- workspace_index::retained_store_consumer_tests::actual_import_metadata_store_change_invalidates_warmed_same_profile_settlement stdout ----
+
+thread 'workspace_index::retained_store_consumer_tests::actual_import_metadata_store_change_invalidates_warmed_same_profile_settlement' (10806) panicked at rust/tcl-lsp-core/src/workspace_index.rs:15948:9:
+assertion `left == right` failed
+  left: 0
+ right: 1
+
+---- workspace_index::selected_import_export_policy_tests::jim_import_search_uses_actual_tail_without_a_c_export_requirement stdout ----
+
+thread 'workspace_index::selected_import_export_policy_tests::jim_import_search_uses_actual_tail_without_a_c_export_requirement' (10813) panicked at rust/tcl-lsp-core/src/workspace_index.rs:16173:13:
+assertion `left == right` failed: jimtcl
+  left: None
+ right: Some("::Source::p")
+
+---- workspace_index::tests::a_body_local_call_before_an_import_in_that_same_body_does_not_resolve stdout ----
+
+thread 'workspace_index::tests::a_body_local_call_before_an_import_in_that_same_body_does_not_resolve' (10842) panicked at rust/tcl-lsp-core/src/workspace_index.rs:12518:9:
+Some("::mymod::helper")
+
+---- workspace_index::tests::a_body_local_import_conflicts_with_a_later_top_level_import stdout ----
+
+thread 'workspace_index::tests::a_body_local_import_conflicts_with_a_later_top_level_import' (10853) panicked at rust/tcl-lsp-core/src/workspace_index.rs:12763:9:
+assertion `left != right` failed: the body-local import runs after the top-level one and installs nothing
+  left: "::B::p"
+ right: "::B::p"
+
+---- workspace_index::tests::a_clear_after_a_package_require_revokes_the_providers_export stdout ----
+
+thread 'workspace_index::tests::a_clear_after_a_package_require_revokes_the_providers_export' (10874) panicked at rust/tcl-lsp-core/src/workspace_index.rs:11508:9:
+the `-clear` provably ran after the provider's export and before the import: Some("::mymod::helper")
+
+---- workspace_index::tests::a_conditional_provide_does_not_make_a_document_the_provider stdout ----
+
+thread 'workspace_index::tests::a_conditional_provide_does_not_make_a_document_the_provider' (10886) panicked at rust/tcl-lsp-core/src/workspace_index.rs:11663:9:
+assertion failed: helper_resolves(&index).is_none()
+
+---- workspace_index::tests::a_cross_file_arrival_is_side_scoped_in_enumeration stdout ----
+
+thread 'workspace_index::tests::a_cross_file_arrival_is_side_scoped_in_enumeration' (10891) panicked at rust/tcl-lsp-core/src/workspace_index.rs:10302:9:
+assertion `left == right` failed: only the class-object member moved
+  left: [("m", "classmethod"), ("m", "method")]
+ right: [("cm", "classmethod"), ("m", "method")]
+
+---- workspace_index::tests::a_cross_file_arrival_keeps_the_sources_visibility stdout ----
+
+thread 'workspace_index::tests::a_cross_file_arrival_keeps_the_sources_visibility' (10892) panicked at rust/tcl-lsp-core/src/workspace_index.rs:10090:9:
+…but it is a real member, reachable internally
+
+---- workspace_index::tests::a_cross_file_arrival_re_keys_member_enumeration stdout ----
+
+thread 'workspace_index::tests::a_cross_file_arrival_re_keys_member_enumeration' (10897) panicked at rust/tcl-lsp-core/src/workspace_index.rs:10149:9:
+assertion `left == right` failed: the fold lists the member under the name the class dispatches it by
+  left: ["old"]
+ right: ["new"]
+
+---- workspace_index::tests::a_cross_file_constant_resolves_a_readers_source_rows_1368 stdout ----
+
+thread 'workspace_index::tests::a_cross_file_constant_resolves_a_readers_source_rows_1368' (10905) panicked at rust/tcl-lsp-core/src/workspace_index.rs:11792:9:
+assertion `left == right` failed
+  left: None
+ right: Some("/s")
+
+---- workspace_index::tests::a_cross_file_deletemethod_records_no_arrival stdout ----
+
+thread 'workspace_index::tests::a_cross_file_deletemethod_records_no_arrival' (10906) panicked at rust/tcl-lsp-core/src/workspace_index.rs:10105:9:
+assertion failed: index.method_dispatch_chain("::C", "m", MethodAccess::External).is_empty()
+
+---- workspace_index::tests::a_cross_file_deletion_drops_the_member_from_enumeration stdout ----
+
+thread 'workspace_index::tests::a_cross_file_deletion_drops_the_member_from_enumeration' (10909) panicked at rust/tcl-lsp-core/src/workspace_index.rs:10246:9:
+a deleted member is not a member
+
+---- workspace_index::tests::a_cross_file_exact_link_conflicts_with_an_earlier_different_source stdout ----
+
+thread 'workspace_index::tests::a_cross_file_exact_link_conflicts_with_an_earlier_different_source' (10912) panicked at rust/tcl-lsp-core/src/workspace_index.rs:13217:9:
+assertion `left == right` failed: the second exact import fails and the first alias stays
+  left: "::B::p"
+ right: "::A::p"
+
+---- workspace_index::shared_import_pattern_classification_tests::escaped_import_patterns_retain_original_names_in_each_supported_oracle stdout ----
+
+thread 'workspace_index::shared_import_pattern_classification_tests::escaped_import_patterns_retain_original_names_in_each_supported_oracle' (10822) panicked at rust/tcl-lsp-core/src/workspace_index.rs:16142:17:
+assertion `left == right` failed: jimtcl/p\*
+  left: None
+ right: Some("::Source::p*")
+
+---- workspace_index::tests::a_cross_file_import_chain_follows_to_the_original_source stdout ----
+
+thread 'workspace_index::tests::a_cross_file_import_chain_follows_to_the_original_source' (10923) panicked at rust/tcl-lsp-core/src/workspace_index.rs:13243:9:
+assertion `left == right` failed: None
+  left: None
+ right: Some("::C::p")
+
+---- workspace_index::tests::a_cross_file_retraction_does_not_reach_an_inherited_provider stdout ----
+
+thread 'workspace_index::tests::a_cross_file_retraction_does_not_reach_an_inherited_provider' (10929) panicked at rust/tcl-lsp-core/src/workspace_index.rs:9816:9:
+assertion `left == right` failed: the superclass's own `m` must still provide the dispatch entry
+  left: ["file:///d.tcl", "file:///b.tcl"]
+ right: ["file:///b.tcl"]
+
+---- workspace_index::tests::a_cross_file_live_alias_is_an_import_conflict_for_a_different_source stdout ----
+
+thread 'workspace_index::tests::a_cross_file_live_alias_is_an_import_conflict_for_a_different_source' (10925) panicked at rust/tcl-lsp-core/src/workspace_index.rs:13175:9:
+assertion `left == right` failed: the failed second import leaves the first alias in place: Some("::B::p")
+  left: Some("::B::p")
+ right: Some("::A::p")
+
+---- workspace_index::tests::a_cross_file_import_conflict_is_decided_by_the_source_order stdout ----
+
+thread 'workspace_index::tests::a_cross_file_import_conflict_is_decided_by_the_source_order' (10924) panicked at rust/tcl-lsp-core/src/workspace_index.rs:12004:9:
+assertion `left == right` failed: the import sourced first owns the name; the second conflicts and installs nothing
+  left: Some("::second::helper")
+ right: Some("::first::helper")
+
+---- workspace_index::tests::a_cross_file_self_export_revives_a_class_side_member stdout ----
+
+thread 'workspace_index::tests::a_cross_file_self_export_revives_a_class_side_member' (10936) panicked at rust/tcl-lsp-core/src/workspace_index.rs:9914:9:
+assertion `left == right` failed
+  left: []
+ right: ["file:///a.tcl"]
+
+---- workspace_index::tests::a_cross_file_self_deletemethod_empties_only_the_class_chain stdout ----
+
+thread 'workspace_index::tests::a_cross_file_self_deletemethod_empties_only_the_class_chain' (10935) panicked at rust/tcl-lsp-core/src/workspace_index.rs:9985:9:
+the class-side member is gone, not merely unexported
+
+---- workspace_index::tests::a_cross_file_self_unexport_removes_the_member_from_class_dispatch stdout ----
+
+thread 'workspace_index::tests::a_cross_file_self_unexport_removes_the_member_from_class_dispatch' (10945) panicked at rust/tcl-lsp-core/src/workspace_index.rs:9885:9:
+a cross-file `self unexport` must remove the member from class dispatch
+
+---- workspace_index::tests::a_cross_file_stub_renamemethod_records_the_arrival_name stdout ----
+
+thread 'workspace_index::tests::a_cross_file_stub_renamemethod_records_the_arrival_name' (10946) panicked at rust/tcl-lsp-core/src/workspace_index.rs:10044:9:
+assertion `left == right` failed: the arrival resolves to the record holding the body
+  left: []
+ right: ["file:///a.tcl"]
+
+---- workspace_index::tests::a_foldable_computed_source_path_orders_its_export stdout ----
+
+thread 'workspace_index::tests::a_foldable_computed_source_path_orders_its_export' (10952) panicked at rust/tcl-lsp-core/src/workspace_index.rs:11904:9:
+assertion `left == right` failed
+  left: Some("::mymod::helper")
+ right: None
+
+---- workspace_index::tests::a_forced_wildcard_import_still_shadows_a_registry_builtin stdout ----
+
+thread 'workspace_index::tests::a_forced_wildcard_import_still_shadows_a_registry_builtin' (10960) panicked at rust/tcl-lsp-core/src/workspace_index.rs:14779:9:
+assertion `left == right` failed: `namespace origin ::set` is `::Foo::set` after a -force import
+  left: 0
+ right: 1
+
+---- workspace_index::tests::a_glob_export_pattern_still_covers_the_names_it_matches stdout ----
+
+thread 'workspace_index::tests::a_glob_export_pattern_still_covers_the_names_it_matches' (10969) panicked at rust/tcl-lsp-core/src/workspace_index.rs:14719:9:
+assertion `left == right` failed
+  left: 0
+ right: 1
+
+---- workspace_index::tests::a_forget_written_after_the_source_revokes_the_sourced_import stdout ----
+
+thread 'workspace_index::tests::a_forget_written_after_the_source_revokes_the_sourced_import' (10962) panicked at rust/tcl-lsp-core/src/workspace_index.rs:11938:9:
+a forget written after the `source` that installed the alias must revoke it: Some("::mymod::helper")
+
+---- workspace_index::tests::a_glob_import_conflicts_with_a_later_exact_import_of_the_same_name stdout ----
+
+thread 'workspace_index::tests::a_glob_import_conflicts_with_a_later_exact_import_of_the_same_name' (10970) panicked at rust/tcl-lsp-core/src/workspace_index.rs:12676:9:
+assertion `left != right` failed: the exact import installs nothing over the live glob alias
+  left: "::B::p"
+ right: "::B::p"
+
+---- workspace_index::tests::a_later_import_in_the_same_body_has_not_run_yet stdout ----
+
+thread 'workspace_index::tests::a_later_import_in_the_same_body_has_not_run_yet' (10981) panicked at rust/tcl-lsp-core/src/workspace_index.rs:12928:9:
+assertion `left != right` failed
+  left: "::B::p"
+ right: "::B::p"
+
+---- workspace_index::tests::a_same_document_retraction_does_not_cancel_another_document stdout ----
+
+thread 'workspace_index::tests::a_same_document_retraction_does_not_cancel_another_document' (11050) panicked at rust/tcl-lsp-core/src/workspace_index.rs:9788:9:
+assertion `left == right` failed
+  left: []
+ right: ["file:///b.tcl"]
+
+---- workspace_index::tests::a_same_file_forget_after_the_import_still_revokes stdout ----
+
+thread 'workspace_index::tests::a_same_file_forget_after_the_import_still_revokes' (11051) panicked at rust/tcl-lsp-core/src/workspace_index.rs:12410:9:
+Some("::mymod::helper")
+
+---- workspace_index::tests::a_top_level_call_before_its_own_import_does_not_resolve stdout ----
+
+thread 'workspace_index::tests::a_top_level_call_before_its_own_import_does_not_resolve' (11054) panicked at rust/tcl-lsp-core/src/workspace_index.rs:12446:9:
+a call written before its own import must not resolve through it
+
+---- workspace_index::tests::a_wildcard_import_of_a_non_builtin_name_is_unaffected stdout ----
+
+thread 'workspace_index::tests::a_wildcard_import_of_a_non_builtin_name_is_unaffected' (11061) panicked at rust/tcl-lsp-core/src/workspace_index.rs:14822:9:
+assertion `left == right` failed
+  left: 0
+ right: 1
+
+---- workspace_index::tests::a_top_level_import_is_not_conflicted_by_a_later_top_level_one stdout ----
+
+thread 'workspace_index::tests::a_top_level_import_is_not_conflicted_by_a_later_top_level_one' (11057) panicked at rust/tcl-lsp-core/src/workspace_index.rs:12899:9:
+assertion `left != right` failed
+  left: "::B::p"
+ right: "::B::p"
+
+---- workspace_index::tests::an_exact_import_link_dies_on_a_same_file_forget stdout ----
+
+thread 'workspace_index::tests::an_exact_import_link_dies_on_a_same_file_forget' (11136) panicked at rust/tcl-lsp-core/src/workspace_index.rs:12974:9:
+assertion `left == right` failed: a forgotten exact import installs no live link
+  left: "::mymod::helper"
+ right: "::app::helper"
+
+---- workspace_index::tests::an_exact_import_conflicts_with_a_later_glob_import_of_the_same_name stdout ----
+
+thread 'workspace_index::tests::an_exact_import_conflicts_with_a_later_glob_import_of_the_same_name' (11135) panicked at rust/tcl-lsp-core/src/workspace_index.rs:12712:9:
+the later glob import must not install over a live exact alias
+
+---- workspace_index::tests::alias_target_navigation_uses_selected_global_or_caller_context stdout ----
+
+thread 'workspace_index::tests::alias_target_navigation_uses_selected_global_or_caller_context' (11082) panicked at rust/tcl-lsp-core/src/workspace_index.rs:9408:36:
+jimtcl: missing positioned caller receipt
+
+---- workspace_index::tests::an_export_sourced_after_the_import_is_not_retroactive stdout ----
+
+thread 'workspace_index::tests::an_export_sourced_after_the_import_is_not_retroactive' (11253) panicked at rust/tcl-lsp-core/src/workspace_index.rs:11390:9:
+an export sourced after the import cannot apply retroactively: Some("::mymod::helper")
+
+---- workspace_index::tests::an_unforced_import_onto_an_existing_workspace_command_installs_nothing stdout ----
+
+thread 'workspace_index::tests::an_unforced_import_onto_an_existing_workspace_command_installs_nothing' (11301) panicked at rust/tcl-lsp-core/src/workspace_index.rs:12290:9:
+Some("::mymod::helper")
+
+---- workspace_index::tests::body_only_replacement_re_settles_only_the_changed_document stdout ----
+
+thread 'workspace_index::tests::body_only_replacement_re_settles_only_the_changed_document' (11316) panicked at rust/tcl-lsp-core/src/workspace_index.rs:14101:9:
+assertion `left == right` failed
+  left: 0
+ right: 2
+
+---- workspace_index::tests::both_tiers_keep_the_local_when_the_whole_program_exports_nothing stdout ----
+
+thread 'workspace_index::tests::both_tiers_keep_the_local_when_the_whole_program_exports_nothing' (11317) panicked at rust/tcl-lsp-core/src/workspace_index.rs:14446:9:
+assertion `left == right` failed
+  left: None
+ right: Some("::app::helper")
+
+---- workspace_index::tests::both_tiers_shadow_when_another_file_holds_the_covering_export stdout ----
+
+thread 'workspace_index::tests::both_tiers_shadow_when_another_file_holds_the_covering_export' (11318) panicked at rust/tcl-lsp-core/src/workspace_index.rs:14431:9:
+assertion `left == right` failed
+  left: None
+ right: Some("::src::helper")
+
+---- workspace_index::tests::class_member_suppression_reads_the_same_chain_as_resolution stdout ----
+
+thread 'workspace_index::tests::class_member_suppression_reads_the_same_chain_as_resolution' (11328) panicked at rust/tcl-lsp-core/src/workspace_index.rs:9842:9:
+assertion failed: index.class_member_dispatch_suppressed("::C", "cm", MethodAccess::External)
+
+---- workspace_index::tests::conditional_namespace_horizon_keeps_binding_and_report_purposes_separate stdout ----
+
+thread 'workspace_index::tests::conditional_namespace_horizon_keeps_binding_and_report_purposes_separate' (11370) panicked at rust/tcl-lsp-core/src/workspace_index.rs:15030:9:
+the source route cannot use a later export
+
+---- workspace_index::tests::conditional_namespace_forget_preserves_unknowns_and_current_index_owner stdout ----
+
+thread 'workspace_index::tests::conditional_namespace_forget_preserves_unknowns_and_current_index_owner' (11369) panicked at rust/tcl-lsp-core/src/workspace_index.rs:15074:9:
+assertion failed: advice.compatibility_report().is_none()
+
+---- workspace_index::tests::cross_file_define_stub_retraction_removes_the_method_from_dispatch stdout ----
+
+thread 'workspace_index::tests::cross_file_define_stub_retraction_removes_the_method_from_dispatch' (11381) panicked at rust/tcl-lsp-core/src/workspace_index.rs:9756:9:
+assertion `left == right` failed: the cross-file additive channel must keep working
+  left: []
+ right: ["file:///b.tcl"]
+
+---- workspace_index::tests::cross_file_forget_after_the_import_stops_resolving stdout ----
+
+thread 'workspace_index::tests::cross_file_forget_after_the_import_stops_resolving' (11385) panicked at rust/tcl-lsp-core/src/workspace_index.rs:12179:9:
+a call after the forget must not resolve through the alias: Some("::mymod::helper")
+
+---- workspace_index::tests::cross_file_source_deletion_kills_the_alias stdout ----
+
+thread 'workspace_index::tests::cross_file_source_deletion_kills_the_alias' (11420) panicked at rust/tcl-lsp-core/src/workspace_index.rs:12246:9:
+Some("::mymod::helper")
+
+---- workspace_index::tests::enumeration_without_a_retraction_is_the_declared_table stdout ----
+
+thread 'workspace_index::tests::enumeration_without_a_retraction_is_the_declared_table' (11459) panicked at rust/tcl-lsp-core/src/workspace_index.rs:10268:9:
+assertion `left == right` failed: record order then declaration order, unchanged
+  left: ["one", "two"]
+ right: ["one", "two", "three", "cm"]
+
+---- workspace_index::tests::exact_import_ignores_an_export_written_after_it stdout ----
+
+thread 'workspace_index::tests::exact_import_ignores_an_export_written_after_it' (11463) panicked at rust/tcl-lsp-core/src/workspace_index.rs:13333:9:
+assertion failed: !index.workspace_command_exists("::app::helper")
+
+---- workspace_index::tests::export_replacement_re_settles_wildcard_import_callers stdout ----
+
+thread 'workspace_index::tests::export_replacement_re_settles_wildcard_import_callers' (11543) panicked at rust/tcl-lsp-core/src/workspace_index.rs:14172:9:
+assertion `left == right` failed
+  left: 0
+ right: 1
+
+---- workspace_index::tests::importing_an_operator_name_into_the_global_namespace_still_binds stdout ----
+
+thread 'workspace_index::tests::importing_an_operator_name_into_the_global_namespace_still_binds' (11573) panicked at rust/tcl-lsp-core/src/workspace_index.rs:14841:9:
+assertion `left == right` failed: a bare operator spelling is the post-`namespace import ::tcl::mathop::*` form, not a command a fresh interpreter holds
+  left: 0
+ right: 1
+
+---- workspace_index::tests::indexes_a_cell_alias_written_from_another_namespace stdout ----
+
+thread 'workspace_index::tests::indexes_a_cell_alias_written_from_another_namespace' (11576) panicked at rust/tcl-lsp-core/src/workspace_index.rs:13804:9:
+the aliasing document declares nothing in ::ns — which is why the alias table is needed
+
+---- workspace_index::tests::indexes_invocation_sites_per_document stdout ----
+
+thread 'workspace_index::tests::indexes_invocation_sites_per_document' (11614) panicked at rust/tcl-lsp-core/src/workspace_index.rs:10676:9:
+assertion `left == right` failed: []
+  left: 0
+ right: 2
+
+---- workspace_index::tests::interp_alias_call_site_references_the_target_command stdout ----
+
+thread 'workspace_index::tests::interp_alias_call_site_references_the_target_command' (11619) panicked at rust/tcl-lsp-core/src/workspace_index.rs:10911:9:
+the aliased call should reference the target: []
+
+---- workspace_index::tests::invocations_of_excludes_current_doc stdout ----
+
+thread 'workspace_index::tests::invocations_of_excludes_current_doc' (11621) panicked at rust/tcl-lsp-core/src/workspace_index.rs:10687:9:
+assertion `left == right` failed
+  left: 0
+ right: 1
+
+---- workspace_index::tests::invocations_of_finds_namespaced_call_all_spellings stdout ----
+
+thread 'workspace_index::tests::invocations_of_finds_namespaced_call_all_spellings' (11622) panicked at rust/tcl-lsp-core/src/workspace_index.rs:10806:9:
+assertion `left == right` failed: [WorkspaceInvocation { logical_source_domain: Some(false), original_name_input: None, original_lookup: None, lookup: InvocationHead, uri: "file:///b.tcl", name: "helper", resolution_candidates: ["::ns::helper", "::helper"], resolved_user_definition: None, resolved_definition: None, resolved_command_reference: None, range: Span { start: 48, end: 54 }, indirect: false, rename_safe: true, ensemble_dispatch: None, enclosing_body: None }]
+  left: 1
+ right: 3
+
+---- workspace_index::tests::literal_colon_import_sources_survive_workspace_ingestion stdout ----
+
+thread 'workspace_index::tests::literal_colon_import_sources_survive_workspace_ingestion' (11656) panicked at rust/tcl-lsp-core/src/workspace_index.rs:9336:9:
+assertion failed: index.linked_invocations_of(":::::src::p",
+            "").iter().any(|invocation| invocation.name == "p")
+
+---- workspace_index::tests::literal_colon_namespace_keys_keep_definitions_and_variables_distinct stdout ----
+
+thread 'workspace_index::tests::literal_colon_namespace_keys_keep_definitions_and_variables_distinct' (11657) panicked at rust/tcl-lsp-core/src/workspace_index.rs:9308:9:
+assertion `left == right` failed
+  left: 0
+ right: 1
+
+---- workspace_index::tests::namespace_declarations_under_finds_implicit_parent_rows stdout ----
+
+thread 'workspace_index::tests::namespace_declarations_under_finds_implicit_parent_rows' (11696) panicked at rust/tcl-lsp-core/src/workspace_index.rs:13599:9:
+assertion failed: index.namespace_declarations_under("::", "").is_empty()
+
+---- workspace_index::tests::original_requirement_graph_keeps_constraints_preference_and_unknowns stdout ----
+
+thread 'workspace_index::tests::original_requirement_graph_keeps_constraints_preference_and_unknowns' (11836) panicked at rust/tcl-lsp-core/src/workspace_index.rs:9242:9:
+assertion `left == right` failed
+  left: 2
+ right: 3
+
+---- workspace_index::tests::one_provider_required_from_many_documents_orders_each_of_them stdout ----
+
+thread 'workspace_index::tests::one_provider_required_from_many_documents_orders_each_of_them' (11796) panicked at rust/tcl-lsp-core/src/workspace_index.rs:11693:9:
+assertion failed: helper_resolves(&index).is_none()
+
+---- workspace_index::tests::owner_aware_super_resolution_picks_same_namespace_and_abstains_on_ambiguity stdout ----
+
+thread 'workspace_index::tests::owner_aware_super_resolution_picks_same_namespace_and_abstains_on_ambiguity' (12036) panicked at rust/tcl-lsp-core/src/workspace_index.rs:10408:9:
+assertion `left == right` failed: owner-aware resolution mis-linked
+  left: []
+ right: ["::A::Derived"]
+
+---- workspace_index::tests::positioned_import_definition_keeps_linked_and_editable_views_separate stdout ----
+
+thread 'workspace_index::tests::positioned_import_definition_keeps_linked_and_editable_views_separate' (12106) panicked at rust/tcl-lsp-core/src/workspace_index.rs:9440:9:
+assertion failed: call.resolved_definition.is_some()
+
+---- workspace_index::tests::positioned_definition_precedes_later_forced_import_assistance stdout ----
+
+thread 'workspace_index::tests::positioned_definition_precedes_later_forced_import_assistance' (12103) panicked at rust/tcl-lsp-core/src/workspace_index.rs:9454:9:
+assertion `left == right` failed
+  left: 0
+ right: 1
+
+---- workspace_index::tests::rename_new_name_call_site_references_the_old_command stdout ----
+
+thread 'workspace_index::tests::rename_new_name_call_site_references_the_old_command' (12213) panicked at rust/tcl-lsp-core/src/workspace_index.rs:10945:9:
+the renamed call should reference the target: []
+
+---- workspace_index::tests::resolution_input_replacement_re_settles_cross_document_callers stdout ----
+
+thread 'workspace_index::tests::resolution_input_replacement_re_settles_cross_document_callers' (12263) panicked at rust/tcl-lsp-core/src/workspace_index.rs:14138:9:
+assertion `left == right` failed
+  left: 0
+ right: 1
+
+---- workspace_index::tests::resolve_command_target_follows_a_chain_and_leaves_plain_names stdout ----
+
+thread 'workspace_index::tests::resolve_command_target_follows_a_chain_and_leaves_plain_names' (12336) panicked at rust/tcl-lsp-core/src/workspace_index.rs:10994:9:
+two-hop aliased call should reference the source: []
+
+---- workspace_index::tests::resolve_wildcard_import_ignores_a_same_file_export_written_after_the_import stdout ----
+
+thread 'workspace_index::tests::resolve_wildcard_import_ignores_a_same_file_export_written_after_the_import' (12339) panicked at rust/tcl-lsp-core/src/workspace_index.rs:12057:9:
+an export written after the import in the same file must not apply retroactively: Some("::mymod::helper")
+
+---- workspace_index::tests::retained_source_routes_share_original_plans_across_graph_consumers stdout ----
+
+thread 'workspace_index::tests::retained_source_routes_share_original_plans_across_graph_consumers' (12484) panicked at rust/tcl-lsp-core/src/workspace_index.rs:11317:9:
+assertion `left == right` failed
+  left: 0
+ right: 1
+
+---- workspace_index::tests::settled_target_index_is_cached_until_its_inputs_change stdout ----
+
+thread 'workspace_index::tests::settled_target_index_is_cached_until_its_inputs_change' (12509) panicked at rust/tcl-lsp-core/src/workspace_index.rs:14070:9:
+assertion `left == right` failed: []
+  left: 0
+ right: 2
+
+---- workspace_index::tests::symbol_exclusions_rebuild_duplicate_retractions_from_live_documents stdout ----
+
+thread 'workspace_index::tests::symbol_exclusions_rebuild_duplicate_retractions_from_live_documents' (12668) panicked at rust/tcl-lsp-core/src/workspace_index.rs:10223:9:
+assertion `left == right` failed
+  left: 0
+ right: 1
+
+---- workspace_index::tests::the_admission_index_still_resolves_a_wildcard_imported_call stdout ----
+
+thread 'workspace_index::tests::the_admission_index_still_resolves_a_wildcard_imported_call' (12677) panicked at rust/tcl-lsp-core/src/workspace_index.rs:14990:9:
+assertion `left == right` failed
+  left: 0
+ right: 1
+
+---- workspace_index::tests::the_export_snapshot_answers_unknown_for_a_namespace_no_file_declares stdout ----
+
+thread 'workspace_index::tests::the_export_snapshot_answers_unknown_for_a_namespace_no_file_declares' (12764) panicked at rust/tcl-lsp-core/src/workspace_index.rs:14589:9:
+assertion `left == right` failed
+  left: Unknown
+ right: NotExported
+
+---- workspace_index::tests::the_precomputed_export_gate_still_admits_exactly_what_is_exported stdout ----
+
+thread 'workspace_index::tests::the_precomputed_export_gate_still_admits_exactly_what_is_exported' (12781) panicked at rust/tcl-lsp-core/src/workspace_index.rs:14695:9:
+assertion `left == right` failed: an exported name must still resolve through the wildcard import
+  left: 0
+ right: 1
+
+---- workspace_index::tests::the_two_sides_visibility_channels_never_cross stdout ----
+
+thread 'workspace_index::tests::the_two_sides_visibility_channels_never_cross' (12932) panicked at rust/tcl-lsp-core/src/workspace_index.rs:9939:9:
+the class side is unexported
+
+---- workspace_index::typed_variable_source_index_tests::unavailable_alias_source_coverage_and_missing_inputs_are_not_absence stdout ----
+
+thread 'workspace_index::typed_variable_source_index_tests::unavailable_alias_source_coverage_and_missing_inputs_are_not_absence' (13380) panicked at rust/tcl-lsp-core/src/workspace_index.rs:16283:14:
+actual original namespace variable
+
+
+failures:
+    workspace_index::logical_self_member_source_tests::original_self_selector_keeps_member_side_and_saved_source_owner
+test result: FAILED. 169 passed; 79 failed; 0 ignored; 0 measured; 3237 filtered out; finished in 877.06s

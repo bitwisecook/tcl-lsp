@@ -1,0 +1,35 @@
+
+running 7 tests
+test a_patched_command_resolves_through_the_patch ... ok
+test a_stray_word_outside_the_block_is_not_a_program ... ok
+test canonical_rendering_preserves_a_real_packs_shape_and_override_flags ... ok
+test a_form_edit_on_a_real_pack_splices_and_preserves_its_neighbours ... FAILED
+test every_shipped_example_opens_as_a_store ... ok
+test the_resolution_facade_answers_over_a_real_pack ... ok
+test every_hand_written_pack_is_canonical has been running for over 60 seconds
+test every_hand_written_pack_is_canonical ... ok
+
+failures:
+
+---- a_form_edit_on_a_real_pack_splices_and_preserves_its_neighbours stdout ----
+
+thread 'a_form_edit_on_a_real_pack_splices_and_preserves_its_neighbours' (22743) panicked at rust/tcl-spec-studio/tests/pack_store.rs:237:5:
+assertion `left == right` failed: the splice path should carry every example but oo-class.tclspec; it carried 12
+  left: 12
+ right: 11
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<usize, usize>
+   4: pack_store::a_form_edit_on_a_real_pack_splices_and_preserves_its_neighbours
+   5: pack_store::a_form_edit_on_a_real_pack_splices_and_preserves_its_neighbours::{closure#0}
+   6: <pack_store::a_form_edit_on_a_real_pack_splices_and_preserves_its_neighbours::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+
+failures:
+    a_form_edit_on_a_real_pack_splices_and_preserves_its_neighbours
+
+test result: FAILED. 6 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 91.42s
+

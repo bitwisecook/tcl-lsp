@@ -1,0 +1,6 @@
+
+running 1 test
+test workspace_index::tests::a_sourced_forget_between_two_imports_does_not_make_the_later_one_conflict ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 3479 filtered out; finished in 2.84s
+

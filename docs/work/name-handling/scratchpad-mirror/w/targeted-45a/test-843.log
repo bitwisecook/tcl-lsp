@@ -1,0 +1,6 @@
+
+running 1 test
+test native_package::tests::package_name_keys_keep_native_units_and_package_extent_separate ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1875 filtered out; finished in 0.00s
+

@@ -1,0 +1,68 @@
+test c84_wide_transport_tests::original_c84_wide_recursive_bridge_retains_actual_ingress_for_plain_and_resident_members ... ok
+test original_projection_tests::original_engine_argument_worker_refuses_real_retired_first_header_before_later_getter ... ok
+test original_projection_tests::original_engine_retirement_errors_remain_host_failures_before_guest_continuation ... ok
+test original_projection_tests::original_engine_returned_option_header_refusal_precedes_original_result_getter ... ok
+test c84_wide_transport_tests::original_c84_wide_host_reply_uses_pre_callback_receipt_and_finishes_only_the_real_outer_boundary ... ok
+test metadata_reader_unknown_profile_controls::metadata_string_reader_does_not_turn_unknown_source_profile_into_tcl9 ... ok
+test tests::a_command_nobody_registered_on_the_vm_is_not_there ... FAILED
+test original_projection_tests::original_engine_typed_callback_failure_stops_guest_continuation_and_allows_next_entry ... ok
+test original_projection_tests::original_engine_registrar_retains_earlier_nested_failure_before_later_callback_cause ... ok
+test tests::a_caught_budget_failure_is_still_the_invocations_failure ... ok
+test tests::a_dict_crosses_as_a_dict ... ok
+test tests::a_host_command_receives_what_the_body_emits ... ok
+test tests::a_host_command_registers_on_a_bare_vm_with_the_door_open ... ok
+test tests::a_restricted_engine_keeps_the_math_functions_but_the_generator ... FAILED
+test tests::a_restricted_engine_has_only_the_whitelist_and_the_host_commands ... ok
+test tests::a_script_error_spelling_a_limit_message_is_a_script_error ... FAILED
+test tests::a_confined_engine_reads_no_host_environment ... FAILED
+test tests::a_unit_compiles_once_and_invokes_with_structured_values ... ok
+test tests::an_error_in_the_body_is_reported_not_propagated ... ok
+test tests::binary_bridge_seals_actual_constructor_and_validates_recorded_resident_storage ... ok
+test tests::byte_bridge_keeps_resident_spelling_and_binary_purity ... FAILED
+test tests::c84_long_carrier_retains_original_descriptor_and_refuses_foreign_release ... ok
+test tests::a_value_within_the_size_budget_is_built_normally ... ok
+test tests::an_owned_registry_hook_survives_vm_profile_compilation ... ok
+test tests::callback_namespace_primary_retains_private_scope_and_descriptor ... FAILED
+test tests::callback_cmdname_retains_private_scope_and_distinct_duplicate_identity ... ok
+test tests::checked_dictionary_import_materializes_original_keys_with_the_actual_issuer ... ok
+test tests::checked_completion_projection_retains_host_before_original_result_getter ... ok
+test tests::checked_completion_projection_keeps_guest_option_conversion_error_guest ... ok
+test tests::a_whitelisted_ensembles_subcommands_run_wherever_they_are_called ... FAILED
+test tests::compiled_handle_does_not_invoke_a_replacement_binding ... ok
+test tests::confine_stores_refuses_every_store_outside_the_activation ... FAILED
+test tests::guest_byte_error_retains_complete_native_options ... ok
+test tests::guest_dictionary_options_refuse_an_unknown_native_issuer_without_shimmer ... FAILED
+test tests::confine_stores_refuses_creation_and_unset_outside_the_activation ... FAILED
+test tests::each_invocation_gets_its_own_locals ... ok
+test tests::native_callback_view_does_not_materialize_original_scalar_storage ... ok
+test tests::guest_error_export_preserves_original_stringless_dictionary_and_members ... ok
+test tests::every_value_builder_answers_to_the_value_size_budget ... FAILED
+test tests::original_result_requires_its_actual_interpreter_and_native_issuer ... ok
+test tests::retained_list_bridge_keeps_actual_storage_and_native_header_sharing ... FAILED
+test tests::invocation_evaluation_keeps_host_refusal_outside_guest_completion ... ok
+test tests::scalar_bridge_retains_full_cache_storage_and_descriptor_origin ... FAILED
+test tests::set_release_pins_the_numeral_grammar ... FAILED
+test tests::return_is_an_ordinary_early_exit ... ok
+test tests::reached_host_refusal_preserves_prior_effects_and_cannot_be_caught ... ok
+test tests::the_command_budget_is_enforced_and_distinguishable ... ok
+test tests::the_value_size_budget_stops_an_allocation_the_other_two_cannot_see ... ok
+test tests::variable_consumers_report_trace_host_refusal_without_guest_projection ... FAILED
+test tests::the_wall_clock_budget_stops_a_loop_the_command_budget_cannot_see ... FAILED
+test tests::native_dictionary_search_fatal_refusal_crosses_the_engine_boundary_outside_guest_handlers ... ok
+thread 'tests::a_command_nobody_registered_on_the_vm_is_not_there' (21977) panicked at rust/tcl-engine-tclvm/src/lib.rs:2950:9:
+thread 'tests::a_restricted_engine_keeps_the_math_functions_but_the_generator' (22049) panicked at rust/tcl-engine-tclvm/src/lib.rs:3519:52:
+thread 'tests::a_script_error_spelling_a_limit_message_is_a_script_error' (22066) panicked at rust/tcl-engine-tclvm/src/lib.rs:3143:9:
+thread 'tests::a_confined_engine_reads_no_host_environment' (21987) panicked at rust/tcl-engine-tclvm/src/lib.rs:3572:13:
+thread 'tests::byte_bridge_keeps_resident_spelling_and_binary_purity' (22136) panicked at rust/tcl-engine-tclvm/src/lib.rs:3611:60:
+thread 'tests::callback_namespace_primary_retains_private_scope_and_descriptor' (22140) panicked at rust/tcl-engine-tclvm/src/lib.rs:2528:58:
+thread 'tests::a_whitelisted_ensembles_subcommands_run_wherever_they_are_called' (22102) panicked at rust/tcl-engine-tclvm/src/lib.rs:3230:13:
+thread 'tests::confine_stores_refuses_every_store_outside_the_activation' (22161) panicked at rust/tcl-engine-tclvm/src/lib.rs:3363:13:
+thread 'tests::guest_dictionary_options_refuse_an_unknown_native_issuer_without_shimmer' (22197) panicked at rust/tcl-engine-tclvm/src/lib.rs:3975:9:
+thread 'tests::confine_stores_refuses_creation_and_unset_outside_the_activation' (22152) panicked at rust/tcl-engine-tclvm/src/lib.rs:3469:13:
+thread 'tests::every_value_builder_answers_to_the_value_size_budget' (22195) panicked at rust/tcl-engine-tclvm/src/lib.rs:3112:13:
+thread 'tests::retained_list_bridge_keeps_actual_storage_and_native_header_sharing' (22276) panicked at rust/tcl-engine-tclvm/src/lib.rs:2362:9:
+thread 'tests::scalar_bridge_retains_full_cache_storage_and_descriptor_origin' (22295) panicked at rust/tcl-engine-tclvm/src/lib.rs:3747:61:
+thread 'tests::set_release_pins_the_numeral_grammar' (22296) panicked at rust/tcl-engine-tclvm/src/lib.rs:3287:18:
+thread 'tests::variable_consumers_report_trace_host_refusal_without_guest_projection' (22332) panicked at rust/tcl-engine-tclvm/src/lib.rs:2744:16:
+thread 'tests::the_wall_clock_budget_stops_a_loop_the_command_budget_cannot_see' (22327) panicked at rust/tcl-engine-tclvm/src/lib.rs:3164:9:
+test result: FAILED. 35 passed; 16 failed; 0 ignored; 0 measured; 0 filtered out; finished in 25.95s

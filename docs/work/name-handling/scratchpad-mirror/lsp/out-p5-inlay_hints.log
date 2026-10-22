@@ -1,0 +1,14 @@
+
+running 9 tests
+test empty_file_has_no_hints ... ok
+test declared_flag_is_not_mislabelled ... ok
+test foreach_multi_var_hints_are_not_clumped ... ok
+test hint_kinds_are_type_or_parameter ... ok
+test integer_type_hint ... ok
+test negative_number_is_positional_not_flag ... ok
+test range_filtering_limits_to_requested_lines ... ok
+test unknown_type_does_not_crash ... ok
+test user_proc_param_name_hints_at_call_site ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 4.70s
+

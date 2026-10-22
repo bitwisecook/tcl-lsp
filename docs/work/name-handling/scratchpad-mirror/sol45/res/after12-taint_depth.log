@@ -1,0 +1,1289 @@
+
+running 130 tests
+test colour_masks::redirect_safe_is_path_prefixed_or_normalised ... ok
+test colour_masks::all_mask_contains_every_named_colour ... ok
+test colour_masks::t102_safe_excludes_crlf_and_list_colours ... ok
+test dialect_gating::generic_t100_t101_work_in_both_dialects ... FAILED
+test dialect_gating::irules_sink_fires_under_irules_dialect ... FAILED
+test dialect_gating::all_irule_sinks_silent_under_plain_tcl ... ok
+test dialect_gating::irules_source_taints_under_plain_tcl ... FAILED
+test exec_shell_atom::exec_also_emits_t102_for_generic_taint ... FAILED
+test exec_shell_atom::fqdn_atom_clears_exec_t100 ... ok
+test exec_shell_atom::generic_taint_still_fires_exec_t100 ... FAILED
+test exec_shell_atom::ip_atom_clears_exec_t100 ... ok
+test exec_shell_atom::port_atom_clears_exec_t100 ... ok
+test interproc_depth::passthrough_carries_taint_into_eval ... FAILED
+test interproc_depth::passthrough_conservatively_loses_source_option_safety_colour ... FAILED
+test interproc_depth::sanitising_helper_result_via_var_clears_t101 ... ok
+test interproc_depth::source_returning_helper_taints_t104 ... FAILED
+test irule3001_depth::generic_tainted_body_warns_with_xss_message ... FAILED
+test interproc_depth::tainted_arg_into_helper_with_internal_sink_warns ... FAILED
+test irule3001_depth::html_escaped_body_suppresses ... ok
+test irule3002_depth::bare_html_escaped_colour_is_not_crlf_safe ... ok
+test irule3001_depth::url_encoded_body_does_not_suppress ... FAILED
+test irule3002_depth::cookie_replace_tainted_value_warns ... FAILED
+test irule3002_depth::fqdn_value_clears_header ... ok
+test irule3002_depth::header_at_subcommand_not_a_sink ... ok
+test irule3002_depth::header_replace_tainted_value_warns ... FAILED
+test irule3002_depth::html_encode_value_clears_header_via_crlf_free_component ... ok
+test irule3002_depth::ip_value_clears_header_via_crlf_free ... ok
+test irule3002_depth::port_value_clears_header ... ok
+test irule3003_depth::html_escape_clears_log_via_crlf_free ... ok
+test irule3003_depth::http_uri_path_colour_does_not_clear_log ... FAILED
+test irule3003_depth::log_message_mentions_log_injection ... FAILED
+test irule3003_depth::uri_escape_clears_log_via_crlf_free ... ok
+test irule3004_depth::file_normalised_target_suppresses ... ok
+test irule3004_depth::generic_header_target_warns_with_open_redirect_message ... FAILED
+test irule3004_depth::path_prefixed_target_suppresses ... ok
+test irule3101_depth::command_sub_target_always_warns ... ok
+test irule3004_depth::redirect_not_classified_under_plain_tcl ... ok
+test irule3101_depth::dynamic_interpolation_target_always_warns ... ok
+test irule3101_depth::file_normalised_var_suppresses ... FAILED
+test irule3101_depth::literal_with_slash_clean_both_setters ... ok
+test irule3101_depth::http_path_dynamic_target_warns ... ok
+test lattice_extra::header_token_safe_lost_against_generic ... ok
+test lattice_extra::path_bounded_survives_self_join ... ok
+test lattice_extra::redirect_pair_intersection_keeps_shared_only ... ok
+test lattice_extra::sanitised_clears_taint_keeps_colours ... ok
+test lattice_extra::sanitised_value_is_join_identity ... ok
+test lattice_extra::with_is_monotone_add ... ok
+test irule3101_depth::not_classified_under_plain_tcl ... ok
+test puts_position_filter::puts_literal_channel_tainted_content_flags ... FAILED
+test puts_position_filter::puts_nonewline_literal_channel_tainted_content_flags ... FAILED
+test puts_position_filter::puts_single_arg_tainted_is_content ... FAILED
+test puts_position_filter::puts_two_arg_channel_then_content_flags_content ... FAILED
+test sanitiser_breadth::sanitiser_inside_command_sub_clears_argument ... FAILED
+test sanitiser_breadth::string_compare_sanitises ... ok
+test sanitiser_breadth::string_match_sanitises ... ok
+test sanitiser_breadth::string_is_integer_sanitises ... ok
+test source_breadth::chan_read_subcommand_is_source ... FAILED
+test sanitiser_breadth::string_toupper_does_not_sanitise ... FAILED
+test source_breadth::encoding_convertfrom_is_source ... FAILED
+test source_breadth::gets_is_a_trait_source_regardless_of_arity ... FAILED
+test source_breadth::http_method_is_source ... FAILED
+test source_breadth::http_cookie_value_is_source ... FAILED
+test source_breadth::http_query_is_source ... FAILED
+test source_breadth::http_password_is_source ... FAILED
+test source_breadth::http_username_is_source ... FAILED
+test source_breadth::ip_remote_addr_is_source ... FAILED
+test source_breadth::sip_uri_is_source ... FAILED
+test source_breadth::ssl_cert_is_source ... FAILED
+test source_breadth::ssl_sni_is_source ... FAILED
+test source_breadth::ssl_payload_is_source ... FAILED
+test source_breadth::tcp_remote_port_is_source ... FAILED
+test source_breadth::udp_payload_is_source ... FAILED
+test source_breadth::uri_host_is_source ... FAILED
+test source_breadth::uri_query_is_source ... FAILED
+test t100_sink_family::eval_embedded_in_assignment_rhs_fires ... FAILED
+test t100_sink_family::expr_braced_operand_message_mentions_coercion ... FAILED
+test t100_sink_family::same_var_twice_in_eval_dedups_to_one ... FAILED
+test t100_sink_family::subst_embedded_in_assignment_rhs_fires ... FAILED
+test t102_scan_region::brace_star_expansion_is_option_capable ... FAILED
+test t100_sink_family::two_distinct_tainted_vars_in_eval_each_warn ... FAILED
+test t102_scan_region::exec_with_terminator_clean_for_t102 ... ok
+test t102_scan_region::exec_option_flag_then_tainted_command_warns ... FAILED
+test t102_scan_region::literal_positional_before_tainted_subject_ends_scan ... ok
+test t102_scan_region::terminator_in_arg_list_ends_scan ... ok
+test t102_scan_region::value_option_consumes_its_argument ... FAILED
+test t103_regsub_and_quotes::re_quote_suppresses_t103 ... ok
+test t103_regsub_and_quotes::regex_colon_quote_suppresses_t103 ... ok
+test t103_regsub_and_quotes::regexp_quote_suppresses_t103 ... ok
+test t103_regsub_and_quotes::regexp_start_consumes_value_pattern_after_warns ... FAILED
+test t103_regsub_and_quotes::regsub_all_flag_then_tainted_pattern_warns ... FAILED
+test t103_regsub_and_quotes::regsub_tainted_pattern_warns ... FAILED
+test t103_regsub_and_quotes::regsub_tainted_replacement_is_not_t103 ... ok
+test t104_network_sinks::http_geturl_fqdn_clears ... ok
+test t104_network_sinks::http_geturl_url_slot_warns ... FAILED
+test t104_network_sinks::irules_connect_any_arg_warns ... FAILED
+test t104_network_sinks::socket_host_slot_generic_taint_warns ... FAILED
+test t104_network_sinks::socket_option_value_not_in_positional_slot ... FAILED
+test t104_network_sinks::socket_port_slot_generic_taint_warns ... FAILED
+test t104_network_sinks::socket_validated_ip_host_clears_but_generic_port_warns ... FAILED
+test t104_network_sinks::socket_validated_port_clears_slot_one ... FAILED
+test t105_cross_interp::interp_eval_literal_list_known_cmd_head_suppressed ... ok
+test t105_cross_interp::interp_eval_propagated_plain_var_warns ... FAILED
+test t105_cross_interp::interp_eval_subcommand_only_other_subcommands_clean ... ok
+test t105_cross_interp::interp_eval_tainted_script_warns ... FAILED
+test t105_cross_interp::interp_invokehidden_tainted_warns ... FAILED
+test t106_double_encode_breadth::html_escape_alias_double_warns ... FAILED
+test t106_double_encode_breadth::html_encode_double_warns_with_label ... FAILED
+test t106_double_encode_breadth::single_encode_is_not_double ... ok
+test t106_double_encode_breadth::regexp_quote_double_warns_with_label ... FAILED
+test t106_double_encode_breadth::uri_encode_component_double_warns ... FAILED
+test t106_double_encode_breadth::uri_escape_double_warns ... FAILED
+test t106_double_encode_breadth::url_encode_then_html_encode_is_not_double ... ok
+test t106_double_encode_breadth::url_then_url_via_mixed_spellings_warns ... FAILED
+test transform_propagation::html_escaped_interpolation_clears_double_encode ... ok
+test transform_propagation::path_joined_does_not_suppress_t100 ... FAILED
+test transform_propagation::path_normalised_interpolation_appends_clears_colour ... FAILED
+test transform_propagation::url_encoded_copy_then_double_encode_still_detected ... FAILED
+test w313_destructive_file::file_delete_variable_path_warns ... FAILED
+test w313_destructive_file::file_mkdir_variable_path_warns ... FAILED
+test w313_destructive_file::file_join_path_is_not_normalised_still_warns ... FAILED
+test w313_destructive_file::file_rename_variable_path_warns ... FAILED
+test w313_destructive_file::file_stat_non_destructive_subcommand_clean ... ok
+test w313_destructive_file::first_path_variable_is_deterministic ... FAILED
+test w313_destructive_file::force_flag_skipped_to_reach_path ... FAILED
+test w313_destructive_file::literal_path_clean ... ok
+test w313_destructive_file::normalised_and_string_match_guarded_suppressed ... ok
+test w313_destructive_file::normalised_unguarded_path_softens_message ... FAILED
+test w313_destructive_file::span_covers_only_the_path_argument ... FAILED
+test w313_destructive_file::span_covers_first_offending_path_argument_of_rename ... FAILED
+test w313_destructive_file::span_skips_force_flag_to_the_path_argument ... FAILED
+
+failures:
+
+---- dialect_gating::generic_t100_t101_work_in_both_dialects stdout ----
+
+thread 'dialect_gating::generic_t100_t101_work_in_both_dialects' (24193) panicked at rust/tcl-compiler/tests/taint_depth.rs:1542:9:
+assertion failed: has("set x [read $fd]\neval $x", IR, "T100", "x")
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: taint_depth::dialect_gating::generic_t100_t101_work_in_both_dialects
+   4: taint_depth::dialect_gating::generic_t100_t101_work_in_both_dialects::{closure#0}
+   5: <taint_depth::dialect_gating::generic_t100_t101_work_in_both_dialects::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- dialect_gating::irules_sink_fires_under_irules_dialect stdout ----
+
+thread 'dialect_gating::irules_sink_fires_under_irules_dialect' (24197) panicked at rust/tcl-compiler/tests/taint_depth.rs:1529:9:
+assertion failed: !of_code("set d [HTTP::payload]\nHTTP::respond 200 content $d", IR,
+            "IRULE3001").is_empty()
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: taint_depth::dialect_gating::irules_sink_fires_under_irules_dialect
+   4: taint_depth::dialect_gating::irules_sink_fires_under_irules_dialect::{closure#0}
+   5: <taint_depth::dialect_gating::irules_sink_fires_under_irules_dialect::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- dialect_gating::irules_source_taints_under_plain_tcl stdout ----
+
+thread 'dialect_gating::irules_source_taints_under_plain_tcl' (24198) panicked at rust/tcl-compiler/tests/taint_depth.rs:1523:9:
+assertion failed: has("set u [HTTP::uri]\neval $u", D, "T100", "u")
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: taint_depth::dialect_gating::irules_source_taints_under_plain_tcl
+   4: taint_depth::dialect_gating::irules_source_taints_under_plain_tcl::{closure#0}
+   5: <taint_depth::dialect_gating::irules_source_taints_under_plain_tcl::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- exec_shell_atom::exec_also_emits_t102_for_generic_taint stdout ----
+
+thread 'exec_shell_atom::exec_also_emits_t102_for_generic_taint' (24199) panicked at rust/tcl-compiler/tests/taint_depth.rs:464:9:
+assertion failed: cs.contains(&"T100".to_string())
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: taint_depth::exec_shell_atom::exec_also_emits_t102_for_generic_taint
+   4: taint_depth::exec_shell_atom::exec_also_emits_t102_for_generic_taint::{closure#0}
+   5: <taint_depth::exec_shell_atom::exec_also_emits_t102_for_generic_taint::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- exec_shell_atom::generic_taint_still_fires_exec_t100 stdout ----
+
+thread 'exec_shell_atom::generic_taint_still_fires_exec_t100' (24201) panicked at rust/tcl-compiler/tests/taint_depth.rs:456:9:
+assertion failed: ws.iter().any(|w| w.variable == "x")
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: taint_depth::exec_shell_atom::generic_taint_still_fires_exec_t100
+   4: taint_depth::exec_shell_atom::generic_taint_still_fires_exec_t100::{closure#0}
+   5: <taint_depth::exec_shell_atom::generic_taint_still_fires_exec_t100::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- interproc_depth::passthrough_carries_taint_into_eval stdout ----
+
+thread 'interproc_depth::passthrough_carries_taint_into_eval' (24204) panicked at rust/tcl-compiler/tests/taint_depth.rs:1561:9:
+assertion failed: has(src, D, "T100", "w")
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: taint_depth::interproc_depth::passthrough_carries_taint_into_eval
+   4: taint_depth::interproc_depth::passthrough_carries_taint_into_eval::{closure#0}
+   5: <taint_depth::interproc_depth::passthrough_carries_taint_into_eval::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- interproc_depth::passthrough_conservatively_loses_source_option_safety_colour stdout ----
+
+thread 'interproc_depth::passthrough_conservatively_loses_source_option_safety_colour' (24205) panicked at rust/tcl-compiler/tests/taint_depth.rs:1577:9:
+assertion failed: !of_code(src, D, "T102").is_empty()
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: taint_depth::interproc_depth::passthrough_conservatively_loses_source_option_safety_colour
+   4: taint_depth::interproc_depth::passthrough_conservatively_loses_source_option_safety_colour::{closure#0}
+   5: <taint_depth::interproc_depth::passthrough_conservatively_loses_source_option_safety_colour::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- interproc_depth::source_returning_helper_taints_t104 stdout ----
+
+thread 'interproc_depth::source_returning_helper_taints_t104' (24207) panicked at rust/tcl-compiler/tests/taint_depth.rs:1596:9:
+assertion failed: has(src, D, "T104", "h")
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: taint_depth::interproc_depth::source_returning_helper_taints_t104
+   4: taint_depth::interproc_depth::source_returning_helper_taints_t104::{closure#0}
+   5: <taint_depth::interproc_depth::source_returning_helper_taints_t104::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- irule3001_depth::generic_tainted_body_warns_with_xss_message stdout ----
+
+thread 'irule3001_depth::generic_tainted_body_warns_with_xss_message' (24211) panicked at rust/tcl-compiler/tests/taint_depth.rs:922:9:
+assertion failed: !ws.is_empty()
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: taint_depth::irule3001_depth::generic_tainted_body_warns_with_xss_message
+   4: taint_depth::irule3001_depth::generic_tainted_body_warns_with_xss_message::{closure#0}
+   5: <taint_depth::irule3001_depth::generic_tainted_body_warns_with_xss_message::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- interproc_depth::tainted_arg_into_helper_with_internal_sink_warns stdout ----
+
+thread 'interproc_depth::tainted_arg_into_helper_with_internal_sink_warns' (24210) panicked at rust/tcl-compiler/tests/taint_depth.rs:1605:9:
+assertion failed: ws.iter().any(|w| w.sink_command == "eval")
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: taint_depth::interproc_depth::tainted_arg_into_helper_with_internal_sink_warns
+   4: taint_depth::interproc_depth::tainted_arg_into_helper_with_internal_sink_warns::{closure#0}
+   5: <taint_depth::interproc_depth::tainted_arg_into_helper_with_internal_sink_warns::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- irule3001_depth::url_encoded_body_does_not_suppress stdout ----
+
+thread 'irule3001_depth::url_encoded_body_does_not_suppress' (24213) panicked at rust/tcl-compiler/tests/taint_depth.rs:911:9:
+assertion failed: !ws.is_empty()
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: taint_depth::irule3001_depth::url_encoded_body_does_not_suppress
+   4: taint_depth::irule3001_depth::url_encoded_body_does_not_suppress::{closure#0}
+   5: <taint_depth::irule3001_depth::url_encoded_body_does_not_suppress::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- irule3002_depth::cookie_replace_tainted_value_warns stdout ----
+
+thread 'irule3002_depth::cookie_replace_tainted_value_warns' (24215) panicked at rust/tcl-compiler/tests/taint_depth.rs:1023:9:
+assertion failed: !ws.is_empty()
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: taint_depth::irule3002_depth::cookie_replace_tainted_value_warns
+   4: taint_depth::irule3002_depth::cookie_replace_tainted_value_warns::{closure#0}
+   5: <taint_depth::irule3002_depth::cookie_replace_tainted_value_warns::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- irule3002_depth::header_replace_tainted_value_warns stdout ----
+
+thread 'irule3002_depth::header_replace_tainted_value_warns' (24218) panicked at rust/tcl-compiler/tests/taint_depth.rs:944:9:
+assertion failed: !ws.is_empty()
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: taint_depth::irule3002_depth::header_replace_tainted_value_warns
+   4: taint_depth::irule3002_depth::header_replace_tainted_value_warns::{closure#0}
+   5: <taint_depth::irule3002_depth::header_replace_tainted_value_warns::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- irule3003_depth::http_uri_path_colour_does_not_clear_log stdout ----
+
+thread 'irule3003_depth::http_uri_path_colour_does_not_clear_log' (24223) panicked at rust/tcl-compiler/tests/taint_depth.rs:1052:9:
+assertion failed: !ws.is_empty()
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: taint_depth::irule3003_depth::http_uri_path_colour_does_not_clear_log
+   4: taint_depth::irule3003_depth::http_uri_path_colour_does_not_clear_log::{closure#0}
+   5: <taint_depth::irule3003_depth::http_uri_path_colour_does_not_clear_log::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- irule3003_depth::log_message_mentions_log_injection stdout ----
+
+thread 'irule3003_depth::log_message_mentions_log_injection' (24224) panicked at rust/tcl-compiler/tests/taint_depth.rs:1089:9:
+assertion failed: !ws.is_empty()
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: taint_depth::irule3003_depth::log_message_mentions_log_injection
+   4: taint_depth::irule3003_depth::log_message_mentions_log_injection::{closure#0}
+   5: <taint_depth::irule3003_depth::log_message_mentions_log_injection::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- irule3004_depth::generic_header_target_warns_with_open_redirect_message stdout ----
+
+thread 'irule3004_depth::generic_header_target_warns_with_open_redirect_message' (24227) panicked at rust/tcl-compiler/tests/taint_depth.rs:1134:9:
+assertion failed: !ws.is_empty()
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: taint_depth::irule3004_depth::generic_header_target_warns_with_open_redirect_message
+   4: taint_depth::irule3004_depth::generic_header_target_warns_with_open_redirect_message::{closure#0}
+   5: <taint_depth::irule3004_depth::generic_header_target_warns_with_open_redirect_message::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- irule3101_depth::file_normalised_var_suppresses stdout ----
+
+thread 'irule3101_depth::file_normalised_var_suppresses' (24232) panicked at rust/tcl-compiler/tests/taint_depth.rs:1174:9:
+assertion failed: of_code("set raw [read $fd]\nset p [file normalize $raw]\nHTTP::path $p", IR,
+        "IRULE3101").is_empty()
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: taint_depth::irule3101_depth::file_normalised_var_suppresses
+   4: taint_depth::irule3101_depth::file_normalised_var_suppresses::{closure#0}
+   5: <taint_depth::irule3101_depth::file_normalised_var_suppresses::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- puts_position_filter::puts_literal_channel_tainted_content_flags stdout ----
+
+thread 'puts_position_filter::puts_literal_channel_tainted_content_flags' (24242) panicked at rust/tcl-compiler/tests/taint_depth.rs:493:9:
+assertion failed: ws.iter().any(|w| w.variable == "msg")
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: taint_depth::puts_position_filter::puts_literal_channel_tainted_content_flags
+   4: taint_depth::puts_position_filter::puts_literal_channel_tainted_content_flags::{closure#0}
+   5: <taint_depth::puts_position_filter::puts_literal_channel_tainted_content_flags::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- puts_position_filter::puts_nonewline_literal_channel_tainted_content_flags stdout ----
+
+thread 'puts_position_filter::puts_nonewline_literal_channel_tainted_content_flags' (24245) panicked at rust/tcl-compiler/tests/taint_depth.rs:499:9:
+assertion failed: ws.iter().any(|w| w.variable == "msg")
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: taint_depth::puts_position_filter::puts_nonewline_literal_channel_tainted_content_flags
+   4: taint_depth::puts_position_filter::puts_nonewline_literal_channel_tainted_content_flags::{closure#0}
+   5: <taint_depth::puts_position_filter::puts_nonewline_literal_channel_tainted_content_flags::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- puts_position_filter::puts_single_arg_tainted_is_content stdout ----
+
+thread 'puts_position_filter::puts_single_arg_tainted_is_content' (24246) panicked at rust/tcl-compiler/tests/taint_depth.rs:506:9:
+assertion `left == right` failed
+  left: 0
+ right: 1
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<usize, usize>
+   4: taint_depth::puts_position_filter::puts_single_arg_tainted_is_content
+   5: taint_depth::puts_position_filter::puts_single_arg_tainted_is_content::{closure#0}
+   6: <taint_depth::puts_position_filter::puts_single_arg_tainted_is_content::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- puts_position_filter::puts_two_arg_channel_then_content_flags_content stdout ----
+
+thread 'puts_position_filter::puts_two_arg_channel_then_content_flags_content' (24247) panicked at rust/tcl-compiler/tests/taint_depth.rs:486:9:
+assertion `left == right` failed
+  left: 0
+ right: 1
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<usize, usize>
+   4: taint_depth::puts_position_filter::puts_two_arg_channel_then_content_flags_content
+   5: taint_depth::puts_position_filter::puts_two_arg_channel_then_content_flags_content::{closure#0}
+   6: <taint_depth::puts_position_filter::puts_two_arg_channel_then_content_flags_content::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- sanitiser_breadth::sanitiser_inside_command_sub_clears_argument stdout ----
+
+thread 'sanitiser_breadth::sanitiser_inside_command_sub_clears_argument' (24248) panicked at rust/tcl-compiler/tests/taint_depth.rs:1500:9:
+assertion failed: has("set x [read $fd]\nputs $x", D, "T101", "x")
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: taint_depth::sanitiser_breadth::sanitiser_inside_command_sub_clears_argument
+   4: taint_depth::sanitiser_breadth::sanitiser_inside_command_sub_clears_argument::{closure#0}
+   5: <taint_depth::sanitiser_breadth::sanitiser_inside_command_sub_clears_argument::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- source_breadth::chan_read_subcommand_is_source stdout ----
+
+thread 'source_breadth::chan_read_subcommand_is_source' (24259) panicked at rust/tcl-compiler/tests/taint_depth.rs:353:9:
+assertion failed: source_taints("chan read $fd")
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: taint_depth::source_breadth::chan_read_subcommand_is_source
+   4: taint_depth::source_breadth::chan_read_subcommand_is_source::{closure#0}
+   5: <taint_depth::source_breadth::chan_read_subcommand_is_source::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- sanitiser_breadth::string_toupper_does_not_sanitise stdout ----
+
+thread 'sanitiser_breadth::string_toupper_does_not_sanitise' (24258) panicked at rust/tcl-compiler/tests/taint_depth.rs:1472:9:
+assertion failed: ws.iter().any(|w| w.variable == "u")
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: taint_depth::sanitiser_breadth::string_toupper_does_not_sanitise
+   4: taint_depth::sanitiser_breadth::string_toupper_does_not_sanitise::{closure#0}
+   5: <taint_depth::sanitiser_breadth::string_toupper_does_not_sanitise::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- source_breadth::encoding_convertfrom_is_source stdout ----
+
+thread 'source_breadth::encoding_convertfrom_is_source' (24261) panicked at rust/tcl-compiler/tests/taint_depth.rs:347:9:
+assertion failed: source_taints("encoding convertfrom utf-8 $bytes")
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: taint_depth::source_breadth::encoding_convertfrom_is_source
+   4: taint_depth::source_breadth::encoding_convertfrom_is_source::{closure#0}
+   5: <taint_depth::source_breadth::encoding_convertfrom_is_source::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- source_breadth::gets_is_a_trait_source_regardless_of_arity stdout ----
+
+thread 'source_breadth::gets_is_a_trait_source_regardless_of_arity' (24262) panicked at rust/tcl-compiler/tests/taint_depth.rs:365:9:
+assertion failed: has("set n [gets $fd line]\neval $n", D, "T100", "n")
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: taint_depth::source_breadth::gets_is_a_trait_source_regardless_of_arity
+   4: taint_depth::source_breadth::gets_is_a_trait_source_regardless_of_arity::{closure#0}
+   5: <taint_depth::source_breadth::gets_is_a_trait_source_regardless_of_arity::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- source_breadth::http_method_is_source stdout ----
+
+thread 'source_breadth::http_method_is_source' (24288) panicked at rust/tcl-compiler/tests/taint_depth.rs:268:9:
+assertion failed: source_taints("HTTP::method")
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: taint_depth::source_breadth::http_method_is_source
+   4: taint_depth::source_breadth::http_method_is_source::{closure#0}
+   5: <taint_depth::source_breadth::http_method_is_source::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- source_breadth::http_cookie_value_is_source stdout ----
+
+thread 'source_breadth::http_cookie_value_is_source' (24265) panicked at rust/tcl-compiler/tests/taint_depth.rs:274:9:
+assertion failed: source_taints("HTTP::cookie value sid")
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: taint_depth::source_breadth::http_cookie_value_is_source
+   4: taint_depth::source_breadth::http_cookie_value_is_source::{closure#0}
+   5: <taint_depth::source_breadth::http_cookie_value_is_source::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- source_breadth::http_query_is_source stdout ----
+
+thread 'source_breadth::http_query_is_source' (24290) panicked at rust/tcl-compiler/tests/taint_depth.rs:262:9:
+assertion failed: source_taints("HTTP::query")
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: taint_depth::source_breadth::http_query_is_source
+   4: taint_depth::source_breadth::http_query_is_source::{closure#0}
+   5: <taint_depth::source_breadth::http_query_is_source::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- source_breadth::http_password_is_source stdout ----
+
+thread 'source_breadth::http_password_is_source' (24289) panicked at rust/tcl-compiler/tests/taint_depth.rs:286:9:
+assertion failed: source_taints("HTTP::password")
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: taint_depth::source_breadth::http_password_is_source
+   4: taint_depth::source_breadth::http_password_is_source::{closure#0}
+   5: <taint_depth::source_breadth::http_password_is_source::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- source_breadth::http_username_is_source stdout ----
+
+thread 'source_breadth::http_username_is_source' (24291) panicked at rust/tcl-compiler/tests/taint_depth.rs:280:9:
+assertion failed: source_taints("HTTP::username")
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: taint_depth::source_breadth::http_username_is_source
+   4: taint_depth::source_breadth::http_username_is_source::{closure#0}
+   5: <taint_depth::source_breadth::http_username_is_source::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- source_breadth::ip_remote_addr_is_source stdout ----
+
+thread 'source_breadth::ip_remote_addr_is_source' (24292) panicked at rust/tcl-compiler/tests/taint_depth.rs:292:9:
+assertion failed: source_taints("IP::remote_addr")
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: taint_depth::source_breadth::ip_remote_addr_is_source
+   4: taint_depth::source_breadth::ip_remote_addr_is_source::{closure#0}
+   5: <taint_depth::source_breadth::ip_remote_addr_is_source::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- source_breadth::sip_uri_is_source stdout ----
+
+thread 'source_breadth::sip_uri_is_source' (24293) panicked at rust/tcl-compiler/tests/taint_depth.rs:340:9:
+assertion failed: source_taints("SIP::uri")
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: taint_depth::source_breadth::sip_uri_is_source
+   4: taint_depth::source_breadth::sip_uri_is_source::{closure#0}
+   5: <taint_depth::source_breadth::sip_uri_is_source::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- source_breadth::ssl_cert_is_source stdout ----
+
+thread 'source_breadth::ssl_cert_is_source' (24294) panicked at rust/tcl-compiler/tests/taint_depth.rs:316:9:
+assertion failed: source_taints("SSL::cert 0")
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: taint_depth::source_breadth::ssl_cert_is_source
+   4: taint_depth::source_breadth::ssl_cert_is_source::{closure#0}
+   5: <taint_depth::source_breadth::ssl_cert_is_source::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- source_breadth::ssl_sni_is_source stdout ----
+
+thread 'source_breadth::ssl_sni_is_source' (24297) panicked at rust/tcl-compiler/tests/taint_depth.rs:322:9:
+assertion failed: source_taints("SSL::sni")
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: taint_depth::source_breadth::ssl_sni_is_source
+   4: taint_depth::source_breadth::ssl_sni_is_source::{closure#0}
+   5: <taint_depth::source_breadth::ssl_sni_is_source::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- source_breadth::ssl_payload_is_source stdout ----
+
+thread 'source_breadth::ssl_payload_is_source' (24296) panicked at rust/tcl-compiler/tests/taint_depth.rs:310:9:
+assertion failed: source_taints("SSL::payload")
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: taint_depth::source_breadth::ssl_payload_is_source
+   4: taint_depth::source_breadth::ssl_payload_is_source::{closure#0}
+   5: <taint_depth::source_breadth::ssl_payload_is_source::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- source_breadth::tcp_remote_port_is_source stdout ----
+
+thread 'source_breadth::tcp_remote_port_is_source' (24298) panicked at rust/tcl-compiler/tests/taint_depth.rs:298:9:
+assertion failed: source_taints("TCP::remote_port")
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: taint_depth::source_breadth::tcp_remote_port_is_source
+   4: taint_depth::source_breadth::tcp_remote_port_is_source::{closure#0}
+   5: <taint_depth::source_breadth::tcp_remote_port_is_source::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- source_breadth::udp_payload_is_source stdout ----
+
+thread 'source_breadth::udp_payload_is_source' (24299) panicked at rust/tcl-compiler/tests/taint_depth.rs:304:9:
+assertion failed: source_taints("UDP::payload")
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: taint_depth::source_breadth::udp_payload_is_source
+   4: taint_depth::source_breadth::udp_payload_is_source::{closure#0}
+   5: <taint_depth::source_breadth::udp_payload_is_source::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- source_breadth::uri_host_is_source stdout ----
+
+thread 'source_breadth::uri_host_is_source' (24300) panicked at rust/tcl-compiler/tests/taint_depth.rs:328:9:
+assertion failed: source_taints("URI::host http://x/")
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: taint_depth::source_breadth::uri_host_is_source
+   4: taint_depth::source_breadth::uri_host_is_source::{closure#0}
+   5: <taint_depth::source_breadth::uri_host_is_source::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- source_breadth::uri_query_is_source stdout ----
+
+thread 'source_breadth::uri_query_is_source' (24301) panicked at rust/tcl-compiler/tests/taint_depth.rs:334:9:
+assertion failed: source_taints("URI::query http://x/?a=1")
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: taint_depth::source_breadth::uri_query_is_source
+   4: taint_depth::source_breadth::uri_query_is_source::{closure#0}
+   5: <taint_depth::source_breadth::uri_query_is_source::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- t100_sink_family::eval_embedded_in_assignment_rhs_fires stdout ----
+
+thread 't100_sink_family::eval_embedded_in_assignment_rhs_fires' (24302) panicked at rust/tcl-compiler/tests/taint_depth.rs:383:9:
+assertion failed: !ws.is_empty()
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: taint_depth::t100_sink_family::eval_embedded_in_assignment_rhs_fires
+   4: taint_depth::t100_sink_family::eval_embedded_in_assignment_rhs_fires::{closure#0}
+   5: <taint_depth::t100_sink_family::eval_embedded_in_assignment_rhs_fires::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- t100_sink_family::expr_braced_operand_message_mentions_coercion stdout ----
+
+thread 't100_sink_family::expr_braced_operand_message_mentions_coercion' (24303) panicked at rust/tcl-compiler/tests/taint_depth.rs:401:9:
+assertion `left == right` failed
+  left: 0
+ right: 1
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<usize, usize>
+   4: taint_depth::t100_sink_family::expr_braced_operand_message_mentions_coercion
+   5: taint_depth::t100_sink_family::expr_braced_operand_message_mentions_coercion::{closure#0}
+   6: <taint_depth::t100_sink_family::expr_braced_operand_message_mentions_coercion::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- t100_sink_family::same_var_twice_in_eval_dedups_to_one stdout ----
+
+thread 't100_sink_family::same_var_twice_in_eval_dedups_to_one' (24304) panicked at rust/tcl-compiler/tests/taint_depth.rs:423:9:
+assertion `left == right` failed
+  left: 0
+ right: 1
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<usize, usize>
+   4: taint_depth::t100_sink_family::same_var_twice_in_eval_dedups_to_one
+   5: taint_depth::t100_sink_family::same_var_twice_in_eval_dedups_to_one::{closure#0}
+   6: <taint_depth::t100_sink_family::same_var_twice_in_eval_dedups_to_one::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- t100_sink_family::subst_embedded_in_assignment_rhs_fires stdout ----
+
+thread 't100_sink_family::subst_embedded_in_assignment_rhs_fires' (24305) panicked at rust/tcl-compiler/tests/taint_depth.rs:392:9:
+assertion failed: !ws.is_empty()
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: taint_depth::t100_sink_family::subst_embedded_in_assignment_rhs_fires
+   4: taint_depth::t100_sink_family::subst_embedded_in_assignment_rhs_fires::{closure#0}
+   5: <taint_depth::t100_sink_family::subst_embedded_in_assignment_rhs_fires::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- t102_scan_region::brace_star_expansion_is_option_capable stdout ----
+
+thread 't102_scan_region::brace_star_expansion_is_option_capable' (24307) panicked at rust/tcl-compiler/tests/taint_depth.rs:539:9:
+assertion failed: !ws.is_empty()
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: taint_depth::t102_scan_region::brace_star_expansion_is_option_capable
+   4: taint_depth::t102_scan_region::brace_star_expansion_is_option_capable::{closure#0}
+   5: <taint_depth::t102_scan_region::brace_star_expansion_is_option_capable::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- t100_sink_family::two_distinct_tainted_vars_in_eval_each_warn stdout ----
+
+thread 't100_sink_family::two_distinct_tainted_vars_in_eval_each_warn' (24306) panicked at rust/tcl-compiler/tests/taint_depth.rs:417:9:
+assertion `left == right` failed
+  left: []
+ right: ["a", "b"]
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<alloc::vec::Vec<alloc::string::String>, alloc::vec::Vec<alloc::string::String>>
+   4: taint_depth::t100_sink_family::two_distinct_tainted_vars_in_eval_each_warn
+   5: taint_depth::t100_sink_family::two_distinct_tainted_vars_in_eval_each_warn::{closure#0}
+   6: <taint_depth::t100_sink_family::two_distinct_tainted_vars_in_eval_each_warn::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- t102_scan_region::exec_option_flag_then_tainted_command_warns stdout ----
+
+thread 't102_scan_region::exec_option_flag_then_tainted_command_warns' (24308) panicked at rust/tcl-compiler/tests/taint_depth.rs:555:9:
+assertion failed: ws.iter().any(|w| w.variable == "x")
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: taint_depth::t102_scan_region::exec_option_flag_then_tainted_command_warns
+   4: taint_depth::t102_scan_region::exec_option_flag_then_tainted_command_warns::{closure#0}
+   5: <taint_depth::t102_scan_region::exec_option_flag_then_tainted_command_warns::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- t102_scan_region::value_option_consumes_its_argument stdout ----
+
+thread 't102_scan_region::value_option_consumes_its_argument' (24312) panicked at rust/tcl-compiler/tests/taint_depth.rs:524:9:
+assertion failed: ws.iter().any(|w| w.variable == "x")
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: taint_depth::t102_scan_region::value_option_consumes_its_argument
+   4: taint_depth::t102_scan_region::value_option_consumes_its_argument::{closure#0}
+   5: <taint_depth::t102_scan_region::value_option_consumes_its_argument::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- t103_regsub_and_quotes::regexp_start_consumes_value_pattern_after_warns stdout ----
+
+thread 't103_regsub_and_quotes::regexp_start_consumes_value_pattern_after_warns' (24316) panicked at rust/tcl-compiler/tests/taint_depth.rs:642:9:
+assertion failed: ws.iter().any(|w| w.variable == "x")
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: taint_depth::t103_regsub_and_quotes::regexp_start_consumes_value_pattern_after_warns
+   4: taint_depth::t103_regsub_and_quotes::regexp_start_consumes_value_pattern_after_warns::{closure#0}
+   5: <taint_depth::t103_regsub_and_quotes::regexp_start_consumes_value_pattern_after_warns::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- t103_regsub_and_quotes::regsub_all_flag_then_tainted_pattern_warns stdout ----
+
+thread 't103_regsub_and_quotes::regsub_all_flag_then_tainted_pattern_warns' (24317) panicked at rust/tcl-compiler/tests/taint_depth.rs:590:9:
+assertion failed: ws.iter().any(|w| w.variable == "x")
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: taint_depth::t103_regsub_and_quotes::regsub_all_flag_then_tainted_pattern_warns
+   4: taint_depth::t103_regsub_and_quotes::regsub_all_flag_then_tainted_pattern_warns::{closure#0}
+   5: <taint_depth::t103_regsub_and_quotes::regsub_all_flag_then_tainted_pattern_warns::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- t103_regsub_and_quotes::regsub_tainted_pattern_warns stdout ----
+
+thread 't103_regsub_and_quotes::regsub_tainted_pattern_warns' (24318) panicked at rust/tcl-compiler/tests/taint_depth.rs:581:9:
+assertion failed: !ws.is_empty()
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: taint_depth::t103_regsub_and_quotes::regsub_tainted_pattern_warns
+   4: taint_depth::t103_regsub_and_quotes::regsub_tainted_pattern_warns::{closure#0}
+   5: <taint_depth::t103_regsub_and_quotes::regsub_tainted_pattern_warns::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- t104_network_sinks::http_geturl_url_slot_warns stdout ----
+
+thread 't104_network_sinks::http_geturl_url_slot_warns' (24355) panicked at rust/tcl-compiler/tests/taint_depth.rs:706:9:
+assertion failed: ws.iter().any(|w| w.variable == "u")
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: taint_depth::t104_network_sinks::http_geturl_url_slot_warns
+   4: taint_depth::t104_network_sinks::http_geturl_url_slot_warns::{closure#0}
+   5: <taint_depth::t104_network_sinks::http_geturl_url_slot_warns::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- t104_network_sinks::irules_connect_any_arg_warns stdout ----
+
+thread 't104_network_sinks::irules_connect_any_arg_warns' (24356) panicked at rust/tcl-compiler/tests/taint_depth.rs:720:9:
+assertion failed: ws.iter().any(|w| w.variable == "h")
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: taint_depth::t104_network_sinks::irules_connect_any_arg_warns
+   4: taint_depth::t104_network_sinks::irules_connect_any_arg_warns::{closure#0}
+   5: <taint_depth::t104_network_sinks::irules_connect_any_arg_warns::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- t104_network_sinks::socket_host_slot_generic_taint_warns stdout ----
+
+thread 't104_network_sinks::socket_host_slot_generic_taint_warns' (24357) panicked at rust/tcl-compiler/tests/taint_depth.rs:656:9:
+assertion failed: ws.iter().any(|w| w.variable == "h")
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: taint_depth::t104_network_sinks::socket_host_slot_generic_taint_warns
+   4: taint_depth::t104_network_sinks::socket_host_slot_generic_taint_warns::{closure#0}
+   5: <taint_depth::t104_network_sinks::socket_host_slot_generic_taint_warns::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- t104_network_sinks::socket_option_value_not_in_positional_slot stdout ----
+
+thread 't104_network_sinks::socket_option_value_not_in_positional_slot' (24358) panicked at rust/tcl-compiler/tests/taint_depth.rs:699:9:
+assertion failed: ws.iter().any(|w| w.variable == "h")
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: taint_depth::t104_network_sinks::socket_option_value_not_in_positional_slot
+   4: taint_depth::t104_network_sinks::socket_option_value_not_in_positional_slot::{closure#0}
+   5: <taint_depth::t104_network_sinks::socket_option_value_not_in_positional_slot::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- t104_network_sinks::socket_port_slot_generic_taint_warns stdout ----
+
+thread 't104_network_sinks::socket_port_slot_generic_taint_warns' (24359) panicked at rust/tcl-compiler/tests/taint_depth.rs:663:9:
+assertion failed: ws.iter().any(|w| w.variable == "p")
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: taint_depth::t104_network_sinks::socket_port_slot_generic_taint_warns
+   4: taint_depth::t104_network_sinks::socket_port_slot_generic_taint_warns::{closure#0}
+   5: <taint_depth::t104_network_sinks::socket_port_slot_generic_taint_warns::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- t104_network_sinks::socket_validated_ip_host_clears_but_generic_port_warns stdout ----
+
+thread 't104_network_sinks::socket_validated_ip_host_clears_but_generic_port_warns' (24360) panicked at rust/tcl-compiler/tests/taint_depth.rs:675:9:
+assertion failed: ws.iter().any(|w| w.variable == "p")
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: taint_depth::t104_network_sinks::socket_validated_ip_host_clears_but_generic_port_warns
+   4: taint_depth::t104_network_sinks::socket_validated_ip_host_clears_but_generic_port_warns::{closure#0}
+   5: <taint_depth::t104_network_sinks::socket_validated_ip_host_clears_but_generic_port_warns::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- t104_network_sinks::socket_validated_port_clears_slot_one stdout ----
+
+thread 't104_network_sinks::socket_validated_port_clears_slot_one' (24361) panicked at rust/tcl-compiler/tests/taint_depth.rs:688:9:
+assertion failed: ws.iter().any(|w| w.variable == "h")
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: taint_depth::t104_network_sinks::socket_validated_port_clears_slot_one
+   4: taint_depth::t104_network_sinks::socket_validated_port_clears_slot_one::{closure#0}
+   5: <taint_depth::t104_network_sinks::socket_validated_port_clears_slot_one::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- t105_cross_interp::interp_eval_propagated_plain_var_warns stdout ----
+
+thread 't105_cross_interp::interp_eval_propagated_plain_var_warns' (24363) panicked at rust/tcl-compiler/tests/taint_depth.rs:772:9:
+assertion failed: ws.iter().any(|w| w.variable == "l")
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: taint_depth::t105_cross_interp::interp_eval_propagated_plain_var_warns
+   4: taint_depth::t105_cross_interp::interp_eval_propagated_plain_var_warns::{closure#0}
+   5: <taint_depth::t105_cross_interp::interp_eval_propagated_plain_var_warns::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- t105_cross_interp::interp_eval_tainted_script_warns stdout ----
+
+thread 't105_cross_interp::interp_eval_tainted_script_warns' (24365) panicked at rust/tcl-compiler/tests/taint_depth.rs:734:9:
+assertion failed: !ws.is_empty()
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: taint_depth::t105_cross_interp::interp_eval_tainted_script_warns
+   4: taint_depth::t105_cross_interp::interp_eval_tainted_script_warns::{closure#0}
+   5: <taint_depth::t105_cross_interp::interp_eval_tainted_script_warns::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- t105_cross_interp::interp_invokehidden_tainted_warns stdout ----
+
+thread 't105_cross_interp::interp_invokehidden_tainted_warns' (24366) panicked at rust/tcl-compiler/tests/taint_depth.rs:742:9:
+assertion failed: !ws.is_empty()
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: taint_depth::t105_cross_interp::interp_invokehidden_tainted_warns
+   4: taint_depth::t105_cross_interp::interp_invokehidden_tainted_warns::{closure#0}
+   5: <taint_depth::t105_cross_interp::interp_invokehidden_tainted_warns::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- t106_double_encode_breadth::html_escape_alias_double_warns stdout ----
+
+thread 't106_double_encode_breadth::html_escape_alias_double_warns' (24368) panicked at rust/tcl-compiler/tests/taint_depth.rs:846:9:
+assertion failed: !ws.is_empty()
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: taint_depth::t106_double_encode_breadth::html_escape_alias_double_warns
+   4: taint_depth::t106_double_encode_breadth::html_escape_alias_double_warns::{closure#0}
+   5: <taint_depth::t106_double_encode_breadth::html_escape_alias_double_warns::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- t106_double_encode_breadth::html_encode_double_warns_with_label stdout ----
+
+thread 't106_double_encode_breadth::html_encode_double_warns_with_label' (24367) panicked at rust/tcl-compiler/tests/taint_depth.rs:834:9:
+assertion failed: !ws.is_empty()
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: taint_depth::t106_double_encode_breadth::html_encode_double_warns_with_label
+   4: taint_depth::t106_double_encode_breadth::html_encode_double_warns_with_label::{closure#0}
+   5: <taint_depth::t106_double_encode_breadth::html_encode_double_warns_with_label::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- t106_double_encode_breadth::regexp_quote_double_warns_with_label stdout ----
+
+thread 't106_double_encode_breadth::regexp_quote_double_warns_with_label' (24369) panicked at rust/tcl-compiler/tests/taint_depth.rs:858:9:
+assertion failed: !ws.is_empty()
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: taint_depth::t106_double_encode_breadth::regexp_quote_double_warns_with_label
+   4: taint_depth::t106_double_encode_breadth::regexp_quote_double_warns_with_label::{closure#0}
+   5: <taint_depth::t106_double_encode_breadth::regexp_quote_double_warns_with_label::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- t106_double_encode_breadth::uri_encode_component_double_warns stdout ----
+
+thread 't106_double_encode_breadth::uri_encode_component_double_warns' (24371) panicked at rust/tcl-compiler/tests/taint_depth.rs:800:9:
+assertion failed: ws.iter().any(|w| w.variable == "a")
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: taint_depth::t106_double_encode_breadth::uri_encode_component_double_warns
+   4: taint_depth::t106_double_encode_breadth::uri_encode_component_double_warns::{closure#0}
+   5: <taint_depth::t106_double_encode_breadth::uri_encode_component_double_warns::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- t106_double_encode_breadth::uri_escape_double_warns stdout ----
+
+thread 't106_double_encode_breadth::uri_escape_double_warns' (24372) panicked at rust/tcl-compiler/tests/taint_depth.rs:811:9:
+assertion failed: !ws.is_empty()
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: taint_depth::t106_double_encode_breadth::uri_escape_double_warns
+   4: taint_depth::t106_double_encode_breadth::uri_escape_double_warns::{closure#0}
+   5: <taint_depth::t106_double_encode_breadth::uri_escape_double_warns::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- t106_double_encode_breadth::url_then_url_via_mixed_spellings_warns stdout ----
+
+thread 't106_double_encode_breadth::url_then_url_via_mixed_spellings_warns' (24374) panicked at rust/tcl-compiler/tests/taint_depth.rs:823:9:
+assertion failed: ws.iter().any(|w| w.variable == "a")
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: taint_depth::t106_double_encode_breadth::url_then_url_via_mixed_spellings_warns
+   4: taint_depth::t106_double_encode_breadth::url_then_url_via_mixed_spellings_warns::{closure#0}
+   5: <taint_depth::t106_double_encode_breadth::url_then_url_via_mixed_spellings_warns::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- transform_propagation::path_joined_does_not_suppress_t100 stdout ----
+
+thread 'transform_propagation::path_joined_does_not_suppress_t100' (24376) panicked at rust/tcl-compiler/tests/taint_depth.rs:1377:9:
+assertion failed: !ws.is_empty()
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: taint_depth::transform_propagation::path_joined_does_not_suppress_t100
+   4: taint_depth::transform_propagation::path_joined_does_not_suppress_t100::{closure#0}
+   5: <taint_depth::transform_propagation::path_joined_does_not_suppress_t100::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- transform_propagation::path_normalised_interpolation_appends_clears_colour stdout ----
+
+thread 'transform_propagation::path_normalised_interpolation_appends_clears_colour' (24377) panicked at rust/tcl-compiler/tests/taint_depth.rs:1417:9:
+assertion `left == right` failed
+  left: 0
+ right: 1
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<usize, usize>
+   4: taint_depth::transform_propagation::path_normalised_interpolation_appends_clears_colour
+   5: taint_depth::transform_propagation::path_normalised_interpolation_appends_clears_colour::{closure#0}
+   6: <taint_depth::transform_propagation::path_normalised_interpolation_appends_clears_colour::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- transform_propagation::url_encoded_copy_then_double_encode_still_detected stdout ----
+
+thread 'transform_propagation::url_encoded_copy_then_double_encode_still_detected' (24378) panicked at rust/tcl-compiler/tests/taint_depth.rs:1389:9:
+assertion failed: ws.iter().any(|w| w.variable == "b")
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: taint_depth::transform_propagation::url_encoded_copy_then_double_encode_still_detected
+   4: taint_depth::transform_propagation::url_encoded_copy_then_double_encode_still_detected::{closure#0}
+   5: <taint_depth::transform_propagation::url_encoded_copy_then_double_encode_still_detected::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- w313_destructive_file::file_delete_variable_path_warns stdout ----
+
+thread 'w313_destructive_file::file_delete_variable_path_warns' (24379) panicked at rust/tcl-compiler/tests/taint_depth.rs:1222:9:
+assertion failed: !ws.is_empty()
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: taint_depth::w313_destructive_file::file_delete_variable_path_warns
+   4: taint_depth::w313_destructive_file::file_delete_variable_path_warns::{closure#0}
+   5: <taint_depth::w313_destructive_file::file_delete_variable_path_warns::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- w313_destructive_file::file_mkdir_variable_path_warns stdout ----
+
+thread 'w313_destructive_file::file_mkdir_variable_path_warns' (24381) panicked at rust/tcl-compiler/tests/taint_depth.rs:1230:9:
+assertion failed: !ws.is_empty()
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: taint_depth::w313_destructive_file::file_mkdir_variable_path_warns
+   4: taint_depth::w313_destructive_file::file_mkdir_variable_path_warns::{closure#0}
+   5: <taint_depth::w313_destructive_file::file_mkdir_variable_path_warns::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- w313_destructive_file::file_join_path_is_not_normalised_still_warns stdout ----
+
+thread 'w313_destructive_file::file_join_path_is_not_normalised_still_warns' (24380) panicked at rust/tcl-compiler/tests/taint_depth.rs:1351:9:
+assertion failed: ws.iter().any(|w| w.variable == "p")
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: taint_depth::w313_destructive_file::file_join_path_is_not_normalised_still_warns
+   4: taint_depth::w313_destructive_file::file_join_path_is_not_normalised_still_warns::{closure#0}
+   5: <taint_depth::w313_destructive_file::file_join_path_is_not_normalised_still_warns::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- w313_destructive_file::file_rename_variable_path_warns stdout ----
+
+thread 'w313_destructive_file::file_rename_variable_path_warns' (24382) panicked at rust/tcl-compiler/tests/taint_depth.rs:1238:9:
+assertion failed: !ws.is_empty()
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: taint_depth::w313_destructive_file::file_rename_variable_path_warns
+   4: taint_depth::w313_destructive_file::file_rename_variable_path_warns::{closure#0}
+   5: <taint_depth::w313_destructive_file::file_rename_variable_path_warns::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- w313_destructive_file::first_path_variable_is_deterministic stdout ----
+
+thread 'w313_destructive_file::first_path_variable_is_deterministic' (24384) panicked at rust/tcl-compiler/tests/taint_depth.rs:1315:9:
+assertion `left == right` failed
+  left: 0
+ right: 1
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<usize, usize>
+   4: taint_depth::w313_destructive_file::first_path_variable_is_deterministic
+   5: taint_depth::w313_destructive_file::first_path_variable_is_deterministic::{closure#0}
+   6: <taint_depth::w313_destructive_file::first_path_variable_is_deterministic::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- w313_destructive_file::force_flag_skipped_to_reach_path stdout ----
+
+thread 'w313_destructive_file::force_flag_skipped_to_reach_path' (24385) panicked at rust/tcl-compiler/tests/taint_depth.rs:1247:9:
+assertion failed: ws.iter().any(|w| w.variable == "p")
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: taint_depth::w313_destructive_file::force_flag_skipped_to_reach_path
+   4: taint_depth::w313_destructive_file::force_flag_skipped_to_reach_path::{closure#0}
+   5: <taint_depth::w313_destructive_file::force_flag_skipped_to_reach_path::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- w313_destructive_file::normalised_unguarded_path_softens_message stdout ----
+
+thread 'w313_destructive_file::normalised_unguarded_path_softens_message' (24415) panicked at rust/tcl-compiler/tests/taint_depth.rs:1328:9:
+assertion `left == right` failed
+  left: 0
+ right: 1
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<usize, usize>
+   4: taint_depth::w313_destructive_file::normalised_unguarded_path_softens_message
+   5: taint_depth::w313_destructive_file::normalised_unguarded_path_softens_message::{closure#0}
+   6: <taint_depth::w313_destructive_file::normalised_unguarded_path_softens_message::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- w313_destructive_file::span_covers_only_the_path_argument stdout ----
+
+thread 'w313_destructive_file::span_covers_only_the_path_argument' (24417) panicked at rust/tcl-compiler/tests/taint_depth.rs:1263:9:
+assertion failed: !ws.is_empty()
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: taint_depth::w313_destructive_file::span_covers_only_the_path_argument
+   4: taint_depth::w313_destructive_file::span_covers_only_the_path_argument::{closure#0}
+   5: <taint_depth::w313_destructive_file::span_covers_only_the_path_argument::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- w313_destructive_file::span_covers_first_offending_path_argument_of_rename stdout ----
+
+thread 'w313_destructive_file::span_covers_first_offending_path_argument_of_rename' (24416) panicked at rust/tcl-compiler/tests/taint_depth.rs:1279:9:
+assertion `left == right` failed
+  left: 0
+ right: 1
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<usize, usize>
+   4: taint_depth::w313_destructive_file::span_covers_first_offending_path_argument_of_rename
+   5: taint_depth::w313_destructive_file::span_covers_first_offending_path_argument_of_rename::{closure#0}
+   6: <taint_depth::w313_destructive_file::span_covers_first_offending_path_argument_of_rename::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- w313_destructive_file::span_skips_force_flag_to_the_path_argument stdout ----
+
+thread 'w313_destructive_file::span_skips_force_flag_to_the_path_argument' (24418) panicked at rust/tcl-compiler/tests/taint_depth.rs:1295:9:
+assertion failed: !ws.is_empty()
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: taint_depth::w313_destructive_file::span_skips_force_flag_to_the_path_argument
+   4: taint_depth::w313_destructive_file::span_skips_force_flag_to_the_path_argument::{closure#0}
+   5: <taint_depth::w313_destructive_file::span_skips_force_flag_to_the_path_argument::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+
+failures:
+    dialect_gating::generic_t100_t101_work_in_both_dialects
+    dialect_gating::irules_sink_fires_under_irules_dialect
+    dialect_gating::irules_source_taints_under_plain_tcl
+    exec_shell_atom::exec_also_emits_t102_for_generic_taint
+    exec_shell_atom::generic_taint_still_fires_exec_t100
+    interproc_depth::passthrough_carries_taint_into_eval
+    interproc_depth::passthrough_conservatively_loses_source_option_safety_colour
+    interproc_depth::source_returning_helper_taints_t104
+    interproc_depth::tainted_arg_into_helper_with_internal_sink_warns
+    irule3001_depth::generic_tainted_body_warns_with_xss_message
+    irule3001_depth::url_encoded_body_does_not_suppress
+    irule3002_depth::cookie_replace_tainted_value_warns
+    irule3002_depth::header_replace_tainted_value_warns
+    irule3003_depth::http_uri_path_colour_does_not_clear_log
+    irule3003_depth::log_message_mentions_log_injection
+    irule3004_depth::generic_header_target_warns_with_open_redirect_message
+    irule3101_depth::file_normalised_var_suppresses
+    puts_position_filter::puts_literal_channel_tainted_content_flags
+    puts_position_filter::puts_nonewline_literal_channel_tainted_content_flags
+    puts_position_filter::puts_single_arg_tainted_is_content
+    puts_position_filter::puts_two_arg_channel_then_content_flags_content
+    sanitiser_breadth::sanitiser_inside_command_sub_clears_argument
+    sanitiser_breadth::string_toupper_does_not_sanitise
+    source_breadth::chan_read_subcommand_is_source
+    source_breadth::encoding_convertfrom_is_source
+    source_breadth::gets_is_a_trait_source_regardless_of_arity
+    source_breadth::http_cookie_value_is_source
+    source_breadth::http_method_is_source
+    source_breadth::http_password_is_source
+    source_breadth::http_query_is_source
+    source_breadth::http_username_is_source
+    source_breadth::ip_remote_addr_is_source
+    source_breadth::sip_uri_is_source
+    source_breadth::ssl_cert_is_source
+    source_breadth::ssl_payload_is_source
+    source_breadth::ssl_sni_is_source
+    source_breadth::tcp_remote_port_is_source
+    source_breadth::udp_payload_is_source
+    source_breadth::uri_host_is_source
+    source_breadth::uri_query_is_source
+    t100_sink_family::eval_embedded_in_assignment_rhs_fires
+    t100_sink_family::expr_braced_operand_message_mentions_coercion
+    t100_sink_family::same_var_twice_in_eval_dedups_to_one
+    t100_sink_family::subst_embedded_in_assignment_rhs_fires
+    t100_sink_family::two_distinct_tainted_vars_in_eval_each_warn
+    t102_scan_region::brace_star_expansion_is_option_capable
+    t102_scan_region::exec_option_flag_then_tainted_command_warns
+    t102_scan_region::value_option_consumes_its_argument
+    t103_regsub_and_quotes::regexp_start_consumes_value_pattern_after_warns
+    t103_regsub_and_quotes::regsub_all_flag_then_tainted_pattern_warns
+    t103_regsub_and_quotes::regsub_tainted_pattern_warns
+    t104_network_sinks::http_geturl_url_slot_warns
+    t104_network_sinks::irules_connect_any_arg_warns
+    t104_network_sinks::socket_host_slot_generic_taint_warns
+    t104_network_sinks::socket_option_value_not_in_positional_slot
+    t104_network_sinks::socket_port_slot_generic_taint_warns
+    t104_network_sinks::socket_validated_ip_host_clears_but_generic_port_warns
+    t104_network_sinks::socket_validated_port_clears_slot_one
+    t105_cross_interp::interp_eval_propagated_plain_var_warns
+    t105_cross_interp::interp_eval_tainted_script_warns
+    t105_cross_interp::interp_invokehidden_tainted_warns
+    t106_double_encode_breadth::html_encode_double_warns_with_label
+    t106_double_encode_breadth::html_escape_alias_double_warns
+    t106_double_encode_breadth::regexp_quote_double_warns_with_label
+    t106_double_encode_breadth::uri_encode_component_double_warns
+    t106_double_encode_breadth::uri_escape_double_warns
+    t106_double_encode_breadth::url_then_url_via_mixed_spellings_warns
+    transform_propagation::path_joined_does_not_suppress_t100
+    transform_propagation::path_normalised_interpolation_appends_clears_colour
+    transform_propagation::url_encoded_copy_then_double_encode_still_detected
+    w313_destructive_file::file_delete_variable_path_warns
+    w313_destructive_file::file_join_path_is_not_normalised_still_warns
+    w313_destructive_file::file_mkdir_variable_path_warns
+    w313_destructive_file::file_rename_variable_path_warns
+    w313_destructive_file::first_path_variable_is_deterministic
+    w313_destructive_file::force_flag_skipped_to_reach_path
+    w313_destructive_file::normalised_unguarded_path_softens_message
+    w313_destructive_file::span_covers_first_offending_path_argument_of_rename
+    w313_destructive_file::span_covers_only_the_path_argument
+    w313_destructive_file::span_skips_force_flag_to_the_path_argument
+
+test result: FAILED. 50 passed; 80 failed; 0 ignored; 0 measured; 0 filtered out; finished in 26.86s
+

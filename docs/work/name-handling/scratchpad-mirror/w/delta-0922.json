@@ -1,0 +1,6 @@
+{"scheduled":"2026-10-21T09:20:00Z",
+ "change_since_previous_report":{"integrated_LSP":0,"total_baseline_delta":0,"effective_delta":0,"verified_complete":0},
+ "admissions":{},
+ "in_progress":{"sol-48":"tclvm work, active (2 tcl-vm files modified)","sol-49":"compiler work, active (5 tcl-compiler files modified)"},
+ "disk":"2.4 GB free; removed 1.4 GB of superseded target/debug/deps artifacts last touched 01:16-02:40Z (regenerable)",
+ "next_report_utc":"2026-10-21T09:52:00Z"}

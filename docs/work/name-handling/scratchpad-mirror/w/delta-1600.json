@@ -1,0 +1,7 @@
+{"scheduled":"2026-10-19T15:59:00Z",
+ "change_since_previous_report":{"integrated_LSP":0,"total_baseline_delta":0,"effective_delta":0,"verified_complete":0},
+ "admissions":{},
+ "candidates":{"sol-37-fresh-entry":"in progress (compiler entry default now touches command_binding.rs, origin_inventory.rs, source_analysis_entry.rs, compilation_unit.rs, bounds_checks.rs + contract/proof docs; uncommitted, unvalidated)"},
+ "merge":{"base":"127dba9d9","conflicts":154,"drafts":"Merge-B complete: 60/60 compiler/LSP/docs files drafted (+ tcl-dialect grammar.rs DoubleFormat reconciliation), 24 risky items (new upstream struct fields ScriptCompileTarget.evaluation, CommandBindingSite.shape, Module.top_level_evaluation need filling at work-only construction sites), 8 dropped upstream hunks with work-side equivalents. Merge-A (runtime/VM, 90 files) in progress; 128 drafts on disk."},
+ "merge_bar":"After Sol-37 lands and Merge-A completes: apply drafts as a merge commit, regenerate 4 lockfiles, build, fix, re-dispatch hosted CI.",
+ "next_report_utc":"2026-10-19T16:30:00Z"}

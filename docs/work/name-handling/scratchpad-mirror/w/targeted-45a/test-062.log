@@ -1,0 +1,25 @@
+
+running 1 test
+test jim_script_tokens::original_script_syntax_tests::original_jim_syntax_roster_uses_complete_config_and_refuses_foreign_grammar ... 
+thread 'jim_script_tokens::original_script_syntax_tests::original_jim_syntax_roster_uses_complete_config_and_refuses_foreign_grammar' (21155) panicked at rust/tcl-lexer/src/jim_script_tokens.rs:419:9:
+assertion `left == right` failed
+  left: 0
+ right: 3
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<u32, u32>
+   4: tcl_lexer::jim_script_tokens::original_script_syntax_tests::original_jim_syntax_roster_uses_complete_config_and_refuses_foreign_grammar
+   5: tcl_lexer::jim_script_tokens::original_script_syntax_tests::original_jim_syntax_roster_uses_complete_config_and_refuses_foreign_grammar::{closure#0}
+   6: <tcl_lexer::jim_script_tokens::original_script_syntax_tests::original_jim_syntax_roster_uses_complete_config_and_refuses_foreign_grammar::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+FAILED
+
+failures:
+
+failures:
+    jim_script_tokens::original_script_syntax_tests::original_jim_syntax_roster_uses_complete_config_and_refuses_foreign_grammar
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 584 filtered out; finished in 0.18s
+

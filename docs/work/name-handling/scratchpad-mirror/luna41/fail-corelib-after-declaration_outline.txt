@@ -1,0 +1,3 @@
+FAILED declaration_outline::tests::a_spec_pack_outlines_as_its_own_declaration_blocks
+FAILED declaration_outline::tests::every_block_is_an_outline_entry_under_the_block_that_contains_it
+FAILED declaration_outline::tests::server_outline_uses_the_current_full_configured_analysis

@@ -1,0 +1,9 @@
+{"scheduled":"2026-10-21T23:05:00Z",
+ "change_since_previous_report":{"integrated_LSP":0,"total_baseline_delta":0,"effective_delta":0,"verified_complete":0},
+ "admissions":{},
+ "committed":{"717ccd3e6e/00ffa5bb1c/46e8aa59b2/b8cc7a88d7/25ddd8c54f":"WIP snapshots"},
+ "progress_in_tree":{"compiler-names":"R1 fixed: completed world follows the normal-completion path (exit/abrupt returns/unknown commands still withhold); signature_scan fixture and cafe test pass","compiler":"snit typemethods class-side; itcl Class::proc call receipts; iRules procs as original declarations; depth tests at lowering level","lsp":"hover_completion 50 -> 52/56, hover_residual 27 -> 28/36; itcl Class::proc command query branch; name_resolution 68/77 (iRules decl regressed, routed)","compiler-codegen":"codegen_stamps 3 -> 5/28; root cause of the rest: pack-installed rows lack native_compilation (install.rs fix approved)","vm-runtime":"spec_corpus 2/5 (const_fold hooks never called, I230 shared gap, one watchdog); spectcl_ports triage started (upvar, lsort, switch, foreach ports)"},
+ "findings_routed":{"I230 shared-vs-legacy":"is C6 not landed (fresh_document_input left with the parked C6 patch) -> compiler agent to land C6 after itcl D extension","const_fold hooks":"compiler-codegen","itcl in-namespace classes, member-body calls, qualified spellings, shadowing":"compiler"},
+ "in_progress":{"vm-runtime":"active","compiler":"active","compiler-codegen":"active","compiler-names":"active","lsp":"active","bigip-lsp":"active"},
+ "resources":"disk 2.8 GB, RAM 12 GB available",
+ "next_report_utc":"2026-10-21T23:38:00Z"}

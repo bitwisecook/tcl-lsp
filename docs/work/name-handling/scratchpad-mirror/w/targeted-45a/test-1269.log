@@ -1,0 +1,6 @@
+
+running 1 test
+test registry_invocation::source_structure::original_selected_command_purpose_tests::original_selected_commands_keep_the_parent_prologue_and_complete_vector_separate ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 10440 filtered out; finished in 2.33s
+

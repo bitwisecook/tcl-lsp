@@ -1,0 +1,42 @@
+after codegen: 515 ok / 37 failed; 1 result lines
+== codegen regressions (ok at base, FAILED after):
+== codegen fixed: 0; base ok=515 after ok=515
+after reginv: 207 ok / 80 failed; 1 result lines
+== reginv regressions (ok at base, FAILED after):
+== reginv fixed: 0; base ok=207 after ok=207
+after interp: 55 ok / 72 failed; 1 result lines
+== interp regressions (ok at base, FAILED after):
+== interp fixed: 0; base ok=55 after ok=55
+after dtests: 579 ok / 251 failed; 1 result lines
+== dtests regressions (ok at base, FAILED after):
+== dtests fixed: 1; base ok=578 after ok=579
+after cmdbind: 860 ok / 316 failed; 1 result lines
+== cmdbind regressions (ok at base, FAILED after):
+== cmdbind fixed: 0; base ok=860 after ok=860
+after lowering: 229 ok / 176 failed; 1 result lines
+== lowering regressions (ok at base, FAILED after):
+== lowering fixed: 0; base ok=229 after ok=229
+after helpers: 5 ok / 17 failed; 1 result lines
+== helpers regressions (ok at base, FAILED after):
+== helpers fixed: 0; base ok=5 after ok=5
+after cu: 33 ok / 65 failed; 1 result lines
+== cu regressions (ok at base, FAILED after):
+== cu fixed: 0; base ok=33 after ok=33
+after sccp: 123 ok / 79 failed; 1 result lines
+== sccp regressions (ok at base, FAILED after):
+== sccp fixed: 0; base ok=123 after ok=123
+after ssa: 156 ok / 73 failed; 1 result lines
+== ssa regressions (ok at base, FAILED after):
+== ssa fixed: 0; base ok=156 after ok=156
+after gvn: 58 ok / 36 failed; 1 result lines
+== gvn regressions (ok at base, FAILED after):
+== gvn fixed: 0; base ok=58 after ok=58
+after lowhooks: 22 ok / 6 failed; 1 result lines
+== lowhooks regressions (ok at base, FAILED after):
+== lowhooks fixed: 0; base ok=22 after ok=22
+after fp: 442 ok / 139 failed; 1 result lines
+== fp regressions (ok at base, FAILED after):
+== fp fixed: 0; base ok=442 after ok=442
+after optim: 339 ok / 219 failed; 1 result lines
+== optim regressions (ok at base, FAILED after):
+== optim fixed: 0; base ok=339 after ok=339

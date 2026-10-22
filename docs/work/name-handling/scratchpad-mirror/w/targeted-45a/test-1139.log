@@ -1,0 +1,6 @@
+
+running 1 test
+test command_binding::source_transition_advice::logical_navigation::tests::logical_navigation_candidates_use_the_original_path_and_refuse_unowned_heads ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 10440 filtered out; finished in 9.46s
+

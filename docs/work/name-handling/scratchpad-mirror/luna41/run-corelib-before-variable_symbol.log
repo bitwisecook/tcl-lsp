@@ -1,0 +1,39 @@
+test variable_symbol::declaration_cursor_join_tests::declaration_navigation_requires_the_original_cursor_symbol_and_current_source ... ok
+test variable_symbol::logical_formal_tests::logical_navigation_reuses_declared_formal_scope_and_exact_reads ... ok
+test variable_symbol::rename::afterimage_source_intent_tests::mapped_source_boundaries_do_not_invent_internal_container_offsets ... FAILED
+test variable_symbol::rename::afterimage_source_intent_tests::source_rename_keeps_known_alias_and_trace_subject_correspondence_without_observer_absence ... FAILED
+test variable_symbol::rename::afterimage_source_intent_tests::intentional_variable_rename_preserves_actual_local_scope_and_default_topology ... FAILED
+test variable_symbol::declaration_cursor_join_tests::readonly_alias_relations_ignore_report_links_and_keep_actual_local_frames ... ok
+test variable_symbol::rename::tests::original_variable_rename_keeps_opaque_siblings_and_array_indices ... ok
+test variable_symbol::rename::tests::original_variable_rename_accounts_for_derived_and_independent_alias_reads ... ok
+test variable_symbol::rename::tests::original_variable_rename_preserves_lexical_braces_and_separate_array_index ... ok
+test variable_symbol::tests::logical_navigation_refuses_a_source_reference_without_a_declaration ... ok
+test variable_symbol::tests::logical_navigation_uses_the_current_source_table_without_writable_symbol_permission ... ok
+test variable_symbol::tests::original_alias_navigation_joins_name_templates_without_original_cell_selection ... FAILED
+test variable_symbol::rename::tests::original_variable_rename_uses_authentic_local_frame_and_refuses_stale_or_colliding_sources ... ok
+test variable_symbol::tests::original_variable_editor_selection_uses_bytes_and_complete_source_currency ... ok
+test variable_symbol::tests::original_navigation_keeps_caller_templates_separate_from_unbound_symbols ... ok
+---- variable_symbol::rename::afterimage_source_intent_tests::mapped_source_boundaries_do_not_invent_internal_container_offsets stdout ----
+thread 'variable_symbol::rename::afterimage_source_intent_tests::mapped_source_boundaries_do_not_invent_internal_container_offsets' (22488) panicked at rust/tcl-lsp-core/src/variable_symbol/rename.rs:633:10:
+called `Option::unwrap()` on a `None` value
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- variable_symbol::rename::afterimage_source_intent_tests::source_rename_keeps_known_alias_and_trace_subject_correspondence_without_observer_absence stdout ----
+
+thread 'variable_symbol::rename::afterimage_source_intent_tests::source_rename_keeps_known_alias_and_trace_subject_correspondence_without_observer_absence' (22489) panicked at rust/tcl-lsp-core/src/variable_symbol/rename.rs:600:58:
+called `Result::unwrap()` on an `Err` value: RenameRefusal { reason: "cannot account for every original variable name, alias target and read in this document", range: None }
+
+---- variable_symbol::rename::afterimage_source_intent_tests::intentional_variable_rename_preserves_actual_local_scope_and_default_topology stdout ----
+
+thread 'variable_symbol::rename::afterimage_source_intent_tests::intentional_variable_rename_preserves_actual_local_scope_and_default_topology' (22483) panicked at rust/tcl-lsp-core/src/variable_symbol/rename.rs:588:54:
+called `Result::unwrap()` on an `Err` value: RenameRefusal { reason: "cannot account for every original variable name, alias target and read in this document", range: None }
+
+---- variable_symbol::tests::original_alias_navigation_joins_name_templates_without_original_cell_selection stdout ----
+
+thread 'variable_symbol::tests::original_alias_navigation_joins_name_templates_without_original_cell_selection' (22506) panicked at rust/tcl-lsp-core/src/variable_symbol.rs:637:21:
+tcl8.4: readonly alias source selection at 29
+
+
+failures:
+    variable_symbol::rename::afterimage_source_intent_tests::intentional_variable_rename_preserves_actual_local_scope_and_default_topology
+test result: FAILED. 11 passed; 4 failed; 0 ignored; 0 measured; 3470 filtered out; finished in 26.96s

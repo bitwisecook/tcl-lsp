@@ -1,0 +1,25 @@
+
+running 1 test
+test workspace_index::tests::an_exact_import_link_dies_on_a_same_file_forget ... 
+thread 'workspace_index::tests::an_exact_import_link_dies_on_a_same_file_forget' (6019) panicked at rust/tcl-lsp-core/src/workspace_index.rs:12969:9:
+assertion `left == right` failed: a forgotten exact import installs no live link
+  left: "::mymod::helper"
+ right: "::app::helper"
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<alloc::string::String, &str>
+   4: tcl_lsp_core::workspace_index::tests::an_exact_import_link_dies_on_a_same_file_forget
+   5: tcl_lsp_core::workspace_index::tests::an_exact_import_link_dies_on_a_same_file_forget::{closure#0}
+   6: <tcl_lsp_core::workspace_index::tests::an_exact_import_link_dies_on_a_same_file_forget::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+FAILED
+
+failures:
+
+failures:
+    workspace_index::tests::an_exact_import_link_dies_on_a_same_file_forget
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 3479 filtered out; finished in 1.43s
+

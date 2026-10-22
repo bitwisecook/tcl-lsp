@@ -1,0 +1,6 @@
+
+running 1 test
+test profile::tests::an_additive_vendor_point_carries_its_base_release_and_its_package ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 197 filtered out; finished in 0.01s
+

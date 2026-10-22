@@ -1,0 +1,15 @@
+test inert_text::tests::a_continued_line_does_not_start_in_command_position ... ok
+test inert_text::tests::a_dollar_ref_inside_a_comment_is_inert ... ok
+test inert_text::tests::a_hash_in_an_argument_position_is_not_a_comment ... ok
+test inert_text::tests::a_mid_word_brace_does_not_start_command_position ... ok
+test inert_text::tests::a_non_command_position_hash_is_not_a_comment ... ok
+test inert_text::tests::a_word_start_brace_keeps_command_position ... ok
+test inert_text::tests::a_dollar_ref_inside_a_data_brace_is_inert ... ok
+test inert_text::tests::original_comment_cursor_declines_stale_or_unowned_analysis ... ok
+test inert_text::tests::original_case_lambda_and_expression_literals_keep_data_separate ... ok
+test inert_text::tests::original_data_classification_declines_stale_or_unowned_inputs ... ok
+test inert_text::tests::a_dollar_ref_inside_a_script_brace_keeps_source_applicability ... ok
+test inert_text::tests::original_comment_cursor_keeps_multiline_quoted_substitutions_live ... ok
+test inert_text::tests::original_data_classification_keeps_alias_prefix_and_shadow_boundaries ... ok
+test inert_text::tests::original_expression_contributors_do_not_borrow_independent_data_roles ... ok
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 3471 filtered out; finished in 26.10s

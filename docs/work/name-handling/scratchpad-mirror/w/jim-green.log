@@ -1,0 +1,41 @@
+   4: jim_own_surface::a_loop_body_is_declared_at_each_arity
+   5: jim_own_surface::a_loop_body_is_declared_at_each_arity::{closure#0}
+   6: <jim_own_surface::a_loop_body_is_declared_at_each_arity::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- a_jim_document_resolves_every_declared_command stdout ----
+
+thread 'a_jim_document_resolves_every_declared_command' (27101) panicked at rust/tcl-spectcl/tests/jim_own_surface.rs:195:9:
+alias: the jim row is the one selected
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: jim_own_surface::a_jim_document_resolves_every_declared_command
+   3: jim_own_surface::a_jim_document_resolves_every_declared_command::{closure#0}
+   4: <jim_own_surface::a_jim_document_resolves_every_declared_command::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+
+failures:
+    a_jim_document_resolves_every_declared_command
+    a_loop_body_is_declared_at_each_arity
+
+test result: FAILED. 9 passed; 2 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.03s
+
+error: test failed, to rerun pass `-p tcl-spectcl --test jim_own_surface`
+===
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: tcl_explorer::tests::jim_own_commands_resolve_with_packs_loaded
+   3: tcl_explorer::tests::jim_own_commands_resolve_with_packs_loaded::{closure#0}
+   4: <tcl_explorer::tests::jim_own_commands_resolve_with_packs_loaded::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+
+failures:
+    tests::jim_own_commands_resolve_with_packs_loaded
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 140 filtered out; finished in 20.54s
+
+error: test failed, to rerun pass `-p tcl-explorer --lib`

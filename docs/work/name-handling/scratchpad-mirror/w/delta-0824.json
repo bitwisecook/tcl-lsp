@@ -1,0 +1,13 @@
+{"scheduled":"2026-10-20T22:44:00Z (delivered 08:23Z after container restart)",
+ "change_since_previous_report":{"integrated_LSP":0,"total_baseline_delta":0,"effective_delta":0,"verified_complete":0},
+ "admissions":{},
+ "committed":{
+   "0e14a5722c":"Sol-45: string compare/index/first/last/toupper/tolower/totitle compiled as C does (cmd_string_e2e 6 -> 13/51); legacy fixtures through analyse; 0 regressions",
+   "aa94c39f13":"Sol-46: TclOO recursion ~196 KB -> ~26 KB stack per level; cmd_oo_e2e no longer aborts (62/74)",
+   "e34d8a427e":"Sol-47: fresh-entry gaps (false S100/T100/T105 on top-level constants, if {0} removal); entry-less module compile takes fresh entry (compile_service 16 -> 20/48, tcl-debugger lib 17/17, mathfunc_derivation 2 -> 7/9); lowering memoisation; 0 regressions",
+   "7b41058056":"user decision: realm-aware command world for iRules",
+   "92ae5c0b4d":"user decision: uncalled procedure bodies resolve in the world after load"},
+ "open_findings":["miscompile: string length \"{}$z\" gives 4, tclsh 3 (Sol-49 task 1)","C6 unapplied: 6 blockers (4 uncalled-body, dict for body frame, interp eval list head)","each TclOO method call recompiles its body","lowering still quadratic in nesting depth"],
+ "in_progress":{"sol-48":"tclvm: cluster P, method compile cache, large frames, upstream ports","sol-49":"compiler: miscompile, iRules realm-aware world, uncalled-body decision + C6, cluster C rest, lowering cost"},
+ "disk_free_gb":3.4,
+ "next_report_utc":"2026-10-21T08:48:00Z"}

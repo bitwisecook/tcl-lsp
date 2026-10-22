@@ -1,0 +1,63 @@
+== cap_deep_structured_if_ir
+test depth_guard::tests::cap_deep_structured_if_ir_is_not_cloned_on_a_budget_thread ... [New Thread 0x7ffff7bff6c0 (LWP 27646)]
+== deep_namespace_eval_nesting
+test depth_guard::tests::deep_namespace_eval_nesting_fits_a_budget_thread ... [New Thread 0x7ffff7bff6c0 (LWP 30734)]
+   1      240 <hashbrown::raw::RawTable<(alloc::string::String, ())>>::reserve_rehash::<hashbrown::map::make_hasher<alloc::s
+   2      992 <hashbrown::raw::RawTable<(alloc::string::String, ())>>::reserve::<hashbrown::map::make_hasher<alloc::string::
+   3       32 <hashbrown::map::HashMap<alloc::string::String, (), std::hash::random::RandomState> as core::iter::traits::col
+   4      192 <hashbrown::set::HashSet<alloc::string::String, std::hash::random::RandomState> as core::iter::traits::collect
+   5       96 <std::collections::hash::set::HashSet<alloc::string::String> as core::iter::traits::collect::FromIterator<allo
+   6      288 <std::collections::hash::set::HashSet<alloc::string::String> as core::convert::From<[alloc::string::String; 1]
+   7       16 <tcl_compiler::var_resolve::ResolveContext as core::default::Default>::default
+   8     2592 <alloc::sync::Arc<tcl_compiler::var_resolve::ResolveContext> as core::default::Default>::default
+   9    13040 <tcl_compiler::command_binding::SourceInvocationBinding as core::default::Default>::default
+  10     1552 <tcl_compiler::command_binding::SourceCommandBindings>::query_dispatch_points::<core::iter::adapters::map::Map
+  11     5008 <tcl_compiler::command_binding::SourceCommandBindings>::invocation_at_source
+  12     1648 <tcl_compiler::command_binding::SourceCommandBindings>::stamp_original_logical_declaration_targets
+  13     3824 <tcl_compiler::command_binding::SourceCommandBindings>::stamp_original_tokens_with_bindings::<<tcl_compiler::c
+  14    23040 <tcl_compiler::command_binding::retained_body_inventory::RetainedSourceBodyInventory>::stamp_original_tokens
+  15       32 <tcl_compiler::lowering::Lowerer>::cmd_tokens
+  16    18448 <tcl_compiler::lowering::Lowerer>::try_registered_lowering_hook
+  17    29696 <tcl_compiler::lowering::Lowerer>::lower_command
+  18    10976 <tcl_compiler::lowering::Lowerer>::lower_segmented
+  19      224 <tcl_compiler::lowering::Lowerer>::lower_body_inner::{closure#0}
+  20       48 <tcl_compiler::lowering::Lowerer>::in_word_space::<alloc::vec::Vec<tcl_compiler::ir::Statement>, <tcl_compiler
+  21      304 <tcl_compiler::lowering::Lowerer>::lower_body_inner
+  22     1312 <tcl_compiler::lowering::Lowerer>::lower_body_in_irules_context
+  23      384 <tcl_compiler::lowering::Lowerer>::lower_body
+  24       96 <tcl_compiler::lowering::Lowerer>::lower_into_script_with_boxed_bindings
+  25      384 <tcl_compiler::lowering::Lowerer>::lower_executed_script_in_context
+  26     1664 <tcl_compiler::lowering::Lowerer>::lower_original_body
+  27      336 <tcl_compiler::lowering::Lowerer>::lower_retained_script
+  28      192 <tcl_compiler::lowering::Lowerer>::lower_body_from_tok
+  29     3968 <tcl_compiler::lowering::Lowerer>::walk_namespace_eval_body
+  30      736 <tcl_compiler::lowering::Lowerer>::lower_namespace_eval
+  31     3760 <tcl_compiler::lowering::Lowerer>::try_dispatch_structured_hook::{closure#6}::{closure#11}
+  32       32 <tcl_compiler::lowering::Lowerer>::box_lowered_statement::<<tcl_compiler::lowering::Lowerer>::try_dispatch_str
+  33     2160 <tcl_compiler::lowering::Lowerer>::try_dispatch_structured_hook::{closure#6}
+  34      736 <tcl_compiler::lowering::Lowerer>::with_original_body_parent::<core::option::Option<alloc::boxed::Box<tcl_comp
+  35      144 <tcl_compiler::lowering::Lowerer>::try_dispatch_structured_hook
+  36     1488 <tcl_compiler::lowering::Lowerer>::lower_command
+  37    10976 <tcl_compiler::lowering::Lowerer>::lower_segmented
+  38      224 <tcl_compiler::lowering::Lowerer>::lower_body_inner::{closure#0}
+  39       48 <tcl_compiler::lowering::Lowerer>::in_word_space::<alloc::vec::Vec<tcl_compiler::ir::Statement>, <tcl_compiler
+  40      304 <tcl_compiler::lowering::Lowerer>::lower_body_inner
+  41     1312 <tcl_compiler::lowering::Lowerer>::lower_body_in_irules_context
+  42      384 <tcl_compiler::lowering::Lowerer>::lower_body
+  43       96 <tcl_compiler::lowering::Lowerer>::lower_into_script_with_boxed_bindings
+  44      384 <tcl_compiler::lowering::Lowerer>::lower_executed_script_in_context
+  45     1664 <tcl_compiler::lowering::Lowerer>::lower_original_body
+  46      336 <tcl_compiler::lowering::Lowerer>::lower_retained_script
+  47      192 <tcl_compiler::lowering::Lowerer>::lower_body_from_tok
+  48     3968 <tcl_compiler::lowering::Lowerer>::walk_namespace_eval_body
+  49      736 <tcl_compiler::lowering::Lowerer>::lower_namespace_eval
+  50     3760 <tcl_compiler::lowering::Lowerer>::try_dispatch_structured_hook::{closure#6}::{closure#11}
+  51       32 <tcl_compiler::lowering::Lowerer>::box_lowered_statement::<<tcl_compiler::lowering::Lowerer>::try_dispatch_str
+  52     2160 <tcl_compiler::lowering::Lowerer>::try_dispatch_structured_hook::{closure#6}
+  53      736 <tcl_compiler::lowering::Lowerer>::with_original_body_parent::<core::option::Option<alloc::boxed::Box<tcl_comp
+  54      144 <tcl_compiler::lowering::Lowerer>::try_dispatch_structured_hook
+  55     1488 <tcl_compiler::lowering::Lowerer>::lower_command
+  56    10976 <tcl_compiler::lowering::Lowerer>::lower_segmented
+  57      224 <tcl_compiler::lowering::Lowerer>::lower_body_inner::{closure#0}
+  58       48 <tcl_compiler::lowering::Lowerer>::in_word_space::<alloc::vec::Vec<tcl_compiler::ir::Statement>, <tcl_compiler
+  59      304 <tcl_compiler::lowering::Lowerer>::lower_body_inner

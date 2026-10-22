@@ -1,0 +1,5 @@
+test source_graph::event_function_owner_tests::ordinary_rule_init_reporting_name_cannot_suppress_worker_state_warning ... FAILED
+test source_graph::event_function_owner_tests::ordinary_rule_init_reporting_name_cannot_authorise_unqualified_global_fix ... FAILED
+thread 'source_graph::event_function_owner_tests::ordinary_rule_init_reporting_name_cannot_suppress_worker_state_warning' (28634) panicked at rust/tcl-compiler/src/source_graph.rs:571:9:
+thread 'source_graph::event_function_owner_tests::ordinary_rule_init_reporting_name_cannot_authorise_unqualified_global_fix' (28633) panicked at rust/tcl-compiler/src/source_graph.rs:585:9:
+test result: FAILED. 1 passed; 2 failed; 0 ignored; 0 measured; 10459 filtered out; finished in 6.12s

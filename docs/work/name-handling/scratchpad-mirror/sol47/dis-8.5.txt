@@ -1,0 +1,193 @@
+=== string range $s 1 2
+ByteCode 0x0x55d61a390ae0, refCt 1, epoch 3, interp 0x0x55d61a3635d0 (epoch 3)
+  Source "string range $s 1 2"
+  Cmds 1, src 19, inst 14, litObjs 5, aux 0, stkDepth 5, code/src 0.00
+  Commands 1:
+      1: pc 0-12, src 0-18
+  Command 1: "string range $s 1 2"
+    (0) push1 0 	# "string"
+    (2) push1 1 	# "range"
+    (4) push1 2 	# "s"
+    (6) loadScalarStk 
+    (7) push1 3 	# "1"
+    (9) push1 4 	# "2"
+    (11) invokeStk1 5 
+    (13) done 
+
+=== string range $s 0 end
+ByteCode 0x0x55d61a3900a0, refCt 1, epoch 3, interp 0x0x55d61a3635d0 (epoch 3)
+  Source "string range $s 0 end"
+  Cmds 1, src 21, inst 14, litObjs 5, aux 0, stkDepth 5, code/src 0.00
+  Commands 1:
+      1: pc 0-12, src 0-20
+  Command 1: "string range $s 0 end"
+    (0) push1 0 	# "string"
+    (2) push1 1 	# "range"
+    (4) push1 2 	# "s"
+    (6) loadScalarStk 
+    (7) push1 3 	# "0"
+    (9) push1 4 	# "end"
+    (11) invokeStk1 5 
+    (13) done 
+
+=== string range $s $a $b
+ByteCode 0x0x55d61a391500, refCt 1, epoch 3, interp 0x0x55d61a3635d0 (epoch 3)
+  Source "string range $s $a $b"
+  Cmds 1, src 21, inst 16, litObjs 5, aux 0, stkDepth 5, code/src 0.00
+  Commands 1:
+      1: pc 0-14, src 0-20
+  Command 1: "string range $s $a $b"
+    (0) push1 0 	# "string"
+    (2) push1 1 	# "range"
+    (4) push1 2 	# "s"
+    (6) loadScalarStk 
+    (7) push1 3 	# "a"
+    (9) loadScalarStk 
+    (10) push1 4 	# "b"
+    (12) loadScalarStk 
+    (13) invokeStk1 5 
+    (15) done 
+
+=== string map {a b} $s
+ByteCode 0x0x55d61a38e9d0, refCt 1, epoch 3, interp 0x0x55d61a3635d0 (epoch 3)
+  Source "string map {a b} $s"
+  Cmds 1, src 19, inst 12, litObjs 4, aux 0, stkDepth 4, code/src 0.00
+  Commands 1:
+      1: pc 0-10, src 0-18
+  Command 1: "string map {a b} $s"
+    (0) push1 0 	# "string"
+    (2) push1 1 	# "map"
+    (4) push1 2 	# "a b"
+    (6) push1 3 	# "s"
+    (8) loadScalarStk 
+    (9) invokeStk1 4 
+    (11) done 
+
+=== string map $m $s
+ByteCode 0x0x55d61a3a2ee0, refCt 1, epoch 3, interp 0x0x55d61a3635d0 (epoch 3)
+  Source "string map $m $s"
+  Cmds 1, src 16, inst 13, litObjs 4, aux 0, stkDepth 4, code/src 0.00
+  Commands 1:
+      1: pc 0-11, src 0-15
+  Command 1: "string map $m $s"
+    (0) push1 0 	# "string"
+    (2) push1 1 	# "map"
+    (4) push1 2 	# "m"
+    (6) loadScalarStk 
+    (7) push1 3 	# "s"
+    (9) loadScalarStk 
+    (10) invokeStk1 4 
+    (12) done 
+
+=== string map -nocase {a b} $s
+ByteCode 0x0x55d61a3a6900, refCt 1, epoch 3, interp 0x0x55d61a3635d0 (epoch 3)
+  Source "string map -nocase {a b} $s"
+  Cmds 1, src 27, inst 14, litObjs 5, aux 0, stkDepth 5, code/src 0.00
+  Commands 1:
+      1: pc 0-12, src 0-26
+  Command 1: "string map -nocase {a b} $s"
+    (0) push1 0 	# "string"
+    (2) push1 1 	# "map"
+    (4) push1 2 	# "-nocase"
+    (6) push1 3 	# "a b"
+    (8) push1 4 	# "s"
+    (10) loadScalarStk 
+    (11) invokeStk1 5 
+    (13) done 
+
+=== string replace $s 1 2
+ByteCode 0x0x55d61a3a6f30, refCt 1, epoch 3, interp 0x0x55d61a3635d0 (epoch 3)
+  Source "string replace $s 1 2"
+  Cmds 1, src 21, inst 14, litObjs 5, aux 0, stkDepth 5, code/src 0.00
+  Commands 1:
+      1: pc 0-12, src 0-20
+  Command 1: "string replace $s 1 2"
+    (0) push1 0 	# "string"
+    (2) push1 1 	# "replace"
+    (4) push1 2 	# "s"
+    (6) loadScalarStk 
+    (7) push1 3 	# "1"
+    (9) push1 4 	# "2"
+    (11) invokeStk1 5 
+    (13) done 
+
+=== string replace $s 1 2 x
+ByteCode 0x0x55d61a394720, refCt 1, epoch 3, interp 0x0x55d61a3635d0 (epoch 3)
+  Source "string replace $s 1 2 x"
+  Cmds 1, src 23, inst 16, litObjs 6, aux 0, stkDepth 6, code/src 0.00
+  Commands 1:
+      1: pc 0-14, src 0-22
+  Command 1: "string replace $s 1 2 x"
+    (0) push1 0 	# "string"
+    (2) push1 1 	# "replace"
+    (4) push1 2 	# "s"
+    (6) loadScalarStk 
+    (7) push1 3 	# "1"
+    (9) push1 4 	# "2"
+    (11) push1 5 	# "x"
+    (13) invokeStk1 6 
+    (15) done 
+
+=== string is integer $s
+ByteCode 0x0x55d61a394dc0, refCt 1, epoch 3, interp 0x0x55d61a3635d0 (epoch 3)
+  Source "string is integer $s"
+  Cmds 1, src 20, inst 12, litObjs 4, aux 0, stkDepth 4, code/src 0.00
+  Commands 1:
+      1: pc 0-10, src 0-19
+  Command 1: "string is integer $s"
+    (0) push1 0 	# "string"
+    (2) push1 1 	# "is"
+    (4) push1 2 	# "integer"
+    (6) push1 3 	# "s"
+    (8) loadScalarStk 
+    (9) invokeStk1 4 
+    (11) done 
+
+=== string is integer -strict $s
+ByteCode 0x0x55d61a3951e0, refCt 1, epoch 3, interp 0x0x55d61a3635d0 (epoch 3)
+  Source "string is integer -strict $s"
+  Cmds 1, src 28, inst 14, litObjs 5, aux 0, stkDepth 5, code/src 0.00
+  Commands 1:
+      1: pc 0-12, src 0-27
+  Command 1: "string is integer -strict $s"
+    (0) push1 0 	# "string"
+    (2) push1 1 	# "is"
+    (4) push1 2 	# "integer"
+    (6) push1 3 	# "-strict"
+    (8) push1 4 	# "s"
+    (10) loadScalarStk 
+    (11) invokeStk1 5 
+    (13) done 
+
+=== string cat a $b c
+ByteCode 0x0x55d61a395820, refCt 1, epoch 3, interp 0x0x55d61a3635d0 (epoch 3)
+  Source "string cat a $b c"
+  Cmds 1, src 17, inst 14, litObjs 5, aux 0, stkDepth 5, code/src 0.00
+  Commands 1:
+      1: pc 0-12, src 0-16
+  Command 1: "string cat a $b c"
+    (0) push1 0 	# "string"
+    (2) push1 1 	# "cat"
+    (4) push1 2 	# "a"
+    (6) push1 3 	# "b"
+    (8) loadScalarStk 
+    (9) push1 4 	# "c"
+    (11) invokeStk1 5 
+    (13) done 
+
+=== string insert $s 1 x
+ByteCode 0x0x55d61a395c70, refCt 1, epoch 3, interp 0x0x55d61a3635d0 (epoch 3)
+  Source "string insert $s 1 x"
+  Cmds 1, src 20, inst 14, litObjs 5, aux 0, stkDepth 5, code/src 0.00
+  Commands 1:
+      1: pc 0-12, src 0-19
+  Command 1: "string insert $s 1 x"
+    (0) push1 0 	# "string"
+    (2) push1 1 	# "insert"
+    (4) push1 2 	# "s"
+    (6) loadScalarStk 
+    (7) push1 3 	# "1"
+    (9) push1 4 	# "x"
+    (11) invokeStk1 5 
+    (13) done 
+

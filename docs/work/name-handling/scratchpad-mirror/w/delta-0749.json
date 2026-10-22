@@ -1,0 +1,10 @@
+{"scheduled":"2026-10-22T07:48:00Z",
+ "change_since_previous_report":{"integrated_LSP":0,"total_baseline_delta":0,"effective_delta":0,"verified_complete":0},
+ "admissions":{},
+ "events":{"container_restart":"between ~23:40Z and 07:15Z all agents and builds stopped; tree state committed as 56893780b9; 4.9 GB of superseded build libraries pruned; six agents resumed from transcripts"},
+ "committed":{"56893780b9/49c43f18fa/afb6e7f94d":"WIP snapshots","d2f1bd9a22":"user decision 2026-10-22T07:18Z: providers abstain for force-import shadows"},
+ "progress_in_tree":{"compiler":"C6 fully applied (fresh builders, conditional in-frame namespace, world after load); measuring","lsp":"force_import abstain implemented in all original providers, 8 tests cite the decision; Server108 cache; finding: Analyser cost quadratic in top-level commands (n=80 66 s debug) is the root of both 180 s server timeouts and the WASI exit timeouts"},
+ "new_agent":{"perf":"profile and fix quadratic analysis and slow pack load against origin/rust"},
+ "in_progress":{"vm-runtime":"active","compiler":"active","compiler-codegen":"active","compiler-names":"active","lsp":"active","bigip-lsp":"active","perf":"started 07:40Z"},
+ "resources":"disk 3.0 GB, RAM 3 GB available, /dev/shm 1.7 GB (perf agent build, cap 3 GB)",
+ "next_report_utc":"2026-10-22T08:20:00Z"}

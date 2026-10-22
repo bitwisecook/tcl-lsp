@@ -1,0 +1,25 @@
+
+running 1 test
+test original_declaration::own_object_identity_tests::original_own_object_identity_keeps_uri_currency_and_wire_reselection ... 
+thread 'original_declaration::own_object_identity_tests::original_own_object_identity_keeps_uri_currency_and_wire_reselection' (31165) panicked at rust/tcl-lsp-core/src/original_declaration.rs:2045:9:
+assertion `left == right` failed
+  left: 0
+ right: 1
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<usize, usize>
+   4: tcl_lsp_core::original_declaration::own_object_identity_tests::original_own_object_identity_keeps_uri_currency_and_wire_reselection
+   5: tcl_lsp_core::original_declaration::own_object_identity_tests::original_own_object_identity_keeps_uri_currency_and_wire_reselection::{closure#0}
+   6: <tcl_lsp_core::original_declaration::own_object_identity_tests::original_own_object_identity_keeps_uri_currency_and_wire_reselection::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+FAILED
+
+failures:
+
+failures:
+    original_declaration::own_object_identity_tests::original_own_object_identity_keeps_uri_currency_and_wire_reselection
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 3464 filtered out; finished in 0.96s
+

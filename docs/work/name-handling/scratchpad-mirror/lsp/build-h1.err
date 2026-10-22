@@ -1,0 +1,3 @@
+    Blocking waiting for file lock on build directory
+   Compiling tcl-lsp-core v0.1.0 (/home/user/tcl-lsp/rust/tcl-lsp-core)
+    Finished `test` profile [unoptimized] target(s) in 22m 41s

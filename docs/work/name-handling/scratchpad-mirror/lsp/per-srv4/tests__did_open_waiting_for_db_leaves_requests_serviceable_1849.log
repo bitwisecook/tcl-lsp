@@ -1,0 +1,36 @@
+
+running 1 test
+test tests::did_open_waiting_for_db_leaves_requests_serviceable_1849 ... FAILED
+
+failures:
+
+---- tests::did_open_waiting_for_db_leaves_requests_serviceable_1849 stdout ----
+
+thread 'tests::did_open_waiting_for_db_leaves_requests_serviceable_1849' (26731) panicked at rust/tcl-lsp-server/src/lib.rs:53331:10:
+a request for another document must remain serviceable (#1849): Elapsed(())
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::result::unwrap_failed
+   3: <core::result::Result<core::option::Option<tcl_lsp_server::DocumentState>, tokio::time::error::Elapsed>>::expect
+   4: tcl_lsp_server::tests::did_open_waiting_for_db_leaves_requests_serviceable_1849::{closure#0}
+   5: <core::pin::Pin<&mut dyn core::future::future::Future<Output = ()>> as core::future::future::Future>::poll
+   6: <tokio::runtime::park::CachedParkThread>::block_on::<core::pin::Pin<&mut dyn core::future::future::Future<Output = ()>>>::{closure#0}
+   7: <tokio::runtime::park::CachedParkThread>::block_on::<core::pin::Pin<&mut dyn core::future::future::Future<Output = ()>>>
+   8: <tokio::runtime::context::blocking::BlockingRegionGuard>::block_on::<core::pin::Pin<&mut dyn core::future::future::Future<Output = ()>>>
+   9: <tokio::runtime::scheduler::multi_thread::MultiThread>::block_on::<core::pin::Pin<&mut dyn core::future::future::Future<Output = ()>>>::{closure#0}
+  10: tokio::runtime::context::runtime::enter_runtime::<<tokio::runtime::scheduler::multi_thread::MultiThread>::block_on<core::pin::Pin<&mut dyn core::future::future::Future<Output = ()>>>::{closure#0}, ()>
+  11: <tokio::runtime::scheduler::multi_thread::MultiThread>::block_on::<core::pin::Pin<&mut dyn core::future::future::Future<Output = ()>>>
+  12: <tokio::runtime::runtime::Runtime>::block_on_inner::<core::pin::Pin<&mut dyn core::future::future::Future<Output = ()>>>
+  13: <tokio::runtime::runtime::Runtime>::block_on::<core::pin::Pin<&mut dyn core::future::future::Future<Output = ()>>>
+  14: tcl_lsp_server::tests::did_open_waiting_for_db_leaves_requests_serviceable_1849
+  15: tcl_lsp_server::tests::did_open_waiting_for_db_leaves_requests_serviceable_1849::{closure#0}
+  16: <tcl_lsp_server::tests::did_open_waiting_for_db_leaves_requests_serviceable_1849::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+
+failures:
+    tests::did_open_waiting_for_db_leaves_requests_serviceable_1849
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 839 filtered out; finished in 1.03s
+

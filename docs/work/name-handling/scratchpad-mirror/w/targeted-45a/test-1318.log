@@ -1,0 +1,6 @@
+
+running 1 test
+test registry_invocation::source_structure::tests::original_conditional_operand_keeps_its_static_word_and_list_lineage ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 10440 filtered out; finished in 0.79s
+

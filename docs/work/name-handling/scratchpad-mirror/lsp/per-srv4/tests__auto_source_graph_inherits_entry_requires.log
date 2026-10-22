@@ -1,0 +1,28 @@
+
+running 1 test
+test tests::auto_source_graph_inherits_entry_requires ... FAILED
+
+failures:
+
+---- tests::auto_source_graph_inherits_entry_requires stdout ----
+
+thread 'tests::auto_source_graph_inherits_entry_requires' (23125) panicked at rust/tcl-lsp-server/src/lib.rs:41401:9:
+assertion `left == right` failed
+  left: []
+ right: ["Tk"]
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<alloc::vec::Vec<alloc::string::String>, alloc::vec::Vec<alloc::string::String>>
+   4: tcl_lsp_server::tests::auto_source_graph_inherits_entry_requires
+   5: tcl_lsp_server::tests::auto_source_graph_inherits_entry_requires::{closure#0}
+   6: <tcl_lsp_server::tests::auto_source_graph_inherits_entry_requires::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+
+failures:
+    tests::auto_source_graph_inherits_entry_requires
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 839 filtered out; finished in 6.10s
+

@@ -1,0 +1,305 @@
+test code_actions::diagnostic_context::tests::conditional_collection_advice_cannot_mint_a_bootstrap_action_subject ... FAILED
+test code_actions::diagnostic_context::tests::logical_source_action_commands_use_actual_body_availability_and_script_purpose ... FAILED
+test code_actions::diagnostic_context::tests::original_bootstrap_actions_use_current_selected_handler_and_payload_metadata ... FAILED
+test code_actions::diagnostic_context::tests::hosted_helper_publication_keeps_unknown_name_geometry_unavailable ... FAILED
+test code_actions::diagnostic_context::tests::logical_source_actions_keep_original_selection_when_reports_disagree ... ok
+test code_actions::diagnostic_context::tests::original_context_diagnostic_currency_keeps_the_complete_availability_owner ... FAILED
+test code_actions::diagnostic_context::tests::original_diagnostic_actions_refuse_stale_source_configuration_registry_and_range ... FAILED
+test code_actions::diagnostic_context::tests::original_diagnostic_actions_keep_typed_sink_and_source_when_prose_changes ... FAILED
+test code_actions::diagnostic_context::tests::original_logical_source_commands_use_actual_availability_over_catalogue_profile ... ok
+test code_actions::diagnostic_context::tests::original_native_taint_wrappers_do_not_infer_missing_evaluation_permission ... ok
+test code_actions::diagnostic_context::tests::original_profile_actions_use_selected_context_and_ignore_reporting_names ... ok
+test code_actions::diagnostic_context::tests::original_logical_helper_collision_uses_the_emitted_root_publication ... FAILED
+test code_actions::diagnostic_context::tests::original_vendor_taint_helpers_use_declarations_instead_of_comments_or_proc_text ... FAILED
+test code_actions::diagnostic_context::tests::original_source_diagnostic_advice_shares_guarded_schema_and_whole_word_geometry ... ok
+test code_actions::diagnostic_currency::tests::original_diagnostic_actions_require_current_whole_source_and_owned_fixes ... ok
+test code_actions::diagnostic_currency::tests::original_diagnostic_source_extents_require_actual_byte_boundaries_and_channel ... ok
+test code_actions::diagnostic_currency::tests::original_check_currency_refuses_same_store_changed_availability_and_missing_input ... ok
+test code_actions::issued_optimiser_rewrite_currency_tests::actual_worker_group_keeps_edits_but_stale_and_incomplete_report_cannot_issue_them ... FAILED
+test code_actions::diagnostic_currency::tests::original_check_actions_require_the_issuers_source_config_and_registry ... ok
+test code_actions::original_event_action_boundary_tests::original_bootstrap_boundaries_exclude_nested_handler_lookalikes ... ok
+test code_actions::original_docstring_tests::original_docstrings_keep_opaque_redefinitions_without_reporting_maps ... ok
+test code_actions::original_docstring_tests::original_body_docstring_requires_its_braced_word_and_rejects_computed_body ... ok
+test code_actions::original_package_suggestion_tests::original_logical_package_hint_uses_selected_namespace_owner_not_package_spelling ... FAILED
+test code_actions::original_package_suggestion_tests::original_logical_package_action_requires_its_positive_vector_and_current_input ... FAILED
+test code_actions::original_expression_action_tests::original_expression_actions_separate_position_from_rewrite_equivalence ... ok
+test code_actions::original_package_suggestion_tests::original_package_hint_keeps_literal_position_case_and_existing_require_guards ... ok
+test code_actions::original_package_suggestion_tests::original_package_hint_declines_conflicting_unowned_and_foreign_context_rows ... ok
+test code_actions::original_package_suggestion_tests::original_package_action_uses_genuine_provision_and_requirement_operands ... ok
+test code_actions::original_package_suggestion_tests::original_package_hint_requires_own_lookup_and_canonical_package_key ... FAILED
+test code_actions::original_package_suggestion_tests::original_package_hint_uses_written_units_and_issuer_after_reporting_clear ... FAILED
+test code_actions::package_authoring_source_tests::authored_package_insertion_preserves_unicode_prologue_and_quoted_requirement ... ok
+test code_actions::package_authoring_source_tests::authored_package_metacharacters_remain_one_inert_complete_word ... ok
+test code_actions::original_refactor_context_tests::original_refactor_actions_keep_document_registry_and_full_source ... FAILED
+test code_actions::package_authoring_source_tests::package_authoring_withdraws_stale_source_full_config_and_foreign_input ... ok
+test code_actions::package_presence_census_tests::package_census_preserves_genuine_absent_head_advice_and_current_input ... FAILED
+test code_actions::package_presence_census_tests::package_action_census_cannot_lose_a_genuine_reference_with_report_rows ... ok
+test code_actions::package_presence_census_tests::package_census_uses_original_inventory_and_actual_overlay_operation ... ok
+test code_actions::package_authoring_source_tests::package_authoring_distinguishes_unicode_values_and_unknown_coverage ... ok
+test code_actions::package_presence_census_tests::selected_syntax_coverage_keeps_package_and_call_closure_distinct ... FAILED
+test code_actions::spec_notice::tests::original_spec_notice_selected_geometry_keeps_duplicate_sites_distinct ... ok
+test code_actions::tests::a_conversion_follows_a_shown_w115 ... ok
+test code_actions::spec_notice::tests::original_spec_notice_actions_use_typed_subjects_and_current_owners_instead_of_prose ... ok
+test code_actions::tests::a_dropped_flag_offers_the_nearest_option ... ok
+test code_actions::tests::a_dropped_property_offers_the_nearest_real_word ... ok
+test code_actions::tests::a_notice_the_buffer_has_moved_past_offers_nothing ... ok
+test code_actions::tests::a_grouped_rewrite_is_one_action_with_every_edit ... FAILED
+test code_actions::package_presence_census_tests::package_census_retains_positive_named_sources_and_incomplete_regions ... FAILED
+test code_actions::tests::an_ordinary_tcl_document_gets_no_pack_quick_fix ... ok
+test code_actions::tests::check_actions_empty_without_fixes ... ok
+test code_actions::tests::check_actions_honour_disabled_codes ... ok
+test code_actions::tests::a_row_sharing_its_line_is_corrected_against_its_own_head ... ok
+test code_actions::tests::check_actions_shimmer_noqa_suppress_honours_disabled_codes ... ok
+test code_actions::tests::check_actions_shimmer_noqa_suppress_matches_indentation ... FAILED
+test code_actions::tests::check_actions_surface_irule5002_flow_fix ... FAILED
+test code_actions::tests::empty_actions_when_analysis_is_none ... ok
+test code_actions::tests::check_actions_skip_a_diagnostic_a_noqa_already_silences ... FAILED
+test code_actions::tests::check_actions_surface_shimmer_noqa_suppress_action ... FAILED
+test code_actions::tests::empty_description_falls_back_to_diagnostic_message ... ok
+test code_actions::tests::fix_attached_to_diagnostic_surfaces_as_action ... ok
+test code_actions::tests::extract_datagroup_surfaces_and_carries_definition ... FAILED
+test code_actions::tests::extract_variable_surfaces_with_selection ... ok
+test code_actions::tests::fn_package_require_offered_on_a_fully_qualified_head ... FAILED
+test code_actions::tests::fp_package_require_not_offered_for_a_locally_defined_command ... ok
+test code_actions::tests::fp_package_require_not_offered_inside_a_comment ... ok
+test code_actions::tests::fp_package_require_not_offered_inside_a_braced_word ... ok
+test code_actions::tests::fp_inline_refuses_a_braced_argument_that_is_not_a_plain_word ... FAILED
+test code_actions::tests::fp_package_require_not_offered_inside_a_quoted_string ... ok
+test code_actions::tests::fp_package_require_not_offered_on_a_definition_name ... ok
+test code_actions::tests::fp_package_require_not_offered_on_an_argument_word ... ok
+test code_actions::tests::fp_package_require_not_offered_when_the_package_is_already_required ... ok
+test code_actions::tests::logical_package_hint_keeps_shared_written_colon_geometry ... ok
+test code_actions::tests::if_to_switch_surfaces_at_cursor ... ok
+test code_actions::tests::no_action_when_range_outside_diagnostic ... ok
+test code_actions::tests::multiple_fixes_on_one_diagnostic_each_become_an_action ... ok
+test code_actions::tests::if_to_switch_surfaces_inside_an_apply_lambda_body ... FAILED
+test code_actions::tests::package_named_by_namespace_matches_exactly ... ok
+test code_actions::tests::original_source_action_metadata_uses_retained_availability_over_report_profile ... ok
+test code_actions::tests::package_require_action_inserts_between_original_terminated_commands ... FAILED
+test code_actions::tests::retarget_newlines_is_a_no_op_for_lf ... ok
+test code_actions::tests::no_actions_when_analyser_has_no_diagnostics_with_fixes ... ok
+test code_actions::tests::package_require_offered_from_an_editor_supplied_diagnostic ... FAILED
+test code_actions::tests::tn_package_require_not_offered_for_a_bare_unknown_command ... ok
+test code_actions::tests::retarget_newlines_rewrites_inserted_text_onto_the_documents_eol ... ok
+test code_actions::tests::tn_package_require_not_offered_for_a_dynamic_head ... ok
+test code_actions::tests::tn_package_require_not_offered_for_a_resolved_builtin ... ok
+test code_actions::tests::tn_package_require_not_offered_for_a_short_prefix ... ok
+test code_actions::tests::tn_package_require_not_offered_for_an_unregistered_namespace ... ok
+test code_actions::tests::tn_package_require_not_offered_without_an_analysis ... ok
+test code_actions::tests::the_candidate_vocabulary_is_the_grammar_in_force ... ok
+test code_actions::tests::tn_package_require_not_offered_under_a_dynamic_provider ... ok
+test code_actions::tests::tp_package_require_offered_on_an_unresolved_command_head ... FAILED
+test code_actions::tests::tp_inline_does_not_substitute_prefix_sharing_name ... FAILED
+test code_actions::tests::tp_inline_substitutes_braced_var_reference ... FAILED
+test code_actions::tests::w115_action_never_replaces_a_command_prefix_beside_a_body_comment ... ok
+test code_actions::tests::w115_action_uses_actual_schema_and_complete_original_unicode_lines ... ok
+test code_actions::tests::w120_surfaces_add_package_require_action ... FAILED
+test code_actions::tests::w115_action_ignores_braced_and_quoted_pseudo_comments ... ok
+test code_actions::tests::w213_emits_unset_nocomplain_action ... FAILED
+test code_actions::tests::w213_action_inserts_after_unset_keyword ... FAILED
+test code_actions::tests::w302_action_applies_after_a_multiline_body ... ok
+test code_actions::tests::w302_action_applies_before_a_trailing_comment ... ok
+test code_actions::tests::w302_action_does_not_overshoot_an_empty_body ... ok
+test code_actions::tests::w302_action_applies_to_a_nested_catch_on_a_later_line ... ok
+test code_actions::tests::w302_options_action_applies_after_the_body ... ok
+test code_actions::tests::w302_result_action_applies_after_the_body ... ok
+---- code_actions::diagnostic_context::tests::conditional_collection_advice_cannot_mint_a_bootstrap_action_subject stdout ----
+thread 'code_actions::diagnostic_context::tests::conditional_collection_advice_cannot_mint_a_bootstrap_action_subject' (3072) panicked at rust/tcl-lsp-core/src/code_actions/diagnostic_context.rs:389:14:
+called `Option::unwrap()` on a `None` value
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- code_actions::diagnostic_context::tests::logical_source_action_commands_use_actual_body_availability_and_script_purpose stdout ----
+
+thread 'code_actions::diagnostic_context::tests::logical_source_action_commands_use_actual_body_availability_and_script_purpose' (3074) panicked at rust/tcl-lsp-core/src/code_actions/diagnostic_context.rs:574:13:
+assertion failed: !commands.iter().any(|command|
+            &source[command.span.as_range()] == "set reference VALUE")
+
+---- code_actions::diagnostic_context::tests::original_bootstrap_actions_use_current_selected_handler_and_payload_metadata stdout ----
+
+thread 'code_actions::diagnostic_context::tests::original_bootstrap_actions_use_current_selected_handler_and_payload_metadata' (3082) panicked at rust/tcl-lsp-core/src/code_actions/diagnostic_context.rs:486:32:
+missing IRULE1005: []
+
+---- code_actions::diagnostic_context::tests::hosted_helper_publication_keeps_unknown_name_geometry_unavailable stdout ----
+
+thread 'code_actions::diagnostic_context::tests::hosted_helper_publication_keeps_unknown_name_geometry_unavailable' (3073) panicked at rust/tcl-lsp-core/src/code_actions/diagnostic_context.rs:486:32:
+missing IRULE3001: []
+
+---- code_actions::diagnostic_context::tests::original_context_diagnostic_currency_keeps_the_complete_availability_owner stdout ----
+
+thread 'code_actions::diagnostic_context::tests::original_context_diagnostic_currency_keeps_the_complete_availability_owner' (3117) panicked at rust/tcl-lsp-core/src/code_actions/diagnostic_context.rs:486:32:
+missing T100: []
+
+---- code_actions::diagnostic_context::tests::original_diagnostic_actions_refuse_stale_source_configuration_registry_and_range stdout ----
+
+thread 'code_actions::diagnostic_context::tests::original_diagnostic_actions_refuse_stale_source_configuration_registry_and_range' (3129) panicked at rust/tcl-lsp-core/src/code_actions/diagnostic_context.rs:486:32:
+missing T100: []
+
+---- code_actions::diagnostic_context::tests::original_diagnostic_actions_keep_typed_sink_and_source_when_prose_changes stdout ----
+
+thread 'code_actions::diagnostic_context::tests::original_diagnostic_actions_keep_typed_sink_and_source_when_prose_changes' (3124) panicked at rust/tcl-lsp-core/src/code_actions/diagnostic_context.rs:486:32:
+missing T100: []
+
+---- code_actions::diagnostic_context::tests::original_logical_helper_collision_uses_the_emitted_root_publication stdout ----
+
+thread 'code_actions::diagnostic_context::tests::original_logical_helper_collision_uses_the_emitted_root_publication' (3136) panicked at rust/tcl-lsp-core/src/code_actions/diagnostic_context.rs:1015:9:
+assertion failed: helper_proposal(source, &analysis)
+
+---- code_actions::diagnostic_context::tests::original_vendor_taint_helpers_use_declarations_instead_of_comments_or_proc_text stdout ----
+
+thread 'code_actions::diagnostic_context::tests::original_vendor_taint_helpers_use_declarations_instead_of_comments_or_proc_text' (3156) panicked at rust/tcl-lsp-core/src/code_actions/diagnostic_context.rs:486:32:
+missing IRULE3001: []
+
+---- code_actions::issued_optimiser_rewrite_currency_tests::actual_worker_group_keeps_edits_but_stale_and_incomplete_report_cannot_issue_them stdout ----
+
+thread 'code_actions::issued_optimiser_rewrite_currency_tests::actual_worker_group_keeps_edits_but_stale_and_incomplete_report_cannot_issue_them' (3177) panicked at rust/tcl-lsp-core/src/code_actions.rs:5340:9:
+assertion `left == right` failed
+  left: 0
+ right: 2
+
+---- code_actions::original_package_suggestion_tests::original_logical_package_hint_uses_selected_namespace_owner_not_package_spelling stdout ----
+
+thread 'code_actions::original_package_suggestion_tests::original_logical_package_hint_uses_selected_namespace_owner_not_package_spelling' (3195) panicked at rust/tcl-lsp-core/src/code_actions.rs:4847:9:
+assertion `left == right` failed: []
+  left: 0
+ right: 1
+
+---- code_actions::original_package_suggestion_tests::original_logical_package_action_requires_its_positive_vector_and_current_input stdout ----
+
+thread 'code_actions::original_package_suggestion_tests::original_logical_package_action_requires_its_positive_vector_and_current_input' (3192) panicked at rust/tcl-lsp-core/src/code_actions.rs:4775:9:
+assertion `left == right` failed
+  left: 0
+ right: 1
+
+---- code_actions::original_package_suggestion_tests::original_package_hint_requires_own_lookup_and_canonical_package_key stdout ----
+
+thread 'code_actions::original_package_suggestion_tests::original_package_hint_requires_own_lookup_and_canonical_package_key' (3216) panicked at rust/tcl-lsp-core/src/code_actions.rs:4686:9:
+assertion `left == right` failed
+  left: 0
+ right: 1
+
+---- code_actions::original_package_suggestion_tests::original_package_hint_uses_written_units_and_issuer_after_reporting_clear stdout ----
+
+thread 'code_actions::original_package_suggestion_tests::original_package_hint_uses_written_units_and_issuer_after_reporting_clear' (3217) panicked at rust/tcl-lsp-core/src/code_actions.rs:4653:9:
+assertion `left == right` failed
+  left: 0
+ right: 1
+
+---- code_actions::original_refactor_context_tests::original_refactor_actions_keep_document_registry_and_full_source stdout ----
+
+thread 'code_actions::original_refactor_context_tests::original_refactor_actions_keep_document_registry_and_full_source' (3219) panicked at rust/tcl-lsp-core/src/code_actions.rs:5007:9:
+[]
+
+---- code_actions::package_presence_census_tests::package_census_preserves_genuine_absent_head_advice_and_current_input stdout ----
+
+thread 'code_actions::package_presence_census_tests::package_census_preserves_genuine_absent_head_advice_and_current_input' (3240) panicked at rust/tcl-lsp-core/src/code_actions.rs:5236:9:
+assertion `left == right` failed
+  left: None
+ right: Some(false)
+
+---- code_actions::package_presence_census_tests::selected_syntax_coverage_keeps_package_and_call_closure_distinct stdout ----
+
+thread 'code_actions::package_presence_census_tests::selected_syntax_coverage_keeps_package_and_call_closure_distinct' (3249) panicked at rust/tcl-lsp-core/src/code_actions.rs:5283:13:
+assertion `left == right` failed: package require $name
+
+  left: Some(Incomplete)
+ right: Some(Complete)
+
+---- code_actions::tests::a_grouped_rewrite_is_one_action_with_every_edit stdout ----
+thread 'code_actions::tests::a_grouped_rewrite_is_one_action_with_every_edit' (3282) panicked at rust/tcl-lsp-core/src/code_actions.rs:3860:9:
+assertion `left == right` failed: the fixture yields the O127 pair: []
+  left: 0
+ right: 2
+
+---- code_actions::package_presence_census_tests::package_census_retains_positive_named_sources_and_incomplete_regions stdout ----
+
+thread 'code_actions::package_presence_census_tests::package_census_retains_positive_named_sources_and_incomplete_regions' (3241) panicked at rust/tcl-lsp-core/src/code_actions.rs:5217:13:
+assertion `left == right` failed: set head package; $head require http
+
+  left: Some(true)
+ right: None
+
+---- code_actions::tests::check_actions_shimmer_noqa_suppress_matches_indentation stdout ----
+thread 'code_actions::tests::check_actions_shimmer_noqa_suppress_matches_indentation' (3302) panicked at rust/tcl-lsp-core/src/code_actions.rs:3787:9:
+assertion failed: checks.iter().any(|d| d.code == DiagCode::S100)
+
+---- code_actions::tests::check_actions_surface_irule5002_flow_fix stdout ----
+
+thread 'code_actions::tests::check_actions_surface_irule5002_flow_fix' (3319) panicked at rust/tcl-lsp-core/src/code_actions.rs:3567:9:
+expected an IRULE5002 check with a fix, got []
+
+---- code_actions::tests::check_actions_skip_a_diagnostic_a_noqa_already_silences stdout ----
+
+thread 'code_actions::tests::check_actions_skip_a_diagnostic_a_noqa_already_silences' (3316) panicked at rust/tcl-lsp-core/src/code_actions.rs:3684:9:
+the check itself still fires; only its actions are withheld: []
+
+---- code_actions::tests::check_actions_surface_shimmer_noqa_suppress_action stdout ----
+
+thread 'code_actions::tests::check_actions_surface_shimmer_noqa_suppress_action' (3321) panicked at rust/tcl-lsp-core/src/code_actions.rs:3730:32:
+expected an S100 check, got []
+
+---- code_actions::tests::extract_datagroup_surfaces_and_carries_definition stdout ----
+
+thread 'code_actions::tests::extract_datagroup_surfaces_and_carries_definition' (3334) panicked at rust/tcl-lsp-core/src/code_actions.rs:4213:14:
+data-group action
+
+---- code_actions::tests::fn_package_require_offered_on_a_fully_qualified_head stdout ----
+
+thread 'code_actions::tests::fn_package_require_offered_on_a_fully_qualified_head' (3345) panicked at rust/tcl-lsp-core/src/code_actions.rs:3278:9:
+[]
+
+---- code_actions::tests::fp_inline_refuses_a_braced_argument_that_is_not_a_plain_word stdout ----
+
+thread 'code_actions::tests::fp_inline_refuses_a_braced_argument_that_is_not_a_plain_word' (3346) panicked at rust/tcl-lsp-core/src/code_actions.rs:2944:9:
+a bound native value cannot be written as an inert literal in the body
+
+---- code_actions::tests::if_to_switch_surfaces_inside_an_apply_lambda_body stdout ----
+
+thread 'code_actions::tests::if_to_switch_surfaces_inside_an_apply_lambda_body' (3387) panicked at rust/tcl-lsp-core/src/code_actions.rs:4186:9:
+[]
+
+---- code_actions::tests::package_require_action_inserts_between_original_terminated_commands stdout ----
+
+thread 'code_actions::tests::package_require_action_inserts_between_original_terminated_commands' (3407) panicked at rust/tcl-lsp-core/src/code_actions.rs:3216:18:
+the original unresolved namespaced head supports the package action
+
+---- code_actions::tests::package_require_offered_from_an_editor_supplied_diagnostic stdout ----
+
+thread 'code_actions::tests::package_require_offered_from_an_editor_supplied_diagnostic' (3429) panicked at rust/tcl-lsp-core/src/code_actions.rs:3404:9:
+[]
+
+---- code_actions::tests::tp_package_require_offered_on_an_unresolved_command_head stdout ----
+
+thread 'code_actions::tests::tp_package_require_offered_on_an_unresolved_command_head' (3517) panicked at rust/tcl-lsp-core/src/code_actions.rs:3263:9:
+assertion `left == right` failed: []
+  left: []
+ right: ["Add 'package require http'"]
+
+---- code_actions::tests::tp_inline_does_not_substitute_prefix_sharing_name stdout ----
+
+thread 'code_actions::tests::tp_inline_does_not_substitute_prefix_sharing_name' (3514) panicked at rust/tcl-lsp-core/src/code_actions.rs:2953:43:
+called `Result::unwrap()` on an `Err` value: "the copied command head has no original static producer"
+
+---- code_actions::tests::tp_inline_substitutes_braced_var_reference stdout ----
+
+thread 'code_actions::tests::tp_inline_substitutes_braced_var_reference' (3515) panicked at rust/tcl-lsp-core/src/code_actions.rs:2960:43:
+called `Result::unwrap()` on an `Err` value: "the copied command head has no original static producer"
+
+---- code_actions::tests::w120_surfaces_add_package_require_action stdout ----
+
+thread 'code_actions::tests::w120_surfaces_add_package_require_action' (3531) panicked at rust/tcl-lsp-core/src/code_actions.rs:3160:9:
+expected W120 from [Diagnostic { subject: Some(UnresolvedCommand(SourceUnresolvedCommandSubject { invocation: SourceInvocationBinding { compiled_candidates: [], compiled_named_candidates: [], may_use_live_dispatch: true, compiled_execution_residual: Closed, native_compilation_admission: Some(Generic), native_compiler_admission: None, original_compiler_preserves_names: Preserved, native_structured_preparation: None, native_switch_preparation: None, runtime_reachability: Reached, entered_execution_observer: Unobserved, native_inline_rejection: None, native_handler_envelope: None, invocation_vari
+
+---- code_actions::tests::w213_emits_unset_nocomplain_action stdout ----
+
+thread 'code_actions::tests::w213_emits_unset_nocomplain_action' (3540) panicked at rust/tcl-lsp-core/src/code_actions.rs:2973:9:
+expected W213 from []
+
+---- code_actions::tests::w213_action_inserts_after_unset_keyword stdout ----
+
+thread 'code_actions::tests::w213_action_inserts_after_unset_keyword' (3537) panicked at rust/tcl-lsp-core/src/code_actions.rs:3018:14:
+expected unset action
+
+
+failures:
+    code_actions::diagnostic_context::tests::conditional_collection_advice_cannot_mint_a_bootstrap_action_subject
+test result: FAILED. 70 passed; 35 failed; 0 ignored; 0 measured; 3380 filtered out; finished in 154.68s

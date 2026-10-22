@@ -1,0 +1,76 @@
+
+running 6 tests
+test probe_analysis_timing has been running for over 60 seconds
+test probe_embedded_pack_load_timing has been running for over 60 seconds
+PROBE embedded packs cold 84.203492285s errors=0
+PROBE embedded packs warm 64.810422752s
+
+thread 'probe_embedded_pack_load_timing' (11306) panicked at rust/tcl-lsp-core/tests/zz_lsp_agent_probe.rs:75:5:
+PROBE END (deliberate, shows output)
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: zz_lsp_agent_probe::probe_embedded_pack_load_timing
+   3: zz_lsp_agent_probe::probe_embedded_pack_load_timing::{closure#0}
+   4: <zz_lsp_agent_probe::probe_embedded_pack_load_timing::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+test probe_embedded_pack_load_timing ... FAILED
+PROBE hover "regexp {plainword} $line\n" -> None
+PROBE hover "regexp {plainword} abc\n" -> Some("**Regex pattern**\n\nLiteral string (no metacharacters).")
+PROBE hover "lsearch -exact $list $needle\n" -> None
+PROBE hover "lsearch -exact {a b} b\n" -> Some("**`-exact`** — option of `lsearch`\n\nExact equality match.\n")
+PROBE hover "oo::class create M {}\n# A widget mixed with M.\noo::class create C {\n    mixin M\n    method draw {} {}\n}\n" -> None
+PROBE hover "oo::class create M {}\noo::class create C {\n    mixin M\n    method draw {} {}\n}\n" -> None
+PROBE hover "oo::class create C {\n    method draw {} {}\n}\n" -> None
+PROBE hover "oo::class create P {\n    constructor {a b} {}\n    method touch {} { constructor }\n}\n" -> None
+
+thread 'probe_hover_unreached' (14097) panicked at rust/tcl-lsp-core/tests/zz_lsp_agent_probe.rs:143:5:
+PROBE END (deliberate, shows output)
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: zz_lsp_agent_probe::probe_hover_unreached
+   3: zz_lsp_agent_probe::probe_hover_unreached::{closure#0}
+   4: <zz_lsp_agent_probe::probe_hover_unreached::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+test probe_hover_unreached ... FAILED
+PROBE itcl member "make" side=Instance
+PROBE itcl member "inst" side=Instance
+
+thread 'probe_itcl_member_sides' (14342) panicked at rust/tcl-lsp-core/tests/zz_lsp_agent_probe.rs:159:5:
+PROBE END (deliberate, shows output)
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: zz_lsp_agent_probe::probe_itcl_member_sides
+   3: zz_lsp_agent_probe::probe_itcl_member_sides::{closure#0}
+   4: <zz_lsp_agent_probe::probe_itcl_member_sides::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+test probe_itcl_member_sides ... FAILED
+PROBE rex@121 target=Some("::rex") reach=Reached named=true entry=Some(("::a::Factory", 0))
+PROBE rex@251 target=None reach=Reached named=false entry=None
+
+thread 'probe_object_dispatch' (14376) panicked at rust/tcl-lsp-core/tests/zz_lsp_agent_probe.rs:39:5:
+PROBE END (deliberate, shows output)
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: zz_lsp_agent_probe::probe_object_dispatch
+   3: zz_lsp_agent_probe::probe_object_dispatch::{closure#0}
+   4: <zz_lsp_agent_probe::probe_object_dispatch::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+test probe_object_dispatch ... FAILED
+PROBE var tally tcl8.6 frame=true ns=Some(C(ByteNamespacePath([]))) symbols=3 slots=["Local { frame: SourceOriginalVariableFrame { source: ExecutedScriptSource { text: SourceImage { bytes: [10, 32, 32, 32, 32, 115, 101, 116, 32, 116, 111, 116, 97, 108, 32, 48, 10, 32, 32, 32, 32, 115, 101, 116, 32, 120, 32, 36, 10], channel: NativeValue, geometry: SourceImageGeometry { byte_hash: 5735369922802017248, line_index: Some(LineIndex { line_starts: [0, 1, 17, 29] }) } }, origin: SourceOriginId { kind: Authored(SourceImage { bytes: [112, 114, 111, 99, 32, 116, 97, 108, 108, 121, 32, 123, 99, 111, 117, 110, 116, 125, 32, 123, 10, 32, 32, 32, 32, 115, 101, 116, 32, 116, 111, 116, 97, 108, 32, 48, 10, 32, 32, 32, 32, 115, 101, 116, 32, 120, 32, 36, 10, 125, 10], channel: Document, geometry: SourceImageGeometry { byte_hash: 2553245513253291665, line_index: Some(LineIndex { line_starts: [0, 21, 37, 49, 51] }) } }), fingerprint: 12397491965877068331, activation_key: 18 }, mapping: Contiguous { base: 20 } }, frame: Procedure { namespace: \"::\", identity: \"::tally/source:18/site:0\" }, config: LexerConfig { expand_syntax: true, irules_brace_separator: false, brace_line_continuation: Terminates, strict_quoting: false, braced_var: FirstClose, array_index: Tcl8, base_offset: 0, base_line: 0, base_col: 0, leading_bom: Content, escapes: Tcl86, word_separators: Tcl, quote_termination: Strict, var_syntax: Tcl, brace_backslash_newline: Folds, list_parse: Strict, source_line_endings: TranslateAuto }, logical_lambda: None }, simple: NameBytes([99, 111, 117, 110, 116]) }", "Local { frame: SourceOriginalVariableFrame { source: ExecutedScriptSource { text: SourceImage { bytes: [10, 32, 32, 32, 32, 115, 101, 116, 32, 116, 111, 116, 97, 108, 32, 48, 10, 32, 32, 32, 32, 115, 101, 116, 32, 120, 32, 36, 10], channel: NativeValue, geometry: SourceImageGeometry { byte_hash: 5735369922802017248, line_index: Some(LineIndex { line_starts: [0, 1, 17, 29] }) } }, origin: SourceOriginId { kind: Authored(SourceImage { bytes: [112, 114, 111, 99, 32, 116, 97, 108, 108, 121, 32, 123, 99, 111, 117, 110, 116, 125, 32, 123, 10, 32, 32, 32, 32, 115, 101, 116, 32, 116, 111, 116, 97, 108, 32, 48, 10, 32, 32, 32, 32, 115, 101, 116, 32, 120, 32, 36, 10, 125, 10], channel: Document, geometry: SourceImageGeometry { byte_hash: 2553245513253291665, line_index: Some(LineIndex { line_starts: [0, 21, 37, 49, 51] }) } }), fingerprint: 12397491965877068331, activation_key: 18 }, mapping: Contiguous { base: 20 } }, frame: Procedure { namespace: \"::\", identity: \"::tally/source:18/site:0\" }, config: LexerConfig { expand_syntax: true, irules_brace_separator: false, brace_line_continuation: Terminates, strict_quoting: false, braced_var: FirstClose, array_index: Tcl8, base_offset: 0, base_line: 0, base_col: 0, leading_bom: Content, escapes: Tcl86, word_separators: Tcl, quote_termination: Strict, var_syntax: Tcl, brace_backslash_newline: Folds, list_parse: Strict, source_line_endings: TranslateAuto }, logical_lambda: None }, simple: NameBytes([116, 111, 116, 97, 108]) }", "Local { frame: SourceOriginalVariableFrame { source: ExecutedScriptSource { text: SourceImage { bytes: [10, 32, 32, 32, 32, 115, 101, 116, 32, 116, 111, 116, 97, 108, 32, 48, 10, 32, 32, 32, 32, 115, 101, 116, 32, 120, 32, 36, 10], channel: NativeValue, geometry: SourceImageGeometry { byte_hash: 5735369922802017248, line_index: Some(LineIndex { line_starts: [0, 1, 17, 29] }) } }, origin: SourceOriginId { kind: Authored(SourceImage { bytes: [112, 114, 111, 99, 32, 116, 97, 108, 108, 121, 32, 123, 99, 111, 117, 110, 116, 125, 32, 123, 10, 32, 32, 32, 32, 115, 101, 116, 32, 116, 111, 116, 97, 108, 32, 48, 10, 32, 32, 32, 32, 115, 101, 116, 32, 120, 32, 36, 10, 125, 10], channel: Document, geometry: SourceImageGeometry { byte_hash: 2553245513253291665, line_index: Some(LineIndex { line_starts: [0, 21, 37, 49, 51] }) } }), fingerprint: 12397491965877068331, activation_key: 18 }, mapping: Contiguous { base: 20 } }, frame: Procedure { namespace: \"::\", identity: \"::tally/source:18/site:0\" }, config: LexerConfig { expand_syntax: true, irules_brace_separator: false, brace_line_continuation: Terminates, strict_quoting: false, braced_var: FirstClose, array_index: Tcl8, base_offset: 0, base_line: 0, base_col: 0, leading_bom: Content, escapes: Tcl86, word_separators: Tcl, quote_termination: Strict, var_syntax: Tcl, brace_backslash_newline: Folds, list_parse: Strict, source_line_endings: TranslateAuto }, logical_lambda: None }, simple: NameBytes([120]) }"]
+PROBE var tally-called tcl8.6 frame=true ns=Some(C(ByteNamespacePath([]))) symbols=3 slots=["Local { frame: SourceOriginalVariableFrame { source: ExecutedScriptSource { text: SourceImage { bytes: [10, 32, 32, 32, 32, 115, 101, 116, 32, 116, 111, 116, 97, 108, 32, 48, 10, 32, 32, 32, 32, 115, 101, 116, 32, 120, 32, 36, 10], channel: NativeValue, geometry: SourceImageGeometry { byte_hash: 5735369922802017248, line_index: Some(LineIndex { line_starts: [0, 1, 17, 29] }) } }, origin: SourceOriginId { kind: Authored(SourceImage { bytes: [112, 114, 111, 99, 32, 116, 97, 108, 108, 121, 32, 123, 99, 111, 117, 110, 116, 125, 32, 123, 10, 32, 32, 32, 32, 115, 101, 116, 32, 116, 111, 116, 97, 108, 32, 48, 10, 32, 32, 32, 32, 115, 101, 116, 32, 120, 32, 36, 10, 125, 10, 116, 97, 108, 108, 121, 32, 49, 10], channel: Document, geometry: SourceImageGeometry { byte_hash: 3157431939638829527, line_index: Some(LineIndex { line_starts: [0, 21, 37, 49, 51, 59] }) } }), fingerprint: 12669924652486214293, activation_key: 19 }, mapping: Contiguous { base: 20 } }, frame: Procedure { namespace: \"::\", identity: \"::tally/source:19/site:0\" }, config: LexerConfig { expand_syntax: true, irules_brace_separator: false, brace_line_continuation: Terminates, strict_quoting: false, braced_var: FirstClose, array_index: Tcl8, base_offset: 0, base_line: 0, base_col: 0, leading_bom: Content, escapes: Tcl86, word_separators: Tcl, quote_termination: Strict, var_syntax: Tcl, brace_backslash_newline: Folds, list_parse: Strict, source_line_endings: TranslateAuto }, logical_lambda: None }, simple: NameBytes([99, 111, 117, 110, 116]) }", "Local { frame: SourceOriginalVariableFrame { source: ExecutedScriptSource { text: SourceImage { bytes: [10, 32, 32, 32, 32, 115, 101, 116, 32, 116, 111, 116, 97, 108, 32, 48, 10, 32, 32, 32, 32, 115, 101, 116, 32, 120, 32, 36, 10], channel: NativeValue, geometry: SourceImageGeometry { byte_hash: 5735369922802017248, line_index: Some(LineIndex { line_starts: [0, 1, 17, 29] }) } }, origin: SourceOriginId { kind: Authored(SourceImage { bytes: [112, 114, 111, 99, 32, 116, 97, 108, 108, 121, 32, 123, 99, 111, 117, 110, 116, 125, 32, 123, 10, 32, 32, 32, 32, 115, 101, 116, 32, 116, 111, 116, 97, 108, 32, 48, 10, 32, 32, 32, 32, 115, 101, 116, 32, 120, 32, 36, 10, 125, 10, 116, 97, 108, 108, 121, 32, 49, 10], channel: Document, geometry: SourceImageGeometry { byte_hash: 3157431939638829527, line_index: Some(LineIndex { line_starts: [0, 21, 37, 49, 51, 59] }) } }), fingerprint: 12669924652486214293, activation_key: 19 }, mapping: Contiguous { base: 20 } }, frame: Procedure { namespace: \"::\", identity: \"::tally/source:19/site:0\" }, config: LexerConfig { expand_syntax: true, irules_brace_separator: false, brace_line_continuation: Terminates, strict_quoting: false, braced_var: FirstClose, array_index: Tcl8, base_offset: 0, base_line: 0, base_col: 0, leading_bom: Content, escapes: Tcl86, word_separators: Tcl, quote_termination: Strict, var_syntax: Tcl, brace_backslash_newline: Folds, list_parse: Strict, source_line_endings: TranslateAuto }, logical_lambda: None }, simple: NameBytes([116, 111, 116, 97, 108]) }", "Local { frame: SourceOriginalVariableFrame { source: ExecutedScriptSource { text: SourceImage { bytes: [10, 32, 32, 32, 32, 115, 101, 116, 32, 116, 111, 116, 97, 108, 32, 48, 10, 32, 32, 32, 32, 115, 101, 116, 32, 120, 32, 36, 10], channel: NativeValue, geometry: SourceImageGeometry { byte_hash: 5735369922802017248, line_index: Some(LineIndex { line_starts: [0, 1, 17, 29] }) } }, origin: SourceOriginId { kind: Authored(SourceImage { bytes: [112, 114, 111, 99, 32, 116, 97, 108, 108, 121, 32, 123, 99, 111, 117, 110, 116, 125, 32, 123, 10, 32, 32, 32, 32, 115, 101, 116, 32, 116, 111, 116, 97, 108, 32, 48, 10, 32, 32, 32, 32, 115, 101, 116, 32, 120, 32, 36, 10, 125, 10, 116, 97, 108, 108, 121, 32, 49, 10], channel: Document, geometry: SourceImageGeometry { byte_hash: 3157431939638829527, line_index: Some(LineIndex { line_starts: [0, 21, 37, 49, 51, 59] }) } }), fingerprint: 12669924652486214293, activation_key: 19 }, mapping: Contiguous { base: 20 } }, frame: Procedure { namespace: \"::\", identity: \"::tally/source:19/site:0\" }, config: LexerConfig { expand_syntax: true, irules_brace_separator: false, brace_line_continuation: Terminates, strict_quoting: false, braced_var: FirstClose, array_index: Tcl8, base_offset: 0, base_line: 0, base_col: 0, leading_bom: Content, escapes: Tcl86, word_separators: Tcl, quote_termination: Strict, var_syntax: Tcl, brace_backslash_newline: Folds, list_parse: Strict, source_line_endings: TranslateAuto }, logical_lambda: None }, simple: NameBytes([120]) }"]
+PROBE var m11 tcl8.6 frame=true ns=Some(C(ByteNamespacePath([NameBytes([102, 111, 111])]))) symbols=2 slots=["C { namespace: ByteNamespacePath([]), simple: NameBytes([102, 108, 97, 103]) }", "C { namespace: ByteNamespacePath([NameBytes([102, 111, 111])]), simple: NameBytes([120]) }"]
+
+thread 'probe_variable_frames' (14405) panicked at rust/tcl-lsp-core/tests/zz_lsp_agent_probe.rs:117:5:
+PROBE END (deliberate, shows output)
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: zz_lsp_agent_probe::probe_variable_frames
+   3: zz_lsp_agent_probe::probe_variable_frames::{closure#0}
+   4: <zz_lsp_agent_probe::probe_variable_frames::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+test probe_variable_frames ... FAILED

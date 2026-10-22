@@ -1,0 +1,6 @@
+
+running 1 test
+test word_parts::tests::moderate_nesting_is_scanned_in_full ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 584 filtered out; finished in 0.00s
+

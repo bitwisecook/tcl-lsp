@@ -1,0 +1,8 @@
+taint: 159 ok, 214 failed
+checks: 236 ok, 38 failed
+optimiser_coverage: 32 ok, 61 failed
+var_escape_typeinfer: 19 ok, 51 failed
+analyser: 339 ok, 167 failed
+taint_depth: 50 ok, 80 failed
+dataflow: 3 ok, 42 failed
+codegen_depth: 20 ok, 35 failed

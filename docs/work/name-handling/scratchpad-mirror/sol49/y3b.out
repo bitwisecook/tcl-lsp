@@ -1,0 +1,20 @@
+y3-analyser__diagnostics__tests: 580 ok / 250 failed; 1 result lines
+y3-taint__: 43 ok / 17 failed; 0 result lines
+y3-registry_invocation: 206 ok / 81 failed; 1 result lines
+y3-analyser__diagnostics__fp: 445 ok / 136 failed; 1 result lines
+y3-signature_scan__: 188 ok / 9 failed; 1 result lines
+y3-command_binding__: 859 ok / 317 failed; 1 result lines
+== analyser__diagnostics__tests
+REGRESSIONS:
+GAINS: 0
+== taint__
+REGRESSIONS:
+GAINS: 0
+== registry_invocation
+REGRESSIONS:
+  registry_invocation::tests::hosted_original_source_assistance_keeps_metadata_and_execution_uncertainty_separate
+GAINS: 0
+== analyser__diagnostics__fp__
+sed: can't read /tmp/claude-0/-home-user-tcl-lsp/8d747420-e446-5e83-b7e6-dff30ae9952e/scratchpad/sol49/res/y3-analyser__diagnostics__fp__.txt: No such file or directory
+REGRESSIONS:
+GAINS: 0

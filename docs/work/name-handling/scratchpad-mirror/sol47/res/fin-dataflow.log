@@ -1,0 +1,130 @@
+test dataflow_alias_detection ... FAILED
+test dataflow_alias_info_present ... FAILED
+test dataflow_empty_source ... ok
+test dataflow_dead_definition_detected ... FAILED
+test dataflow_extract_function_dataflow_directly ... FAILED
+test dataflow_multi_proc_module ... FAILED
+test dataflow_graph_has_nodes_and_edges ... FAILED
+test dataflow_phi_edges ... FAILED
+test dataflow_prebuilt_cu ... FAILED
+test dataflow_proc_extraction ... FAILED
+test dataflow_total_aliases_property ... FAILED
+test dce_command_subst_rhs_not_a_dead_store ... FAILED
+test dataflow_simple_linear ... FAILED
+test dce_dead_store_inside_for_body ... FAILED
+test dce_dead_store_inside_if_clause ... FAILED
+test dce_global_write_not_a_dead_store ... FAILED
+test dce_multiple_writes_both_unread_are_dead ... FAILED
+test dce_no_dead_stores_when_none ... FAILED
+test dce_non_terminal_dead_set_still_dead ... FAILED
+test dce_pure_literal_assign_still_dead ... FAILED
+test dce_terminal_set_is_unread_but_implicit_return ... FAILED
+test dce_top_level_unused_is_dead ... FAILED
+test dce_unused_literal_store_is_dead ... FAILED
+test dce_used_var_inside_nested_if_not_dead ... FAILED
+test dce_used_var_not_dead ... FAILED
+test dce_var_used_in_braced_substitution_not_dead ... FAILED
+test def_use_branch_condition_is_use ... FAILED
+test dce_var_used_in_expr_not_dead ... FAILED
+test def_use_chain_for_returns_none ... ok
+test def_use_dead_chains_property ... FAILED
+test def_use_foreach_loop ... ok
+test def_use_dead_store ... FAILED
+test def_use_if_inside_while ... FAILED
+test def_use_has_phi_use ... FAILED
+test def_use_is_dead_method ... FAILED
+test def_use_is_dead_nonexistent_key ... FAILED
+test def_use_if_merge_creates_phi_chain ... FAILED
+test def_use_linear_single_use ... FAILED
+test def_use_loop_phi ... FAILED
+test def_use_multiple_uses ... FAILED
+test def_use_phi_incoming_edges_are_uses ... FAILED
+test def_use_proc_parameters ... FAILED
+test def_use_reaching_defs ... FAILED
+test def_use_total_counts ... FAILED
+test def_use_while_condition_is_use ... FAILED
+---- dataflow_alias_detection stdout ----
+thread 'dataflow_alias_detection' (15719) panicked at rust/tcl-compiler/tests/dataflow.rs:428:10:
+---- dataflow_alias_info_present stdout ----
+thread 'dataflow_alias_info_present' (15720) panicked at rust/tcl-compiler/tests/dataflow.rs:458:10:
+---- dataflow_dead_definition_detected stdout ----
+thread 'dataflow_dead_definition_detected' (15722) panicked at rust/tcl-compiler/tests/dataflow.rs:408:5:
+---- dataflow_extract_function_dataflow_directly stdout ----
+thread 'dataflow_extract_function_dataflow_directly' (15724) panicked at rust/tcl-compiler/tests/dataflow.rs:495:5:
+---- dataflow_multi_proc_module stdout ----
+thread 'dataflow_multi_proc_module' (15726) panicked at rust/tcl-compiler/tests/dataflow.rs:476:5:
+---- dataflow_graph_has_nodes_and_edges stdout ----
+thread 'dataflow_graph_has_nodes_and_edges' (15725) panicked at rust/tcl-compiler/tests/dataflow.rs:522:5:
+---- dataflow_phi_edges stdout ----
+thread 'dataflow_phi_edges' (15727) panicked at rust/tcl-compiler/tests/dataflow.rs:447:5:
+---- dataflow_prebuilt_cu stdout ----
+thread 'dataflow_prebuilt_cu' (15728) panicked at rust/tcl-compiler/tests/dataflow.rs:506:5:
+---- dataflow_proc_extraction stdout ----
+thread 'dataflow_proc_extraction' (15736) panicked at rust/tcl-compiler/tests/dataflow.rs:415:5:
+---- dataflow_total_aliases_property stdout ----
+thread 'dataflow_total_aliases_property' (15758) panicked at rust/tcl-compiler/tests/dataflow.rs:469:5:
+---- dce_command_subst_rhs_not_a_dead_store stdout ----
+thread 'dce_command_subst_rhs_not_a_dead_store' (15759) panicked at rust/tcl-compiler/tests/dataflow.rs:109:28:
+---- dataflow_simple_linear stdout ----
+thread 'dataflow_simple_linear' (15757) panicked at rust/tcl-compiler/tests/dataflow.rs:392:5:
+---- dce_dead_store_inside_for_body stdout ----
+thread 'dce_dead_store_inside_for_body' (15760) panicked at rust/tcl-compiler/tests/dataflow.rs:109:28:
+---- dce_dead_store_inside_if_clause stdout ----
+thread 'dce_dead_store_inside_if_clause' (15761) panicked at rust/tcl-compiler/tests/dataflow.rs:109:28:
+---- dce_global_write_not_a_dead_store stdout ----
+thread 'dce_global_write_not_a_dead_store' (15762) panicked at rust/tcl-compiler/tests/dataflow.rs:109:28:
+---- dce_multiple_writes_both_unread_are_dead stdout ----
+thread 'dce_multiple_writes_both_unread_are_dead' (15763) panicked at rust/tcl-compiler/tests/dataflow.rs:109:28:
+---- dce_no_dead_stores_when_none stdout ----
+thread 'dce_no_dead_stores_when_none' (15764) panicked at rust/tcl-compiler/tests/dataflow.rs:109:28:
+---- dce_non_terminal_dead_set_still_dead stdout ----
+thread 'dce_non_terminal_dead_set_still_dead' (15766) panicked at rust/tcl-compiler/tests/dataflow.rs:109:28:
+---- dce_pure_literal_assign_still_dead stdout ----
+thread 'dce_pure_literal_assign_still_dead' (15767) panicked at rust/tcl-compiler/tests/dataflow.rs:109:28:
+---- dce_terminal_set_is_unread_but_implicit_return stdout ----
+thread 'dce_terminal_set_is_unread_but_implicit_return' (15768) panicked at rust/tcl-compiler/tests/dataflow.rs:109:28:
+---- dce_top_level_unused_is_dead stdout ----
+thread 'dce_top_level_unused_is_dead' (15769) panicked at rust/tcl-compiler/tests/dataflow.rs:684:5:
+---- dce_unused_literal_store_is_dead stdout ----
+thread 'dce_unused_literal_store_is_dead' (15770) panicked at rust/tcl-compiler/tests/dataflow.rs:109:28:
+---- dce_used_var_inside_nested_if_not_dead stdout ----
+thread 'dce_used_var_inside_nested_if_not_dead' (15772) panicked at rust/tcl-compiler/tests/dataflow.rs:109:28:
+---- dce_used_var_not_dead stdout ----
+thread 'dce_used_var_not_dead' (15773) panicked at rust/tcl-compiler/tests/dataflow.rs:109:28:
+---- dce_var_used_in_braced_substitution_not_dead stdout ----
+thread 'dce_var_used_in_braced_substitution_not_dead' (15774) panicked at rust/tcl-compiler/tests/dataflow.rs:109:28:
+---- def_use_branch_condition_is_use stdout ----
+thread 'def_use_branch_condition_is_use' (15776) panicked at rust/tcl-compiler/tests/dataflow.rs:264:37:
+---- dce_var_used_in_expr_not_dead stdout ----
+thread 'dce_var_used_in_expr_not_dead' (15775) panicked at rust/tcl-compiler/tests/dataflow.rs:109:28:
+---- def_use_dead_chains_property stdout ----
+thread 'def_use_dead_chains_property' (15778) panicked at rust/tcl-compiler/tests/dataflow.rs:207:5:
+---- def_use_dead_store stdout ----
+thread 'def_use_dead_store' (15779) panicked at rust/tcl-compiler/tests/dataflow.rs:182:31:
+---- def_use_if_inside_while stdout ----
+thread 'def_use_if_inside_while' (15782) panicked at rust/tcl-compiler/tests/dataflow.rs:372:5:
+---- def_use_has_phi_use stdout ----
+thread 'def_use_has_phi_use' (15781) panicked at rust/tcl-compiler/tests/dataflow.rs:362:5:
+---- def_use_is_dead_method stdout ----
+thread 'def_use_is_dead_method' (15784) panicked at rust/tcl-compiler/tests/dataflow.rs:332:56:
+---- def_use_is_dead_nonexistent_key stdout ----
+thread 'def_use_is_dead_nonexistent_key' (15785) panicked at rust/tcl-compiler/tests/dataflow.rs:341:55:
+---- def_use_if_merge_creates_phi_chain stdout ----
+thread 'def_use_if_merge_creates_phi_chain' (15783) panicked at rust/tcl-compiler/tests/dataflow.rs:234:5:
+---- def_use_linear_single_use stdout ----
+thread 'def_use_linear_single_use' (15787) panicked at rust/tcl-compiler/tests/dataflow.rs:170:31:
+---- def_use_loop_phi stdout ----
+thread 'def_use_loop_phi' (15788) panicked at rust/tcl-compiler/tests/dataflow.rs:293:5:
+---- def_use_multiple_uses stdout ----
+thread 'def_use_multiple_uses' (15793) panicked at rust/tcl-compiler/tests/dataflow.rs:191:34:
+---- def_use_phi_incoming_edges_are_uses stdout ----
+thread 'def_use_phi_incoming_edges_are_uses' (15794) panicked at rust/tcl-compiler/tests/dataflow.rs:252:5:
+---- def_use_proc_parameters stdout ----
+thread 'def_use_proc_parameters' (15795) panicked at rust/tcl-compiler/tests/dataflow.rs:109:28:
+---- def_use_reaching_defs stdout ----
+thread 'def_use_reaching_defs' (15796) panicked at rust/tcl-compiler/tests/dataflow.rs:199:5:
+---- def_use_total_counts stdout ----
+thread 'def_use_total_counts' (15799) panicked at rust/tcl-compiler/tests/dataflow.rs:215:5:
+---- def_use_while_condition_is_use stdout ----
+thread 'def_use_while_condition_is_use' (15800) panicked at rust/tcl-compiler/tests/dataflow.rs:281:5:
+test result: FAILED. 3 passed; 42 failed; 0 ignored; 0 measured; 0 filtered out; finished in 10.02s

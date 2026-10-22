@@ -1,0 +1,60 @@
+MATRIX tcl9/options/Direct: procs=[] admission=None realm=RuleLoader native=NativeCompilationContext { mode: Direct, frame: ScriptCode, loop_depth: 0, catch_depth: Some(0) }
+MATRIX tcl9/options/Direct:   Call { span: Span { star argv=Some(["set", "x", "1"]) sel=Some(Generic) proved=true inline=false cands=Some(0)
+MATRIX tcl9/options/Direct:   Call { span: Span { star argv=Some(["lassign", "1 2", "a", "b"]) sel=Some(Generic) proved=true inline=false cands=Some(0)
+MATRIX tcl9/options/Direct:   Call { span: Span { star argv=Some(["proc", "caller", "n", "set y [llength $n]; return $y"]) sel=Some(Generic) proved=true inline=false cands=Some(0)
+MATRIX tcl9/options/Direct:   Call { span: Span { star argv=Some(["list", "${a}", "${b}"]) sel=Some(Generic) proved=true inline=false cands=Some(0)
+MATRIX tcl9/options/Direct: => preflight=NotRequired valid=Ok(()) bindings=[] procs=[] ops=[PUSH1, PUSH1, PUSH1, INVOKE_STK1, POP, PUSH1, PUSH1, PUSH1, PUSH1, INVOKE_STK1, POP, PUSH1, PUSH1, PUSH1, PUSH1, INVOKE_STK1, POP, PUSH1, PUSH1, LOAD_STK, PUSH1, LOAD_STK, INVOKE_STK1, DONE] claims=0
+MATRIX tcl9/resolved/Direct: procs=["::caller"] admission=None realm=RuleLoader native=NativeCompilationContext { mode: Direct, frame: ScriptCode, loop_depth: 0, catch_depth: Some(0) }
+MATRIX tcl9/resolved/Direct:   Call { span: Span { star argv=Some(["set", "x", "1"]) sel=Some(Generic) proved=true inline=false cands=Some(0)
+MATRIX tcl9/resolved/Direct:   Call { span: Span { star argv=Some(["lassign", "1 2", "a", "b"]) sel=Some(Generic) proved=true inline=false cands=Some(0)
+MATRIX tcl9/resolved/Direct:   Call { span: Span { star argv=Some(["proc", "caller", "n", "set y [llength $n]; return $y"]) sel=Some(Generic) proved=true inline=false cands=Some(0)
+MATRIX tcl9/resolved/Direct:   Call { span: Span { star argv=Some(["list", "${a}", "${b}"]) sel=Some(Generic) proved=true inline=false cands=Some(0)
+MATRIX tcl9/resolved/Direct: => preflight=NotRequired valid=Ok(()) bindings=[] procs=["::caller"] ops=[PUSH1, PUSH1, PUSH1, INVOKE_STK1, POP, PUSH1, PUSH1, PUSH1, PUSH1, INVOKE_STK1, POP, PUSH1, PUSH1, PUSH1, PUSH1, INVOKE_STK1, POP, PUSH1, PUSH1, LOAD_STK, PUSH1, LOAD_STK, INVOKE_STK1, DONE] claims=0
+MATRIX tcl9/options/BytecodeObject: procs=[] admission=Some((true, false)) realm=RuleLoader native=NativeCompilationContext { mode: BytecodeObject, frame: ScriptCode, loop_depth: 0, catch_depth: Some(0) }
+MATRIX tcl9/options/BytecodeObject:   AssignConst { span: Span argv=None sel=None proved=false inline=false cands=None
+MATRIX tcl9/options/BytecodeObject:   Call { span: Span { star argv=Some(["lassign", "1 2", "a", "b"]) sel=Some(Inline { operation: Intrinsic(ListAssign), guard: BeforeArguments }) proved=true inline=true cands=Some(1)
+MATRIX tcl9/options/BytecodeObject:   Call { span: Span { star argv=Some(["proc", "caller", "n", "set y [llength $n]; return $y"]) sel=Some(Generic) proved=true inline=false cands=Some(0)
+MATRIX tcl9/options/BytecodeObject:   Call { span: Span { star argv=Some(["list", "${a}", "${b}"]) sel=Some(Inline { operation: Invoke, guard: BeforeArguments }) proved=true inline=true cands=Some(1)
+MATRIX tcl9/options/BytecodeObject: => preflight=ProviderRequired valid=Err(NativePreflightRequired) bindings=[("lassign", "lassign"), ("list", "list"), ("set", "set")] procs=[] ops=[START_CMD, PUSH1, PUSH1, STORE_STK, POP, START_CMD, PUSH1, PUSH1, OVER, LIST_INDEX_IMM, STORE_STK, POP, PUSH1, OVER, LIST_INDEX_IMM, STORE_STK, POP, LIST_RANGE_IMM, POP, PUSH1, PUSH1, PUSH1, PUSH1, INVOKE_STK1, POP, PUSH1, PUSH1, LOAD_STK, PUSH1, LOAD_STK, INVOKE_STK1, DONE] claims=0
+MATRIX tcl9/resolved/BytecodeObject: procs=["::caller"] admission=Some((true, false)) realm=RuleLoader native=NativeCompilationContext { mode: BytecodeObject, frame: ScriptCode, loop_depth: 0, catch_depth: Some(0) }
+MATRIX tcl9/resolved/BytecodeObject:   AssignConst { span: Span argv=None sel=None proved=false inline=false cands=None
+MATRIX tcl9/resolved/BytecodeObject:   Call { span: Span { star argv=Some(["lassign", "1 2", "a", "b"]) sel=Some(Inline { operation: Intrinsic(ListAssign), guard: BeforeArguments }) proved=true inline=true cands=Some(1)
+MATRIX tcl9/resolved/BytecodeObject:   Call { span: Span { star argv=Some(["proc", "caller", "n", "set y [llength $n]; return $y"]) sel=Some(Generic) proved=true inline=false cands=Some(0)
+MATRIX tcl9/resolved/BytecodeObject:   Call { span: Span { star argv=Some(["list", "${a}", "${b}"]) sel=Some(Inline { operation: Invoke, guard: BeforeArguments }) proved=true inline=true cands=Some(1)
+MATRIX tcl9/resolved/BytecodeObject: => preflight=ProviderRequired valid=Err(NativePreflightRequired) bindings=[("lassign", "lassign"), ("list", "list"), ("set", "set")] procs=["::caller"] ops=[PUSH1, PUSH1, STORE_STK, POP, START_CMD, PUSH1, PUSH1, OVER, LIST_INDEX_IMM, STORE_STK, POP, PUSH1, OVER, LIST_INDEX_IMM, STORE_STK, POP, LIST_RANGE_IMM, POP, PUSH1, PUSH1, PUSH1, PUSH1, INVOKE_STK1, POP, PUSH1, PUSH1, LOAD_STK, PUSH1, LOAD_STK, INVOKE_STK1, DONE] claims=0
+MATRIX tcl9/none: procs=["::caller"] admission=Some((true, false)) realm=RuleLoader native=NativeCompilationContext { mode: BytecodeObject, frame: ScriptCode, loop_depth: 0, catch_depth: Some(0) }
+MATRIX tcl9/none:   AssignConst { span: Span argv=None sel=None proved=false inline=false cands=None
+MATRIX tcl9/none:   Call { span: Span { star argv=Some(["lassign", "1 2", "a", "b"]) sel=Some(Inline { operation: Intrinsic(ListAssign), guard: BeforeArguments }) proved=true inline=true cands=Some(1)
+MATRIX tcl9/none:   Call { span: Span { star argv=Some(["proc", "caller", "n", "set y [llength $n]; return $y"]) sel=Some(Generic) proved=true inline=false cands=Some(0)
+MATRIX tcl9/none:   Call { span: Span { star argv=Some(["list", "${a}", "${b}"]) sel=Some(Inline { operation: Invoke, guard: BeforeArguments }) proved=true inline=true cands=Some(1)
+MATRIX tcl9/none: => preflight=ProviderRequired valid=Err(NativePreflightRequired) bindings=[("lassign", "lassign"), ("list", "list"), ("set", "set")] procs=["::caller"] ops=[PUSH1, PUSH1, STORE_STK, POP, START_CMD, PUSH1, PUSH1, OVER, LIST_INDEX_IMM, STORE_STK, POP, PUSH1, OVER, LIST_INDEX_IMM, STORE_STK, POP, LIST_RANGE_IMM, POP, PUSH1, PUSH1, PUSH1, PUSH1, INVOKE_STK1, POP, PUSH1, PUSH1, LOAD_STK, PUSH1, LOAD_STK, INVOKE_STK1, DONE] claims=0
+MATRIX plain/options/Direct: procs=[] admission=None realm=RuleLoader native=NativeCompilationContext { mode: Direct, frame: Unknown, loop_depth: 0, catch_depth: None }
+MATRIX plain/options/Direct:   Call { span: Span { star argv=Some(["set", "x", "1"]) sel=Some(Unknown) proved=false inline=false cands=Some(0)
+MATRIX plain/options/Direct:   Call { span: Span { star argv=Some(["lassign", "1 2", "a", "b"]) sel=Some(Unknown) proved=false inline=false cands=Some(0)
+MATRIX plain/options/Direct:   Call { span: Span { star argv=Some(["proc", "caller", "n", "set y [llength $n]; return $y"]) sel=Some(Unknown) proved=false inline=false cands=Some(0)
+MATRIX plain/options/Direct:   Call { span: Span { star argv=Some(["list", "${a}", "${b}"]) sel=Some(Unknown) proved=false inline=false cands=Some(0)
+MATRIX plain/options/Direct: => preflight=ProviderRequired valid=Err(NativePreflightRequired) bindings=[] procs=[] ops=[PUSH1, PUSH1, PUSH1, INVOKE_STK1, POP, PUSH1, PUSH1, PUSH1, PUSH1, INVOKE_STK1, POP, PUSH1, PUSH1, PUSH1, PUSH1, INVOKE_STK1, POP, PUSH1, PUSH1, PUSH1, INVOKE_STK1, DONE] claims=0
+MATRIX plain/resolved/Direct: procs=[] admission=None realm=RuleLoader native=NativeCompilationContext { mode: Direct, frame: Unknown, loop_depth: 0, catch_depth: None }
+MATRIX plain/resolved/Direct:   Call { span: Span { star argv=Some(["set", "x", "1"]) sel=Some(Unknown) proved=false inline=false cands=Some(0)
+MATRIX plain/resolved/Direct:   Call { span: Span { star argv=Some(["lassign", "1 2", "a", "b"]) sel=Some(Unknown) proved=false inline=false cands=Some(0)
+MATRIX plain/resolved/Direct:   Call { span: Span { star argv=Some(["proc", "caller", "n", "set y [llength $n]; return $y"]) sel=Some(Unknown) proved=false inline=false cands=Some(0)
+MATRIX plain/resolved/Direct:   Call { span: Span { star argv=Some(["list", "${a}", "${b}"]) sel=Some(Unknown) proved=false inline=false cands=Some(0)
+MATRIX plain/resolved/Direct: => preflight=ProviderRequired valid=Err(NativePreflightRequired) bindings=[] procs=[] ops=[PUSH1, PUSH1, PUSH1, INVOKE_STK1, POP, PUSH1, PUSH1, PUSH1, PUSH1, INVOKE_STK1, POP, PUSH1, PUSH1, PUSH1, PUSH1, INVOKE_STK1, POP, PUSH1, PUSH1, PUSH1, INVOKE_STK1, DONE] claims=0
+MATRIX plain/options/BytecodeObject: procs=[] admission=Some((true, false)) realm=RuleLoader native=NativeCompilationContext { mode: BytecodeObject, frame: Unknown, loop_depth: 0, catch_depth: None }
+MATRIX plain/options/BytecodeObject:   Call { span: Span { star argv=Some(["set", "x", "1"]) sel=Some(Unknown) proved=false inline=false cands=Some(0)
+MATRIX plain/options/BytecodeObject:   Call { span: Span { star argv=Some(["lassign", "1 2", "a", "b"]) sel=Some(Unknown) proved=false inline=false cands=Some(0)
+MATRIX plain/options/BytecodeObject:   Call { span: Span { star argv=Some(["proc", "caller", "n", "set y [llength $n]; return $y"]) sel=Some(Unknown) proved=false inline=false cands=Some(0)
+MATRIX plain/options/BytecodeObject:   Call { span: Span { star argv=Some(["list", "${a}", "${b}"]) sel=Some(Unknown) proved=false inline=false cands=Some(0)
+MATRIX plain/options/BytecodeObject: => preflight=ProviderRequired valid=Err(NativePreflightRequired) bindings=[] procs=[] ops=[PUSH1, PUSH1, PUSH1, INVOKE_STK1, POP, PUSH1, PUSH1, PUSH1, PUSH1, INVOKE_STK1, POP, PUSH1, PUSH1, PUSH1, PUSH1, INVOKE_STK1, POP, PUSH1, PUSH1, PUSH1, INVOKE_STK1, DONE] claims=0
+MATRIX plain/resolved/BytecodeObject: procs=[] admission=Some((true, false)) realm=RuleLoader native=NativeCompilationContext { mode: BytecodeObject, frame: Unknown, loop_depth: 0, catch_depth: None }
+MATRIX plain/resolved/BytecodeObject:   Call { span: Span { star argv=Some(["set", "x", "1"]) sel=Some(Unknown) proved=false inline=false cands=Some(0)
+MATRIX plain/resolved/BytecodeObject:   Call { span: Span { star argv=Some(["lassign", "1 2", "a", "b"]) sel=Some(Unknown) proved=false inline=false cands=Some(0)
+MATRIX plain/resolved/BytecodeObject:   Call { span: Span { star argv=Some(["proc", "caller", "n", "set y [llength $n]; return $y"]) sel=Some(Unknown) proved=false inline=false cands=Some(0)
+MATRIX plain/resolved/BytecodeObject:   Call { span: Span { star argv=Some(["list", "${a}", "${b}"]) sel=Some(Unknown) proved=false inline=false cands=Some(0)
+MATRIX plain/resolved/BytecodeObject: => preflight=ProviderRequired valid=Err(NativePreflightRequired) bindings=[] procs=[] ops=[PUSH1, PUSH1, PUSH1, INVOKE_STK1, POP, PUSH1, PUSH1, PUSH1, PUSH1, INVOKE_STK1, POP, PUSH1, PUSH1, PUSH1, PUSH1, INVOKE_STK1, POP, PUSH1, PUSH1, PUSH1, INVOKE_STK1, DONE] claims=0
+MATRIX plain/none: procs=[] admission=None realm=RuleLoader native=NativeCompilationContext { mode: Unknown, frame: Unknown, loop_depth: 0, catch_depth: None }
+MATRIX plain/none:   Call { span: Span { star argv=Some(["set", "x", "1"]) sel=Some(Unknown) proved=false inline=false cands=Some(0)
+MATRIX plain/none:   Call { span: Span { star argv=Some(["lassign", "1 2", "a", "b"]) sel=Some(Unknown) proved=false inline=false cands=Some(0)
+MATRIX plain/none:   Call { span: Span { star argv=Some(["proc", "caller", "n", "set y [llength $n]; return $y"]) sel=Some(Unknown) proved=false inline=false cands=Some(0)
+MATRIX plain/none:   Call { span: Span { star argv=Some(["list", "${a}", "${b}"]) sel=Some(Unknown) proved=false inline=false cands=Some(0)
+MATRIX plain/none: => preflight=ProviderRequired valid=Err(NativePreflightRequired) bindings=[] procs=[] ops=[PUSH1, PUSH1, PUSH1, INVOKE_STK1, POP, PUSH1, PUSH1, PUSH1, PUSH1, INVOKE_STK1, POP, PUSH1, PUSH1, PUSH1, PUSH1, INVOKE_STK1, POP, PUSH1, PUSH1, PUSH1, INVOKE_STK1, DONE] claims=0

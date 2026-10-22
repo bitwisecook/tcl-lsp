@@ -1,0 +1,6 @@
+
+running 1 test
+test package_resolver::reachability::source_survey_owner_tests::known_false_source_body_keeps_unavailable_advertisement_without_entered_claim ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 3484 filtered out; finished in 0.29s
+

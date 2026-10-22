@@ -1,0 +1,70 @@
+== cap_deep_structured_if_ir
+ <tcl_compiler::cfg_builder::summary_candidates::OriginalProcedureSummaryOwners>::for_module::{closure#1}
+ <core::option::Option<&alloc::sync::Arc<tcl_compiler::command_binding::retained_source::RetainedSourceModuleBindings>>>::map::<alloc::sync::Arc<tcl_compiler::ir::Module>, <tcl_compiler::cfg_builder::summary_candidates::OriginalProcedureSummaryOwners>::for_module::{closure#1}>
+ <tcl_compiler::cfg_builder::summary_candidates::OriginalProcedureSummaryOwners>::for_module
+ tcl_compiler::cfg_builder::detect_upvar_bodies_with_registry
+ tcl_compiler::cfg_builder::prepare_cfg_context_bundle
+ tcl_compiler::compilation_unit::lower_and_build_cfg_with_original_caches
+ <tcl_compiler::compilation_unit::CompilationUnit>::build_with_retained_entry_and_source_syntax
+ <tcl_compiler::compilation_unit::CompilationUnit>::build_with_retained_entry
+ <tcl_compiler::compilation_unit::CompilationUnit>::build_with_analysis_input
+ <tcl_compiler::analyser::state::Analyser>::emit_cfg_ssa_diagnostics::{closure#1}
+ <<tcl_compiler::analyser::state::Analyser>::emit_cfg_ssa_diagnostics::{closure#1} as core::ops::function::FnOnce<()>>::call_once
+ <core::panic::unwind_safe::AssertUnwindSafe<<tcl_compiler::analyser::state::Analyser>::emit_cfg_ssa_diagnostics::{closure#1}> as core::ops::function::FnOnce<()>>::call_once
+ std::panicking::catch_unwind::do_call::<core::panic::unwind_safe::AssertUnwindSafe<<tcl_compiler::analyser::state::Analyser>::emit_cfg_ssa_diagnostics::{closure#1}>,
+ __rust_try
+ std::panic::catch_unwind::<core::panic::unwind_safe::AssertUnwindSafe<<tcl_compiler::analyser::state::Analyser>::emit_cfg_ssa_diagnostics::{closure#1}>,
+ <tcl_compiler::analyser::state::Analyser>::emit_cfg_ssa_diagnostics
+ <tcl_compiler::analyser::state::Analyser>::run_diagnostic_emitters
+ <tcl_compiler::analyser::state::Analyser>::analyse
+ tcl_compiler::depth_guard::tests::analyse_on_budget_thread::{closure#0}
+ std::sys::backtrace::__rust_begin_short_backtrace::<tcl_compiler::depth_guard::tests::analyse_on_budget_thread::{closure#0}, usize>
+ std::thread::lifecycle::spawn_unchecked::<tcl_compiler::depth_guard::tests::analyse_on_budget_thread::{closure#0}, usize>::{closure#1}::{closure#0}
+ <core::panic::unwind_safe::AssertUnwindSafe<std::thread::lifecycle::spawn_unchecked<tcl_compiler::depth_guard::tests::analyse_on_budget_thread::{closure#0}, usize>::{closure#1}::{closure#0}> as core::ops::function::FnOnce<()>>::call_once
+ std::panicking::catch_unwind::do_call::<core::panic::unwind_safe::AssertUnwindSafe<std::thread::lifecycle::spawn_unchecked<tcl_compiler::depth_guard::tests::analyse_on_budget_thread::{closure#0}, usize>::{closure#1}::{closure#0}>, usize>
+ __rust_try
+ std::thread::lifecycle::spawn_unchecked::<tcl_compiler::depth_guard::tests::analyse_on_budget_thread::{closure#0}, usize>::{closure#1}
+ <std::thread::lifecycle::spawn_unchecked<tcl_compiler::depth_guard::tests::analyse_on_budget_thread::{closure#0}, usize>::{closure#1} as core::ops::function::FnOnce<()>>::call_once::{shim:vtable#0}
+ <std::sys::thread::unix::Thread>::new::thread_start
+ start_thread
+== deep_namespace_eval_nesting
+ <hashbrown::raw::RawTableInner>::fallible_with_capacity::<alloc::alloc::Global>
+ <hashbrown::raw::RawTable<(alloc::string::String,
+ <hashbrown::raw::RawTable<(alloc::string::String,
+ <hashbrown::map::HashMap<alloc::string::String,
+ <hashbrown::set::HashSet<alloc::string::String, std::hash::random::RandomState> as core::iter::traits::collect::Extend<alloc::string::String>>::extend::<[alloc::string::String; 1]>
+ <std::collections::hash::set::HashSet<alloc::string::String> as core::iter::traits::collect::FromIterator<alloc::string::String>>::from_iter::<[alloc::string::String; 1]>
+ <std::collections::hash::set::HashSet<alloc::string::String> as core::convert::From<[alloc::string::String; 1]>>::from
+ <tcl_compiler::var_resolve::ResolveContext as core::default::Default>::default
+ <alloc::sync::Arc<tcl_compiler::var_resolve::ResolveContext> as core::default::Default>::default
+ <tcl_compiler::command_binding::SourceInvocationBinding as core::default::Default>::default
+ <tcl_compiler::command_binding::SourceCommandBindings>::query_dispatch_points::<core::iter::adapters::map::Map<core::iter::adapters::flatten::Flatten<core::option::IntoIter<&alloc::vec::Vec<usize>>>, <tcl_compiler::command_binding::SourceCommandBindings>::dispatch_points_at::{closure#0}>>
+ <tcl_compiler::command_binding::SourceCommandBindings>::invocation_at_source
+ <tcl_compiler::command_binding::SourceCommandBindings>::stamp_original_logical_declaration_targets
+ <tcl_compiler::command_binding::SourceCommandBindings>::stamp_original_tokens_with_bindings::<<tcl_compiler::command_binding::retained_body_inventory::RetainedSourceBodyInventory>::stamp_original_tokens::{closure#1}>
+ <tcl_compiler::command_binding::retained_body_inventory::RetainedSourceBodyInventory>::stamp_original_tokens
+ <tcl_compiler::lowering::Lowerer>::cmd_tokens
+ <tcl_compiler::lowering::Lowerer>::try_registered_lowering_hook
+ <tcl_compiler::lowering::Lowerer>::lower_command
+ <tcl_compiler::lowering::Lowerer>::lower_segmented
+ <tcl_compiler::lowering::Lowerer>::lower_body_inner::{closure#0}
+ <tcl_compiler::lowering::Lowerer>::in_word_space::<alloc::vec::Vec<tcl_compiler::ir::Statement>, <tcl_compiler::lowering::Lowerer>::lower_body_inner::{closure#0}>
+ <tcl_compiler::lowering::Lowerer>::lower_body_inner
+ <tcl_compiler::lowering::Lowerer>::lower_body_in_irules_context
+ <tcl_compiler::lowering::Lowerer>::lower_body
+ <tcl_compiler::lowering::Lowerer>::lower_into_script_with_boxed_bindings
+ <tcl_compiler::lowering::Lowerer>::lower_executed_script_in_context
+ <tcl_compiler::lowering::Lowerer>::lower_original_body
+ <tcl_compiler::lowering::Lowerer>::lower_retained_script
+ <tcl_compiler::lowering::Lowerer>::lower_body_from_tok
+ <tcl_compiler::lowering::Lowerer>::walk_namespace_eval_body
+ <tcl_compiler::lowering::Lowerer>::lower_namespace_eval
+ <tcl_compiler::lowering::Lowerer>::try_dispatch_structured_hook::{closure#6}::{closure#11}
+ <tcl_compiler::lowering::Lowerer>::box_lowered_statement::<<tcl_compiler::lowering::Lowerer>::try_dispatch_structured_hook::{closure#6}::{closure#11}>
+ <tcl_compiler::lowering::Lowerer>::try_dispatch_structured_hook::{closure#6}
+ <tcl_compiler::lowering::Lowerer>::with_original_body_parent::<core::option::Option<alloc::boxed::Box<tcl_compiler::ir::Statement>>, <tcl_compiler::lowering::Lowerer>::try_dispatch_structured_hook::{closure#6}>
+ <tcl_compiler::lowering::Lowerer>::try_dispatch_structured_hook
+ <tcl_compiler::lowering::Lowerer>::lower_command
+ <tcl_compiler::lowering::Lowerer>::lower_segmented
+ <tcl_compiler::lowering::Lowerer>::lower_body_inner::{closure#0}
+ <tcl_compiler::lowering::Lowerer>::in_word_space::<alloc::vec::Vec<tcl_compiler::ir::Statement>, <tcl_compiler::lowering::Lowerer>::lower_body_inner::{closure#0}>

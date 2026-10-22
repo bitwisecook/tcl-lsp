@@ -1,0 +1,39 @@
+
+running 1 test
+test tests::fix_all_safe_issues_analyses_under_the_documents_layers has been running for over 60 seconds
+test tests::fix_all_safe_issues_analyses_under_the_documents_layers ... FAILED
+
+failures:
+
+---- tests::fix_all_safe_issues_analyses_under_the_documents_layers stdout ----
+
+thread 'tests::fix_all_safe_issues_analyses_under_the_documents_layers' (27327) panicked at rust/tcl-lsp-server/src/lib.rs:50633:13:
+assertion `left == right` failed: file:///fixall-folder/a.irul: {"source":"when HTTP_REQUEST {\n    log local0. [http_host]\n}\n","applied":[]}
+  left: Some("when HTTP_REQUEST {\n    log local0. [http_host]\n}\n")
+ right: Some("when HTTP_REQUEST {\n    log local0. [HTTP::host]\n}\n")
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<core::option::Option<&str>, core::option::Option<&str>>
+   4: tcl_lsp_server::tests::fix_all_safe_issues_analyses_under_the_documents_layers::{closure#0}
+   5: <core::pin::Pin<&mut dyn core::future::future::Future<Output = ()>> as core::future::future::Future>::poll
+   6: <tokio::runtime::park::CachedParkThread>::block_on::<core::pin::Pin<&mut dyn core::future::future::Future<Output = ()>>>::{closure#0}
+   7: <tokio::runtime::park::CachedParkThread>::block_on::<core::pin::Pin<&mut dyn core::future::future::Future<Output = ()>>>
+   8: <tokio::runtime::context::blocking::BlockingRegionGuard>::block_on::<core::pin::Pin<&mut dyn core::future::future::Future<Output = ()>>>
+   9: <tokio::runtime::scheduler::multi_thread::MultiThread>::block_on::<core::pin::Pin<&mut dyn core::future::future::Future<Output = ()>>>::{closure#0}
+  10: tokio::runtime::context::runtime::enter_runtime::<<tokio::runtime::scheduler::multi_thread::MultiThread>::block_on<core::pin::Pin<&mut dyn core::future::future::Future<Output = ()>>>::{closure#0}, ()>
+  11: <tokio::runtime::scheduler::multi_thread::MultiThread>::block_on::<core::pin::Pin<&mut dyn core::future::future::Future<Output = ()>>>
+  12: <tokio::runtime::runtime::Runtime>::block_on_inner::<core::pin::Pin<&mut dyn core::future::future::Future<Output = ()>>>
+  13: <tokio::runtime::runtime::Runtime>::block_on::<core::pin::Pin<&mut dyn core::future::future::Future<Output = ()>>>
+  14: tcl_lsp_server::tests::fix_all_safe_issues_analyses_under_the_documents_layers
+  15: tcl_lsp_server::tests::fix_all_safe_issues_analyses_under_the_documents_layers::{closure#0}
+  16: <tcl_lsp_server::tests::fix_all_safe_issues_analyses_under_the_documents_layers::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+
+failures:
+    tests::fix_all_safe_issues_analyses_under_the_documents_layers
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 839 filtered out; finished in 122.97s
+

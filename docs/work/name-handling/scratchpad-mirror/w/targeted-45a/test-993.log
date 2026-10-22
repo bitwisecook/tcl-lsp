@@ -1,0 +1,6 @@
+
+running 1 test
+test package_resolver::original_names::tests::original_old_index_uses_list_grammar_and_translated_line_boundaries ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 3484 filtered out; finished in 0.00s
+

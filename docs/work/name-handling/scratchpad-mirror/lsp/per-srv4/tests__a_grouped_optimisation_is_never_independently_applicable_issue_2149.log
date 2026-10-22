@@ -1,0 +1,28 @@
+
+running 1 test
+test tests::a_grouped_optimisation_is_never_independently_applicable_issue_2149 ... FAILED
+
+failures:
+
+---- tests::a_grouped_optimisation_is_never_independently_applicable_issue_2149 stdout ----
+
+thread 'tests::a_grouped_optimisation_is_never_independently_applicable_issue_2149' (21601) panicked at rust/tcl-lsp-server/src/lib.rs:44975:9:
+assertion `left == right` failed: fixture must produce the O127 pair to assert about: []
+  left: 0
+ right: 2
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<usize, usize>
+   4: tcl_lsp_server::tests::a_grouped_optimisation_is_never_independently_applicable_issue_2149
+   5: tcl_lsp_server::tests::a_grouped_optimisation_is_never_independently_applicable_issue_2149::{closure#0}
+   6: <tcl_lsp_server::tests::a_grouped_optimisation_is_never_independently_applicable_issue_2149::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+
+failures:
+    tests::a_grouped_optimisation_is_never_independently_applicable_issue_2149
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 839 filtered out; finished in 4.87s
+

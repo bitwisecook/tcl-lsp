@@ -1,0 +1,120 @@
+test compile_service::tests::a_module_states_the_world_it_was_compiled_for ... FAILED
+test compile_service::tests::a_service_for_an_uninstalled_overlay_is_not_built ... ok
+test compile_service::tests::a_service_over_an_installed_overlay_compiles_its_commands ... FAILED
+test compile_service::tests::a_service_whose_overlay_is_gone_declines_every_compile ... ok
+test compile_service::tests::byte_command_plan_preserves_native_and_document_channel_rules ... ok
+test compile_service::tests::byte_procedure_target_seeds_original_nonunicode_formal_keys ... ok
+test compile_service::tests::catch_keeps_its_binding_and_exact_replay_boundary_after_cfg_lowering ... FAILED
+test compile_service::tests::cfg_edges_keep_ranges_but_are_not_runtime_recompile_sites ... FAILED
+test compile_service::tests::direct_source_options_cannot_fill_missing_live_policy_from_authoring ... ok
+test compile_service::tests::entered_source_defers_generic_namespace_children_before_cfg_preparation ... FAILED
+test compile_service::tests::entered_source_keeps_native_structured_body_preflight ... FAILED
+test compile_service::tests::entered_source_scope_excludes_deferred_bodies_before_cfg_preparation ... ok
+test compile_service::tests::escaped_heads_retain_decoded_bindings_at_the_native_release_boundary ... FAILED
+test compile_service::tests::every_applicable_typed_codegen_hook_retains_operation_selection ... FAILED
+test compile_service::tests::explicit_whole_module_artifact_keeps_procedure_inventory ... FAILED
+test compile_service::tests::fatal_tail_preserves_distinct_native_runtime_and_compilation_extents ... ok
+test compile_service::tests::final_constant_if_boundary_keeps_its_replay_continuation ... FAILED
+test compile_service::tests::foreach_line_binding_dependency_follows_the_resolved_release_profile ... FAILED
+test compile_service::tests::generic_eval_keeps_its_body_for_runtime_compilation ... FAILED
+test compile_service::tests::immutable_byte_entry_lookup_keeps_names_incarnations_and_residuals ... ok
+test compile_service::tests::inline_hooks_with_whole_unit_mutation_specialise_and_retain_binding ... FAILED
+test compile_service::tests::inlining_preserves_callee_structured_bindings_through_cfg_and_codegen ... FAILED
+test compile_service::tests::lowering_fallback_keeps_the_native_compiler_selection ... FAILED
+test compile_service::tests::native_entry_keeps_logical_engine_and_lexical_evidence_independent ... ok
+test compile_service::tests::native_operation_metadata_is_specialisation_scoped ... FAILED
+test compile_service::tests::nested_inline_bodies_retain_every_consumed_command_binding ... FAILED
+test compile_service::tests::original_byte_command_plan_keeps_c84_compilation_tail_and_runtime_term ... ok
+test compile_service::tests::original_byte_command_plan_keeps_opaque_prefix_and_exact_bad_tail ... ok
+test compile_service::tests::owned_registry_tcl84_projection_keeps_user_throw_fallthrough ... ok
+test compile_service::tests::physical_c9_compiler_cannot_replace_f5_logical_value_or_frame_policy ... ok
+test compile_service::tests::plain_dispatch_does_not_append_builtin_error_semantics ... FAILED
+test compile_service::tests::plain_procedure_dispatch_does_not_specialise_internal_dict_loops ... ok
+test compile_service::tests::proc_constant_if_boundary_has_one_tcl_shaped_owner_in_both_compile_paths ... FAILED
+test compile_service::tests::proc_constant_if_owner_is_absent_without_an_earlier_generic_invoke ... FAILED
+test compile_service::tests::procedure_target_matches_static_proc_across_profiles_and_dispatches ... FAILED
+test compile_service::tests::procedure_target_roots_literal_colon_constructed_namespace_once ... FAILED
+test compile_service::tests::procedure_target_seeds_params_and_supports_both_dispatch_modes ... FAILED
+test compile_service::tests::profile_backed_service_follows_a_new_profiles_shared_registry ... FAILED
+test compile_service::tests::retained_string_selection_captures_a_private_name_without_a_public_token ... FAILED
+test compile_service::tests::return_expr_alias_retains_the_source_binding_identity ... FAILED
+test compile_service::tests::runtime_entry_selects_actual_namespace_and_keeps_custom_shadow_generic ... FAILED
+test compile_service::tests::runtime_script_command_plan_uses_the_requested_release_grammar ... ok
+test compile_service::tests::runtime_targets_leave_unentered_procedure_bodies_in_original_source ... ok
+test compile_service::tests::same_name_projected_profiles_keep_cache_policies_and_artifact_handles ... FAILED
+test compile_service::tests::service_marks_plain_dispatch_and_preserves_profile ... FAILED
+test compile_service::tests::structured_commands_after_a_generic_invoke_own_their_start_command ... FAILED
+test compile_service::tests::synthetic_structured_boundaries_have_the_exact_owning_command ... FAILED
+test compile_service::tests::tcl84_profile_projection_preserves_owned_hooks_in_fast_and_plain_modes ... FAILED
+---- compile_service::tests::a_module_states_the_world_it_was_compiled_for stdout ----
+thread 'compile_service::tests::a_module_states_the_world_it_was_compiled_for' (17319) panicked at rust/tcl-compiler/src/compile_service.rs:2686:60:
+---- compile_service::tests::a_service_over_an_installed_overlay_compiles_its_commands stdout ----
+thread 'compile_service::tests::a_service_over_an_installed_overlay_compiles_its_commands' (17321) panicked at rust/tcl-compiler/src/compile_service.rs:2554:48:
+---- compile_service::tests::catch_keeps_its_binding_and_exact_replay_boundary_after_cfg_lowering stdout ----
+thread 'compile_service::tests::catch_keeps_its_binding_and_exact_replay_boundary_after_cfg_lowering' (17325) panicked at rust/tcl-compiler/src/compile_service.rs:2721:72:
+---- compile_service::tests::cfg_edges_keep_ranges_but_are_not_runtime_recompile_sites stdout ----
+thread 'compile_service::tests::cfg_edges_keep_ranges_but_are_not_runtime_recompile_sites' (17326) panicked at rust/tcl-compiler/src/compile_service.rs:3031:72:
+---- compile_service::tests::entered_source_defers_generic_namespace_children_before_cfg_preparation stdout ----
+thread 'compile_service::tests::entered_source_defers_generic_namespace_children_before_cfg_preparation' (17328) panicked at rust/tcl-compiler/src/compile_service.rs:1924:13:
+assertion `left == right` failed
+  left: true
+ right: false
+---- compile_service::tests::entered_source_keeps_native_structured_body_preflight stdout ----
+thread 'compile_service::tests::entered_source_keeps_native_structured_body_preflight' (17329) panicked at rust/tcl-compiler/src/compile_service.rs:1988:18:
+---- compile_service::tests::escaped_heads_retain_decoded_bindings_at_the_native_release_boundary stdout ----
+thread 'compile_service::tests::escaped_heads_retain_decoded_bindings_at_the_native_release_boundary' (17333) panicked at rust/tcl-compiler/src/compile_service.rs:2382:76:
+---- compile_service::tests::every_applicable_typed_codegen_hook_retains_operation_selection stdout ----
+thread 'compile_service::tests::every_applicable_typed_codegen_hook_retains_operation_selection' (17334) panicked at rust/tcl-compiler/src/compile_service.rs:2903:18:
+---- compile_service::tests::explicit_whole_module_artifact_keeps_procedure_inventory stdout ----
+thread 'compile_service::tests::explicit_whole_module_artifact_keeps_procedure_inventory' (17335) panicked at rust/tcl-compiler/src/compile_service.rs:1838:72:
+---- compile_service::tests::final_constant_if_boundary_keeps_its_replay_continuation stdout ----
+thread 'compile_service::tests::final_constant_if_boundary_keeps_its_replay_continuation' (17337) panicked at rust/tcl-compiler/src/compile_service.rs:3185:14:
+---- compile_service::tests::foreach_line_binding_dependency_follows_the_resolved_release_profile stdout ----
+thread 'compile_service::tests::foreach_line_binding_dependency_follows_the_resolved_release_profile' (17338) panicked at rust/tcl-compiler/src/compile_service.rs:3078:14:
+---- compile_service::tests::generic_eval_keeps_its_body_for_runtime_compilation stdout ----
+thread 'compile_service::tests::generic_eval_keeps_its_body_for_runtime_compilation' (17340) panicked at rust/tcl-compiler/src/compile_service.rs:3057:14:
+---- compile_service::tests::inline_hooks_with_whole_unit_mutation_specialise_and_retain_binding stdout ----
+thread 'compile_service::tests::inline_hooks_with_whole_unit_mutation_specialise_and_retain_binding' (17342) panicked at rust/tcl-compiler/src/compile_service.rs:2966:18:
+---- compile_service::tests::inlining_preserves_callee_structured_bindings_through_cfg_and_codegen stdout ----
+thread 'compile_service::tests::inlining_preserves_callee_structured_bindings_through_cfg_and_codegen' (17343) panicked at rust/tcl-compiler/src/compile_service.rs:3116:9:
+---- compile_service::tests::lowering_fallback_keeps_the_native_compiler_selection stdout ----
+thread 'compile_service::tests::lowering_fallback_keeps_the_native_compiler_selection' (17344) panicked at rust/tcl-compiler/src/compile_service.rs:2433:14:
+---- compile_service::tests::native_operation_metadata_is_specialisation_scoped stdout ----
+thread 'compile_service::tests::native_operation_metadata_is_specialisation_scoped' (17346) panicked at rust/tcl-compiler/src/compile_service.rs:2852:70:
+---- compile_service::tests::nested_inline_bodies_retain_every_consumed_command_binding stdout ----
+thread 'compile_service::tests::nested_inline_bodies_retain_every_consumed_command_binding' (17347) panicked at rust/tcl-compiler/src/compile_service.rs:2751:14:
+---- compile_service::tests::plain_dispatch_does_not_append_builtin_error_semantics stdout ----
+thread 'compile_service::tests::plain_dispatch_does_not_append_builtin_error_semantics' (17353) panicked at rust/tcl-compiler/src/compile_service.rs:1674:62:
+---- compile_service::tests::proc_constant_if_boundary_has_one_tcl_shaped_owner_in_both_compile_paths stdout ----
+thread 'compile_service::tests::proc_constant_if_boundary_has_one_tcl_shaped_owner_in_both_compile_paths' (17355) panicked at rust/tcl-compiler/src/compile_service.rs:3214:14:
+---- compile_service::tests::proc_constant_if_owner_is_absent_without_an_earlier_generic_invoke stdout ----
+thread 'compile_service::tests::proc_constant_if_owner_is_absent_without_an_earlier_generic_invoke' (17360) panicked at rust/tcl-compiler/src/compile_service.rs:3293:18:
+---- compile_service::tests::procedure_target_matches_static_proc_across_profiles_and_dispatches stdout ----
+thread 'compile_service::tests::procedure_target_matches_static_proc_across_profiles_and_dispatches' (17362) panicked at rust/tcl-compiler/src/compile_service.rs:2135:18:
+---- compile_service::tests::procedure_target_roots_literal_colon_constructed_namespace_once stdout ----
+thread 'compile_service::tests::procedure_target_roots_literal_colon_constructed_namespace_once' (17363) panicked at rust/tcl-compiler/src/compile_service.rs:2254:9:
+assertion `left == right` failed
+  left: []
+ right: [(":::", "exposed")]
+---- compile_service::tests::procedure_target_seeds_params_and_supports_both_dispatch_modes stdout ----
+thread 'compile_service::tests::procedure_target_seeds_params_and_supports_both_dispatch_modes' (17364) panicked at rust/tcl-compiler/src/compile_service.rs:2014:9:
+assertion failed: fast.top_level.command_bindings.iter().any(|binding|
+---- compile_service::tests::profile_backed_service_follows_a_new_profiles_shared_registry stdout ----
+thread 'compile_service::tests::profile_backed_service_follows_a_new_profiles_shared_registry' (17365) panicked at rust/tcl-compiler/src/compile_service.rs:2489:14:
+---- compile_service::tests::retained_string_selection_captures_a_private_name_without_a_public_token stdout ----
+thread 'compile_service::tests::retained_string_selection_captures_a_private_name_without_a_public_token' (17366) panicked at rust/tcl-compiler/src/compile_service.rs:2356:14:
+---- compile_service::tests::return_expr_alias_retains_the_source_binding_identity stdout ----
+thread 'compile_service::tests::return_expr_alias_retains_the_source_binding_identity' (17367) panicked at rust/tcl-compiler/src/compile_service.rs:3009:14:
+---- compile_service::tests::runtime_entry_selects_actual_namespace_and_keeps_custom_shadow_generic stdout ----
+thread 'compile_service::tests::runtime_entry_selects_actual_namespace_and_keeps_custom_shadow_generic' (17368) panicked at rust/tcl-compiler/src/compile_service.rs:1611:14:
+---- compile_service::tests::same_name_projected_profiles_keep_cache_policies_and_artifact_handles stdout ----
+thread 'compile_service::tests::same_name_projected_profiles_keep_cache_policies_and_artifact_handles' (17374) panicked at rust/tcl-compiler/src/compile_service.rs:2068:76:
+---- compile_service::tests::service_marks_plain_dispatch_and_preserves_profile stdout ----
+thread 'compile_service::tests::service_marks_plain_dispatch_and_preserves_profile' (17375) panicked at rust/tcl-compiler/src/compile_service.rs:1657:52:
+---- compile_service::tests::structured_commands_after_a_generic_invoke_own_their_start_command stdout ----
+thread 'compile_service::tests::structured_commands_after_a_generic_invoke_own_their_start_command' (17376) panicked at rust/tcl-compiler/src/compile_service.rs:2814:72:
+---- compile_service::tests::synthetic_structured_boundaries_have_the_exact_owning_command stdout ----
+thread 'compile_service::tests::synthetic_structured_boundaries_have_the_exact_owning_command' (17377) panicked at rust/tcl-compiler/src/compile_service.rs:3146:72:
+---- compile_service::tests::tcl84_profile_projection_preserves_owned_hooks_in_fast_and_plain_modes stdout ----
+thread 'compile_service::tests::tcl84_profile_projection_preserves_owned_hooks_in_fast_and_plain_modes' (17379) panicked at rust/tcl-compiler/src/compile_service.rs:2313:14:
+test result: FAILED. 16 passed; 32 failed; 0 ignored; 0 measured; 10403 filtered out; finished in 16.99s

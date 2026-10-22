@@ -1,0 +1,23 @@
+
+running 1 test
+test linked_editing_range::retained_source_spelling_tests::logical_linked_spelling_uses_the_actual_header_and_direct_call_after_reports_are_removed ... 
+thread 'linked_editing_range::retained_source_spelling_tests::logical_linked_spelling_uses_the_actual_header_and_direct_call_after_reports_are_removed' (18504) panicked at rust/tcl-lsp-core/src/linked_editing_range.rs:411:18:
+actual Logical source header and direct original self-call
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::option::expect_failed
+   3: <core::option::Option<tcl_lsp_core::linked_editing_range::LinkedEditingRanges>>::expect
+   4: tcl_lsp_core::linked_editing_range::retained_source_spelling_tests::logical_linked_spelling_uses_the_actual_header_and_direct_call_after_reports_are_removed
+   5: tcl_lsp_core::linked_editing_range::retained_source_spelling_tests::logical_linked_spelling_uses_the_actual_header_and_direct_call_after_reports_are_removed::{closure#0}
+   6: <tcl_lsp_core::linked_editing_range::retained_source_spelling_tests::logical_linked_spelling_uses_the_actual_header_and_direct_call_after_reports_are_removed::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+FAILED
+
+failures:
+
+failures:
+    linked_editing_range::retained_source_spelling_tests::logical_linked_spelling_uses_the_actual_header_and_direct_call_after_reports_are_removed
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 3483 filtered out; finished in 2.01s
+

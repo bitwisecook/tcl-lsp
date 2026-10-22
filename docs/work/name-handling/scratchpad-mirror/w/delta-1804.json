@@ -1,0 +1,7 @@
+{"scheduled":"2026-10-21T18:02:00Z",
+ "change_since_previous_report":{"integrated_LSP":0,"total_baseline_delta":0,"effective_delta":0,"verified_complete":0},
+ "admissions":{},
+ "progress_uncommitted":{"miscompile":"string length \"{}$z\" fixed in tree (word_value_resolution_e2e 1/3 -> 3/3, regression test across 5 profiles)","irules_realm":"in tree; irules_event_checks 65 -> 70/88, irules_checks unchanged","eval_loader":"28/28 locally (fast path folds backslash-newline like Tcl)","lsp_root_cause":"command invocations inside command substitutions lose their original lookup (biggest provider-target cause) -> compiler-names top priority","lowering_stack_overflow":"two of three repros past the first clone; still in progress"},
+ "in_progress":{"vm-runtime agent":"golden_packs then codegen_stamps","compiler agent":"lowering stack overflow, then definers, C6, iRules","compiler-codegen agent":"compile service","compiler-names agent":"command-substitution lookup, math functions, self-dispatch","lsp agent":"provider targets, Tcl 9 classmethod chain","bigip lsp agent":"VS Code blockers, 35 units","gates agent":"owner-resolution, python ty, cargo-deny"},
+ "disk_free_gb":2.7,
+ "next_report_utc":"2026-10-21T18:34:00Z"}

@@ -1,0 +1,23 @@
+{
+ "scheduled": "2026-10-18T12:52:35Z",
+ "change_since_previous_report": {"integrated_LSP": 0, "total_baseline_delta": 0, "effective_delta": 0, "verified_complete": 0},
+ "admissions": {},
+ "reviews_since_previous_report": {
+  "Luna-20 on Sol-18": {
+   "receipt": "scratchpad/agents/luna-20/REVIEW.json (to be archived with the admitting integration)",
+   "compiler221": "ADMIT-WITH-CONDITIONS: tclsh 8.6/9.0/9.1 complete the class world; proof doc lines 18/140 must change; later never-run assertions run before admission",
+   "db921_v2": "HOLD: turns three readonly_authored_coverage tests red, drops the Installed identity used by executed_source consumers, duplicates covers_installed_analysis_source",
+   "vsatisfies_8_4": "ADMIT-WITH-CONDITIONS: matches tclPkg.c/tclPkgUnknown on 8.4-9.1; unknown arity must stay three-state; must agree with authored_source_arity",
+   "forced_import_assertion": "ADMIT-WITH-CONDITIONS: tclsh 8.4-9.1 raise invalid command name; implementation may still return the deleted local proc, fix ships with it"
+  },
+  "Sol-19 lone-CR draft": "static patch to the document lexer channel; tclsh 8.4-9.1 identical; Jim differs (dialect axis); three assertions predicted to change under the tclsh rule; under independent review by Luna-21"
+ },
+ "in_progress": {
+  "Sol-17": "exclusive tree: integration43 failures (package survey shared cause, possible-occupant shadow, Native positive control); debug output to be stripped before hand-back",
+  "Sol-18": "v2/v3 revisions per Luna-20 (static)",
+  "Luna-21": "independent review of the lone-CR patch and the three predicted assertion corrections",
+  "integration43": "candidate 21a199ad8; build44 and full guarded capture after Sol-17"
+ },
+ "user_decisions_still_open": ["Server102/103 freshness vs snapshot", "Server108 validation cost", "exception to delete test-only lexical helpers in package reachability tests"],
+ "next_report_utc": "2026-10-18T13:22:00Z"
+}

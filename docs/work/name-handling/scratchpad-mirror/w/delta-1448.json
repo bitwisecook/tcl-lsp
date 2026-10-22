@@ -1,0 +1,7 @@
+{"scheduled":"2026-10-21T14:46:00Z",
+ "change_since_previous_report":{"integrated_LSP":0,"total_baseline_delta":0,"effective_delta":0,"verified_complete":0},
+ "admissions":{},
+ "committed":{"f6c4694f14":"validation tooling moved into docs/work/name-handling/validation-tools/ (portable paths, capture.sh wrapper); continue-prompt.md rewritten as the brief for a validation and state-keeping agent"},
+ "in_progress":{"sol-48":"SpecTcl execution, active (tcl-spectcl edits)","sol-49":"miscompile / C6 / iRules realm, active","luna-41":"LSP crates measurement and fixes, active"},
+ "disk_free_gb":2.9,
+ "next_report_utc":"2026-10-21T15:18:00Z"}

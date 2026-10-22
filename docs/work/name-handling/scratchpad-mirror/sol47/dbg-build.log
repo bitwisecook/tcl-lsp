@@ -1,0 +1,4 @@
+   Compiling tcl-vm v0.1.0 (/home/user/tcl-lsp/rust/tcl-vm)
+   Compiling tcl-debugger v0.1.0 (/home/user/tcl-lsp/rust/tcl-debugger)
+    Finished `test` profile [unoptimized] target(s) in 26.26s
+  Executable unittests src/lib.rs (/home/user/tcl-lsp/target/debug/deps/tcl_debugger-febcaa16525907b3)

@@ -1,0 +1,78 @@
+
+running 4 tests
+PROBE irules decls=["\"::hit\""] lexical=false refs=[] select="BreakNone"
+PROBE irules decls=["\"::hit\""] lexical=false refs=[] select="BreakNone"
+
+thread 'probe_irules_proc_refs' (6915) panicked at rust/tcl-lsp-core/tests/zz_lsp_agent_probe.rs:136:5:
+PROBE END (deliberate, shows output)
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: zz_lsp_agent_probe::probe_irules_proc_refs
+   3: zz_lsp_agent_probe::probe_irules_proc_refs::{closure#0}
+   4: <zz_lsp_agent_probe::probe_irules_proc_refs::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+test probe_irules_proc_refs ... FAILED
+PROBE itcl member "make" side=Instance kind=proc
+PROBE itcl member "inst" side=Instance kind=method
+
+thread 'probe_itcl_member_sides' (6993) panicked at rust/tcl-lsp-core/tests/zz_lsp_agent_probe.rs:102:5:
+PROBE END (deliberate, shows output)
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: zz_lsp_agent_probe::probe_itcl_member_sides
+   3: zz_lsp_agent_probe::probe_itcl_member_sides::{closure#0}
+   4: <zz_lsp_agent_probe::probe_itcl_member_sides::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+test probe_itcl_member_sides ... FAILED
+PROBE busy n=10 3.107000675s
+PROBE var tally tcl8.6 frame=true ns=Some(C(ByteNamespacePath([]))) symbols=3
+PROBE   sym "count" span=Span { start: 12, end: 17 } same_frame=Some(true) root_in_doc=None kind=value
+PROBE   sym "total" span=Span { start: 29, end: 34 } same_frame=Some(true) root_in_doc=None kind=word
+PROBE   sym "x" span=Span { start: 45, end: 46 } same_frame=Some(true) root_in_doc=None kind=word
+PROBE var tally-called tcl8.6 frame=true ns=Some(C(ByteNamespacePath([]))) symbols=3
+PROBE   sym "count" span=Span { start: 12, end: 17 } same_frame=Some(true) root_in_doc=None kind=value
+PROBE   sym "total" span=Span { start: 29, end: 34 } same_frame=Some(true) root_in_doc=None kind=word
+PROBE   sym "x" span=Span { start: 45, end: 46 } same_frame=Some(true) root_in_doc=None kind=word
+PROBE var m11 tcl8.6 frame=true ns=Some(C(ByteNamespacePath([NameBytes([102, 111, 111])]))) symbols=2
+PROBE   sym "flag" span=Span { start: 4, end: 8 } same_frame=None root_in_doc=None kind=word
+PROBE   sym "x" span=Span { start: 40, end: 41 } same_frame=None root_in_doc=None kind=word
+
+thread 'probe_variable_frames' (7003) panicked at rust/tcl-lsp-core/tests/zz_lsp_agent_probe.rs:84:5:
+PROBE END (deliberate, shows output)
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: zz_lsp_agent_probe::probe_variable_frames
+   3: zz_lsp_agent_probe::probe_variable_frames::{closure#0}
+   4: <zz_lsp_agent_probe::probe_variable_frames::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+test probe_variable_frames ... FAILED
+PROBE busy n=20 5.936810574s
+PROBE busy n=40 17.707974182s
+test probe_analysis_timing has been running for over 60 seconds
+PROBE busy n=80 65.961742734s
+PROBE capped41 8.49604441s
+
+thread 'probe_analysis_timing' (6914) panicked at rust/tcl-lsp-core/tests/zz_lsp_agent_probe.rs:24:5:
+PROBE END (deliberate, shows output)
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: zz_lsp_agent_probe::probe_analysis_timing
+   3: zz_lsp_agent_probe::probe_analysis_timing::{closure#0}
+   4: <zz_lsp_agent_probe::probe_analysis_timing::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+test probe_analysis_timing ... FAILED
+
+failures:
+
+failures:
+    probe_analysis_timing
+    probe_irules_proc_refs
+    probe_itcl_member_sides
+    probe_variable_frames
+
+test result: FAILED. 0 passed; 4 failed; 0 ignored; 0 measured; 0 filtered out; finished in 101.28s
+

@@ -1,0 +1,352 @@
+test bigip::tests::comment_blocks_in_embedded_irules_fold_but_data_does_not ... FAILED
+test code_actions::diagnostic_context::tests::conditional_collection_advice_cannot_mint_a_bootstrap_action_subject ... FAILED
+test code_actions::diagnostic_context::tests::logical_source_action_commands_use_actual_body_availability_and_script_purpose ... FAILED
+test code_actions::diagnostic_context::tests::original_bootstrap_actions_use_current_selected_handler_and_payload_metadata ... FAILED
+test code_actions::diagnostic_context::tests::hosted_helper_publication_keeps_unknown_name_geometry_unavailable ... FAILED
+test code_actions::diagnostic_context::tests::original_context_diagnostic_currency_keeps_the_complete_availability_owner ... FAILED
+test code_actions::diagnostic_context::tests::original_diagnostic_actions_keep_typed_sink_and_source_when_prose_changes ... FAILED
+test code_actions::diagnostic_context::tests::original_diagnostic_actions_refuse_stale_source_configuration_registry_and_range ... FAILED
+test code_actions::diagnostic_context::tests::original_vendor_taint_helpers_use_declarations_instead_of_comments_or_proc_text ... FAILED
+test code_actions::diagnostic_context::tests::original_logical_helper_collision_uses_the_emitted_root_publication ... FAILED
+test code_actions::issued_optimiser_rewrite_currency_tests::actual_worker_group_keeps_edits_but_stale_and_incomplete_report_cannot_issue_them ... FAILED
+test code_actions::original_package_suggestion_tests::original_logical_package_action_requires_its_positive_vector_and_current_input ... FAILED
+test code_actions::original_package_suggestion_tests::original_logical_package_hint_uses_selected_namespace_owner_not_package_spelling ... FAILED
+test code_actions::original_package_suggestion_tests::original_package_hint_requires_own_lookup_and_canonical_package_key ... FAILED
+test code_actions::original_package_suggestion_tests::original_package_hint_uses_written_units_and_issuer_after_reporting_clear ... FAILED
+test code_actions::original_refactor_context_tests::original_refactor_actions_keep_document_registry_and_full_source ... FAILED
+test code_actions::package_presence_census_tests::package_census_preserves_genuine_absent_head_advice_and_current_input ... FAILED
+test code_actions::package_presence_census_tests::selected_syntax_coverage_keeps_package_and_call_closure_distinct ... FAILED
+test code_actions::tests::a_grouped_rewrite_is_one_action_with_every_edit ... FAILED
+test code_actions::package_presence_census_tests::package_census_retains_positive_named_sources_and_incomplete_regions ... FAILED
+test code_actions::tests::check_actions_skip_a_diagnostic_a_noqa_already_silences ... FAILED
+test code_actions::tests::check_actions_surface_irule5002_flow_fix ... FAILED
+test code_actions::tests::check_actions_shimmer_noqa_suppress_matches_indentation ... FAILED
+test code_actions::tests::check_actions_surface_shimmer_noqa_suppress_action ... FAILED
+test code_actions::tests::extract_datagroup_surfaces_and_carries_definition ... FAILED
+test code_actions::tests::fn_package_require_offered_on_a_fully_qualified_head ... FAILED
+test code_actions::tests::fp_inline_refuses_a_braced_argument_that_is_not_a_plain_word ... FAILED
+test code_actions::tests::if_to_switch_surfaces_inside_an_apply_lambda_body ... FAILED
+test code_actions::tests::package_require_offered_from_an_editor_supplied_diagnostic ... FAILED
+test code_actions::tests::package_require_action_inserts_between_original_terminated_commands ... FAILED
+test code_actions::tests::tp_package_require_offered_on_an_unresolved_command_head ... FAILED
+test code_actions::tests::tp_inline_does_not_substitute_prefix_sharing_name ... FAILED
+test code_actions::tests::tp_inline_substitutes_braced_var_reference ... FAILED
+test code_actions::tests::w120_surfaces_add_package_require_action ... FAILED
+test code_actions::tests::w213_action_inserts_after_unset_keyword ... FAILED
+test code_actions::tests::w213_emits_unset_nocomplain_action ... FAILED
+test completion::logical_scoped_environment_tests::logical_scoped_completion_keeps_actual_parent_body_after_reporting_region_erasure ... FAILED
+test completion::logical_scoped_environment_tests::logical_scoped_vocabulary_follows_genuine_alias_parent_and_known_shadow_barriers ... FAILED
+test completion::logical_scoped_environment_tests::scoped_vocabulary_inherits_same_source_frame_and_stops_at_genuine_procedure_body ... FAILED
+test completion::original_command_cursor_tests::command_completion_replaces_actual_escaped_and_delimited_words ... FAILED
+test completion::original_document_grammar_tests::original_document_grammar_completion_preserves_full_source_configuration ... FAILED
+test completion::original_inherited_completion_tests::original_inherited_method_candidates_use_byte_relations_after_reporting_clear ... FAILED
+test completion::original_oo_completion_tests::original_class_methods_complete_distinct_native_names_with_ui_tables_cleared ... FAILED
+test completion::original_proc_completion_tests::byte_policy_failure_cannot_fall_back_to_display_declaration_advice ... FAILED
+test completion::original_proc_completion_tests::moved_and_deleted_completions_use_conditional_source_publication_slots ... FAILED
+test completion::original_proc_completion_tests::original_vendor_command_completion_keeps_owned_unknown_names_out_of_suggestions ... FAILED
+test completion::original_proc_completion_tests::original_hosted_proc_completion_preserves_source_candidates_without_a_native_recipe ... FAILED
+test completion::original_proc_completion_tests::logical_proc_completion_inserts_original_headers_after_report_labels_change ... FAILED
+test completion::original_receiver_domain_tests::native_fuzzy_unknown_receiver_cannot_borrow_nominal_widget_reports ... FAILED
+test completion::original_workspace::tests::original_workspace_completion_uses_shared_conditional_procedure_slots ... FAILED
+test completion::tests::call_completion_does_not_fire_in_plain_tcl_dialect ... FAILED
+test completion::tests::call_completion_skipped_at_word_index_other_than_1 ... FAILED
+test completion::tests::call_completion_excludes_builtin_commands ... FAILED
+test completion::tests::call_completion_surfaces_user_procs_at_word_index_1 ... FAILED
+test completion::tests::class_command_completion_honours_a_self_scoped_unexport ... FAILED
+test completion::tests::completion_builds_resolved_event_facts_once_per_request ... FAILED
+test completion::tests::irules_subcommand_completion_uses_configured_bigip_version ... FAILED
+test completion::tests::method_typo_does_not_hijack_command_prefix_matches ... FAILED
+test completion::tests::obj_method_completion_includes_a_literal_foreach_installed_method ... FAILED
+test completion::tests::obj_method_completion_includes_generated_property_accessors ... FAILED
+test completion::tests::obj_method_completion_includes_inherited ... FAILED
+test completion::tests::obj_method_completion_layers_per_object_members_and_flips ... FAILED
+test completion::original_snippet_context_tests::logical_snippet_choices_use_current_scope_and_selected_source_reference_grammar ... FAILED
+test completion::tests::prefix_proc_list_pinned ... FAILED
+test completion::tests::proc_completion_lists_user_defined_procs ... FAILED
+test completion::tests::subcommand_completion_falls_through_when_word_index_not_1 ... FAILED
+test completion::tests::subcommand_completion_skipped_when_command_has_no_subcommands ... FAILED
+test completion::tests::tk_commands_never_offered_in_irules ... FAILED
+test completion::tests::widget_bareword_completion_offers_subcommands ... FAILED
+test completion::tests::widget_var_captured_completion_offers_subcommands ... FAILED
+test completion::tests::workspace_none_keeps_single_doc_behaviour ... FAILED
+test completion::tests::widget_method_completion_follows_the_document_tk_floor ... FAILED
+test hover::original_registry::tests::original_registry_hover_uses_actual_heads_subcommands_options_and_origins ... FAILED
+test hover::original_special_variable_context_tests::original_special_hover_keeps_authored_registry_shadow_rows_and_array_key_availability ... FAILED
+test hover::original_special_variable_context_tests::original_special_hover_uses_actual_availability_and_withdraws_changed_owners ... FAILED
+test hover::original_registry::tests::original_registry_hover_keeps_current_context_and_conditional_shadow_barriers ... FAILED
+test hover::tests::builtin_hover_shows_requires_when_package_not_imported ... FAILED
+test hover::tests::class_hover_disambiguates_same_name_across_namespaces ... FAILED
+test hover::tests::class_member_hover_fires_for_constructor_keyword ... FAILED
+test hover::tests::class_member_hover_resolves_when_class_extended_via_separate_oo_define ... FAILED
+test hover::tests::class_member_hover_two_element_link_alias_notes_the_real_target ... FAILED
+test hover::tests::hover_explains_a_computed_format_string ... FAILED
+test hover::tests::hover_fires_for_regex_pattern ... FAILED
+test hover::tests::hover_fires_for_sprintf_specifier ... FAILED
+test hover::tests::hover_fires_for_subcommand_with_registry ... FAILED
+test hover::tests::hover_inference_keeps_same_named_variables_in_the_selected_source_body ... FAILED
+test hover::tests::hover_inference_uses_the_represented_read_version_after_reassignment ... FAILED
+test hover::tests::hover_global_call_fallback_is_deterministic ... FAILED
+test hover::tests::hover_on_ensemble_subcommand_resolves_target_proc ... FAILED
+test hover::tests::hover_on_tk_ensemble_configure_splice_resolves_the_real_target ... FAILED
+test hover::tests::member_declaration_hover_covers_classmethods_and_properties ... FAILED
+test hover::tests::member_declaration_hover_notes_an_override ... FAILED
+test hover::tests::member_declaration_hover_resolves_in_a_reopening_oo_define_block ... FAILED
+test hover::tests::member_declaration_hover_resolves_in_the_creation_block ... FAILED
+test hover::tests::my_dispatch_hover_resolves_a_plain_call_in_a_single_block_class ... FAILED
+test hover::tests::nested_substitution_hover_beats_its_outer_pattern_word ... FAILED
+test hover::tests::my_dispatch_hover_resolves_when_class_extended_via_separate_oo_define ... FAILED
+test hover::tests::obj_method_hover_fires_for_a_literal_foreach_installed_method ... FAILED
+test hover::tests::obj_method_hover_fires_for_bareword_widget ... FAILED
+test hover::tests::obj_method_hover_fires_for_var_captured_widget ... FAILED
+test hover::tests::obj_method_hover_fires_for_known_instance ... FAILED
+test hover::tests::opt_proc_declaration_and_call_site_both_hover_the_real_args_only_signature ... FAILED
+test hover::tests::pattern_and_format_hover_descend_through_every_registry_executable_region ... FAILED
+test hover::tests::qualified_colon_variable_hover_keeps_the_empty_cell_separate ... FAILED
+test hover::tests::special_var_hover_documents_auto_path ... FAILED
+test hover::tests::qualified_symbol_hover_matches_the_in_document_rendering_1018 ... FAILED
+test hover::tests::quoted_case_action_hover_obeys_head_mutations_and_static_list_validation ... FAILED
+test hover::tests::special_var_hover_is_dialect_aware ... FAILED
+test hover::tests::widget_method_hover_follows_the_resolved_tk_lifecycle ... FAILED
+test original_oo::instance_completion::tests::original_future_instance_candidates_do_not_borrow_frames_cells_or_navigation ... FAILED
+test original_oo::instance_completion::tests::original_instance_candidates_keep_opaque_canonical_class_inputs_distinct ... FAILED
+test original_oo::instance_completion::tests::original_instance_candidates_refuse_stale_input_terminal_mutations_and_detached_reports ... FAILED
+test original_oo::tests::original_class_completion_declines_a_captured_selector_position ... FAILED
+test package_resolver::reachability::original::tests::original_package_paths_use_current_control_roles_and_completion_options ... FAILED
+test receiver_identity::tests::original_receiver_entry_is_shared_by_navigation_hover_and_rename ... FAILED
+test refactor::datagroup::decoded_arm_script_value_tests::data_group_mapping_does_not_unwrap_literal_command_name_data_twice ... FAILED
+test refactor::datagroup::tests::inside_when_body ... FAILED
+test semantic_tokens::original::original_source_schema_tests::logical_definer_class_context_uses_the_selected_installation_name_operand ... FAILED
+test semantic_tokens::original::original_source_schema_tests::logical_source_role_colours_keep_nested_selectors_values_and_oo_members ... FAILED
+test semantic_tokens::original::readonly_member_tests::original_readonly_worker_value_does_not_retag_variable_syntax_as_member_declaration ... FAILED
+test semantic_tokens::original::tests::original_oo_roles_keep_opaque_declarations_and_actual_calls_without_ui_maps ... FAILED
+test semantic_tokens::original::tests::original_vendor_token_roles_require_supported_header_units_and_current_source ... FAILED
+test semantic_tokens::original_definition_vocabulary_tests::conditional_named_instance_reports_cannot_enter_legacy_label_classification ... FAILED
+test semantic_tokens::original_definition_vocabulary_tests::original_definition_colours_keep_keyword_body_and_release_applicability_separate ... FAILED
+test semantic_tokens::original_definition_vocabulary_tests::original_definition_colours_use_genuine_wrappers_and_clear_ordinary_bodies ... FAILED
+test semantic_tokens::original_definition_vocabulary_tests::member_source_roles_keep_original_heads_names_formals_and_availability ... FAILED
+test semantic_tokens::original_variable_argument_geometry_colour_tests::member_variable_colours_require_genuine_parent_roles_and_original_words ... FAILED
+test semantic_tokens::receiver_source::tests::logical_receiver_method_requires_original_static_whole_selector ... FAILED
+test semantic_tokens::receiver_source::tests::original_receiver_class_receipt_cannot_be_replaced_by_foreign_hierarchy_metadata ... FAILED
+test semantic_tokens::receiver_source::tests::original_receiver_heads_keep_actual_leading_bom_policy ... FAILED
+test semantic_tokens::receiver_source::tests::original_receiver_heads_keep_canonical_class_and_actual_availability ... FAILED
+test semantic_tokens::receiver_source::tests::original_registry_and_collection_receivers_keep_selected_child_operands ... FAILED
+test semantic_tokens::receiver_source::tests::original_receiver_public_tokens_refuse_populated_unavailable_and_stale_source ... FAILED
+test semantic_tokens::receiver_source::tests::project_collection_receiver_refusal_is_not_recovered_without_providers ... FAILED
+test semantic_tokens::selected_source_token_tests::original_member_handle_advice_preserves_literal_name_and_class_data ... FAILED
+test semantic_tokens::selected_source_token_tests::original_member_handle_advice_uses_the_genuine_factory_member_body ... FAILED
+test semantic_tokens::tests::argparse_global_switch_values_classified_as_option_value ... FAILED
+test semantic_tokens::tests::case_list_patterns_keep_literal_braces_from_selected_elements ... FAILED
+test semantic_tokens::tests::collection_dispatch_resolves_user_configurable_method ... FAILED
+test semantic_tokens::tests::configure_resolves_by_metaclass_trait_not_spelling ... FAILED
+test semantic_tokens::tests::cross_file_constructor_dispatch_resolves ... FAILED
+test semantic_tokens::tests::direct_constructor_dispatch_resolves_method ... FAILED
+test semantic_tokens::tests::dict_for_loop_var_dispatch_resolves ... FAILED
+test semantic_tokens::tests::dict_map_in_return_dispatch_resolves ... FAILED
+test semantic_tokens::tests::expect_canonical_and_abbreviated_regex_flags_tokenise_in_both_shapes ... FAILED
+test semantic_tokens::tests::expect_literal_comment_and_separator_patterns_recurse_into_actions ... FAILED
+test semantic_tokens::tests::generic_option_scan_stops_at_double_dash ... FAILED
+test semantic_tokens::tests::interproc_param_dispatch_resolves ... FAILED
+test semantic_tokens::tests::list_quoted_apply_lambda_body_recurses ... FAILED
+test semantic_tokens::tests::my_configure_property_options_resolve ... FAILED
+test semantic_tokens::tests::object_method_options_resolve_via_registry ... FAILED
+test semantic_tokens::tests::oo_define_inline_keyword_classified_as_keyword ... FAILED
+test semantic_tokens::tests::my_self_call_resolves ... FAILED
+test semantic_tokens::tests::regex_pattern_with_substitution_splits_regex_and_tcl ... FAILED
+test semantic_tokens::tests::regex_source_tracks_inside_apply_lambda_body ... FAILED
+test semantic_tokens::tests::regex_source_tracks_inside_oo_method_body ... FAILED
+test semantic_tokens::tests::regex_source_tracks_inside_namespace_eval_body ... FAILED
+test semantic_tokens::tests::regex_source_variable_highlights_def_site_literal ... FAILED
+test semantic_tokens::tests::return_code_option_classified_as_decorator_issue_967 ... FAILED
+test semantic_tokens::tests::snit_install_component_dispatch_resolves ... FAILED
+test semantic_tokens::tests::snit_bare_constructor_dispatch_resolves ... FAILED
+test semantic_tokens::tests::snit_installhull_types_the_implicit_hull_component ... FAILED
+test semantic_tokens::tests::snit_self_call_resolves ... FAILED
+test semantic_tokens::tests::stub_var_arg_highlights_array_element ... FAILED
+test semantic_tokens::tests::stub_var_read_arg_highlights_as_reference ... FAILED
+test semantic_tokens::tests::unknown_head_options_classified_generically ... FAILED
+test semantic_tokens::tests::unset_array_element_is_variable ... FAILED
+test semantic_tokens::tests::unset_marks_every_name_as_variable ... FAILED
+test semantic_tokens::tests::uplevel_body_recurses_as_script ... FAILED
+test semantic_tokens::tests::user_object_handle_method_resolves ... FAILED
+test semantic_tokens::tests::user_proc_command_arg_highlights_as_function ... FAILED
+test semantic_tokens::tests::user_proc_dynamic_name_read_args_highlight ... FAILED
+test semantic_tokens::tests::user_proc_var_name_arg_highlights_array_element ... FAILED
+test semantic_tokens::tests::widget_method_tokens_follow_the_resolved_tk_lifecycle ... FAILED
+test semantic_tokens::tests::tcloo_dispatch_pattern_fixture ... FAILED
+thread 'bigip::tests::comment_blocks_in_embedded_irules_fold_but_data_does_not' (14260) panicked at rust/tcl-lsp-core/src/bigip.rs:920:9:
+thread 'code_actions::diagnostic_context::tests::conditional_collection_advice_cannot_mint_a_bootstrap_action_subject' (14278) panicked at rust/tcl-lsp-core/src/code_actions/diagnostic_context.rs:389:14:
+thread 'code_actions::diagnostic_context::tests::logical_source_action_commands_use_actual_body_availability_and_script_purpose' (14282) panicked at rust/tcl-lsp-core/src/code_actions/diagnostic_context.rs:574:13:
+thread 'code_actions::diagnostic_context::tests::original_bootstrap_actions_use_current_selected_handler_and_payload_metadata' (14343) panicked at rust/tcl-lsp-core/src/code_actions/diagnostic_context.rs:486:32:
+thread 'code_actions::diagnostic_context::tests::hosted_helper_publication_keeps_unknown_name_geometry_unavailable' (14279) panicked at rust/tcl-lsp-core/src/code_actions/diagnostic_context.rs:486:32:
+thread 'code_actions::diagnostic_context::tests::original_context_diagnostic_currency_keeps_the_complete_availability_owner' (14382) panicked at rust/tcl-lsp-core/src/code_actions/diagnostic_context.rs:486:32:
+thread 'code_actions::diagnostic_context::tests::original_diagnostic_actions_keep_typed_sink_and_source_when_prose_changes' (14475) panicked at rust/tcl-lsp-core/src/code_actions/diagnostic_context.rs:486:32:
+thread 'code_actions::diagnostic_context::tests::original_diagnostic_actions_refuse_stale_source_configuration_registry_and_range' (14490) panicked at rust/tcl-lsp-core/src/code_actions/diagnostic_context.rs:486:32:
+thread 'code_actions::diagnostic_context::tests::original_vendor_taint_helpers_use_declarations_instead_of_comments_or_proc_text' (14622) panicked at rust/tcl-lsp-core/src/code_actions/diagnostic_context.rs:486:32:
+thread 'code_actions::diagnostic_context::tests::original_logical_helper_collision_uses_the_emitted_root_publication' (14526) panicked at rust/tcl-lsp-core/src/code_actions/diagnostic_context.rs:1015:9:
+thread 'code_actions::issued_optimiser_rewrite_currency_tests::actual_worker_group_keeps_edits_but_stale_and_incomplete_report_cannot_issue_them' (15091) panicked at rust/tcl-lsp-core/src/code_actions.rs:5358:9:
+thread 'code_actions::original_package_suggestion_tests::original_logical_package_action_requires_its_positive_vector_and_current_input' (15182) panicked at rust/tcl-lsp-core/src/code_actions.rs:4793:9:
+thread 'code_actions::original_package_suggestion_tests::original_logical_package_hint_uses_selected_namespace_owner_not_package_spelling' (15192) panicked at rust/tcl-lsp-core/src/code_actions.rs:4865:9:
+thread 'code_actions::original_package_suggestion_tests::original_package_hint_requires_own_lookup_and_canonical_package_key' (15219) panicked at rust/tcl-lsp-core/src/code_actions.rs:4704:9:
+thread 'code_actions::original_package_suggestion_tests::original_package_hint_uses_written_units_and_issuer_after_reporting_clear' (15289) panicked at rust/tcl-lsp-core/src/code_actions.rs:4671:9:
+thread 'code_actions::original_refactor_context_tests::original_refactor_actions_keep_document_registry_and_full_source' (15296) panicked at rust/tcl-lsp-core/src/code_actions.rs:5025:9:
+thread 'code_actions::package_presence_census_tests::package_census_preserves_genuine_absent_head_advice_and_current_input' (15374) panicked at rust/tcl-lsp-core/src/code_actions.rs:5254:9:
+thread 'code_actions::package_presence_census_tests::selected_syntax_coverage_keeps_package_and_call_closure_distinct' (15407) panicked at rust/tcl-lsp-core/src/code_actions.rs:5301:13:
+thread 'code_actions::tests::a_grouped_rewrite_is_one_action_with_every_edit' (15466) panicked at rust/tcl-lsp-core/src/code_actions.rs:3878:9:
+thread 'code_actions::package_presence_census_tests::package_census_retains_positive_named_sources_and_incomplete_regions' (15375) panicked at rust/tcl-lsp-core/src/code_actions.rs:5235:13:
+thread 'code_actions::tests::check_actions_skip_a_diagnostic_a_noqa_already_silences' (15544) panicked at rust/tcl-lsp-core/src/code_actions.rs:3702:9:
+thread 'code_actions::tests::check_actions_surface_irule5002_flow_fix' (15550) panicked at rust/tcl-lsp-core/src/code_actions.rs:3585:9:
+thread 'code_actions::tests::check_actions_shimmer_noqa_suppress_matches_indentation' (15513) panicked at rust/tcl-lsp-core/src/code_actions.rs:3805:9:
+thread 'code_actions::tests::check_actions_surface_shimmer_noqa_suppress_action' (15551) panicked at rust/tcl-lsp-core/src/code_actions.rs:3748:32:
+thread 'code_actions::tests::extract_datagroup_surfaces_and_carries_definition' (15554) panicked at rust/tcl-lsp-core/src/code_actions.rs:4231:14:
+thread 'code_actions::tests::fn_package_require_offered_on_a_fully_qualified_head' (15562) panicked at rust/tcl-lsp-core/src/code_actions.rs:3296:9:
+thread 'code_actions::tests::fp_inline_refuses_a_braced_argument_that_is_not_a_plain_word' (15563) panicked at rust/tcl-lsp-core/src/code_actions.rs:2962:9:
+thread 'code_actions::tests::if_to_switch_surfaces_inside_an_apply_lambda_body' (15620) panicked at rust/tcl-lsp-core/src/code_actions.rs:4204:9:
+thread 'code_actions::tests::package_require_offered_from_an_editor_supplied_diagnostic' (15662) panicked at rust/tcl-lsp-core/src/code_actions.rs:3422:9:
+thread 'code_actions::tests::package_require_action_inserts_between_original_terminated_commands' (15661) panicked at rust/tcl-lsp-core/src/code_actions.rs:3234:18:
+thread 'code_actions::tests::tp_package_require_offered_on_an_unresolved_command_head' (15729) panicked at rust/tcl-lsp-core/src/code_actions.rs:3281:9:
+thread 'code_actions::tests::tp_inline_does_not_substitute_prefix_sharing_name' (15724) panicked at rust/tcl-lsp-core/src/code_actions.rs:2971:43:
+thread 'code_actions::tests::tp_inline_substitutes_braced_var_reference' (15725) panicked at rust/tcl-lsp-core/src/code_actions.rs:2978:43:
+thread 'code_actions::tests::w120_surfaces_add_package_require_action' (15737) panicked at rust/tcl-lsp-core/src/code_actions.rs:3178:9:
+thread 'code_actions::tests::w213_action_inserts_after_unset_keyword' (15739) panicked at rust/tcl-lsp-core/src/code_actions.rs:3036:14:
+thread 'code_actions::tests::w213_emits_unset_nocomplain_action' (15745) panicked at rust/tcl-lsp-core/src/code_actions.rs:2991:9:
+thread 'completion::logical_scoped_environment_tests::logical_scoped_completion_keeps_actual_parent_body_after_reporting_region_erasure' (16181) panicked at rust/tcl-lsp-core/src/completion.rs:7907:63:
+thread 'completion::logical_scoped_environment_tests::logical_scoped_vocabulary_follows_genuine_alias_parent_and_known_shadow_barriers' (16244) panicked at rust/tcl-lsp-core/src/completion.rs:7930:18:
+thread 'completion::logical_scoped_environment_tests::scoped_vocabulary_inherits_same_source_frame_and_stops_at_genuine_procedure_body' (16321) panicked at rust/tcl-lsp-core/src/completion.rs:7957:13:
+thread 'completion::original_command_cursor_tests::command_completion_replaces_actual_escaped_and_delimited_words' (16350) panicked at rust/tcl-lsp-core/src/completion.rs:3018:22:
+thread 'completion::original_document_grammar_tests::original_document_grammar_completion_preserves_full_source_configuration' (16512) panicked at rust/tcl-lsp-core/src/completion.rs:6433:9:
+thread 'completion::original_inherited_completion_tests::original_inherited_method_candidates_use_byte_relations_after_reporting_clear' (16529) panicked at rust/tcl-lsp-core/src/completion.rs:6162:9:
+thread 'completion::original_oo_completion_tests::original_class_methods_complete_distinct_native_names_with_ui_tables_cleared' (16535) panicked at rust/tcl-lsp-core/src/completion.rs:6033:68:
+thread 'completion::original_proc_completion_tests::byte_policy_failure_cannot_fall_back_to_display_declaration_advice' (16572) panicked at rust/tcl-lsp-core/src/completion.rs:6016:9:
+thread 'completion::original_proc_completion_tests::moved_and_deleted_completions_use_conditional_source_publication_slots' (16611) panicked at rust/tcl-lsp-core/src/completion.rs:5860:9:
+thread 'completion::original_proc_completion_tests::original_vendor_command_completion_keeps_owned_unknown_names_out_of_suggestions' (16665) panicked at rust/tcl-lsp-core/src/completion.rs:5942:9:
+thread 'completion::original_proc_completion_tests::original_hosted_proc_completion_preserves_source_candidates_without_a_native_recipe' (16664) panicked at rust/tcl-lsp-core/src/completion.rs:5913:9:
+thread 'completion::original_proc_completion_tests::logical_proc_completion_inserts_original_headers_after_report_labels_change' (16583) panicked at rust/tcl-lsp-core/src/completion.rs:5777:9:
+thread 'completion::original_receiver_domain_tests::native_fuzzy_unknown_receiver_cannot_borrow_nominal_widget_reports' (16721) panicked at rust/tcl-lsp-core/src/completion.rs:6809:9:
+thread 'completion::original_workspace::tests::original_workspace_completion_uses_shared_conditional_procedure_slots' (16888) panicked at rust/tcl-lsp-core/src/completion/original_workspace.rs:294:9:
+thread 'completion::tests::call_completion_does_not_fire_in_plain_tcl_dialect' (16999) panicked at rust/tcl-lsp-core/src/completion.rs:4808:9:
+thread 'completion::tests::call_completion_skipped_at_word_index_other_than_1' (17007) panicked at rust/tcl-lsp-core/src/completion.rs:4988:9:
+thread 'completion::tests::call_completion_excludes_builtin_commands' (17006) panicked at rust/tcl-lsp-core/src/completion.rs:4832:9:
+thread 'completion::tests::call_completion_surfaces_user_procs_at_word_index_1' (17008) panicked at rust/tcl-lsp-core/src/completion.rs:4771:9:
+thread 'completion::tests::class_command_completion_honours_a_self_scoped_unexport' (17009) panicked at rust/tcl-lsp-core/src/completion.rs:3490:13:
+thread 'completion::tests::completion_builds_resolved_event_facts_once_per_request' (17063) panicked at rust/tcl-lsp-core/src/completion.rs:5253:9:
+thread 'completion::tests::irules_subcommand_completion_uses_configured_bigip_version' (17138) panicked at rust/tcl-lsp-core/src/completion.rs:4027:9:
+thread 'completion::tests::method_typo_does_not_hijack_command_prefix_matches' (17140) panicked at rust/tcl-lsp-core/src/completion.rs:5574:9:
+thread 'completion::tests::obj_method_completion_includes_a_literal_foreach_installed_method' (17192) panicked at rust/tcl-lsp-core/src/completion.rs:3402:13:
+thread 'completion::tests::obj_method_completion_includes_generated_property_accessors' (17193) panicked at rust/tcl-lsp-core/src/completion.rs:3313:9:
+thread 'completion::tests::obj_method_completion_includes_inherited' (17226) panicked at rust/tcl-lsp-core/src/completion.rs:3221:9:
+thread 'completion::tests::obj_method_completion_layers_per_object_members_and_flips' (17231) panicked at rust/tcl-lsp-core/src/completion.rs:3545:9:
+thread 'completion::original_snippet_context_tests::logical_snippet_choices_use_current_scope_and_selected_source_reference_grammar' (16725) panicked at rust/tcl-lsp-core/src/completion.rs:6586:13:
+thread 'completion::tests::prefix_proc_list_pinned' (17323) panicked at rust/tcl-lsp-core/src/completion.rs:5376:9:
+thread 'completion::tests::proc_completion_lists_user_defined_procs' (17329) panicked at rust/tcl-lsp-core/src/completion.rs:3846:9:
+thread 'completion::tests::subcommand_completion_falls_through_when_word_index_not_1' (17413) panicked at rust/tcl-lsp-core/src/completion.rs:4340:9:
+thread 'completion::tests::subcommand_completion_skipped_when_command_has_no_subcommands' (17420) panicked at rust/tcl-lsp-core/src/completion.rs:4371:9:
+thread 'completion::tests::tk_commands_never_offered_in_irules' (17512) panicked at rust/tcl-lsp-core/src/completion.rs:4962:9:
+thread 'completion::tests::widget_bareword_completion_offers_subcommands' (17528) panicked at rust/tcl-lsp-core/src/completion.rs:3665:9:
+thread 'completion::tests::widget_var_captured_completion_offers_subcommands' (17564) panicked at rust/tcl-lsp-core/src/completion.rs:3733:9:
+thread 'completion::tests::workspace_none_keeps_single_doc_behaviour' (17569) panicked at rust/tcl-lsp-core/src/completion.rs:5198:9:
+thread 'completion::tests::widget_method_completion_follows_the_document_tk_floor' (17544) panicked at rust/tcl-lsp-core/src/completion.rs:3702:9:
+thread 'hover::original_registry::tests::original_registry_hover_uses_actual_heads_subcommands_options_and_origins' (17913) panicked at rust/tcl-lsp-core/src/hover/original_registry.rs:378:13:
+thread 'hover::original_special_variable_context_tests::original_special_hover_keeps_authored_registry_shadow_rows_and_array_key_availability' (18031) panicked at rust/tcl-lsp-core/src/hover.rs:6872:59:
+thread 'hover::original_special_variable_context_tests::original_special_hover_uses_actual_availability_and_withdraws_changed_owners' (18032) panicked at rust/tcl-lsp-core/src/hover.rs:6799:13:
+thread 'hover::original_registry::tests::original_registry_hover_keeps_current_context_and_conditional_shadow_barriers' (17912) panicked at rust/tcl-lsp-core/src/hover/original_registry.rs:452:54:
+thread 'hover::tests::builtin_hover_shows_requires_when_package_not_imported' (18260) panicked at rust/tcl-lsp-core/src/hover.rs:4205:9:
+thread 'hover::tests::class_hover_disambiguates_same_name_across_namespaces' (18266) panicked at rust/tcl-lsp-core/src/hover.rs:4590:62:
+thread 'hover::tests::class_member_hover_fires_for_constructor_keyword' (18368) panicked at rust/tcl-lsp-core/src/hover.rs:6027:52:
+thread 'hover::tests::class_member_hover_resolves_when_class_extended_via_separate_oo_define' (18382) panicked at rust/tcl-lsp-core/src/hover.rs:5860:52:
+thread 'hover::tests::class_member_hover_two_element_link_alias_notes_the_real_target' (18431) panicked at rust/tcl-lsp-core/src/hover.rs:5872:52:
+thread 'hover::tests::hover_explains_a_computed_format_string' (18610) panicked at rust/tcl-lsp-core/src/hover.rs:5251:9:
+thread 'hover::tests::hover_fires_for_regex_pattern' (18636) panicked at rust/tcl-lsp-core/src/hover.rs:5442:52:
+thread 'hover::tests::hover_fires_for_sprintf_specifier' (18644) panicked at rust/tcl-lsp-core/src/hover.rs:5024:52:
+thread 'hover::tests::hover_fires_for_subcommand_with_registry' (18646) panicked at rust/tcl-lsp-core/src/hover.rs:5755:63:
+thread 'hover::tests::hover_inference_keeps_same_named_variables_in_the_selected_source_body' (18652) panicked at rust/tcl-lsp-core/src/hover.rs:4115:13:
+thread 'hover::tests::hover_inference_uses_the_represented_read_version_after_reassignment' (18653) panicked at rust/tcl-lsp-core/src/hover.rs:4144:9:
+thread 'hover::tests::hover_global_call_fallback_is_deterministic' (18648) panicked at rust/tcl-lsp-core/src/hover.rs:4016:66:
+thread 'hover::tests::hover_on_ensemble_subcommand_resolves_target_proc' (18687) panicked at rust/tcl-lsp-core/src/hover.rs:3931:51:
+thread 'hover::tests::hover_on_tk_ensemble_configure_splice_resolves_the_real_target' (18731) panicked at rust/tcl-lsp-core/src/hover.rs:3948:51:
+thread 'hover::tests::member_declaration_hover_covers_classmethods_and_properties' (18873) panicked at rust/tcl-lsp-core/src/hover.rs:5956:55:
+thread 'hover::tests::member_declaration_hover_notes_an_override' (18878) panicked at rust/tcl-lsp-core/src/hover.rs:5971:9:
+thread 'hover::tests::member_declaration_hover_resolves_in_a_reopening_oo_define_block' (18887) panicked at rust/tcl-lsp-core/src/hover.rs:5945:52:
+thread 'hover::tests::member_declaration_hover_resolves_in_the_creation_block' (18897) panicked at rust/tcl-lsp-core/src/hover.rs:5930:9:
+thread 'hover::tests::my_dispatch_hover_resolves_a_plain_call_in_a_single_block_class' (18926) panicked at rust/tcl-lsp-core/src/hover.rs:5887:52:
+thread 'hover::tests::nested_substitution_hover_beats_its_outer_pattern_word' (18974) panicked at rust/tcl-lsp-core/src/hover.rs:4945:14:
+thread 'hover::tests::my_dispatch_hover_resolves_when_class_extended_via_separate_oo_define' (18972) panicked at rust/tcl-lsp-core/src/hover.rs:5903:52:
+thread 'hover::tests::obj_method_hover_fires_for_a_literal_foreach_installed_method' (18982) panicked at rust/tcl-lsp-core/src/hover.rs:6071:51:
+thread 'hover::tests::obj_method_hover_fires_for_bareword_widget' (18990) panicked at rust/tcl-lsp-core/src/hover.rs:6093:57:
+thread 'hover::tests::obj_method_hover_fires_for_var_captured_widget' (19023) panicked at rust/tcl-lsp-core/src/hover.rs:6153:57:
+thread 'hover::tests::obj_method_hover_fires_for_known_instance' (19021) panicked at rust/tcl-lsp-core/src/hover.rs:6051:9:
+thread 'hover::tests::opt_proc_declaration_and_call_site_both_hover_the_real_args_only_signature' (19101) panicked at rust/tcl-lsp-core/src/hover.rs:6167:55:
+thread 'hover::tests::pattern_and_format_hover_descend_through_every_registry_executable_region' (19144) panicked at rust/tcl-lsp-core/src/hover.rs:4888:36:
+thread 'hover::tests::qualified_colon_variable_hover_keeps_the_empty_cell_separate' (19188) panicked at rust/tcl-lsp-core/src/hover.rs:3769:68:
+thread 'hover::tests::special_var_hover_documents_auto_path' (19255) panicked at rust/tcl-lsp-core/src/hover.rs:4670:62:
+thread 'hover::tests::qualified_symbol_hover_matches_the_in_document_rendering_1018' (19193) panicked at rust/tcl-lsp-core/src/hover.rs:4495:72:
+thread 'hover::tests::quoted_case_action_hover_obeys_head_mutations_and_static_list_validation' (19230) panicked at rust/tcl-lsp-core/src/hover.rs:4898:68:
+thread 'hover::tests::special_var_hover_is_dialect_aware' (19287) panicked at rust/tcl-lsp-core/src/hover.rs:4705:10:
+thread 'hover::tests::widget_method_hover_follows_the_resolved_tk_lifecycle' (19536) panicked at rust/tcl-lsp-core/src/hover.rs:6109:13:
+thread 'original_oo::instance_completion::tests::original_future_instance_candidates_do_not_borrow_frames_cells_or_navigation' (20417) panicked at rust/tcl-lsp-core/src/original_oo/instance_completion/tests.rs:168:5:
+thread 'original_oo::instance_completion::tests::original_instance_candidates_keep_opaque_canonical_class_inputs_distinct' (20421) panicked at rust/tcl-lsp-core/src/original_oo/instance_completion/tests.rs:236:14:
+thread 'original_oo::instance_completion::tests::original_instance_candidates_refuse_stale_input_terminal_mutations_and_detached_reports' (20480) panicked at rust/tcl-lsp-core/src/original_oo/instance_completion/tests.rs:219:9:
+thread 'original_oo::tests::original_class_completion_declines_a_captured_selector_position' (20638) panicked at rust/tcl-lsp-core/src/original_oo.rs:468:13:
+thread 'package_resolver::reachability::original::tests::original_package_paths_use_current_control_roles_and_completion_options' (20673) panicked at rust/tcl-lsp-core/src/package_resolver/reachability/original.rs:701:13:
+thread 'receiver_identity::tests::original_receiver_entry_is_shared_by_navigation_hover_and_rename' (20676) panicked at rust/tcl-lsp-core/src/receiver_identity.rs:991:72:
+thread 'refactor::datagroup::decoded_arm_script_value_tests::data_group_mapping_does_not_unwrap_literal_command_name_data_twice' (20678) panicked at rust/tcl-lsp-core/src/refactor/datagroup.rs:1620:91:
+thread 'refactor::datagroup::tests::inside_when_body' (20738) panicked at rust/tcl-lsp-core/src/refactor/datagroup.rs:1464:73:
+thread 'semantic_tokens::original::original_source_schema_tests::logical_definer_class_context_uses_the_selected_installation_name_operand' (21119) panicked at rust/tcl-lsp-core/src/semantic_tokens/original.rs:1821:9:
+thread 'semantic_tokens::original::original_source_schema_tests::logical_source_role_colours_keep_nested_selectors_values_and_oo_members' (21648) panicked at rust/tcl-lsp-core/src/semantic_tokens/original.rs:2112:13:
+thread 'semantic_tokens::original::readonly_member_tests::original_readonly_worker_value_does_not_retag_variable_syntax_as_member_declaration' (21815) panicked at rust/tcl-lsp-core/src/semantic_tokens/original.rs:1720:9:
+thread 'semantic_tokens::original::tests::original_oo_roles_keep_opaque_declarations_and_actual_calls_without_ui_maps' (21879) panicked at rust/tcl-lsp-core/src/semantic_tokens/original.rs:1602:9:
+thread 'semantic_tokens::original::tests::original_vendor_token_roles_require_supported_header_units_and_current_source' (21943) panicked at rust/tcl-lsp-core/src/semantic_tokens/original.rs:1587:9:
+thread 'semantic_tokens::original_definition_vocabulary_tests::conditional_named_instance_reports_cannot_enter_legacy_label_classification' (21955) panicked at rust/tcl-lsp-core/src/semantic_tokens.rs:10614:9:
+thread 'semantic_tokens::original_definition_vocabulary_tests::original_definition_colours_keep_keyword_body_and_release_applicability_separate' (21986) panicked at rust/tcl-lsp-core/src/semantic_tokens.rs:10881:17:
+thread 'semantic_tokens::original_definition_vocabulary_tests::original_definition_colours_use_genuine_wrappers_and_clear_ordinary_bodies' (21991) panicked at rust/tcl-lsp-core/src/semantic_tokens.rs:10768:13:
+thread 'semantic_tokens::original_definition_vocabulary_tests::member_source_roles_keep_original_heads_names_formals_and_availability' (21976) panicked at rust/tcl-lsp-core/src/semantic_tokens.rs:10728:21:
+thread 'semantic_tokens::original_variable_argument_geometry_colour_tests::member_variable_colours_require_genuine_parent_roles_and_original_words' (22104) panicked at rust/tcl-lsp-core/src/semantic_tokens.rs:10482:17:
+thread 'semantic_tokens::receiver_source::tests::logical_receiver_method_requires_original_static_whole_selector' (22228) panicked at rust/tcl-lsp-core/src/semantic_tokens/receiver_source/tests.rs:322:9:
+thread 'semantic_tokens::receiver_source::tests::original_receiver_class_receipt_cannot_be_replaced_by_foreign_hierarchy_metadata' (22231) panicked at rust/tcl-lsp-core/src/semantic_tokens/receiver_source/tests.rs:207:5:
+thread 'semantic_tokens::receiver_source::tests::original_receiver_heads_keep_actual_leading_bom_policy' (22245) panicked at rust/tcl-lsp-core/src/semantic_tokens/receiver_source/tests.rs:260:9:
+thread 'semantic_tokens::receiver_source::tests::original_receiver_heads_keep_canonical_class_and_actual_availability' (22281) panicked at rust/tcl-lsp-core/src/semantic_tokens/receiver_source/tests.rs:66:9:
+thread 'semantic_tokens::receiver_source::tests::original_registry_and_collection_receivers_keep_selected_child_operands' (22315) panicked at rust/tcl-lsp-core/src/semantic_tokens/receiver_source/tests.rs:90:5:
+thread 'semantic_tokens::receiver_source::tests::original_receiver_public_tokens_refuse_populated_unavailable_and_stale_source' (22314) panicked at rust/tcl-lsp-core/src/semantic_tokens/receiver_source/tests.rs:270:5:
+thread 'semantic_tokens::receiver_source::tests::project_collection_receiver_refusal_is_not_recovered_without_providers' (22347) panicked at rust/tcl-lsp-core/src/semantic_tokens/receiver_source/tests.rs:165:5:
+thread 'semantic_tokens::selected_source_token_tests::original_member_handle_advice_preserves_literal_name_and_class_data' (22448) panicked at rust/tcl-lsp-core/src/semantic_tokens.rs:11020:9:
+thread 'semantic_tokens::selected_source_token_tests::original_member_handle_advice_uses_the_genuine_factory_member_body' (22484) panicked at rust/tcl-lsp-core/src/semantic_tokens.rs:10979:9:
+thread 'semantic_tokens::tests::argparse_global_switch_values_classified_as_option_value' (22578) panicked at rust/tcl-lsp-core/src/semantic_tokens.rs:6012:9:
+thread 'semantic_tokens::tests::case_list_patterns_keep_literal_braces_from_selected_elements' (22637) panicked at rust/tcl-lsp-core/src/semantic_tokens.rs:5630:9:
+thread 'semantic_tokens::tests::collection_dispatch_resolves_user_configurable_method' (22702) panicked at rust/tcl-lsp-core/src/semantic_tokens.rs:7098:9:
+thread 'semantic_tokens::tests::configure_resolves_by_metaclass_trait_not_spelling' (22743) panicked at rust/tcl-lsp-core/src/semantic_tokens.rs:7335:9:
+thread 'semantic_tokens::tests::cross_file_constructor_dispatch_resolves' (22813) panicked at rust/tcl-lsp-core/src/semantic_tokens.rs:7842:9:
+thread 'semantic_tokens::tests::direct_constructor_dispatch_resolves_method' (22833) panicked at rust/tcl-lsp-core/src/semantic_tokens.rs:7042:9:
+thread 'semantic_tokens::tests::dict_for_loop_var_dispatch_resolves' (22815) panicked at rust/tcl-lsp-core/src/semantic_tokens.rs:7132:9:
+thread 'semantic_tokens::tests::dict_map_in_return_dispatch_resolves' (22816) panicked at rust/tcl-lsp-core/src/semantic_tokens.rs:7890:9:
+thread 'semantic_tokens::tests::expect_canonical_and_abbreviated_regex_flags_tokenise_in_both_shapes' (22872) panicked at rust/tcl-lsp-core/src/semantic_tokens.rs:5701:13:
+thread 'semantic_tokens::tests::expect_literal_comment_and_separator_patterns_recurse_into_actions' (22899) panicked at rust/tcl-lsp-core/src/semantic_tokens.rs:5726:13:
+thread 'semantic_tokens::tests::generic_option_scan_stops_at_double_dash' (22907) panicked at rust/tcl-lsp-core/src/semantic_tokens.rs:5962:9:
+thread 'semantic_tokens::tests::interproc_param_dispatch_resolves' (22911) panicked at rust/tcl-lsp-core/src/semantic_tokens.rs:7535:9:
+thread 'semantic_tokens::tests::list_quoted_apply_lambda_body_recurses' (22957) panicked at rust/tcl-lsp-core/src/semantic_tokens.rs:8221:9:
+thread 'semantic_tokens::tests::my_configure_property_options_resolve' (22981) panicked at rust/tcl-lsp-core/src/semantic_tokens.rs:7474:9:
+thread 'semantic_tokens::tests::object_method_options_resolve_via_registry' (22985) panicked at rust/tcl-lsp-core/src/semantic_tokens.rs:7009:9:
+thread 'semantic_tokens::tests::oo_define_inline_keyword_classified_as_keyword' (22986) panicked at rust/tcl-lsp-core/src/semantic_tokens.rs:6260:9:
+thread 'semantic_tokens::tests::my_self_call_resolves' (22982) panicked at rust/tcl-lsp-core/src/semantic_tokens.rs:7161:9:
+thread 'semantic_tokens::tests::regex_pattern_with_substitution_splits_regex_and_tcl' (23095) panicked at rust/tcl-lsp-core/src/semantic_tokens.rs:6888:9:
+thread 'semantic_tokens::tests::regex_source_tracks_inside_apply_lambda_body' (23097) panicked at rust/tcl-lsp-core/src/semantic_tokens.rs:7998:9:
+thread 'semantic_tokens::tests::regex_source_tracks_inside_oo_method_body' (23099) panicked at rust/tcl-lsp-core/src/semantic_tokens.rs:6971:9:
+thread 'semantic_tokens::tests::regex_source_tracks_inside_namespace_eval_body' (23098) panicked at rust/tcl-lsp-core/src/semantic_tokens.rs:7970:9:
+thread 'semantic_tokens::tests::regex_source_variable_highlights_def_site_literal' (23100) panicked at rust/tcl-lsp-core/src/semantic_tokens.rs:6939:9:
+thread 'semantic_tokens::tests::return_code_option_classified_as_decorator_issue_967' (23108) panicked at rust/tcl-lsp-core/src/semantic_tokens.rs:6072:9:
+thread 'semantic_tokens::tests::snit_install_component_dispatch_resolves' (23148) panicked at rust/tcl-lsp-core/src/semantic_tokens.rs:7292:9:
+thread 'semantic_tokens::tests::snit_bare_constructor_dispatch_resolves' (23145) panicked at rust/tcl-lsp-core/src/semantic_tokens.rs:7416:9:
+thread 'semantic_tokens::tests::snit_installhull_types_the_implicit_hull_component' (23149) panicked at rust/tcl-lsp-core/src/semantic_tokens.rs:7373:9:
+thread 'semantic_tokens::tests::snit_self_call_resolves' (23150) panicked at rust/tcl-lsp-core/src/semantic_tokens.rs:7259:9:
+thread 'semantic_tokens::tests::stub_var_arg_highlights_array_element' (23156) panicked at rust/tcl-lsp-core/src/semantic_tokens.rs:6505:9:
+thread 'semantic_tokens::tests::stub_var_read_arg_highlights_as_reference' (23157) panicked at rust/tcl-lsp-core/src/semantic_tokens.rs:6526:9:
+thread 'semantic_tokens::tests::unknown_head_options_classified_generically' (23167) panicked at rust/tcl-lsp-core/src/semantic_tokens.rs:5900:9:
+thread 'semantic_tokens::tests::unset_array_element_is_variable' (23175) panicked at rust/tcl-lsp-core/src/semantic_tokens.rs:6405:9:
+thread 'semantic_tokens::tests::unset_marks_every_name_as_variable' (23203) panicked at rust/tcl-lsp-core/src/semantic_tokens.rs:6310:9:
+thread 'semantic_tokens::tests::uplevel_body_recurses_as_script' (23229) panicked at rust/tcl-lsp-core/src/semantic_tokens.rs:8450:9:
+thread 'semantic_tokens::tests::user_object_handle_method_resolves' (23265) panicked at rust/tcl-lsp-core/src/semantic_tokens.rs:7917:9:
+thread 'semantic_tokens::tests::user_proc_command_arg_highlights_as_function' (23266) panicked at rust/tcl-lsp-core/src/semantic_tokens.rs:6710:9:
+thread 'semantic_tokens::tests::user_proc_dynamic_name_read_args_highlight' (23271) panicked at rust/tcl-lsp-core/src/semantic_tokens.rs:6677:9:
+thread 'semantic_tokens::tests::user_proc_var_name_arg_highlights_array_element' (23276) panicked at rust/tcl-lsp-core/src/semantic_tokens.rs:6566:9:
+thread 'semantic_tokens::tests::widget_method_tokens_follow_the_resolved_tk_lifecycle' (23377) panicked at rust/tcl-lsp-core/src/semantic_tokens.rs:7190:13:
+thread 'semantic_tokens::tests::tcloo_dispatch_pattern_fixture' (23164) panicked at rust/tcl-lsp-core/src/semantic_tokens.rs:7813:9:
+test result: FAILED. 627 passed; 175 failed; 0 ignored; 0 measured; 2692 filtered out; finished in 892.64s
+error: test failed, to rerun pass `-p tcl-lsp-core --lib`

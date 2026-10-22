@@ -1,0 +1,13 @@
+{
+ "scheduled": "2026-10-19T10:15:03Z",
+ "change_since_previous_report": {"integrated_LSP": 0, "total_baseline_delta": 0, "effective_delta": 0, "verified_complete": 0},
+ "admissions": {},
+ "candidates": {"integration45": {"commit": "aff99dc7e", "status": "held: nested-wrapper test at the 180 s budget (capture47)"}},
+ "user_decisions_since_previous_report": {"receipt": "docs/work/name-handling/handoff/reviews/resume-20261017-diagnosis/user-decisions-20261019T1000Z.json", "summary": "deep review of slow tests balancing speed against sufficient detection; light test versions for iteration, deeper runs before a PR, within the existing smoke/deep/exhaustive tier contract"},
+ "in_progress": {
+  "Sol-28": "exclusive tree: profiling and result-identical optimisation (nested wrapper, Server108 analysis cost)",
+  "Luna-29/30/31": "slow-test review: 206 tests >=10 s (~10,500 s of ~13,600 s measured); core/compiler/db, server, explorer"
+ },
+ "queued_after_admission": ["forced-import A2 + source-order proof v5"],
+ "next_report_utc": "2026-10-19T10:46:00Z"
+}

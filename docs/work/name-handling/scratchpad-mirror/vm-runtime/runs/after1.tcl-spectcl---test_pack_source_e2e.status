@@ -1,0 +1,6 @@
+test a_derived_body_runs_under_the_release_the_call_is_analysed_under ... FAILED
+test a_pack_file_folds_a_call_site_in_the_optimiser ... FAILED
+test a_pack_timing_hook_controls_a_live_command_prefix_position ... ok
+test a_reference_body_answers_through_the_host_as_the_procedure_does ... FAILED
+test the_loader_carries_the_declared_inputs ... ok
+test without_a_host_the_installed_pack_simply_does_not_fold ... ok

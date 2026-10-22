@@ -1,0 +1,3 @@
+test document_floor::original_package_advice_tests::original_package_advice_preserves_alternative_floor_and_conditional_bounds ... ok
+test document_floor::original_package_advice_tests::original_package_advice_keeps_actual_context_and_original_requirement_units ... ok
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 3483 filtered out; finished in 3.74s

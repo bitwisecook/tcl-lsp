@@ -1,0 +1,6 @@
+
+running 1 test
+test package_resolver::standalone_filename_data_tests::standalone_loader_candidates_refuse_unknown_expanded_and_malformed_data ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 3484 filtered out; finished in 1.65s
+

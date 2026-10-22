@@ -1,0 +1,30 @@
+
+running 1 test
+test registry_invocation::source_structure::member_source_catalogue_tests::absolute_member_alias_catalogue_preserves_barriers_and_currency ... 
+thread 'registry_invocation::source_structure::member_source_catalogue_tests::absolute_member_alias_catalogue_preserves_barriers_and_currency' (1016) panicked at rust/tcl-compiler/src/registry_invocation/source_structure.rs:6436:17:
+tcl8.6: interp alias {} ::makePrefix {} ::list
+oo::class create C {
+    method tick {fixed} {}
+    unexport tick
+    method setup {} {
+        set cb [namespace code [makePrefix my tick {a b}]]
+        after idle $cb
+    }
+}
+
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: tcl_compiler::registry_invocation::source_structure::member_source_catalogue_tests::absolute_member_alias_catalogue_preserves_barriers_and_currency
+   3: tcl_compiler::registry_invocation::source_structure::member_source_catalogue_tests::absolute_member_alias_catalogue_preserves_barriers_and_currency::{closure#0}
+   4: <tcl_compiler::registry_invocation::source_structure::member_source_catalogue_tests::absolute_member_alias_catalogue_preserves_barriers_and_currency::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+FAILED
+
+failures:
+
+failures:
+    registry_invocation::source_structure::member_source_catalogue_tests::absolute_member_alias_catalogue_preserves_barriers_and_currency
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 10440 filtered out; finished in 5.48s
+

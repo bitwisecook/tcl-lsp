@@ -1,0 +1,6 @@
+
+running 1 test
+test command_binding::source_transition_advice::native_baseline::tests::native_baseline_source_roles_refuse_original_shadows_and_deletions ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 10440 filtered out; finished in 6.79s
+

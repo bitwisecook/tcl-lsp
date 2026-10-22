@@ -1,0 +1,137 @@
+// Temporary LSP-agent diagnostic probe; not part of the suite. Deleted after use.
+#![allow(clippy::all, clippy::pedantic, missing_docs)]
+use tcl_compiler::analyser::Analyser;
+
+
+#[test]
+fn probe_analysis_timing() {
+    let busy = format!("proc p {{a}} {{return $a}}\n{}", "p 1\n".repeat(4000));
+    for n in [10usize, 20, 40, 80] {
+        let src = format!("proc p {{a}} {{return $a}}\n{}", "p 1\n".repeat(n));
+        let t = std::time::Instant::now();
+        let _ = Analyser::new().analyse(&src, "tcl8.6");
+        eprintln!("PROBE busy n={n} {:?}", t.elapsed());
+    }
+    let _ = busy;
+    let src = (0..41).fold(String::new(), |mut s, n| {
+        use std::fmt::Write;
+        let _ = writeln!(s, "proc capped_{n} {{}} {{}}");
+        s
+    });
+    let t = std::time::Instant::now();
+    let _ = Analyser::new().analyse(&src, "tcl8.6");
+    eprintln!("PROBE capped41 {:?}", t.elapsed());
+    panic!("PROBE END (deliberate, shows output)");
+}
+
+
+fn var_frame_probe(label: &str, src: &str, dialect: &str, needle: &str) {
+    let analysis = Analyser::new().analyse(src, dialect).clone();
+    let config = analysis.body_lexer_config.expect("config");
+    let image = tcl_lexer::SourceImage::document(src);
+    let cursor = u32::try_from(src.find(needle).unwrap() + needle.len()).unwrap();
+    let frame = analysis.original_variable_frame_in_source(&image, config, cursor);
+    eprintln!(
+        "PROBE var {label} {dialect} frame={} ns={:?} symbols={}",
+        frame.is_some(),
+        analysis.original_namespace_scope_at(cursor),
+        analysis.original_variable_symbols.len(),
+    );
+    for o in &analysis.original_variable_symbols {
+        let same_frame = match o.symbol().slot() {
+            tcl_compiler::signature_scan::variable_symbol::SignatureSourceVariableSlot::Local { frame: owner, .. } => Some(Some(owner) == frame.as_ref()),
+            _ => None,
+        };
+        let input = o.original_name_input();
+        let root_in_doc = match input {
+            tcl_compiler::signature_scan::scope::SignatureSourceNameInput::OriginalVariableRoot(root) => Some(root.source_image() == &image),
+            _ => None,
+        };
+        eprintln!(
+            "PROBE   sym {:?} span={:?} same_frame={same_frame:?} root_in_doc={root_in_doc:?} kind={}",
+            String::from_utf8_lossy(input.bytes()),
+            o.span(),
+            match input {
+                tcl_compiler::signature_scan::scope::SignatureSourceNameInput::OriginalVariableRoot(_) => "root",
+                tcl_compiler::signature_scan::scope::SignatureSourceNameInput::OriginalWord(_) => "word",
+                tcl_compiler::signature_scan::scope::SignatureSourceNameInput::OriginalValue(_) => "value",
+                _ => "other",
+            }
+        );
+    }
+}
+
+#[test]
+fn probe_variable_frames() {
+    var_frame_probe(
+        "tally",
+        "proc tally {count} {\n    set total 0\n    set x $\n}\n",
+        "tcl8.6",
+        "set x $",
+    );
+    var_frame_probe(
+        "tally-called",
+        "proc tally {count} {\n    set total 0\n    set x $\n}\ntally 1\n",
+        "tcl8.6",
+        "set x $",
+    );
+    var_frame_probe(
+        "m11",
+        "set flag 1\nnamespace eval foo {\n    set x $\n}\n",
+        "tcl8.6",
+        "set x $",
+    );
+    panic!("PROBE END (deliberate, shows output)");
+}
+
+
+#[test]
+fn probe_itcl_member_sides() {
+    let src = "itcl::class Factory {\n    proc make {} {\n        return 1\n    }\n    method inst {} {}\n}\nFactory::make\n";
+    let analysis = Analyser::new().analyse(src, "tcl8.6").clone();
+    for record in analysis.original_class_declarations() {
+        for m in record.metadata().original_members.declarations() {
+            eprintln!(
+                "PROBE itcl member {:?} side={:?} kind={}",
+                String::from_utf8_lossy(m.original_name_input().bytes()),
+                m.side(),
+                m.metadata().kind
+            );
+        }
+    }
+    panic!("PROBE END (deliberate, shows output)");
+}
+
+#[test]
+fn probe_irules_proc_refs() {
+    for (src, line, col) in [
+        ("proc hit {} { return hit }\nswitch -glob $value {\n    default {\n        hit\n    }\n}\n", 0u32, 5u32),
+        ("proc hit {} { return hit }\nwhen HTTP_REQUEST {\n    call hit\n}\n", 0, 5),
+    ] {
+        let analysis = Analyser::new().analyse(src, "f5-irules").clone();
+        let decls = analysis
+            .original_procedure_declarations()
+            .map(|r| format!("{:?}", r.metadata().qualified_name))
+            .collect::<Vec<_>>();
+        let refs = tcl_lsp_core::references::references(
+            src,
+            tcl_registry::model::ingress::resolve_environment("f5-irules").analyser_profile(),
+            line,
+            col,
+            &analysis,
+            true,
+        );
+        let sel = tcl_lsp_core::original_declaration::select("", src, &analysis, line, col);
+        eprintln!(
+            "PROBE irules decls={decls:?} lexical={} refs={:?} select={:?}",
+            analysis.allows_lexical_declaration_advice(),
+            refs.iter().map(|r| r.start_line).collect::<Vec<_>>(),
+            match sel {
+                std::ops::ControlFlow::Break(Some(_)) => "Some",
+                std::ops::ControlFlow::Break(None) => "BreakNone",
+                std::ops::ControlFlow::Continue(()) => "Continue",
+            }
+        );
+    }
+    panic!("PROBE END (deliberate, shows output)");
+}

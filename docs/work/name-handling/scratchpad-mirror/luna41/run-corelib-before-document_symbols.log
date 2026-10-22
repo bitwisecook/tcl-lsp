@@ -1,0 +1,153 @@
+test document_symbols::original::registry_ledger_tests::original_registry_outline_uses_sealed_roles_and_names_after_reporting_maps_clear ... ok
+test document_symbols::original::tests::original_outline_groups_qualified_publications_by_typed_namespace_home ... ok
+test document_symbols::original::tests::original_property_outline_keeps_per_name_kinds_and_opaque_redefinitions ... ok
+test document_symbols::original::tests::original_readonly_loop_names_are_outline_cards_without_static_declaration_keys ... FAILED
+test document_symbols::original::tests::original_outline_preserves_opaque_declarations_and_canonical_moved_members_without_ui_maps ... FAILED
+test document_symbols::tests::constructor_selection_range_is_the_keyword_not_the_body ... ok
+test document_symbols::original::tests::original_write_advice_cards_do_not_require_or_donate_storage_symbols ... ok
+test document_symbols::original::tests::original_vendor_outline_keeps_source_cards_after_reporting_maps_are_erased ... ok
+test document_symbols::tests::empty_source_yields_no_symbols ... ok
+test document_symbols::tests::dynamic_event_name_is_not_an_outline_symbol ... FAILED
+test document_symbols::tests::event_handler_range_spans_the_body_and_selects_the_event_name ... ok
+test document_symbols::tests::fn_guard_dynamic_test_name_is_not_recorded ... ok
+test document_symbols::tests::format_param_list_handles_default_with_empty_value ... ok
+test document_symbols::tests::format_param_list_handles_empty_list ... ok
+test document_symbols::tests::fp_a_proc_nested_in_another_procs_body_is_never_re_homed ... ok
+test document_symbols::tests::foreach_rename_reinstall_idiom_outline_has_no_garbled_dollar_symbol ... ok
+test document_symbols::tests::fp_a_qualified_proc_whose_namespace_is_never_opened_stays_where_written ... ok
+test document_symbols::tests::fp_guard_bare_test_without_tcltest_is_not_a_symbol ... ok
+test document_symbols::tests::fp_guard_local_proc_named_test_shadows_imported_definer ... ok
+test document_symbols::tests::fp_guard_test_constraint_getter_is_not_a_symbol ... ok
+test document_symbols::tests::global_set_emits_variable_symbol ... ok
+test document_symbols::tests::invalid_nested_handler_is_not_an_outline_event ... ok
+test document_symbols::tests::irule_event_outline_ignores_unavailable_mutators ... ok
+test document_symbols::tests::irule_event_handlers_are_outline_symbols ... ok
+test document_symbols::tests::irules_outline_requires_braced_declaration_bodies ... ok
+test document_symbols::tests::merge_ranges_takes_outer_bounds ... ok
+test document_symbols::tests::midword_quote_in_unterminated_bracket_still_recovers_tail ... ok
+test document_symbols::tests::multiple_procs_emit_one_symbol_each ... ok
+test document_symbols::tests::logical_outline_requires_current_complete_source_and_input ... ok
+test document_symbols::tests::namespace_selection_range_is_the_name_word ... ok
+test document_symbols::tests::namespace_eval_nests_inner_proc ... ok
+test document_symbols::tests::nested_namespace_selection_ranges_stay_inside_their_ranges ... ok
+test document_symbols::tests::nested_namespaces_recurse_two_levels ... ok
+test document_symbols::tests::nested_proc_inside_namespace_qualified_proc_is_kept ... ok
+test document_symbols::tests::oo_class_constructor_emits_constructor_symbol ... ok
+test document_symbols::tests::oo_class_detail_lists_non_default_metaclass ... FAILED
+test document_symbols::tests::oo_class_detail_lists_superclass ... ok
+test document_symbols::tests::oo_classmethod_detail_lists_classmethod_keyword ... ok
+test document_symbols::tests::oo_class_emits_class_symbol_with_method_children ... ok
+test document_symbols::tests::oo_configurable_property_emits_property_symbol ... ok
+test document_symbols::tests::oo_literal_foreach_installed_methods_appear_in_the_outline ... FAILED
+test document_symbols::tests::oo_private_block_form_emits_instance_method_symbols ... ok
+test document_symbols::tests::oo_self_block_deleted_member_is_not_in_the_outline ... ok
+test document_symbols::tests::oo_self_block_method_selection_range_covers_the_inner_name ... ok
+test document_symbols::tests::oo_self_block_non_destructive_reference_keeps_the_member_listed ... ok
+test document_symbols::tests::deeply_nested_namespaces_produce_a_symbol_tree has been running for over 60 seconds
+test document_symbols::tests::oo_self_scoped_unexport_keeps_both_same_named_members_listed ... ok
+test document_symbols::tests::oo_self_block_form_emits_class_side_method_symbols ... ok
+test document_symbols::tests::oo_unwrapped_deletemethod_leaves_the_class_side_member_listed ... ok
+test document_symbols::tests::oo_unwrapped_deleted_member_is_not_in_the_outline ... ok
+test document_symbols::tests::oo_unwrapped_renamed_member_is_listed_under_its_new_name ... ok
+test document_symbols::tests::opt_proc_outline_shows_the_real_args_only_signature ... ok
+test document_symbols::tests::original_outline_does_not_borrow_tcl9_member_roles_under_tcl86 ... ok
+test document_symbols::tests::outline_homes_colon_run_qualified_names_consistently ... ok
+test document_symbols::tests::plain_tcl_outline_is_unchanged_by_containment_nesting ... ok
+test document_symbols::tests::proc_symbol_range_contains_selection_range ... ok
+test document_symbols::tests::proc_with_default_param_renders_brace_form ... ok
+test document_symbols::tests::proc_with_no_params_renders_empty_parens ... ok
+test document_symbols::tests::single_proc_emits_function_symbol ... ok
+test document_symbols::tests::symbol_kind_wire_form ... ok
+test document_symbols::tests::self_introspection_call_in_a_method_body_emits_no_symbol ... ok
+test document_symbols::tests::tn_a_proc_written_inside_its_namespace_block_still_nests_lexically ... ok
+test document_symbols::tests::symbol_ranges_stay_inside_the_document_when_definitions_end_at_eof ... FAILED
+test document_symbols::tests::tn_an_unqualified_top_level_proc_stays_at_top_level ... ok
+test document_symbols::tests::tn_variable_named_test_is_not_a_test_symbol ... ok
+test document_symbols::tests::tn_plain_proc_file_has_no_test_symbols ... ok
+test document_symbols::tests::tp_constant_var_test_name_resolves_via_propagation ... FAILED
+test document_symbols::tests::tp_a_qualified_proc_written_outside_its_namespace_block_nests_under_it ... ok
+test document_symbols::tests::tp_custom_match_is_an_operator_symbol ... ok
+test document_symbols::tests::tp_constraint_matcher_test_distinct_kinds ... FAILED
+test document_symbols::tests::tp_legacy_positional_test_name_is_a_symbol ... ok
+test document_symbols::tests::tp_imported_test_name_is_a_symbol ... FAILED
+test document_symbols::tests::tp_qualified_test_name_is_a_symbol ... ok
+test document_symbols::tests::tp_multiple_tests_each_listed ... FAILED
+test document_symbols::tests::tp_qualified_test_still_records_when_local_proc_shadows_bare_name ... ok
+test document_symbols::tests::tp_test_constraint_setter_is_a_constant_symbol ... FAILED
+test document_symbols::tests::tp_test_inside_namespace_eval_nests_under_it ... FAILED
+test document_symbols::tests::variables_set_in_a_handler_nest_under_it ... FAILED
+test document_symbols::tests::deeply_nested_namespaces_produce_a_symbol_tree ... ok
+---- document_symbols::original::tests::original_readonly_loop_names_are_outline_cards_without_static_declaration_keys stdout ----
+thread 'document_symbols::original::tests::original_readonly_loop_names_are_outline_cards_without_static_declaration_keys' (14239) panicked at rust/tcl-lsp-core/src/document_symbols/original.rs:720:9:
+assertion `left == right` failed
+  left: []
+ right: ["left", "right"]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- document_symbols::original::tests::original_outline_preserves_opaque_declarations_and_canonical_moved_members_without_ui_maps stdout ----
+thread 'document_symbols::original::tests::original_outline_preserves_opaque_declarations_and_canonical_moved_members_without_ui_maps' (14227) panicked at rust/tcl-lsp-core/src/document_symbols/original.rs:656:13:
+assertion `left == right` failed: Class: [DocumentSymbol { name: "p\\xed\\xa0\\x80", detail: Some("()"), kind: Function, range: LineRange { start_line: 0, start_character: 5, end_line: 0, end_character: 25 }, selection_range: LineRange { start_line: 0, start_character: 5, end_line: 0, end_character: 12 }, children: [] }, DocumentSymbol { name: "p\\xed\\xa0\\x81", detail: Some("()"), kind: Function, range: LineRange { start_line: 1, start_character: 5, end_line: 1, end_character: 25 }, selection_range: LineRange { start_line: 1, start_character: 5, end_line: 1, end_character: 12 }, children: []
+  left: 0
+ right: 2
+
+---- document_symbols::tests::dynamic_event_name_is_not_an_outline_symbol stdout ----
+
+thread 'document_symbols::tests::dynamic_event_name_is_not_an_outline_symbol' (14252) panicked at rust/tcl-lsp-core/src/document_symbols.rs:2457:9:
+dynamic event name leaked into the outline: [("evt", Variable), ("$evt", Event)]
+
+---- document_symbols::tests::oo_class_detail_lists_non_default_metaclass stdout ----
+
+thread 'document_symbols::tests::oo_class_detail_lists_non_default_metaclass' (14331) panicked at rust/tcl-lsp-core/src/document_symbols.rs:1708:29:
+index out of bounds: the len is 0 but the index is 0
+
+---- document_symbols::tests::oo_literal_foreach_installed_methods_appear_in_the_outline stdout ----
+
+thread 'document_symbols::tests::oo_literal_foreach_installed_methods_appear_in_the_outline' (14336) panicked at rust/tcl-lsp-core/src/document_symbols.rs:1571:13:
+[]
+
+---- document_symbols::tests::symbol_ranges_stay_inside_the_document_when_definitions_end_at_eof stdout ----
+
+thread 'document_symbols::tests::symbol_ranges_stay_inside_the_document_when_definitions_end_at_eof' (14640) panicked at rust/tcl-lexer/src/word_parts.rs:702:5:
+assertion `left == right` failed: caller must point at a `$`
+  left: Some(98)
+ right: Some(36)
+
+---- document_symbols::tests::tp_constant_var_test_name_resolves_via_propagation stdout ----
+
+thread 'document_symbols::tests::tp_constant_var_test_name_resolves_via_propagation' (14745) panicked at rust/tcl-lsp-core/src/document_symbols.rs:1055:9:
+constant-propagated name expected, got ["name"]
+
+---- document_symbols::tests::tp_constraint_matcher_test_distinct_kinds stdout ----
+
+thread 'document_symbols::tests::tp_constraint_matcher_test_distinct_kinds' (14796) panicked at rust/tcl-lsp-core/src/document_symbols.rs:1283:9:
+[]
+
+---- document_symbols::tests::tp_imported_test_name_is_a_symbol stdout ----
+
+thread 'document_symbols::tests::tp_imported_test_name_is_a_symbol' (14826) panicked at rust/tcl-lsp-core/src/document_symbols.rs:1004:47:
+test name should be a symbol
+
+---- document_symbols::tests::tp_multiple_tests_each_listed stdout ----
+
+thread 'document_symbols::tests::tp_multiple_tests_each_listed' (14878) panicked at rust/tcl-lsp-core/src/document_symbols.rs:1311:9:
+got []
+
+---- document_symbols::tests::tp_test_constraint_setter_is_a_constant_symbol stdout ----
+
+thread 'document_symbols::tests::tp_test_constraint_setter_is_a_constant_symbol' (14902) panicked at rust/tcl-lsp-core/src/document_symbols.rs:1226:47:
+constraint should be a symbol
+
+---- document_symbols::tests::tp_test_inside_namespace_eval_nests_under_it stdout ----
+
+thread 'document_symbols::tests::tp_test_inside_namespace_eval_nests_under_it' (14919) panicked at rust/tcl-lsp-core/src/document_symbols.rs:1152:9:
+test should nest under the namespace: []
+
+---- document_symbols::tests::variables_set_in_a_handler_nest_under_it stdout ----
+
+thread 'document_symbols::tests::variables_set_in_a_handler_nest_under_it' (14930) panicked at rust/tcl-lsp-core/src/document_symbols.rs:2357:9:
+assertion `left == right` failed
+  left: []
+ right: ["inner"]
+
+
+test result: FAILED. 65 passed; 13 failed; 0 ignored; 0 measured; 3407 filtered out; finished in 191.47s

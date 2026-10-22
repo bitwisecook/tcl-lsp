@@ -1,0 +1,7 @@
+lib base: 
+lib after: 
+pass->fail:
+test codegen::native_failure::tests::missing_original_entry_does_not_invent_a_guest_compiler_error
+test codegen::native_failure::tests::missing_original_entry_keeps_compiler_rejection_as_an_admission_obligation
+fail->pass: 17
+LIBRUNS_DONE

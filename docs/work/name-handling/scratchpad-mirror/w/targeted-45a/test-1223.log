@@ -1,0 +1,6 @@
+
+running 1 test
+test command_binding::source_transition_advice::source_instance::tests::original_native_instance_and_handle_names_delegate_purpose_name_units ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 10440 filtered out; finished in 2.72s
+

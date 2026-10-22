@@ -1,0 +1,6 @@
+test analyser::diagnostics::fp::tnt::fp_tnt_03_eval_list_literal_head_no_t100 ... ok
+test analyser::diagnostics::fp::tnt::fp_tnt_03_eval_list_tainted_head_fires_t100 ... FAILED
+test analyser::diagnostics::fp::tnt::fp_tnt_03_eval_list_via_var_still_fires ... ok
+test analyser::diagnostics::fp::tnt::fp_tnt_03_interp_eval_list_literal_head_no_t105 ... FAILED
+test analyser::diagnostics::fp::tnt::fp_tnt_03_interp_eval_list_tainted_head_fires_t105 ... ok
+test analyser::diagnostics::fp::tnt::fp_tnt_03_uplevel_list_tainted_head_fires_t100 ... FAILED

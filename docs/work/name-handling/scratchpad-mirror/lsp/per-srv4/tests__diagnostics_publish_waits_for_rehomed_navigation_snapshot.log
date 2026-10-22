@@ -1,0 +1,34 @@
+
+running 1 test
+test tests::diagnostics_publish_waits_for_rehomed_navigation_snapshot ... FAILED
+
+failures:
+
+---- tests::diagnostics_publish_waits_for_rehomed_navigation_snapshot stdout ----
+
+thread 'tests::diagnostics_publish_waits_for_rehomed_navigation_snapshot' (25964) panicked at rust/tcl-lsp-server/src/lib.rs:63178:13:
+the guarded snapshot must retain the source-site call view
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: tcl_lsp_server::tests::diagnostics_publish_waits_for_rehomed_navigation_snapshot::{closure#0}
+   3: <core::pin::Pin<&mut dyn core::future::future::Future<Output = ()>> as core::future::future::Future>::poll
+   4: <tokio::runtime::park::CachedParkThread>::block_on::<core::pin::Pin<&mut dyn core::future::future::Future<Output = ()>>>::{closure#0}
+   5: <tokio::runtime::park::CachedParkThread>::block_on::<core::pin::Pin<&mut dyn core::future::future::Future<Output = ()>>>
+   6: <tokio::runtime::context::blocking::BlockingRegionGuard>::block_on::<core::pin::Pin<&mut dyn core::future::future::Future<Output = ()>>>
+   7: <tokio::runtime::scheduler::multi_thread::MultiThread>::block_on::<core::pin::Pin<&mut dyn core::future::future::Future<Output = ()>>>::{closure#0}
+   8: tokio::runtime::context::runtime::enter_runtime::<<tokio::runtime::scheduler::multi_thread::MultiThread>::block_on<core::pin::Pin<&mut dyn core::future::future::Future<Output = ()>>>::{closure#0}, ()>
+   9: <tokio::runtime::scheduler::multi_thread::MultiThread>::block_on::<core::pin::Pin<&mut dyn core::future::future::Future<Output = ()>>>
+  10: <tokio::runtime::runtime::Runtime>::block_on_inner::<core::pin::Pin<&mut dyn core::future::future::Future<Output = ()>>>
+  11: <tokio::runtime::runtime::Runtime>::block_on::<core::pin::Pin<&mut dyn core::future::future::Future<Output = ()>>>
+  12: tcl_lsp_server::tests::diagnostics_publish_waits_for_rehomed_navigation_snapshot
+  13: tcl_lsp_server::tests::diagnostics_publish_waits_for_rehomed_navigation_snapshot::{closure#0}
+  14: <tcl_lsp_server::tests::diagnostics_publish_waits_for_rehomed_navigation_snapshot::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+
+failures:
+    tests::diagnostics_publish_waits_for_rehomed_navigation_snapshot
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 839 filtered out; finished in 9.01s
+

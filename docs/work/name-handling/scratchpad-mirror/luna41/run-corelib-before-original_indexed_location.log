@@ -1,0 +1,5 @@
+test original_indexed_location::tests::original_indexed_implicit_parents_require_current_declaring_geometry ... ok
+test original_indexed_location::tests::original_indexed_locations_reject_changed_registry_with_identical_source_and_config ... ok
+test original_indexed_location::tests::original_indexed_namespace_locations_ignore_reports_and_reject_foreign_facts ... ok
+test original_indexed_location::tests::original_indexed_variable_locations_require_complete_current_source_and_fact ... ok
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 3481 filtered out; finished in 4.57s

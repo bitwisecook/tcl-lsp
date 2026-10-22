@@ -1,0 +1,44 @@
+
+running 1 test
+test provider_source::tests::indexed_package_providers_keep_their_own_pack_and_unavailable_status ... FAILED
+
+failures:
+
+---- provider_source::tests::indexed_package_providers_keep_their_own_pack_and_unavailable_status stdout ----
+
+thread 'provider_source::tests::indexed_package_providers_keep_their_own_pack_and_unavailable_status' (10168) panicked at rust/tcl-lsp-server/src/provider_source/tests.rs:45:5:
+[
+    PackNotice {
+        path: "/library/provider360.tclspec",
+        line: 5,
+        context: "command provider360::define",
+        message: "unknown argument role `Params` dropped",
+        severity: Warning,
+        subject: None,
+    },
+]
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: tcl_lsp_server::provider_source::tests::provider_pack
+   3: tcl_lsp_server::provider_source::tests::indexed_package_providers_keep_their_own_pack_and_unavailable_status::{closure#0}
+   4: <core::pin::Pin<&mut dyn core::future::future::Future<Output = ()>> as core::future::future::Future>::poll
+   5: <tokio::runtime::park::CachedParkThread>::block_on::<core::pin::Pin<&mut dyn core::future::future::Future<Output = ()>>>::{closure#0}
+   6: <tokio::runtime::park::CachedParkThread>::block_on::<core::pin::Pin<&mut dyn core::future::future::Future<Output = ()>>>
+   7: <tokio::runtime::context::blocking::BlockingRegionGuard>::block_on::<core::pin::Pin<&mut dyn core::future::future::Future<Output = ()>>>
+   8: <tokio::runtime::scheduler::multi_thread::MultiThread>::block_on::<core::pin::Pin<&mut dyn core::future::future::Future<Output = ()>>>::{closure#0}
+   9: tokio::runtime::context::runtime::enter_runtime::<<tokio::runtime::scheduler::multi_thread::MultiThread>::block_on<core::pin::Pin<&mut dyn core::future::future::Future<Output = ()>>>::{closure#0}, ()>
+  10: <tokio::runtime::scheduler::multi_thread::MultiThread>::block_on::<core::pin::Pin<&mut dyn core::future::future::Future<Output = ()>>>
+  11: <tokio::runtime::runtime::Runtime>::block_on_inner::<core::pin::Pin<&mut dyn core::future::future::Future<Output = ()>>>
+  12: <tokio::runtime::runtime::Runtime>::block_on::<core::pin::Pin<&mut dyn core::future::future::Future<Output = ()>>>
+  13: tcl_lsp_server::provider_source::tests::indexed_package_providers_keep_their_own_pack_and_unavailable_status
+  14: tcl_lsp_server::provider_source::tests::indexed_package_providers_keep_their_own_pack_and_unavailable_status::{closure#0}
+  15: <tcl_lsp_server::provider_source::tests::indexed_package_providers_keep_their_own_pack_and_unavailable_status::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+
+failures:
+    provider_source::tests::indexed_package_providers_keep_their_own_pack_and_unavailable_status
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 839 filtered out; finished in 1.25s
+

@@ -1,0 +1,130 @@
+test analyser::per_item::original_configured_entry_tests::original_isolated_body_projects_its_genuine_parent_input_to_nested_source ... ok
+test analyser::per_item::original_parent_purpose_tests::original_per_item_recovery_retains_the_whole_file_bom_boundary ... ok
+test analyser::per_item::original_configured_entry_tests::original_per_item_entry_uses_retained_configuration_and_unknown_is_distinct ... ok
+test analyser::per_item::tests::a_body_defined_hash_zero_global_survives_the_graft ... FAILED
+test analyser::per_item::tests::a_caller_frame_upvar_defines_no_global_cell ... FAILED
+test analyser::per_item::tests::a_body_defined_global_cell_survives_the_graft ... FAILED
+test analyser::per_item::tests::class_extension_in_proc_falls_back ... ok
+test analyser::per_item::tests::computed_body_head_keeps_genuine_whole_document_value_owner ... ok
+test analyser::per_item::tests::duplicate_proc_unique_locals_unioned ... ok
+test analyser::per_item::tests::const_dispatch_sites_inside_bodies_match ... ok
+test analyser::per_item::tests::duplicate_proc_with_params ... ok
+test analyser::per_item::tests::duplicate_proc_same_local_last_wins ... ok
+test analyser::per_item::tests::duplicate_top_level_proc_byte_identical ... ok
+test analyser::per_item::tests::dynamic_oo_define_in_body_rebases_dynclass_identity ... ok
+test analyser::per_item::tests::ensemble_subcommand_call_inside_body_matches ... ok
+test analyser::per_item::tests::in_body_interp_alias_feeds_w123_of_sibling_body ... ok
+test analyser::per_item::tests::dynamic_namespace_eval_in_body_rebases_dynns_identity ... ok
+test analyser::per_item::tests::instance_creation_before_class_definition_stays_unresolved ... ok
+test analyser::per_item::tests::isolated_method_seed_names_keep_literal_sigils_from_the_original_class ... ok
+test analyser::per_item::tests::instance_creation_in_proc_body ... ok
+test analyser::per_item::tests::literal_name_spelled_like_marker_is_not_rebased ... ok
+test analyser::per_item::tests::isolated_global_reads_retain_selected_literal_name_and_element_data ... ok
+test analyser::per_item::tests::literal_namespace_import_w123_matches ... ok
+test analyser::per_item::tests::multi_method_class_byte_identical ... ok
+test analyser::per_item::tests::namespace_and_top_level_code ... ok
+test analyser::per_item::tests::method_body_defines_duplicate_proc ... ok
+test analyser::per_item::tests::namespace_export_clear_tombstone_ordering_matches ... ok
+test analyser::per_item::tests::namespace_export_inside_body_falls_back ... ok
+test analyser::per_item::tests::nested_opaque_declarations_use_full_original_source_owner ... ok
+test analyser::per_item::tests::namespace_import_inside_body_falls_back ... ok
+test analyser::per_item::tests::oo_class_with_method ... ok
+test analyser::per_item::tests::nested_proc_in_body ... ok
+test analyser::per_item::tests::namespace_unknown_handler_suppression_matches ... ok
+test analyser::per_item::tests::original_lexical_member_body_keeps_the_whole_source_owner ... ok
+test analyser::per_item::tests::original_next_advice_reconstructs_whole_source_after_preceding_edits ... ok
+test analyser::per_item::tests::param_list_with_backslash_continuation_no_spurious_w215 ... FAILED
+test analyser::per_item::tests::pathless_interp_create_in_body_rebases_autoname_identity ... ok
+test analyser::per_item::tests::prefixless_ensemble_setting_reaches_and_returns_from_bodies ... ok
+test analyser::per_item::tests::private_source_advice_requires_whole_document_owner ... FAILED
+test analyser::per_item::tests::proc_calling_proc ... ok
+test analyser::per_item::tests::qualified_param_name_records_one_occurrence_not_two ... ok
+test analyser::per_item::tests::qualified_read_marks_enclosing_global_used ... ok
+test analyser::per_item::tests::quoted_var_substitution_does_not_false_fire_e202 ... ok
+test analyser::per_item::tests::oversized_body_hands_off_to_the_whole_file_walk ... ok
+test analyser::per_item::tests::registry_defined_command_names_match ... ok
+test analyser::per_item::tests::original_incremental_callbacks_retain_full_source_targets_and_barriers ... FAILED
+test analyser::per_item::tests::same_file_arity_e003_matches_across_proc_body_call ... FAILED
+test analyser::per_item::tests::renamed_away_builtin_w123_matches ... ok
+test analyser::per_item::tests::tk_gate_fn_conditional_require_still_activates ... ok
+test analyser::per_item::tests::same_file_arity_via_alias_and_rename_matches_across_proc_body_call ... FAILED
+test analyser::per_item::tests::tk_gate_fp_comments_strings_and_regexes_mentioning_tk ... FAILED
+test analyser::per_item::tests::self_redefining_proc_falls_back ... ok
+test analyser::per_item::tests::tk_gate_fp_package_provide_tk_and_require_tcl ... FAILED
+test analyser::per_item::tests::tk_gate_fp_three_words_scattered_across_unrelated_commands ... FAILED
+test analyser::per_item::tests::tk_gate_rooted_package_head_activates ... ok
+test analyser::per_item::tests::tk_gate_tn_dynamic_package_name_does_not_activate ... FAILED
+test analyser::per_item::tests::tk_gate_tn_renamed_package_command_does_not_activate ... FAILED
+test analyser::per_item::tests::tk_gate_tp_package_require_tk_hands_off ... ok
+test analyser::per_item::tests::tk_gate_tp_require_inside_a_body_is_still_caught ... FAILED
+test analyser::per_item::tests::tk_gate_tp_tk_dialect_short_circuits_at_entry ... ok
+test analyser::per_item::tests::tk_gate_tp_exact_versioned_and_continued_forms ... ok
+test analyser::per_item::tests::top_level_global_read_in_body ... ok
+test analyser::per_item::tests::top_level_creation_sees_class_defined_in_earlier_body ... ok
+test analyser::per_item::tests::two_top_level_procs ... ok
+test analyser::per_item::tests::w300_dynamic_source_in_body_matches ... ok
+test analyser::per_item::tests::widget_dispatch_sites_inside_bodies_match ... ok
+test analyser::per_item::tests::w103_dynamic_open_in_body_matches ... ok
+test analyser::per_item::tests::wildcard_namespace_import_gated_by_export_matches ... ok
+---- analyser::per_item::tests::a_body_defined_hash_zero_global_survives_the_graft stdout ----
+thread 'analyser::per_item::tests::a_body_defined_hash_zero_global_survives_the_graft' (1174) panicked at rust/tcl-compiler/src/analyser/per_item.rs:2625:9:
+assertion `left == right` failed: expected fast path for:
+  left: Some(OriginalSourceOwnership)
+ right: None
+---- analyser::per_item::tests::a_caller_frame_upvar_defines_no_global_cell stdout ----
+thread 'analyser::per_item::tests::a_caller_frame_upvar_defines_no_global_cell' (1175) panicked at rust/tcl-compiler/src/analyser/per_item.rs:2625:9:
+assertion `left == right` failed: expected fast path for:
+  left: Some(OriginalSourceOwnership)
+ right: None
+---- analyser::per_item::tests::a_body_defined_global_cell_survives_the_graft stdout ----
+thread 'analyser::per_item::tests::a_body_defined_global_cell_survives_the_graft' (1173) panicked at rust/tcl-compiler/src/analyser/per_item.rs:2625:9:
+assertion `left == right` failed: expected fast path for:
+  left: Some(OriginalSourceOwnership)
+ right: None
+---- analyser::per_item::tests::param_list_with_backslash_continuation_no_spurious_w215 stdout ----
+thread 'analyser::per_item::tests::param_list_with_backslash_continuation_no_spurious_w215' (1239) panicked at rust/tcl-compiler/src/analyser/per_item.rs:2524:9:
+---- analyser::per_item::tests::private_source_advice_requires_whole_document_owner stdout ----
+thread 'analyser::per_item::tests::private_source_advice_requires_whole_document_owner' (1245) panicked at rust/tcl-compiler/src/analyser/per_item.rs:2888:9:
+assertion `left == right` failed
+  left: None
+ right: Some(OriginalSourceOwnership)
+---- analyser::per_item::tests::original_incremental_callbacks_retain_full_source_targets_and_barriers stdout ----
+thread 'analyser::per_item::tests::original_incremental_callbacks_retain_full_source_targets_and_barriers' (1229) panicked at rust/tcl-compiler/src/analyser/per_item.rs:2564:17:
+assertion `left == right` failed: jim: fast source-header control: interp alias {} cb {} external FIXED; lsort -command {cb BAKED} {3 1 2}
+  left: Some(ErrorDiagnostic)
+ right: None
+---- analyser::per_item::tests::same_file_arity_e003_matches_across_proc_body_call stdout ----
+thread 'analyser::per_item::tests::same_file_arity_e003_matches_across_proc_body_call' (1259) panicked at rust/tcl-compiler/src/analyser/per_item.rs:2524:9:
+---- analyser::per_item::tests::same_file_arity_via_alias_and_rename_matches_across_proc_body_call stdout ----
+thread 'analyser::per_item::tests::same_file_arity_via_alias_and_rename_matches_across_proc_body_call' (1260) panicked at rust/tcl-compiler/src/analyser/per_item.rs:2524:9:
+---- analyser::per_item::tests::tk_gate_fp_comments_strings_and_regexes_mentioning_tk stdout ----
+thread 'analyser::per_item::tests::tk_gate_fp_comments_strings_and_regexes_mentioning_tk' (1268) panicked at rust/tcl-compiler/src/analyser/per_item.rs:2625:9:
+assertion `left == right` failed: expected fast path for:
+  left: Some(OriginalSourceOwnership)
+ right: None
+---- analyser::per_item::tests::tk_gate_fp_package_provide_tk_and_require_tcl stdout ----
+thread 'analyser::per_item::tests::tk_gate_fp_package_provide_tk_and_require_tcl' (1269) panicked at rust/tcl-compiler/src/analyser/per_item.rs:2625:9:
+assertion `left == right` failed: expected fast path for:
+  left: Some(OriginalSourceOwnership)
+ right: None
+---- analyser::per_item::tests::tk_gate_fp_three_words_scattered_across_unrelated_commands stdout ----
+thread 'analyser::per_item::tests::tk_gate_fp_three_words_scattered_across_unrelated_commands' (1270) panicked at rust/tcl-compiler/src/analyser/per_item.rs:2625:9:
+assertion `left == right` failed: expected fast path for:
+  left: Some(OriginalSourceOwnership)
+ right: None
+---- analyser::per_item::tests::tk_gate_tn_dynamic_package_name_does_not_activate stdout ----
+thread 'analyser::per_item::tests::tk_gate_tn_dynamic_package_name_does_not_activate' (1272) panicked at rust/tcl-compiler/src/analyser/per_item.rs:2625:9:
+assertion `left == right` failed: expected fast path for:
+  left: Some(OriginalSourceOwnership)
+ right: None
+---- analyser::per_item::tests::tk_gate_tn_renamed_package_command_does_not_activate stdout ----
+thread 'analyser::per_item::tests::tk_gate_tn_renamed_package_command_does_not_activate' (1273) panicked at rust/tcl-compiler/src/analyser/per_item.rs:2625:9:
+assertion `left == right` failed: expected fast path for:
+  left: Some(OriginalSourceOwnership)
+ right: None
+---- analyser::per_item::tests::tk_gate_tp_require_inside_a_body_is_still_caught stdout ----
+thread 'analyser::per_item::tests::tk_gate_tp_require_inside_a_body_is_still_caught' (1276) panicked at rust/tcl-compiler/src/analyser/per_item.rs:2638:9:
+assertion `left == right` failed: gate for:
+  left: Some(OriginalSourceOwnership)
+ right: Some(TkActive)
+test result: FAILED. 54 passed; 14 failed; 0 ignored; 0 measured; 10383 filtered out; finished in 72.49s

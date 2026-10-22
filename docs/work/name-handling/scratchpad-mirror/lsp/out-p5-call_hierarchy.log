@@ -1,0 +1,12 @@
+
+running 7 tests
+test incoming_calls_find_callers ... ok
+test outgoing_calls_find_callees ... ok
+test prepare_on_empty_file_is_empty ... ok
+test prepare_on_builtin_is_empty ... ok
+test prepare_on_proc_call ... ok
+test prepare_on_proc_definition ... ok
+test recursive_proc_calls_itself ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 9.83s
+

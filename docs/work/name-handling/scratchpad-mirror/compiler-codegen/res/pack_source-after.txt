@@ -1,0 +1,10 @@
+test a_pack_file_folds_a_call_site_in_the_optimiser ... FAILED
+test a_pack_timing_hook_controls_a_live_command_prefix_position ... ok
+test a_derived_body_runs_under_the_release_the_call_is_analysed_under ... FAILED
+test the_loader_carries_the_declared_inputs ... ok
+test without_a_host_the_installed_pack_simply_does_not_fold ... ok
+test a_reference_body_answers_through_the_host_as_the_procedure_does ... FAILED
+thread 'a_pack_file_folds_a_call_site_in_the_optimiser' (20312) panicked at rust/tcl-spectcl/tests/pack_source_e2e.rs:185:9:
+thread 'a_derived_body_runs_under_the_release_the_call_is_analysed_under' (20311) panicked at rust/tcl-spectcl/tests/pack_source_e2e.rs:481:9:
+thread 'a_reference_body_answers_through_the_host_as_the_procedure_does' (20349) panicked at rust/tcl-spectcl/tests/pack_source_e2e.rs:389:9:
+test result: FAILED. 3 passed; 3 failed; 0 ignored; 0 measured; 0 filtered out; finished in 21.85s

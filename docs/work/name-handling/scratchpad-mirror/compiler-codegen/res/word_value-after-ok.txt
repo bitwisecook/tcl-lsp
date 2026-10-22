@@ -1,0 +1,3 @@
+test the_vectors_hold_at_every_release
+test vectors_match_real_tclsh
+test vm_matches_the_pinned_word_value_vectors

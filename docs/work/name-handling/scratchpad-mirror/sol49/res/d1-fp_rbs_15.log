@@ -1,0 +1,16 @@
+test analyser::diagnostics::fp::rbs::fp_rbs_15_all_arms_return_dead_read_silent ... ok
+test analyser::diagnostics::fp::rbs::fp_rbs_15_all_arms_error_or_tailcall_silent ... ok
+test analyser::diagnostics::fp::rbs::fp_rbs_15_no_default_falls_through_fires ... ok
+test analyser::diagnostics::fp::rbs::fp_rbs_15_all_break_switch_not_a_proc_terminator ... FAILED
+test analyser::diagnostics::fp::rbs::fp_rbs_15_continue_in_opaque_switch_loop_silent ... ok
+test analyser::diagnostics::fp::rbs::fp_rbs_15_one_completing_arm_fires ... ok
+test analyser::diagnostics::fp::rbs::fp_rbs_15_while1_break_in_opaque_switch_exits_loop ... FAILED
+test analyser::diagnostics::tests::fp_rbs_15_continue_in_opaque_switch_stays_silent ... ok
+test analyser::diagnostics::tests::fp_rbs_15_all_exiting_opaque_switch_is_a_terminator ... FAILED
+---- analyser::diagnostics::fp::rbs::fp_rbs_15_all_break_switch_not_a_proc_terminator stdout ----
+thread 'analyser::diagnostics::fp::rbs::fp_rbs_15_all_break_switch_not_a_proc_terminator' (3960) panicked at rust/tcl-compiler/src/analyser/diagnostics/fp/rbs.rs:1137:5:
+---- analyser::diagnostics::fp::rbs::fp_rbs_15_while1_break_in_opaque_switch_exits_loop stdout ----
+thread 'analyser::diagnostics::fp::rbs::fp_rbs_15_while1_break_in_opaque_switch_exits_loop' (4042) panicked at rust/tcl-compiler/src/analyser/diagnostics/fp/rbs.rs:1148:5:
+---- analyser::diagnostics::tests::fp_rbs_15_all_exiting_opaque_switch_is_a_terminator stdout ----
+thread 'analyser::diagnostics::tests::fp_rbs_15_all_exiting_opaque_switch_is_a_terminator' (4044) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:6551:5:
+test result: FAILED. 6 passed; 3 failed; 0 ignored; 0 measured; 10468 filtered out; finished in 44.59s

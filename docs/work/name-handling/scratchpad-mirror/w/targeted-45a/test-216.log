@@ -1,0 +1,6 @@
+
+running 1 test
+test lexer::tests::two_commands_separated_by_eol_both_allow_comments ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 584 filtered out; finished in 0.00s
+

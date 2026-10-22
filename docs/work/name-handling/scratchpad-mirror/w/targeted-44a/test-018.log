@@ -1,0 +1,21 @@
+
+running 1 test
+test package_resolver::reachability::tests::both_arms_of_a_tea_version_branch_declare_the_package_923_idx42 ... 
+thread 'package_resolver::reachability::tests::both_arms_of_a_tea_version_branch_declare_the_package_923_idx42' (18535) panicked at rust/tcl-lsp-core/src/package_resolver/reachability/tests.rs:128:9:
+one arm must be the taken one for Some(V8_6): [("tclopt", Conditional), ("tclopt", Conditional)]
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: tcl_lsp_core::package_resolver::reachability::tests::both_arms_of_a_tea_version_branch_declare_the_package_923_idx42
+   3: tcl_lsp_core::package_resolver::reachability::tests::both_arms_of_a_tea_version_branch_declare_the_package_923_idx42::{closure#0}
+   4: <tcl_lsp_core::package_resolver::reachability::tests::both_arms_of_a_tea_version_branch_declare_the_package_923_idx42::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+FAILED
+
+failures:
+
+failures:
+    package_resolver::reachability::tests::both_arms_of_a_tea_version_branch_declare_the_package_923_idx42
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 3483 filtered out; finished in 0.51s
+

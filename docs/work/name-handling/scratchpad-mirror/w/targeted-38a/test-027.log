@@ -1,0 +1,6 @@
+
+running 1 test
+test original_declaration::readonly_source_reference_tests::readonly_member_reports_keep_source_spans_out_of_edit_inventories ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 3470 filtered out; finished in 0.90s
+

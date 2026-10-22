@@ -1,0 +1,6 @@
+
+running 1 test
+test script::tests::double_expand_marks_one_word_and_lists_both_markers ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 584 filtered out; finished in 0.00s
+

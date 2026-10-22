@@ -1,0 +1,45 @@
+<core::array::iter::iter_inner::PolymorphicIter<[core::mem::maybe_uninit::MaybeUninit<alloc::string::String>; 1]> as core::ops::drop::Drop>::drop
+core::ptr::drop_glue::<core::array::iter::iter_inner::PolymorphicIter<[core::mem::maybe_uninit::MaybeUninit<alloc::string::String>; 1]>>
+<core::array::iter::IntoIter<alloc::string::String, 1> as core::ops::drop::Drop>::drop
+core::ptr::drop_glue::<core::array::iter::IntoIter<alloc::string::String, 1>>
+<core::array::iter::IntoIter<alloc::string::String, 1> as core::iter::traits::iterator::Iterator>::fold::<(), core::iter::adapters::map::map_fold<alloc::string::String,
+<core::iter::adapters::map::Map<core::array::iter::IntoIter<alloc::string::String, 1>, <hashbrown::set::HashSet<alloc::string::String, std::hash::random::RandomState> as core::iter::traits::collect::Extend<alloc::string::String>>::extend<[alloc::string::String; 1]>::{closure#0}> as core::iter::traits::iterator::Iterator>::fold::<(), core::iter::traits::iterator::Iterator::for_each::call<(alloc::string::String,
+<core::iter::adapters::map::Map<core::array::iter::IntoIter<alloc::string::String, 1>, <hashbrown::set::HashSet<alloc::string::String, std::hash::random::RandomState> as core::iter::traits::collect::Extend<alloc::string::String>>::extend<[alloc::string::String; 1]>::{closure#0}> as core::iter::traits::iterator::Iterator>::for_each::<<hashbrown::map::HashMap<alloc::string::String,
+<hashbrown::map::HashMap<alloc::string::String,
+<hashbrown::set::HashSet<alloc::string::String, std::hash::random::RandomState> as core::iter::traits::collect::Extend<alloc::string::String>>::extend::<[alloc::string::String; 1]>
+<std::collections::hash::set::HashSet<alloc::string::String> as core::iter::traits::collect::FromIterator<alloc::string::String>>::from_iter::<[alloc::string::String; 1]>
+<std::collections::hash::set::HashSet<alloc::string::String> as core::convert::From<[alloc::string::String; 1]>>::from
+<tcl_compiler::var_resolve::ResolveContext as core::default::Default>::default
+<alloc::sync::Arc<tcl_compiler::var_resolve::ResolveContext> as core::default::Default>::default
+<tcl_compiler::command_binding::SourceInvocationBinding as core::default::Default>::default
+tcl_compiler::command_binding::source_binding_from_original_input_in
+tcl_compiler::command_binding::source_binding_from_original_input
+<tcl_compiler::command_binding::compiled_invocation::CompiledInvocationSelection>::stable_handler_after_original_arguments
+<tcl_compiler::command_binding::SourceBindingPoint>::binding_projection
+<tcl_compiler::command_binding::SourceBindingPoint>::original_dispatch_binding
+<tcl_compiler::command_binding::SourceCommandBindings>::query_dispatch_points::<core::iter::adapters::map::Map<core::iter::adapters::flatten::Flatten<core::option::IntoIter<&alloc::vec::Vec<usize>>>, <tcl_compiler::command_binding::SourceCommandBindings>::dispatch_points_at::{closure#0}>>::{closure#2}
+<tcl_compiler::command_binding::SourceCommandBindings>::query_dispatch_points::<core::iter::adapters::map::Map<core::iter::adapters::flatten::Flatten<core::option::IntoIter<&alloc::vec::Vec<usize>>>, <tcl_compiler::command_binding::SourceCommandBindings>::dispatch_points_at::{closure#0}>>
+<tcl_compiler::command_binding::SourceCommandBindings>::invocation_at_source
+<tcl_compiler::command_binding::SourceCommandBindings>::stamp_original_tokens::{closure#0}
+<tcl_compiler::command_binding::SourceCommandBindings>::stamp_original_tokens_with_bindings::<<tcl_compiler::command_binding::SourceCommandBindings>::stamp_original_tokens::{closure#0}>
+<tcl_compiler::command_binding::SourceCommandBindings>::stamp_original_tokens
+<tcl_compiler::command_binding::SourceCommandBindings>::math_invocations_for_script
+<tcl_compiler::lowering::Lowerer>::retain_script_source::{closure#2}
+<core::option::Option<&tcl_compiler::command_binding::retained_body_inventory::RetainedSourceBodyInventory>>::map_or_else::<alloc::vec::Vec<tcl_compiler::command_binding::math_occurrence::SourceMathInvocation>, <alloc::vec::Vec<tcl_compiler::command_binding::math_occurrence::SourceMathInvocation>>::new, <tcl_compiler::lowering::Lowerer>::retain_script_source::{closure#2}>
+<tcl_compiler::lowering::Lowerer>::retain_script_source
+<tcl_compiler::lowering::Lowerer>::lower_body_inner
+<tcl_compiler::lowering::Lowerer>::lower_body_in_irules_context
+<tcl_compiler::lowering::Lowerer>::lower_body
+<tcl_compiler::lowering::Lowerer>::lower_into_script_with_boxed_bindings
+<tcl_compiler::lowering::Lowerer>::lower_executed_script_in_context
+<tcl_compiler::lowering::Lowerer>::prove_possible_bodies
+<tcl_compiler::lowering::Lowerer>::attach_evaluated_body
+<tcl_compiler::lowering::Lowerer>::lower_default
+<tcl_compiler::lowering::Lowerer>::lower_default_boxed
+<tcl_compiler::lowering::Lowerer>::try_dispatch_structured_hook
+<tcl_compiler::lowering::Lowerer>::lower_command
+<tcl_compiler::lowering::Lowerer>::lower_segmented
+<tcl_compiler::lowering::Lowerer>::lower_body_inner::{closure#0}
+<tcl_compiler::lowering::Lowerer>::in_word_space::<alloc::vec::Vec<tcl_compiler::ir::Statement>, <tcl_compiler::lowering::Lowerer>::lower_body_inner::{closure#0}>
+<tcl_compiler::lowering::Lowerer>::lower_body_inner
+<tcl_compiler::lowering::Lowerer>::lower_body_in_irules_context

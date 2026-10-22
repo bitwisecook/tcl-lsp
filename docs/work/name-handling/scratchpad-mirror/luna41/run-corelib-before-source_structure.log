@@ -1,0 +1,38 @@
+test source_structure::original_hover_word_geometry_tests::complete_cursor_word_does_not_recover_computed_tails_or_partial_words ... ok
+test source_structure::original_hover_word_geometry_tests::complete_cursor_word_uses_whole_configured_original_groups ... ok
+test source_structure::syntax_compaction_tests::original_syntax_regions_do_not_promote_conditional_roles_or_declarations ... ok
+test source_structure::tests::commands_only_capture_keeps_current_original_regions_without_token_inventory ... ok
+test source_structure::syntax_compaction_tests::original_syntax_regions_keep_quiet_selected_bodies_and_source_currency ... FAILED
+test source_structure::syntax_compaction_tests::original_syntax_regions_reject_body_roles_when_arguments_replace_the_head ... FAILED
+test source_structure::tests::original_case_and_lambda_geometry_skip_data_and_keep_dynamic_subject ... ok
+test source_structure::tests::original_definition_cursor_source_owners_reach_nested_spectcl_command_bodies ... ok
+test source_structure::tests::logical_procedure_structure_uses_current_declared_body_word ... ok
+test source_structure::tests::original_cursor_declines_malformed_data_and_native_resolution_promotion ... ok
+test source_structure::tests::original_document_child_schema_requires_actual_parent_complete_argv_and_context ... ok
+test source_structure::tests::original_structure_retains_alias_body_and_bracket_geometry_after_ui_maps_clear ... ok
+test source_structure::tests::original_structure_uses_genuine_definition_wrappers_and_clears_ordinary_bodies ... FAILED
+test source_structure::tests::original_variable_cursor_keeps_selected_roots_and_complete_source_geometry ... ok
+test source_structure::tests::original_method_sites_keep_complete_words_nested_commands_and_current_input ... ok
+test source_structure::tests::source_member_disposition_prevents_unavailable_layout_global_fallback ... ok
+test source_structure::tests::original_syntax_tokens_join_absolute_region_and_command_geometry ... ok
+test source_structure::tests::original_variable_cursor_retains_custom_reference_only_and_prefix_source_roles ... ok
+---- source_structure::syntax_compaction_tests::original_syntax_regions_keep_quiet_selected_bodies_and_source_currency stdout ----
+thread 'source_structure::syntax_compaction_tests::original_syntax_regions_keep_quiet_selected_bodies_and_source_currency' (19638) panicked at rust/tcl-lsp-core/src/source_structure.rs:2831:9:
+assertion failed: has_script(&structure, source, "  puts [list quiet]  ")
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- source_structure::syntax_compaction_tests::original_syntax_regions_reject_body_roles_when_arguments_replace_the_head stdout ----
+
+thread 'source_structure::syntax_compaction_tests::original_syntax_regions_reject_body_roles_when_arguments_replace_the_head' (19639) panicked at rust/tcl-lsp-core/src/source_structure.rs:2903:9:
+assertion failed: !has_script(&readonly, source,
+        "  set ::builtin_ran BUILTIN  ; list {  VALUE  }  ")
+
+---- source_structure::tests::original_structure_uses_genuine_definition_wrappers_and_clears_ordinary_bodies stdout ----
+
+thread 'source_structure::tests::original_structure_uses_genuine_definition_wrappers_and_clears_ordinary_bodies' (19670) panicked at rust/tcl-lsp-core/src/source_structure.rs:2746:13:
+assertion `left == right` failed
+  left: Some("if 1 {method café {} {puts immediate}}")
+ right: Some("puts immediate")
+
+
+test result: FAILED. 15 passed; 3 failed; 0 ignored; 0 measured; 3467 filtered out; finished in 46.03s

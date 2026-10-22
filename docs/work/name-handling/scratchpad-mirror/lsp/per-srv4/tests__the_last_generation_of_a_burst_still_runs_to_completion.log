@@ -1,0 +1,7 @@
+
+running 1 test
+test tests::the_last_generation_of_a_burst_still_runs_to_completion has been running for over 60 seconds
+test tests::the_last_generation_of_a_burst_still_runs_to_completion ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 839 filtered out; finished in 294.07s
+

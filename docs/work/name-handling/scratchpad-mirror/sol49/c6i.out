@@ -1,0 +1,3 @@
+/home/user/tcl-lsp/target/debug/deps/tcl_compiler-ef22ef87d0bd65a7
+      6 ZZ rwt arg=1 spelling="${child}" proj=true rec=true words=Some(["::interp", "eval", "${child}", "[list puts $raw]"])
+      2 ZZ tnt wrapper nested=None

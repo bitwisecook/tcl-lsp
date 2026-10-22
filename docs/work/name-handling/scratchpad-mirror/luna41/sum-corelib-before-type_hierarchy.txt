@@ -1,0 +1,2 @@
+test result: FAILED. 15 passed; 9 failed; 0 ignored; 0 measured; 3461 filtered out; finished in 14.21s
+fail/ignored count: 9

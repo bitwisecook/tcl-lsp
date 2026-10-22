@@ -1,0 +1,9 @@
+{"scheduled":"2026-10-21T22:01:00Z",
+ "change_since_previous_report":{"integrated_LSP":0,"total_baseline_delta":0,"effective_delta":0,"verified_complete":0},
+ "admissions":{},
+ "committed":{"1263d91a3a":"lsp agent hand-back: name_resolution 46/75 -> 69/77, references_rename 59 -> 70/98, references_residual 11 -> 16/23, force_import 1 -> 2/10, clippy 1059 -> 152, no pass-to-fail in re-run targets","2f69e5d60e/c1a3ed48b5":"WIP snapshots"},
+ "progress_in_tree":{"compiler-names":"R2 fixed (proc body entered from 2+ sites keeps lookup), command names inside [..] link to declarations, signature_scan fixture corrected to tcl8.6 lexer config, R1 completed-world change in progress, CRLF regression test","lsp (new)":"hover labels restored to rust's, forced-import tests on the head word (decision 18T1600), Server108 cached per-document analysis implemented (compile pending)"},
+ "rulings_in_chat":{"cafe_variable_name":"correct the work-only test to tclsh's scan (::ns::caf) unless a design doc deliberately says Logical roots take Unicode name characters"},
+ "in_progress":{"vm-runtime":"active","compiler":"active","compiler-codegen":"active","compiler-names":"active","lsp":"started 21:35Z","bigip-lsp":"active"},
+ "resources":"disk 1.9 GB, RAM 11 GB available, /dev/shm empty; build-lock contention",
+ "next_report_utc":"2026-10-21T22:33:00Z"}

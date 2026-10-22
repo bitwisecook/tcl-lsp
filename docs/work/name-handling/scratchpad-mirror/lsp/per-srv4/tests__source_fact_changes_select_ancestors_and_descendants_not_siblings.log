@@ -1,0 +1,28 @@
+
+running 1 test
+test tests::source_fact_changes_select_ancestors_and_descendants_not_siblings ... FAILED
+
+failures:
+
+---- tests::source_fact_changes_select_ancestors_and_descendants_not_siblings stdout ----
+
+thread 'tests::source_fact_changes_select_ancestors_and_descendants_not_siblings' (5084) panicked at rust/tcl-lsp-server/src/lib.rs:42039:9:
+assertion `left == right` failed
+  left: {}
+ right: {"file:///proj/root.tcl", "file:///proj/grandchild.tcl"}
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<std::collections::hash::set::HashSet<alloc::string::String>, std::collections::hash::set::HashSet<alloc::string::String>>
+   4: tcl_lsp_server::tests::source_fact_changes_select_ancestors_and_descendants_not_siblings
+   5: tcl_lsp_server::tests::source_fact_changes_select_ancestors_and_descendants_not_siblings::{closure#0}
+   6: <tcl_lsp_server::tests::source_fact_changes_select_ancestors_and_descendants_not_siblings::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+
+failures:
+    tests::source_fact_changes_select_ancestors_and_descendants_not_siblings
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 839 filtered out; finished in 15.66s
+

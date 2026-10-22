@@ -1,0 +1,24 @@
+
+running 1 test
+test tests::the_report_surfaces_compiler_check_codes ... FAILED
+
+failures:
+
+---- tests::the_report_surfaces_compiler_check_codes stdout ----
+
+thread 'tests::the_report_surfaces_compiler_check_codes' (6747) panicked at rust/tcl-lsp-server/src/lib.rs:42529:9:
+expected an O100 constant-branch diagnostic, got: [Some(String("O112"))]
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: tcl_lsp_server::tests::the_report_surfaces_compiler_check_codes
+   3: tcl_lsp_server::tests::the_report_surfaces_compiler_check_codes::{closure#0}
+   4: <tcl_lsp_server::tests::the_report_surfaces_compiler_check_codes::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+
+failures:
+    tests::the_report_surfaces_compiler_check_codes
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 839 filtered out; finished in 3.72s
+

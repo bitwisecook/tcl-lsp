@@ -1,0 +1,9 @@
+{"scheduled":"2026-10-21T21:29:00Z",
+ "change_since_previous_report":{"integrated_LSP":0,"total_baseline_delta":0,"effective_delta":0,"verified_complete":0},
+ "admissions":{},
+ "committed":{"a0afd1964f/3260f06be8/3f5ce25911/b08361246c":"WIP snapshots"},
+ "rulings_in_chat":{"completed_command_world":"the completed world is the normal-completion world: commands that may raise (puts, I/O) don't withhold it; only commands with unknown normal-return effects do","itcl_two_word":"for itcl and other non-TclOO classes `Class word` is instance creation; class procs dispatch only via ::Class::proc","irules_procs":"published as original procedure declarations of the RuleLoader realm (decision 2026-10-21T00:10Z)","when_completion":"registry-owned partial `when` layout; completion offers BIG-IP's documented canonical spellings, the shape accepts all documented spellings"},
+ "ownership_changes":{"command_binding.rs":"compiler -> compiler-names (R1 completion fix)","tcl-registry registry.rs + irules/when.rs":"-> bigip-lsp (when slot)"},
+ "in_progress":{"vm-runtime":"spec-studio tests, golden_packs verify, pack_source_e2e","compiler":"itcl/snit definers (two-word fix), iRules procs as declarations","compiler-codegen":"entry-less preflight, string cat/is compilers, const_fold hook","compiler-names":"R1 completed world, R2, import alias, W210, info body in [..]","lsp":"next/nextto LSP-side fix verifying, clippy 152","bigip-lsp":"verification, when slot, partial and remaining units"},
+ "resources":"disk 2.6 GB, RAM 9 GB available, /dev/shm 523 MB",
+ "next_report_utc":"2026-10-21T22:00:00Z"}

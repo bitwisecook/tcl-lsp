@@ -1,0 +1,68 @@
+   Compiling getrandom v0.4.3
+   Compiling syn v3.0.9
+   Compiling num-bigint v0.5.1
+   Compiling syn v2.0.119
+   Compiling crypto-common v0.2.2
+   Compiling digest v0.11.3
+   Compiling sha2 v0.11.1
+   Compiling crypto-bigint v0.7.5
+   Compiling thiserror-impl v2.0.21
+   Compiling md-5 v0.11.0
+   Compiling sha1 v0.11.0
+   Compiling synstructure v0.13.2
+   Compiling thiserror v2.0.21
+   Compiling serde_core v1.0.229
+   Compiling tcl-lexer v0.1.0 (/home/user/tcl-lsp/rust/tcl-lexer)
+   Compiling asn1-rs-derive v0.6.0
+   Compiling tcl-syntax v0.1.0 (/home/user/tcl-lsp/rust/tcl-syntax)
+   Compiling asn1-rs-impl v0.2.0
+   Compiling primefield v0.14.0
+   Compiling elliptic-curve v0.14.1
+   Compiling displaydoc v0.2.7
+   Compiling hmac v0.13.0
+   Compiling signature v3.0.0
+   Compiling indexmap v2.14.2
+   Compiling rfc6979 v0.6.0
+   Compiling asn1-rs v0.7.2
+   Compiling wnaf v0.14.1
+   Compiling primeorder v0.14.0
+   Compiling serde_json v1.0.154
+   Compiling ecdsa v0.17.0
+   Compiling tcl-host-c-abi v0.1.0 (/home/user/tcl-lsp/rust/tcl-host-c-abi)
+   Compiling serde_derive v1.0.229
+   Compiling getrandom v0.2.17
+   Compiling ring v0.17.14
+   Compiling der-parser v10.0.0
+   Compiling oid-registry v0.8.1
+   Compiling crypto-primes v0.7.2
+   Compiling tcl-runtime-api v0.1.0 (/home/user/tcl-lsp/rust/tcl-runtime-api)
+   Compiling x509-parser v0.18.1
+   Compiling serde v1.0.229
+   Compiling tcl-cmd-core v0.1.0 (/home/user/tcl-lsp/rust/tcl-cmd-core)
+   Compiling tcl-bytecode v0.1.0 (/home/user/tcl-lsp/rust/tcl-bytecode)
+   Compiling rsa v0.10.0-rc.18
+   Compiling tcl-host-native v0.1.0 (/home/user/tcl-lsp/rust/tcl-host-native)
+   Compiling p384 v0.14.0
+   Compiling p256 v0.14.0
+   Compiling ref-cast-impl v1.0.27
+   Compiling ref-cast v1.0.27
+   Compiling tcl-engine-api v0.1.0 (/home/user/tcl-lsp/rust/tcl-engine-api)
+   Compiling fluent-uri v0.4.1
+   Compiling parking_lot_core v0.9.12
+   Compiling parking_lot v0.12.5
+   Compiling tcl-pkg-model v0.1.0 (/home/user/tcl-lsp/rust/tcl-pkg-model)
+   Compiling temp-env v0.3.6
+   Compiling tcl-test-support v0.1.0 (/home/user/tcl-lsp/rust/tcl-test-support)
+   Compiling tcl-regex v0.1.0 (/home/user/tcl-lsp/rust/tcl-regex)
+   Compiling tcl-registry v0.1.0 (/home/user/tcl-lsp/rust/tcl-registry)
+   Compiling tcl-compiler v0.1.0 (/home/user/tcl-lsp/rust/tcl-compiler)
+   Compiling tcl-vm v0.1.0 (/home/user/tcl-lsp/rust/tcl-vm)
+   Compiling tcl-irules v0.1.0 (/home/user/tcl-lsp/rust/tcl-irules)
+   Compiling tcl-sslictcl v0.1.0 (/home/user/tcl-lsp/rust/tcl-sslictcl)
+   Compiling tcl-engine-tclvm v0.1.0 (/home/user/tcl-lsp/rust/tcl-engine-tclvm)
+   Compiling tcl-spec-hooks v0.1.0 (/home/user/tcl-lsp/rust/tcl-spec-hooks)
+   Compiling tcl-bigip v0.1.0 (/home/user/tcl-lsp/rust/tcl-bigip)
+   Compiling tcl-lsp-core v0.1.0 (/home/user/tcl-lsp/rust/tcl-lsp-core)
+   Compiling tcl-spectcl v0.1.0 (/home/user/tcl-lsp/rust/tcl-spectcl)
+    Finished `test` profile [unoptimized] target(s) in 9m 40s
+  Executable unittests src/lib.rs (target/debug/deps/tcl_compiler-ef22ef87d0bd65a7)

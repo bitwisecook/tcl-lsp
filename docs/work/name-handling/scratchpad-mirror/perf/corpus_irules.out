@@ -1,0 +1,16 @@
+BAD memo_ms=322 plain_ms=221 eq=false samples/for_screenshots/32-extract-datagroup-mapping-after.irul
+BAD memo_ms=388 plain_ms=321 eq=false samples/for_screenshots/31-extract-datagroup-ip-before.irul
+BAD memo_ms=240 plain_ms=199 eq=false samples/for_screenshots/31-extract-datagroup-ip-after.irul
+BAD memo_ms=96 plain_ms=70 eq=false samples/for_screenshots/24-template-fallback.irul
+BAD memo_ms=212 plain_ms=169 eq=false samples/for_screenshots/32-extract-datagroup-mapping-before.irul
+BAD memo_ms=205 plain_ms=142 eq=false samples/for_screenshots/05-security-taint-before.irul
+BAD memo_ms=334 plain_ms=290 eq=false samples/for_screenshots/30-extract-datagroup-before.irul
+BAD memo_ms=530 plain_ms=321 eq=false samples/for_screenshots/05-security-taint-after.irul
+BAD memo_ms=230 plain_ms=221 eq=false samples/for_screenshots/30-extract-datagroup-after.irul
+BAD memo_ms=231 plain_ms=209 eq=false samples/for_screenshots/ai-scene.irul
+BAD memo_ms=1321 plain_ms=1267 eq=false samples/irules/cookbook_http_collect.irul
+BAD memo_ms=1192 plain_ms=1204 eq=false samples/irules/diagnostics_event_flow.irul
+BAD memo_ms=3226 plain_ms=3828 eq=false samples/irules/cookbook_tcp_collect.irul
+BAD memo_ms=1124 plain_ms=1204 eq=false samples/irules/diagnostics_security.irul
+BAD memo_ms=2051 plain_ms=3034 eq=false samples/irules/diagnostics_style_perf.irul
+files=15 mismatches=15

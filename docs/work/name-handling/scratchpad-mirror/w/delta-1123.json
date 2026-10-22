@@ -1,0 +1,14 @@
+{
+ "scheduled": "2026-10-19T11:18:00Z",
+ "change_since_previous_report": {"integrated_LSP": 0, "total_baseline_delta": 0, "effective_delta": 0, "verified_complete": 0},
+ "admissions": {},
+ "candidates": {"integration45": {"commit": "aff99dc7e", "status": "held for the nested-wrapper timing; Sol-28's nested-cut memo reuse (183 s -> 9 s, 318 selectors identical) is ADMIT-WITH-CONDITIONS from Luna-32: failure-output comparison and a mixed-purpose memo test, in progress"}},
+ "user_decisions_since_previous_report": {"closed_document_analysis_cache": "bounded LRU for closed documents (recorded in user-decisions-20261019T1100Z.json)"},
+ "reviews_since_previous_report": {
+  "Luna-33 quick tier v3": "ADMIT-TO-BUILD with B1 (reject run-extra-args in the default profile); v4 in progress",
+  "Luna-35 Sol-31": "explorer pack-free registry and default-dialect hang ADMIT-TO-BUILD; depth caps REVISE (per-item deferred bodies start at depth 0 so E207 is not document-wide; seeding fix being drafted)"
+ },
+ "in_progress": {"Sol-28": "exclusive tree: review conditions", "Sol-30": "quick tier v4", "Sol-31": "depth caps v2 and deferred-depth seeding", "Sol-33": "B1, C2, A1+A3, A2 patches", "Luna-34": "light tests and budgets review", "Luna-36": "pack memo and host-scan review"},
+ "suggested_tasks": ["tcl explore may miss Jim commands when packs are loaded (queued as a separate task for the user)"],
+ "next_report_utc": "2026-10-19T11:54:00Z"
+}

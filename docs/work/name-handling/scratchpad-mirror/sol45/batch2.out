@@ -1,0 +1,39 @@
+base dtests: 578 ok / 252 failed; 1 result lines
+after dtests: 579 ok / 251 failed; 1 result lines
+== dtests regressions (ok at base, FAILED after):
+== dtests fixed: 1; base ok=578 after ok=579
+base helpers2: 5 ok / 17 failed; 1 result lines
+after helpers2: 13 ok / 9 failed; 1 result lines
+== helpers2 regressions (ok at base, FAILED after):
+== helpers2 fixed: 8; base ok=5 after ok=13
+base cu2: 33 ok / 65 failed; 1 result lines
+after cu2: 36 ok / 62 failed; 1 result lines
+== cu2 regressions (ok at base, FAILED after):
+== cu2 fixed: 3; base ok=33 after ok=36
+base codegen: 515 ok / 37 failed; 1 result lines
+after codegen: 522 ok / 30 failed; 1 result lines
+== codegen regressions (ok at base, FAILED after):
+== codegen fixed: 7; base ok=515 after ok=522
+base reginv: 207 ok / 80 failed; 1 result lines
+after reginv: 210 ok / 77 failed; 1 result lines
+== reginv regressions (ok at base, FAILED after):
+registry_invocation::authored_controls::tests::authored_scalar_scopes_keep_profiled_standalone_metadata_without_supplied_fallback
+== reginv fixed: 4; base ok=207 after ok=210
+base cmdbind: 860 ok / 316 failed; 1 result lines
+after cmdbind: 860 ok / 316 failed; 1 result lines
+== cmdbind regressions (ok at base, FAILED after):
+command_binding::materialized_footprint::tests::original_module_metadata_preserves_explicit_standalone_without_supplied_fallback
+== cmdbind fixed: 1; base ok=860 after ok=860
+base lowering: 229 ok / 176 failed; 1 result lines
+after lowering: 243 ok / 162 failed; 1 result lines
+== lowering regressions (ok at base, FAILED after):
+== lowering fixed: 14; base ok=229 after ok=243
+base sccp: 123 ok / 79 failed; 1 result lines
+sort: write failed: 'standard output': No space left on device
+sort: write error
+after sccp: 0 ok / 0 failed; 0 result lines
+== sccp regressions (ok at base, FAILED after):
+== sccp fixed: 0; base ok=123 after ok=0
+base optim: 339 ok / 219 failed; 1 result lines
+Terminated
+after optim: 320 ok / 194 failed; 0 result lines

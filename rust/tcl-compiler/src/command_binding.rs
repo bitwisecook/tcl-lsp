@@ -4609,14 +4609,33 @@ impl ModuleCommandBindings {
             .native_root_namespace_key()
             .unwrap_or_else(|| SourceNamespaceKey::Authored("::".to_owned()));
         let binding = source_binding_projection(self, "::unknown", &root);
-        !binding.unknown
-            && binding.targets.iter().all(|target| {
-                target.registry_backed
-                    && target.kind == BindingKind::Builtin
-                    && target.prepended.is_empty()
-                    && target.implementation_generation == 0
-                    && target.implementation_allocation.is_none()
-            })
+        #[cfg(test)]
+        if std::env::var_os("ZZ_PROBE_OPAQUE").is_some() {
+            eprintln!(
+                "ZZ_UNKNOWN_HANDLER unknown={} absent={} targets={:?}",
+                binding.unknown,
+                binding.may_be_absent,
+                binding
+                    .targets
+                    .iter()
+                    .map(|target| (
+                        &target.command,
+                        target.registry_backed,
+                        target.kind,
+                        target.implementation_generation,
+                        target.implementation_allocation.is_some()
+                    ))
+                    .collect::<Vec<_>>()
+            );
+        }
+        // The stock handler is the interpreter's own; any source-allocated
+        // or redefined implementation is a hook.
+        binding.targets.iter().all(|target| {
+            target.registry_backed
+                && target.prepended.is_empty()
+                && target.implementation_generation == 0
+                && target.implementation_allocation.is_none()
+        })
     }
 }
 

@@ -1,0 +1,9 @@
+{"scheduled":"2026-10-22T08:20:00Z",
+ "change_since_previous_report":{"integrated_LSP":0,"total_baseline_delta":0,"effective_delta":0,"verified_complete":0},
+ "admissions":{},
+ "committed":{"696be6a377/a0f0db2e03/6540ed54f4":"WIP snapshots"},
+ "progress_in_tree":{"lsp":"hover_completion 55/56, hover_residual 33/36, references_residual 21/23, references_rename 71/98, force_import 6/10 (abstain decision), name_resolution 69/77, call_hierarchy 7/7, inlay_hints 9/9","vm-runtime":"tcl-spec-studio spectcl_ports 12/12 (was 10/12); goldens regenerated after the port pass, six changed, all intended port fields","perf":"quadratic analysis cause found: original_written_word_observations_at_span (O(prior commands) bindings per word query) and declaration_caller_alias_arguments (per-call rescan of callee declarations); both new on work; memoising fixes in progress"},
+ "routing":{"compiler-names":"R1 not effective through the LSP rename path (~15 references_rename failures); two more rename refusals","compiler":"iRules `proc` invocation needs its original lookup in the RuleLoader realm"},
+ "in_progress":{"vm-runtime":"active","compiler":"active","compiler-codegen":"active","compiler-names":"active","lsp":"active","bigip-lsp":"active","perf":"active"},
+ "resources":"disk 2.0 GB, RAM 6 GB available, /dev/shm 1.2 GB",
+ "next_report_utc":"2026-10-22T08:52:00Z"}

@@ -1,0 +1,21 @@
+
+running 1 test
+test command_binding::source_transition_advice::source_publication_proposal::tests::logical_publication_proposals_keep_deferred_source_hazards_terminal ... 
+thread 'command_binding::source_transition_advice::source_publication_proposal::tests::logical_publication_proposals_keep_deferred_source_hazards_terminal' (953) panicked at rust/tcl-compiler/src/command_binding/source_transition_advice/source_publication_proposal.rs:429:13:
+proc later {} {return literal}: complete retained deferred source
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: tcl_compiler::command_binding::source_transition_advice::source_publication_proposal::tests::logical_publication_proposals_keep_deferred_source_hazards_terminal
+   3: tcl_compiler::command_binding::source_transition_advice::source_publication_proposal::tests::logical_publication_proposals_keep_deferred_source_hazards_terminal::{closure#0}
+   4: <tcl_compiler::command_binding::source_transition_advice::source_publication_proposal::tests::logical_publication_proposals_keep_deferred_source_hazards_terminal::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+FAILED
+
+failures:
+
+failures:
+    command_binding::source_transition_advice::source_publication_proposal::tests::logical_publication_proposals_keep_deferred_source_hazards_terminal
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 10440 filtered out; finished in 3.30s
+

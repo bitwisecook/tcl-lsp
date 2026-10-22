@@ -1,0 +1,45 @@
+__memcmp_evex_movbe
+<str as core::cmp::PartialEq>::eq
+<str as core::cmp::PartialEq>::ne
+<&str as core::cmp::PartialEq>::ne
+<(&str, alloc::vec::Vec<usize>) as core::cmp::PartialEq>::ne
+<(&str, alloc::vec::Vec<usize>) as core::slice::cmp::SlicePartialEq<(&str, alloc::vec::Vec<usize>)>>::equal_same_length
+<alloc::vec::Vec<(&str, alloc::vec::Vec<usize>)> as core::cmp::PartialEq>::eq
+<tcl_registry::registry::RegistrySnapshotKey as core::cmp::PartialEq>::eq
+<tcl_registry::registry::RegistrySemanticKey as core::cmp::PartialEq>::eq
+<tcl_registry::registry::RegistrySemanticKey as core::cmp::PartialEq>::ne
+<tcl_compiler::registry_invocation::authored_source_structure::AuthoredSourceStructuredInvocation>::with_source_schema::<alloc::vec::Vec<(usize, tcl_registry::arg_role::ArgRole)>, <tcl_compiler::registry_invocation::authored_source_structure::AuthoredSourceStructuredInvocation>::into_closed_source_grammar::{closure#0}>
+<tcl_compiler::registry_invocation::authored_source_structure::AuthoredSourceStructuredInvocation>::into_closed_source_grammar
+tcl_compiler::registry_invocation::authored_controls::original_authored_control_invocation
+<tcl_compiler::lowering::Lowerer>::logical_structured_invocation
+<tcl_compiler::lowering::Lowerer>::classify_definer_call
+<tcl_compiler::lowering::Lowerer>::walk_for_oo_methods
+<tcl_compiler::lowering::Lowerer>::extract_oo_methods_pass
+<tcl_compiler::lowering::Lowerer>::finish_module
+tcl_compiler::lowering::lower_procedure_target_module_for_bytecode_with_options
+tcl_compiler::lowering::lower_proc_body_module_for_bytecode_with_options
+tcl_compiler::lowering::lower_proc_body_module_for_bytecode
+<tcl_compiler::codegen::CodegenCtx>::intern_script_locals
+<tcl_compiler::codegen::CodegenCtx>::release_compiles_each_loop
+<tcl_compiler::codegen::CodegenCtx>::release_compiled
+<tcl_compiler::codegen::CodegenCtx>::emit_call_inner
+<tcl_compiler::codegen::CodegenCtx>::emit_call::{closure#0}
+<tcl_compiler::codegen::CodegenCtx>::with_invocation_tokens::<(), <tcl_compiler::codegen::CodegenCtx>::emit_call::{closure#0}>
+<tcl_compiler::codegen::CodegenCtx>::emit_call
+<tcl_compiler::codegen::CodegenCtx>::emit_call_stmt
+<tcl_compiler::codegen::CodegenCtx>::emit_stmt_inner
+<tcl_compiler::codegen::CodegenCtx>::emit_stmt::{closure#1}
+<tcl_compiler::codegen::CodegenCtx>::with_invocation_tokens::<(), <tcl_compiler::codegen::CodegenCtx>::emit_stmt::{closure#1}>
+<tcl_compiler::codegen::CodegenCtx>::emit_stmt
+<tcl_compiler::codegen::CodegenCtx>::emit_stmt_with_start_cmd
+tcl_compiler::codegen::emitter::generate::emit_block_statements
+tcl_compiler::codegen::emitter::generate::emit_block
+tcl_compiler::codegen::emitter::generate::generate
+tcl_compiler::codegen::emitter::codegen_function
+<tcl_compiler::codegen::CodegenCtx>::intern_script_locals
+<tcl_compiler::codegen::CodegenCtx>::release_compiles_each_loop
+<tcl_compiler::codegen::CodegenCtx>::release_compiled
+<tcl_compiler::codegen::CodegenCtx>::emit_call_inner
+<tcl_compiler::codegen::CodegenCtx>::emit_call::{closure#0}
+<tcl_compiler::codegen::CodegenCtx>::with_invocation_tokens::<(), <tcl_compiler::codegen::CodegenCtx>::emit_call::{closure#0}>
+<tcl_compiler::codegen::CodegenCtx>::emit_call

@@ -1,0 +1,126 @@
+test compile_service::tests::a_service_for_an_uninstalled_overlay_is_not_built ... ok
+test compile_service::tests::a_fresh_whole_module_defines_its_procedures_and_specialises_its_commands ... ok
+test compile_service::tests::a_service_whose_overlay_is_gone_declines_every_compile ... ok
+test compile_service::tests::a_service_over_an_installed_overlay_compiles_its_commands ... ok
+test compile_service::tests::byte_command_plan_preserves_native_and_document_channel_rules ... ok
+test compile_service::tests::byte_procedure_target_seeds_original_nonunicode_formal_keys ... ok
+ZZ_CCG_PROVIDER rust/tcl-compiler/src/command_binding/compiled_preflight.rs:622:22
+ZZ_CCG_PROVIDER rust/tcl-compiler/src/command_binding/compiled_preflight.rs:622:22
+ZZ_CCG_PROVIDER rust/tcl-compiler/src/command_binding/compiled_preflight.rs:622:22
+test compile_service::tests::an_entry_less_pipeline_is_admitted_and_an_unknown_entry_is_not ... ok
+ZZ_CCG_PROVIDER rust/tcl-compiler/src/command_binding/compiled_preflight.rs:622:22
+test compile_service::tests::catch_keeps_its_binding_and_exact_replay_boundary_after_cfg_lowering ... ok
+test compile_service::tests::direct_source_options_cannot_fill_missing_live_policy_from_authoring ... ok
+test compile_service::tests::a_module_states_the_world_it_was_compiled_for ... ok
+thread 'compile_service::tests::cfg_edges_keep_ranges_but_are_not_runtime_recompile_sites' (5473) panicked at rust/tcl-compiler/src/compile_service.rs:3147:14:
+test compile_service::tests::cfg_edges_keep_ranges_but_are_not_runtime_recompile_sites ... FAILED
+thread 'compile_service::tests::entered_source_defers_generic_namespace_children_before_cfg_preparation' (5481) panicked at rust/tcl-compiler/src/compile_service.rs:2029:13:
+test compile_service::tests::entered_source_defers_generic_namespace_children_before_cfg_preparation ... FAILED
+test compile_service::tests::entered_source_scope_excludes_deferred_bodies_before_cfg_preparation ... ok
+test compile_service::tests::a_profile_less_whole_module_compiles_for_a_fresh_interpreter ... ok
+test compile_service::tests::explicit_whole_module_artifact_keeps_procedure_inventory ... ok
+test compile_service::tests::fatal_tail_preserves_distinct_native_runtime_and_compilation_extents ... ok
+thread 'compile_service::tests::entered_source_keeps_native_structured_body_preflight' (5482) panicked at rust/tcl-compiler/src/compile_service.rs:2093:18:
+test compile_service::tests::entered_source_keeps_native_structured_body_preflight ... FAILED
+thread 'compile_service::tests::every_applicable_typed_codegen_hook_retains_operation_selection' (5496) panicked at rust/tcl-compiler/src/compile_service.rs:3023:17:
+test compile_service::tests::every_applicable_typed_codegen_hook_retains_operation_selection ... FAILED
+ZZ_CCG_PROVIDER rust/tcl-compiler/src/command_binding/compiled_preflight/original_preparation.rs:374:30
+ZZ_CCG_PROVIDER rust/tcl-compiler/src/command_binding/compiled_preflight/original_preparation.rs:448:18
+test compile_service::tests::escaped_heads_retain_decoded_bindings_at_the_native_release_boundary ... ok
+test compile_service::tests::immutable_byte_entry_lookup_keeps_names_incarnations_and_residuals ... ok
+test compile_service::tests::foreach_line_binding_dependency_follows_the_resolved_release_profile ... ok
+ZZ_CCG_PROVIDER rust/tcl-compiler/src/command_binding/compiled_preflight/original_preparation.rs:755:18
+ZZ_CCG_PROVIDER rust/tcl-compiler/src/command_binding/compiled_preflight/original_preparation.rs:755:18
+test compile_service::tests::generic_eval_keeps_its_body_for_runtime_compilation ... ok
+ZZ_CCG_PROVIDER rust/tcl-compiler/src/command_binding/compiled_preflight/original_preparation.rs:755:18
+ZZ_CCG_PROVIDER rust/tcl-compiler/src/command_binding/compiled_preflight/original_preparation.rs:755:18
+thread 'compile_service::tests::final_constant_if_boundary_keeps_its_replay_continuation' (5515) panicked at rust/tcl-compiler/src/compile_service.rs:3290:14:
+test compile_service::tests::final_constant_if_boundary_keeps_its_replay_continuation ... FAILED
+test compile_service::tests::native_entry_keeps_logical_engine_and_lexical_evidence_independent ... ok
+thread 'compile_service::tests::inline_hooks_with_whole_unit_mutation_specialise_and_retain_binding' (5530) panicked at rust/tcl-compiler/src/compile_service.rs:3072:13:
+test compile_service::tests::inline_hooks_with_whole_unit_mutation_specialise_and_retain_binding ... FAILED
+test compile_service::tests::lowering_fallback_keeps_the_native_compiler_selection ... ok
+test compile_service::tests::native_operation_metadata_is_specialisation_scoped ... ok
+test compile_service::tests::original_byte_command_plan_keeps_c84_compilation_tail_and_runtime_term ... ok
+test compile_service::tests::original_byte_command_plan_keeps_opaque_prefix_and_exact_bad_tail ... ok
+test compile_service::tests::owned_registry_tcl84_projection_keeps_user_throw_fallthrough ... ok
+test compile_service::tests::physical_c9_compiler_cannot_replace_f5_logical_value_or_frame_policy ... ok
+thread 'compile_service::tests::inlining_preserves_callee_structured_bindings_through_cfg_and_codegen' (5531) panicked at rust/tcl-compiler/src/compile_service.rs:3221:9:
+308597522768]), ("try", [140308597524592]), ("ttk::button", [140308327647888]), ("ttk::checkbutton", [140308327678896]), ("ttk::combobox", [140308327649712]), ("ttk::entry", [140308327651536]), ("ttk::frame", [140308327653360]), ("ttk::label", [140308327655184]), ("ttk::labelframe", [140308327657008]), ("ttk::menubutton", [140308327680720]), ("ttk::notebook", [140308327658832]), ("ttk::panedwindow
+ZZ_CCG_PROVIDER rust/tcl-compiler/src/command_binding/compiled_preflight/original_preparation.rs:448:18
+, [140308676803920]), ("math::geometry::pointInsideCircle", [140308676833104]), ("math::geometry::pointInsidePolygon", [140308676811216]), ("math::geometry::pointInsidePolygonAlt", [140308676813040]), ("math::geometry::polylineCutEnd", [140308676849520]), ("math::geometry::polylineCutOrigin", [140308676847696]), ("math::geometry::polylinesBoundingIntersect", [140308676794800]), ("math::geometry::p
+4", [140308677750576]), ("html::h5", [140308677752400]), ("html::h6", [140308677754224]), ("html::hdrRow", [140308677756048]), ("html::head", [140308677757872]), ("html::headTag", [140308677759696]), ("html::html_entities", [140308674954384]), ("html::if", [140308677761520]), ("html::init", [140308677763344]), ("html::js", [140308677765168]), ("html::js-clear", [140308677766992]), ("html::keywords
+40308596794832]), ("tcl::OptProc", [140308596796656]), ("tcl::OptProcArgGiven", [140308596798480]), ("tcl::build-info", [140308598015248]), ("tcl::chan::cat", [140308676411760]), ("tcl::chan::core", [140308677593712]), ("tcl::chan::events", [140308677595536]), ("tcl::chan::facade", [140308676413584]), ("tcl::chan::fifo", [140308676415408]), ("tcl::chan::fifo2", [140308676417232]), ("tcl::chan::hal
+: NameBytes([115, 111, 99, 107, 101, 116]) }: Some("::socket"), CommandSlot { namespace: ByteNamespacePath([NameBytes([116, 99, 108]), NameBytes([105, 110, 102, 111])]), simple: NameBytes([108, 101, 118, 101, 108]) }: Some("::tcl::info::level"), CommandSlot { namespace: ByteNamespacePath([]), simple: NameBytes([116, 101, 115, 116, 103, 111, 116, 115, 105, 103]) }: Some("::testgotsig"), CommandSlot
+21])]), simple: NameBytes([105, 110, 116, 101, 114, 115, 101, 99, 116, 105, 111, 110, 76, 105, 110, 101, 87, 105, 116, 104, 67, 105, 114, 99, 108, 101]) }: Some(("::math::geometry::intersectionLineWithCircle", "math::geometry::intersectionLineWithCircle")), CommandSlot { namespace: ByteNamespacePath([NameBytes([106, 97, 118, 97, 115, 99, 114, 105, 112, 116])]), simple: NameBytes([109, 97, 107, 101
+amespace: ByteNamespacePath([NameBytes([97, 115, 110])]), simple: NameBytes([97, 115, 110, 80, 101, 101, 107, 66, 121, 116, 101]) }: Some(("::asn::asnPeekByte", "asn::asnPeekByte")), CommandSlot { namespace: ByteNamespacePath([NameBytes([102, 116, 112])]), simple: NameBytes([67, 100]) }: Some(("::ftp::Cd", "ftp::Cd")), CommandSlot { namespace: ByteNamespacePath([NameBytes([116, 99, 108]), NameByte
+, "csv::split2queue")), CommandSlot { namespace: ByteNamespacePath([NameBytes([103, 112, 120])]), simple: NameBytes([71, 101, 116, 65, 108, 108, 87, 97, 121, 112, 111, 105, 110, 116, 115]) }: Some(("::gpx::GetAllWaypoints", "gpx::GetAllWaypoints")), CommandSlot { namespace: ByteNamespacePath([NameBytes([109, 97, 116, 104]), NameBytes([102, 117, 122, 122, 121])]), simple: NameBytes([116, 103, 116])
+9, 108]), NameBytes([109, 97, 116, 104, 111, 112])]), simple: NameBytes([42]) }: Some("::tcl::mathop::*"), CommandSlot { namespace: ByteNamespacePath([NameBytes([116, 99, 108]), NameBytes([109, 97, 116, 104, 111, 112])]), simple: NameBytes([62, 62]) }: Some("::tcl::mathop::>>"), CommandSlot { namespace: ByteNamespacePath([]), simple: NameBytes([116, 97, 105, 108, 99, 97, 108, 108]) }: Some("::tail
+) }: Some(("::math::figurate::biquadratic", "math::figurate::biquadratic")), CommandSlot { namespace: ByteNamespacePath([NameBytes([109, 97, 116, 104]), NameBytes([115, 116, 97, 116, 105, 115, 116, 105, 99, 115])]), simple: NameBytes([97, 110, 97, 108, 121, 115, 101, 45, 75, 114, 117, 115, 107, 97, 108, 45, 87, 97, 108, 108, 105, 115]) }: Some(("::math::statistics::analyse-Kruskal-Wallis", "math::
+dler"), CommandSlot { namespace: ByteNamespacePath([]), simple: NameBytes([116, 101, 115, 116, 101, 120, 105, 116, 104, 97, 110, 100, 108, 101, 114]) }: Some("::testexithandler"), CommandSlot { namespace: ByteNamespacePath([NameBytes([116, 99, 108]), NameBytes([102, 105, 108, 101])]), simple: NameBytes([101, 120, 116, 101, 110, 115, 105, 111, 110]) }: Some("::tcl::file::extension"), CommandSlot { 
+dSemantics { traits: Traits(1180591620717411303680), lowering_hook: None }, "list": EffectiveCommandSemantics { traits: Traits(74027919680209152), lowering_hook: None }, "eval": EffectiveCommandSemantics { traits: Traits(18456668265662644226), lowering_hook: Some(Eval) }, "upvar": EffectiveCommandSemantics { traits: Traits(1443192574340038658), lowering_hook: Some(Upvar) }, "fblocked": EffectiveCo
+thread 'compile_service::tests::proc_constant_if_boundary_has_one_tcl_shaped_owner_in_both_compile_paths' (5590) panicked at rust/tcl-compiler/src/compile_service.rs:3355:13:
+thread 'compile_service::tests::proc_constant_if_owner_is_absent_without_an_earlier_generic_invoke' (5593) panicked at rust/tcl-compiler/src/compile_service.rs:3418:17:
+thread 'compile_service::tests::procedure_target_matches_static_proc_across_profiles_and_dispatches' (5657) panicked at rust/tcl-compiler/src/test_body_identity.rs:54:28:
+test compile_service::tests::proc_constant_if_owner_is_absent_without_an_earlier_generic_invoke ... FAILED
+test compile_service::tests::proc_constant_if_boundary_has_one_tcl_shaped_owner_in_both_compile_paths ... FAILED
+test compile_service::tests::procedure_target_matches_static_proc_across_profiles_and_dispatches ... FAILED
+test compile_service::tests::inlining_preserves_callee_structured_bindings_through_cfg_and_codegen ... FAILED
+ZZ_CCG_PROVIDER rust/tcl-compiler/src/command_binding/compiled_preflight.rs:622:22
+ZZ_CCG_PROVIDER rust/tcl-compiler/src/command_binding/compiled_preflight.rs:622:22
+ZZ_CCG_PROVIDER rust/tcl-compiler/src/command_binding/compiled_preflight.rs:622:22
+ZZ_CCG_PROVIDER rust/tcl-compiler/src/command_binding/compiled_preflight.rs:622:22
+thread 'compile_service::tests::procedure_target_seeds_params_and_supports_both_dispatch_modes' (5741) panicked at rust/tcl-compiler/src/compile_service.rs:2119:9:
+test compile_service::tests::procedure_target_seeds_params_and_supports_both_dispatch_modes ... FAILED
+test compile_service::tests::retained_string_selection_captures_a_private_name_without_a_public_token ... ok
+test compile_service::tests::profile_backed_service_follows_a_new_profiles_shared_registry ... ok
+test compile_service::tests::runtime_script_command_plan_uses_the_requested_release_grammar ... ok
+ZZ_CCG_PROVIDER rust/tcl-compiler/src/command_binding/compiled_preflight.rs:622:22
+thread 'compile_service::tests::procedure_target_roots_literal_colon_constructed_namespace_once' (5740) panicked at rust/tcl-compiler/src/compile_service.rs:2359:9:
+test compile_service::tests::procedure_target_roots_literal_colon_constructed_namespace_once ... FAILED
+ZZ_CCG_PROVIDER rust/tcl-compiler/src/command_binding/compiled_preflight.rs:622:22
+thread 'compile_service::tests::runtime_entry_selects_actual_namespace_and_keeps_custom_shadow_generic' (5747) panicked at rust/tcl-compiler/src/compile_service.rs:1716:14:
+test compile_service::tests::runtime_entry_selects_actual_namespace_and_keeps_custom_shadow_generic ... FAILED
+thread 'compile_service::tests::return_expr_alias_retains_the_source_binding_identity' (5746) panicked at rust/tcl-compiler/src/compile_service.rs:3115:9:
+test compile_service::tests::return_expr_alias_retains_the_source_binding_identity ... FAILED
+test compile_service::tests::service_marks_plain_dispatch_and_preserves_profile ... ok
+ZZ_CCG_PROVIDER rust/tcl-compiler/src/command_binding/compiled_preflight.rs:720:18
+thread 'compile_service::tests::same_name_projected_profiles_keep_cache_policies_and_artifact_handles' (5752) panicked at rust/tcl-compiler/src/compile_service.rs:2173:76:
+ZZ_CCG_PROVIDER rust/tcl-compiler/src/command_binding/compiled_preflight/original_preparation.rs:374:30
+ZZ_CCG_PROVIDER rust/tcl-compiler/src/command_binding/compiled_preflight/original_preparation.rs:448:18
+test compile_service::tests::same_name_projected_profiles_keep_cache_policies_and_artifact_handles ... FAILED
+ZZ_CCG_PROVIDER rust/tcl-compiler/src/command_binding/compiled_preflight/original_preparation.rs:374:30
+ZZ_CCG_PROVIDER rust/tcl-compiler/src/command_binding/compiled_preflight/original_preparation.rs:448:18
+ZZ_CCG_PROVIDER rust/tcl-compiler/src/command_binding/compiled_preflight/original_preparation.rs:374:30
+ZZ_CCG_PROVIDER rust/tcl-compiler/src/command_binding/compiled_preflight/original_preparation.rs:448:18
+thread 'compile_service::tests::tcl84_profile_projection_preserves_owned_hooks_in_fast_and_plain_modes' (5763) panicked at rust/tcl-compiler/src/compile_service.rs:2425:9:
+test compile_service::tests::tcl84_profile_projection_preserves_owned_hooks_in_fast_and_plain_modes ... FAILED
+RELPROBE tcl8.4 "expr {1 + 2}": admission=Some(None) failure=Some(false) result=Ok(NotRequired)
+RELPROBE tcl8.4 "set x 1": admission=Some(None) failure=Some(false) result=Ok(NotRequired)
+RELPROBE tcl8.4 "catch {error x} msg": admission=Some(None) failure=Some(false) result=Ok(NotRequired)
+RELPROBE tcl8.4 "proc p {} {return 1}": admission=Some(None) failure=Some(false) result=Ok(NotRequired)
+ZZ_CCG_PROVIDER rust/tcl-compiler/src/command_binding/compiled_preflight/original_preparation.rs:374:30
+ZZ_CCG_PROVIDER rust/tcl-compiler/src/command_binding/compiled_preflight/original_preparation.rs:448:18
+RELPROBE tcl8.5 "expr {1 + 2}": admission=Some(None) failure=Some(false) result=Ok(NotRequired)
+thread 'compile_service::tests::synthetic_structured_boundaries_have_the_exact_owning_command' (5758) panicked at rust/tcl-compiler/src/compile_service.rs:3251:72:
+thread 'compile_service::tests::structured_commands_after_a_generic_invoke_own_their_start_command' (5757) panicked at rust/tcl-compiler/src/compile_service.rs:2940:9:
+test compile_service::tests::runtime_targets_leave_unentered_procedure_bodies_in_original_source ... ok
+test compile_service::tests::synthetic_structured_boundaries_have_the_exact_owning_command ... FAILED
+test compile_service::tests::structured_commands_after_a_generic_invoke_own_their_start_command ... FAILED
+RELPROBE tcl8.5 "set x 1": admission=Some(None) failure=Some(false) result=Ok(NotRequired)
+RELPROBE tcl8.5 "catch {error x} msg": admission=Some(None) failure=Some(false) result=Ok(NotRequired)
+RELPROBE tcl8.5 "proc p {} {return 1}": admission=Some(None) failure=Some(false) result=Ok(NotRequired)
+RELPROBE tcl8.6 "expr {1 + 2}": admission=Some(None) failure=Some(false) result=Ok(NotRequired)
+RELPROBE tcl8.6 "set x 1": admission=Some(None) failure=Some(false) result=Ok(NotRequired)
+RELPROBE tcl8.6 "catch {error x} msg": admission=Some(None) failure=Some(false) result=Ok(NotRequired)
+RELPROBE tcl8.6 "proc p {} {return 1}": admission=Some(None) failure=Some(false) result=Ok(NotRequired)
+RELPROBE tcl9.0 "expr {1 + 2}": admission=Some(None) failure=Some(false) result=Ok(NotRequired)
+RELPROBE tcl9.0 "set x 1": admission=Some(None) failure=Some(false) result=Ok(NotRequired)
+RELPROBE tcl9.0 "catch {error x} msg": admission=Some(None) failure=Some(false) result=Ok(NotRequired)
+RELPROBE tcl9.0 "proc p {} {return 1}": admission=Some(None) failure=Some(false) result=Ok(NotRequired)
+RELPROBE f5-irules "expr {1 + 2}": admission=Some(None) failure=Some(false) result=Ok(NotRequired)
+RELPROBE f5-irules "set x 1": admission=Some(None) failure=Some(false) result=Ok(NotRequired)
+RELPROBE f5-irules "catch {error x} msg": admission=Some(None) failure=Some(false) result=Ok(NotRequired)
+RELPROBE f5-irules "proc p {} {return 1}": admission=Some(None) failure=Some(false) result=Ok(NotRequired)
+test compile_service::tests::zz_ccg_release_probe ... ok
+test result: FAILED. 35 passed; 18 failed; 0 ignored; 0 measured; 10423 filtered out; finished in 97.60s

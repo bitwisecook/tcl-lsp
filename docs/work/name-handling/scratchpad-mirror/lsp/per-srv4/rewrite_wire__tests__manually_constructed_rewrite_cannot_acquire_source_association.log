@@ -1,0 +1,29 @@
+
+running 1 test
+test rewrite_wire::tests::manually_constructed_rewrite_cannot_acquire_source_association ... FAILED
+
+failures:
+
+---- rewrite_wire::tests::manually_constructed_rewrite_cannot_acquire_source_association stdout ----
+
+thread 'rewrite_wire::tests::manually_constructed_rewrite_cannot_acquire_source_association' (13971) panicked at rust/tcl-lsp-server/src/rewrite_wire.rs:160:9:
+assertion `left == right` failed
+  left: 0
+ right: 2
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<usize, usize>
+   4: tcl_lsp_server::rewrite_wire::tests::produced
+   5: tcl_lsp_server::rewrite_wire::tests::manually_constructed_rewrite_cannot_acquire_source_association
+   6: tcl_lsp_server::rewrite_wire::tests::manually_constructed_rewrite_cannot_acquire_source_association::{closure#0}
+   7: <tcl_lsp_server::rewrite_wire::tests::manually_constructed_rewrite_cannot_acquire_source_association::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+
+failures:
+    rewrite_wire::tests::manually_constructed_rewrite_cannot_acquire_source_association
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 839 filtered out; finished in 1.99s
+

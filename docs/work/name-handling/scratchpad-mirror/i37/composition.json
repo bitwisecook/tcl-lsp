@@ -1,0 +1,73 @@
+{
+  "started": "2026-10-17T20:32:59.280757+00:00",
+  "base": "f606aa20c23b9c689f67012f6a494e17be217ef7",
+  "pieces": [
+    {
+      "name": "db042-structural-factory-v2",
+      "patch": "/tmp/claude-0/-home-user-tcl-lsp/8d747420-e446-5e83-b7e6-dff30ae9952e/scratchpad/cp09/pending/sol-composition/db042-structural-factory-v2/change.patch",
+      "sha256": "41a27eda419808dc4241d04ed590a5d09d85d02ada05c98df47e7b2c7302eaf6",
+      "review": "Luna-2 ADMIT source-level (integration-36-luna/REVIEW.json)"
+    },
+    {
+      "name": "roster-setup-v2",
+      "patch": "/tmp/claude-0/-home-user-tcl-lsp/8d747420-e446-5e83-b7e6-dff30ae9952e/scratchpad/i37/roster/roster-setup-v2.patch",
+      "sha256": "78ee356aabf6f1e3f0ca70ba1f4048501b2ea3993210f19276892267efcbf5b0",
+      "review": "Luna-2 ADMIT with conditions; v2 adds the cycle comment and layout text"
+    },
+    {
+      "name": "objdefine-inline-v2",
+      "patch": "/tmp/claude-0/-home-user-tcl-lsp/8d747420-e446-5e83-b7e6-dff30ae9952e/scratchpad/i37/objdefine/objdefine-inline-v2.patch",
+      "sha256": "4da6ee8bf18ef1744a3b1810c4345492fbc54c93f05725ed1390f3c938a81fa8",
+      "review": "Luna-3 ADMIT after rustfmt (Sol fix-2)"
+    },
+    {
+      "name": "my-call-edges",
+      "patch": "/tmp/claude-0/-home-user-tcl-lsp/8d747420-e446-5e83-b7e6-dff30ae9952e/scratchpad/agents/sol-callhier/fix-4.patch",
+      "sha256": "eb0a40488cbf847d8aef350d62796bc0ea7f1772f46003e0e72cdfae220ab943",
+      "review": "Luna-3 ADMIT (Sol fix-4)"
+    },
+    {
+      "name": "unknown-command-debt",
+      "patch": "/tmp/claude-0/-home-user-tcl-lsp/8d747420-e446-5e83-b7e6-dff30ae9952e/scratchpad/agents/sol-callhier/fix-5.patch",
+      "sha256": "db47ec99c49fd4756f1ca12ef028418c6cd8d200dbd385c7d1b61819bc6a2c82",
+      "review": "Luna-3 ADMIT (Sol fix-5)"
+    },
+    {
+      "name": "nextto-c-faithful-v2",
+      "patch": "/tmp/claude-0/-home-user-tcl-lsp/8d747420-e446-5e83-b7e6-dff30ae9952e/scratchpad/i37/nextto/nextto-c-faithful-v2.patch",
+      "sha256": "51524d88e9e0d232ecfd9f2bef05a7e8f6687a3259ec5510ce4426692745412a",
+      "review": "Sol-4 ADMIT with D1 doc fix and S1 applied"
+    },
+    {
+      "name": "nested-body-cut-memo-v2",
+      "patch": "/tmp/claude-0/-home-user-tcl-lsp/8d747420-e446-5e83-b7e6-dff30ae9952e/scratchpad/agents/luna-5/nested-body-cut-memo-v2.patch",
+      "sha256": "4334c62ee79d0e68e9fd439c0ed80fb2e446f8a4c3106a233392ab79bb0374cf",
+      "review": "Sol-3 ADMIT V1 with conditions; V2 addresses them; V2 delta review by Sol-7 pending"
+    }
+  ],
+  "paths": {
+    "Cargo.lock": "7b533416d06fb1d930003c0764324364517a4b532eb433f9e2b539860582a6cf",
+    "docs/design/analysis/name-resolution-proofs/manifest.json": "3102f29e4f042fae294b4f833e7147766960956de3571d30b06324d29d71af94",
+    "docs/design/analysis/name-resolution-proofs/original-point-operand-projection.md": "34af5b558c6dbd88736f8feb17a42ab4bd5a407a49c3f49d0c985e921f500592",
+    "docs/design/contracts/name-handling.md": "caa788064c68247d0f3bd1be85985bfd393dcb7ed8daea8e354b3580af95cab3",
+    "docs/design/contracts/project-layout.md": "1c2a362a387c8ce0c5c90e0f2ff796194c812defd141a3552319f73400c08d87",
+    "docs/design/contracts/shared-utility-contracts-rust.md": "d2c287f8c00b8d887092ba89ec405ac98941a591ce885357df9c525083fa97a2",
+    "rust/tcl-compiler/src/analyser/handlers.rs": "304f96527dd67c07276dd2b645266aba3e00845307cae7e33a893330c33df79a",
+    "rust/tcl-compiler/src/analyser/state.rs": "ec6f39cd3799fc5c5c56af7951ebb0dd86e43262d8674481e7dcae2697ef86b7",
+    "rust/tcl-compiler/src/analyser/types/logical_members.rs": "689a7c8b67a15cef29939beaeb5824518fb172c9d46d64c1775323bd6f0806b7",
+    "rust/tcl-compiler/src/command_binding/original_source_projection.rs": "ae05510eb0d4080e9f287767601f7fba5b58ae6a9436a379c090c53251752177",
+    "rust/tcl-compiler/src/registry_invocation/native_compilation_source.rs": "8a331c08ea4dfd263b4e0552afeda6cf0eb0e6634546a7b3fa18a9b1689e49e0",
+    "rust/tcl-lexer/src/lib.rs": "67f3144189efe6e691bc6c7d0283eb96a58e15872d46c4e4a631c640a0ed33a9",
+    "rust/tcl-lexer/src/native_script_words.rs": "f7a793359d6c568c57856498027c6f56897e90f32996943750359e4e8f4c4170",
+    "rust/tcl-lexer/src/parse_cut.rs": "bf9fad5cb08de4de2e98b55053aeab50ce0aca855c7b346cc9d65ce52ea4b5a0",
+    "rust/tcl-lsp-core/Cargo.toml": "a76134b6d6db7a7555c730116ef0e9f6bb34906a24c8aed80b6219738ff5a73c",
+    "rust/tcl-lsp-core/src/completion.rs": "36dc1805e3e80d3b5a89507ab61ee61bded37de9ab0ee446dff82b825b913f64",
+    "rust/tcl-lsp-core/src/definition.rs": "0ace4747c821f52c1203cf8a32b70f664e8dbb735eaa7c59a245e4990f648924",
+    "rust/tcl-lsp-core/src/original_call_hierarchy.rs": "193e63e1aeb2a22da8f3bbde69afed2e98ebb1f02de159c1f025a808b3f06d15",
+    "rust/tcl-lsp-core/src/references.rs": "fa9062c49eb865a0a8f7c2ece6f1935d0c86920a55cf3bdfdd266b85193ef635"
+  },
+  "cargo_fmt_check": {
+    "exit": 0,
+    "stdout_tail": ""
+  }
+}

@@ -1,0 +1,90 @@
+# spectcl golden snapshot v1
+# regenerate with `cargo xtask pack-goldens`; do not edit by hand
+pack eda_cadence dsl 2.0 display Some("Cadence EDA Shells") load_error None
+target_dependent false
+file_extensions []
+provides []
+co_provides []
+ambient_packages []
+environments [PackEnvironment { id: "cadence-eda-tcl", extends: false, aliases: ["genus", "innovus"], display_name: Some("Cadence Genus / Innovus / Xcelium"), short_name: Some("Cadence"), kind: Packages, editor_identity: Some(EditorLanguageIdentityId("tcl-cadence")), selecting_identities: [], core: Some(CoreProfileSelector { family: Tcl, default_release: Release { family: Tcl, ordinal: 0 }, build: Canonical }), pack_core: None, placements: [PackPlacementRow { package: "cadence-genus", version: Keyed(ToolVersion), version_word: "keyed", ambient: true, line: 31 }, PackPlacementRow { package: "cadence-common", version: Keyed(ToolVersion), version_word: "keyed", ambient: true, line: 32 }, PackPlacementRow { package: "cadence-innovus", version: Keyed(ToolVersion), version_word: "keyed", ambient: true, line: 33 }, PackPlacementRow { package: "cadence-xcelium", version: Keyed(ToolVersion), version_word: "keyed", ambient: true, line: 34 }, PackPlacementRow { package: "sdc", version: Keyed(SdcVersion), version_word: "keyed", ambient: true, line: 35 }, PackPlacementRow { package: "upf", version: Keyed(UpfVersion), version_word: "keyed", ambient: true, line: 36 }], world_policy: Open, file_extensions: [FileExtensionClaim { extension: "globals", display_name: "Innovus/Genus Globals" }], filenames: [], signatures: [], help_terms: ["cadence", "genus", "innovus", "tempus", "xcelium", "encounter"], version_ceiling: Some(Release { family: Tcl, ordinal: 0 }), line: 24 }]
+dialects []
+registrations 79
+notices 0
+commands 77
+command add_endcap line 43 overrides false degraded false spec 4b1046f9c6ce8b9d hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command add_filler line 56 overrides false degraded false spec 2bcd2d255015ed71 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command add_stripes line 69 overrides false degraded false spec 69695482b5b10cfc hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command add_tieoffs line 83 overrides false degraded false spec 5c3e939699d404a0 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command add_well_tap line 97 overrides false degraded false spec 4cf66be2f8fca401 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command assign_clock_tree_source_groups line 110 overrides false degraded false spec 5e149b00b1546bfc hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command ccopt_design line 124 overrides false degraded false spec bfeca4adf4f945a5 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command check_connectivity line 137 overrides false degraded false spec cb552dd6afe9ec59 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command check_design line 151 overrides false degraded false spec c2cf4170ef9d0447 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command check_drc line 164 overrides false degraded false spec 52a3c596c9507d25 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command check_pin_assignment line 178 overrides false degraded false spec 4144d53de788b8d6 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command check_timing_intent line 192 overrides false degraded false spec 7be6dbfbac2277b0 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command clock_design line 205 overrides false degraded false spec 8276e18d86a7c34e hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command commit_power_intent line 219 overrides false degraded false spec 3dfa9eb0b3a22787 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command connect_global_net line 233 overrides false degraded false spec 00b0a4bb03316987 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command create_analysis_view line 247 overrides false degraded false spec 39a19356d7b59b89 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command create_ccopt_clock_tree_spec line 261 overrides false degraded false spec 1991a8ea9041950a hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command create_clock_tree_spec line 275 overrides false degraded false spec d16f9d59585b60fb hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command create_constraint_mode line 289 overrides false degraded false spec 72639223cd5f7f39 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command create_delay_corner line 303 overrides false degraded false spec 1f4b75dbd604aa76 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command create_floorplan line 317 overrides false degraded false spec 52257027dae716a2 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command create_route_rule line 330 overrides false degraded false spec a5e57710be71ed0c hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command dbGet line 344 overrides false degraded false spec dfff3aececce70f8 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command dbQuery line 358 overrides false degraded false spec dfc8934e85fc9bcd hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command dbSet line 372 overrides false degraded false spec 99f4ccdacda04e70 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command dbShape line 386 overrides false degraded false spec d54b63d75568791c hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command delete_constant_nets line 400 overrides false degraded false spec a81d1b7ff968231d hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command eco_design line 414 overrides false degraded false spec 2ba2e0e8dffc6312 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command edit_pin line 428 overrides false degraded false spec e4a86519ea5e8b2f hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command elaborate line 441 overrides false degraded false spec bf47c674ad473fcc hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command fcroute line 454 overrides false degraded false spec a0dcf6cad140bad2 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command get_db line 468 overrides false degraded false spec dafced1f42916f83 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command init_design line 481 overrides false degraded false spec d9424bf14f91ce88 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command opt_design line 500 overrides false degraded false spec 377165a0fe5ccc7d hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command place_design line 513 overrides false degraded false spec 6b32d1928125a2c4 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command place_opt_design line 527 overrides false degraded false spec 12f3f38d37f9ae40 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command read_db line 540 overrides false degraded false spec c0a9dd0a1224fcc6 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command read_hdl line 554 overrides false degraded false spec 8ab0937724f184c8 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command read_library line 567 overrides false degraded false spec 318db2c83133118c hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command read_mmmc line 580 overrides false degraded false spec 1e51ddc43b24ac44 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command read_netlist line 594 overrides false degraded false spec db79511aca47ad44 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command read_physical line 608 overrides false degraded false spec 9286cef699558c81 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command report_analysis_coverage line 621 overrides false degraded false spec f0f379ec5a981c11 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command report_area line 634 overrides false degraded false spec 5df12b8fa22cb522 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command report_constraint line 647 overrides false degraded false spec ea84bfb7b5da493a hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command report_dp line 660 overrides false degraded false spec 5ca43361fabd4ee5 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command report_gates line 673 overrides false degraded false spec a4397a43ab8eabe6 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command report_power line 686 overrides false degraded false spec 7123df22df96c922 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command report_qor line 699 overrides false degraded false spec 0323d3d32183352b hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command report_timing line 712 overrides false degraded false spec 8a03af4ed4139d4c hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command route_design line 725 overrides false degraded false spec 10699f37e12b613e hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command route_fix_signoff_drc line 738 overrides false degraded false spec b27375e4737db99f hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command set_analysis_view line 752 overrides false degraded false spec 2a725f8775cccd1c hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command set_db line 765 overrides false degraded false spec 8c29108da59d56fd hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command sroute line 779 overrides false degraded false spec 06f4b52ff239625d hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command streamOut line 793 overrides false degraded false spec f3c05ca12eef8b1a hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command syn_generic line 807 overrides false degraded false spec d1d85702c0e2ec1f hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command syn_map line 820 overrides false degraded false spec 66f79bbe82a1cda4 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command syn_opt line 833 overrides false degraded false spec 3c032436640e84d7 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command time_design line 846 overrides false degraded false spec 6d1d7fa97a341080 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command update_timing line 859 overrides false degraded false spec ad5c1efff8e0abee hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command verify_connectivity line 878 overrides false degraded false spec f93d4c28a783b47b hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command verify_drc line 891 overrides false degraded false spec a51dee779ffbade4 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command verify_geometry line 910 overrides false degraded false spec 1575865e5fa1b630 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command write_db line 923 overrides false degraded false spec 832e064caccec183 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command write_def line 937 overrides false degraded false spec cdff215b121ec3d2 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command write_design line 950 overrides false degraded false spec 17d0a84818ea6699 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command write_do_lec line 963 overrides false degraded false spec 9deea6c352b5b2e8 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command write_extraction_spec line 976 overrides false degraded false spec 4e64bb27efad26d3 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command write_gds line 990 overrides false degraded false spec a4fe58aa285b89bc hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command write_hdl line 1003 overrides false degraded false spec 050c022f2f435196 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command write_netlist line 1016 overrides false degraded false spec 0d968f417fd6125f hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command write_sdc line 1029 overrides false degraded false spec 2e732895c2cfd4af hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command write_timing_model line 1042 overrides false degraded false spec 8bad5d807e7b31d0 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command xelab line 1056 overrides false degraded false spec 9cf384bade29d6b5 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command xrun line 1069 overrides false degraded false spec 385f9f090cbb5d3e hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9
+command xsim line 1082 overrides false degraded false spec 0067257deebed083 hooks 831154110e30ac6a grammar 715ea0deb6f6f5f9

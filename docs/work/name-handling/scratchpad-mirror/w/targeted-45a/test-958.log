@@ -1,0 +1,6 @@
+
+running 1 test
+test resolved_invocation::variable_receiver_fact_projection_preserves_form_precedence_and_member_offsets ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1875 filtered out; finished in 0.02s
+

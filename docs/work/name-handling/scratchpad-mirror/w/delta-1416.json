@@ -1,0 +1,7 @@
+{"scheduled":"2026-10-21T14:05:00Z (fired 14:14Z)",
+ "change_since_previous_report":{"integrated_LSP":0,"total_baseline_delta":0,"effective_delta":0,"verified_complete":0},
+ "admissions":{},
+ "committed":{"0fd92a22b6":"WIP snapshot at user request (not green)","05e5ce024b":"current-state.md rewritten as the outstanding-validation list","363a9f89de":"WIP snapshot at user request (not green)"},
+ "in_progress":{"sol-48":"SpecTcl execution, active","sol-49":"miscompile / C6 / iRules realm, active","luna-41":"LSP crates measurement and fixes, active"},
+ "disk":"fell to 2.2 GB free; removed four superseded tcl-compiler/tcl-registry rlibs (newest kept) -> 3.4 GB; Sol-49 asked to trim its 742 MB scratch",
+ "next_report_utc":"2026-10-21T14:46:00Z"}

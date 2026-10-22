@@ -1,0 +1,7 @@
+{"scheduled":"2026-10-21T11:58:00Z",
+ "change_since_previous_report":{"integrated_LSP":0,"total_baseline_delta":0,"effective_delta":0,"verified_complete":0},
+ "admissions":{},
+ "in_progress":{"sol-48":"tclvm work, active (11 tcl-vm + 1 tcl-vm-cli files modified)","sol-49":"compiler work, active (12 tcl-compiler files modified)"},
+ "pending_user_decision":"which evidence/experiment files go into rust before a PR",
+ "disk_free_gb":3.0,
+ "next_report_utc":"2026-10-21T12:30:00Z"}

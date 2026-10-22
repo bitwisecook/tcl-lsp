@@ -1,0 +1,17 @@
+FAILED code_lens::tests::classmethod_lens_carries_class_member_key_qname
+FAILED code_lens::tests::lens_classmethod_count_matches_peek
+FAILED code_lens::tests::lens_count_matches_references_forward_ref
+FAILED code_lens::tests::lens_counts_external_obj_method_call_issue_864
+FAILED code_lens::tests::lens_counts_inherited_method_on_subclass_instance
+FAILED code_lens::tests::lens_counts_multiple_external_obj_method_calls
+FAILED code_lens::tests::lens_counts_namespaced_class_method
+FAILED code_lens::tests::lens_counts_obj_method_call_inside_proc_body
+FAILED code_lens::tests::lens_counts_obj_method_from_create_instance
+FAILED code_lens::tests::lens_counts_property_my_dispatch_within_class_body
+FAILED code_lens::tests::lens_does_not_count_dict_get_as_method_ref
+FAILED code_lens::tests::lens_does_not_credit_ambiguous_forward_ref_to_other_namespace
+FAILED code_lens::tests::lens_matches_peek_for_inherited_method_with_subclass_my_dispatch
+FAILED code_lens::tests::lens_matches_peek_for_issue_864_method
+FAILED code_lens::tests::method_and_classmethod_qnames_never_collide_on_same_name
+FAILED code_lens::tests::method_lens_counts_a_method_return_captured_dispatch_site
+FAILED code_lens::tests::proc_lens_counts_cross_document_calls

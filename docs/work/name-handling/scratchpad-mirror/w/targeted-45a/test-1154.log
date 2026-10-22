@@ -1,0 +1,6 @@
+
+running 1 test
+test command_binding::source_transition_advice::native_baseline::tests::native_baseline_source_roles_keep_unknown_actual_lookup_independent ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 10440 filtered out; finished in 2.46s
+

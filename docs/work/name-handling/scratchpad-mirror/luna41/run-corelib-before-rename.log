@@ -1,0 +1,698 @@
+test namespace_rename::original::namespace_tail_purpose_tests::original_namespace_rename_keeps_equal_global_command_and_variable_tails ... ok
+test namespace_rename::original::tests::original_namespace_coverage_reuses_analysis_body_sources_and_rejects_foreign_images ... ok
+test namespace_rename::original::tests::original_namespace_rename_batches_path_children_and_preserves_other_native_values ... ok
+test namespace_rename::original::tests::original_namespace_rename_coverage_detects_escaped_names_in_unpositioned_data ... ok
+test namespace_rename::original::tests::original_namespace_rename_refuses_readonly_computed_and_stale_sources ... ok
+test namespace_rename::original::tests::original_namespace_rename_keeps_opaque_siblings_distinct_with_ui_maps_cleared ... ok
+test namespace_rename::original::tests::original_namespace_rename_preserves_braced_and_array_variable_boundaries ... ok
+test namespace_rename::tests::constructed_colon_namespace_membership_keeps_the_root_separate ... ok
+test namespace_rename::tests::logical_braced_variable_geometry_uses_the_actual_header_span_and_close_rule ... ok
+test namespace_rename::potential_source_coverage_tests::namespace_hazard_negative_requires_complete_original_source_coverage ... FAILED
+test namespace_rename::tests::logical_namespace_forget_rename_retains_complete_source_and_hazard_guards ... FAILED
+test namespace_rename::tests::logical_written_namespace_geometry_retains_complete_separator_runs_and_purpose ... ok
+test namespace_rename::tests::namespace_hazard_keeps_original_roles_and_unavailable_owner_refusal ... FAILED
+test namespace_rename::original::tests::original_namespace_rename_unknown_operands_refuse_only_unruled_out_prefixes ... ok
+test namespace_rename::tests::logical_namespace_rename_maps_source_and_refuses_failed_occurrence_coverage ... FAILED
+test namespace_rename::tests::tn_a_computed_namespace_word_elsewhere_does_not_refuse ... ok
+test namespace_rename::tests::supplied_namespace_hazard_patterns_keep_parentheses_and_unknown_roles ... ok
+test namespace_rename::tests::tn_an_unattributed_name_elsewhere_does_not_refuse ... ok
+test namespace_rename::tests::tn_a_same_tailed_sibling_namespace_is_untouched ... ok
+test namespace_rename::tests::tp_refuses_a_computed_namespace_path ... FAILED
+test namespace_rename::tests::tn_an_unrelated_namespace_path_neither_moves_nor_refuses ... ok
+test namespace_rename::tests::tn_a_braced_dollar_entry_is_a_literal_path ... ok
+test namespace_rename::tests::tp_refuses_a_computed_namespace_target ... ok
+test namespace_rename::tests::tp_renames_an_implicitly_created_namespace_through_its_deeper_block ... FAILED
+test namespace_rename::tests::tp_refuses_an_unattributed_embedded_name ... FAILED
+test namespace_rename::tests::tp_rewrites_a_name_inside_a_walked_callback_body ... FAILED
+test namespace_rename::tests::tp_rewrites_a_relatively_written_namespace_path_entry ... ok
+test namespace_rename::tests::tp_rewrites_a_namespace_path_entry ... ok
+test namespace_rename::tests::tp_rewrites_a_relatively_written_segment_only ... ok
+test namespace_rename::tests::tp_rewrites_an_import_pattern ... ok
+test namespace_rename::tests::written_segment_is_the_namespace_segment_only ... ok
+test namespace_rename::tests::tp_rewrites_only_the_matching_namespace_path_entries ... ok
+test namespace_rename::tests::tp_rewrites_every_written_spelling_of_the_namespace ... FAILED
+test original_member_rename::tests::original_member_body_coverage_uses_whole_words_and_formed_content ... FAILED
+test original_command_rename::tests::original_command_rename_declines_stale_duplicate_collision_and_readonly_links ... ok
+test original_member_rename::tests::original_member_rename_checks_builtin_roster_visibility_and_source_family_closure ... ok
+test rename::selected_reference_tail_proposal_tests::logical_reference_rename_declines_unrepresentable_qualified_brace_tail ... ok
+test rename::selected_replacement_qualification_tests::logical_rename_proposals_share_qualification_and_reject_unsafe_public_inputs ... ok
+test rename::source_declaration_rename_tests::logical_variable_rename_uses_original_edit_coverage_and_refuses_alias_only_anchors ... FAILED
+test rename::tests::a_dynamic_map_leaves_the_dispatch_word_unattributed_1281 ... ok
+test rename::tests::build_var_ref_replacement_handles_all_forms ... ok
+test rename::tests::build_var_ref_replacement_preserves_array_index ... ok
+test rename::tests::build_var_ref_replacement_preserves_array_index_in_braced_form ... ok
+test original_command_rename::tests::original_command_rename_keeps_opaque_words_and_ignores_reporting_maps ... ok
+test rename::tests::colon_variable_rename_keeps_the_empty_cell_separate ... FAILED
+test original_member_rename::tests::original_member_rename_keeps_actual_selectors_and_opaque_declarations_after_ui_clear ... ok
+test rename::tests::cross_document_symbol_edits_apply_the_ensemble_map_gate_1281 ... FAILED
+test rename::tests::cross_document_symbol_edits_leaves_wildcard_imported_call_site_untouched ... FAILED
+test rename::tests::cross_document_symbol_edits_rewrite_import_pattern_and_rename_old_word ... FAILED
+test rename::tests::find_references_still_reports_both_ensemble_dispatch_sites_1281 ... FAILED
+test rename::tests::fn_guard_a_fully_tracked_member_renames_from_every_trigger_position ... FAILED
+test rename::tests::fp_namespace_variable_rename_refuses_a_collision_in_its_own_namespace ... ok
+test rename::tests::fp_namespace_variable_rename_keeps_a_differently_named_alias_spelling ... FAILED
+test rename::tests::is_safe_symbol_name_accepts_canonical_identifiers ... ok
+test rename::tests::is_safe_symbol_name_rejects_invalid_shapes ... ok
+test rename::tests::logical_rename_preserves_original_separator_runs_unicode_and_array_extent ... FAILED
+test rename::tests::fp_rename_refuses_the_untracked_receiver_dispatch ... FAILED
+test rename::tests::fp_rename_refuses_the_untracked_receiver_from_every_trigger_position ... FAILED
+test rename::tests::method_target_abstains_on_an_unlinked_bareword_sibling_call ... ok
+test rename::tests::method_target_abstains_on_a_parameter_sharing_a_method_name ... ok
+test rename::tests::method_target_classifies_a_bare_class_receiver_as_a_classmethod ... FAILED
+test rename::tests::method_target_falls_through_when_the_class_side_lacks_the_member ... FAILED
+test rename::tests::method_target_does_not_inherit_a_parents_self_method ... ok
+test rename::tests::method_target_fires_on_the_members_own_declaration_name ... FAILED
+test rename::tests::namespace_prefix_of_qualified_names ... ok
+test rename::tests::method_target_fires_on_a_linked_bareword_call ... ok
+test rename::tests::method_target_keeps_an_object_handle_receiver_instance_side ... FAILED
+test rename::tests::original_logical_rename_keeps_scalar_parentheses_and_literal_dollar_names ... FAILED
+test rename::tests::namespace_variable_rename_requires_the_retained_consumer_image ... FAILED
+test rename::tests::original_primary_command_rename_uses_canonical_opaque_inputs_and_atomic_prepare ... ok
+test rename::tests::original_reference_replacement_preserves_closed_elements_and_scalar_parentheses ... FAILED
+test rename::tests::prepare_rename_returns_none_for_unknown_word ... ok
+test rename::tests::original_primary_member_rename_does_not_enter_string_override_families ... ok
+test rename::tests::prepare_rename_returns_range_for_class ... ok
+test rename::tests::prepare_rename_returns_range_for_method ... ok
+test rename::tests::prepare_rename_returns_range_for_var ... FAILED
+test rename::tests::prepare_rename_returns_range_for_proc ... ok
+test rename::tests::rename_array_variable_applying_the_braced_index_edit_does_not_duplicate_the_closing_brace ... ok
+test rename::tests::rename_array_variable_preserves_element_index ... FAILED
+test rename::tests::rename_array_variable_preserves_index_in_braced_reference ... FAILED
+test rename::tests::original_prepare_variable_rename_selects_the_tail_and_preserves_index_geometry ... ok
+test rename::tests::rename_class_at_decl_rewrites_decl_and_calls ... FAILED
+test rename::tests::rename_class_at_call_site_also_works ... FAILED
+test rename::tests::rename_class_blocked_when_shadowing_builtin ... ok
+test rename::tests::rename_class_rejects_unsafe_new_name ... ok
+test rename::tests::rename_classmethod_does_not_corrupt_unrelated_instance_method_call_site ... FAILED
+test rename::tests::rename_edit_plan_refuses_conflicts_before_utf16_publication ... ok
+test rename::tests::rename_disambiguates_property_and_method_sharing_a_name_by_cursor ... FAILED
+test rename::tests::rename_classmethod_from_call_site_rewrites_decl_and_inheriting_subclass_call ... FAILED
+test rename::tests::rename_from_catch_resultvar_bareword_rewrites_the_original_declaration_too ... ok
+test rename::tests::rename_from_proc_param_bareword_declaration_rewrites_every_use ... FAILED
+test rename::tests::rename_from_the_callers_canonical_set_rewrites_every_in_proc_global_alias_too ... ok
+test rename::tests::rename_from_the_in_proc_global_alias_rewrites_the_callers_canonical_set_too ... ok
+test rename::tests::rename_inherited_method_from_external_obj_site ... FAILED
+test rename::tests::rename_inherited_method_rewrites_pure_inheritor_my_sites ... FAILED
+test rename::tests::rename_method_at_call_site_also_works ... FAILED
+test rename::tests::rename_inherited_method_rewrites_subclass_instance_obj_sites ... FAILED
+test rename::tests::rename_method_at_decl_rewrites_decl_and_calls ... FAILED
+test rename::tests::rename_leaves_wildcard_imported_bareword_call_site_untouched_same_document ... FAILED
+test rename::tests::rename_method_does_not_rewrite_unrelated_bare_command_with_same_name ... FAILED
+test rename::tests::rename_method_does_not_rewrite_next_dispatch ... FAILED
+test rename::tests::rename_method_from_cursor_on_bare_obj_command_call_site ... ok
+test rename::tests::rename_method_external_rewrites_proc_body_sites ... FAILED
+test rename::tests::rename_method_from_decl_rewrites_external_obj_sites ... FAILED
+test rename::tests::rename_method_from_external_call_site ... FAILED
+test rename::tests::rename_method_rejects_unsafe_new_name ... ok
+test rename::tests::rename_method_leaves_unrelated_same_name_method_untouched ... FAILED
+test rename::tests::rename_method_renames_from_subclass_up_to_base ... FAILED
+test rename::tests::rename_method_renames_subclass_override ... FAILED
+test rename::tests::rename_method_renames_sibling_overrides_of_common_base ... FAILED
+test rename::tests::rename_method_rewrites_a_my_dispatch_call_inside_a_switch_arm ... FAILED
+test rename::tests::rename_method_rewrites_bare_created_instance_command_site ... ok
+test rename::tests::rename_method_skipped_outside_class_body ... ok
+test rename::tests::rename_method_rewrites_my_dispatch_when_class_extended_via_separate_oo_define ... FAILED
+test rename::tests::rename_method_rewrites_control_flow_nested_my_dispatch ... FAILED
+test rename::tests::rename_namespaced_proc_keeps_namespace_prefix_at_decl ... FAILED
+test rename::tests::rename_proc_includes_decl_and_calls ... ok
+test rename::tests::rename_namespaced_proc_rewrites_call_sites_appropriately ... FAILED
+test rename::tests::rename_proc_to_builtin_command_name_blocked ... ok
+test rename::tests::rename_proc_rejected_on_existing_proc_collision ... ok
+test rename::tests::rename_proc_to_non_builtin_succeeds_with_registry ... ok
+test rename::tests::rename_returns_empty_for_unsafe_new_name ... FAILED
+test rename::tests::rename_property_rewrites_decl_and_my_dispatch_call_sites ... FAILED
+test rename::tests::rename_property_rewrites_control_flow_nested_call_site ... FAILED
+test rename::tests::rename_rewrites_the_renames_own_old_word_too ... FAILED
+test rename::tests::rename_rewrites_a_method_return_captured_dispatch_site ... FAILED
+test rename::tests::rename_still_refuses_on_a_genuinely_untracked_receiver ... ok
+test rename::tests::rename_top_level_proc_uses_short_form_at_decl ... ok
+test rename::tests::rename_rewrites_bare_calls_to_a_proc_installed_into_oo_helpers ... FAILED
+test rename::tests::rename_unknown_word_empty ... ok
+test rename::tests::rename_var_also_rejects_unsafe_new_name ... ok
+test rename::tests::rename_var_applying_the_braced_reference_edit_does_not_duplicate_the_closing_brace ... ok
+test rename::tests::rename_var_from_definition_site_resolves_without_dollar ... FAILED
+test rename::tests::rename_var_applying_the_dir_view_idiom_edit_produces_valid_tcl ... FAILED
+test rename::tests::rename_var_includes_decl_span ... FAILED
+test rename::tests::rename_var_preserves_braced_reference_form ... FAILED
+test rename::tests::rename_var_preserves_namespace_qualifier_at_decl ... FAILED
+test rename::tests::rename_var_to_builtin_name_allowed ... FAILED
+test rename::tests::rename_var_rejected_on_same_scope_collision ... ok
+test rename::tests::renaming_a_class_used_as_a_map_target_does_not_rewrite_the_subcommand_word_1281 ... FAILED
+test rename::tests::renaming_a_map_target_does_not_rewrite_the_subcommand_word_1281 ... FAILED
+test rename::tests::renaming_a_subcommands_target_still_rewrites_the_subcommand_word_1281 ... FAILED
+test rename::tests::tn_namespace_variable_rename_leaves_a_same_tailed_sibling_cell_alone ... FAILED
+test rename::tests::tn_namespace_variable_rename_leaves_an_unrelated_local_alone ... FAILED
+test rename::tests::tn_namespace_variable_rename_takes_the_minimal_edit_for_a_same_spelled_alias ... FAILED
+test rename::tests::tn_object_command_dispatch_is_scoped_to_its_creation_namespace ... FAILED
+test rename::tests::tp_namespace_variable_rename_rewrites_a_global_alias_and_its_reads ... FAILED
+test rename::tests::tp_namespace_variable_rename_covers_declaration_alias_and_qualified_use ... FAILED
+test rename::tests::tp_rename_method_rewrites_an_export_in_a_separate_oo_define_block ... FAILED
+test rename::tests::tp_namespace_variable_rename_rewrites_a_global_upvar_target_word ... FAILED
+test rename::tests::var_ref_edit_span_covers_a_braced_name_word ... ok
+test rename::tests::var_ref_edit_span_extends_a_tcl9_nested_brace_name ... ok
+test rename::tests::var_ref_edit_span_extends_the_ordinary_braced_form ... ok
+test rename::tests::var_ref_edit_span_leaves_an_empty_braced_word_untouched ... ok
+test rename::tests::var_ref_edit_span_leaves_an_unterminated_reference_untouched ... ok
+test rename::tests::var_ref_edit_span_leaves_non_braced_forms_untouched ... ok
+test rename::tests::var_ref_edit_span_leaves_the_degenerate_empty_name_span_untouched ... ok
+test rename::tests::tp_rename_method_rewrites_its_export_list ... FAILED
+test rename::tests::untargeted_member_target_answers_only_inside_the_class_body ... FAILED
+test rename::tests::workspace_rejects_inherited_namespace_wrapped_external_private_callback ... ok
+test rename::tests::workspace_callback_dispatch_obeys_mixin_mro_over_child_override ... FAILED
+test rename::tests::workspace_resolves_inherited_namespace_wrapped_callback_with_internal_access ... FAILED
+test rename::typed_namespace_variable_rename_tests::namespace_variable_source_edits_ignore_alias_reports_and_require_current_symbols ... FAILED
+test variable_symbol::rename::afterimage_source_intent_tests::mapped_source_boundaries_do_not_invent_internal_container_offsets ... FAILED
+test variable_symbol::rename::tests::original_variable_rename_accounts_for_derived_and_independent_alias_reads ... ok
+test variable_symbol::rename::tests::original_variable_rename_keeps_opaque_siblings_and_array_indices ... ok
+test variable_symbol::rename::tests::original_variable_rename_preserves_lexical_braces_and_separate_array_index ... ok
+test variable_symbol::rename::afterimage_source_intent_tests::source_rename_keeps_known_alias_and_trace_subject_correspondence_without_observer_absence ... FAILED
+test variable_symbol::rename::tests::original_variable_rename_uses_authentic_local_frame_and_refuses_stale_or_colliding_sources ... ok
+test variable_symbol::rename::afterimage_source_intent_tests::intentional_variable_rename_preserves_actual_local_scope_and_default_topology ... FAILED
+---- namespace_rename::potential_source_coverage_tests::namespace_hazard_negative_requires_complete_original_source_coverage stdout ----
+thread 'namespace_rename::potential_source_coverage_tests::namespace_hazard_negative_requires_complete_original_source_coverage' (15720) panicked at rust/tcl-lsp-core/src/namespace_rename.rs:1490:13:
+set value 1; if {1} $body: cannot rename `::kept`: the original command's argument roles are unavailable for `$body`, which may name this namespace
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- namespace_rename::tests::logical_namespace_forget_rename_retains_complete_source_and_hazard_guards stdout ----
+
+thread 'namespace_rename::tests::logical_namespace_forget_rename_retains_complete_source_and_hazard_guards' (15758) panicked at rust/tcl-lsp-core/src/namespace_rename.rs:1416:87:
+called `Result::unwrap()` on an `Err` value: RenameRefusal { reason: "the namespace edit containers conflict or cannot preserve every unrelated original value", range: None }
+
+---- namespace_rename::tests::namespace_hazard_keeps_original_roles_and_unavailable_owner_refusal stdout ----
+
+thread 'namespace_rename::tests::namespace_hazard_keeps_original_roles_and_unavailable_owner_refusal' (15767) panicked at rust/tcl-lsp-core/src/namespace_rename.rs:645:64:
+called `Option::unwrap()` on a `None` value
+
+---- namespace_rename::tests::logical_namespace_rename_maps_source_and_refuses_failed_occurrence_coverage stdout ----
+
+thread 'namespace_rename::tests::logical_namespace_rename_maps_source_and_refuses_failed_occurrence_coverage' (15765) panicked at rust/tcl-lsp-core/src/namespace_rename.rs:1321:85:
+called `Result::unwrap()` on an `Err` value: RenameRefusal { reason: "the namespace edit containers conflict or cannot preserve every unrelated original value", range: None }
+
+---- namespace_rename::tests::tp_refuses_a_computed_namespace_path stdout ----
+
+thread 'namespace_rename::tests::tp_refuses_a_computed_namespace_path' (15921) panicked at rust/tcl-lsp-core/src/namespace_rename.rs:1039:13:
+a computed namespace path has no complete original list container
+
+---- namespace_rename::tests::tp_renames_an_implicitly_created_namespace_through_its_deeper_block stdout ----
+
+thread 'namespace_rename::tests::tp_renames_an_implicitly_created_namespace_through_its_deeper_block' (15932) panicked at rust/tcl-lsp-core/src/namespace_rename.rs:893:9:
+namespace eval ::p::z::r { proc f {} {} }
+puts [::p::q::r::f]
+
+
+---- namespace_rename::tests::tp_refuses_an_unattributed_embedded_name stdout ----
+
+thread 'namespace_rename::tests::tp_refuses_an_unattributed_embedded_name' (15928) panicked at rust/tcl-lsp-core/src/namespace_rename.rs:950:51:
+an embedded name must refuse: "namespace eval ::new { proc tick {} {} }\nset handlers [list ::old::tick]\n"
+
+---- namespace_rename::tests::tp_rewrites_a_name_inside_a_walked_callback_body stdout ----
+
+thread 'namespace_rename::tests::tp_rewrites_a_name_inside_a_walked_callback_body' (15989) panicked at rust/tcl-lsp-core/src/namespace_rename.rs:940:9:
+namespace eval ::new { proc tick {} {} }
+after 0 {::old::tick}
+
+
+---- namespace_rename::tests::tp_rewrites_every_written_spelling_of_the_namespace stdout ----
+
+thread 'namespace_rename::tests::tp_rewrites_every_written_spelling_of_the_namespace' (16036) panicked at rust/tcl-lsp-core/src/namespace_rename.rs:855:9:
+no spelling may be left: namespace eval ::new {
+    variable v 1
+    proc p {} { return P }
+}
+namespace eval ::new { proc q {} { return Q } }
+---- original_member_rename::tests::original_member_body_coverage_uses_whole_words_and_formed_content stdout ----
+thread 'original_member_rename::tests::original_member_body_coverage_uses_whole_words_and_formed_content' (16086) panicked at rust/tcl-lsp-core/src/original_member_rename.rs:668:75:
+called `Option::unwrap()` on a `None` value
+
+---- rename::source_declaration_rename_tests::logical_variable_rename_uses_original_edit_coverage_and_refuses_alias_only_anchors stdout ----
+
+thread 'rename::source_declaration_rename_tests::logical_variable_rename_uses_original_edit_coverage_and_refuses_alias_only_anchors' (16154) panicked at rust/tcl-lsp-core/src/rename.rs:5664:9:
+assertion `left == right` failed
+  left: 0
+ right: 2
+
+---- rename::tests::colon_variable_rename_keeps_the_empty_cell_separate stdout ----
+
+thread 'rename::tests::colon_variable_rename_keeps_the_empty_cell_separate' (16167) panicked at rust/tcl-lsp-core/src/rename.rs:5103:13:
+assertion `left == right` failed: tcl8.4
+  left: "set {} EMPTY; set : COLON; puts ${}; puts $:"
+ right: "set {} EMPTY; set total COLON; puts ${}; puts $total"
+
+---- rename::tests::cross_document_symbol_edits_apply_the_ensemble_map_gate_1281 stdout ----
+
+thread 'rename::tests::cross_document_symbol_edits_apply_the_ensemble_map_gate_1281' (16168) panicked at rust/tcl-lsp-core/src/rename.rs:3038:9:
+the declaration and the -map value must still be rewritten: []
+
+---- rename::tests::cross_document_symbol_edits_leaves_wildcard_imported_call_site_untouched stdout ----
+
+thread 'rename::tests::cross_document_symbol_edits_leaves_wildcard_imported_call_site_untouched' (16169) panicked at rust/tcl-lsp-core/src/rename.rs:2962:9:
+assertion `left == right` failed: []
+  left: 0
+ right: 1
+
+---- rename::tests::cross_document_symbol_edits_rewrite_import_pattern_and_rename_old_word stdout ----
+
+thread 'rename::tests::cross_document_symbol_edits_rewrite_import_pattern_and_rename_old_word' (16172) panicked at rust/tcl-lsp-core/src/rename.rs:2819:9:
+assertion `left == right` failed: []
+  left: 0
+ right: 2
+
+---- rename::tests::find_references_still_reports_both_ensemble_dispatch_sites_1281 stdout ----
+
+thread 'rename::tests::find_references_still_reports_both_ensemble_dispatch_sites_1281' (16202) panicked at rust/tcl-lsp-core/src/rename.rs:2472:9:
+the -map dispatch site is a reference: []
+
+---- rename::tests::fn_guard_a_fully_tracked_member_renames_from_every_trigger_position stdout ----
+
+thread 'rename::tests::fn_guard_a_fully_tracked_member_renames_from_every_trigger_position' (16209) panicked at rust/tcl-lsp-core/src/rename.rs:5479:35:
+the `method X` declaration must not refuse: unclosed-original-member-family: the typed override family, configurations or receiver side are not closed for this edit
+
+---- rename::tests::fp_namespace_variable_rename_keeps_a_differently_named_alias_spelling stdout ----
+
+thread 'rename::tests::fp_namespace_variable_rename_keeps_a_differently_named_alias_spelling' (16255) panicked at rust/tcl-lsp-core/src/rename.rs:5176:9:
+namespace eval ::ns {
+    variable v 1
+}
+proc p {} {
+    namespace upvar ::ns v local
+---- rename::tests::logical_rename_preserves_original_separator_runs_unicode_and_array_extent stdout ----
+thread 'rename::tests::logical_rename_preserves_original_separator_runs_unicode_and_array_extent' (16386) panicked at rust/tcl-lsp-core/src/rename.rs:5545:13:
+assertion `left == right` failed
+  left: None
+ right: Some("$::::茶:::total(槽)")
+
+---- rename::tests::fp_rename_refuses_the_untracked_receiver_dispatch stdout ----
+
+thread 'rename::tests::fp_rename_refuses_the_untracked_receiver_dispatch' (16304) panicked at rust/tcl-lsp-core/src/rename.rs:5346:9:
+unclosed-original-member-family: the typed override family, configurations or receiver side are not closed for this edit
+
+---- rename::tests::fp_rename_refuses_the_untracked_receiver_from_every_trigger_position stdout ----
+
+thread 'rename::tests::fp_rename_refuses_the_untracked_receiver_from_every_trigger_position' (16320) panicked at rust/tcl-lsp-core/src/rename.rs:5436:13:
+the untracked `[$other X]` call site: the refusal must name the untracked receiver, got the original command selected at this cursor is unavailable; source-only vendor names and unknown native inputs cannot use lexical name edits
+
+---- rename::tests::method_target_classifies_a_bare_class_receiver_as_a_classmethod stdout ----
+
+thread 'rename::tests::method_target_classifies_a_bare_class_receiver_as_a_classmethod' (16397) panicked at rust/tcl-lsp-core/src/rename.rs:4237:9:
+assertion `left == right` failed
+  left: None
+ right: Some(("::Widget", "make", true, External))
+
+---- rename::tests::method_target_falls_through_when_the_class_side_lacks_the_member stdout ----
+
+thread 'rename::tests::method_target_falls_through_when_the_class_side_lacks_the_member' (16399) panicked at rust/tcl-lsp-core/src/rename.rs:4272:9:
+assertion `left == right` failed
+  left: None
+ right: Some(("::Widget", "make", false, External))
+
+---- rename::tests::method_target_fires_on_the_members_own_declaration_name stdout ----
+
+thread 'rename::tests::method_target_fires_on_the_members_own_declaration_name' (16405) panicked at rust/tcl-lsp-core/src/rename.rs:4317:9:
+assertion `left == right` failed: cursor on the `foo` declaration must resolve to Widget's `foo`
+  left: None
+ right: Some(("::Widget", "foo", false, Internal))
+
+---- rename::tests::method_target_keeps_an_object_handle_receiver_instance_side stdout ----
+
+thread 'rename::tests::method_target_keeps_an_object_handle_receiver_instance_side' (16409) panicked at rust/tcl-lsp-core/src/rename.rs:4255:9:
+assertion `left == right` failed
+  left: None
+ right: Some(("::Widget", "make", false, External))
+
+---- rename::tests::original_logical_rename_keeps_scalar_parentheses_and_literal_dollar_names stdout ----
+
+thread 'rename::tests::original_logical_rename_keeps_scalar_parentheses_and_literal_dollar_names' (16415) panicked at rust/tcl-lsp-core/src/rename.rs:3602:13:
+scalar(open
+
+---- rename::tests::namespace_variable_rename_requires_the_retained_consumer_image stdout ----
+
+thread 'rename::tests::namespace_variable_rename_requires_the_retained_consumer_image' (16414) panicked at rust/tcl-lsp-core/src/rename.rs:5140:9:
+assertion `left == right` failed
+  left: "namespace eval N {variable x 1}\nputs $::N::x\n"
+ right: "namespace eval N {variable total 1}\nputs $::N::total\n"
+
+---- rename::tests::original_reference_replacement_preserves_closed_elements_and_scalar_parentheses stdout ----
+
+thread 'rename::tests::original_reference_replacement_preserves_closed_elements_and_scalar_parentheses' (16425) panicked at rust/tcl-lexer/src/word_parts.rs:702:5:
+assertion `left == right` failed: caller must point at a `$`
+  left: Some(110)
+ right: Some(36)
+
+---- rename::tests::prepare_rename_returns_range_for_var stdout ----
+
+thread 'rename::tests::prepare_rename_returns_range_for_var' (16432) panicked at rust/tcl-lsp-core/src/rename.rs:3390:54:
+expected prepare_rename on var
+
+---- rename::tests::rename_array_variable_preserves_element_index stdout ----
+
+thread 'rename::tests::rename_array_variable_preserves_element_index' (16465) panicked at rust/tcl-lsp-core/src/rename.rs:3345:9:
+reference edit must preserve the array index, got ["data(0)", "data"]
+
+---- rename::tests::rename_array_variable_preserves_index_in_braced_reference stdout ----
+
+thread 'rename::tests::rename_array_variable_preserves_index_in_braced_reference' (16468) panicked at rust/tcl-lsp-core/src/rename.rs:3369:9:
+braced reference edit must preserve the array index, got ["data(0)", "data(0)"]
+
+---- rename::tests::rename_class_at_decl_rewrites_decl_and_calls stdout ----
+
+thread 'rename::tests::rename_class_at_decl_rewrites_decl_and_calls' (16473) panicked at rust/tcl-lsp-core/src/rename.rs:3899:9:
+expected non-empty edits
+
+---- rename::tests::rename_class_at_call_site_also_works stdout ----
+
+thread 'rename::tests::rename_class_at_call_site_also_works' (16471) panicked at rust/tcl-lsp-core/src/rename.rs:3925:9:
+[]
+
+---- rename::tests::rename_classmethod_does_not_corrupt_unrelated_instance_method_call_site stdout ----
+
+thread 'rename::tests::rename_classmethod_does_not_corrupt_unrelated_instance_method_call_site' (16479) panicked at rust/tcl-lsp-core/src/rename.rs:4212:9:
+assertion `left == right` failed: only the classmethod's own decl — `twice`'s `my greet` targets the unrelated instance method and must be untouched: []
+  left: 0
+ right: 1
+
+---- rename::tests::rename_disambiguates_property_and_method_sharing_a_name_by_cursor stdout ----
+
+thread 'rename::tests::rename_disambiguates_property_and_method_sharing_a_name_by_cursor' (16488) panicked at rust/tcl-lsp-core/src/rename.rs:4162:9:
+assertion `left == right` failed: expected only the property decl: []
+  left: 0
+ right: 1
+
+---- rename::tests::rename_classmethod_from_call_site_rewrites_decl_and_inheriting_subclass_call stdout ----
+
+thread 'rename::tests::rename_classmethod_from_call_site_rewrites_decl_and_inheriting_subclass_call' (16486) panicked at rust/tcl-lsp-core/src/rename.rs:4583:9:
+assertion `left == right` failed: []
+  left: 0
+ right: 3
+
+---- rename::tests::rename_from_proc_param_bareword_declaration_rewrites_every_use stdout ----
+
+thread 'rename::tests::rename_from_proc_param_bareword_declaration_rewrites_every_use' (16493) panicked at rust/tcl-lsp-core/src/rename.rs:3111:9:
+["{label}", "label"]
+
+---- rename::tests::rename_inherited_method_from_external_obj_site stdout ----
+
+thread 'rename::tests::rename_inherited_method_from_external_obj_site' (16500) panicked at rust/tcl-lsp-core/src/rename.rs:4892:9:
+inherited-method rename produced nothing
+
+---- rename::tests::rename_inherited_method_rewrites_pure_inheritor_my_sites stdout ----
+
+thread 'rename::tests::rename_inherited_method_rewrites_pure_inheritor_my_sites' (16501) panicked at rust/tcl-lsp-core/src/rename.rs:4962:9:
+expected decl (l1) + `my speak` in inheriting subclass (l5); got []
+
+---- rename::tests::rename_method_at_call_site_also_works stdout ----
+
+thread 'rename::tests::rename_method_at_call_site_also_works' (16509) panicked at rust/tcl-lsp-core/src/rename.rs:4112:9:
+[]
+
+---- rename::tests::rename_inherited_method_rewrites_subclass_instance_obj_sites stdout ----
+
+thread 'rename::tests::rename_inherited_method_rewrites_subclass_instance_obj_sites' (16504) panicked at rust/tcl-lsp-core/src/rename.rs:4930:9:
+expected decl (l1) + inheriting-subclass instance site (l7); got []
+
+---- rename::tests::rename_method_at_decl_rewrites_decl_and_calls stdout ----
+
+thread 'rename::tests::rename_method_at_decl_rewrites_decl_and_calls' (16514) panicked at rust/tcl-lsp-core/src/rename.rs:4002:9:
+[]
+
+---- rename::tests::rename_leaves_wildcard_imported_bareword_call_site_untouched_same_document stdout ----
+
+thread 'rename::tests::rename_leaves_wildcard_imported_bareword_call_site_untouched_same_document' (16508) panicked at rust/tcl-lsp-core/src/rename.rs:2766:9:
+assertion `left == right` failed: []
+  left: 0
+ right: 1
+
+---- rename::tests::rename_method_does_not_rewrite_unrelated_bare_command_with_same_name stdout ----
+
+thread 'rename::tests::rename_method_does_not_rewrite_unrelated_bare_command_with_same_name' (16518) panicked at rust/tcl-lsp-core/src/rename.rs:4139:9:
+assertion `left == right` failed: []
+  left: 0
+ right: 1
+
+---- rename::tests::rename_method_does_not_rewrite_next_dispatch stdout ----
+
+thread 'rename::tests::rename_method_does_not_rewrite_next_dispatch' (16517) panicked at rust/tcl-lsp-core/src/rename.rs:4087:9:
+[]
+
+---- rename::tests::rename_method_external_rewrites_proc_body_sites stdout ----
+
+thread 'rename::tests::rename_method_external_rewrites_proc_body_sites' (16521) panicked at rust/tcl-lsp-core/src/rename.rs:4662:9:
+[]
+
+---- rename::tests::rename_method_from_decl_rewrites_external_obj_sites stdout ----
+
+thread 'rename::tests::rename_method_from_decl_rewrites_external_obj_sites' (16527) panicked at rust/tcl-lsp-core/src/rename.rs:4525:9:
+[]
+
+---- rename::tests::rename_method_from_external_call_site stdout ----
+
+thread 'rename::tests::rename_method_from_external_call_site' (16570) panicked at rust/tcl-lsp-core/src/rename.rs:4638:9:
+[]
+
+---- rename::tests::rename_method_leaves_unrelated_same_name_method_untouched stdout ----
+
+thread 'rename::tests::rename_method_leaves_unrelated_same_name_method_untouched' (16573) panicked at rust/tcl-lsp-core/src/rename.rs:4858:9:
+Engine::run should be renamed: []
+
+---- rename::tests::rename_method_renames_from_subclass_up_to_base stdout ----
+
+thread 'rename::tests::rename_method_renames_from_subclass_up_to_base' (16575) panicked at rust/tcl-lsp-core/src/rename.rs:4795:9:
+expected base (l1) renamed from subclass override; got []
+
+---- rename::tests::rename_method_renames_subclass_override stdout ----
+
+thread 'rename::tests::rename_method_renames_subclass_override' (16605) panicked at rust/tcl-lsp-core/src/rename.rs:4766:9:
+expected both Animal (l1) and Dog override (l5) renamed; got []
+
+---- rename::tests::rename_method_renames_sibling_overrides_of_common_base stdout ----
+
+thread 'rename::tests::rename_method_renames_sibling_overrides_of_common_base' (16603) panicked at rust/tcl-lsp-core/src/rename.rs:4830:9:
+expected Shape + both siblings renamed; got []
+
+---- rename::tests::rename_method_rewrites_a_my_dispatch_call_inside_a_switch_arm stdout ----
+
+thread 'rename::tests::rename_method_rewrites_a_my_dispatch_call_inside_a_switch_arm' (16607) panicked at rust/tcl-lsp-core/src/rename.rs:4032:9:
+decl missing: []
+
+---- rename::tests::rename_method_rewrites_my_dispatch_when_class_extended_via_separate_oo_define stdout ----
+
+thread 'rename::tests::rename_method_rewrites_my_dispatch_when_class_extended_via_separate_oo_define' (16628) panicked at rust/tcl-lsp-core/src/rename.rs:4062:9:
+decl missing: []
+
+---- rename::tests::rename_method_rewrites_control_flow_nested_my_dispatch stdout ----
+
+thread 'rename::tests::rename_method_rewrites_control_flow_nested_my_dispatch' (16615) panicked at rust/tcl-lsp-core/src/rename.rs:4476:9:
+assertion `left == right` failed: decl + nested `my` site: []
+  left: 0
+ right: 2
+
+---- rename::tests::rename_namespaced_proc_keeps_namespace_prefix_at_decl stdout ----
+
+thread 'rename::tests::rename_namespaced_proc_keeps_namespace_prefix_at_decl' (16634) panicked at rust/tcl-lsp-core/src/rename.rs:3803:9:
+[]
+
+---- rename::tests::rename_namespaced_proc_rewrites_call_sites_appropriately stdout ----
+
+thread 'rename::tests::rename_namespaced_proc_rewrites_call_sites_appropriately' (16635) panicked at rust/tcl-lsp-core/src/rename.rs:3836:9:
+expected `::myns::hello` somewhere; got []
+
+---- rename::tests::rename_returns_empty_for_unsafe_new_name stdout ----
+
+thread 'rename::tests::rename_returns_empty_for_unsafe_new_name' (16646) panicked at rust/tcl-lsp-core/src/rename.rs:3648:9:
+assertion failed: rename(src,
+        tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
+        0, 6, "bad name", &analysis, None).is_empty()
+
+---- rename::tests::rename_property_rewrites_decl_and_my_dispatch_call_sites stdout ----
+
+thread 'rename::tests::rename_property_rewrites_decl_and_my_dispatch_call_sites' (16645) panicked at rust/tcl-lsp-core/src/rename.rs:4407:9:
+assertion `left == right` failed: decl + `my color` call site: []
+  left: 0
+ right: 2
+
+---- rename::tests::rename_property_rewrites_control_flow_nested_call_site stdout ----
+
+thread 'rename::tests::rename_property_rewrites_control_flow_nested_call_site' (16644) panicked at rust/tcl-lsp-core/src/rename.rs:4429:9:
+assertion `left == right` failed: decl + nested `my color` call site: []
+  left: 0
+ right: 2
+
+---- rename::tests::rename_rewrites_the_renames_own_old_word_too stdout ----
+
+thread 'rename::tests::rename_rewrites_the_renames_own_old_word_too' (16653) panicked at rust/tcl-lsp-core/src/rename.rs:2789:9:
+assertion `left == right` failed: []
+  left: 0
+ right: 3
+
+---- rename::tests::rename_rewrites_a_method_return_captured_dispatch_site stdout ----
+
+thread 'rename::tests::rename_rewrites_a_method_return_captured_dispatch_site' (16651) panicked at rust/tcl-lsp-core/src/rename.rs:2556:9:
+declaration edit missing: []
+
+---- rename::tests::rename_rewrites_bare_calls_to_a_proc_installed_into_oo_helpers stdout ----
+
+thread 'rename::tests::rename_rewrites_bare_calls_to_a_proc_installed_into_oo_helpers' (16652) panicked at rust/tcl-lsp-core/src/rename.rs:2636:9:
+decl missing: []
+
+---- rename::tests::rename_var_from_definition_site_resolves_without_dollar stdout ----
+
+thread 'rename::tests::rename_var_from_definition_site_resolves_without_dollar' (16668) panicked at rust/tcl-lsp-core/src/rename.rs:4683:9:
+ref edit missing: [TextEdit { range: LspRange { start_line: 0, start_character: 4, end_line: 0, end_character: 5 }, new_text: "newvar" }, TextEdit { range: LspRange { start_line: 1, start_character: 6, end_line: 1, end_character: 7 }, new_text: "newvar" }]
+
+---- rename::tests::rename_var_applying_the_dir_view_idiom_edit_produces_valid_tcl stdout ----
+
+thread 'rename::tests::rename_var_applying_the_dir_view_idiom_edit_produces_valid_tcl' (16665) panicked at rust/tcl-lsp-core/src/rename.rs:3317:9:
+expected a single, correctly-closed brace: proc ::tk::MouseWheel {w dir amount {factor -120.0} {units units}} {
+    $w ${dir}view scroll [expr {$amount/$factor}] $units
+}
+
+
+---- rename::tests::rename_var_includes_decl_span stdout ----
+thread 'rename::tests::rename_var_includes_decl_span' (16671) panicked at rust/tcl-lsp-core/src/rename.rs:3078:9:
+assertion failed: !edits.is_empty()
+
+---- rename::tests::rename_var_preserves_braced_reference_form stdout ----
+
+thread 'rename::tests::rename_var_preserves_braced_reference_form' (16672) panicked at rust/tcl-lsp-core/src/rename.rs:3172:9:
+["y", "y"]
+
+---- rename::tests::rename_var_preserves_namespace_qualifier_at_decl stdout ----
+
+thread 'rename::tests::rename_var_preserves_namespace_qualifier_at_decl' (16676) panicked at rust/tcl-lsp-core/src/rename.rs:4702:9:
+ref ns lost: [TextEdit { range: LspRange { start_line: 0, start_character: 4, end_line: 0, end_character: 15 }, new_text: "myns::total" }, TextEdit { range: LspRange { start_line: 1, start_character: 6, end_line: 1, end_character: 17 }, new_text: "myns::total" }]
+
+---- rename::tests::rename_var_to_builtin_name_allowed stdout ----
+
+thread 'rename::tests::rename_var_to_builtin_name_allowed' (16678) panicked at rust/tcl-lsp-core/src/rename.rs:3770:9:
+variable rename to `puts` should succeed (different namespace)
+
+---- rename::tests::renaming_a_class_used_as_a_map_target_does_not_rewrite_the_subcommand_word_1281 stdout ----
+
+thread 'rename::tests::renaming_a_class_used_as_a_map_target_does_not_rewrite_the_subcommand_word_1281' (16683) panicked at rust/tcl-lsp-core/src/rename.rs:2991:9:
+the class declaration must be renamed: oo::class create ::Widget { method draw {} {} }
+namespace ensemble create -command ::app -map {make ::Widget}
+::app make
+
+
+---- rename::tests::renaming_a_map_target_does_not_rewrite_the_subcommand_word_1281 stdout ----
+thread 'rename::tests::renaming_a_map_target_does_not_rewrite_the_subcommand_word_1281' (16684) panicked at rust/tcl-lsp-core/src/rename.rs:2395:9:
+the declaration must be renamed: namespace eval ::app::widget {}
+proc ::app::widget::Show {} { return "showing" }
+namespace ensemble create -command ::app::widget -map {show ::app::widget::Show}
+puts [::app::widget show]
+
+---- rename::tests::renaming_a_subcommands_target_still_rewrites_the_subcommand_word_1281 stdout ----
+thread 'rename::tests::renaming_a_subcommands_target_still_rewrites_the_subcommand_word_1281' (16686) panicked at rust/tcl-lsp-core/src/rename.rs:2437:9:
+the declaration must be renamed: namespace eval ::app::widget {
+    proc alpha {} { return "alpha!" }
+    namespace ensemble create -command ::app::widget -subcommands {alpha}
+}
+puts [::app::widget alpha]
+---- rename::tests::tn_namespace_variable_rename_leaves_a_same_tailed_sibling_cell_alone stdout ----
+thread 'rename::tests::tn_namespace_variable_rename_leaves_a_same_tailed_sibling_cell_alone' (16688) panicked at rust/tcl-lsp-core/src/rename.rs:5278:9:
+namespace eval ::a {
+    variable v 1
+}
+namespace eval ::b {
+    variable v 2
+---- rename::tests::tn_namespace_variable_rename_leaves_an_unrelated_local_alone stdout ----
+thread 'rename::tests::tn_namespace_variable_rename_leaves_an_unrelated_local_alone' (16692) panicked at rust/tcl-lsp-core/src/rename.rs:5319:9:
+namespace eval ::ns {
+    variable v 1
+}
+proc other {} {
+    set v 9
+---- rename::tests::tn_namespace_variable_rename_takes_the_minimal_edit_for_a_same_spelled_alias stdout ----
+thread 'rename::tests::tn_namespace_variable_rename_takes_the_minimal_edit_for_a_same_spelled_alias' (16696) panicked at rust/tcl-lsp-core/src/rename.rs:5207:9:
+namespace eval ::ns {
+    variable v 1
+}
+proc p {} {
+    namespace upvar ::ns v v
+---- rename::tests::tn_object_command_dispatch_is_scoped_to_its_creation_namespace stdout ----
+thread 'rename::tests::tn_object_command_dispatch_is_scoped_to_its_creation_namespace' (16697) panicked at rust/tcl-lsp-core/src/rename.rs:5062:9:
+::b's declaration must rename: namespace eval ::a {
+    oo::class create Factory {
+        method make {} { return "a-made" }
+    }
+    Factory create rex
+---- rename::tests::tp_namespace_variable_rename_rewrites_a_global_alias_and_its_reads stdout ----
+thread 'rename::tests::tp_namespace_variable_rename_rewrites_a_global_alias_and_its_reads' (16706) panicked at rust/tcl-lsp-core/src/rename.rs:5259:9:
+namespace eval ::ns {
+    variable v 1
+}
+proc p {} {
+    global ::ns::v
+---- rename::tests::tp_namespace_variable_rename_covers_declaration_alias_and_qualified_use stdout ----
+thread 'rename::tests::tp_namespace_variable_rename_covers_declaration_alias_and_qualified_use' (16703) panicked at rust/tcl-lsp-core/src/rename.rs:5124:9:
+namespace eval ::ns {
+    variable v 1
+    proc p {} {
+        variable v
+        return $v
+---- rename::tests::tp_rename_method_rewrites_an_export_in_a_separate_oo_define_block stdout ----
+thread 'rename::tests::tp_rename_method_rewrites_an_export_in_a_separate_oo_define_block' (16713) panicked at rust/tcl-lsp-core/src/rename.rs:5018:9:
+an `oo::define` export list must rename too: oo::class create A {
+    method Foo {} { return 1 }
+}
+oo::define A {
+    export Foo
+---- rename::tests::tp_namespace_variable_rename_rewrites_a_global_upvar_target_word stdout ----
+thread 'rename::tests::tp_namespace_variable_rename_rewrites_a_global_upvar_target_word' (16711) panicked at rust/tcl-lsp-core/src/rename.rs:5231:9:
+namespace eval ::ns {
+    variable v 1
+}
+proc p {} {
+    upvar #0 ::ns::v local
+---- rename::tests::tp_rename_method_rewrites_its_export_list stdout ----
+thread 'rename::tests::tp_rename_method_rewrites_its_export_list' (16715) panicked at rust/tcl-lsp-core/src/rename.rs:4992:9:
+the export list must be renamed with the method: oo::class create A {
+    method Foo {} { return 1 }
+    export Foo
+}
+set a [A new]
+---- rename::tests::untargeted_member_target_answers_only_inside_the_class_body stdout ----
+thread 'rename::tests::untargeted_member_target_answers_only_inside_the_class_body' (16719) panicked at rust/tcl-lsp-core/src/rename.rs:5510:9:
+assertion `left == right` failed: the export bareword names the member
+  left: None
+ right: Some(("::Vector3d", "X", false))
+
+---- rename::tests::workspace_callback_dispatch_obeys_mixin_mro_over_child_override stdout ----
+
+thread 'rename::tests::workspace_callback_dispatch_obeys_mixin_mro_over_child_override' (16728) panicked at rust/tcl-lsp-core/src/rename.rs:2912:9:
+assertion `left == right` failed
+  left: None
+ right: Some(("::Child", "read", false, Internal))
+
+---- rename::tests::workspace_resolves_inherited_namespace_wrapped_callback_with_internal_access stdout ----
+
+thread 'rename::tests::workspace_resolves_inherited_namespace_wrapped_callback_with_internal_access' (16738) panicked at rust/tcl-lsp-core/src/rename.rs:2849:9:
+assertion `left == right` failed
+  left: None
+ right: Some(("::Child", "read", false, Internal))
+
+---- rename::typed_namespace_variable_rename_tests::namespace_variable_source_edits_ignore_alias_reports_and_require_current_symbols stdout ----
+
+thread 'rename::typed_namespace_variable_rename_tests::namespace_variable_source_edits_ignore_alias_reports_and_require_current_symbols' (16739) panicked at rust/tcl-lsp-core/src/rename.rs:5695:9:
+assertion `left == right` failed
+  left: 0
+ right: 2
+
+---- variable_symbol::rename::afterimage_source_intent_tests::mapped_source_boundaries_do_not_invent_internal_container_offsets stdout ----
+
+thread 'variable_symbol::rename::afterimage_source_intent_tests::mapped_source_boundaries_do_not_invent_internal_container_offsets' (16744) panicked at rust/tcl-lsp-core/src/variable_symbol/rename.rs:633:10:
+called `Option::unwrap()` on a `None` value
+
+---- variable_symbol::rename::afterimage_source_intent_tests::source_rename_keeps_known_alias_and_trace_subject_correspondence_without_observer_absence stdout ----
+
+thread 'variable_symbol::rename::afterimage_source_intent_tests::source_rename_keeps_known_alias_and_trace_subject_correspondence_without_observer_absence' (16745) panicked at rust/tcl-lsp-core/src/variable_symbol/rename.rs:600:58:
+called `Result::unwrap()` on an `Err` value: RenameRefusal { reason: "cannot account for every original variable name, alias target and read in this document", range: None }
+
+---- variable_symbol::rename::afterimage_source_intent_tests::intentional_variable_rename_preserves_actual_local_scope_and_default_topology stdout ----
+
+thread 'variable_symbol::rename::afterimage_source_intent_tests::intentional_variable_rename_preserves_actual_local_scope_and_default_topology' (16740) panicked at rust/tcl-lsp-core/src/variable_symbol/rename.rs:588:54:
+called `Result::unwrap()` on an `Err` value: RenameRefusal { reason: "cannot account for every original variable name, alias target and read in this document", range: None }
+
+
+failures:
+    namespace_rename::potential_source_coverage_tests::namespace_hazard_negative_requires_complete_original_source_coverage
+test result: FAILED. 82 passed; 88 failed; 0 ignored; 0 measured; 3315 filtered out; finished in 229.12s

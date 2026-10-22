@@ -1,0 +1,778 @@
+    Checking tcl-compiler v0.1.0 (/home/user/tcl-lsp/rust/tcl-compiler)
+rust/tcl-compiler/src/analyser/diagnostics/usage.rs:1103:13: warning: binding's name is too similar to existing binding
+rust/tcl-compiler/src/analyser/diagnostics/usage.rs:1214:16: warning: binding's name is too similar to existing binding
+rust/tcl-compiler/src/analyser/handlers.rs:10266:13: warning: binding's name is too similar to existing binding
+rust/tcl-compiler/src/codegen/wasm/ir.rs:980:21: warning: binding's name is too similar to existing binding
+rust/tcl-compiler/src/command_binding/source_transition_advice/logical_navigation.rs:847:13: warning: binding's name is too similar to existing binding
+rust/tcl-compiler/src/command_binding/source_transition_advice/source_configured_class.rs:82:17: warning: unneeded unit expression: help: remove the final `()`
+rust/tcl-compiler/src/compilation_unit.rs:313:1: warning: empty line after doc comment
+rust/tcl-compiler/src/registry_invocation/original_procedure_call.rs:507:9: warning: binding's name is too similar to existing binding
+rust/tcl-compiler/src/registry_invocation/source_reference_candidates.rs:138:18: warning: binding's name is too similar to existing binding
+rust/tcl-compiler/src/registry_invocation/source_name_roles.rs:359:9: warning: binding's name is too similar to existing binding
+rust/tcl-compiler/src/registry_invocation/source_scoped_body.rs:1714:9: warning: binding's name is too similar to existing binding
+rust/tcl-compiler/src/registry_invocation/source_structure/package_target_survey.rs:415:13: warning: binding's name is too similar to existing binding
+rust/tcl-compiler/src/unit_scope.rs:2660:1: warning: empty line after doc comment
+rust/tcl-compiler/src/world_state_ssa.rs:1821:9: warning: unnested or-patterns
+rust/tcl-compiler/src/analyser/bounds_checks/source_index.rs:27:22: warning: redundant closure: help: replace the closure with the method itself: `tcl_registry::ResolvedInvocation::authored_source_index_bounds`
+rust/tcl-compiler/src/analyser/bounds_checks/source_index.rs:115:13: warning: assigning the result of `Clone::clone()` may be inefficient: help: use `clone_from()`: `list.clone_from(&values[index])`
+rust/tcl-compiler/src/analyser/bounds_checks.rs:118:22: warning: usage of `bool::then` in `filter_map`: help: use `filter` then `map` instead: `filter(|&(ordinal, found)| (found == role)).map(|(ordinal, found)| usize::from(ordinal) + schema.semantics.argument_offset)`
+rust/tcl-compiler/src/analyser/class_hierarchy/original_metadata.rs:580:10: warning: use of `Option<Option<T>>`
+rust/tcl-compiler/src/analyser/class_hierarchy.rs:50:1: warning: large size difference between variants: the entire enum is at least 352 bytes
+rust/tcl-compiler/src/analyser/class_hierarchy.rs:101:6: warning: use of `Option<Option<T>>`
+rust/tcl-compiler/src/analyser/class_hierarchy.rs:1073:1: warning: this function has too many lines (108/100)
+rust/tcl-compiler/src/analyser/commands.rs:950:5: warning: this function has too many lines (107/100)
+rust/tcl-compiler/src/analyser/commands.rs:1671:48: warning: redundant closure: help: replace the closure with the method itself: `tcl_registry::ResolvedInvocation::state_transitions`
+rust/tcl-compiler/src/analyser/commands.rs:2797:5: warning: this function has too many lines (137/100)
+rust/tcl-compiler/src/analyser/commands.rs:2875:58: warning: redundant closure: help: replace the closure with the method itself: `tcl_registry::ResolvedInvocation::clause_plan`
+rust/tcl-compiler/src/analyser/commands.rs:2919:21: warning: unnecessary closure used to substitute value for `Option::None`
+rust/tcl-compiler/src/analyser/commands.rs:3838:5: warning: this function has too many lines (161/100)
+rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs:762:5: warning: this function has too many lines (112/100)
+rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs:1379:22: warning: redundant closure: help: replace the closure with the method itself: `crate::signature_scan::formal_parameters::OriginalSourceFormalName::name`
+rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs:1380:47: warning: redundant closure: help: replace the closure with the method itself: `std::string::String::as_bytes`
+rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs:1475:30: warning: redundant closure: help: replace the closure with the method itself: `crate::signature_scan::formal_parameters::OriginalSourceFormalName::quoted_marker`
+rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs:1530:35: warning: redundant closure: help: replace the closure with the method itself: `crate::signature_scan::formal_parameters::OriginalSourceFormalName::source_span`
+rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs:2483:5: warning: this function has too many lines (103/100)
+rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs:4819:11: warning: this argument is passed by value, but not consumed in the function body
+rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs:4976:55: warning: redundant closure: help: replace the closure with the method itself: `tcl_registry::ResolvedInvocation::facts`
+rust/tcl-compiler/src/analyser/diagnostics/helpers.rs:1288:9: warning: this `if` statement can be collapsed
+rust/tcl-compiler/src/analyser/diagnostics/helpers.rs:1390:13: warning: this `if` statement can be collapsed
+rust/tcl-compiler/src/analyser/diagnostics/helpers.rs:1457:1: warning: this function has too many lines (117/100)
+rust/tcl-compiler/src/analyser/diagnostics/helpers.rs:1777:1: warning: this function has too many lines (102/100)
+rust/tcl-compiler/src/analyser/diagnostics/proven.rs:149:5: warning: this function has too many lines (117/100)
+rust/tcl-compiler/src/analyser/diagnostics/proven.rs:587:68: warning: redundant closure: help: replace the closure with the method itself: `tcl_lexer::NativeWord::span`
+rust/tcl-compiler/src/analyser/diagnostics/security/source_credentials.rs:16:42: warning: redundant closure: help: replace the closure with the method itself: `tcl_registry::ResolvedInvocation::authored_source_credential_arguments`
+rust/tcl-compiler/src/analyser/diagnostics/security/source_crossing.rs:69:5: warning: adding items after statements is confusing, since items exist from the start of the scope
+rust/tcl-compiler/src/analyser/diagnostics/security/source_paths.rs:174:35: warning: item in documentation is missing backticks
+rust/tcl-compiler/src/analyser/diagnostics/security/source_patterns.rs:120:30: warning: redundant closure: help: replace the closure with the method itself: `tcl_registry::ResolvedInvocation::authored_source_case_pattern_layout`
+rust/tcl-compiler/src/analyser/diagnostics/security/source_template.rs:153:26: warning: redundant closure: help: replace the closure with the method itself: `tcl_registry::ResolvedInvocation::substitutions_performed`
+rust/tcl-compiler/src/analyser/diagnostics/security/source_template.rs:162:26: warning: redundant closure: help: replace the closure with the method itself: `tcl_registry::ResolvedInvocation::substitutions_performed`
+rust/tcl-compiler/src/analyser/diagnostics/security.rs:275:5: warning: this function has too many lines (128/100)
+rust/tcl-compiler/src/analyser/diagnostics/security.rs:466:5: warning: this function has too many lines (118/100)
+rust/tcl-compiler/src/analyser/diagnostics/usage/source_channel.rs:25:30: warning: redundant closure: help: replace the closure with the method itself: `tcl_registry::ResolvedInvocation::authored_source_channel_configuration`
+rust/tcl-compiler/src/analyser/diagnostics/usage.rs:1125:9: warning: unused `self` argument
+rust/tcl-compiler/src/analyser/diagnostics/usage.rs:1379:5: warning: item in documentation is missing backticks
+rust/tcl-compiler/src/analyser/diagnostics/usage.rs:1802:43: warning: redundant closure: help: replace the closure with the method itself: `tcl_lexer::Span::start`
+rust/tcl-compiler/src/analyser/diagnostics/validity.rs:2234:54: warning: cloning an `Option<_>` using `.as_ref().cloned()`
+rust/tcl-compiler/src/analyser/diagnostics/validity.rs:2807:5: warning: this function has too many arguments (8/7)
+rust/tcl-compiler/src/analyser/diagnostics/var_command.rs:798:41: warning: using `clone` on type `BodyFrameId` which implements the `Copy` trait: help: try dereferencing it: `*qname`
+rust/tcl-compiler/src/analyser/diagnostics/var_command.rs:850:5: warning: this function has too many lines (108/100)
+rust/tcl-compiler/src/analyser/diagnostics/var_command.rs:1699:21: warning: these match arms have identical bodies
+rust/tcl-compiler/src/analyser/diagnostics/var_command.rs:1781:5: warning: this function has too many lines (150/100)
+rust/tcl-compiler/src/analyser/diagnostics/var_command.rs:1907:17: warning: variables can be used directly in the `format!` string
+rust/tcl-compiler/src/analyser/diagnostics/var_command.rs:2766:1: warning: this function has too many lines (109/100)
+rust/tcl-compiler/src/analyser/diagnostics.rs:519:5: warning: this function has too many lines (113/100)
+rust/tcl-compiler/src/analyser/diagnostics.rs:738:22: warning: this expression creates a reference which is immediately dereferenced by the compiler: help: change this to: `module`
+rust/tcl-compiler/src/analyser/diagnostics.rs:1047:5: warning: this function has too many lines (122/100)
+rust/tcl-compiler/src/analyser/diagnostics.rs:1199:28: warning: redundant closure: help: replace the closure with the method itself: `super::super::interprocedural::transfer::ModuleProcedures::original_source_module`
+rust/tcl-compiler/src/analyser/handlers.rs:832:5: warning: this function has too many lines (106/100)
+rust/tcl-compiler/src/analyser/handlers.rs:2267:42: warning: redundant closure: help: replace the closure with the method itself: `tcl_lexer::Span::start`
+rust/tcl-compiler/src/analyser/handlers.rs:3323:5: warning: this function has too many lines (184/100)
+rust/tcl-compiler/src/analyser/handlers.rs:3424:34: warning: redundant closure: help: replace the closure with the method itself: `super::super::signature_scan::formal_parameters::OriginalSourceFormalName::source_span`
+rust/tcl-compiler/src/analyser/handlers.rs:4218:9: warning: you seem to be trying to use `match` for destructuring a single pattern. Consider using `if let`
+rust/tcl-compiler/src/analyser/handlers.rs:6618:17: warning: this argument is passed by value, but not consumed in the function body
+rust/tcl-compiler/src/analyser/handlers.rs:7024:10: warning: unnecessary semicolon: help: remove
+rust/tcl-compiler/src/analyser/handlers.rs:7375:5: warning: this function has too many lines (146/100)
+rust/tcl-compiler/src/analyser/handlers.rs:7529:5: warning: this function has too many lines (114/100)
+rust/tcl-compiler/src/analyser/handlers.rs:9118:43: warning: this expression creates a reference which is immediately dereferenced by the compiler: help: change this to: `registry`
+rust/tcl-compiler/src/analyser/handlers.rs:10241:9: warning: unused `self` argument
+rust/tcl-compiler/src/analyser/input.rs:86:12: warning: this method could have a `#[must_use]` attribute
+rust/tcl-compiler/src/analyser/irules_event_checks.rs:987:15: warning: this argument is passed by value, but not consumed in the function body
+rust/tcl-compiler/src/analyser/oo.rs:1914:5: warning: this function has too many lines (101/100)
+rust/tcl-compiler/src/analyser/oo.rs:3521:1: warning: this function has too many lines (158/100)
+rust/tcl-compiler/src/analyser/param_traits.rs:827:25: warning: it is more concise to loop over references to containers instead of using explicit iteration methods: help: to write this more concisely, try: `&words`
+rust/tcl-compiler/src/analyser/param_traits.rs:890:1: warning: this function has too many lines (200/100)
+rust/tcl-compiler/src/analyser/param_traits.rs:1123:66: warning: item in documentation is missing backticks
+rust/tcl-compiler/src/analyser/param_traits.rs:1149:44: warning: redundant closure: help: replace the closure with the method itself: `tcl_registry::ResolvedInvocation::authored_source_lambda_call`
+rust/tcl-compiler/src/analyser/param_traits.rs:1870:22: warning: redundant closure: help: replace the closure with the method itself: `super::super::registry_invocation::ConditionalParameterSourceInvocation::retained_invocation`
+rust/tcl-compiler/src/analyser/per_item.rs:2216:5: warning: used `assert!` to check that a value is empty
+rust/tcl-compiler/src/analyser/per_item.rs:2255:5: warning: used `assert!` to check that a value is empty
+rust/tcl-compiler/src/analyser/per_item.rs:2259:5: warning: used `assert!` to check that a value is empty
+rust/tcl-compiler/src/analyser/per_item.rs:2263:5: warning: used `assert!` to check that a value is empty
+rust/tcl-compiler/src/analyser/scope.rs:271:5: warning: this function has a `#[must_use]` attribute with no message, but returns a type already considered as `#[must_use]`
+rust/tcl-compiler/src/analyser/scope.rs:339:22: warning: usage of `bool::then` in `filter_map`
+rust/tcl-compiler/src/analyser/scope.rs:356:14: warning: usage of `bool::then` in `filter_map`
+rust/tcl-compiler/src/analyser/scope.rs:605:39: warning: redundant closure: help: replace the closure with the method itself: `super::super::signature_scan::scope::SignatureNamespaceScope::display`
+rust/tcl-compiler/src/analyser/scope.rs:630:39: warning: redundant closure: help: replace the closure with the method itself: `super::super::signature_scan::scope::SignatureNamespaceScope::display`
+rust/tcl-compiler/src/analyser/scope.rs:2068:66: warning: this expression creates a reference which is immediately dereferenced by the compiler: help: change this to: `arena`
+rust/tcl-compiler/src/analyser/scope.rs:2140:5: warning: this function has too many lines (113/100)
+rust/tcl-compiler/src/analyser/scope.rs:2154:54: warning: cloning an `Option<_>` using `.as_ref().cloned()`
+rust/tcl-compiler/src/analyser/scope.rs:2202:14: warning: using `chunks_exact` with a constant chunk size: help: consider using `as_chunks` instead: `as_chunks::<2>().0.iter()`
+rust/tcl-compiler/src/analyser/scope.rs:2246:30: warning: using `chunks_exact` with a constant chunk size: help: consider using `as_chunks` instead: `as_chunks::<2>().0`
+rust/tcl-compiler/src/analyser/scope.rs:2622:5: warning: this function has too many lines (114/100)
+rust/tcl-compiler/src/analyser/scope.rs:3024:5: warning: this function has too many lines (114/100)
+rust/tcl-compiler/src/analyser/scope.rs:4063:14: warning: redundant closure: help: replace the closure with the method itself: `super::super::registry_invocation::source_structure::OriginalRegistryWords::written_argument_roles`
+rust/tcl-compiler/src/analyser/scope.rs:6874:37: warning: implicit borrow as raw pointer
+rust/tcl-compiler/src/analyser/state.rs:2226:5: warning: this function has too many lines (101/100)
+rust/tcl-compiler/src/analyser/state.rs:2411:17: warning: assigning the result of `Clone::clone()` may be inefficient: help: use `clone_from()`: `child.naming_scope.clone_from(&naming_scope)`
+rust/tcl-compiler/src/analyser/types/original_linked_member.rs:2:26: warning: item in documentation is missing backticks
+rust/tcl-compiler/src/analyser/types/original_linked_member.rs:184:9: warning: this `let...else` may be rewritten with the `?` operator: help: replace it with: `let head = command.words.first()?;`
+rust/tcl-compiler/src/analyser/types/original_linked_member.rs:393:5: warning: adding items after statements is confusing, since items exist from the start of the scope
+rust/tcl-compiler/src/analyser/types/logical_procedures.rs:184:24: warning: item in documentation is missing backticks
+rust/tcl-compiler/src/analyser/types/logical_procedures.rs:203:16: warning: item in documentation is missing backticks
+rust/tcl-compiler/src/analyser/types/logical_procedures.rs:358:26: warning: redundant closure: help: replace the closure with the method itself: `crate::signature_scan::original_name::SourceDeclarationMetadata::metadata`
+rust/tcl-compiler/src/analyser/types/logical_members.rs:310:24: warning: item in documentation is missing backticks
+rust/tcl-compiler/src/analyser/types/logical_members.rs:321:65: warning: item in documentation is missing backticks
+rust/tcl-compiler/src/analyser/types/logical_members.rs:1024:13: warning: these match arms have identical bodies: the wildcard arm
+rust/tcl-compiler/src/analyser/types/logical_members.rs:1087:26: warning: redundant closure: help: replace the closure with the method itself: `crate::signature_scan::original_name::SourceDeclarationMetadata::metadata`
+rust/tcl-compiler/src/analyser/types/original_members.rs:721:9: warning: item in documentation is missing backticks
+rust/tcl-compiler/src/analyser/types.rs:2134:1: warning: more than 3 bools in a struct
+rust/tcl-compiler/src/analyser/types.rs:2886:5: warning: this function has too many lines (183/100)
+rust/tcl-compiler/src/analyser/utils.rs:832:60: warning: redundant closure: help: replace the closure with the method itself: `super::super::registry_invocation::source_scoped_body::OriginalSourceScriptBody::content_span`
+rust/tcl-compiler/src/analyser/variable_alias_templates.rs:29:5: warning: this function has too many lines (127/100)
+rust/tcl-compiler/src/analyser/variable_alias_templates.rs:52:25: warning: redundant closure: help: replace the closure with the method itself: `super::super::registry_invocation::declaration_assistance::OriginalLogicalAliasDeclaration::template_source`
+rust/tcl-compiler/src/analyser/variable_alias_templates.rs:66:9: warning: mutable key type
+rust/tcl-compiler/src/analyser/variable_alias_templates.rs:93:52: warning: redundant closure: help: replace the closure with the method itself: `super::super::registry_invocation::declaration_assistance::OriginalLogicalAliasTemplateSource::relation`
+rust/tcl-compiler/src/analyser/variable_source_declarations.rs:28:1: warning: large size difference between variants: the entire enum is at least 4040 bytes
+rust/tcl-compiler/src/auto_path_eval/source_expression.rs:142:17: warning: called `.ok().is_some_and(..)` on a `Result` value
+rust/tcl-compiler/src/auto_path_eval/source_expression.rs:476:22: warning: redundant closure: help: replace the closure with the method itself: `std::borrow::Cow::into_owned`
+rust/tcl-compiler/src/auto_path_eval/path_constants.rs:66:1: warning: large size difference between variants: the entire enum is at least 1336 bytes
+rust/tcl-compiler/src/body_analysis_capsule.rs:451:1: warning: this function has too many lines (185/100)
+rust/tcl-compiler/src/body_analysis_capsule.rs:706:5: warning: this function has too many lines (129/100)
+rust/tcl-compiler/src/body_analysis_capsule.rs:812:13: warning: you seem to be trying to use `match` for destructuring a single pattern. Consider using `if let`
+rust/tcl-compiler/src/cfg_builder/cfg_lower.rs:494:5: warning: this function has too many lines (107/100)
+rust/tcl-compiler/src/cfg_builder/global_write_info.rs:56:26: warning: redundant closure: help: replace the closure with the method itself: `super::super::analyser::input::ResolvedAnalysisInput::has_logical_source_name_context`
+rust/tcl-compiler/src/cfg_builder/global_write_info.rs:134:20: warning: called `map(<f>).unwrap_or(<a>)` on an `Option` value
+rust/tcl-compiler/src/cfg_builder/global_write_info.rs:406:1: warning: this function has too many arguments (8/7)
+rust/tcl-compiler/src/cfg_builder/global_write_info.rs:447:8: warning: item in documentation is missing backticks
+rust/tcl-compiler/src/cfg_builder/global_write_info.rs:503:1: warning: this function has too many lines (115/100)
+rust/tcl-compiler/src/cfg_builder/global_write_info.rs:524:9: warning: mutable key type
+rust/tcl-compiler/src/cfg_builder/global_write_info.rs:849:13: warning: these match arms have identical bodies
+rust/tcl-compiler/src/cfg_builder/global_write_info.rs:1532:18: warning: unnecessary semicolon: help: remove
+rust/tcl-compiler/src/cfg_builder/global_write_info.rs:1593:21: warning: consider adding a `;` to the last statement for consistent formatting: help: add a `;` here: `opaque = true;`
+rust/tcl-compiler/src/cfg_builder/upvar_info.rs:863:9: warning: you seem to be trying to use `match` for destructuring a single pattern. Consider using `if let`
+rust/tcl-compiler/src/cfg_builder/upvar_info.rs:1022:29: warning: this expression creates a reference which is immediately dereferenced by the compiler: help: change this to: `body`
+rust/tcl-compiler/src/cfg_builder/upvar_info.rs:1036:29: warning: this expression creates a reference which is immediately dereferenced by the compiler: help: change this to: `e`
+rust/tcl-compiler/src/cfg_builder/upvar_info.rs:1042:25: warning: this expression creates a reference which is immediately dereferenced by the compiler: help: change this to: `init`
+rust/tcl-compiler/src/cfg_builder/upvar_info.rs:1043:25: warning: this expression creates a reference which is immediately dereferenced by the compiler: help: change this to: `next`
+rust/tcl-compiler/src/cfg_builder/upvar_info.rs:1044:25: warning: this expression creates a reference which is immediately dereferenced by the compiler: help: change this to: `body`
+rust/tcl-compiler/src/cfg_builder/upvar_info.rs:1049:25: warning: this expression creates a reference which is immediately dereferenced by the compiler: help: change this to: `body`
+rust/tcl-compiler/src/cfg_builder/upvar_info.rs:1057:29: warning: this expression creates a reference which is immediately dereferenced by the compiler: help: change this to: `body`
+rust/tcl-compiler/src/cfg_builder/upvar_info.rs:1060:21: warning: this expression creates a reference which is immediately dereferenced by the compiler: help: change this to: `body`
+rust/tcl-compiler/src/cfg_builder/upvar_info.rs:1077:33: warning: this expression creates a reference which is immediately dereferenced by the compiler: help: change this to: `b`
+rust/tcl-compiler/src/cfg_builder/upvar_info.rs:1081:29: warning: this expression creates a reference which is immediately dereferenced by the compiler: help: change this to: `b`
+rust/tcl-compiler/src/cfg_builder/upvar_info.rs:1090:25: warning: this expression creates a reference which is immediately dereferenced by the compiler: help: change this to: `body`
+rust/tcl-compiler/src/cfg_builder/upvar_info.rs:1095:29: warning: this expression creates a reference which is immediately dereferenced by the compiler: help: change this to: `f`
+rust/tcl-compiler/src/cfg_builder/upvar_info.rs:1166:13: warning: consider adding a `;` to the last statement for consistent formatting: help: add a `;` here: `record_logical_alias_pairs(invocation, selection, context, info);`
+rust/tcl-compiler/src/cfg_builder/upvar_info.rs:1178:14: warning: this argument is passed by value, but not consumed in the function body
+rust/tcl-compiler/src/cfg_builder/upvar_info.rs:1230:14: warning: this argument is passed by value, but not consumed in the function body
+rust/tcl-compiler/src/cfg_builder/upvar_info.rs:2051:1: warning: this function has too many lines (101/100)
+rust/tcl-compiler/src/cfg_builder/mod.rs:1015:30: warning: redundant closure: help: replace the closure with the method itself: `super::analyser::input::ResolvedAnalysisInput::has_logical_source_name_context`
+rust/tcl-compiler/src/cfg_builder/mod.rs:1314:42: warning: this `.fold` can be written more succinctly using another method: help: try: `any(|script| crate::ssa::nested_writes(script, self.registry, &mut written))`
+rust/tcl-compiler/src/cfg_builder/mod.rs:2379:5: warning: this function has too many lines (114/100)
+rust/tcl-compiler/src/cfg_builder/mod.rs:3961:13: warning: using `clone` on type `ProcedureId` which implements the `Copy` trait: help: try dereferencing it: `*qname`
+rust/tcl-compiler/src/cfg_builder/mod.rs:4348:10: warning: use of `Option<Option<T>>`
+rust/tcl-compiler/src/codegen/cmd_subst.rs:1447:5: warning: this function has too many lines (101/100)
+rust/tcl-compiler/src/codegen/cmd_subst.rs:1765:5: warning: this function has too many lines (113/100)
+rust/tcl-compiler/src/codegen/cmd_subst.rs:2951:21: warning: adding items after statements is confusing, since items exist from the start of the scope
+rust/tcl-compiler/src/codegen/control_flow.rs:904:5: warning: this function has too many lines (104/100)
+rust/tcl-compiler/src/codegen/control_flow.rs:1062:5: warning: this function has too many lines (108/100)
+rust/tcl-compiler/src/codegen/control_flow.rs:1515:5: warning: this function has too many lines (111/100)
+rust/tcl-compiler/src/codegen/emitter/loop_blocks.rs:107:9: warning: this `let...else` may be rewritten with the `?` operator: help: replace it with: `let block = cfg.blocks.get(header)?;`
+rust/tcl-compiler/src/codegen/emitter/mod.rs:472:26: warning: using `clone` on type `ProcedureId` which implements the `Copy` trait: help: try dereferencing it: `*qname`
+rust/tcl-compiler/src/codegen/emitter/mod.rs:477:17: warning: using `clone` on type `ProcedureId` which implements the `Copy` trait: help: try dereferencing it: `*qname`
+rust/tcl-compiler/src/codegen/values.rs:490:17: warning: consider adding a `;` to the last statement for consistent formatting: help: add a `;` here: `self.push_lit_exact(value);`
+rust/tcl-compiler/src/codegen/wasm/backend.rs:1778:14: warning: item in documentation is missing backticks
+rust/tcl-compiler/src/codegen/wasm/backend.rs:1785:5: warning: this could be rewritten as `let...else`: help: consider writing: `let (Statement::AssignConst { value, .. } | Statement::AssignValue { value, .. }) = statement else { return None };`
+rust/tcl-compiler/src/codegen/wasm/backend.rs:2305:32: warning: using `clone` on type `ProcedureId` which implements the `Copy` trait: help: try dereferencing it: `*entry_key`
+rust/tcl-compiler/src/command_binding/deferred_namespace_index.rs:8:27: warning: item in documentation is missing backticks
+rust/tcl-compiler/src/command_binding/deferred_namespace_index.rs:15:68: warning: item in documentation is missing backticks
+rust/tcl-compiler/src/command_binding/hosted_procedure_body.rs:189:5: warning: this function has too many lines (147/100)
+rust/tcl-compiler/src/command_binding/incomplete_body_metadata.rs:228:13: warning: used underscore-prefixed binding
+rust/tcl-compiler/src/command_binding/logical_operation.rs:470:20: warning: this boolean expression can be simplified
+rust/tcl-compiler/src/command_binding/logical_operation.rs:738:1: warning: this function has too many lines (106/100)
+rust/tcl-compiler/src/command_binding/materialized_footprint.rs:286:10: warning: use of `Option<Option<T>>`
+rust/tcl-compiler/src/command_binding/materialized_footprint.rs:588:5: warning: this function has too many lines (129/100)
+rust/tcl-compiler/src/command_binding/original_callback_lookup.rs:185:21: warning: this argument is passed by value, but not consumed in the function body
+rust/tcl-compiler/src/command_binding/original_compiler_effects.rs:113:75: warning: implicit borrow as raw pointer
+rust/tcl-compiler/src/command_binding/pre_handler_failure.rs:251:17: warning: consider adding a `;` to the last statement for consistent formatting
+rust/tcl-compiler/src/command_binding/source_arguments.rs:38:5: warning: this function has too many lines (105/100)
+rust/tcl-compiler/src/command_binding/source_arguments.rs:170:9: warning: this could be rewritten as `let...else`
+rust/tcl-compiler/src/command_binding/original_command_table.rs:1941:5: warning: this function has too many lines (108/100)
+rust/tcl-compiler/src/command_binding/original_command_table.rs:2100:5: warning: this function has too many lines (113/100)
+rust/tcl-compiler/src/command_binding/source_command_world.rs:144:5: warning: this function has too many lines (146/100)
+rust/tcl-compiler/src/command_binding/retained_source.rs:178:43: warning: using `clone` on type `ProcedureId` which implements the `Copy` trait: help: try dereferencing it: `*name`
+rust/tcl-compiler/src/command_binding/declaration_flow.rs:1050:20: warning: needlessly taken reference of both operands
+rust/tcl-compiler/src/command_binding/declaration_flow.rs:2145:5: warning: this function has too many lines (104/100)
+rust/tcl-compiler/src/command_binding/source_declared_command/logical_lambda.rs:160:43: warning: redundant closure: help: replace the closure with the method itself: `tcl_registry::ResolvedInvocation::authored_source_lambda_call`
+rust/tcl-compiler/src/command_binding/source_declared_command/logical_lambda.rs:209:34: warning: redundant closure: help: replace the closure with the method itself: `tcl_syntax::word_rules::OriginalSourceListElement::value`
+rust/tcl-compiler/src/command_binding/declaration_layout.rs:163:13: warning: these match arms have identical bodies
+rust/tcl-compiler/src/command_binding/declaration_layout.rs:175:13: warning: these match arms have identical bodies
+rust/tcl-compiler/src/command_binding/declaration_layout.rs:1206:5: warning: this function has too many lines (102/100)
+rust/tcl-compiler/src/command_binding/declaration_layout.rs:1919:10: warning: use of `Option<Option<T>>`
+rust/tcl-compiler/src/command_binding/declaration_layout.rs:2249:5: warning: this function has too many lines (121/100)
+rust/tcl-compiler/src/command_binding/logical_variable_scope.rs:206:27: warning: redundant closure: help: replace the closure with the method itself: `super::formal_topology::OriginalFormalTopology::original_name_fields`
+rust/tcl-compiler/src/command_binding/logical_variable_scope.rs:280:13: warning: these match arms have identical bodies
+rust/tcl-compiler/src/command_binding/logical_variable_scope.rs:300:9: warning: this could be rewritten as `let...else`: help: consider writing: `let (LogicalVariableFrameRecipe::Declared { procedure: Some(card), .. } | LogicalVariableFrameRecipe::Formal(card)) = &self.frame else { return None };`
+rust/tcl-compiler/src/command_binding/declaration_preview.rs:83:5: warning: this function's return value is unnecessarily wrapped by `Option`
+rust/tcl-compiler/src/command_binding/declaration_preview.rs:86:5: warning: this function's return value is unnecessarily wrapped by `Option`
+rust/tcl-compiler/src/command_binding/declaration_preview.rs:92:5: warning: this function's return value is unnecessarily wrapped by `Option`
+rust/tcl-compiler/src/command_binding/declaration_preview.rs:842:1: warning: this function has too many lines (200/100)
+rust/tcl-compiler/src/command_binding/declaration_preview.rs:1599:9: warning: item in documentation is missing backticks
+rust/tcl-compiler/src/command_binding/declaration_preview.rs:1708:9: warning: mutable key type
+rust/tcl-compiler/src/command_binding/declaration_preview.rs:1864:5: warning: this function has too many lines (121/100)
+rust/tcl-compiler/src/command_binding/declaration_preview.rs:2358:1: warning: this function has too many lines (104/100)
+rust/tcl-compiler/src/command_binding/declaration_preview.rs:2368:55: warning: redundant closure: help: replace the closure with the method itself: `super::super::registry_invocation::metadata_context::InvocationMetadataContext::is_standalone`
+rust/tcl-compiler/src/command_binding/declaration_preview.rs:2471:1: warning: this function has too many lines (147/100)
+rust/tcl-compiler/src/command_binding/declaration_preview.rs:2915:1: warning: this function has too many lines (101/100)
+rust/tcl-compiler/src/command_binding/source_read_scope.rs:160:1: warning: this function has too many lines (122/100)
+rust/tcl-compiler/src/command_binding/source_read_scope.rs:188:19: warning: it is more concise to loop over references to containers instead of using explicit iteration methods: help: to write this more concisely, try: `&binding.targets`
+rust/tcl-compiler/src/command_binding/scalar_body_alpha.rs:495:5: warning: this function has too many lines (187/100)
+rust/tcl-compiler/src/command_binding/source_transition_advice/body_effects.rs:201:9: warning: unused `self` argument
+rust/tcl-compiler/src/command_binding/source_transition_advice/body_effects.rs:462:15: warning: this argument is passed by value, but not consumed in the function body
+rust/tcl-compiler/src/command_binding/source_transition_advice/body_effects.rs:978:5: warning: this function has too many lines (140/100)
+rust/tcl-compiler/src/command_binding/source_transition_advice/body_effects.rs:1095:28: warning: you seem to be trying to use `match` for destructuring a single pattern. Consider using `if let`
+rust/tcl-compiler/src/command_binding/source_transition_advice/body_effects.rs:1211:5: warning: this function has too many lines (147/100)
+rust/tcl-compiler/src/command_binding/source_transition_advice/body_effects.rs:1443:5: warning: this function has too many lines (160/100)
+rust/tcl-compiler/src/command_binding/source_transition_advice/body_effects.rs:1557:17: warning: assigning the result of `Clone::clone()` may be inefficient: help: use `clone_from()`: `advice.logical_scope.clone_from(&self.logical_scope)`
+rust/tcl-compiler/src/command_binding/source_transition_advice/body_effects.rs:1595:13: warning: assigning the result of `Clone::clone()` may be inefficient: help: use `clone_from()`: `advice.logical_scope.clone_from(&self.logical_scope)`
+rust/tcl-compiler/src/command_binding/source_transition_advice/c_namespace.rs:70:35: warning: deref which would be done by auto-deref: help: try: `slot`
+rust/tcl-compiler/src/command_binding/source_transition_advice/logical_lambda_formatting.rs:7:5: warning: usage of wildcard import: help: try: `super::{Arc, OriginalSourceCommandTransitionAdvice, NativeWord, BTreeMap, OriginalSourceTransitionAdviceTape, AdviceInvocationContext, AdviceGraph, AdviceInvocation, source_class, AdviceNamingPolicy, body_effects, logical_navigation, BTreeSet, SourceCommandTransitionObligation}`
+rust/tcl-compiler/src/command_binding/source_transition_advice/logical_lambda_formatting.rs:88:46: warning: redundant closure: help: replace the closure with the method itself: `tcl_registry::ResolvedInvocation::authored_source_lambda_call`
+rust/tcl-compiler/src/command_binding/source_transition_advice/logical_lambda_formatting.rs:146:5: warning: this function has too many lines (126/100)
+rust/tcl-compiler/src/command_binding/source_transition_advice/logical_body.rs:451:5: warning: this function has too many lines (105/100)
+rust/tcl-compiler/src/command_binding/source_transition_advice/logical_body.rs:979:9: warning: unused `self` argument
+rust/tcl-compiler/src/command_binding/source_transition_advice/source_parameter_template.rs:97:1: warning: this function has too many lines (137/100)
+rust/tcl-compiler/src/command_binding/source_transition_advice/logical_math.rs:202:5: warning: this function has too many lines (150/100)
+rust/tcl-compiler/src/command_binding/source_transition_advice/logical_navigation.rs:390:15: warning: this argument is passed by value, but not consumed in the function body
+rust/tcl-compiler/src/command_binding/source_transition_advice/produced_prefix.rs:454:9: warning: unused `self` argument
+rust/tcl-compiler/src/command_binding/source_transition_advice/source_class.rs:350:5: warning: this function has too many lines (125/100)
+rust/tcl-compiler/src/command_binding/source_transition_advice/source_class.rs:690:16: warning: very complex type used. Consider factoring parts into `type` definitions
+rust/tcl-compiler/src/command_binding/source_transition_advice/source_class.rs:685:5: warning: this function has too many lines (108/100)
+rust/tcl-compiler/src/command_binding/source_transition_advice/source_class.rs:1999:12: warning: using `contains()` instead of `iter().any()` is more efficient: help: try: `names.contains(&bytes)`
+rust/tcl-compiler/src/command_binding/source_transition_advice/source_constructor_effects.rs:135:1: warning: this function has too many lines (117/100)
+rust/tcl-compiler/src/command_binding/source_transition_advice/source_configured_class.rs:82:17: warning: consider adding a `;` to the last statement for consistent formatting: help: add a `;` here: `();`
+rust/tcl-compiler/src/command_binding/source_transition_advice/source_publication_proposal.rs:103:1: warning: this function has too many lines (102/100)
+rust/tcl-compiler/src/command_binding/source_transition_advice/source_relation_provider.rs:223:24: warning: use of `Option<Option<T>>`
+rust/tcl-compiler/src/command_binding/source_transition_advice/source_relation_provider.rs:275:18: warning: redundant closure: help: replace the closure with the method itself: `tcl_lexer::Span::start`
+rust/tcl-compiler/src/command_binding/source_transition_advice/source_relation_provider.rs:426:10: warning: use of `Option<Option<T>>`
+rust/tcl-compiler/src/command_binding/source_transition_advice/source_relation_provider.rs:494:24: warning: use of `Option<Option<T>>`
+rust/tcl-compiler/src/command_binding/source_transition_advice/source_relation_provider.rs:539:18: warning: redundant closure: help: replace the closure with the method itself: `tcl_lexer::Span::start`
+rust/tcl-compiler/src/command_binding/source_transition_advice/source_relation_provider.rs:670:24: warning: use of `Option<Option<T>>`
+rust/tcl-compiler/src/command_binding/source_transition_advice/source_relation_provider.rs:718:18: warning: redundant closure: help: replace the closure with the method itself: `tcl_lexer::Span::start`
+rust/tcl-compiler/src/command_binding/source_transition_advice/source_namespace.rs:78:5: warning: this function has too many lines (207/100)
+rust/tcl-compiler/src/command_binding/source_transition_advice/source_namespace.rs:104:42: warning: redundant closure: help: replace the closure with the method itself: `crate::signature_scan::name_value::SignatureSourceNameInput::bytes`
+rust/tcl-compiler/src/command_binding/source_transition_advice/native_declared_body.rs:46:5: warning: getter function appears to return the wrong field
+rust/tcl-compiler/src/command_binding/source_transition_advice.rs:882:9: warning: very complex type used. Consider factoring parts into `type` definitions
+rust/tcl-compiler/src/command_binding/source_transition_advice.rs:1311:5: warning: this function has too many lines (135/100)
+rust/tcl-compiler/src/command_binding/source_transition_advice.rs:2024:21: warning: consider adding a `;` to the last statement for consistent formatting: help: add a `;` here: `self.apply_source_namespace(receipt, transition)?;`
+rust/tcl-compiler/src/command_binding/source_transition_advice.rs:2830:5: warning: this function has too many lines (119/100)
+rust/tcl-compiler/src/command_binding/original_literal_argv_rewrite.rs:431:1: warning: this function has too many lines (109/100)
+rust/tcl-compiler/src/command_binding/original_literal_argv_rewrite.rs:435:15: warning: this argument is passed by value, but not consumed in the function body
+rust/tcl-compiler/src/command_binding/formal_value.rs:60:19: warning: used underscore-prefixed binding
+rust/tcl-compiler/src/command_binding/formal_value.rs:70:9: warning: used underscore-prefixed binding
+rust/tcl-compiler/src/command_binding/formal_value.rs:120:9: warning: used underscore-prefixed binding
+rust/tcl-compiler/src/command_binding/origin_inventory.rs:30:5: warning: item in documentation is missing backticks
+rust/tcl-compiler/src/command_binding/analysis_body_correspondence.rs:140:5: warning: this function has too many lines (130/100)
+rust/tcl-compiler/src/command_binding/analysis_body_correspondence.rs:388:5: warning: this function has too many lines (114/100)
+rust/tcl-compiler/src/command_binding/analysis_body_correspondence.rs:562:1: warning: this function has too many lines (101/100)
+rust/tcl-compiler/src/command_binding/analysis_body_correspondence.rs:621:13: warning: adding items after statements is confusing, since items exist from the start of the scope
+rust/tcl-compiler/src/command_binding/analysis_body_correspondence.rs:621:46: warning: adding items after statements is confusing, since items exist from the start of the scope
+rust/tcl-compiler/src/command_binding/analysis_body_correspondence.rs:621:61: warning: adding items after statements is confusing, since items exist from the start of the scope
+rust/tcl-compiler/src/command_binding/analysis_body_correspondence.rs:822:1: warning: this function has too many lines (104/100)
+rust/tcl-compiler/src/command_binding/analysis_body_correspondence.rs:880:13: warning: adding items after statements is confusing, since items exist from the start of the scope
+rust/tcl-compiler/src/command_binding/analysis_body_correspondence.rs:880:46: warning: adding items after statements is confusing, since items exist from the start of the scope
+rust/tcl-compiler/src/command_binding/analysis_body_correspondence.rs:880:61: warning: adding items after statements is confusing, since items exist from the start of the scope
+rust/tcl-compiler/src/command_binding/analysis_body_correspondence.rs:934:1: warning: this function has too many lines (102/100)
+rust/tcl-compiler/src/command_binding/body_template.rs:444:5: warning: this function has too many lines (136/100)
+rust/tcl-compiler/src/command_binding/compiled_invocation.rs:1338:1: warning: this function has too many lines (102/100)
+rust/tcl-compiler/src/command_binding/generated_procedures.rs:269:1: warning: large size difference between variants: the entire enum is at least 3440 bytes
+rust/tcl-compiler/src/command_binding/try_bodies.rs:46:29: warning: unnecessary `!=` operation
+rust/tcl-compiler/src/command_binding/original_name_value.rs:1091:5: warning: this function has too many lines (120/100)
+rust/tcl-compiler/src/command_binding/original_name_value.rs:1951:28: warning: iterating on a map's keys
+rust/tcl-compiler/src/command_binding/original_name_value.rs:2008:9: warning: this `if` statement can be collapsed
+rust/tcl-compiler/src/command_binding/package_target_survey.rs:4:5: warning: usage of wildcard import: help: try: `super::{Arc, SourceOriginId, SourceNamespaceKey, OriginalSourceCommandTransitionAdvice, OriginalCompilationLookupAdvice, SourceCommandBindings, SourceCommandTransitionObligation, CommandAllocationSite, original_site_operand_layout_advice, NamespaceKeyQuery, compiled_invocation, ModuleCommandBindings, SourceExecutionContext, SourceOutcomes, source_body_context_boxed, SourceScriptOperands, PreparedSourceNativeInvocation, SourceCommandTarget, source_binding_projection, BindingKind, prepare_source_native_invocation}`
+rust/tcl-compiler/src/command_binding/package_target_survey.rs:20:9: warning: used underscore-prefixed binding
+rust/tcl-compiler/src/command_binding/package_target_survey.rs:20:25: warning: used underscore-prefixed binding
+rust/tcl-compiler/src/command_binding/package_target_survey.rs:21:16: warning: used underscore-prefixed binding
+rust/tcl-compiler/src/command_binding/package_target_survey.rs:21:31: warning: used underscore-prefixed binding
+rust/tcl-compiler/src/command_binding/package_target_survey.rs:22:16: warning: used underscore-prefixed binding
+rust/tcl-compiler/src/command_binding/package_target_survey.rs:22:33: warning: used underscore-prefixed binding
+rust/tcl-compiler/src/command_binding/package_target_survey.rs:23:16: warning: used underscore-prefixed binding
+rust/tcl-compiler/src/command_binding/package_target_survey.rs:23:36: warning: used underscore-prefixed binding
+rust/tcl-compiler/src/command_binding/package_target_survey.rs:31:5: warning: this function has too many lines (110/100)
+rust/tcl-compiler/src/command_binding/package_target_survey.rs:280:24: warning: you seem to be trying to use `match` for destructuring a single pattern. Consider using `if let`
+rust/tcl-compiler/src/command_binding.rs:6837:13: warning: this argument (400 byte) is passed by value, but might be more efficient if passed by reference (limit: 256 byte): help: consider passing by reference instead: `&Option<original_command_table::OriginalSourceQueryTotals>`
+rust/tcl-compiler/src/command_binding.rs:7043:5: warning: this function has too many lines (124/100)
+rust/tcl-compiler/src/command_binding.rs:7211:25: warning: used underscore-prefixed binding
+rust/tcl-compiler/src/command_binding.rs:7215:92: warning: used underscore-prefixed binding
+rust/tcl-compiler/src/command_binding.rs:7352:5: warning: this function has too many lines (103/100)
+rust/tcl-compiler/src/command_binding.rs:7361:9: warning: adding items after statements is confusing, since items exist from the start of the scope
+rust/tcl-compiler/src/command_binding.rs:8171:13: warning: assigning the result of `Clone::clone()` may be inefficient: help: use `clone_from()`: `binding.original_analysis_owner.clone_from(&self.original_analysis_owner)`
+rust/tcl-compiler/src/command_binding.rs:8515:5: warning: this function has too many lines (129/100)
+rust/tcl-compiler/src/command_binding.rs:9141:9: warning: adding items after statements is confusing, since items exist from the start of the scope
+rust/tcl-compiler/src/command_binding.rs:11633:5: warning: this function has too many arguments (8/7)
+rust/tcl-compiler/src/command_binding.rs:12875:1: warning: this function has too many lines (112/100)
+rust/tcl-compiler/src/command_binding.rs:14687:5: warning: this function has too many lines (110/100)
+rust/tcl-compiler/src/command_binding.rs:17700:1: warning: this function has too many lines (109/100)
+rust/tcl-compiler/src/common_aot_plan.rs:316:1: warning: large size difference between variants: the entire enum is at least 336 bytes
+rust/tcl-compiler/src/common_aot_plan.rs:407:1: warning: large size difference between variants: the entire enum is at least 240 bytes
+rust/tcl-compiler/src/common_aot_plan.rs:1090:35: warning: you seem to be trying to use `match` for destructuring a single pattern. Consider using `if let`
+rust/tcl-compiler/src/common_aot_plan.rs:2320:47: warning: implicit borrow as raw pointer
+rust/tcl-compiler/src/common_aot_plan.rs:2328:54: warning: implicit borrow as raw pointer
+rust/tcl-compiler/src/common_aot_plan.rs:2416:38: warning: implicit borrow as raw pointer
+rust/tcl-compiler/src/common_aot_plan.rs:2457:37: warning: implicit borrow as raw pointer
+rust/tcl-compiler/src/common_aot_plan.rs:2462:37: warning: implicit borrow as raw pointer
+rust/tcl-compiler/src/common_aot_plan.rs:2543:37: warning: implicit borrow as raw pointer
+rust/tcl-compiler/src/compilation_unit.rs:809:20: warning: use of `Option<Option<T>>`
+rust/tcl-compiler/src/compilation_unit.rs:1653:5: warning: this function has too many arguments (9/7)
+rust/tcl-compiler/src/compilation_unit.rs:1845:5: warning: this function has too many lines (214/100)
+rust/tcl-compiler/src/compilation_unit.rs:2080:19: warning: useless conversion to the same type: `std::string::String`: help: consider removing `.into()`: `name`
+rust/tcl-compiler/src/compilation_unit/optimiser_source_owner.rs:202:19: warning: this argument is passed by value, but not consumed in the function body
+rust/tcl-compiler/src/compilation_unit.rs:2757:13: warning: this argument is passed by value, but not consumed in the function body
+rust/tcl-compiler/src/compilation_unit.rs:3116:1: warning: this function has too many lines (153/100)
+rust/tcl-compiler/src/compilation_unit.rs:3190:18: warning: this expression creates a reference which is immediately dereferenced by the compiler: help: change this to: `id`
+rust/tcl-compiler/src/compilation_unit.rs:3822:5: warning: this function has too many arguments (9/7)
+rust/tcl-compiler/src/compilation_unit.rs:3822:5: warning: this function has too many lines (204/100)
+rust/tcl-compiler/src/compilation_unit.rs:3826:22: warning: this argument is passed by value, but not consumed in the function body
+rust/tcl-compiler/src/compilation_unit.rs:3977:13: warning: called `.as_mut().map(|callback| &mut **callback)` on an `Option` value: help: consider using as_deref_mut: `cache.as_deref_mut()`
+rust/tcl-compiler/src/compilation_unit.rs:4006:13: warning: called `.as_mut().map(|callback| &mut **callback)` on an `Option` value: help: consider using as_deref_mut: `cache.as_deref_mut()`
+rust/tcl-compiler/src/compilation_unit.rs:4198:5: warning: this function has too many lines (198/100)
+rust/tcl-compiler/src/compilation_unit.rs:4203:23: warning: this argument is passed by value, but not consumed in the function body
+rust/tcl-compiler/src/compilation_unit.rs:4704:30: warning: using `clone` on type `ProcedureId` which implements the `Copy` trait: help: try dereferencing it: `*qname`
+rust/tcl-compiler/src/compilation_unit.rs:4770:9: warning: adding items after statements is confusing, since items exist from the start of the scope
+rust/tcl-compiler/src/compilation_unit.rs:4835:9: warning: adding items after statements is confusing, since items exist from the start of the scope
+rust/tcl-compiler/src/compilation_unit.rs:5138:5: warning: this function has too many lines (129/100)
+rust/tcl-compiler/src/compilation_unit.rs:5464:9: warning: this `let...else` may be rewritten with the `?` operator: help: replace it with: `let bindings = bindings?;`
+rust/tcl-compiler/src/compiler_checks.rs:635:61: warning: redundant closure: help: replace the closure with the method itself: `super::analyser::input::ResolvedAnalysisInput::unit_profile`
+rust/tcl-compiler/src/connection_scope.rs:435:6: warning: use of `Option<Option<T>>`
+rust/tcl-compiler/src/connection_scope.rs:462:6: warning: use of `Option<Option<T>>`
+rust/tcl-compiler/src/dataflow_graph.rs:326:1: warning: this function has too many lines (105/100)
+rust/tcl-compiler/src/dataflow_graph.rs:353:66: warning: redundant closure: help: replace the closure with the method itself: `super::var_resolve::cell_key::VariableCellKey::compatibility_name`
+rust/tcl-compiler/src/dataflow_graph.rs:387:61: warning: redundant closure: help: replace the closure with the method itself: `super::var_resolve::cell_key::VariableCellKey::compatibility_name`
+rust/tcl-compiler/src/def_use.rs:308:1: warning: this function has too many lines (103/100)
+rust/tcl-compiler/src/def_use.rs:527:1: warning: this function has too many lines (104/100)
+rust/tcl-compiler/src/deferred_writes/supplied.rs:396:52: warning: redundant closure: help: replace the closure with the method itself: `tcl_registry::InvocationDialect::family`
+rust/tcl-compiler/src/deferred_writes.rs:859:17: warning: consider adding a `;` to the last statement for consistent formatting: help: add a `;` here: `self.out.any = true;`
+rust/tcl-compiler/src/dispatch_proof.rs:1146:19: warning: redundant closure: help: replace the closure with the method itself: `super::registry_invocation::metadata_context::InvocationMetadataContext::source_analysis_input`
+rust/tcl-compiler/src/dynamic_names.rs:752:15: warning: use of `Option<Option<T>>`
+rust/tcl-compiler/src/dynamic_names.rs:789:1: warning: this function has too many lines (102/100)
+rust/tcl-compiler/src/dynamic_names.rs:857:9: warning: unnecessary boolean `not` operation
+rust/tcl-compiler/src/dynamic_names.rs:1144:13: warning: these match arms have identical bodies
+rust/tcl-compiler/src/executable_ir.rs:913:10: warning: use of `Option<Option<T>>`
+rust/tcl-compiler/src/executable_ir.rs:944:47: warning: item in documentation is missing backticks
+rust/tcl-compiler/src/executable_ir.rs:951:10: warning: use of `Option<Option<T>>`
+rust/tcl-compiler/src/executable_ir.rs:3807:5: warning: this function has too many lines (107/100)
+rust/tcl-compiler/src/increment_rewrite.rs:136:6: warning: use of `Option<Option<T>>`
+rust/tcl-compiler/src/increment_rewrite.rs:281:16: warning: this argument is passed by value, but not consumed in the function body
+rust/tcl-compiler/src/inline_uplevel.rs:514:77: warning: used `cloned` where `copied` could be used instead: help: try: `copied`
+rust/tcl-compiler/src/inlining/heads.rs:103:9: warning: these match arms have identical bodies
+rust/tcl-compiler/src/inlining/heads.rs:147:1: warning: this function has too many lines (115/100)
+rust/tcl-compiler/src/inlining/mod.rs:207:20: warning: implicitly cloning a `String` by calling `to_owned` on its dereferenced type
+rust/tcl-compiler/src/interprocedural/eager.rs:135:43: warning: using `clone` on type `ProcedureId` which implements the `Copy` trait: help: try dereferencing it: `*callee`
+rust/tcl-compiler/src/interprocedural/eager.rs:229:18: warning: used `cloned` where `copied` could be used instead: help: try: `copied`
+rust/tcl-compiler/src/interprocedural/transfer.rs:493:61: warning: use of `Option<Option<T>>`
+rust/tcl-compiler/src/interprocedural/transfer.rs:494:30: warning: implicit borrow as raw pointer
+rust/tcl-compiler/src/interprocedural/transfer.rs:507:58: warning: implicit borrow as raw pointer
+rust/tcl-compiler/src/interprocedural/transfer.rs:842:5: warning: this function has too many lines (111/100)
+rust/tcl-compiler/src/interprocedural/transfer.rs:1363:29: warning: implicitly cloning a `ProcedureId` by calling `to_owned` on its dereferenced type: help: consider using: `(*qname).clone()`
+rust/tcl-compiler/src/interprocedural/transfer.rs:1378:33: warning: implicitly cloning a `ProcedureId` by calling `to_owned` on its dereferenced type: help: consider using: `(*qname).clone()`
+rust/tcl-compiler/src/interprocedural/transfer.rs:1444:25: warning: implicitly cloning a `ProcedureId` by calling `to_owned` on its dereferenced type: help: consider using: `(*qname).clone()`
+rust/tcl-compiler/src/interprocedural/transfer.rs:1799:1: warning: large size difference between variants: the entire enum is at least 1800 bytes
+rust/tcl-compiler/src/interprocedural.rs:946:22: warning: using `clone` on type `ProcedureId` which implements the `Copy` trait: help: try dereferencing it: `*qname`
+rust/tcl-compiler/src/interprocedural.rs:1117:1: warning: this function has too many lines (105/100)
+rust/tcl-compiler/src/interprocedural.rs:1277:46: warning: using `clone` on type `ProcedureId` which implements the `Copy` trait: help: try dereferencing it: `*caller`
+rust/tcl-compiler/src/interprocedural.rs:1741:5: warning: parameter is only used in recursion: help: if this is intentional, prefix it with an underscore: `_registry`
+rust/tcl-compiler/src/interprocedural.rs:1958:20: warning: using `clone` on type `ProcedureId` which implements the `Copy` trait: help: try dereferencing it: `*qname`
+rust/tcl-compiler/src/interprocedural.rs:1974:24: warning: using `clone` on type `ProcedureId` which implements the `Copy` trait: help: try dereferencing it: `*q`
+rust/tcl-compiler/src/interprocedural.rs:1978:24: warning: using `clone` on type `ProcedureId` which implements the `Copy` trait: help: try dereferencing it: `*q`
+rust/tcl-compiler/src/interprocedural.rs:2006:32: warning: using `clone` on type `ProcedureId` which implements the `Copy` trait: help: try dereferencing it: `*qname`
+rust/tcl-compiler/src/interprocedural.rs:2010:29: warning: using `clone` on type `ProcedureId` which implements the `Copy` trait: help: try dereferencing it: `*qname`
+rust/tcl-compiler/src/interprocedural.rs:2048:24: warning: using `clone` on type `ProcedureId` which implements the `Copy` trait: help: try dereferencing it: `*q`
+rust/tcl-compiler/src/interprocedural.rs:2052:24: warning: using `clone` on type `ProcedureId` which implements the `Copy` trait: help: try dereferencing it: `*q`
+rust/tcl-compiler/src/interprocedural.rs:2068:30: warning: using `clone` on type `ProcedureId` which implements the `Copy` trait: help: try dereferencing it: `*qname`
+rust/tcl-compiler/src/interprocedural.rs:2072:31: warning: using `clone` on type `ProcedureId` which implements the `Copy` trait: help: try dereferencing it: `*qname`
+rust/tcl-compiler/src/interprocedural.rs:2116:76: warning: used `cloned` where `copied` could be used instead: help: try: `copied`
+rust/tcl-compiler/src/interprocedural.rs:2142:13: warning: using `clone` on type `ProcedureId` which implements the `Copy` trait: help: try dereferencing it: `*qname`
+rust/tcl-compiler/src/interprocedural.rs:2343:49: warning: redundant closure: help: replace the closure with the method itself: `std::string::String::as_bytes`
+rust/tcl-compiler/src/interprocedural.rs:2350:30: warning: implicit borrow as raw pointer
+rust/tcl-compiler/src/interprocedural.rs:2615:17: warning: these match arms have identical bodies
+rust/tcl-compiler/src/interprocedural.rs:2650:13: warning: called `.ok().is_some_and(..)` on a `Result` value
+rust/tcl-compiler/src/interprocedural.rs:2883:1: warning: this function has too many lines (101/100)
+rust/tcl-compiler/src/interprocedural.rs:2921:41: warning: using `clone` on type `ProcedureId` which implements the `Copy` trait: help: try removing the `clone` call: `target`
+rust/tcl-compiler/src/interprocedural.rs:2952:20: warning: using `clone` on type `ProcedureId` which implements the `Copy` trait: help: try dereferencing it: `*target`
+rust/tcl-compiler/src/interprocedural.rs:2953:35: warning: using `clone` on type `ProcedureId` which implements the `Copy` trait: help: try dereferencing it: `*target`
+rust/tcl-compiler/src/interprocedural.rs:3896:1: warning: this function has too many lines (158/100)
+rust/tcl-compiler/src/interprocedural.rs:4221:58: warning: you seem to be trying to use `match` for destructuring a single pattern. Consider using `if let`
+rust/tcl-compiler/src/interprocedural.rs:4559:13: warning: consider adding a `;` to the last statement for consistent formatting: help: add a `;` here: `note_params_in_expr(operand, params, facts, config, depth + 1);`
+rust/tcl-compiler/src/interprocedural.rs:4998:44: warning: used `cloned` where `copied` could be used instead: help: try: `copied`
+rust/tcl-compiler/src/interprocedural.rs:5001:28: warning: using `clone` on type `ProcedureId` which implements the `Copy` trait: help: try removing the `clone` call: `cur`
+rust/tcl-compiler/src/interprocedural.rs:5007:32: warning: using `clone` on type `ProcedureId` which implements the `Copy` trait: help: try dereferencing it: `*d`
+rust/tcl-compiler/src/interval_bounds.rs:840:13: warning: very complex type used. Consider factoring parts into `type` definitions
+rust/tcl-compiler/src/interval_bounds.rs:875:30: warning: very complex type used. Consider factoring parts into `type` definitions
+rust/tcl-compiler/src/interval_bounds.rs:1156:5: warning: this function has too many lines (125/100)
+rust/tcl-compiler/src/interval_bounds.rs:1448:22: warning: very complex type used. Consider factoring parts into `type` definitions
+rust/tcl-compiler/src/interval_bounds.rs:1597:30: warning: very complex type used. Consider factoring parts into `type` definitions
+rust/tcl-compiler/src/ir/definition_script.rs:68:5: warning: this function has too many arguments (10/7)
+rust/tcl-compiler/src/ir/definition_script.rs:221:5: warning: this function has too many arguments (9/7)
+rust/tcl-compiler/src/ir/source_bpf_command.rs:313:16: warning: this argument is passed by value, but not consumed in the function body
+rust/tcl-compiler/src/ir.rs:947:25: warning: item in documentation is missing backticks
+rust/tcl-compiler/src/ir.rs:2324:9: warning: this could be rewritten as `let...else`: help: consider writing: `let (Self::Call { args, canonical_command, tokens: Some(tokens), .. } | Self::Barrier { args, canonical_command, tokens: Some(tokens), .. }) = self else { return OriginalArgvInventoryDisposition::SourceRequired };`
+rust/tcl-compiler/src/ir_helpers/materialized_footprint.rs:251:17: warning: assigning the result of `ToOwned::to_owned()` may be inefficient: help: use `clone_into()`: `value.clone_into(&mut word.text)`
+rust/tcl-compiler/src/ir_helpers.rs:407:9: warning: these match arms have identical bodies
+rust/tcl-compiler/src/ir_helpers.rs:1157:1: warning: more than 3 bools in a struct
+rust/tcl-compiler/src/ir_helpers.rs:2000:53: warning: this expression creates a reference which is immediately dereferenced by the compiler: help: change this to: `args`
+rust/tcl-compiler/src/ir_helpers.rs:2100:14: warning: this argument is passed by value, but not consumed in the function body
+rust/tcl-compiler/src/irules_checks.rs:444:24: warning: unnecessary boolean `not` operation
+rust/tcl-compiler/src/irules_checks.rs:477:49: warning: use of `Option<Option<T>>`
+rust/tcl-compiler/src/irules_checks.rs:485:43: warning: implicit borrow as raw pointer
+rust/tcl-compiler/src/irules_checks.rs:548:5: warning: this function has too many lines (171/100)
+rust/tcl-compiler/src/irules_checks.rs:763:16: warning: unused `self` argument
+rust/tcl-compiler/src/irules_checks.rs:763:39: warning: this argument is passed by value, but not consumed in the function body: help: consider changing the type to: `&str`
+rust/tcl-compiler/src/irules_checks.rs:804:25: warning: used underscore-prefixed binding
+rust/tcl-compiler/src/irules_checks.rs:804:43: warning: used underscore-prefixed binding
+rust/tcl-compiler/src/irules_checks.rs:846:25: warning: used underscore-prefixed binding
+rust/tcl-compiler/src/irules_checks.rs:846:43: warning: used underscore-prefixed binding
+rust/tcl-compiler/src/irules_checks.rs:969:1: warning: more than 3 bools in a struct
+rust/tcl-compiler/src/irules_checks.rs:1052:6: warning: use of `Option<Option<T>>`
+rust/tcl-compiler/src/irules_checks.rs:1405:1: warning: this function has too many arguments (8/7)
+rust/tcl-compiler/src/irules_checks.rs:1405:1: warning: this function has too many lines (121/100)
+rust/tcl-compiler/src/irules_checks.rs:1541:1: warning: this function has too many arguments (8/7)
+rust/tcl-compiler/src/irules_checks.rs:1612:1: warning: this function has too many arguments (8/7)
+rust/tcl-compiler/src/irules_checks.rs:1647:1: warning: this function has too many arguments (8/7)
+rust/tcl-compiler/src/irules_checks.rs:1739:24: warning: used underscore-prefixed binding
+rust/tcl-compiler/src/irules_checks.rs:1740:23: warning: used underscore-prefixed binding
+rust/tcl-compiler/src/irules_checks.rs:1775:45: warning: used underscore-prefixed binding
+rust/tcl-compiler/src/irules_checks.rs:1775:58: warning: used underscore-prefixed binding
+rust/tcl-compiler/src/irules_checks.rs:1783:24: warning: used underscore-prefixed binding
+rust/tcl-compiler/src/irules_checks.rs:1838:20: warning: this argument is passed by value, but not consumed in the function body: help: consider changing the type to: `&str`
+rust/tcl-compiler/src/irules_checks.rs:2885:33: warning: unnecessary boolean `not` operation
+rust/tcl-compiler/src/irules_checks.rs:2919:10: warning: this argument is passed by value, but not consumed in the function body
+rust/tcl-compiler/src/lambda_literal.rs:315:48: warning: redundant closure: help: replace the closure with the method itself: `tcl_registry::ResolvedInvocation::authored_source_lambda_call`
+rust/tcl-compiler/src/realm/source_transition_advice.rs:167:27: warning: redundant closure: help: replace the closure with the method itself: `super::super::command_binding::formal_topology::OriginalFormalTopology::original_name_fields`
+rust/tcl-compiler/src/realm/source_transition_advice.rs:1513:5: warning: this function has too many lines (152/100)
+rust/tcl-compiler/src/realm.rs:357:26: warning: redundant closure: help: replace the closure with the method itself: `super::analyser::input::ResolvedAnalysisInput::has_logical_source_name_context`
+rust/tcl-compiler/src/realm.rs:632:30: warning: calling `OriginalCommandTokenCache::default()` is more clear than this expression: help: try: `OriginalCommandTokenCache::default()`
+rust/tcl-compiler/src/realm.rs:633:32: warning: calling `OriginalInvocationBindingCache::default()` is more clear than this expression: help: try: `OriginalInvocationBindingCache::default()`
+rust/tcl-compiler/src/realm.rs:634:28: warning: calling `OriginalSourceTransitionAdviceCache::default()` is more clear than this expression: help: try: `OriginalSourceTransitionAdviceCache::default()`
+rust/tcl-compiler/src/realm.rs:979:5: warning: assigning the result of `Clone::clone()` may be inefficient: help: use `clone_from()`: `realm.source_input.clone_from(&module.source_metadata_input)`
+rust/tcl-compiler/src/lowering/execution_regions.rs:274:5: warning: this function has too many lines (101/100)
+rust/tcl-compiler/src/lowering/hosted_source_bodies.rs:42:15: warning: this argument is passed by value, but not consumed in the function body
+rust/tcl-compiler/src/lowering/installed_bodies.rs:10:5: warning: this function has too many lines (118/100)
+rust/tcl-compiler/src/lowering/installed_bodies.rs:133:15: warning: this argument is passed by value, but not consumed in the function body
+rust/tcl-compiler/src/lowering/installed_bodies.rs:206:15: warning: this argument is passed by value, but not consumed in the function body
+rust/tcl-compiler/src/lowering/source_body_syntax.rs:25:1: warning: all variants have the same postfix: `Declaration`
+rust/tcl-compiler/src/lowering/source_body_syntax.rs:286:5: warning: this function has too many lines (167/100)
+rust/tcl-compiler/src/lowering/structured.rs:1042:46: warning: redundant closure: help: replace the closure with the method itself: `std::string::ToString::to_string`
+rust/tcl-compiler/src/lowering/structured.rs:1043:48: warning: redundant closure: help: replace the closure with the method itself: `std::string::ToString::to_string`
+rust/tcl-compiler/src/lowering/structured.rs:1540:5: warning: this function has too many lines (120/100)
+rust/tcl-compiler/src/lowering/mod.rs:1097:1: warning: more than 3 bools in a struct
+rust/tcl-compiler/src/lowering/mod.rs:2147:9: warning: assigning the result of `ToOwned::to_owned()` may be inefficient: help: use `clone_into()`: `source.clone_into(&mut lowerer.source)`
+rust/tcl-compiler/src/lowering/mod.rs:3030:39: warning: redundant closure: help: replace the closure with the method itself: `super::registry_invocation::metadata_context::InvocationMetadataContext::source_analysis_input`
+rust/tcl-compiler/src/lowering/mod.rs:3797:21: warning: this method chain can be written more clearly with `if .. else ..`
+rust/tcl-compiler/src/lowering/mod.rs:3970:16: warning: manual implementation of `Option::is_none_or`: help: use: `target.as_ref().is_none_or(|target| !target.prepended.is_empty())`
+rust/tcl-compiler/src/lowering/mod.rs:6049:5: warning: this function has too many lines (102/100)
+rust/tcl-compiler/src/lowering/mod.rs:7532:9: warning: assigning the result of `ToOwned::to_owned()` may be inefficient: help: use `clone_into()`: `source.clone_into(&mut self.source)`
+rust/tcl-compiler/src/memory_ssa.rs:484:1: warning: this function has too many lines (109/100)
+rust/tcl-compiler/src/memory_ssa.rs:979:22: warning: redundant closure: help: replace the closure with the method itself: `super::variable_bindings::PointResolveContexts::has_unknown_source_arguments`
+rust/tcl-compiler/src/native_lowering/original_invocations.rs:5:34: warning: item in documentation is missing backticks
+rust/tcl-compiler/src/native_lowering/original_invocations.rs:77:31: warning: redundant closure: help: replace the closure with the method itself: `super::super::command_binding::SourceInvocationBinding::original_recorded_command`
+rust/tcl-compiler/src/object_types/original_collection_sources.rs:16:1: warning: large size difference between variants: the entire enum is at least 2192 bytes
+rust/tcl-compiler/src/object_types/original_collection_sources.rs:164:5: warning: this function has too many lines (246/100)
+rust/tcl-compiler/src/object_types/original_collection_sources.rs:225:17: warning: this `if` statement can be collapsed
+rust/tcl-compiler/src/object_types/original_collection_sources.rs:229:21: warning: this `if` statement can be collapsed
+rust/tcl-compiler/src/object_types/original_collection_sources.rs:281:13: warning: this `if` statement can be collapsed
+rust/tcl-compiler/src/object_types/original_collection_sources.rs:308:17: warning: this `if` statement can be collapsed
+rust/tcl-compiler/src/object_types/original_collection_sources.rs:338:13: warning: this `if` statement can be collapsed
+rust/tcl-compiler/src/object_types/original_collection_sources.rs:341:17: warning: this `if` statement can be collapsed
+rust/tcl-compiler/src/object_types/original_collection_sources.rs:344:21: warning: this `if` statement can be collapsed
+rust/tcl-compiler/src/object_types/original_collection_sources.rs:568:9: warning: these match arms have identical bodies
+rust/tcl-compiler/src/object_types/original_collection_sources.rs:641:1: warning: this function has too many lines (142/100)
+rust/tcl-compiler/src/object_types.rs:96:25: warning: implicit borrow as raw pointer
+rust/tcl-compiler/src/object_types/logical_source_candidates.rs:181:43: warning: implicit borrow as raw pointer
+rust/tcl-compiler/src/object_types/report_comparison.rs:130:10: warning: very complex type used. Consider factoring parts into `type` definitions
+rust/tcl-compiler/src/object_types/report_comparison.rs:159:10: warning: use of `Option<Option<T>>`
+rust/tcl-compiler/src/object_types/report_comparison.rs:197:5: warning: this function has too many lines (127/100)
+rust/tcl-compiler/src/object_types.rs:552:32: warning: redundant closure: help: replace the closure with the method itself: `super::registry_invocation::metadata_context::InvocationMetadataContext::permits_logical_source_names`
+rust/tcl-compiler/src/object_types.rs:1045:30: warning: the following explicit lifetimes could be elided: 'a
+rust/tcl-compiler/src/object_types.rs:1118:26: warning: the following explicit lifetimes could be elided: 'a
+rust/tcl-compiler/src/object_types.rs:1336:42: warning: redundant closure: help: replace the closure with the method itself: `super::registry_invocation::metadata_context::InvocationMetadataContext::permits_logical_source_names`
+rust/tcl-compiler/src/object_types.rs:1591:43: warning: implicitly cloning a `String` by calling `to_owned` on its dereferenced type: help: consider using: `method.clone()`
+rust/tcl-compiler/src/optimiser/chain_fold.rs:318:17: warning: consider adding a `;` to the last statement for consistent formatting: help: add a `;` here: `fold_script(ctx, body, protected, semantics, depth + 1);`
+rust/tcl-compiler/src/optimiser/chain_fold.rs:539:1: warning: this function has too many lines (125/100)
+rust/tcl-compiler/src/optimiser/elimination/source_reads.rs:52:28: warning: this boolean expression can be simplified
+rust/tcl-compiler/src/optimiser/elimination/source_reads.rs:110:54: warning: item in documentation is missing backticks
+rust/tcl-compiler/src/optimiser/elimination.rs:429:59: warning: implicit borrow as raw pointer
+rust/tcl-compiler/src/optimiser/elimination.rs:709:26: warning: using `clone` on type `ProcedureId` which implements the `Copy` trait: help: try dereferencing it: `*name`
+rust/tcl-compiler/src/optimiser/elimination.rs:716:61: warning: implicit borrow as raw pointer
+rust/tcl-compiler/src/optimiser/elimination.rs:883:35: warning: used underscore-prefixed binding
+rust/tcl-compiler/src/optimiser/elimination.rs:981:1: warning: this function has too many lines (107/100)
+rust/tcl-compiler/src/optimiser/manager.rs:610:1: warning: this function has too many lines (103/100)
+rust/tcl-compiler/src/optimiser/method_barrier.rs:162:26: warning: the following explicit lifetimes could be elided: 'a
+rust/tcl-compiler/src/optimiser/method_barrier.rs:288:24: warning: the following explicit lifetimes could be elided: 'a
+rust/tcl-compiler/src/optimiser/method_barrier.rs:356:15: warning: use of `Option<Option<T>>`
+rust/tcl-compiler/src/optimiser/method_barrier.rs:367:6: warning: use of `Option<Option<T>>`
+rust/tcl-compiler/src/optimiser/propagation.rs:316:1: warning: this function has too many lines (114/100)
+rust/tcl-compiler/src/optimiser/propagation.rs:788:1: warning: this function has too many lines (103/100)
+rust/tcl-compiler/src/optimiser/propagation.rs:1386:13: warning: consider adding a `;` to the last statement for consistent formatting: help: add a `;` here: `walk_oo_script(ctx, cu, body, frame, constants, depth + 1);`
+rust/tcl-compiler/src/optimiser/propagation.rs:1570:9: warning: this `if` statement can be collapsed
+rust/tcl-compiler/src/optimiser/propagation.rs:1597:1: warning: this function has too many arguments (8/7)
+rust/tcl-compiler/src/optimiser/propagation.rs:2159:51: warning: this expression creates a reference which is immediately dereferenced by the compiler: help: change this to: `qname`
+rust/tcl-compiler/src/optimiser/propagation.rs:2435:1: warning: this function has too many arguments (8/7)
+rust/tcl-compiler/src/optimiser/propagation.rs:2449:5: warning: adding items after statements is confusing, since items exist from the start of the scope
+rust/tcl-compiler/src/optimiser/propagation.rs:2450:9: warning: adding items after statements is confusing, since items exist from the start of the scope
+rust/tcl-compiler/src/optimiser/propagation.rs:2450:33: warning: adding items after statements is confusing, since items exist from the start of the scope
+rust/tcl-compiler/src/optimiser/propagation.rs:2450:57: warning: adding items after statements is confusing, since items exist from the start of the scope
+rust/tcl-compiler/src/optimiser/propagation.rs:2452:5: warning: adding items after statements is confusing, since items exist from the start of the scope
+rust/tcl-compiler/src/optimiser/propagation.rs:2452:32: warning: adding items after statements is confusing, since items exist from the start of the scope
+rust/tcl-compiler/src/optimiser/propagation.rs:2452:37: warning: adding items after statements is confusing, since items exist from the start of the scope
+rust/tcl-compiler/src/optimiser/unused_procs.rs:155:63: warning: used `cloned` where `copied` could be used instead: help: try: `copied`
+rust/tcl-compiler/src/optimiser/unused_procs.rs:157:28: warning: using `clone` on type `ProcedureId` which implements the `Copy` trait: help: try removing the `clone` call: `current`
+rust/tcl-compiler/src/optimiser/unused_procs.rs:163:32: warning: using `clone` on type `ProcedureId` which implements the `Copy` trait: help: try dereferencing it: `*callee`
+rust/tcl-compiler/src/optimiser/original_report.rs:159:21: warning: redundant closure: help: replace the closure with the method itself: `super::super::compilation_unit::optimiser_source_owner::OriginalOptimiserPreparedUnit::is_whole_source_unit`
+rust/tcl-compiler/src/parsing/syntax/red.rs:385:66: warning: redundant closure: help: replace the closure with the method itself: `super::green::GreenTrivia::width`
+rust/tcl-compiler/src/parsing/spectcl_source/original_word.rs:146:35: warning: item in documentation is missing backticks
+rust/tcl-compiler/src/parsing/spectcl_source/original_word.rs:335:9: warning: you appear to be counting bytes the naive way
+rust/tcl-compiler/src/parsing/spectcl_source.rs:41:52: warning: item in documentation is missing backticks
+rust/tcl-compiler/src/parsing/spectcl_source.rs:44:11: warning: item in documentation is missing backticks
+rust/tcl-compiler/src/parsing/spectcl_source.rs:493:41: warning: item in documentation is missing backticks
+rust/tcl-compiler/src/parsing/spectcl_source.rs:502:44: warning: item in documentation is missing backticks
+rust/tcl-compiler/src/parsing/spectcl_source.rs:564:44: warning: item in documentation is missing backticks
+rust/tcl-compiler/src/parsing/spectcl_source.rs:626:38: warning: item in documentation is missing backticks
+rust/tcl-compiler/src/path_concat.rs:174:1: warning: this function has too many lines (101/100)
+rust/tcl-compiler/src/place_bridge.rs:104:15: warning: use of `Option<Option<T>>`
+rust/tcl-compiler/src/place_bridge.rs:173:15: warning: use of `Option<Option<T>>`
+rust/tcl-compiler/src/place_bridge.rs:230:15: warning: use of `Option<Option<T>>`
+rust/tcl-compiler/src/place_bridge.rs:291:15: warning: use of `Option<Option<T>>`
+rust/tcl-compiler/src/place_bridge.rs:543:15: warning: use of `Option<Option<T>>`
+rust/tcl-compiler/src/regex_source.rs:351:6: warning: use of `Option<Option<T>>`
+rust/tcl-compiler/src/registry_invocation/original_procedure_call.rs:189:57: warning: deref which would be done by auto-deref: help: try: `id`
+rust/tcl-compiler/src/registry_invocation/original_procedure_call.rs:441:1: warning: this function has too many lines (103/100)
+rust/tcl-compiler/src/registry_invocation/authored_body_scope.rs:552:1: warning: this function has too many lines (144/100)
+rust/tcl-compiler/src/registry_invocation/authored_body_scope.rs:589:57: warning: deref which would be done by auto-deref: help: try: `id`
+rust/tcl-compiler/src/registry_invocation/source_reference_candidates.rs:179:17: warning: consider adding a `;` to the last statement for consistent formatting: help: add a `;` here: `scripts.push(SourceRegion::Expression(expression));`
+rust/tcl-compiler/src/registry_invocation/source_reference_candidates.rs:225:29: warning: consider adding a `;` to the last statement for consistent formatting: help: add a `;` here: `work.push(SourceRegion::Expression(expression));`
+rust/tcl-compiler/src/registry_invocation/source_name_roles.rs:111:20: warning: manual saturating arithmetic
+rust/tcl-compiler/src/registry_invocation/source_name_roles.rs:207:30: warning: redundant closure: help: replace the closure with the method itself: `tcl_registry::InvocationDialect::authoring_query`
+rust/tcl-compiler/src/registry_invocation/source_name_roles.rs:625:16: warning: manual saturating arithmetic: help: consider using `saturating_add`: `words.arguments().len().saturating_add(1)`
+rust/tcl-compiler/src/registry_invocation/authored_source_structure.rs:83:20: warning: manual saturating arithmetic
+rust/tcl-compiler/src/registry_invocation/metadata_context.rs:66:10: warning: use of `Option<Option<T>>`
+rust/tcl-compiler/src/registry_invocation/source_scoped_body.rs:1206:18: warning: redundant closure: help: replace the closure with the method itself: `tcl_syntax::naming::NamePolicyProtocol::string_protocol`
+rust/tcl-compiler/src/registry_invocation/source_scoped_body.rs:1698:43: warning: redundant closure: help: replace the closure with the method itself: `tcl_registry::ResolvedInvocation::authored_source_lambda_call`
+rust/tcl-compiler/src/registry_invocation/source_structure/package_target_survey.rs:3:5: warning: usage of wildcard import: help: try: `super::{OriginalSourceRegistryContext, OriginalRegistryWords, CommandRegistry, logical_source_registry_words_in_original_image, OriginalRegistrySource, original_single_source_command_substitution}`
+rust/tcl-compiler/src/registry_invocation/source_structure/package_target_survey.rs:395:5: warning: this function has too many lines (162/100)
+rust/tcl-compiler/src/registry_invocation/source_structure/package_target_survey.rs:504:43: warning: redundant closure: help: replace the closure with the method itself: `tcl_registry::ResolvedInvocation::authored_source_package_query`
+rust/tcl-compiler/src/registry_invocation/source_structure/logical_variable_operands.rs:150:9: warning: adding items after statements is confusing, since items exist from the start of the scope
+rust/tcl-compiler/src/registry_invocation/source_structure/logical_variable_operands.rs:151:9: warning: adding items after statements is confusing, since items exist from the start of the scope
+rust/tcl-compiler/src/registry_invocation/source_structure/project_procedure_roles.rs:187:1: warning: this function has too many lines (133/100)
+rust/tcl-compiler/src/registry_invocation/source_structure/project_class_cards.rs:410:1: warning: this function has too many lines (113/100)
+rust/tcl-compiler/src/registry_invocation/source_structure/project_class_cards.rs:468:18: warning: redundant closure: help: replace the closure with the method itself: `crate::signature_scan::name_value::SignatureSourceNameInput::policy`
+rust/tcl-compiler/src/registry_invocation/source_structure/project_class_cards.rs:577:18: warning: redundant closure: help: replace the closure with the method itself: `crate::signature_scan::name_value::SignatureSourceNameInput::policy`
+rust/tcl-compiler/src/registry_invocation/source_structure/procedure.rs:250:1: warning: this function has too many lines (104/100)
+rust/tcl-compiler/src/registry_invocation/source_structure.rs:394:64: warning: item in documentation is missing backticks
+rust/tcl-compiler/src/registry_invocation/source_structure.rs:595:54: warning: item in documentation is missing backticks
+rust/tcl-compiler/src/registry_invocation/source_structure.rs:1159:1: warning: this function has too many lines (102/100)
+rust/tcl-compiler/src/registry_invocation/source_structure.rs:1565:5: warning: adding items after statements is confusing, since items exist from the start of the scope
+rust/tcl-compiler/src/registry_invocation/source_structure.rs:1578:1: warning: this function has too many lines (119/100)
+rust/tcl-compiler/src/registry_invocation/source_structure.rs:1707:1: warning: this function has too many lines (108/100)
+rust/tcl-compiler/src/registry_invocation/source_structure.rs:2632:13: warning: these match arms have identical bodies
+rust/tcl-compiler/src/registry_invocation/source_structure.rs:2883:5: warning: item in documentation is missing backticks
+rust/tcl-compiler/src/registry_invocation/source_structure.rs:3149:1: warning: this function has too many lines (105/100)
+rust/tcl-compiler/src/registry_invocation/logical_frame.rs:9:1: warning: large size difference between variants: the entire enum is at least 976 bytes
+rust/tcl-compiler/src/registry_invocation/declaration_assistance.rs:99:5: warning: this function has too many lines (154/100)
+rust/tcl-compiler/src/registry_invocation/declaration_assistance.rs:552:20: warning: this argument is passed by value, but not consumed in the function body
+rust/tcl-compiler/src/registry_invocation/declaration_assistance.rs:592:13: warning: adding items after statements is confusing, since items exist from the start of the scope
+rust/tcl-compiler/src/registry_invocation/native_compilation_source.rs:187:5: warning: this function has too many lines (182/100)
+rust/tcl-compiler/src/registry_invocation/native_compilation_source.rs:203:9: warning: this could be rewritten as `let...else`
+rust/tcl-compiler/src/registry_invocation/native_compilation_source.rs:319:9: warning: this could be rewritten as `let...else`
+rust/tcl-compiler/src/registry_invocation.rs:472:1: warning: this function has too many lines (134/100)
+rust/tcl-compiler/src/registry_invocation.rs:548:22: warning: redundant closure: help: replace the closure with the method itself: `tcl_registry::resolved_invocation::AuthoredLogicalSourceRoleProjection::selection_unknown`
+rust/tcl-compiler/src/registry_invocation.rs:663:5: warning: this could be rewritten as `let...else`
+rust/tcl-compiler/src/registry_invocation.rs:1023:36: warning: redundant closure: help: replace the closure with the method itself: `metadata_context::InvocationMetadataContext::permits_logical_source_names`
+rust/tcl-compiler/src/registry_invocation.rs:2157:17: warning: this argument is passed by value, but not consumed in the function body
+rust/tcl-compiler/src/registry_invocation.rs:5986:26: warning: redundant closure: help: replace the closure with the method itself: `super::analyser::input::ResolvedAnalysisInput::has_hosted_source_name_context`
+rust/tcl-compiler/src/registry_invocation.rs:6409:51: warning: implicit borrow as raw pointer
+rust/tcl-compiler/src/registry_invocation.rs:6413:51: warning: implicit borrow as raw pointer
+rust/tcl-compiler/src/registry_invocation.rs:6416:29: warning: implicit borrow as raw pointer
+rust/tcl-compiler/src/registry_invocation.rs:6430:29: warning: implicit borrow as raw pointer
+rust/tcl-compiler/src/registry_invocation.rs:6546:10: warning: use of `Option<Option<T>>`
+rust/tcl-compiler/src/registry_invocation.rs:6548:22: warning: implicit borrow as raw pointer
+rust/tcl-compiler/src/registry_invocation.rs:7161:83: warning: this expression creates a reference which is immediately dereferenced by the compiler: help: change this to: `layout`
+rust/tcl-compiler/src/registry_invocation.rs:7347:1: warning: this function has too many lines (111/100)
+rust/tcl-compiler/src/registry_invocation.rs:7506:42: warning: this expression creates a reference which is immediately dereferenced by the compiler: help: change this to: `context`
+rust/tcl-compiler/src/registry_invocation.rs:7519:51: warning: this expression creates a reference which is immediately dereferenced by the compiler: help: change this to: `context`
+rust/tcl-compiler/src/registry_invocation/authored_controls.rs:19:1: warning: large size difference between variants: the entire enum is at least 1784 bytes
+rust/tcl-compiler/src/registry_invocation/authored_controls.rs:117:1: warning: this function has too many lines (117/100)
+rust/tcl-compiler/src/sccp/original_value_facts.rs:507:1: warning: this function has too many lines (119/100)
+rust/tcl-compiler/src/sccp/original_value_facts.rs:510:13: warning: this argument (264 byte) is passed by value, but might be more efficient if passed by reference (limit: 256 byte): help: consider passing by reference instead: `&ValueFactInputs<'_>`
+rust/tcl-compiler/src/sccp/original_value_facts.rs:982:1: warning: this function has too many lines (108/100)
+rust/tcl-compiler/src/sccp/original_value_facts.rs:1332:9: warning: this `if` statement can be collapsed
+rust/tcl-compiler/src/sccp/original_value_facts.rs:1345:1: warning: this function has too many lines (152/100)
+rust/tcl-compiler/src/sccp/original_value_facts.rs:1772:1: warning: this function has too many lines (118/100)
+rust/tcl-compiler/src/sccp.rs:942:31: warning: use of `Option<Option<T>>`
+rust/tcl-compiler/src/sccp.rs:1085:1: warning: this function has too many lines (109/100)
+rust/tcl-compiler/src/sccp.rs:1903:17: warning: called `.ok().is_some_and(..)` on a `Result` value: help: use `is_ok_and` instead: `u32::try_from(slot).is_ok_and(|slot| ssa.source_variable_symbol(Symbol(slot)).is_some())`
+rust/tcl-compiler/src/sccp.rs:3606:1: warning: this function has too many lines (124/100)
+rust/tcl-compiler/src/signature_scan/formal_parameters.rs:48:69: warning: item in documentation is missing backticks
+rust/tcl-compiler/src/signature_scan/formal_parameters.rs:182:38: warning: redundant closure: help: replace the closure with the method itself: `tcl_syntax::word_rules::OriginalSourceListElement::value`
+rust/tcl-compiler/src/signature_scan/formal_parameters.rs:398:26: warning: item in documentation is missing backticks
+rust/tcl-compiler/src/signature_scan/formal_parameters.rs:400:26: warning: item in documentation is missing backticks
+rust/tcl-compiler/src/signature_scan/variable_symbol.rs:576:5: warning: adding items after statements is confusing, since items exist from the start of the scope
+rust/tcl-compiler/src/signature_scan/variable_symbol.rs:577:5: warning: adding items after statements is confusing, since items exist from the start of the scope
+rust/tcl-compiler/src/signature_scan/walker.rs:86:1: warning: this function has too many lines (107/100)
+rust/tcl-compiler/src/signature_scan/walker.rs:146:13: warning: assigning the result of `ToOwned::to_owned()` may be inefficient: help: use `clone_into()`: `dispatch.canonical_command.clone_into(&mut selected_texts[0])`
+rust/tcl-compiler/src/slot_allocation.rs:108:16: warning: this boolean expression can be simplified
+rust/tcl-compiler/src/specialise_factories.rs:49:36: warning: using `clone` on type `ProcedureId` which implements the `Copy` trait: help: try dereferencing it: `*label`
+rust/tcl-compiler/src/specialise_factories.rs:64:36: warning: using `clone` on type `ProcedureId` which implements the `Copy` trait: help: try dereferencing it: `*label`
+rust/tcl-compiler/src/ssa.rs:94:46: warning: redundant closure: help: replace the closure with the method itself: `super::registry_invocation::metadata_context::InvocationMetadataContext::is_standalone`
+rust/tcl-compiler/src/ssa.rs:636:1: warning: more than 3 bools in a struct
+rust/tcl-compiler/src/ssa.rs:1055:42: warning: the following explicit lifetimes could be elided: 'a
+rust/tcl-compiler/src/ssa.rs:1442:1: warning: this function has too many lines (187/100)
+rust/tcl-compiler/src/ssa.rs:2118:36: warning: implicit borrow as raw pointer
+rust/tcl-compiler/src/ssa.rs:3391:5: warning: this function has a `#[must_use]` attribute with no message, but returns a type already considered as `#[must_use]`
+rust/tcl-compiler/src/ssa.rs:3412:5: warning: this function has a `#[must_use]` attribute with no message, but returns a type already considered as `#[must_use]`
+rust/tcl-compiler/src/ssa.rs:3456:26: warning: redundant closure: help: replace the closure with the method itself: `super::analyser::input::ResolvedAnalysisInput::has_logical_source_name_context`
+rust/tcl-compiler/src/ssa.rs:3738:5: warning: this function has a `#[must_use]` attribute with no message, but returns a type already considered as `#[must_use]`
+rust/tcl-compiler/src/ssa.rs:4330:35: warning: redundant closure: help: replace the closure with the method itself: `super::registry_invocation::metadata_context::InvocationMetadataContext::source_analysis_input`
+rust/tcl-compiler/src/ssa.rs:5023:1: warning: this function has too many lines (129/100)
+rust/tcl-compiler/src/ssa.rs:5044:5: warning: mutable key type
+rust/tcl-compiler/src/ssa.rs:5045:5: warning: mutable key type
+rust/tcl-compiler/src/ssa.rs:5051:9: warning: mutable key type
+rust/tcl-compiler/src/ssa.rs:7933:51: warning: mutable key type
+rust/tcl-compiler/src/ssa.rs:7934:9: warning: mutable key type
+rust/tcl-compiler/src/ssa.rs:7993:23: warning: this boolean expression can be simplified: help: try: `authored.as_ref().is_none_or(|(_, held, _)| held != name)`
+rust/tcl-compiler/src/ssa.rs:7977:5: warning: this function has too many lines (167/100)
+rust/tcl-compiler/src/ssa.rs:8046:23: warning: redundant closure: help: replace the closure with the method itself: `super::registry_invocation::metadata_context::InvocationMetadataContext::source_analysis_input`
+rust/tcl-compiler/src/ssa.rs:8110:34: warning: redundant closure: help: replace the closure with the method itself: `super::analyser::input::ResolvedAnalysisInput::has_logical_source_name_context`
+rust/tcl-compiler/src/ssa.rs:8258:5: warning: this function has too many lines (185/100)
+rust/tcl-compiler/src/ssa.rs:8430:26: warning: redundant closure: help: replace the closure with the method itself: `super::analyser::input::ResolvedAnalysisInput::has_logical_source_name_context`
+rust/tcl-compiler/src/ssa.rs:8429:23: warning: redundant closure: help: replace the closure with the method itself: `super::registry_invocation::metadata_context::InvocationMetadataContext::source_analysis_input`
+rust/tcl-compiler/src/ssa.rs:8479:5: warning: this function has too many lines (115/100)
+rust/tcl-compiler/src/ssa.rs:8514:9: warning: mutable key type
+rust/tcl-compiler/src/ssa.rs:8526:21: warning: mutable key type
+rust/tcl-compiler/src/ssa.rs:8556:17: warning: mutable key type
+rust/tcl-compiler/src/ssa.rs:8579:9: warning: mutable key type
+rust/tcl-compiler/src/ssa.rs:8989:1: warning: this function has too many lines (117/100)
+rust/tcl-compiler/src/static_loops/original_simulation.rs:477:1: warning: this function has too many lines (127/100)
+rust/tcl-compiler/src/table_value_provenance.rs:242:10: warning: use of `Option<Option<T>>`
+rust/tcl-compiler/src/taint.rs:523:36: warning: this argument is passed by value, but not consumed in the function body
+rust/tcl-compiler/src/taint.rs:1852:1: warning: this function has too many lines (109/100)
+rust/tcl-compiler/src/taint.rs:2136:1: warning: this function has too many lines (110/100)
+rust/tcl-compiler/src/taint.rs:2469:13: warning: this argument is passed by value, but not consumed in the function body
+rust/tcl-compiler/src/taint.rs:2494:39: warning: used `cloned` where `copied` could be used instead: help: try: `copied`
+rust/tcl-compiler/src/taint.rs:2495:55: warning: used `cloned` where `copied` could be used instead: help: try: `copied`
+rust/tcl-compiler/src/taint.rs:4027:1: warning: this function has too many lines (308/100)
+rust/tcl-compiler/src/taint.rs:4043:31: warning: implicit borrow as raw pointer
+rust/tcl-compiler/src/taint.rs:4830:5: warning: adding items after statements is confusing, since items exist from the start of the scope
+rust/tcl-compiler/src/taint.rs:4831:5: warning: adding items after statements is confusing, since items exist from the start of the scope
+rust/tcl-compiler/src/taint.rs:4847:16: warning: this block may be rewritten with the `?` operator
+rust/tcl-compiler/src/taint.rs:4859:32: warning: implicit borrow as raw pointer
+rust/tcl-compiler/src/taint.rs:5053:1: warning: this function has too many arguments (9/7)
+rust/tcl-compiler/src/taint.rs:5221:1: warning: this function has too many lines (116/100)
+rust/tcl-compiler/src/taint.rs:5468:1: warning: this function has too many lines (138/100)
+rust/tcl-compiler/src/taint.rs:5513:22: warning: redundant closure: help: replace the closure with the method itself: `super::command_binding::SourceInvocationBinding::has_original_native_source_command`
+rust/tcl-compiler/src/taint.rs:5831:1: warning: this function has too many lines (120/100)
+rust/tcl-compiler/src/taint.rs:6711:9: warning: assigning the result of `Clone::clone()` may be inefficient: help: use `clone_from()`: `warning.source_sink.clone_from(&sink)`
+rust/tcl-compiler/src/taint.rs:7711:54: warning: this expression creates a reference which is immediately dereferenced by the compiler: help: change this to: `parent_site`
+rust/tcl-compiler/src/taint.rs:8450:26: warning: unnecessary closure used with `bool::then`
+rust/tcl-compiler/src/taint.rs:8521:9: warning: this `if` statement can be collapsed
+rust/tcl-compiler/src/taint_interproc.rs:503:29: warning: consider adding a `;` to the last statement for consistent formatting: help: add a `;` here: `spellings.push(spelling.as_str());`
+rust/tcl-compiler/src/taint_interproc.rs:975:1: warning: this function has too many lines (122/100)
+rust/tcl-compiler/src/taint_interproc.rs:1215:9: warning: this `if` statement can be collapsed
+rust/tcl-compiler/src/taint_interproc.rs:1231:1: warning: this function has too many lines (123/100)
+rust/tcl-compiler/src/taint_interproc.rs:1380:29: warning: implicit borrow as raw pointer
+rust/tcl-compiler/src/taint_interproc.rs:1512:1: warning: this function has too many lines (147/100)
+rust/tcl-compiler/src/taint_interproc.rs:1533:13: warning: using `clone` on type `ProcedureId` which implements the `Copy` trait: help: try dereferencing it: `*(*qname)`
+rust/tcl-compiler/src/taint_interproc.rs:1542:67: warning: used `cloned` where `copied` could be used instead: help: try: `copied`
+rust/tcl-compiler/src/taint_interproc.rs:1621:38: warning: using `clone` on type `ProcedureId` which implements the `Copy` trait: help: try dereferencing it: `*(*qname)`
+rust/tcl-compiler/src/taint_interproc.rs:1662:34: warning: using `clone` on type `ProcedureId` which implements the `Copy` trait: help: try dereferencing it: `*(*qname)`
+rust/tcl-compiler/src/taint_interproc.rs:1811:1: warning: this function has too many lines (117/100)
+rust/tcl-compiler/src/taint_interproc.rs:1829:67: warning: used `cloned` where `copied` could be used instead: help: try: `copied`
+rust/tcl-compiler/src/taint_interproc.rs:1859:29: warning: using `clone` on type `ProcedureId` which implements the `Copy` trait: help: try dereferencing it: `*(*qname)`
+rust/tcl-compiler/src/taint_interproc.rs:1860:28: warning: using `clone` on type `ProcedureId` which implements the `Copy` trait: help: try dereferencing it: `*(*qname)`
+rust/tcl-compiler/src/taint_interproc.rs:1864:35: warning: using `clone` on type `ProcedureId` which implements the `Copy` trait: help: try dereferencing it: `*(*q)`
+rust/tcl-compiler/src/taint_interproc.rs:1865:68: warning: used `cloned` where `copied` could be used instead: help: try: `copied`
+rust/tcl-compiler/src/taint_interproc.rs:1880:30: warning: using `clone` on type `ProcedureId` which implements the `Copy` trait: help: try removing the `clone` call: `callee`
+rust/tcl-compiler/src/taint_interproc.rs:1908:20: warning: using `clone` on type `ProcedureId` which implements the `Copy` trait: help: try removing the `clone` call: `qname`
+rust/tcl-compiler/src/taint_interproc.rs:1911:20: warning: using `clone` on type `ProcedureId` which implements the `Copy` trait: help: try removing the `clone` call: `qname`
+rust/tcl-compiler/src/taint_interproc.rs:1942:28: warning: using `clone` on type `ProcedureId` which implements the `Copy` trait: help: try removing the `clone` call: `qname`
+rust/tcl-compiler/src/taint_interproc.rs:1946:34: warning: using `clone` on type `ProcedureId` which implements the `Copy` trait: help: try removing the `clone` call: `callee`
+rust/tcl-compiler/src/tcl_expr_eval.rs:1807:78: warning: this expression creates a reference which is immediately dereferenced by the compiler: help: change this to: `left`
+rust/tcl-compiler/src/tcl_expr_eval.rs:1809:78: warning: this expression creates a reference which is immediately dereferenced by the compiler: help: change this to: `right`
+rust/tcl-compiler/src/tcl_expr_eval.rs:1834:33: warning: this expression creates a reference which is immediately dereferenced by the compiler: help: change this to: `left`
+rust/tcl-compiler/src/tcl_expr_eval.rs:1835:34: warning: this expression creates a reference which is immediately dereferenced by the compiler: help: change this to: `right`
+rust/tcl-compiler/src/tcl_expr_eval.rs:1853:30: warning: this expression creates a reference which is immediately dereferenced by the compiler: help: change this to: `needle`
+rust/tcl-compiler/src/tcl_expr_eval.rs:1854:33: warning: this expression creates a reference which is immediately dereferenced by the compiler: help: change this to: `list`
+rust/tcl-compiler/src/tcl_expr_eval.rs:1926:27: warning: this expression creates a reference which is immediately dereferenced by the compiler: help: change this to: `left`
+rust/tcl-compiler/src/tcl_expr_eval.rs:1927:27: warning: this expression creates a reference which is immediately dereferenced by the compiler: help: change this to: `right`
+rust/tcl-compiler/src/type_infer.rs:1764:1: warning: this function has too many lines (107/100)
+rust/tcl-compiler/src/type_infer.rs:2266:1: warning: this function has too many lines (110/100)
+rust/tcl-compiler/src/unit_scope.rs:1083:23: warning: redundant closure: help: replace the closure with the method itself: `super::registry_invocation::metadata_context::InvocationMetadataContext::source_analysis_input`
+rust/tcl-compiler/src/unit_scope.rs:1132:1: warning: this function has too many lines (115/100)
+rust/tcl-compiler/src/unit_scope.rs:1539:50: warning: this expression creates a reference which is immediately dereferenced by the compiler: help: change this to: `source`
+rust/tcl-compiler/src/unit_scope.rs:1815:23: warning: this argument is passed by value, but not consumed in the function body
+rust/tcl-compiler/src/unit_scope.rs:2032:46: warning: this expression creates a reference which is immediately dereferenced by the compiler: help: change this to: `cfg_module`
+rust/tcl-compiler/src/unit_scope.rs:2032:59: warning: this expression creates a reference which is immediately dereferenced by the compiler: help: change this to: `extra_callers`
+rust/tcl-compiler/src/unit_scope.rs:2168:1: warning: this function has too many lines (115/100)
+rust/tcl-compiler/src/unit_scope.rs:2218:21: warning: consider adding a `;` to the last statement for consistent formatting: help: add a `;` here: `out.note_assignment(name, Some(value));`
+rust/tcl-compiler/src/unit_scope.rs:2231:21: warning: consider adding a `;` to the last statement for consistent formatting: help: add a `;` here: `out.note_write_word(name);`
+rust/tcl-compiler/src/uri_split.rs:212:26: warning: use of `Option<Option<T>>`
+rust/tcl-compiler/src/uri_split.rs:301:6: warning: very complex type used. Consider factoring parts into `type` definitions
+rust/tcl-compiler/src/uri_split.rs:354:6: warning: very complex type used. Consider factoring parts into `type` definitions
+rust/tcl-compiler/src/value_provenance.rs:292:5: warning: this `let...else` may be rewritten with the `?` operator: help: replace it with: `let config = retained_config(fu, config)?;`
+rust/tcl-compiler/src/value_provenance.rs:314:5: warning: this `let...else` may be rewritten with the `?` operator: help: replace it with: `let config = retained_config(fu, config)?;`
+rust/tcl-compiler/src/value_transfer.rs:490:23: warning: use of `Option<Option<T>>`
+rust/tcl-compiler/src/value_transfer.rs:577:14: warning: use of `Option<Option<T>>`
+rust/tcl-compiler/src/value_transfer.rs:1344:62: warning: item in documentation is missing backticks
+rust/tcl-compiler/src/value_transfer.rs:1519:46: warning: this expression creates a reference which is immediately dereferenced by the compiler: help: change this to: `callee`
+rust/tcl-compiler/src/value_transfer.rs:1523:49: warning: this expression creates a reference which is immediately dereferenced by the compiler: help: change this to: `callee`
+rust/tcl-compiler/src/value_transfer.rs:1538:26: warning: this expression creates a reference which is immediately dereferenced by the compiler: help: change this to: `callee`
+rust/tcl-compiler/src/value_transfer.rs:1729:46: warning: this expression creates a reference which is immediately dereferenced by the compiler: help: change this to: `callee`
+rust/tcl-compiler/src/value_transfer.rs:1733:49: warning: this expression creates a reference which is immediately dereferenced by the compiler: help: change this to: `callee`
+rust/tcl-compiler/src/value_transfer.rs:1765:34: warning: this expression creates a reference which is immediately dereferenced by the compiler: help: change this to: `callee`
+rust/tcl-compiler/src/value_transfer.rs:1770:46: warning: this expression creates a reference which is immediately dereferenced by the compiler: help: change this to: `callee`
+rust/tcl-compiler/src/value_transfer.rs:3254:5: warning: this function has too many lines (102/100)
+rust/tcl-compiler/src/value_transfer.rs:3809:5: warning: this function has too many lines (108/100)
+rust/tcl-compiler/src/value_transfer.rs:4000:28: warning: this expression creates a reference which is immediately dereferenced by the compiler: help: change this to: `resolved`
+rust/tcl-compiler/src/value_transfer.rs:4016:42: warning: this expression creates a reference which is immediately dereferenced by the compiler: help: change this to: `resolved`
+rust/tcl-compiler/src/value_transfer.rs:4141:32: warning: redundant closure: help: replace the closure with the method itself: `super::interprocedural::transfer::source_context::OriginalSummaryScript::base`
+rust/tcl-compiler/src/value_transfer.rs:4303:28: warning: this expression creates a reference which is immediately dereferenced by the compiler: help: change this to: `resolved`
+rust/tcl-compiler/src/value_transfer.rs:4323:46: warning: this expression creates a reference which is immediately dereferenced by the compiler: help: change this to: `resolved`
+rust/tcl-compiler/src/value_transfer.rs:4535:41: warning: redundant closure: help: replace the closure with the method itself: `super::interprocedural::transfer::source_context::OriginalSummaryScript::base`
+rust/tcl-compiler/src/value_transfer.rs:4560:43: warning: redundant closure: help: replace the closure with the method itself: `super::interprocedural::transfer::source_context::OriginalSummaryScript::base`
+rust/tcl-compiler/src/value_transfer.rs:4709:27: warning: this expression creates a reference which is immediately dereferenced by the compiler: help: change this to: `resolved`
+rust/tcl-compiler/src/value_transfer.rs:6196:34: warning: the following explicit lifetimes could be elided: 'a
+rust/tcl-compiler/src/value_transfer.rs:6896:63: warning: redundant closure: help: replace the closure with the method itself: `super::interprocedural::transfer::source_context::OriginalSummaryScript::base`
+rust/tcl-compiler/src/var_escape/cfg_propagation/handlers.rs:366:5: warning: this `if` statement can be collapsed
+rust/tcl-compiler/src/var_escape/cfg_propagation/walker.rs:361:9: warning: these match arms have identical bodies
+rust/tcl-compiler/src/var_escape/cfg_propagation/walker.rs:429:9: warning: these match arms have identical bodies
+rust/tcl-compiler/src/var_escape/cfg_propagation/walker.rs:459:9: warning: these match arms have identical bodies
+rust/tcl-compiler/src/var_escape/cfg_propagation/walker.rs:587:9: warning: these match arms have identical bodies
+rust/tcl-compiler/src/var_escape/cfg_propagation/walker.rs:618:17: warning: consider adding a `;` to the last statement for consistent formatting: help: add a `;` here: `state.note_original_literal_assign(&name, value);`
+rust/tcl-compiler/src/var_escape/cfg_propagation/walker.rs:661:9: warning: these match arms have identical bodies
+rust/tcl-compiler/src/var_escape/cfg_propagation/walker.rs:718:9: warning: these match arms have identical bodies: the wildcard arm
+rust/tcl-compiler/src/var_escape/cfg_propagation/walker.rs:741:9: warning: these match arms have identical bodies
+rust/tcl-compiler/src/var_escape/handlers.rs:371:5: warning: this `if` statement can be collapsed
+rust/tcl-compiler/src/var_escape/helpers.rs:121:14: warning: usage of `bool::then` in `filter_map`: help: use `filter` then `map` instead: `filter(|&(index, statement)| (statement.is_executable_invocation() && statement.synthetic_marker().is_none())).map(|(index, statement)| cfg.source_tokens_at(*block, index))`
+rust/tcl-compiler/src/var_escape/helpers.rs:290:9: warning: returning the result of a `let` binding from a block
+rust/tcl-compiler/src/var_escape/interprocedural.rs:221:36: warning: using `clone` on type `BodyFrameId` which implements the `Copy` trait: help: try dereferencing it: `*qname`
+rust/tcl-compiler/src/var_escape/interprocedural.rs:238:23: warning: using `clone` on type `BodyFrameId` which implements the `Copy` trait: help: try dereferencing it: `*qname`
+rust/tcl-compiler/src/var_escape/interprocedural.rs:257:24: warning: using `clone` on type `BodyFrameId` which implements the `Copy` trait: help: try dereferencing it: `*k`
+rust/tcl-compiler/src/var_escape/interprocedural.rs:261:24: warning: using `clone` on type `BodyFrameId` which implements the `Copy` trait: help: try dereferencing it: `*k`
+rust/tcl-compiler/src/var_escape/interprocedural.rs:268:23: warning: using `clone` on type `BodyFrameId` which implements the `Copy` trait: help: try dereferencing it: `*k`
+rust/tcl-compiler/src/var_escape/interprocedural.rs:273:24: warning: using `clone` on type `BodyFrameId` which implements the `Copy` trait: help: try dereferencing it: `*callee`
+rust/tcl-compiler/src/var_escape/interprocedural.rs:275:25: warning: using `clone` on type `BodyFrameId` which implements the `Copy` trait: help: try dereferencing it: `*qname`
+rust/tcl-compiler/src/var_escape/interprocedural.rs:279:80: warning: used `cloned` where `copied` could be used instead: help: try: `copied`
+rust/tcl-compiler/src/var_escape/interprocedural.rs:280:82: warning: used `cloned` where `copied` could be used instead: help: try: `copied`
+rust/tcl-compiler/src/var_escape/interprocedural.rs:306:36: warning: using `clone` on type `BodyFrameId` which implements the `Copy` trait: help: try removing the `clone` call: `caller`
+rust/tcl-compiler/src/var_escape/slot_resolution.rs:452:28: warning: using `clone` on type `BodyFrameId` which implements the `Copy` trait: help: try dereferencing it: `*k`
+rust/tcl-compiler/src/var_escape/slot_resolution.rs:466:28: warning: using `clone` on type `BodyFrameId` which implements the `Copy` trait: help: try dereferencing it: `*qname`
+rust/tcl-compiler/src/var_escape/slot_resolution.rs:468:28: warning: using `clone` on type `BodyFrameId` which implements the `Copy` trait: help: try dereferencing it: `*qname`
+rust/tcl-compiler/src/var_escape/slot_resolution.rs:471:24: warning: using `clone` on type `BodyFrameId` which implements the `Copy` trait: help: try dereferencing it: `*qname`
+rust/tcl-compiler/src/var_escape/walker.rs:138:5: warning: this `if` statement can be collapsed
+rust/tcl-compiler/src/var_escape/walker.rs:410:9: warning: these match arms have identical bodies
+rust/tcl-compiler/src/var_escape/walker.rs:459:9: warning: these match arms have identical bodies
+rust/tcl-compiler/src/var_escape/walker.rs:491:9: warning: these match arms have identical bodies
+rust/tcl-compiler/src/var_escape/walker.rs:575:17: warning: consider adding a `;` to the last statement for consistent formatting: help: add a `;` here: `state.note_original_literal_assign(&name, value);`
+rust/tcl-compiler/src/var_escape/walker.rs:618:9: warning: these match arms have identical bodies
+rust/tcl-compiler/src/var_escape/walker.rs:697:9: warning: these match arms have identical bodies
+rust/tcl-compiler/src/var_escape/walker.rs:728:9: warning: these match arms have identical bodies
+rust/tcl-compiler/src/variable_bindings.rs:186:5: warning: this function has too many arguments (8/7)
+rust/tcl-compiler/src/variable_bindings.rs:717:21: warning: this `map_or` can be simplified
+rust/tcl-compiler/src/variable_bindings.rs:2581:15: warning: use of `Option<Option<T>>`
+rust/tcl-compiler/src/word_subst.rs:270:21: warning: consider adding a `;` to the last statement for consistent formatting: help: add a `;` here: `out.scripts.push(content);`
+rust/tcl-compiler/src/word_subst.rs:716:1: warning: this function has too many lines (214/100)
+rust/tcl-compiler/src/word_subst.rs:1520:21: warning: wildcard matches only a single variant and will also match any future added variants: help: try: `WordPart::Text { .. }`
+rust/tcl-compiler/src/word_subst.rs:1617:17: warning: consider adding a `;` to the last statement for consistent formatting: help: add a `;` here: `out.incomplete = true;`
+rust/tcl-compiler/src/world_state_ssa.rs:1781:12: warning: this `if` statement can be collapsed
+warning: `tcl-compiler` (lib) generated 775 warnings (run `cargo clippy --fix --lib -p tcl-compiler -- ` to apply 357 suggestions)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 59.42s

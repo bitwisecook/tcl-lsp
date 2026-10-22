@@ -1,0 +1,10 @@
+BAD memo_ms=464 plain_ms=294 eq=false samples/for_screenshots/32-extract-datagroup-mapping-after.irul
+BAD memo_ms=566 plain_ms=344 eq=false samples/for_screenshots/31-extract-datagroup-ip-before.irul
+BAD memo_ms=194 plain_ms=163 eq=false samples/for_screenshots/31-extract-datagroup-ip-after.irul
+BAD memo_ms=100 plain_ms=70 eq=false samples/for_screenshots/24-template-fallback.irul
+BAD memo_ms=174 plain_ms=148 eq=false samples/for_screenshots/32-extract-datagroup-mapping-before.irul
+BAD memo_ms=214 plain_ms=144 eq=false samples/for_screenshots/05-security-taint-before.irul
+BAD memo_ms=325 plain_ms=352 eq=false samples/for_screenshots/30-extract-datagroup-before.irul
+BAD memo_ms=424 plain_ms=294 eq=false samples/for_screenshots/05-security-taint-after.irul
+BAD memo_ms=223 plain_ms=186 eq=false samples/for_screenshots/30-extract-datagroup-after.irul
+BAD memo_ms=180 plain_ms=140 eq=false samples/for_screenshots/ai-scene.irul

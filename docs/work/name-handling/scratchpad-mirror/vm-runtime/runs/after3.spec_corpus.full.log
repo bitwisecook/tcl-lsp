@@ -1,0 +1,84 @@
+
+running 5 tests
+test corpus_watchdog_scales_with_work_requested ... ok
+test a_hostile_pack_degrades_to_abstention_and_never_hangs ... FAILED
+test shared_analysis_fallbacks_are_never_silent ... ok
+test shared_unit_matches_legacy_for_representative_profiles ... FAILED
+test every_shipped_tclspec_loads_installs_and_analyses_against_corpus has been running for over 60 seconds
+test every_shipped_tclspec_loads_installs_and_analyses_against_corpus ... FAILED
+
+failures:
+
+---- a_hostile_pack_degrades_to_abstention_and_never_hangs stdout ----
+
+SpecTcl containment — hostile pack
+
+| hook | folds emitted | wall clock |
+|---|---|---|
+| hostile::spin | 0 | 931.2 ms |
+| hostile::burn | 0 | 485.9 ms |
+| hostile::boom | 0 | 362.7 ms |
+
+hook invocations: 0/0 successful/attempted
+quarantined: 
+
+
+thread 'a_hostile_pack_degrades_to_abstention_and_never_hangs' (12258) panicked at rust/tcl-spectcl/tests/spec_corpus.rs:1792:5:
+
+SpecTcl containment — hostile pack
+
+| hook | folds emitted | wall clock |
+|---|---|---|
+| hostile::spin | 0 | 931.2 ms |
+| hostile::burn | 0 | 485.9 ms |
+| hostile::boom | 0 | 362.7 ms |
+
+hook invocations: 0/0 successful/attempted
+quarantined: 
+
+all three hostile bodies must actually have been invoked
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: spec_corpus::a_hostile_pack_degrades_to_abstention_and_never_hangs
+   3: spec_corpus::a_hostile_pack_degrades_to_abstention_and_never_hangs::{closure#0}
+   4: <spec_corpus::a_hostile_pack_degrades_to_abstention_and_never_hangs::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- shared_unit_matches_legacy_for_representative_profiles stdout ----
+
+thread 'shared_unit_matches_legacy_for_representative_profiles' (12282) panicked at rust/tcl-spectcl/tests/spec_corpus.rs:861:9:
+assertion `left == right` failed: tcl8.6 diagnostics
+  left: []
+ right: [Diagnostic { subject: None, code: I230, span: Span { start: 28, end: 35 }, message: "Condition '$value' is always true; the alternate branch is unreachable", severity: Info, fixes: [] }]
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<alloc::vec::Vec<tcl_compiler::analyser::types::Diagnostic>, alloc::vec::Vec<tcl_compiler::analyser::types::Diagnostic>>
+   4: spec_corpus::shared_unit_matches_legacy_for_representative_profiles
+   5: spec_corpus::shared_unit_matches_legacy_for_representative_profiles::{closure#0}
+   6: <spec_corpus::shared_unit_matches_legacy_for_representative_profiles::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- every_shipped_tclspec_loads_installs_and_analyses_against_corpus stdout ----
+
+thread 'every_shipped_tclspec_loads_installs_and_analyses_against_corpus' (12261) panicked at rust/tcl-spectcl/tests/spec_corpus.rs:1538:13:
+spectcl-corpus did not finish within 600s — the corpus analysis budget was exceeded. This is a *budget* verdict, not a containment one: no hook is known to have hung. Either this machine is heavily loaded, or SPECTCL_CORPUS_TMP=1 opted the fetched tmp/ source trees in and there is more corpus here than the budget allows
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: spec_corpus::with_watchdog::<(alloc::string::String, alloc::vec::Vec<alloc::string::String>), spec_corpus::every_shipped_tclspec_loads_installs_and_analyses_against_corpus::{closure#0}>
+   3: spec_corpus::every_shipped_tclspec_loads_installs_and_analyses_against_corpus
+   4: spec_corpus::every_shipped_tclspec_loads_installs_and_analyses_against_corpus::{closure#0}
+   5: <spec_corpus::every_shipped_tclspec_loads_installs_and_analyses_against_corpus::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+
+failures:
+    a_hostile_pack_degrades_to_abstention_and_never_hangs
+    every_shipped_tclspec_loads_installs_and_analyses_against_corpus
+    shared_unit_matches_legacy_for_representative_profiles
+
+test result: FAILED. 2 passed; 3 failed; 0 ignored; 0 measured; 0 filtered out; finished in 600.01s
+

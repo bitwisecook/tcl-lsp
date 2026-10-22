@@ -1,0 +1,3 @@
+test vendor_declaration::tests::original_vendor_event_cards_use_selected_metadata_and_current_whole_source ... ok
+test vendor_declaration::tests::original_vendor_cards_preserve_owned_unknown_units_without_reporting_maps ... ok
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 3483 filtered out; finished in 2.05s

@@ -1,0 +1,126 @@
+test backend_default_and_copy ... ok
+test backend_lower_function_handbuilt_assign_const ... ok
+test backend_associated_types_are_function_and_module_asm ... ok
+test backend_lower_function_proc_flavour_uses_lvt ... FAILED
+test backend_lower_function_script_flavour_uses_stack ... FAILED
+test backend_lower_module_handbuilt_empty_module ... ok
+test backend_lower_module_empty ... ok
+test backend_lower_module_retains_original_declaration_order_and_body_identity ... FAILED
+test backend_lower_module_names_top_level ... FAILED
+test catch_body_break_emits_break_op ... FAILED
+test break_at_loop_depth_two_jumps_to_inner_end ... FAILED
+test catch_body_empty_pushes_empty ... ok
+test catch_body_error_emits_return_imm ... FAILED
+test catch_body_const_div_zero_emits_syntax ... FAILED
+test catch_body_return_with_code_emits_return_imm ... FAILED
+test catch_inline_direct_two_arg_shape ... ok
+test catch_error_operands_are_code_error_level_zero ... FAILED
+test catch_return_operands_match_c_merge_table ... FAILED
+test catch_with_options_var_pushes_return_opts ... FAILED
+test cmd_subst_in_expr_position_is_a_pushed_word ... FAILED
+test cmd_subst_expand_form_uses_invoke_expanded ... FAILED
+test cmd_subst_in_list_construction ... FAILED
+test cmd_subst_in_if_condition_is_a_pushed_word ... FAILED
+test cmd_subst_info_exists_in_condition ... FAILED
+test cmd_subst_lindex_multi_index ... FAILED
+test cmd_subst_lrange_end_index ... FAILED
+test cmd_subst_multi_command_falls_back_to_eval_stk ... FAILED
+test cmd_subst_nested_bracket_in_arg ... FAILED
+test cmd_subst_specialised_opcode_in_assignment_rhs ... FAILED
+test detect_const_expr_error_modulo_by_zero ... ok
+test detect_const_expr_error_non_constant_divisor ... ok
+test fold_bitwise_chain_to_literal ... ok
+test fold_exponent_to_literal ... ok
+test fold_list_command_to_literal ... FAILED
+test fold_nested_arithmetic_to_literal ... ok
+test fold_ternary_to_literal ... ok
+test continue_at_loop_depth_two ... FAILED
+test list_break_continue_inline_jump_with_cleanup ... ok
+test list_break_no_target_does_not_match ... ok
+test list_continue_inline_jump ... ok
+test plain_return_encodings_top_level_and_proc ... FAILED
+test if_elseif_else_chain_three_way ... FAILED
+test return_in_both_if_branches ... FAILED
+test switch_exact_return_arms_jump_table ... FAILED
+test switch_glob_routes_through_generic_invoke ... FAILED
+test try_finally_during_merge_uses_list_concat ... FAILED
+test try_finally_cfg_chain_present ... FAILED
+test try_finally_emits_dual_catch_ranges ... FAILED
+test try_list_expand_concat_direct_two_arg ... ok
+test try_list_expand_concat_rejects_one_arg ... ok
+test try_on_error_handler_var_is_first_slot ... ok
+test try_on_error_inline_direct ... ok
+test try_on_error_inside_catch_full_dispatch ... FAILED
+test try_finally_in_loop_still_lowers ... FAILED
+test try_on_tcl_numeric_error_spellings_use_the_typed_registry_selector ... FAILED
+---- backend_lower_function_proc_flavour_uses_lvt stdout ----
+thread 'backend_lower_function_proc_flavour_uses_lvt' (15858) panicked at rust/tcl-compiler/tests/support/body_identity.rs:50:28:
+---- backend_lower_function_script_flavour_uses_stack stdout ----
+thread 'backend_lower_function_script_flavour_uses_stack' (15859) panicked at rust/tcl-compiler/tests/codegen_depth.rs:226:5:
+---- backend_lower_module_retains_original_declaration_order_and_body_identity stdout ----
+thread 'backend_lower_module_retains_original_declaration_order_and_body_identity' (15863) panicked at rust/tcl-compiler/tests/codegen_depth.rs:240:5:
+---- backend_lower_module_names_top_level stdout ----
+thread 'backend_lower_module_names_top_level' (15862) panicked at rust/tcl-compiler/tests/codegen_depth.rs:154:5:
+---- catch_body_break_emits_break_op stdout ----
+thread 'catch_body_break_emits_break_op' (15865) panicked at rust/tcl-compiler/tests/support/body_identity.rs:50:28:
+---- break_at_loop_depth_two_jumps_to_inner_end stdout ----
+thread 'break_at_loop_depth_two_jumps_to_inner_end' (15864) panicked at rust/tcl-compiler/tests/support/body_identity.rs:50:28:
+---- catch_body_error_emits_return_imm stdout ----
+thread 'catch_body_error_emits_return_imm' (15868) panicked at rust/tcl-compiler/tests/support/body_identity.rs:50:28:
+---- catch_body_const_div_zero_emits_syntax stdout ----
+thread 'catch_body_const_div_zero_emits_syntax' (15866) panicked at rust/tcl-compiler/tests/support/body_identity.rs:50:28:
+---- catch_body_return_with_code_emits_return_imm stdout ----
+thread 'catch_body_return_with_code_emits_return_imm' (15869) panicked at rust/tcl-compiler/tests/support/body_identity.rs:50:28:
+---- catch_error_operands_are_code_error_level_zero stdout ----
+thread 'catch_error_operands_are_code_error_level_zero' (15870) panicked at rust/tcl-compiler/tests/support/body_identity.rs:50:28:
+---- catch_return_operands_match_c_merge_table stdout ----
+thread 'catch_return_operands_match_c_merge_table' (15873) panicked at rust/tcl-compiler/tests/support/body_identity.rs:50:28:
+---- catch_with_options_var_pushes_return_opts stdout ----
+thread 'catch_with_options_var_pushes_return_opts' (15874) panicked at rust/tcl-compiler/tests/support/body_identity.rs:50:28:
+---- cmd_subst_in_expr_position_is_a_pushed_word stdout ----
+thread 'cmd_subst_in_expr_position_is_a_pushed_word' (15877) panicked at rust/tcl-compiler/tests/support/body_identity.rs:50:28:
+---- cmd_subst_expand_form_uses_invoke_expanded stdout ----
+thread 'cmd_subst_expand_form_uses_invoke_expanded' (15876) panicked at rust/tcl-compiler/tests/support/body_identity.rs:50:28:
+---- cmd_subst_in_list_construction stdout ----
+thread 'cmd_subst_in_list_construction' (15879) panicked at rust/tcl-compiler/tests/support/body_identity.rs:50:28:
+---- cmd_subst_in_if_condition_is_a_pushed_word stdout ----
+thread 'cmd_subst_in_if_condition_is_a_pushed_word' (15878) panicked at rust/tcl-compiler/tests/support/body_identity.rs:50:28:
+---- cmd_subst_info_exists_in_condition stdout ----
+thread 'cmd_subst_info_exists_in_condition' (15880) panicked at rust/tcl-compiler/tests/support/body_identity.rs:50:28:
+---- cmd_subst_lindex_multi_index stdout ----
+thread 'cmd_subst_lindex_multi_index' (15881) panicked at rust/tcl-compiler/tests/support/body_identity.rs:50:28:
+---- cmd_subst_lrange_end_index stdout ----
+thread 'cmd_subst_lrange_end_index' (15882) panicked at rust/tcl-compiler/tests/support/body_identity.rs:50:28:
+---- cmd_subst_multi_command_falls_back_to_eval_stk stdout ----
+thread 'cmd_subst_multi_command_falls_back_to_eval_stk' (15883) panicked at rust/tcl-compiler/tests/support/body_identity.rs:50:28:
+---- cmd_subst_nested_bracket_in_arg stdout ----
+thread 'cmd_subst_nested_bracket_in_arg' (15884) panicked at rust/tcl-compiler/tests/support/body_identity.rs:50:28:
+---- cmd_subst_specialised_opcode_in_assignment_rhs stdout ----
+thread 'cmd_subst_specialised_opcode_in_assignment_rhs' (15885) panicked at rust/tcl-compiler/tests/support/body_identity.rs:50:28:
+---- fold_list_command_to_literal stdout ----
+thread 'fold_list_command_to_literal' (15891) panicked at rust/tcl-compiler/tests/codegen_depth.rs:1210:5:
+---- continue_at_loop_depth_two stdout ----
+thread 'continue_at_loop_depth_two' (15886) panicked at rust/tcl-compiler/tests/support/body_identity.rs:50:28:
+---- plain_return_encodings_top_level_and_proc stdout ----
+thread 'plain_return_encodings_top_level_and_proc' (15898) panicked at rust/tcl-compiler/src/codegen/emitter/generate.rs:1303:5:
+---- if_elseif_else_chain_three_way stdout ----
+thread 'if_elseif_else_chain_three_way' (15894) panicked at rust/tcl-compiler/tests/support/body_identity.rs:50:28:
+---- return_in_both_if_branches stdout ----
+thread 'return_in_both_if_branches' (15899) panicked at rust/tcl-compiler/tests/support/body_identity.rs:50:28:
+---- switch_exact_return_arms_jump_table stdout ----
+thread 'switch_exact_return_arms_jump_table' (15900) panicked at rust/tcl-compiler/tests/support/body_identity.rs:50:28:
+---- switch_glob_routes_through_generic_invoke stdout ----
+thread 'switch_glob_routes_through_generic_invoke' (15901) panicked at rust/tcl-compiler/tests/support/body_identity.rs:50:28:
+---- try_finally_during_merge_uses_list_concat stdout ----
+thread 'try_finally_during_merge_uses_list_concat' (15903) panicked at rust/tcl-compiler/tests/support/body_identity.rs:50:28:
+---- try_finally_cfg_chain_present stdout ----
+thread 'try_finally_cfg_chain_present' (15902) panicked at rust/tcl-compiler/tests/support/body_identity.rs:50:28:
+---- try_finally_emits_dual_catch_ranges stdout ----
+thread 'try_finally_emits_dual_catch_ranges' (15904) panicked at rust/tcl-compiler/tests/support/body_identity.rs:50:28:
+---- try_on_error_inside_catch_full_dispatch stdout ----
+thread 'try_on_error_inside_catch_full_dispatch' (15910) panicked at rust/tcl-compiler/tests/support/body_identity.rs:50:28:
+---- try_finally_in_loop_still_lowers stdout ----
+thread 'try_finally_in_loop_still_lowers' (15905) panicked at rust/tcl-compiler/tests/support/body_identity.rs:50:28:
+---- try_on_tcl_numeric_error_spellings_use_the_typed_registry_selector stdout ----
+thread 'try_on_tcl_numeric_error_spellings_use_the_typed_registry_selector' (15911) panicked at rust/tcl-compiler/tests/support/body_identity.rs:50:28:
+test result: FAILED. 20 passed; 35 failed; 0 ignored; 0 measured; 0 filtered out; finished in 5.79s

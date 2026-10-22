@@ -1,0 +1,7 @@
+{"scheduled":"2026-10-20T16:55:00Z",
+ "change_since_previous_report":{"integrated_LSP":0,"total_baseline_delta":0,"effective_delta":0,"verified_complete":0},
+ "admissions":{},
+ "committed":{"2426478291":"python lint gate: evidence paths excluded (user decision); 81 tooling files formatted and ruff-clean; make lint-py passes; proof tooling tests 22/22"},
+ "in_progress":{"sol-44":"tclvm harnesses/embedders -> with_native_core (54 tcl-vm files + constructor edits in spectcl/irule-test/fuzz/debugger/vm-wasm/engine-tclvm), then remaining ports","sol-45":"cluster C (native-core string ops refused) in tcl-compiler/tcl-registry, then C6/C2"},
+ "disk_free_gb":4.9,
+ "next_report_utc":"2026-10-20T17:27:00Z"}

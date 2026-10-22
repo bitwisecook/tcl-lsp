@@ -1,0 +1,7 @@
+{"scheduled":"2026-10-21T13:33:00Z",
+ "change_since_previous_report":{"integrated_LSP":0,"total_baseline_delta":0,"effective_delta":0,"verified_complete":0},
+ "admissions":{},
+ "decisions_recorded":{"ab2357a301":"scope focus: LSP, the compiler stack it requires, and VM/runtime execution of SpecTcl; general VM parity and upstream ports parked"},
+ "in_progress":{"sol-48":"switching to SpecTcl execution (eval_loader, codegen_stamps, spectcl-compat); 13 tcl-vm + 1 tcl-vm-cli files modified","sol-49":"miscompile, C6 + uncalled bodies, iRules realm; 20 tcl-compiler + 2 tcl-registry + 1 docs/design files modified","luna-41":"LSP crates: measure vs CI 5201, fix LSP-side causes, clippy, verify 2026-10-18 decisions"},
+ "disk_free_gb":2.7,
+ "next_report_utc":"2026-10-21T14:04:00Z"}

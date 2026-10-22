@@ -1,0 +1,69 @@
+    Blocking waiting for file lock on build directory
+   Compiling syn v3.0.9
+   Compiling smallvec v1.16.3
+   Compiling allocator-api2 v0.2.21
+   Compiling typeid v1.0.3
+   Compiling portable-atomic v1.15.0
+   Compiling parking_lot_core v0.9.12
+   Compiling hashbrown v0.17.1
+   Compiling parking_lot v0.12.5
+   Compiling crossbeam-queue v0.3.14
+   Compiling intrusive-collections v0.10.3
+   Compiling boxcar v0.2.14
+   Compiling thin-vec v0.2.21
+   Compiling indexmap v2.14.2
+   Compiling hashlink v0.12.2
+   Compiling inventory v0.3.25
+   Compiling salsa-macro-rules v0.28.5
+   Compiling tcl-version v0.1.0 (/home/user/tcl-lsp/rust/tcl-version)
+   Compiling dashmap v6.2.1
+   Compiling temp-env v0.3.6
+   Compiling serde_json v1.0.154
+   Compiling thiserror-impl v2.0.21
+   Compiling serde_derive v1.0.229
+   Compiling displaydoc v0.2.7
+   Compiling ref-cast-impl v1.0.27
+   Compiling ref-cast v1.0.27
+   Compiling fluent-uri v0.4.1
+   Compiling futures-macro v0.3.34
+   Compiling thiserror v2.0.21
+   Compiling tcl-lexer v0.1.0 (/home/user/tcl-lsp/rust/tcl-lexer)
+   Compiling asn1-rs v0.7.2
+   Compiling futures-util v0.3.34
+   Compiling tcl-syntax v0.1.0 (/home/user/tcl-lsp/rust/tcl-syntax)
+   Compiling oid-registry v0.8.1
+   Compiling der-parser v10.0.0
+   Compiling serde v1.0.229
+   Compiling x509-parser v0.18.1
+   Compiling tokio-macros v2.7.2
+   Compiling salsa-macros v0.28.5
+   Compiling tokio v1.53.3
+   Compiling tower v0.5.3
+   Compiling futures v0.3.34
+   Compiling ls-types v0.0.6
+   Compiling salsa v0.28.5
+   Compiling tcl-runtime-api v0.1.0 (/home/user/tcl-lsp/rust/tcl-runtime-api)
+   Compiling tcl-pkg-model v0.1.0 (/home/user/tcl-lsp/rust/tcl-pkg-model)
+   Compiling tokio-util v0.7.20
+   Compiling tcl-cmd-core v0.1.0 (/home/user/tcl-lsp/rust/tcl-cmd-core)
+   Compiling tcl-bytecode v0.1.0 (/home/user/tcl-lsp/rust/tcl-bytecode)
+   Compiling tcl-engine-api v0.1.0 (/home/user/tcl-lsp/rust/tcl-engine-api)
+   Compiling tcl-regex v0.1.0 (/home/user/tcl-lsp/rust/tcl-regex)
+   Compiling tcl-registry v0.1.0 (/home/user/tcl-lsp/rust/tcl-registry)
+   Compiling tower-lsp-server v0.23.0
+   Compiling tcl-compiler v0.1.0 (/home/user/tcl-lsp/rust/tcl-compiler)
+   Compiling tcl-vm v0.1.0 (/home/user/tcl-lsp/rust/tcl-vm)
+   Compiling tcl-irules v0.1.0 (/home/user/tcl-lsp/rust/tcl-irules)
+   Compiling tcl-sslictcl v0.1.0 (/home/user/tcl-lsp/rust/tcl-sslictcl)
+   Compiling tcl-engine-tclvm v0.1.0 (/home/user/tcl-lsp/rust/tcl-engine-tclvm)
+   Compiling tcl-spec-hooks v0.1.0 (/home/user/tcl-lsp/rust/tcl-spec-hooks)
+   Compiling tcl-diagram v0.1.0 (/home/user/tcl-lsp/rust/tcl-diagram)
+   Compiling tcl-bigip v0.1.0 (/home/user/tcl-lsp/rust/tcl-bigip)
+   Compiling tcl-lsp-core v0.1.0 (/home/user/tcl-lsp/rust/tcl-lsp-core)
+   Compiling tcl-bigip-query v0.1.0 (/home/user/tcl-lsp/rust/tcl-bigip-query)
+   Compiling tcl-spectcl v0.1.0 (/home/user/tcl-lsp/rust/tcl-spectcl)
+   Compiling f5-xc v0.1.0 (/home/user/tcl-lsp/rust/f5-xc)
+   Compiling tcl-lsp-db v0.1.0 (/home/user/tcl-lsp/rust/tcl-lsp-db)
+   Compiling tcl-explorer v0.1.0 (/home/user/tcl-lsp/rust/tcl-explorer)
+   Compiling tcl-lsp-server v0.1.0 (/home/user/tcl-lsp/rust/tcl-lsp-server)
+error: could not compile `tcl-lsp-server` (lib test) due to 1 previous error

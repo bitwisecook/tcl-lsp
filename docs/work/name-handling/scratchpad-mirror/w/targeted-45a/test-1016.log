@@ -1,0 +1,6 @@
+
+running 1 test
+test package_resolver::reachability::source_uncertain_continuation_tests::unknown_branch_continuations_do_not_become_definite_all_branch_stop ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 3484 filtered out; finished in 0.33s
+

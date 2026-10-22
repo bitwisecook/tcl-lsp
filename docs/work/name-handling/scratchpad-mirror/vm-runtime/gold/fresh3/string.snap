@@ -1,0 +1,14 @@
+# spectcl golden snapshot v1
+# regenerate with `cargo xtask pack-goldens`; do not edit by hand
+pack tcl dsl 2.2 display None load_error None
+target_dependent false
+file_extensions []
+provides []
+co_provides []
+ambient_packages []
+environments []
+dialects []
+registrations 2
+notices 0
+commands 1
+command string line 44 overrides false degraded false spec 49f529d4dcc4642b hooks 1c3263abc30faa01 grammar 715ea0deb6f6f5f9

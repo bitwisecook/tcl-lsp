@@ -1,0 +1,6 @@
+{"scheduled":"2026-10-21T10:55:00Z",
+ "change_since_previous_report":{"integrated_LSP":0,"total_baseline_delta":0,"effective_delta":0,"verified_complete":0},
+ "admissions":{},
+ "in_progress":{"sol-48":"tclvm work, active (12 tcl-vm + 1 tcl-vm-cli files modified)","sol-49":"compiler work, active (10 tcl-compiler files modified)"},
+ "disk_free_gb":3.4,
+ "next_report_utc":"2026-10-21T11:27:00Z"}

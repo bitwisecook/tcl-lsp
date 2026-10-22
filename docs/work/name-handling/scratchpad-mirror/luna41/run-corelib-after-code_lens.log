@@ -1,0 +1,179 @@
+test code_lens::logical_source::class_reference_tests::class_call_keeps_actual_local_factory_and_does_not_borrow_equal_foreign_bytes ... ok
+test code_lens::native_lens_presentation_tests::native_own_object_method_lens_keeps_identity_when_class_display_key_is_unavailable ... ok
+test code_lens::readonly_source_count_tests::complete_source_census_titles_report_exact_counts ... ok
+test code_lens::readonly_source_count_tests::partial_source_lens_titles_do_not_report_unknown_absence ... ok
+test code_lens::tests::class_with_no_explicit_constructor_or_destructor_gets_neither_lens ... ok
+test code_lens::logical_source::tests::lens_headers_keep_superseded_allocations_and_independent_uri_owners ... ok
+test code_lens::tests::classmethod_lens_carries_class_member_key_qname ... FAILED
+test code_lens::tests::constructor_lens_carries_class_constructor_key_qname ... ok
+test code_lens::logical_source::tests::genuine_call_sites_are_partial_reference_evidence_and_stale_source_refuses ... ok
+test code_lens::tests::constructor_lens_reports_zero_when_no_subclass_chains ... ok
+test code_lens::tests::empty_lenses_when_analysis_is_none ... ok
+test code_lens::tests::constructor_lens_counts_subclass_next_chain ... ok
+test code_lens::tests::destructor_lens_counts_subclass_next_chain ... ok
+test code_lens::tests::lens_anchors_at_proc_name_span ... ok
+test code_lens::tests::lens_bare_word_in_method_body_is_not_a_self_dispatch ... ok
+test code_lens::tests::lens_count_matches_references_after_def ... ok
+test code_lens::tests::lens_classmethod_count_matches_peek ... FAILED
+test code_lens::tests::lens_count_matches_references_call_inside_body ... ok
+test code_lens::tests::lens_count_matches_references_cmd_substitution ... ok
+test code_lens::tests::lens_count_matches_references_forward_ref ... FAILED
+test code_lens::tests::lens_count_matches_references_qualified_call ... ok
+test code_lens::tests::lens_count_matches_references_ns_qualified_call ... ok
+test code_lens::tests::lens_count_matches_references_unused_proc ... ok
+test code_lens::tests::lens_counts_class_constructor_calls ... ok
+test code_lens::tests::lens_counts_each_name_independently_in_a_multi_name_property_declaration ... ok
+test code_lens::tests::lens_count_matches_references_same_name_other_namespace ... ok
+test code_lens::tests::lens_counts_method_calls_within_class_body ... ok
+test code_lens::tests::lens_counts_external_obj_method_call_issue_864 ... FAILED
+test code_lens::tests::lens_counts_inherited_method_on_subclass_instance ... FAILED
+test code_lens::tests::lens_counts_multiple_references ... ok
+test code_lens::tests::lens_counts_namespaced_class_method ... FAILED
+test code_lens::tests::lens_counts_multiple_external_obj_method_calls ... FAILED
+test code_lens::tests::lens_counts_obj_method_call_inside_proc_body ... FAILED
+test code_lens::tests::lens_counts_obj_method_from_create_instance ... FAILED
+test code_lens::tests::lens_counts_property_my_dispatch_within_class_body ... FAILED
+test code_lens::tests::lens_does_not_credit_ambiguous_forward_ref_to_other_namespace ... FAILED
+test code_lens::tests::lens_does_not_count_dict_get_as_method_ref ... FAILED
+test code_lens::tests::lens_matches_peek_for_inherited_method_with_subclass_my_dispatch ... FAILED
+test code_lens::tests::lens_per_class ... ok
+test code_lens::tests::lens_per_user_proc ... ok
+test code_lens::tests::lens_qname_exists_finds_a_method_and_classmethod_and_disambiguates ... ok
+test code_lens::tests::lens_matches_peek_for_issue_864_method ... FAILED
+test code_lens::tests::lens_qname_exists_finds_a_plain_class ... ok
+test code_lens::tests::lens_qname_exists_finds_a_plain_proc ... ok
+test code_lens::tests::lens_qname_exists_finds_a_property ... ok
+test code_lens::tests::lens_qname_exists_agrees_with_code_lenses_output ... ok
+test code_lens::tests::lens_qname_exists_finds_constructor_and_destructor ... ok
+test code_lens::tests::lens_qname_exists_rejects_an_unrelated_qname ... ok
+test code_lens::tests::lens_reports_zero_for_uncalled_method ... ok
+test code_lens::tests::lens_reports_zero_for_unused_property ... ok
+test code_lens::tests::lens_shows_singular_for_one_reference ... ok
+test code_lens::tests::lens_shows_zero_references_for_unused_proc ... ok
+test code_lens::tests::method_and_classmethod_qnames_never_collide_on_same_name ... FAILED
+test code_lens::tests::lens_unknown_instance_method_is_not_counted ... ok
+test code_lens::tests::original_class_member_reporting_keys_require_current_source_without_display_maps ... ok
+test code_lens::tests::original_lens_reporting_keys_keep_owner_currency_and_ignore_display_maps ... ok
+test code_lens::tests::method_lens_carries_class_member_key_qname ... ok
+test code_lens::tests::original_lenses_keep_repeated_and_opaque_source_declarations_without_ui_maps ... ok
+test code_lens::tests::method_lens_counts_a_method_return_captured_dispatch_site ... FAILED
+test code_lens::tests::proc_lens_without_workspace_counts_local_only ... ok
+test code_lens::tests::proc_lens_counts_cross_document_calls ... FAILED
+test code_lens::tests::property_lens_carries_class_property_key_qname ... ok
+test code_lens::tests::property_qname_never_collides_with_a_same_named_method ... ok
+test code_lens::tests::original_logical_lenses_keep_complete_source_currency_and_actual_profile ... ok
+---- code_lens::tests::classmethod_lens_carries_class_member_key_qname stdout ----
+thread 'code_lens::tests::classmethod_lens_carries_class_member_key_qname' (9777) panicked at rust/tcl-lsp-core/src/code_lens.rs:720:14:
+make lens
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- code_lens::tests::lens_classmethod_count_matches_peek stdout ----
+
+thread 'code_lens::tests::lens_classmethod_count_matches_peek' (9802) panicked at rust/tcl-lsp-core/src/code_lens.rs:1064:32:
+no lens on line 1: [CodeLens { logical_identity: None, identity: Some(OriginalDeclarationIdentity { uri: "", image: SourceImage { bytes: [111, 111, 58, 58, 99, 108, 97, 115, 115, 32, 99, 114, 101, 97, 116, 101, 32, 70, 97, 99, 116, 111, 114, 121, 32, 123, 10, 32, 32, 32, 32, 99, 108, 97, 115, 115, 109, 101, 116, 104, 111, 100, 32, 98, 117, 105, 108, 100, 32, 123, 125, 32, 123, 125, 10, 125, 10, 70, 97, 99, 116, 111, 114, 121, 32, 98, 117, 105, 108, 100, 10], channel: Document, geometry: SourceImageGeometry { byte_hash: 11110473222126656581, line_index: Some(LineIndex { line_starts: [0, 27, 55,
+
+---- code_lens::tests::lens_count_matches_references_forward_ref stdout ----
+
+thread 'code_lens::tests::lens_count_matches_references_forward_ref' (9830) panicked at rust/tcl-lsp-core/src/code_lens.rs:1101:9:
+assertion `left == right` failed: [CodeLens { logical_identity: None, identity: Some(OriginalDeclarationIdentity { uri: "", image: SourceImage { bytes: [102, 111, 111, 10, 112, 114, 111, 99, 32, 102, 111, 111, 32, 123, 125, 32, 123, 125, 10], channel: Document, geometry: SourceImageGeometry { byte_hash: 8372064636385492536, line_index: Some(LineIndex { line_starts: [0, 4, 19] }) } }, config: LexerConfig { expand_syntax: true, irules_brace_separator: false, brace_line_continuation: Terminates, strict_quoting: false, braced_var: FirstClose, array_index: Tcl8, base_offset: 0, base_line: 0, base_c
+  left: "0 references"
+ right: "1 reference"
+
+---- code_lens::tests::lens_counts_external_obj_method_call_issue_864 stdout ----
+
+thread 'code_lens::tests::lens_counts_external_obj_method_call_issue_864' (9894) panicked at rust/tcl-lsp-core/src/code_lens.rs:1226:9:
+assertion `left == right` failed: [CodeLens { logical_identity: None, identity: Some(OriginalDeclarationIdentity { uri: "", image: SourceImage { bytes: [111, 111, 58, 58, 99, 108, 97, 115, 115, 32, 99, 114, 101, 97, 116, 101, 32, 66, 97, 114, 32, 123, 10, 32, 32, 32, 118, 97, 114, 105, 97, 98, 108, 101, 32, 95, 111, 112, 116, 105, 111, 110, 115, 10, 32, 32, 32, 32, 99, 111, 110, 115, 116, 114, 117, 99, 116, 111, 114, 32, 123, 97, 114, 103, 115, 125, 32, 123, 10, 32, 32, 32, 32, 32, 32, 32, 32, 32, 115, 101, 116, 32, 95, 111, 112, 116, 105, 111, 110, 115, 32, 36, 97, 114, 103, 115, 10, 32, 32, 
+  left: "at least 1 reference"
+ right: "1 reference"
+
+---- code_lens::tests::lens_counts_inherited_method_on_subclass_instance stdout ----
+
+thread 'code_lens::tests::lens_counts_inherited_method_on_subclass_instance' (9905) panicked at rust/tcl-lsp-core/src/code_lens.rs:1349:9:
+assertion `left == right` failed: [CodeLens { logical_identity: None, identity: Some(OriginalDeclarationIdentity { uri: "", image: SourceImage { bytes: [111, 111, 58, 58, 99, 108, 97, 115, 115, 32, 99, 114, 101, 97, 116, 101, 32, 66, 97, 115, 101, 32, 123, 10, 32, 32, 32, 32, 109, 101, 116, 104, 111, 100, 32, 115, 112, 101, 97, 107, 32, 123, 125, 32, 123, 125, 10, 125, 10, 111, 111, 58, 58, 99, 108, 97, 115, 115, 32, 99, 114, 101, 97, 116, 101, 32, 68, 101, 114, 105, 118, 101, 100, 32, 123, 10, 32, 32, 32, 32, 115, 117, 112, 101, 114, 99, 108, 97, 115, 115, 32, 66, 97, 115, 101, 10, 125, 10, 1
+  left: "at least 1 reference"
+ right: "1 reference"
+
+---- code_lens::tests::lens_counts_namespaced_class_method stdout ----
+
+thread 'code_lens::tests::lens_counts_namespaced_class_method' (9947) panicked at rust/tcl-lsp-core/src/code_lens.rs:1421:9:
+assertion `left == right` failed: [CodeLens { logical_identity: None, identity: Some(OriginalDeclarationIdentity { uri: "", image: SourceImage { bytes: [110, 97, 109, 101, 115, 112, 97, 99, 101, 32, 101, 118, 97, 108, 32, 97, 112, 112, 32, 123, 10, 32, 32, 32, 32, 111, 111, 58, 58, 99, 108, 97, 115, 115, 32, 99, 114, 101, 97, 116, 101, 32, 87, 105, 100, 103, 101, 116, 32, 123, 10, 32, 32, 32, 32, 32, 32, 32, 32, 109, 101, 116, 104, 111, 100, 32, 114, 101, 110, 100, 101, 114, 32, 123, 125, 32, 123, 125, 10, 32, 32, 32, 32, 125, 10, 125, 10, 115, 101, 116, 32, 119, 32, 91, 97, 112, 112, 58, 58, 
+  left: "at least 1 reference"
+ right: "1 reference"
+
+---- code_lens::tests::lens_counts_multiple_external_obj_method_calls stdout ----
+
+thread 'code_lens::tests::lens_counts_multiple_external_obj_method_calls' (9938) panicked at rust/tcl-lsp-core/src/code_lens.rs:1285:9:
+assertion `left == right` failed: [CodeLens { logical_identity: None, identity: Some(OriginalDeclarationIdentity { uri: "", image: SourceImage { bytes: [111, 111, 58, 58, 99, 108, 97, 115, 115, 32, 99, 114, 101, 97, 116, 101, 32, 68, 111, 103, 32, 123, 10, 32, 32, 32, 32, 109, 101, 116, 104, 111, 100, 32, 98, 97, 114, 107, 32, 123, 125, 32, 123, 125, 10, 125, 10, 115, 101, 116, 32, 97, 32, 91, 68, 111, 103, 32, 110, 101, 119, 93, 10, 115, 101, 116, 32, 98, 32, 91, 68, 111, 103, 32, 110, 101, 119, 93, 10, 36, 97, 32, 98, 97, 114, 107, 10, 112, 117, 116, 115, 32, 91, 36, 98, 32, 98, 97, 114, 107
+  left: "at least 2 references"
+ right: "2 references"
+
+---- code_lens::tests::lens_counts_obj_method_call_inside_proc_body stdout ----
+
+thread 'code_lens::tests::lens_counts_obj_method_call_inside_proc_body' (9951) panicked at rust/tcl-lsp-core/src/code_lens.rs:1455:9:
+assertion `left == right` failed: [CodeLens { logical_identity: None, identity: Some(OriginalDeclarationIdentity { uri: "", image: SourceImage { bytes: [111, 111, 58, 58, 99, 108, 97, 115, 115, 32, 99, 114, 101, 97, 116, 101, 32, 68, 111, 103, 32, 123, 10, 32, 32, 32, 32, 109, 101, 116, 104, 111, 100, 32, 98, 97, 114, 107, 32, 123, 125, 32, 123, 125, 10, 125, 10, 115, 101, 116, 32, 100, 32, 91, 68, 111, 103, 32, 110, 101, 119, 93, 10, 112, 114, 111, 99, 32, 114, 117, 110, 32, 123, 125, 32, 123, 10, 32, 32, 32, 32, 103, 108, 111, 98, 97, 108, 32, 100, 10, 32, 32, 32, 32, 36, 100, 32, 98, 97, 11
+  left: "References unavailable"
+ right: "1 reference"
+
+---- code_lens::tests::lens_counts_obj_method_from_create_instance stdout ----
+
+thread 'code_lens::tests::lens_counts_obj_method_from_create_instance' (9958) panicked at rust/tcl-lsp-core/src/code_lens.rs:1315:9:
+assertion `left == right` failed: [CodeLens { logical_identity: None, identity: Some(OriginalDeclarationIdentity { uri: "", image: SourceImage { bytes: [111, 111, 58, 58, 99, 108, 97, 115, 115, 32, 99, 114, 101, 97, 116, 101, 32, 68, 111, 103, 32, 123, 10, 32, 32, 32, 32, 109, 101, 116, 104, 111, 100, 32, 98, 97, 114, 107, 32, 123, 125, 32, 123, 125, 10, 125, 10, 68, 111, 103, 32, 99, 114, 101, 97, 116, 101, 32, 114, 101, 120, 10, 114, 101, 120, 32, 98, 97, 114, 107, 10], channel: Document, geometry: SourceImageGeometry { byte_hash: 1877087749466127344, line_index: Some(LineIndex { line_starts
+  left: "at least 1 reference"
+ right: "1 reference"
+
+---- code_lens::tests::lens_counts_property_my_dispatch_within_class_body stdout ----
+
+thread 'code_lens::tests::lens_counts_property_my_dispatch_within_class_body' (9959) panicked at rust/tcl-lsp-core/src/code_lens.rs:786:9:
+assertion `left == right` failed: [CodeLens { logical_identity: None, identity: Some(OriginalDeclarationIdentity { uri: "", image: SourceImage { bytes: [111, 111, 58, 58, 99, 108, 97, 115, 115, 32, 99, 114, 101, 97, 116, 101, 32, 87, 105, 100, 103, 101, 116, 32, 123, 10, 32, 32, 32, 32, 112, 114, 111, 112, 101, 114, 116, 121, 32, 115, 105, 122, 101, 32, 45, 103, 101, 116, 32, 123, 114, 101, 116, 117, 114, 110, 32, 36, 109, 121, 83, 105, 122, 101, 125, 32, 45, 115, 101, 116, 32, 123, 115, 101, 116, 32, 109, 121, 83, 105, 122, 101, 32, 36, 118, 97, 108, 117, 101, 125, 10, 32, 32, 32, 32, 109, 10
+  left: "at least 2 references"
+ right: "2 references"
+
+---- code_lens::tests::lens_does_not_credit_ambiguous_forward_ref_to_other_namespace stdout ----
+
+thread 'code_lens::tests::lens_does_not_credit_ambiguous_forward_ref_to_other_namespace' (9974) panicked at rust/tcl-lsp-core/src/code_lens.rs:1173:9:
+assertion `left == right` failed: [CodeLens { logical_identity: None, identity: Some(OriginalDeclarationIdentity { uri: "", image: SourceImage { bytes: [110, 97, 109, 101, 115, 112, 97, 99, 101, 32, 101, 118, 97, 108, 32, 97, 32, 123, 32, 102, 111, 111, 32, 59, 32, 112, 114, 111, 99, 32, 102, 111, 111, 32, 123, 125, 32, 123, 125, 32, 125, 10, 110, 97, 109, 101, 115, 112, 97, 99, 101, 32, 101, 118, 97, 108, 32, 98, 32, 123, 32, 112, 114, 111, 99, 32, 102, 111, 111, 32, 123, 125, 32, 123, 125, 32, 125, 10], channel: Document, geometry: SourceImageGeometry { byte_hash: 3524602898527647372, line_i
+  left: "0 references"
+ right: "1 reference"
+
+---- code_lens::tests::lens_does_not_count_dict_get_as_method_ref stdout ----
+
+thread 'code_lens::tests::lens_does_not_count_dict_get_as_method_ref' (9967) panicked at rust/tcl-lsp-core/src/code_lens.rs:1254:9:
+assertion `left == right` failed: [CodeLens { logical_identity: None, identity: Some(OriginalDeclarationIdentity { uri: "", image: SourceImage { bytes: [111, 111, 58, 58, 99, 108, 97, 115, 115, 32, 99, 114, 101, 97, 116, 101, 32, 66, 97, 114, 32, 123, 10, 32, 32, 32, 118, 97, 114, 105, 97, 98, 108, 101, 32, 95, 111, 112, 116, 105, 111, 110, 115, 10, 32, 32, 32, 32, 99, 111, 110, 115, 116, 114, 117, 99, 116, 111, 114, 32, 123, 97, 114, 103, 115, 125, 32, 123, 10, 32, 32, 32, 32, 32, 32, 32, 32, 32, 115, 101, 116, 32, 95, 111, 112, 116, 105, 111, 110, 115, 32, 36, 97, 114, 103, 115, 10, 32, 32, 
+  left: "at least 1 reference"
+ right: "1 reference"
+
+---- code_lens::tests::lens_matches_peek_for_inherited_method_with_subclass_my_dispatch stdout ----
+
+thread 'code_lens::tests::lens_matches_peek_for_inherited_method_with_subclass_my_dispatch' (9975) panicked at rust/tcl-lsp-core/src/code_lens.rs:1386:9:
+assertion `left == right` failed: [CodeLens { logical_identity: None, identity: Some(OriginalDeclarationIdentity { uri: "", image: SourceImage { bytes: [111, 111, 58, 58, 99, 108, 97, 115, 115, 32, 99, 114, 101, 97, 116, 101, 32, 66, 97, 115, 101, 32, 123, 10, 32, 32, 32, 32, 109, 101, 116, 104, 111, 100, 32, 115, 112, 101, 97, 107, 32, 123, 125, 32, 123, 125, 10, 125, 10, 111, 111, 58, 58, 99, 108, 97, 115, 115, 32, 99, 114, 101, 97, 116, 101, 32, 68, 101, 114, 105, 118, 101, 100, 32, 123, 10, 32, 32, 32, 32, 115, 117, 112, 101, 114, 99, 108, 97, 115, 115, 32, 66, 97, 115, 101, 10, 32, 32, 32
+  left: "at least 2 references"
+ right: "2 references"
+
+---- code_lens::tests::lens_matches_peek_for_issue_864_method stdout ----
+
+thread 'code_lens::tests::lens_matches_peek_for_issue_864_method' (9982) panicked at rust/tcl-lsp-core/src/code_lens.rs:1046:32:
+unparseable lens title: "at least 1 reference"
+
+---- code_lens::tests::method_and_classmethod_qnames_never_collide_on_same_name stdout ----
+
+thread 'code_lens::tests::method_and_classmethod_qnames_never_collide_on_same_name' (10039) panicked at rust/tcl-lsp-core/src/code_lens.rs:748:9:
+assertion `left == right` failed: [CodeLens { logical_identity: None, identity: Some(OriginalDeclarationIdentity { uri: "", image: SourceImage { bytes: [111, 111, 58, 58, 99, 108, 97, 115, 115, 32, 99, 114, 101, 97, 116, 101, 32, 67, 32, 123, 10, 32, 32, 32, 32, 109, 101, 116, 104, 111, 100, 32, 102, 111, 111, 32, 123, 125, 32, 123, 125, 10, 32, 32, 32, 32, 99, 108, 97, 115, 115, 109, 101, 116, 104, 111, 100, 32, 102, 111, 111, 32, 123, 125, 32, 123, 125, 10, 125, 10], channel: Document, geometry: SourceImageGeometry { byte_hash: 7444681468540078807, line_index: Some(LineIndex { line_starts: [
+  left: 1
+ right: 2
+
+---- code_lens::tests::method_lens_counts_a_method_return_captured_dispatch_site stdout ----
+
+thread 'code_lens::tests::method_lens_counts_a_method_return_captured_dispatch_site' (10052) panicked at rust/tcl-lsp-core/src/code_lens.rs:521:9:
+assertion `left == right` failed: the lattice-typed `$b greet` site must be counted: [CodeLens { logical_identity: None, identity: Some(OriginalDeclarationIdentity { uri: "", image: SourceImage { bytes: [111, 111, 58, 58, 99, 108, 97, 115, 115, 32, 99, 114, 101, 97, 116, 101, 32, 65, 32, 123, 32, 109, 101, 116, 104, 111, 100, 32, 109, 97, 107, 101, 32, 123, 125, 32, 123, 32, 58, 58, 114, 101, 116, 117, 114, 110, 32, 91, 58, 58, 66, 32, 110, 101, 119, 93, 32, 125, 32, 125, 10, 111, 111, 58, 58, 99, 108, 97, 115, 115, 32, 99, 114, 101, 97, 116, 101, 32, 66, 32, 123, 32, 109, 101, 116, 104, 111, 
+  left: "at least 1 reference"
+ right: "1 reference"
+
+---- code_lens::tests::proc_lens_counts_cross_document_calls stdout ----
+
+thread 'code_lens::tests::proc_lens_counts_cross_document_calls' (10080) panicked at rust/tcl-lsp-core/src/code_lens.rs:1018:9:
+assertion `left == right` failed: [CodeLens { logical_identity: None, identity: Some(OriginalDeclarationIdentity { uri: "file:///lib.tcl", image: SourceImage { bytes: [112, 114, 111, 99, 32, 104, 101, 108, 112, 101, 114, 32, 123, 125, 32, 123, 125, 10], channel: Document, geometry: SourceImageGeometry { byte_hash: 9941681794392986201, line_index: Some(LineIndex { line_starts: [0, 18] }) } }, config: LexerConfig { expand_syntax: true, irules_brace_separator: false, brace_line_continuation: Terminates, strict_quoting: false, braced_var: FirstClose, array_index: Tcl8, base_offset: 0, base_line: 0
+  left: "0 references"
+ right: "2 references"
+
+
+test result: FAILED. 47 passed; 17 failed; 0 ignored; 0 measured; 3426 filtered out; finished in 112.16s

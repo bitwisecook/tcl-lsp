@@ -1,0 +1,132 @@
+
+running 17 tests
+test analyser::bounds_checks::tests::w241_is_silent_when_a_switch_clause_breaks_the_loop ... 
+thread 'analyser::bounds_checks::tests::w241_is_silent_when_a_switch_clause_breaks_the_loop' (27761) panicked at rust/tcl-compiler/src/analyser/bounds_checks.rs:1614:13:
+while 1 { switch -- $x a {break} default {return} }
+: ["W241"]
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: tcl_compiler::analyser::bounds_checks::tests::w241_is_silent_when_a_switch_clause_breaks_the_loop
+   3: tcl_compiler::analyser::bounds_checks::tests::w241_is_silent_when_a_switch_clause_breaks_the_loop::{closure#0}
+   4: <tcl_compiler::analyser::bounds_checks::tests::w241_is_silent_when_a_switch_clause_breaks_the_loop::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+FAILED
+test analyser::diagnostics::fp::rbs::fp_rbs_15_all_arms_error_or_tailcall_silent ... ok
+test analyser::diagnostics::fp::rbs::fp_rbs_15_all_arms_return_dead_read_silent ... ok
+test analyser::diagnostics::fp::rbs::fp_rbs_15_all_break_switch_not_a_proc_terminator ... 
+thread 'analyser::diagnostics::fp::rbs::fp_rbs_15_all_break_switch_not_a_proc_terminator' (27828) panicked at rust/tcl-compiler/src/analyser/diagnostics/fp/rbs.rs:1137:5:
+FP-RBS-15 TP: all-break switch is a loop jump, not a proc return; W210 must fire; emitted: []
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: tcl_compiler::analyser::diagnostics::fp::rbs::fp_rbs_15_all_break_switch_not_a_proc_terminator
+   3: tcl_compiler::analyser::diagnostics::fp::rbs::fp_rbs_15_all_break_switch_not_a_proc_terminator::{closure#0}
+   4: <tcl_compiler::analyser::diagnostics::fp::rbs::fp_rbs_15_all_break_switch_not_a_proc_terminator::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+FAILED
+test analyser::diagnostics::fp::rbs::fp_rbs_15_continue_in_opaque_switch_loop_silent ... ok
+test analyser::diagnostics::fp::rbs::fp_rbs_15_no_default_falls_through_fires ... ok
+test analyser::diagnostics::fp::rbs::fp_rbs_15_one_completing_arm_fires ... ok
+test analyser::diagnostics::fp::rbs::fp_rbs_15_while1_break_in_opaque_switch_exits_loop ... 
+thread 'analyser::diagnostics::fp::rbs::fp_rbs_15_while1_break_in_opaque_switch_exits_loop' (27931) panicked at rust/tcl-compiler/src/analyser/diagnostics/fp/rbs.rs:1148:5:
+FP-RBS-15 TP: break-in-opaque-switch must make while-1 exit reachable; W210 must fire; emitted: []
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: tcl_compiler::analyser::diagnostics::fp::rbs::fp_rbs_15_while1_break_in_opaque_switch_exits_loop
+   3: tcl_compiler::analyser::diagnostics::fp::rbs::fp_rbs_15_while1_break_in_opaque_switch_exits_loop::{closure#0}
+   4: <tcl_compiler::analyser::diagnostics::fp::rbs::fp_rbs_15_while1_break_in_opaque_switch_exits_loop::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+FAILED
+test analyser::diagnostics::fp::sh::zz_sol49_dict_for_probe ... SRC "set d {a 1 b 2}\ndict for {k v} $d { puts \"$k=$v\" }\n" dyn_trace=false deferred_any=true deferred={} traced={} body_units=0
+  SCCP "{(Symbol(1), 2): Overdefined, (Symbol(1), 0): Overdefined, (Symbol(2), 2): Overdefined, (Symbol(2), 0): Overdefined, (Symbol(2), 1): Overdefined, (Symbol(1), 1): Overdefined, (Symbol(0), 1): Overdefined}"
+  ST AssignConst { span: Span { start: 0, end: 15 }, name: "d", name_braced: false, value: "a 1 b 2", value_span: Some(Span { start: 7, end: 14 }) }
+  ST Call { span: Span { start: 16, end: 50 }, command: "dict", canonical_command: None, args: ["for", "k v", "${d}", " puts \"$k=$v\" "], defs: [], reads: [], reads
+  ST Call { span: Span { start: 16, end: 50 }, command: "dict for", canonical_command: None, args: ["${d}"], defs: ["k", "v"], reads: [], reads_own_defs: false, safe
+  ST Call { span: Span { start: 36, end: 48 }, command: "puts", canonical_command: None, args: ["${k}=${v}"], defs: [], reads: [], reads_own_defs: false, safe_on_uni
+  CODES ["S100"]
+  DW Span { start: 0, end: 15 } tokens=true binding=true footprint=true purpose=Some(AuthoredSimulation) invocation=true nested=0
+  DW Span { start: 16, end: 50 } tokens=true binding=true footprint=true purpose=Some(AuthoredSimulation) invocation=true nested=1
+  DW Span { start: 36, end: 48 } tokens=true binding=true footprint=true purpose=Some(AuthoredSimulation) invocation=true nested=0
+SRC "set d {a 1 b 2}\ndict for {k v} $d { }\n" dyn_trace=false deferred_any=false deferred={} traced={} body_units=0
+  SCCP "{(Symbol(2), 1): Overdefined, (Symbol(0), 1): Const(String(\"a 1 b 2\")), (Symbol(1), 1): Overdefined}"
+  ST AssignConst { span: Span { start: 0, end: 15 }, name: "d", name_braced: false, value: "a 1 b 2", value_span: Some(Span { start: 7, end: 14 }) }
+  ST Call { span: Span { start: 16, end: 37 }, command: "dict", canonical_command: None, args: ["for", "k v", "${d}", " "], defs: [], reads: [], reads_own_defs: fals
+  ST Call { span: Span { start: 16, end: 37 }, command: "dict for", canonical_command: None, args: ["${d}"], defs: ["k", "v"], reads: [], reads_own_defs: false, safe
+  CODES []
+  DW Span { start: 0, end: 15 } tokens=true binding=true footprint=true purpose=Some(AuthoredSimulation) invocation=true nested=0
+  DW Span { start: 16, end: 37 } tokens=true binding=true footprint=true purpose=Some(AuthoredSimulation) invocation=true nested=0
+SRC "set d {a 1 b 2}\nforeach {k v} $d { puts \"$k=$v\" }\n" dyn_trace=false deferred_any=true deferred={} traced={} body_units=0
+  SCCP "{(Symbol(1), 2): Overdefined, (Symbol(2), 2): Overdefined, (Symbol(1), 0): Overdefined, (Symbol(2), 0): Overdefined, (Symbol(1), 1): Overdefined, (Symbol(0), 1): Overdefined, (Symbol(2), 1): Overdefined}"
+  ST AssignConst { span: Span { start: 0, end: 15 }, name: "d", name_braced: false, value: "a 1 b 2", value_span: Some(Span { start: 7, end: 14 }) }
+  ST Call { span: Span { start: 16, end: 49 }, command: "foreach", canonical_command: None, args: ["k v", "${d}", " puts \"$k=$v\" "], defs: [], reads: [], reads_own
+  ST Call { span: Span { start: 16, end: 49 }, command: "foreach", canonical_command: None, args: ["${d}"], defs: ["k", "v"], reads: [], reads_own_defs: false, safe_
+  ST Call { span: Span { start: 35, end: 47 }, command: "puts", canonical_command: None, args: ["${k}=${v}"], defs: [], reads: [], reads_own_defs: false, safe_on_uni
+  CODES []
+  DW Span { start: 0, end: 15 } tokens=true binding=true footprint=true purpose=Some(AuthoredSimulation) invocation=true nested=0
+  DW Span { start: 16, end: 49 } tokens=true binding=true footprint=true purpose=Some(AuthoredSimulation) invocation=true nested=1
+  DW Span { start: 35, end: 47 } tokens=true binding=true footprint=true purpose=Some(AuthoredSimulation) invocation=true nested=0
+ok
+test analyser::diagnostics::fp::tnt::fp_tnt_03_eval_list_literal_head_no_t100 ... ok
+test analyser::diagnostics::fp::tnt::fp_tnt_03_eval_list_tainted_head_fires_t100 ... 
+thread 'analyser::diagnostics::fp::tnt::fp_tnt_03_eval_list_tainted_head_fires_t100' (28130) panicked at rust/tcl-compiler/src/analyser/diagnostics/fp/tnt.rs:117:5:
+FP-TNT-03 TP: tainted [list ...] head must fire T100; emitted []
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: tcl_compiler::analyser::diagnostics::fp::tnt::fp_tnt_03_eval_list_tainted_head_fires_t100
+   3: tcl_compiler::analyser::diagnostics::fp::tnt::fp_tnt_03_eval_list_tainted_head_fires_t100::{closure#0}
+   4: <tcl_compiler::analyser::diagnostics::fp::tnt::fp_tnt_03_eval_list_tainted_head_fires_t100::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+FAILED
+test analyser::diagnostics::fp::tnt::fp_tnt_03_eval_list_via_var_still_fires ... ok
+test analyser::diagnostics::fp::tnt::fp_tnt_03_interp_eval_list_literal_head_no_t105 ... 
+thread 'analyser::diagnostics::fp::tnt::fp_tnt_03_interp_eval_list_literal_head_no_t105' (28134) panicked at rust/tcl-compiler/src/analyser/diagnostics/fp/tnt.rs:173:5:
+FP-TNT-03 TN: [list puts $raw] interp eval must suppress T105; emitted ["T105"]
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: tcl_compiler::analyser::diagnostics::fp::tnt::fp_tnt_03_interp_eval_list_literal_head_no_t105
+   3: tcl_compiler::analyser::diagnostics::fp::tnt::fp_tnt_03_interp_eval_list_literal_head_no_t105::{closure#0}
+   4: <tcl_compiler::analyser::diagnostics::fp::tnt::fp_tnt_03_interp_eval_list_literal_head_no_t105::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+FAILED
+test analyser::diagnostics::fp::tnt::fp_tnt_03_interp_eval_list_tainted_head_fires_t105 ... ok
+test analyser::diagnostics::fp::tnt::fp_tnt_03_uplevel_list_tainted_head_fires_t100 ... 
+thread 'analyser::diagnostics::fp::tnt::fp_tnt_03_uplevel_list_tainted_head_fires_t100' (28321) panicked at rust/tcl-compiler/src/analyser/diagnostics/fp/tnt.rs:139:5:
+FP-TNT-03 TP: uplevel [list $raw] must fire T100; emitted []
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: tcl_compiler::analyser::diagnostics::fp::tnt::fp_tnt_03_uplevel_list_tainted_head_fires_t100
+   3: tcl_compiler::analyser::diagnostics::fp::tnt::fp_tnt_03_uplevel_list_tainted_head_fires_t100::{closure#0}
+   4: <tcl_compiler::analyser::diagnostics::fp::tnt::fp_tnt_03_uplevel_list_tainted_head_fires_t100::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+FAILED
+test analyser::diagnostics::tests::fp_rbs_15_all_exiting_opaque_switch_is_a_terminator ... 
+thread 'analyser::diagnostics::tests::fp_rbs_15_all_exiting_opaque_switch_is_a_terminator' (28379) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:6551:5:
+default-less opaque switch falls through (W210 expected on y)
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: tcl_compiler::analyser::diagnostics::tests::fp_rbs_15_all_exiting_opaque_switch_is_a_terminator
+   3: tcl_compiler::analyser::diagnostics::tests::fp_rbs_15_all_exiting_opaque_switch_is_a_terminator::{closure#0}
+   4: <tcl_compiler::analyser::diagnostics::tests::fp_rbs_15_all_exiting_opaque_switch_is_a_terminator::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+FAILED
+test analyser::diagnostics::tests::fp_rbs_15_continue_in_opaque_switch_stays_silent ... ok
+
+failures:
+
+failures:
+    analyser::bounds_checks::tests::w241_is_silent_when_a_switch_clause_breaks_the_loop
+    analyser::diagnostics::fp::rbs::fp_rbs_15_all_break_switch_not_a_proc_terminator
+    analyser::diagnostics::fp::rbs::fp_rbs_15_while1_break_in_opaque_switch_exits_loop
+    analyser::diagnostics::fp::tnt::fp_tnt_03_eval_list_tainted_head_fires_t100
+    analyser::diagnostics::fp::tnt::fp_tnt_03_interp_eval_list_literal_head_no_t105
+    analyser::diagnostics::fp::tnt::fp_tnt_03_uplevel_list_tainted_head_fires_t100
+    analyser::diagnostics::tests::fp_rbs_15_all_exiting_opaque_switch_is_a_terminator
+
+test result: FAILED. 10 passed; 7 failed; 0 ignored; 0 measured; 10461 filtered out; finished in 58.57s
+

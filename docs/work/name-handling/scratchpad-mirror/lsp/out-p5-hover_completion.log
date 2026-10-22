@@ -1,0 +1,79 @@
+
+running 56 tests
+test a_dynamic_ensemble_dispatch_word_keeps_both_tables ... ok
+test completion_filters_the_boolean_vocabulary_by_partial ... ok
+test completion_lists_user_defined_procs ... ok
+test completion_inside_proc_includes_its_params_and_locals ... FAILED
+test completion_merges_user_procs_and_builtins ... ok
+test completion_of_bare_dollar_lists_all_globals_sorted ... ok
+test completion_ns_scope_global_qualification_follows_the_dialect_m11 ... ok
+test completion_of_command_prefix_lists_matching_builtins ... ok
+test completion_of_namespace_qualified_command ... ok
+test completion_of_var_prefix_lists_in_scope_variables ... ok
+test completion_offers_scoped_command_heads ... ok
+test completion_offers_scoped_operations ... ok
+test completion_on_empty_source_does_not_panic ... ok
+test completion_offers_the_boolean_vocabulary_at_a_boolean_option_value ... ok
+test completion_scoped_heads_not_offered_outside_body ... ok
+test completion_string_is_lists_real_character_classes ... ok
+test completion_subcommand_at_word_index_1 ... ok
+test completion_proc_scope_still_qualifies_globals_in_every_dialect_m11 ... ok
+test completion_switch_completes_command_options ... ok
+test completion_variable_trigger_suppresses_commands ... ok
+test completion_without_registry_yields_procs_only ... ok
+test ensemble_configure_completion_offers_namespace_and_never_command ... ok
+test ensemble_create_completion_offers_command_and_never_namespace ... ok
+test hover_declines_an_option_the_other_ensemble_operation_owns ... ok
+test ensemble_exists_offers_no_options_at_all ... ok
+test hover_on_a_boolean_option_names_the_vocabulary ... ok
+test hover_on_builtin_command_shows_summary_and_synopsis ... ok
+test hover_declines_every_option_on_ensemble_exists ... ok
+test hover_on_builtin_string_lists_subcommands ... ok
+test hover_on_ensemble_configure_namespace_answers_from_configures_table ... ok
+test hover_on_ensemble_create_command_answers_from_creates_table ... ok
+test hover_on_namespace_qualified_proc ... ok
+test hover_on_paramless_proc_has_empty_param_list ... ok
+test hover_on_scoped_command_only_inside_body ... ok
+test hover_on_proc_with_default_param_shows_default ... ok
+test hover_on_scoped_config_command ... ok
+test hover_on_scoped_line_command ... ok
+test hover_on_subcommand_word_shows_subcommand ... ok
+test hover_on_scoped_operation ... ok
+test hover_on_unknown_word_without_registry_yields_nothing ... ok
+test hover_on_user_proc_shows_signature_and_params ... ok
+test hover_on_variable_reference_shows_reference_count ... ok
+test hover_on_whitespace_yields_nothing ... ok
+test hover_on_variadic_proc_shows_args_param ... ok
+test hover_out_of_bounds_position_yields_nothing ... ok
+test hover_user_proc_shadows_builtin_of_same_name ... ok
+test signature_active_param_advances_with_argument_index ... ok
+test signature_at_command_name_itself_is_none ... ok
+test signature_clamps_active_param_to_last_known ... ok
+test signature_on_builtin_command_with_registry ... ok
+test signature_on_unknown_command_without_registry_is_none ... ok
+test signature_on_user_proc_first_argument ... ok
+test signature_renders_default_param_brackets ... ok
+test signature_subcommand_resolves_for_string_length ... ok
+test signature_unknown_subcommand_is_none ... ok
+test signature_user_proc_wins_over_builtin ... ok
+
+failures:
+
+---- completion_inside_proc_includes_its_params_and_locals stdout ----
+
+thread 'completion_inside_proc_includes_its_params_and_locals' (25706) panicked at rust/tcl-lsp-core/tests/hover_completion.rs:534:5:
+param `count` missing: []
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: hover_completion::completion_inside_proc_includes_its_params_and_locals
+   3: hover_completion::completion_inside_proc_includes_its_params_and_locals::{closure#0}
+   4: <hover_completion::completion_inside_proc_includes_its_params_and_locals::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+
+failures:
+    completion_inside_proc_includes_its_params_and_locals
+
+test result: FAILED. 55 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 29.59s
+

@@ -1,0 +1,6 @@
+
+running 1 test
+test call_hierarchy::logical_source::tests::original_unicode_cr_geometry_and_duplicate_providers_remain_possible_source_advice ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 3484 filtered out; finished in 2.72s
+

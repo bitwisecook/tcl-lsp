@@ -1,0 +1,6 @@
+
+running 1 test
+test command_binding::source_transition_advice::source_namespace::tests::logical_namespace_path_uses_generic_registry_descriptors_and_clear_barriers ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 10440 filtered out; finished in 5.49s
+

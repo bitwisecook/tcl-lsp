@@ -1,0 +1,9 @@
+{
+ "scheduled": "2026-10-19T08:39:26Z",
+ "change_since_previous_report": {"integrated_LSP": 0, "total_baseline_delta": 0, "effective_delta": 0, "verified_complete": 0},
+ "admissions": {},
+ "candidates": {"integration45": {"commit": "aff99dc7e", "capture47": "1085 executed, guards pass; 5 FAIL->PASS; 1 PASS->FAIL: parse_pkg_index_survives_deeply_nested_source_wrapper 180.0 s timeout (172.0 s at integration44; 179.3 s alone). Not admitted.", "record": "docs/work/name-handling/handoff/reviews/resume-20261017-diagnosis/integration-45/COMPOSITION.md"}},
+ "in_progress": {"Sol-28": "exclusive tree: profile the nested-wrapper test and Server108 analysis cost; result-identical optimisation to restore headroom"},
+ "queued_after_admission": ["forced-import A2 + source-order proof v5 (both ADMIT-TO-BUILD)"],
+ "next_report_utc": "2026-10-19T09:10:00Z"
+}

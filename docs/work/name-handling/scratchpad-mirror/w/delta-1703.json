@@ -1,0 +1,14 @@
+{
+ "scheduled": "2026-10-18T17:03:36Z",
+ "change_since_previous_report": {"integrated_LSP": 0, "total_baseline_delta": 0, "effective_delta": 0, "verified_complete": 0},
+ "admissions": {},
+ "candidates": {"integration44": {"targeted_45a": "complete: 1218/1338 passed (120 failed: compiler 72, core 36, registry 9, lexer 3). Two lone-CR corrected assertions (completion argument slots, OO class-selector gaps) fail because those paths scan gaps outside the lexer: integration44 not admissible as composed. Baseline comparison running (lexer/registry baseline being built; core/compiler against integration43 ELFs)."}},
+ "reviews_since_previous_report": {"Luna-25 on DB921 merged unit (Sol-22)": "ADMIT-TO-BUILD; fix D1 (carry only when the Installed lowering is the sole entry at its site) and D2 (quadratic pairing) before landing; D3/D4 minor"},
+ "drafts_since_previous_report": {
+  "Sol-20": "forced-import sibling offsets (predicted no flips alone) and helper deletion with proof-manifest rows; decisions raised",
+  "Sol-21": "Server102/103 snapshot answers for workspace symbols; Server108 reuse of the memoised analysis plus bounded parallel capture; fixture-input decision raised",
+  "Sol-23": "survey-scoped Logical conditional source control v1; decoded-child path unsettled"
+ },
+ "events": ["Container restart about 17:04 UTC; targeted run had completed before it."],
+ "next_report_utc": "2026-10-18T17:34:00Z"
+}

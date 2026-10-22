@@ -1,0 +1,22 @@
+
+running 1 test
+test semantic_tokens::receiver_source::tests::original_registry_and_collection_receivers_keep_selected_child_operands ... 
+thread 'semantic_tokens::receiver_source::tests::original_registry_and_collection_receivers_keep_selected_child_operands' (18573) panicked at rust/tcl-lsp-core/src/semantic_tokens/receiver_source/tests.rs:90:5:
+assertion failed: method_at(source, &current, None, "curselection")
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: tcl_lsp_core::semantic_tokens::receiver_source::tests::original_registry_and_collection_receivers_keep_selected_child_operands
+   4: tcl_lsp_core::semantic_tokens::receiver_source::tests::original_registry_and_collection_receivers_keep_selected_child_operands::{closure#0}
+   5: <tcl_lsp_core::semantic_tokens::receiver_source::tests::original_registry_and_collection_receivers_keep_selected_child_operands::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+FAILED
+
+failures:
+
+failures:
+    semantic_tokens::receiver_source::tests::original_registry_and_collection_receivers_keep_selected_child_operands
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 3483 filtered out; finished in 1.23s
+

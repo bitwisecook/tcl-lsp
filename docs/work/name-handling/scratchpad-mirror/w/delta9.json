@@ -1,0 +1,15 @@
+{
+ "scheduled": "2026-10-18T08:06:00Z",
+ "change_since_previous_report": {"integrated_LSP": 0, "total_baseline_delta": 0, "effective_delta": 0, "verified_complete": 0},
+ "admissions": {},
+ "validation_recorded_at_capture": {
+  "integration40": {"commit": "a6e91d0a6 then d0cd9d73b", "kept": "TclOO definition bodies record unresolved-command uncertainty instead of withdrawing all namespace advice (Sol-11 v2, Luna-11 R1/R2/R4 addressed)", "withdrawn": "same-document order v6 (Luna-12 HOLD: nominal rule unsound under dynamic proc/rename/alias and unmodelled import/path; guard END fixture change weakened a correct assertion)"},
+  "build41": {"status": "PASS", "warnings": 0, "artifacts_sha256": "2d03d88aec240286ab9699a1762d8c0da12dcaf132ccb0d136d69cbb42bd1b93", "source": "d0cd9d73b (integrations 37-40 candidates plus clippy cleanup, minus v6)"},
+  "capture41": {"status": "RUNNING", "db": [11, 7], "core_partial": [171, 152]}
+ },
+ "pending": {"namespace_eval_entry": "Sol-13 designing the compiler-side scoping of unmodelled namespace statements so Selected words survive where Tcl cannot rebind heads; plus bisect of the guard fixture word loss"},
+ "user_decisions_still_open": ["Compiler221", "DB921 identity", "Server102/103 freshness vs snapshot", "Server108 validation cost", "H2: unpositioned link query as end-of-load"],
+ "next_report_utc": "2026-10-18T08:37:00Z",
+ "green_PR": false,
+ "merge_or_issue_closure": false
+}

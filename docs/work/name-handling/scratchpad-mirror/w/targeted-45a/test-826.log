@@ -1,0 +1,6 @@
+
+running 1 test
+test model::binding::tests::package_states_default_unknown_and_are_temporal ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1875 filtered out; finished in 0.00s
+

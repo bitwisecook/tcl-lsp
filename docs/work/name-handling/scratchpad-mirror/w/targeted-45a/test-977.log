@@ -1,0 +1,25 @@
+
+running 1 test
+test original_oo::selected_completion_gap_tests::original_class_selector_gaps_use_configured_separators_and_continuations ... 
+thread 'original_oo::selected_completion_gap_tests::original_class_selector_gaps_use_configured_separators_and_continuations' (23569) panicked at rust/tcl-lsp-core/src/original_oo.rs:618:13:
+assertion `left == right` failed: "\t\r"
+  left: true
+ right: false
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<bool, bool>
+   4: tcl_lsp_core::original_oo::selected_completion_gap_tests::original_class_selector_gaps_use_configured_separators_and_continuations
+   5: tcl_lsp_core::original_oo::selected_completion_gap_tests::original_class_selector_gaps_use_configured_separators_and_continuations::{closure#0}
+   6: <tcl_lsp_core::original_oo::selected_completion_gap_tests::original_class_selector_gaps_use_configured_separators_and_continuations::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+FAILED
+
+failures:
+
+failures:
+    original_oo::selected_completion_gap_tests::original_class_selector_gaps_use_configured_separators_and_continuations
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 3484 filtered out; finished in 1.48s
+

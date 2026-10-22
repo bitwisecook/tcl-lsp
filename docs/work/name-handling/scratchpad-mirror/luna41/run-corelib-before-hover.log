@@ -1,0 +1,413 @@
+test hover::original_alias_hover_tests::alias_advice_cannot_claim_a_same_named_data_argument ... ok
+test hover::original_alias_hover_tests::reporting_alias_target_does_not_replace_missing_original_recipe ... ok
+test hover::original_hover_independent_registry_tests::actual_expansion_child_registry_hover_does_not_require_a_static_parent_word ... ok
+test hover::original_math_hover_tests::original_math_hover_keeps_fixed_registration_without_a_fake_wrapper ... ok
+test hover::local_logical_hover_source_owner_tests::local_logical_hover_uses_current_procedure_class_and_member_owners ... ok
+test hover::original_math_hover_tests::original_math_hover_uses_the_actual_current_source_and_override ... ok
+test hover::original_pattern_hover_tests::original_format_hover_keeps_selected_availability_and_generation ... ok
+test hover::original_pattern_hover_tests::original_pattern_hover_keeps_actual_schema_operands_and_current_source ... ok
+test hover::original_pattern_hover_tests::original_pattern_hover_keeps_selected_availability_and_generation ... ok
+test hover::original_pattern_hover_tests::original_pattern_hover_keeps_alias_written_operands_and_captured_refusal ... ok
+test hover::original_pattern_hover_tests::original_pattern_hover_preserves_full_lexer_configuration ... ok
+test hover::logical_math_source_hover_tests::logical_math_hover_reports_conditional_headers_without_runtime_dispatch ... ok
+test hover::original_pattern_hover_tests::pattern_hover_entry_keeps_logical_shadow_and_captured_anchor_refusals ... ok
+test hover::original_registry::tests::original_registry_head_hover_lists_only_retained_version_subcommands ... ok
+test hover::original_pattern_hover_tests::pattern_hover_entry_keeps_explicit_logical_source_context_and_nested_words ... ok
+test hover::original_registry::tests::original_registry_hover_keeps_current_context_and_conditional_shadow_barriers ... FAILED
+test hover::original_registry::tests::original_registry_profile_hover_uses_selected_descriptor_and_complete_input ... ok
+test hover::original_registry::tests::original_scoped_hover_keeps_body_receipts_and_ignores_copied_reporting_regions ... ok
+test hover::original_registry::tests::original_registry_hover_uses_actual_heads_subcommands_options_and_origins ... ok
+test hover::original_special_variable_context_tests::original_special_hover_keeps_authored_registry_shadow_rows_and_array_key_availability ... FAILED
+test hover::original_vendor_hover_tests::original_vendor_header_hover_keeps_source_only_opaque_cards_after_ui_clear ... ok
+test hover::tests::binary_field_bytes_saturates_instead_of_overflowing ... ok
+test hover::tests::binary_format_context_at_position_detects_braced_literal ... ok
+test hover::original_special_variable_context_tests::original_special_hover_uses_actual_availability_and_withdraws_changed_owners ... FAILED
+test hover::tests::binary_format_context_extracts_scan_var_names ... ok
+test hover::tests::binary_format_hover_no_specifiers_returns_friendly_message ... ok
+test hover::tests::binary_format_hover_omits_diagram_when_size_unknown ... ok
+test hover::tests::binary_format_hover_omits_diagram_when_total_exceeds_32_bytes ... ok
+test hover::tests::binary_format_hover_renders_byte_ruler_diagram ... ok
+test hover::tests::binary_format_hover_renders_summary_and_detail_table ... ok
+test hover::tests::binary_format_hover_renders_uint_modifier ... ok
+test hover::tests::binary_format_hover_labels_fields_with_arg_names ... ok
+test hover::tests::builtin_command_hover_lists_subcommands ... ok
+test hover::tests::builtin_command_hover_returns_none_for_unknown ... ok
+test hover::tests::builtin_command_hover_surfaces_summary_from_registry ... ok
+test hover::tests::builtin_hover_bare_test_without_import_is_none ... ok
+test hover::tests::builtin_hover_ignores_import_after_cursor ... ok
+test hover::tests::builtin_hover_omits_requires_for_core_command ... ok
+test hover::tests::builtin_hover_ignores_nested_namespace_import ... ok
+test hover::tests::builtin_hover_omits_requires_when_package_imported ... ok
+test hover::tests::builtin_hover_resolves_imported_command ... ok
+test hover::tests::builtin_hover_shows_requires_when_package_not_imported ... FAILED
+test hover::tests::class_hover_shows_mro_and_subclasses ... ok
+test hover::tests::class_hover_text_lists_methods_alphabetically ... ok
+test hover::tests::class_member_hover_bare_sibling_classmethod_without_link_abstains ... ok
+test hover::tests::class_hover_disambiguates_same_name_across_namespaces ... FAILED
+test hover::original_registry::tests::original_registry_operand_hover_keeps_parent_nested_and_option_availability has been running for over 60 seconds
+test hover::tests::class_member_hover_fires_for_constructor_keyword ... FAILED
+test hover::tests::class_member_hover_bare_sibling_method_without_link_abstains ... ok
+test hover::tests::class_member_hover_linked_sibling_classmethod_resolves ... ok
+test hover::tests::class_member_hover_linked_sibling_method_resolves ... ok
+test hover::original_registry::tests::original_registry_operand_hover_keeps_parent_nested_and_option_availability ... ok
+test hover::tests::class_member_hover_skipped_outside_class_body ... ok
+test hover::tests::clock_format_hover_handles_empty_format ... ok
+test hover::tests::clock_format_hover_marks_locale_modified_specifiers ... ok
+test hover::tests::clock_format_hover_renders_specifier_table ... ok
+test hover::tests::clock_format_string_at_position_detects_braced_literal ... ok
+test hover::tests::clock_format_string_at_position_detects_quoted_literal ... ok
+test hover::tests::clock_format_string_at_position_skips_non_clock_commands ... ok
+test hover::tests::command_profile_metadata_keeps_foreign_surface_and_own_requirements ... ok
+test hover::tests::class_member_hover_resolves_when_class_extended_via_separate_oo_define ... FAILED
+test hover::tests::class_member_hover_two_element_link_alias_notes_the_real_target ... FAILED
+test hover::tests::dynamic_lsearch_option_prefix_does_not_claim_the_following_list_as_glob ... ok
+test hover::tests::effective_event_requires_injects_namespace_profiles ... ok
+test hover::tests::expand_profile_stack_includes_parents ... ok
+test hover::tests::find_var_at_position_recognises_braced_form ... ok
+test hover::tests::find_var_at_position_resolves_second_var_of_concatenation ... ok
+test hover::tests::find_var_at_position_returns_none_for_bare_word ... ok
+test hover::tests::find_var_at_position_stops_at_lone_colon ... ok
+test hover::tests::find_word_span_returns_none_at_eol ... ok
+test hover::tests::find_word_span_stops_at_dollar_sign ... ok
+test hover::tests::format_docstring_drops_decoration_lines ... ok
+test hover::tests::format_docstring_handles_param_without_description ... ok
+test hover::tests::format_docstring_passes_through_plain_text ... ok
+test hover::tests::format_docstring_renders_brief_param_return_tags ... ok
+test hover::tests::consumed_procedure_name_hover_uses_its_lookup_receipt ... ok
+test hover::tests::glob_hover_for_literal_string ... ok
+test hover::tests::glob_hover_renders_table ... ok
+test hover::tests::hover_abstains_after_static_rename_moves_builtin_away ... ok
+test hover::tests::hover_abstains_for_local_proc_shadowing_format_command ... ok
+test hover::tests::dynamic_leading_options_abstain_for_pattern_and_regsub_format_hovers ... ok
+test hover::tests::fp_argument_word_sharing_a_procs_name_does_not_hover_that_proc ... ok
+test hover::tests::hover_abstains_for_local_proc_shadowing_regexp_command ... ok
+test hover::tests::hover_explains_a_computed_format_string ... FAILED
+test hover::tests::hover_fires_for_bare_binary_format_specifier ... ok
+test hover::tests::hover_committed_producer_has_no_first_used_as ... ok
+test hover::tests::hover_fires_for_binary_specifier ... ok
+test hover::tests::hover_fires_for_clock_format_specifier ... ok
+test hover::tests::hover_fires_for_builtin_command_with_registry ... FAILED
+test hover::tests::hover_fires_for_ip_address_word ... ok
+test hover::tests::hover_fires_for_glob_pattern ... ok
+test hover::tests::hover_fires_for_regex_pattern ... FAILED
+test hover::tests::hover_fires_for_sprintf_specifier ... FAILED
+test hover::tests::hover_fires_for_subcommand_with_registry ... FAILED
+test hover::tests::hover_fires_for_regsub_backref ... ok
+test hover::tests::hover_inference_keeps_same_named_variables_in_the_selected_source_body ... FAILED
+test hover::tests::hover_inference_uses_the_represented_read_version_after_reassignment ... FAILED
+test hover::tests::hover_global_call_fallback_is_deterministic ... FAILED
+test hover::tests::hover_on_class_name_returns_metaclass_signature ... ok
+test hover::tests::hover_namespace_proc_set_shadows_builtin_inside_namespace_only ... FAILED
+test hover::tests::hover_on_dollar_var_returns_var_text ... ok
+test hover::tests::hover_on_catch_resultvar_bareword_resolves ... ok
+test hover::tests::hover_on_proc_name_returns_signature ... ok
+test hover::tests::hover_on_proc_param_bareword_declaration_resolves ... ok
+test hover::tests::hover_on_ensemble_subcommand_resolves_target_proc ... FAILED
+test hover::tests::hover_on_proc_qualified_name ... ok
+test hover::tests::hover_on_pure_literal_surfaces_first_used_as ... ok
+test hover::tests::hover_on_self_method_call_site_resolves ... ok
+test hover::tests::hover_on_unknown_word_returns_none ... ok
+test hover::tests::hover_returns_none_for_out_of_range_line ... ok
+test hover::tests::hover_on_var_surfaces_inferred_intrep ... ok
+test hover::tests::hover_on_tk_ensemble_configure_splice_resolves_the_real_target ... FAILED
+test hover::tests::hover_uses_effective_registry_identity_after_rename_and_alias ... ok
+test hover::tests::ip_hover_classifies_ipv6_loopback ... ok
+test hover::tests::ip_hover_classifies_loopback ... ok
+test hover::tests::ip_hover_classifies_private_ipv4 ... ok
+test hover::tests::ip_hover_classifies_public_ipv4 ... ok
+test hover::tests::ip_hover_detects_ipv4_mapped_ipv6 ... ok
+test hover::tests::ip_hover_rejects_non_ip_strings ... ok
+test hover::tests::ip_hover_renders_cidr_prefix ... ok
+test hover::tests::irules_command_hover_lists_valid_events ... ok
+test hover::tests::hover_uses_lsearchs_registry_selected_pattern_language ... ok
+test hover::tests::irules_namespace_backed_profiles_injected_into_hover ... ok
+test hover::tests::hover_unqualified_call_prefers_callers_namespace_proc ... ok
+test hover::tests::logical_registry_hover_keeps_actual_context_and_source_currency ... ok
+test hover::tests::lsearch_pattern_hover_uses_the_documents_profiled_option_set ... ok
+test hover::tests::member_declaration_hover_covers_classmethods_and_properties ... FAILED
+test hover::tests::member_declaration_hover_abstains_outside_a_class_body ... ok
+test hover::tests::member_declaration_hover_does_not_fire_on_a_same_named_word_elsewhere ... ok
+test hover::tests::member_declaration_hover_notes_an_override ... FAILED
+test hover::tests::member_declaration_hover_resolves_in_a_reopening_oo_define_block ... FAILED
+test hover::tests::member_declaration_hover_resolves_in_the_creation_block ... FAILED
+test hover::tests::method_hover_notes_inheritance_and_override ... ok
+test hover::tests::my_dispatch_hover_abstains_for_an_undefined_method ... ok
+test hover::tests::my_dispatch_hover_resolves_a_plain_call_in_a_single_block_class ... FAILED
+test hover::tests::my_dispatch_hover_resolves_when_class_extended_via_separate_oo_define ... FAILED
+test hover::tests::nested_substitution_hover_beats_its_outer_pattern_word ... FAILED
+test hover::tests::nested_format_hover_honours_aliases_and_shadowing ... ok
+test hover::tests::logical_registry_hover_preserves_whole_alias_operands_and_declines_data ... ok
+test hover::tests::obj_method_hover_fires_for_a_literal_foreach_installed_method ... FAILED
+test hover::tests::obj_method_hover_fires_for_bareword_widget ... FAILED
+test hover::tests::obj_method_hover_fires_for_known_instance ... FAILED
+test hover::tests::obj_method_hover_fires_for_var_captured_widget ... FAILED
+test hover::tests::obj_method_hover_none_for_unknown_instance ... ok
+test hover::tests::obj_method_hover_none_for_widget_without_registry ... ok
+test hover::tests::opt_proc_declaration_and_call_site_both_hover_the_real_args_only_signature ... FAILED
+test hover::tests::option_hover_falls_back_to_top_level_options_for_simple_command ... ok
+test hover::tests::option_hover_resolves_subcommand_scoped_option ... ok
+test hover::tests::pattern_and_format_hover_descend_through_every_registry_executable_region ... FAILED
+test hover::tests::option_hover_notes_dialect_unavailability ... ok
+test hover::tests::proc_hover_text_formats_default_param ... ok
+test hover::tests::qualified_colon_variable_hover_keeps_the_empty_cell_separate ... FAILED
+test hover::tests::regex_and_glob_hover_escape_table_pipes ... ok
+test hover::tests::regex_hover_renders_table ... ok
+test hover::tests::regsub_hover_handles_no_backrefs ... ok
+test hover::tests::regsub_hover_renders_backref_table ... ok
+test hover::tests::regsub_subspec_at_position_finds_subspec_literal ... ok
+test hover::tests::scan_binary_fields_finds_basic_types ... ok
+test hover::tests::scan_binary_fields_handles_star_count ... ok
+test hover::tests::scan_clock_specifiers_finds_each_specifier ... ok
+test hover::tests::scan_clock_specifiers_handles_literal_percent ... ok
+test hover::tests::scan_clock_specifiers_handles_locale_prefix ... ok
+test hover::tests::scan_glob_metachars_finds_character_class ... ok
+test hover::tests::scan_glob_metachars_finds_star_and_question ... ok
+test hover::tests::scan_regex_components_finds_anchors_and_quantifiers ... ok
+test hover::tests::scan_regex_components_finds_character_class ... ok
+test hover::tests::scan_regex_components_finds_escapes ... ok
+test hover::tests::scan_regex_components_finds_groups_and_lookahead ... ok
+test hover::tests::scan_regsub_backrefs_finds_each_backref ... ok
+test hover::tests::scan_sprintf_specifiers_captures_positional ... ok
+test hover::tests::scan_sprintf_specifiers_captures_width_and_precision ... ok
+test hover::tests::scan_sprintf_specifiers_finds_basic_types ... ok
+test hover::tests::scan_sprintf_specifiers_handles_literal_percent ... ok
+test hover::tests::smoke_find_var_at_position_recognises_dollar_ref ... ok
+test hover::tests::smoke_find_word_span_extracts_word_under_cursor ... ok
+test hover::tests::qualified_symbol_hover_matches_the_in_document_rendering_1018 ... FAILED
+test hover::tests::special_var_hover_documents_auto_path ... FAILED
+test hover::tests::sprintf_format_hover_handles_empty_format ... ok
+test hover::tests::sprintf_format_hover_renders_specifier_table ... ok
+test hover::tests::sprintf_format_string_at_position_detects_braced_literal ... ok
+test hover::tests::sprintf_format_string_at_position_detects_quoted_literal ... ok
+test hover::tests::sprintf_format_string_at_position_skips_non_format_commands ... ok
+test hover::tests::standalone_reference_cursor_uses_explicit_selected_grammar_and_utf16_geometry ... ok
+test hover::tests::quoted_case_action_hover_obeys_head_mutations_and_static_list_validation ... FAILED
+test hover::tests::special_var_hover_is_dialect_aware ... FAILED
+test hover::tests::subcommand_hover_resolves_unique_prefix_abbreviation ... ok
+test hover::tests::subcommand_hover_skips_unknown_subcommand ... ok
+test hover::tests::sub_subcommand_hover_surfaces_for_info_object_class ... ok
+test hover::tests::subcommand_hover_prefix_is_dialect_aware ... ok
+test hover::tests::subcommand_hover_surfaces_for_string_length ... ok
+test hover::tests::valid_events_for_asm_profile_requirement ... ok
+test hover::tests::valid_events_uses_transitive_profile_expansion ... ok
+test hover::tests::var_hover_text_appends_intrep_and_taint ... ok
+test hover::tests::var_hover_text_appends_proven_format_info ... ok
+test hover::tests::var_hover_text_renders_reference_count ... ok
+test hover::tests::tp_the_command_head_beside_that_argument_still_hovers ... ok
+test hover::tests::widget_method_hover_follows_the_resolved_tk_lifecycle ... FAILED
+test hover::tests::tp_resolved_indirect_head_hovers_the_command_it_reaches ... ok
+---- hover::original_registry::tests::original_registry_hover_keeps_current_context_and_conditional_shadow_barriers stdout ----
+thread 'hover::original_registry::tests::original_registry_hover_keeps_current_context_and_conditional_shadow_barriers' (17412) panicked at rust/tcl-lsp-core/src/hover/original_registry.rs:431:54:
+conditional source documentation
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- hover::original_special_variable_context_tests::original_special_hover_keeps_authored_registry_shadow_rows_and_array_key_availability stdout ----
+
+thread 'hover::original_special_variable_context_tests::original_special_hover_keeps_authored_registry_shadow_rows_and_array_key_availability' (17460) panicked at rust/tcl-lsp-core/src/hover.rs:6745:59:
+authored variable card
+
+---- hover::original_special_variable_context_tests::original_special_hover_uses_actual_availability_and_withdraws_changed_owners stdout ----
+
+thread 'hover::original_special_variable_context_tests::original_special_hover_uses_actual_availability_and_withdraws_changed_owners' (17462) panicked at rust/tcl-lsp-core/src/hover.rs:6672:13:
+assertion `left == right` failed: tcl8.6: None
+  left: false
+ right: true
+
+---- hover::tests::builtin_hover_shows_requires_when_package_not_imported stdout ----
+
+thread 'hover::tests::builtin_hover_shows_requires_when_package_not_imported' (17590) panicked at rust/tcl-lsp-core/src/hover.rs:4145:9:
+**`http::geturl`** — command documentation
+
+Retrieve a URL — the primary command for the http package.
+
+```tcl
+---- hover::tests::class_hover_disambiguates_same_name_across_namespaces stdout ----
+thread 'hover::tests::class_hover_disambiguates_same_name_across_namespaces' (17624) panicked at rust/tcl-lsp-core/src/hover.rs:4468:62:
+hover
+
+---- hover::tests::class_member_hover_fires_for_constructor_keyword stdout ----
+
+thread 'hover::tests::class_member_hover_fires_for_constructor_keyword' (17684) panicked at rust/tcl-lsp-core/src/hover.rs:5905:52:
+hover
+
+---- hover::tests::class_member_hover_resolves_when_class_extended_via_separate_oo_define stdout ----
+
+thread 'hover::tests::class_member_hover_resolves_when_class_extended_via_separate_oo_define' (17712) panicked at rust/tcl-lsp-core/src/hover.rs:5738:52:
+hover
+
+---- hover::tests::class_member_hover_two_element_link_alias_notes_the_real_target stdout ----
+
+thread 'hover::tests::class_member_hover_two_element_link_alias_notes_the_real_target' (17718) panicked at rust/tcl-lsp-core/src/hover.rs:5750:52:
+hover
+
+---- hover::tests::hover_explains_a_computed_format_string stdout ----
+
+thread 'hover::tests::hover_explains_a_computed_format_string' (17761) panicked at rust/tcl-lsp-core/src/hover.rs:5129:9:
+**Variable** `fmt`
+
+1 declaration(s) and 1 reference(s) in this document
+
+**Inferred intrep**: string
+---- hover::tests::hover_fires_for_builtin_command_with_registry stdout ----
+thread 'hover::tests::hover_fires_for_builtin_command_with_registry' (17794) panicked at rust/tcl-lsp-core/src/hover.rs:5624:9:
+**`puts`** — command documentation
+
+Write a string to a channel (stdout by default).
+
+```tcl
+---- hover::tests::hover_fires_for_regex_pattern stdout ----
+thread 'hover::tests::hover_fires_for_regex_pattern' (17812) panicked at rust/tcl-lsp-core/src/hover.rs:5320:52:
+hover
+
+---- hover::tests::hover_fires_for_sprintf_specifier stdout ----
+
+thread 'hover::tests::hover_fires_for_sprintf_specifier' (17823) panicked at rust/tcl-lsp-core/src/hover.rs:4902:52:
+hover
+
+---- hover::tests::hover_fires_for_subcommand_with_registry stdout ----
+
+thread 'hover::tests::hover_fires_for_subcommand_with_registry' (17824) panicked at rust/tcl-lsp-core/src/hover.rs:5633:63:
+hover
+
+---- hover::tests::hover_inference_keeps_same_named_variables_in_the_selected_source_body stdout ----
+
+thread 'hover::tests::hover_inference_keeps_same_named_variables_in_the_selected_source_body' (17868) panicked at rust/tcl-lsp-core/src/hover.rs:4055:13:
+**Variable** `same`
+
+1 declaration(s) and 1 reference(s) in this document
+
+---- hover::tests::hover_inference_uses_the_represented_read_version_after_reassignment stdout ----
+
+thread 'hover::tests::hover_inference_uses_the_represented_read_version_after_reassignment' (17869) panicked at rust/tcl-lsp-core/src/hover.rs:4084:9:
+**Variable** `same`
+
+2 declaration(s) and 2 reference(s) in this document
+
+---- hover::tests::hover_global_call_fallback_is_deterministic stdout ----
+
+thread 'hover::tests::hover_global_call_fallback_is_deterministic' (17867) panicked at rust/tcl-lsp-core/src/hover.rs:3956:66:
+hover on global call
+
+---- hover::tests::hover_namespace_proc_set_shadows_builtin_inside_namespace_only stdout ----
+
+thread 'hover::tests::hover_namespace_proc_set_shadows_builtin_inside_namespace_only' (17938) panicked at rust/tcl-lsp-core/src/hover.rs:3943:9:
+**`set`** — command documentation
+
+Read the value of a variable, or set it to a new value.
+
+```tcl
+---- hover::tests::hover_on_ensemble_subcommand_resolves_target_proc stdout ----
+thread 'hover::tests::hover_on_ensemble_subcommand_resolves_target_proc' (17950) panicked at rust/tcl-lsp-core/src/hover.rs:3871:51:
+expected hover for ensemble subcommand
+
+---- hover::tests::hover_on_tk_ensemble_configure_splice_resolves_the_real_target stdout ----
+
+thread 'hover::tests::hover_on_tk_ensemble_configure_splice_resolves_the_real_target' (18060) panicked at rust/tcl-lsp-core/src/hover.rs:3888:51:
+expected hover for tk systray splice
+
+---- hover::tests::member_declaration_hover_covers_classmethods_and_properties stdout ----
+
+thread 'hover::tests::member_declaration_hover_covers_classmethods_and_properties' (18241) panicked at rust/tcl-lsp-core/src/hover.rs:5834:55:
+property hover
+
+---- hover::tests::member_declaration_hover_notes_an_override stdout ----
+
+thread 'hover::tests::member_declaration_hover_notes_an_override' (18274) panicked at rust/tcl-lsp-core/src/hover.rs:5849:9:
+**method** `Derived::run` (0 parameter(s))
+
+Possible source declaration.
+
+---- hover::tests::member_declaration_hover_resolves_in_a_reopening_oo_define_block stdout ----
+
+thread 'hover::tests::member_declaration_hover_resolves_in_a_reopening_oo_define_block' (18275) panicked at rust/tcl-lsp-core/src/hover.rs:5823:52:
+hover
+
+---- hover::tests::member_declaration_hover_resolves_in_the_creation_block stdout ----
+
+thread 'hover::tests::member_declaration_hover_resolves_in_the_creation_block' (18302) panicked at rust/tcl-lsp-core/src/hover.rs:5808:9:
+**method** `Foo::plain` (1 parameter(s))
+
+Possible source declaration.
+
+---- hover::tests::my_dispatch_hover_resolves_a_plain_call_in_a_single_block_class stdout ----
+
+thread 'hover::tests::my_dispatch_hover_resolves_a_plain_call_in_a_single_block_class' (18331) panicked at rust/tcl-lsp-core/src/hover.rs:5765:52:
+hover
+
+---- hover::tests::my_dispatch_hover_resolves_when_class_extended_via_separate_oo_define stdout ----
+
+thread 'hover::tests::my_dispatch_hover_resolves_when_class_extended_via_separate_oo_define' (18347) panicked at rust/tcl-lsp-core/src/hover.rs:5781:52:
+hover
+
+---- hover::tests::nested_substitution_hover_beats_its_outer_pattern_word stdout ----
+
+thread 'hover::tests::nested_substitution_hover_beats_its_outer_pattern_word' (18350) panicked at rust/tcl-lsp-core/src/hover.rs:4823:14:
+format hover inside regexp substitution
+
+---- hover::tests::obj_method_hover_fires_for_a_literal_foreach_installed_method stdout ----
+
+thread 'hover::tests::obj_method_hover_fires_for_a_literal_foreach_installed_method' (18355) panicked at rust/tcl-lsp-core/src/hover.rs:5949:51:
+hover
+
+---- hover::tests::obj_method_hover_fires_for_bareword_widget stdout ----
+
+thread 'hover::tests::obj_method_hover_fires_for_bareword_widget' (18357) panicked at rust/tcl-lsp-core/src/hover.rs:5971:57:
+hover
+
+---- hover::tests::obj_method_hover_fires_for_known_instance stdout ----
+
+thread 'hover::tests::obj_method_hover_fires_for_known_instance' (18358) panicked at rust/tcl-lsp-core/src/hover.rs:5929:9:
+**method** `Dog::bark` (0 parameter(s))
+
+Possible source declaration.
+
+---- hover::tests::obj_method_hover_fires_for_var_captured_widget stdout ----
+
+thread 'hover::tests::obj_method_hover_fires_for_var_captured_widget' (18360) panicked at rust/tcl-lsp-core/src/hover.rs:6031:57:
+hover
+
+---- hover::tests::opt_proc_declaration_and_call_site_both_hover_the_real_args_only_signature stdout ----
+
+thread 'hover::tests::opt_proc_declaration_and_call_site_both_hover_the_real_args_only_signature' (18365) panicked at rust/tcl-lsp-core/src/hover.rs:6045:55:
+hover on decl
+
+---- hover::tests::pattern_and_format_hover_descend_through_every_registry_executable_region stdout ----
+
+thread 'hover::tests::pattern_and_format_hover_descend_through_every_registry_executable_region' (18369) panicked at rust/tcl-lsp-core/src/hover.rs:4766:36:
+no hover for tcl8.6: proc p {} { format {%04d} 1 }
+
+
+---- hover::tests::qualified_colon_variable_hover_keeps_the_empty_cell_separate stdout ----
+
+thread 'hover::tests::qualified_colon_variable_hover_keeps_the_empty_cell_separate' (18373) panicked at rust/tcl-lsp-core/src/hover.rs:3709:68:
+called `Option::unwrap()` on a `None` value
+
+---- hover::tests::qualified_symbol_hover_matches_the_in_document_rendering_1018 stdout ----
+
+thread 'hover::tests::qualified_symbol_hover_matches_the_in_document_rendering_1018' (18375) panicked at rust/tcl-lsp-core/src/hover.rs:4373:72:
+proc hover
+
+---- hover::tests::special_var_hover_documents_auto_path stdout ----
+
+thread 'hover::tests::special_var_hover_documents_auto_path' (18401) panicked at rust/tcl-lsp-core/src/hover.rs:4548:62:
+hover
+
+---- hover::tests::quoted_case_action_hover_obeys_head_mutations_and_static_list_validation stdout ----
+
+thread 'hover::tests::quoted_case_action_hover_obeys_head_mutations_and_static_list_validation' (18376) panicked at rust/tcl-lsp-core/src/hover.rs:4776:68:
+aliased quoted action
+
+---- hover::tests::special_var_hover_is_dialect_aware stdout ----
+
+thread 'hover::tests::special_var_hover_is_dialect_aware' (18402) panicked at rust/tcl-lsp-core/src/hover.rs:4583:10:
+hover
+
+---- hover::tests::widget_method_hover_follows_the_resolved_tk_lifecycle stdout ----
+
+thread 'hover::tests::widget_method_hover_follows_the_resolved_tk_lifecycle' (18428) panicked at rust/tcl-lsp-core/src/hover.rs:5987:13:
+assertion `left == right` failed: ttk::treeview current hover under tcl9.1: None
+  left: false
+ right: true
+
+
+test result: FAILED. 159 passed; 38 failed; 0 ignored; 0 measured; 3288 filtered out; finished in 289.00s

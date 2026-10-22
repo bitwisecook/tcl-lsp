@@ -1,0 +1,514 @@
+
+running 98 tests
+test a_cursor_on_a_role_read_word_resolves_the_cell ... ok
+test a_parameter_read_inside_a_list_built_body_navigates ... FAILED
+test a_brace_literal_cursor_never_answers_the_plain_cells_sites ... ok
+test class_rename_from_callsite_targets_caller_namespace ... FAILED
+test a_plain_cursor_is_unaffected_by_the_shared_gate ... ok
+test find_references_reports_var_read_role_name_words ... ok
+test every_variable_provider_resolves_a_brace_literal_cursor_to_the_literal_cell ... FAILED
+test genuinely_inert_dollar_shapes_still_resolve_to_nothing ... ok
+test is_safe_symbol_name_accepts_identifiers_and_rejects_the_rest ... ok
+test global_variable_unifies_across_procs ... ok
+test namespace_variable_rename_unifies_all_aliases ... ok
+test namespace_variable_unifies_across_procs ... ok
+test namespace_variables_in_different_namespaces_do_not_unify ... ok
+test namespace_which_command_probe_navigates_and_renames_945 ... FAILED
+test object_var_references_are_token_sized ... FAILED
+test non_uplevel_proc_local_still_resolves_locally ... ok
+test object_var_rename_edits_declaration_and_use ... FAILED
+test object_var_references_unify_across_methods ... FAILED
+test object_var_rename_unifies_declaration_and_all_method_uses ... FAILED
+test object_var_rename_never_rewrites_method_body ... FAILED
+test plain_proc_local_rename_unaffected ... ok
+test prepare_rename_offers_proc_name_and_placeholder ... ok
+test prepare_rename_offers_variable_name_and_placeholder ... ok
+test prepare_rename_out_of_range_and_empty_file_return_none ... ok
+test prepare_rename_rejects_builtin_command ... ok
+test prepare_rename_rejects_whitespace_and_bare_literal ... ok
+test proc_references_from_callsite_targets_caller_namespace ... ok
+test proc_rename_from_callsite_targets_caller_namespace ... ok
+test proc_rename_unambiguous_callsite_unaffected ... ok
+test references_builtin_command_yields_nothing ... ok
+test references_bare_call_outside_the_namespace_is_correctly_not_a_reference ... ok
+test references_class_and_method_two_level_nested_namespace_dollar_dispatch ... ok
+test references_class_two_level_nested_namespace_isolates_same_named_classes ... ok
+test references_include_a_const_cmd_dispatch_site_m7 ... FAILED
+test references_issue_923_two_bind_lines_qualified_and_bare_both_resolve_correctly ... FAILED
+test references_namespaced_proc_does_not_leak_to_same_name_in_other_namespace ... ok
+test references_namespaced_proc_matches_qualified_and_short_calls ... ok
+test references_of_the_plain_name_exclude_the_brace_literal_cell ... ok
+test references_out_of_range_and_empty_file_do_not_panic ... ok
+test references_proc_called_inside_oo_objdefine_method_body ... FAILED
+test references_proc_exclude_declaration_drops_the_decl_line ... ok
+test references_proc_from_call_site_finds_the_same_set ... ok
+test references_proc_from_definition_includes_decl_and_both_calls ... ok
+test references_proc_named_in_info_body_include_the_introspection_site ... ok
+test references_proc_named_in_trace_add_execution_include_the_trace_site ... ok
+test references_proc_only_at_real_call_sites_not_substrings ... ok
+test references_relative_qualified_call_falls_back_to_global_target ... ok
+test references_relative_name_with_embedded_colons_prefers_current_namespace ... ok
+test references_relative_qualified_call_prefers_existing_local_over_global ... ok
+test references_three_level_nested_namespace_bare_and_qualified_calls ... ok
+test references_two_level_nested_namespace_bare_call_matches_from_same_namespace ... ok
+test references_two_level_nested_namespace_isolates_same_named_procs ... ok
+test references_two_level_nested_namespace_qualified_call_in_bind_style_body_matches ... FAILED
+test references_unrelated_word_yields_nothing ... ok
+test references_var_exclude_declaration_keeps_only_reads ... ok
+test references_var_includes_definition_and_every_read ... ok
+test references_var_scoped_to_its_proc_not_a_same_named_local_elsewhere ... ok
+test references_variable_held_command_name_is_not_resolved_documented_limitation ... ok
+test rename_builtin_without_registry_still_yields_no_edits ... ok
+test rename_abstains_when_a_contributing_constant_has_no_writable_span_945 ... ok
+test rename_class_rewrites_its_superclass_and_mixin_sites ... FAILED
+test rename_classmethod_does_not_rewrite_a_sibling_namespaces_dispatch ... FAILED
+test rename_class_two_level_nested_namespace_scoped_correctly ... FAILED
+test rename_classmethod_is_scoped_in_the_other_direction_too ... FAILED
+test rename_itcl_class_proc_from_the_call_site_matches_the_declaration ... FAILED
+test rename_from_the_defining_literal_cursor_follows_the_dispatch_945 ... FAILED
+test rename_itcl_class_proc_rewrites_every_dispatch_spelling ... FAILED
+test rename_local_var_is_scoped_and_leaves_same_named_var_in_other_proc_intact ... ok
+test rename_namespaced_proc_from_its_own_decl_isolates_to_that_namespace ... ok
+test rename_namespaced_proc_rewrites_qualified_and_short_forms ... ok
+test rename_of_a_brace_literal_name_is_refused_with_a_reason ... ok
+test rename_of_an_ordinary_name_is_still_allowed ... ok
+test rename_out_of_range_and_empty_file_do_not_panic ... ok
+test rename_of_the_plain_name_never_rewrites_a_brace_literal_word ... ok
+test rename_parent_proc_does_not_edit_a_child_interp_body ... FAILED
+test rename_plain_namespace_qualified_proc_is_unaffected ... ok
+test rename_proc_from_call_site_rewrites_declaration_too ... ok
+test rename_proc_rejected_when_new_name_collides_with_existing_proc ... ok
+test rename_proc_to_builtin_command_name_is_blocked_with_registry ... ok
+test rename_proc_to_non_builtin_succeeds_with_registry ... ok
+test rename_proc_updates_definition_and_all_call_sites ... FAILED
+test rename_rejects_syntactically_unsafe_new_names ... ok
+test rename_proc_two_level_nested_namespace_scoped_correctly ... ok
+test rename_rewrites_a_consumed_dispatch_table_literal_m7 ... FAILED
+test rename_rewrites_the_defining_literal_and_never_the_dispatch_span_945 ... FAILED
+test rename_still_refuses_from_every_column_of_the_brace_literal_word ... ok
+test rename_second_same_named_proc_resolves_to_that_proc_not_the_first ... ok
+test rename_unknown_word_yields_no_edits ... ok
+test rename_var_also_rejects_unsafe_new_name ... ok
+test rename_var_from_definition_site_resolves_without_dollar ... ok
+test rename_var_rejected_on_same_scope_collision ... ok
+test rename_var_to_builtin_name_is_allowed ... ok
+test rename_var_updates_definition_and_reads_with_dollar_preserved ... ok
+test the_parameter_declaration_hovers_as_a_variable_not_the_file_command ... FAILED
+test tn_a_value_word_of_the_same_spelling_is_not_a_reference ... ok
+test uplevel_nonzero_abstains_from_proc_and_global ... ok
+test uplevel_nonzero_body_local_resolves_within_body ... FAILED
+test uplevel_zero_resolves_global_not_proc_local ... FAILED
+
+failures:
+
+---- a_parameter_read_inside_a_list_built_body_navigates stdout ----
+
+thread 'a_parameter_read_inside_a_list_built_body_navigates' (9170) panicked at rust/tcl-lsp-core/tests/references_rename.rs:3224:5:
+assertion `left == right` failed: go-to-definition must reach the `{file}` parameter
+  left: []
+ right: [LspRange { start_line: 0, start_character: 26, end_line: 0, end_character: 30 }]
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<alloc::vec::Vec<tcl_lsp_core::definition::LspRange>, alloc::vec::Vec<tcl_lsp_core::definition::LspRange>>
+   4: references_rename::a_parameter_read_inside_a_list_built_body_navigates
+   5: references_rename::a_parameter_read_inside_a_list_built_body_navigates::{closure#0}
+   6: <references_rename::a_parameter_read_inside_a_list_built_body_navigates::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- class_rename_from_callsite_targets_caller_namespace stdout ----
+
+thread 'class_rename_from_callsite_targets_caller_namespace' (9207) panicked at rust/tcl-lsp-core/tests/references_rename.rs:2141:5:
+::a::Widget decl (line 1) must rename: []
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: references_rename::class_rename_from_callsite_targets_caller_namespace
+   3: references_rename::class_rename_from_callsite_targets_caller_namespace::{closure#0}
+   4: <references_rename::class_rename_from_callsite_targets_caller_namespace::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- every_variable_provider_resolves_a_brace_literal_cursor_to_the_literal_cell stdout ----
+
+thread 'every_variable_provider_resolves_a_brace_literal_cursor_to_the_literal_cell' (9208) panicked at rust/tcl-lsp-core/tests/references_rename.rs:2951:13:
+plain `n` declared first: document-highlight at column 8 must abstain like a plain declaration cursor, not answer another cell; got [(LspRange { start_line: 3, start_character: 8, end_line: 3, end_character: 11 }, Write), (LspRange { start_line: 4, start_character: 14, end_line: 4, end_character: 17 }, Read)]
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: references_rename::every_variable_provider_resolves_a_brace_literal_cursor_to_the_literal_cell
+   3: references_rename::every_variable_provider_resolves_a_brace_literal_cursor_to_the_literal_cell::{closure#0}
+   4: <references_rename::every_variable_provider_resolves_a_brace_literal_cursor_to_the_literal_cell::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- namespace_which_command_probe_navigates_and_renames_945 stdout ----
+
+thread 'namespace_which_command_probe_navigates_and_renames_945' (9260) panicked at rust/tcl-lsp-core/tests/references_rename.rs:206:5:
+assertion `left == right` failed: the probe site is a navigable reference: got [LspRange { start_line: 0, start_character: 5, end_line: 0, end_character: 10 }]
+  left: [0]
+ right: [0, 1]
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<alloc::vec::Vec<u32>, alloc::vec::Vec<u32>>
+   4: references_rename::namespace_which_command_probe_navigates_and_renames_945
+   5: references_rename::namespace_which_command_probe_navigates_and_renames_945::{closure#0}
+   6: <references_rename::namespace_which_command_probe_navigates_and_renames_945::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- object_var_references_are_token_sized stdout ----
+
+thread 'object_var_references_are_token_sized' (9262) panicked at rust/tcl-lsp-core/tests/references_rename.rs:1884:5:
+assertion failed: !refs.is_empty()
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: references_rename::object_var_references_are_token_sized
+   4: references_rename::object_var_references_are_token_sized::{closure#0}
+   5: <references_rename::object_var_references_are_token_sized::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- object_var_rename_edits_declaration_and_use stdout ----
+
+thread 'object_var_rename_edits_declaration_and_use' (9264) panicked at rust/tcl-lsp-core/tests/references_rename.rs:1848:5:
+expected the `variable n` declaration (line 1) to be renamed; got []
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: references_rename::object_var_rename_edits_declaration_and_use
+   3: references_rename::object_var_rename_edits_declaration_and_use::{closure#0}
+   4: <references_rename::object_var_rename_edits_declaration_and_use::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- object_var_references_unify_across_methods stdout ----
+
+thread 'object_var_references_unify_across_methods' (9263) panicked at rust/tcl-lsp-core/tests/references_rename.rs:2168:5:
+declaration (line 1) expected: []
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: references_rename::object_var_references_unify_across_methods
+   3: references_rename::object_var_references_unify_across_methods::{closure#0}
+   4: <references_rename::object_var_references_unify_across_methods::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- object_var_rename_unifies_declaration_and_all_method_uses stdout ----
+
+thread 'object_var_rename_unifies_declaration_and_all_method_uses' (9266) panicked at rust/tcl-lsp-core/tests/references_rename.rs:2199:5:
+declaration (line 1) must rename: []
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: references_rename::object_var_rename_unifies_declaration_and_all_method_uses
+   3: references_rename::object_var_rename_unifies_declaration_and_all_method_uses::{closure#0}
+   4: <references_rename::object_var_rename_unifies_declaration_and_all_method_uses::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- object_var_rename_never_rewrites_method_body stdout ----
+
+thread 'object_var_rename_never_rewrites_method_body' (9265) panicked at rust/tcl-lsp-core/tests/references_rename.rs:1817:5:
+expected a rename to be produced
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: references_rename::object_var_rename_never_rewrites_method_body
+   3: references_rename::object_var_rename_never_rewrites_method_body::{closure#0}
+   4: <references_rename::object_var_rename_never_rewrites_method_body::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- references_include_a_const_cmd_dispatch_site_m7 stdout ----
+
+thread 'references_include_a_const_cmd_dispatch_site_m7' (9319) panicked at rust/tcl-lsp-core/tests/references_rename.rs:2349:5:
+assertion `left == right` failed: decl + defining literal + $cmd dispatch + direct call expected; got [LspRange { start_line: 0, start_character: 5, end_line: 0, end_character: 11 }, LspRange { start_line: 2, start_character: 0, end_line: 2, end_character: 4 }, LspRange { start_line: 3, start_character: 0, end_line: 3, end_character: 6 }]
+  left: [0, 2, 3]
+ right: [0, 1, 2, 3]
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<alloc::vec::Vec<u32>, alloc::vec::Vec<u32>>
+   4: references_rename::references_include_a_const_cmd_dispatch_site_m7
+   5: references_rename::references_include_a_const_cmd_dispatch_site_m7::{closure#0}
+   6: <references_rename::references_include_a_const_cmd_dispatch_site_m7::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- references_issue_923_two_bind_lines_qualified_and_bare_both_resolve_correctly stdout ----
+
+thread 'references_issue_923_two_bind_lines_qualified_and_bare_both_resolve_correctly' (9322) panicked at rust/tcl-lsp-core/tests/references_rename.rs:657:5:
+spec's fully-qualified bind call site missing: [LspRange { start_line: 2, start_character: 13, end_line: 2, end_character: 31 }]
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: references_rename::references_issue_923_two_bind_lines_qualified_and_bare_both_resolve_correctly
+   3: references_rename::references_issue_923_two_bind_lines_qualified_and_bare_both_resolve_correctly::{closure#0}
+   4: <references_rename::references_issue_923_two_bind_lines_qualified_and_bare_both_resolve_correctly::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- references_proc_called_inside_oo_objdefine_method_body stdout ----
+
+thread 'references_proc_called_inside_oo_objdefine_method_body' (9329) panicked at rust/tcl-lsp-core/tests/references_rename.rs:182:5:
+the call in the per-object method body (line 4) should be a reference: [LspRange { start_line: 0, start_character: 5, end_line: 0, end_character: 11 }]
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: references_rename::references_proc_called_inside_oo_objdefine_method_body
+   3: references_rename::references_proc_called_inside_oo_objdefine_method_body::{closure#0}
+   4: <references_rename::references_proc_called_inside_oo_objdefine_method_body::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- references_two_level_nested_namespace_qualified_call_in_bind_style_body_matches stdout ----
+
+thread 'references_two_level_nested_namespace_qualified_call_in_bind_style_body_matches' (9382) panicked at rust/tcl-lsp-core/tests/references_rename.rs:622:5:
+fully-qualified call embedded in the `bind` script missing: [LspRange { start_line: 2, start_character: 13, end_line: 2, end_character: 31 }]
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: references_rename::references_two_level_nested_namespace_qualified_call_in_bind_style_body_matches
+   3: references_rename::references_two_level_nested_namespace_qualified_call_in_bind_style_body_matches::{closure#0}
+   4: <references_rename::references_two_level_nested_namespace_qualified_call_in_bind_style_body_matches::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- rename_class_rewrites_its_superclass_and_mixin_sites stdout ----
+
+thread 'rename_class_rewrites_its_superclass_and_mixin_sites' (9443) panicked at rust/tcl-lsp-core/tests/references_rename.rs:1051:5:
+assertion `left == right` failed: decl + superclass + mixin sites rewritten: []
+  left: []
+ right: [0, 2, 5]
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<alloc::vec::Vec<u32>, alloc::vec::Vec<u32>>
+   4: references_rename::rename_class_rewrites_its_superclass_and_mixin_sites
+   5: references_rename::rename_class_rewrites_its_superclass_and_mixin_sites::{closure#0}
+   6: <references_rename::rename_class_rewrites_its_superclass_and_mixin_sites::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- rename_classmethod_does_not_rewrite_a_sibling_namespaces_dispatch stdout ----
+
+thread 'rename_classmethod_does_not_rewrite_a_sibling_namespaces_dispatch' (9478) panicked at rust/tcl-lsp-core/tests/references_rename.rs:2679:5:
+assertion `left == right` failed: []
+  left: []
+ right: [2, 4]
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<alloc::vec::Vec<u32>, alloc::vec::Vec<u32>>
+   4: references_rename::rename_classmethod_does_not_rewrite_a_sibling_namespaces_dispatch
+   5: references_rename::rename_classmethod_does_not_rewrite_a_sibling_namespaces_dispatch::{closure#0}
+   6: <references_rename::rename_classmethod_does_not_rewrite_a_sibling_namespaces_dispatch::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- rename_class_two_level_nested_namespace_scoped_correctly stdout ----
+
+thread 'rename_class_two_level_nested_namespace_scoped_correctly' (9471) panicked at rust/tcl-lsp-core/tests/references_rename.rs:1015:5:
+assertion `left == right` failed: only ::c::d::Widget's decl + its own `Widget new` call rewritten: []
+  left: []
+ right: [7, 8]
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<alloc::vec::Vec<u32>, alloc::vec::Vec<u32>>
+   4: references_rename::rename_class_two_level_nested_namespace_scoped_correctly
+   5: references_rename::rename_class_two_level_nested_namespace_scoped_correctly::{closure#0}
+   6: <references_rename::rename_class_two_level_nested_namespace_scoped_correctly::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- rename_classmethod_is_scoped_in_the_other_direction_too stdout ----
+
+thread 'rename_classmethod_is_scoped_in_the_other_direction_too' (9549) panicked at rust/tcl-lsp-core/tests/references_rename.rs:2714:5:
+assertion `left == right` failed: []
+  left: []
+ right: [8, 10]
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<alloc::vec::Vec<u32>, alloc::vec::Vec<u32>>
+   4: references_rename::rename_classmethod_is_scoped_in_the_other_direction_too
+   5: references_rename::rename_classmethod_is_scoped_in_the_other_direction_too::{closure#0}
+   6: <references_rename::rename_classmethod_is_scoped_in_the_other_direction_too::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- rename_itcl_class_proc_from_the_call_site_matches_the_declaration stdout ----
+
+thread 'rename_itcl_class_proc_from_the_call_site_matches_the_declaration' (9670) panicked at rust/tcl-lsp-core/tests/references_rename.rs:2616:5:
+assertion `left == right` failed: []
+  left: []
+ right: [1, 3]
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<alloc::vec::Vec<u32>, alloc::vec::Vec<u32>>
+   4: references_rename::rename_itcl_class_proc_from_the_call_site_matches_the_declaration
+   5: references_rename::rename_itcl_class_proc_from_the_call_site_matches_the_declaration::{closure#0}
+   6: <references_rename::rename_itcl_class_proc_from_the_call_site_matches_the_declaration::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- rename_from_the_defining_literal_cursor_follows_the_dispatch_945 stdout ----
+
+thread 'rename_from_the_defining_literal_cursor_follows_the_dispatch_945' (9662) panicked at rust/tcl-lsp-core/tests/references_rename.rs:2458:5:
+assertion `left == right` failed: identical edit set from the literal cursor: []
+  left: []
+ right: [0, 1, 3]
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<alloc::vec::Vec<u32>, alloc::vec::Vec<u32>>
+   4: references_rename::rename_from_the_defining_literal_cursor_follows_the_dispatch_945
+   5: references_rename::rename_from_the_defining_literal_cursor_follows_the_dispatch_945::{closure#0}
+   6: <references_rename::rename_from_the_defining_literal_cursor_follows_the_dispatch_945::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- rename_itcl_class_proc_rewrites_every_dispatch_spelling stdout ----
+
+thread 'rename_itcl_class_proc_rewrites_every_dispatch_spelling' (9695) panicked at rust/tcl-lsp-core/tests/references_rename.rs:2572:5:
+assertion `left == right` failed: []
+  left: []
+ right: [1, 2, 4, 5]
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<alloc::vec::Vec<u32>, alloc::vec::Vec<u32>>
+   4: references_rename::rename_itcl_class_proc_rewrites_every_dispatch_spelling
+   5: references_rename::rename_itcl_class_proc_rewrites_every_dispatch_spelling::{closure#0}
+   6: <references_rename::rename_itcl_class_proc_rewrites_every_dispatch_spelling::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- rename_parent_proc_does_not_edit_a_child_interp_body stdout ----
+
+thread 'rename_parent_proc_does_not_edit_a_child_interp_body' (10255) panicked at rust/tcl-lsp-core/tests/references_rename.rs:1228:5:
+the parent decl and call are still rewritten: []
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: references_rename::rename_parent_proc_does_not_edit_a_child_interp_body
+   3: references_rename::rename_parent_proc_does_not_edit_a_child_interp_body::{closure#0}
+   4: <references_rename::rename_parent_proc_does_not_edit_a_child_interp_body::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- rename_proc_updates_definition_and_all_call_sites stdout ----
+
+thread 'rename_proc_updates_definition_and_all_call_sites' (10499) panicked at rust/tcl-lsp-core/tests/references_rename.rs:1189:5:
+assertion `left == right` failed: decl + both call sites rewritten; got []
+  left: []
+ right: [0, 1, 2]
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<alloc::vec::Vec<u32>, alloc::vec::Vec<u32>>
+   4: references_rename::rename_proc_updates_definition_and_all_call_sites
+   5: references_rename::rename_proc_updates_definition_and_all_call_sites::{closure#0}
+   6: <references_rename::rename_proc_updates_definition_and_all_call_sites::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- rename_rewrites_a_consumed_dispatch_table_literal_m7 stdout ----
+
+thread 'rename_rewrites_a_consumed_dispatch_table_literal_m7' (10710) panicked at rust/tcl-lsp-core/tests/references_rename.rs:2518:5:
+assertion `left == right` failed: decl + table literal expected; got [LspRange { start_line: 0, start_character: 5, end_line: 0, end_character: 11 }]
+  left: [0]
+ right: [0, 1]
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<alloc::vec::Vec<u32>, alloc::vec::Vec<u32>>
+   4: references_rename::rename_rewrites_a_consumed_dispatch_table_literal_m7
+   5: references_rename::rename_rewrites_a_consumed_dispatch_table_literal_m7::{closure#0}
+   6: <references_rename::rename_rewrites_a_consumed_dispatch_table_literal_m7::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- rename_rewrites_the_defining_literal_and_never_the_dispatch_span_945 stdout ----
+
+thread 'rename_rewrites_the_defining_literal_and_never_the_dispatch_span_945' (10776) panicked at rust/tcl-lsp-core/tests/references_rename.rs:2410:5:
+assertion `left == right` failed: decl + defining literal + direct call; the $cmd span stays: []
+  left: []
+ right: [0, 1, 3]
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<alloc::vec::Vec<u32>, alloc::vec::Vec<u32>>
+   4: references_rename::rename_rewrites_the_defining_literal_and_never_the_dispatch_span_945
+   5: references_rename::rename_rewrites_the_defining_literal_and_never_the_dispatch_span_945::{closure#0}
+   6: <references_rename::rename_rewrites_the_defining_literal_and_never_the_dispatch_span_945::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- the_parameter_declaration_hovers_as_a_variable_not_the_file_command stdout ----
+
+thread 'the_parameter_declaration_hovers_as_a_variable_not_the_file_command' (10966) panicked at rust/tcl-lsp-core/tests/references_rename.rs:3255:10:
+hover must resolve the parameter declaration
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::option::expect_failed
+   3: <core::option::Option<alloc::string::String>>::expect
+   4: references_rename::the_parameter_declaration_hovers_as_a_variable_not_the_file_command
+   5: references_rename::the_parameter_declaration_hovers_as_a_variable_not_the_file_command::{closure#0}
+   6: <references_rename::the_parameter_declaration_hovers_as_a_variable_not_the_file_command::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- uplevel_nonzero_body_local_resolves_within_body stdout ----
+
+thread 'uplevel_nonzero_body_local_resolves_within_body' (11028) panicked at rust/tcl-lsp-core/tests/references_rename.rs:2021:5:
+the body's own `set h` (line 2) must be a reference; got []
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: references_rename::uplevel_nonzero_body_local_resolves_within_body
+   3: references_rename::uplevel_nonzero_body_local_resolves_within_body::{closure#0}
+   4: <references_rename::uplevel_nonzero_body_local_resolves_within_body::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- uplevel_zero_resolves_global_not_proc_local stdout ----
+
+thread 'uplevel_zero_resolves_global_not_proc_local' (11038) panicked at rust/tcl-lsp-core/tests/references_rename.rs:1941:5:
+uplevel #0 `$g` must resolve to the global `set g` on line 0; got []
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: references_rename::uplevel_zero_resolves_global_not_proc_local
+   3: references_rename::uplevel_zero_resolves_global_not_proc_local::{closure#0}
+   4: <references_rename::uplevel_zero_resolves_global_not_proc_local::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+
+failures:
+    a_parameter_read_inside_a_list_built_body_navigates
+    class_rename_from_callsite_targets_caller_namespace
+    every_variable_provider_resolves_a_brace_literal_cursor_to_the_literal_cell
+    namespace_which_command_probe_navigates_and_renames_945
+    object_var_references_are_token_sized
+    object_var_references_unify_across_methods
+    object_var_rename_edits_declaration_and_use
+    object_var_rename_never_rewrites_method_body
+    object_var_rename_unifies_declaration_and_all_method_uses
+    references_include_a_const_cmd_dispatch_site_m7
+    references_issue_923_two_bind_lines_qualified_and_bare_both_resolve_correctly
+    references_proc_called_inside_oo_objdefine_method_body
+    references_two_level_nested_namespace_qualified_call_in_bind_style_body_matches
+    rename_class_rewrites_its_superclass_and_mixin_sites
+    rename_class_two_level_nested_namespace_scoped_correctly
+    rename_classmethod_does_not_rewrite_a_sibling_namespaces_dispatch
+    rename_classmethod_is_scoped_in_the_other_direction_too
+    rename_from_the_defining_literal_cursor_follows_the_dispatch_945
+    rename_itcl_class_proc_from_the_call_site_matches_the_declaration
+    rename_itcl_class_proc_rewrites_every_dispatch_spelling
+    rename_parent_proc_does_not_edit_a_child_interp_body
+    rename_proc_updates_definition_and_all_call_sites
+    rename_rewrites_a_consumed_dispatch_table_literal_m7
+    rename_rewrites_the_defining_literal_and_never_the_dispatch_span_945
+    the_parameter_declaration_hovers_as_a_variable_not_the_file_command
+    uplevel_nonzero_body_local_resolves_within_body
+    uplevel_zero_resolves_global_not_proc_local
+
+test result: FAILED. 71 passed; 27 failed; 0 ignored; 0 measured; 0 filtered out; finished in 69.85s
+

@@ -1,0 +1,6 @@
+
+running 1 test
+test resolved_invocation::tests::selected_getter_normal_contract_does_not_leak_to_mutator_or_channel_forms ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1875 filtered out; finished in 0.13s
+

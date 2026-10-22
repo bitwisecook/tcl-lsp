@@ -1,0 +1,220 @@
+{
+  "tcl_lexer": {
+    "path": "/home/user/tcl-lsp/target/debug/deps/tcl_lexer-c4a1229f05650059",
+    "sha256": "56bf2acd4f73ffc1133b2e78708c4ae0ffc3b0c2e3245bd8d1e11d9ff6bb58d6",
+    "target": {
+      "kind": [
+        "lib"
+      ],
+      "crate_types": [
+        "lib"
+      ],
+      "name": "tcl_lexer",
+      "src_path": "/home/user/tcl-lsp/rust/tcl-lexer/src/lib.rs",
+      "edition": "2024",
+      "doc": true,
+      "doctest": true,
+      "test": true
+    },
+    "features": [],
+    "profile": {
+      "opt_level": "0",
+      "debuginfo": 0,
+      "debug_assertions": true,
+      "overflow_checks": true,
+      "test": true
+    },
+    "fresh": true
+  },
+  "tcl_spec_studio": {
+    "path": "/home/user/tcl-lsp/target/debug/deps/tcl_spec_studio-2f271663a9dfd7ee",
+    "sha256": "8ab494406dbcf2e822c87a8a0ed5522efa74ea09bb62ac81c61ce887dfe07b83",
+    "target": {
+      "kind": [
+        "lib"
+      ],
+      "crate_types": [
+        "lib"
+      ],
+      "name": "tcl_spec_studio",
+      "src_path": "/home/user/tcl-lsp/rust/tcl-spec-studio/src/lib.rs",
+      "edition": "2024",
+      "doc": true,
+      "doctest": true,
+      "test": true
+    },
+    "features": [],
+    "profile": {
+      "opt_level": "0",
+      "debuginfo": 0,
+      "debug_assertions": true,
+      "overflow_checks": true,
+      "test": true
+    },
+    "fresh": false
+  },
+  "tcl_spectcl": {
+    "path": "/home/user/tcl-lsp/target/debug/deps/tcl_spectcl-2aefd9b04de0c8d6",
+    "sha256": "75ba909587f461ee24934a5bfcc006b637e8a2744d92e224a3ec4b2f987f6c17",
+    "target": {
+      "kind": [
+        "lib"
+      ],
+      "crate_types": [
+        "lib"
+      ],
+      "name": "tcl_spectcl",
+      "src_path": "/home/user/tcl-lsp/rust/tcl-spectcl/src/lib.rs",
+      "edition": "2024",
+      "doc": true,
+      "doctest": true,
+      "test": true
+    },
+    "features": [],
+    "profile": {
+      "opt_level": "0",
+      "debuginfo": 0,
+      "debug_assertions": true,
+      "overflow_checks": true,
+      "test": true
+    },
+    "fresh": false
+  },
+  "tcl_lsp_core": {
+    "path": "/home/user/tcl-lsp/target/debug/deps/tcl_lsp_core-c42d7b3d9c3645e1",
+    "sha256": "12935da150b065e15ed89f53ecde735b242c32d36a17e4dea9210c006cc8f0e1",
+    "target": {
+      "kind": [
+        "lib"
+      ],
+      "crate_types": [
+        "lib"
+      ],
+      "name": "tcl_lsp_core",
+      "src_path": "/home/user/tcl-lsp/rust/tcl-lsp-core/src/lib.rs",
+      "edition": "2024",
+      "doc": true,
+      "doctest": true,
+      "test": true
+    },
+    "features": [
+      "truth-table"
+    ],
+    "profile": {
+      "opt_level": "0",
+      "debuginfo": 0,
+      "debug_assertions": true,
+      "overflow_checks": true,
+      "test": true
+    },
+    "fresh": false
+  },
+  "tcl_lsp_db": {
+    "path": "/home/user/tcl-lsp/target/debug/deps/tcl_lsp_db-4adc210b216c0747",
+    "sha256": "4bcddfb60c86ab9320e7640555663b5652b0c5ad2bf1346ab598a8644005cee6",
+    "target": {
+      "kind": [
+        "lib"
+      ],
+      "crate_types": [
+        "lib"
+      ],
+      "name": "tcl_lsp_db",
+      "src_path": "/home/user/tcl-lsp/rust/tcl-lsp-db/src/lib.rs",
+      "edition": "2024",
+      "doc": true,
+      "doctest": true,
+      "test": true
+    },
+    "features": [],
+    "profile": {
+      "opt_level": "0",
+      "debuginfo": 0,
+      "debug_assertions": true,
+      "overflow_checks": true,
+      "test": true
+    },
+    "fresh": false
+  },
+  "tcl_lsp_server": {
+    "path": "/home/user/tcl-lsp/target/debug/deps/tcl_lsp_server-74131fe2036eb273",
+    "sha256": "3a7ca486321f4dfc4a515fd3c9029ad8d9a24c16a7f96d21f06b5d338f4a07e4",
+    "target": {
+      "kind": [
+        "lib"
+      ],
+      "crate_types": [
+        "lib"
+      ],
+      "name": "tcl_lsp_server",
+      "src_path": "/home/user/tcl-lsp/rust/tcl-lsp-server/src/lib.rs",
+      "edition": "2024",
+      "doc": true,
+      "doctest": true,
+      "test": true
+    },
+    "features": [],
+    "profile": {
+      "opt_level": "0",
+      "debuginfo": 0,
+      "debug_assertions": true,
+      "overflow_checks": true,
+      "test": true
+    },
+    "fresh": false
+  },
+  "tcl_registry": {
+    "path": "/home/user/tcl-lsp/target/debug/deps/tcl_registry-24ca9a1c83ae5946",
+    "sha256": "85c6afbf0c32fcc30b8ee10ca6287a18193c71a5238994ad1984acc90f00ae61",
+    "target": {
+      "kind": [
+        "lib"
+      ],
+      "crate_types": [
+        "lib"
+      ],
+      "name": "tcl_registry",
+      "src_path": "/home/user/tcl-lsp/rust/tcl-registry/src/lib.rs",
+      "edition": "2024",
+      "doc": true,
+      "doctest": true,
+      "test": true
+    },
+    "features": [],
+    "profile": {
+      "opt_level": "0",
+      "debuginfo": 0,
+      "debug_assertions": true,
+      "overflow_checks": true,
+      "test": true
+    },
+    "fresh": false
+  },
+  "tcl_compiler": {
+    "path": "/home/user/tcl-lsp/target/debug/deps/tcl_compiler-30b36f5fc9611193",
+    "sha256": "5b1056f15690537ea06ad09e894d1b215db63d984865f6fa525f4f98334435f2",
+    "target": {
+      "kind": [
+        "lib"
+      ],
+      "crate_types": [
+        "lib"
+      ],
+      "name": "tcl_compiler",
+      "src_path": "/home/user/tcl-lsp/rust/tcl-compiler/src/lib.rs",
+      "edition": "2024",
+      "doc": true,
+      "doctest": true,
+      "test": true
+    },
+    "features": [],
+    "profile": {
+      "opt_level": "0",
+      "debuginfo": 0,
+      "debug_assertions": true,
+      "overflow_checks": true,
+      "test": true
+    },
+    "fresh": false
+  }
+}

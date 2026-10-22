@@ -1,0 +1,6 @@
+
+running 1 test
+test resolved_invocation::literal_role_dependency_controls::existing_count_owned_roles_still_accept_unknown_operand_values ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1875 filtered out; finished in 0.01s
+

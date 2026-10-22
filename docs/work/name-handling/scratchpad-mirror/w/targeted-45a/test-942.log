@@ -1,0 +1,22 @@
+
+running 1 test
+test resolved_invocation::tests::source_case_clause_projection_keeps_counted_bytes_and_unknown_option_selection ... 
+thread 'resolved_invocation::tests::source_case_clause_projection_keeps_counted_bytes_and_unknown_option_selection' (23204) panicked at rust/tcl-registry/src/resolved_invocation.rs:7875:13:
+assertion failed: source_selected.words.arguments().dialect().is_none()
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: tcl_registry::resolved_invocation::tests::source_case_clause_projection_keeps_counted_bytes_and_unknown_option_selection
+   4: tcl_registry::resolved_invocation::tests::source_case_clause_projection_keeps_counted_bytes_and_unknown_option_selection::{closure#0}
+   5: <tcl_registry::resolved_invocation::tests::source_case_clause_projection_keeps_counted_bytes_and_unknown_option_selection::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+FAILED
+
+failures:
+
+failures:
+    resolved_invocation::tests::source_case_clause_projection_keeps_counted_bytes_and_unknown_option_selection
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1875 filtered out; finished in 0.19s
+

@@ -1,0 +1,44 @@
+
+running 2 tests
+PROBE completion toplevel: ["$total", "$x"]
+PROBE rename Some("proc greet {} { return hi }") -> Err(RenameRefusal { reason: "unknown-completed-command-world: a completed original command world is unavailable for collision coverage", range: Some(LspRange { start_line: 0, start_character: 5, end_line: 0, end_character: 10 }) })
+PROBE completion tally: []
+PROBE rename Some("proc greet {} { return hi }") -> Ok([0, 1, 2])
+PROBE completion tally-called: []
+PROBE rename Some("namespace eval ::a {") -> Err(RenameRefusal { reason: "incomplete-original-command-coverage: the complete source contains an executable region or command selection without original coverage", range: Some(LspRange { start_line: 1, start_character: 21, end_line: 1, end_character: 27 }) })
+PROBE rename Some("oo::class create C {") -> Err(RenameRefusal { reason: "the original command selected at this cursor is unavailable; source-only vendor names and unknown native inputs cannot use lexical name edits", range: None })
+
+thread 'probe_rename_refusals' (25676) panicked at rust/tcl-lsp-core/tests/zz_lsp_agent_probe.rs:94:5:
+PROBE END (deliberate, shows output)
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: zz_lsp_agent_probe::probe_rename_refusals
+   3: zz_lsp_agent_probe::probe_rename_refusals::{closure#0}
+   4: <zz_lsp_agent_probe::probe_rename_refusals::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+test probe_rename_refusals ... FAILED
+PROBE completion tally-tcl: []
+PROBE irules decl image_eq=true config_eq=true span=Span { start: 5, end: 8 }
+PROBE irules declarations()=Some(1)
+PROBE relation class=::Puppy side=Instance kind=Superclass op=Some(Set) values=Some([("Dog", Some((true, Span { start: 87, end: 90 })))])
+
+thread 'probe_completion_and_irules' (25675) panicked at rust/tcl-lsp-core/tests/zz_lsp_agent_probe.rs:67:5:
+PROBE END (deliberate, shows output)
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: zz_lsp_agent_probe::probe_completion_and_irules
+   3: zz_lsp_agent_probe::probe_completion_and_irules::{closure#0}
+   4: <zz_lsp_agent_probe::probe_completion_and_irules::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+test probe_completion_and_irules ... FAILED
+
+failures:
+
+failures:
+    probe_completion_and_irules
+    probe_rename_refusals
+
+test result: FAILED. 0 passed; 2 failed; 0 ignored; 0 measured; 0 filtered out; finished in 8.50s
+

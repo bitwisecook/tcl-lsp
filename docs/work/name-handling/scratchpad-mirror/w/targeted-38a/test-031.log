@@ -1,0 +1,6 @@
+
+running 1 test
+test references::tests::constructor_next_chain_reference_from_direct_subclass ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 3470 filtered out; finished in 0.88s
+

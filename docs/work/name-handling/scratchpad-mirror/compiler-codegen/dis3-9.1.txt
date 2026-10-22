@@ -1,0 +1,104 @@
+  Command 1: "set r [string cat a - b]..."
+  Command 2: "string cat a - b..."
+    (0) push 0 	# "a-b"
+    (5) storeScalar %v2 	# var "r"
+    (10) pop 
+  Command 3: "set s [string cat $a x $b]..."
+  Command 4: "string cat $a x $b..."
+    (11) loadScalar %v0 	# var "a"
+    (16) push 1 	# "x"
+    (21) loadScalar %v1 	# var "b"
+    (26) strcat 3 
+    (28) storeScalar %v3 	# var "s"
+    (33) pop 
+  Command 5: "set t [string cat]..."
+  Command 6: "string cat..."
+    (34) push 2 	# ""
+    (39) storeScalar %v4 	# var "t"
+    (44) pop 
+  Command 7: "set u [string cat $a]..."
+  Command 8: "string cat $a..."
+    (45) loadScalar %v0 	# var "a"
+    (50) storeScalar %v5 	# var "u"
+    (55) pop 
+  Command 9: "return "
+    (56) push 2 	# ""
+    (61) done 
+  Command 1: "if {![string is ascii $s]} {return 1}..."
+  Command 2: "string is ascii $s..."
+    (0) loadScalar %v0 	# var "s"
+    (5) strclass ascii 
+    (7) nop 
+    (8) jumpTrue +25 	# pc 33
+  Command 3: "return 1..."
+    (13) startCommand +15 1 	# next cmd at pc 28, 1 cmds start here
+    (22) push 0 	# "1"
+    (27) done 
+    (28) jump +10 	# pc 38
+    (33) push 1 	# ""
+    (38) pop 
+  Command 4: "string is integer -strict $s..."
+    (39) startCommand +27 1 	# next cmd at pc 66, 1 cmds start here
+    (48) loadScalar %v0 	# var "s"
+    (53) numericType 
+    (54) dup 
+    (55) jumpFalse +11 	# pc 66
+    (60) push 2 	# "3"
+    (65) le 
+    (66) pop 
+  Command 5: "string is int $s..."
+    (67) startCommand +37 1 	# next cmd at pc 104, 1 cmds start here
+    (76) loadScalar %v0 	# var "s"
+    (81) dup 
+    (82) numericType 
+    (83) dup 
+    (84) jumpTrue +12 	# pc 96
+    (89) pop 
+    (90) isEmpty 
+    (91) jump +13 	# pc 104
+    (96) swap 
+    (97) pop 
+    (98) push 2 	# "3"
+    (103) le 
+    (104) pop 
+  Command 6: "string is ascii -failindex fi $s..."
+    (105) startCommand +50 1 	# next cmd at pc 155, 1 cmds start here
+    (114) push 3 	# "string"
+    (119) push 4 	# "is"
+    (124) push 5 	# "ascii"
+    (129) push 6 	# "-failindex"
+    (134) push 7 	# "fi"
+    (139) loadScalar %v0 	# var "s"
+    (144) push 8 	# "::tcl::string::is"
+    (149) invokeReplace 6 2 
+    (155) pop 
+  Command 7: "string is boolean $s..."
+    (156) startCommand +32 1 	# next cmd at pc 188, 1 cmds start here
+    (165) loadScalar %v0 	# var "s"
+    (170) tryCvtToBoolean 
+    (171) jumpTrue +11 	# pc 182
+    (176) isEmpty 
+    (177) jump +11 	# pc 188
+    (182) pop 
+    (183) push 0 	# "1"
+    (188) pop 
+  Command 8: "string is $s x..."
+    (189) startCommand +40 1 	# next cmd at pc 229, 1 cmds start here
+    (198) push 3 	# "string"
+    (203) push 9 	# "is"
+    (208) loadScalar %v0 	# var "s"
+    (213) push 10 	# "x"
+    (218) push 8 	# "::tcl::string::is"
+    (223) invokeReplace 4 2 
+    (229) pop 
+  Command 9: "string is alpha -strict -strict $s "
+    (230) startCommand +50 1 	# next cmd at pc 280, 1 cmds start here
+    (239) push 3 	# "string"
+    (244) push 11 	# "is"
+    (249) push 12 	# "alpha"
+    (254) push 13 	# "-strict"
+    (259) push 13 	# "-strict"
+    (264) loadScalar %v0 	# var "s"
+    (269) push 8 	# "::tcl::string::is"
+    (274) invokeReplace 6 2 
+    (280) done 

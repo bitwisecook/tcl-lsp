@@ -1,0 +1,337 @@
+//! TEMPORARY probe (Sol-47). Removed before handoff.
+#![allow(clippy::all, clippy::pedantic, unused)]
+
+use crate::compilation_unit::{CompilationUnit, UnitBuildOptions};
+use std::sync::Arc;
+
+fn lsp_unit(src: &str, dialect: &str) -> (CompilationUnit, &'static tcl_dialect::DialectProfile) {
+    let environment = tcl_registry::model::resolve_environment(dialect);
+    let profile = environment.analyser_profile();
+    let base = tcl_registry::model::ingress::static_context_for(dialect);
+    let registry = base.commands();
+    let context = environment
+        .context_registry(&tcl_registry::model::KeyedVersions::default(), 0)
+        .unwrap()
+        .with_command_store(registry.snapshot().shared_registry());
+    let input = crate::analyser::ResolvedAnalysisInput::new(
+        profile,
+        profile,
+        Arc::new(context),
+        tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+    );
+    let entry = crate::command_binding::SourceAnalysisEntry::for_supplied_source(
+        registry,
+        &input,
+        input.lexer_config(),
+        Some(input.unit_profile()),
+    );
+    let unit = CompilationUnit::build_with_analysis_input(
+        src,
+        UnitBuildOptions {
+            registry,
+            defer_top_level: false,
+            config: input.lexer_config(),
+            dialect: Some(input.unit_profile()),
+            external_call_sites: None,
+            declared_commands: None,
+        },
+        Some(&entry),
+        &input,
+    );
+    (unit, profile)
+}
+
+fn checks(unit: &CompilationUnit, dialect: &str) -> Vec<String> {
+    let profile = tcl_registry::model::resolve_environment(dialect).analyser_profile();
+    let registry = tcl_registry::model::ingress::static_context_for(dialect).commands();
+    crate::compiler_checks::run_all_checks(unit, registry, Some(profile))
+        .iter()
+        .map(|d| format!("{}@{:?}", d.code, d.span))
+        .collect()
+}
+
+#[test]
+fn probe_lsp_top_level() {
+    for src in [
+        "set a 1\nlindex $a 0\n",
+        "set d {a 1 b 2}\ndict for {k v} $d { puts \"$k=$v\" }\n",
+        "set raw [gets stdin]\ninterp eval $child [list puts $raw]\n",
+    ] {
+        let (unit, _) = lsp_unit(src, "tcl8.6");
+        eprintln!("LSP {src:?} -> {:?}", checks(&unit, "tcl8.6"));
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let profile = tcl_registry::model::resolve_environment("tcl8.6").analyser_profile();
+        let unit = CompilationUnit::build_for_profile(src, registry, false, profile);
+        eprintln!("BFP {src:?} -> {:?}", checks(&unit, "tcl8.6"));
+    }
+}
+
+fn opt(src: &str) -> Vec<String> {
+    let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+    let profile = tcl_registry::model::resolve_environment("tcl8.6").analyser_profile();
+    crate::optimiser::manager::optimise_with_dialect(src, registry, Some(profile))
+        .iter()
+        .map(|o| format!("{}:{:?}", o.code.as_str(), o.replacement))
+        .collect()
+}
+
+#[test]
+fn probe_opt() {
+    for src in [
+        "proc p {} {return P}\nproc q {} {return Q}\ninterp alias {} r {} rename\nr p oldp\nr q p\nset value [p]\n",
+        "if {0} {\n    puts dead\n}\nputs alive\n",
+        "set a 1\nset b [expr {$a + 1}]\nputs $b",
+    ] {
+        eprintln!("OPT {src:?} -> {:?}", opt(src));
+    }
+}
+
+#[test]
+fn probe_opt_lsp() {
+    let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+    let profile = tcl_registry::model::resolve_environment("tcl8.6").analyser_profile();
+    for src in [
+        "proc p {} {return P}\nproc q {} {return Q}\ninterp alias {} r {} rename\nr p oldp\nr q p\nset value [p]\n",
+        "if {0} {\n    puts dead\n}\nputs alive\n",
+        "set a 1\nset b [expr {$a + 1}]\nputs $b",
+    ] {
+        let (unit, _) = lsp_unit(src, "tcl8.6");
+        let unit = unit.with_interprocedural(registry, Some(profile));
+        let o: Vec<String> = crate::optimiser::manager::optimise_unit(&unit, registry, Some(profile))
+            .iter()
+            .map(|o| format!("{}:{:?}", o.code.as_str(), o.replacement))
+            .collect();
+        eprintln!("LSPOPT {src:?} -> {o:?}");
+    }
+}
+
+#[test]
+fn probe_cluster_b() {
+    use tcl_runtime_api::CompileService;
+    let profile = tcl_registry::model::resolve_environment("tcl9.0").unit_profile();
+    for src in ["set x 1\nputs $x\n", "proc f {} {return 1}\nf\n", "if {1} {\nset done 1\n}\n"] {
+        let svc = crate::compile_service::BytecodeCompileService::for_profile(profile);
+        let m = svc.compile(src);
+        match m {
+            Ok(m) => eprintln!(
+                "B {src:?} top={:?} preflight={:?} prereq={}",
+                m.top_level.validate_native_compilation_entry(),
+                m.top_level.native_compilation_preflight,
+                m.top_level.native_compiler_prerequisites.len()
+            ),
+            Err(e) => eprintln!("B {src:?} ERR {e}"),
+        }
+        let m = svc.compile_for_profile(src, profile);
+        eprintln!("B4P {src:?} {:?}", m.map(|m| m.top_level.validate_native_compilation_entry()));
+    }
+}
+
+#[test]
+fn probe_nested_if_timing() {
+    use tcl_runtime_api::CompileService;
+    let profile = tcl_registry::model::resolve_environment("tcl9.0").unit_profile();
+    for depth in [2usize, 4, 6, 8, 10, 12] {
+        let mut src = String::new();
+        for _ in 0..depth {
+            src.push_str("if {1} {\n");
+        }
+        src.push_str("set done 1\n");
+        for _ in 0..depth {
+            src.push_str("}\n");
+        }
+        let t = std::time::Instant::now();
+        let svc = crate::compile_service::BytecodeCompileService::for_profile(profile);
+        let ok = svc.compile(&src).is_ok();
+        eprintln!("NEST depth={depth} ok={ok} {:?}", t.elapsed());
+    }
+}
+
+fn dump_unit(tag: &str, unit: &CompilationUnit) {
+    for fu in unit.functions() {
+        let mut vals: Vec<String> = fu
+            .sccp
+            .values
+            .iter()
+            .map(|(k, v)| format!("{k:?}={v:?}"))
+            .collect();
+        vals.sort();
+        eprintln!("  [{tag}] fn {} guarded={} vals={vals:?}", fu.name, fu.complexity_guarded);
+        for e in &fu.sccp.explanations {
+            eprintln!("    expl {:?} cmd={} route={} answer={}", e.span, e.command, e.route, e.answer);
+        }
+        eprintln!("    branches={:?}", fu.sccp.constant_branches.iter().map(|b| (&b.condition, b.value)).collect::<Vec<_>>());
+        for (id, b) in &fu.cfg.blocks {
+            for s in &b.statements {
+                eprintln!("    stmt {id:?}: {}", format!("{s:?}").chars().take(160).collect::<String>());
+            }
+        }
+    }
+}
+
+#[test]
+fn probe_dump() {
+    let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+    let profile = tcl_registry::model::resolve_environment("tcl8.6").analyser_profile();
+    for src in [
+        "set a 1\nlindex $a 0\n",
+        "proc f {} {set a 1\nlindex $a 0}\n",
+        "if {0} {\n    puts dead\n}\nputs alive\n",
+    ] {
+        eprintln!("=== {src:?}");
+        let (unit, _) = lsp_unit(src, "tcl8.6");
+        dump_unit("lsp", &unit);
+    }
+    for src in [
+        "proc p {} {return P}\nproc q {} {return Q}\ninterp alias {} r {} list\nr p oldp\nr q p\nset value [p]\n",
+        "proc p {} {return P}\nproc q {} {return Q}\nset t rename\ninterp alias {} r {} $t\nr p oldp\nr q p\nset value [p]\n",
+        "proc p {} {return P}\nproc q {} {return Q}\ninterp alias {} r {} rename\nr q newname\nset value [p]\n",
+        "proc p {} {return P}\nproc q {} {return Q}\ninterp alias {} r {} rename p\nr oldp\nset value [p]\n",
+    ] {
+        eprintln!("OPT {src:?} -> {:?}", opt(src));
+    }
+}
+
+#[test]
+fn probe_trace() {
+    // run with SOL47=1
+    for src in ["set a 1\nlindex $a 0\n", "if {0} {\n    puts dead\n}\nputs alive\n", "if {1} {\n    if {0} {\n        set dead 1\n    }\n    set alive 2\n}", "set d {a 1 b 2}\ndict for {k v} $d { puts \"$k=$v\" }\n", "set raw [gets stdin]\ninterp eval $child [list puts $raw]\n"] {
+        eprintln!("=== {src:?}");
+        let (unit, _) = lsp_unit(src, "tcl8.6");
+        eprintln!("checks {:?}", checks(&unit, "tcl8.6"));
+        eprintln!("opt {:?}", opt(src));
+    }
+}
+
+#[test]
+fn probe_body_tokens() {
+    let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+    for src in [
+        "proc f {} {set a 1\nlindex $a 0}\n",
+        "proc f {} {set a 1\nlindex $a 0}\nf\n",
+        "if {0} {\n    puts dead\n}\nputs alive\n",
+    ] {
+        eprintln!("=== {src:?}");
+        let (unit, _) = lsp_unit(src, "tcl8.6");
+        for fu in unit.functions() {
+            let Some(meta) = fu.invocation_metadata_context(registry) else {
+                eprintln!("  fn {} no metadata", fu.name);
+                continue;
+            };
+            let mut keys: Vec<_> = fu.cfg.blocks.keys().copied().collect();
+            keys.sort();
+            for b in keys {
+                let blk = &fu.cfg.blocks[&b];
+                for (i, s) in blk.statements.iter().enumerate() {
+                    let Some(tokens) = fu.cfg.source_tokens_at(b, i) else {
+                        eprintln!("  fn {} {b:?}/{i} no tokens", fu.name);
+                        continue;
+                    };
+                    let Some(binding) = tokens.source_binding.as_ref() else {
+                        eprintln!("  fn {} {b:?}/{i} no binding", fu.name);
+                        continue;
+                    };
+                    let decl = binding.declaration_operand_layout_advice(tokens);
+                    let comp = binding.original_compilation_lookup_advice(tokens);
+                    let adv = decl.as_ref().or(comp.as_ref());
+                    eprintln!(
+                        "  fn {} {b:?}/{i} head={:?} lookup={} comp_state={} decl_obs={} unknown={} decl_adv={} comp_adv={} closed={:?} closed_logical={:?} closed_auth={:?} adv_purpose={:?} src_purpose={:?} advice_purpose={:?} invocation={} site={}",
+                        fu.name,
+                        tokens.words().first().map(|w| format!("{:?}", w.source().span)),
+                        binding.lookup_state.is_some(),
+                        binding.compiler_lookup_state.is_some(),
+                        false,
+                        binding.unknown,
+                        decl.is_some(),
+                        comp.is_some(),
+                        adv.map(|a| a.closed_lookup()),
+                        adv.map(|a| a.closed_logical_source_lookup()),
+                        None::<bool>,
+                        adv.map(|a| a.original_source_purpose(meta, registry)),
+                        binding.original_invocation_source_purpose(tokens, meta, registry),
+                        binding.original_source_advice_purpose(tokens, meta, registry),
+                        crate::registry_invocation::resolved_tokens_invocation_with_metadata_context(registry, Some(meta), tokens).is_some(),
+                        binding.invocation_site().is_some(),
+                    );
+                    if let Some(a) = adv {
+                        eprintln!("     ns={:?} opaque_handler={}", a.namespace(), a.has_opaque_handler_alternatives());
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn probe_nested_deep() {
+    use tcl_runtime_api::CompileService;
+    let depth: usize = std::env::var("SOL47_DEPTH").ok().and_then(|d| d.parse().ok()).unwrap_or(20);
+    let profile = tcl_registry::model::resolve_environment("tcl9.0").unit_profile();
+    let mut src = String::new();
+    for _ in 0..depth {
+        src.push_str("if {1} {\n");
+    }
+    src.push_str("set done 1\n");
+    for _ in 0..depth {
+        src.push_str("}\n");
+    }
+    let t = std::time::Instant::now();
+    let svc = crate::compile_service::BytecodeCompileService::for_profile(profile);
+    let ok = svc.compile(&src).is_ok();
+    eprintln!("NESTDEEP depth={depth} ok={ok} {:?}", t.elapsed());
+}
+
+#[test]
+fn probe_large_body() {
+    // Luna-37 C7(ii) shape: one proc with many simple commands.
+    let n: usize = std::env::var("SOL47_N").ok().and_then(|d| d.parse().ok()).unwrap_or(200);
+    let mut src = String::from("proc big {} {\n");
+    for _ in 0..n {
+        src.push_str("    set x 1\n");
+    }
+    src.push_str("}\n");
+    let t = std::time::Instant::now();
+    let r = crate::analyser::Analyser::new().analyse(&src, "tcl8.6");
+    eprintln!("LARGE n={n} diags={} {:?}", r.diagnostics.len(), t.elapsed());
+}
+
+#[test]
+fn probe_dump2() {
+    for src in [
+        "set d {a 1 b 2}\ndict for {k v} $d { puts \"$k=$v\" }\n",
+        "set a 1\nforeach b $a { puts $b }\n",
+        "foreach x {} { lappend acc $x }\nputs $acc\n",
+    ] {
+        eprintln!("=== {src:?}");
+        let (unit, _) = lsp_unit(src, "tcl8.6");
+        dump_unit("lsp", &unit);
+    }
+}
+
+#[test]
+fn probe_dict_body() {
+    let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+    for (src, body) in [
+        ("set d {a 1 b 2}\ndict for {k v} $d { puts \"$k=$v\" }\n", (34u32, 50u32)),
+        ("set a {1 2}\nforeach b $a { puts $b }\n", (26, 37)),
+    ] {
+        let (unit, _) = lsp_unit(src, "tcl8.6");
+        let module = &unit.ir_module;
+        let retained = module.retained_source_bindings.as_deref().unwrap();
+        let bindings = retained.positioned_for_module(module, registry).unwrap();
+        eprintln!("=== {src:?} body text {:?}", &src[body.0 as usize..body.1 as usize]);
+        for s in body.0.saturating_sub(2)..=body.0 + 1 {
+            for e in body.1.saturating_sub(1)..=body.1 + 1 {
+                let span = tcl_lexer::Span::new(s, e);
+                if let Some(script) = bindings.executed_script_for_word(span) {
+                    eprintln!(
+                        "  word {s}..{e}: executed text={:?} ns_exec={:?} ns_comp={:?} ns_decl={:?}",
+                        script.text,
+                        bindings.executed_script_namespace_context(script),
+                        bindings.compiled_script_namespace_context(script),
+                        bindings.declared_script_namespace_context(script),
+                    );
+                }
+            }
+        }
+    }
+}

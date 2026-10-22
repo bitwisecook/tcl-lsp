@@ -1,0 +1,17 @@
+
+running 1 test
+test model::expr_grammar::tests::expr_rejects_a_release_from_another_ladder - should panic ... 
+thread 'model::expr_grammar::tests::expr_rejects_a_release_from_another_ladder' (22489) panicked at rust/tcl-dialect/src/model/expr_grammar.rs:887:5:
+release is not on this family's ladder
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: tcl_dialect::model::expr_grammar::expr
+   3: tcl_dialect::model::expr_grammar::tests::expr_rejects_a_release_from_another_ladder
+   4: tcl_dialect::model::expr_grammar::tests::expr_rejects_a_release_from_another_ladder::{closure#0}
+   5: <tcl_dialect::model::expr_grammar::tests::expr_rejects_a_release_from_another_ladder::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 197 filtered out; finished in 0.09s
+

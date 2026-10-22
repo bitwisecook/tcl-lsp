@@ -1,0 +1,19 @@
+{
+ "scheduled": "2026-10-19T10:47:30Z",
+ "change_since_previous_report": {"integrated_LSP": 0, "total_baseline_delta": 0, "effective_delta": 0, "verified_complete": 0},
+ "admissions": {},
+ "candidates": {"integration45": {"commit": "aff99dc7e", "status": "held: nested-wrapper test at the 180 s budget (capture47)"}},
+ "since_previous_report": {
+  "slow_test_review": "complete; archived at docs/work/name-handling/handoff/reviews/test-performance-20261019/ (206 tests >=10 s; most time is product cost: bundled pack parsing, host Tcl install rescans, nested-body re-cuts, interprocedural quadratic, unversioned tcl path)",
+  "user_decisions": "docs/work/name-handling/handoff/reviews/resume-20261017-diagnosis/user-decisions-20261019T1100Z.json (product fixes, quick tier with drift gate, work-counter budgets, approved test changes)"
+ },
+ "in_progress": {
+  "Sol-28": "exclusive tree: nested-body memo and analysis-cost profiling",
+  "Sol-29": "pack-parse memo, host-scan test harness and cache, counters (static)",
+  "Sol-30": "quick tier, deep-only manifest, drift gate, tier contract amendment (static)",
+  "Sol-31": "explorer pack-free registry, hanging-test lock order, depth caps to 64 (static)",
+  "Sol-32": "light tests, db storm memo, counter budget tests (static)",
+  "Sol-33": "design: analysis reuse, interprocedural quadratic, tcl path (static)"
+ },
+ "next_report_utc": "2026-10-19T11:18:00Z"
+}

@@ -1,0 +1,86 @@
+test namespace_rename::original::namespace_tail_purpose_tests::original_namespace_rename_keeps_equal_global_command_and_variable_tails ... ok
+test namespace_rename::original::tests::original_namespace_coverage_reuses_analysis_body_sources_and_rejects_foreign_images ... ok
+test namespace_rename::original::tests::original_namespace_rename_coverage_detects_escaped_names_in_unpositioned_data ... ok
+test namespace_rename::original::tests::original_namespace_rename_batches_path_children_and_preserves_other_native_values ... ok
+test namespace_rename::original::tests::original_namespace_rename_refuses_readonly_computed_and_stale_sources ... ok
+test namespace_rename::original::tests::original_namespace_rename_keeps_opaque_siblings_distinct_with_ui_maps_cleared ... ok
+test namespace_rename::original::tests::original_namespace_rename_preserves_braced_and_array_variable_boundaries ... ok
+test namespace_rename::tests::constructed_colon_namespace_membership_keeps_the_root_separate ... ok
+test namespace_rename::tests::logical_braced_variable_geometry_uses_the_actual_header_span_and_close_rule ... ok
+test namespace_rename::tests::logical_namespace_forget_rename_retains_complete_source_and_hazard_guards ... FAILED
+test namespace_rename::potential_source_coverage_tests::namespace_hazard_negative_requires_complete_original_source_coverage ... FAILED
+test namespace_rename::tests::logical_written_namespace_geometry_retains_complete_separator_runs_and_purpose ... ok
+test namespace_rename::tests::namespace_hazard_keeps_original_roles_and_unavailable_owner_refusal ... FAILED
+test namespace_rename::tests::logical_namespace_rename_maps_source_and_refuses_failed_occurrence_coverage ... FAILED
+test namespace_rename::original::tests::original_namespace_rename_unknown_operands_refuse_only_unruled_out_prefixes ... ok
+test namespace_rename::tests::tn_a_computed_namespace_word_elsewhere_does_not_refuse ... ok
+test namespace_rename::tests::supplied_namespace_hazard_patterns_keep_parentheses_and_unknown_roles ... ok
+test namespace_rename::tests::tn_an_unattributed_name_elsewhere_does_not_refuse ... ok
+test namespace_rename::tests::tn_a_same_tailed_sibling_namespace_is_untouched ... ok
+test namespace_rename::tests::tn_an_unrelated_namespace_path_neither_moves_nor_refuses ... ok
+test namespace_rename::tests::tp_refuses_a_computed_namespace_path ... FAILED
+test namespace_rename::tests::tn_a_braced_dollar_entry_is_a_literal_path ... ok
+test namespace_rename::tests::tp_refuses_a_computed_namespace_target ... ok
+test namespace_rename::tests::tp_refuses_an_unattributed_embedded_name ... FAILED
+test namespace_rename::tests::tp_renames_an_implicitly_created_namespace_through_its_deeper_block ... FAILED
+test namespace_rename::tests::tp_rewrites_a_name_inside_a_walked_callback_body ... FAILED
+test namespace_rename::tests::tp_rewrites_a_relatively_written_namespace_path_entry ... ok
+test namespace_rename::tests::tp_rewrites_a_namespace_path_entry ... ok
+test namespace_rename::tests::tp_rewrites_a_relatively_written_segment_only ... ok
+test namespace_rename::tests::tp_rewrites_an_import_pattern ... ok
+test namespace_rename::tests::written_segment_is_the_namespace_segment_only ... ok
+test namespace_rename::tests::tp_rewrites_only_the_matching_namespace_path_entries ... ok
+test namespace_rename::tests::tp_rewrites_every_written_spelling_of_the_namespace ... FAILED
+---- namespace_rename::tests::logical_namespace_forget_rename_retains_complete_source_and_hazard_guards stdout ----
+thread 'namespace_rename::tests::logical_namespace_forget_rename_retains_complete_source_and_hazard_guards' (5835) panicked at rust/tcl-lsp-core/src/namespace_rename.rs:1416:87:
+called `Result::unwrap()` on an `Err` value: RenameRefusal { reason: "the namespace edit containers conflict or cannot preserve every unrelated original value", range: None }
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- namespace_rename::potential_source_coverage_tests::namespace_hazard_negative_requires_complete_original_source_coverage stdout ----
+
+thread 'namespace_rename::potential_source_coverage_tests::namespace_hazard_negative_requires_complete_original_source_coverage' (5802) panicked at rust/tcl-lsp-core/src/namespace_rename.rs:1490:13:
+set value 1; if {1} $body: cannot rename `::kept`: the original command's argument roles are unavailable for `$body`, which may name this namespace
+
+---- namespace_rename::tests::namespace_hazard_keeps_original_roles_and_unavailable_owner_refusal stdout ----
+
+thread 'namespace_rename::tests::namespace_hazard_keeps_original_roles_and_unavailable_owner_refusal' (5913) panicked at rust/tcl-lsp-core/src/namespace_rename.rs:645:64:
+called `Option::unwrap()` on a `None` value
+
+---- namespace_rename::tests::logical_namespace_rename_maps_source_and_refuses_failed_occurrence_coverage stdout ----
+
+thread 'namespace_rename::tests::logical_namespace_rename_maps_source_and_refuses_failed_occurrence_coverage' (5894) panicked at rust/tcl-lsp-core/src/namespace_rename.rs:1321:85:
+called `Result::unwrap()` on an `Err` value: RenameRefusal { reason: "the namespace edit containers conflict or cannot preserve every unrelated original value", range: None }
+
+---- namespace_rename::tests::tp_refuses_a_computed_namespace_path stdout ----
+
+thread 'namespace_rename::tests::tp_refuses_a_computed_namespace_path' (6074) panicked at rust/tcl-lsp-core/src/namespace_rename.rs:1039:13:
+a computed namespace path has no complete original list container
+
+---- namespace_rename::tests::tp_refuses_an_unattributed_embedded_name stdout ----
+
+thread 'namespace_rename::tests::tp_refuses_an_unattributed_embedded_name' (6105) panicked at rust/tcl-lsp-core/src/namespace_rename.rs:950:51:
+an embedded name must refuse: "namespace eval ::new { proc tick {} {} }\nset handlers [list ::old::tick]\n"
+
+---- namespace_rename::tests::tp_renames_an_implicitly_created_namespace_through_its_deeper_block stdout ----
+
+thread 'namespace_rename::tests::tp_renames_an_implicitly_created_namespace_through_its_deeper_block' (6133) panicked at rust/tcl-lsp-core/src/namespace_rename.rs:893:9:
+namespace eval ::p::z::r { proc f {} {} }
+puts [::p::q::r::f]
+
+
+---- namespace_rename::tests::tp_rewrites_a_name_inside_a_walked_callback_body stdout ----
+
+thread 'namespace_rename::tests::tp_rewrites_a_name_inside_a_walked_callback_body' (6136) panicked at rust/tcl-lsp-core/src/namespace_rename.rs:940:9:
+namespace eval ::new { proc tick {} {} }
+after 0 {::old::tick}
+
+
+---- namespace_rename::tests::tp_rewrites_every_written_spelling_of_the_namespace stdout ----
+
+thread 'namespace_rename::tests::tp_rewrites_every_written_spelling_of_the_namespace' (6170) panicked at rust/tcl-lsp-core/src/namespace_rename.rs:855:9:
+no spelling may be left: namespace eval ::new {
+    variable v 1
+    proc p {} { return P }
+}
+namespace eval ::new { proc q {} { return Q } }
+test result: FAILED. 24 passed; 9 failed; 0 ignored; 0 measured; 3452 filtered out; finished in 41.09s

@@ -1,0 +1,6 @@
+/home/user/tcl-lsp/target/debug/deps/tcl_compiler-ef22ef87d0bd65a7
+== cap_deep_structured_if_ir
+      1  depth_guard::tests::cap_deep_structured_if_ir_is_not_cloned_on_a_budget_thread ... [New Thread 0x7ffff7bff6c0
+      1  ??
+      1  <tcl_compiler::ir::Statement as <[_]>::to_vec_in::ConvertVec>::to_vec::<alloc::alloc::Global>
+== deep_namespace_eval_nesting

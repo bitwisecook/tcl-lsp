@@ -1,0 +1,22 @@
+
+running 1 test
+test command_binding::source_transition_advice::tests::authored_dynamic_operands_keep_source_advice_before_the_future_barrier ... 
+thread 'command_binding::source_transition_advice::tests::authored_dynamic_operands_keep_source_advice_before_the_future_barrier' (968) panicked at rust/tcl-compiler/src/command_binding/source_transition_advice.rs:3849:13:
+assertion failed: source_registry_words(source, &analysis, &commands[3]).is_none()
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: tcl_compiler::command_binding::source_transition_advice::tests::authored_dynamic_operands_keep_source_advice_before_the_future_barrier
+   4: tcl_compiler::command_binding::source_transition_advice::tests::authored_dynamic_operands_keep_source_advice_before_the_future_barrier::{closure#0}
+   5: <tcl_compiler::command_binding::source_transition_advice::tests::authored_dynamic_operands_keep_source_advice_before_the_future_barrier::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+FAILED
+
+failures:
+
+failures:
+    command_binding::source_transition_advice::tests::authored_dynamic_operands_keep_source_advice_before_the_future_barrier
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 10440 filtered out; finished in 0.67s
+

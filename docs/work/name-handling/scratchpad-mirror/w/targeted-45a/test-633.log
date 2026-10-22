@@ -1,0 +1,6 @@
+
+running 1 test
+test model::environment::tests::a_workspace_is_trusted_until_the_editor_says_otherwise_issue_2139 ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 197 filtered out; finished in 0.00s
+

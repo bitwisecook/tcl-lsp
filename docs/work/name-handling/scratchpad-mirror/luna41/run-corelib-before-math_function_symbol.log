@@ -1,0 +1,6 @@
+test math_function_symbol::tests::original_math_selection_joins_actual_override_allocation_after_reporting_clear ... ok
+test math_function_symbol::tests::original_math_references_cannot_supply_a_command_word_rename ... ok
+test math_function_symbol::tests::original_math_unknown_target_does_not_borrow_an_unrelated_same_named_procedure ... ok
+test math_function_symbol::tests::original_math_rename_coverage_keeps_unknown_command_functions_terminal ... ok
+test math_function_symbol::tests::original_math_selection_keeps_fixed_and_command_metadata_purposes_separate ... ok
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 3480 filtered out; finished in 6.17s

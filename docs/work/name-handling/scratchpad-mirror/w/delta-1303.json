@@ -1,0 +1,6 @@
+{"scheduled":"2026-10-19T13:02:00Z",
+ "change_since_previous_report":{"integrated_LSP":0,"total_baseline_delta":0,"effective_delta":0,"verified_complete":0},
+ "admissions":{},
+ "candidates":{},
+ "merge_bar":"origin/rust fcb7927f0 CI is green. In progress: disk-bounded full workspace inventory (nextest 0.9.148, -p <pkg> --all-features, one target at a time, 180 s per test), LSP/compiler packages first; first build (tcl-compiler with all workspace deps) still compiling. Failing targets will be re-run on origin/rust to separate regressions from environment-specific failures.",
+ "next_report_utc":"2026-10-19T13:34:00Z"}

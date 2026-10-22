@@ -1,0 +1,23 @@
+
+running 1 test
+test linked_editing_range::retained_source_spelling_tests::linked_spelling_lifts_lone_cr_source_with_the_actual_lsp_line_geometry ... 
+thread 'linked_editing_range::retained_source_spelling_tests::linked_spelling_lifts_lone_cr_source_with_the_actual_lsp_line_geometry' (18500) panicked at rust/tcl-lsp-core/src/linked_editing_range.rs:474:14:
+actual declaration and self-call after a lone CR
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::option::expect_failed
+   3: <core::option::Option<tcl_lsp_core::linked_editing_range::LinkedEditingRanges>>::expect
+   4: tcl_lsp_core::linked_editing_range::retained_source_spelling_tests::linked_spelling_lifts_lone_cr_source_with_the_actual_lsp_line_geometry
+   5: tcl_lsp_core::linked_editing_range::retained_source_spelling_tests::linked_spelling_lifts_lone_cr_source_with_the_actual_lsp_line_geometry::{closure#0}
+   6: <tcl_lsp_core::linked_editing_range::retained_source_spelling_tests::linked_spelling_lifts_lone_cr_source_with_the_actual_lsp_line_geometry::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+FAILED
+
+failures:
+
+failures:
+    linked_editing_range::retained_source_spelling_tests::linked_spelling_lifts_lone_cr_source_with_the_actual_lsp_line_geometry
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 3483 filtered out; finished in 1.48s
+

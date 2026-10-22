@@ -1,0 +1,13 @@
+test every_shipped_pack_still_loads_to_its_golden_snapshot ... FAILED
+test no_golden_snapshot_is_orphaned ... ok
+test every_shipped_pack_upgrades_to_2_0_and_loads_identically has been running for over 60 seconds
+test every_shipped_pack_upgrades_to_2_0_and_loads_identically ... ok
+
+failures:
+--
+thread 'every_shipped_pack_still_loads_to_its_golden_snapshot' (9870) panicked at rust/tcl-spectcl/tests/golden_packs.rs:105:9:
+/home/user/tcl-lsp/specs/eda_cadence.tclspec no longer loads to its golden snapshot.
+line 14:
+--
+test result: FAILED. 2 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1314.45s
+

@@ -1,0 +1,25 @@
+
+running 1 test
+test commands::spectcl::blocks::object_class_role_tests::body_role_follows_selected_option_values ... 
+thread 'commands::spectcl::blocks::object_class_role_tests::body_role_follows_selected_option_values' (22849) panicked at rust/tcl-registry/src/commands/spectcl/blocks.rs:181:9:
+assertion `left == right` failed
+  left: Some([(0, Name)])
+ right: None
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<core::option::Option<alloc::vec::Vec<(u8, tcl_registry::arg_role::ArgRole)>>, core::option::Option<alloc::vec::Vec<(u8, tcl_registry::arg_role::ArgRole)>>>
+   4: tcl_registry::commands::spectcl::blocks::object_class_role_tests::body_role_follows_selected_option_values
+   5: tcl_registry::commands::spectcl::blocks::object_class_role_tests::body_role_follows_selected_option_values::{closure#0}
+   6: <tcl_registry::commands::spectcl::blocks::object_class_role_tests::body_role_follows_selected_option_values::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+FAILED
+
+failures:
+
+failures:
+    commands::spectcl::blocks::object_class_role_tests::body_role_follows_selected_option_values
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1875 filtered out; finished in 0.08s
+

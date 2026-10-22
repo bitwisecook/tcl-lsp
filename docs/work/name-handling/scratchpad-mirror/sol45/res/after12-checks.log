@@ -1,0 +1,867 @@
+
+running 274 tests
+test ambiguous_abbreviation::a_data_word_that_happens_to_be_a_prefix_is_not_a_keyword_position ... ok
+test ambiguous_abbreviation::a_prefixes_0_ensemble_abstains ... ok
+test ambiguous_abbreviation::an_ambiguous_option_prefix_fires ... ok
+test ambiguous_abbreviation::an_ambiguous_subcommand_prefix_fires_and_names_the_candidates ... ok
+test ambiguous_abbreviation::a_unique_option_prefix_stays_clean ... ok
+test ambiguous_abbreviation::one_quick_fix_per_candidate_all_requiring_review ... ok
+test ambiguous_abbreviation::dynamic_and_expanded_words_abstain ... ok
+test ambiguous_abbreviation::unique_prefixes_and_exact_spellings_stay_clean ... ok
+test binary_field_letters::expanded_words_abstain ... ok
+test binary_field_letters::dynamic_template_is_not_checked ... ok
+test binary_field_letters::one_diagnostic_per_template_and_codes_are_independent ... ok
+test binary_field_letters::package_require_raises_the_floor ... ok
+test binary_field_letters::site_selection_follows_command_identity ... ok
+test binary_field_letters::letters_on_every_release_stay_clean ... ok
+test binary_field_letters::tcl85_only_letters_clean_from_85_up ... ok
+test binary_format_modifiers::gate_follows_the_shared_field_letters ... ok
+test binary_format_modifiers::no_modifier_clean ... ok
+test binary_format_modifiers::one_diagnostic_per_format_string ... ok
+test binary_field_letters::tcl85_only_letters_warn_under_old_dialects ... ok
+test binary_format_modifiers::unsigned_modifier_clean_under_tcl86 ... ok
+test binary_format_modifiers::short_specifier_is_not_a_modifier ... ok
+test binary_format_modifiers::unsigned_modifier_warns_after_any_field_letter ... ok
+test builtin_shadow::ambient_irules_command_still_flagged ... ok
+test binary_format_modifiers::unsigned_modifier_warns_under_old_dialects ... ok
+test builtin_shadow::core_builtin_shadow_fires ... ok
+test builtin_shadow::namespaced_library_command_not_flagged ... ok
+test builtin_shadow::package_gated_command_name_not_flagged ... ok
+test builtin_shadow::ungated_builtin_shadow_still_fires_across_dialects ... ok
+test call_by_name_dynamic_name_local::callee_local_dynamic_name_does_not_suppress_caller_dead_store ... FAILED
+test call_by_name_dynamic_name_local::genuine_upvar_call_by_name_suppresses_caller_dead_store ... ok
+test catch_body_defs_no_false_w210::genuine_read_before_set_still_warns ... ok
+test catch_ignore::catch_no_result_is_hint ... ok
+test catch_body_defs_no_false_w210::catch_body_set_does_not_fire_w210 ... ok
+test catch_ignore::catch_with_result_clean ... ok
+test catch_ignore::genuine_and_constructive_bodies_still_fire ... ok
+test channel_validation::int_and_list_typed_values_fire ... FAILED
+test channel_validation::non_channel_string_literal_fires ... ok
+test catch_ignore::fire_and_forget_destructive_commands_suppressed ... ok
+test channel_validation::opaque_param_and_string_typed_clean ... ok
+test channel_validation::typed_channels_and_std_channels_clean ... ok
+test dead_store_and_unused::cmdsub_expr_read_keeps_init_live ... ok
+test dead_store_and_unused::distinct_array_element_write_not_dead ... ok
+test dead_store_and_unused::genuine_dead_store_still_flagged ... ok
+test dead_store_and_unused::eval_braced_body_read_keeps_init_live ... FAILED
+test dead_store_and_unused::genuinely_unused_element_and_scalar_dead_store_fire ... ok
+test dead_store_and_unused::read_modify_write_in_cmdsub_keeps_init_live ... ok
+test destructive_file_ops::variable_path_destructive_ops_fire ... FAILED
+test destructive_file_ops::literal_path_and_non_destructive_clean ... ok
+test edge_cases::deeply_nested_and_backslash_continuation_checked ... ok
+test edge_cases::empty_and_comment_only_sources_are_silent ... ok
+test encoding_mismatch::binary_encoding_text_translation_warns ... ok
+test edge_cases::expr_and_eval_no_args_yield_arity_not_check_code ... ok
+test eval_injection::eval_braced_scripts_clean ... ok
+test encoding_mismatch::matching_or_absent_translation_clean ... ok
+test eval_injection::eval_command_subst_fires ... ok
+test eval_injection::eval_concat_still_warns ... ok
+test eval_injection::eval_list_returning_idioms_clean ... FAILED
+test eval_injection::eval_literal_no_substitution_clean ... ok
+test eval_injection::eval_offers_list_quickfix ... ok
+test eval_injection::eval_with_variable_fires ... ok
+test eval_subst_double_substitution::eval_subst_braced_is_error ... ok
+test eval_subst_double_substitution::eval_subst_variable_is_error ... FAILED
+test eval_subst_double_substitution::uplevel_subst_is_error ... FAILED
+test eval_subst_double_substitution::eval_without_subst_clean ... ok
+test event_lifecycle::a_deprecated_but_present_event_names_its_deprecating_release ... ok
+test event_lifecycle::a_current_event_draws_neither ... ok
+test event_lifecycle::a_retired_event_is_reported_retired_not_deprecated ... ok
+test hardcoded_credentials::password_literal_warns_variable_clean ... ok
+test hardcoded_credentials::token_literal_warns ... ok
+test hardcoded_credentials::sensitive_header_literal_warns_under_irules ... ok
+test integration::multiple_issues_in_one_proc ... ok
+test integration::clean_proc_no_style_or_security_warnings ... ok
+test integration::nested_and_switch_bodies_checked ... FAILED
+test integration::security_critical_patterns_all_fire ... FAILED
+test integration::no_style_or_security_false_positives_on_standard_patterns ... ok
+test interp_eval_injection::braced_and_list_clean ... FAILED
+test interp_eval_injection::invokehidden_unbraced_warns ... ok
+test interp_eval_injection::multiple_args_concatenate_and_warn ... ok
+test interp_eval_injection::unbraced_with_variable_warns ... ok
+test invalid_subnet_mask::invalid_mask_in_string_still_fires_with_suggestion ... ok
+test invalid_subnet_mask::regular_ips_not_masks ... ok
+test invalid_subnet_mask::non_contiguous_masks_fire ... ok
+test irules_checks::deprecated_command_suggests_replacement ... ok
+test irules_checks::deprecated_not_flagged_under_plain_tcl ... ok
+test irules_checks::http_getter_should_be_normalized ... ok
+test invalid_subnet_mask::valid_masks_clean ... ok
+test irules_checks::unknown_event_warns ... ok
+test irules_checks::unsafe_command_is_error ... ok
+test literal_expected::bare_var_pattern_clean ... ok
+test literal_expected::bare_var_pattern_clean_deep_in_proc_body ... ok
+test literal_expected::class_match_literal_name_clean_under_irules ... ok
+test literal_expected::concatenated_var_pattern_no_w306_rust_behaviour ... FAILED
+test literal_expected::quoted_concatenated_var_pattern_warns ... ok
+test literal_expected::command_substitution_pattern_warns ... ok
+test literal_expected::quoted_dollar_anchor_clean_live_var_warns ... ok
+test literal_expected::quoted_pure_var_pattern_no_w306 ... ok
+test literal_expected::regex_quoting_substitution_pattern_clean ... FAILED
+test literal_expected::unproven_command_pattern_still_warns ... ok
+test missing_option_terminator::literal_dash_pattern_warns ... ok
+test missing_option_terminator::commands_without_dashdash_support_not_checked ... ok
+test missing_option_terminator::regexp_pattern_variable_fires_with_fix ... ok
+test missing_option_terminator::option_bearing_commands_fire ... ok
+test missing_option_terminator::structurally_safe_pattern_suppressed ... ok
+test missing_option_terminator::table_and_class_under_irules ... ok
+test missing_option_terminator::with_terminator_clean ... ok
+test mistyped_ipv4::non_octal_leading_zero_clean ... ok
+test mistyped_ipv4::octal_ambiguous_leading_zero_is_warning ... ok
+test mistyped_ipv4::octet_over_255_is_error ... ok
+test mistyped_ipv4::oids_and_version_numbers_excluded ... ok
+test mistyped_ipv4::ssa_traced_in_proc_and_top_level ... ok
+test name_vs_value::info_exists_dollar_var_fires_commands_does_not ... ok
+test mistyped_ipv4::valid_ips_clean ... ok
+test name_vs_value::plain_names_clean ... ok
+test name_vs_value::unset_dollar_vars_fire_through_options ... FAILED
+test name_vs_value::set_incr_append_lappend_dollar_var_fire ... ok
+test namespace_eval_body_scope::ns_eval_dead_store_still_fires_name_arg_recovered ... FAILED
+test name_vs_value::upvar_local_dollar_fires_remote_ok ... ok
+test namespace_eval_body_scope::param_used_in_plain_eval_body_is_used ... ok
+test namespace_eval_body_scope::param_used_only_in_ns_eval_body_is_unused ... FAILED
+test non_ascii::benign_symbols_allowed_in_default_mode ... ok
+test non_ascii::cyrillic_homoglyph_flagged_with_fix ... ok
+test non_ascii::smart_quotes_flagged_twice ... ok
+test non_ascii::pure_ascii_and_whitespace_clean ... ok
+test non_literal_command::foreach_over_known_commands_is_suppressed ... FAILED
+test non_literal_command::literal_command_clean ... ok
+test non_literal_command::local_dispatcher_not_param_still_fires ... ok
+test non_literal_command::param_used_as_dispatcher_clean ... ok
+test non_literal_command::tcloo_instance_dispatch_clean ... ok
+test non_literal_command::variable_and_command_subst_command_name_fire ... ok
+test open_pipeline::literal_pipeline_is_hint ... ok
+test open_pipeline::pipeline_with_variable_is_warning ... ok
+test open_pipeline::literal_and_braced_file_clean ... ok
+test open_pipeline::variable_arg_is_warning ... ok
+test orphaned_keyword::multiple_orphaned_keywords ... FAILED
+test orphaned_keyword::orphaned_else_names_if ... ok
+test orphaned_keyword::orphaned_keywords_each_fire ... FAILED
+test orphaned_keyword::same_line_forms_clean ... ok
+test orphaned_keyword::user_proc_named_keyword_suppresses ... ok
+test path_concatenation::file_join_transform_does_not_masquerade_as_normalisation ... FAILED
+test path_concatenation::genuine_two_var_path_fires ... FAILED
+test path_concatenation::path_with_var_fires ... FAILED
+test path_concatenation::literal_path_and_non_path_clean ... ok
+test path_concatenation::url_scheme_not_path_concat ... ok
+test private_tcl_namespace::defining_one_private_name_does_not_licence_another ... ok
+test private_tcl_namespace::delimited_head_warns_without_a_fix ... ok
+test private_tcl_namespace::direct_call_is_flagged_with_concrete_suggestion ... ok
+test private_tcl_namespace::file_defining_the_command_suppresses_the_warning ... FAILED
+test private_tcl_namespace::genuine_chan_ensemble_backing_still_fires ... FAILED
+test private_tcl_namespace::missing_package_require_does_not_also_draw_w143 ... FAILED
+test private_tcl_namespace::near_miss_namespace_not_flagged ... ok
+test private_tcl_namespace::non_subcommand_tail_warns_without_a_fix ... ok
+test private_tcl_namespace::every_whole_private_namespace_fires ... ok
+test private_tcl_namespace::package_require_in_scope_suppresses_the_warning ... FAILED
+test private_tcl_namespace::public_ensemble_call_not_flagged ... ok
+test private_tcl_namespace::public_documented_tcl_rooted_namespaces_not_flagged ... ok
+test private_tcl_namespace::quick_fix_description_matches_its_replacement_text ... ok
+test private_tcl_namespace::public_tcllib_channel_packages_not_flagged ... ok
+test private_tcl_namespace::quick_fix_replaces_head_with_public_ensemble_call ... FAILED
+test private_tcl_namespace::users_own_tcl_namespace_not_flagged ... ok
+test read_before_set_correct::genuine_local_read_before_set_warns ... ok
+test read_before_set_correct::info_exists_guard_is_not_read_before_set ... FAILED
+test read_before_set_correct::global_alias_without_write_and_unrelated_still_warn ... ok
+test read_before_set_correct::proc_written_global_suppresses_top_level_read ... FAILED
+test read_before_set_correct::qualified_variable_alias_not_read_before_set ... ok
+test read_before_set_correct::return_reads_its_variables ... ok
+test redos::nested_quantifier_fires ... ok
+test read_before_set_correct::try_handler_versions_are_correct ... ok
+test redos::nested_star_and_overlapping_alternation_fire ... ok
+test redos::options_do_not_hide_the_pattern ... ok
+test redos::safe_patterns_clean ... ok
+test redos::safe_regsub_clean ... ok
+test script_concatenation::catch_tn_is_not_in_the_concat_family_1051 ... ok
+test redos::switch_regexp_arms_checked_glob_not ... ok
+test script_concatenation::eval_fp_braced_script_before_a_dynamic_tail_is_still_walked_1051 ... ok
+test script_concatenation::eval_fp_braced_word_contributes_its_contents_to_the_join_1051 ... ok
+test script_concatenation::eval_fp_braced_word_with_substitution_text_is_static_1051 ... ok
+test script_concatenation::eval_fp_multiword_script_is_analysed_as_the_concatenation_1051 ... ok
+test script_concatenation::eval_offsets_of_the_walked_script_land_on_real_source_bytes_1051 ... ok
+test script_concatenation::eval_fp_quoted_word_joins_like_concat_1051 ... ok
+test script_concatenation::eval_tn_a_backslash_word_declines_without_claiming_anything_1051 ... ok
+test script_concatenation::eval_tn_dynamic_word_declines_without_claiming_anything_1051 ... ok
+test script_concatenation::eval_tp_short_script_still_draws_e002_1051 ... ok
+test script_concatenation::eval_tp_w101_still_fires_on_a_user_input_script_1051 ... ok
+test script_concatenation::namespace_eval_fp_mangled_body_word_keeps_its_proc_scopes_1051 ... ok
+test script_concatenation::interp_eval_tn_multiword_stays_isolated_1051 ... ok
+test script_concatenation::namespace_eval_fp_multiword_script_is_walked_as_one_1051 ... FAILED
+test script_concatenation::namespace_inscope_fp_list_appended_tail_draws_nothing_1051 ... ok
+test script_concatenation::uplevel_fp_multiword_script_draws_no_arity_error_1051 ... ok
+test source_variable::source_encoding_flag_variable_fires ... ok
+test source_variable::source_literal_and_braced_clean ... ok
+test script_concatenation::uplevel_tn_shifted_frame_write_does_not_define_a_local_1051 ... FAILED
+test source_variable::source_variable_is_warning ... ok
+test string_compare_in_expr::eq_suggested_for_string_literal_double_equals ... ok
+test string_compare_in_expr::mixed_ops_fix_only_the_proven_compare ... ok
+test string_compare_in_expr::ne_suggested_for_string_literal_bang_equals ... ok
+test string_compare_in_expr::negated_string_compare_warns ... ok
+test string_compare_in_expr::numeric_and_variable_only_comparisons_clean ... ok
+test string_compare_in_expr::the_fix_rewrites_only_the_operators ... ok
+test string_list_confusion::append_normal_value_clean ... ok
+test string_list_confusion::append_with_leading_space_fires ... ok
+test string_list_confusion::genuine_list_element_fires ... ok
+test string_list_confusion::lappend_never_flagged ... ok
+test string_compare_in_expr::fires_only_where_eq_keeps_the_result ... ok
+test structural_body_isolation::structural_bodies_do_not_leak_into_outer_scope ... FAILED
+test string_list_confusion::pure_separator_and_usage_notation_fire_rust_behaviour ... ok
+test subst_injection::subst_nocommands_novariables_clean ... ok
+test subst_injection::subst_nocommands_only_still_fires_and_suggests_novariables ... ok
+test subst_injection::subst_braced_or_literal_clean ... ok
+test subst_injection::subst_variable_fires_and_suggests_nocommands ... ok
+test subst_injection::subst_with_flags_still_fires ... ok
+test tcloo_unknown_method::chained_constructor_validates_method ... ok
+test tcloo_unknown_method::builtin_method_clean ... ok
+test tcloo_unknown_method::external_class_no_w308 ... ok
+test tcloo_unknown_method::unknown_method_fires ... ok
+test tcloo_unknown_method::method_unknown_and_objdefine_suppress ... ok
+test unbraced_body::eval_quoted_substitution_still_flagged ... ok
+test unbraced_body::if_braced_body_clean ... ok
+test unbraced_body::if_unbraced_quoted_body_with_var_is_error ... FAILED
+test unbraced_body::switch_braced_body_clean ... ok
+test unbraced_body::switch_regexp_unbraced_body_is_error ... ok
+test unbraced_body::switch_unbraced_arm_body_with_var_is_error ... ok
+test unbraced_body::eval_single_var_or_list_body_not_flagged ... ok
+test unbraced_body::switch_value_options_do_not_turn_patterns_into_commands ... ok
+test unbraced_expr::expr_with_command_subst_fires ... ok
+test unbraced_expr::has_brace_wrapping_fix ... ok
+test unbraced_expr::if_fix_preserves_variable_marker ... ok
+test unbraced_expr::numeric_and_boolean_literals_clean ... ok
+test unbraced_expr::braced_expr_clean ... ok
+test unbraced_expr::quoted_expr_fix_drops_outer_quotes ... FAILED
+test unbraced_expr::unbraced_expr_variable_is_error ... ok
+test unbraced_expr::unbraced_expr_inside_when_switch_body_under_irules ... ok
+test unbraced_expr::unbraced_quoted_literal_is_warning ... ok
+test undescribed_script_word_bindings_no_false_w210::a_name_the_word_never_binds_still_warns ... FAILED
+test unbraced_expr::unbraced_if_while_for_conditions_fire ... ok
+test undescribed_script_word_bindings_no_false_w210::a_nested_set_a_loop_variable_and_a_catch_operand_are_not_read_before_set ... ok
+test unmatched_close_brace::bare_close_brace_detected ... ok
+test unmatched_close_brace::embedded_close_brace_detected ... ok
+test undescribed_script_word_bindings_no_false_w210::a_tcltest_body_is_silent_in_either_spelling ... ok
+test unmatched_close_brace::embedded_close_brace_has_no_fix ... ok
+test unmatched_close_brace::embedded_close_brace_escaped_is_clean ... ok
+test unmatched_close_brace::isolated_close_brace_offers_line_deletion_fix ... ok
+test unmatched_close_bracket::bare_close_bracket_detected ... ok
+test unmatched_close_brace::matched_brace_and_quoted_clean ... ok
+test unmatched_close_bracket::double_backslash_bracket_still_fires ... ok
+test unmatched_close_bracket::known_command_inserts_bracket_under_irules ... ok
+test unmatched_close_bracket::escaped_bracket_under_arity_overflow_is_clean ... ok
+test unmatched_close_bracket::known_tcloo_class_inserts_bracket ... ok
+test unmatched_close_bracket::matched_bracket_and_braced_clean ... ok
+test unmatched_close_bracket::no_fix_without_known_command_or_overflow ... ok
+test unmatched_close_bracket::known_user_proc_inserts_bracket ... ok
+test unmatched_close_bracket::single_backslash_bracket_is_clean ... ok
+test unset_global_does_not_suppress_w210::unset_only_global_still_fires_w210 ... ok
+test unset_nocomplain::unset_undefined_var_fires ... FAILED
+test unset_nocomplain::nocomplain_and_defined_var_clean ... ok
+test unset_option_only::bare_terminator_and_repeated_flags_fire ... FAILED
+test unset_option_only::nocomplain_only_fires_with_terminator_fix ... ok
+test unset_option_only::option_only_unset_is_not_an_arity_error ... ok
+test unset_option_only::call_that_unsets_a_variable_is_clean ... ok
+test unused_proc_parameters::empty_body_stub_silences_all_params ... ok
+test unused_proc_parameters::dispatch_protocol_with_dispatcher_suppresses ... ok
+test unused_proc_parameters::real_body_unused_params_still_fire ... ok
+test unused_proc_parameters::switch_subject_counts_as_use ... ok
+test unused_proc_parameters::nested_proc_is_named_by_its_defining_namespace ... FAILED
+test unused_proc_parameters::two_peers_without_protocol_still_fire ... ok
+test unused_proc_parameters::three_peers_without_dispatcher_still_fire ... ok
+test unused_proc_parameters::unique_signature_still_fires ... ok
+test unused_proc_parameters::unqualified_and_absolute_nested_names_keep_their_fqn ... ok
+test uplevel_injection::braced_script_clean ... ok
+test uplevel_injection::concat_still_warns ... ok
+test uplevel_injection::list_returning_idioms_clean ... FAILED
+test uplevel_injection::bare_single_variable_is_safe_idiom ... ok
+test uplevel_injection::multiple_args_concatenate_and_fire ... ok
+test uplevel_injection::unbraced_with_variable_fires ... ok
+test uplevel_injection::quoted_interpolation_and_concatenation_still_warn ... ok
+
+failures:
+
+---- call_by_name_dynamic_name_local::callee_local_dynamic_name_does_not_suppress_caller_dead_store stdout ----
+
+thread 'call_by_name_dynamic_name_local::callee_local_dynamic_name_does_not_suppress_caller_dead_store' (16356) panicked at rust/tcl-compiler/tests/checks.rs:3042:13:
+[set] callee-local dynamic name must not suppress caller W211; got ["W212"]
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: checks::call_by_name_dynamic_name_local::callee_local_dynamic_name_does_not_suppress_caller_dead_store
+   3: checks::call_by_name_dynamic_name_local::callee_local_dynamic_name_does_not_suppress_caller_dead_store::{closure#0}
+   4: <checks::call_by_name_dynamic_name_local::callee_local_dynamic_name_does_not_suppress_caller_dead_store::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- channel_validation::int_and_list_typed_values_fire stdout ----
+
+thread 'channel_validation::int_and_list_typed_values_fire' (16405) panicked at rust/tcl-compiler/tests/checks.rs:1754:9:
+assertion `left == right` failed
+  left: 0
+ right: 1
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<usize, usize>
+   4: checks::channel_validation::int_and_list_typed_values_fire
+   5: checks::channel_validation::int_and_list_typed_values_fire::{closure#0}
+   6: <checks::channel_validation::int_and_list_typed_values_fire::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- dead_store_and_unused::eval_braced_body_read_keeps_init_live stdout ----
+
+thread 'dead_store_and_unused::eval_braced_body_read_keeps_init_live' (16440) panicked at rust/tcl-compiler/tests/checks.rs:2789:9:
+assertion `left == right` failed
+  left: 0
+ right: 1
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<usize, usize>
+   4: checks::dead_store_and_unused::eval_braced_body_read_keeps_init_live
+   5: checks::dead_store_and_unused::eval_braced_body_read_keeps_init_live::{closure#0}
+   6: <checks::dead_store_and_unused::eval_braced_body_read_keeps_init_live::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- destructive_file_ops::variable_path_destructive_ops_fire stdout ----
+
+thread 'destructive_file_ops::variable_path_destructive_ops_fire' (16450) panicked at rust/tcl-compiler/tests/checks.rs:2268:9:
+assertion `left == right` failed
+  left: 0
+ right: 1
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<usize, usize>
+   4: checks::destructive_file_ops::variable_path_destructive_ops_fire
+   5: checks::destructive_file_ops::variable_path_destructive_ops_fire::{closure#0}
+   6: <checks::destructive_file_ops::variable_path_destructive_ops_fire::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- eval_injection::eval_list_returning_idioms_clean stdout ----
+
+thread 'eval_injection::eval_list_returning_idioms_clean' (16474) panicked at rust/tcl-compiler/tests/checks.rs:316:13:
+unexpected W101 for "eval [list set $varname $value]"
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: checks::eval_injection::eval_list_returning_idioms_clean
+   3: checks::eval_injection::eval_list_returning_idioms_clean::{closure#0}
+   4: <checks::eval_injection::eval_list_returning_idioms_clean::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- eval_subst_double_substitution::eval_subst_variable_is_error stdout ----
+
+thread 'eval_subst_double_substitution::eval_subst_variable_is_error' (16479) panicked at rust/tcl-compiler/tests/checks.rs:1225:9:
+assertion `left == right` failed
+  left: 0
+ right: 1
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<usize, usize>
+   4: checks::eval_subst_double_substitution::eval_subst_variable_is_error
+   5: checks::eval_subst_double_substitution::eval_subst_variable_is_error::{closure#0}
+   6: <checks::eval_subst_double_substitution::eval_subst_variable_is_error::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- eval_subst_double_substitution::uplevel_subst_is_error stdout ----
+
+thread 'eval_subst_double_substitution::uplevel_subst_is_error' (16481) panicked at rust/tcl-compiler/tests/checks.rs:1240:9:
+assertion `left == right` failed
+  left: 0
+ right: 1
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<usize, usize>
+   4: checks::eval_subst_double_substitution::uplevel_subst_is_error
+   5: checks::eval_subst_double_substitution::uplevel_subst_is_error::{closure#0}
+   6: <checks::eval_subst_double_substitution::uplevel_subst_is_error::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- integration::nested_and_switch_bodies_checked stdout ----
+
+thread 'integration::nested_and_switch_bodies_checked' (16502) panicked at rust/tcl-compiler/tests/checks.rs:2967:9:
+assertion failed: fires("\nswitch $x {\n    a {\n        expr $y + 1\n    }\n}\n", D, "W100")
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: checks::integration::nested_and_switch_bodies_checked
+   4: checks::integration::nested_and_switch_bodies_checked::{closure#0}
+   5: <checks::integration::nested_and_switch_bodies_checked::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- integration::security_critical_patterns_all_fire stdout ----
+
+thread 'integration::security_critical_patterns_all_fire' (16504) panicked at rust/tcl-compiler/tests/checks.rs:2939:13:
+missing W300 in {"W210", "W101"}
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: checks::integration::security_critical_patterns_all_fire
+   3: checks::integration::security_critical_patterns_all_fire::{closure#0}
+   4: <checks::integration::security_critical_patterns_all_fire::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- interp_eval_injection::braced_and_list_clean stdout ----
+
+thread 'interp_eval_injection::braced_and_list_clean' (16506) panicked at rust/tcl-compiler/tests/checks.rs:2232:9:
+assertion failed: !fires("interp eval $child [list set $varname $value]", D, "W312")
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: checks::interp_eval_injection::braced_and_list_clean
+   4: checks::interp_eval_injection::braced_and_list_clean::{closure#0}
+   5: <checks::interp_eval_injection::braced_and_list_clean::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- literal_expected::concatenated_var_pattern_no_w306_rust_behaviour stdout ----
+
+thread 'literal_expected::concatenated_var_pattern_no_w306_rust_behaviour' (16539) panicked at rust/tcl-compiler/tests/checks.rs:1029:9:
+assertion failed: !fires("regexp -- $pattern$suffix $text", D, "W306")
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: checks::literal_expected::concatenated_var_pattern_no_w306_rust_behaviour
+   4: checks::literal_expected::concatenated_var_pattern_no_w306_rust_behaviour::{closure#0}
+   5: <checks::literal_expected::concatenated_var_pattern_no_w306_rust_behaviour::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- literal_expected::regex_quoting_substitution_pattern_clean stdout ----
+
+thread 'literal_expected::regex_quoting_substitution_pattern_clean' (16547) panicked at rust/tcl-compiler/tests/checks.rs:1038:9:
+assertion failed: !fires("regexp -- [regex::quote $p] $text", D, "W306")
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: checks::literal_expected::regex_quoting_substitution_pattern_clean
+   4: checks::literal_expected::regex_quoting_substitution_pattern_clean::{closure#0}
+   5: <checks::literal_expected::regex_quoting_substitution_pattern_clean::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- name_vs_value::unset_dollar_vars_fire_through_options stdout ----
+
+thread 'name_vs_value::unset_dollar_vars_fire_through_options' (16642) panicked at rust/tcl-compiler/tests/checks.rs:1382:9:
+assertion `left == right` failed
+  left: 0
+ right: 1
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<usize, usize>
+   4: checks::name_vs_value::unset_dollar_vars_fire_through_options
+   5: checks::name_vs_value::unset_dollar_vars_fire_through_options::{closure#0}
+   6: <checks::name_vs_value::unset_dollar_vars_fire_through_options::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- namespace_eval_body_scope::ns_eval_dead_store_still_fires_name_arg_recovered stdout ----
+
+thread 'namespace_eval_body_scope::ns_eval_dead_store_still_fires_name_arg_recovered' (16648) panicked at rust/tcl-compiler/tests/checks.rs:2893:9:
+assertion failed: fires("proc g {} { set y 1; namespace eval ::ns { puts \"$y\" } }", D, "W220")
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: checks::namespace_eval_body_scope::ns_eval_dead_store_still_fires_name_arg_recovered
+   4: checks::namespace_eval_body_scope::ns_eval_dead_store_still_fires_name_arg_recovered::{closure#0}
+   5: <checks::namespace_eval_body_scope::ns_eval_dead_store_still_fires_name_arg_recovered::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- namespace_eval_body_scope::param_used_only_in_ns_eval_body_is_unused stdout ----
+
+thread 'namespace_eval_body_scope::param_used_only_in_ns_eval_body_is_unused' (16674) panicked at rust/tcl-compiler/tests/checks.rs:2877:9:
+assertion failed: w214_names("proc g {x} { namespace eval ::ns { puts \"hello $x\" } }").contains("x")
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: checks::namespace_eval_body_scope::param_used_only_in_ns_eval_body_is_unused
+   4: checks::namespace_eval_body_scope::param_used_only_in_ns_eval_body_is_unused::{closure#0}
+   5: <checks::namespace_eval_body_scope::param_used_only_in_ns_eval_body_is_unused::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- non_literal_command::foreach_over_known_commands_is_suppressed stdout ----
+
+thread 'non_literal_command::foreach_over_known_commands_is_suppressed' (16687) panicked at rust/tcl-compiler/tests/checks.rs:1150:9:
+known-command-list dispatch must not fire W307 (folded provenance)
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: checks::non_literal_command::foreach_over_known_commands_is_suppressed
+   3: checks::non_literal_command::foreach_over_known_commands_is_suppressed::{closure#0}
+   4: <checks::non_literal_command::foreach_over_known_commands_is_suppressed::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- orphaned_keyword::multiple_orphaned_keywords stdout ----
+
+thread 'orphaned_keyword::multiple_orphaned_keywords' (16745) panicked at rust/tcl-compiler/tests/checks.rs:1857:9:
+assertion `left == right` failed
+  left: 1
+ right: 2
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<usize, usize>
+   4: checks::orphaned_keyword::multiple_orphaned_keywords
+   5: checks::orphaned_keyword::multiple_orphaned_keywords::{closure#0}
+   6: <checks::orphaned_keyword::multiple_orphaned_keywords::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- orphaned_keyword::orphaned_keywords_each_fire stdout ----
+
+thread 'orphaned_keyword::orphaned_keywords_each_fire' (16756) panicked at rust/tcl-compiler/tests/checks.rs:1819:13:
+assertion `left == right` failed: for then
+  left: 0
+ right: 1
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<usize, usize>
+   4: checks::orphaned_keyword::orphaned_keywords_each_fire
+   5: checks::orphaned_keyword::orphaned_keywords_each_fire::{closure#0}
+   6: <checks::orphaned_keyword::orphaned_keywords_each_fire::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- path_concatenation::file_join_transform_does_not_masquerade_as_normalisation stdout ----
+
+thread 'path_concatenation::file_join_transform_does_not_masquerade_as_normalisation' (16784) panicked at rust/tcl-compiler/tests/checks.rs:620:9:
+assertion `left == right` failed: PATH_JOINED must not suppress the W201 portability hint
+  left: 0
+ right: 1
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<usize, usize>
+   4: checks::path_concatenation::file_join_transform_does_not_masquerade_as_normalisation
+   5: checks::path_concatenation::file_join_transform_does_not_masquerade_as_normalisation::{closure#0}
+   6: <checks::path_concatenation::file_join_transform_does_not_masquerade_as_normalisation::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- path_concatenation::genuine_two_var_path_fires stdout ----
+
+thread 'path_concatenation::genuine_two_var_path_fires' (16785) panicked at rust/tcl-compiler/tests/checks.rs:610:9:
+assertion `left == right` failed
+  left: 0
+ right: 1
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<usize, usize>
+   4: checks::path_concatenation::genuine_two_var_path_fires
+   5: checks::path_concatenation::genuine_two_var_path_fires::{closure#0}
+   6: <checks::path_concatenation::genuine_two_var_path_fires::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- path_concatenation::path_with_var_fires stdout ----
+
+thread 'path_concatenation::path_with_var_fires' (16787) panicked at rust/tcl-compiler/tests/checks.rs:598:9:
+assertion `left == right` failed
+  left: 0
+ right: 1
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<usize, usize>
+   4: checks::path_concatenation::path_with_var_fires
+   5: checks::path_concatenation::path_with_var_fires::{closure#0}
+   6: <checks::path_concatenation::path_with_var_fires::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- private_tcl_namespace::file_defining_the_command_suppresses_the_warning stdout ----
+
+thread 'private_tcl_namespace::file_defining_the_command_suppresses_the_warning' (16834) panicked at rust/tcl-compiler/tests/checks.rs:3182:13:
+unexpected W143 for "namespace eval ::tcl::dict { proc mine {d} { return $d } }\n::tcl::dict::mine {a 1}"
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: checks::private_tcl_namespace::file_defining_the_command_suppresses_the_warning
+   3: checks::private_tcl_namespace::file_defining_the_command_suppresses_the_warning::{closure#0}
+   4: <checks::private_tcl_namespace::file_defining_the_command_suppresses_the_warning::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- private_tcl_namespace::genuine_chan_ensemble_backing_still_fires stdout ----
+
+thread 'private_tcl_namespace::genuine_chan_ensemble_backing_still_fires' (16853) panicked at rust/tcl-compiler/tests/checks.rs:3169:9:
+assertion `left == right` failed
+  left: 0
+ right: 1
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<usize, usize>
+   4: checks::private_tcl_namespace::genuine_chan_ensemble_backing_still_fires
+   5: checks::private_tcl_namespace::genuine_chan_ensemble_backing_still_fires::{closure#0}
+   6: <checks::private_tcl_namespace::genuine_chan_ensemble_backing_still_fires::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- private_tcl_namespace::missing_package_require_does_not_also_draw_w143 stdout ----
+
+thread 'private_tcl_namespace::missing_package_require_does_not_also_draw_w143' (16858) panicked at rust/tcl-compiler/tests/checks.rs:3156:9:
+expected W120; got []
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: checks::private_tcl_namespace::missing_package_require_does_not_also_draw_w143
+   3: checks::private_tcl_namespace::missing_package_require_does_not_also_draw_w143::{closure#0}
+   4: <checks::private_tcl_namespace::missing_package_require_does_not_also_draw_w143::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- private_tcl_namespace::package_require_in_scope_suppresses_the_warning stdout ----
+
+thread 'private_tcl_namespace::package_require_in_scope_suppresses_the_warning' (16893) panicked at rust/tcl-compiler/tests/checks.rs:3206:13:
+unexpected W143 for "package require tcl::dict::mycustom\n::tcl::dict::mycustom {a 1}"
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: checks::private_tcl_namespace::package_require_in_scope_suppresses_the_warning
+   3: checks::private_tcl_namespace::package_require_in_scope_suppresses_the_warning::{closure#0}
+   4: <checks::private_tcl_namespace::package_require_in_scope_suppresses_the_warning::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- private_tcl_namespace::quick_fix_replaces_head_with_public_ensemble_call stdout ----
+
+thread 'private_tcl_namespace::quick_fix_replaces_head_with_public_ensemble_call' (16910) panicked at rust/tcl-compiler/tests/checks.rs:3099:9:
+assertion `left == right` failed
+  left: 0
+ right: 1
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<usize, usize>
+   4: checks::private_tcl_namespace::quick_fix_replaces_head_with_public_ensemble_call
+   5: checks::private_tcl_namespace::quick_fix_replaces_head_with_public_ensemble_call::{closure#0}
+   6: <checks::private_tcl_namespace::quick_fix_replaces_head_with_public_ensemble_call::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- read_before_set_correct::info_exists_guard_is_not_read_before_set stdout ----
+
+thread 'read_before_set_correct::info_exists_guard_is_not_read_before_set' (16914) panicked at rust/tcl-compiler/tests/checks.rs:2490:9:
+assertion failed: !fires("proc f {} { if {![info exists ns]} { set ns 1 }\n return $ns }", D,
+        "W210")
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: checks::read_before_set_correct::info_exists_guard_is_not_read_before_set
+   4: checks::read_before_set_correct::info_exists_guard_is_not_read_before_set::{closure#0}
+   5: <checks::read_before_set_correct::info_exists_guard_is_not_read_before_set::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- read_before_set_correct::proc_written_global_suppresses_top_level_read stdout ----
+
+thread 'read_before_set_correct::proc_written_global_suppresses_top_level_read' (16918) panicked at rust/tcl-compiler/tests/checks.rs:2555:9:
+assertion `left == right` failed
+  left: 1
+ right: 0
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<usize, usize>
+   4: checks::read_before_set_correct::proc_written_global_suppresses_top_level_read
+   5: checks::read_before_set_correct::proc_written_global_suppresses_top_level_read::{closure#0}
+   6: <checks::read_before_set_correct::proc_written_global_suppresses_top_level_read::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- script_concatenation::namespace_eval_fp_multiword_script_is_walked_as_one_1051 stdout ----
+
+thread 'script_concatenation::namespace_eval_fp_multiword_script_is_walked_as_one_1051' (17113) panicked at rust/tcl-compiler/tests/checks.rs:3396:9:
+assertion failed: fires("namespace eval ::n set a b c\n", D, "E003")
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: checks::script_concatenation::namespace_eval_fp_multiword_script_is_walked_as_one_1051
+   4: checks::script_concatenation::namespace_eval_fp_multiword_script_is_walked_as_one_1051::{closure#0}
+   5: <checks::script_concatenation::namespace_eval_fp_multiword_script_is_walked_as_one_1051::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- script_concatenation::uplevel_tn_shifted_frame_write_does_not_define_a_local_1051 stdout ----
+
+thread 'script_concatenation::uplevel_tn_shifted_frame_write_does_not_define_a_local_1051' (17121) panicked at rust/tcl-compiler/tests/checks.rs:3381:9:
+[]
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: checks::script_concatenation::uplevel_tn_shifted_frame_write_does_not_define_a_local_1051
+   3: checks::script_concatenation::uplevel_tn_shifted_frame_write_does_not_define_a_local_1051::{closure#0}
+   4: <checks::script_concatenation::uplevel_tn_shifted_frame_write_does_not_define_a_local_1051::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- structural_body_isolation::structural_bodies_do_not_leak_into_outer_scope stdout ----
+
+thread 'structural_body_isolation::structural_bodies_do_not_leak_into_outer_scope' (17161) panicked at rust/tcl-compiler/tests/checks.rs:2852:13:
+missing dead-store for "oo::class create C { method m {} { puts $x; set y 1; set p 2 } }": {"W214", "W210"}
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: checks::structural_body_isolation::structural_bodies_do_not_leak_into_outer_scope
+   3: checks::structural_body_isolation::structural_bodies_do_not_leak_into_outer_scope::{closure#0}
+   4: <checks::structural_body_isolation::structural_bodies_do_not_leak_into_outer_scope::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- unbraced_body::if_unbraced_quoted_body_with_var_is_error stdout ----
+
+thread 'unbraced_body::if_unbraced_quoted_body_with_var_is_error' (17192) panicked at rust/tcl-compiler/tests/checks.rs:1262:9:
+assertion `left == right` failed
+  left: 0
+ right: 1
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<usize, usize>
+   4: checks::unbraced_body::if_unbraced_quoted_body_with_var_is_error
+   5: checks::unbraced_body::if_unbraced_quoted_body_with_var_is_error::{closure#0}
+   6: <checks::unbraced_body::if_unbraced_quoted_body_with_var_is_error::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- unbraced_expr::quoted_expr_fix_drops_outer_quotes stdout ----
+
+thread 'unbraced_expr::quoted_expr_fix_drops_outer_quotes' (17219) panicked at rust/tcl-compiler/tests/checks.rs:264:9:
+assertion `left == right` failed
+  left: 0
+ right: 1
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<usize, usize>
+   4: checks::unbraced_expr::quoted_expr_fix_drops_outer_quotes
+   5: checks::unbraced_expr::quoted_expr_fix_drops_outer_quotes::{closure#0}
+   6: <checks::unbraced_expr::quoted_expr_fix_drops_outer_quotes::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- undescribed_script_word_bindings_no_false_w210::a_name_the_word_never_binds_still_warns stdout ----
+
+thread 'undescribed_script_word_bindings_no_false_w210::a_name_the_word_never_binds_still_warns' (17240) panicked at rust/tcl-compiler/tests/checks.rs:2686:9:
+assertion `left == right` failed: ["W123"]
+  left: 0
+ right: 1
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<usize, usize>
+   4: checks::undescribed_script_word_bindings_no_false_w210::a_name_the_word_never_binds_still_warns
+   5: checks::undescribed_script_word_bindings_no_false_w210::a_name_the_word_never_binds_still_warns::{closure#0}
+   6: <checks::undescribed_script_word_bindings_no_false_w210::a_name_the_word_never_binds_still_warns::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- unset_nocomplain::unset_undefined_var_fires stdout ----
+
+thread 'unset_nocomplain::unset_undefined_var_fires' (17343) panicked at rust/tcl-compiler/tests/checks.rs:1567:9:
+assertion `left == right` failed
+  left: 0
+ right: 1
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<usize, usize>
+   4: checks::unset_nocomplain::unset_undefined_var_fires
+   5: checks::unset_nocomplain::unset_undefined_var_fires::{closure#0}
+   6: <checks::unset_nocomplain::unset_undefined_var_fires::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- unset_option_only::bare_terminator_and_repeated_flags_fire stdout ----
+
+thread 'unset_option_only::bare_terminator_and_repeated_flags_fire' (17345) panicked at rust/tcl-compiler/tests/checks.rs:964:9:
+assertion `left == right` failed
+  left: 0
+ right: 1
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<usize, usize>
+   4: checks::unset_option_only::bare_terminator_and_repeated_flags_fire
+   5: checks::unset_option_only::bare_terminator_and_repeated_flags_fire::{closure#0}
+   6: <checks::unset_option_only::bare_terminator_and_repeated_flags_fire::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- unused_proc_parameters::nested_proc_is_named_by_its_defining_namespace stdout ----
+
+thread 'unused_proc_parameters::nested_proc_is_named_by_its_defining_namespace' (17379) panicked at rust/tcl-compiler/tests/checks.rs:2439:9:
+assertion `left == right` failed
+  left: {}
+ right: {"::e::h3"}
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<std::collections::hash::set::HashSet<alloc::string::String>, std::collections::hash::set::HashSet<alloc::string::String>>
+   4: checks::unused_proc_parameters::nested_proc_is_named_by_its_defining_namespace
+   5: checks::unused_proc_parameters::nested_proc_is_named_by_its_defining_namespace::{closure#0}
+   6: <checks::unused_proc_parameters::nested_proc_is_named_by_its_defining_namespace::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- uplevel_injection::list_returning_idioms_clean stdout ----
+
+thread 'uplevel_injection::list_returning_idioms_clean' (17414) panicked at rust/tcl-compiler/tests/checks.rs:700:13:
+unexpected W301 for "uplevel 1 [list set $varname $value]"
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: checks::uplevel_injection::list_returning_idioms_clean
+   3: checks::uplevel_injection::list_returning_idioms_clean::{closure#0}
+   4: <checks::uplevel_injection::list_returning_idioms_clean::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+
+failures:
+    call_by_name_dynamic_name_local::callee_local_dynamic_name_does_not_suppress_caller_dead_store
+    channel_validation::int_and_list_typed_values_fire
+    dead_store_and_unused::eval_braced_body_read_keeps_init_live
+    destructive_file_ops::variable_path_destructive_ops_fire
+    eval_injection::eval_list_returning_idioms_clean
+    eval_subst_double_substitution::eval_subst_variable_is_error
+    eval_subst_double_substitution::uplevel_subst_is_error
+    integration::nested_and_switch_bodies_checked
+    integration::security_critical_patterns_all_fire
+    interp_eval_injection::braced_and_list_clean
+    literal_expected::concatenated_var_pattern_no_w306_rust_behaviour
+    literal_expected::regex_quoting_substitution_pattern_clean
+    name_vs_value::unset_dollar_vars_fire_through_options
+    namespace_eval_body_scope::ns_eval_dead_store_still_fires_name_arg_recovered
+    namespace_eval_body_scope::param_used_only_in_ns_eval_body_is_unused
+    non_literal_command::foreach_over_known_commands_is_suppressed
+    orphaned_keyword::multiple_orphaned_keywords
+    orphaned_keyword::orphaned_keywords_each_fire
+    path_concatenation::file_join_transform_does_not_masquerade_as_normalisation
+    path_concatenation::genuine_two_var_path_fires
+    path_concatenation::path_with_var_fires
+    private_tcl_namespace::file_defining_the_command_suppresses_the_warning
+    private_tcl_namespace::genuine_chan_ensemble_backing_still_fires
+    private_tcl_namespace::missing_package_require_does_not_also_draw_w143
+    private_tcl_namespace::package_require_in_scope_suppresses_the_warning
+    private_tcl_namespace::quick_fix_replaces_head_with_public_ensemble_call
+    read_before_set_correct::info_exists_guard_is_not_read_before_set
+    read_before_set_correct::proc_written_global_suppresses_top_level_read
+    script_concatenation::namespace_eval_fp_multiword_script_is_walked_as_one_1051
+    script_concatenation::uplevel_tn_shifted_frame_write_does_not_define_a_local_1051
+    structural_body_isolation::structural_bodies_do_not_leak_into_outer_scope
+    unbraced_body::if_unbraced_quoted_body_with_var_is_error
+    unbraced_expr::quoted_expr_fix_drops_outer_quotes
+    undescribed_script_word_bindings_no_false_w210::a_name_the_word_never_binds_still_warns
+    unset_nocomplain::unset_undefined_var_fires
+    unset_option_only::bare_terminator_and_repeated_flags_fire
+    unused_proc_parameters::nested_proc_is_named_by_its_defining_namespace
+    uplevel_injection::list_returning_idioms_clean
+
+test result: FAILED. 236 passed; 38 failed; 0 ignored; 0 measured; 0 filtered out; finished in 437.86s
+

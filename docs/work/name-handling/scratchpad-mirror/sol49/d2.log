@@ -1,0 +1,46 @@
+
+running 49 tests
+test analyser::irules_event_checks::tests::irule5001_fires_for_log_in_hot_event ... ok
+test analyser::irules_event_checks::tests::irule5001_gate_does_not_leak_into_a_later_event ... ok
+test analyser::irules_event_checks::tests::irule5001_quiet_for_flag_set_in_a_later_setup_event ... FAILED
+test analyser::irules_event_checks::tests::irule5001_quiet_for_flag_set_in_a_switch_arm_of_a_setup_event ... FAILED
+test analyser::irules_event_checks::tests::irule5001_quiet_for_log_gated_on_a_switch_arm ... ok
+test analyser::irules_event_checks::tests::irule5001_quiet_for_flag_set_in_rule_init ... FAILED
+test analyser::irules_event_checks::tests::irule5001_quiet_for_log_gated_inside_a_loop ... ok
+test analyser::irules_event_checks::tests::irule5001_quiet_for_log_gated_on_braced_static_flag ... ok
+test analyser::irules_event_checks::tests::irule5001_quiet_in_else_arm_of_a_static_gate ... ok
+test analyser::irules_event_checks::tests::irule5001_quiet_for_log_gated_on_static_flag ... ok
+test analyser::irules_event_checks::tests::irule5001_quiet_for_log_gated_on_static_existence_check ... ok
+test analyser::irules_event_checks::tests::irule5001_quiet_in_nested_body_under_a_static_gate ... ok
+test analyser::irules_event_checks::tests::irule5001_still_fires_in_a_loop_over_a_static_list ... ok
+test analyser::irules_event_checks::tests::irule5001_still_fires_in_a_while_loop_on_a_static_flag ... ok
+test analyser::irules_event_checks::tests::irule5001_still_fires_for_catch_naming_a_static_result_variable ... ok
+test analyser::irules_event_checks::tests::irule5001_still_fires_after_a_sibling_gate_closes ... ok
+test analyser::irules_event_checks::tests::irule5001_still_fires_under_a_condition_that_reads_no_flag ... ok
+test analyser::irules_event_checks::tests::rule_procedure_is_an_original_declaration_of_the_fresh_rule_load ... ok
+test command_binding::source_transition_advice::source_class::tests::itcl_class_proc_calls_join_the_qualifying_source_class ... FAILED
+test command_binding::source_transition_advice::source_class::tests::itcl_two_word_form_is_construction_even_over_a_class_proc_name ... ok
+test command_binding::source_transition_advice::source_class::tests::c_source_class_query_preserves_independently_completed_world ... ok
+test command_binding::source_transition_advice::source_class::tests::logical_class_facet_retains_a_same_purpose_occupied_target_refusal ... ok
+test command_binding::source_transition_advice::source_class::tests::c_source_namespace_class_after_unentered_definition_body_keeps_unknown_mutation ... ok
+test command_binding::source_transition_advice::source_class::tests::logical_class_declarations_reborrow_the_exact_source_purpose_facet ... FAILED
+test command_binding::source_transition_advice::source_class::tests::original_class_constructor_call_keeps_alias_prefix_move_and_canonical_declaration ... ok
+test command_binding::source_transition_advice::source_class::tests::original_abstract_constructor_defaults_and_exports_keep_selected_native_source_grammar ... FAILED
+test command_binding::source_transition_advice::source_class::tests::original_abstract_constructor_logical_advice_keeps_defaults_without_native_identity ... FAILED
+test command_binding::source_transition_advice::source_class::tests::original_class_constructor_call_preserves_expansion_and_refuses_private_or_overridden_makers ... ok
+test command_binding::source_transition_advice::source_class::tests::original_class_constructor_call_refuses_known_factory_or_class_replacement_and_cycles ... ok
+test command_binding::source_transition_advice::source_class::tests::c_source_namespace_class_declarations_retain_original_body_and_conditional_scope ... ok
+test command_binding::source_transition_advice::source_class::tests::original_constructor_substitution_keeps_whole_child_words_and_selected_body ... ok
+test command_binding::source_transition_advice::source_class::tests::original_constructor_substitution_refuses_compound_words_and_multiple_commands ... ok
+test command_binding::source_transition_advice::source_class::tests::original_constructor_manufacturer_visibility_keeps_call_source_horizon ... ok
+test command_binding::source_transition_advice::source_class::tests::original_logical_constructor_calls_keep_real_deferred_and_immediate_parent_bodies ... FAILED
+test command_binding::source_transition_advice::source_class::tests::original_snit_constructor_call_retains_explicit_and_bare_provider_layouts ... ok
+test command_binding::source_transition_advice::source_class::tests::original_native_class_names_keep_distinct_source_units_without_ascii_report_gate ... FAILED
+test command_binding::source_transition_advice::source_class::tests::original_source_class_family_uses_selected_definer_not_metaclass_reporting_label ... ok
+test command_binding::source_transition_advice::source_class::tests::original_logical_constructor_shape_keeps_canonical_factory_without_native_authority ... FAILED
+test command_binding::source_transition_advice::source_class::tests::snit_type_command_dispatches_its_typemethod_through_the_source_class ... ok
+test command_binding::source_transition_advice::source_class::tests::original_factory_attempt_keeps_source_incarnation_without_constructor_visibility ... ok
+test command_binding::source_transition_advice::source_class::tests::original_source_class_keeps_conditional_factory_after_unknown_call_but_known_replacement_blocks ... ok
+
+thread '<unknown>' (31174) has overflowed its stack
+fatal runtime error: stack overflow, aborting

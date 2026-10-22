@@ -1,0 +1,802 @@
+test crlf_free::crlf_free_survives_safe_concat ... ok
+test crlf_free::crlf_free_suppresses_irule3002 ... ok
+test crlf_free::generic_taint_irule3003_still_warns ... FAILED
+test crlf_free::html_encode_adds_crlf_free ... ok
+test crlf_free::ip_client_addr_augments_crlf_free ... ok
+test crlf_free::interpolation_without_crlf_preserves ... ok
+test crlf_free::ssl_sni_augments_crlf_free ... ok
+test crlf_free::tcp_client_port_augments_crlf_free ... ok
+test crlf_free::uri_encode_adds_crlf_free ... ok
+test dangerous_sinks::coroprobe_command_prefix_sink ... FAILED
+test dangerous_sinks::coroinject_command_prefix_sink ... FAILED
+test dangerous_sinks::eval_sink ... FAILED
+test dangerous_sinks::exec_sink ... FAILED
+test dangerous_sinks::expr_sink ... FAILED
+test dangerous_sinks::uplevel_sink ... FAILED
+test dangerous_sinks::subst_sink ... FAILED
+test header_token_safe::crlf_free_in_cookie_value_suppresses_irule3002 ... ok
+test header_token_safe::crlf_free_in_header_value_suppresses_irule3002 ... ok
+test html_escaped::generic_taint_irule3001_fires ... FAILED
+test header_token_safe::generic_taint_in_header_value_warns ... FAILED
+test html_escaped::html_encode_also_sets_crlf_free ... ok
+test html_escaped::html_encode_produces_colour ... ok
+test html_escaped::html_encode_double_encode_detected ... FAILED
+test html_escaped::html_encode_produces_crlf_free ... ok
+test html_escaped::html_encode_recognised_as_sanitiser ... ok
+test html_escaped::html_escaped_propagates_through_copy ... ok
+test html_escaped::interpolation_invalidates_html_escaped ... FAILED
+test interpolation_colour_invalidation::crlf_free_preserved_without_literal_crlf ... ok
+test interpolation_colour_invalidation::html_escaped_stripped ... FAILED
+test interpolation_colour_invalidation::list_canonical_stripped ... FAILED
+test interpolation_colour_invalidation::path_normalised_stripped ... FAILED
+test interpolation_colour_invalidation::regex_literal_stripped ... FAILED
+test interpolation_colour_invalidation::shell_atom_stripped ... FAILED
+test interpolation_colour_invalidation::url_encoded_stripped ... FAILED
+test interprocedural_colours::helper_list_wrapper_eval_still_fires ... FAILED
+test interprocedural_colours::helper_list_wrapper_still_tainted ... FAILED
+test interprocedural_colours::helper_passthrough_generic_taint_fires_t102 ... FAILED
+test interprocedural_colours::helper_returning_html_encode_suppresses_irule3001 ... ok
+test interprocedural_colours::helper_with_ip_addr_param_augmented ... ok
+test interprocedural_colours::helper_returning_uri_encode_suppresses_irule3003 ... ok
+test interprocedural_taint::tainted_argument_into_sinking_helper_warns ... FAILED
+test interprocedural_taint::helper_sanitiser_suppresses_taint ... ok
+test interprocedural_taint::tainted_return_from_helper_reaches_sink ... FAILED
+test irule3004_open_redirect::html_escaped_does_not_suppress_irule3004 ... FAILED
+test interprocedural_taint::tainted_variadic_args_into_sinking_helper_warns ... FAILED
+test irule3004_open_redirect::literal_redirect_clean ... ok
+test irule3004_open_redirect::message_format ... FAILED
+test irule3004_open_redirect::not_in_tcl86 ... ok
+test irule3004_open_redirect::path_prefixed_suppresses_irule3004 ... ok
+test irule3004_open_redirect::path_normalised_suppresses_irule3004 ... ok
+test irule3004_open_redirect::tainted_header_redirect_fires ... FAILED
+test irule3004_open_redirect::tainted_redirect_fires ... FAILED
+test irule3103_edge_cases::glob_question_mark_is_wildcard_not_query ... FAILED
+test irule3103_edge_cases::glob_bare_question_not_query ... ok
+test irule3103_edge_cases::glob_question_path_with_wildcard ... FAILED
+test irule3103_edge_cases::later_reassignment_no_false_positive ... ok
+test irule3103_edge_cases::nested_boolean_expression_emits_one_hit_per_uri_use ... FAILED
+test irule3103_edge_cases::phi_both_branches_uri_still_warns ... FAILED
+test irule3103_edge_cases::phi_mixed_uri_and_non_uri_no_warning ... ok
+test irule3103_edge_cases::regex_escaped_ampersand_is_query ... FAILED
+test irule3103_edge_cases::regex_escaped_question_is_query ... FAILED
+test irule3103_edge_cases::regex_question_is_quantifier_not_query ... FAILED
+test irule3103_edge_cases::split_separator_from_constant_variable ... FAILED
+test irule3103_edge_cases::split_separator_from_copied_constant_variable ... FAILED
+test irule3103_edge_cases::string_first_with_ampersand_in_if_condition ... FAILED
+test irule3103_expr_operators::ambiguous_operand_clean ... ok
+test irule3103_expr_operators::contains_equals_query ... FAILED
+test irule3103_expr_operators::contains_query_param ... FAILED
+test irule3103_expr_operators::ends_with_extension ... FAILED
+test irule3103_expr_operators::matches_glob_path ... FAILED
+test irule3103_edge_cases::string_match_nocase_in_if_condition ... FAILED
+test irule3103_expr_operators::matches_glob_query ... FAILED
+test irule3103_expr_operators::starts_with_path_pattern ... FAILED
+test irule3103_expr_operators::non_uri_clean ... ok
+test irule3103_expr_operators::starts_with_via_variable ... FAILED
+test irule3103_string_match::string_first_question_mark ... FAILED
+test irule3103_string_match::string_first_in_if_condition ... FAILED
+test irule3103_string_match::string_match_ambiguous_pattern_clean ... ok
+test irule3103_string_match::string_match_non_uri_clean ... ok
+test irule3103_string_match::string_match_in_if_condition ... FAILED
+test irule3103_string_match::string_match_query_pattern ... FAILED
+test irule3103_string_match::string_match_path_pattern ... FAILED
+test irule3103_uri_split::inline_command_substitution ... FAILED
+test irule3103_uri_split::copy_propagation ... FAILED
+test irule3103_uri_split::split_http_path_clean ... ok
+test irule3103_uri_split::split_non_uri_clean ... ok
+test irule3103_uri_split::split_uri_on_ampersand ... FAILED
+test irule3103_uri_split::split_uri_on_question_and_ampersand ... FAILED
+test irule3103_uri_split::split_uri_on_question_mark ... FAILED
+test irule3103_uri_split::split_uri_on_slash_clean ... ok
+test irule3103_uri_split::uri_setter_not_flagged ... ok
+test irule3103_uri_split::tcl_dialect_clean ... ok
+test irules_output_sinks::http_header_insert_tainted ... FAILED
+test irules_output_sinks::http_cookie_insert_tainted ... FAILED
+test irules_output_sinks::http_header_remove_clean ... ok
+test irules_output_sinks::http_respond_literal_clean ... ok
+test irules_output_sinks::http_respond_tainted_body ... FAILED
+test irules_output_sinks::not_in_tcl86_dialect ... ok
+test irules_taint_sources::http_header_taints ... FAILED
+test irules_taint_sources::http_uri_taints ... FAILED
+test irules_taint_sources::http_payload_taints ... FAILED
+test irules_taint_sources::tcp_payload_taints ... FAILED
+test lattice_join_new_colours::crlf_free_self ... ok
+test lattice_join_new_colours::crlf_free_with_generic_loses ... ok
+test lattice_join_new_colours::crlf_free_with_untainted ... ok
+test lattice_join_new_colours::header_token_safe_self ... ok
+test lattice_join_new_colours::html_escaped_self ... ok
+test lattice_join_new_colours::list_canonical_self ... ok
+test lattice_join_new_colours::multi_colour_join_preserves_shared ... ok
+test lattice_join_new_colours::multi_colour_partial_overlap ... ok
+test lattice_join_new_colours::path_normalised_self ... ok
+test lattice_join_new_colours::regex_literal_with_html_escaped_loses_both ... ok
+test lattice_join_new_colours::shell_atom_self ... ok
+test lattice_join_new_colours::shell_atom_with_generic_loses ... ok
+test lattice_join_new_colours::url_encoded_self ... ok
+test lattice_join_new_colours::url_encoded_with_generic_loses ... ok
+test irules_taint_sources::ip_client_addr_taints_with_colour ... FAILED
+test list_canonical::interpolation_preserves_taint_from_list ... FAILED
+test list_canonical::concat_of_canonical_lists_eval_fires ... FAILED
+test list_canonical::list_canonical_copy_eval_fires ... FAILED
+test list_canonical::list_command_propagates_taint_to_eval_fires ... FAILED
+test list_canonical::list_canonical_copy_still_tainted ... FAILED
+test list_canonical::list_command_propagates_taint_to_puts ... FAILED
+test list_canonical::lrange_eval_fires ... FAILED
+test list_canonical::lsort_eval_fires ... FAILED
+test log_injection::log_literal_clean ... ok
+test log_injection::log_not_in_tcl86 ... ok
+test list_canonical::split_eval_fires ... FAILED
+test log_injection::log_tainted_data ... FAILED
+test no_false_positives::incr ... ok
+test no_false_positives::list_operations ... ok
+test no_false_positives::literal_set ... ok
+test no_false_positives::safe_eval ... ok
+test no_false_positives::safe_expr ... ok
+test non_dash_prefixed_interpolation::command_subst_prefix ... ok
+test non_dash_prefixed_interpolation::dynamic_leading_piece_inherits_original ... ok
+test non_dash_prefixed_interpolation::literal_alpha_prefix ... ok
+test non_dash_prefixed_interpolation::literal_dash_prefix_warns ... FAILED
+test non_dash_prefixed_interpolation::literal_digit_prefix ... ok
+test non_dash_prefixed_interpolation::literal_slash_prefix ... ok
+test object_instance_taint_sources::ambiguous_instance_class_abstains ... ok
+test object_instance_taint_sources::argument_sensitive_widget_getters_taint_only_user_state_forms ... FAILED
+test object_instance_taint_sources::callback_replay_scaffold_ignores_user_catch_and_proc_commands ... FAILED
+test object_instance_taint_sources::callback_replays_isolate_abnormal_completion_and_handler_locals ... FAILED
+test object_instance_taint_sources::callback_framework_metadata_and_escaped_percent_stay_clean ... ok
+test object_instance_taint_sources::constructor_and_configure_global_links_close_over_proc_calls ... FAILED
+test object_instance_taint_sources::deferred_validation_callback_preserves_link_and_instance_taint ... FAILED
+test object_instance_taint_sources::display_only_instance_configure_does_not_taint_its_variable ... ok
+test object_instance_taint_sources::destroy_kills_local_instance_class_and_recreate_restores_it ... FAILED
+test object_instance_taint_sources::dynamic_or_unknown_widget_receivers_do_not_invent_callback_sources ... ok
+test object_instance_taint_sources::display_only_textvariable_and_widget_handle_stay_clean ... ok
+test object_instance_taint_sources::dynamic_parameter_receiver_configure_abstains ... ok
+test object_instance_taint_sources::global_destroy_kills_callback_instance_class_facts ... ok
+test object_instance_taint_sources::instance_configure_adds_a_phase_correct_external_input_definition ... FAILED
+test object_instance_taint_sources::eager_call_and_conditional_constructor_do_not_create_global_receiver_facts ... ok
+test object_instance_taint_sources::instance_method_abbreviations_resolve_only_when_unique ... FAILED
+test object_instance_taint_sources::instance_source_flows_through_proc_summary ... FAILED
+test object_instance_taint_sources::later_constructor_does_not_retroactively_type_an_earlier_receiver ... ok
+test object_instance_taint_sources::linked_entry_variable_is_user_input_and_show_is_not_a_sanitiser ... FAILED
+test object_instance_taint_sources::instance_taint_sources_follow_the_resolved_widget_lifecycle ... FAILED
+test object_instance_taint_sources::literal_global_receiver_configure_taints_across_procedures ... FAILED
+test object_instance_taint_sources::literal_widget_path_get_taints ... FAILED
+test object_instance_taint_sources::mixed_widget_links_taint_only_the_user_editable_variable ... FAILED
+test object_instance_taint_sources::overloaded_treeview_and_notebook_getters_only_taint_zero_arg_queries ... FAILED
+test object_instance_taint_sources::pointer_position_queries_are_user_input_sources ... FAILED
+test object_instance_taint_sources::rename_moves_local_and_global_instance_class_facts ... FAILED
+test object_instance_taint_sources::resolved_widget_instance_callbacks_replay_registry_declared_inputs ... FAILED
+test object_instance_taint_sources::receiver_rebinding_and_branch_joins_use_reaching_classes ... FAILED
+test object_instance_taint_sources::text_dump_and_file_chooser_results_are_input_sources ... FAILED
+test object_instance_taint_sources::top_level_widget_is_a_source_inside_callback_procedure ... FAILED
+test object_instance_taint_sources::tk_unqualified_link_targets_global_not_proc_local_state ... FAILED
+test object_instance_taint_sources::user_controlled_non_text_widget_variable_is_tainted ... FAILED
+test object_instance_taint_sources::validation_callback_direct_input_diagnostic_hides_synthetic_state ... FAILED
+test object_instance_taint_sources::validation_callback_percent_source_survives_braced_quoted_and_embedded_words ... FAILED
+test object_instance_taint_sources::validation_callback_replay_decodes_static_non_head_backslashes ... FAILED
+test object_instance_taint_sources::validation_callback_replay_input_name_cannot_collide_with_program_variables ... FAILED
+test object_instance_taint_sources::validation_callback_replay_preserves_argument_expansion ... FAILED
+test object_instance_taint_sources::validation_callback_replay_preserves_later_word_substitutions ... FAILED
+test object_instance_taint_sources::validation_list_prefix_builder_uses_source_position_command_identity ... FAILED
+test object_instance_taint_sources::validation_callback_seed_ignores_shadowed_scaffolding_commands ... FAILED
+test object_instance_taint_sources::validation_list_prefix_taints_a_named_proc_parameter ... FAILED
+test object_instance_taint_sources::validation_list_prefix_preserves_a_quoted_command_name ... ok
+test object_instance_taint_sources::validation_percent_value_in_command_position_is_dynamic_dispatch ... FAILED
+test object_instance_taint_sources::validation_percent_values_taint_inline_and_list_prefix_callbacks ... FAILED
+test object_instance_taint_sources::widget_handle_variable_get_taints ... FAILED
+test option_injection::braced_exec_argument_is_not_option_injection ... ok
+test option_injection::glob_tainted_with_terminator ... ok
+test option_injection::glob_tainted_without_terminator ... FAILED
+test option_injection::literal_no_warning ... ok
+test option_injection::regexp_tainted_pattern_still_warns ... FAILED
+test option_injection::regexp_tainted_with_terminator ... ok
+test option_injection::regexp_tainted_without_terminator ... FAILED
+test option_injection::switch_after_dash_option_no_warning_for_literal_arg ... ok
+test option_injection::regsub_tainted_subject_after_literal_pattern_no_warning ... ok
+test option_injection::tainted_subject_after_literal_pattern_no_warning ... ok
+test option_injection::unset_literal_name_no_warning ... ok
+test option_injection::untainted_var_no_warning ... ok
+test output_sinks::puts_inside_namespace_eval_body_still_fires ... FAILED
+test output_sinks::puts_inside_tcloo_method_body_still_fires ... FAILED
+test output_sinks::puts_interpolation_propagates ... FAILED
+test output_sinks::puts_literal_clean ... ok
+test output_sinks::puts_nonewline_alone_is_content_not_channel ... FAILED
+test output_sinks::puts_sanitised_clean ... ok
+test output_sinks::puts_tainted_data ... FAILED
+test output_sinks::puts_tainted_channel_position_silent ... ok
+test output_sinks::puts_tainted_data_span_is_tight_around_argument ... FAILED
+test output_sinks::puts_tainted_output_alongside_tainted_chan ... FAILED
+test output_sinks::puts_via_interp_alias_still_fires ... FAILED
+test output_sinks::t100_tainted_direct_expr_operand_still_fires ... FAILED
+test output_sinks::t100_tainted_expr_func_arg_still_fires ... FAILED
+test output_sinks::t100_tainted_inside_cmd_subst_in_expr_silent ... ok
+test path_normalised::file_normalize_produces_colour ... FAILED
+test path_normalised::interpolation_invalidates_path_normalised ... FAILED
+test path_normalised_setter_constraint::generic_taint_still_fires_irule3101 ... ok
+test path_normalised_setter_constraint::path_normalised_suppresses_irule3101 ... FAILED
+test path_normalised_setter_constraint::path_prefixed_still_suppresses_irule3101 ... FAILED
+test path_normalised::path_normalised_propagates_through_copy ... FAILED
+test regex_literal::interpolation_invalidates_regex_literal ... FAILED
+test regex_literal::regex_literal_propagates_through_copy ... FAILED
+test regex_literal::regex_quote_produces_colour ... FAILED
+test setter_constraints::generic_tainted_var_warns ... ok
+test setter_constraints::http_path_literal_clean ... ok
+test setter_constraints::http_path_literal_warns ... ok
+test setter_constraints::irule3101_reads_the_proven_path ... FAILED
+test regex_literal::regexp_quote_produces_colour ... FAILED
+test setter_constraints::literal_no_slash_warns ... ok
+test setter_constraints::literal_slash_prefix_clean ... ok
+test setter_constraints::irule3103_reads_a_proven_operand ... FAILED
+test setter_constraints::path_prefixed_var_clean ... FAILED
+test setter_constraints::untainted_var_warns ... ok
+test setter_constraints::path_to_path_clean ... FAILED
+test shell_atom::fqdn_augments_shell_atom ... FAILED
+test shell_atom::ip_addr_augments_shell_atom ... FAILED
+test shell_atom::port_augments_shell_atom ... FAILED
+test shell_atom::shell_atom_lost_at_phi_with_generic ... FAILED
+test sink_suppression_matrix::irule3001_not_suppressed_by_crlf_free ... FAILED
+test sink_suppression_matrix::irule3002_suppressed_by_ip_address ... ok
+test sink_suppression_matrix::irule3001_suppressed_by_html_escaped ... ok
+test sink_suppression_matrix::irule3002_suppressed_by_port ... ok
+test sink_suppression_matrix::irule3003_suppressed_by_fqdn ... ok
+test sink_suppression_matrix::t100_not_suppressed_by_path_prefixed ... FAILED
+test sink_suppression_matrix::t102_not_suppressed_by_crlf_free ... FAILED
+test sink_suppression_matrix::t102_not_suppressed_by_html_escaped ... FAILED
+test source_colour_augmentation::generic_taint_no_augmentation ... FAILED
+test source_colour_augmentation::ip_client_addr_non_dash ... ok
+test source_colour_augmentation::path_prefixed_augments_non_dash ... ok
+test source_colour_augmentation::tcp_client_port_non_dash ... ok
+test source_colour_augmentation::ssl_sni_non_dash ... ok
+test special_variable_sources::argv0_read_flows_tainted_into_code_sink ... FAILED
+test special_variable_sources::env_is_not_a_source_in_irules ... ok
+test special_variable_sources::env_read_flows_tainted_into_code_sink ... FAILED
+test special_variable_sources::argv_read_flows_tainted_into_code_sink ... FAILED
+test special_variable_sources::local_shadow_is_not_a_source ... ok
+test t100_sink_suppression::eval_with_generic_taint_not_suppressed ... FAILED
+test t100_sink_suppression::eval_with_list_canonical_fires ... FAILED
+test t100_sink_suppression::eval_with_literal_list_known_head_suppressed ... ok
+test t100_sink_suppression::eval_with_literal_list_tainted_head_fires ... FAILED
+test t100_sink_suppression::exec_with_generic_taint_not_suppressed ... FAILED
+test t100_sink_suppression::exec_with_port_suppressed ... ok
+test t100_sink_suppression::exec_with_shell_atom_suppressed ... ok
+test t100_sink_suppression::expr_not_suppressed_by_list_canonical ... FAILED
+test t100_sink_suppression::subst_not_suppressed_by_shell_atom ... FAILED
+test t100_sink_suppression::uplevel_with_generic_taint_not_suppressed ... FAILED
+test t102_suppression::generic_taint_still_warns ... FAILED
+test t100_sink_suppression::uplevel_with_list_canonical_fires ... FAILED
+test t102_suppression::http_header_still_warns ... FAILED
+test t102_suppression::http_path_no_t102 ... ok
+test t102_suppression::http_uri_no_t102 ... ok
+test t102_suppression::ip_addr_copy_preserves_colour ... ok
+test t102_suppression::ip_addr_still_fires_t100 ... FAILED
+test t102_suppression::ip_remote_addr_no_t102 ... ok
+test t102_suppression::ip_client_addr_no_t102 ... ok
+test t102_suppression::literal_prefix_concat_no_t102 ... ok
+test t102_suppression::literal_dash_prefix_concat_still_warns ... FAILED
+test t102_suppression::phi_generic_with_coloured_loses ... FAILED
+test t102_suppression::path_prefixed_copy_suppresses ... ok
+test t102_suppression::phi_mixed_colours_preserves_non_dash ... ok
+test t102_suppression::phi_same_colour_preserves ... ok
+test t102_suppression::ssl_sni_no_t102 ... ok
+test t102_suppression::port_still_fires_t100 ... FAILED
+test t102_suppression::tcp_client_port_no_t102 ... ok
+test t102_suppression::tcp_remote_port_no_t102 ... ok
+test t103_regexp_pattern_injection::braced_regexp_argument_is_not_a_tainted_pattern ... ok
+test t103_regexp_pattern_injection::regex_literal_suppresses_t103 ... ok
+test t103_regexp_pattern_injection::t103_message_format ... FAILED
+test t103_regexp_pattern_injection::tainted_non_pattern_arg_no_t103 ... ok
+test t103_regexp_pattern_injection::tainted_regexp_pattern_fires ... FAILED
+test t103_regexp_pattern_injection::tainted_regexp_with_options_fires ... FAILED
+test t103_regexp_pattern_injection::tainted_regsub_pattern_fires ... FAILED
+test t103_regexp_pattern_injection::tainted_regsub_with_options_fires ... FAILED
+test t103_regexp_pattern_injection::untainted_regexp_no_warning ... ok
+test t104_network_sinks::http_geturl_literal_clean ... ok
+test t104_network_sinks::http_geturl_tainted_url ... FAILED
+test t104_network_sinks::message_format ... FAILED
+test t104_network_sinks::socket_literal_clean ... ok
+test t104_network_sinks::socket_propagation_through_copy ... FAILED
+test t105_interp_eval_sinks::interp_eval_literal_clean ... ok
+test t104_network_sinks::socket_tainted_host ... FAILED
+test t105_interp_eval_sinks::interp_eval_tainted ... FAILED
+test t105_interp_eval_sinks::interp_eval_literal_list_known_head_suppressed ... ok
+test t105_interp_eval_sinks::interp_invokehidden_tainted ... FAILED
+test t105_interp_eval_sinks::list_does_not_suppress_t105 ... FAILED
+test t106_double_encoding::braced_encoder_argument_is_not_a_second_encoding ... ok
+test t105_interp_eval_sinks::message_format ... FAILED
+test t106_double_encoding::cross_encode_no_fire ... ok
+test t106_double_encoding::double_encode_nested_no_intermediate_fires ... FAILED
+test t106_double_encoding::double_html_encode ... FAILED
+test t106_double_encoding::double_encode_through_copy ... FAILED
+test t106_double_encoding::double_uri_encode ... FAILED
+test t106_double_encoding::double_regex_quote ... FAILED
+test t106_double_encoding::first_encode_no_fire ... ok
+test t106_double_encoding::message_format ... FAILED
+test t106_double_encoding::single_encode_nested_no_fire ... ok
+test t106_double_encoding::untainted_no_fire ... ok
+test taint_colours::colour_kept_when_dynamic_leading_piece_is_path_prefixed ... ok
+test taint_colours::colour_propagates_through_copy ... FAILED
+test taint_colours::http_path_getter_has_path_colour ... FAILED
+test taint_colours::http_uri_getter_has_path_colour ... FAILED
+test taint_colours::non_dash_literal_prefix_stays_t102_safe ... ok
+test taint_join::different_colours_lose_both ... ok
+test taint_join::fqdn_join_with_untainted ... ok
+test taint_join::ip_join_preserves_colour ... ok
+test taint_join::ip_join_with_generic_loses_colour ... ok
+test taint_join::path_prefixed_join_preserves_colour ... ok
+test taint_colours::leading_slash_concat_sets_path_prefixed ... ok
+test taint_join::path_prefixed_join_with_generic_loses_colour ... ok
+test taint_join::port_join_preserves_colour ... ok
+test taint_join::path_prefixed_join_with_untainted ... ok
+test taint_join::tainted_tainted ... ok
+test taint_join::tainted_untainted ... ok
+test taint_join::untainted_untainted ... ok
+test taint_join::untainted_tainted ... ok
+test taint_propagation::llength_sanitises ... ok
+test taint_propagation::command_subst_concat_propagates ... FAILED
+test taint_propagation::string_interpolation_propagates ... FAILED
+test taint_propagation::sanitiser_blocks_taint ... ok
+test taint_propagation::taint_through_if_branch ... FAILED
+test taint_propagation::variable_copy_propagates ... FAILED
+test tcl_taint_sources::a_call_the_module_cannot_see_leaves_what_its_words_read_tainted ... FAILED
+test tcl_taint_sources::braced_literal_command_name_does_not_execute_its_bracket_text ... ok
+test tcl_taint_sources::chan_configure_does_not_taint ... ok
+test tcl_taint_sources::chan_gets_taints ... FAILED
+test tcl_taint_sources::chan_read_taints ... FAILED
+test tcl_taint_sources::constant_variable_command_head_reaches_sink_at_the_use_site ... FAILED
+test tcl_taint_sources::equivalent_variable_command_head_spellings_emit_one_warning ... FAILED
+test tcl_taint_sources::eval_braced_nested_command_substitution_reaches_inner_sink ... FAILED
+test tcl_taint_sources::exec_taints ... FAILED
+test tcl_taint_sources::escaped_static_command_head_obeys_release_grammar ... FAILED
+test tcl_taint_sources::gets_taints ... FAILED
+test tcl_taint_sources::namespace_shadowed_catch_cannot_hijack_nested_analysis_scaffolding ... FAILED
+test tcl_taint_sources::namespace_shadowed_variable_command_head_is_not_a_builtin_sink ... ok
+test tcl_taint_sources::nested_script_sink_distinguishes_deferred_from_literal_arguments ... FAILED
+test tcl_taint_sources::nested_command_head_sink_does_not_consume_outer_arguments ... ok
+test tcl_taint_sources::quoted_whole_command_substitution_reaches_inner_sink ... FAILED
+test tcl_taint_sources::read_taints ... FAILED
+test tcl_taint_sources::reaching_list_value_expands_into_command_and_argv ... FAILED
+test tcl_taint_sources::static_expanded_command_head_preserves_argv_semantics ... FAILED
+test tcl_taint_sources::socket_taints ... FAILED
+test tcl_taint_sources::unknown_expansion_arms_do_not_erase_a_reaching_sink ... FAILED
+test tcl_taint_sources::variable_command_head_warns_when_any_reaching_literal_is_a_sink ... FAILED
+test tcl_taint_sources::variable_command_head_uses_reaching_not_lexically_earlier_value ... ok
+test tcl_taint_sources::whole_command_substitution_classifies_each_executed_inner_sink ... FAILED
+test transform_colour_edge_cases::file_normalize_with_untainted_no_colour ... ok
+test transform_colour_edge_cases::concat_of_mixed_canonicality ... FAILED
+test transform_colour_edge_cases::list_with_literal_untainted ... ok
+test transform_colour_edge_cases::uri_encode_with_untainted_no_colour ... ok
+test url_encoded::interpolation_invalidates_url_encoded ... FAILED
+test url_encoded::uri_encode_also_sets_crlf_free ... ok
+test url_encoded::uri_encode_component_produces_colour ... FAILED
+test url_encoded::uri_encode_produces_colour ... FAILED
+test url_encoded::uri_escape_produces_colour ... FAILED
+test warning_messages::taint_warning_message ... FAILED
+test url_encoded::url_encoded_propagates_through_copy ... FAILED
+---- crlf_free::generic_taint_irule3003_still_warns stdout ----
+thread 'crlf_free::generic_taint_irule3003_still_warns' (17779) panicked at rust/tcl-compiler/tests/taint.rs:2487:9:
+---- dangerous_sinks::coroprobe_command_prefix_sink stdout ----
+thread 'dangerous_sinks::coroprobe_command_prefix_sink' (17790) panicked at rust/tcl-compiler/tests/taint.rs:1742:9:
+---- dangerous_sinks::coroinject_command_prefix_sink stdout ----
+thread 'dangerous_sinks::coroinject_command_prefix_sink' (17789) panicked at rust/tcl-compiler/tests/taint.rs:1752:9:
+---- dangerous_sinks::eval_sink stdout ----
+thread 'dangerous_sinks::eval_sink' (17792) panicked at rust/tcl-compiler/tests/taint.rs:1698:9:
+---- dangerous_sinks::exec_sink stdout ----
+thread 'dangerous_sinks::exec_sink' (17793) panicked at rust/tcl-compiler/tests/taint.rs:1711:9:
+---- dangerous_sinks::expr_sink stdout ----
+thread 'dangerous_sinks::expr_sink' (17798) panicked at rust/tcl-compiler/tests/taint.rs:1705:9:
+---- dangerous_sinks::uplevel_sink stdout ----
+thread 'dangerous_sinks::uplevel_sink' (17801) panicked at rust/tcl-compiler/tests/taint.rs:1718:9:
+---- dangerous_sinks::subst_sink stdout ----
+thread 'dangerous_sinks::subst_sink' (17800) panicked at rust/tcl-compiler/tests/taint.rs:1724:9:
+---- html_escaped::generic_taint_irule3001_fires stdout ----
+thread 'html_escaped::generic_taint_irule3001_fires' (17808) panicked at rust/tcl-compiler/tests/taint.rs:2784:9:
+---- header_token_safe::generic_taint_in_header_value_warns stdout ----
+thread 'header_token_safe::generic_taint_in_header_value_warns' (17807) panicked at rust/tcl-compiler/tests/taint.rs:2960:9:
+---- html_escaped::html_encode_double_encode_detected stdout ----
+thread 'html_escaped::html_encode_double_encode_detected' (17811) panicked at rust/tcl-compiler/tests/taint.rs:2852:9:
+---- html_escaped::interpolation_invalidates_html_escaped stdout ----
+thread 'html_escaped::interpolation_invalidates_html_escaped' (17819) panicked at rust/tcl-compiler/tests/taint.rs:2794:9:
+---- interpolation_colour_invalidation::html_escaped_stripped stdout ----
+thread 'interpolation_colour_invalidation::html_escaped_stripped' (17823) panicked at rust/tcl-compiler/tests/taint.rs:3163:9:
+---- interpolation_colour_invalidation::list_canonical_stripped stdout ----
+thread 'interpolation_colour_invalidation::list_canonical_stripped' (17824) panicked at rust/tcl-compiler/tests/taint.rs:3147:9:
+---- interpolation_colour_invalidation::path_normalised_stripped stdout ----
+thread 'interpolation_colour_invalidation::path_normalised_stripped' (17827) panicked at rust/tcl-compiler/tests/taint.rs:3157:9:
+---- interpolation_colour_invalidation::regex_literal_stripped stdout ----
+thread 'interpolation_colour_invalidation::regex_literal_stripped' (17829) panicked at rust/tcl-compiler/tests/taint.rs:3175:9:
+---- interpolation_colour_invalidation::shell_atom_stripped stdout ----
+thread 'interpolation_colour_invalidation::shell_atom_stripped' (17830) panicked at rust/tcl-compiler/tests/taint.rs:3181:9:
+---- interpolation_colour_invalidation::url_encoded_stripped stdout ----
+thread 'interpolation_colour_invalidation::url_encoded_stripped' (17831) panicked at rust/tcl-compiler/tests/taint.rs:3169:9:
+---- interprocedural_colours::helper_list_wrapper_eval_still_fires stdout ----
+thread 'interprocedural_colours::helper_list_wrapper_eval_still_fires' (17832) panicked at rust/tcl-compiler/tests/taint.rs:3110:9:
+---- interprocedural_colours::helper_list_wrapper_still_tainted stdout ----
+thread 'interprocedural_colours::helper_list_wrapper_still_tainted' (17835) panicked at rust/tcl-compiler/tests/taint.rs:3117:9:
+---- interprocedural_colours::helper_passthrough_generic_taint_fires_t102 stdout ----
+thread 'interprocedural_colours::helper_passthrough_generic_taint_fires_t102' (17836) panicked at rust/tcl-compiler/tests/taint.rs:3102:9:
+---- interprocedural_taint::tainted_argument_into_sinking_helper_warns stdout ----
+thread 'interprocedural_taint::tainted_argument_into_sinking_helper_warns' (17845) panicked at rust/tcl-compiler/tests/taint.rs:1668:9:
+---- interprocedural_taint::tainted_return_from_helper_reaches_sink stdout ----
+thread 'interprocedural_taint::tainted_return_from_helper_reaches_sink' (17849) panicked at rust/tcl-compiler/tests/taint.rs:1660:9:
+---- irule3004_open_redirect::html_escaped_does_not_suppress_irule3004 stdout ----
+thread 'irule3004_open_redirect::html_escaped_does_not_suppress_irule3004' (17852) panicked at rust/tcl-compiler/tests/taint.rs:3529:9:
+---- interprocedural_taint::tainted_variadic_args_into_sinking_helper_warns stdout ----
+thread 'interprocedural_taint::tainted_variadic_args_into_sinking_helper_warns' (17850) panicked at rust/tcl-compiler/tests/taint.rs:1680:9:
+---- irule3004_open_redirect::message_format stdout ----
+thread 'irule3004_open_redirect::message_format' (17856) panicked at rust/tcl-compiler/tests/taint.rs:3556:9:
+---- irule3004_open_redirect::tainted_header_redirect_fires stdout ----
+thread 'irule3004_open_redirect::tainted_header_redirect_fires' (17864) panicked at rust/tcl-compiler/tests/taint.rs:3510:9:
+---- irule3004_open_redirect::tainted_redirect_fires stdout ----
+thread 'irule3004_open_redirect::tainted_redirect_fires' (17866) panicked at rust/tcl-compiler/tests/taint.rs:3499:9:
+---- irule3103_edge_cases::glob_question_mark_is_wildcard_not_query stdout ----
+thread 'irule3103_edge_cases::glob_question_mark_is_wildcard_not_query' (17868) panicked at rust/tcl-compiler/tests/taint.rs:4070:9:
+---- irule3103_edge_cases::glob_question_path_with_wildcard stdout ----
+thread 'irule3103_edge_cases::glob_question_path_with_wildcard' (17871) panicked at rust/tcl-compiler/tests/taint.rs:4092:9:
+---- irule3103_edge_cases::nested_boolean_expression_emits_one_hit_per_uri_use stdout ----
+thread 'irule3103_edge_cases::nested_boolean_expression_emits_one_hit_per_uri_use' (17873) panicked at rust/tcl-compiler/tests/taint.rs:4192:9:
+---- irule3103_edge_cases::phi_both_branches_uri_still_warns stdout ----
+thread 'irule3103_edge_cases::phi_both_branches_uri_still_warns' (17881) panicked at rust/tcl-compiler/tests/taint.rs:4205:9:
+---- irule3103_edge_cases::regex_escaped_ampersand_is_query stdout ----
+thread 'irule3103_edge_cases::regex_escaped_ampersand_is_query' (17885) panicked at rust/tcl-compiler/tests/taint.rs:4217:9:
+---- irule3103_edge_cases::regex_escaped_question_is_query stdout ----
+thread 'irule3103_edge_cases::regex_escaped_question_is_query' (17886) panicked at rust/tcl-compiler/tests/taint.rs:4117:9:
+---- irule3103_edge_cases::regex_question_is_quantifier_not_query stdout ----
+thread 'irule3103_edge_cases::regex_question_is_quantifier_not_query' (17887) panicked at rust/tcl-compiler/tests/taint.rs:4105:9:
+---- irule3103_edge_cases::split_separator_from_constant_variable stdout ----
+thread 'irule3103_edge_cases::split_separator_from_constant_variable' (17888) panicked at rust/tcl-compiler/tests/taint.rs:4151:9:
+---- irule3103_edge_cases::split_separator_from_copied_constant_variable stdout ----
+thread 'irule3103_edge_cases::split_separator_from_copied_constant_variable' (17890) panicked at rust/tcl-compiler/tests/taint.rs:4182:9:
+---- irule3103_edge_cases::string_first_with_ampersand_in_if_condition stdout ----
+thread 'irule3103_edge_cases::string_first_with_ampersand_in_if_condition' (17892) panicked at rust/tcl-compiler/tests/taint.rs:4170:9:
+---- irule3103_expr_operators::contains_equals_query stdout ----
+thread 'irule3103_expr_operators::contains_equals_query' (17896) panicked at rust/tcl-compiler/tests/taint.rs:3925:9:
+---- irule3103_expr_operators::contains_query_param stdout ----
+thread 'irule3103_expr_operators::contains_query_param' (17898) panicked at rust/tcl-compiler/tests/taint.rs:3914:9:
+---- irule3103_expr_operators::ends_with_extension stdout ----
+thread 'irule3103_expr_operators::ends_with_extension' (17899) panicked at rust/tcl-compiler/tests/taint.rs:3903:9:
+---- irule3103_expr_operators::matches_glob_path stdout ----
+thread 'irule3103_expr_operators::matches_glob_path' (17900) panicked at rust/tcl-compiler/tests/taint.rs:3936:9:
+---- irule3103_edge_cases::string_match_nocase_in_if_condition stdout ----
+thread 'irule3103_edge_cases::string_match_nocase_in_if_condition' (17894) panicked at rust/tcl-compiler/tests/taint.rs:4139:9:
+---- irule3103_expr_operators::matches_glob_query stdout ----
+thread 'irule3103_expr_operators::matches_glob_query' (17901) panicked at rust/tcl-compiler/tests/taint.rs:3947:9:
+---- irule3103_expr_operators::starts_with_path_pattern stdout ----
+thread 'irule3103_expr_operators::starts_with_path_pattern' (17903) panicked at rust/tcl-compiler/tests/taint.rs:3880:9:
+---- irule3103_expr_operators::starts_with_via_variable stdout ----
+thread 'irule3103_expr_operators::starts_with_via_variable' (17905) panicked at rust/tcl-compiler/tests/taint.rs:3892:9:
+---- irule3103_string_match::string_first_question_mark stdout ----
+thread 'irule3103_string_match::string_first_question_mark' (17908) panicked at rust/tcl-compiler/tests/taint.rs:4006:9:
+---- irule3103_string_match::string_first_in_if_condition stdout ----
+thread 'irule3103_string_match::string_first_in_if_condition' (17906) panicked at rust/tcl-compiler/tests/taint.rs:4048:9:
+---- irule3103_string_match::string_match_in_if_condition stdout ----
+thread 'irule3103_string_match::string_match_in_if_condition' (17911) panicked at rust/tcl-compiler/tests/taint.rs:4037:9:
+---- irule3103_string_match::string_match_query_pattern stdout ----
+thread 'irule3103_string_match::string_match_query_pattern' (17915) panicked at rust/tcl-compiler/tests/taint.rs:3995:9:
+---- irule3103_string_match::string_match_path_pattern stdout ----
+thread 'irule3103_string_match::string_match_path_pattern' (17914) panicked at rust/tcl-compiler/tests/taint.rs:3984:9:
+---- irule3103_uri_split::inline_command_substitution stdout ----
+thread 'irule3103_uri_split::inline_command_substitution' (17919) panicked at rust/tcl-compiler/tests/taint.rs:3807:9:
+---- irule3103_uri_split::copy_propagation stdout ----
+thread 'irule3103_uri_split::copy_propagation' (17918) panicked at rust/tcl-compiler/tests/taint.rs:3847:9:
+---- irule3103_uri_split::split_uri_on_ampersand stdout ----
+thread 'irule3103_uri_split::split_uri_on_ampersand' (17924) panicked at rust/tcl-compiler/tests/taint.rs:3788:9:
+---- irule3103_uri_split::split_uri_on_question_and_ampersand stdout ----
+thread 'irule3103_uri_split::split_uri_on_question_and_ampersand' (17926) panicked at rust/tcl-compiler/tests/taint.rs:3799:9:
+---- irule3103_uri_split::split_uri_on_question_mark stdout ----
+thread 'irule3103_uri_split::split_uri_on_question_mark' (17928) panicked at rust/tcl-compiler/tests/taint.rs:3776:9:
+---- irules_output_sinks::http_header_insert_tainted stdout ----
+thread 'irules_output_sinks::http_header_insert_tainted' (17936) panicked at rust/tcl-compiler/tests/taint.rs:2094:9:
+---- irules_output_sinks::http_cookie_insert_tainted stdout ----
+thread 'irules_output_sinks::http_cookie_insert_tainted' (17934) panicked at rust/tcl-compiler/tests/taint.rs:2112:9:
+---- irules_output_sinks::http_respond_tainted_body stdout ----
+thread 'irules_output_sinks::http_respond_tainted_body' (17940) panicked at rust/tcl-compiler/tests/taint.rs:2077:9:
+---- irules_taint_sources::http_header_taints stdout ----
+thread 'irules_taint_sources::http_header_taints' (17942) panicked at rust/tcl-compiler/tests/taint.rs:1564:9:
+---- irules_taint_sources::http_uri_taints stdout ----
+thread 'irules_taint_sources::http_uri_taints' (17947) panicked at rust/tcl-compiler/tests/taint.rs:1571:9:
+---- irules_taint_sources::http_payload_taints stdout ----
+thread 'irules_taint_sources::http_payload_taints' (17945) panicked at rust/tcl-compiler/tests/taint.rs:1556:9:
+---- irules_taint_sources::tcp_payload_taints stdout ----
+thread 'irules_taint_sources::tcp_payload_taints' (17954) panicked at rust/tcl-compiler/tests/taint.rs:1578:9:
+---- irules_taint_sources::ip_client_addr_taints_with_colour stdout ----
+thread 'irules_taint_sources::ip_client_addr_taints_with_colour' (17952) panicked at rust/tcl-compiler/tests/taint.rs:1585:9:
+---- list_canonical::interpolation_preserves_taint_from_list stdout ----
+thread 'list_canonical::interpolation_preserves_taint_from_list' (17971) panicked at rust/tcl-compiler/tests/taint.rs:2653:9:
+---- list_canonical::concat_of_canonical_lists_eval_fires stdout ----
+thread 'list_canonical::concat_of_canonical_lists_eval_fires' (17970) panicked at rust/tcl-compiler/tests/taint.rs:2642:9:
+---- list_canonical::list_canonical_copy_eval_fires stdout ----
+thread 'list_canonical::list_canonical_copy_eval_fires' (17989) panicked at rust/tcl-compiler/tests/taint.rs:2665:9:
+---- list_canonical::list_command_propagates_taint_to_eval_fires stdout ----
+thread 'list_canonical::list_command_propagates_taint_to_eval_fires' (17993) panicked at rust/tcl-compiler/tests/taint.rs:2586:9:
+---- list_canonical::list_canonical_copy_still_tainted stdout ----
+thread 'list_canonical::list_canonical_copy_still_tainted' (17992) panicked at rust/tcl-compiler/tests/taint.rs:2676:9:
+---- list_canonical::list_command_propagates_taint_to_puts stdout ----
+thread 'list_canonical::list_command_propagates_taint_to_puts' (17995) panicked at rust/tcl-compiler/tests/taint.rs:2632:9:
+---- list_canonical::lrange_eval_fires stdout ----
+thread 'list_canonical::lrange_eval_fires' (17997) panicked at rust/tcl-compiler/tests/taint.rs:2610:9:
+---- list_canonical::lsort_eval_fires stdout ----
+thread 'list_canonical::lsort_eval_fires' (17998) panicked at rust/tcl-compiler/tests/taint.rs:2599:9:
+---- list_canonical::split_eval_fires stdout ----
+thread 'list_canonical::split_eval_fires' (18001) panicked at rust/tcl-compiler/tests/taint.rs:2621:9:
+---- log_injection::log_tainted_data stdout ----
+thread 'log_injection::log_tainted_data' (18004) panicked at rust/tcl-compiler/tests/taint.rs:2138:9:
+---- non_dash_prefixed_interpolation::literal_dash_prefix_warns stdout ----
+thread 'non_dash_prefixed_interpolation::literal_dash_prefix_warns' (18016) panicked at rust/tcl-compiler/tests/taint.rs:3046:9:
+---- object_instance_taint_sources::argument_sensitive_widget_getters_taint_only_user_state_forms stdout ----
+thread 'object_instance_taint_sources::argument_sensitive_widget_getters_taint_only_user_state_forms' (18024) panicked at rust/tcl-compiler/tests/taint.rs:1236:13:
+---- object_instance_taint_sources::callback_replay_scaffold_ignores_user_catch_and_proc_commands stdout ----
+thread 'object_instance_taint_sources::callback_replay_scaffold_ignores_user_catch_and_proc_commands' (18030) panicked at rust/tcl-compiler/tests/taint.rs:898:13:
+---- object_instance_taint_sources::callback_replays_isolate_abnormal_completion_and_handler_locals stdout ----
+thread 'object_instance_taint_sources::callback_replays_isolate_abnormal_completion_and_handler_locals' (18031) panicked at rust/tcl-compiler/tests/taint.rs:1097:13:
+---- object_instance_taint_sources::constructor_and_configure_global_links_close_over_proc_calls stdout ----
+thread 'object_instance_taint_sources::constructor_and_configure_global_links_close_over_proc_calls' (18035) panicked at rust/tcl-compiler/tests/taint.rs:1460:13:
+---- object_instance_taint_sources::deferred_validation_callback_preserves_link_and_instance_taint stdout ----
+thread 'object_instance_taint_sources::deferred_validation_callback_preserves_link_and_instance_taint' (18036) panicked at rust/tcl-compiler/tests/taint.rs:849:9:
+---- object_instance_taint_sources::destroy_kills_local_instance_class_and_recreate_restores_it stdout ----
+thread 'object_instance_taint_sources::destroy_kills_local_instance_class_and_recreate_restores_it' (18037) panicked at rust/tcl-compiler/tests/taint.rs:1341:9:
+---- object_instance_taint_sources::instance_configure_adds_a_phase_correct_external_input_definition stdout ----
+thread 'object_instance_taint_sources::instance_configure_adds_a_phase_correct_external_input_definition' (18051) panicked at rust/tcl-compiler/tests/taint.rs:1201:9:
+---- object_instance_taint_sources::instance_method_abbreviations_resolve_only_when_unique stdout ----
+thread 'object_instance_taint_sources::instance_method_abbreviations_resolve_only_when_unique' (18052) panicked at rust/tcl-compiler/tests/taint.rs:1398:9:
+---- object_instance_taint_sources::instance_source_flows_through_proc_summary stdout ----
+thread 'object_instance_taint_sources::instance_source_flows_through_proc_summary' (18053) panicked at rust/tcl-compiler/tests/taint.rs:793:9:
+---- object_instance_taint_sources::linked_entry_variable_is_user_input_and_show_is_not_a_sanitiser stdout ----
+thread 'object_instance_taint_sources::linked_entry_variable_is_user_input_and_show_is_not_a_sanitiser' (18059) panicked at rust/tcl-compiler/tests/taint.rs:837:9:
+---- object_instance_taint_sources::instance_taint_sources_follow_the_resolved_widget_lifecycle stdout ----
+thread 'object_instance_taint_sources::instance_taint_sources_follow_the_resolved_widget_lifecycle' (18055) panicked at rust/tcl-compiler/tests/taint.rs:771:13:
+---- object_instance_taint_sources::literal_global_receiver_configure_taints_across_procedures stdout ----
+thread 'object_instance_taint_sources::literal_global_receiver_configure_taints_across_procedures' (18060) panicked at rust/tcl-compiler/tests/taint.rs:1422:9:
+---- object_instance_taint_sources::literal_widget_path_get_taints stdout ----
+thread 'object_instance_taint_sources::literal_widget_path_get_taints' (18061) panicked at rust/tcl-compiler/tests/taint.rs:757:9:
+---- object_instance_taint_sources::mixed_widget_links_taint_only_the_user_editable_variable stdout ----
+thread 'object_instance_taint_sources::mixed_widget_links_taint_only_the_user_editable_variable' (18063) panicked at rust/tcl-compiler/tests/taint.rs:1187:9:
+---- object_instance_taint_sources::overloaded_treeview_and_notebook_getters_only_taint_zero_arg_queries stdout ----
+thread 'object_instance_taint_sources::overloaded_treeview_and_notebook_getters_only_taint_zero_arg_queries' (18065) panicked at rust/tcl-compiler/tests/taint.rs:1286:13:
+---- object_instance_taint_sources::pointer_position_queries_are_user_input_sources stdout ----
+thread 'object_instance_taint_sources::pointer_position_queries_are_user_input_sources' (18067) panicked at rust/tcl-compiler/tests/taint.rs:1310:13:
+---- object_instance_taint_sources::rename_moves_local_and_global_instance_class_facts stdout ----
+thread 'object_instance_taint_sources::rename_moves_local_and_global_instance_class_facts' (18071) panicked at rust/tcl-compiler/tests/taint.rs:1366:9:
+---- object_instance_taint_sources::resolved_widget_instance_callbacks_replay_registry_declared_inputs stdout ----
+thread 'object_instance_taint_sources::resolved_widget_instance_callbacks_replay_registry_declared_inputs' (18083) panicked at rust/tcl-compiler/tests/taint.rs:911:13:
+---- object_instance_taint_sources::receiver_rebinding_and_branch_joins_use_reaching_classes stdout ----
+thread 'object_instance_taint_sources::receiver_rebinding_and_branch_joins_use_reaching_classes' (18069) panicked at rust/tcl-compiler/tests/taint.rs:1510:9:
+---- object_instance_taint_sources::text_dump_and_file_chooser_results_are_input_sources stdout ----
+thread 'object_instance_taint_sources::text_dump_and_file_chooser_results_are_input_sources' (18090) panicked at rust/tcl-compiler/tests/taint.rs:817:13:
+---- object_instance_taint_sources::top_level_widget_is_a_source_inside_callback_procedure stdout ----
+thread 'object_instance_taint_sources::top_level_widget_is_a_source_inside_callback_procedure' (18094) panicked at rust/tcl-compiler/tests/taint.rs:803:9:
+---- object_instance_taint_sources::tk_unqualified_link_targets_global_not_proc_local_state stdout ----
+thread 'object_instance_taint_sources::tk_unqualified_link_targets_global_not_proc_local_state' (18091) panicked at rust/tcl-compiler/tests/taint.rs:1446:9:
+---- object_instance_taint_sources::user_controlled_non_text_widget_variable_is_tainted stdout ----
+thread 'object_instance_taint_sources::user_controlled_non_text_widget_variable_is_tainted' (18099) panicked at rust/tcl-compiler/tests/taint.rs:1160:9:
+---- object_instance_taint_sources::validation_callback_direct_input_diagnostic_hides_synthetic_state stdout ----
+thread 'object_instance_taint_sources::validation_callback_direct_input_diagnostic_hides_synthetic_state' (18100) panicked at rust/tcl-compiler/tests/taint.rs:1067:14:
+---- object_instance_taint_sources::validation_callback_percent_source_survives_braced_quoted_and_embedded_words stdout ----
+thread 'object_instance_taint_sources::validation_callback_percent_source_survives_braced_quoted_and_embedded_words' (18104) panicked at rust/tcl-compiler/tests/taint.rs:940:13:
+---- object_instance_taint_sources::validation_callback_replay_decodes_static_non_head_backslashes stdout ----
+thread 'object_instance_taint_sources::validation_callback_replay_decodes_static_non_head_backslashes' (18105) panicked at rust/tcl-compiler/tests/taint.rs:1020:9:
+---- object_instance_taint_sources::validation_callback_replay_input_name_cannot_collide_with_program_variables stdout ----
+thread 'object_instance_taint_sources::validation_callback_replay_input_name_cannot_collide_with_program_variables' (18106) panicked at rust/tcl-compiler/tests/taint.rs:1043:9:
+---- object_instance_taint_sources::validation_callback_replay_preserves_argument_expansion stdout ----
+thread 'object_instance_taint_sources::validation_callback_replay_preserves_argument_expansion' (18107) panicked at rust/tcl-compiler/tests/taint.rs:978:13:
+---- object_instance_taint_sources::validation_callback_replay_preserves_later_word_substitutions stdout ----
+thread 'object_instance_taint_sources::validation_callback_replay_preserves_later_word_substitutions' (18109) panicked at rust/tcl-compiler/tests/taint.rs:964:13:
+---- object_instance_taint_sources::validation_list_prefix_builder_uses_source_position_command_identity stdout ----
+thread 'object_instance_taint_sources::validation_list_prefix_builder_uses_source_position_command_identity' (18111) panicked at rust/tcl-compiler/tests/taint.rs:1001:13:
+---- object_instance_taint_sources::validation_callback_seed_ignores_shadowed_scaffolding_commands stdout ----
+thread 'object_instance_taint_sources::validation_callback_seed_ignores_shadowed_scaffolding_commands' (18110) panicked at rust/tcl-compiler/tests/taint.rs:1054:9:
+---- object_instance_taint_sources::validation_list_prefix_taints_a_named_proc_parameter stdout ----
+thread 'object_instance_taint_sources::validation_list_prefix_taints_a_named_proc_parameter' (18115) panicked at rust/tcl-compiler/tests/taint.rs:1124:9:
+---- object_instance_taint_sources::validation_percent_value_in_command_position_is_dynamic_dispatch stdout ----
+thread 'object_instance_taint_sources::validation_percent_value_in_command_position_is_dynamic_dispatch' (18116) panicked at rust/tcl-compiler/tests/taint.rs:885:13:
+---- object_instance_taint_sources::validation_percent_values_taint_inline_and_list_prefix_callbacks stdout ----
+thread 'object_instance_taint_sources::validation_percent_values_taint_inline_and_list_prefix_callbacks' (18117) panicked at rust/tcl-compiler/tests/taint.rs:871:13:
+---- object_instance_taint_sources::widget_handle_variable_get_taints stdout ----
+thread 'object_instance_taint_sources::widget_handle_variable_get_taints' (18118) panicked at rust/tcl-compiler/tests/taint.rs:783:9:
+---- option_injection::glob_tainted_without_terminator stdout ----
+thread 'option_injection::glob_tainted_without_terminator' (18121) panicked at rust/tcl-compiler/tests/taint.rs:1984:9:
+---- option_injection::regexp_tainted_pattern_still_warns stdout ----
+thread 'option_injection::regexp_tainted_pattern_still_warns' (18123) panicked at rust/tcl-compiler/tests/taint.rs:2051:9:
+---- option_injection::regexp_tainted_without_terminator stdout ----
+thread 'option_injection::regexp_tainted_without_terminator' (18125) panicked at rust/tcl-compiler/tests/taint.rs:1971:9:
+---- output_sinks::puts_inside_namespace_eval_body_still_fires stdout ----
+thread 'output_sinks::puts_inside_namespace_eval_body_still_fires' (18131) panicked at rust/tcl-compiler/tests/taint.rs:1949:9:
+---- output_sinks::puts_inside_tcloo_method_body_still_fires stdout ----
+thread 'output_sinks::puts_inside_tcloo_method_body_still_fires' (18132) panicked at rust/tcl-compiler/tests/taint.rs:1928:9:
+---- output_sinks::puts_interpolation_propagates stdout ----
+thread 'output_sinks::puts_interpolation_propagates' (18133) panicked at rust/tcl-compiler/tests/taint.rs:1879:9:
+---- output_sinks::puts_nonewline_alone_is_content_not_channel stdout ----
+thread 'output_sinks::puts_nonewline_alone_is_content_not_channel' (18136) panicked at rust/tcl-compiler/tests/taint.rs:1890:9:
+---- output_sinks::puts_tainted_data stdout ----
+thread 'output_sinks::puts_tainted_data' (18155) panicked at rust/tcl-compiler/tests/taint.rs:1797:9:
+---- output_sinks::puts_tainted_data_span_is_tight_around_argument stdout ----
+thread 'output_sinks::puts_tainted_data_span_is_tight_around_argument' (18179) panicked at rust/tcl-compiler/tests/taint.rs:1784:9:
+---- output_sinks::puts_tainted_output_alongside_tainted_chan stdout ----
+thread 'output_sinks::puts_tainted_output_alongside_tainted_chan' (18181) panicked at rust/tcl-compiler/tests/taint.rs:1872:9:
+---- output_sinks::puts_via_interp_alias_still_fires stdout ----
+thread 'output_sinks::puts_via_interp_alias_still_fires' (18182) panicked at rust/tcl-compiler/tests/taint.rs:1907:9:
+---- output_sinks::t100_tainted_direct_expr_operand_still_fires stdout ----
+thread 'output_sinks::t100_tainted_direct_expr_operand_still_fires' (18183) panicked at rust/tcl-compiler/tests/taint.rs:1852:9:
+---- output_sinks::t100_tainted_expr_func_arg_still_fires stdout ----
+thread 'output_sinks::t100_tainted_expr_func_arg_still_fires' (18185) panicked at rust/tcl-compiler/tests/taint.rs:1860:9:
+---- path_normalised::file_normalize_produces_colour stdout ----
+thread 'path_normalised::file_normalize_produces_colour' (18187) panicked at rust/tcl-compiler/tests/taint.rs:2738:9:
+---- path_normalised::interpolation_invalidates_path_normalised stdout ----
+thread 'path_normalised::interpolation_invalidates_path_normalised' (18188) panicked at rust/tcl-compiler/tests/taint.rs:2748:9:
+---- path_normalised_setter_constraint::path_normalised_suppresses_irule3101 stdout ----
+thread 'path_normalised_setter_constraint::path_normalised_suppresses_irule3101' (18195) panicked at rust/tcl-compiler/tests/taint.rs:3471:9:
+---- path_normalised_setter_constraint::path_prefixed_still_suppresses_irule3101 stdout ----
+thread 'path_normalised_setter_constraint::path_prefixed_still_suppresses_irule3101' (18196) panicked at rust/tcl-compiler/tests/taint.rs:3483:9:
+---- path_normalised::path_normalised_propagates_through_copy stdout ----
+thread 'path_normalised::path_normalised_propagates_through_copy' (18193) panicked at rust/tcl-compiler/tests/taint.rs:2758:9:
+---- regex_literal::interpolation_invalidates_regex_literal stdout ----
+thread 'regex_literal::interpolation_invalidates_regex_literal' (18200) panicked at rust/tcl-compiler/tests/taint.rs:2712:9:
+---- regex_literal::regex_literal_propagates_through_copy stdout ----
+thread 'regex_literal::regex_literal_propagates_through_copy' (18202) panicked at rust/tcl-compiler/tests/taint.rs:2722:9:
+---- regex_literal::regex_quote_produces_colour stdout ----
+thread 'regex_literal::regex_quote_produces_colour' (18203) panicked at rust/tcl-compiler/tests/taint.rs:2692:9:
+---- setter_constraints::irule3101_reads_the_proven_path stdout ----
+thread 'setter_constraints::irule3101_reads_the_proven_path' (18213) panicked at rust/tcl-compiler/tests/taint.rs:2397:9:
+---- regex_literal::regexp_quote_produces_colour stdout ----
+thread 'regex_literal::regexp_quote_produces_colour' (18205) panicked at rust/tcl-compiler/tests/taint.rs:2702:9:
+---- setter_constraints::irule3103_reads_a_proven_operand stdout ----
+thread 'setter_constraints::irule3103_reads_a_proven_operand' (18214) panicked at rust/tcl-compiler/tests/taint.rs:2411:9:
+---- setter_constraints::path_prefixed_var_clean stdout ----
+thread 'setter_constraints::path_prefixed_var_clean' (18217) panicked at rust/tcl-compiler/tests/taint.rs:2367:9:
+---- setter_constraints::path_to_path_clean stdout ----
+thread 'setter_constraints::path_to_path_clean' (18219) panicked at rust/tcl-compiler/tests/taint.rs:2389:9:
+---- shell_atom::fqdn_augments_shell_atom stdout ----
+thread 'shell_atom::fqdn_augments_shell_atom' (18221) panicked at rust/tcl-compiler/tests/taint.rs:2558:9:
+---- shell_atom::ip_addr_augments_shell_atom stdout ----
+thread 'shell_atom::ip_addr_augments_shell_atom' (18222) panicked at rust/tcl-compiler/tests/taint.rs:2546:9:
+---- shell_atom::port_augments_shell_atom stdout ----
+thread 'shell_atom::port_augments_shell_atom' (18224) panicked at rust/tcl-compiler/tests/taint.rs:2552:9:
+---- shell_atom::shell_atom_lost_at_phi_with_generic stdout ----
+thread 'shell_atom::shell_atom_lost_at_phi_with_generic' (18225) panicked at rust/tcl-compiler/tests/taint.rs:2565:9:
+---- sink_suppression_matrix::irule3001_not_suppressed_by_crlf_free stdout ----
+thread 'sink_suppression_matrix::irule3001_not_suppressed_by_crlf_free' (18228) panicked at rust/tcl-compiler/tests/taint.rs:3239:9:
+---- sink_suppression_matrix::t100_not_suppressed_by_path_prefixed stdout ----
+thread 'sink_suppression_matrix::t100_not_suppressed_by_path_prefixed' (18236) panicked at rust/tcl-compiler/tests/taint.rs:3282:9:
+---- sink_suppression_matrix::t102_not_suppressed_by_crlf_free stdout ----
+thread 'sink_suppression_matrix::t102_not_suppressed_by_crlf_free' (18237) panicked at rust/tcl-compiler/tests/taint.rs:3270:9:
+---- sink_suppression_matrix::t102_not_suppressed_by_html_escaped stdout ----
+thread 'sink_suppression_matrix::t102_not_suppressed_by_html_escaped' (18240) panicked at rust/tcl-compiler/tests/taint.rs:3276:9:
+---- source_colour_augmentation::generic_taint_no_augmentation stdout ----
+thread 'source_colour_augmentation::generic_taint_no_augmentation' (18241) panicked at rust/tcl-compiler/tests/taint.rs:2992:9:
+---- special_variable_sources::argv0_read_flows_tainted_into_code_sink stdout ----
+thread 'special_variable_sources::argv0_read_flows_tainted_into_code_sink' (18254) panicked at rust/tcl-compiler/tests/taint.rs:4246:9:
+---- special_variable_sources::env_read_flows_tainted_into_code_sink stdout ----
+thread 'special_variable_sources::env_read_flows_tainted_into_code_sink' (18258) panicked at rust/tcl-compiler/tests/taint.rs:4234:9:
+---- special_variable_sources::argv_read_flows_tainted_into_code_sink stdout ----
+thread 'special_variable_sources::argv_read_flows_tainted_into_code_sink' (18256) panicked at rust/tcl-compiler/tests/taint.rs:4240:9:
+---- t100_sink_suppression::eval_with_generic_taint_not_suppressed stdout ----
+thread 't100_sink_suppression::eval_with_generic_taint_not_suppressed' (18261) panicked at rust/tcl-compiler/tests/taint.rs:3326:9:
+---- t100_sink_suppression::eval_with_list_canonical_fires stdout ----
+thread 't100_sink_suppression::eval_with_list_canonical_fires' (18264) panicked at rust/tcl-compiler/tests/taint.rs:3319:9:
+---- t100_sink_suppression::eval_with_literal_list_tainted_head_fires stdout ----
+thread 't100_sink_suppression::eval_with_literal_list_tainted_head_fires' (18267) panicked at rust/tcl-compiler/tests/taint.rs:3351:9:
+---- t100_sink_suppression::exec_with_generic_taint_not_suppressed stdout ----
+thread 't100_sink_suppression::exec_with_generic_taint_not_suppressed' (18268) panicked at rust/tcl-compiler/tests/taint.rs:3311:9:
+---- t100_sink_suppression::expr_not_suppressed_by_list_canonical stdout ----
+thread 't100_sink_suppression::expr_not_suppressed_by_list_canonical' (18273) panicked at rust/tcl-compiler/tests/taint.rs:3371:9:
+---- t100_sink_suppression::subst_not_suppressed_by_shell_atom stdout ----
+thread 't100_sink_suppression::subst_not_suppressed_by_shell_atom' (18275) panicked at rust/tcl-compiler/tests/taint.rs:3365:9:
+---- t100_sink_suppression::uplevel_with_generic_taint_not_suppressed stdout ----
+thread 't100_sink_suppression::uplevel_with_generic_taint_not_suppressed' (18276) panicked at rust/tcl-compiler/tests/taint.rs:3358:9:
+---- t102_suppression::generic_taint_still_warns stdout ----
+thread 't102_suppression::generic_taint_still_warns' (18279) panicked at rust/tcl-compiler/tests/taint.rs:2257:9:
+---- t100_sink_suppression::uplevel_with_list_canonical_fires stdout ----
+thread 't100_sink_suppression::uplevel_with_list_canonical_fires' (18277) panicked at rust/tcl-compiler/tests/taint.rs:3334:9:
+---- t102_suppression::http_header_still_warns stdout ----
+thread 't102_suppression::http_header_still_warns' (18280) panicked at rust/tcl-compiler/tests/taint.rs:2264:9:
+---- t102_suppression::ip_addr_still_fires_t100 stdout ----
+thread 't102_suppression::ip_addr_still_fires_t100' (18286) panicked at rust/tcl-compiler/tests/taint.rs:2316:9:
+---- t102_suppression::literal_dash_prefix_concat_still_warns stdout ----
+thread 't102_suppression::literal_dash_prefix_concat_still_warns' (18290) panicked at rust/tcl-compiler/tests/taint.rs:2251:9:
+---- t102_suppression::phi_generic_with_coloured_loses stdout ----
+thread 't102_suppression::phi_generic_with_coloured_loses' (18294) panicked at rust/tcl-compiler/tests/taint.rs:2343:9:
+---- t102_suppression::port_still_fires_t100 stdout ----
+thread 't102_suppression::port_still_fires_t100' (18299) panicked at rust/tcl-compiler/tests/taint.rs:2322:9:
+---- t103_regexp_pattern_injection::t103_message_format stdout ----
+thread 't103_regexp_pattern_injection::t103_message_format' (18306) panicked at rust/tcl-compiler/tests/taint.rs:3457:9:
+---- t103_regexp_pattern_injection::tainted_regexp_pattern_fires stdout ----
+thread 't103_regexp_pattern_injection::tainted_regexp_pattern_fires' (18309) panicked at rust/tcl-compiler/tests/taint.rs:3395:9:
+---- t103_regexp_pattern_injection::tainted_regexp_with_options_fires stdout ----
+thread 't103_regexp_pattern_injection::tainted_regexp_with_options_fires' (18311) panicked at rust/tcl-compiler/tests/taint.rs:3416:9:
+---- t103_regexp_pattern_injection::tainted_regsub_pattern_fires stdout ----
+thread 't103_regexp_pattern_injection::tainted_regsub_pattern_fires' (18312) panicked at rust/tcl-compiler/tests/taint.rs:3406:9:
+---- t103_regexp_pattern_injection::tainted_regsub_with_options_fires stdout ----
+thread 't103_regexp_pattern_injection::tainted_regsub_with_options_fires' (18313) panicked at rust/tcl-compiler/tests/taint.rs:3451:9:
+---- t104_network_sinks::http_geturl_tainted_url stdout ----
+thread 't104_network_sinks::http_geturl_tainted_url' (18317) panicked at rust/tcl-compiler/tests/taint.rs:3676:9:
+---- t104_network_sinks::message_format stdout ----
+thread 't104_network_sinks::message_format' (18318) panicked at rust/tcl-compiler/tests/taint.rs:3698:9:
+---- t104_network_sinks::socket_propagation_through_copy stdout ----
+thread 't104_network_sinks::socket_propagation_through_copy' (18321) panicked at rust/tcl-compiler/tests/taint.rs:3692:9:
+---- t104_network_sinks::socket_tainted_host stdout ----
+thread 't104_network_sinks::socket_tainted_host' (18324) panicked at rust/tcl-compiler/tests/taint.rs:3664:9:
+---- t105_interp_eval_sinks::interp_eval_tainted stdout ----
+thread 't105_interp_eval_sinks::interp_eval_tainted' (18329) panicked at rust/tcl-compiler/tests/taint.rs:3718:9:
+---- t105_interp_eval_sinks::interp_invokehidden_tainted stdout ----
+thread 't105_interp_eval_sinks::interp_invokehidden_tainted' (18330) panicked at rust/tcl-compiler/tests/taint.rs:3734:9:
+---- t105_interp_eval_sinks::list_does_not_suppress_t105 stdout ----
+thread 't105_interp_eval_sinks::list_does_not_suppress_t105' (18331) panicked at rust/tcl-compiler/tests/taint.rs:3743:9:
+---- t105_interp_eval_sinks::message_format stdout ----
+thread 't105_interp_eval_sinks::message_format' (18336) panicked at rust/tcl-compiler/tests/taint.rs:3757:9:
+---- t106_double_encoding::double_encode_nested_no_intermediate_fires stdout ----
+thread 't106_double_encoding::double_encode_nested_no_intermediate_fires' (18340) panicked at rust/tcl-compiler/tests/taint.rs:3619:9:
+---- t106_double_encoding::double_html_encode stdout ----
+thread 't106_double_encoding::double_html_encode' (18344) panicked at rust/tcl-compiler/tests/taint.rs:3572:9:
+---- t106_double_encoding::double_encode_through_copy stdout ----
+thread 't106_double_encoding::double_encode_through_copy' (18343) panicked at rust/tcl-compiler/tests/taint.rs:3610:9:
+---- t106_double_encoding::double_uri_encode stdout ----
+thread 't106_double_encoding::double_uri_encode' (18347) panicked at rust/tcl-compiler/tests/taint.rs:3581:9:
+---- t106_double_encoding::double_regex_quote stdout ----
+thread 't106_double_encoding::double_regex_quote' (18346) panicked at rust/tcl-compiler/tests/taint.rs:3590:9:
+---- t106_double_encoding::message_format stdout ----
+thread 't106_double_encoding::message_format' (18351) panicked at rust/tcl-compiler/tests/taint.rs:3649:9:
+---- taint_colours::colour_propagates_through_copy stdout ----
+thread 'taint_colours::colour_propagates_through_copy' (18357) panicked at rust/tcl-compiler/tests/taint.rs:2176:9:
+---- taint_colours::http_path_getter_has_path_colour stdout ----
+thread 'taint_colours::http_path_getter_has_path_colour' (18358) panicked at rust/tcl-compiler/tests/taint.rs:2169:9:
+---- taint_colours::http_uri_getter_has_path_colour stdout ----
+thread 'taint_colours::http_uri_getter_has_path_colour' (18360) panicked at rust/tcl-compiler/tests/taint.rs:2162:9:
+---- taint_propagation::command_subst_concat_propagates stdout ----
+thread 'taint_propagation::command_subst_concat_propagates' (18387) panicked at rust/tcl-compiler/tests/taint.rs:1613:9:
+---- taint_propagation::string_interpolation_propagates stdout ----
+thread 'taint_propagation::string_interpolation_propagates' (18392) panicked at rust/tcl-compiler/tests/taint.rs:1607:9:
+---- taint_propagation::taint_through_if_branch stdout ----
+thread 'taint_propagation::taint_through_if_branch' (18394) panicked at rust/tcl-compiler/tests/taint.rs:1640:9:
+---- taint_propagation::variable_copy_propagates stdout ----
+thread 'taint_propagation::variable_copy_propagates' (18398) panicked at rust/tcl-compiler/tests/taint.rs:1597:9:
+---- tcl_taint_sources::a_call_the_module_cannot_see_leaves_what_its_words_read_tainted stdout ----
+thread 'tcl_taint_sources::a_call_the_module_cannot_see_leaves_what_its_words_read_tainted' (18399) panicked at rust/tcl-compiler/tests/taint.rs:412:9:
+---- tcl_taint_sources::chan_gets_taints stdout ----
+thread 'tcl_taint_sources::chan_gets_taints' (18403) panicked at rust/tcl-compiler/tests/taint.rs:732:9:
+---- tcl_taint_sources::chan_read_taints stdout ----
+thread 'tcl_taint_sources::chan_read_taints' (18404) panicked at rust/tcl-compiler/tests/taint.rs:726:9:
+---- tcl_taint_sources::constant_variable_command_head_reaches_sink_at_the_use_site stdout ----
+thread 'tcl_taint_sources::constant_variable_command_head_reaches_sink_at_the_use_site' (18406) panicked at rust/tcl-compiler/tests/taint.rs:425:9:
+---- tcl_taint_sources::equivalent_variable_command_head_spellings_emit_one_warning stdout ----
+thread 'tcl_taint_sources::equivalent_variable_command_head_spellings_emit_one_warning' (18407) panicked at rust/tcl-compiler/tests/taint.rs:671:9:
+---- tcl_taint_sources::eval_braced_nested_command_substitution_reaches_inner_sink stdout ----
+thread 'tcl_taint_sources::eval_braced_nested_command_substitution_reaches_inner_sink' (18410) panicked at rust/tcl-compiler/tests/taint.rs:441:13:
+---- tcl_taint_sources::exec_taints stdout ----
+thread 'tcl_taint_sources::exec_taints' (18412) panicked at rust/tcl-compiler/tests/taint.rs:713:9:
+---- tcl_taint_sources::escaped_static_command_head_obeys_release_grammar stdout ----
+thread 'tcl_taint_sources::escaped_static_command_head_obeys_release_grammar' (18408) panicked at rust/tcl-compiler/tests/taint.rs:473:9:
+---- tcl_taint_sources::gets_taints stdout ----
+thread 'tcl_taint_sources::gets_taints' (18413) panicked at rust/tcl-compiler/tests/taint.rs:403:9:
+---- tcl_taint_sources::namespace_shadowed_catch_cannot_hijack_nested_analysis_scaffolding stdout ----
+thread 'tcl_taint_sources::namespace_shadowed_catch_cannot_hijack_nested_analysis_scaffolding' (18414) panicked at rust/tcl-compiler/tests/taint.rs:703:9:
+---- tcl_taint_sources::nested_script_sink_distinguishes_deferred_from_literal_arguments stdout ----
+thread 'tcl_taint_sources::nested_script_sink_distinguishes_deferred_from_literal_arguments' (18418) panicked at rust/tcl-compiler/tests/taint.rs:568:9:
+---- tcl_taint_sources::quoted_whole_command_substitution_reaches_inner_sink stdout ----
+thread 'tcl_taint_sources::quoted_whole_command_substitution_reaches_inner_sink' (18421) panicked at rust/tcl-compiler/tests/taint.rs:459:9:
+---- tcl_taint_sources::read_taints stdout ----
+thread 'tcl_taint_sources::read_taints' (18424) panicked at rust/tcl-compiler/tests/taint.rs:395:9:
+---- tcl_taint_sources::reaching_list_value_expands_into_command_and_argv stdout ----
+thread 'tcl_taint_sources::reaching_list_value_expands_into_command_and_argv' (18423) panicked at rust/tcl-compiler/tests/taint.rs:505:13:
+---- tcl_taint_sources::static_expanded_command_head_preserves_argv_semantics stdout ----
+thread 'tcl_taint_sources::static_expanded_command_head_preserves_argv_semantics' (18426) panicked at rust/tcl-compiler/tests/taint.rs:484:9:
+---- tcl_taint_sources::socket_taints stdout ----
+thread 'tcl_taint_sources::socket_taints' (18425) panicked at rust/tcl-compiler/tests/taint.rs:720:9:
+---- tcl_taint_sources::unknown_expansion_arms_do_not_erase_a_reaching_sink stdout ----
+thread 'tcl_taint_sources::unknown_expansion_arms_do_not_erase_a_reaching_sink' (18430) panicked at rust/tcl-compiler/tests/taint.rs:529:13:
+---- tcl_taint_sources::variable_command_head_warns_when_any_reaching_literal_is_a_sink stdout ----
+thread 'tcl_taint_sources::variable_command_head_warns_when_any_reaching_literal_is_a_sink' (18432) panicked at rust/tcl-compiler/tests/taint.rs:657:9:
+---- tcl_taint_sources::whole_command_substitution_classifies_each_executed_inner_sink stdout ----
+thread 'tcl_taint_sources::whole_command_substitution_classifies_each_executed_inner_sink' (18434) panicked at rust/tcl-compiler/tests/taint.rs:558:13:
+---- transform_colour_edge_cases::concat_of_mixed_canonicality stdout ----
+thread 'transform_colour_edge_cases::concat_of_mixed_canonicality' (18435) panicked at rust/tcl-compiler/tests/taint.rs:3207:9:
+---- url_encoded::interpolation_invalidates_url_encoded stdout ----
+thread 'url_encoded::interpolation_invalidates_url_encoded' (18440) panicked at rust/tcl-compiler/tests/taint.rs:2898:9:
+---- url_encoded::uri_encode_component_produces_colour stdout ----
+thread 'url_encoded::uri_encode_component_produces_colour' (18445) panicked at rust/tcl-compiler/tests/taint.rs:2878:9:
+---- url_encoded::uri_encode_produces_colour stdout ----
+thread 'url_encoded::uri_encode_produces_colour' (18447) panicked at rust/tcl-compiler/tests/taint.rs:2868:9:
+---- url_encoded::uri_escape_produces_colour stdout ----
+thread 'url_encoded::uri_escape_produces_colour' (18448) panicked at rust/tcl-compiler/tests/taint.rs:2888:9:
+---- warning_messages::taint_warning_message stdout ----
+thread 'warning_messages::taint_warning_message' (18451) panicked at rust/tcl-compiler/tests/taint.rs:1763:9:
+---- url_encoded::url_encoded_propagates_through_copy stdout ----
+thread 'url_encoded::url_encoded_propagates_through_copy' (18450) panicked at rust/tcl-compiler/tests/taint.rs:2908:9:
+test result: FAILED. 159 passed; 214 failed; 0 ignored; 0 measured; 0 filtered out; finished in 92.31s

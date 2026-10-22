@@ -1,0 +1,25 @@
+
+running 1 test
+test package_resolver::reachability::tests::the_two_component_requirement_matrix_is_unchanged ... 
+thread 'package_resolver::reachability::tests::the_two_component_requirement_matrix_is_unchanged' (24937) panicked at rust/tcl-lsp-core/src/package_resolver/reachability/tests.rs:506:9:
+assertion `left == right` failed: 8.6 / 8.5
+  left: Conditional
+ right: Available
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<tcl_lsp_core::package_resolver::reachability::Availability, tcl_lsp_core::package_resolver::reachability::Availability>
+   4: tcl_lsp_core::package_resolver::reachability::tests::the_two_component_requirement_matrix_is_unchanged
+   5: tcl_lsp_core::package_resolver::reachability::tests::the_two_component_requirement_matrix_is_unchanged::{closure#0}
+   6: <tcl_lsp_core::package_resolver::reachability::tests::the_two_component_requirement_matrix_is_unchanged::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+FAILED
+
+failures:
+
+failures:
+    package_resolver::reachability::tests::the_two_component_requirement_matrix_is_unchanged
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 3484 filtered out; finished in 0.51s
+

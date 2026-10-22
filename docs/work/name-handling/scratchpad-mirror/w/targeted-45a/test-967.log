@@ -1,0 +1,21 @@
+
+running 1 test
+test definition::tests::a_forced_import_does_not_shadow_when_this_file_holds_the_export_list ... 
+thread 'definition::tests::a_forced_import_does_not_shadow_when_this_file_holds_the_export_list' (23370) panicked at rust/tcl-lsp-core/src/definition.rs:6623:9:
+the local definition survives an import that binds nothing: None
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: tcl_lsp_core::definition::tests::a_forced_import_does_not_shadow_when_this_file_holds_the_export_list
+   3: tcl_lsp_core::definition::tests::a_forced_import_does_not_shadow_when_this_file_holds_the_export_list::{closure#0}
+   4: <tcl_lsp_core::definition::tests::a_forced_import_does_not_shadow_when_this_file_holds_the_export_list::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+FAILED
+
+failures:
+
+failures:
+    definition::tests::a_forced_import_does_not_shadow_when_this_file_holds_the_export_list
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 3484 filtered out; finished in 2.18s
+

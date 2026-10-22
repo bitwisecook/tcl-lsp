@@ -1,0 +1,24 @@
+{
+ "scheduled": "2026-10-17T21:29:00Z",
+ "change_since_previous_report": {"integrated_LSP": 0, "total_baseline_delta": 0, "effective_delta": 0, "verified_complete": 0, "note": "Integration37 remains a candidate; one pass->fail regression found, correction drafted."},
+ "admissions": {},
+ "validation_recorded_at_capture": {
+  "capture37": {"status": "RUNNING", "source": "60051c3c2 (integration37 candidate)",
+   "original_LSP850": {"complete": 850, "passed": 699, "failed": 151, "timeouts_in_failed": 1, "vs_capture36": "689/161/3 -> 699/151/1"},
+   "gains": {"core": [165, 172, 256, 451, 503, 546, 547, 556, 560, 561], "server": 1},
+   "regression": {"server_test_69": "readonly_reference_reports::tests::readonly_member_wire_retains_owner_and_partial_coverage", "cause": "Sol fix-4 added direct `my` selector edges to the shared edges() used by original_call_hierarchy::references, leaking member references the readonly report owns", "correction": "scratchpad i37/fix4b/my-edges-hierarchy-only.patch: my edges only in incoming/outgoing call hierarchy; references keeps the plain edge set"},
+   "near_budget": {"package_index_nested_wrapper_seconds": 168, "budget": 180, "note": "was a timeout before the memo"},
+   "additive_core_partial": [81, 61, 20, 0]}
+ },
+ "reviews_since_previous_report": {
+  "test_corrections_v2": "Sol-9 ADMIT (D1 doc fix applied by orchestrator); every probe re-run 8.4-9.1",
+  "same_document_order_v1": "Luna-7 HOLD (H1 import-conflict drop, H2 no-query revocation, M1-M5); V2 in revision with orchestrator direction: no-query consumers keep HEAD conditional behaviour",
+  "member_census_v2": "Luna-8 HOLD (subst templates, qualified ::oo::Helpers next/nextto/link); V3 drafted with fail-closed checks; delta review running",
+  "native_lifecycle_next_chain_v1": "Luna-9 HOLD minor (duplicate class records, side); V2 applies amendments A and B",
+  "inline_objdefine_producer_v1": "drafted by Sol-10; review running. It changes one existing assertion row (object_read_requires_its_allocation_and_current_dispatch); held pending proof it is not an original assertion or a user decision"
+ },
+ "user_decisions_still_open": ["Compiler221", "DB921 identity", "Server102/103 freshness vs snapshot", "Server108 validation cost", "sign-off: same-document order changes three 1b45c540e controls"],
+ "next_report_utc": "2026-10-17T21:59:00Z",
+ "green_PR": false,
+ "merge_or_issue_closure": false
+}

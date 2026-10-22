@@ -1,0 +1,7 @@
+{"scheduled":"2026-10-19T19:07:00Z",
+ "change_since_previous_report":{"integrated_LSP":0,"total_baseline_delta":0,"effective_delta":0,"verified_complete":0},
+ "admissions":{},
+ "committed":{"a3c6e6856b":"Merge origin/rust into work (154 conflicts resolved; compile-clean, zero warnings in root/runtime/wasm/wasi; fmt clean; tests not yet run)","efc58507c1":"merge resolution notes archived"},
+ "ci_dispatch":{"run":"https://github.com/bitwisecook/tcl-lsp/actions/runs/39304840863","head":"efc58507c1","state":"test shards, lsp-e2e and test-ext partitions running (the build now succeeds); 12 gate jobs failed: cargo-deny, spectcl-compat, test-ext-web, rust-tests-doctest, rust-check, wasm-real-link, python, lsp-server-wasi, lsp-server-wasm, runtime-rust-tests, web-frontends, pr-gate"},
+ "in_progress":{"sol-41":"port 10 deferred tclvm/runtime upstream features with upstream tests","sol-42":"C1 fresh-interpreter entry continued on the merged tree"},
+ "next_report_utc":"2026-10-19T19:40:00Z"}

@@ -1,0 +1,6 @@
+{"scheduled":"2026-10-20T19:34:00Z",
+ "change_since_previous_report":{"integrated_LSP":0,"total_baseline_delta":0,"effective_delta":0,"verified_complete":0},
+ "admissions":{},
+ "in_progress":{"sol-44":"with_native_core migration, uncommitted","sol-45":"cluster C, uncommitted"},
+ "disk_free_gb":4.3,
+ "next_report_utc":"2026-10-20T20:05:00Z"}

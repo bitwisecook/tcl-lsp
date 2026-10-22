@@ -1,0 +1,3 @@
+command_binding:: test result: FAILED. 861 passed; 316 failed; 0 ignored; 0 measured; 9285 filtered out; finished in 1016.83s
+analyser:: test analyser::diagnostics::tests::analyse_no_w123_for_user_proc ... ok
+finished

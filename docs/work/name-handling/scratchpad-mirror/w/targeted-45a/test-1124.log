@@ -1,0 +1,23 @@
+
+running 1 test
+test command_binding::source_transition_advice::logical_lambda_formatting::tests::logical_decoded_phase_keeps_original_parent_and_conditional_role_debt ... 
+thread 'command_binding::source_transition_advice::logical_lambda_formatting::tests::logical_decoded_phase_keeps_original_parent_and_conditional_role_debt' (32415) panicked at rust/tcl-compiler/src/command_binding/source_transition_advice/logical_lambda_formatting.rs:323:27:
+actual configured Logical lambda field
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::option::expect_failed
+   3: <core::option::Option<alloc::sync::Arc<tcl_compiler::command_binding::source_transition_advice::logical_lambda_formatting::OriginalConditionalLambdaFormattingBody>>>::expect
+   4: tcl_compiler::command_binding::source_transition_advice::logical_lambda_formatting::tests::logical_decoded_phase_keeps_original_parent_and_conditional_role_debt
+   5: tcl_compiler::command_binding::source_transition_advice::logical_lambda_formatting::tests::logical_decoded_phase_keeps_original_parent_and_conditional_role_debt::{closure#0}
+   6: <tcl_compiler::command_binding::source_transition_advice::logical_lambda_formatting::tests::logical_decoded_phase_keeps_original_parent_and_conditional_role_debt::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+FAILED
+
+failures:
+
+failures:
+    command_binding::source_transition_advice::logical_lambda_formatting::tests::logical_decoded_phase_keeps_original_parent_and_conditional_role_debt
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 10440 filtered out; finished in 0.52s
+

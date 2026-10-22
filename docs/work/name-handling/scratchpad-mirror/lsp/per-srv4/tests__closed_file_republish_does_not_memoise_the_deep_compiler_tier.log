@@ -1,0 +1,34 @@
+
+running 1 test
+test tests::closed_file_republish_does_not_memoise_the_deep_compiler_tier ... FAILED
+
+failures:
+
+---- tests::closed_file_republish_does_not_memoise_the_deep_compiler_tier stdout ----
+
+thread 'tests::closed_file_republish_does_not_memoise_the_deep_compiler_tier' (23555) panicked at rust/tcl-lsp-server/src/lib.rs:47887:9:
+a closed file's republish must not build memoised deep-tier queries: ["file_analysis_incremental(Id(280))", "compilation_unit_for_config(Id(400))"]
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: tcl_lsp_server::tests::closed_file_republish_does_not_memoise_the_deep_compiler_tier::{closure#0}
+   3: <core::pin::Pin<&mut dyn core::future::future::Future<Output = ()>> as core::future::future::Future>::poll
+   4: <tokio::runtime::park::CachedParkThread>::block_on::<core::pin::Pin<&mut dyn core::future::future::Future<Output = ()>>>::{closure#0}
+   5: <tokio::runtime::park::CachedParkThread>::block_on::<core::pin::Pin<&mut dyn core::future::future::Future<Output = ()>>>
+   6: <tokio::runtime::context::blocking::BlockingRegionGuard>::block_on::<core::pin::Pin<&mut dyn core::future::future::Future<Output = ()>>>
+   7: <tokio::runtime::scheduler::multi_thread::MultiThread>::block_on::<core::pin::Pin<&mut dyn core::future::future::Future<Output = ()>>>::{closure#0}
+   8: tokio::runtime::context::runtime::enter_runtime::<<tokio::runtime::scheduler::multi_thread::MultiThread>::block_on<core::pin::Pin<&mut dyn core::future::future::Future<Output = ()>>>::{closure#0}, ()>
+   9: <tokio::runtime::scheduler::multi_thread::MultiThread>::block_on::<core::pin::Pin<&mut dyn core::future::future::Future<Output = ()>>>
+  10: <tokio::runtime::runtime::Runtime>::block_on_inner::<core::pin::Pin<&mut dyn core::future::future::Future<Output = ()>>>
+  11: <tokio::runtime::runtime::Runtime>::block_on::<core::pin::Pin<&mut dyn core::future::future::Future<Output = ()>>>
+  12: tcl_lsp_server::tests::closed_file_republish_does_not_memoise_the_deep_compiler_tier
+  13: tcl_lsp_server::tests::closed_file_republish_does_not_memoise_the_deep_compiler_tier::{closure#0}
+  14: <tcl_lsp_server::tests::closed_file_republish_does_not_memoise_the_deep_compiler_tier::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+
+failures:
+    tests::closed_file_republish_does_not_memoise_the_deep_compiler_tier
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 839 filtered out; finished in 12.92s
+

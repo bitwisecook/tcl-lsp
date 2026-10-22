@@ -1,0 +1,131 @@
+test analyser::bounds_checks::configured_variable_geometry_tests::analytical_roots_and_scalar_names_never_truncate_or_accept_partial_braces ... ok
+test analyser::bounds_checks::configured_variable_geometry_tests::actual_condition_configuration_reaches_both_counter_projection_paths ... ok
+test analyser::bounds_checks::original_body_parser_purpose_tests::original_body_walk_keeps_leading_bom_as_command_content_at_each_depth ... ok
+test analyser::bounds_checks::selected_descriptor_metadata_tests::catalogue_bounds_selection_keeps_exact_rooted_descriptor_and_missing_geometry ... ok
+test analyser::bounds_checks::original_body_parser_purpose_tests::original_loop_body_and_step_parsers_keep_bom_as_command_content ... ok
+test analyser::bounds_checks::original_list_descent_purpose_tests::original_list_descent_keeps_file_bom_and_extracted_body_marks_distinct ... ok
+test analyser::bounds_checks::source_index::tests::original_index_advice_retains_availability_and_refuses_missing_foreign_or_stale_owners ... ok
+test analyser::bounds_checks::source_index::tests::original_index_subjects_keep_captured_ordinals_unicode_and_written_pair_geometry ... ok
+test analyser::bounds_checks::source_index::tests::original_index_supplemental_values_keep_literal_subjects_and_nested_list_paths ... ok
+test analyser::bounds_checks::tests::a_call_the_module_cannot_see_keeps_a_loop_silent ... FAILED
+test analyser::bounds_checks::source_index::tests::original_index_bounds_select_aliases_moves_and_reject_source_replacements ... ok
+test analyser::bounds_checks::tests::a_callback_that_writes_the_loop_variable_keeps_w241_silent ... ok
+test analyser::bounds_checks::tests::a_callback_the_scan_cannot_read_keeps_w241_silent ... FAILED
+test analyser::bounds_checks::tests::a_declared_loop_is_analysed_under_whatever_name_it_has ... ok
+test analyser::bounds_checks::tests::a_document_declaration_answers_the_loop_question_for_its_name ... ok
+test analyser::bounds_checks::tests::a_loop_test_decided_false_names_the_loop ... FAILED
+test analyser::bounds_checks::tests::a_command_an_arm_runs_that_ends_the_loop_keeps_w241_silent ... FAILED
+test analyser::bounds_checks::tests::a_switch_arm_that_starts_the_loop_keeps_w240_silent ... FAILED
+test analyser::bounds_checks::tests::a_switch_arm_that_writes_another_name_leaves_the_verdict ... FAILED
+test analyser::bounds_checks::tests::body_scans_are_command_structural ... ok
+test analyser::bounds_checks::tests::a_catch_body_or_a_computed_head_the_module_cannot_see_keeps_a_loop_silent ... FAILED
+test analyser::bounds_checks::tests::condition_constant_classifies ... ok
+test analyser::bounds_checks::tests::configured_bounds_scanners_cover_each_segmenter_site ... ok
+test analyser::bounds_checks::tests::dynamic_condition_is_silent ... ok
+test analyser::bounds_checks::tests::for_cond_parsers ... ok
+test analyser::bounds_checks::tests::a_switch_arm_that_ends_the_loop_keeps_w241_silent ... ok
+test analyser::bounds_checks::tests::index_helpers ... ok
+test analyser::bounds_checks::tests::bounds_checks_recurse_into_command_substitutions ... ok
+test analyser::bounds_checks::tests::pair_slice_empty_logic ... ok
+test analyser::bounds_checks::tests::loop_verdicts_agree_across_the_whole_file_and_per_item_walks ... FAILED
+test analyser::bounds_checks::tests::index_diagnostics_use_the_document_number_syntax ... ok
+test analyser::bounds_checks::tests::the_step_runs_its_route ... ok
+test analyser::bounds_checks::tests::shallow_bounds_metadata_retains_availability_without_default_catalogue_fallback ... ok
+test analyser::bounds_checks::tests::security_checks_recurse_into_command_substitutions ... ok
+test analyser::bounds_checks::tests::w230_single_element_nested_list_length ... ok
+test analyser::bounds_checks::tests::w230_lrange_lreplace_empty_slice ... ok
+test analyser::bounds_checks::tests::w230_list_index_out_of_range ... ok
+test analyser::bounds_checks::tests::w231_abstains_at_the_length_when_no_release_is_selected ... ok
+test analyser::bounds_checks::tests::w231_abstains_after_a_write_it_cannot_measure ... ok
+test analyser::bounds_checks::tests::w231_ignores_a_set_that_is_not_a_command ... ok
+test analyser::bounds_checks::tests::w231_length_not_recovered_across_scope_boundary ... ok
+test analyser::bounds_checks::tests::w231_end_plus_one_follows_the_release ... ok
+test analyser::bounds_checks::tests::w231_length_follows_the_cell_updates ... ok
+test analyser::bounds_checks::tests::w231_lset_index_past_append_slot ... ok
+test analyser::bounds_checks::tests::w231_list_length_recovered_inside_proc_body ... ok
+test analyser::bounds_checks::tests::w231_lset_negative_index_always_errors ... ok
+test analyser::bounds_checks::tests::w231_reads_an_appended_escape_as_tcl_substitutes_it ... ok
+test analyser::bounds_checks::tests::w231_recovers_a_length_the_line_anchored_scan_missed ... ok
+test analyser::bounds_checks::tests::w231_reports_across_a_sibling_definition ... ok
+test analyser::bounds_checks::tests::w231_silent_without_recoverable_length ... ok
+test analyser::bounds_checks::tests::w231_still_reports_a_real_overrun ... ok
+test analyser::bounds_checks::tests::w232_braced_literal_string_length ... ok
+test analyser::bounds_checks::tests::w231_uses_the_document_number_syntax ... ok
+test analyser::bounds_checks::tests::w232_string_index_out_of_range ... ok
+test analyser::bounds_checks::tests::w240_and_w241_read_the_branch_fact ... FAILED
+test analyser::bounds_checks::tests::w232_string_range_replace_empty_slice ... ok
+test analyser::bounds_checks::tests::w240_constant_false_condition ... ok
+test analyser::bounds_checks::tests::w231_reads_the_length_as_an_append_only_from_8_6 ... ok
+test analyser::bounds_checks::tests::w240_seeds_from_the_iteration_plan ... FAILED
+test analyser::bounds_checks::tests::w241_constant_true_no_exit ... ok
+test analyser::bounds_checks::tests::w241_for_loop_throw_tailcall_suppress ... ok
+test analyser::bounds_checks::tests::w241_for_step_provably_infinite ... FAILED
+test analyser::bounds_checks::tests::w242_counter_not_modified ... FAILED
+test analyser::bounds_checks::tests::w242_severity_is_hint ... FAILED
+test analyser::bounds_checks::tests::w242_silent_for_a_command_substitution_condition_even_when_nothing_is_modified ... ok
+test analyser::bounds_checks::tests::w242_silent_when_the_progress_variable_is_inside_a_command_substitution ... ok
+test analyser::bounds_checks::tests::w242_silent_when_counter_modified ... ok
+test analyser::bounds_checks::tests::w241_throw_and_tailcall_leave_the_loop ... ok
+---- analyser::bounds_checks::tests::a_call_the_module_cannot_see_keeps_a_loop_silent stdout ----
+thread 'analyser::bounds_checks::tests::a_call_the_module_cannot_see_keeps_a_loop_silent' (1314) panicked at rust/tcl-compiler/src/analyser/bounds_checks.rs:2803:9:
+assertion `left == right` failed: whole file: proc foo {} { puts hi }
+  left: []
+ right: ["W241"]
+---- analyser::bounds_checks::tests::a_callback_the_scan_cannot_read_keeps_w241_silent stdout ----
+thread 'analyser::bounds_checks::tests::a_callback_the_scan_cannot_read_keeps_w241_silent' (1347) panicked at rust/tcl-compiler/src/analyser/bounds_checks.rs:2803:9:
+assertion `left == right` failed: whole file: set done 0
+  left: []
+ right: ["W241"]
+---- analyser::bounds_checks::tests::a_loop_test_decided_false_names_the_loop stdout ----
+thread 'analyser::bounds_checks::tests::a_loop_test_decided_false_names_the_loop' (1363) panicked at rust/tcl-compiler/src/analyser/bounds_checks.rs:1711:9:
+assertion `left == right` failed
+  left: []
+ right: ["Loop condition '$n' is never true; the loop leaves at this test"]
+---- analyser::bounds_checks::tests::a_command_an_arm_runs_that_ends_the_loop_keeps_w241_silent stdout ----
+thread 'analyser::bounds_checks::tests::a_command_an_arm_runs_that_ends_the_loop_keeps_w241_silent' (1357) panicked at rust/tcl-compiler/src/analyser/bounds_checks.rs:2803:9:
+assertion `left == right` failed: whole file: proc hit {} {global hits; incr hits}
+  left: []
+ right: ["W241"]
+---- analyser::bounds_checks::tests::a_switch_arm_that_starts_the_loop_keeps_w240_silent stdout ----
+thread 'analyser::bounds_checks::tests::a_switch_arm_that_starts_the_loop_keeps_w240_silent' (1370) panicked at rust/tcl-compiler/src/analyser/bounds_checks.rs:2803:9:
+assertion `left == right` failed: whole file: set n 0
+  left: []
+ right: ["W240"]
+---- analyser::bounds_checks::tests::a_switch_arm_that_writes_another_name_leaves_the_verdict stdout ----
+thread 'analyser::bounds_checks::tests::a_switch_arm_that_writes_another_name_leaves_the_verdict' (1373) panicked at rust/tcl-compiler/src/analyser/bounds_checks.rs:2803:9:
+assertion `left == right` failed: whole file: set go 1
+  left: []
+ right: ["W241"]
+---- analyser::bounds_checks::tests::a_catch_body_or_a_computed_head_the_module_cannot_see_keeps_a_loop_silent stdout ----
+thread 'analyser::bounds_checks::tests::a_catch_body_or_a_computed_head_the_module_cannot_see_keeps_a_loop_silent' (1350) panicked at rust/tcl-compiler/src/analyser/bounds_checks.rs:2803:9:
+assertion `left == right` failed: whole file: proc foo {} { puts hi }
+  left: []
+ right: ["W241"]
+---- analyser::bounds_checks::tests::loop_verdicts_agree_across_the_whole_file_and_per_item_walks stdout ----
+thread 'analyser::bounds_checks::tests::loop_verdicts_agree_across_the_whole_file_and_per_item_walks' (1384) panicked at rust/tcl-compiler/src/analyser/bounds_checks.rs:1752:9:
+assertion `left == right` failed: []
+  left: []
+ right: ["W240", "W241", "W242", "W240"]
+---- analyser::bounds_checks::tests::w240_and_w241_read_the_branch_fact stdout ----
+thread 'analyser::bounds_checks::tests::w240_and_w241_read_the_branch_fact' (1421) panicked at rust/tcl-compiler/src/analyser/bounds_checks.rs:1649:9:
+assertion `left == right` failed
+  left: []
+ right: ["W240"]
+---- analyser::bounds_checks::tests::w240_seeds_from_the_iteration_plan stdout ----
+thread 'analyser::bounds_checks::tests::w240_seeds_from_the_iteration_plan' (1423) panicked at rust/tcl-compiler/src/analyser/bounds_checks.rs:2803:9:
+assertion `left == right` failed: whole file: set start 5
+  left: []
+ right: ["W241"]
+---- analyser::bounds_checks::tests::w241_for_step_provably_infinite stdout ----
+thread 'analyser::bounds_checks::tests::w241_for_step_provably_infinite' (1426) panicked at rust/tcl-compiler/src/analyser/bounds_checks.rs:1896:9:
+assertion `left == right` failed
+  left: []
+ right: ["W241"]
+---- analyser::bounds_checks::tests::w242_counter_not_modified stdout ----
+thread 'analyser::bounds_checks::tests::w242_counter_not_modified' (1428) panicked at rust/tcl-compiler/src/analyser/bounds_checks.rs:2541:9:
+assertion `left == right` failed
+  left: 0
+ right: 1
+---- analyser::bounds_checks::tests::w242_severity_is_hint stdout ----
+thread 'analyser::bounds_checks::tests::w242_severity_is_hint' (1429) panicked at rust/tcl-compiler/src/analyser/bounds_checks.rs:2617:14:
+test result: FAILED. 55 passed; 13 failed; 0 ignored; 0 measured; 10383 filtered out; finished in 86.94s

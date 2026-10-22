@@ -1,0 +1,74 @@
+test diagnostic_subject::tests::absent_malformed_future_or_wrong_code_payload_never_recreates_subject ... ok
+test diagnostic_subject::private_tcl_source_policy_wire_controls::unknown_helper_reports_unknown_lookup_without_reconstructing_selection ... ok
+test diagnostic_subject::conditional_user_signature_transport_controls::source_recipe_reporting_preserves_obligations_and_cannot_recreate_issuer ... ok
+test diagnostic_subject::tests::callback_alias_transport_keeps_capture_baked_and_suffix_premises ... FAILED
+test diagnostic_subject::tests::callback_signature_transport_retains_original_counts_and_source_purpose ... ok
+test diagnostic_subject::tests::conditional_visibility_transport_preserves_assumptions_without_message_parsing ... ok
+test diagnostic_subject::tests::constructor_source_subject_retains_count_and_purpose_without_messages ... ok
+test diagnostic_subject::tests::declared_source_transport_preserves_contract_purpose_and_provenance ... ok
+test diagnostic_subject::tests::declared_variable_name_transport_keeps_its_authored_purpose ... ok
+test diagnostic_subject::tests::constructor_transport_retains_distinct_source_applicability_obligations ... ok
+test diagnostic_subject::tests::lexical_next_arity_transport_retains_declaration_and_effective_count ... ok
+test diagnostic_subject::tests::original_callback_transport_keeps_unavailable_frame_and_registration_premises ... FAILED
+test diagnostic_subject::tests::original_channel_configuration_transport_keeps_selected_captured_option_values ... ok
+test diagnostic_subject::tests::original_credential_transport_keeps_captured_literals_separate_from_lexical_policy ... FAILED
+test diagnostic_subject::tests::math_transport_preserves_expression_kind_without_reconstructing_a_command ... ok
+test diagnostic_subject::tests::original_index_transport_preserves_captured_operand_purpose_without_message_names ... ok
+test diagnostic_subject::tests::original_crossing_transport_keeps_captured_ordinals_and_ignores_presentation ... FAILED
+test diagnostic_subject::tests::original_package_source_subject_transport_retains_selected_purpose_and_package ... ok
+test diagnostic_subject::tests::original_reparse_transport_keeps_both_selected_purposes_without_presentation_names ... FAILED
+test diagnostic_subject::tests::original_template_transport_keeps_selected_prefix_purpose_and_ignores_presentation ... ok
+test diagnostic_subject::tests::package_transport_ignores_message_and_fixes_but_retains_opaque_bytes ... ok
+test diagnostic_subject::tests::registered_instance_transport_retains_factory_and_applicability_without_message_identity ... ok
+test diagnostic_subject::tests::shape_advice_transport_keeps_original_purpose_and_operand_axes ... ok
+test diagnostic_subject::tests::original_path_transport_keeps_alias_ordinals_and_proven_value_premises ... FAILED
+test diagnostic_subject::tests::unavailable_command_transport_retains_the_original_purpose_without_messages ... FAILED
+test diagnostic_subject::tests::original_pattern_shape_transport_keeps_child_ancestry_and_value_premises ... FAILED
+test diagnostic_subject::tests::unresolved_transport_uses_the_emitting_original_source_owner ... ok
+---- diagnostic_subject::tests::callback_alias_transport_keeps_capture_baked_and_suffix_premises stdout ----
+thread 'diagnostic_subject::tests::callback_alias_transport_keeps_capture_baked_and_suffix_premises' (13696) panicked at rust/tcl-lsp-core/src/diagnostic_subject.rs:2037:9:
+assertion `left == right` failed
+  left: String("bindingPrefix")
+ right: "written"
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- diagnostic_subject::tests::original_callback_transport_keeps_unavailable_frame_and_registration_premises stdout ----
+thread 'diagnostic_subject::tests::original_callback_transport_keeps_unavailable_frame_and_registration_premises' (13728) panicked at rust/tcl-lsp-core/src/diagnostic_subject.rs:1463:14:
+authentic rooted source callback signature lookup
+
+---- diagnostic_subject::tests::original_credential_transport_keeps_captured_literals_separate_from_lexical_policy stdout ----
+
+thread 'diagnostic_subject::tests::original_credential_transport_keeps_captured_literals_separate_from_lexical_policy' (13734) panicked at rust/tcl-lsp-core/src/diagnostic_subject.rs:2260:14:
+captured credential metadata
+
+---- diagnostic_subject::tests::original_crossing_transport_keeps_captured_ordinals_and_ignores_presentation stdout ----
+
+thread 'diagnostic_subject::tests::original_crossing_transport_keeps_captured_ordinals_and_ignores_presentation' (13742) panicked at rust/tcl-lsp-core/src/diagnostic_subject.rs:2374:18:
+original crossing warning
+
+---- diagnostic_subject::tests::original_reparse_transport_keeps_both_selected_purposes_without_presentation_names stdout ----
+
+thread 'diagnostic_subject::tests::original_reparse_transport_keeps_both_selected_purposes_without_presentation_names' (13761) panicked at rust/tcl-lsp-core/src/diagnostic_subject.rs:2136:18:
+original selected reparse warning
+
+---- diagnostic_subject::tests::original_path_transport_keeps_alias_ordinals_and_proven_value_premises stdout ----
+
+thread 'diagnostic_subject::tests::original_path_transport_keeps_alias_ordinals_and_proven_value_premises' (13754) panicked at rust/tcl-lsp-core/src/diagnostic_subject.rs:2191:17:
+assertion `left == right` failed
+  left: Null
+ right: 0
+
+---- diagnostic_subject::tests::unavailable_command_transport_retains_the_original_purpose_without_messages stdout ----
+
+thread 'diagnostic_subject::tests::unavailable_command_transport_retains_the_original_purpose_without_messages' (13808) panicked at rust/tcl-lsp-core/src/diagnostic_subject.rs:1888:18:
+called `Option::unwrap()` on a `None` value
+
+---- diagnostic_subject::tests::original_pattern_shape_transport_keeps_child_ancestry_and_value_premises stdout ----
+
+thread 'diagnostic_subject::tests::original_pattern_shape_transport_keeps_child_ancestry_and_value_premises' (13756) panicked at rust/tcl-lsp-core/src/diagnostic_subject.rs:2319:18:
+original selected pattern
+
+
+failures:
+    diagnostic_subject::tests::callback_alias_transport_keeps_capture_baked_and_suffix_premises
+test result: FAILED. 19 passed; 8 failed; 0 ignored; 0 measured; 3458 filtered out; finished in 51.60s

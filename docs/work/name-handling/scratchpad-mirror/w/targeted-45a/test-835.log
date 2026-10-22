@@ -1,0 +1,25 @@
+
+running 1 test
+test model::namespace_ownership::tests::namespace_package_context_selects_real_rows_and_declines_foreign_release ... 
+thread 'model::namespace_ownership::tests::namespace_package_context_selects_real_rows_and_declines_foreign_release' (22929) panicked at rust/tcl-registry/src/model/namespace_ownership.rs:241:9:
+assertion `left == right` failed
+  left: None
+ right: Some("http")
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<core::option::Option<&str>, core::option::Option<&str>>
+   4: tcl_registry::model::namespace_ownership::tests::namespace_package_context_selects_real_rows_and_declines_foreign_release
+   5: tcl_registry::model::namespace_ownership::tests::namespace_package_context_selects_real_rows_and_declines_foreign_release::{closure#0}
+   6: <tcl_registry::model::namespace_ownership::tests::namespace_package_context_selects_real_rows_and_declines_foreign_release::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+FAILED
+
+failures:
+
+failures:
+    model::namespace_ownership::tests::namespace_package_context_selects_real_rows_and_declines_foreign_release
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1875 filtered out; finished in 0.54s
+

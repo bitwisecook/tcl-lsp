@@ -1,0 +1,22 @@
+
+running 1 test
+test command_binding::source_transition_advice::logical_body::tests::logical_empty_transition_recipe_keeps_residual_naming_writes_uncovered ... 
+thread 'command_binding::source_transition_advice::logical_body::tests::logical_empty_transition_recipe_keeps_residual_naming_writes_uncovered' (32217) panicked at rust/tcl-compiler/src/command_binding/source_transition_advice/logical_body.rs:1402:9:
+assertion failed: words_at(source, &analysis, "uplevel #0 {puts $x}").is_none()
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: tcl_compiler::command_binding::source_transition_advice::logical_body::tests::logical_empty_transition_recipe_keeps_residual_naming_writes_uncovered
+   4: tcl_compiler::command_binding::source_transition_advice::logical_body::tests::logical_empty_transition_recipe_keeps_residual_naming_writes_uncovered::{closure#0}
+   5: <tcl_compiler::command_binding::source_transition_advice::logical_body::tests::logical_empty_transition_recipe_keeps_residual_naming_writes_uncovered::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+FAILED
+
+failures:
+
+failures:
+    command_binding::source_transition_advice::logical_body::tests::logical_empty_transition_recipe_keeps_residual_naming_writes_uncovered
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 10440 filtered out; finished in 4.98s
+

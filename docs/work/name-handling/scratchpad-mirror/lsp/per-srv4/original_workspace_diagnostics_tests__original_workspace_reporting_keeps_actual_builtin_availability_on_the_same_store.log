@@ -1,0 +1,25 @@
+
+running 1 test
+test original_workspace_diagnostics_tests::original_workspace_reporting_keeps_actual_builtin_availability_on_the_same_store ... FAILED
+
+failures:
+
+---- original_workspace_diagnostics_tests::original_workspace_reporting_keeps_actual_builtin_availability_on_the_same_store stdout ----
+
+thread 'original_workspace_diagnostics_tests::original_workspace_reporting_keeps_actual_builtin_availability_on_the_same_store' (7891) panicked at rust/tcl-lsp-server/src/original_workspace_diagnostics_tests.rs:328:13:
+assertion failed: calls.resolved.contains(&(invocation.range.start(), invocation.range.end()))
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: tcl_lsp_server::original_workspace_diagnostics_tests::original_workspace_reporting_keeps_actual_builtin_availability_on_the_same_store
+   4: tcl_lsp_server::original_workspace_diagnostics_tests::original_workspace_reporting_keeps_actual_builtin_availability_on_the_same_store::{closure#0}
+   5: <tcl_lsp_server::original_workspace_diagnostics_tests::original_workspace_reporting_keeps_actual_builtin_availability_on_the_same_store::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+
+failures:
+    original_workspace_diagnostics_tests::original_workspace_reporting_keeps_actual_builtin_availability_on_the_same_store
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 839 filtered out; finished in 33.94s
+

@@ -1,0 +1,5 @@
+{"scheduled":"2026-10-19T14:06:00Z",
+ "change_since_previous_report":{"integrated_LSP":0,"total_baseline_delta":0,"effective_delta":0,"verified_complete":0},
+ "admissions":{},"candidates":{},
+ "merge_bar":"Inventory attempt 2 was also OOM-killed (cargo-nextest 13.5 GB at test ~2705/10444, in analyser::per_item while oversized-fixture tests ran; suspected: assert_eq on whole AnalysisResult values pretty-printing GBs on failure). Attempt 3 (inv3) runs with a watchdog that kills the highest-output test when nextest exceeds 3 GB and records it; tcl-compiler lib at 551/10444, 129 failures. Partial attempt-2 data (~2700 tests, ~700 failures, ~30%) is being clustered by Luna-37 (read-only); report target docs/work/name-handling/handoff/reviews/merge-inventory-20261019/. Early shape: (a) diagnostics on real source lose findings (e.g. W210 conditional unset), (b) unit tests calling process_command/dispatch_tokens without original source meet fail-closed. Awaiting user decision on dispatching CI (workflow_dispatch) on work for an exact inventory.",
+ "next_report_utc":"2026-10-19T14:44:00Z"}

@@ -1,0 +1,892 @@
+
+running 70 tests
+test command_return_type_clock_format_is_string ... FAILED
+test assign_local_slots_direct_api ... FAILED
+test command_return_type_format_is_string ... FAILED
+test command_return_type_clock_seconds_is_int ... FAILED
+test command_return_type_string_index_is_string ... FAILED
+test command_return_type_llength_is_int ... FAILED
+test command_return_type_string_is_is_boolean ... FAILED
+test command_return_type_string_length_is_int ... FAILED
+test command_return_type_string_toupper_is_string ... FAILED
+test cu_path_includes_top_level_key ... FAILED
+test cu_path_pure_local_needs_no_frame ... FAILED
+test cu_path_upvar_escapes_alias ... FAILED
+test dynamic_set_name_spills_all_known_locals ... FAILED
+test eval_dynamic_body_is_a_barrier ... FAILED
+test expr_arithmetic_over_untyped_var_is_numeric ... FAILED
+test expr_bitwise_and_shift_are_int ... FAILED
+test expr_ceil_is_double ... FAILED
+test expr_comparison_and_logical_are_boolean ... FAILED
+test expr_double_arithmetic_is_double ... FAILED
+test expr_integer_division_stays_int ... FAILED
+test expr_integer_arithmetic_is_int ... FAILED
+test expr_ternary_mixed_branches_join_to_numeric ... FAILED
+test expr_math_functions_infer_return_type ... FAILED
+test expr_unary_minus_preserves_operand_int ... FAILED
+test expr_unknown_function_is_numeric ... FAILED
+test frameless_builtin_call_keeps_local ... FAILED
+test global_alias_def_widens_to_overdefined ... FAILED
+test global_declared_var_escapes_to_frame ... FAILED
+test hex_and_binary_literals_are_int_octal_is_string ... FAILED
+test incr_result_is_int ... FAILED
+test info_exists_literal_escapes_just_that_name ... FAILED
+test info_body_in_proc_is_safe ... FAILED
+test info_level_forces_pessimistic_frame ... FAILED
+test info_vars_in_proc_forces_pessimism ... FAILED
+test interpolated_value_is_string ... FAILED
+test interprocedural_caller_inherits_upvar_pessimism ... FAILED
+test interprocedural_named_source_flows_to_caller ... FAILED
+test interprocedural_off_keeps_raw_intraprocedural_result ... FAILED
+test interprocedural_pure_leaf_downgrade_through_callees ... FAILED
+test literal_scalar_types ... FAILED
+test namespace_upvar_escapes_local_alias ... FAILED
+test plain_set_at_top_level_no_escape ... FAILED
+test pure_local_does_not_escape ... FAILED
+test pure_var_copy_inherits_source_type ... FAILED
+test scope_alias_def_widens_to_overdefined ... FAILED
+test slot_resolution_assigns_params_then_locals ... FAILED
+test slot_resolution_empty_for_pessimistic_proc ... FAILED
+test solve_interprocedural_escape_on_synthetic_summaries ... ok
+test subst_nocommands_array_ref_refuses ... ok
+test subst_nocommands_backslash_escapes_processed ... ok
+test subst_nocommands_braced_and_bare_var_resolve_same_entry ... ok
+test subst_nocommands_combination_of_features ... ok
+test subst_nocommands_complex_braced_name_refuses ... ok
+test subst_nocommands_dollar_dollar_kept_literal ... ok
+test subst_nocommands_leaves_brackets_literal_and_substitutes_var ... ok
+test subst_nocommands_missing_var_refuses ... ok
+test subst_nocommands_namespace_qualified_refuses ... ok
+test subst_nocommands_nested_brackets_kept_whole ... ok
+test subst_nocommands_stray_close_bracket_is_literal ... ok
+test subst_nocommands_unbalanced_bracket_is_literal ... ok
+test subst_nocommands_unicode_passthrough ... ok
+test summary_explicit_reason_passthrough_and_flags ... ok
+test summary_join_and_default_tag ... ok
+test summary_with_escapes_and_barrier_helpers ... ok
+test unknown_command_result_is_unknown ... ok
+test uplevel_non_zero_body_is_a_dynamic_barrier ... FAILED
+test upvar_escape_reason_is_upvar_source ... FAILED
+test upvar_escapes_local_alias_and_records_source ... FAILED
+test variable_declared_var_escapes_to_frame ... FAILED
+test info_subcommand_classification_sets ... ok
+
+failures:
+
+---- command_return_type_clock_format_is_string stdout ----
+
+thread 'command_return_type_clock_format_is_string' (18575) panicked at rust/tcl-compiler/tests/var_escape_typeinfer.rs:164:28:
+no type inferred for `t` in "set t [clock format 0]"
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: var_escape_typeinfer::ty::{closure#0}
+   3: <core::option::Option<tcl_registry::types::TclType>>::unwrap_or_else::<var_escape_typeinfer::ty::{closure#0}>
+   4: var_escape_typeinfer::ty
+   5: var_escape_typeinfer::command_return_type_clock_format_is_string
+   6: var_escape_typeinfer::command_return_type_clock_format_is_string::{closure#0}
+   7: <var_escape_typeinfer::command_return_type_clock_format_is_string::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- assign_local_slots_direct_api stdout ----
+
+thread 'assign_local_slots_direct_api' (18574) panicked at rust/tcl-compiler/tests/support/body_identity.rs:50:28:
+fixture body "::q" absent
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: var_escape_typeinfer::body_identity::fixture_id::<tcl_compiler::ir::Procedure, &tcl_compiler::ir::procedure_identity::ProcedureInventory>::{closure#0}
+   3: <core::option::Option<tcl_core_types::body_identity::ProcedureId>>::unwrap_or_else::<var_escape_typeinfer::body_identity::fixture_id<tcl_compiler::ir::Procedure, &tcl_compiler::ir::procedure_identity::ProcedureInventory>::{closure#0}>
+   4: var_escape_typeinfer::body_identity::fixture_id::<tcl_compiler::ir::Procedure, &tcl_compiler::ir::procedure_identity::ProcedureInventory>
+   5: var_escape_typeinfer::assign_local_slots_direct_api
+   6: var_escape_typeinfer::assign_local_slots_direct_api::{closure#0}
+   7: <var_escape_typeinfer::assign_local_slots_direct_api::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- command_return_type_format_is_string stdout ----
+
+thread 'command_return_type_format_is_string' (18590) panicked at rust/tcl-compiler/tests/var_escape_typeinfer.rs:164:28:
+no type inferred for `s` in "set s [format %d 5]"
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: var_escape_typeinfer::ty::{closure#0}
+   3: <core::option::Option<tcl_registry::types::TclType>>::unwrap_or_else::<var_escape_typeinfer::ty::{closure#0}>
+   4: var_escape_typeinfer::ty
+   5: var_escape_typeinfer::command_return_type_format_is_string
+   6: var_escape_typeinfer::command_return_type_format_is_string::{closure#0}
+   7: <var_escape_typeinfer::command_return_type_format_is_string::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- command_return_type_clock_seconds_is_int stdout ----
+
+thread 'command_return_type_clock_seconds_is_int' (18589) panicked at rust/tcl-compiler/tests/var_escape_typeinfer.rs:164:28:
+no type inferred for `t` in "set t [clock seconds]"
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: var_escape_typeinfer::ty::{closure#0}
+   3: <core::option::Option<tcl_registry::types::TclType>>::unwrap_or_else::<var_escape_typeinfer::ty::{closure#0}>
+   4: var_escape_typeinfer::ty
+   5: var_escape_typeinfer::command_return_type_clock_seconds_is_int
+   6: var_escape_typeinfer::command_return_type_clock_seconds_is_int::{closure#0}
+   7: <var_escape_typeinfer::command_return_type_clock_seconds_is_int::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- command_return_type_string_index_is_string stdout ----
+
+thread 'command_return_type_string_index_is_string' (18592) panicked at rust/tcl-compiler/tests/var_escape_typeinfer.rs:164:28:
+no type inferred for `i` in "set i [string index abc 0]"
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: var_escape_typeinfer::ty::{closure#0}
+   3: <core::option::Option<tcl_registry::types::TclType>>::unwrap_or_else::<var_escape_typeinfer::ty::{closure#0}>
+   4: var_escape_typeinfer::ty
+   5: var_escape_typeinfer::command_return_type_string_index_is_string
+   6: var_escape_typeinfer::command_return_type_string_index_is_string::{closure#0}
+   7: <var_escape_typeinfer::command_return_type_string_index_is_string::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- command_return_type_llength_is_int stdout ----
+
+thread 'command_return_type_llength_is_int' (18591) panicked at rust/tcl-compiler/tests/var_escape_typeinfer.rs:164:28:
+no type inferred for `n` in "set n [llength {a b c}]"
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: var_escape_typeinfer::ty::{closure#0}
+   3: <core::option::Option<tcl_registry::types::TclType>>::unwrap_or_else::<var_escape_typeinfer::ty::{closure#0}>
+   4: var_escape_typeinfer::ty
+   5: var_escape_typeinfer::command_return_type_llength_is_int
+   6: var_escape_typeinfer::command_return_type_llength_is_int::{closure#0}
+   7: <var_escape_typeinfer::command_return_type_llength_is_int::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- command_return_type_string_is_is_boolean stdout ----
+
+thread 'command_return_type_string_is_is_boolean' (18594) panicked at rust/tcl-compiler/tests/var_escape_typeinfer.rs:164:28:
+no type inferred for `b` in "set b [string is integer 5]"
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: var_escape_typeinfer::ty::{closure#0}
+   3: <core::option::Option<tcl_registry::types::TclType>>::unwrap_or_else::<var_escape_typeinfer::ty::{closure#0}>
+   4: var_escape_typeinfer::ty
+   5: var_escape_typeinfer::command_return_type_string_is_is_boolean
+   6: var_escape_typeinfer::command_return_type_string_is_is_boolean::{closure#0}
+   7: <var_escape_typeinfer::command_return_type_string_is_is_boolean::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- command_return_type_string_length_is_int stdout ----
+
+thread 'command_return_type_string_length_is_int' (18595) panicked at rust/tcl-compiler/tests/var_escape_typeinfer.rs:164:28:
+no type inferred for `n` in "set n [string length hello]"
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: var_escape_typeinfer::ty::{closure#0}
+   3: <core::option::Option<tcl_registry::types::TclType>>::unwrap_or_else::<var_escape_typeinfer::ty::{closure#0}>
+   4: var_escape_typeinfer::ty
+   5: var_escape_typeinfer::command_return_type_string_length_is_int
+   6: var_escape_typeinfer::command_return_type_string_length_is_int::{closure#0}
+   7: <var_escape_typeinfer::command_return_type_string_length_is_int::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- command_return_type_string_toupper_is_string stdout ----
+
+thread 'command_return_type_string_toupper_is_string' (18596) panicked at rust/tcl-compiler/tests/var_escape_typeinfer.rs:164:28:
+no type inferred for `u` in "set u [string toupper hi]"
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: var_escape_typeinfer::ty::{closure#0}
+   3: <core::option::Option<tcl_registry::types::TclType>>::unwrap_or_else::<var_escape_typeinfer::ty::{closure#0}>
+   4: var_escape_typeinfer::ty
+   5: var_escape_typeinfer::command_return_type_string_toupper_is_string
+   6: var_escape_typeinfer::command_return_type_string_toupper_is_string::{closure#0}
+   7: <var_escape_typeinfer::command_return_type_string_toupper_is_string::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- cu_path_includes_top_level_key stdout ----
+
+thread 'cu_path_includes_top_level_key' (18598) panicked at rust/tcl-compiler/tests/var_escape_typeinfer.rs:542:5:
+assertion failed: s.contains_key("::p")
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: var_escape_typeinfer::cu_path_includes_top_level_key
+   4: var_escape_typeinfer::cu_path_includes_top_level_key::{closure#0}
+   5: <var_escape_typeinfer::cu_path_includes_top_level_key::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- cu_path_pure_local_needs_no_frame stdout ----
+
+thread 'cu_path_pure_local_needs_no_frame' (18599) panicked at rust/tcl-compiler/tests/var_escape_typeinfer.rs:124:9:
+summary for ::pure not found; keys = [Top(ProcedureModuleId(12))]
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: var_escape_typeinfer::summary::{closure#0}
+   3: <core::option::Option<&tcl_compiler::var_escape::types::ProcEscapeSummary>>::unwrap_or_else::<var_escape_typeinfer::summary::{closure#0}>
+   4: var_escape_typeinfer::summary
+   5: var_escape_typeinfer::cu_path_pure_local_needs_no_frame
+   6: var_escape_typeinfer::cu_path_pure_local_needs_no_frame::{closure#0}
+   7: <var_escape_typeinfer::cu_path_pure_local_needs_no_frame::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- cu_path_upvar_escapes_alias stdout ----
+
+thread 'cu_path_upvar_escapes_alias' (18600) panicked at rust/tcl-compiler/tests/var_escape_typeinfer.rs:124:9:
+summary for ::setit not found; keys = [Top(ProcedureModuleId(14))]
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: var_escape_typeinfer::summary::{closure#0}
+   3: <core::option::Option<&tcl_compiler::var_escape::types::ProcEscapeSummary>>::unwrap_or_else::<var_escape_typeinfer::summary::{closure#0}>
+   4: var_escape_typeinfer::summary
+   5: var_escape_typeinfer::cu_path_upvar_escapes_alias
+   6: var_escape_typeinfer::cu_path_upvar_escapes_alias::{closure#0}
+   7: <var_escape_typeinfer::cu_path_upvar_escapes_alias::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- dynamic_set_name_spills_all_known_locals stdout ----
+
+thread 'dynamic_set_name_spills_all_known_locals' (18606) panicked at rust/tcl-compiler/tests/var_escape_typeinfer.rs:124:9:
+summary for ::dn not found; keys = [Top(ProcedureModuleId(15))]
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: var_escape_typeinfer::summary::{closure#0}
+   3: <core::option::Option<&tcl_compiler::var_escape::types::ProcEscapeSummary>>::unwrap_or_else::<var_escape_typeinfer::summary::{closure#0}>
+   4: var_escape_typeinfer::summary
+   5: var_escape_typeinfer::dynamic_set_name_spills_all_known_locals
+   6: var_escape_typeinfer::dynamic_set_name_spills_all_known_locals::{closure#0}
+   7: <var_escape_typeinfer::dynamic_set_name_spills_all_known_locals::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- eval_dynamic_body_is_a_barrier stdout ----
+
+thread 'eval_dynamic_body_is_a_barrier' (18607) panicked at rust/tcl-compiler/tests/var_escape_typeinfer.rs:124:9:
+summary for ::ev not found; keys = [Top(ProcedureModuleId(16))]
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: var_escape_typeinfer::summary::{closure#0}
+   3: <core::option::Option<&tcl_compiler::var_escape::types::ProcEscapeSummary>>::unwrap_or_else::<var_escape_typeinfer::summary::{closure#0}>
+   4: var_escape_typeinfer::summary
+   5: var_escape_typeinfer::eval_dynamic_body_is_a_barrier
+   6: var_escape_typeinfer::eval_dynamic_body_is_a_barrier::{closure#0}
+   7: <var_escape_typeinfer::eval_dynamic_body_is_a_barrier::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- expr_arithmetic_over_untyped_var_is_numeric stdout ----
+
+thread 'expr_arithmetic_over_untyped_var_is_numeric' (18608) panicked at rust/tcl-compiler/tests/var_escape_typeinfer.rs:1013:68:
+v typed
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::option::expect_failed
+   3: <core::option::Option<tcl_compiler::types::TypeLattice>>::expect
+   4: var_escape_typeinfer::expr_arithmetic_over_untyped_var_is_numeric
+   5: var_escape_typeinfer::expr_arithmetic_over_untyped_var_is_numeric::{closure#0}
+   6: <var_escape_typeinfer::expr_arithmetic_over_untyped_var_is_numeric::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- expr_bitwise_and_shift_are_int stdout ----
+
+thread 'expr_bitwise_and_shift_are_int' (18612) panicked at rust/tcl-compiler/tests/var_escape_typeinfer.rs:164:28:
+no type inferred for `r` in "set r [expr {5 & 3}]"
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: var_escape_typeinfer::ty::{closure#0}
+   3: <core::option::Option<tcl_registry::types::TclType>>::unwrap_or_else::<var_escape_typeinfer::ty::{closure#0}>
+   4: var_escape_typeinfer::ty
+   5: var_escape_typeinfer::expr_bitwise_and_shift_are_int
+   6: var_escape_typeinfer::expr_bitwise_and_shift_are_int::{closure#0}
+   7: <var_escape_typeinfer::expr_bitwise_and_shift_are_int::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- expr_ceil_is_double stdout ----
+
+thread 'expr_ceil_is_double' (18613) panicked at rust/tcl-compiler/tests/var_escape_typeinfer.rs:164:28:
+no type inferred for `v` in "set v [expr {ceil(3.1)}]"
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: var_escape_typeinfer::ty::{closure#0}
+   3: <core::option::Option<tcl_registry::types::TclType>>::unwrap_or_else::<var_escape_typeinfer::ty::{closure#0}>
+   4: var_escape_typeinfer::ty
+   5: var_escape_typeinfer::expr_ceil_is_double
+   6: var_escape_typeinfer::expr_ceil_is_double::{closure#0}
+   7: <var_escape_typeinfer::expr_ceil_is_double::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- expr_comparison_and_logical_are_boolean stdout ----
+
+thread 'expr_comparison_and_logical_are_boolean' (18615) panicked at rust/tcl-compiler/tests/var_escape_typeinfer.rs:164:28:
+no type inferred for `q` in "set q [expr {1 < 2}]"
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: var_escape_typeinfer::ty::{closure#0}
+   3: <core::option::Option<tcl_registry::types::TclType>>::unwrap_or_else::<var_escape_typeinfer::ty::{closure#0}>
+   4: var_escape_typeinfer::ty
+   5: var_escape_typeinfer::expr_comparison_and_logical_are_boolean
+   6: var_escape_typeinfer::expr_comparison_and_logical_are_boolean::{closure#0}
+   7: <var_escape_typeinfer::expr_comparison_and_logical_are_boolean::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- expr_double_arithmetic_is_double stdout ----
+
+thread 'expr_double_arithmetic_is_double' (18616) panicked at rust/tcl-compiler/tests/var_escape_typeinfer.rs:164:28:
+no type inferred for `d` in "set d [expr {1.0 + 2}]"
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: var_escape_typeinfer::ty::{closure#0}
+   3: <core::option::Option<tcl_registry::types::TclType>>::unwrap_or_else::<var_escape_typeinfer::ty::{closure#0}>
+   4: var_escape_typeinfer::ty
+   5: var_escape_typeinfer::expr_double_arithmetic_is_double
+   6: var_escape_typeinfer::expr_double_arithmetic_is_double::{closure#0}
+   7: <var_escape_typeinfer::expr_double_arithmetic_is_double::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- expr_integer_division_stays_int stdout ----
+
+thread 'expr_integer_division_stays_int' (18619) panicked at rust/tcl-compiler/tests/var_escape_typeinfer.rs:164:28:
+no type inferred for `q` in "set q [expr {1 / 2}]"
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: var_escape_typeinfer::ty::{closure#0}
+   3: <core::option::Option<tcl_registry::types::TclType>>::unwrap_or_else::<var_escape_typeinfer::ty::{closure#0}>
+   4: var_escape_typeinfer::ty
+   5: var_escape_typeinfer::expr_integer_division_stays_int
+   6: var_escape_typeinfer::expr_integer_division_stays_int::{closure#0}
+   7: <var_escape_typeinfer::expr_integer_division_stays_int::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- expr_integer_arithmetic_is_int stdout ----
+
+thread 'expr_integer_arithmetic_is_int' (18618) panicked at rust/tcl-compiler/tests/var_escape_typeinfer.rs:164:28:
+no type inferred for `i` in "set i [expr {3 + 4}]"
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: var_escape_typeinfer::ty::{closure#0}
+   3: <core::option::Option<tcl_registry::types::TclType>>::unwrap_or_else::<var_escape_typeinfer::ty::{closure#0}>
+   4: var_escape_typeinfer::ty
+   5: var_escape_typeinfer::expr_integer_arithmetic_is_int
+   6: var_escape_typeinfer::expr_integer_arithmetic_is_int::{closure#0}
+   7: <var_escape_typeinfer::expr_integer_arithmetic_is_int::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- expr_ternary_mixed_branches_join_to_numeric stdout ----
+
+thread 'expr_ternary_mixed_branches_join_to_numeric' (18626) panicked at rust/tcl-compiler/tests/var_escape_typeinfer.rs:992:64:
+v typed
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::option::expect_failed
+   3: <core::option::Option<tcl_compiler::types::TypeLattice>>::expect
+   4: var_escape_typeinfer::expr_ternary_mixed_branches_join_to_numeric
+   5: var_escape_typeinfer::expr_ternary_mixed_branches_join_to_numeric::{closure#0}
+   6: <var_escape_typeinfer::expr_ternary_mixed_branches_join_to_numeric::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- expr_math_functions_infer_return_type stdout ----
+
+thread 'expr_math_functions_infer_return_type' (18625) panicked at rust/tcl-compiler/tests/var_escape_typeinfer.rs:164:28:
+no type inferred for `v` in "set v [expr {sqrt(2.0)}]"
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: var_escape_typeinfer::ty::{closure#0}
+   3: <core::option::Option<tcl_registry::types::TclType>>::unwrap_or_else::<var_escape_typeinfer::ty::{closure#0}>
+   4: var_escape_typeinfer::ty
+   5: var_escape_typeinfer::expr_math_functions_infer_return_type
+   6: var_escape_typeinfer::expr_math_functions_infer_return_type::{closure#0}
+   7: <var_escape_typeinfer::expr_math_functions_infer_return_type::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- expr_unary_minus_preserves_operand_int stdout ----
+
+thread 'expr_unary_minus_preserves_operand_int' (18627) panicked at rust/tcl-compiler/tests/var_escape_typeinfer.rs:164:28:
+no type inferred for `v` in "set v [expr {-5}]"
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: var_escape_typeinfer::ty::{closure#0}
+   3: <core::option::Option<tcl_registry::types::TclType>>::unwrap_or_else::<var_escape_typeinfer::ty::{closure#0}>
+   4: var_escape_typeinfer::ty
+   5: var_escape_typeinfer::expr_unary_minus_preserves_operand_int
+   6: var_escape_typeinfer::expr_unary_minus_preserves_operand_int::{closure#0}
+   7: <var_escape_typeinfer::expr_unary_minus_preserves_operand_int::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- expr_unknown_function_is_numeric stdout ----
+
+thread 'expr_unknown_function_is_numeric' (18629) panicked at rust/tcl-compiler/tests/var_escape_typeinfer.rs:1004:70:
+v typed
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::option::expect_failed
+   3: <core::option::Option<tcl_compiler::types::TypeLattice>>::expect
+   4: var_escape_typeinfer::expr_unknown_function_is_numeric
+   5: var_escape_typeinfer::expr_unknown_function_is_numeric::{closure#0}
+   6: <var_escape_typeinfer::expr_unknown_function_is_numeric::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- frameless_builtin_call_keeps_local stdout ----
+
+thread 'frameless_builtin_call_keeps_local' (18633) panicked at rust/tcl-compiler/tests/var_escape_typeinfer.rs:124:9:
+summary for ::log not found; keys = [Top(ProcedureModuleId(39))]
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: var_escape_typeinfer::summary::{closure#0}
+   3: <core::option::Option<&tcl_compiler::var_escape::types::ProcEscapeSummary>>::unwrap_or_else::<var_escape_typeinfer::summary::{closure#0}>
+   4: var_escape_typeinfer::summary
+   5: var_escape_typeinfer::frameless_builtin_call_keeps_local
+   6: var_escape_typeinfer::frameless_builtin_call_keeps_local::{closure#0}
+   7: <var_escape_typeinfer::frameless_builtin_call_keeps_local::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- global_alias_def_widens_to_overdefined stdout ----
+
+thread 'global_alias_def_widens_to_overdefined' (18637) panicked at rust/tcl-compiler/tests/support/body_identity.rs:50:28:
+fixture body "::f" absent
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: var_escape_typeinfer::body_identity::fixture_id::<tcl_compiler::compilation_unit::FunctionUnit, &std::collections::hash::map::HashMap<tcl_core_types::body_identity::ProcedureId, tcl_compiler::compilation_unit::FunctionUnit>>::{closure#0}
+   3: <core::option::Option<tcl_core_types::body_identity::ProcedureId>>::unwrap_or_else::<var_escape_typeinfer::body_identity::fixture_id<tcl_compiler::compilation_unit::FunctionUnit, &std::collections::hash::map::HashMap<tcl_core_types::body_identity::ProcedureId, tcl_compiler::compilation_unit::FunctionUnit>>::{closure#0}>
+   4: var_escape_typeinfer::body_identity::fixture_id::<tcl_compiler::compilation_unit::FunctionUnit, &std::collections::hash::map::HashMap<tcl_core_types::body_identity::ProcedureId, tcl_compiler::compilation_unit::FunctionUnit>>
+   5: var_escape_typeinfer::global_alias_def_widens_to_overdefined
+   6: var_escape_typeinfer::global_alias_def_widens_to_overdefined::{closure#0}
+   7: <var_escape_typeinfer::global_alias_def_widens_to_overdefined::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- global_declared_var_escapes_to_frame stdout ----
+
+thread 'global_declared_var_escapes_to_frame' (18638) panicked at rust/tcl-compiler/tests/var_escape_typeinfer.rs:124:9:
+summary for ::bump not found; keys = [Top(ProcedureModuleId(41))]
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: var_escape_typeinfer::summary::{closure#0}
+   3: <core::option::Option<&tcl_compiler::var_escape::types::ProcEscapeSummary>>::unwrap_or_else::<var_escape_typeinfer::summary::{closure#0}>
+   4: var_escape_typeinfer::summary
+   5: var_escape_typeinfer::global_declared_var_escapes_to_frame
+   6: var_escape_typeinfer::global_declared_var_escapes_to_frame::{closure#0}
+   7: <var_escape_typeinfer::global_declared_var_escapes_to_frame::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- hex_and_binary_literals_are_int_octal_is_string stdout ----
+
+thread 'hex_and_binary_literals_are_int_octal_is_string' (18639) panicked at rust/tcl-compiler/tests/var_escape_typeinfer.rs:164:28:
+no type inferred for `x` in "set x 0x1f"
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: var_escape_typeinfer::ty::{closure#0}
+   3: <core::option::Option<tcl_registry::types::TclType>>::unwrap_or_else::<var_escape_typeinfer::ty::{closure#0}>
+   4: var_escape_typeinfer::ty
+   5: var_escape_typeinfer::hex_and_binary_literals_are_int_octal_is_string
+   6: var_escape_typeinfer::hex_and_binary_literals_are_int_octal_is_string::{closure#0}
+   7: <var_escape_typeinfer::hex_and_binary_literals_are_int_octal_is_string::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- incr_result_is_int stdout ----
+
+thread 'incr_result_is_int' (18641) panicked at rust/tcl-compiler/tests/var_escape_typeinfer.rs:164:28:
+no type inferred for `c` in "incr c"
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: var_escape_typeinfer::ty::{closure#0}
+   3: <core::option::Option<tcl_registry::types::TclType>>::unwrap_or_else::<var_escape_typeinfer::ty::{closure#0}>
+   4: var_escape_typeinfer::ty
+   5: var_escape_typeinfer::incr_result_is_int
+   6: var_escape_typeinfer::incr_result_is_int::{closure#0}
+   7: <var_escape_typeinfer::incr_result_is_int::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- info_exists_literal_escapes_just_that_name stdout ----
+
+thread 'info_exists_literal_escapes_just_that_name' (18643) panicked at rust/tcl-compiler/tests/var_escape_typeinfer.rs:124:9:
+summary for ::ie not found; keys = [Top(ProcedureModuleId(45))]
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: var_escape_typeinfer::summary::{closure#0}
+   3: <core::option::Option<&tcl_compiler::var_escape::types::ProcEscapeSummary>>::unwrap_or_else::<var_escape_typeinfer::summary::{closure#0}>
+   4: var_escape_typeinfer::summary
+   5: var_escape_typeinfer::info_exists_literal_escapes_just_that_name
+   6: var_escape_typeinfer::info_exists_literal_escapes_just_that_name::{closure#0}
+   7: <var_escape_typeinfer::info_exists_literal_escapes_just_that_name::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- info_body_in_proc_is_safe stdout ----
+
+thread 'info_body_in_proc_is_safe' (18642) panicked at rust/tcl-compiler/tests/var_escape_typeinfer.rs:124:9:
+summary for ::ib not found; keys = [Top(ProcedureModuleId(44))]
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: var_escape_typeinfer::summary::{closure#0}
+   3: <core::option::Option<&tcl_compiler::var_escape::types::ProcEscapeSummary>>::unwrap_or_else::<var_escape_typeinfer::summary::{closure#0}>
+   4: var_escape_typeinfer::summary
+   5: var_escape_typeinfer::info_body_in_proc_is_safe
+   6: var_escape_typeinfer::info_body_in_proc_is_safe::{closure#0}
+   7: <var_escape_typeinfer::info_body_in_proc_is_safe::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- info_level_forces_pessimistic_frame stdout ----
+
+thread 'info_level_forces_pessimistic_frame' (18644) panicked at rust/tcl-compiler/tests/var_escape_typeinfer.rs:124:9:
+summary for ::il not found; keys = [Top(ProcedureModuleId(46))]
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: var_escape_typeinfer::summary::{closure#0}
+   3: <core::option::Option<&tcl_compiler::var_escape::types::ProcEscapeSummary>>::unwrap_or_else::<var_escape_typeinfer::summary::{closure#0}>
+   4: var_escape_typeinfer::summary
+   5: var_escape_typeinfer::info_level_forces_pessimistic_frame
+   6: var_escape_typeinfer::info_level_forces_pessimistic_frame::{closure#0}
+   7: <var_escape_typeinfer::info_level_forces_pessimistic_frame::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- info_vars_in_proc_forces_pessimism stdout ----
+
+thread 'info_vars_in_proc_forces_pessimism' (18647) panicked at rust/tcl-compiler/tests/var_escape_typeinfer.rs:124:9:
+summary for ::iv not found; keys = [Top(ProcedureModuleId(48))]
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: var_escape_typeinfer::summary::{closure#0}
+   3: <core::option::Option<&tcl_compiler::var_escape::types::ProcEscapeSummary>>::unwrap_or_else::<var_escape_typeinfer::summary::{closure#0}>
+   4: var_escape_typeinfer::summary
+   5: var_escape_typeinfer::info_vars_in_proc_forces_pessimism
+   6: var_escape_typeinfer::info_vars_in_proc_forces_pessimism::{closure#0}
+   7: <var_escape_typeinfer::info_vars_in_proc_forces_pessimism::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- interpolated_value_is_string stdout ----
+
+thread 'interpolated_value_is_string' (18651) panicked at rust/tcl-compiler/tests/var_escape_typeinfer.rs:164:28:
+no type inferred for `x` in "set y 1\nset x foo$y"
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: var_escape_typeinfer::ty::{closure#0}
+   3: <core::option::Option<tcl_registry::types::TclType>>::unwrap_or_else::<var_escape_typeinfer::ty::{closure#0}>
+   4: var_escape_typeinfer::ty
+   5: var_escape_typeinfer::interpolated_value_is_string
+   6: var_escape_typeinfer::interpolated_value_is_string::{closure#0}
+   7: <var_escape_typeinfer::interpolated_value_is_string::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- interprocedural_caller_inherits_upvar_pessimism stdout ----
+
+thread 'interprocedural_caller_inherits_upvar_pessimism' (18652) panicked at rust/tcl-compiler/tests/var_escape_typeinfer.rs:124:9:
+summary for ::setit not found; keys = [Top(ProcedureModuleId(52))]
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: var_escape_typeinfer::summary::{closure#0}
+   3: <core::option::Option<&tcl_compiler::var_escape::types::ProcEscapeSummary>>::unwrap_or_else::<var_escape_typeinfer::summary::{closure#0}>
+   4: var_escape_typeinfer::summary
+   5: var_escape_typeinfer::interprocedural_caller_inherits_upvar_pessimism
+   6: var_escape_typeinfer::interprocedural_caller_inherits_upvar_pessimism::{closure#0}
+   7: <var_escape_typeinfer::interprocedural_caller_inherits_upvar_pessimism::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- interprocedural_named_source_flows_to_caller stdout ----
+
+thread 'interprocedural_named_source_flows_to_caller' (18655) panicked at rust/tcl-compiler/tests/var_escape_typeinfer.rs:124:9:
+summary for ::leaf not found; keys = [Top(ProcedureModuleId(53))]
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: var_escape_typeinfer::summary::{closure#0}
+   3: <core::option::Option<&tcl_compiler::var_escape::types::ProcEscapeSummary>>::unwrap_or_else::<var_escape_typeinfer::summary::{closure#0}>
+   4: var_escape_typeinfer::summary
+   5: var_escape_typeinfer::interprocedural_named_source_flows_to_caller
+   6: var_escape_typeinfer::interprocedural_named_source_flows_to_caller::{closure#0}
+   7: <var_escape_typeinfer::interprocedural_named_source_flows_to_caller::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- interprocedural_off_keeps_raw_intraprocedural_result stdout ----
+
+thread 'interprocedural_off_keeps_raw_intraprocedural_result' (18657) panicked at rust/tcl-compiler/tests/var_escape_typeinfer.rs:124:9:
+summary for ::wrap not found; keys = [Top(ProcedureModuleId(56))]
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: var_escape_typeinfer::summary::{closure#0}
+   3: <core::option::Option<&tcl_compiler::var_escape::types::ProcEscapeSummary>>::unwrap_or_else::<var_escape_typeinfer::summary::{closure#0}>
+   4: var_escape_typeinfer::summary
+   5: var_escape_typeinfer::interprocedural_off_keeps_raw_intraprocedural_result
+   6: var_escape_typeinfer::interprocedural_off_keeps_raw_intraprocedural_result::{closure#0}
+   7: <var_escape_typeinfer::interprocedural_off_keeps_raw_intraprocedural_result::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- interprocedural_pure_leaf_downgrade_through_callees stdout ----
+
+thread 'interprocedural_pure_leaf_downgrade_through_callees' (18661) panicked at rust/tcl-compiler/tests/var_escape_typeinfer.rs:124:9:
+summary for ::setit not found; keys = [Top(ProcedureModuleId(58))]
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: var_escape_typeinfer::summary::{closure#0}
+   3: <core::option::Option<&tcl_compiler::var_escape::types::ProcEscapeSummary>>::unwrap_or_else::<var_escape_typeinfer::summary::{closure#0}>
+   4: var_escape_typeinfer::summary
+   5: var_escape_typeinfer::interprocedural_pure_leaf_downgrade_through_callees
+   6: var_escape_typeinfer::interprocedural_pure_leaf_downgrade_through_callees::{closure#0}
+   7: <var_escape_typeinfer::interprocedural_pure_leaf_downgrade_through_callees::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- literal_scalar_types stdout ----
+
+thread 'literal_scalar_types' (18664) panicked at rust/tcl-compiler/tests/var_escape_typeinfer.rs:164:28:
+no type inferred for `x` in "set x 42"
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: var_escape_typeinfer::ty::{closure#0}
+   3: <core::option::Option<tcl_registry::types::TclType>>::unwrap_or_else::<var_escape_typeinfer::ty::{closure#0}>
+   4: var_escape_typeinfer::ty
+   5: var_escape_typeinfer::literal_scalar_types
+   6: var_escape_typeinfer::literal_scalar_types::{closure#0}
+   7: <var_escape_typeinfer::literal_scalar_types::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- namespace_upvar_escapes_local_alias stdout ----
+
+thread 'namespace_upvar_escapes_local_alias' (18665) panicked at rust/tcl-compiler/tests/var_escape_typeinfer.rs:124:9:
+summary for ::readit not found; keys = [Top(ProcedureModuleId(63))]
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: var_escape_typeinfer::summary::{closure#0}
+   3: <core::option::Option<&tcl_compiler::var_escape::types::ProcEscapeSummary>>::unwrap_or_else::<var_escape_typeinfer::summary::{closure#0}>
+   4: var_escape_typeinfer::summary
+   5: var_escape_typeinfer::namespace_upvar_escapes_local_alias
+   6: var_escape_typeinfer::namespace_upvar_escapes_local_alias::{closure#0}
+   7: <var_escape_typeinfer::namespace_upvar_escapes_local_alias::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- plain_set_at_top_level_no_escape stdout ----
+
+thread 'plain_set_at_top_level_no_escape' (18666) panicked at rust/tcl-compiler/tests/var_escape_typeinfer.rs:370:5:
+assertion `left == right` failed
+  left: Frame
+ right: Local
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<tcl_compiler::var_escape::types::EscapeTag, tcl_compiler::var_escape::types::EscapeTag>
+   4: var_escape_typeinfer::plain_set_at_top_level_no_escape
+   5: var_escape_typeinfer::plain_set_at_top_level_no_escape::{closure#0}
+   6: <var_escape_typeinfer::plain_set_at_top_level_no_escape::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- pure_local_does_not_escape stdout ----
+
+thread 'pure_local_does_not_escape' (18670) panicked at rust/tcl-compiler/tests/var_escape_typeinfer.rs:124:9:
+summary for ::pure not found; keys = [Top(ProcedureModuleId(67))]
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: var_escape_typeinfer::summary::{closure#0}
+   3: <core::option::Option<&tcl_compiler::var_escape::types::ProcEscapeSummary>>::unwrap_or_else::<var_escape_typeinfer::summary::{closure#0}>
+   4: var_escape_typeinfer::summary
+   5: var_escape_typeinfer::pure_local_does_not_escape
+   6: var_escape_typeinfer::pure_local_does_not_escape::{closure#0}
+   7: <var_escape_typeinfer::pure_local_does_not_escape::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- pure_var_copy_inherits_source_type stdout ----
+
+thread 'pure_var_copy_inherits_source_type' (18672) panicked at rust/tcl-compiler/tests/var_escape_typeinfer.rs:164:28:
+no type inferred for `y` in "set x 42\nset y $x"
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: var_escape_typeinfer::ty::{closure#0}
+   3: <core::option::Option<tcl_registry::types::TclType>>::unwrap_or_else::<var_escape_typeinfer::ty::{closure#0}>
+   4: var_escape_typeinfer::ty
+   5: var_escape_typeinfer::pure_var_copy_inherits_source_type
+   6: var_escape_typeinfer::pure_var_copy_inherits_source_type::{closure#0}
+   7: <var_escape_typeinfer::pure_var_copy_inherits_source_type::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- scope_alias_def_widens_to_overdefined stdout ----
+
+thread 'scope_alias_def_widens_to_overdefined' (18673) panicked at rust/tcl-compiler/tests/support/body_identity.rs:50:28:
+fixture body "::f" absent
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: var_escape_typeinfer::body_identity::fixture_id::<tcl_compiler::compilation_unit::FunctionUnit, &std::collections::hash::map::HashMap<tcl_core_types::body_identity::ProcedureId, tcl_compiler::compilation_unit::FunctionUnit>>::{closure#0}
+   3: <core::option::Option<tcl_core_types::body_identity::ProcedureId>>::unwrap_or_else::<var_escape_typeinfer::body_identity::fixture_id<tcl_compiler::compilation_unit::FunctionUnit, &std::collections::hash::map::HashMap<tcl_core_types::body_identity::ProcedureId, tcl_compiler::compilation_unit::FunctionUnit>>::{closure#0}>
+   4: var_escape_typeinfer::body_identity::fixture_id::<tcl_compiler::compilation_unit::FunctionUnit, &std::collections::hash::map::HashMap<tcl_core_types::body_identity::ProcedureId, tcl_compiler::compilation_unit::FunctionUnit>>
+   5: var_escape_typeinfer::scope_alias_def_widens_to_overdefined
+   6: var_escape_typeinfer::scope_alias_def_widens_to_overdefined::{closure#0}
+   7: <var_escape_typeinfer::scope_alias_def_widens_to_overdefined::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- slot_resolution_assigns_params_then_locals stdout ----
+
+thread 'slot_resolution_assigns_params_then_locals' (18677) panicked at rust/tcl-compiler/tests/var_escape_typeinfer.rs:124:9:
+summary for ::p not found; keys = [Top(ProcedureModuleId(72))]
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: var_escape_typeinfer::summary::{closure#0}
+   3: <core::option::Option<&tcl_compiler::var_escape::types::ProcEscapeSummary>>::unwrap_or_else::<var_escape_typeinfer::summary::{closure#0}>
+   4: var_escape_typeinfer::summary
+   5: var_escape_typeinfer::slot_resolution_assigns_params_then_locals
+   6: var_escape_typeinfer::slot_resolution_assigns_params_then_locals::{closure#0}
+   7: <var_escape_typeinfer::slot_resolution_assigns_params_then_locals::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- slot_resolution_empty_for_pessimistic_proc stdout ----
+
+thread 'slot_resolution_empty_for_pessimistic_proc' (18683) panicked at rust/tcl-compiler/tests/var_escape_typeinfer.rs:124:9:
+summary for ::p not found; keys = [Top(ProcedureModuleId(74))]
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: var_escape_typeinfer::summary::{closure#0}
+   3: <core::option::Option<&tcl_compiler::var_escape::types::ProcEscapeSummary>>::unwrap_or_else::<var_escape_typeinfer::summary::{closure#0}>
+   4: var_escape_typeinfer::summary
+   5: var_escape_typeinfer::slot_resolution_empty_for_pessimistic_proc
+   6: var_escape_typeinfer::slot_resolution_empty_for_pessimistic_proc::{closure#0}
+   7: <var_escape_typeinfer::slot_resolution_empty_for_pessimistic_proc::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- uplevel_non_zero_body_is_a_dynamic_barrier stdout ----
+
+thread 'uplevel_non_zero_body_is_a_dynamic_barrier' (18703) panicked at rust/tcl-compiler/tests/var_escape_typeinfer.rs:124:9:
+summary for ::setc not found; keys = [Top(ProcedureModuleId(78))]
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: var_escape_typeinfer::summary::{closure#0}
+   3: <core::option::Option<&tcl_compiler::var_escape::types::ProcEscapeSummary>>::unwrap_or_else::<var_escape_typeinfer::summary::{closure#0}>
+   4: var_escape_typeinfer::summary
+   5: var_escape_typeinfer::uplevel_non_zero_body_is_a_dynamic_barrier
+   6: var_escape_typeinfer::uplevel_non_zero_body_is_a_dynamic_barrier::{closure#0}
+   7: <var_escape_typeinfer::uplevel_non_zero_body_is_a_dynamic_barrier::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- upvar_escape_reason_is_upvar_source stdout ----
+
+thread 'upvar_escape_reason_is_upvar_source' (18706) panicked at rust/tcl-compiler/tests/var_escape_typeinfer.rs:124:9:
+summary for ::setit not found; keys = [Top(ProcedureModuleId(80))]
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: var_escape_typeinfer::summary::{closure#0}
+   3: <core::option::Option<&tcl_compiler::var_escape::types::ProcEscapeSummary>>::unwrap_or_else::<var_escape_typeinfer::summary::{closure#0}>
+   4: var_escape_typeinfer::summary
+   5: var_escape_typeinfer::upvar_escape_reason_is_upvar_source
+   6: var_escape_typeinfer::upvar_escape_reason_is_upvar_source::{closure#0}
+   7: <var_escape_typeinfer::upvar_escape_reason_is_upvar_source::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- upvar_escapes_local_alias_and_records_source stdout ----
+
+thread 'upvar_escapes_local_alias_and_records_source' (18708) panicked at rust/tcl-compiler/tests/var_escape_typeinfer.rs:124:9:
+summary for ::setit not found; keys = [Top(ProcedureModuleId(82))]
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: var_escape_typeinfer::summary::{closure#0}
+   3: <core::option::Option<&tcl_compiler::var_escape::types::ProcEscapeSummary>>::unwrap_or_else::<var_escape_typeinfer::summary::{closure#0}>
+   4: var_escape_typeinfer::summary
+   5: var_escape_typeinfer::upvar_escapes_local_alias_and_records_source
+   6: var_escape_typeinfer::upvar_escapes_local_alias_and_records_source::{closure#0}
+   7: <var_escape_typeinfer::upvar_escapes_local_alias_and_records_source::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- variable_declared_var_escapes_to_frame stdout ----
+
+thread 'variable_declared_var_escapes_to_frame' (18711) panicked at rust/tcl-compiler/tests/var_escape_typeinfer.rs:124:9:
+summary for ::get not found; keys = [Top(ProcedureModuleId(84))]
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: var_escape_typeinfer::summary::{closure#0}
+   3: <core::option::Option<&tcl_compiler::var_escape::types::ProcEscapeSummary>>::unwrap_or_else::<var_escape_typeinfer::summary::{closure#0}>
+   4: var_escape_typeinfer::summary
+   5: var_escape_typeinfer::variable_declared_var_escapes_to_frame
+   6: var_escape_typeinfer::variable_declared_var_escapes_to_frame::{closure#0}
+   7: <var_escape_typeinfer::variable_declared_var_escapes_to_frame::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+
+failures:
+    assign_local_slots_direct_api
+    command_return_type_clock_format_is_string
+    command_return_type_clock_seconds_is_int
+    command_return_type_format_is_string
+    command_return_type_llength_is_int
+    command_return_type_string_index_is_string
+    command_return_type_string_is_is_boolean
+    command_return_type_string_length_is_int
+    command_return_type_string_toupper_is_string
+    cu_path_includes_top_level_key
+    cu_path_pure_local_needs_no_frame
+    cu_path_upvar_escapes_alias
+    dynamic_set_name_spills_all_known_locals
+    eval_dynamic_body_is_a_barrier
+    expr_arithmetic_over_untyped_var_is_numeric
+    expr_bitwise_and_shift_are_int
+    expr_ceil_is_double
+    expr_comparison_and_logical_are_boolean
+    expr_double_arithmetic_is_double
+    expr_integer_arithmetic_is_int
+    expr_integer_division_stays_int
+    expr_math_functions_infer_return_type
+    expr_ternary_mixed_branches_join_to_numeric
+    expr_unary_minus_preserves_operand_int
+    expr_unknown_function_is_numeric
+    frameless_builtin_call_keeps_local
+    global_alias_def_widens_to_overdefined
+    global_declared_var_escapes_to_frame
+    hex_and_binary_literals_are_int_octal_is_string
+    incr_result_is_int
+    info_body_in_proc_is_safe
+    info_exists_literal_escapes_just_that_name
+    info_level_forces_pessimistic_frame
+    info_vars_in_proc_forces_pessimism
+    interpolated_value_is_string
+    interprocedural_caller_inherits_upvar_pessimism
+    interprocedural_named_source_flows_to_caller
+    interprocedural_off_keeps_raw_intraprocedural_result
+    interprocedural_pure_leaf_downgrade_through_callees
+    literal_scalar_types
+    namespace_upvar_escapes_local_alias
+    plain_set_at_top_level_no_escape
+    pure_local_does_not_escape
+    pure_var_copy_inherits_source_type
+    scope_alias_def_widens_to_overdefined
+    slot_resolution_assigns_params_then_locals
+    slot_resolution_empty_for_pessimistic_proc
+    uplevel_non_zero_body_is_a_dynamic_barrier
+    upvar_escape_reason_is_upvar_source
+    upvar_escapes_local_alias_and_records_source
+    variable_declared_var_escapes_to_frame
+
+test result: FAILED. 19 passed; 51 failed; 0 ignored; 0 measured; 0 filtered out; finished in 27.48s
+

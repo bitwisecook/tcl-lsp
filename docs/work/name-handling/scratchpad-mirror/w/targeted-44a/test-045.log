@@ -1,0 +1,6 @@
+
+running 1 test
+test command_binding::source_transition_advice::possible_occupant_alias_tests::caller_namespace_alias_refused_past_a_possible_occupant_keeps_the_registry_barrier ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 10440 filtered out; finished in 0.11s
+

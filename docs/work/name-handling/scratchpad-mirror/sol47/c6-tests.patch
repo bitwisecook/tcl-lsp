@@ -1,0 +1,94 @@
+diff --git a/rust/tcl-compiler/src/interprocedural.rs b/rust/tcl-compiler/src/interprocedural.rs
+index 945b136de5..281aa10a75 100644
+--- a/rust/tcl-compiler/src/interprocedural.rs
++++ b/rust/tcl-compiler/src/interprocedural.rs
+@@ -5443,11 +5443,13 @@ mod tests {
+     ) {
+         let environment = crate::environment_ingress::resolve_environment("tcl8.6");
+         let context = environment.default_context_registry();
+-        let unit = CompilationUnit::build_for_profile(
++        // Explicit Standalone authoring is the dialect-blind build (see
++        // `original_reference_unit`); a profiled build is a fresh document.
++        let unit = CompilationUnit::build_for_with_config(
+             "proc p {} {return ONE}; proc p {} {return TWO}",
+             context.commands(),
+             false,
+-            environment.unit_profile(),
++            tcl_lexer::LexerConfig::from_grammar(environment.unit_profile().grammar),
+         );
+         (context, unit)
+     }
+@@ -5541,11 +5543,13 @@ mod tests {
+                 .original_procedure_report_label(id, registry)
+                 .is_none()
+         );
+-        let other = CompilationUnit::build_for_profile(
++        // The foreign owner is the same explicit Standalone authoring build
++        // (`authored_report_unit`), retained under a different unit.
++        let other = CompilationUnit::build_for_with_config(
+             "proc p {} {return ONE}; proc p {} {return TWO}",
+             registry,
+             false,
+-            environment.unit_profile(),
++            tcl_lexer::LexerConfig::from_grammar(environment.unit_profile().grammar),
+         );
+         let foreign_id = *other
+             .ir_module
+@@ -7178,11 +7182,16 @@ mod tests {
+         let context =
+             tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+         let profile = context.commands().profile().unwrap();
++        // These fixtures pin explicit Standalone authoring (the retained
++        // `original_authored_declaration_body_units`). A profiled default
++        // build is a fresh-interpreter document (user decision
++        // 2026-10-19T14:20Z); Standalone authoring is the dialect-blind
++        // build, still profiled through its Registry and grammar.
+         let unit = CompilationUnit::build_with_options(
+             source,
+             crate::compilation_unit::UnitBuildOptions {
+                 registry: context.commands(),
+-                dialect: Some(profile),
++                dialect: None,
+                 config: tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+                 defer_top_level: false,
+                 external_call_sites: None,
+diff --git a/rust/tcl-compiler/tests/optimiser_coverage.rs b/rust/tcl-compiler/tests/optimiser_coverage.rs
+index d4cdf4cce3..8771306a20 100644
+--- a/rust/tcl-compiler/tests/optimiser_coverage.rs
++++ b/rust/tcl-compiler/tests/optimiser_coverage.rs
+@@ -987,8 +987,33 @@ fn o103_alias_resolved_proc_replacement_is_not_folded_as_the_original() {
+     let src = "proc p {} {return P}\nproc q {} {return Q}\n\
+                interp alias {} r {} rename\n\
+                r p oldp\nr q p\nset value [p]\n";
+-    assert!(opt_absent(src, TCL, "O103"));
+-    assert!(optimised(src, TCL).contains("set value [p]"));
++    // tclsh 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1.0 all set `value` to Q:
++    // `r` is an alias of `rename`, so `[p]` runs `q`'s body. A fresh-document
++    // build that follows the alias may fold the call, but only to Q; the
++    // original `p`'s P is never a valid answer (correction 2026-10-21: the
++    // former `O103 absent` check pinned the dialect-blind build, which could
++    // not see through the alias).
++    let registry = static_context_for(TCL).commands();
++    let profile = tcl_registry::model::ingress::resolve_environment(TCL).analyser_profile();
++    for o in optimise_with_dialect(src, registry, Some(profile))
++        .iter()
++        .filter(|o| o.code.as_str() == "O103")
++    {
++        assert_eq!(o.replacement, "Q", "{o:?}");
++    }
++    let out = optimised(src, TCL);
++    assert!(
++        out.contains("set value [p]") || out.contains("set value Q"),
++        "{out}"
++    );
++    assert!(!out.contains("set value P"), "{out}");
++    // An alias of a command that moves nothing leaves `p` the original:
++    // tclsh `interp alias {} r {} list` then `[p]` is P.
++    let listed = "proc p {} {return P}\nproc q {} {return Q}\n\
++                  interp alias {} r {} list\n\
++                  r p oldp\nr q p\nset value [p]\n";
++    let out = optimised(listed, TCL);
++    assert!(!out.contains("set value Q"), "{out}");
+ }
+ 
+ // O104 — fold string build chains

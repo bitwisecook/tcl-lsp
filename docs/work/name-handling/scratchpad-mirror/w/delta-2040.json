@@ -1,0 +1,6 @@
+{"scheduled":"2026-10-20T20:36:00Z",
+ "change_since_previous_report":{"integrated_LSP":0,"total_baseline_delta":0,"effective_delta":0,"verified_complete":0},
+ "admissions":{},
+ "in_progress":{"sol-44":"with_native_core migration (88 tcl-vm files); notes file written, completion not yet reported","sol-45":"cluster C (tcl-compiler 10, tcl-registry 7), uncommitted"},
+ "incident":"Disk reached 0 bytes free at ~20:36Z: a Sol-45 test log in scratchpad/sol45/res grew past 4 GB (unbounded failure output). Files > 500 MB there were truncated, restoring 4.3 GB; Sol-45 told to cap logs.",
+ "next_report_utc":"2026-10-20T21:10:00Z"}

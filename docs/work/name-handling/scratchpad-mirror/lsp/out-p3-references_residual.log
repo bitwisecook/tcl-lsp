@@ -1,0 +1,128 @@
+
+running 23 tests
+test bug_intra_class_bare_head_is_not_a_real_reference ... ok
+test bug_intra_class_my_method_call_sites_are_missed ... ok
+test document_highlights_dedup_keeps_write_over_read_on_collision ... FAILED
+test document_highlights_class_decl_and_instantiations_are_text ... ok
+test document_highlights_method_decl_and_external_site_all_text ... ok
+test document_highlights_unknown_word_is_empty ... ok
+test document_highlights_proc_decl_and_calls_are_text ... ok
+test document_highlights_var_marks_def_write_and_reads_read ... ok
+test document_highlights_var_out_of_scope_is_empty ... FAILED
+test references_class_from_qualified_name_at_decl_resolves ... ok
+test references_class_exclude_declaration_keeps_only_instantiations ... ok
+test references_class_includes_mixin_usage_in_other_class ... FAILED
+test references_class_includes_decl_and_every_instantiation ... ok
+test references_class_includes_superclass_usage_in_other_class ... FAILED
+test references_classmethod_decl_resolves_to_member ... FAILED
+test references_class_superclass_does_not_cross_a_namespace_collision ... FAILED
+test references_external_obj_method_inside_proc_body_subst ... FAILED
+test references_external_obj_method_two_instances_both_sites ... ok
+test references_method_with_empty_body_sibling_still_resolves ... ok
+test references_method_with_destructor_resolves_external_site ... ok
+test references_unknown_word_and_out_of_range_do_not_panic ... ok
+test references_property_decl_resolves_to_declaration_only ... ok
+test references_var_out_of_scope_is_empty ... ok
+
+failures:
+
+---- document_highlights_dedup_keeps_write_over_read_on_collision stdout ----
+
+thread 'document_highlights_dedup_keeps_write_over_read_on_collision' (9586) panicked at rust/tcl-lsp-core/tests/references_residual.rs:359:5:
+assertion `left == right` failed: the duplicate (start,end) collapses to one: []
+  left: 0
+ right: 1
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<usize, usize>
+   4: references_residual::document_highlights_dedup_keeps_write_over_read_on_collision
+   5: references_residual::document_highlights_dedup_keeps_write_over_read_on_collision::{closure#0}
+   6: <references_residual::document_highlights_dedup_keeps_write_over_read_on_collision::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- document_highlights_var_out_of_scope_is_empty stdout ----
+
+thread 'document_highlights_var_out_of_scope_is_empty' (9749) panicked at rust/tcl-lsp-core/tests/references_residual.rs:311:5:
+an unresolved `$var` must produce no highlights
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: references_residual::document_highlights_var_out_of_scope_is_empty
+   3: references_residual::document_highlights_var_out_of_scope_is_empty::{closure#0}
+   4: <references_residual::document_highlights_var_out_of_scope_is_empty::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- references_class_includes_mixin_usage_in_other_class stdout ----
+
+thread 'references_class_includes_mixin_usage_in_other_class' (9773) panicked at rust/tcl-lsp-core/tests/references_residual.rs:212:5:
+M decl missing: []
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: references_residual::references_class_includes_mixin_usage_in_other_class
+   3: references_residual::references_class_includes_mixin_usage_in_other_class::{closure#0}
+   4: <references_residual::references_class_includes_mixin_usage_in_other_class::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- references_class_includes_superclass_usage_in_other_class stdout ----
+
+thread 'references_class_includes_superclass_usage_in_other_class' (9778) panicked at rust/tcl-lsp-core/tests/references_residual.rs:184:5:
+`superclass Dog` usage (line 4) missing: [LspRange { start_line: 0, start_character: 17, end_line: 0, end_character: 20 }]
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: references_residual::references_class_includes_superclass_usage_in_other_class
+   3: references_residual::references_class_includes_superclass_usage_in_other_class::{closure#0}
+   4: <references_residual::references_class_includes_superclass_usage_in_other_class::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- references_classmethod_decl_resolves_to_member stdout ----
+
+thread 'references_classmethod_decl_resolves_to_member' (9817) panicked at rust/tcl-lsp-core/tests/references_residual.rs:503:5:
+classmethod declaration (line 1) must resolve; got []
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: references_residual::references_classmethod_decl_resolves_to_member
+   3: references_residual::references_classmethod_decl_resolves_to_member::{closure#0}
+   4: <references_residual::references_classmethod_decl_resolves_to_member::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- references_class_superclass_does_not_cross_a_namespace_collision stdout ----
+
+thread 'references_class_superclass_does_not_cross_a_namespace_collision' (9779) panicked at rust/tcl-lsp-core/tests/references_residual.rs:250:5:
+`superclass ::a::Base` usage (line 3) missing: [LspRange { start_line: 1, start_character: 21, end_line: 1, end_character: 25 }]
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: references_residual::references_class_superclass_does_not_cross_a_namespace_collision
+   3: references_residual::references_class_superclass_does_not_cross_a_namespace_collision::{closure#0}
+   4: <references_residual::references_class_superclass_does_not_cross_a_namespace_collision::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- references_external_obj_method_inside_proc_body_subst stdout ----
+
+thread 'references_external_obj_method_inside_proc_body_subst' (9850) panicked at rust/tcl-lsp-core/tests/references_residual.rs:452:5:
+`[$d bark]` inside the proc body (line 5) missing: [LspRange { start_line: 1, start_character: 11, end_line: 1, end_character: 15 }]
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: references_residual::references_external_obj_method_inside_proc_body_subst
+   3: references_residual::references_external_obj_method_inside_proc_body_subst::{closure#0}
+   4: <references_residual::references_external_obj_method_inside_proc_body_subst::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+
+failures:
+    document_highlights_dedup_keeps_write_over_read_on_collision
+    document_highlights_var_out_of_scope_is_empty
+    references_class_includes_mixin_usage_in_other_class
+    references_class_includes_superclass_usage_in_other_class
+    references_class_superclass_does_not_cross_a_namespace_collision
+    references_classmethod_decl_resolves_to_member
+    references_external_obj_method_inside_proc_body_subst
+
+test result: FAILED. 16 passed; 7 failed; 0 ignored; 0 measured; 0 filtered out; finished in 39.17s
+

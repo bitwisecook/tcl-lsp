@@ -1,0 +1,7 @@
+/home/user/tcl-lsp/target/debug/deps/call_hierarchy-d50effc0fd10a388
+/home/user/tcl-lsp/target/debug/deps/force_import_shadow_consumers-ae5400d2ca6737b1
+/home/user/tcl-lsp/target/debug/deps/inlay_hints-eb6d6804d318d2ef
+/home/user/tcl-lsp/target/debug/deps/references_residual-b55f97be62515db1
+/home/user/tcl-lsp/target/debug/deps/zz_lsp_agent_probe-98f795bb91b07cf8
+/home/user/tcl-lsp/target/debug/deps/hover_completion-a4a8cdad24a281bf
+/home/user/tcl-lsp/target/debug/deps/name_resolution-fe47bb73e8d4efab

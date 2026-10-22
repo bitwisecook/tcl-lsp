@@ -1,0 +1,25 @@
+
+running 1 test
+test package_resolver::reachability::tests::written_head_tests::authored_index_written_heads_keep_version_and_termination_conditions ... 
+thread 'package_resolver::reachability::tests::written_head_tests::authored_index_written_heads_keep_version_and_termination_conditions' (18561) panicked at rust/tcl-lsp-core/src/package_resolver/reachability/tests/written_head_tests.rs:57:5:
+assertion `left == right` failed
+  left: Conditional
+ right: Available
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<tcl_lsp_core::package_resolver::reachability::Availability, tcl_lsp_core::package_resolver::reachability::Availability>
+   4: tcl_lsp_core::package_resolver::reachability::tests::written_head_tests::authored_index_written_heads_keep_version_and_termination_conditions
+   5: tcl_lsp_core::package_resolver::reachability::tests::written_head_tests::authored_index_written_heads_keep_version_and_termination_conditions::{closure#0}
+   6: <tcl_lsp_core::package_resolver::reachability::tests::written_head_tests::authored_index_written_heads_keep_version_and_termination_conditions::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+FAILED
+
+failures:
+
+failures:
+    package_resolver::reachability::tests::written_head_tests::authored_index_written_heads_keep_version_and_termination_conditions
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 3483 filtered out; finished in 0.43s
+

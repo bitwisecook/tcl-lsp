@@ -1,0 +1,543 @@
+diff --git a/docs/design/analysis/name-resolution-proofs/optimiser-original-definition-resurrection-guard.md b/docs/design/analysis/name-resolution-proofs/optimiser-original-definition-resurrection-guard.md
+index 44611555ef..dd0724533f 100644
+--- a/docs/design/analysis/name-resolution-proofs/optimiser-original-definition-resurrection-guard.md
++++ b/docs/design/analysis/name-resolution-proofs/optimiser-original-definition-resurrection-guard.md
+@@ -12,7 +12,7 @@ How does optimiser finalisation retain authentic original definition operands an
+ 
+ ## Conclusion
+ 
+-elim_target_vars selects an actual original CFG statement and retained source binding under matching module source, lexer configuration and command store. normal_definition_reference_names consumes the selected normal definition/output arguments and canonical variable place owners, keeping quoted names, qualified heads, captured alias operands, literal dollar bytes and scalar-parenthesis values as selected values rather than reparsing reporting argv. Missing/foreign source, Registry/configuration, binding or required literal/output geometry declines definition-removal advice. drop_def_elims_resurrected_by_replacements excludes same atomic-group replacements from resurrection; a declined or resurrected deletion withdraws its complete atomic group. This guard protects final source removal proposals only; lexical source advice grants no Native rewrite, variable cell, executed frame, compiler instruction entry or end-to-end optimiser emission result.
++elim_target_vars selects an actual original CFG statement and retained source binding under matching module source, lexer configuration and command store, and, for a dead-structure removal (O112: a constant-false `if`, `while` or `for`), only among the statements the unit's solver proves executable (a complexity-guarded unit keeps every statement): a body the structure never enters defines nothing, so its removal withdraws no definition. Other removals, O107 included, keep every statement in the span. normal_definition_reference_names consumes the selected normal definition/output arguments and canonical variable place owners, keeping quoted names, qualified heads, captured alias operands, literal dollar bytes and scalar-parenthesis values as selected values rather than reparsing reporting argv. Missing/foreign source, Registry/configuration, binding or required literal/output geometry declines definition-removal advice. drop_def_elims_resurrected_by_replacements excludes same atomic-group replacements from resurrection; a declined or resurrected deletion withdraws its complete atomic group. This guard protects final source removal proposals only; lexical source advice grants no Native rewrite, variable cell, executed frame, compiler instruction entry or end-to-end optimiser emission result.
+ 
+ ## Scope
+ 
+diff --git a/docs/design/analysis/name-resolution-proofs/original-invocation-projection-memo.md b/docs/design/analysis/name-resolution-proofs/original-invocation-projection-memo.md
+index 4d3ad5cb6e..8116da30d8 100644
+--- a/docs/design/analysis/name-resolution-proofs/original-invocation-projection-memo.md
++++ b/docs/design/analysis/name-resolution-proofs/original-invocation-projection-memo.md
+@@ -16,7 +16,7 @@ One immutable realm owns a bounded cache of the shared original invocation query
+ 
+ ## Scope
+ 
+-At most256 point results are retained. Same immutable realm clones share; replacement realms start fresh. Derived cache state is excluded from equality. Mutable SourceBindings builders keep ordinary querying and no projection cache. Original token correspondence and current Input/lookup/CPP/Normal/frame obligations remain unchanged. Existing80/defaultstack selector is unchanged; timing/pass claims require actual execution.
++At most256 point results are retained per realm. A completed, read-only lowering body inventory (`RetainedSourceBodyInventory`) keeps the same exact-offset memo over its own complete inventory, bounded at 4096 point results, so stamping a nested body does not re-derive each inner point once per enclosing level; a selected child inventory owns a separate memo. Same immutable realm clones share; replacement realms start fresh. Derived cache state is excluded from equality. Mutable SourceBindings builders keep ordinary querying and no projection cache. Original token correspondence and current Input/lookup/CPP/Normal/frame obligations remain unchanged. Existing80/defaultstack selector is unchanged; timing/pass claims require actual execution.
+ 
+ ## Provider answers
+ 
+diff --git a/rust/tcl-compiler/src/cfg_builder/mod.rs b/rust/tcl-compiler/src/cfg_builder/mod.rs
+index 5d8e9891e1..92be22cfab 100644
+--- a/rust/tcl-compiler/src/cfg_builder/mod.rs
++++ b/rust/tcl-compiler/src/cfg_builder/mod.rs
+@@ -1400,9 +1400,14 @@ impl<'a> CfgBuilder<'a> {
+     /// ([`CODE_RUNNING_TRAITS`]), which the graph never lowers. A head whose
+     /// namespace the builder does not know is taken to.
+     fn head_is_unseen(&self, bindings: &ModuleCommandBindings, head: &str, args: &[&str]) -> bool {
+-        let Some(namespace) = self.invocation_namespace.for_head(head) else {
++        // The same identity-aware selector the frame projection reads
++        // ([`Self::variable_write_projection`]): a source-context frame (the
++        // fresh-interpreter entry's authored `::`) names its heads as an
++        // exact one does; only a receiver-selected relative head is unnamed.
++        let Some(namespace) = self.invocation_namespace.for_head_context(head) else {
+             return true;
+         };
++        let namespace = namespace.as_ref();
+         if bindings.has_unnameable_rebinding_subject()
+             || bindings.may_dispatch_unresolved(head, namespace)
+             || bindings.target_resolution_may_be_unknown(head, namespace)
+diff --git a/rust/tcl-compiler/src/codegen/mod.rs b/rust/tcl-compiler/src/codegen/mod.rs
+index 356ad2050e..de96d8d646 100644
+--- a/rust/tcl-compiler/src/codegen/mod.rs
++++ b/rust/tcl-compiler/src/codegen/mod.rs
+@@ -117,6 +117,15 @@ struct InlineLoopRegion {
+     break_target: String,
+ }
+ 
++/// The compiled locals of a script body's own compile, keyed by its text and
++/// re-lex configuration ([`CodegenCtx::intern_script_locals`]). One compile
++/// shares it with the nested compiles it makes for that purpose, so a body
++/// nested `n` deep is compiled for its locals once rather than once per
++/// enclosing level.
++pub(crate) type ScriptLocalsMemo = std::rc::Rc<
++    std::cell::RefCell<HashMap<(String, tcl_lexer::LexerConfig), std::rc::Rc<[String]>>>,
++>;
++
+ /// Mutable context for bytecode emission.
+ ///
+ /// Replaces `_Emitter` class-level state (`self.asm`,
+@@ -219,6 +228,8 @@ pub struct CodegenCtx<'r> {
+     pub(crate) label_positions: HashMap<String, usize>,
+     /// Monotonic counter for generating unique label names.
+     label_counter: u32,
++    /// [`ScriptLocalsMemo`] of this compile and the nested ones it makes.
++    script_locals_memo: ScriptLocalsMemo,
+     /// Whether we are compiling a proc body (affects LVT vs stack ops).
+     ///
+     /// This is the *function's* shape. It is not the same question as "may a
+@@ -458,6 +469,7 @@ impl<'r> CodegenCtx<'r> {
+             instructions: Vec::new(),
+             label_positions: HashMap::new(),
+             label_counter: 0,
++            script_locals_memo: ScriptLocalsMemo::default(),
+             is_proc,
+             same_frame_eval_spans: Vec::new(),
+             cmd_index: 0,
+diff --git a/rust/tcl-compiler/src/codegen/values.rs b/rust/tcl-compiler/src/codegen/values.rs
+index 15c9b213c4..01243831b9 100644
+--- a/rust/tcl-compiler/src/codegen/values.rs
++++ b/rust/tcl-compiler/src/codegen/values.rs
+@@ -747,29 +747,47 @@ impl CodegenCtx<'_> {
+             return;
+         }
+         let config = self.lexer_config();
+-        let ir = crate::lowering::lower_proc_body_module_for_bytecode(
+-            script,
+-            "",
+-            self.registry,
+-            config,
+-            self.dialect,
+-            false,
+-        );
+-        let cfg = crate::cfg_builder::build_cfg_codegen_with_registry_and_config(
+-            &ir,
+-            false,
+-            self.registry,
+-            config,
+-        );
+-        let asm = super::emitter::codegen_function(&cfg.top_level, &[], true, self.registry);
+-        for name in asm.lvt.entries() {
++        let key = (script.to_owned(), config.normalized());
++        let retained = self.script_locals_memo.borrow().get(&key).cloned();
++        let names = if let Some(names) = retained {
++            names
++        } else {
++            let ir = crate::lowering::lower_proc_body_module_for_bytecode(
++                script,
++                "",
++                self.registry,
++                config,
++                self.dialect,
++                false,
++            );
++            let cfg = crate::cfg_builder::build_cfg_codegen_with_registry_and_config(
++                &ir,
++                false,
++                self.registry,
++                config,
++            );
++            // The body's own compile shares this memo: its nested bodies'
++            // locals are the same ones this compile's nested bodies intern.
++            let mut nested = super::CodegenCtx::new(true, &[], self.registry);
++            nested.script_locals_memo = std::rc::Rc::clone(&self.script_locals_memo);
++            let asm = super::emitter::generate::generate(&mut nested, &cfg.top_level);
+             // Native local names need not be Unicode; such a local has no
+             // text spelling to intern here.
+-            if asm.lvt.is_source_local_bytes(name.as_bytes())
+-                && let Ok(name) = std::str::from_utf8(name.as_bytes())
+-            {
+-                self.intern_compiled_local(name);
+-            }
++            let names: std::rc::Rc<[String]> = asm
++                .lvt
++                .entries()
++                .iter()
++                .filter(|name| asm.lvt.is_source_local_bytes(name.as_bytes()))
++                .filter_map(|name| std::str::from_utf8(name.as_bytes()).ok())
++                .map(str::to_owned)
++                .collect();
++            self.script_locals_memo
++                .borrow_mut()
++                .insert(key, std::rc::Rc::clone(&names));
++            names
++        };
++        for name in names.iter() {
++            self.intern_compiled_local(name);
+         }
+     }
+ 
+diff --git a/rust/tcl-compiler/src/command_binding/retained_body_inventory.rs b/rust/tcl-compiler/src/command_binding/retained_body_inventory.rs
+index 83be4de24d..de89786880 100644
+--- a/rust/tcl-compiler/src/command_binding/retained_body_inventory.rs
++++ b/rust/tcl-compiler/src/command_binding/retained_body_inventory.rs
+@@ -46,6 +46,50 @@ impl Default for BodyProjectionMemo {
+     }
+ }
+ 
++/// Exact-offset original invocation projections of one completed inventory
++/// (`naming.source.original-invocation-projection-memo`). Lowering stamps every
++/// command's descendant points again for each enclosing token vector, so a
++/// nested body would otherwise re-derive each inner point once per enclosing
++/// level. The complete derived result is shared, never another interpretation.
++#[derive(Default)]
++struct InvocationProjectionMemo {
++    entries: Mutex<HashMap<u32, Arc<super::SourceInvocationBinding>>>,
++}
++
++/// Bound on retained point projections per completed body inventory.
++const MAX_RETAINED_INVOCATIONS: usize = 4096;
++
++impl InvocationProjectionMemo {
++    fn get_or_prepare(
++        &self,
++        offset: u32,
++        prepare: impl FnOnce() -> super::SourceInvocationBinding,
++    ) -> Arc<super::SourceInvocationBinding> {
++        // Implementation contract: naming.source.original-invocation-projection-memo
++        // docs/design/analysis/name-resolution-proofs/original-invocation-projection-memo.md
++        if let Some(retained) = self
++            .entries
++            .lock()
++            .unwrap_or_else(std::sync::PoisonError::into_inner)
++            .get(&offset)
++        {
++            return Arc::clone(retained);
++        }
++        let prepared = Arc::new(prepare());
++        let mut entries = self
++            .entries
++            .lock()
++            .unwrap_or_else(std::sync::PoisonError::into_inner);
++        if let Some(retained) = entries.get(&offset) {
++            return Arc::clone(retained);
++        }
++        if entries.len() < MAX_RETAINED_INVOCATIONS {
++            entries.insert(offset, Arc::clone(&prepared));
++        }
++        prepared
++    }
++}
++
+ /// A completed inventory used read-only by lowering. There is no mutable
+ /// projection or borrowed builder escape: every changed source interpretation
+ /// must construct a new owner, even when its text or namespace label is equal.
+@@ -54,6 +98,7 @@ pub(crate) struct RetainedSourceBodyInventory {
+     bindings: Arc<SourceCommandBindings>,
+     projections: Arc<BodyProjectionMemo>,
+     logical_realm: Arc<OnceLock<Option<crate::realm::CommandBindingRealm>>>,
++    invocations: Arc<InvocationProjectionMemo>,
+ }
+ 
+ impl std::fmt::Debug for RetainedSourceBodyInventory {
+@@ -70,6 +115,7 @@ impl From<SourceCommandBindings> for RetainedSourceBodyInventory {
+             bindings: Arc::new(bindings),
+             projections: Arc::default(),
+             logical_realm: Arc::default(),
++            invocations: Arc::default(),
+         }
+     }
+ }
+@@ -90,7 +136,14 @@ impl RetainedSourceBodyInventory {
+             crate::realm::original_logical_realm_from_source_bindings(&self.bindings)
+         }) {
+             Some(realm) => realm.stamp_original_tokens(tokens),
+-            None => self.bindings.stamp_original_tokens(tokens),
++            None => self
++                .bindings
++                .stamp_original_tokens_with_bindings(tokens, |offset| {
++                    self.invocations
++                        .get_or_prepare(offset, || self.bindings.invocation_at_source("", offset))
++                        .as_ref()
++                        .clone()
++                }),
+         }
+     }
+ 
+diff --git a/rust/tcl-compiler/src/compile_service.rs b/rust/tcl-compiler/src/compile_service.rs
+index 187c54aad5..871badb18a 100644
+--- a/rust/tcl-compiler/src/compile_service.rs
++++ b/rust/tcl-compiler/src/compile_service.rs
+@@ -311,7 +311,9 @@ impl BytecodeCompileService {
+             config,
+             profile,
+             plain_command_dispatch,
+-            Self::source_analysis_options(policy, registry, config, profile),
++            Some(Self::source_analysis_options(
++                policy, registry, config, profile,
++            )),
+         );
+         let mut ir = crate::inlining::inline_reference_bodies(ir, registry, config, profile);
+         ir.top_level_evaluation = target.evaluation;
+@@ -367,10 +369,13 @@ impl BytecodeCompileService {
+         registry: &CommandRegistry,
+         config: LexerConfig,
+         profile: Option<&'static DialectProfile>,
+-    ) -> Option<crate::command_binding::SourceAnalysisOptions<'a>> {
+-        if policy.scope == ModuleEmissionScope::WholeModule && policy.entry.is_none() {
+-            return None;
+-        }
++    ) -> crate::command_binding::SourceAnalysisOptions<'a> {
++        // A whole module compiled with no explicit entry is a document a
++        // fresh interpreter of its profile runs, as `tclsh file.tcl` does
++        // (user decision 2026-10-19T14:20Z): it takes that profile's
++        // authored entry, the same one whole-document analysis takes
++        // (`SourceAnalysisEntry::for_supplied_source`). A supplied runtime
++        // entry keeps its own facts, and an unknown one still refuses.
+         let mut options = policy.entry.map_or_else(
+             || crate::command_binding::SourceAnalysisOptions {
+                 invocation_realm: tcl_dialect::model::InvocationRealm::RuleLoader,
+@@ -383,7 +388,7 @@ impl BytecodeCompileService {
+             |entry| Self::native_entry_options(entry, profile),
+         );
+         options.compilation_scope = policy.scope;
+-        Some(options)
++        options
+     }
+ 
+     /// Select a measured interpreter lexical grammar for runtime compilation.
+@@ -424,12 +429,12 @@ impl BytecodeCompileService {
+             config,
+             Some(profile),
+             plain_command_dispatch,
+-            Self::source_analysis_options(
++            Some(Self::source_analysis_options(
+                 CompileSourcePolicy::entered(native_entry),
+                 registry,
+                 config,
+                 Some(profile),
+-            ),
++            )),
+         );
+         let ir = crate::inlining::inline_reference_bodies(ir, registry, config, Some(profile));
+         let prepared = prepare_cfg_context_bundle(&ir, registry);
+@@ -473,12 +478,12 @@ impl BytecodeCompileService {
+             config,
+             Some(profile),
+             plain,
+-            Self::source_analysis_options(
++            Some(Self::source_analysis_options(
+                 CompileSourcePolicy::entered(entry),
+                 registry,
+                 config,
+                 Some(profile),
+-            ),
++            )),
+         )
+         .map_err(native_word_compile_error)?;
+         let prepared = prepare_cfg_context_bundle(&ir, registry);
+@@ -517,12 +522,12 @@ impl BytecodeCompileService {
+             config,
+             Some(profile),
+             plain,
+-            Self::source_analysis_options(
++            Some(Self::source_analysis_options(
+                 CompileSourcePolicy::entered(entry),
+                 registry,
+                 config,
+                 Some(profile),
+-            ),
++            )),
+         )
+         .map_err(native_word_compile_error)?;
+         let prepared = prepare_cfg_context_bundle(&ir, registry);
+@@ -1867,7 +1872,7 @@ mod tests {
+                 config,
+                 Some(profile),
+                 false,
+-                options,
++                Some(options),
+             );
+             assert_eq!(ir.source_entry.compilation_scope, scope);
+             let entered = scope == ModuleEmissionScope::EnteredSource;
+@@ -1918,7 +1923,7 @@ mod tests {
+                 config,
+                 Some(profile),
+                 false,
+-                options,
++                Some(options),
+             );
+             let entered = scope == ModuleEmissionScope::EnteredSource;
+             assert_eq!(ir.procedures.is_empty(), entered);
+diff --git a/rust/tcl-compiler/src/dynamic_names.rs b/rust/tcl-compiler/src/dynamic_names.rs
+index 83c625a439..a77f254169 100644
+--- a/rust/tcl-compiler/src/dynamic_names.rs
++++ b/rust/tcl-compiler/src/dynamic_names.rs
+@@ -799,6 +799,33 @@ fn scan_call(
+         return;
+     };
+     if let Some(tokens) = tokens {
++        if !commands.standalone && tokens.carries_proved_names() {
++            // A definition point whose producer proved every name it writes
++            // (`CommandTokens::carries_proved_names`): iteration bindings,
++            // `[…]` word effects, condition kill-sets, upvar invalidation and
++            // arm writes. It runs no command of its own; the commands that
++            // produce its effects are scanned at their own statements.
++            return;
++        }
++        if !commands.standalone
++            && tokens.synthetic == Some(crate::ir::SyntheticMarker::EvaluatedArguments)
++        {
++            // A structured command's argument evaluation: its own head and
++            // bodies are separate statements and phases, so what it can do
++            // to names is what its written words' substitutions do, read
++            // under the argument-evaluation word owner.
++            if tokens
++                .source_binding
++                .as_ref()
++                .and_then(|binding| binding.original_argument_lexer_config(tokens))
++                .is_none_or(|original| original.normalized() != config.normalized())
++            {
++                *barrier = barrier.union(DynamicNameBarrier::OPAQUE_SCRIPT);
++                return;
++            }
++            scan_original_substitutions(tokens, commands, barrier, config);
++            return;
++        }
+         if !commands.standalone
+             && tokens
+                 .source_binding
+diff --git a/rust/tcl-compiler/src/optimiser/manager.rs b/rust/tcl-compiler/src/optimiser/manager.rs
+index b87f3a466e..f10eda84eb 100644
+--- a/rust/tcl-compiler/src/optimiser/manager.rs
++++ b/rust/tcl-compiler/src/optimiser/manager.rs
+@@ -269,6 +269,7 @@ fn elim_target_vars(
+     cu: &CompilationUnit,
+     registry: &CommandRegistry,
+     deletion: tcl_lexer::Span,
++    dead_structure: bool,
+ ) -> Option<Vec<String>> {
+     let module = &cu.ir_module;
+     if module.source.try_text().ok()? != cu.source
+@@ -276,20 +277,32 @@ fn elim_target_vars(
+     {
+         return None;
+     }
++    // A dead structure's removal (O112: a constant-false `if`, `while` or
++    // `for`) deletes a body the structure never enters. A statement the solver
++    // proves never runs defines nothing, so only reachable statements name
++    // the definitions such a removal withdraws.
+     let first = cu
+         .all_body_function_units()
+         .flat_map(|unit| {
+-            unit.cfg.blocks.iter().flat_map(move |(&block, data)| {
+-                data.statements
+-                    .iter()
+-                    .enumerate()
+-                    .filter_map(move |(index, _)| {
+-                        let span =
+-                            unit.abs_span(unit.cfg.statement_source_edit_span(block, index)?);
+-                        (deletion.start() <= span.start() && span.end() <= deletion.end())
+-                            .then_some((span, unit, block, index))
+-                    })
+-            })
++            unit.cfg
++                .blocks
++                .iter()
++                .filter(move |(block, _)| {
++                    !dead_structure
++                        || unit.complexity_guarded
++                        || unit.sccp.executable_blocks.contains(block)
++                })
++                .flat_map(move |(&block, data)| {
++                    data.statements
++                        .iter()
++                        .enumerate()
++                        .filter_map(move |(index, _)| {
++                            let span =
++                                unit.abs_span(unit.cfg.statement_source_edit_span(block, index)?);
++                            (deletion.start() <= span.start() && span.end() <= deletion.end())
++                                .then_some((span, unit, block, index))
++                        })
++                })
+         })
+         .min_by_key(|(span, _, _, _)| (span.start(), std::cmp::Reverse(span.len())));
+     let Some((_, unit, block, index)) = first else {
+@@ -378,11 +391,13 @@ fn drop_def_elims_resurrected_by_replacements(
+         .enumerate()
+         .filter(|(_, o)| o.replacement.trim().is_empty())
+         .map(|(i, o)| {
+-            let names = elim_target_vars(cu, registry, o.span).and_then(|names| {
+-                (!names.is_empty()
+-                    || !matches!(o.code, DiagCode::O109 | DiagCode::O125 | DiagCode::O126))
+-                .then_some(names)
+-            });
++            let names = elim_target_vars(cu, registry, o.span, o.code == DiagCode::O112).and_then(
++                |names| {
++                    (!names.is_empty()
++                        || !matches!(o.code, DiagCode::O109 | DiagCode::O125 | DiagCode::O126))
++                    .then_some(names)
++                },
++            );
+             (i, names)
+         })
+         .collect();
+@@ -1892,18 +1907,18 @@ mod tests {
+         );
+         let span = Span::new(0, u32::try_from(source.trim_end().len()).unwrap());
+         assert!(
+-            elim_target_vars(&cu, registry, span)
++            elim_target_vars(&cu, registry, span, false)
+                 .unwrap()
+                 .contains(&"b c".to_owned())
+         );
+         let mut stale = cu.clone();
+         stale.source.replace_range(..3, "put");
+-        assert_eq!(elim_target_vars(&stale, registry, span), None);
++        assert_eq!(elim_target_vars(&stale, registry, span, false), None);
+         let foreign = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+-        assert_eq!(elim_target_vars(&cu, foreign, span), None);
++        assert_eq!(elim_target_vars(&cu, foreign, span, false), None);
+         stale = cu.clone();
+         stale.ir_module.lexer_config.strict_quoting ^= true;
+-        assert_eq!(elim_target_vars(&stale, registry, span), None);
++        assert_eq!(elim_target_vars(&stale, registry, span, false), None);
+         stale = cu;
+         stale.top_level.cfg.command_binding_sites.clear();
+         for block in stale.top_level.cfg.blocks.values_mut() {
+@@ -1913,6 +1928,6 @@ mod tests {
+                 }
+             }
+         }
+-        assert_eq!(elim_target_vars(&stale, registry, span), None);
++        assert_eq!(elim_target_vars(&stale, registry, span, false), None);
+     }
+ }
+diff --git a/rust/tcl-compiler/src/word_expr.rs b/rust/tcl-compiler/src/word_expr.rs
+index a96f5d2189..f865495f80 100644
+--- a/rust/tcl-compiler/src/word_expr.rs
++++ b/rust/tcl-compiler/src/word_expr.rs
+@@ -183,13 +183,16 @@ fn localise(tok: Token, base: u32) -> Token {
+ }
+ 
+ /// Keep the typed expression component's full written extent in the bare run.
++/// The caller's map is reused: widening reads only its bytes, so building a
++/// fresh whole-buffer line index per word would cost the buffer's size for
++/// every word of every command.
+ fn original_run_end(
+-    source: &str,
++    sm: &SourceMap<'_>,
+     last: Token,
+-    base: u32,
+     config: LexerConfig,
+ ) -> Result<usize, &'static str> {
+-    let last_local = localise(last, base);
++    let source = sm.source();
++    let last_local = localise(last, sm.base_offset());
+     if last.kind == TokenType::ExprSugar {
+         Ok(tcl_lexer::word_parts::scan_expression_sugar(
+             source.as_bytes(),
+@@ -202,7 +205,7 @@ fn original_run_end(
+         let span = if last.kind == TokenType::Var {
+             tcl_lexer::word_span_at(source, last_local.span)
+         } else {
+-            tcl_lexer::word_span(&SourceMap::new(source), last_local)
++            tcl_lexer::word_span(sm, last_local)
+         };
+         Ok(span.end() as usize)
+     }
+@@ -217,7 +220,7 @@ fn original_word_span(
+     last: Token,
+ ) -> Result<Span, &'static str> {
+     let base = sm.base_offset();
+-    let mut end = original_run_end(sm.source(), last, base, config)?;
++    let mut end = original_run_end(sm, last, config)?;
+     let start = (first.span.start() - base) as usize;
+     if first.kind == TokenType::Esc
+         && first.content_offset == 1
+@@ -310,7 +313,7 @@ fn build(
+         i += 1;
+     }
+     if let Some(start) = run_start {
+-        let end = original_run_end(source, last, base, config)?;
++        let end = original_run_end(sm, last, config)?;
+         flush_run(&mut regions, source, config, Some(start), end)?;
+     }
+ 

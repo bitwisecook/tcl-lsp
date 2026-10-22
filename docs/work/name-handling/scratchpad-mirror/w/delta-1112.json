@@ -1,0 +1,9 @@
+{"scheduled":"2026-10-22T11:02:00Z",
+ "change_since_previous_report":{"integrated_LSP":0,"total_baseline_delta":0,"effective_delta":0,"verified_complete":0},
+ "admissions":{},
+ "committed":{"2d94063136":"current-state and continue-prompt brought up to date","5bc9b8e917":"per-agent outstanding-work files linked from current-state","f2ccb0f7d0..":"WIP snapshots"},
+ "external_review_triage":{"N17":"template FIXED; live hook abstains pending const-fold","N08":"FIXED","N07":"FIXED","N05":"refuses (completed-world gap); regression to add after R1","N15":"refuses server-side; regressions to add","remaining":"second batch queued"},
+ "new_issues":{"thread_exit_tls_panic":"tcl_vm value retirement touches destroyed TLS; aborts tcl-lsp-server lib process -> vm-runtime priority","tclIndex_cubic":"incomplete_body_metadata per-command re-parse -> perf batch"},
+ "in_progress":{"lsp":"active","compiler":"active","compiler-names":"active","compiler-codegen":"active","vm-runtime":"active","bigip-lsp":"active","perf":"active","review-triage":"active"},
+ "resources":"disk 1.8 GB, RAM 4 GB available, /dev/shm 2.6 GB",
+ "next_report_utc":"2026-10-22T11:43:00Z"}

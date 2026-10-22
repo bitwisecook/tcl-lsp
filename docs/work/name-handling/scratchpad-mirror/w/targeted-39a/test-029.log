@@ -1,0 +1,21 @@
+
+running 1 test
+test workspace_index::tests::resolve_wildcard_import_ignores_a_same_file_export_written_after_the_import ... 
+thread 'workspace_index::tests::resolve_wildcard_import_ignores_a_same_file_export_written_after_the_import' (6027) panicked at rust/tcl-lsp-core/src/workspace_index.rs:12052:9:
+an export written after the import in the same file must not apply retroactively: Some("::mymod::helper")
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: tcl_lsp_core::workspace_index::tests::resolve_wildcard_import_ignores_a_same_file_export_written_after_the_import
+   3: tcl_lsp_core::workspace_index::tests::resolve_wildcard_import_ignores_a_same_file_export_written_after_the_import::{closure#0}
+   4: <tcl_lsp_core::workspace_index::tests::resolve_wildcard_import_ignores_a_same_file_export_written_after_the_import::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+FAILED
+
+failures:
+
+failures:
+    workspace_index::tests::resolve_wildcard_import_ignores_a_same_file_export_written_after_the_import
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 3479 filtered out; finished in 1.72s
+

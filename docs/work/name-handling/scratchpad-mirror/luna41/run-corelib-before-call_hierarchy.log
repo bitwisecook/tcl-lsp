@@ -1,0 +1,207 @@
+test call_hierarchy::logical_call_target_tests::colon_bearing_members_and_equal_joined_titles_keep_actual_boundaries ... ok
+test call_hierarchy::logical_call_target_tests::cross_document_member_advice_selects_only_the_actual_side_frames ... ok
+test call_hierarchy::logical_call_target_tests::exact_declaration_owner_separates_procedure_member_and_member_side ... ok
+test call_hierarchy::logical_call_target_tests::class_selector_geometry_and_external_member_visibility_remain_independent ... FAILED
+test call_hierarchy::logical_call_target_tests::all_local_call_consumers_ignore_copied_reporting_labels ... FAILED
+test call_hierarchy::logical_call_target_tests::logical_workspace_member_provider_uses_current_source_owners_instead_of_labels ... ok
+test call_hierarchy::logical_call_target_tests::native_and_hosted_inputs_cannot_receive_a_logical_target_from_ranges ... ok
+test call_hierarchy::logical_call_target_tests::target_withdraws_missing_foreign_stale_ambiguous_and_non_declaration_owners ... ok
+test call_hierarchy::logical_method_source_candidate_tests::method_proc_source_candidates_keep_unknown_namespace_and_mutation_alternatives ... ok
+test call_hierarchy::logical_source::tests::actual_call_header_and_alias_history_survive_without_reporting_proc_maps ... ok
+test call_hierarchy::logical_method_source_candidate_tests::method_proc_source_candidates_preserve_duplicate_headers_and_class_occupancy ... ok
+test call_hierarchy::logical_source::tests::genuine_own_member_frame_and_selectors_keep_unrepresented_inherited_alternatives ... FAILED
+test call_hierarchy::logical_source::tests::genuine_cross_file_prepare_and_both_edge_directions_keep_header_and_caller_owners ... ok
+test call_hierarchy::logical_source::tests::bounded_call_kind_cannot_cast_native_type_unissued_or_rebound_consumer ... ok
+test call_hierarchy::logical_source::tests::independent_source_input_uri_and_original_operand_currency_are_required ... ok
+test call_hierarchy::logical_source::tests::original_unicode_cr_geometry_and_duplicate_providers_remain_possible_source_advice ... ok
+test call_hierarchy::logical_source::tests::root_requires_its_genuine_document_recipe_and_data_or_dynamic_heads_do_not_select ... ok
+test call_hierarchy::logical_source::tests::retained_call_target_reissues_consumer_and_declaring_source_under_wire_identity ... ok
+test call_hierarchy::method_original_lookup_operand_effect_tests::method_source_candidates_keep_pre_lookup_operand_effects_unresolved ... ok
+test call_hierarchy::original_source_context_tests::original_method_hierarchy_keeps_replaced_helpers_unresolved_and_withdraws_stale_source ... ok
+test call_hierarchy::tests::bare_class_dispatch_is_not_an_edge_to_a_same_named_instance_method ... ok
+test call_hierarchy::original_source_context_tests::original_method_hierarchy_uses_selected_helpers_and_same_source_frame ... ok
+test call_hierarchy::tests::bare_dispatch_on_a_same_named_proc_is_not_a_classmethod_edge ... ok
+test call_hierarchy::tests::classmethod_incoming_covers_lambda_and_namespace_eval_bodies ... FAILED
+test call_hierarchy::tests::classmethod_incoming_names_proc_callers_qualified ... FAILED
+test call_hierarchy::tests::cross_document_instance_hierarchy_includes_constructor_and_destructor_frames ... ok
+test call_hierarchy::logical_workspace_occurrence_tests::logical_outgoing_inventory_keeps_separate_scope_recipes_for_repeated_heads ... ok
+test call_hierarchy::tests::consumed_command_names_remain_references_without_becoming_calls ... FAILED
+test call_hierarchy::tests::deferred_command_prefixes_do_not_create_incoming_call_edges ... ok
+test call_hierarchy::tests::hierarchy_follows_one_hop_stored_my_callback ... FAILED
+test call_hierarchy::tests::hierarchy_follows_registry_wrapped_my_callback ... FAILED
+test call_hierarchy::tests::incoming_calls_excludes_bare_head_that_is_not_valid_tcl ... ok
+test call_hierarchy::tests::incoming_calls_for_an_itcl_class_proc_find_colon_qualified_dispatch ... FAILED
+test call_hierarchy::tests::incoming_calls_for_classmethod_find_bare_class_dispatch ... FAILED
+test call_hierarchy::tests::incoming_calls_finds_bare_call_from_two_level_nested_namespace ... ok
+test call_hierarchy::tests::incoming_calls_for_classmethod_include_an_instance_method_caller ... FAILED
+test call_hierarchy::tests::incoming_calls_for_method_grouped_by_caller_method ... ok
+test call_hierarchy::tests::incoming_calls_for_target_finds_callers_in_other_doc ... FAILED
+test call_hierarchy::tests::incoming_calls_for_method_nested_in_control_flow ... ok
+test call_hierarchy::tests::incoming_calls_for_target_no_self_skip_without_span ... FAILED
+test call_hierarchy::tests::incoming_calls_top_level_bucketed_as_top_level ... ok
+test call_hierarchy::tests::incoming_calls_from_other_procs ... ok
+test call_hierarchy::tests::incoming_calls_group_by_caller ... ok
+test call_hierarchy::tests::itcl_two_word_object_creation_is_not_a_call_hierarchy_edge ... ok
+test call_hierarchy::tests::original_hierarchy_preparation_keeps_variable_cursors_and_method_declarations_separate ... ok
+test call_hierarchy::tests::native_unresolved_source_heads_keep_actual_body_and_ignore_report_mutation ... ok
+test call_hierarchy::tests::outgoing_calls_does_not_conflate_method_and_classmethod_sharing_a_name ... ok
+test call_hierarchy::tests::incoming_calls_two_level_nested_namespace_does_not_leak_across_namespaces ... ok
+test call_hierarchy::tests::outgoing_calls_empty_for_unknown_proc ... ok
+test call_hierarchy::tests::outgoing_calls_from_an_itcl_class_proc_reach_the_sibling_class_proc ... FAILED
+test call_hierarchy::tests::outgoing_calls_from_classmethod_reach_bare_class_dispatch ... FAILED
+test call_hierarchy::tests::outgoing_calls_from_method_to_sibling_method ... ok
+test call_hierarchy::tests::outgoing_calls_from_method_nested_in_control_flow ... ok
+test call_hierarchy::tests::outgoing_calls_from_method_to_top_level_proc ... FAILED
+test call_hierarchy::tests::outgoing_calls_from_proc_body ... ok
+test call_hierarchy::tests::outgoing_calls_from_proc_reach_bare_class_dispatch ... FAILED
+test call_hierarchy::tests::outgoing_calls_separate_same_named_instance_method_and_classmethod ... FAILED
+test call_hierarchy::tests::prepare_resolves_classmethod_over_same_named_method_by_cursor ... FAILED
+test call_hierarchy::tests::prepare_resolves_method_at_cursor ... ok
+test call_hierarchy::tests::prepare_resolves_proc_at_cursor ... ok
+test call_hierarchy::tests::outgoing_calls_skip_builtins ... ok
+test call_hierarchy::tests::prepare_returns_empty_for_unknown_word ... ok
+test call_hierarchy::tests::unresolved_method_outgoing_calls_excludes_my_keyword ... ok
+test call_hierarchy::tests::unresolved_outgoing_calls_groups_repeated_heads ... ok
+test call_hierarchy::tests::unresolved_outgoing_calls_lists_non_local_heads ... ok
+test call_hierarchy::tests::same_named_procs_in_different_namespaces_disambiguate_by_span ... ok
+test original_call_hierarchy::own_object_call_tests::original_own_object_calls_and_references_keep_the_canonical_object_worker ... ok
+test original_call_hierarchy::external_procedure_advice_tests::original_root_call_reborrows_head_and_conditional_external_header ... ok
+test original_call_hierarchy::positioned_procedure_advice_tests::original_call_fallback_uses_genuine_positioned_source_advice_for_deferred_headers ... ok
+test original_call_hierarchy::positioned_procedure_advice_tests::original_call_fallback_does_not_restore_deleted_or_unknown_occupied_headers ... ok
+test original_call_hierarchy::external_procedure_advice_tests::external_root_header_preserves_occupants_deletions_and_unknowns ... ok
+test original_call_hierarchy::positioned_procedure_advice_tests::original_call_lookup_projection_must_match_the_genuine_current_call ... ok
+test original_call_hierarchy::positioned_procedure_advice_tests::original_call_prepare_requires_written_head_and_strict_current_position ... ok
+test original_call_hierarchy::positioned_procedure_advice_tests::original_call_ranges_follow_lsp_lone_cr_positions_after_exact_selection ... ok
+test original_call_hierarchy::tests::original_call_edges_keep_opaque_declarations_and_independent_source_owners ... ok
+test original_call_hierarchy::positioned_procedure_strong_reference_tests::original_call_reference_keeps_local_alias_target_and_builtin_occupancy_terminal ... ok
+test original_call_hierarchy::tests::original_math_navigation_and_reference_edges_share_expression_allocations ... ok
+---- call_hierarchy::logical_call_target_tests::class_selector_geometry_and_external_member_visibility_remain_independent stdout ----
+thread 'call_hierarchy::logical_call_target_tests::class_selector_geometry_and_external_member_visibility_remain_independent' (16206) panicked at rust/tcl-lsp-core/src/call_hierarchy.rs:3115:13:
+assertion `left == right` failed
+  left: 0
+ right: 1
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- call_hierarchy::logical_call_target_tests::all_local_call_consumers_ignore_copied_reporting_labels stdout ----
+thread 'call_hierarchy::logical_call_target_tests::all_local_call_consumers_ignore_copied_reporting_labels' (16205) panicked at rust/tcl-lsp-core/src/call_hierarchy.rs:3020:13:
+actual selected body must reach callee
+
+---- call_hierarchy::logical_source::tests::genuine_own_member_frame_and_selectors_keep_unrepresented_inherited_alternatives stdout ----
+
+thread 'call_hierarchy::logical_source::tests::genuine_own_member_frame_and_selectors_keep_unrepresented_inherited_alternatives' (16277) panicked at rust/tcl-lsp-core/src/call_hierarchy/logical_source.rs:1372:9:
+assertion `left == right` failed
+  left: ["::helper"]
+ right: ["::helper", "::C::known"]
+
+---- call_hierarchy::tests::classmethod_incoming_covers_lambda_and_namespace_eval_bodies stdout ----
+
+thread 'call_hierarchy::tests::classmethod_incoming_covers_lambda_and_namespace_eval_bodies' (16343) panicked at rust/tcl-lsp-core/src/call_hierarchy.rs:2753:9:
+assertion `left == right` failed: [IncomingCall { from: CallHierarchyItem { identity: Some(OriginalDeclarationIdentity { uri: "", image: SourceImage { bytes: [111, 111, 58, 58, 99, 108, 97, 115, 115, 32, 99, 114, 101, 97, 116, 101, 32, 70, 97, 99, 116, 111, 114, 121, 32, 123, 10, 32, 32, 32, 32, 99, 108, 97, 115, 115, 109, 101, 116, 104, 111, 100, 32, 109, 97, 107, 101, 32, 123, 125, 32, 123, 32, 114, 101, 116, 117, 114, 110, 32, 49, 32, 125, 10, 32, 32, 32, 32, 109, 101, 116, 104, 111, 100, 32, 105, 110, 115, 116, 32, 123, 125, 32, 123, 32, 97, 112, 112, 108, 121, 32, 123, 123, 125, 32, 123, 
+  left: ["<top-level>"]
+ right: ["::Factory::inst", "::Factory::nsev", "<top-level>"]
+
+---- call_hierarchy::tests::classmethod_incoming_names_proc_callers_qualified stdout ----
+
+thread 'call_hierarchy::tests::classmethod_incoming_names_proc_callers_qualified' (16344) panicked at rust/tcl-lsp-core/src/call_hierarchy.rs:2725:9:
+assertion `left == right` failed: []
+  left: []
+ right: ["::Factory::viaInstance", "::util::helper"]
+
+---- call_hierarchy::tests::consumed_command_names_remain_references_without_becoming_calls stdout ----
+
+thread 'call_hierarchy::tests::consumed_command_names_remain_references_without_becoming_calls' (16355) panicked at rust/tcl-lsp-core/src/call_hierarchy.rs:1958:9:
+assertion failed: references.iter().any(|invocation|
+        matches!(invocation.lookup,
+            tcl_compiler::signature_scan::types::SignatureCommandLookup::ConsumedName
+            { .. }))
+
+---- call_hierarchy::tests::hierarchy_follows_one_hop_stored_my_callback stdout ----
+thread 'call_hierarchy::tests::hierarchy_follows_one_hop_stored_my_callback' (16361) panicked at rust/tcl-lsp-core/src/call_hierarchy.rs:2200:9:
+assertion `left == right` failed: []
+  left: 0
+ right: 1
+
+---- call_hierarchy::tests::hierarchy_follows_registry_wrapped_my_callback stdout ----
+
+thread 'call_hierarchy::tests::hierarchy_follows_registry_wrapped_my_callback' (16364) panicked at rust/tcl-lsp-core/src/call_hierarchy.rs:2181:9:
+assertion `left == right` failed: []
+  left: 0
+ right: 1
+
+---- call_hierarchy::tests::incoming_calls_for_an_itcl_class_proc_find_colon_qualified_dispatch stdout ----
+
+thread 'call_hierarchy::tests::incoming_calls_for_an_itcl_class_proc_find_colon_qualified_dispatch' (16371) panicked at rust/tcl-lsp-core/src/call_hierarchy.rs:2579:9:
+assertion `left == right` failed: []
+  left: []
+ right: ["::Factory::build", "::Factory::viaInstance", "<top-level>"]
+
+---- call_hierarchy::tests::incoming_calls_for_classmethod_find_bare_class_dispatch stdout ----
+
+thread 'call_hierarchy::tests::incoming_calls_for_classmethod_find_bare_class_dispatch' (16372) panicked at rust/tcl-lsp-core/src/call_hierarchy.rs:2528:9:
+assertion `left == right` failed: [IncomingCall { from: CallHierarchyItem { identity: Some(OriginalDeclarationIdentity { uri: "", image: SourceImage { bytes: [111, 111, 58, 58, 99, 108, 97, 115, 115, 32, 99, 114, 101, 97, 116, 101, 32, 70, 97, 99, 116, 111, 114, 121, 32, 123, 10, 32, 32, 32, 32, 99, 108, 97, 115, 115, 109, 101, 116, 104, 111, 100, 32, 109, 97, 107, 101, 32, 123, 125, 32, 123, 32, 114, 101, 116, 117, 114, 110, 32, 49, 32, 125, 10, 32, 32, 32, 32, 99, 108, 97, 115, 115, 109, 101, 116, 104, 111, 100, 32, 98, 117, 105, 108, 100, 32, 123, 125, 32, 123, 32, 70, 97, 99, 116, 111, 114
+  left: ["<top-level>"]
+ right: ["::Factory::build", "<top-level>"]
+
+---- call_hierarchy::tests::incoming_calls_for_classmethod_include_an_instance_method_caller stdout ----
+
+thread 'call_hierarchy::tests::incoming_calls_for_classmethod_include_an_instance_method_caller' (16380) panicked at rust/tcl-lsp-core/src/call_hierarchy.rs:2637:9:
+assertion `left == right` failed: []
+  left: []
+ right: ["::Factory::viaInstance"]
+
+---- call_hierarchy::tests::incoming_calls_for_target_finds_callers_in_other_doc stdout ----
+
+thread 'call_hierarchy::tests::incoming_calls_for_target_finds_callers_in_other_doc' (16386) panicked at rust/tcl-lsp-core/src/call_hierarchy.rs:2413:9:
+[]
+
+---- call_hierarchy::tests::incoming_calls_for_target_no_self_skip_without_span stdout ----
+
+thread 'call_hierarchy::tests::incoming_calls_for_target_no_self_skip_without_span' (16387) panicked at rust/tcl-lsp-core/src/call_hierarchy.rs:2425:9:
+assertion `left == right` failed: []
+  left: 0
+ right: 1
+
+---- call_hierarchy::tests::outgoing_calls_from_an_itcl_class_proc_reach_the_sibling_class_proc stdout ----
+
+thread 'call_hierarchy::tests::outgoing_calls_from_an_itcl_class_proc_reach_the_sibling_class_proc' (16457) panicked at rust/tcl-lsp-core/src/call_hierarchy.rs:2601:9:
+assertion `left == right` failed: []
+  left: []
+ right: ["::Factory::make"]
+
+---- call_hierarchy::tests::outgoing_calls_from_classmethod_reach_bare_class_dispatch stdout ----
+
+thread 'call_hierarchy::tests::outgoing_calls_from_classmethod_reach_bare_class_dispatch' (16458) panicked at rust/tcl-lsp-core/src/call_hierarchy.rs:2555:9:
+assertion `left == right` failed: []
+  left: []
+ right: ["::Factory::make"]
+
+---- call_hierarchy::tests::outgoing_calls_from_method_to_top_level_proc stdout ----
+
+thread 'call_hierarchy::tests::outgoing_calls_from_method_to_top_level_proc' (16499) panicked at rust/tcl-lsp-core/src/call_hierarchy.rs:2380:9:
+assertion `left == right` failed: []
+  left: []
+ right: ["helper"]
+
+---- call_hierarchy::tests::outgoing_calls_from_proc_reach_bare_class_dispatch stdout ----
+
+thread 'call_hierarchy::tests::outgoing_calls_from_proc_reach_bare_class_dispatch' (16504) panicked at rust/tcl-lsp-core/src/call_hierarchy.rs:2669:9:
+assertion `left == right` failed: [IncomingCall { from: CallHierarchyItem { identity: Some(OriginalDeclarationIdentity { uri: "", image: SourceImage { bytes: [111, 111, 58, 58, 99, 108, 97, 115, 115, 32, 99, 114, 101, 97, 116, 101, 32, 70, 97, 99, 116, 111, 114, 121, 32, 123, 10, 32, 32, 32, 32, 99, 108, 97, 115, 115, 109, 101, 116, 104, 111, 100, 32, 109, 97, 107, 101, 32, 123, 125, 32, 123, 32, 114, 101, 116, 117, 114, 110, 32, 49, 32, 125, 10, 125, 10, 112, 114, 111, 99, 32, 98, 117, 105, 108, 100, 32, 123, 125, 32, 123, 32, 70, 97, 99, 116, 111, 114, 121, 32, 109, 97, 107, 101, 32, 125, 10
+  left: ["build"]
+ right: ["::build"]
+
+---- call_hierarchy::tests::outgoing_calls_separate_same_named_instance_method_and_classmethod stdout ----
+
+thread 'call_hierarchy::tests::outgoing_calls_separate_same_named_instance_method_and_classmethod' (16505) panicked at rust/tcl-lsp-core/src/call_hierarchy.rs:2695:9:
+assertion `left == right` failed: [OutgoingCall { to: CallHierarchyItem { identity: Some(OriginalDeclarationIdentity { uri: "", image: SourceImage { bytes: [111, 111, 58, 58, 99, 108, 97, 115, 115, 32, 99, 114, 101, 97, 116, 101, 32, 67, 32, 123, 10, 32, 32, 32, 32, 99, 108, 97, 115, 115, 109, 101, 116, 104, 111, 100, 32, 109, 97, 107, 101, 32, 123, 125, 32, 123, 32, 114, 101, 116, 117, 114, 110, 32, 49, 32, 125, 10, 32, 32, 32, 32, 109, 101, 116, 104, 111, 100, 32, 109, 97, 107, 101, 32, 123, 125, 32, 123, 32, 114, 101, 116, 117, 114, 110, 32, 50, 32, 125, 10, 32, 32, 32, 32, 109, 101, 116, 1
+  left: 1
+ right: 2
+
+---- call_hierarchy::tests::prepare_resolves_classmethod_over_same_named_method_by_cursor stdout ----
+
+thread 'call_hierarchy::tests::prepare_resolves_classmethod_over_same_named_method_by_cursor' (16512) panicked at rust/tcl-lsp-core/src/call_hierarchy.rs:2270:9:
+assertion `left == right` failed: [CallHierarchyItem { identity: Some(OriginalDeclarationIdentity { uri: "", image: SourceImage { bytes: [111, 111, 58, 58, 99, 108, 97, 115, 115, 32, 99, 114, 101, 97, 116, 101, 32, 67, 32, 123, 10, 32, 32, 32, 32, 109, 101, 116, 104, 111, 100, 32, 103, 114, 101, 101, 116, 32, 123, 125, 32, 123, 125, 10, 32, 32, 32, 32, 99, 108, 97, 115, 115, 109, 101, 116, 104, 111, 100, 32, 103, 114, 101, 101, 116, 32, 123, 125, 32, 123, 125, 10, 125, 10], channel: Document, geometry: SourceImageGeometry { byte_hash: 8263462733013302728, line_index: Some(LineIndex { line_star
+  left: Some("Source declaration")
+ right: Some("classmethod of ::C (0 params)")
+
+
+test result: FAILED. 58 passed; 19 failed; 0 ignored; 0 measured; 3408 filtered out; finished in 127.59s

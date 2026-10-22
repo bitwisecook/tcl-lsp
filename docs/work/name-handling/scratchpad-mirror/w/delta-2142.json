@@ -1,0 +1,6 @@
+{"scheduled":"2026-10-20T21:40:00Z",
+ "change_since_previous_report":{"integrated_LSP":0,"total_baseline_delta":0,"effective_delta":0,"verified_complete":0},
+ "admissions":{},
+ "in_progress":{"sol-44":"notes written (constructor migration compiler-enforced, embedders migrated, re-measurement done); final hand-back pending","sol-45":"notes and patch written: cluster C partial fix (authored C compilers for fixed-operand string members), C6 standalone builders publish ::f with 7 regressions not yet fixed, C2 helpers moved; final hand-back pending"},
+ "disk_free_gb":3.1,
+ "next_report_utc":"2026-10-20T22:12:00Z"}

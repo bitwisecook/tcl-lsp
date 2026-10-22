@@ -1,0 +1,5 @@
+source_graph:: test result: FAILED. 1 passed; 2 failed; 0 ignored; 0 measured; 10469 filtered out; finished in 4.88s
+signature_scan:: test result: FAILED. 190 passed; 7 failed; 0 ignored; 0 measured; 10275 filtered out; finished in 65.20s
+registry_invocation:: test result: FAILED. 212 passed; 75 failed; 0 ignored; 0 measured; 10185 filtered out; finished in 926.33s
+command_binding:: test result: FAILED. 862 passed; 319 failed; 0 ignored; 0 measured; 9291 filtered out; finished in 1309.93s
+ALL-DONE

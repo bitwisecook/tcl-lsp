@@ -1,0 +1,325 @@
+
+running 26 tests
+test a_class_without_its_variable_dictionary_is_an_arity_error ... ok
+test a_class_records_the_variables_its_dictionary_names ... FAILED
+test a_derived_class_inherits_its_bases_variables ... FAILED
+test a_method_body_can_construct_its_own_class ... FAILED
+test a_method_body_sees_the_instance_variables_and_self ... FAILED
+test a_raw_two_word_proc_is_a_method_without_the_class_variables ... FAILED
+test a_jim_program_draws_no_findings ... FAILED
+test a_static_is_a_local_of_the_body_and_no_argument ... ok
+test a_static_adds_nothing_to_the_arity ... ok
+test a_tcl_document_has_no_jim_class ... FAILED
+test a_tcl_document_still_rejects_the_four_word_proc ... ok
+test a_three_word_proc_is_the_plain_form ... ok
+test a_two_word_proc_written_before_its_class_is_a_method ... FAILED
+test an_object_is_typed_by_its_class_and_its_member_set_is_open ... FAILED
+test an_odd_variable_dictionary_is_an_argument_shape_error ... FAILED
+test a_two_element_proc_name_defines_a_two_word_command_in_every_dialect ... FAILED
+test every_static_spelling_declares_its_name ... ok
+test loop_is_flagged_under_tcl_and_accepted_under_jim ... FAILED
+test only_a_computed_base_list_leaves_the_inheritance_unknown ... FAILED
+test only_a_bare_or_ampersand_static_reads_the_enclosing_variable ... FAILED
+test the_body_of_a_proc_with_statics_is_walked ... FAILED
+test the_edges_of_a_static_list ... ok
+test the_signature_scan_reads_the_four_word_definition ... FAILED
+test the_signature_scan_reads_the_three_word_definition_under_tcl ... ok
+test the_signature_scan_records_a_jim_class_with_or_without_bases ... ok
+test the_same_program_under_tcl_is_rejected ... FAILED
+
+failures:
+
+---- a_class_records_the_variables_its_dictionary_names stdout ----
+
+thread 'a_class_records_the_variables_its_dictionary_names' (804) panicked at rust/tcl-spectcl/tests/jim_document.rs:253:9:
+assertion `left == right` failed: # tcl-dialect: jim
+class Point {x 0 y 0}
+puts [Point new]
+
+  left: [(W123, "Point")]
+ right: []
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<alloc::vec::Vec<(tcl_core_types::diag_code::DiagCode, alloc::string::String)>, alloc::vec::Vec<(tcl_core_types::diag_code::DiagCode, alloc::string::String)>>
+   4: jim_document::a_class_records_the_variables_its_dictionary_names
+   5: jim_document::a_class_records_the_variables_its_dictionary_names::{closure#0}
+   6: <jim_document::a_class_records_the_variables_its_dictionary_names::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- a_derived_class_inherits_its_bases_variables stdout ----
+
+thread 'a_derived_class_inherits_its_bases_variables' (965) panicked at rust/tcl-spectcl/tests/jim_document.rs:268:5:
+assertion `left == right` failed
+  left: []
+ right: ["Point"]
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<alloc::vec::Vec<alloc::string::String>, [&str; 1]>
+   4: jim_document::a_derived_class_inherits_its_bases_variables
+   5: jim_document::a_derived_class_inherits_its_bases_variables::{closure#0}
+   6: <jim_document::a_derived_class_inherits_its_bases_variables::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- a_method_body_can_construct_its_own_class stdout ----
+
+thread 'a_method_body_can_construct_its_own_class' (975) panicked at rust/tcl-spectcl/tests/jim_document.rs:379:9:
+assertion `left == right` failed: # tcl-dialect: jim
+class Point {x 0}
+Point method clone {} { set copy [Point new]
+ return [$copy clone] }
+
+  left: [(W123, "Point")]
+ right: []
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<alloc::vec::Vec<(tcl_core_types::diag_code::DiagCode, alloc::string::String)>, alloc::vec::Vec<(tcl_core_types::diag_code::DiagCode, alloc::string::String)>>
+   4: jim_document::a_method_body_can_construct_its_own_class
+   5: jim_document::a_method_body_can_construct_its_own_class::{closure#0}
+   6: <jim_document::a_method_body_can_construct_its_own_class::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- a_method_body_sees_the_instance_variables_and_self stdout ----
+
+thread 'a_method_body_sees_the_instance_variables_and_self' (978) panicked at rust/tcl-spectcl/tests/jim_document.rs:322:9:
+the body is walked: # tcl-dialect: jim
+class Point {x 0 y 0}
+class Point3 Point {z 0}
+Point method norm {} { return [expr {abs($x) + abs($y)}] }
+Point3 method who {} { not_a_command_anywhere $self $x $z }
+
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: jim_document::a_method_body_sees_the_instance_variables_and_self
+   3: jim_document::a_method_body_sees_the_instance_variables_and_self::{closure#0}
+   4: <jim_document::a_method_body_sees_the_instance_variables_and_self::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- a_raw_two_word_proc_is_a_method_without_the_class_variables stdout ----
+
+thread 'a_raw_two_word_proc_is_a_method_without_the_class_variables' (1011) panicked at rust/tcl-spectcl/tests/jim_document.rs:350:5:
+assertion failed: result.all_classes["::Point"].methods.contains_key("move")
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: jim_document::a_raw_two_word_proc_is_a_method_without_the_class_variables
+   4: jim_document::a_raw_two_word_proc_is_a_method_without_the_class_variables::{closure#0}
+   5: <jim_document::a_raw_two_word_proc_is_a_method_without_the_class_variables::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- a_jim_program_draws_no_findings stdout ----
+
+thread 'a_jim_program_draws_no_findings' (974) panicked at rust/tcl-spectcl/tests/jim_document.rs:456:9:
+assertion `left == right` failed: # tcl-dialect: jim
+class system {model ""}
+proc {system model} {} {{model ""}} {
+    return $model
+}
+loop i 0 3 { puts $i }
+sleep 0.1
+set s [system new]
+puts [$s model]
+
+  left: [(W307, "$s")]
+ right: []
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<alloc::vec::Vec<(tcl_core_types::diag_code::DiagCode, alloc::string::String)>, alloc::vec::Vec<(tcl_core_types::diag_code::DiagCode, alloc::string::String)>>
+   4: jim_document::a_jim_program_draws_no_findings
+   5: jim_document::a_jim_program_draws_no_findings::{closure#0}
+   6: <jim_document::a_jim_program_draws_no_findings::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- a_tcl_document_has_no_jim_class stdout ----
+
+thread 'a_tcl_document_has_no_jim_class' (1016) panicked at rust/tcl-spectcl/tests/jim_document.rs:523:5:
+[(W123, "class")]
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: jim_document::a_tcl_document_has_no_jim_class
+   3: jim_document::a_tcl_document_has_no_jim_class::{closure#0}
+   4: <jim_document::a_tcl_document_has_no_jim_class::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- a_two_word_proc_written_before_its_class_is_a_method stdout ----
+
+thread 'a_two_word_proc_written_before_its_class_is_a_method' (1085) panicked at rust/tcl-spectcl/tests/jim_document.rs:363:9:
+per_item=false
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: jim_document::a_two_word_proc_written_before_its_class_is_a_method
+   3: jim_document::a_two_word_proc_written_before_its_class_is_a_method::{closure#0}
+   4: <jim_document::a_two_word_proc_written_before_its_class_is_a_method::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- an_object_is_typed_by_its_class_and_its_member_set_is_open stdout ----
+
+thread 'an_object_is_typed_by_its_class_and_its_member_set_is_open' (1086) panicked at rust/tcl-spectcl/tests/jim_document.rs:398:43:
+no entry found for key
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::option::expect_failed
+   3: <std::collections::hash::map::HashMap<alloc::string::String, alloc::string::String> as core::ops::index::Index<&str>>::index
+   4: jim_document::an_object_is_typed_by_its_class_and_its_member_set_is_open
+   5: jim_document::an_object_is_typed_by_its_class_and_its_member_set_is_open::{closure#0}
+   6: <jim_document::an_object_is_typed_by_its_class_and_its_member_set_is_open::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- an_odd_variable_dictionary_is_an_argument_shape_error stdout ----
+
+thread 'an_odd_variable_dictionary_is_an_argument_shape_error' (1087) panicked at rust/tcl-spectcl/tests/jim_document.rs:293:9:
+assertion `left == right` failed: # tcl-dialect: jim
+class P {x 0 y}
+
+  left: []
+ right: [(E005, "{x 0 y}")]
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<alloc::vec::Vec<(tcl_core_types::diag_code::DiagCode, alloc::string::String)>, alloc::vec::Vec<(tcl_core_types::diag_code::DiagCode, alloc::string::String)>>
+   4: jim_document::an_odd_variable_dictionary_is_an_argument_shape_error
+   5: jim_document::an_odd_variable_dictionary_is_an_argument_shape_error::{closure#0}
+   6: <jim_document::an_odd_variable_dictionary_is_an_argument_shape_error::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- a_two_element_proc_name_defines_a_two_word_command_in_every_dialect stdout ----
+
+thread 'a_two_element_proc_name_defines_a_two_word_command_in_every_dialect' (1084) panicked at rust/tcl-spectcl/tests/jim_document.rs:413:9:
+assertion `left == right` failed: jim: [(E002, "{a b}")]
+  left: [E002]
+ right: [W123, E002]
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<alloc::vec::Vec<tcl_core_types::diag_code::DiagCode>, [tcl_core_types::diag_code::DiagCode; 2]>
+   4: jim_document::a_two_element_proc_name_defines_a_two_word_command_in_every_dialect
+   5: jim_document::a_two_element_proc_name_defines_a_two_word_command_in_every_dialect::{closure#0}
+   6: <jim_document::a_two_element_proc_name_defines_a_two_word_command_in_every_dialect::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- loop_is_flagged_under_tcl_and_accepted_under_jim stdout ----
+
+thread 'loop_is_flagged_under_tcl_and_accepted_under_jim' (1091) panicked at rust/tcl-spectcl/tests/jim_document.rs:493:5:
+assertion `left == right` failed: [(W123, "loop")]
+  left: 0
+ right: 2
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<usize, usize>
+   4: jim_document::loop_is_flagged_under_tcl_and_accepted_under_jim
+   5: jim_document::loop_is_flagged_under_tcl_and_accepted_under_jim::{closure#0}
+   6: <jim_document::loop_is_flagged_under_tcl_and_accepted_under_jim::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- only_a_computed_base_list_leaves_the_inheritance_unknown stdout ----
+
+thread 'only_a_computed_base_list_leaves_the_inheritance_unknown' (1093) panicked at rust/tcl-spectcl/tests/jim_document.rs:280:9:
+assertion failed: result.all_classes["::Dyn"].inheritance_unknown
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: jim_document::only_a_computed_base_list_leaves_the_inheritance_unknown
+   4: jim_document::only_a_computed_base_list_leaves_the_inheritance_unknown::{closure#0}
+   5: <jim_document::only_a_computed_base_list_leaves_the_inheritance_unknown::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- only_a_bare_or_ampersand_static_reads_the_enclosing_variable stdout ----
+
+thread 'only_a_bare_or_ampersand_static_reads_the_enclosing_variable' (1092) panicked at rust/tcl-spectcl/tests/jim_document.rs:129:5:
+assertion `left == right` failed: the static and the `puts`
+  left: 1
+ right: 2
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<usize, usize>
+   4: jim_document::only_a_bare_or_ampersand_static_reads_the_enclosing_variable
+   5: jim_document::only_a_bare_or_ampersand_static_reads_the_enclosing_variable::{closure#0}
+   6: <jim_document::only_a_bare_or_ampersand_static_reads_the_enclosing_variable::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- the_body_of_a_proc_with_statics_is_walked stdout ----
+
+thread 'the_body_of_a_proc_with_statics_is_walked' (1118) panicked at rust/tcl-spectcl/tests/jim_document.rs:163:9:
+assertion `left == right` failed: # tcl-dialect: jim
+proc counter {} {{n 0}} { not_a_command_anywhere $n }
+counter
+
+  left: []
+ right: [(W123, "not_a_command_anywhere")]
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<alloc::vec::Vec<(tcl_core_types::diag_code::DiagCode, alloc::string::String)>, alloc::vec::Vec<(tcl_core_types::diag_code::DiagCode, alloc::string::String)>>
+   4: jim_document::the_body_of_a_proc_with_statics_is_walked
+   5: jim_document::the_body_of_a_proc_with_statics_is_walked::{closure#0}
+   6: <jim_document::the_body_of_a_proc_with_statics_is_walked::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- the_signature_scan_reads_the_four_word_definition stdout ----
+
+thread 'the_signature_scan_reads_the_four_word_definition' (1173) panicked at rust/tcl-spectcl/tests/jim_document.rs:220:27:
+no entry found for key
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::option::expect_failed
+   3: <alloc::collections::btree::map::BTreeMap<alloc::string::String, tcl_compiler::signature_scan::types::SignatureProc> as core::ops::index::Index<&str>>::index
+   4: jim_document::the_signature_scan_reads_the_four_word_definition
+   5: jim_document::the_signature_scan_reads_the_four_word_definition::{closure#0}
+   6: <jim_document::the_signature_scan_reads_the_four_word_definition::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- the_same_program_under_tcl_is_rejected stdout ----
+
+thread 'the_same_program_under_tcl_is_rejected' (1120) panicked at rust/tcl-spectcl/tests/jim_document.rs:475:9:
+loop is Jim's, not Tcl's: [(W123, "class"), (E003, "{\n    return $model\n}"), (W307, "$s")]
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: jim_document::the_same_program_under_tcl_is_rejected
+   3: jim_document::the_same_program_under_tcl_is_rejected::{closure#0}
+   4: <jim_document::the_same_program_under_tcl_is_rejected::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+
+failures:
+    a_class_records_the_variables_its_dictionary_names
+    a_derived_class_inherits_its_bases_variables
+    a_jim_program_draws_no_findings
+    a_method_body_can_construct_its_own_class
+    a_method_body_sees_the_instance_variables_and_self
+    a_raw_two_word_proc_is_a_method_without_the_class_variables
+    a_tcl_document_has_no_jim_class
+    a_two_element_proc_name_defines_a_two_word_command_in_every_dialect
+    a_two_word_proc_written_before_its_class_is_a_method
+    an_object_is_typed_by_its_class_and_its_member_set_is_open
+    an_odd_variable_dictionary_is_an_argument_shape_error
+    loop_is_flagged_under_tcl_and_accepted_under_jim
+    only_a_bare_or_ampersand_static_reads_the_enclosing_variable
+    only_a_computed_base_list_leaves_the_inheritance_unknown
+    the_body_of_a_proc_with_statics_is_walked
+    the_same_program_under_tcl_is_rejected
+    the_signature_scan_reads_the_four_word_definition
+
+test result: FAILED. 9 passed; 17 failed; 0 ignored; 0 measured; 0 filtered out; finished in 24.47s
+

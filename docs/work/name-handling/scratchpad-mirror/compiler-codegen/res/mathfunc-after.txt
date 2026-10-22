@@ -1,0 +1,12 @@
+test integer_conversion_vectors_match_real_tclsh_when_available ... ok
+test expr_canonicalises_a_preserved_integer ... FAILED
+test tip745_functions_are_gated_to_tcl91 ... FAILED
+test every_shared_mathfunc_name_is_registered ... ok
+test tip745_vectors_match_real_tclsh91_when_available ... ok
+test every_shared_mathop_spelling_is_registered ... ok
+test tip745_values_match_tclsh91 ... ok
+test unresolvable_function_wording_matches_real_tclsh_when_available ... ok
+test integer_conversions_preserve_the_operand_object ... ok
+thread 'expr_canonicalises_a_preserved_integer' (27745) panicked at rust/tcl-vm/tests/mathfunc_derivation_e2e.rs:539:9:
+thread 'tip745_functions_are_gated_to_tcl91' (27795) panicked at rust/tcl-vm/tests/mathfunc_derivation_e2e.rs:220:9:
+test result: FAILED. 7 passed; 2 failed; 0 ignored; 0 measured; 0 filtered out; finished in 57.28s

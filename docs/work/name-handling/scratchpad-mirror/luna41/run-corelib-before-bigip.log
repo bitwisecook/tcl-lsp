@@ -1,0 +1,19 @@
+test bigip::tests::comment_blocks_fold_like_the_tcl_provider ... ok
+test bigip::tests::comment_blocks_in_extracted_tmsh_stanzas_fold_at_absolute_lines ... ok
+test bigip::tests::empty_source_yields_no_folds ... ok
+test bigip::tests::empty_source_yields_no_symbols ... ok
+test bigip::tests::folds_stanzas_and_their_nested_blocks ... ok
+test bigip::tests::folds_tcl_inside_an_embedded_rule ... ok
+test bigip::tests::named_objects_keep_their_full_path ... ok
+test bigip::tests::nameless_singleton_falls_back_to_kind_label ... ok
+test bigip::tests::outline_has_only_non_empty_names ... ok
+test bigip::tests::recognises_canonical_basenames ... ok
+test bigip::tests::single_line_block_does_not_fold ... ok
+test bigip::tests::singleton_header_resolves_multi_word_object_type ... ok
+test bigip::tests::stanza_ending_at_eof_stays_in_bounds ... ok
+test bigip::tests::unbalanced_input_degrades_quietly ... ok
+test bigip::tests::braces_in_comments_and_strings_do_not_unbalance_the_scan ... ok
+test bigip::tests::comment_blocks_in_embedded_irules_fold_but_data_does_not ... FAILED
+---- bigip::tests::comment_blocks_in_embedded_irules_fold_but_data_does_not stdout ----
+thread 'bigip::tests::comment_blocks_in_embedded_irules_fold_but_data_does_not' (1337) panicked at rust/tcl-lsp-core/src/bigip.rs:879:9:
+test result: FAILED. 15 passed; 1 failed; 0 ignored; 0 measured; 3469 filtered out; finished in 0.59s

@@ -1,0 +1,60 @@
+test receiver_identity::current_method_cursor_tests::original_definition_method_cursor_requires_current_complete_editor_input ... FAILED
+test receiver_identity::tests::argument_mutation_withdraws_all_external_member_identity ... FAILED
+test receiver_identity::tests::captured_method_registration_keeps_actual_metadata_and_source_currency ... ok
+test receiver_identity::tests::computed_method_selectors_report_identity_without_partial_rename_edits ... ok
+test receiver_identity::tests::captured_prefix_references_require_actual_capture_and_deferred_registration ... FAILED
+test receiver_identity::tests::definition_metadata_names_use_the_original_phase_for_all_consumers ... FAILED
+test receiver_identity::tests::export_before_declaration_cannot_borrow_the_later_method ... ok
+test receiver_identity::tests::internal_receiver_navigation_requires_the_actual_receiver_and_dispatch_epoch ... ok
+test receiver_identity::tests::external_navigation_respects_the_retained_visibility_phase ... ok
+test receiver_identity::tests::nominal_class_names_and_display_dialect_cannot_replace_actual_receipts ... ok
+test receiver_identity::tests::object_type_navigation_uses_the_original_read_allocation ... FAILED
+test receiver_identity::tests::frozen_self_heads_use_the_reached_receiver_instead_of_the_lexical_class ... ok
+test receiver_identity::tests::original_receiver_entry_is_shared_by_navigation_hover_and_rename ... FAILED
+test receiver_identity::tests::original_own_object_navigation_joins_the_actual_configuration_allocation ... ok
+test receiver_identity::tests::original_receiver_navigation_joins_allocations_without_reporting_maps ... FAILED
+test receiver_identity::tests::original_method_reference_sets_do_not_merge_reused_class_names ... ok
+---- receiver_identity::current_method_cursor_tests::original_definition_method_cursor_requires_current_complete_editor_input stdout ----
+thread 'receiver_identity::current_method_cursor_tests::original_definition_method_cursor_requires_current_complete_editor_input' (9625) panicked at rust/tcl-lsp-core/src/receiver_identity.rs:1281:9:
+assertion failed: crate::rename::prepare_rename(source, 0, cursor, &analysis).is_some()
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- receiver_identity::tests::argument_mutation_withdraws_all_external_member_identity stdout ----
+
+thread 'receiver_identity::tests::argument_mutation_withdraws_all_external_member_identity' (9626) panicked at rust/tcl-lsp-core/src/receiver_identity.rs:1167:13:
+assertion `left == right` failed
+  left: 1
+ right: 0
+
+---- receiver_identity::tests::captured_prefix_references_require_actual_capture_and_deferred_registration stdout ----
+
+thread 'receiver_identity::tests::captured_prefix_references_require_actual_capture_and_deferred_registration' (9660) panicked at rust/tcl-lsp-core/src/receiver_identity.rs:811:13:
+assertion failed: crate::rename::prepare_rename(&source, 0, cursor, &analysis).is_some()
+
+---- receiver_identity::tests::definition_metadata_names_use_the_original_phase_for_all_consumers stdout ----
+
+thread 'receiver_identity::tests::definition_metadata_names_use_the_original_phase_for_all_consumers' (9664) panicked at rust/tcl-lsp-core/src/receiver_identity.rs:886:9:
+assertion failed: crate::hover::hover(source, 0, cursor, &analysis,
+                None).unwrap().value.contains("::C::Ping")
+
+---- receiver_identity::tests::object_type_navigation_uses_the_original_read_allocation stdout ----
+
+thread 'receiver_identity::tests::object_type_navigation_uses_the_original_read_allocation' (9734) panicked at rust/tcl-lsp-core/src/receiver_identity.rs:1198:9:
+assertion `left == right` failed
+  left: []
+ right: [LspRange { start_line: 0, start_character: 17, end_line: 0, end_character: 18 }]
+
+---- receiver_identity::tests::original_receiver_entry_is_shared_by_navigation_hover_and_rename stdout ----
+
+thread 'receiver_identity::tests::original_receiver_entry_is_shared_by_navigation_hover_and_rename' (9765) panicked at rust/tcl-lsp-core/src/receiver_identity.rs:991:72:
+called `Option::unwrap()` on a `None` value
+
+---- receiver_identity::tests::original_receiver_navigation_joins_allocations_without_reporting_maps stdout ----
+
+thread 'receiver_identity::tests::original_receiver_navigation_joins_allocations_without_reporting_maps' (9768) panicked at rust/tcl-lsp-core/src/receiver_identity.rs:750:18:
+an actual method entry must join its original class allocation
+
+
+failures:
+    receiver_identity::current_method_cursor_tests::original_definition_method_cursor_requires_current_complete_editor_input
+test result: FAILED. 9 passed; 7 failed; 0 ignored; 0 measured; 3469 filtered out; finished in 18.21s

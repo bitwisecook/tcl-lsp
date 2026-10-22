@@ -1,0 +1,39 @@
+
+running 1 test
+test tests::fix_all_safe_issues_applies_only_shown_fixes has been running for over 60 seconds
+test tests::fix_all_safe_issues_applies_only_shown_fixes ... FAILED
+
+failures:
+
+---- tests::fix_all_safe_issues_applies_only_shown_fixes stdout ----
+
+thread 'tests::fix_all_safe_issues_applies_only_shown_fixes' (27369) panicked at rust/tcl-lsp-server/src/lib.rs:50530:9:
+assertion `left == right` failed: the control is fixed
+  left: "set n [expr abs(-2)]\n"
+ right: "set n [expr {abs(-2)}]\n"
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<alloc::string::String, &str>
+   4: tcl_lsp_server::tests::fix_all_safe_issues_applies_only_shown_fixes::{closure#0}
+   5: <core::pin::Pin<&mut dyn core::future::future::Future<Output = ()>> as core::future::future::Future>::poll
+   6: <tokio::runtime::park::CachedParkThread>::block_on::<core::pin::Pin<&mut dyn core::future::future::Future<Output = ()>>>::{closure#0}
+   7: <tokio::runtime::park::CachedParkThread>::block_on::<core::pin::Pin<&mut dyn core::future::future::Future<Output = ()>>>
+   8: <tokio::runtime::context::blocking::BlockingRegionGuard>::block_on::<core::pin::Pin<&mut dyn core::future::future::Future<Output = ()>>>
+   9: <tokio::runtime::scheduler::multi_thread::MultiThread>::block_on::<core::pin::Pin<&mut dyn core::future::future::Future<Output = ()>>>::{closure#0}
+  10: tokio::runtime::context::runtime::enter_runtime::<<tokio::runtime::scheduler::multi_thread::MultiThread>::block_on<core::pin::Pin<&mut dyn core::future::future::Future<Output = ()>>>::{closure#0}, ()>
+  11: <tokio::runtime::scheduler::multi_thread::MultiThread>::block_on::<core::pin::Pin<&mut dyn core::future::future::Future<Output = ()>>>
+  12: <tokio::runtime::runtime::Runtime>::block_on_inner::<core::pin::Pin<&mut dyn core::future::future::Future<Output = ()>>>
+  13: <tokio::runtime::runtime::Runtime>::block_on::<core::pin::Pin<&mut dyn core::future::future::Future<Output = ()>>>
+  14: tcl_lsp_server::tests::fix_all_safe_issues_applies_only_shown_fixes
+  15: tcl_lsp_server::tests::fix_all_safe_issues_applies_only_shown_fixes::{closure#0}
+  16: <tcl_lsp_server::tests::fix_all_safe_issues_applies_only_shown_fixes::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+
+failures:
+    tests::fix_all_safe_issues_applies_only_shown_fixes
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 839 filtered out; finished in 119.61s
+

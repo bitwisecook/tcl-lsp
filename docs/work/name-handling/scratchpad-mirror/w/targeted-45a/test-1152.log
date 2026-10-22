@@ -1,0 +1,6 @@
+
+running 1 test
+test command_binding::source_transition_advice::logical_word_geometry::tests::logical_body_word_geometry_keeps_dynamic_heads_without_selected_schema ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 10440 filtered out; finished in 8.86s
+

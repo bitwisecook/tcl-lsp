@@ -1,0 +1,6 @@
+
+running 1 test
+test call_hierarchy::tests::outgoing_calls_does_not_conflate_method_and_classmethod_sharing_a_name ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 3470 filtered out; finished in 0.85s
+

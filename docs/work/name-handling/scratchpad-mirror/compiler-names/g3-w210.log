@@ -1,0 +1,54 @@
+
+running 1 test
+ZZ_CALL_BARRIER set unresolvable=true source_opaque=true global=true variable=true original_tokens=true
+ZZ_EMBEDDED stmt=Span { start: 0, end: 31 } embedded_opaque=false upvar_opaque=true global_opaque=true writes_opaque=false commands=["[CommandWord { text: \"file\", raw: \"file\", source_available: true, substituted: false, expanded: false, braced_literal: false }, CommandWord { text: \"join\", raw:"]
+ZZ_CALL_BARRIER source unresolvable=true source_opaque=true global=true variable=true original_tokens=true
+ZZ_EMBEDDED stmt=Span { start: 32, end: 41 } embedded_opaque=false upvar_opaque=false global_opaque=false writes_opaque=false commands=[]
+ZZ_W210 block=BlockId(0) index=1 name="$dir" presence=Some((true, false))
+ZZ_CALL_BARRIER set unresolvable=true source_opaque=true global=true variable=true original_tokens=true
+ZZ_EMBEDDED stmt=Span { start: 0, end: 31 } embedded_opaque=false upvar_opaque=true global_opaque=true writes_opaque=false commands=["[CommandWord { text: \"file\", raw: \"file\", source_available: true, substituted: false, expanded: false, braced_literal: false }, CommandWord { text: \"join\", raw:"]
+ZZ_CALL_BARRIER source unresolvable=true source_opaque=true global=true variable=true original_tokens=true
+ZZ_EMBEDDED stmt=Span { start: 32, end: 41 } embedded_opaque=false upvar_opaque=false global_opaque=false writes_opaque=false commands=[]
+ZZ_W210 block=BlockId(0) index=1 name="$dir" presence=Some((true, false))
+ZZ_CALL_BARRIER set unresolvable=true source_opaque=true global=true variable=true original_tokens=true
+ZZ_EMBEDDED stmt=Span { start: 0, end: 26 } embedded_opaque=false upvar_opaque=true global_opaque=true writes_opaque=false commands=["[CommandWord { text: \"file\", raw: \"file\", source_available: true, substituted: false, expanded: false, braced_literal: false }, CommandWord { text: \"join\", raw:"]
+ZZ_W210 block=BlockId(0) index=1 name="$missing" presence=Some((true, false))
+ZZ_CALL_BARRIER set unresolvable=true source_opaque=true global=true variable=true original_tokens=true
+ZZ_EMBEDDED stmt=Span { start: 0, end: 14 } embedded_opaque=false upvar_opaque=false global_opaque=false writes_opaque=false commands=[]
+ZZ_W210 block=BlockId(0) index=0 name="$missing" presence=Some((true, false))
+ZZ_CALL_BARRIER set unresolvable=true source_opaque=true global=true variable=true original_tokens=true
+ZZ_EMBEDDED stmt=Span { start: 0, end: 31 } embedded_opaque=false upvar_opaque=true global_opaque=true writes_opaque=false commands=["[CommandWord { text: \"file\", raw: \"file\", source_available: true, substituted: false, expanded: false, braced_literal: false }, CommandWord { text: \"join\", raw:"]
+ZZ_W210 block=BlockId(0) index=1 name="$dir" presence=Some((true, false))
+ZZ_CALL_BARRIER set unresolvable=true source_opaque=true global=true variable=true original_tokens=true
+ZZ_EMBEDDED stmt=Span { start: 0, end: 21 } embedded_opaque=false upvar_opaque=true global_opaque=true writes_opaque=false commands=["[CommandWord { text: \"list\", raw: \"list\", source_available: true, substituted: false, expanded: false, braced_literal: false }, CommandWord { text: \"${missing}\""]
+ZZ_CALL_BARRIER source unresolvable=true source_opaque=true global=true variable=true original_tokens=true
+ZZ_EMBEDDED stmt=Span { start: 22, end: 31 } embedded_opaque=false upvar_opaque=false global_opaque=false writes_opaque=false commands=[]
+ZZ_W210 block=BlockId(0) index=1 name="$missing" presence=Some((true, false))
+ZZ_CALL_BARRIER set unresolvable=true source_opaque=true global=true variable=true original_tokens=true
+ZZ_EMBEDDED stmt=Span { start: 0, end: 14 } embedded_opaque=false upvar_opaque=false global_opaque=false writes_opaque=false commands=[]
+ZZ_CALL_BARRIER source unresolvable=true source_opaque=true global=true variable=true original_tokens=true
+ZZ_EMBEDDED stmt=Span { start: 15, end: 24 } embedded_opaque=false upvar_opaque=false global_opaque=false writes_opaque=false commands=[]
+ZZ_W210 block=BlockId(0) index=0 name="$missing" presence=Some((true, false))
+
+thread 'analyser::diagnostics::tests::w210_pkgindex_reports_other_reads_inside_command_substitutions' (3269) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:6008:5:
+[
+    "/proj/pkgIndex.tcl: \"set f [file join $dir $missing]\\nsource $f\\n\": missing: []",
+    "/proj/other.tcl: \"set f [file join $dir $missing]\\nsource $f\\n\": missing: [\"Variable 'dir' is read before it is set\"]",
+    "/proj/pkgIndex.tcl: \"set f [file join $dir $missing]\\n\": missing: []",
+]
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: tcl_compiler::analyser::diagnostics::tests::w210_pkgindex_reports_other_reads_inside_command_substitutions
+   3: tcl_compiler::analyser::diagnostics::tests::w210_pkgindex_reports_other_reads_inside_command_substitutions::{closure#0}
+   4: <tcl_compiler::analyser::diagnostics::tests::w210_pkgindex_reports_other_reads_inside_command_substitutions::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+test analyser::diagnostics::tests::w210_pkgindex_reports_other_reads_inside_command_substitutions ... FAILED
+
+failures:
+
+failures:
+    analyser::diagnostics::tests::w210_pkgindex_reports_other_reads_inside_command_substitutions
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 10478 filtered out; finished in 5.39s
+

@@ -1,0 +1,37 @@
+{
+ "scheduled": "2026-10-17T20:27:00Z",
+ "change_since_previous_report": {"integrated_LSP": 0, "total_baseline_delta": 0, "effective_delta": 0, "verified_complete": 0},
+ "admissions": {},
+ "validation_recorded_at_capture": {
+  "capture36": {"status": "RUNNING", "head_source": "2a3928bc6 (later commits touch docs/work/name-handling only, excluded from the source guard)",
+   "original_LSP850": {"complete": 850, "passed": 689, "failed": 161, "timeouts_in_failed": 3, "db": [11, 7, 4, 0], "core": [664, 525, 139, 1], "server": [175, 157, 18, 2], "verdict_changes_vs_35r2_on_shared_790": 0, "server_116_175": "first execution: 60 run, 53 passed, 7 failed"},
+   "additive230": {"core_partial": [57, 42, 15, 0], "server": "pending"}, "extra5": "pending",
+   "contention_note": "Agent gdb/test-binary runs at nice 19 overlapped the capture 19:42-19:57 before agents were stopped; timings in that window are recorded as contended, verdicts unchanged vs 35r2."}
+ },
+ "diagnosis_receipts": "docs/work/name-handling/handoff/reviews/resume-20261017-diagnosis/",
+ "candidate_reviews": {
+  "sol_fix2_objdefine_inline": "ADMIT source-level after rustfmt (Luna-3); expected 413, 503 fail->pass",
+  "sol_fix4_my_call_edges": "ADMIT source-level (Luna-3); expected 546, 561 (+547, 560 likely)",
+  "sol_fix5_unknown_command_debt": "ADMIT source-level (Luna-3); expected 451",
+  "sol_fix1_property_census": "HOLD: completes census while missing deferred my dispatch; falls through on missing member data",
+  "sol_fix3_method_census": "HOLD: my-guard broken; collides with test-096 contradiction",
+  "sol2_fix1_nextto_class_namespace": "HOLD: not TclOO semantics (tclsh 8.6/9.0 confirmed); replaced by orchestrator C-faithful candidate under independent review",
+  "sol2_fix2_db921": "AWAITS USER POLICY; mechanics sound, needs source-origin check",
+  "sol2_fix3_rename_precedence": "HOLD: would flip at least 5 passing rename tests",
+  "luna_fix1_nested_body_cut_memo": "ADMIT source-level with conditions (Sol-3): fmt, pub(crate), private Debug, doc rows, exactness tests; V2 in preparation",
+  "integration36": "HOLD as composed; db042 + roster setup source-clear"
+ },
+ "user_decisions_needed": [
+  "Compiler221 same-input Some/None (pre-existing)",
+  "test-096 Partial vs code_lens 056/058 Complete (and server readonly_member_wire_retains_owner_and_partial_coverage; contract original-method-candidates.md:18 says partial-only)",
+  "test-400 NotExported vs passing workspace_order_keeps_original_export_evidence_without_conditional_clear_completion Exported",
+  "document_links 124 and 140 expect links where tclsh 8.6/9.0 error; 136 needs the fail-closed barrier lifted",
+  "call hierarchy tests contradicting tclsh (proc ::a::helper unknown namespace; classmethod absent in 8.6; jump_to_nextto_namespaced_class_method) and two code_lens tests needing absence-as-completeness",
+  "DB921: authored readonly body and installed body as one identity?",
+  "Server102/103: freshness drop vs #1854 snapshot results",
+  "Server108: cheaper per-document validation design for workspace_symbol cap"
+ ],
+ "next_report_utc": "2026-10-17T20:57:00Z",
+ "green_PR": false,
+ "merge_or_issue_closure": false
+}

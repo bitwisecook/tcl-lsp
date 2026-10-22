@@ -1,0 +1,21 @@
+
+running 1 test
+test workspace_index::tests::a_top_level_call_before_its_own_import_does_not_resolve ... 
+thread 'workspace_index::tests::a_top_level_call_before_its_own_import_does_not_resolve' (6017) panicked at rust/tcl-lsp-core/src/workspace_index.rs:12441:9:
+a call written before its own import must not resolve through it
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: tcl_lsp_core::workspace_index::tests::a_top_level_call_before_its_own_import_does_not_resolve
+   3: tcl_lsp_core::workspace_index::tests::a_top_level_call_before_its_own_import_does_not_resolve::{closure#0}
+   4: <tcl_lsp_core::workspace_index::tests::a_top_level_call_before_its_own_import_does_not_resolve::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+FAILED
+
+failures:
+
+failures:
+    workspace_index::tests::a_top_level_call_before_its_own_import_does_not_resolve
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 3479 filtered out; finished in 1.39s
+

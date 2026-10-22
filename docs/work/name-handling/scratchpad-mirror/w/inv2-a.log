@@ -1,0 +1,2 @@
+{"id": "tcl-compiler__lib__tcl_compiler", "pkg": "tcl-compiler", "kind": "lib", "name": "tcl_compiler", "rc": -9, "secs": 2037.4, "free_gb": 6.51, "junit": true}
+{"id": "tcl-compiler__test__alias_scoping", "pkg": "tcl-compiler", "kind": "test", "name": "alias_scoping", "rc": 100, "secs": 15.7, "free_gb": 6.51, "junit": true}

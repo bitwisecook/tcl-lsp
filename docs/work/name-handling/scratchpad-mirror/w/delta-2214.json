@@ -1,0 +1,6 @@
+{"scheduled":"2026-10-20T22:12:00Z",
+ "change_since_previous_report":{"integrated_LSP":0,"total_baseline_delta":0,"effective_delta":0,"verified_complete":0},
+ "admissions":{},
+ "in_progress":{"sol-44":"still active (transcript updated 22:12), notes written","sol-45":"still active (transcript updated 22:08), notes and patch written; 7 C6 regressions pending"},
+ "disk_free_gb":2.9,
+ "next_report_utc":"2026-10-20T22:44:00Z"}

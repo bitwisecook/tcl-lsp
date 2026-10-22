@@ -1,0 +1,37 @@
+test workspace_symbols::tests::class_methods_surface_as_workspace_symbols ... ok
+test workspace_symbols::tests::a_qualified_name_matches_the_query_too ... ok
+test workspace_symbols::tests::classmethod_surfaces_with_method_kind ... ok
+test workspace_symbols::tests::constructor_surfaces_with_constructor_kind ... ok
+test workspace_symbols::tests::namespace_container_uses_constructed_name_codec ... ok
+test workspace_symbols::tests::constraint_and_matcher_surface_with_own_kinds ... FAILED
+test workspace_symbols::tests::empty_query_returns_all_symbols ... ok
+test workspace_symbols::tests::original_registry_workspace_symbols_use_selected_source_cards_after_ui_clear ... ok
+test workspace_symbols::tests::qualified_colon_run_names_keep_their_workspace_container ... ok
+test workspace_symbols::tests::original_vendor_workspace_headers_retain_unknown_units_and_source_currency ... ok
+test workspace_symbols::tests::query_filters_by_substring_case_insensitive ... ok
+test workspace_symbols::tests::query_matches_method_substring ... ok
+test workspace_symbols::tests::original_workspace_symbols_preserve_opaque_owners_and_ignore_reporting_maps ... ok
+test workspace_symbols::tests::symbols_come_from_every_indexed_document_not_only_open_ones ... ok
+test workspace_symbols::tests::tcltest_test_surfaces_as_workspace_symbol ... FAILED
+test workspace_symbols::tests::test_case_in_namespace_has_container ... FAILED
+test workspace_symbols::tests::the_result_cap_holds_and_truncates_by_document ... ok
+---- workspace_symbols::tests::constraint_and_matcher_surface_with_own_kinds stdout ----
+thread 'workspace_symbols::tests::constraint_and_matcher_surface_with_own_kinds' (16082) panicked at rust/tcl-lsp-core/src/workspace_symbols.rs:597:9:
+assertion `left == right` failed: []
+  left: None
+ right: Some(Constant)
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- workspace_symbols::tests::tcltest_test_surfaces_as_workspace_symbol stdout ----
+thread 'workspace_symbols::tests::tcltest_test_surfaces_as_workspace_symbol' (16107) panicked at rust/tcl-lsp-core/src/workspace_symbols.rs:582:32:
+test not found in []
+
+---- workspace_symbols::tests::test_case_in_namespace_has_container stdout ----
+
+thread 'workspace_symbols::tests::test_case_in_namespace_has_container' (16110) panicked at rust/tcl-lsp-core/src/workspace_symbols.rs:621:32:
+scoped test not found in []
+
+
+failures:
+    workspace_symbols::tests::constraint_and_matcher_surface_with_own_kinds
+test result: FAILED. 14 passed; 3 failed; 0 ignored; 0 measured; 3468 filtered out; finished in 43.82s

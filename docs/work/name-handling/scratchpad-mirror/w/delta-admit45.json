@@ -1,0 +1,10 @@
+{"scheduled":"2026-10-19T12:31:00Z",
+ "change_since_previous_report":{"integrated_LSP":0,"total_baseline_delta":0,"effective_delta":0,"verified_complete":0},
+ "admissions":{"integration45":{"commits":["aff99dc7e","82617ee15"],
+   "evidence":"experiments/name-handling/results/owner-adoption-20261018/lsp-generic-consumers-14/capture.json",
+   "capture48":"1085/1085 executed, 870 pass / 215 fail (2 timeouts, same as capture46), all source/provider/ELF guards pass",
+   "against_capture46":"zero pass->fail; 5 fail->pass (source-survey fixed-source guard, two workspace-symbol 1854 rows, legacy lattice key memo transport, body descent leaves top-level declarations)",
+   "unit_mapping":"verification progress only; audit-unit closure needs the partial-row obligations mapped (not yet done)"}},
+ "candidates":{},
+ "merge_bar":"origin/rust fcb7927f0 CI is green. Next: disk-bounded full workspace inventory (nextest, one target at a time, 180 s per test) to list every failure, then drive them to zero.",
+ "next_report_utc":"2026-10-19T13:02:00Z"}

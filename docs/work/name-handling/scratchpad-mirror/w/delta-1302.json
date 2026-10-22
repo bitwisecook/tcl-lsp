@@ -1,0 +1,7 @@
+{"scheduled":"2026-10-21T13:01:00Z",
+ "change_since_previous_report":{"integrated_LSP":0,"total_baseline_delta":0,"effective_delta":0,"verified_complete":0},
+ "admissions":{},
+ "committed":{"61937a96c3":"Luna-40 fixture review: 2,514 of 29,092 added test files are read by any test (9.2 MB); the rest is evidence (1.46 GB). Plan: carry keep-paths.txt (no test change), then dedupe/merge 10 families and table-convert 51 (~1,330 files); 208 captured but unasserted per-release expectations found"},
+ "in_progress":{"sol-48":"tclvm work, active (12 tcl-vm + 1 tcl-vm-cli files modified)","sol-49":"compiler work, active (15 tcl-compiler + 2 tcl-registry files modified)"},
+ "disk_free_gb":3.3,
+ "next_report_utc":"2026-10-21T13:33:00Z"}

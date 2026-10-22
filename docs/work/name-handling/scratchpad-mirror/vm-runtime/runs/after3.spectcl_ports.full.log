@@ -1,0 +1,408 @@
+
+running 12 tests
+test a_member_row_without_an_effect_is_dropped_with_a_notice ... ok
+test derivations_are_recorded_as_derivations ... ok
+test braced_prose_survives_byte_for_byte ... ok
+test hook_bodies_are_carried_as_text_with_their_family_metadata ... ok
+test implicit_receiver_roles_round_trip_without_becoming_all_implicit_variables ... ok
+test the_clause_grammar_derivation_agrees_with_the_shipped_walk ... ok
+test every_port_loads_and_matches_its_shipped_spec ... FAILED
+test the_manufacturer_derivation_agrees_with_the_shipped_resolver ... ok
+test the_inline_snit_grammar_matches_the_shipped_constant ... ok
+test unknown_vocabulary_drops_with_a_notice_rather_than_failing ... ok
+test upvar_carries_its_frame_effect_verbatim ... FAILED
+test the_subst_port_answers_the_same_kinds_as_the_shipped_spec ... ok
+
+failures:
+
+---- every_port_loads_and_matches_its_shipped_spec stdout ----
+
+=== lsort.tclspec — pack `tcl` v1.1 (1 command(s), 0 notice(s))
+  lsort @ tcl9.1: 4 differing field(s)
+    [FAIL] arity
+        ported : {"min":1,"count":"arguments","max":null,"step":0,"also_exact":null}
+        shipped: {"min":1,"count":"positionals","max":1,"step":0,"also_exact":null}
+        reason : UNDOCUMENTED
+    [FAIL] script_lookup_scope
+        ported : null
+        shipped: "InvokingFrame"
+        reason : UNDOCUMENTED
+    [FAIL] reserved_trailing_words
+        ported : 0
+        shipped: 1
+        reason : UNDOCUMENTED
+    [FAIL] __unrenderable
+        ported : []
+        shipped: ["native_compilation"]
+        reason : UNDOCUMENTED
+
+=== foreach.tclspec — pack `tcl` v2.1 (1 command(s), 1 notice(s))
+    notice: command foreach:52: names a lowering hook: this changes how the compiler translates the command, not just what the editor knows about it
+  foreach @ tcl9.1: 3 differing field(s)
+    [FAIL] representation_effect
+        ported : null
+        shipped: "Some(RepresentationEffect::CoerceOrdinaryListPairs { variables_from: 0 })"
+        reason : UNDOCUMENTED
+    [FAIL] successful_handler
+        ported : null
+        shipped: "Some(tcl_registry::native_compilation::SuccessfulHandlerSpec::PossibleBodies)"
+        reason : UNDOCUMENTED
+    [documented] __unrenderable
+        ported : ["arg_role_count_resolver"]
+        shipped: ["arg_role_count_resolver","native_compilation"]
+        reason : the shipped spec declares its value-transfer `semantics` (the explicit iteration declaration of `docs/design/compiler/value-transfers.md`); the port does not transcribe it, so it stays on the unrenderable list. Every field the port does carry matches
+
+=== switch.tclspec — pack `tcl` v2.1 (1 command(s), 1 notice(s))
+    notice: command switch:50: names a lowering hook: this changes how the compiler translates the command, not just what the editor knows about it
+  switch @ tcl9.1: 3 differing field(s)
+    [FAIL] arity
+        ported : {"min":3,"count":"arguments","max":null,"step":2,"also_exact":2}
+        shipped: {"min":3,"count":"positionals","max":null,"step":2,"also_exact":2}
+        reason : UNDOCUMENTED
+    [FAIL] successful_handler
+        ported : null
+        shipped: "Some(tcl_registry::native_compilation::SuccessfulHandlerSpec::PossibleBodies)"
+        reason : UNDOCUMENTED
+    [FAIL] __unrenderable
+        ported : ["arg_role_resolver","case_list"]
+        shipped: ["arg_role_resolver","native_compilation","case_list"]
+        reason : UNDOCUMENTED
+
+=== if.tclspec — pack `tcl` v2.1 (1 command(s), 1 notice(s))
+    notice: command if:47: names a lowering hook: this changes how the compiler translates the command, not just what the editor knows about it
+  if @ tcl9.1: 2 differing field(s)
+    [FAIL] successful_handler
+        ported : null
+        shipped: "Some(tcl_registry::native_compilation::SuccessfulHandlerSpec::PossibleBodies)"
+        reason : UNDOCUMENTED
+    [documented] __unrenderable
+        ported : []
+        shipped: ["arg_role_layout_resolver","bpf_op","native_lowering","clause_shape_check","native_compilation"]
+        reason : the shipped spec carries the compiler-owned `native_lowering` descriptor (the native-tier shape stamped beside the lowering hook); SpecTcl has no surface for it, so it stays on the unrenderable list and the port does not transcribe it. Every field the port does carry matches
+
+=== upvar.tclspec — pack `tcl` v1.1 (1 command(s), 1 notice(s))
+    notice: command upvar:45: names a lowering hook: this changes how the compiler translates the command, not just what the editor knows about it
+  upvar @ tcl9.1: 2 differing field(s)
+    [FAIL] hover
+        ported : {"summary":"Create link to variable in a different stack frame","synopsis":["upvar ?level? otherVar myVar ?otherVar myVar ...?"],"snippet":"Links each myVar in the current procedure to the variable na… (2382 bytes)
+        shipped: {"summary":"Create link to variable in a different stack frame","synopsis":["upvar ?level? otherVar myVar ?otherVar myVar ...?"],"snippet":"Links each myVar in the current procedure to the variable na… (2420 bytes)
+        reason : UNDOCUMENTED
+    [documented] __unrenderable
+        ported : ["frame_effect","world_effects","state_transitions"]
+        shipped: ["frame_effect","native_lowering","completion","world_effects","state_transitions","native_result","native_compilation"]
+        reason : the shipped spec carries the compiler-owned `native_lowering` descriptor (the native-tier shape stamped beside the lowering hook); SpecTcl has no surface for it, so it stays on the unrenderable list and the port does not transcribe it. Every field the port does carry matches
+
+=== geturl.tclspec — pack `tcl` v2.0 (2 command(s), 0 notice(s))
+  uri::geturl @ tcl9.1: 1 differing field(s)
+    [documented] surface
+        ported : null
+        shipped: ["tcl8.5","tcl8.6","tcl9.0","tcl9.1"]
+        reason : the port is faithful to the `.rs` (`surface: None`), but the shipped registry states a tcllib command's surface at REGISTRATION time — `tcllib_command_specs` gives every tcllib command the Tcl core rows its modules need, since a tcllib module is a `package require` away and the F5 embedded surfaces have none. A pack loader installing into a registry would apply the same blanket rule; the spec field itself matches
+  http::geturl @ tcl9.1: 0 differing field(s)
+
+=== irules-http-header.tclspec — pack `f5-irules` v1.1 (1 command(s), 0 notice(s))
+  HTTP::header @ f5-irules: 2 differing field(s)
+    [documented] traits
+        ported : ["PURE","CSE_CANDIDATE","DIAGRAM_ACTION"]
+        shipped: ["PURE","CSE_CANDIDATE","REQUIRES_HTTP_CONTEXT","DIAGRAM_ACTION"]
+        reason : the shipped registry adds REQUIRES_HTTP_CONTEXT at registration (irules/mod.rs's http_context() wrapper over IRULES_SPECS — pack-level curation, the IRULE1201 source of truth), not in the spec literal. The port is faithful to the .rs; a pack loader installing into the iRules registry applies the same wrapper policy, exactly like the tcllib dialect fill above
+    [FAIL] subcommands
+        ported : [{"name":"at","traits":[],"arity":{"min":1,"count":"arguments","max":1,"step":0,"also_exact":null},"arity_windows":[],"detail":"Get header name by index.","synopsis":"HTTP::header at <index>","hover":… (35227 bytes)
+        shipped: [{"name":"at","traits":[],"arity":{"min":1,"count":"arguments","max":1,"step":0,"also_exact":null},"arity_windows":[],"detail":"Get header name by index.","synopsis":"HTTP::header at <index>","hover":… (35357 bytes)
+        reason : UNDOCUMENTED
+
+=== return.tclspec — pack `tcl` v2.1 (1 command(s), 1 notice(s))
+    notice: command return:75: names a lowering hook: this changes how the compiler translates the command, not just what the editor knows about it
+  return @ tcl9.1: 3 differing field(s)
+    [FAIL] side_effects
+        ported : [{"target":"InterpState","reads":false,"writes":true,"connection_side":"None","surface":null,"introduced_version":null,"deprecated_version":null,"retired_version":null,"deprecation_fix":null},{"target… (393 bytes)
+        shipped: [{"target":"EventControl","reads":false,"writes":true,"connection_side":"None","surface":["f5-irules"],"introduced_version":null,"deprecated_version":null,"retired_version":null,"deprecation_fix":null}]
+        reason : UNDOCUMENTED
+    [FAIL] reserved_trailing_words
+        ported : 0
+        shipped: 1
+        reason : UNDOCUMENTED
+    [documented] __unrenderable
+        ported : ["arg_role_resolver","options.arity_hook","context_gate"]
+        shipped: ["arg_role_layout_resolver","native_lowering","world_effects","state_transitions","native_result","options.arity_hook","native_compilation","context_gate"]
+        reason : the shipped spec carries the compiler-owned `native_lowering` descriptor, unrenderable in SpecTcl exactly as for `if` and `upvar`; every field the port does carry matches
+
+=== snit-type.tclspec — pack `tcllib` v1.1 (1 command(s), 0 notice(s))
+  snit::type @ tcl9.1: 1 differing field(s)
+    [documented] surface
+        ported : null
+        shipped: ["tcl8.5","tcl8.6","tcl9.0","tcl9.1"]
+        reason : the port is faithful to the `.rs` (`surface: None`), but the shipped registry states a tcllib command's surface at REGISTRATION time — `tcllib_command_specs` gives every tcllib command the Tcl core rows its modules need, since a tcllib module is a `package require` away and the F5 embedded surfaces have none. A pack loader installing into a registry would apply the same blanket rule; the spec field itself matches
+
+=== oo-class.tclspec — pack `tcl` v2.1 (1 command(s), 0 notice(s))
+  oo::class @ tcl9.1: 4 differing field(s)
+    [documented] __unrenderable
+        ported : ["arg_role_resolver"]
+        shipped: ["arg_role_resolver","native_compilation"]
+        reason : the shipped `oo::class` carries a `native_compilation` recipe, which SpecTcl has no surface for; the port does not transcribe it
+    [documented] subcommands[create].__unrenderable
+        ported : []
+        shipped: ["world_effects","state_transitions"]
+        reason : the shipped subcommand's `world_effects` and `state_transitions` descriptors, which a pack cannot author (see `OO_CLASS_FACTORY_DESCRIPTORS`); the port states the legacy `side_effect` and `defines_command_at` facts instead
+    [documented] subcommands[new].__unrenderable
+        ported : []
+        shipped: ["world_effects","state_transitions"]
+        reason : the shipped subcommand's `world_effects` and `state_transitions` descriptors, which a pack cannot author (see `OO_CLASS_FACTORY_DESCRIPTORS`); the port states the legacy `side_effect` and `defines_command_at` facts instead
+    [documented] subcommands[createWithNamespace].__unrenderable
+        ported : []
+        shipped: ["world_effects","state_transitions"]
+        reason : the shipped subcommand's `world_effects` and `state_transitions` descriptors, which a pack cannot author (see `OO_CLASS_FACTORY_DESCRIPTORS`); the port states the legacy `side_effect` and `defines_command_at` facts instead
+
+=== string.tclspec — pack `tcl` v2.2 (1 command(s), 0 notice(s))
+  string @ tcl9.1: 9 differing field(s)
+    [documented] __unrenderable
+        ported : []
+        shipped: ["native_compilation"]
+        reason : the shipped `string` carries `completion`, `world_effects`, `state_transitions`, `dispatch_dependencies` and `result_stability` descriptors that arrived with the completion-code and stable-call-CSE work. SpecTcl has no surface for any of them yet — the loader already reports `world_effects` / `state_transitions` rows as "not yet loadable; dropped" — so they stay on the unrenderable list and the port does not transcribe them. Every field the port does carry matches
+    [FAIL] subcommands[length].successful_handler
+        ported : null
+        shipped: "Some(tcl_registry::native_compilation::SuccessfulHandlerSpec::EnsembleLeaf { lookup: NativeCompilerImplementationLookup { ensemble: \"::string\", member: \"length\", slot: \"::tcl::string::length\", … (310 bytes)
+        reason : UNDOCUMENTED
+    [documented] subcommands[length].__unrenderable
+        ported : ["const_fold"]
+        shipped: ["const_fold","completion","world_effects","state_transitions","dispatch_dependencies","result_stability","native_compilation"]
+        reason : the same five descriptors, declared per-subcommand on `string length`; unrenderable for the same reason
+    [FAIL] subcommands[is].subcommand_forms
+        ported : []
+        shipped: [{"name":"value","arity":{"min":2,"count":"arguments","max":2,"step":0,"also_exact":null},"selector":null,"arg_roles":[],"variable_receivers":null,"options":[],"option_relations":null,"surface":null,"… (337 bytes)
+        reason : UNDOCUMENTED
+    [FAIL] subcommands[is].__unrenderable
+        ported : ["const_fold_versioned"]
+        shipped: ["const_fold_versioned","subcommand_forms"]
+        reason : UNDOCUMENTED
+    [FAIL] subcommands[map].successful_handler
+        ported : null
+        shipped: "Some(tcl_registry::native_compilation::SuccessfulHandlerSpec::EnsembleLeaf { lookup: NativeCompilerImplementationLookup { ensemble: \"::string\", member: \"map\", slot: \"::tcl::string::map\", comman… (301 bytes)
+        reason : UNDOCUMENTED
+    [FAIL] subcommands[map].__unrenderable
+        ported : ["const_fold"]
+        shipped: ["const_fold","completion","world_effects","state_transitions","dispatch_dependencies","result_stability"]
+        reason : UNDOCUMENTED
+    [FAIL] subcommands[range].successful_handler
+        ported : null
+        shipped: "Some(tcl_registry::native_compilation::SuccessfulHandlerSpec::EnsembleLeaf { lookup: NativeCompilerImplementationLookup { ensemble: \"::string\", member: \"range\", slot: \"::tcl::string::range\", co… (307 bytes)
+        reason : UNDOCUMENTED
+    [documented] subcommands[range].__unrenderable
+        ported : ["const_fold"]
+        shipped: ["const_fold","const_fold_versioned","completion","world_effects","state_transitions","dispatch_dependencies","result_stability"]
+        reason : the shipped `string range` declares its value-transfer `semantics` (the direct string-range route) and folds through that route in `const_fold_versioned` beside `const_fold`; the port transcribes neither, so both stay on the unrenderable list. Every field the port does carry matches
+
+
+thread 'every_port_loads_and_matches_its_shipped_spec' (3520) panicked at rust/tcl-spec-studio/tests/spectcl_ports.rs:498:5:
+assertion `left == right` failed: undocumented draft differences:
+
+=== lsort.tclspec — pack `tcl` v1.1 (1 command(s), 0 notice(s))
+  lsort @ tcl9.1: 4 differing field(s)
+    [FAIL] arity
+        ported : {"min":1,"count":"arguments","max":null,"step":0,"also_exact":null}
+        shipped: {"min":1,"count":"positionals","max":1,"step":0,"also_exact":null}
+        reason : UNDOCUMENTED
+    [FAIL] script_lookup_scope
+        ported : null
+        shipped: "InvokingFrame"
+        reason : UNDOCUMENTED
+    [FAIL] reserved_trailing_words
+        ported : 0
+        shipped: 1
+        reason : UNDOCUMENTED
+    [FAIL] __unrenderable
+        ported : []
+        shipped: ["native_compilation"]
+        reason : UNDOCUMENTED
+
+=== foreach.tclspec — pack `tcl` v2.1 (1 command(s), 1 notice(s))
+    notice: command foreach:52: names a lowering hook: this changes how the compiler translates the command, not just what the editor knows about it
+  foreach @ tcl9.1: 3 differing field(s)
+    [FAIL] representation_effect
+        ported : null
+        shipped: "Some(RepresentationEffect::CoerceOrdinaryListPairs { variables_from: 0 })"
+        reason : UNDOCUMENTED
+    [FAIL] successful_handler
+        ported : null
+        shipped: "Some(tcl_registry::native_compilation::SuccessfulHandlerSpec::PossibleBodies)"
+        reason : UNDOCUMENTED
+    [documented] __unrenderable
+        ported : ["arg_role_count_resolver"]
+        shipped: ["arg_role_count_resolver","native_compilation"]
+        reason : the shipped spec declares its value-transfer `semantics` (the explicit iteration declaration of `docs/design/compiler/value-transfers.md`); the port does not transcribe it, so it stays on the unrenderable list. Every field the port does carry matches
+
+=== switch.tclspec — pack `tcl` v2.1 (1 command(s), 1 notice(s))
+    notice: command switch:50: names a lowering hook: this changes how the compiler translates the command, not just what the editor knows about it
+  switch @ tcl9.1: 3 differing field(s)
+    [FAIL] arity
+        ported : {"min":3,"count":"arguments","max":null,"step":2,"also_exact":2}
+        shipped: {"min":3,"count":"positionals","max":null,"step":2,"also_exact":2}
+        reason : UNDOCUMENTED
+    [FAIL] successful_handler
+        ported : null
+        shipped: "Some(tcl_registry::native_compilation::SuccessfulHandlerSpec::PossibleBodies)"
+        reason : UNDOCUMENTED
+    [FAIL] __unrenderable
+        ported : ["arg_role_resolver","case_list"]
+        shipped: ["arg_role_resolver","native_compilation","case_list"]
+        reason : UNDOCUMENTED
+
+=== if.tclspec — pack `tcl` v2.1 (1 command(s), 1 notice(s))
+    notice: command if:47: names a lowering hook: this changes how the compiler translates the command, not just what the editor knows about it
+  if @ tcl9.1: 2 differing field(s)
+    [FAIL] successful_handler
+        ported : null
+        shipped: "Some(tcl_registry::native_compilation::SuccessfulHandlerSpec::PossibleBodies)"
+        reason : UNDOCUMENTED
+    [documented] __unrenderable
+        ported : []
+        shipped: ["arg_role_layout_resolver","bpf_op","native_lowering","clause_shape_check","native_compilation"]
+        reason : the shipped spec carries the compiler-owned `native_lowering` descriptor (the native-tier shape stamped beside the lowering hook); SpecTcl has no surface for it, so it stays on the unrenderable list and the port does not transcribe it. Every field the port does carry matches
+
+=== upvar.tclspec — pack `tcl` v1.1 (1 command(s), 1 notice(s))
+    notice: command upvar:45: names a lowering hook: this changes how the compiler translates the command, not just what the editor knows about it
+  upvar @ tcl9.1: 2 differing field(s)
+    [FAIL] hover
+        ported : {"summary":"Create link to variable in a different stack frame","synopsis":["upvar ?level? otherVar myVar ?otherVar myVar ...?"],"snippet":"Links each myVar in the current procedure to the variable na… (2382 bytes)
+        shipped: {"summary":"Create link to variable in a different stack frame","synopsis":["upvar ?level? otherVar myVar ?otherVar myVar ...?"],"snippet":"Links each myVar in the current procedure to the variable na… (2420 bytes)
+        reason : UNDOCUMENTED
+    [documented] __unrenderable
+        ported : ["frame_effect","world_effects","state_transitions"]
+        shipped: ["frame_effect","native_lowering","completion","world_effects","state_transitions","native_result","native_compilation"]
+        reason : the shipped spec carries the compiler-owned `native_lowering` descriptor (the native-tier shape stamped beside the lowering hook); SpecTcl has no surface for it, so it stays on the unrenderable list and the port does not transcribe it. Every field the port does carry matches
+
+=== geturl.tclspec — pack `tcl` v2.0 (2 command(s), 0 notice(s))
+  uri::geturl @ tcl9.1: 1 differing field(s)
+    [documented] surface
+        ported : null
+        shipped: ["tcl8.5","tcl8.6","tcl9.0","tcl9.1"]
+        reason : the port is faithful to the `.rs` (`surface: None`), but the shipped registry states a tcllib command's surface at REGISTRATION time — `tcllib_command_specs` gives every tcllib command the Tcl core rows its modules need, since a tcllib module is a `package require` away and the F5 embedded surfaces have none. A pack loader installing into a registry would apply the same blanket rule; the spec field itself matches
+  http::geturl @ tcl9.1: 0 differing field(s)
+
+=== irules-http-header.tclspec — pack `f5-irules` v1.1 (1 command(s), 0 notice(s))
+  HTTP::header @ f5-irules: 2 differing field(s)
+    [documented] traits
+        ported : ["PURE","CSE_CANDIDATE","DIAGRAM_ACTION"]
+        shipped: ["PURE","CSE_CANDIDATE","REQUIRES_HTTP_CONTEXT","DIAGRAM_ACTION"]
+        reason : the shipped registry adds REQUIRES_HTTP_CONTEXT at registration (irules/mod.rs's http_context() wrapper over IRULES_SPECS — pack-level curation, the IRULE1201 source of truth), not in the spec literal. The port is faithful to the .rs; a pack loader installing into the iRules registry applies the same wrapper policy, exactly like the tcllib dialect fill above
+    [FAIL] subcommands
+        ported : [{"name":"at","traits":[],"arity":{"min":1,"count":"arguments","max":1,"step":0,"also_exact":null},"arity_windows":[],"detail":"Get header name by index.","synopsis":"HTTP::header at <index>","hover":… (35227 bytes)
+        shipped: [{"name":"at","traits":[],"arity":{"min":1,"count":"arguments","max":1,"step":0,"also_exact":null},"arity_windows":[],"detail":"Get header name by index.","synopsis":"HTTP::header at <index>","hover":… (35357 bytes)
+        reason : UNDOCUMENTED
+
+=== return.tclspec — pack `tcl` v2.1 (1 command(s), 1 notice(s))
+    notice: command return:75: names a lowering hook: this changes how the compiler translates the command, not just what the editor knows about it
+  return @ tcl9.1: 3 differing field(s)
+    [FAIL] side_effects
+        ported : [{"target":"InterpState","reads":false,"writes":true,"connection_side":"None","surface":null,"introduced_version":null,"deprecated_version":null,"retired_version":null,"deprecation_fix":null},{"target… (393 bytes)
+        shipped: [{"target":"EventControl","reads":false,"writes":true,"connection_side":"None","surface":["f5-irules"],"introduced_version":null,"deprecated_version":null,"retired_version":null,"deprecation_fix":null}]
+        reason : UNDOCUMENTED
+    [FAIL] reserved_trailing_words
+        ported : 0
+        shipped: 1
+        reason : UNDOCUMENTED
+    [documented] __unrenderable
+        ported : ["arg_role_resolver","options.arity_hook","context_gate"]
+        shipped: ["arg_role_layout_resolver","native_lowering","world_effects","state_transitions","native_result","options.arity_hook","native_compilation","context_gate"]
+        reason : the shipped spec carries the compiler-owned `native_lowering` descriptor, unrenderable in SpecTcl exactly as for `if` and `upvar`; every field the port does carry matches
+
+=== snit-type.tclspec — pack `tcllib` v1.1 (1 command(s), 0 notice(s))
+  snit::type @ tcl9.1: 1 differing field(s)
+    [documented] surface
+        ported : null
+        shipped: ["tcl8.5","tcl8.6","tcl9.0","tcl9.1"]
+        reason : the port is faithful to the `.rs` (`surface: None`), but the shipped registry states a tcllib command's surface at REGISTRATION time — `tcllib_command_specs` gives every tcllib command the Tcl core rows its modules need, since a tcllib module is a `package require` away and the F5 embedded surfaces have none. A pack loader installing into a registry would apply the same blanket rule; the spec field itself matches
+
+=== oo-class.tclspec — pack `tcl` v2.1 (1 command(s), 0 notice(s))
+  oo::class @ tcl9.1: 4 differing field(s)
+    [documented] __unrenderable
+        ported : ["arg_role_resolver"]
+        shipped: ["arg_role_resolver","native_compilation"]
+        reason : the shipped `oo::class` carries a `native_compilation` recipe, which SpecTcl has no surface for; the port does not transcribe it
+    [documented] subcommands[create].__unrenderable
+        ported : []
+        shipped: ["world_effects","state_transitions"]
+        reason : the shipped subcommand's `world_effects` and `state_transitions` descriptors, which a pack cannot author (see `OO_CLASS_FACTORY_DESCRIPTORS`); the port states the legacy `side_effect` and `defines_command_at` facts instead
+    [documented] subcommands[new].__unrenderable
+        ported : []
+        shipped: ["world_effects","state_transitions"]
+        reason : the shipped subcommand's `world_effects` and `state_transitions` descriptors, which a pack cannot author (see `OO_CLASS_FACTORY_DESCRIPTORS`); the port states the legacy `side_effect` and `defines_command_at` facts instead
+    [documented] subcommands[createWithNamespace].__unrenderable
+        ported : []
+        shipped: ["world_effects","state_transitions"]
+        reason : the shipped subcommand's `world_effects` and `state_transitions` descriptors, which a pack cannot author (see `OO_CLASS_FACTORY_DESCRIPTORS`); the port states the legacy `side_effect` and `defines_command_at` facts instead
+
+=== string.tclspec — pack `tcl` v2.2 (1 command(s), 0 notice(s))
+  string @ tcl9.1: 9 differing field(s)
+    [documented] __unrenderable
+        ported : []
+        shipped: ["native_compilation"]
+        reason : the shipped `string` carries `completion`, `world_effects`, `state_transitions`, `dispatch_dependencies` and `result_stability` descriptors that arrived with the completion-code and stable-call-CSE work. SpecTcl has no surface for any of them yet — the loader already reports `world_effects` / `state_transitions` rows as "not yet loadable; dropped" — so they stay on the unrenderable list and the port does not transcribe them. Every field the port does carry matches
+    [FAIL] subcommands[length].successful_handler
+        ported : null
+        shipped: "Some(tcl_registry::native_compilation::SuccessfulHandlerSpec::EnsembleLeaf { lookup: NativeCompilerImplementationLookup { ensemble: \"::string\", member: \"length\", slot: \"::tcl::string::length\", … (310 bytes)
+        reason : UNDOCUMENTED
+    [documented] subcommands[length].__unrenderable
+        ported : ["const_fold"]
+        shipped: ["const_fold","completion","world_effects","state_transitions","dispatch_dependencies","result_stability","native_compilation"]
+        reason : the same five descriptors, declared per-subcommand on `string length`; unrenderable for the same reason
+    [FAIL] subcommands[is].subcommand_forms
+        ported : []
+        shipped: [{"name":"value","arity":{"min":2,"count":"arguments","max":2,"step":0,"also_exact":null},"selector":null,"arg_roles":[],"variable_receivers":null,"options":[],"option_relations":null,"surface":null,"… (337 bytes)
+        reason : UNDOCUMENTED
+    [FAIL] subcommands[is].__unrenderable
+        ported : ["const_fold_versioned"]
+        shipped: ["const_fold_versioned","subcommand_forms"]
+        reason : UNDOCUMENTED
+    [FAIL] subcommands[map].successful_handler
+        ported : null
+        shipped: "Some(tcl_registry::native_compilation::SuccessfulHandlerSpec::EnsembleLeaf { lookup: NativeCompilerImplementationLookup { ensemble: \"::string\", member: \"map\", slot: \"::tcl::string::map\", comman… (301 bytes)
+        reason : UNDOCUMENTED
+    [FAIL] subcommands[map].__unrenderable
+        ported : ["const_fold"]
+        shipped: ["const_fold","completion","world_effects","state_transitions","dispatch_dependencies","result_stability"]
+        reason : UNDOCUMENTED
+    [FAIL] subcommands[range].successful_handler
+        ported : null
+        shipped: "Some(tcl_registry::native_compilation::SuccessfulHandlerSpec::EnsembleLeaf { lookup: NativeCompilerImplementationLookup { ensemble: \"::string\", member: \"range\", slot: \"::tcl::string::range\", co… (307 bytes)
+        reason : UNDOCUMENTED
+    [documented] subcommands[range].__unrenderable
+        ported : ["const_fold"]
+        shipped: ["const_fold","const_fold_versioned","completion","world_effects","state_transitions","dispatch_dependencies","result_stability"]
+        reason : the shipped `string range` declares its value-transfer `semantics` (the direct string-range route) and folds through that route in `const_fold_versioned` beside `const_fold`; the port transcribes neither, so both stay on the unrenderable list. Every field the port does carry matches
+
+  left: 20
+ right: 0
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<usize, usize>
+   4: spectcl_ports::every_port_loads_and_matches_its_shipped_spec
+   5: spectcl_ports::every_port_loads_and_matches_its_shipped_spec::{closure#0}
+   6: <spectcl_ports::every_port_loads_and_matches_its_shipped_spec::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- upvar_carries_its_frame_effect_verbatim stdout ----
+
+thread 'upvar_carries_its_frame_effect_verbatim' (3535) panicked at rust/tcl-spec-studio/tests/spectcl_ports.rs:884:5:
+assertion `left == right` failed
+  left: Some(FrameEffectSpec { level_word: ArityParity, layout: AliasPairs })
+ right: Some(FrameEffectSpec { level_word: Upvar, layout: AliasPairs })
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<core::option::Option<tcl_registry::frame_effect::FrameEffectSpec>, core::option::Option<tcl_registry::frame_effect::FrameEffectSpec>>
+   4: spectcl_ports::upvar_carries_its_frame_effect_verbatim
+   5: spectcl_ports::upvar_carries_its_frame_effect_verbatim::{closure#0}
+   6: <spectcl_ports::upvar_carries_its_frame_effect_verbatim::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+
+failures:
+    every_port_loads_and_matches_its_shipped_spec
+    upvar_carries_its_frame_effect_verbatim
+
+test result: FAILED. 10 passed; 2 failed; 0 ignored; 0 measured; 0 filtered out; finished in 9.04s
+

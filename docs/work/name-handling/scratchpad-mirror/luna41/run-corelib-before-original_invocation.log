@@ -1,0 +1,10 @@
+test original_invocation::source_words_tests::original_source_words_share_roles_and_original_geometry ... ok
+test original_invocation::original_diagnostic_value_tests::original_core_word_contents_use_logical_advice_without_executable_constants ... FAILED
+---- original_invocation::original_diagnostic_value_tests::original_core_word_contents_use_logical_advice_without_executable_constants stdout ----
+thread 'original_invocation::original_diagnostic_value_tests::original_core_word_contents_use_logical_advice_without_executable_constants' (7142) panicked at rust/tcl-lsp-core/src/original_invocation.rs:527:9:
+assertion `left == right` failed
+  left: None
+ right: Some("literal.txt")
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+test result: FAILED. 1 passed; 1 failed; 0 ignored; 0 measured; 3483 filtered out; finished in 4.16s

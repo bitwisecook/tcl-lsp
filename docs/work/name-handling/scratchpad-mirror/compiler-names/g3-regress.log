@@ -1,0 +1,134 @@
+
+running 8 tests
+test command_binding::conditional_expression_tests::conditional_expression_template_retains_grammar_without_actual_entry ... FAILED
+test command_binding::expression_preparation::tests::scoped_nested_normalisation_keeps_original_world_frame_and_source ... FAILED
+test command_binding::expression_preparation::tests::selected_nested_normalisation_projects_actual_operand_and_command_source ... FAILED
+test command_binding::declaration_layout::tests::declaration_layout_keeps_its_original_table_without_a_compiler_visit ... FAILED
+test command_binding::source_command_world::tests::original_namespace_import_keeps_the_source_declaration_allocation ... FAILED
+test command_binding::normal_result::tests::scoped_procedure_equivalence_keeps_independent_world_and_completion_obligations ... FAILED
+test command_binding::lifecycle_advice::tests::scoped_lifecycle_coverage_keeps_declared_issuer_frame_and_original_source ... FAILED
+test command_binding::original_body_namespace::tests::original_immediate_body_namespace_keeps_actual_native_conditional_and_error_prefix ... FAILED
+
+failures:
+
+---- command_binding::conditional_expression_tests::conditional_expression_template_retains_grammar_without_actual_entry stdout ----
+
+thread 'command_binding::conditional_expression_tests::conditional_expression_template_retains_grammar_without_actual_entry' (3271) panicked at rust/tcl-compiler/src/command_binding/conditional_expression_tests.rs:53:5:
+assertion `left == right` failed
+  left: Reached
+ right: Conditional
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<tcl_compiler::command_binding::compiler_inventory::SourceRuntimeReachability, tcl_compiler::command_binding::compiler_inventory::SourceRuntimeReachability>
+   4: tcl_compiler::command_binding::conditional_expression_tests::conditional_expression_template_retains_grammar_without_actual_entry
+   5: tcl_compiler::command_binding::conditional_expression_tests::conditional_expression_template_retains_grammar_without_actual_entry::{closure#0}
+   6: <tcl_compiler::command_binding::conditional_expression_tests::conditional_expression_template_retains_grammar_without_actual_entry::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- command_binding::expression_preparation::tests::scoped_nested_normalisation_keeps_original_world_frame_and_source stdout ----
+
+thread 'command_binding::expression_preparation::tests::scoped_nested_normalisation_keeps_original_world_frame_and_source' (3273) panicked at rust/tcl-compiler/src/command_binding/expression_preparation.rs:2046:17:
+assertion failed: binding.proved_execution_target().is_none()
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: tcl_compiler::command_binding::expression_preparation::tests::scoped_nested_normalisation_keeps_original_world_frame_and_source
+   4: tcl_compiler::command_binding::expression_preparation::tests::scoped_nested_normalisation_keeps_original_world_frame_and_source::{closure#0}
+   5: <tcl_compiler::command_binding::expression_preparation::tests::scoped_nested_normalisation_keeps_original_world_frame_and_source::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- command_binding::expression_preparation::tests::selected_nested_normalisation_projects_actual_operand_and_command_source stdout ----
+
+thread 'command_binding::expression_preparation::tests::selected_nested_normalisation_projects_actual_operand_and_command_source' (3274) panicked at rust/tcl-compiler/src/command_binding/expression_preparation.rs:2114:17:
+assertion failed: binding.proved_execution_target().is_none()
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: tcl_compiler::command_binding::expression_preparation::tests::selected_nested_normalisation_projects_actual_operand_and_command_source
+   4: tcl_compiler::command_binding::expression_preparation::tests::selected_nested_normalisation_projects_actual_operand_and_command_source::{closure#0}
+   5: <tcl_compiler::command_binding::expression_preparation::tests::selected_nested_normalisation_projects_actual_operand_and_command_source::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- command_binding::declaration_layout::tests::declaration_layout_keeps_its_original_table_without_a_compiler_visit stdout ----
+
+thread 'command_binding::declaration_layout::tests::declaration_layout_keeps_its_original_table_without_a_compiler_visit' (3272) panicked at rust/tcl-compiler/src/command_binding/declaration_layout.rs:5065:9:
+assertion failed: tokens.source_binding.as_ref().unwrap().execution_is_unknown()
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: tcl_compiler::command_binding::declaration_layout::tests::declaration_layout_keeps_its_original_table_without_a_compiler_visit
+   4: tcl_compiler::command_binding::declaration_layout::tests::declaration_layout_keeps_its_original_table_without_a_compiler_visit::{closure#0}
+   5: <tcl_compiler::command_binding::declaration_layout::tests::declaration_layout_keeps_its_original_table_without_a_compiler_visit::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- command_binding::source_command_world::tests::original_namespace_import_keeps_the_source_declaration_allocation stdout ----
+
+thread 'command_binding::source_command_world::tests::original_namespace_import_keeps_the_source_declaration_allocation' (3278) panicked at rust/tcl-compiler/src/command_binding/source_command_world.rs:3172:18:
+closed original namespace operations
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::option::expect_failed
+   3: <core::option::Option<tcl_compiler::command_binding::source_command_world::OriginalCompletedCommandWorld>>::expect
+   4: tcl_compiler::command_binding::source_command_world::tests::original_namespace_import_keeps_the_source_declaration_allocation
+   5: tcl_compiler::command_binding::source_command_world::tests::original_namespace_import_keeps_the_source_declaration_allocation::{closure#0}
+   6: <tcl_compiler::command_binding::source_command_world::tests::original_namespace_import_keeps_the_source_declaration_allocation::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- command_binding::normal_result::tests::scoped_procedure_equivalence_keeps_independent_world_and_completion_obligations stdout ----
+
+thread 'command_binding::normal_result::tests::scoped_procedure_equivalence_keeps_independent_world_and_completion_obligations' (3276) panicked at rust/tcl-compiler/src/command_binding/normal_result.rs:610:9:
+assertion failed: binding.proved_execution_target().is_none()
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: tcl_compiler::command_binding::normal_result::tests::scoped_procedure_equivalence_keeps_independent_world_and_completion_obligations
+   4: tcl_compiler::command_binding::normal_result::tests::scoped_procedure_equivalence_keeps_independent_world_and_completion_obligations::{closure#0}
+   5: <tcl_compiler::command_binding::normal_result::tests::scoped_procedure_equivalence_keeps_independent_world_and_completion_obligations::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- command_binding::lifecycle_advice::tests::scoped_lifecycle_coverage_keeps_declared_issuer_frame_and_original_source stdout ----
+
+thread 'command_binding::lifecycle_advice::tests::scoped_lifecycle_coverage_keeps_declared_issuer_frame_and_original_source' (3275) panicked at rust/tcl-compiler/src/command_binding/lifecycle_advice.rs:413:9:
+assertion failed: binding.proved_execution_target().is_none()
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: tcl_compiler::command_binding::lifecycle_advice::tests::scoped_lifecycle_coverage_keeps_declared_issuer_frame_and_original_source
+   4: tcl_compiler::command_binding::lifecycle_advice::tests::scoped_lifecycle_coverage_keeps_declared_issuer_frame_and_original_source::{closure#0}
+   5: <tcl_compiler::command_binding::lifecycle_advice::tests::scoped_lifecycle_coverage_keeps_declared_issuer_frame_and_original_source::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- command_binding::original_body_namespace::tests::original_immediate_body_namespace_keeps_actual_native_conditional_and_error_prefix stdout ----
+
+thread 'command_binding::original_body_namespace::tests::original_immediate_body_namespace_keeps_actual_native_conditional_and_error_prefix' (3277) panicked at rust/tcl-compiler/src/command_binding/original_body_namespace.rs:451:17:
+assertion failed: fixture.bindings.executed_script_namespace_context(&body).is_none()
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: tcl_compiler::command_binding::original_body_namespace::tests::original_immediate_body_namespace_keeps_actual_native_conditional_and_error_prefix
+   4: tcl_compiler::command_binding::original_body_namespace::tests::original_immediate_body_namespace_keeps_actual_native_conditional_and_error_prefix::{closure#0}
+   5: <tcl_compiler::command_binding::original_body_namespace::tests::original_immediate_body_namespace_keeps_actual_native_conditional_and_error_prefix::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+
+failures:
+    command_binding::conditional_expression_tests::conditional_expression_template_retains_grammar_without_actual_entry
+    command_binding::declaration_layout::tests::declaration_layout_keeps_its_original_table_without_a_compiler_visit
+    command_binding::expression_preparation::tests::scoped_nested_normalisation_keeps_original_world_frame_and_source
+    command_binding::expression_preparation::tests::selected_nested_normalisation_projects_actual_operand_and_command_source
+    command_binding::lifecycle_advice::tests::scoped_lifecycle_coverage_keeps_declared_issuer_frame_and_original_source
+    command_binding::normal_result::tests::scoped_procedure_equivalence_keeps_independent_world_and_completion_obligations
+    command_binding::original_body_namespace::tests::original_immediate_body_namespace_keeps_actual_native_conditional_and_error_prefix
+    command_binding::source_command_world::tests::original_namespace_import_keeps_the_source_declaration_allocation
+
+test result: FAILED. 0 passed; 8 failed; 0 ignored; 0 measured; 10471 filtered out; finished in 12.47s
+

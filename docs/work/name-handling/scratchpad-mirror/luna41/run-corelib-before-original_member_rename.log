@@ -1,0 +1,11 @@
+test original_member_rename::tests::original_member_body_coverage_uses_whole_words_and_formed_content ... FAILED
+test original_member_rename::tests::original_member_rename_checks_builtin_roster_visibility_and_source_family_closure ... ok
+test original_member_rename::tests::original_member_rename_keeps_actual_selectors_and_opaque_declarations_after_ui_clear ... ok
+---- original_member_rename::tests::original_member_body_coverage_uses_whole_words_and_formed_content stdout ----
+thread 'original_member_rename::tests::original_member_body_coverage_uses_whole_words_and_formed_content' (7165) panicked at rust/tcl-lsp-core/src/original_member_rename.rs:668:75:
+called `Option::unwrap()` on a `None` value
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+test result: FAILED. 2 passed; 1 failed; 0 ignored; 0 measured; 3482 filtered out; finished in 12.52s

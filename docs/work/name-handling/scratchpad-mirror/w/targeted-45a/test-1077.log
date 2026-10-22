@@ -1,0 +1,6 @@
+
+running 1 test
+test package_resolver::tests::select_provider_reports_the_chosen_declaration ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 3484 filtered out; finished in 8.21s
+

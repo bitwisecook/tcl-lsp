@@ -1,0 +1,7 @@
+{"scheduled":"interim (Sol-44 hand-back)",
+ "change_since_previous_report":{"integrated_LSP":0,"total_baseline_delta":0,"effective_delta":0,"verified_complete":0},
+ "admissions":{},
+ "committed":{"b6db8ed446":"Sol-44: every tclvm interpreter is native-core (Vm::new test-only, test_support helpers, standard_host); thread/tpool workers and interp-create children fixed; errorInfo-level VM half; tcl-vm lib 945 -> 1107/1387, no new failures; builtins 100/126, namespace_surface 108/123, cmd_math_expr 95/102, run_script 74/98"},
+ "open_findings":["cluster B: module compiled without an entry refused (NativePreflightRequired) — compiler, pre-merge","cluster C: native compiler selection refuses string/regexp/format/dict/... — Sol-45 in progress","TclOO method recursion costs ~200 KB stack per level in debug; depth 10 overflows a 2 MiB test thread (VM)","compiler lowering hang recursing per nesting level (prove_possible_bodies -> stamp_original_tokens)","tclvm deferred ports still open: items 2, 3 (rest), 5, 6, 7, 8, 9, 10"],
+ "in_progress":{"sol-45":"cluster C / C6 / C2 (uncommitted, 7 C6 regressions pending)"},
+ "next_report_utc":"2026-10-20T22:44:00Z"}

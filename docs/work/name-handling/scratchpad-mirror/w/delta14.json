@@ -1,0 +1,18 @@
+{
+ "scheduled": "2026-10-18T10:46:00Z",
+ "change_since_previous_report": {"integrated_LSP": 0, "total_baseline_delta": 0, "effective_delta": 0, "verified_complete": 0},
+ "admissions": {},
+ "validation_recorded_at_capture": {
+  "capture43": {"status": "RUNNING", "source": "db5a1ba9a (integrations 41-42)", "original_core_partial": {"complete": 628, "passed": 515, "gains_vs_capture41": ["definition::tests::a_forget_after_the_import_stops_resolving_the_alias (404)"], "losses": 0}, "original_db": [11, 7, 0, 0]}
+ },
+ "candidate_reviews": {
+  "row14_linked_logical_geometry": "v1 HOLD (Absolute recipe missed; deleted ::foo counterexample); v2 implements the reviewer's fix with counterexample tests; candidate for integration43",
+  "receiver_collection": "v1 HOLD (project-mode refusal bypass); v2 early return + negative test; candidate for integration43; row stays PARTIAL",
+  "package_control_admissible_ABR": "ADMIT (Luna-16): quoted-body lookup widening, inert invalid requirements, registry effects for package provide/vsatisfies verified against tclPkg.c 8.4-9.1, dead variant removed; candidate for integration43",
+  "package_control_CD": "v2 HOLD (lookups other than resolve() still fall through a possibly-created local command; Native C-source path); v3 in progress"
+ },
+ "user_decisions_still_open": ["Compiler221", "DB921 identity", "Server102/103 freshness vs snapshot", "Server108 validation cost", "confirm applied scope of auto_import fixture decision", "exception to delete test-only lexical helpers in package reachability tests (assertions)"],
+ "next_report_utc": "2026-10-18T11:17:00Z",
+ "green_PR": false,
+ "merge_or_issue_closure": false
+}

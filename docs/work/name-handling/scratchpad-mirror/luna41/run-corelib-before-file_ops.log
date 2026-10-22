@@ -1,0 +1,9 @@
+test file_ops::tests::ignores_unrelated_and_substituted_sources ... ok
+test file_ops::tests::path_helpers ... ok
+test file_ops::tests::file_action_edits_require_the_original_index_and_analysis_generation ... ok
+test file_ops::tests::resolves_relative_source_via_workspace_root ... ok
+test file_ops::tests::rewrites_absolute_source_literal_to_new_absolute ... ok
+test file_ops::tests::braced_and_quoted_literals_rewrite_content_only ... ok
+test file_ops::tests::rewrites_relative_source_literal ... ok
+test file_ops::tests::script_dir_match_still_rewrites_relative_to_script ... ok
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 3477 filtered out; finished in 5.11s

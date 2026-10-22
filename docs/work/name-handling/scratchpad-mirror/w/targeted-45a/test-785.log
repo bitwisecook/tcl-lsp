@@ -1,0 +1,6 @@
+
+running 1 test
+test loader::dialect_block::tests::a_pack_declaring_jims_grammar_is_classified_as_jim_issue_2070 ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 307 filtered out; finished in 0.00s
+

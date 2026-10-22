@@ -1,0 +1,25 @@
+
+running 1 test
+test package_resolver::reachability::source_possible_occupant_tests::definitions_from_entered_conditions_and_bodies_keep_namespace_shadows ... 
+thread 'package_resolver::reachability::source_possible_occupant_tests::definitions_from_entered_conditions_and_bodies_keep_namespace_shadows' (18509) panicked at rust/tcl-lsp-core/src/package_resolver/reachability.rs:917:9:
+assertion `left == right` failed: condition-created shadow
+  left: 1
+ right: 0
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<i32, i32>
+   4: tcl_lsp_core::package_resolver::reachability::source_possible_occupant_tests::definitions_from_entered_conditions_and_bodies_keep_namespace_shadows
+   5: tcl_lsp_core::package_resolver::reachability::source_possible_occupant_tests::definitions_from_entered_conditions_and_bodies_keep_namespace_shadows::{closure#0}
+   6: <tcl_lsp_core::package_resolver::reachability::source_possible_occupant_tests::definitions_from_entered_conditions_and_bodies_keep_namespace_shadows::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+FAILED
+
+failures:
+
+failures:
+    package_resolver::reachability::source_possible_occupant_tests::definitions_from_entered_conditions_and_bodies_keep_namespace_shadows
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 3483 filtered out; finished in 0.52s
+

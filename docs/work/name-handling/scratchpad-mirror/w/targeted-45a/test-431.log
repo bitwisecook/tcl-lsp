@@ -1,0 +1,6 @@
+
+running 1 test
+test source_map::source_image_hash_tests::source_image_digest_collision_does_not_merge_map_or_order_identity ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 584 filtered out; finished in 0.00s
+

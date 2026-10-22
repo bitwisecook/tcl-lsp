@@ -1,0 +1,21 @@
+    Blocking waiting for file lock on build directory
+   Compiling crossbeam-epoch v0.9.21
+   Compiling tcl-vm v0.1.0 (/home/user/tcl-lsp/rust/tcl-vm)
+   Compiling parking_lot v0.12.5
+   Compiling temp-env v0.3.6
+   Compiling crossbeam-deque v0.8.8
+   Compiling rayon-core v1.13.0
+   Compiling rayon v1.12.0
+   Compiling tcl-engine-tclvm v0.1.0 (/home/user/tcl-lsp/rust/tcl-engine-tclvm)
+   Compiling tcl-spec-hooks v0.1.0 (/home/user/tcl-lsp/rust/tcl-spec-hooks)
+   Compiling tcl-spectcl v0.1.0 (/home/user/tcl-lsp/rust/tcl-spectcl)
+   Compiling tcl-compiler v0.1.0 (/home/user/tcl-lsp/rust/tcl-compiler)
+error: usage of an `unsafe` block
+    --> rust/tcl-compiler/src/registry_invocation/source_structure.rs:4489:9
+     |
+4489 |         unsafe { std::env::set_var("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS", "1") };
+     |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+     |
+     = note: requested on the command line with `-F unsafe-code`
+
+error: could not compile `tcl-compiler` (lib test) due to 1 previous error

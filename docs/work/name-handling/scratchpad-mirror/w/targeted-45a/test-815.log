@@ -1,0 +1,6 @@
+
+running 1 test
+test commands::tcl::package_::single_package_option_layout_tests::repeated_exact_is_the_package_name_after_one_flag ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1875 filtered out; finished in 0.00s
+

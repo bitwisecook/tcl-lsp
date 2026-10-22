@@ -1,0 +1,17 @@
+SpecTcl loader keeps original body text across line continuations; drop probes
+
+A braced word's value collapses each backslash-newline to a space, so
+the loader's check that the original body text matches the evaluated
+body rejected any body with a continuation and ran the collapsed value,
+losing a line per continuation (eda_microchip add_library at 65, not
+67). The original text is now accepted when collapsing it gives the
+evaluated body. Not re-run for lack of disk; expected eval_loader 28/28.
+
+Also removes the temporary zz_s48 probe tests the WIP snapshot carried
+in tests/eval_loader.rs (now identical to e34d8a427e), clearing the CI
+fmt flag. Notes cover all VM/runtime changes since e34d8a427e, most of
+which landed in the WIP snapshots.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_011NdtTupEa77wLeefhZZXA7
+

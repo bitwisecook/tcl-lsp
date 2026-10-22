@@ -1,0 +1,6 @@
+
+running 1 test
+test word_parts::tests::text_variable_and_command_split_out ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 584 filtered out; finished in 0.00s
+

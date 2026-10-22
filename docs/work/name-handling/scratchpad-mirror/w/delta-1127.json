@@ -1,0 +1,7 @@
+{"scheduled":"2026-10-21T11:27:00Z",
+ "change_since_previous_report":{"integrated_LSP":0,"total_baseline_delta":0,"effective_delta":0,"verified_complete":0},
+ "admissions":{},
+ "in_progress":{"sol-48":"tclvm work, active (11 tcl-vm + 1 tcl-vm-cli files modified)","sol-49":"compiler work, active (10 tcl-compiler files modified)"},
+ "merge_path_assessment":"work is 1185 commits ahead of origin/rust (fully merged in); 109,730 files / ~25.1M lines differ, about half experiments/name-handling evidence and ~22% test fixtures. Remaining before a PR: land Sol-48/49, fresh full CI (last: run 5201, 3,634 failures, pre Sol-41..47), resolution-oracles workflow fails with zero jobs on every push, clippy (~2,700 findings) and lint-py, task #13 decisions, full LSP capture rerun, and a user decision on which evidence files go into rust.",
+ "disk_free_gb":3.3,
+ "next_report_utc":"2026-10-21T11:58:00Z"}

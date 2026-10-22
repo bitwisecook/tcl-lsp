@@ -1,0 +1,23 @@
+
+running 1 test
+test registry_invocation::source_structure::project_procedure_roles::tests::project_procedure_arguments_keep_priority_ambiguity_and_class_blockers ... 
+thread 'registry_invocation::source_structure::project_procedure_roles::tests::project_procedure_arguments_keep_priority_ambiguity_and_class_blockers' (1106) panicked at rust/tcl-compiler/src/registry_invocation/source_structure/project_procedure_roles.rs:634:25:
+tcl: genuine root fallback after local deletion
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: tcl_compiler::registry_invocation::source_structure::project_procedure_roles::tests::project_procedure_arguments_keep_priority_ambiguity_and_class_blockers::{closure#0}
+   3: <core::option::Option<tcl_compiler::registry_invocation::source_structure::project_procedure_roles::OriginalProjectProcedureArguments>>::unwrap_or_else::<tcl_compiler::registry_invocation::source_structure::project_procedure_roles::tests::project_procedure_arguments_keep_priority_ambiguity_and_class_blockers::{closure#0}>
+   4: tcl_compiler::registry_invocation::source_structure::project_procedure_roles::tests::project_procedure_arguments_keep_priority_ambiguity_and_class_blockers
+   5: tcl_compiler::registry_invocation::source_structure::project_procedure_roles::tests::project_procedure_arguments_keep_priority_ambiguity_and_class_blockers::{closure#0}
+   6: <tcl_compiler::registry_invocation::source_structure::project_procedure_roles::tests::project_procedure_arguments_keep_priority_ambiguity_and_class_blockers::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+FAILED
+
+failures:
+
+failures:
+    registry_invocation::source_structure::project_procedure_roles::tests::project_procedure_arguments_keep_priority_ambiguity_and_class_blockers
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 10440 filtered out; finished in 13.62s
+

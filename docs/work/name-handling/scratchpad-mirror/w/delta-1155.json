@@ -1,0 +1,10 @@
+{
+ "scheduled": "2026-10-19T11:55:22Z",
+ "change_since_previous_report": {"integrated_LSP": 0, "total_baseline_delta": 0, "effective_delta": 0, "verified_complete": 0},
+ "admissions": {},
+ "candidates": {"integration45": {"commits": ["aff99dc7e", "82617ee15"], "status": "nested-cut memo amendment committed after Luna-32 conditions were met (54/54 non-passing compiler selectors output-identical; new mixed-purpose memo test); build48 and guarded capture lsp-48 running"}},
+ "user_decisions_since_previous_report": {"receipt": "docs/work/name-handling/handoff/reviews/resume-20261017-diagnosis/user-decisions-20261019T1230Z.json", "summary": "goal: LSP and supporting compiler/tooling on the centralised naming system merged to rust; pause side work that does not unblock the merge; Jim is a separate core dialect with its fix in tcl-registry"},
+ "parked": "reviewed drafts archived under docs/work/name-handling/handoff/reviews/resume-20261017-diagnosis/parked-20261019/ (quick tier, light tests, counters, pack memo, host scan, explorer pack-free, depth caps and seed, minify memo, forced-import A2, source-order proof v5)",
+ "merge_bar": "origin/rust fcb7927f0 CI is green; the work branch must reach a green full workspace suite. Next: after admission, one full CI-equivalent run to inventory every failure, then drive them to zero.",
+ "next_report_utc": "2026-10-19T12:26:00Z"
+}

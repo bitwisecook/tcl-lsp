@@ -1,0 +1,12 @@
+a1-interprocedural__: 56 ok / 71 failed; 1 result lines
+a1-analyser__diagnostics__fp__: 468 ok / 113 failed; 1 result lines
+a1-sccp__: 131 ok / 71 failed; 1 result lines
+a1-optimiser__: 353 ok / 204 failed; 0 result lines
+a1-compilation_unit__: 36 ok / 62 failed; 1 result lines
+a1-analyser__diagnostics__helpers: 13 ok / 9 failed; 1 result lines
+a1-ssa__: 171 ok / 57 failed; 0 result lines
+a1-gvn__: 0 ok / 0 failed; 0 result lines
+a1-lowering_hooks__: 0 ok / 0 failed; 0 result lines
+a1-lowering__: 0 ok / 0 failed; 0 result lines
+a1-codegen__: 0 ok / 0 failed; 0 result lines
+a1-registry_invocation: 0 ok / 0 failed; 0 result lines

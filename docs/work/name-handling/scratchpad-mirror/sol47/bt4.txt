@@ -1,0 +1,45 @@
+_int_malloc
+__GI___libc_malloc
+<alloc::alloc::Global>::alloc_impl_runtime
+<alloc::alloc::Global as core::alloc::Allocator>::allocate
+<alloc::boxed::Box<alloc::collections::btree::node::LeafNode<tcl_compiler::command_binding::ResolvedCommandTarget, core::option::Option<alloc::vec::Vec<tcl_compiler::signature_scan::name_value::SignatureSourceNameInput>>>>>::try_new_uninit_in
+<alloc::boxed::Box<alloc::collections::btree::node::LeafNode<tcl_compiler::command_binding::ResolvedCommandTarget, core::option::Option<alloc::vec::Vec<tcl_compiler::signature_scan::name_value::SignatureSourceNameInput>>>>>::new_uninit_in
+<alloc::collections::btree::node::NodeRef<alloc::collections::btree::node::marker::Owned, tcl_compiler::command_binding::ResolvedCommandTarget, core::option::Option<alloc::vec::Vec<tcl_compiler::signature_scan::name_value::SignatureSourceNameInput>>, alloc::collections::btree::node::marker::Leaf>>::new_leaf::<alloc::alloc::Global>
+<alloc::collections::btree::map::entry::VacantEntry<tcl_compiler::command_binding::ResolvedCommandTarget, core::option::Option<alloc::vec::Vec<tcl_compiler::signature_scan::name_value::SignatureSourceNameInput>>>>::insert_entry
+<alloc::collections::btree::map::entry::Entry<tcl_compiler::command_binding::ResolvedCommandTarget, core::option::Option<alloc::vec::Vec<tcl_compiler::signature_scan::name_value::SignatureSourceNameInput>>>>::or_insert
+<tcl_compiler::command_binding::original_command_table::OriginalCommandTargetSelection>::insert
+<tcl_compiler::command_binding::ModuleCommandBindings>::original_resolve_target
+<tcl_compiler::command_binding::ModuleCommandBindings>::original_targets_for_input_in
+<tcl_compiler::command_binding::ModuleCommandBindings>::original_targets_for_input
+tcl_compiler::command_binding::source_binding_from_original_input_in
+tcl_compiler::command_binding::source_binding_from_original_input
+<tcl_compiler::command_binding::SourceBindingPoint>::original_lookup_binding::{closure#0}
+<core::option::Option<&tcl_compiler::signature_scan::name_value::SignatureSourceNameInput>>::and_then::<tcl_compiler::command_binding::SourceInvocationBinding, <tcl_compiler::command_binding::SourceBindingPoint>::original_lookup_binding::{closure#0}>
+<tcl_compiler::command_binding::SourceBindingPoint>::original_lookup_binding
+<tcl_compiler::command_binding::SourceBindingPoint>::binding_projection
+<tcl_compiler::command_binding::SourceBindingPoint>::original_dispatch_binding
+<tcl_compiler::command_binding::SourceCommandBindings>::query_dispatch_points::<core::iter::adapters::map::Map<core::iter::adapters::flatten::Flatten<core::option::IntoIter<&alloc::vec::Vec<usize>>>, <tcl_compiler::command_binding::SourceCommandBindings>::dispatch_points_at::{closure#0}>>::{closure#2}
+<tcl_compiler::command_binding::SourceCommandBindings>::query_dispatch_points::<core::iter::adapters::map::Map<core::iter::adapters::flatten::Flatten<core::option::IntoIter<&alloc::vec::Vec<usize>>>, <tcl_compiler::command_binding::SourceCommandBindings>::dispatch_points_at::{closure#0}>>
+<tcl_compiler::command_binding::SourceCommandBindings>::invocation_at_source
+<tcl_compiler::command_binding::retained_body_inventory::RetainedSourceBodyInventory>::stamp_original_tokens::{closure#1}::{closure#0}
+<tcl_compiler::command_binding::retained_body_inventory::InvocationProjectionMemo>::get_or_prepare::<<tcl_compiler::command_binding::retained_body_inventory::RetainedSourceBodyInventory>::stamp_original_tokens::{closure#1}::{closure#0}>
+<tcl_compiler::command_binding::retained_body_inventory::RetainedSourceBodyInventory>::stamp_original_tokens::{closure#1}
+<tcl_compiler::command_binding::SourceCommandBindings>::stamp_original_tokens_with_bindings::<<tcl_compiler::command_binding::retained_body_inventory::RetainedSourceBodyInventory>::stamp_original_tokens::{closure#1}>
+<tcl_compiler::command_binding::retained_body_inventory::RetainedSourceBodyInventory>::stamp_original_tokens
+<tcl_compiler::lowering::Lowerer>::cmd_tokens
+<tcl_compiler::lowering::Lowerer>::cmd_tokens_boxed
+<tcl_compiler::lowering::Lowerer>::lower_command
+<tcl_compiler::lowering::Lowerer>::lower_segmented
+<tcl_compiler::lowering::Lowerer>::lower_body_inner::{closure#0}
+<tcl_compiler::lowering::Lowerer>::in_word_space::<alloc::vec::Vec<tcl_compiler::ir::Statement>, <tcl_compiler::lowering::Lowerer>::lower_body_inner::{closure#0}>
+<tcl_compiler::lowering::Lowerer>::lower_body_inner
+<tcl_compiler::lowering::Lowerer>::lower_body_in_irules_context
+<tcl_compiler::lowering::Lowerer>::lower_body
+<tcl_compiler::lowering::Lowerer>::lower_into_script_with_boxed_bindings
+<tcl_compiler::lowering::Lowerer>::lower_executed_script_in_context
+<tcl_compiler::lowering::Lowerer>::prove_possible_bodies
+<tcl_compiler::lowering::Lowerer>::attach_evaluated_body
+<tcl_compiler::lowering::Lowerer>::lower_default
+<tcl_compiler::lowering::Lowerer>::lower_default_boxed
+<tcl_compiler::lowering::Lowerer>::try_dispatch_structured_hook
+<tcl_compiler::lowering::Lowerer>::lower_command

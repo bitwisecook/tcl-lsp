@@ -1,0 +1,5 @@
+test sslictcl_diagnostics::tests::independent_errors_are_all_reported ... ok
+test sslictcl_diagnostics::tests::severities_follow_the_loader ... ok
+test sslictcl_diagnostics::tests::every_finding_carries_the_loader_span_and_the_sslictcl_producer ... ok
+test sslictcl_diagnostics::tests::the_sslictcl_environment_is_the_one_that_applies ... ok
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 3481 filtered out; finished in 0.56s

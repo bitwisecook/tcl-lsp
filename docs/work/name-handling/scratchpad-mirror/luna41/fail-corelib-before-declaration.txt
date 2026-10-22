@@ -1,0 +1,5 @@
+FAILED declaration::tests::declaration_scan_uses_the_declared_local_tail_of_a_global_name
+FAILED declaration::tests::global_declared_inside_apply_lambda_body_is_found
+FAILED declaration::tests::global_declared_inside_control_flow_body_is_found
+FAILED declaration::tests::upvar_local_alias_is_a_declaration
+FAILED original_declaration::readonly_source_reference_tests::readonly_property_reports_promote_only_a_complete_typed_source_census

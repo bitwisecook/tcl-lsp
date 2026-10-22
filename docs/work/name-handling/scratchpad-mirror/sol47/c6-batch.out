@@ -1,0 +1,3 @@
+c6-interprocedural__: 62 ok / 65 failed; 1 result lines
+c6-analyser__diagnostics__helpers: 13 ok / 9 failed; 1 result lines
+c6-compilation_unit__: 34 ok / 60 failed; 0 result lines

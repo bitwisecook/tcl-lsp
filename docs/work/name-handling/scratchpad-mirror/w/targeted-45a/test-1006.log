@@ -1,0 +1,25 @@
+
+running 1 test
+test package_resolver::reachability::original::tests::original_package_paths_use_current_control_roles_and_completion_options ... 
+thread 'package_resolver::reachability::original::tests::original_package_paths_use_current_control_roles_and_completion_options' (24703) panicked at rust/tcl-lsp-core/src/package_resolver/reachability/original.rs:703:13:
+assertion `left == right` failed: if {1} {package ifneeded p 1.0 {source p.tcl}}
+  left: [("p", Conditional)]
+ right: [("p", Available)]
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<alloc::vec::Vec<(alloc::string::String, tcl_lsp_core::package_resolver::reachability::Availability)>, alloc::vec::Vec<(alloc::string::String, tcl_lsp_core::package_resolver::reachability::Availability)>>
+   4: tcl_lsp_core::package_resolver::reachability::original::tests::original_package_paths_use_current_control_roles_and_completion_options
+   5: tcl_lsp_core::package_resolver::reachability::original::tests::original_package_paths_use_current_control_roles_and_completion_options::{closure#0}
+   6: <tcl_lsp_core::package_resolver::reachability::original::tests::original_package_paths_use_current_control_roles_and_completion_options::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+FAILED
+
+failures:
+
+failures:
+    package_resolver::reachability::original::tests::original_package_paths_use_current_control_roles_and_completion_options
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 3484 filtered out; finished in 1.29s
+

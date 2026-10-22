@@ -1,0 +1,66 @@
+test diagnostic_policy::apply_tests::a_gap_is_a_declared_skip_no_finding_explains ... ok
+test diagnostic_policy::apply_tests::a_declared_skip_explains_a_code_no_finding_carries ... ok
+test diagnostic_policy::apply_tests::a_layer_names_itself_and_the_seed_reports_default_off ... ok
+test diagnostic_policy::apply_tests::a_group_that_lost_a_member_is_neither_offered_nor_applied ... ok
+test diagnostic_policy::apply_tests::a_producer_not_run_explains_its_codes_in_either_order ... ok
+test diagnostic_policy::apply_tests::a_producer_not_run_is_one_row_per_reason ... ok
+test diagnostic_policy::apply_tests::a_same_span_overlap_claims_only_the_span_it_shares ... ok
+test diagnostic_policy::apply_tests::a_shown_finding_carries_the_override_and_the_tag ... ok
+test diagnostic_policy::apply_tests::a_gap_reason_follows_the_step_order ... ok
+test diagnostic_policy::apply_tests::code_reason_is_the_per_code_decision_and_the_family_gates ... ok
+test diagnostic_policy::apply_tests::a_producer_owns_the_document_without_a_finding_of_its_own ... ok
+test diagnostic_policy::apply_tests::production_skip_is_the_per_code_decision_and_the_seed ... ok
+test diagnostic_policy::apply_tests::abstention_keeps_the_integrity_codes_and_beats_a_directive ... ok
+test diagnostic_policy::apply_tests::reporting_off_then_excluded_hide_the_whole_document_with_a_reason ... ok
+test diagnostic_policy::apply_tests::directives_beat_the_layers_and_the_inline_one_is_reported_first ... ok
+test diagnostic_policy::apply_tests::the_analyser_skip_adds_the_codes_the_file_directive_names ... ok
+test diagnostic_policy::apply_tests::the_optimiser_skip_leaves_out_the_codes_other_producers_emit ... ok
+test diagnostic_policy::apply_tests::the_report_keeps_the_producers_order ... ok
+test diagnostic_policy::apply_tests::the_shimmer_switch_hides_the_family_only ... ok
+test diagnostic_policy::apply_tests::the_style_pass_through_apply_keeps_the_orchestrator_rules ... ok
+test diagnostic_policy::apply_tests::production_skip_never_skips_a_fact_code ... ok
+test diagnostic_policy::apply_tests::w110_owns_an_o120_whose_span_holds_it ... ok
+test diagnostic_policy::policy_tests::a_requested_profile_is_in_force_over_every_layer ... ok
+test diagnostic_policy::policy_tests::a_wildcard_bucket_silences_every_code ... ok
+test diagnostic_policy::policy_tests::an_unusable_higher_value_resets_the_lower_decision ... ok
+test diagnostic_policy::policy_tests::directives_agree_with_line_suppressed ... ok
+test diagnostic_policy::apply_tests::the_optimiser_gates_fire_in_order_and_after_a_directive ... ok
+test diagnostic_policy::policy_tests::directives_answer_inline_before_file_and_skip_inline_for_whole_file_codes ... ok
+test diagnostic_policy::policy_tests::the_builder_names_the_layer_that_decided_a_code ... ok
+test diagnostic_policy::policy_tests::the_decode_report_drives_abstention ... ok
+test diagnostic_policy::policy_tests::the_default_off_seed_is_the_lowest_layer ... ok
+test diagnostic_policy::policy_tests::the_family_switches_and_the_document_gates_resolve ... ok
+test diagnostic_policy::policy_tests::the_layers_resolve_in_scope_order_whatever_order_they_are_added ... ok
+test diagnostic_policy::policy_tests::the_optimiser_profile_and_overrides_resolve_in_layer_order ... ok
+test diagnostic_policy::policy_tests::the_overlap_table_follows_the_dialect ... ok
+test diagnostic_policy::policy_tests::wrapped_and_flat_dotted_shapes_are_read ... ok
+test diagnostic_policy::tests::analyser_diagnostic_converts_one_to_one ... ok
+test diagnostic_policy::tests::compiler_check_replacement_becomes_a_same_span_fix ... ok
+test diagnostic_policy::tests::config_diagnostic_normalises_its_inclusive_end ... ok
+test diagnostic_policy::tests::every_reason_has_one_stable_spelling ... ok
+test diagnostic_policy::tests::optimisation_carries_its_rewrite_as_data ... ok
+test diagnostic_policy::tests::report_retains_typed_subjects_independently_of_diagnostic_presentation ... ok
+test diagnostic_policy::tests::report_views_split_shown_from_suppressed_and_keep_order ... ok
+test diagnostic_policy::tests::style_ranges_become_byte_spans_and_pick_the_producer_by_code ... ok
+test diagnostic_policy::truth_table::tests::a_defect_names_each_surface_once ... ok
+test diagnostic_policy::truth_table::tests::a_fixed_defect_fails_its_row ... ok
+test diagnostic_policy::truth_table::tests::a_layer_round_trips_through_its_ini_file ... ok
+test diagnostic_policy::truth_table::tests::check_names_the_row_and_the_mismatch ... ok
+test diagnostic_policy::truth_table::tests::every_reason_is_covered ... ok
+test diagnostic_policy::apply_tests::the_wildcard_reaches_both_directive_spellings ... ok
+test diagnostic_policy::truth_table::tests::offered_reads_each_subjects_action ... ok
+test diagnostic_policy::truth_table::tests::row_names_are_unique_and_snake_case ... ok
+test diagnostic_policy::truth_table::tests::the_slot_becomes_flags ... ok
+test diagnostic_policy::truth_table::tests::the_surface_rules_restate_the_page ... ok
+test diagnostic_policy::truth_table::tests::the_surfaces_each_row_runs_on ... ok
+test diagnostic_policy::policy_tests::directives_scan_reads_both_directive_spellings ... ok
+test diagnostic_policy::truth_table::tests::every_row_holds_in_the_core_report has been running for over 60 seconds
+test diagnostic_policy::truth_table::tests::every_row_holds_in_the_core_report ... FAILED
+---- diagnostic_policy::truth_table::tests::every_row_holds_in_the_core_report stdout ----
+thread 'diagnostic_policy::truth_table::tests::every_row_holds_in_the_core_report' (12135) panicked at rust/tcl-lsp-core/src/diagnostic_policy/truth_table.rs:1340:9:
+row `encoding_abstention` on Core: W210: expected [Expect { code: W210, line: Some(2), want: Suppressed(EncodingAbstention) }] not observed; observed [] not expected
+row `default_off_turned_on_at_global` on Core: W242: expected [Expect { code: W242, line: Some(1), want: Shown }] not observed; observed [] not expected
+row `default_off_turned_on_in_the_slot` on Core: W242: expected [Expect { code: W242, line: Some(1), want: Shown }] not observed; observed [] not expected
+row `default_off_turned_on_at_project` on Core: W242: expected [Expect { code: W242, line: Some(1), want: Shown }] not observed; observed [] not expected
+row `a_rewrite_shows_under_its_profile` on Core: O101: expected [Expect { code: O101, line: Some(1), want: Shown }] not observed; observed [] not expected
+test result: FAILED. 56 passed; 1 failed; 0 ignored; 0 measured; 3428 filtered out; finished in 77.80s

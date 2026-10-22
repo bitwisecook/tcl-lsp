@@ -1,0 +1,6 @@
+
+running 1 test
+test loader::tests::a_dialect_block_loads_its_ladder_and_axes ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 307 filtered out; finished in 0.00s
+

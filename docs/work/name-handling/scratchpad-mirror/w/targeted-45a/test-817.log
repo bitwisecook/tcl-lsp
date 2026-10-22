@@ -1,0 +1,6 @@
+
+running 1 test
+test commands::tcl::package_::tests::jim_package_inventory_keeps_hidden_list_and_excludes_ifneeded ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1875 filtered out; finished in 0.01s
+

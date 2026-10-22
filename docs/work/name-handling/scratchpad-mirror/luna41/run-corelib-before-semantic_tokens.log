@@ -1,0 +1,547 @@
+test semantic_tokens::configured_semantic_receiver_tests::actual_implicit_self_colours_require_the_sole_original_variable_word ... ok
+test semantic_tokens::configured_semantic_receiver_tests::actual_loop_collection_names_follow_the_retained_brace_configuration ... ok
+test semantic_tokens::configured_semantic_receiver_tests::actual_method_colours_do_not_promote_compound_or_escaped_variable_heads ... ok
+test semantic_tokens::configured_semantic_receiver_tests::implicit_self_receiver_vocabulary_does_not_leak_into_fresh_bodies ... ok
+test semantic_tokens::configured_semantic_receiver_tests::implicit_receiver_colours_use_the_selected_explicit_variable_role ... ok
+test semantic_tokens::original::original_source_schema_tests::logical_definer_class_context_uses_the_selected_installation_name_operand ... FAILED
+test semantic_tokens::configured_semantic_receiver_tests::logical_method_colours_use_the_current_source_object_candidate_producer ... ok
+test semantic_tokens::original::original_missing_head_tests::original_native_missing_head_never_authorises_reporting_oo_overlays ... ok
+test semantic_tokens::original::original_source_schema_tests::logical_list_roles_decline_cooked_subranges_opaque_and_malformed_lambdas ... ok
+test semantic_tokens::original::original_source_schema_tests::logical_list_roles_keep_complete_unicode_escaped_and_semicolon_fields ... ok
+test semantic_tokens::original::original_source_schema_tests::logical_pattern_colours_keep_actual_context_over_a_profiled_store ... ok
+test semantic_tokens::original::original_source_schema_tests::logical_format_colours_keep_actual_context_and_original_alias_geometry ... ok
+test semantic_tokens::original::original_source_schema_tests::logical_qualified_head_colours_keep_original_decoded_boundaries ... ok
+test semantic_tokens::original::original_source_schema_tests::logical_source_role_colours_keep_actual_option_context_and_reserved_data ... ok
+test semantic_tokens::original::original_source_schema_tests::logical_source_role_colours_keep_effective_alias_operands_and_shadow_refusal ... ok
+test semantic_tokens::original::original_source_schema_tests::logical_pattern_colours_keep_nested_and_alias_original_operand_anchors ... ok
+test semantic_tokens::original::original_source_schema_tests::original_format_colours_keep_selected_availability_and_generation ... ok
+test semantic_tokens::original::original_source_schema_tests::original_expression_colours_require_actual_source_roles_and_lambda_parent_geometry ... ok
+test semantic_tokens::original::original_source_schema_tests::logical_source_role_colours_keep_nested_selectors_values_and_oo_members ... FAILED
+test semantic_tokens::original::original_source_schema_tests::original_pattern_colours_keep_selected_availability_and_generation ... ok
+test semantic_tokens::original::original_source_schema_tests::original_pattern_colours_keep_alias_written_operands_and_captured_refusal ... ok
+test semantic_tokens::original::original_source_schema_tests::original_semantic_method_roles_keep_canonical_worker_words ... ok
+test semantic_tokens::original::original_source_schema_tests::original_semantic_command_qualifiers_use_decoded_source_geometry ... ok
+test semantic_tokens::original::original_source_schema_tests::original_semantic_source_roles_survive_reporting_map_erasure ... ok
+test semantic_tokens::original::original_source_schema_tests::original_semantic_roles_decline_custom_and_deleted_command_cells ... ok
+test semantic_tokens::original::original_source_schema_tests::original_semantic_source_grammar_and_hosted_object_roles_remain_independent ... ok
+test semantic_tokens::original::original_source_schema_tests::retained_head_colours_keep_the_selected_full_context_descriptor_traits ... ok
+test semantic_tokens::original::readonly_member_tests::original_readonly_worker_value_does_not_retag_variable_syntax_as_member_declaration ... FAILED
+test semantic_tokens::original::original_source_schema_tests::refused_logical_head_schema_keeps_generic_colour_without_library_flags ... ok
+test semantic_tokens::original::tests::original_oo_roles_do_not_use_final_members_for_an_earlier_or_stale_call ... ok
+test semantic_tokens::original::tests::original_property_roles_keep_counted_declarations_separate_from_accessors ... ok
+test semantic_tokens::original::tests::original_oo_roles_keep_opaque_declarations_and_actual_calls_without_ui_maps ... FAILED
+test semantic_tokens::original::tests::original_vendor_token_roles_require_supported_header_units_and_current_source ... ok
+test semantic_tokens::original_comment_token_tests::original_comment_tokens_refuse_foreign_source_or_missing_full_context ... ok
+test semantic_tokens::original_definition_vocabulary_tests::conditional_named_instance_reports_cannot_enter_legacy_label_classification ... FAILED
+test semantic_tokens::original_definition_vocabulary_tests::logical_math_default_library_uses_configured_source_catalogue ... ok
+test semantic_tokens::original_comment_token_tests::original_comment_tokens_share_real_phase_and_preserve_inline_comments ... ok
+test semantic_tokens::original_definition_vocabulary_tests::original_definition_colours_keep_keyword_body_and_release_applicability_separate ... FAILED
+test semantic_tokens::original_definition_vocabulary_tests::original_definition_colours_use_genuine_wrappers_and_clear_ordinary_bodies ... FAILED
+test semantic_tokens::original_definition_vocabulary_tests::original_definition_keyword_colours_preserve_whole_escaped_source_extent ... ok
+test semantic_tokens::original_definition_vocabulary_tests::member_source_roles_keep_original_heads_names_formals_and_availability ... FAILED
+test semantic_tokens::original_proc_role_tests::original_role_lookup_requires_current_full_source_and_own_head_input ... ok
+test semantic_tokens::original_proc_role_tests::original_role_lookup_respects_namespace_shadow_and_ordinary_arguments ... ok
+test semantic_tokens::original_proc_role_tests::original_roles_keep_opaque_declarations_distinct_after_ui_is_cleared ... ok
+test semantic_tokens::original_realm_consumer_tests::original_semantic_consumer_declines_missing_realm_without_nominal_recapture ... ok
+test semantic_tokens::original::original_source_schema_tests::produced_prefix_colours_keep_owned_deferred_roles_and_static_target_words ... ok
+test semantic_tokens::original_procedure_topology_colour_tests::original_procedure_colours_map_formal_roles_to_their_actual_expansion_children ... ok
+test semantic_tokens::original_variable_argument_geometry_colour_tests::member_variable_colours_require_genuine_parent_roles_and_original_words ... FAILED
+test semantic_tokens::receiver_source::tests::logical_receiver_method_requires_original_static_whole_selector ... FAILED
+test semantic_tokens::receiver_source::tests::original_receiver_class_receipt_cannot_be_replaced_by_foreign_hierarchy_metadata ... FAILED
+test semantic_tokens::receiver_source::tests::original_receiver_heads_keep_actual_leading_bom_policy ... FAILED
+test semantic_tokens::receiver_source::tests::original_receiver_heads_keep_canonical_class_and_actual_availability ... FAILED
+test semantic_tokens::receiver_source::tests::original_registry_and_collection_receivers_keep_selected_child_operands ... FAILED
+test semantic_tokens::receiver_source::tests::original_receiver_public_tokens_refuse_populated_unavailable_and_stale_source ... FAILED
+test semantic_tokens::receiver_source::tests::project_collection_receiver_refusal_is_not_recovered_without_providers ... FAILED
+test semantic_tokens::selected_source_token_tests::original_member_handle_advice_preserves_literal_name_and_class_data ... FAILED
+test semantic_tokens::selected_source_token_tests::original_loop_handle_advice_keeps_actual_availability_captures_and_inert_data ... ok
+test semantic_tokens::selected_source_token_tests::original_semantic_handle_collectors_keep_later_selected_commands_and_inert_data ... ok
+test semantic_tokens::selected_source_token_tests::original_semantic_tokens_withdraw_stale_grammar_foreign_and_missing_source_owner ... ok
+test semantic_tokens::selected_source_token_tests::original_member_handle_advice_uses_the_genuine_factory_member_body ... FAILED
+test semantic_tokens::tests::a_binding_does_not_retroactively_retag_earlier_calls ... ok
+test semantic_tokens::tests::a_computed_format_word_falls_back_to_its_plain_classification ... ok
+test semantic_tokens::original_variable_argument_geometry_colour_tests::variable_argument_colours_require_actual_role_and_original_literal_root_geometry ... ok
+test semantic_tokens::tests::a_namespaced_proc_does_not_shadow_the_global_builtin ... ok
+test semantic_tokens::tests::a_static_interp_alias_inherits_the_targets_grammar ... ok
+test semantic_tokens::tests::abbreviated_first_level_subcommand_highlights_as_keyword ... ok
+test semantic_tokens::tests::a_static_rename_moves_the_grammar_to_the_new_name ... ok
+test semantic_tokens::tests::a_rebound_builtin_loses_its_grammar ... ok
+test semantic_tokens::tests::abbreviated_option_classified_as_decorator ... ok
+test semantic_tokens::tests::apply_lambda_body_recurses ... ok
+test semantic_tokens::tests::argparse_global_switch_values_classified_as_option_value ... FAILED
+test semantic_tokens::tests::array_element_write_not_retagged ... ok
+test semantic_tokens::tests::bare_set_read_is_not_a_declaration ... ok
+test semantic_tokens::tests::bareword_argument_classified_as_string ... ok
+test semantic_tokens::tests::apply_bare_arglist_param_is_a_parameter ... ok
+test semantic_tokens::tests::apply_lambda_literals_survive_a_rename_or_alias ... ok
+test semantic_tokens::tests::bigip_object_ref_not_emitted_in_plain_tcl ... ok
+test semantic_tokens::tests::binary_format_spec_and_count_subtokens ... ok
+test semantic_tokens::tests::bigip_object_ref_token_in_irules_body ... ok
+test semantic_tokens::tests::binary_signed_modifier_suppressed_in_tcl84 ... ok
+test semantic_tokens::tests::binary_scan_signed_modifier_and_star ... ok
+test semantic_tokens::tests::builtin_command_head_gets_default_library_modifier ... ok
+test semantic_tokens::tests::builtin_name_as_bareword_arg_is_string ... ok
+test semantic_tokens::tests::case_list_patterns_keep_literal_braces_from_selected_elements ... FAILED
+test semantic_tokens::tests::classify_regex_component_maps_each_kind ... ok
+test semantic_tokens::tests::clock_format_subtokens ... ok
+test semantic_tokens::tests::classify_command_head_follows_the_effective_identity ... ok
+test semantic_tokens::tests::classify_command_head_picks_namespace_for_qualified ... ok
+test semantic_tokens::tests::clock_format_without_specifiers_stays_string ... ok
+test semantic_tokens::tests::clock_locale_modifier_uses_shared_grammar ... ok
+test semantic_tokens::tests::command_substitution_head_recurses_not_command_token ... ok
+test semantic_tokens::tests::command_prefix_callback_head_highlights_as_function ... ok
+test semantic_tokens::tests::comments_classified_as_comment ... ok
+test semantic_tokens::tests::comment_inside_multiline_string_is_not_a_comment ... ok
+test semantic_tokens::tests::computed_command_head_does_not_overlap ... ok
+test semantic_tokens::tests::console_eval_body_recurses_into_script ... ok
+test semantic_tokens::tests::configure_resolves_by_metaclass_trait_not_spelling ... FAILED
+test semantic_tokens::tests::consoleinterp_eval_and_record_bodies_recurse_into_script ... ok
+test semantic_tokens::tests::collection_dispatch_resolves_user_configurable_method ... FAILED
+test semantic_tokens::tests::cross_file_constructor_dispatch_resolves ... FAILED
+test semantic_tokens::tests::diff_handles_appended_token ... ok
+test semantic_tokens::tests::diff_handles_removed_token ... ok
+test semantic_tokens::tests::diff_isolates_a_single_changed_token ... ok
+test semantic_tokens::tests::diff_returns_none_for_identical_streams ... ok
+test semantic_tokens::tests::direct_constructor_dispatch_resolves_method ... FAILED
+test semantic_tokens::tests::dict_for_loop_var_dispatch_resolves ... FAILED
+test semantic_tokens::tests::dynamic_head_gets_no_format_grammar ... ok
+test semantic_tokens::tests::empty_source_returns_empty_data ... ok
+test semantic_tokens::tests::dict_map_in_return_dispatch_resolves ... FAILED
+test semantic_tokens::tests::escape_subtoken_width_follows_the_selected_release_grammar ... ok
+test semantic_tokens::tests::event_name_classified_as_event ... ok
+test semantic_tokens::tests::dynamic_leading_options_do_not_claim_pattern_or_regsub_replacement_tokens ... ok
+test semantic_tokens::tests::expect_canonical_and_abbreviated_regex_flags_tokenise_in_both_shapes ... FAILED
+test semantic_tokens::tests::escape_before_multibyte_char_does_not_panic ... ok
+test semantic_tokens::tests::expect_literal_comment_and_separator_patterns_recurse_into_actions ... FAILED
+test semantic_tokens::tests::format_literal_percent_stays_string ... ok
+test semantic_tokens::tests::format_without_specifiers_stays_string ... ok
+test semantic_tokens::tests::expression_commands_keep_nested_substitution_closers ... ok
+test semantic_tokens::tests::full_returns_non_empty_data_for_simple_proc ... ok
+test semantic_tokens::tests::format_binary_specifier_is_release_gated ... ok
+test semantic_tokens::tests::generic_option_scan_stops_at_double_dash ... FAILED
+test semantic_tokens::tests::global_marks_every_name_as_variable ... ok
+test semantic_tokens::tests::if_else_elseif_are_keywords ... ok
+test semantic_tokens::tests::is_event_name_matches_event_shape ... ok
+test semantic_tokens::tests::is_number_literal_follows_the_leading_zero_rule ... ok
+test semantic_tokens::tests::is_number_literal_gates_radix_prefixes_on_the_release ... ok
+test semantic_tokens::tests::is_number_literal_recognises_integers_and_floats ... ok
+test semantic_tokens::tests::is_number_literal_rejects_malformed_numerals ... ok
+test semantic_tokens::tests::keyword_head_has_no_default_library_modifier ... ok
+test semantic_tokens::tests::keywords_classified_as_keyword ... ok
+test semantic_tokens::tests::info_object_class_sub_subcommand_classified_as_keyword ... ok
+test semantic_tokens::tests::legend_has_expected_entries ... ok
+test semantic_tokens::tests::legend_includes_regexp_and_event ... ok
+test semantic_tokens::tests::legend_modifiers_order ... ok
+test semantic_tokens::tests::known_option_classified_as_decorator ... ok
+test semantic_tokens::tests::interproc_param_dispatch_resolves ... FAILED
+test semantic_tokens::tests::list_quoted_apply_lambda_body_recurses ... FAILED
+test semantic_tokens::tests::loop_var_binding_uses_tcl_list_grammar_and_abstains_when_dynamic ... ok
+test semantic_tokens::tests::loop_var_list_roles_come_from_the_registry ... ok
+test semantic_tokens::tests::literal_array_element_write_is_variable_declaration ... ok
+test semantic_tokens::tests::lsearch_pattern_tokens_abstain_for_invalid_profiled_option_prefixes ... ok
+test semantic_tokens::tests::lsearch_regexp_pattern_uses_the_registry_selected_language ... ok
+test semantic_tokens::tests::malformed_case_lists_do_not_tokenise_action_words_as_commands ... ok
+test semantic_tokens::tests::malformed_when_body_does_not_classify_an_event_declaration ... ok
+test semantic_tokens::tests::malformed_braced_object_handle_does_not_resolve_a_method ... ok
+test semantic_tokens::tests::many_comment_lines_do_not_drift_out_of_bounds ... ok
+test semantic_tokens::tests::method_body_recurses_in_class_definition_script ... ok
+test semantic_tokens::tests::list_quoted_apply_lambda_false_positive_guards ... ok
+test semantic_tokens::tests::my_call_inside_apply_lambda_body_does_not_resolve ... ok
+test semantic_tokens::tests::namespaced_array_element_write_is_variable_declaration ... ok
+test semantic_tokens::tests::my_configure_property_options_resolve ... FAILED
+test semantic_tokens::tests::number_tokens_follow_the_document_dialect ... ok
+test semantic_tokens::tests::object_method_options_resolve_via_registry ... FAILED
+test semantic_tokens::tests::operator_command_head_classified_as_operator ... ok
+test semantic_tokens::tests::oo_define_inline_keyword_classified_as_keyword ... FAILED
+test semantic_tokens::tests::my_self_call_resolves ... FAILED
+test semantic_tokens::tests::option_enum_value_is_enum_member ... ok
+test semantic_tokens::tests::option_textvariable_value_is_variable_declaration ... ok
+test semantic_tokens::tests::original_keyword_contents_preserve_literal_closing_bytes ... ok
+test semantic_tokens::tests::option_command_value_recurses_as_body_script ... ok
+test semantic_tokens::tests::package_ifneeded_literal_script_recurses_as_body ... ok
+test semantic_tokens::tests::proc_return_object_dispatch_resolves ... ok
+test semantic_tokens::tests::qualified_format_family_classifies_like_the_bare_form ... ok
+test semantic_tokens::tests::quoted_string_opening_fragment_is_single_quote ... ok
+test semantic_tokens::tests::quoted_structural_keyword_offsets_past_quote ... ok
+test semantic_tokens::tests::quoted_var_at_string_start_no_overlap ... ok
+test semantic_tokens::tests::range_excludes_token_at_exact_end_position ... ok
+test semantic_tokens::tests::range_filters_tokens_outside_window ... ok
+test semantic_tokens::tests::qualified_grammar_commands_classify_like_the_bare_form ... ok
+test semantic_tokens::tests::regex_alternation_and_escape_subtokens ... ok
+test semantic_tokens::tests::range_keeps_entire_document_when_range_covers_it ... ok
+test semantic_tokens::tests::regex_char_class_and_anchor_subtokens ... ok
+test semantic_tokens::tests::regex_pattern_subtokenised_into_components ... ok
+test semantic_tokens::tests::regex_posix_class_has_no_dangling_bracket_token ... ok
+test semantic_tokens::tests::qualified_loop_headers_classify_like_the_bare_form ... ok
+test semantic_tokens::tests::regex_pattern_with_substitution_splits_regex_and_tcl ... FAILED
+test semantic_tokens::tests::regex_source_tracks_inside_namespace_eval_body ... FAILED
+test semantic_tokens::tests::regex_source_tracks_inside_oo_method_body ... FAILED
+test semantic_tokens::tests::regex_source_tracks_inside_apply_lambda_body ... FAILED
+test semantic_tokens::tests::regex_without_metachars_stays_single_regexp ... ok
+test semantic_tokens::tests::regsub_replacement_backref_subtokens ... ok
+test semantic_tokens::tests::regexp_pattern_classified_as_regexp ... ok
+test semantic_tokens::tests::regsub_replacement_without_backrefs_stays_string ... ok
+test semantic_tokens::tests::regex_source_variable_highlights_def_site_literal ... FAILED
+test semantic_tokens::tests::renamed_away_expect_spelling_gets_no_case_list_overrides ... ok
+test semantic_tokens::tests::scan_are_class_spans_posix_collating_equivalence_subbrackets ... ok
+test semantic_tokens::tests::scan_format_arg_subtokenised ... ok
+test semantic_tokens::tests::semantic_token_lengths_use_utf16_code_units ... ok
+test semantic_tokens::tests::return_code_option_classified_as_decorator_issue_967 ... FAILED
+test semantic_tokens::tests::same_named_user_command_does_not_inherit_grammar ... ok
+test semantic_tokens::tests::semantic_tokens_are_dialect_aware_via_expand_syntax ... ok
+test semantic_tokens::tests::snit_bare_constructor_dispatch_resolves ... FAILED
+test semantic_tokens::tests::snit_install_component_dispatch_resolves ... FAILED
+test semantic_tokens::tests::snit_installhull_types_the_implicit_hull_component ... FAILED
+test semantic_tokens::tests::sprintf_flags_and_width_subtokens ... ok
+test semantic_tokens::tests::sprintf_format_spec_subtokens ... ok
+test semantic_tokens::tests::snit_self_call_resolves ... FAILED
+test semantic_tokens::tests::stub_var_arg_highlights_array_element ... FAILED
+test semantic_tokens::tests::stub_var_read_arg_highlights_as_reference ... FAILED
+test semantic_tokens::tests::snit_typemethod_call_does_not_type_handle ... ok
+test semantic_tokens::tests::subcommand_enum_value_classified_as_enum_member ... ok
+test semantic_tokens::tests::subcommand_option_classified_as_decorator ... ok
+test semantic_tokens::tests::subcommand_prefix_resolution_is_dialect_aware ... ok
+test semantic_tokens::tests::typed_token_kinds_project_custom_legend_names_in_wire_order ... ok
+test semantic_tokens::tests::unknown_head_options_classified_generically ... FAILED
+test semantic_tokens::tests::try_on_finally_are_keywords ... ok
+test semantic_tokens::tests::unset_array_element_is_variable ... FAILED
+test semantic_tokens::tests::unset_marks_every_name_as_variable ... FAILED
+test semantic_tokens::tests::unsupported_clock_g_specifier_stays_string ... ok
+test semantic_tokens::tests::uplevel_body_recurses_as_script ... FAILED
+test semantic_tokens::tests::uplevel_dynamic_body_not_recursed ... ok
+test semantic_tokens::tests::unprovable_bindings_abstain ... ok
+test semantic_tokens::tests::uplevel_issue_837_repro_recurses ... ok
+test semantic_tokens::tests::user_object_handle_method_resolves ... FAILED
+test semantic_tokens::tests::user_proc_command_arg_highlights_as_function ... FAILED
+test semantic_tokens::tests::user_proc_head_has_no_default_library_modifier ... ok
+test semantic_tokens::tests::user_proc_dynamic_name_read_args_highlight ... FAILED
+test semantic_tokens::tests::user_proc_var_name_arg_highlights_array_element ... FAILED
+test semantic_tokens::tests::user_proc_var_name_computed_subscript_survives ... ok
+test semantic_tokens::tests::value_taking_option_value_classified_as_option_value ... ok
+test semantic_tokens::tests::var_write_target_carries_declaration_modifier ... ok
+test semantic_tokens::tests::variable_command_head_is_a_variable ... ok
+test semantic_tokens::tests::variables_classified_as_variable ... ok
+test semantic_tokens::tests::user_proc_var_read_arg_highlights_as_reference ... ok
+test semantic_tokens::tests::varread_value_argument_is_not_a_variable ... ok
+test semantic_tokens::tests::vscode_semantic_token_scopes_cover_the_narrow_dialects ... ok
+test semantic_tokens::tests::vscode_semantic_token_scopes_cover_the_server_legend ... ok
+test semantic_tokens::tests::vscode_semantic_token_scopes_do_not_shadow_standard_defaults ... ok
+test semantic_tokens::tests::varread_role_highlights_variable_name ... ok
+test semantic_tokens::tests::widget_method_tokens_follow_the_resolved_tk_lifecycle ... FAILED
+test semantic_tokens::tests::word_form_operator_command_heads_classified_as_operator ... ok
+test semantic_tokens::tests::tcloo_dispatch_pattern_fixture has been running for over 60 seconds
+test semantic_tokens::tests::tcloo_dispatch_pattern_fixture ... FAILED
+---- semantic_tokens::original::original_source_schema_tests::logical_definer_class_context_uses_the_selected_installation_name_operand stdout ----
+thread 'semantic_tokens::original::original_source_schema_tests::logical_definer_class_context_uses_the_selected_installation_name_operand' (17469) panicked at rust/tcl-lsp-core/src/semantic_tokens/original.rs:1823:9:
+assertion failed: !spec.arg_roles.iter().any(|(_, role)| *role == tcl_registry::ArgRole::Name)
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- semantic_tokens::original::original_source_schema_tests::logical_source_role_colours_keep_nested_selectors_values_and_oo_members stdout ----
+
+thread 'semantic_tokens::original::original_source_schema_tests::logical_source_role_colours_keep_nested_selectors_values_and_oo_members' (17572) panicked at rust/tcl-lsp-core/src/semantic_tokens/original.rs:2114:13:
+switch $subject one {set local 1} default {set local 2}: local
+
+---- semantic_tokens::original::readonly_member_tests::original_readonly_worker_value_does_not_retag_variable_syntax_as_member_declaration stdout ----
+
+thread 'semantic_tokens::original::readonly_member_tests::original_readonly_worker_value_does_not_retag_variable_syntax_as_member_declaration' (17683) panicked at rust/tcl-lsp-core/src/semantic_tokens/original.rs:1722:9:
+assertion `left == right` failed
+  left: 0
+ right: 2
+
+---- semantic_tokens::original::tests::original_oo_roles_keep_opaque_declarations_and_actual_calls_without_ui_maps stdout ----
+
+thread 'semantic_tokens::original::tests::original_oo_roles_keep_opaque_declarations_and_actual_calls_without_ui_maps' (17693) panicked at rust/tcl-lsp-core/src/semantic_tokens/original.rs:1604:9:
+assertion `left == right` failed
+  left: 0
+ right: 2
+
+---- semantic_tokens::original_definition_vocabulary_tests::conditional_named_instance_reports_cannot_enter_legacy_label_classification stdout ----
+
+thread 'semantic_tokens::original_definition_vocabulary_tests::conditional_named_instance_reports_cannot_enter_legacy_label_classification' (17728) panicked at rust/tcl-lsp-core/src/semantic_tokens.rs:10595:9:
+assertion `left == right` failed
+  left: None
+ right: Some("::C")
+
+---- semantic_tokens::original_definition_vocabulary_tests::original_definition_colours_keep_keyword_body_and_release_applicability_separate stdout ----
+
+thread 'semantic_tokens::original_definition_vocabulary_tests::original_definition_colours_keep_keyword_body_and_release_applicability_separate' (17737) panicked at rust/tcl-lsp-core/src/semantic_tokens.rs:10862:17:
+assertion `left == right` failed: tcl8.6: oo::class create C {method café $params {puts hidden}}: [(0, 0, 4, 6, 8), (0, 4, 5, 0, 0), (0, 10, 6, 0, 8), (0, 17, 1, 56, 2), (0, 20, 6, 0, 0), (0, 27, 4, 55, 2), (0, 32, 7, 2, 0), (0, 41, 4, 1, 0), (0, 46, 6, 3, 0)]
+  left: true
+ right: false
+
+---- semantic_tokens::original_definition_vocabulary_tests::original_definition_colours_use_genuine_wrappers_and_clear_ordinary_bodies stdout ----
+
+thread 'semantic_tokens::original_definition_vocabulary_tests::original_definition_colours_use_genuine_wrappers_and_clear_ordinary_bodies' (17739) panicked at rust/tcl-lsp-core/src/semantic_tokens.rs:10749:13:
+assertion `left == right` failed
+  left: None
+ right: Some(0)
+
+---- semantic_tokens::original_definition_vocabulary_tests::member_source_roles_keep_original_heads_names_formals_and_availability stdout ----
+
+thread 'semantic_tokens::original_definition_vocabulary_tests::member_source_roles_keep_original_heads_names_formals_and_availability' (17736) panicked at rust/tcl-lsp-core/src/semantic_tokens.rs:10709:21:
+assertion `left == right` failed: tcl8.6: oo::class create C {}; oo::define C self metho\u0064 café {argument {optional 2}} {puts visible}: [(0, 0, 4, 6, 8), (0, 4, 5, 0, 0), (0, 10, 6, 0, 8), (0, 17, 1, 56, 2), (0, 23, 4, 6, 8), (0, 27, 6, 0, 0), (0, 34, 1, 3, 0), (0, 36, 4, 30, 0), (0, 41, 5, 3, 0), (0, 46, 6, 29, 0), (0, 53, 4, 55, 2), (0, 59, 8, 54, 1), (0, 69, 8, 54, 1), (0, 78, 1, 4, 0), (0, 83, 4, 1, 8), (0, 88, 7, 3, 0)]
+  left: Some(3)
+ right: Some(0)
+
+---- semantic_tokens::original_variable_argument_geometry_colour_tests::member_variable_colours_require_genuine_parent_roles_and_original_words stdout ----
+
+thread 'semantic_tokens::original_variable_argument_geometry_colour_tests::member_variable_colours_require_genuine_parent_roles_and_original_words' (17784) panicked at rust/tcl-lsp-core/src/semantic_tokens.rs:10463:17:
+tcl: oo::class create C {variable arr($index)}
+
+---- semantic_tokens::receiver_source::tests::logical_receiver_method_requires_original_static_whole_selector stdout ----
+
+thread 'semantic_tokens::receiver_source::tests::logical_receiver_method_requires_original_static_whole_selector' (17820) panicked at rust/tcl-lsp-core/src/semantic_tokens/receiver_source/tests.rs:322:9:
+oo::class create C {method ping {} {}}; [C new] ping
+
+---- semantic_tokens::receiver_source::tests::original_receiver_class_receipt_cannot_be_replaced_by_foreign_hierarchy_metadata stdout ----
+
+thread 'semantic_tokens::receiver_source::tests::original_receiver_class_receipt_cannot_be_replaced_by_foreign_hierarchy_metadata' (17856) panicked at rust/tcl-lsp-core/src/semantic_tokens/receiver_source/tests.rs:207:5:
+assertion failed: method_at(source, &current, None, "ping")
+
+---- semantic_tokens::receiver_source::tests::original_receiver_heads_keep_actual_leading_bom_policy stdout ----
+
+thread 'semantic_tokens::receiver_source::tests::original_receiver_heads_keep_actual_leading_bom_policy' (17861) panicked at rust/tcl-lsp-core/src/semantic_tokens/receiver_source/tests.rs:260:9:
+assertion `left == right` failed
+  left: false
+ right: true
+
+---- semantic_tokens::receiver_source::tests::original_receiver_heads_keep_canonical_class_and_actual_availability stdout ----
+
+thread 'semantic_tokens::receiver_source::tests::original_receiver_heads_keep_canonical_class_and_actual_availability' (17862) panicked at rust/tcl-lsp-core/src/semantic_tokens/receiver_source/tests.rs:66:9:
+oo::class create C {method ping {} {}}; [::C new] ping
+
+---- semantic_tokens::receiver_source::tests::original_registry_and_collection_receivers_keep_selected_child_operands stdout ----
+
+thread 'semantic_tokens::receiver_source::tests::original_registry_and_collection_receivers_keep_selected_child_operands' (17904) panicked at rust/tcl-lsp-core/src/semantic_tokens/receiver_source/tests.rs:90:5:
+assertion failed: method_at(source, &current, None, "curselection")
+
+---- semantic_tokens::receiver_source::tests::original_receiver_public_tokens_refuse_populated_unavailable_and_stale_source stdout ----
+
+thread 'semantic_tokens::receiver_source::tests::original_receiver_public_tokens_refuse_populated_unavailable_and_stale_source' (17903) panicked at rust/tcl-lsp-core/src/semantic_tokens/receiver_source/tests.rs:270:5:
+assertion failed: method_at(source, &analysis, None, "ping")
+
+---- semantic_tokens::receiver_source::tests::project_collection_receiver_refusal_is_not_recovered_without_providers stdout ----
+
+thread 'semantic_tokens::receiver_source::tests::project_collection_receiver_refusal_is_not_recovered_without_providers' (17905) panicked at rust/tcl-lsp-core/src/semantic_tokens/receiver_source/tests.rs:165:5:
+assertion failed: original_project_receiver_class_in_unit(source, &analysis, &command, &[],
+        Some(&unit)).is_some_and(|class| class.collection_source().is_some())
+
+---- semantic_tokens::selected_source_token_tests::original_member_handle_advice_preserves_literal_name_and_class_data stdout ----
+
+thread 'semantic_tokens::selected_source_token_tests::original_member_handle_advice_preserves_literal_name_and_class_data' (17918) panicked at rust/tcl-lsp-core/src/semantic_tokens.rs:11001:9:
+{}
+
+---- semantic_tokens::selected_source_token_tests::original_member_handle_advice_uses_the_genuine_factory_member_body stdout ----
+
+thread 'semantic_tokens::selected_source_token_tests::original_member_handle_advice_uses_the_genuine_factory_member_body' (17919) panicked at rust/tcl-lsp-core/src/semantic_tokens.rs:10960:9:
+assertion failed: regions.iter().any(|(span, _)|
+        {
+            source[span.as_range()].starts_with("install item using Engine $win.a")
+        })
+
+---- semantic_tokens::tests::argparse_global_switch_values_classified_as_option_value stdout ----
+thread 'semantic_tokens::tests::argparse_global_switch_values_classified_as_option_value' (17948) panicked at rust/tcl-lsp-core/src/semantic_tokens.rs:5993:9:
+assertion `left == right` failed: expected `foo` and `2` as OptionValues (not boolean -inline's `{d}`); got [1, 3, 3, 3, 4, 3, 3]
+  left: 0
+ right: 2
+
+---- semantic_tokens::tests::case_list_patterns_keep_literal_braces_from_selected_elements stdout ----
+
+thread 'semantic_tokens::tests::case_list_patterns_keep_literal_braces_from_selected_elements' (17989) panicked at rust/tcl-lsp-core/src/semantic_tokens.rs:5611:9:
+[(0, 0, 6, 1, 0), (0, 7, 1, 3, 0), (0, 9, 40, 3, 0)]
+
+---- semantic_tokens::tests::configure_resolves_by_metaclass_trait_not_spelling stdout ----
+
+thread 'semantic_tokens::tests::configure_resolves_by_metaclass_trait_not_spelling' (18075) panicked at rust/tcl-lsp-core/src/semantic_tokens.rs:7316:9:
+`configure` on an `oo::configurable` instance must resolve
+
+---- semantic_tokens::tests::collection_dispatch_resolves_user_configurable_method stdout ----
+
+thread 'semantic_tokens::tests::collection_dispatch_resolves_user_configurable_method' (18000) panicked at rust/tcl-lsp-core/src/semantic_tokens.rs:7079:9:
+`configure` on the retrieved Pin should resolve to a method; got [(0, 0, 4, 6, 8), (0, 4, 12, 0, 0), (0, 17, 6, 0, 8), (0, 24, 3, 56, 2), (0, 30, 8, 0, 0), (0, 39, 4, 55, 2), (1, 0, 4, 6, 8), (1, 4, 5, 0, 0), (1, 10, 6, 0, 8), (1, 17, 6, 56, 2), (2, 0, 8, 0, 0), (2, 9, 4, 2, 1), (3, 0, 6, 0, 0), (3, 7, 3, 55, 2), (3, 12, 3, 54, 1), (3, 19, 2, 6, 8), (3, 21, 4, 1, 8), (3, 26, 6, 0, 8), (3, 33, 4, 2, 1), (3, 38, 4, 2, 0), (3, 44, 5, 56, 0), (3, 50, 3, 3, 0), (4, 0, 6, 0, 0), (4, 7, 3, 55, 2), (4, 12, 3, 54, 1), (4, 16, 4, 54, 1), (4, 25, 2, 6, 8), (4, 27, 4, 1, 8), (4, 32, 3, 0, 8), (4, 36, 5, 2
+
+---- semantic_tokens::tests::cross_file_constructor_dispatch_resolves stdout ----
+
+thread 'semantic_tokens::tests::cross_file_constructor_dispatch_resolves' (18110) panicked at rust/tcl-lsp-core/src/semantic_tokens.rs:7823:9:
+cross-file `[::Pin new] configure` should resolve; got [(0, 1, 5, 1, 0), (0, 7, 3, 3, 0), (0, 12, 9, 3, 0), (0, 22, 5, 3, 0), (0, 28, 1, 4, 0)]
+
+---- semantic_tokens::tests::direct_constructor_dispatch_resolves_method stdout ----
+
+thread 'semantic_tokens::tests::direct_constructor_dispatch_resolves_method' (18120) panicked at rust/tcl-lsp-core/src/semantic_tokens.rs:7023:9:
+expected -name/-max decorators + values on direct dispatch; got [1, 3, 3, 3, 3, 3, 4]
+
+---- semantic_tokens::tests::dict_for_loop_var_dispatch_resolves stdout ----
+
+thread 'semantic_tokens::tests::dict_for_loop_var_dispatch_resolves' (18111) panicked at rust/tcl-lsp-core/src/semantic_tokens.rs:7113:9:
+expected `configure` on the dict-for value var to resolve; got [(0, 0, 4, 6, 8), (0, 4, 12, 0, 0), (0, 17, 6, 0, 8), (0, 24, 3, 56, 2), (0, 30, 8, 0, 0), (0, 39, 4, 55, 2), (1, 0, 4, 6, 8), (1, 4, 5, 0, 0), (1, 10, 6, 0, 8), (1, 17, 6, 56, 2), (2, 0, 8, 0, 0), (2, 9, 4, 2, 1), (3, 0, 6, 0, 0), (3, 7, 3, 55, 2), (3, 12, 1, 54, 1), (3, 17, 2, 6, 8), (3, 19, 4, 1, 8), (3, 24, 6, 0, 8), (3, 31, 4, 2, 1), (3, 36, 2, 2, 0), (3, 40, 5, 56, 0), (3, 46, 3, 3, 0), (4, 0, 6, 0, 0), (4, 7, 4, 55, 2), (4, 17, 2, 6, 8), (4, 19, 4, 1, 8), (4, 24, 3, 0, 8), (4, 29, 1, 2, 1), (4, 31, 3, 2, 1), (4, 36, 5, 2, 0)
+
+---- semantic_tokens::tests::dict_map_in_return_dispatch_resolves stdout ----
+
+thread 'semantic_tokens::tests::dict_map_in_return_dispatch_resolves' (18114) panicked at rust/tcl-lsp-core/src/semantic_tokens.rs:7871:9:
+expected `configure` in the return-nested dict map to resolve; got [(0, 0, 4, 6, 8), (0, 4, 12, 0, 0), (0, 17, 6, 0, 8), (0, 24, 3, 56, 2), (0, 30, 8, 0, 0), (0, 39, 4, 55, 2), (1, 0, 4, 6, 8), (1, 4, 5, 0, 0), (1, 10, 6, 0, 8), (1, 17, 6, 56, 2), (2, 0, 8, 0, 0), (2, 9, 4, 2, 1), (3, 0, 6, 0, 0), (3, 7, 3, 55, 2), (3, 12, 1, 54, 1), (3, 17, 2, 6, 8), (3, 19, 4, 1, 8), (3, 24, 6, 0, 8), (3, 31, 4, 2, 1), (3, 36, 2, 2, 0), (3, 40, 5, 56, 0), (3, 46, 3, 3, 0), (4, 0, 6, 0, 0), (4, 7, 5, 55, 2), (4, 18, 2, 6, 8), (4, 20, 6, 0, 0), (4, 28, 2, 6, 8), (4, 30, 4, 1, 8), (4, 35, 3, 0, 8), (4, 40, 1, 2
+
+---- semantic_tokens::tests::expect_canonical_and_abbreviated_regex_flags_tokenise_in_both_shapes stdout ----
+
+thread 'semantic_tokens::tests::expect_canonical_and_abbreviated_regex_flags_tokenise_in_both_shapes' (18130) panicked at rust/tcl-lsp-core/src/semantic_tokens.rs:5682:13:
+braced canonical: -regexp must be a clause decorator: [(0, 0, 6, 1, 8), (0, 7, 1, 3, 0), (1, 0, 18, 3, 0), (2, 0, 20, 3, 0), (3, 0, 5, 3, 0), (4, 0, 1, 3, 0)]
+
+---- semantic_tokens::tests::expect_literal_comment_and_separator_patterns_recurse_into_actions stdout ----
+
+thread 'semantic_tokens::tests::expect_literal_comment_and_separator_patterns_recurse_into_actions' (18131) panicked at rust/tcl-lsp-core/src/semantic_tokens.rs:5707:13:
+"#" is a literal list pattern, and its action must be tokenised: [(0, 0, 6, 1, 8), (0, 7, 39, 3, 0)]
+
+---- semantic_tokens::tests::generic_option_scan_stops_at_double_dash stdout ----
+
+thread 'semantic_tokens::tests::generic_option_scan_stops_at_double_dash' (18141) panicked at rust/tcl-lsp-core/src/semantic_tokens.rs:5943:9:
+assertion `left == right` failed: expected -real and -- as the only decorators, not -literal after --; got []
+  left: []
+ right: [9, 17]
+
+---- semantic_tokens::tests::interproc_param_dispatch_resolves stdout ----
+
+thread 'semantic_tokens::tests::interproc_param_dispatch_resolves' (18149) panicked at rust/tcl-lsp-core/src/semantic_tokens.rs:7516:9:
+expected `$dev configure` in the proc body to resolve; got [(0, 0, 4, 6, 8), (0, 4, 12, 0, 0), (0, 17, 6, 0, 8), (0, 24, 3, 56, 2), (0, 30, 8, 0, 0), (0, 39, 4, 55, 2), (1, 0, 4, 0, 0), (1, 5, 7, 1, 2), (1, 14, 3, 54, 1), (1, 18, 1, 54, 1), (1, 23, 4, 2, 0), (1, 28, 9, 3, 0), (1, 38, 5, 3, 0), (1, 44, 2, 2, 0), (2, 0, 3, 1, 8), (2, 4, 1, 2, 1), (2, 7, 3, 1, 0), (2, 11, 3, 3, 0), (3, 0, 7, 1, 0), (3, 8, 2, 2, 0), (3, 11, 2, 3, 0)]
+
+---- semantic_tokens::tests::list_quoted_apply_lambda_body_recurses stdout ----
+
+thread 'semantic_tokens::tests::list_quoted_apply_lambda_body_recurses' (18168) panicked at rust/tcl-lsp-core/src/semantic_tokens.rs:8202:9:
+pkgIndex-style list-quoted apply body: `source` must tokenise; got [(0, 0, 7, 0, 0), (0, 8, 8, 0, 8), (0, 17, 9, 3, 0), (0, 27, 5, 3, 0), (0, 34, 4, 1, 8), (0, 39, 5, 1, 0), (0, 46, 3, 54, 1), (1, 4, 6, 1, 0), (1, 12, 4, 1, 0), (1, 17, 4, 3, 0), (1, 22, 4, 2, 0), (1, 27, 5, 3, 0), (2, 3, 4, 2, 0)]
+
+---- semantic_tokens::tests::my_configure_property_options_resolve stdout ----
+
+thread 'semantic_tokens::tests::my_configure_property_options_resolve' (18213) panicked at rust/tcl-lsp-core/src/semantic_tokens.rs:7455:9:
+expected `my configure` to resolve; got [(0, 0, 4, 6, 8), (0, 4, 12, 0, 0), (0, 17, 6, 0, 8), (0, 24, 1, 56, 2), (1, 4, 8, 0, 0), (1, 13, 4, 55, 2), (2, 4, 11, 0, 0), (2, 21, 2, 0, 0), (2, 24, 9, 3, 0), (2, 34, 5, 3, 0), (2, 40, 1, 4, 0)]
+
+---- semantic_tokens::tests::object_method_options_resolve_via_registry stdout ----
+
+thread 'semantic_tokens::tests::object_method_options_resolve_via_registry' (18314) panicked at rust/tcl-lsp-core/src/semantic_tokens.rs:6990:9:
+expected the four axis options as decorators; got [1, 2, 1, 3, 2, 3, 3, 3, 3, 3, 3, 4, 3, 3]
+
+---- semantic_tokens::tests::oo_define_inline_keyword_classified_as_keyword stdout ----
+
+thread 'semantic_tokens::tests::oo_define_inline_keyword_classified_as_keyword' (18319) panicked at rust/tcl-lsp-core/src/semantic_tokens.rs:6241:9:
+expected >=2 keyword tokens; got [6, 0, 56, 30, 55]
+
+---- semantic_tokens::tests::my_self_call_resolves stdout ----
+
+thread 'semantic_tokens::tests::my_self_call_resolves' (18240) panicked at rust/tcl-lsp-core/src/semantic_tokens.rs:7142:9:
+expected `my helper` to resolve; got [(0, 0, 4, 6, 8), (0, 4, 5, 0, 0), (0, 10, 6, 0, 8), (0, 17, 1, 56, 2), (1, 4, 6, 0, 0), (1, 11, 6, 55, 2), (2, 4, 6, 0, 0), (2, 11, 3, 55, 2), (2, 20, 2, 0, 0), (2, 23, 6, 3, 0)]
+
+---- semantic_tokens::tests::regex_pattern_with_substitution_splits_regex_and_tcl stdout ----
+
+thread 'semantic_tokens::tests::regex_pattern_with_substitution_splits_regex_and_tcl' (18558) panicked at rust/tcl-lsp-core/src/semantic_tokens.rs:6869:9:
+expected the `*` quantifier from the literal part; got [(0, 0, 6, 1, 8), (0, 7, 4, 3, 0), (0, 11, 4, 2, 0), (0, 15, 2, 3, 0), (0, 19, 2, 2, 0)]
+
+---- semantic_tokens::tests::regex_source_tracks_inside_namespace_eval_body stdout ----
+
+thread 'semantic_tokens::tests::regex_source_tracks_inside_namespace_eval_body' (18562) panicked at rust/tcl-lsp-core/src/semantic_tokens.rs:7951:9:
+expected a regex quantifier from the ns-eval body def-site literal; got [(0, 0, 9, 0, 0), (0, 10, 4, 0, 8), (0, 15, 4, 6, 0), (1, 2, 3, 1, 8), (1, 6, 2, 2, 1), (1, 9, 5, 3, 0), (2, 2, 6, 1, 8), (2, 9, 3, 2, 0), (2, 13, 2, 2, 0)]
+
+---- semantic_tokens::tests::regex_source_tracks_inside_oo_method_body stdout ----
+
+thread 'semantic_tokens::tests::regex_source_tracks_inside_oo_method_body' (18563) panicked at rust/tcl-lsp-core/src/semantic_tokens.rs:6952:9:
+expected a regex quantifier from the method-body def-site literal; got [(0, 0, 4, 6, 8), (0, 4, 5, 0, 0), (0, 10, 6, 0, 8), (0, 17, 1, 56, 2), (1, 2, 6, 0, 0), (1, 9, 1, 55, 2), (1, 12, 1, 54, 1), (2, 4, 2, 6, 8), (2, 6, 3, 1, 8), (2, 10, 2, 2, 1), (2, 13, 5, 3, 0), (3, 4, 2, 6, 8), (3, 6, 6, 1, 8), (3, 13, 3, 2, 0), (3, 17, 2, 2, 0)]
+
+---- semantic_tokens::tests::regex_source_tracks_inside_apply_lambda_body stdout ----
+
+thread 'semantic_tokens::tests::regex_source_tracks_inside_apply_lambda_body' (18561) panicked at rust/tcl-lsp-core/src/semantic_tokens.rs:7979:9:
+expected a regex quantifier from the apply lambda body def-site literal; got [(0, 0, 5, 0, 0), (0, 8, 1, 54, 1), (1, 2, 3, 1, 8), (1, 6, 2, 2, 1), (1, 9, 5, 3, 0), (2, 2, 6, 1, 0), (2, 9, 3, 2, 0), (2, 13, 2, 2, 0), (3, 3, 3, 3, 0)]
+
+---- semantic_tokens::tests::regex_source_variable_highlights_def_site_literal stdout ----
+
+thread 'semantic_tokens::tests::regex_source_variable_highlights_def_site_literal' (18568) panicked at rust/tcl-lsp-core/src/semantic_tokens.rs:6920:9:
+expected the `*` from the def-site literal as a regex quantifier; got [(0, 0, 3, 1, 8), (0, 4, 5, 2, 1), (0, 10, 7, 3, 0), (1, 0, 6, 1, 8), (1, 7, 6, 2, 0), (1, 14, 2, 2, 0)]
+
+---- semantic_tokens::tests::return_code_option_classified_as_decorator_issue_967 stdout ----
+
+thread 'semantic_tokens::tests::return_code_option_classified_as_decorator_issue_967' (18576) panicked at rust/tcl-lsp-core/src/semantic_tokens.rs:6053:9:
+expected -options to be a decorator; got [0, 3, 2]
+
+---- semantic_tokens::tests::snit_bare_constructor_dispatch_resolves stdout ----
+
+thread 'semantic_tokens::tests::snit_bare_constructor_dispatch_resolves' (18583) panicked at rust/tcl-lsp-core/src/semantic_tokens.rs:7397:9:
+expected `$eng run` on a bare-constructor handle to resolve; got [(0, 0, 6, 6, 8), (0, 6, 4, 1, 8), (0, 11, 6, 56, 2), (0, 20, 6, 0, 0), (0, 27, 3, 55, 2), (1, 0, 6, 6, 8), (1, 6, 4, 1, 8), (1, 11, 7, 56, 2), (2, 4, 8, 0, 0), (2, 13, 3, 2, 1), (3, 4, 11, 0, 0), (3, 21, 3, 1, 8), (3, 25, 3, 2, 1), (3, 30, 6, 1, 0), (3, 37, 9, 2, 0), (3, 46, 3, 6, 0), (4, 4, 6, 0, 0), (4, 11, 2, 55, 2), (4, 19, 4, 2, 0), (4, 24, 3, 3, 0)]
+
+---- semantic_tokens::tests::snit_install_component_dispatch_resolves stdout ----
+
+thread 'semantic_tokens::tests::snit_install_component_dispatch_resolves' (18585) panicked at rust/tcl-lsp-core/src/semantic_tokens.rs:7273:9:
+expected `$axis draw` on an installed component to resolve; got [(0, 0, 6, 6, 8), (0, 6, 6, 1, 8), (0, 13, 12, 56, 2), (0, 28, 6, 0, 0), (0, 35, 4, 55, 2), (1, 0, 6, 6, 8), (1, 6, 6, 1, 8), (1, 13, 5, 56, 2), (2, 4, 9, 0, 0), (2, 14, 4, 2, 1), (3, 4, 11, 0, 0), (3, 17, 4, 54, 1), (4, 6, 7, 1, 0), (4, 14, 4, 3, 0), (4, 19, 5, 3, 0), (4, 25, 12, 3, 0), (4, 38, 4, 2, 0), (4, 42, 2, 3, 0), (5, 6, 5, 2, 0), (5, 12, 4, 3, 0)]
+
+---- semantic_tokens::tests::snit_installhull_types_the_implicit_hull_component stdout ----
+
+thread 'semantic_tokens::tests::snit_installhull_types_the_implicit_hull_component' (18586) panicked at rust/tcl-lsp-core/src/semantic_tokens.rs:7354:9:
+`installhull using frameish` must type the implicit `hull` component
+
+---- semantic_tokens::tests::snit_self_call_resolves stdout ----
+
+thread 'semantic_tokens::tests::snit_self_call_resolves' (18591) panicked at rust/tcl-lsp-core/src/semantic_tokens.rs:7240:9:
+expected `$self helper` in a snit method to resolve; got [(0, 0, 6, 6, 8), (0, 6, 4, 1, 8), (0, 11, 1, 56, 2), (1, 4, 6, 0, 0), (1, 11, 6, 55, 2), (2, 4, 6, 0, 0), (2, 11, 3, 55, 2), (2, 20, 5, 2, 0), (2, 26, 6, 3, 0)]
+
+---- semantic_tokens::tests::stub_var_arg_highlights_array_element stdout ----
+
+thread 'semantic_tokens::tests::stub_var_arg_highlights_array_element' (18598) panicked at rust/tcl-lsp-core/src/semantic_tokens.rs:6486:9:
+expected the stubbed :var array element to highlight; got [(0, 0, 22, 5, 0), (1, 0, 43, 5, 0), (2, 0, 20, 5, 0), (3, 0, 7, 1, 0), (3, 8, 8, 3, 0), (3, 17, 1, 4, 0)]
+
+---- semantic_tokens::tests::stub_var_read_arg_highlights_as_reference stdout ----
+
+thread 'semantic_tokens::tests::stub_var_read_arg_highlights_as_reference' (18599) panicked at rust/tcl-lsp-core/src/semantic_tokens.rs:6507:9:
+expected the stubbed :var_read array element as a reference; got [(0, 0, 22, 5, 0), (1, 0, 43, 5, 0), (2, 0, 20, 5, 0), (3, 0, 8, 1, 0), (3, 9, 8, 3, 0)]
+
+---- semantic_tokens::tests::unknown_head_options_classified_generically stdout ----
+
+thread 'semantic_tokens::tests::unknown_head_options_classified_generically' (18610) panicked at rust/tcl-lsp-core/src/semantic_tokens.rs:5881:9:
+expected -name/-type/-min decorators on an unknown head; got [2, 3, 3, 3, 3, 3, 3, 4]
+
+---- semantic_tokens::tests::unset_array_element_is_variable stdout ----
+
+thread 'semantic_tokens::tests::unset_array_element_is_variable' (18616) panicked at rust/tcl-lsp-core/src/semantic_tokens.rs:6386:9:
+expected `arr(key)` as one variable declaration; got [(0, 0, 5, 1, 8), (0, 6, 8, 3, 0)]
+
+---- semantic_tokens::tests::unset_marks_every_name_as_variable stdout ----
+
+thread 'semantic_tokens::tests::unset_marks_every_name_as_variable' (18617) panicked at rust/tcl-lsp-core/src/semantic_tokens.rs:6291:9:
+assertion `left == right` failed: all three unset names must highlight as variables; got [(0, 0, 5, 1, 8), (0, 6, 1, 3, 0), (0, 8, 1, 3, 0), (0, 10, 1, 3, 0)]
+  left: 0
+ right: 3
+
+---- semantic_tokens::tests::uplevel_body_recurses_as_script stdout ----
+
+thread 'semantic_tokens::tests::uplevel_body_recurses_as_script' (18620) panicked at rust/tcl-lsp-core/src/semantic_tokens.rs:8431:9:
+uplevel $lvl body: `foreach` must tokenise as a keyword
+
+---- semantic_tokens::tests::user_object_handle_method_resolves stdout ----
+
+thread 'semantic_tokens::tests::user_object_handle_method_resolves' (18632) panicked at rust/tcl-lsp-core/src/semantic_tokens.rs:7898:9:
+expected `configure` as a Function on the $p dispatch; got [(0, 0, 4, 6, 8), (0, 4, 12, 0, 0), (0, 17, 6, 0, 8), (0, 24, 3, 56, 2), (0, 30, 8, 0, 0), (0, 39, 4, 55, 2), (1, 0, 3, 1, 8), (1, 4, 1, 2, 1), (1, 7, 3, 1, 0), (1, 11, 3, 3, 0), (2, 0, 2, 2, 0), (2, 3, 9, 3, 0), (2, 13, 5, 3, 0), (2, 19, 1, 4, 0)]
+
+---- semantic_tokens::tests::user_proc_command_arg_highlights_as_function stdout ----
+
+thread 'semantic_tokens::tests::user_proc_command_arg_highlights_as_function' (18635) panicked at rust/tcl-lsp-core/src/semantic_tokens.rs:6691:9:
+no command role without analysis; got [(0, 0, 4, 0, 0), (0, 5, 8, 1, 2), (0, 15, 3, 54, 1), (0, 19, 3, 54, 1), (1, 0, 4, 2, 0), (1, 5, 4, 2, 0), (3, 0, 8, 1, 0), (3, 9, 5, 1, 0), (3, 15, 5, 3, 0)]
+
+---- semantic_tokens::tests::user_proc_dynamic_name_read_args_highlight stdout ----
+
+thread 'semantic_tokens::tests::user_proc_dynamic_name_read_args_highlight' (18639) panicked at rust/tcl-lsp-core/src/semantic_tokens.rs:6658:9:
+expected `aa` and `foo` as variable references on the call line; got [(0, 0, 5, 1, 8), (0, 6, 3, 0, 8), (0, 10, 2, 2, 1), (0, 13, 7, 3, 0), (1, 0, 4, 0, 0), (1, 5, 1, 1, 2), (1, 8, 1, 54, 1), (1, 10, 1, 54, 1), (2, 0, 6, 0, 0), (2, 8, 3, 1, 8), (2, 12, 4, 2, 0), (2, 16, 1, 3, 0), (2, 17, 2, 2, 0), (2, 19, 1, 3, 0), (4, 0, 1, 1, 0), (4, 2, 2, 3, 0), (4, 5, 3, 3, 0)]
+
+---- semantic_tokens::tests::user_proc_var_name_arg_highlights_array_element stdout ----
+
+thread 'semantic_tokens::tests::user_proc_var_name_arg_highlights_array_element' (18645) panicked at rust/tcl-lsp-core/src/semantic_tokens.rs:6547:9:
+no proc-role highlight without analysis; got [(0, 0, 4, 0, 0), (0, 5, 5, 1, 2), (0, 12, 7, 54, 1), (0, 20, 5, 54, 1), (1, 0, 5, 0, 0), (1, 6, 1, 4, 0), (1, 8, 8, 2, 0), (1, 17, 1, 2, 1), (2, 0, 3, 1, 8), (2, 4, 1, 2, 1), (2, 6, 6, 2, 0), (4, 0, 5, 1, 0), (4, 6, 8, 2, 1), (4, 15, 1, 4, 0)]
+
+---- semantic_tokens::tests::widget_method_tokens_follow_the_resolved_tk_lifecycle stdout ----
+
+thread 'semantic_tokens::tests::widget_method_tokens_follow_the_resolved_tk_lifecycle' (18674) panicked at rust/tcl-lsp-core/src/semantic_tokens.rs:7171:13:
+assertion `left == right` failed: ttk::treeview current semantic token under tcl9.1: [(0, 0, 5, 6, 8), (0, 5, 8, 1, 8), (0, 14, 5, 3, 0), (1, 0, 5, 1, 0), (1, 6, 7, 3, 0)]
+  left: false
+ right: true
+
+---- semantic_tokens::tests::tcloo_dispatch_pattern_fixture stdout ----
+
+thread 'semantic_tokens::tests::tcloo_dispatch_pattern_fixture' (18605) panicked at rust/tcl-lsp-core/src/semantic_tokens.rs:7794:9:
+TclOO dispatch fixture regressions:
+  bare_self_receiver: `mrun` expected to resolve but did not
+  self_object_receiver: `mrun` expected to resolve but did not
+  configurable_property: `configure` expected to resolve but did not
+  dict_collection: `mrun` expected to resolve but did not
+test result: FAILED. 175 passed; 57 failed; 0 ignored; 0 measured; 3253 filtered out; finished in 328.02s

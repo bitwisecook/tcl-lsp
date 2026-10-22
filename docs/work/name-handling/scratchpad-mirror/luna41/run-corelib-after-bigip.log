@@ -1,0 +1,25 @@
+test bigip::tests::a_protocol_uri_is_classified_by_its_decoded_last_segment ... ok
+test bigip::tests::braces_in_comments_and_strings_do_not_unbalance_the_scan ... ok
+test bigip::tests::comment_blocks_in_extracted_tmsh_stanzas_fold_at_absolute_lines ... ok
+test bigip::tests::empty_source_yields_no_folds ... ok
+test bigip::tests::empty_source_yields_no_symbols ... ok
+test bigip::tests::folds_stanzas_and_their_nested_blocks ... ok
+test bigip::tests::comment_blocks_fold_like_the_tcl_provider ... ok
+test bigip::tests::folds_tcl_inside_an_embedded_rule ... ok
+test bigip::tests::nameless_singleton_falls_back_to_kind_label ... ok
+test bigip::tests::named_objects_keep_their_full_path ... ok
+test bigip::tests::recognises_canonical_basenames ... ok
+test bigip::tests::single_line_block_does_not_fold ... ok
+test bigip::tests::outline_has_only_non_empty_names ... ok
+test bigip::tests::singleton_header_resolves_multi_word_object_type ... ok
+test bigip::tests::unbalanced_input_degrades_quietly ... ok
+test bigip::tests::stanza_ending_at_eof_stays_in_bounds ... ok
+test bigip::tests::comment_blocks_in_embedded_irules_fold_but_data_does_not ... FAILED
+---- bigip::tests::comment_blocks_in_embedded_irules_fold_but_data_does_not stdout ----
+thread 'bigip::tests::comment_blocks_in_embedded_irules_fold_but_data_does_not' (3686) panicked at rust/tcl-lsp-core/src/bigip.rs:920:9:
+embedded iRule comments missing: [FoldingRange { start_line: 0, end_line: 9, kind: Region }, FoldingRange { start_line: 1, end_line: 8, kind: Region }, FoldingRange { start_line: 2, end_line: 7, kind: Region }, FoldingRange { start_line: 3, end_line: 6, kind: Region }, FoldingRange { start_line: 11, end_line: 15, kind: Region }, FoldingRange { start_line: 12, end_line: 14, kind: Region }]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+test result: FAILED. 16 passed; 1 failed; 0 ignored; 0 measured; 3473 filtered out; finished in 0.60s

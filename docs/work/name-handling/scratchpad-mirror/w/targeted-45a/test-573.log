@@ -1,0 +1,25 @@
+
+running 1 test
+test word_parts::tests::original_bracket_boundaries_keep_selected_variable_name_grammar ... 
+thread 'word_parts::tests::original_bracket_boundaries_keep_selected_variable_name_grammar' (22281) panicked at rust/tcl-lexer/src/word_parts.rs:1523:17:
+assertion `left == right` failed
+  left: "\"[\u{feff}quote ${a{b}]\""
+ right: "[\u{feff}quote ${a{b}]"
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<&str, &str>
+   4: tcl_lexer::word_parts::tests::original_bracket_boundaries_keep_selected_variable_name_grammar
+   5: tcl_lexer::word_parts::tests::original_bracket_boundaries_keep_selected_variable_name_grammar::{closure#0}
+   6: <tcl_lexer::word_parts::tests::original_bracket_boundaries_keep_selected_variable_name_grammar::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+FAILED
+
+failures:
+
+failures:
+    word_parts::tests::original_bracket_boundaries_keep_selected_variable_name_grammar
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 584 filtered out; finished in 0.09s
+

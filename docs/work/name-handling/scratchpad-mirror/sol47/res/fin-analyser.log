@@ -1,0 +1,842 @@
+test apply_list_lambda::apply_list_constructor_body_element_is_delimiter_stripped ... ok
+test braced_word_elements_are_literal::fp_foreach_simulation_still_abstains_on_a_substituting_list ... FAILED
+test braced_word_elements_are_literal::fp_namespace_path_still_skips_a_substituting_element ... ok
+test braced_word_elements_are_literal::tn_foreach_simulation_literal_elements_unchanged ... ok
+test braced_word_elements_are_literal::tn_namespace_path_literal_elements_unchanged ... ok
+test braced_word_elements_are_literal::tp_namespace_path_records_a_braced_dollar_element_as_a_reference ... ok
+test braced_word_elements_are_literal::tp_foreach_simulation_survives_a_braced_dollar_element ... ok
+test canonicalisation_matrix::irule4005_not_fired_by_bare_unset_under_irules ... ok
+test canonicalisation_matrix::w210_upvar_aliased_silences_the_name_it_links ... ok
+test canonicalisation_matrix::w210_upvar_decl_silences_bare_and_qualified ... ok
+test canonicalisation_matrix::w210_global_decl_silences_bare_qualified_aliased ... ok
+test canonicalisation_matrix::w211_aliased_set_rust_behaviour ... ok
+test canonicalisation_matrix::w210_variable_decl_silences_bare_and_qualified ... ok
+test canonicalisation_matrix::w211_set_bare_and_qualified_both_fire ... ok
+test canonicalisation_matrix::w213_nocomplain_silenced ... ok
+test canonicalisation_matrix::w213_unset_bare_fires ... FAILED
+test canonicalisation_matrix::w213_qualified_and_aliased_do_not_fire_rust_behaviour ... ok
+test canonicalisation_matrix::w215_balanced_inner_braces_are_dialect_dependent ... ok
+test canonicalisation_matrix::w215_close_paren_in_array_index ... ok
+test canonicalisation_matrix::w215_brace_in_var_name ... ok
+test canonicalisation_matrix::w215_trailing_backslash_in_var_name ... ok
+test canonicalisation_matrix::w216_brace_array_with_dollar_index ... FAILED
+test canonicalisation_matrix::w216_brace_then_paren_with_fix ... ok
+test canonicalisation_matrix::w215_does_not_fire_when_brace_form_reaches_the_name ... ok
+test canonicalisation_matrix::w216_funny_name_falls_back_to_set_indirection ... FAILED
+test canonicalisation_matrix::w216_does_not_fire_on_correct_forms ... ok
+test class_factories::a_bare_name_inside_the_metaclass_namespace_does_resolve ... FAILED
+test class_factories::a_braced_variable_command_head_resolves_through_its_constant ... FAILED
+test class_factories::a_braced_variable_command_head_abstains_on_a_branch_binding ... ok
+test class_factories::a_call_site_inside_another_proc_body_proves_nothing ... ok
+test class_factories::a_collection_loop_whose_body_diverges_abstains ... ok
+test class_factories::a_collection_loop_in_the_dominating_prefix_preserves_provenance ... FAILED
+test class_factories::a_computed_foreach_member_name_still_abstains_entirely ... ok
+test class_factories::a_collection_loop_writing_the_provenance_variable_abstains ... ok
+test class_factories::a_computed_metaclass_name_resolves_through_a_literal_call_site ... FAILED
+test class_factories::a_creation_inside_a_collection_loop_body_abstains ... ok
+test class_factories::a_creation_written_before_its_metaclass_is_proved_stays_unrecorded ... ok
+test class_factories::a_cross_file_factory_keeps_method_checks_live_when_it_can ... FAILED
+test class_factories::a_condition_loop_in_the_dominating_prefix_abstains ... ok
+test class_factories::a_declaration_body_the_walk_cannot_read_is_not_a_blocker ... FAILED
+test class_factories::a_deferred_creation_never_leaks_into_the_next_document ... ok
+test class_factories::a_deferred_tk_option_body_is_not_a_load_time_blocker ... FAILED
+test class_factories::a_define_stub_replaces_a_member_the_creation_body_also_declared ... FAILED
+test class_factories::a_dynamic_call_site_argument_proves_nothing ... ok
+test class_factories::a_define_stub_that_wins_the_join_still_sheds_its_stub_provenance ... FAILED
+test class_factories::a_dynamic_metaclass_name_still_abstains ... ok
+test class_factories::a_factory_made_class_with_a_readable_override_is_not_opaque ... FAILED
+test class_factories::a_factory_without_a_create_override_keeps_the_builtin_layout ... FAILED
+test class_factories::a_foreach_member_installer_marks_the_member_set_incomplete ... ok
+test class_factories::a_head_the_walk_knew_only_as_a_define_stub_is_still_deferred ... FAILED
+test class_factories::a_literal_foreach_installer_records_member_names_as_signature_unknown ... ok
+test class_factories::a_later_define_stub_does_not_cost_the_metaclass_its_factory ... FAILED
+test class_factories::a_metaclass_defined_in_another_file_abstains_rather_than_guessing ... ok
+test class_factories::a_local_metaclass_shadows_the_workspace_one ... ok
+test class_factories::a_metaclass_file_publishes_exactly_one_factory ... FAILED
+test class_factories::a_metaclass_without_unknown_dispatch_abstains ... FAILED
+test class_factories::a_multi_pair_foreach_installer_still_abstains_entirely ... ok
+test class_factories::a_multi_arm_write_to_the_provenance_variable_abstains ... ok
+test class_factories::a_post_pass_metaclass_classifies_a_creation_in_its_own_file ... FAILED
+test class_factories::a_proc_nobody_calls_proves_nothing ... ok
+test class_factories::a_provably_direct_body_still_yields_a_known_empty_injection ... FAILED
+test class_factories::a_provably_direct_body_keeps_method_checks_live ... FAILED
+test class_factories::a_readable_body_that_runs_now_and_completes_is_not_a_blocker ... FAILED
+test class_factories::a_readable_lambda_that_falls_through_is_not_a_blocker ... FAILED
+test class_factories::a_relative_computed_name_still_abstains ... ok
+test class_factories::a_relative_superclass_does_not_cross_link_to_another_namespace ... ok
+test class_factories::a_relative_superclass_prefers_its_own_namespace_over_a_decoy ... FAILED
+test class_factories::a_relative_superclass_reaches_the_metaclass_in_its_own_namespace ... FAILED
+test class_factories::a_rename_with_no_call_through_the_new_name_manufactures_nothing ... ok
+test class_factories::a_rename_written_after_the_creation_call_does_not_apply ... ok
+test class_factories::a_renamed_metaclass_still_manufactures_its_class ... FAILED
+test class_factories::a_renamed_namespace_normaliser_abstains ... ok
+test class_factories::a_replayed_creation_can_itself_prove_the_next_one ... FAILED
+test class_factories::a_readable_body_that_runs_now_but_is_untyped_still_abstains ... ok
+test class_factories::a_replayed_creation_with_a_relative_name_homes_where_it_was_written ... FAILED
+test class_factories::a_replayed_creation_keeps_the_members_its_define_stub_already_held ... FAILED
+test class_factories::a_resolved_braced_variable_head_is_a_reference_not_a_rename_target ... ok
+test class_factories::a_second_link_metaclass_publishes_a_factory_once_the_first_is_indexed ... FAILED
+test class_factories::a_running_body_the_walk_cannot_read_still_abstains ... ok
+test class_factories::a_string_built_prologue_is_opaque_not_empty ... FAILED
+test class_factories::a_stored_body_that_cannot_fall_through_is_still_not_a_blocker ... FAILED
+test class_factories::a_whole_word_variable_head_is_left_to_the_flow_sensitive_engine ... FAILED
+test class_factories::a_stub_that_contradicts_the_replayed_creation_abstains_but_keeps_members ... FAILED
+test class_factories::a_wildcard_compatible_earlier_alias_abstains ... ok
+test class_factories::a_workspace_indexed_metaclass_creates_real_classes ... FAILED
+test class_factories::a_wildcard_compatible_later_rename_abstains ... ok
+test class_factories::a_workspace_metaclass_is_not_reached_by_a_same_tailed_bare_name ... ok
+test class_factories::an_aborting_uplevel_script_cannot_be_walked_past ... ok
+test class_factories::an_aborting_literal_lambda_cannot_be_walked_past ... ok
+test class_factories::an_aliased_namespace_normaliser_abstains ... ok
+test class_factories::an_immediately_executed_body_the_walk_cannot_read_still_abstains ... ok
+test class_factories::an_apply_of_an_unreadable_lambda_still_abstains ... ok
+test class_factories::an_opaque_prologue_suppresses_w308_on_inherited_methods ... ok
+test class_factories::an_ordinary_class_is_not_treated_as_a_factory ... ok
+test class_factories::an_ordinary_class_body_keeps_a_complete_member_set ... ok
+test class_factories::an_unknown_head_that_never_becomes_a_factory_records_nothing ... ok
+test class_factories::an_unindexed_metaclass_still_abstains ... ok
+test class_factories::an_unknown_namespace_normaliser_abstains ... ok
+test class_factories::an_unproved_second_link_still_abstains ... ok
+test class_factories::an_unreadable_cross_file_prologue_marks_inheritance_unknown ... FAILED
+test class_factories::an_unknown_same_frame_branch_write_abstains ... ok
+test class_factories::an_unreadable_manufacturer_override_marks_inheritance_unknown ... FAILED
+test class_factories::anonymous_derived_metaclass_new_does_not_invent_a_class_name_from_its_body ... ok
+test class_factories::computed_creation_declines_a_delimited_fallthrough_body_on_91 ... FAILED
+test class_factories::computed_creation_does_not_carry_proc_locals_across_namespace_eval ... ok
+test class_factories::computed_creation_in_try_finally_is_selected_but_handler_abstains ... FAILED
+test class_factories::computed_creation_after_a_non_normal_completion_is_unreachable ... ok
+test class_factories::computed_creation_materialises_only_the_selected_if_arm ... FAILED
+test class_factories::computed_creation_materialises_only_the_selected_switch_arm ... FAILED
+test class_factories::computed_creation_reuses_nested_prefix_reachability ... ok
+test class_factories::computed_creation_requires_the_load_time_call_path_to_execute ... FAILED
+test class_factories::computed_creation_switch_supports_registry_modes_and_fallthrough ... FAILED
+test class_factories::computed_creation_uses_default_proc_formals ... FAILED
+test class_factories::deep_helper_call_chain_cannot_exhaust_the_provenance_budget ... ok
+test class_factories::deeply_nested_collection_loops_do_not_blow_the_static_walk_stack ... ok
+test class_factories::deeply_nested_untyped_bodies_do_not_blow_the_static_walk_stack ... ok
+test class_factories::disjoint_dynamic_command_table_names_preserve_provenance ... FAILED
+test class_factories::each_literal_call_site_proves_its_own_metaclass ... FAILED
+test class_factories::dormant_dynamic_command_table_words_do_not_mutate_load_time_identity ... FAILED
+test class_factories::foreach_installed_procs_are_enumerated_per_literal_element ... FAILED
+test class_factories::full_tcllib_clay_dialect_metaclass_resolves_when_the_corpus_is_available ... ok
+test class_factories::helper_proc_branch_result_drives_computed_creation ... FAILED
+test class_factories::load_time_call_requires_every_dominating_prefix_to_fall_through ... FAILED
+test class_factories::load_time_call_requires_nested_control_to_reach_its_end ... FAILED
+test class_factories::load_time_switch_and_try_paths_select_only_executed_factory_calls ... FAILED
+test class_factories::malformed_and_handler_dependent_prefixes_do_not_publish_factories ... ok
+test class_factories::malformed_helper_branch_cannot_fabricate_a_computed_creation_name ... ok
+test class_factories::oo_define_after_the_fact_extends_a_chained_factory_made_class ... FAILED
+test class_factories::oo_define_over_a_dynamic_list_still_abstains ... FAILED
+test class_factories::oo_define_over_a_literal_foreach_list_extends_every_named_class ... FAILED
+test class_factories::oo_define_resolves_a_dominating_constant_target ... FAILED
+test class_factories::static_brace_expansion_splices_a_member_signature ... ok
+test class_factories::static_brace_expansion_splices_in_an_oo_define_body_too ... ok
+test class_factories::substituted_brace_expansion_still_abstains ... ok
+test class_factories::switch_default_is_special_only_in_the_final_clause ... ok
+test class_factories::switch_with_a_final_fallthrough_body_never_materialises_a_class ... ok
+test class_factories::switch_with_an_orphan_braced_clause_never_materialises_a_class ... ok
+test class_factories::the_control_without_a_rename_records_the_same_class ... FAILED
+test class_factories::the_cross_file_result_matches_the_same_file_result ... FAILED
+test class_factories::the_foreach_simulation_does_not_duplicate_body_diagnostics ... ok
+test class_factories::the_incremental_path_records_the_same_classes_as_a_full_analysis ... FAILED
+test class_factories::four_hundred_nested_foreach_bodies_do_not_abort_the_process has been running for over 60 seconds
+test class_factories::the_per_item_walk_agrees_with_the_whole_file_walk_cross_file ... FAILED
+test class_factories::the_third_link_records_the_class_and_its_members ... FAILED
+test class_factories::the_unresolvable_record_is_retracted_once_a_real_name_is_proved ... ok
+test class_factories::two_creations_naming_one_class_under_different_metaclasses_abstain ... FAILED
+test class_factories::unexported_create_with_namespace_does_not_manufacture_a_class ... ok
+test class_factories::unknown_dispatch_cannot_combine_evidence_from_different_branches ... FAILED
+test class_factories::unknown_dispatch_cannot_construct_after_return_completion ... FAILED
+test class_factories::unknown_dispatch_constructing_a_derived_word_abstains ... FAILED
+test class_factories::unknown_dispatch_dynamic_arm_cannot_leave_a_normal_fallthrough_path ... FAILED
+test class_factories::unknown_dispatch_ignores_an_unselected_construction_arm ... FAILED
+test class_factories::four_hundred_nested_foreach_bodies_do_not_abort_the_process ... ok
+test class_factories::unknown_dispatch_next_abstains_on_a_cyclic_hierarchy ... FAILED
+test class_factories::unknown_dispatch_next_abstains_on_an_incomplete_hierarchy ... FAILED
+test class_factories::unknown_dispatch_next_to_a_normally_returning_provider_abstains ... FAILED
+test class_factories::unknown_dispatch_nextto_uses_its_registry_declared_anchor ... FAILED
+test class_factories::unknown_dispatch_non_normal_return_does_not_prove_a_handle ... FAILED
+test class_factories::unknown_dispatch_proof_survives_the_cross_document_rehome ... FAILED
+test class_factories::unknown_dispatch_rejects_a_malformed_if_path ... FAILED
+test class_factories::unknown_dispatch_requires_construction_on_every_dynamic_return_path ... FAILED
+test class_factories::unknown_dispatch_returning_a_derived_word_abstains ... FAILED
+test class_factories::unknown_dispatch_returning_something_else_abstains ... FAILED
+test class_factories::unknown_dispatch_stops_at_an_earlier_terminating_command ... FAILED
+test class_factories::unknown_dispatch_that_constructs_and_returns_the_word_is_proved ... FAILED
+test class_factories::unknown_dispatch_that_does_not_construct_abstains ... FAILED
+test class_factories::unknown_dispatch_with_no_return_abstains ... FAILED
+test class_factories::user_metaclass_body_argument_is_read_from_the_create_override ... FAILED
+test class_factories::user_metaclass_creates_real_classes ... FAILED
+test class_factories::unrelated_multi_arm_writes_preserve_provenance ... FAILED
+test class_factories::user_metaclass_splices_its_own_and_the_callers_superclasses ... FAILED
+test class_factories::w308_abstains_on_a_class_whose_members_are_installed_reflectively ... FAILED
+test const_cmd_subst_set_rhs::a_branch_dependent_argument_abstains ... ok
+test const_cmd_subst_set_rhs::a_class_side_method_abstains_from_the_self_class_fold ... ok
+test const_cmd_subst_set_rhs::a_constant_namespace_qualifiers_rhs_folds_and_resolves_the_head ... FAILED
+test const_cmd_subst_set_rhs::a_dominating_constant_argument_folds_through_the_lattice ... FAILED
+test const_cmd_subst_set_rhs::a_later_rename_of_the_folding_head_blocks_the_fold ... ok
+test const_cmd_subst_set_rhs::a_self_class_chain_folds_inside_an_instance_method ... FAILED
+test const_cmd_subst_set_rhs::a_vendor_profile_folds_a_version_sensitive_constant_only_where_its_release_was_measured ... FAILED
+test const_cmd_subst_set_rhs::a_shadowing_proc_definition_blocks_the_fold ... ok
+test const_dominated_namespace_eval::fp_a_branch_conditional_binding_keeps_the_synthetic_domain ... ok
+test const_dominated_namespace_eval::tn_a_literal_target_is_unchanged ... ok
+test const_cmd_subst_set_rhs::per_item_path_folds_and_abstains_identically_to_the_whole_file_walk ... FAILED
+test const_dominated_namespace_eval::tn_a_parameter_target_keeps_the_synthetic_domain ... ok
+test const_dominated_namespace_eval::tp_the_word_is_recorded_as_a_declaring_occurrence ... FAILED
+test const_dominated_namespace_eval::tp_a_constant_target_homes_the_blocks_procs_to_the_real_namespace ... FAILED
+test control_flow::command_subst_inside_expr_records_outer_var ... ok
+test control_flow::dict_for_body_analysed ... FAILED
+test control_flow::foreach_defines_loop_var ... ok
+test control_flow::foreach_multi_var_each_defined_with_distinct_ranges ... ok
+test control_flow::if_elseif_else_all_bodies_analysed ... ok
+test control_flow::if_expr_records_var_reference ... ok
+test control_flow::nested_proc_and_if_records_proc ... ok
+test control_flow::tcloo_method_body_in_method_scope ... ok
+test control_flow::if_while_for_bodies_analysed ... ok
+test diagnostics::array_read_uses_base_variable_no_w210 ... ok
+test diagnostics::constant_if_unreachable_branch_i230 ... ok
+test diagnostics::constant_string_eq_and_double_equals_fold_i230 ... FAILED
+test diagnostics::correct_arity_no_error ... ok
+test diagnostics::constant_string_ne_and_bang_equals_fold_i230 ... FAILED
+test diagnostics::dead_assignment_detected_w220 ... ok
+test diagnostics::dead_while_zero_still_flagged ... ok
+test diagnostics::dict_proc_at_conventional_location_without_ensemble_patch_is_an_accepted_false_negative ... FAILED
+test diagnostics::declared_switches_not_counted_as_positional ... ok
+test diagnostics::dynamically_mapped_dict_ensemble_subcommand_suppresses_w001 ... ok
+test diagnostics::ensemble_shadowing_does_not_hide_a_genuinely_unknown_subcommand ... ok
+test diagnostics::dynamically_mapped_dict_ensemble_fix_is_not_overfit_to_getnull ... FAILED
+test diagnostics::error_diagnostics_have_a_span ... ok
+test diagnostics::ensemble_without_implementation_namespace_is_unaffected_by_dynamic_map_check ... ok
+test diagnostics::for_too_few_args_is_error ... ok
+test diagnostics::genuinely_unknown_dict_subcommand_still_fires_w001 ... ok
+test diagnostics::lassign_vars_not_read_before_set ... ok
+test diagnostics::missing_subcommand_namespace_fires_e001 ... ok
+test diagnostics::multiline_diagnostic_anchors_on_offending_line ... ok
+test diagnostics::namespace_ensemble_configure_genuinely_unknown_tk_subcommand_still_fires_w001 ... ok
+test diagnostics::infinite_loop_idiom_not_flagged_i230 ... ok
+test diagnostics::namespace_which_command_probe_does_not_flag_unknown ... ok
+test diagnostics::namespace_ensemble_configure_on_tk_suppresses_w001_for_systray_and_sysnotify ... ok
+test diagnostics::package_files_is_disabled_under_tcl86_per_tclsh ... ok
+test diagnostics::package_prefer_is_a_real_subcommand_no_w001 ... ok
+test diagnostics::paste_error_hint_for_duplicate_static_assignment_h300 ... ok
+test diagnostics::proc_shadowing_ensemble_command_suppresses_w001 ... ok
+test diagnostics::puts_arity_options_not_counted ... FAILED
+test diagnostics::paste_error_not_emitted_when_value_changes_or_dynamic ... ok
+test diagnostics::read_before_set_cleared_after_assignment ... ok
+test diagnostics::read_before_set_in_expr_warns_w210 ... ok
+test diagnostics::regexp_capture_vars_not_read_before_set ... ok
+test diagnostics::read_before_set_warns_w210 ... ok
+test diagnostics::regexp_match_var_not_read_before_set ... ok
+test diagnostics::regsub_result_var_suppresses_w210_at_top_level ... ok
+test diagnostics::scan_capture_vars_not_read_before_set ... ok
+test diagnostics::too_many_args_break_fires_e003 ... ok
+test diagnostics::too_few_args_set_fires_e002 ... ok
+test diagnostics::unknown_command_not_arity_checked ... ok
+test diagnostics::unknown_subcommand_warns_w001 ... ok
+test diagnostics::unused_assigned_variable_hint_w211 ... ok
+test diagnostics::used_variable_no_unused_hint ... ok
+test diagnostics::while_too_few_args_is_error ... ok
+test diagnostics::traced_global_unqualified_store_suppresses_w220 ... ok
+test diagnostics::zipfs_is_a_9_0_ensemble_gated_out_of_earlier_dialects ... FAILED
+test dict_qualified_specs::qualified_dict_for_binds_loop_vars_and_walks_body ... ok
+test dict_qualified_specs::qualified_dict_set_body_walks_a_nested_dict_for ... ok
+test diagnostics::widget_creation_pathname_is_not_a_subcommand_no_w001 ... ok
+test eval_uplevel_indirect_dispatch::eval_of_a_list_computed_var_resolves_the_real_head ... FAILED
+test eval_uplevel_indirect_dispatch::genuinely_dynamic_eval_body_stays_unresolved ... ok
+test eval_uplevel_indirect_dispatch::plain_eval_of_a_braced_literal_body_is_unaffected ... ok
+test eval_uplevel_indirect_dispatch::uplevel_hash_zero_of_a_var_headed_script_resolves_the_real_head ... FAILED
+test eval_uplevel_indirect_dispatch::resolves_identically_inside_a_proc_body ... FAILED
+test interp_alias::alias_chain_not_resolved_transitively ... ok
+test interp_alias::alias_deletion_form_keeps_prior_definition ... ok
+test interp_alias::alias_dynamic_name_not_recorded ... ok
+test interp_alias::alias_non_current_interp_not_recorded ... ok
+test interp_alias::alias_qualified_name_normalised ... ok
+test interp_alias::alias_query_form_no_crash ... ok
+test interp_alias::alias_recorded_with_target ... ok
+test interp_alias::alias_redefinition_overwrites ... ok
+test interp_alias::alias_for_expr_and_body_taking_commands_no_w214 ... ok
+test interp_alias::alias_standalone_expr_call_has_no_error ... ok
+test interp_alias::alias_target_in_child_interp_is_domain_qualified_945 ... ok
+test interp_alias::alias_too_few_args_no_crash ... ok
+test interp_alias::alias_with_prepended_args ... ok
+test interp_alias::alias_resolved_from_namespace_and_global_fallback_no_w214 ... ok
+test interp_alias::real_world_dynamic_html_tag_aliases_not_tracked ... ok
+test interp_alias::real_world_file_shortcuts_record_extras ... ok
+test interp_alias::issue_42_examples_no_w214 ... FAILED
+test interp_alias::real_world_safe_and_cross_interp_aliases_945 ... FAILED
+test interp_alias::return_expr_alias_and_braced_no_w214 ... FAILED
+test interp_value_flow::braced_path_value_flow_key_matches_the_direct_handler_issue_1025 ... FAILED
+test interp_value_flow::builtins_only_dynamic_interp_eval_body_stays_silent ... ok
+test interp_value_flow::braced_path_binding_links_a_later_literal_eval_issue_1025 ... FAILED
+test interp_value_flow::builtins_only_literal_interp_eval_body_stays_silent ... ok
+test interp_value_flow::existing_literal_top_level_behaviour_is_unchanged ... ok
+test interp_value_flow::nested_path_value_flow_key_matches_the_direct_handler_issue_1025 ... FAILED
+test interp_value_flow::explicit_literal_name_variant_records_no_spurious_w140 ... FAILED
+test interp_value_flow::object_command_handle_eval_form_resolves_through_tracked_binding ... ok
+test interp_value_flow::primary_repro_cross_domain_alias_through_tracked_binding_resolves ... ok
+test interp_value_flow::reassigning_the_variable_clears_the_stale_interp_binding ... ok
+test interp_value_flow::synthetic_autoname_key_used_for_pathless_interp_create ... FAILED
+test interp_value_flow::untracked_dynamic_interp_path_stays_conservative ... ok
+test interp_value_flow::two_procs_sharing_a_variable_name_never_collide ... FAILED
+test issue_1312_named_object_dispatch::an_ordinary_proc_call_never_draws_w307_or_w308 ... ok
+test issue_1312_named_object_dispatch::interp_create_bareword_dispatch_draws_no_diagnostic ... ok
+test issue_1312_named_object_dispatch::named_object_and_handle_object_draw_the_same_w308_message ... FAILED
+test issue_1312_named_object_dispatch::named_object_calling_a_real_method_draws_no_w308 ... ok
+test issue_1312_named_object_dispatch::named_object_draws_w308_on_an_unknown_method ... FAILED
+test issue_1312_named_object_dispatch::per_item_analysis_agrees_with_whole_file_analysis ... FAILED
+test issue_1362_configurable_property_accessors::configurable_class_without_properties_draws_no_w308 ... ok
+test issue_1362_configurable_property_accessors::cget_on_a_configurable_class_still_draws_w308 ... ok
+test issue_1362_configurable_property_accessors::configure_on_a_plain_oo_class_still_draws_w308 ... ok
+test issue_1362_configurable_property_accessors::subclass_of_a_configurable_class_draws_no_w308 ... ok
+test issue_1362_configurable_property_accessors::configure_on_a_configurable_class_draws_no_w308 ... ok
+test issue_1362_configurable_property_accessors::unknown_method_on_a_configurable_class_still_draws_w308 ... ok
+test issue_1367_template_method_self_dispatch::an_injected_workspace_subclass_view_clears_the_w308 ... ok
+test issue_1367_template_method_self_dispatch::my_dispatch_to_a_method_no_subclass_defines_still_draws_w308 ... ok
+test issue_1362_configurable_property_accessors::w308_never_suggests_the_method_it_calls_unknown ... ok
+test issue_1367_template_method_self_dispatch::my_dispatch_to_a_mixin_provided_template_method_draws_no_w308 ... ok
+test issue_1367_template_method_self_dispatch::my_dispatch_to_a_subclass_provided_method_draws_no_w308 ... ok
+test issue_1367_template_method_self_dispatch::my_dispatch_with_no_subclass_in_view_still_draws_w308 ... ok
+test leading_bom::a_bom_mid_file_is_not_skipped ... ok
+test leading_bom::skipping_the_bom_leaves_byte_offsets_untouched ... ok
+test issue_1367_template_method_self_dispatch::self_command_dispatch_to_a_subclass_method_still_draws_w308 ... FAILED
+test leading_bom::tcl86_still_reports_a_leading_bom ... ok
+test leading_bom::tcl9_skips_a_leading_bom ... ok
+test list_quoted_script_arguments::fp_a_list_built_uplevel_body_does_not_claim_the_substitution_bytes ... ok
+test list_quoted_script_arguments::fp_a_nested_subst_in_a_built_body_is_not_rerecorded_in_the_target_scope ... ok
+test list_quoted_script_arguments::fp_a_rewalked_built_body_emits_no_duplicate_diagnostics ... ok
+test list_quoted_script_arguments::tn_a_braced_namespace_body_still_owns_its_bytes ... ok
+test list_quoted_script_arguments::tp_a_list_built_namespace_body_declares_in_the_namespace ... FAILED
+test list_quoted_script_arguments::tn_a_dynamic_build_stays_an_opaque_barrier ... ok
+test list_quoted_script_arguments::tp_a_list_built_uplevel_body_declares_in_the_uplevel_frame ... FAILED
+test namespace_analysis::namespace_eval_creates_namespace_scope ... ok
+test list_quoted_script_arguments::tp_a_substituted_read_in_a_built_body_belongs_to_the_building_frame ... ok
+test namespace_analysis::namespace_qualified_proc_in_all_procs ... ok
+test oo_helpers_namespace_path::fp_a_top_level_call_gets_no_helpers_candidate ... ok
+test oo_helpers_namespace_path::fp_an_apply_lambda_inside_a_method_loses_the_path ... ok
+test oo_helpers_namespace_path::tn_a_snit_method_body_gets_no_helpers_candidate ... ok
+test oo_helpers_namespace_path::tn_an_ordinary_builtin_still_settles_globally_from_a_method_body ... FAILED
+test numeral_release_diagnostic_tracks_profile ... ok
+test oo_helpers_namespace_path::tp_a_helper_declared_in_the_same_file_settles_the_call_onto_it ... ok
+test oo_helpers_namespace_path::tp_a_method_body_call_carries_the_helpers_candidate_first ... ok
+test oo_helpers_namespace_path::tp_the_same_holds_for_a_constructor_body ... ok
+test oo_helpers_scoping::a_linked_bareword_resolves_inside_the_objects_method_bodies ... ok
+test oo_helpers_scoping::a_linked_bareword_still_draws_w123_at_the_top_level ... ok
+test oo_helpers_scoping::a_user_proc_of_the_same_name_still_resolves_at_the_top_level ... ok
+test oo_helpers_scoping::an_unlinked_sibling_method_bareword_still_draws_w123 ... FAILED
+test oo_helpers_scoping::apply_lambda_inside_a_method_body_draws_w123 ... ok
+test oo_helpers_scoping::init_body_is_not_a_method_frame_but_still_reaches_oo_helpers ... ok
+test oo_helpers_scoping::init_body_scoping_still_separates_sibling_classes ... ok
+test oo_helpers_scoping::init_body_use_draws_no_w123 ... ok
+test oo_helpers_scoping::method_body_use_is_clean ... ok
+test oo_helpers_scoping::constructor_destructor_and_class_side_bodies_are_clean ... ok
+test oo_helpers_scoping::qualified_spelling_resolves_anywhere ... ok
+test oo_helpers_scoping::proc_body_draws_w123 ... ok
+test oo_link::dynamic_link_target_is_not_recorded ... ok
+test oo_link::link_called_from_destructor_is_recorded ... ok
+test oo_link::link_for_one_name_does_not_blanket_legitimize_others ... ok
+test oo_helpers_scoping::top_level_use_draws_w123 ... ok
+test oo_link::link_nested_inside_a_conditional_is_not_recorded ... ok
+test oo_link::link_is_not_recorded_under_a_dialect_without_it ... ok
+test oo_link::multiple_single_name_aliases_in_one_link_call_all_record ... ok
+test oo_link::links_from_different_method_bodies_all_accumulate ... ok
+test oo_link::two_element_link_records_alias_to_a_different_target ... ok
+test oo_link::single_name_link_records_alias_to_itself ... ok
+test opt_proc_definer::args_catch_all_is_readable_in_the_body ... ok
+test opt_proc_definer::call_with_any_arity_draws_no_wrong_arg_count_diagnostic ... ok
+test opt_proc_definer::dash_stripped_local_does_not_collide_with_its_own_optlist_declaration ... ok
+test opt_proc_definer::fully_qualified_spelling_also_registers ... ok
+test opt_proc_definer::a_genuine_opt_proc_arity_overflow_is_deliberately_unreported ... ok
+test opt_proc_definer::optlist_flag_descriptor_dash_is_stripped_for_the_bound_local ... ok
+test opt_proc_definer::plain_double_proc_redefinition_still_last_definition_wins ... ok
+test opt_proc_definer::records_proc_with_real_args_only_arity ... ok
+test opt_proc_definer::unrelated_proc_still_gets_real_arity_checked ... ok
+test pack_declared_transitions::a_clause_with_two_variable_lists_binds_both ... ok
+test pack_declared_transitions::a_pack_declared_special_variable_is_readable_at_startup ... ok
+test package_require::multiple_requires ... ok
+test package_require::provide_and_unrelated_not_recorded ... ok
+test pack_declared_transitions::a_pack_declared_scope_alias_binds_its_local ... FAILED
+test package_require::simple_require_no_version ... ok
+test package_require::require_with_version_and_exact ... ok
+test proc_analysis::default_param_value_captured ... ok
+test proc_analysis::doc_harvested_from_preceding_comment ... ok
+test proc_analysis::multiple_params_in_order ... ok
+test proc_analysis::multiple_procs_each_recorded ... ok
+test proc_analysis::no_params_is_empty ... ok
+test proc_analysis::proc_in_all_procs_qualified ... ok
+test proc_analysis::proc_creates_child_scope_with_param_and_local ... ok
+test regex_patterns::a_rooted_set_propagates_its_constant_pattern ... FAILED
+test proc_analysis::simple_proc_records_name_and_params ... ok
+test regex_patterns::literal_and_variable_patterns_mixed ... FAILED
+test regex_patterns::multiple_regex_commands_in_one_file ... FAILED
+test regex_patterns::dynamic_or_interpolated_pattern_not_recorded ... ok
+test regex_patterns::no_regex_in_other_commands ... ok
+test regex_patterns::regexp_simple_records_pattern_and_command ... FAILED
+test regex_patterns::regexp_inside_proc_recorded ... ok
+test regex_patterns::regsub_simple_and_with_options ... FAILED
+test regex_patterns::regexp_with_options_and_terminator_and_start ... FAILED
+test regex_patterns::set_then_regexp_and_regsub_propagate_constant_pattern ... FAILED
+test regex_patterns::set_then_switch_regexp_propagates ... FAILED
+test regex_patterns::switch_regexp_braced_and_inline_record_arms ... ok
+test regex_patterns::switch_glob_exact_default_record_no_regex ... ok
+test regex_patterns::switch_regexp_excludes_default_arm ... ok
+test regex_patterns::variable_pattern_in_proc_scope ... FAILED
+test rename::concatenated_var_new_name_resolves_via_constant_folding ... FAILED
+test rename::foreach_loop_variable_over_a_literal_list_is_constant_folded ... FAILED
+test rename::foreach_over_a_braced_list_element_is_not_mis_split_on_whitespace ... FAILED
+test rename::proc_parameter_is_not_constant_folded ... ok
+test rename::genuinely_dynamic_value_stays_unresolved ... ok
+test rename::rename_target_set_straight_line_still_resolves ... FAILED
+test rename::rename_target_set_only_in_a_conditional_branch_does_not_resolve ... ok
+test rename::resolvable_dynamic_rename_no_longer_widens_has_dynamic_providers ... FAILED
+test rename::single_var_old_name_resolves_via_constant_folding ... FAILED
+test rename::static_rename_recorded_unchanged ... ok
+test rename::two_concatenated_vars_in_same_straight_line_scope_resolve ... FAILED
+test rename::unresolvable_rename_still_widens_has_dynamic_providers ... ok
+test report_scoped_commands::fn_scoped_command_unknown_outside_body ... FAILED
+test report_scoped_commands::fp_core_commands_still_checked_in_body ... FAILED
+test report_scoped_commands::report_namespace_commands_known ... ok
+test report_scoped_commands::report_object_methods_resolve ... ok
+test report_scoped_commands::tn_nested_substitution_scoped_command_resolves ... ok
+test report_scoped_commands::tn_sibling_style_resolves ... ok
+test report_scoped_commands::tn_config_methods_valid_arity ... ok
+test report_scoped_commands::tp_bare_ensemble_requires_operation_e001 ... FAILED
+test report_scoped_commands::tp_operation_too_few_args_e002 ... FAILED
+test report_scoped_commands::tp_plain_command_too_many_args_e003 ... FAILED
+test report_scoped_commands::tn_valid_body_no_w123 ... ok
+test report_scoped_commands::tp_typo_command_flagged ... FAILED
+test report_scoped_commands::tp_unknown_operation_flagged_w001 ... ok
+test source_targets::literal_source_recorded ... ok
+test source_targets::multiple_sources_mixed_literal ... ok
+test set_dual_shape::set_two_arg_is_write_one_arg_is_read ... ok
+test source_targets::source_with_encoding_option ... ok
+test tcloo_classes::a_gated_oo_member_is_reported_but_still_recorded ... ok
+test source_targets::variable_and_cmd_subst_sources_not_literal ... ok
+test tcloo_classes::class_create_basic ... ok
+test tcloo_classes::class_destructor ... ok
+test tcloo_classes::class_filter_export_unexport ... ok
+test tcloo_classes::class_forward ... ok
+test tcloo_classes::class_in_namespace_and_registered_on_scope ... ok
+test tcloo_classes::class_method_params ... ok
+test tcloo_classes::class_mixins ... ok
+test tcloo_classes::class_superclass ... ok
+test tcloo_classes::class_superclass_no_ancestor_namespace_walk ... ok
+test tcloo_classes::class_superclass_same_namespace_resolves ... ok
+test tcloo_classes::class_variables_and_constructor ... ok
+test tcloo_classes::classmethod_and_private_method ... ok
+test tcloo_classes::fully_qualified_oo_class_head_normalised ... ok
+test tcloo_classes::metaclass_variants ... FAILED
+test tcloo_classes::method_body_instance_variables_in_scope ... ok
+test tcloo_classes::always_available_oo_members_are_clean_under_86 ... ok
+test tcloo_classes::oo_90_only_members_are_clean_under_90 ... ok
+test tcloo_classes::oo_define_body_merges_methods ... ok
+test tcloo_classes::oo_define_inline_and_partial_class ... FAILED
+test tcloo_classes::private_method_body_is_also_walked_for_internal_diagnostics ... ok
+test tcloo_classes::self_method_body_is_walked_for_internal_diagnostics ... ok
+test tcloo_classes::self_method_declaration_site_recorded_as_a_classmethod ... ok
+test trace_callbacks::unrelated_proc_unused_param_still_flagged ... ok
+test tcloo_classes::oo_90_only_members_are_flagged_under_86 ... ok
+test unresolved_command::alias_command_no_w123_and_alias_in_did_you_mean ... FAILED
+test unresolved_command::bare_dict_ensemble_builtin_outside_tcl_dict_namespace_still_fires_w123 ... ok
+test unresolved_command::bare_dict_ensemble_builtin_resolves_from_inside_tcl_dict_namespace ... ok
+test unresolved_command::did_you_mean_suggestion_for_near_name ... ok
+test unresolved_command::coroutine_name_is_a_known_command ... FAILED
+test unresolved_command::dynamic_providers_suppress_w123 ... FAILED
+test unresolved_command::glob_namespace_import_suppresses_matching_tail_only ... FAILED
+test unresolved_command::fully_qualified_tcl_dict_builtin_calls_are_unaffected ... ok
+test unresolved_command::interp_create_name_is_a_known_command ... FAILED
+test unresolved_command::list_wrapped_namespace_unknown_does_not_blanket_suppress_the_namespace ... ok
+test unresolved_command::known_builtin_and_user_proc_no_w123 ... FAILED
+test unresolved_command::list_wrapped_namespace_unknown_full_tcllib_idiom_suppresses_w123 ... ok
+test unresolved_command::list_wrapped_namespace_unknown_installer_suppresses_w123 ... ok
+test unresolved_command::list_wrapped_namespace_unknown_requires_the_exact_shape ... FAILED
+test unresolved_command::list_wrapped_namespace_unknown_via_concat_is_a_known_remaining_gap ... FAILED
+test unresolved_command::list_wrapped_namespace_unknown_via_namespace_inscope_suppresses_w123 ... ok
+test unresolved_command::literal_namespace_import_suppresses_exactly_that_name ... FAILED
+test unresolved_command::multiple_unknown_procs_last_wins ... FAILED
+test unresolved_command::live_short_circuit_arm_command_still_w123 ... ok
+test unresolved_command::namespace_qualified_and_variable_command_skipped ... ok
+test unresolved_command::namespace_unknown_handler_suppresses_w123 ... FAILED
+test unresolved_command::no_suggestion_for_distant_name ... ok
+test unresolved_command::no_unknown_proc_info_by_default ... ok
+test unresolved_command::package_require_suppresses_w123 ... ok
+test unresolved_command::ordinary_namespace_bare_name_resolution_is_unaffected_by_dict_fix ... ok
+test unresolved_command::static_rename_target_is_a_known_command ... ok
+test unresolved_command::stub_directive_suppresses_w123 ... ok
+test unresolved_command::tcl_unknown_qualified_recognised ... FAILED
+test unresolved_command::textutil_adjust_idx3_idx4::a_bare_unimported_flat_name_still_unresolved ... ok
+test unresolved_command::renamed_away_builtin_call_fires_w123 ... ok
+test unresolved_command::textutil_adjust_idx3_idx4::qualified_submodule_names_are_directly_registry_known ... ok
+test unresolved_command::textutil_adjust_idx3_idx4::qualified_submodule_calls_resolve_after_package_require ... ok
+test unresolved_command::unknown_command_emits_w123 ... ok
+test unresolved_command::unknown_glob_switch_sets_pattern_dispatch_flag ... FAILED
+test unresolved_command::unknown_proc_empty_stub_does_not_suppress ... FAILED
+test unresolved_command::unknown_proc_info_empty_stub_flag ... ok
+test unresolved_command::unknown_if_else_chains_original_suppresses ... FAILED
+test unresolved_command::unknown_proc_info_populated_for_switch_dispatch ... FAILED
+test unresolved_command::unknown_proc_switch_dispatch_covers_targets ... FAILED
+test unresolved_command::unknown_proc_opaque_dispatch_suppresses ... ok
+test unused_proc_parameters::all_params_used_no_warning ... ok
+test unused_proc_parameters::args_param_not_flagged ... ok
+test unused_proc_parameters::multiple_unused_params_each_flagged ... ok
+test unused_proc_parameters::param_read_inside_catch_body ... ok
+test unused_proc_parameters::dict_for_braced_data_word_use_divergence ... FAILED
+test unused_proc_parameters::param_used_in_expr_alias_counts_as_read ... ok
+test unused_proc_parameters::param_used_in_return_or_branch_condition ... ok
+test unused_proc_parameters::param_used_only_by_dict_with_or_update ... FAILED
+test unused_proc_parameters::param_used_in_dict_for_and_dict_map_bodies ... ok
+test unused_proc_parameters::pure_write_to_param_inside_opaque_body_still_flags ... ok
+test unused_proc_parameters::underscore_prefixed_param_is_still_flagged_rust_behaviour ... ok
+test unused_proc_parameters::unrelated_namespaced_for_does_not_get_dict_body_fallback ... ok
+test unused_proc_parameters::unused_param_alongside_used_in_dict_for_still_flagged ... ok
+test unused_proc_parameters::return_expr_and_cmd_subst_do_not_false_flag ... ok
+test unused_proc_parameters::unused_param_detected ... ok
+test var_read_role_references::fp_the_statement_form_is_recorded_exactly_once ... ok
+test var_read_role_references::tn_the_write_form_records_no_read ... ok
+test var_read_role_references::tn_a_computed_name_records_nothing ... ok
+test var_read_role_references::tp_a_brace_quoted_name_word_reads_the_literal_cell ... FAILED
+test var_read_role_references::tp_a_substituted_set_read_is_recorded ... ok
+test variable_analysis::array_set_defines_base_name ... ok
+test variable_analysis::incr_defines_var ... ok
+test variable_analysis::multiple_sets_define_each ... ok
+test variable_analysis::proc_local_not_in_global_scope ... ok
+test variable_analysis::set_defines_var ... ok
+test variable_analysis::set_one_arg_is_read_only ... ok
+test var_read_role_references::tp_every_var_read_role_contributes_not_just_set ... ok
+test variable_analysis::variable_command_skips_value_word ... ok
+test when_dialect_gating::when_body_analysed_under_irules ... FAILED
+test when_dialect_gating::when_body_not_analysed_under_plain_tcl ... ok
+---- braced_word_elements_are_literal::fp_foreach_simulation_still_abstains_on_a_substituting_list stdout ----
+thread 'braced_word_elements_are_literal::fp_foreach_simulation_still_abstains_on_a_substituting_list' (16349) panicked at rust/tcl-compiler/tests/analyser.rs:8882:9:
+---- canonicalisation_matrix::w213_unset_bare_fires stdout ----
+thread 'canonicalisation_matrix::w213_unset_bare_fires' (16378) panicked at rust/tcl-compiler/tests/analyser.rs:4128:9:
+---- canonicalisation_matrix::w216_brace_array_with_dollar_index stdout ----
+thread 'canonicalisation_matrix::w216_brace_array_with_dollar_index' (16388) panicked at rust/tcl-compiler/tests/analyser.rs:4095:9:
+---- canonicalisation_matrix::w216_funny_name_falls_back_to_set_indirection stdout ----
+thread 'canonicalisation_matrix::w216_funny_name_falls_back_to_set_indirection' (16393) panicked at rust/tcl-compiler/tests/analyser.rs:4108:9:
+---- class_factories::a_bare_name_inside_the_metaclass_namespace_does_resolve stdout ----
+thread 'class_factories::a_bare_name_inside_the_metaclass_namespace_does_resolve' (16394) panicked at rust/tcl-compiler/tests/analyser.rs:7868:9:
+---- class_factories::a_braced_variable_command_head_resolves_through_its_constant stdout ----
+thread 'class_factories::a_braced_variable_command_head_resolves_through_its_constant' (16400) panicked at rust/tcl-compiler/tests/analyser.rs:7980:9:
+---- class_factories::a_collection_loop_in_the_dominating_prefix_preserves_provenance stdout ----
+thread 'class_factories::a_collection_loop_in_the_dominating_prefix_preserves_provenance' (16403) panicked at rust/tcl-compiler/tests/analyser.rs:5475:9:
+---- class_factories::a_computed_metaclass_name_resolves_through_a_literal_call_site stdout ----
+thread 'class_factories::a_computed_metaclass_name_resolves_through_a_literal_call_site' (16411) panicked at rust/tcl-compiler/tests/analyser.rs:5344:9:
+---- class_factories::a_cross_file_factory_keeps_method_checks_live_when_it_can stdout ----
+thread 'class_factories::a_cross_file_factory_keeps_method_checks_live_when_it_can' (16425) panicked at rust/tcl-compiler/tests/analyser.rs:7952:9:
+---- class_factories::a_declaration_body_the_walk_cannot_read_is_not_a_blocker stdout ----
+thread 'class_factories::a_declaration_body_the_walk_cannot_read_is_not_a_blocker' (16427) panicked at rust/tcl-compiler/tests/analyser.rs:5601:9:
+---- class_factories::a_deferred_tk_option_body_is_not_a_load_time_blocker stdout ----
+thread 'class_factories::a_deferred_tk_option_body_is_not_a_load_time_blocker' (16432) panicked at rust/tcl-compiler/tests/analyser.rs:6140:9:
+---- class_factories::a_define_stub_replaces_a_member_the_creation_body_also_declared stdout ----
+thread 'class_factories::a_define_stub_replaces_a_member_the_creation_body_also_declared' (16433) panicked at rust/tcl-compiler/tests/analyser.rs:6492:14:
+---- class_factories::a_define_stub_that_wins_the_join_still_sheds_its_stub_provenance stdout ----
+thread 'class_factories::a_define_stub_that_wins_the_join_still_sheds_its_stub_provenance' (16435) panicked at rust/tcl-compiler/tests/analyser.rs:6558:14:
+---- class_factories::a_factory_made_class_with_a_readable_override_is_not_opaque stdout ----
+thread 'class_factories::a_factory_made_class_with_a_readable_override_is_not_opaque' (16441) panicked at rust/tcl-compiler/tests/analyser.rs:4505:32:
+---- class_factories::a_factory_without_a_create_override_keeps_the_builtin_layout stdout ----
+thread 'class_factories::a_factory_without_a_create_override_keeps_the_builtin_layout' (16442) panicked at rust/tcl-compiler/tests/analyser.rs:4505:32:
+---- class_factories::a_head_the_walk_knew_only_as_a_define_stub_is_still_deferred stdout ----
+thread 'class_factories::a_head_the_walk_knew_only_as_a_define_stub_is_still_deferred' (16447) panicked at rust/tcl-compiler/tests/analyser.rs:5952:14:
+---- class_factories::a_later_define_stub_does_not_cost_the_metaclass_its_factory stdout ----
+thread 'class_factories::a_later_define_stub_does_not_cost_the_metaclass_its_factory' (16448) panicked at rust/tcl-compiler/tests/analyser.rs:6442:14:
+---- class_factories::a_metaclass_file_publishes_exactly_one_factory stdout ----
+thread 'class_factories::a_metaclass_file_publishes_exactly_one_factory' (16453) panicked at rust/tcl-compiler/tests/analyser.rs:7701:9:
+---- class_factories::a_metaclass_without_unknown_dispatch_abstains stdout ----
+thread 'class_factories::a_metaclass_without_unknown_dispatch_abstains' (16456) panicked at rust/tcl-compiler/tests/analyser.rs:4906:32:
+---- class_factories::a_post_pass_metaclass_classifies_a_creation_in_its_own_file stdout ----
+thread 'class_factories::a_post_pass_metaclass_classifies_a_creation_in_its_own_file' (16459) panicked at rust/tcl-compiler/tests/analyser.rs:5709:14:
+---- class_factories::a_provably_direct_body_still_yields_a_known_empty_injection stdout ----
+thread 'class_factories::a_provably_direct_body_still_yields_a_known_empty_injection' (16468) panicked at rust/tcl-compiler/tests/analyser.rs:4505:32:
+---- class_factories::a_provably_direct_body_keeps_method_checks_live stdout ----
+thread 'class_factories::a_provably_direct_body_keeps_method_checks_live' (16467) panicked at rust/tcl-compiler/tests/analyser.rs:4719:9:
+---- class_factories::a_readable_body_that_runs_now_and_completes_is_not_a_blocker stdout ----
+thread 'class_factories::a_readable_body_that_runs_now_and_completes_is_not_a_blocker' (16470) panicked at rust/tcl-compiler/tests/analyser.rs:6064:13:
+---- class_factories::a_readable_lambda_that_falls_through_is_not_a_blocker stdout ----
+thread 'class_factories::a_readable_lambda_that_falls_through_is_not_a_blocker' (16474) panicked at rust/tcl-compiler/tests/analyser.rs:6233:9:
+---- class_factories::a_relative_superclass_prefers_its_own_namespace_over_a_decoy stdout ----
+thread 'class_factories::a_relative_superclass_prefers_its_own_namespace_over_a_decoy' (16479) panicked at rust/tcl-compiler/tests/analyser.rs:4505:32:
+---- class_factories::a_relative_superclass_reaches_the_metaclass_in_its_own_namespace stdout ----
+thread 'class_factories::a_relative_superclass_reaches_the_metaclass_in_its_own_namespace' (16482) panicked at rust/tcl-compiler/tests/analyser.rs:4505:32:
+---- class_factories::a_renamed_metaclass_still_manufactures_its_class stdout ----
+thread 'class_factories::a_renamed_metaclass_still_manufactures_its_class' (16489) panicked at rust/tcl-compiler/tests/analyser.rs:4505:32:
+---- class_factories::a_replayed_creation_can_itself_prove_the_next_one stdout ----
+thread 'class_factories::a_replayed_creation_can_itself_prove_the_next_one' (16493) panicked at rust/tcl-compiler/tests/analyser.rs:5745:9:
+---- class_factories::a_replayed_creation_with_a_relative_name_homes_where_it_was_written stdout ----
+thread 'class_factories::a_replayed_creation_with_a_relative_name_homes_where_it_was_written' (16496) panicked at rust/tcl-compiler/tests/analyser.rs:5919:9:
+---- class_factories::a_replayed_creation_keeps_the_members_its_define_stub_already_held stdout ----
+thread 'class_factories::a_replayed_creation_keeps_the_members_its_define_stub_already_held' (16495) panicked at rust/tcl-compiler/tests/analyser.rs:5889:14:
+---- class_factories::a_second_link_metaclass_publishes_a_factory_once_the_first_is_indexed stdout ----
+thread 'class_factories::a_second_link_metaclass_publishes_a_factory_once_the_first_is_indexed' (16506) panicked at rust/tcl-compiler/tests/analyser.rs:8111:9:
+---- class_factories::a_string_built_prologue_is_opaque_not_empty stdout ----
+thread 'class_factories::a_string_built_prologue_is_opaque_not_empty' (16508) panicked at rust/tcl-compiler/tests/analyser.rs:4505:32:
+---- class_factories::a_stored_body_that_cannot_fall_through_is_still_not_a_blocker stdout ----
+thread 'class_factories::a_stored_body_that_cannot_fall_through_is_still_not_a_blocker' (16507) panicked at rust/tcl-compiler/tests/analyser.rs:6117:13:
+---- class_factories::a_whole_word_variable_head_is_left_to_the_flow_sensitive_engine stdout ----
+thread 'class_factories::a_whole_word_variable_head_is_left_to_the_flow_sensitive_engine' (16511) panicked at rust/tcl-compiler/tests/analyser.rs:8017:9:
+---- class_factories::a_stub_that_contradicts_the_replayed_creation_abstains_but_keeps_members stdout ----
+thread 'class_factories::a_stub_that_contradicts_the_replayed_creation_abstains_but_keeps_members' (16509) panicked at rust/tcl-compiler/tests/analyser.rs:5984:14:
+---- class_factories::a_workspace_indexed_metaclass_creates_real_classes stdout ----
+thread 'class_factories::a_workspace_indexed_metaclass_creates_real_classes' (16515) panicked at rust/tcl-compiler/tests/analyser.rs:7722:32:
+---- class_factories::an_unreadable_cross_file_prologue_marks_inheritance_unknown stdout ----
+thread 'class_factories::an_unreadable_cross_file_prologue_marks_inheritance_unknown' (16545) panicked at rust/tcl-compiler/tests/analyser.rs:7914:18:
+---- class_factories::an_unreadable_manufacturer_override_marks_inheritance_unknown stdout ----
+thread 'class_factories::an_unreadable_manufacturer_override_marks_inheritance_unknown' (16546) panicked at rust/tcl-compiler/tests/analyser.rs:4505:32:
+---- class_factories::computed_creation_declines_a_delimited_fallthrough_body_on_91 stdout ----
+thread 'class_factories::computed_creation_declines_a_delimited_fallthrough_body_on_91' (16549) panicked at rust/tcl-compiler/tests/analyser.rs:6921:9:
+---- class_factories::computed_creation_in_try_finally_is_selected_but_handler_abstains stdout ----
+thread 'class_factories::computed_creation_in_try_finally_is_selected_but_handler_abstains' (16552) panicked at rust/tcl-compiler/tests/analyser.rs:7090:9:
+---- class_factories::computed_creation_materialises_only_the_selected_if_arm stdout ----
+thread 'class_factories::computed_creation_materialises_only_the_selected_if_arm' (16553) panicked at rust/tcl-compiler/tests/analyser.rs:6618:9:
+---- class_factories::computed_creation_materialises_only_the_selected_switch_arm stdout ----
+thread 'class_factories::computed_creation_materialises_only_the_selected_switch_arm' (16554) panicked at rust/tcl-compiler/tests/analyser.rs:6824:9:
+---- class_factories::computed_creation_requires_the_load_time_call_path_to_execute stdout ----
+thread 'class_factories::computed_creation_requires_the_load_time_call_path_to_execute' (16555) panicked at rust/tcl-compiler/tests/analyser.rs:6652:9:
+---- class_factories::computed_creation_switch_supports_registry_modes_and_fallthrough stdout ----
+thread 'class_factories::computed_creation_switch_supports_registry_modes_and_fallthrough' (16558) panicked at rust/tcl-compiler/tests/analyser.rs:6855:9:
+---- class_factories::computed_creation_uses_default_proc_formals stdout ----
+thread 'class_factories::computed_creation_uses_default_proc_formals' (16562) panicked at rust/tcl-compiler/tests/analyser.rs:7142:9:
+---- class_factories::disjoint_dynamic_command_table_names_preserve_provenance stdout ----
+thread 'class_factories::disjoint_dynamic_command_table_names_preserve_provenance' (16602) panicked at rust/tcl-compiler/tests/analyser.rs:5370:9:
+---- class_factories::each_literal_call_site_proves_its_own_metaclass stdout ----
+thread 'class_factories::each_literal_call_site_proves_its_own_metaclass' (16610) panicked at rust/tcl-compiler/tests/analyser.rs:6598:13:
+---- class_factories::dormant_dynamic_command_table_words_do_not_mutate_load_time_identity stdout ----
+thread 'class_factories::dormant_dynamic_command_table_words_do_not_mutate_load_time_identity' (16608) panicked at rust/tcl-compiler/tests/analyser.rs:5391:9:
+---- class_factories::foreach_installed_procs_are_enumerated_per_literal_element stdout ----
+thread 'class_factories::foreach_installed_procs_are_enumerated_per_literal_element' (16612) panicked at rust/tcl-compiler/tests/analyser.rs:8066:13:
+---- class_factories::helper_proc_branch_result_drives_computed_creation stdout ----
+thread 'class_factories::helper_proc_branch_result_drives_computed_creation' (16615) panicked at rust/tcl-compiler/tests/analyser.rs:7021:9:
+---- class_factories::load_time_call_requires_every_dominating_prefix_to_fall_through stdout ----
+thread 'class_factories::load_time_call_requires_every_dominating_prefix_to_fall_through' (16618) panicked at rust/tcl-compiler/tests/analyser.rs:6686:9:
+---- class_factories::load_time_call_requires_nested_control_to_reach_its_end stdout ----
+thread 'class_factories::load_time_call_requires_nested_control_to_reach_its_end' (16624) panicked at rust/tcl-compiler/tests/analyser.rs:6727:9:
+---- class_factories::load_time_switch_and_try_paths_select_only_executed_factory_calls stdout ----
+thread 'class_factories::load_time_switch_and_try_paths_select_only_executed_factory_calls' (16633) panicked at rust/tcl-compiler/tests/analyser.rs:6777:9:
+---- class_factories::oo_define_after_the_fact_extends_a_chained_factory_made_class stdout ----
+thread 'class_factories::oo_define_after_the_fact_extends_a_chained_factory_made_class' (16645) panicked at rust/tcl-compiler/tests/analyser.rs:8165:32:
+---- class_factories::oo_define_over_a_dynamic_list_still_abstains stdout ----
+thread 'class_factories::oo_define_over_a_dynamic_list_still_abstains' (16649) panicked at rust/tcl-compiler/tests/analyser.rs:7358:9:
+---- class_factories::oo_define_over_a_literal_foreach_list_extends_every_named_class stdout ----
+thread 'class_factories::oo_define_over_a_literal_foreach_list_extends_every_named_class' (16650) panicked at rust/tcl-compiler/tests/analyser.rs:5272:13:
+---- class_factories::oo_define_resolves_a_dominating_constant_target stdout ----
+thread 'class_factories::oo_define_resolves_a_dominating_constant_target' (16655) panicked at rust/tcl-compiler/tests/analyser.rs:7378:9:
+---- class_factories::the_control_without_a_rename_records_the_same_class stdout ----
+thread 'class_factories::the_control_without_a_rename_records_the_same_class' (16667) panicked at rust/tcl-compiler/tests/analyser.rs:4505:32:
+---- class_factories::the_cross_file_result_matches_the_same_file_result stdout ----
+thread 'class_factories::the_cross_file_result_matches_the_same_file_result' (16668) panicked at rust/tcl-compiler/tests/analyser.rs:7744:35:
+---- class_factories::the_incremental_path_records_the_same_classes_as_a_full_analysis stdout ----
+thread 'class_factories::the_incremental_path_records_the_same_classes_as_a_full_analysis' (16675) panicked at rust/tcl-compiler/tests/analyser.rs:5797:9:
+---- class_factories::the_per_item_walk_agrees_with_the_whole_file_walk_cross_file stdout ----
+thread 'class_factories::the_per_item_walk_agrees_with_the_whole_file_walk_cross_file' (16679) panicked at rust/tcl-compiler/tests/analyser.rs:7780:13:
+---- class_factories::the_third_link_records_the_class_and_its_members stdout ----
+thread 'class_factories::the_third_link_records_the_class_and_its_members' (16682) panicked at rust/tcl-compiler/tests/analyser.rs:8147:32:
+---- class_factories::two_creations_naming_one_class_under_different_metaclasses_abstain stdout ----
+thread 'class_factories::two_creations_naming_one_class_under_different_metaclasses_abstain' (16687) panicked at rust/tcl-compiler/tests/analyser.rs:6523:14:
+---- class_factories::unknown_dispatch_cannot_combine_evidence_from_different_branches stdout ----
+thread 'class_factories::unknown_dispatch_cannot_combine_evidence_from_different_branches' (16696) panicked at rust/tcl-compiler/tests/analyser.rs:4906:32:
+---- class_factories::unknown_dispatch_cannot_construct_after_return_completion stdout ----
+thread 'class_factories::unknown_dispatch_cannot_construct_after_return_completion' (16698) panicked at rust/tcl-compiler/tests/analyser.rs:4906:32:
+---- class_factories::unknown_dispatch_constructing_a_derived_word_abstains stdout ----
+thread 'class_factories::unknown_dispatch_constructing_a_derived_word_abstains' (16699) panicked at rust/tcl-compiler/tests/analyser.rs:4906:32:
+---- class_factories::unknown_dispatch_dynamic_arm_cannot_leave_a_normal_fallthrough_path stdout ----
+thread 'class_factories::unknown_dispatch_dynamic_arm_cannot_leave_a_normal_fallthrough_path' (16700) panicked at rust/tcl-compiler/tests/analyser.rs:4906:32:
+---- class_factories::unknown_dispatch_ignores_an_unselected_construction_arm stdout ----
+thread 'class_factories::unknown_dispatch_ignores_an_unselected_construction_arm' (16701) panicked at rust/tcl-compiler/tests/analyser.rs:4906:32:
+---- class_factories::unknown_dispatch_next_abstains_on_a_cyclic_hierarchy stdout ----
+thread 'class_factories::unknown_dispatch_next_abstains_on_a_cyclic_hierarchy' (16702) panicked at rust/tcl-compiler/tests/analyser.rs:4906:32:
+---- class_factories::unknown_dispatch_next_abstains_on_an_incomplete_hierarchy stdout ----
+thread 'class_factories::unknown_dispatch_next_abstains_on_an_incomplete_hierarchy' (16704) panicked at rust/tcl-compiler/tests/analyser.rs:4906:32:
+---- class_factories::unknown_dispatch_next_to_a_normally_returning_provider_abstains stdout ----
+thread 'class_factories::unknown_dispatch_next_to_a_normally_returning_provider_abstains' (16706) panicked at rust/tcl-compiler/tests/analyser.rs:4906:32:
+---- class_factories::unknown_dispatch_nextto_uses_its_registry_declared_anchor stdout ----
+thread 'class_factories::unknown_dispatch_nextto_uses_its_registry_declared_anchor' (16707) panicked at rust/tcl-compiler/tests/analyser.rs:4906:32:
+---- class_factories::unknown_dispatch_non_normal_return_does_not_prove_a_handle stdout ----
+thread 'class_factories::unknown_dispatch_non_normal_return_does_not_prove_a_handle' (16708) panicked at rust/tcl-compiler/tests/analyser.rs:4906:32:
+---- class_factories::unknown_dispatch_proof_survives_the_cross_document_rehome stdout ----
+thread 'class_factories::unknown_dispatch_proof_survives_the_cross_document_rehome' (16709) panicked at rust/tcl-compiler/tests/analyser.rs:4906:32:
+---- class_factories::unknown_dispatch_rejects_a_malformed_if_path stdout ----
+thread 'class_factories::unknown_dispatch_rejects_a_malformed_if_path' (16711) panicked at rust/tcl-compiler/tests/analyser.rs:4906:32:
+---- class_factories::unknown_dispatch_requires_construction_on_every_dynamic_return_path stdout ----
+thread 'class_factories::unknown_dispatch_requires_construction_on_every_dynamic_return_path' (16712) panicked at rust/tcl-compiler/tests/analyser.rs:4906:32:
+---- class_factories::unknown_dispatch_returning_a_derived_word_abstains stdout ----
+thread 'class_factories::unknown_dispatch_returning_a_derived_word_abstains' (16713) panicked at rust/tcl-compiler/tests/analyser.rs:4906:32:
+---- class_factories::unknown_dispatch_returning_something_else_abstains stdout ----
+thread 'class_factories::unknown_dispatch_returning_something_else_abstains' (16714) panicked at rust/tcl-compiler/tests/analyser.rs:4906:32:
+---- class_factories::unknown_dispatch_stops_at_an_earlier_terminating_command stdout ----
+thread 'class_factories::unknown_dispatch_stops_at_an_earlier_terminating_command' (16716) panicked at rust/tcl-compiler/tests/analyser.rs:4906:32:
+---- class_factories::unknown_dispatch_that_constructs_and_returns_the_word_is_proved stdout ----
+thread 'class_factories::unknown_dispatch_that_constructs_and_returns_the_word_is_proved' (16717) panicked at rust/tcl-compiler/tests/analyser.rs:4906:32:
+---- class_factories::unknown_dispatch_that_does_not_construct_abstains stdout ----
+thread 'class_factories::unknown_dispatch_that_does_not_construct_abstains' (16718) panicked at rust/tcl-compiler/tests/analyser.rs:4906:32:
+---- class_factories::unknown_dispatch_with_no_return_abstains stdout ----
+thread 'class_factories::unknown_dispatch_with_no_return_abstains' (16721) panicked at rust/tcl-compiler/tests/analyser.rs:4906:32:
+---- class_factories::user_metaclass_body_argument_is_read_from_the_create_override stdout ----
+thread 'class_factories::user_metaclass_body_argument_is_read_from_the_create_override' (16724) panicked at rust/tcl-compiler/tests/analyser.rs:4505:32:
+---- class_factories::user_metaclass_creates_real_classes stdout ----
+thread 'class_factories::user_metaclass_creates_real_classes' (16725) panicked at rust/tcl-compiler/tests/analyser.rs:4538:13:
+---- class_factories::unrelated_multi_arm_writes_preserve_provenance stdout ----
+thread 'class_factories::unrelated_multi_arm_writes_preserve_provenance' (16723) panicked at rust/tcl-compiler/tests/analyser.rs:5410:9:
+---- class_factories::user_metaclass_splices_its_own_and_the_callers_superclasses stdout ----
+thread 'class_factories::user_metaclass_splices_its_own_and_the_callers_superclasses' (16727) panicked at rust/tcl-compiler/tests/analyser.rs:4505:32:
+---- class_factories::w308_abstains_on_a_class_whose_members_are_installed_reflectively stdout ----
+thread 'class_factories::w308_abstains_on_a_class_whose_members_are_installed_reflectively' (16728) panicked at rust/tcl-compiler/tests/analyser.rs:7596:9:
+---- const_cmd_subst_set_rhs::a_constant_namespace_qualifiers_rhs_folds_and_resolves_the_head stdout ----
+thread 'const_cmd_subst_set_rhs::a_constant_namespace_qualifiers_rhs_folds_and_resolves_the_head' (16734) panicked at rust/tcl-compiler/tests/analyser.rs:8317:9:
+---- const_cmd_subst_set_rhs::a_dominating_constant_argument_folds_through_the_lattice stdout ----
+thread 'const_cmd_subst_set_rhs::a_dominating_constant_argument_folds_through_the_lattice' (16736) panicked at rust/tcl-compiler/tests/analyser.rs:8524:9:
+---- const_cmd_subst_set_rhs::a_self_class_chain_folds_inside_an_instance_method stdout ----
+thread 'const_cmd_subst_set_rhs::a_self_class_chain_folds_inside_an_instance_method' (16744) panicked at rust/tcl-compiler/tests/analyser.rs:8368:9:
+---- const_cmd_subst_set_rhs::a_vendor_profile_folds_a_version_sensitive_constant_only_where_its_release_was_measured stdout ----
+thread 'const_cmd_subst_set_rhs::a_vendor_profile_folds_a_version_sensitive_constant_only_where_its_release_was_measured' (16746) panicked at rust/tcl-compiler/tests/analyser.rs:8339:9:
+---- const_cmd_subst_set_rhs::per_item_path_folds_and_abstains_identically_to_the_whole_file_walk stdout ----
+thread 'const_cmd_subst_set_rhs::per_item_path_folds_and_abstains_identically_to_the_whole_file_walk' (16749) panicked at rust/tcl-compiler/tests/analyser.rs:8498:13:
+---- const_dominated_namespace_eval::tp_the_word_is_recorded_as_a_declaring_occurrence stdout ----
+thread 'const_dominated_namespace_eval::tp_the_word_is_recorded_as_a_declaring_occurrence' (16757) panicked at rust/tcl-compiler/tests/analyser.rs:8757:9:
+---- const_dominated_namespace_eval::tp_a_constant_target_homes_the_blocks_procs_to_the_real_namespace stdout ----
+thread 'const_dominated_namespace_eval::tp_a_constant_target_homes_the_blocks_procs_to_the_real_namespace' (16756) panicked at rust/tcl-compiler/tests/analyser.rs:8742:9:
+---- control_flow::dict_for_body_analysed stdout ----
+thread 'control_flow::dict_for_body_analysed' (16763) panicked at rust/tcl-compiler/tests/analyser.rs:1436:9:
+---- diagnostics::constant_string_eq_and_double_equals_fold_i230 stdout ----
+thread 'diagnostics::constant_string_eq_and_double_equals_fold_i230' (16778) panicked at rust/tcl-compiler/tests/analyser.rs:1277:13:
+---- diagnostics::constant_string_ne_and_bang_equals_fold_i230 stdout ----
+thread 'diagnostics::constant_string_ne_and_bang_equals_fold_i230' (16779) panicked at rust/tcl-compiler/tests/analyser.rs:1286:13:
+---- diagnostics::dict_proc_at_conventional_location_without_ensemble_patch_is_an_accepted_false_negative stdout ----
+thread 'diagnostics::dict_proc_at_conventional_location_without_ensemble_patch_is_an_accepted_false_negative' (16786) panicked at rust/tcl-compiler/tests/analyser.rs:1038:9:
+---- diagnostics::dynamically_mapped_dict_ensemble_fix_is_not_overfit_to_getnull stdout ----
+thread 'diagnostics::dynamically_mapped_dict_ensemble_fix_is_not_overfit_to_getnull' (16789) panicked at rust/tcl-compiler/tests/analyser.rs:1009:9:
+---- diagnostics::puts_arity_options_not_counted stdout ----
+thread 'diagnostics::puts_arity_options_not_counted' (16824) panicked at rust/tcl-compiler/tests/analyser.rs:812:9:
+---- diagnostics::zipfs_is_a_9_0_ensemble_gated_out_of_earlier_dialects stdout ----
+thread 'diagnostics::zipfs_is_a_9_0_ensemble_gated_out_of_earlier_dialects' (16852) panicked at rust/tcl-compiler/tests/analyser.rs:936:9:
+---- eval_uplevel_indirect_dispatch::eval_of_a_list_computed_var_resolves_the_real_head stdout ----
+thread 'eval_uplevel_indirect_dispatch::eval_of_a_list_computed_var_resolves_the_real_head' (16859) panicked at rust/tcl-compiler/tests/analyser.rs:2451:9:
+---- eval_uplevel_indirect_dispatch::uplevel_hash_zero_of_a_var_headed_script_resolves_the_real_head stdout ----
+thread 'eval_uplevel_indirect_dispatch::uplevel_hash_zero_of_a_var_headed_script_resolves_the_real_head' (16865) panicked at rust/tcl-compiler/tests/analyser.rs:2479:9:
+---- eval_uplevel_indirect_dispatch::resolves_identically_inside_a_proc_body stdout ----
+thread 'eval_uplevel_indirect_dispatch::resolves_identically_inside_a_proc_body' (16864) panicked at rust/tcl-compiler/tests/analyser.rs:2527:9:
+---- interp_alias::issue_42_examples_no_w214 stdout ----
+thread 'interp_alias::issue_42_examples_no_w214' (16886) panicked at rust/tcl-compiler/tests/analyser.rs:2039:9:
+---- interp_alias::real_world_safe_and_cross_interp_aliases_945 stdout ----
+thread 'interp_alias::real_world_safe_and_cross_interp_aliases_945' (16898) panicked at rust/tcl-compiler/tests/analyser.rs:1995:9:
+---- interp_alias::return_expr_alias_and_braced_no_w214 stdout ----
+thread 'interp_alias::return_expr_alias_and_braced_no_w214' (16899) panicked at rust/tcl-compiler/tests/analyser.rs:2032:13:
+---- interp_value_flow::braced_path_value_flow_key_matches_the_direct_handler_issue_1025 stdout ----
+thread 'interp_value_flow::braced_path_value_flow_key_matches_the_direct_handler_issue_1025' (16908) panicked at rust/tcl-compiler/tests/analyser.rs:2207:9:
+---- interp_value_flow::braced_path_binding_links_a_later_literal_eval_issue_1025 stdout ----
+thread 'interp_value_flow::braced_path_binding_links_a_later_literal_eval_issue_1025' (16904) panicked at rust/tcl-compiler/tests/analyser.rs:2239:9:
+---- interp_value_flow::nested_path_value_flow_key_matches_the_direct_handler_issue_1025 stdout ----
+thread 'interp_value_flow::nested_path_value_flow_key_matches_the_direct_handler_issue_1025' (16929) panicked at rust/tcl-compiler/tests/analyser.rs:2224:9:
+---- interp_value_flow::explicit_literal_name_variant_records_no_spurious_w140 stdout ----
+thread 'interp_value_flow::explicit_literal_name_variant_records_no_spurious_w140' (16923) panicked at rust/tcl-compiler/tests/analyser.rs:2102:9:
+---- interp_value_flow::synthetic_autoname_key_used_for_pathless_interp_create stdout ----
+thread 'interp_value_flow::synthetic_autoname_key_used_for_pathless_interp_create' (16938) panicked at rust/tcl-compiler/tests/analyser.rs:2252:9:
+---- interp_value_flow::two_procs_sharing_a_variable_name_never_collide stdout ----
+thread 'interp_value_flow::two_procs_sharing_a_variable_name_never_collide' (16941) panicked at rust/tcl-compiler/tests/analyser.rs:2119:9:
+---- issue_1312_named_object_dispatch::named_object_and_handle_object_draw_the_same_w308_message stdout ----
+thread 'issue_1312_named_object_dispatch::named_object_and_handle_object_draw_the_same_w308_message' (16948) panicked at rust/tcl-compiler/tests/analyser.rs:8943:14:
+---- issue_1312_named_object_dispatch::named_object_draws_w308_on_an_unknown_method stdout ----
+thread 'issue_1312_named_object_dispatch::named_object_draws_w308_on_an_unknown_method' (16955) panicked at rust/tcl-compiler/tests/analyser.rs:8916:9:
+---- issue_1312_named_object_dispatch::per_item_analysis_agrees_with_whole_file_analysis stdout ----
+thread 'issue_1312_named_object_dispatch::per_item_analysis_agrees_with_whole_file_analysis' (16956) panicked at rust/tcl-compiler/tests/analyser.rs:9010:9:
+---- issue_1367_template_method_self_dispatch::self_command_dispatch_to_a_subclass_method_still_draws_w308 stdout ----
+thread 'issue_1367_template_method_self_dispatch::self_command_dispatch_to_a_subclass_method_still_draws_w308' (16986) panicked at rust/tcl-compiler/tests/analyser.rs:9226:9:
+---- list_quoted_script_arguments::tp_a_list_built_namespace_body_declares_in_the_namespace stdout ----
+thread 'list_quoted_script_arguments::tp_a_list_built_namespace_body_declares_in_the_namespace' (17000) panicked at rust/tcl-compiler/tests/analyser.rs:619:9:
+---- list_quoted_script_arguments::tp_a_list_built_uplevel_body_declares_in_the_uplevel_frame stdout ----
+thread 'list_quoted_script_arguments::tp_a_list_built_uplevel_body_declares_in_the_uplevel_frame' (17002) panicked at rust/tcl-compiler/tests/analyser.rs:607:13:
+---- oo_helpers_namespace_path::tn_an_ordinary_builtin_still_settles_globally_from_a_method_body stdout ----
+thread 'oo_helpers_namespace_path::tn_an_ordinary_builtin_still_settles_globally_from_a_method_body' (17022) panicked at rust/tcl-compiler/tests/analyser.rs:8699:9:
+---- oo_helpers_scoping::an_unlinked_sibling_method_bareword_still_draws_w123 stdout ----
+thread 'oo_helpers_scoping::an_unlinked_sibling_method_bareword_still_draws_w123' (17034) panicked at rust/tcl-compiler/tests/analyser.rs:3858:9:
+---- pack_declared_transitions::a_pack_declared_scope_alias_binds_its_local stdout ----
+thread 'pack_declared_transitions::a_pack_declared_scope_alias_binds_its_local' (17164) panicked at rust/tcl-compiler/tests/analyser.rs:9347:9:
+---- regex_patterns::a_rooted_set_propagates_its_constant_pattern stdout ----
+thread 'regex_patterns::a_rooted_set_propagates_its_constant_pattern' (17178) panicked at rust/tcl-compiler/tests/analyser.rs:1581:9:
+---- regex_patterns::literal_and_variable_patterns_mixed stdout ----
+thread 'regex_patterns::literal_and_variable_patterns_mixed' (17180) panicked at rust/tcl-compiler/tests/analyser.rs:1610:9:
+---- regex_patterns::multiple_regex_commands_in_one_file stdout ----
+thread 'regex_patterns::multiple_regex_commands_in_one_file' (17181) panicked at rust/tcl-compiler/tests/analyser.rs:1543:9:
+---- regex_patterns::regexp_simple_records_pattern_and_command stdout ----
+thread 'regex_patterns::regexp_simple_records_pattern_and_command' (17186) panicked at rust/tcl-compiler/tests/analyser.rs:1488:9:
+---- regex_patterns::regsub_simple_and_with_options stdout ----
+thread 'regex_patterns::regsub_simple_and_with_options' (17188) panicked at rust/tcl-compiler/tests/analyser.rs:1501:9:
+---- regex_patterns::regexp_with_options_and_terminator_and_start stdout ----
+thread 'regex_patterns::regexp_with_options_and_terminator_and_start' (17187) panicked at rust/tcl-compiler/tests/analyser.rs:1493:64:
+---- regex_patterns::set_then_regexp_and_regsub_propagate_constant_pattern stdout ----
+thread 'regex_patterns::set_then_regexp_and_regsub_propagate_constant_pattern' (17189) panicked at rust/tcl-compiler/tests/analyser.rs:1566:9:
+---- regex_patterns::set_then_switch_regexp_propagates stdout ----
+thread 'regex_patterns::set_then_switch_regexp_propagates' (17190) panicked at rust/tcl-compiler/tests/analyser.rs:1588:9:
+---- regex_patterns::variable_pattern_in_proc_scope stdout ----
+thread 'regex_patterns::variable_pattern_in_proc_scope' (17194) panicked at rust/tcl-compiler/tests/analyser.rs:1602:9:
+---- rename::concatenated_var_new_name_resolves_via_constant_folding stdout ----
+thread 'rename::concatenated_var_new_name_resolves_via_constant_folding' (17195) panicked at rust/tcl-compiler/tests/analyser.rs:2297:9:
+---- rename::foreach_loop_variable_over_a_literal_list_is_constant_folded stdout ----
+thread 'rename::foreach_loop_variable_over_a_literal_list_is_constant_folded' (17196) panicked at rust/tcl-compiler/tests/analyser.rs:2344:9:
+---- rename::foreach_over_a_braced_list_element_is_not_mis_split_on_whitespace stdout ----
+thread 'rename::foreach_over_a_braced_list_element_is_not_mis_split_on_whitespace' (17200) panicked at rust/tcl-compiler/tests/analyser.rs:2361:9:
+---- rename::rename_target_set_straight_line_still_resolves stdout ----
+thread 'rename::rename_target_set_straight_line_still_resolves' (17204) panicked at rust/tcl-compiler/tests/analyser.rs:2391:9:
+---- rename::resolvable_dynamic_rename_no_longer_widens_has_dynamic_providers stdout ----
+thread 'rename::resolvable_dynamic_rename_no_longer_widens_has_dynamic_providers' (17205) panicked at rust/tcl-compiler/tests/analyser.rs:2412:9:
+---- rename::single_var_old_name_resolves_via_constant_folding stdout ----
+thread 'rename::single_var_old_name_resolves_via_constant_folding' (17206) panicked at rust/tcl-compiler/tests/analyser.rs:2286:9:
+---- rename::two_concatenated_vars_in_same_straight_line_scope_resolve stdout ----
+thread 'rename::two_concatenated_vars_in_same_straight_line_scope_resolve' (17208) panicked at rust/tcl-compiler/tests/analyser.rs:2317:9:
+---- report_scoped_commands::fn_scoped_command_unknown_outside_body stdout ----
+thread 'report_scoped_commands::fn_scoped_command_unknown_outside_body' (17211) panicked at rust/tcl-compiler/tests/analyser.rs:4438:9:
+---- report_scoped_commands::fp_core_commands_still_checked_in_body stdout ----
+thread 'report_scoped_commands::fp_core_commands_still_checked_in_body' (17212) panicked at rust/tcl-compiler/tests/analyser.rs:4420:9:
+---- report_scoped_commands::tp_bare_ensemble_requires_operation_e001 stdout ----
+thread 'report_scoped_commands::tp_bare_ensemble_requires_operation_e001' (17219) panicked at rust/tcl-compiler/tests/analyser.rs:4383:9:
+---- report_scoped_commands::tp_operation_too_few_args_e002 stdout ----
+thread 'report_scoped_commands::tp_operation_too_few_args_e002' (17220) panicked at rust/tcl-compiler/tests/analyser.rs:4394:9:
+---- report_scoped_commands::tp_plain_command_too_many_args_e003 stdout ----
+thread 'report_scoped_commands::tp_plain_command_too_many_args_e003' (17221) panicked at rust/tcl-compiler/tests/analyser.rs:4405:9:
+---- report_scoped_commands::tp_typo_command_flagged stdout ----
+thread 'report_scoped_commands::tp_typo_command_flagged' (17222) panicked at rust/tcl-compiler/tests/analyser.rs:4360:9:
+---- tcloo_classes::metaclass_variants stdout ----
+thread 'tcloo_classes::metaclass_variants' (17261) panicked at rust/tcl-compiler/tests/analyser.rs:3177:14:
+---- tcloo_classes::oo_define_inline_and_partial_class stdout ----
+thread 'tcloo_classes::oo_define_inline_and_partial_class' (17359) panicked at rust/tcl-compiler/tests/analyser.rs:3177:14:
+---- unresolved_command::alias_command_no_w123_and_alias_in_did_you_mean stdout ----
+thread 'unresolved_command::alias_command_no_w123_and_alias_in_did_you_mean' (17378) panicked at rust/tcl-compiler/tests/analyser.rs:2970:9:
+---- unresolved_command::coroutine_name_is_a_known_command stdout ----
+thread 'unresolved_command::coroutine_name_is_a_known_command' (17383) panicked at rust/tcl-compiler/tests/analyser.rs:2810:9:
+---- unresolved_command::dynamic_providers_suppress_w123 stdout ----
+thread 'unresolved_command::dynamic_providers_suppress_w123' (17411) panicked at rust/tcl-compiler/tests/analyser.rs:2663:13:
+---- unresolved_command::glob_namespace_import_suppresses_matching_tail_only stdout ----
+thread 'unresolved_command::glob_namespace_import_suppresses_matching_tail_only' (17429) panicked at rust/tcl-compiler/tests/analyser.rs:2674:9:
+---- unresolved_command::interp_create_name_is_a_known_command stdout ----
+thread 'unresolved_command::interp_create_name_is_a_known_command' (17437) panicked at rust/tcl-compiler/tests/analyser.rs:2821:9:
+---- unresolved_command::known_builtin_and_user_proc_no_w123 stdout ----
+thread 'unresolved_command::known_builtin_and_user_proc_no_w123' (17442) panicked at rust/tcl-compiler/tests/analyser.rs:2631:9:
+---- unresolved_command::list_wrapped_namespace_unknown_requires_the_exact_shape stdout ----
+thread 'unresolved_command::list_wrapped_namespace_unknown_requires_the_exact_shape' (17449) panicked at rust/tcl-compiler/tests/analyser.rs:2903:9:
+---- unresolved_command::list_wrapped_namespace_unknown_via_concat_is_a_known_remaining_gap stdout ----
+thread 'unresolved_command::list_wrapped_namespace_unknown_via_concat_is_a_known_remaining_gap' (17470) panicked at rust/tcl-compiler/tests/analyser.rs:2942:9:
+---- unresolved_command::literal_namespace_import_suppresses_exactly_that_name stdout ----
+thread 'unresolved_command::literal_namespace_import_suppresses_exactly_that_name' (17474) panicked at rust/tcl-compiler/tests/analyser.rs:2686:9:
+---- unresolved_command::multiple_unknown_procs_last_wins stdout ----
+thread 'unresolved_command::multiple_unknown_procs_last_wins' (17481) panicked at rust/tcl-compiler/tests/analyser.rs:3044:9:
+---- unresolved_command::namespace_unknown_handler_suppresses_w123 stdout ----
+thread 'unresolved_command::namespace_unknown_handler_suppresses_w123' (17492) panicked at rust/tcl-compiler/tests/analyser.rs:2860:9:
+---- unresolved_command::tcl_unknown_qualified_recognised stdout ----
+thread 'unresolved_command::tcl_unknown_qualified_recognised' (17512) panicked at rust/tcl-compiler/tests/analyser.rs:3095:9:
+---- unresolved_command::unknown_glob_switch_sets_pattern_dispatch_flag stdout ----
+thread 'unresolved_command::unknown_glob_switch_sets_pattern_dispatch_flag' (17530) panicked at rust/tcl-compiler/tests/analyser.rs:3086:9:
+---- unresolved_command::unknown_proc_empty_stub_does_not_suppress stdout ----
+thread 'unresolved_command::unknown_proc_empty_stub_does_not_suppress' (17533) panicked at rust/tcl-compiler/tests/analyser.rs:3012:9:
+---- unresolved_command::unknown_if_else_chains_original_suppresses stdout ----
+thread 'unresolved_command::unknown_if_else_chains_original_suppresses' (17531) panicked at rust/tcl-compiler/tests/analyser.rs:3035:9:
+---- unresolved_command::unknown_proc_info_populated_for_switch_dispatch stdout ----
+thread 'unresolved_command::unknown_proc_info_populated_for_switch_dispatch' (17538) panicked at rust/tcl-compiler/tests/analyser.rs:3059:9:
+---- unresolved_command::unknown_proc_switch_dispatch_covers_targets stdout ----
+thread 'unresolved_command::unknown_proc_switch_dispatch_covers_targets' (17544) panicked at rust/tcl-compiler/tests/analyser.rs:3005:9:
+---- unused_proc_parameters::dict_for_braced_data_word_use_divergence stdout ----
+thread 'unused_proc_parameters::dict_for_braced_data_word_use_divergence' (17560) panicked at rust/tcl-compiler/tests/analyser.rs:1807:9:
+---- unused_proc_parameters::param_used_only_by_dict_with_or_update stdout ----
+thread 'unused_proc_parameters::param_used_only_by_dict_with_or_update' (17626) panicked at rust/tcl-compiler/tests/analyser.rs:1765:9:
+---- var_read_role_references::tp_a_brace_quoted_name_word_reads_the_literal_cell stdout ----
+thread 'var_read_role_references::tp_a_brace_quoted_name_word_reads_the_literal_cell' (17669) panicked at rust/tcl-compiler/tests/analyser.rs:558:9:
+---- when_dialect_gating::when_body_analysed_under_irules stdout ----
+thread 'when_dialect_gating::when_body_analysed_under_irules' (17704) panicked at rust/tcl-compiler/tests/analyser.rs:1370:9:
+test result: FAILED. 339 passed; 167 failed; 0 ignored; 0 measured; 0 filtered out; finished in 645.51s

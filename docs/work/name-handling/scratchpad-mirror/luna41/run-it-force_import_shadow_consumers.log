@@ -1,0 +1,64 @@
+test call_hierarchy_prepare_roots_at_the_reached_proc ... FAILED
+test code_actions_offer_the_reached_body_for_inlining ... FAILED
+test definition_follows_the_shadow ... FAILED
+test inlay_hints_label_the_reached_proc_not_the_shadowed_local ... FAILED
+test inline_proc_inlines_the_reached_body_not_the_shadowed_local ... FAILED
+test prepare_rename_offers_the_reached_definition ... FAILED
+test rename_retargets_with_the_shadow ... FAILED
+test signature_help_describes_the_reached_proc_not_the_shadowed_local ... FAILED
+test the_legacy_entry_points_still_equal_the_document_only_program_view ... ok
+test without_a_workspace_view_every_provider_keeps_the_document_only_answer ... FAILED
+---- call_hierarchy_prepare_roots_at_the_reached_proc stdout ----
+thread 'call_hierarchy_prepare_roots_at_the_reached_proc' (17608) panicked at rust/tcl-lsp-core/tests/force_import_shadow_consumers.rs:268:5:
+assertion `left == right` failed: a live -force shadow roots the hierarchy at `::src::helper {alpha beta}`
+  left: ["Source declaration"]
+ right: ["(2 params)"]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- code_actions_offer_the_reached_body_for_inlining stdout ----
+thread 'code_actions_offer_the_reached_body_for_inlining' (17609) panicked at rust/tcl-lsp-core/tests/force_import_shadow_consumers.rs:341:5:
+a live -force shadow must offer the imported body: ""
+
+---- definition_follows_the_shadow stdout ----
+
+thread 'definition_follows_the_shadow' (17666) panicked at rust/tcl-lsp-core/tests/force_import_shadow_consumers.rs:179:5:
+assertion `left == right` failed: the import replaced ::helper
+  left: [5]
+ right: [1]
+
+---- inlay_hints_label_the_reached_proc_not_the_shadowed_local stdout ----
+
+thread 'inlay_hints_label_the_reached_proc_not_the_shadowed_local' (17673) panicked at rust/tcl-lsp-core/tests/force_import_shadow_consumers.rs:208:5:
+a live -force shadow must label the imported proc's parameters: ["namespace:", "arg:", "name:", "args:", "body:", "name:", "args:", "body:", "string:", "name:", "args:", "body:", "string:"]
+
+---- inline_proc_inlines_the_reached_body_not_the_shadowed_local stdout ----
+
+thread 'inline_proc_inlines_the_reached_body_not_the_shadowed_local' (17753) panicked at rust/tcl-lsp-core/tests/force_import_shadow_consumers.rs:303:5:
+a live -force shadow must inline the imported body: ""
+
+---- prepare_rename_offers_the_reached_definition stdout ----
+
+thread 'prepare_rename_offers_the_reached_definition' (17784) panicked at rust/tcl-lsp-core/tests/force_import_shadow_consumers.rs:563:5:
+assertion `left == right` failed: prepare follows the shadow
+  left: None
+ right: Some(1)
+
+---- rename_retargets_with_the_shadow stdout ----
+
+thread 'rename_retargets_with_the_shadow' (17807) panicked at rust/tcl-lsp-core/tests/force_import_shadow_consumers.rs:506:10:
+no refusal on a resolvable call: RenameRefusal { reason: "unknown-completed-command-world: a completed original command world is unavailable for collision coverage", range: Some(LspRange { start_line: 5, start_character: 5, end_line: 5, end_character: 11 }) }
+
+---- signature_help_describes_the_reached_proc_not_the_shadowed_local stdout ----
+
+thread 'signature_help_describes_the_reached_proc_not_the_shadowed_local' (17810) panicked at rust/tcl-lsp-core/tests/force_import_shadow_consumers.rs:238:5:
+a live -force shadow must render `::src::helper`'s signature: "helper args"
+
+---- without_a_workspace_view_every_provider_keeps_the_document_only_answer stdout ----
+
+thread 'without_a_workspace_view_every_provider_keeps_the_document_only_answer' (17841) panicked at rust/tcl-lsp-core/tests/force_import_shadow_consumers.rs:393:5:
+assertion `left == right` failed: document-only resolution roots the hierarchy at the local proc
+  left: ["Source declaration"]
+ right: ["(1 params)"]
+
+
+test result: FAILED. 1 passed; 9 failed; 0 ignored; 0 measured; 0 filtered out; finished in 49.33s

@@ -1,0 +1,651 @@
+
+running 55 tests
+test backend_associated_types_are_function_and_module_asm ... ok
+test backend_lower_function_handbuilt_assign_const ... ok
+test backend_default_and_copy ... ok
+test backend_lower_function_script_flavour_uses_stack ... FAILED
+test backend_lower_function_proc_flavour_uses_lvt ... FAILED
+test backend_lower_module_handbuilt_empty_module ... ok
+test backend_lower_module_empty ... ok
+test backend_lower_module_names_top_level ... FAILED
+test backend_lower_module_retains_original_declaration_order_and_body_identity ... FAILED
+test catch_body_break_emits_break_op ... FAILED
+test catch_body_const_div_zero_emits_syntax ... FAILED
+test catch_body_empty_pushes_empty ... ok
+test break_at_loop_depth_two_jumps_to_inner_end ... FAILED
+test catch_body_error_emits_return_imm ... FAILED
+test catch_body_return_with_code_emits_return_imm ... FAILED
+test catch_inline_direct_two_arg_shape ... ok
+test catch_return_operands_match_c_merge_table ... FAILED
+test catch_error_operands_are_code_error_level_zero ... FAILED
+test catch_with_options_var_pushes_return_opts ... FAILED
+test cmd_subst_expand_form_uses_invoke_expanded ... FAILED
+test cmd_subst_in_expr_position_is_a_pushed_word ... FAILED
+test cmd_subst_in_if_condition_is_a_pushed_word ... FAILED
+test cmd_subst_in_list_construction ... FAILED
+test cmd_subst_info_exists_in_condition ... FAILED
+test cmd_subst_lindex_multi_index ... FAILED
+test cmd_subst_lrange_end_index ... FAILED
+test cmd_subst_multi_command_falls_back_to_eval_stk ... FAILED
+test cmd_subst_nested_bracket_in_arg ... FAILED
+test cmd_subst_specialised_opcode_in_assignment_rhs ... FAILED
+test detect_const_expr_error_modulo_by_zero ... ok
+test detect_const_expr_error_non_constant_divisor ... ok
+test fold_bitwise_chain_to_literal ... ok
+test fold_exponent_to_literal ... ok
+test fold_list_command_to_literal ... FAILED
+test fold_nested_arithmetic_to_literal ... ok
+test continue_at_loop_depth_two ... FAILED
+test fold_ternary_to_literal ... ok
+test list_break_continue_inline_jump_with_cleanup ... ok
+test list_break_no_target_does_not_match ... ok
+test list_continue_inline_jump ... ok
+test plain_return_encodings_top_level_and_proc ... FAILED
+test if_elseif_else_chain_three_way ... FAILED
+test return_in_both_if_branches ... FAILED
+test switch_exact_return_arms_jump_table ... FAILED
+test switch_glob_routes_through_generic_invoke ... FAILED
+test try_finally_cfg_chain_present ... FAILED
+test try_finally_during_merge_uses_list_concat ... FAILED
+test try_finally_emits_dual_catch_ranges ... FAILED
+test try_list_expand_concat_direct_two_arg ... ok
+test try_list_expand_concat_rejects_one_arg ... ok
+test try_on_error_handler_var_is_first_slot ... ok
+test try_on_error_inline_direct ... ok
+test try_finally_in_loop_still_lowers ... FAILED
+test try_on_error_inside_catch_full_dispatch ... FAILED
+test try_on_tcl_numeric_error_spellings_use_the_typed_registry_selector ... FAILED
+
+failures:
+
+---- backend_lower_function_script_flavour_uses_stack stdout ----
+
+thread 'backend_lower_function_script_flavour_uses_stack' (25768) panicked at rust/tcl-compiler/tests/codegen_depth.rs:226:5:
+script flavour stores via stack: [PUSH1, PUSH1, PUSH1, INVOKE_STK1, DONE]
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: codegen_depth::backend_lower_function_script_flavour_uses_stack
+   3: codegen_depth::backend_lower_function_script_flavour_uses_stack::{closure#0}
+   4: <codegen_depth::backend_lower_function_script_flavour_uses_stack::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- backend_lower_function_proc_flavour_uses_lvt stdout ----
+
+thread 'backend_lower_function_proc_flavour_uses_lvt' (25767) panicked at rust/tcl-compiler/tests/support/body_identity.rs:50:28:
+fixture body "::id" absent
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: codegen_depth::body_identity::fixture_id::<tcl_compiler::cfg::Function, &std::collections::hash::map::HashMap<tcl_core_types::body_identity::ProcedureId, tcl_compiler::cfg::Function>>::{closure#0}
+   3: <core::option::Option<tcl_core_types::body_identity::ProcedureId>>::unwrap_or_else::<codegen_depth::body_identity::fixture_id<tcl_compiler::cfg::Function, &std::collections::hash::map::HashMap<tcl_core_types::body_identity::ProcedureId, tcl_compiler::cfg::Function>>::{closure#0}>
+   4: codegen_depth::body_identity::fixture_id::<tcl_compiler::cfg::Function, &std::collections::hash::map::HashMap<tcl_core_types::body_identity::ProcedureId, tcl_compiler::cfg::Function>>
+   5: codegen_depth::backend_lower_function_proc_flavour_uses_lvt
+   6: codegen_depth::backend_lower_function_proc_flavour_uses_lvt::{closure#0}
+   7: <codegen_depth::backend_lower_function_proc_flavour_uses_lvt::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- backend_lower_module_names_top_level stdout ----
+
+thread 'backend_lower_module_names_top_level' (25771) panicked at rust/tcl-compiler/tests/codegen_depth.rs:154:5:
+assertion failed: fixture_id_if_present(&asm.procedures, "::add").is_some()
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: codegen_depth::backend_lower_module_names_top_level
+   4: codegen_depth::backend_lower_module_names_top_level::{closure#0}
+   5: <codegen_depth::backend_lower_module_names_top_level::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- backend_lower_module_retains_original_declaration_order_and_body_identity stdout ----
+
+thread 'backend_lower_module_retains_original_declaration_order_and_body_identity' (25772) panicked at rust/tcl-compiler/tests/codegen_depth.rs:240:5:
+assertion `left == right` failed
+  left: 0
+ right: 1
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<usize, usize>
+   4: codegen_depth::backend_lower_module_retains_original_declaration_order_and_body_identity
+   5: codegen_depth::backend_lower_module_retains_original_declaration_order_and_body_identity::{closure#0}
+   6: <codegen_depth::backend_lower_module_retains_original_declaration_order_and_body_identity::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- catch_body_break_emits_break_op stdout ----
+
+thread 'catch_body_break_emits_break_op' (25774) panicked at rust/tcl-compiler/tests/support/body_identity.rs:50:28:
+fixture body "::cb" absent
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: codegen_depth::body_identity::fixture_id::<tcl_bytecode::FunctionAsm, &std::collections::hash::map::HashMap<tcl_core_types::body_identity::ProcedureId, tcl_bytecode::FunctionAsm>>::{closure#0}
+   3: <core::option::Option<tcl_core_types::body_identity::ProcedureId>>::unwrap_or_else::<codegen_depth::body_identity::fixture_id<tcl_bytecode::FunctionAsm, &std::collections::hash::map::HashMap<tcl_core_types::body_identity::ProcedureId, tcl_bytecode::FunctionAsm>>::{closure#0}>
+   4: codegen_depth::body_identity::fixture_id::<tcl_bytecode::FunctionAsm, &std::collections::hash::map::HashMap<tcl_core_types::body_identity::ProcedureId, tcl_bytecode::FunctionAsm>>
+   5: codegen_depth::proc_via_backend
+   6: codegen_depth::catch_body_break_emits_break_op
+   7: codegen_depth::catch_body_break_emits_break_op::{closure#0}
+   8: <codegen_depth::catch_body_break_emits_break_op::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- catch_body_const_div_zero_emits_syntax stdout ----
+
+thread 'catch_body_const_div_zero_emits_syntax' (25775) panicked at rust/tcl-compiler/tests/support/body_identity.rs:50:28:
+fixture body "::s" absent
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: codegen_depth::body_identity::fixture_id::<tcl_bytecode::FunctionAsm, &std::collections::hash::map::HashMap<tcl_core_types::body_identity::ProcedureId, tcl_bytecode::FunctionAsm>>::{closure#0}
+   3: <core::option::Option<tcl_core_types::body_identity::ProcedureId>>::unwrap_or_else::<codegen_depth::body_identity::fixture_id<tcl_bytecode::FunctionAsm, &std::collections::hash::map::HashMap<tcl_core_types::body_identity::ProcedureId, tcl_bytecode::FunctionAsm>>::{closure#0}>
+   4: codegen_depth::body_identity::fixture_id::<tcl_bytecode::FunctionAsm, &std::collections::hash::map::HashMap<tcl_core_types::body_identity::ProcedureId, tcl_bytecode::FunctionAsm>>
+   5: codegen_depth::proc_via_backend
+   6: codegen_depth::catch_body_const_div_zero_emits_syntax
+   7: codegen_depth::catch_body_const_div_zero_emits_syntax::{closure#0}
+   8: <codegen_depth::catch_body_const_div_zero_emits_syntax::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- break_at_loop_depth_two_jumps_to_inner_end stdout ----
+
+thread 'break_at_loop_depth_two_jumps_to_inner_end' (25773) panicked at rust/tcl-compiler/tests/support/body_identity.rs:50:28:
+fixture body "::nb" absent
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: codegen_depth::body_identity::fixture_id::<tcl_bytecode::FunctionAsm, &std::collections::hash::map::HashMap<tcl_core_types::body_identity::ProcedureId, tcl_bytecode::FunctionAsm>>::{closure#0}
+   3: <core::option::Option<tcl_core_types::body_identity::ProcedureId>>::unwrap_or_else::<codegen_depth::body_identity::fixture_id<tcl_bytecode::FunctionAsm, &std::collections::hash::map::HashMap<tcl_core_types::body_identity::ProcedureId, tcl_bytecode::FunctionAsm>>::{closure#0}>
+   4: codegen_depth::body_identity::fixture_id::<tcl_bytecode::FunctionAsm, &std::collections::hash::map::HashMap<tcl_core_types::body_identity::ProcedureId, tcl_bytecode::FunctionAsm>>
+   5: codegen_depth::proc_via_backend
+   6: codegen_depth::break_at_loop_depth_two_jumps_to_inner_end
+   7: codegen_depth::break_at_loop_depth_two_jumps_to_inner_end::{closure#0}
+   8: <codegen_depth::break_at_loop_depth_two_jumps_to_inner_end::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- catch_body_error_emits_return_imm stdout ----
+
+thread 'catch_body_error_emits_return_imm' (25777) panicked at rust/tcl-compiler/tests/support/body_identity.rs:50:28:
+fixture body "::ce" absent
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: codegen_depth::body_identity::fixture_id::<tcl_bytecode::FunctionAsm, &std::collections::hash::map::HashMap<tcl_core_types::body_identity::ProcedureId, tcl_bytecode::FunctionAsm>>::{closure#0}
+   3: <core::option::Option<tcl_core_types::body_identity::ProcedureId>>::unwrap_or_else::<codegen_depth::body_identity::fixture_id<tcl_bytecode::FunctionAsm, &std::collections::hash::map::HashMap<tcl_core_types::body_identity::ProcedureId, tcl_bytecode::FunctionAsm>>::{closure#0}>
+   4: codegen_depth::body_identity::fixture_id::<tcl_bytecode::FunctionAsm, &std::collections::hash::map::HashMap<tcl_core_types::body_identity::ProcedureId, tcl_bytecode::FunctionAsm>>
+   5: codegen_depth::proc_via_backend
+   6: codegen_depth::catch_body_error_emits_return_imm
+   7: codegen_depth::catch_body_error_emits_return_imm::{closure#0}
+   8: <codegen_depth::catch_body_error_emits_return_imm::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- catch_body_return_with_code_emits_return_imm stdout ----
+
+thread 'catch_body_return_with_code_emits_return_imm' (25778) panicked at rust/tcl-compiler/tests/support/body_identity.rs:50:28:
+fixture body "::cr" absent
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: codegen_depth::body_identity::fixture_id::<tcl_bytecode::FunctionAsm, &std::collections::hash::map::HashMap<tcl_core_types::body_identity::ProcedureId, tcl_bytecode::FunctionAsm>>::{closure#0}
+   3: <core::option::Option<tcl_core_types::body_identity::ProcedureId>>::unwrap_or_else::<codegen_depth::body_identity::fixture_id<tcl_bytecode::FunctionAsm, &std::collections::hash::map::HashMap<tcl_core_types::body_identity::ProcedureId, tcl_bytecode::FunctionAsm>>::{closure#0}>
+   4: codegen_depth::body_identity::fixture_id::<tcl_bytecode::FunctionAsm, &std::collections::hash::map::HashMap<tcl_core_types::body_identity::ProcedureId, tcl_bytecode::FunctionAsm>>
+   5: codegen_depth::proc_via_backend
+   6: codegen_depth::catch_body_return_with_code_emits_return_imm
+   7: codegen_depth::catch_body_return_with_code_emits_return_imm::{closure#0}
+   8: <codegen_depth::catch_body_return_with_code_emits_return_imm::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- catch_return_operands_match_c_merge_table stdout ----
+
+thread 'catch_return_operands_match_c_merge_table' (25781) panicked at rust/tcl-compiler/tests/support/body_identity.rs:50:28:
+fixture body "::p" absent
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: codegen_depth::body_identity::fixture_id::<tcl_bytecode::FunctionAsm, &std::collections::hash::map::HashMap<tcl_core_types::body_identity::ProcedureId, tcl_bytecode::FunctionAsm>>::{closure#0}
+   3: <core::option::Option<tcl_core_types::body_identity::ProcedureId>>::unwrap_or_else::<codegen_depth::body_identity::fixture_id<tcl_bytecode::FunctionAsm, &std::collections::hash::map::HashMap<tcl_core_types::body_identity::ProcedureId, tcl_bytecode::FunctionAsm>>::{closure#0}>
+   4: codegen_depth::body_identity::fixture_id::<tcl_bytecode::FunctionAsm, &std::collections::hash::map::HashMap<tcl_core_types::body_identity::ProcedureId, tcl_bytecode::FunctionAsm>>
+   5: codegen_depth::proc_via_backend
+   6: codegen_depth::catch_return_operands_match_c_merge_table
+   7: codegen_depth::catch_return_operands_match_c_merge_table::{closure#0}
+   8: <codegen_depth::catch_return_operands_match_c_merge_table::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- catch_error_operands_are_code_error_level_zero stdout ----
+
+thread 'catch_error_operands_are_code_error_level_zero' (25779) panicked at rust/tcl-compiler/tests/support/body_identity.rs:50:28:
+fixture body "::e" absent
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: codegen_depth::body_identity::fixture_id::<tcl_bytecode::FunctionAsm, &std::collections::hash::map::HashMap<tcl_core_types::body_identity::ProcedureId, tcl_bytecode::FunctionAsm>>::{closure#0}
+   3: <core::option::Option<tcl_core_types::body_identity::ProcedureId>>::unwrap_or_else::<codegen_depth::body_identity::fixture_id<tcl_bytecode::FunctionAsm, &std::collections::hash::map::HashMap<tcl_core_types::body_identity::ProcedureId, tcl_bytecode::FunctionAsm>>::{closure#0}>
+   4: codegen_depth::body_identity::fixture_id::<tcl_bytecode::FunctionAsm, &std::collections::hash::map::HashMap<tcl_core_types::body_identity::ProcedureId, tcl_bytecode::FunctionAsm>>
+   5: codegen_depth::proc_via_backend
+   6: codegen_depth::catch_error_operands_are_code_error_level_zero
+   7: codegen_depth::catch_error_operands_are_code_error_level_zero::{closure#0}
+   8: <codegen_depth::catch_error_operands_are_code_error_level_zero::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- catch_with_options_var_pushes_return_opts stdout ----
+
+thread 'catch_with_options_var_pushes_return_opts' (25782) panicked at rust/tcl-compiler/tests/support/body_identity.rs:50:28:
+fixture body "::safe" absent
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: codegen_depth::body_identity::fixture_id::<tcl_bytecode::FunctionAsm, &std::collections::hash::map::HashMap<tcl_core_types::body_identity::ProcedureId, tcl_bytecode::FunctionAsm>>::{closure#0}
+   3: <core::option::Option<tcl_core_types::body_identity::ProcedureId>>::unwrap_or_else::<codegen_depth::body_identity::fixture_id<tcl_bytecode::FunctionAsm, &std::collections::hash::map::HashMap<tcl_core_types::body_identity::ProcedureId, tcl_bytecode::FunctionAsm>>::{closure#0}>
+   4: codegen_depth::body_identity::fixture_id::<tcl_bytecode::FunctionAsm, &std::collections::hash::map::HashMap<tcl_core_types::body_identity::ProcedureId, tcl_bytecode::FunctionAsm>>
+   5: codegen_depth::proc_via_backend
+   6: codegen_depth::catch_with_options_var_pushes_return_opts
+   7: codegen_depth::catch_with_options_var_pushes_return_opts::{closure#0}
+   8: <codegen_depth::catch_with_options_var_pushes_return_opts::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- cmd_subst_expand_form_uses_invoke_expanded stdout ----
+
+thread 'cmd_subst_expand_form_uses_invoke_expanded' (25783) panicked at rust/tcl-compiler/tests/support/body_identity.rs:50:28:
+fixture body "::e" absent
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: codegen_depth::body_identity::fixture_id::<tcl_bytecode::FunctionAsm, &std::collections::hash::map::HashMap<tcl_core_types::body_identity::ProcedureId, tcl_bytecode::FunctionAsm>>::{closure#0}
+   3: <core::option::Option<tcl_core_types::body_identity::ProcedureId>>::unwrap_or_else::<codegen_depth::body_identity::fixture_id<tcl_bytecode::FunctionAsm, &std::collections::hash::map::HashMap<tcl_core_types::body_identity::ProcedureId, tcl_bytecode::FunctionAsm>>::{closure#0}>
+   4: codegen_depth::body_identity::fixture_id::<tcl_bytecode::FunctionAsm, &std::collections::hash::map::HashMap<tcl_core_types::body_identity::ProcedureId, tcl_bytecode::FunctionAsm>>
+   5: codegen_depth::proc_via_backend
+   6: codegen_depth::cmd_subst_expand_form_uses_invoke_expanded
+   7: codegen_depth::cmd_subst_expand_form_uses_invoke_expanded::{closure#0}
+   8: <codegen_depth::cmd_subst_expand_form_uses_invoke_expanded::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- cmd_subst_in_expr_position_is_a_pushed_word stdout ----
+
+thread 'cmd_subst_in_expr_position_is_a_pushed_word' (25784) panicked at rust/tcl-compiler/tests/support/body_identity.rs:50:28:
+fixture body "::p" absent
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: codegen_depth::body_identity::fixture_id::<tcl_bytecode::FunctionAsm, &std::collections::hash::map::HashMap<tcl_core_types::body_identity::ProcedureId, tcl_bytecode::FunctionAsm>>::{closure#0}
+   3: <core::option::Option<tcl_core_types::body_identity::ProcedureId>>::unwrap_or_else::<codegen_depth::body_identity::fixture_id<tcl_bytecode::FunctionAsm, &std::collections::hash::map::HashMap<tcl_core_types::body_identity::ProcedureId, tcl_bytecode::FunctionAsm>>::{closure#0}>
+   4: codegen_depth::body_identity::fixture_id::<tcl_bytecode::FunctionAsm, &std::collections::hash::map::HashMap<tcl_core_types::body_identity::ProcedureId, tcl_bytecode::FunctionAsm>>
+   5: codegen_depth::proc_via_backend
+   6: codegen_depth::cmd_subst_in_expr_position_is_a_pushed_word
+   7: codegen_depth::cmd_subst_in_expr_position_is_a_pushed_word::{closure#0}
+   8: <codegen_depth::cmd_subst_in_expr_position_is_a_pushed_word::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- cmd_subst_in_if_condition_is_a_pushed_word stdout ----
+
+thread 'cmd_subst_in_if_condition_is_a_pushed_word' (25785) panicked at rust/tcl-compiler/tests/support/body_identity.rs:50:28:
+fixture body "::p" absent
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: codegen_depth::body_identity::fixture_id::<tcl_bytecode::FunctionAsm, &std::collections::hash::map::HashMap<tcl_core_types::body_identity::ProcedureId, tcl_bytecode::FunctionAsm>>::{closure#0}
+   3: <core::option::Option<tcl_core_types::body_identity::ProcedureId>>::unwrap_or_else::<codegen_depth::body_identity::fixture_id<tcl_bytecode::FunctionAsm, &std::collections::hash::map::HashMap<tcl_core_types::body_identity::ProcedureId, tcl_bytecode::FunctionAsm>>::{closure#0}>
+   4: codegen_depth::body_identity::fixture_id::<tcl_bytecode::FunctionAsm, &std::collections::hash::map::HashMap<tcl_core_types::body_identity::ProcedureId, tcl_bytecode::FunctionAsm>>
+   5: codegen_depth::proc_via_backend
+   6: codegen_depth::cmd_subst_in_if_condition_is_a_pushed_word
+   7: codegen_depth::cmd_subst_in_if_condition_is_a_pushed_word::{closure#0}
+   8: <codegen_depth::cmd_subst_in_if_condition_is_a_pushed_word::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- cmd_subst_in_list_construction stdout ----
+
+thread 'cmd_subst_in_list_construction' (25786) panicked at rust/tcl-compiler/tests/support/body_identity.rs:50:28:
+fixture body "::p" absent
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: codegen_depth::body_identity::fixture_id::<tcl_bytecode::FunctionAsm, &std::collections::hash::map::HashMap<tcl_core_types::body_identity::ProcedureId, tcl_bytecode::FunctionAsm>>::{closure#0}
+   3: <core::option::Option<tcl_core_types::body_identity::ProcedureId>>::unwrap_or_else::<codegen_depth::body_identity::fixture_id<tcl_bytecode::FunctionAsm, &std::collections::hash::map::HashMap<tcl_core_types::body_identity::ProcedureId, tcl_bytecode::FunctionAsm>>::{closure#0}>
+   4: codegen_depth::body_identity::fixture_id::<tcl_bytecode::FunctionAsm, &std::collections::hash::map::HashMap<tcl_core_types::body_identity::ProcedureId, tcl_bytecode::FunctionAsm>>
+   5: codegen_depth::proc_via_backend
+   6: codegen_depth::cmd_subst_in_list_construction
+   7: codegen_depth::cmd_subst_in_list_construction::{closure#0}
+   8: <codegen_depth::cmd_subst_in_list_construction::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- cmd_subst_info_exists_in_condition stdout ----
+
+thread 'cmd_subst_info_exists_in_condition' (25787) panicked at rust/tcl-compiler/tests/support/body_identity.rs:50:28:
+fixture body "::p" absent
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: codegen_depth::body_identity::fixture_id::<tcl_bytecode::FunctionAsm, &std::collections::hash::map::HashMap<tcl_core_types::body_identity::ProcedureId, tcl_bytecode::FunctionAsm>>::{closure#0}
+   3: <core::option::Option<tcl_core_types::body_identity::ProcedureId>>::unwrap_or_else::<codegen_depth::body_identity::fixture_id<tcl_bytecode::FunctionAsm, &std::collections::hash::map::HashMap<tcl_core_types::body_identity::ProcedureId, tcl_bytecode::FunctionAsm>>::{closure#0}>
+   4: codegen_depth::body_identity::fixture_id::<tcl_bytecode::FunctionAsm, &std::collections::hash::map::HashMap<tcl_core_types::body_identity::ProcedureId, tcl_bytecode::FunctionAsm>>
+   5: codegen_depth::proc_via_backend
+   6: codegen_depth::cmd_subst_info_exists_in_condition
+   7: codegen_depth::cmd_subst_info_exists_in_condition::{closure#0}
+   8: <codegen_depth::cmd_subst_info_exists_in_condition::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- cmd_subst_lindex_multi_index stdout ----
+
+thread 'cmd_subst_lindex_multi_index' (25788) panicked at rust/tcl-compiler/tests/support/body_identity.rs:50:28:
+fixture body "::p" absent
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: codegen_depth::body_identity::fixture_id::<tcl_bytecode::FunctionAsm, &std::collections::hash::map::HashMap<tcl_core_types::body_identity::ProcedureId, tcl_bytecode::FunctionAsm>>::{closure#0}
+   3: <core::option::Option<tcl_core_types::body_identity::ProcedureId>>::unwrap_or_else::<codegen_depth::body_identity::fixture_id<tcl_bytecode::FunctionAsm, &std::collections::hash::map::HashMap<tcl_core_types::body_identity::ProcedureId, tcl_bytecode::FunctionAsm>>::{closure#0}>
+   4: codegen_depth::body_identity::fixture_id::<tcl_bytecode::FunctionAsm, &std::collections::hash::map::HashMap<tcl_core_types::body_identity::ProcedureId, tcl_bytecode::FunctionAsm>>
+   5: codegen_depth::proc_via_backend
+   6: codegen_depth::cmd_subst_lindex_multi_index
+   7: codegen_depth::cmd_subst_lindex_multi_index::{closure#0}
+   8: <codegen_depth::cmd_subst_lindex_multi_index::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- cmd_subst_lrange_end_index stdout ----
+
+thread 'cmd_subst_lrange_end_index' (25789) panicked at rust/tcl-compiler/tests/support/body_identity.rs:50:28:
+fixture body "::q" absent
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: codegen_depth::body_identity::fixture_id::<tcl_bytecode::FunctionAsm, &std::collections::hash::map::HashMap<tcl_core_types::body_identity::ProcedureId, tcl_bytecode::FunctionAsm>>::{closure#0}
+   3: <core::option::Option<tcl_core_types::body_identity::ProcedureId>>::unwrap_or_else::<codegen_depth::body_identity::fixture_id<tcl_bytecode::FunctionAsm, &std::collections::hash::map::HashMap<tcl_core_types::body_identity::ProcedureId, tcl_bytecode::FunctionAsm>>::{closure#0}>
+   4: codegen_depth::body_identity::fixture_id::<tcl_bytecode::FunctionAsm, &std::collections::hash::map::HashMap<tcl_core_types::body_identity::ProcedureId, tcl_bytecode::FunctionAsm>>
+   5: codegen_depth::proc_via_backend
+   6: codegen_depth::cmd_subst_lrange_end_index
+   7: codegen_depth::cmd_subst_lrange_end_index::{closure#0}
+   8: <codegen_depth::cmd_subst_lrange_end_index::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- cmd_subst_multi_command_falls_back_to_eval_stk stdout ----
+
+thread 'cmd_subst_multi_command_falls_back_to_eval_stk' (25790) panicked at rust/tcl-compiler/tests/support/body_identity.rs:50:28:
+fixture body "::m" absent
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: codegen_depth::body_identity::fixture_id::<tcl_bytecode::FunctionAsm, &std::collections::hash::map::HashMap<tcl_core_types::body_identity::ProcedureId, tcl_bytecode::FunctionAsm>>::{closure#0}
+   3: <core::option::Option<tcl_core_types::body_identity::ProcedureId>>::unwrap_or_else::<codegen_depth::body_identity::fixture_id<tcl_bytecode::FunctionAsm, &std::collections::hash::map::HashMap<tcl_core_types::body_identity::ProcedureId, tcl_bytecode::FunctionAsm>>::{closure#0}>
+   4: codegen_depth::body_identity::fixture_id::<tcl_bytecode::FunctionAsm, &std::collections::hash::map::HashMap<tcl_core_types::body_identity::ProcedureId, tcl_bytecode::FunctionAsm>>
+   5: codegen_depth::proc_via_backend
+   6: codegen_depth::cmd_subst_multi_command_falls_back_to_eval_stk
+   7: codegen_depth::cmd_subst_multi_command_falls_back_to_eval_stk::{closure#0}
+   8: <codegen_depth::cmd_subst_multi_command_falls_back_to_eval_stk::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- cmd_subst_nested_bracket_in_arg stdout ----
+
+thread 'cmd_subst_nested_bracket_in_arg' (25791) panicked at rust/tcl-compiler/tests/support/body_identity.rs:50:28:
+fixture body "::p" absent
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: codegen_depth::body_identity::fixture_id::<tcl_bytecode::FunctionAsm, &std::collections::hash::map::HashMap<tcl_core_types::body_identity::ProcedureId, tcl_bytecode::FunctionAsm>>::{closure#0}
+   3: <core::option::Option<tcl_core_types::body_identity::ProcedureId>>::unwrap_or_else::<codegen_depth::body_identity::fixture_id<tcl_bytecode::FunctionAsm, &std::collections::hash::map::HashMap<tcl_core_types::body_identity::ProcedureId, tcl_bytecode::FunctionAsm>>::{closure#0}>
+   4: codegen_depth::body_identity::fixture_id::<tcl_bytecode::FunctionAsm, &std::collections::hash::map::HashMap<tcl_core_types::body_identity::ProcedureId, tcl_bytecode::FunctionAsm>>
+   5: codegen_depth::proc_via_backend
+   6: codegen_depth::cmd_subst_nested_bracket_in_arg
+   7: codegen_depth::cmd_subst_nested_bracket_in_arg::{closure#0}
+   8: <codegen_depth::cmd_subst_nested_bracket_in_arg::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- cmd_subst_specialised_opcode_in_assignment_rhs stdout ----
+
+thread 'cmd_subst_specialised_opcode_in_assignment_rhs' (25792) panicked at rust/tcl-compiler/tests/support/body_identity.rs:50:28:
+fixture body "::p" absent
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: codegen_depth::body_identity::fixture_id::<tcl_bytecode::FunctionAsm, &std::collections::hash::map::HashMap<tcl_core_types::body_identity::ProcedureId, tcl_bytecode::FunctionAsm>>::{closure#0}
+   3: <core::option::Option<tcl_core_types::body_identity::ProcedureId>>::unwrap_or_else::<codegen_depth::body_identity::fixture_id<tcl_bytecode::FunctionAsm, &std::collections::hash::map::HashMap<tcl_core_types::body_identity::ProcedureId, tcl_bytecode::FunctionAsm>>::{closure#0}>
+   4: codegen_depth::body_identity::fixture_id::<tcl_bytecode::FunctionAsm, &std::collections::hash::map::HashMap<tcl_core_types::body_identity::ProcedureId, tcl_bytecode::FunctionAsm>>
+   5: codegen_depth::proc_via_backend
+   6: codegen_depth::cmd_subst_specialised_opcode_in_assignment_rhs
+   7: codegen_depth::cmd_subst_specialised_opcode_in_assignment_rhs::{closure#0}
+   8: <codegen_depth::cmd_subst_specialised_opcode_in_assignment_rhs::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- fold_list_command_to_literal stdout ----
+
+thread 'fold_list_command_to_literal' (25798) panicked at rust/tcl-compiler/tests/codegen_depth.rs:1210:5:
+folded list literal: [NativeStringLiteral { bytes: [115, 101, 116], allocation: RegisteredData }, NativeStringLiteral { bytes: [114], allocation: RegisteredData }, NativeStringLiteral { bytes: [97], allocation: RegisteredData }, NativeStringLiteral { bytes: [98], allocation: RegisteredData }, NativeStringLiteral { bytes: [99], allocation: RegisteredData }]
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: codegen_depth::fold_list_command_to_literal
+   3: codegen_depth::fold_list_command_to_literal::{closure#0}
+   4: <codegen_depth::fold_list_command_to_literal::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- continue_at_loop_depth_two stdout ----
+
+thread 'continue_at_loop_depth_two' (25793) panicked at rust/tcl-compiler/tests/support/body_identity.rs:50:28:
+fixture body "::nc" absent
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: codegen_depth::body_identity::fixture_id::<tcl_bytecode::FunctionAsm, &std::collections::hash::map::HashMap<tcl_core_types::body_identity::ProcedureId, tcl_bytecode::FunctionAsm>>::{closure#0}
+   3: <core::option::Option<tcl_core_types::body_identity::ProcedureId>>::unwrap_or_else::<codegen_depth::body_identity::fixture_id<tcl_bytecode::FunctionAsm, &std::collections::hash::map::HashMap<tcl_core_types::body_identity::ProcedureId, tcl_bytecode::FunctionAsm>>::{closure#0}>
+   4: codegen_depth::body_identity::fixture_id::<tcl_bytecode::FunctionAsm, &std::collections::hash::map::HashMap<tcl_core_types::body_identity::ProcedureId, tcl_bytecode::FunctionAsm>>
+   5: codegen_depth::proc_via_backend
+   6: codegen_depth::continue_at_loop_depth_two
+   7: codegen_depth::continue_at_loop_depth_two::{closure#0}
+   8: <codegen_depth::continue_at_loop_depth_two::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- plain_return_encodings_top_level_and_proc stdout ----
+
+thread 'plain_return_encodings_top_level_and_proc' (25805) panicked at rust/tcl-compiler/src/codegen/emitter/generate.rs:1303:5:
+bytecode emission requires an execution CFG, not an analysis completion summary
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: tcl_compiler::codegen::emitter::generate::generate
+   3: tcl_compiler::codegen::emitter::codegen_function_src
+   4: tcl_compiler::codegen::emitter::codegen_module_with_top_context
+   5: tcl_compiler::codegen::emitter::codegen_module_with_emission_scope
+   6: tcl_compiler::codegen::emitter::codegen_module_with_command_mutations
+   7: tcl_compiler::codegen::emitter::codegen_module
+   8: <tcl_compiler::codegen::backend::BytecodeBackend as tcl_compiler::codegen::backend::Backend>::lower_module
+   9: codegen_depth::module_inline_via_backend
+  10: codegen_depth::plain_return_encodings_top_level_and_proc
+  11: codegen_depth::plain_return_encodings_top_level_and_proc::{closure#0}
+  12: <codegen_depth::plain_return_encodings_top_level_and_proc::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- if_elseif_else_chain_three_way stdout ----
+
+thread 'if_elseif_else_chain_three_way' (25801) panicked at rust/tcl-compiler/tests/support/body_identity.rs:50:28:
+fixture body "::bucket" absent
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: codegen_depth::body_identity::fixture_id::<tcl_bytecode::FunctionAsm, &std::collections::hash::map::HashMap<tcl_core_types::body_identity::ProcedureId, tcl_bytecode::FunctionAsm>>::{closure#0}
+   3: <core::option::Option<tcl_core_types::body_identity::ProcedureId>>::unwrap_or_else::<codegen_depth::body_identity::fixture_id<tcl_bytecode::FunctionAsm, &std::collections::hash::map::HashMap<tcl_core_types::body_identity::ProcedureId, tcl_bytecode::FunctionAsm>>::{closure#0}>
+   4: codegen_depth::body_identity::fixture_id::<tcl_bytecode::FunctionAsm, &std::collections::hash::map::HashMap<tcl_core_types::body_identity::ProcedureId, tcl_bytecode::FunctionAsm>>
+   5: codegen_depth::proc_via_backend
+   6: codegen_depth::if_elseif_else_chain_three_way
+   7: codegen_depth::if_elseif_else_chain_three_way::{closure#0}
+   8: <codegen_depth::if_elseif_else_chain_three_way::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- return_in_both_if_branches stdout ----
+
+thread 'return_in_both_if_branches' (25806) panicked at rust/tcl-compiler/tests/support/body_identity.rs:50:28:
+fixture body "::sign" absent
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: codegen_depth::body_identity::fixture_id::<tcl_bytecode::FunctionAsm, &std::collections::hash::map::HashMap<tcl_core_types::body_identity::ProcedureId, tcl_bytecode::FunctionAsm>>::{closure#0}
+   3: <core::option::Option<tcl_core_types::body_identity::ProcedureId>>::unwrap_or_else::<codegen_depth::body_identity::fixture_id<tcl_bytecode::FunctionAsm, &std::collections::hash::map::HashMap<tcl_core_types::body_identity::ProcedureId, tcl_bytecode::FunctionAsm>>::{closure#0}>
+   4: codegen_depth::body_identity::fixture_id::<tcl_bytecode::FunctionAsm, &std::collections::hash::map::HashMap<tcl_core_types::body_identity::ProcedureId, tcl_bytecode::FunctionAsm>>
+   5: codegen_depth::proc_via_backend
+   6: codegen_depth::return_in_both_if_branches
+   7: codegen_depth::return_in_both_if_branches::{closure#0}
+   8: <codegen_depth::return_in_both_if_branches::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- switch_exact_return_arms_jump_table stdout ----
+
+thread 'switch_exact_return_arms_jump_table' (25807) panicked at rust/tcl-compiler/tests/support/body_identity.rs:50:28:
+fixture body "::dispatch" absent
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: codegen_depth::body_identity::fixture_id::<tcl_bytecode::FunctionAsm, &std::collections::hash::map::HashMap<tcl_core_types::body_identity::ProcedureId, tcl_bytecode::FunctionAsm>>::{closure#0}
+   3: <core::option::Option<tcl_core_types::body_identity::ProcedureId>>::unwrap_or_else::<codegen_depth::body_identity::fixture_id<tcl_bytecode::FunctionAsm, &std::collections::hash::map::HashMap<tcl_core_types::body_identity::ProcedureId, tcl_bytecode::FunctionAsm>>::{closure#0}>
+   4: codegen_depth::body_identity::fixture_id::<tcl_bytecode::FunctionAsm, &std::collections::hash::map::HashMap<tcl_core_types::body_identity::ProcedureId, tcl_bytecode::FunctionAsm>>
+   5: codegen_depth::proc_via_backend
+   6: codegen_depth::switch_exact_return_arms_jump_table
+   7: codegen_depth::switch_exact_return_arms_jump_table::{closure#0}
+   8: <codegen_depth::switch_exact_return_arms_jump_table::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- switch_glob_routes_through_generic_invoke stdout ----
+
+thread 'switch_glob_routes_through_generic_invoke' (25808) panicked at rust/tcl-compiler/tests/support/body_identity.rs:50:28:
+fixture body "::ext" absent
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: codegen_depth::body_identity::fixture_id::<tcl_bytecode::FunctionAsm, &std::collections::hash::map::HashMap<tcl_core_types::body_identity::ProcedureId, tcl_bytecode::FunctionAsm>>::{closure#0}
+   3: <core::option::Option<tcl_core_types::body_identity::ProcedureId>>::unwrap_or_else::<codegen_depth::body_identity::fixture_id<tcl_bytecode::FunctionAsm, &std::collections::hash::map::HashMap<tcl_core_types::body_identity::ProcedureId, tcl_bytecode::FunctionAsm>>::{closure#0}>
+   4: codegen_depth::body_identity::fixture_id::<tcl_bytecode::FunctionAsm, &std::collections::hash::map::HashMap<tcl_core_types::body_identity::ProcedureId, tcl_bytecode::FunctionAsm>>
+   5: codegen_depth::proc_via_backend
+   6: codegen_depth::switch_glob_routes_through_generic_invoke
+   7: codegen_depth::switch_glob_routes_through_generic_invoke::{closure#0}
+   8: <codegen_depth::switch_glob_routes_through_generic_invoke::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- try_finally_cfg_chain_present stdout ----
+
+thread 'try_finally_cfg_chain_present' (25809) panicked at rust/tcl-compiler/tests/support/body_identity.rs:50:28:
+fixture body "::c" absent
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: codegen_depth::body_identity::fixture_id::<tcl_compiler::cfg::Function, &std::collections::hash::map::HashMap<tcl_core_types::body_identity::ProcedureId, tcl_compiler::cfg::Function>>::{closure#0}
+   3: <core::option::Option<tcl_core_types::body_identity::ProcedureId>>::unwrap_or_else::<codegen_depth::body_identity::fixture_id<tcl_compiler::cfg::Function, &std::collections::hash::map::HashMap<tcl_core_types::body_identity::ProcedureId, tcl_compiler::cfg::Function>>::{closure#0}>
+   4: codegen_depth::body_identity::fixture_id::<tcl_compiler::cfg::Function, &std::collections::hash::map::HashMap<tcl_core_types::body_identity::ProcedureId, tcl_compiler::cfg::Function>>
+   5: codegen_depth::try_finally_cfg_chain_present
+   6: codegen_depth::try_finally_cfg_chain_present::{closure#0}
+   7: <codegen_depth::try_finally_cfg_chain_present::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- try_finally_during_merge_uses_list_concat stdout ----
+
+thread 'try_finally_during_merge_uses_list_concat' (25810) panicked at rust/tcl-compiler/tests/support/body_identity.rs:50:28:
+fixture body "::c" absent
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: codegen_depth::body_identity::fixture_id::<tcl_bytecode::FunctionAsm, &std::collections::hash::map::HashMap<tcl_core_types::body_identity::ProcedureId, tcl_bytecode::FunctionAsm>>::{closure#0}
+   3: <core::option::Option<tcl_core_types::body_identity::ProcedureId>>::unwrap_or_else::<codegen_depth::body_identity::fixture_id<tcl_bytecode::FunctionAsm, &std::collections::hash::map::HashMap<tcl_core_types::body_identity::ProcedureId, tcl_bytecode::FunctionAsm>>::{closure#0}>
+   4: codegen_depth::body_identity::fixture_id::<tcl_bytecode::FunctionAsm, &std::collections::hash::map::HashMap<tcl_core_types::body_identity::ProcedureId, tcl_bytecode::FunctionAsm>>
+   5: codegen_depth::proc_via_backend
+   6: codegen_depth::try_finally_during_merge_uses_list_concat
+   7: codegen_depth::try_finally_during_merge_uses_list_concat::{closure#0}
+   8: <codegen_depth::try_finally_during_merge_uses_list_concat::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- try_finally_emits_dual_catch_ranges stdout ----
+
+thread 'try_finally_emits_dual_catch_ranges' (25811) panicked at rust/tcl-compiler/tests/support/body_identity.rs:50:28:
+fixture body "::c" absent
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: codegen_depth::body_identity::fixture_id::<tcl_bytecode::FunctionAsm, &std::collections::hash::map::HashMap<tcl_core_types::body_identity::ProcedureId, tcl_bytecode::FunctionAsm>>::{closure#0}
+   3: <core::option::Option<tcl_core_types::body_identity::ProcedureId>>::unwrap_or_else::<codegen_depth::body_identity::fixture_id<tcl_bytecode::FunctionAsm, &std::collections::hash::map::HashMap<tcl_core_types::body_identity::ProcedureId, tcl_bytecode::FunctionAsm>>::{closure#0}>
+   4: codegen_depth::body_identity::fixture_id::<tcl_bytecode::FunctionAsm, &std::collections::hash::map::HashMap<tcl_core_types::body_identity::ProcedureId, tcl_bytecode::FunctionAsm>>
+   5: codegen_depth::proc_via_backend
+   6: codegen_depth::try_finally_emits_dual_catch_ranges
+   7: codegen_depth::try_finally_emits_dual_catch_ranges::{closure#0}
+   8: <codegen_depth::try_finally_emits_dual_catch_ranges::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- try_finally_in_loop_still_lowers stdout ----
+
+thread 'try_finally_in_loop_still_lowers' (25812) panicked at rust/tcl-compiler/tests/support/body_identity.rs:50:28:
+fixture body "::t" absent
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: codegen_depth::body_identity::fixture_id::<tcl_bytecode::FunctionAsm, &std::collections::hash::map::HashMap<tcl_core_types::body_identity::ProcedureId, tcl_bytecode::FunctionAsm>>::{closure#0}
+   3: <core::option::Option<tcl_core_types::body_identity::ProcedureId>>::unwrap_or_else::<codegen_depth::body_identity::fixture_id<tcl_bytecode::FunctionAsm, &std::collections::hash::map::HashMap<tcl_core_types::body_identity::ProcedureId, tcl_bytecode::FunctionAsm>>::{closure#0}>
+   4: codegen_depth::body_identity::fixture_id::<tcl_bytecode::FunctionAsm, &std::collections::hash::map::HashMap<tcl_core_types::body_identity::ProcedureId, tcl_bytecode::FunctionAsm>>
+   5: codegen_depth::proc_via_backend
+   6: codegen_depth::try_finally_in_loop_still_lowers
+   7: codegen_depth::try_finally_in_loop_still_lowers::{closure#0}
+   8: <codegen_depth::try_finally_in_loop_still_lowers::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- try_on_error_inside_catch_full_dispatch stdout ----
+
+thread 'try_on_error_inside_catch_full_dispatch' (25817) panicked at rust/tcl-compiler/tests/support/body_identity.rs:50:28:
+fixture body "::p" absent
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: codegen_depth::body_identity::fixture_id::<tcl_bytecode::FunctionAsm, &std::collections::hash::map::HashMap<tcl_core_types::body_identity::ProcedureId, tcl_bytecode::FunctionAsm>>::{closure#0}
+   3: <core::option::Option<tcl_core_types::body_identity::ProcedureId>>::unwrap_or_else::<codegen_depth::body_identity::fixture_id<tcl_bytecode::FunctionAsm, &std::collections::hash::map::HashMap<tcl_core_types::body_identity::ProcedureId, tcl_bytecode::FunctionAsm>>::{closure#0}>
+   4: codegen_depth::body_identity::fixture_id::<tcl_bytecode::FunctionAsm, &std::collections::hash::map::HashMap<tcl_core_types::body_identity::ProcedureId, tcl_bytecode::FunctionAsm>>
+   5: codegen_depth::proc_via_backend
+   6: codegen_depth::try_on_error_inside_catch_full_dispatch
+   7: codegen_depth::try_on_error_inside_catch_full_dispatch::{closure#0}
+   8: <codegen_depth::try_on_error_inside_catch_full_dispatch::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- try_on_tcl_numeric_error_spellings_use_the_typed_registry_selector stdout ----
+
+thread 'try_on_tcl_numeric_error_spellings_use_the_typed_registry_selector' (25818) panicked at rust/tcl-compiler/tests/support/body_identity.rs:50:28:
+fixture body "::p" absent
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: codegen_depth::body_identity::fixture_id::<tcl_bytecode::FunctionAsm, &std::collections::hash::map::HashMap<tcl_core_types::body_identity::ProcedureId, tcl_bytecode::FunctionAsm>>::{closure#0}
+   3: <core::option::Option<tcl_core_types::body_identity::ProcedureId>>::unwrap_or_else::<codegen_depth::body_identity::fixture_id<tcl_bytecode::FunctionAsm, &std::collections::hash::map::HashMap<tcl_core_types::body_identity::ProcedureId, tcl_bytecode::FunctionAsm>>::{closure#0}>
+   4: codegen_depth::body_identity::fixture_id::<tcl_bytecode::FunctionAsm, &std::collections::hash::map::HashMap<tcl_core_types::body_identity::ProcedureId, tcl_bytecode::FunctionAsm>>
+   5: codegen_depth::proc_via_backend
+   6: codegen_depth::try_on_tcl_numeric_error_spellings_use_the_typed_registry_selector
+   7: codegen_depth::try_on_tcl_numeric_error_spellings_use_the_typed_registry_selector::{closure#0}
+   8: <codegen_depth::try_on_tcl_numeric_error_spellings_use_the_typed_registry_selector::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+
+failures:
+    backend_lower_function_proc_flavour_uses_lvt
+    backend_lower_function_script_flavour_uses_stack
+    backend_lower_module_names_top_level
+    backend_lower_module_retains_original_declaration_order_and_body_identity
+    break_at_loop_depth_two_jumps_to_inner_end
+    catch_body_break_emits_break_op
+    catch_body_const_div_zero_emits_syntax
+    catch_body_error_emits_return_imm
+    catch_body_return_with_code_emits_return_imm
+    catch_error_operands_are_code_error_level_zero
+    catch_return_operands_match_c_merge_table
+    catch_with_options_var_pushes_return_opts
+    cmd_subst_expand_form_uses_invoke_expanded
+    cmd_subst_in_expr_position_is_a_pushed_word
+    cmd_subst_in_if_condition_is_a_pushed_word
+    cmd_subst_in_list_construction
+    cmd_subst_info_exists_in_condition
+    cmd_subst_lindex_multi_index
+    cmd_subst_lrange_end_index
+    cmd_subst_multi_command_falls_back_to_eval_stk
+    cmd_subst_nested_bracket_in_arg
+    cmd_subst_specialised_opcode_in_assignment_rhs
+    continue_at_loop_depth_two
+    fold_list_command_to_literal
+    if_elseif_else_chain_three_way
+    plain_return_encodings_top_level_and_proc
+    return_in_both_if_branches
+    switch_exact_return_arms_jump_table
+    switch_glob_routes_through_generic_invoke
+    try_finally_cfg_chain_present
+    try_finally_during_merge_uses_list_concat
+    try_finally_emits_dual_catch_ranges
+    try_finally_in_loop_still_lowers
+    try_on_error_inside_catch_full_dispatch
+    try_on_tcl_numeric_error_spellings_use_the_typed_registry_selector
+
+test result: FAILED. 20 passed; 35 failed; 0 ignored; 0 measured; 0 filtered out; finished in 5.30s
+

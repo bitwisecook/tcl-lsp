@@ -1,0 +1,15 @@
+# spectcl golden snapshot v1
+# regenerate with `cargo xtask pack-goldens`; do not edit by hand
+pack tcl dsl 2.1 display None load_error None
+target_dependent false
+file_extensions []
+provides []
+co_provides []
+ambient_packages []
+environments []
+dialects []
+registrations 1
+notices 1
+notice command if 47 presentation names a lowering hook: this changes how the compiler translates the command, not just what the editor knows about it
+commands 1
+command if line 11 overrides false degraded false spec 9a5b9628e84a33f1 hooks 3f3805ec9138a3a6 grammar 9d490c2d3513e7bf

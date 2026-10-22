@@ -1,0 +1,106 @@
+  Command 1: "set r [string cat a - b]"
+  Command 2: "string cat a - b"
+    (0) push1 0 	# "string"
+    (2) push1 1 	# "cat"
+    (4) push1 2 	# "a"
+    (6) push1 3 	# "-"
+    (8) push1 4 	# "b"
+    (10) invokeStk1 5 
+    (12) storeScalar1 %v2 	# var "r"
+    (14) pop 
+  Command 3: "set s [string cat $a x $b]"
+    (15) startCommand +23 1 	# next cmd at pc 38
+  Command 4: "string cat $a x $b"
+    (24) push1 0 	# "string"
+    (26) push1 1 	# "cat"
+    (28) loadScalar1 %v0 	# var "a"
+    (30) push1 5 	# "x"
+    (32) loadScalar1 %v1 	# var "b"
+    (34) invokeStk1 5 
+    (36) storeScalar1 %v3 	# var "s"
+    (38) pop 
+  Command 5: "set t [string cat]"
+    (39) startCommand +17 1 	# next cmd at pc 56
+  Command 6: "string cat"
+    (48) push1 0 	# "string"
+    (50) push1 1 	# "cat"
+    (52) invokeStk1 2 
+    (54) storeScalar1 %v4 	# var "t"
+    (56) pop 
+  Command 7: "set u [string cat $a]"
+    (57) startCommand +19 1 	# next cmd at pc 76
+  Command 8: "string cat $a"
+    (66) push1 0 	# "string"
+    (68) push1 1 	# "cat"
+    (70) loadScalar1 %v0 	# var "a"
+    (72) invokeStk1 3 
+    (74) storeScalar1 %v5 	# var "u"
+    (76) pop 
+  Command 9: "return "
+    (77) startCommand +12 1 	# next cmd at pc 89
+    (86) push1 6 	# ""
+    (88) done 
+    (89) done 
+  Command 1: "if {![string is ascii $s]} {return 1}"
+  Command 2: "string is ascii $s"
+    (0) push1 0 	# "string"
+    (2) push1 1 	# "is"
+    (4) push1 2 	# "ascii"
+    (6) loadScalar1 %v0 	# var "s"
+    (8) invokeStk1 4 
+    (10) not 
+    (11) jumpFalse1 +16 	# pc 27
+  Command 3: "return 1"
+    (13) startCommand +12 1 	# next cmd at pc 25
+    (22) push1 3 	# "1"
+    (24) done 
+    (25) jump1 +4 	# pc 29
+    (27) push1 4 	# ""
+    (29) pop 
+  Command 4: "string is integer -strict $s"
+    (30) push1 0 	# "string"
+    (32) push1 1 	# "is"
+    (34) push1 5 	# "integer"
+    (36) push1 6 	# "-strict"
+    (38) loadScalar1 %v0 	# var "s"
+    (40) invokeStk1 5 
+    (42) pop 
+  Command 5: "string is int $s"
+    (43) push1 0 	# "string"
+    (45) push1 1 	# "is"
+    (47) push1 7 	# "int"
+    (49) loadScalar1 %v0 	# var "s"
+    (51) invokeStk1 4 
+    (53) pop 
+  Command 6: "string is ascii -failindex fi $s"
+    (54) push1 0 	# "string"
+    (56) push1 1 	# "is"
+    (58) push1 2 	# "ascii"
+    (60) push1 8 	# "-failindex"
+    (62) push1 9 	# "fi"
+    (64) loadScalar1 %v0 	# var "s"
+    (66) invokeStk1 6 
+    (68) pop 
+  Command 7: "string is boolean $s"
+    (69) push1 0 	# "string"
+    (71) push1 1 	# "is"
+    (73) push1 10 	# "boolean"
+    (75) loadScalar1 %v0 	# var "s"
+    (77) invokeStk1 4 
+    (79) pop 
+  Command 8: "string is $s x"
+    (80) push1 0 	# "string"
+    (82) push1 1 	# "is"
+    (84) loadScalar1 %v0 	# var "s"
+    (86) push1 11 	# "x"
+    (88) invokeStk1 4 
+    (90) pop 
+  Command 9: "string is alpha -strict -strict $s "
+    (91) push1 0 	# "string"
+    (93) push1 1 	# "is"
+    (95) push1 12 	# "alpha"
+    (97) push1 6 	# "-strict"
+    (99) push1 6 	# "-strict"
+    (101) loadScalar1 %v0 	# var "s"
+    (103) invokeStk1 6 
+    (105) done 

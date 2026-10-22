@@ -1,0 +1,25 @@
+
+running 1 test
+test package_resolver::tests::exact_require_selects_that_release_or_nothing ... 
+thread 'package_resolver::tests::exact_require_selects_that_release_or_nothing' (25418) panicked at rust/tcl-lsp-core/src/package_resolver/tests.rs:539:5:
+assertion `left == right` failed
+  left: []
+ right: ["/tmp/tcl-lsp-pkgres-exact-25417-0/v3/widgetv3.tcl"]
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<alloc::vec::Vec<std::path::PathBuf>, alloc::vec::Vec<std::path::PathBuf>>
+   4: tcl_lsp_core::package_resolver::tests::exact_require_selects_that_release_or_nothing
+   5: tcl_lsp_core::package_resolver::tests::exact_require_selects_that_release_or_nothing::{closure#0}
+   6: <tcl_lsp_core::package_resolver::tests::exact_require_selects_that_release_or_nothing::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+FAILED
+
+failures:
+
+failures:
+    package_resolver::tests::exact_require_selects_that_release_or_nothing
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 3484 filtered out; finished in 30.22s
+

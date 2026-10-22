@@ -1,0 +1,11 @@
+{
+ "scheduled": "2026-10-18T12:20:00Z",
+ "change_since_previous_report": {"integrated_LSP": 0, "total_baseline_delta": 0, "effective_delta": 0, "verified_complete": 0},
+ "admissions": {},
+ "user_decisions_since_previous_report": {"receipt": "docs/work/name-handling/handoff/reviews/resume-20261017-diagnosis/user-decisions-20261018T1155Z.json", "rule": "Follow C Tcl wherever it determines the answer", "applied_to": ["DB921 one identity (fix-2 v2 with source-origin checks)", "Compiler221 assertion corrected by tclsh probe", "lone-CR document text translated as C Tcl `source -translation auto`", "a_forced_import_before_the_call_does_not_shadow_a_later_call_site corrected to tclsh", "Tcl 8.4 vsatisfies single-requirement arity"], "not_decided_by_C_Tcl": ["Server102/103", "Server108", "test-only helper deletion"]},
+ "in_progress": {"Sol-17": "exclusive tree: package survey shared cause, Logical possible-occupant shadow, Native positive control", "Sol-18": "Compiler221, DB921 v2, vsatisfies 8.4, forced-import assertion (static)", "Sol-19": "lone-CR source translation in the shared document image (static)", "integration43": "candidate 21a199ad8; full capture after Sol-17's fixes"},
+ "user_decisions_still_open": ["Server102/103 freshness vs snapshot", "Server108 validation cost", "exception to delete test-only lexical helpers in package reachability tests"],
+ "next_report_utc": "2026-10-18T12:51:00Z",
+ "green_PR": false,
+ "merge_or_issue_closure": false
+}

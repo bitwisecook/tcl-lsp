@@ -1,0 +1,57 @@
+test original_oo::instance_completion::tests::original_future_instance_candidates_do_not_borrow_frames_cells_or_navigation ... FAILED
+test original_oo::instance_completion::tests::original_instance_candidates_keep_opaque_canonical_class_inputs_distinct ... FAILED
+test original_oo::instance_completion::tests::original_instance_method_geometry_keeps_captured_selectors_and_later_arguments_separate ... ok
+test original_oo::instance_completion::tests::original_instance_candidates_refuse_stale_input_terminal_mutations_and_detached_reports ... FAILED
+test original_oo::instance_completion::tests::original_instance_selector_edits_keep_whole_grouped_words_without_identity_grants ... ok
+test original_oo::instance_completion::tests::original_instance_candidates_join_genuine_construction_without_reporting_maps ... ok
+test original_oo::selected_completion_gap_tests::original_class_selector_gaps_use_configured_separators_and_continuations ... ok
+test original_oo::instance_completion::tests::original_instance_operand_projection_never_borrows_native_purpose_from_a_class ... ok
+test original_oo::tests::original_class_completion_declines_a_captured_selector_position ... FAILED
+test original_oo::tests::original_own_method_labels_render_counted_names_after_ui_tables_are_cleared ... ok
+test original_oo::tests::original_class_head_selection_keeps_opaque_candidates_and_source_currency ... FAILED
+test original_oo::tests::original_class_head_selection_keeps_earlier_call_horizons_and_known_terminals ... FAILED
+test original_oo::tests::original_readonly_loop_method_candidates_keep_values_separate_from_worker_geometry ... FAILED
+---- original_oo::instance_completion::tests::original_future_instance_candidates_do_not_borrow_frames_cells_or_navigation stdout ----
+thread 'original_oo::instance_completion::tests::original_future_instance_candidates_do_not_borrow_frames_cells_or_navigation' (7327) panicked at rust/tcl-lsp-core/src/original_oo/instance_completion/tests.rs:168:5:
+assertion failed: crate::receiver_identity::class_at_command_head(&analysis, source,
+        &command).is_none()
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- original_oo::instance_completion::tests::original_instance_candidates_keep_opaque_canonical_class_inputs_distinct stdout ----
+
+thread 'original_oo::instance_completion::tests::original_instance_candidates_keep_opaque_canonical_class_inputs_distinct' (7329) panicked at rust/tcl-lsp-core/src/original_oo/instance_completion/tests.rs:236:14:
+called `Option::unwrap()` on a `None` value
+
+---- original_oo::instance_completion::tests::original_instance_candidates_refuse_stale_input_terminal_mutations_and_detached_reports stdout ----
+
+thread 'original_oo::instance_completion::tests::original_instance_candidates_refuse_stale_input_terminal_mutations_and_detached_reports' (7407) panicked at rust/tcl-lsp-core/src/original_oo/instance_completion/tests.rs:219:9:
+oo::class create C {}; C create object; proc object args {}; object longMet
+
+---- original_oo::tests::original_class_completion_declines_a_captured_selector_position stdout ----
+
+thread 'original_oo::tests::original_class_completion_declines_a_captured_selector_position' (7487) panicked at rust/tcl-lsp-core/src/original_oo.rs:470:13:
+assertion `left == right` failed
+  left: false
+ right: true
+
+---- original_oo::tests::original_class_head_selection_keeps_opaque_candidates_and_source_currency stdout ----
+
+thread 'original_oo::tests::original_class_head_selection_keeps_opaque_candidates_and_source_currency' (7497) panicked at rust/tcl-lsp-core/src/original_oo.rs:502:13:
+exact class declaration candidate
+
+---- original_oo::tests::original_class_head_selection_keeps_earlier_call_horizons_and_known_terminals stdout ----
+
+thread 'original_oo::tests::original_class_head_selection_keeps_earlier_call_horizons_and_known_terminals' (7492) panicked at rust/tcl-lsp-core/src/original_oo.rs:448:9:
+assertion `left == right` failed
+  left: [true, false, false, true, false, true, false, false, false]
+ right: [true, false, true, true, false, false]
+
+---- original_oo::tests::original_readonly_loop_method_candidates_keep_values_separate_from_worker_geometry stdout ----
+
+thread 'original_oo::tests::original_readonly_loop_method_candidates_keep_values_separate_from_worker_geometry' (7511) panicked at rust/tcl-lsp-core/src/original_oo.rs:523:14:
+called `Option::unwrap()` on a `None` value
+
+
+failures:
+    original_oo::instance_completion::tests::original_future_instance_candidates_do_not_borrow_frames_cells_or_navigation
+test result: FAILED. 6 passed; 7 failed; 0 ignored; 0 measured; 3472 filtered out; finished in 34.70s

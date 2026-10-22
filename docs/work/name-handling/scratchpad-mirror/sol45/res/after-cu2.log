@@ -1,0 +1,1030 @@
+
+running 98 tests
+test compilation_unit::conditional_original_body_tests::conditional_original_child_keeps_source_config_namespace_and_has_no_event_grant ... FAILED
+test compilation_unit::conditional_original_body_tests::conditional_empty_child_has_no_report_selected_frame_or_parent_entry_donation ... FAILED
+test compilation_unit::conditional_original_body_tests::nested_original_children_share_the_actual_root_function_owner ... FAILED
+test compilation_unit::conditional_original_body_tests::original_child_withdraws_missing_foreign_and_changed_complete_owners ... FAILED
+test compilation_unit::conditional_original_body_tests::conditional_original_child_inherits_unknown_presence_and_refines_local_stores ... FAILED
+test compilation_unit::jim_ingress_tests::a_jim_unit_is_built_as_jim_end_to_end ... ok
+test compilation_unit::conditional_original_body_tests::genuine_roster_retains_empty_classes_and_refuses_owner_donation ... ok
+test compilation_unit::jim_ingress_tests::jim_aliases_build_the_same_unit ... ok
+test compilation_unit::original_lattice_worker::tests::original_lattice_worker_keeps_actual_recipe_and_refuses_changed_key_or_request ... ok
+test compilation_unit::original_lattice_worker::tests::original_lattice_worker_refuses_public_result_changes_without_changing_report_acceptance ... ok
+test compilation_unit::original_receiver_method_facts_tests::original_method_facts_keep_counted_formals_without_class_label_variable_union ... FAILED
+test compilation_unit::original_receiver_method_facts_tests::original_source_context_never_inherits_compatibility_instance_or_execution_fields ... ok
+test compilation_unit::selected_class_roster_tests::class_source_producer_withdraws_foreign_missing_and_changed_full_owners ... ok
+test compilation_unit::selected_class_roster_tests::retained_roster_projection_withdraws_changed_cu_module_input_and_store ... ok
+test compilation_unit::selected_class_roster_tests::retained_roster_projection_shares_empty_custom_and_selected_source_classes ... ok
+test compilation_unit::selected_class_roster_tests::genuine_cu_roster_uses_selected_custom_renamed_and_direct_aliased_definers ... FAILED
+test compilation_unit::selected_class_roster_tests::source_ssa_missing_entry_never_infers_activation_from_the_report_name ... ok
+test compilation_unit::smoke::smoke_compile_canonical_snippet ... FAILED
+test compilation_unit::tests::build_for_empty_source ... ok
+test compilation_unit::tests::build_for_captures_procedures ... FAILED
+test compilation_unit::tests::build_for_lowers_oo_methods_to_function_units ... FAILED
+test compilation_unit::tests::build_for_single_statement ... ok
+test compilation_unit::selected_class_roster_tests::selected_roster_preserves_changed_definition_and_captured_prefix_refusals ... ok
+test compilation_unit::tests::call_site_param_constants::apply_without_a_namespace_element_still_resolves_globally ... FAILED
+test compilation_unit::tests::call_site_param_constants::apply_with_a_namespace_element_resolves_the_body_against_it ... FAILED
+test compilation_unit::tests::call_site_param_constants::call_site_inside_catch_body_is_not_missed ... FAILED
+test compilation_unit::tests::call_site_param_constants::call_site_inside_tcloo_method_body_is_not_missed ... FAILED
+test compilation_unit::tests::call_site_param_constants::call_site_inside_uplevel_body_is_not_missed ... FAILED
+test compilation_unit::tests::call_site_param_constants::call_site_via_namespace_import_alias_is_not_missed ... FAILED
+test compilation_unit::tests::call_site_param_constants::caller_contents_do_not_license_erasing_retained_parameter_coercions ... FAILED
+test compilation_unit::tests::call_site_param_constants::caught_unresolved_command_keeps_its_callback_mutation_boundary ... FAILED
+test compilation_unit::tests::call_site_param_constants::conditionally_defined_proc_body_call_sites_are_still_counted ... FAILED
+test compilation_unit::tests::call_site_param_constants::cross_file::cross_file_command_prefix_callback_poisons_every_position ... ok
+test compilation_unit::tests::call_site_param_constants::cross_file::cross_file_dynamic_argument_poisons_the_position ... ok
+test compilation_unit::tests::call_site_param_constants::cross_file::a_file_that_sources_another_declines_the_seed_on_its_own ... FAILED
+test compilation_unit::tests::call_site_param_constants::cross_file::cross_file_scan_attributes_the_call_to_the_library_proc ... ok
+test compilation_unit::tests::call_site_param_constants::cross_file::cross_file_rename_poisons_the_callee ... ok
+test compilation_unit::tests::call_site_param_constants::cross_file::sourcing_file_agreeing_on_the_literal_still_folds ... FAILED
+test compilation_unit::tests::call_site_param_constants::cross_file::sourcing_file_with_a_differing_literal_retracts_the_fold ... ok
+test compilation_unit::tests::call_site_param_constants::cross_file::unrelated_workspace_file_contributes_nothing ... FAILED
+test compilation_unit::tests::call_site_param_constants::dynamic_dispatch_elsewhere_does_not_disqualify_an_unrelated_seed ... FAILED
+test compilation_unit::tests::call_site_param_constants::ensemble_map_redirected_caller_does_not_fold_issue_979 ... FAILED
+test compilation_unit::tests::call_site_param_constants::method_body_bare_call_resolves_against_global_not_class_namespace ... FAILED
+test compilation_unit::tests::call_site_param_constants::exported_namespace_declines_the_seed_even_with_a_workspace_view ... FAILED
+test compilation_unit::tests::call_site_param_constants::namespace_eval_body_nested_in_a_proc_resolves_against_its_own_namespace ... FAILED
+test compilation_unit::tests::call_site_param_constants::namespaced_recursive_proc_parity_check_is_not_constant_folded ... FAILED
+test compilation_unit::tests::call_site_param_constants::non_package_file_is_unaffected_by_package_provide_guard ... FAILED
+test compilation_unit::tests::call_site_param_constants::package_provide_file_disqualifies_every_seed ... FAILED
+test compilation_unit::tests::call_site_param_constants::package_provide_mentioned_only_in_a_comment_does_not_disqualify ... FAILED
+test compilation_unit::tests::call_site_param_constants::package_provide_with_unusual_spelling_still_disqualifies ... FAILED
+test compilation_unit::tests::call_site_param_constants::sibling_namespace_procs_with_same_leaf_name_are_not_conflated ... FAILED
+test compilation_unit::tests::call_site_param_constants::rename_onto_callee_name_disqualifies_call_site_seed ... FAILED
+test compilation_unit::tests::call_site_param_constants::recursive_param_version_zero_is_never_const_in_lattice ... FAILED
+test compilation_unit::tests::call_site_param_constants::two_same_namespace_callers_with_uniform_literal_still_folds ... FAILED
+test compilation_unit::tests::call_site_param_constants::top_level_recursive_proc_parity_check_is_not_constant_folded ... FAILED
+test compilation_unit::tests::call_site_param_constants::unrelated_catch_body_does_not_disqualify_a_different_proc ... FAILED
+test compilation_unit::tests::call_site_param_constants::uplevel_bare_zero_body_resolves_against_the_enclosing_namespace ... FAILED
+test compilation_unit::tests::call_site_param_constants::wildcard_import_without_export_does_not_manufacture_a_caller ... ok
+test compilation_unit::tests::call_site_param_constants::uplevel_relative_body_keeps_the_enclosing_units_namespace ... FAILED
+test compilation_unit::tests::call_site_param_constants::uplevel_zero_body_resolves_against_global_not_enclosing_namespace ... FAILED
+test compilation_unit::tests::colliding_method_reports_keep_independent_analysis_units ... FAILED
+test compilation_unit::tests::call_site_param_constants::wildcard_namespace_import_preserves_actual_identity_and_open_callers ... FAILED
+test compilation_unit::tests::complexity_guard_flags_byte_huge_proc ... FAILED
+test compilation_unit::tests::default_source_purpose_does_not_replace_supplied_input_or_unknown_driver_entry ... ok
+test compilation_unit::tests::deep_semantic_analysis_materialises_every_retained_body_sidecar ... ok
+test compilation_unit::tests::default_unit_source_profile_keeps_explicit_standalone_authoring_purpose ... ok
+test compilation_unit::tests::functions_iterator_yields_top_plus_procs ... ok
+test compilation_unit::tests::existence_is_unavailable_at_the_fast_tier ... FAILED
+test compilation_unit::tests::method_units_carry_the_single_method_facts_carrier ... FAILED
+test compilation_unit::tests::module_realm_refusal_withholds_caller_seeds_and_retires_interprocedural_results ... FAILED
+test compilation_unit::tests::non_method_units_carry_no_method_facts ... FAILED
+test compilation_unit::tests::memoised_source_facts_retain_nested_bom_and_lexer_overlays ... FAILED
+test compilation_unit::tests::prepare_cfg_context_retains_same_tailed_body_parameters ... FAILED
+test compilation_unit::tests::prepared_binding_mutation_projection_matches_compatibility_scan ... ok
+test compilation_unit::tests::retained_deep_sidecars_keep_availability_and_refuse_missing_function_input ... ok
+test compilation_unit::tests::function_consumers_keep_the_actual_generation_and_grammar ... ok
+test compilation_unit::tests::retained_deep_sidecars_require_the_module_source_owner ... ok
+test compilation_unit::tests::retained_memory_facts_require_matching_module_and_function_owners ... ok
+test compilation_unit::tests::return_type_follows_local_var ... FAILED
+test compilation_unit::tests::return_type_infers_int_literal ... FAILED
+test compilation_unit::tests::return_type_infers_string_literal ... FAILED
+test compilation_unit::tests::return_type_joins_branches_to_common_int ... FAILED
+test compilation_unit::tests::return_type_partial_return_widens_via_fallthrough ... FAILED
+test compilation_unit::tests::runtime_selected_method_commands_guard_deep_cfg_analysis ... FAILED
+test compilation_unit::tests::original_module_taint_replay_preserves_receivers_and_refuses_foreign_owners ... FAILED
+test compilation_unit::tests::semantic_bundle_requires_retained_availability_and_source_grammar ... ok
+test compilation_unit::tests::semantic_value_projection_uses_actual_jim_entry_over_c_catalogue ... ok
+test compilation_unit::tests::supplied_hosted_source_entry_retains_advice_without_activation ... ok
+test compilation_unit::tests::semantic_bundle_keeps_dialect_and_defers_unneeded_world_state ... ok
+test compilation_unit::tests::standalone_source_input_keeps_authoring_purpose_and_exact_metadata_currency ... ok
+test compilation_unit::tests::switch_glob_arm_body_read_counts_as_param_use ... FAILED
+test compilation_unit::tests::switch_subject_counts_as_param_use ... FAILED
+test compilation_unit::tests::supplied_source_producer_refuses_changed_profile_and_lexer_metadata ... ok
+test compilation_unit::tests::top_level_var_touched_by_callee_global_is_overdefined ... FAILED
+test compilation_unit::tests::top_level_dual_ported_var_touched_by_callee_global_is_overdefined ... FAILED
+test compilation_unit::tests::with_memory_ssa_populates_optional ... ok
+test compilation_unit::tests::top_level_var_untouched_by_any_callee_still_folds ... FAILED
+test compilation_unit::tests::supplied_source_input_retains_axes_and_independent_logical_entry ... ok
+
+failures:
+
+---- compilation_unit::conditional_original_body_tests::conditional_original_child_keeps_source_config_namespace_and_has_no_event_grant stdout ----
+
+thread 'compilation_unit::conditional_original_body_tests::conditional_original_child_keeps_source_config_namespace_and_has_no_event_grant' (5410) panicked at rust/tcl-compiler/src/compilation_unit.rs:9084:10:
+genuine retained child source
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::option::expect_failed
+   3: <core::option::Option<tcl_compiler::ir::Script>>::expect
+   4: tcl_compiler::compilation_unit::conditional_original_body_tests::conditional_original_child_keeps_source_config_namespace_and_has_no_event_grant
+   5: tcl_compiler::compilation_unit::conditional_original_body_tests::conditional_original_child_keeps_source_config_namespace_and_has_no_event_grant::{closure#0}
+   6: <tcl_compiler::compilation_unit::conditional_original_body_tests::conditional_original_child_keeps_source_config_namespace_and_has_no_event_grant::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- compilation_unit::conditional_original_body_tests::conditional_empty_child_has_no_report_selected_frame_or_parent_entry_donation stdout ----
+
+thread 'compilation_unit::conditional_original_body_tests::conditional_empty_child_has_no_report_selected_frame_or_parent_entry_donation' (5408) panicked at rust/tcl-compiler/src/compilation_unit.rs:9398:14:
+original empty body parent
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::option::expect_failed
+   3: <core::option::Option<&tcl_compiler::ir::CommandTokens>>::expect
+   4: tcl_compiler::compilation_unit::conditional_original_body_tests::conditional_empty_child_has_no_report_selected_frame_or_parent_entry_donation
+   5: tcl_compiler::compilation_unit::conditional_original_body_tests::conditional_empty_child_has_no_report_selected_frame_or_parent_entry_donation::{closure#0}
+   6: <tcl_compiler::compilation_unit::conditional_original_body_tests::conditional_empty_child_has_no_report_selected_frame_or_parent_entry_donation::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- compilation_unit::conditional_original_body_tests::nested_original_children_share_the_actual_root_function_owner stdout ----
+
+thread 'compilation_unit::conditional_original_body_tests::nested_original_children_share_the_actual_root_function_owner' (5412) panicked at rust/tcl-compiler/src/compilation_unit.rs:9154:14:
+first original child
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::option::expect_failed
+   3: <core::option::Option<tcl_compiler::compilation_unit::FunctionUnit>>::expect
+   4: tcl_compiler::compilation_unit::conditional_original_body_tests::nested_original_children_share_the_actual_root_function_owner
+   5: tcl_compiler::compilation_unit::conditional_original_body_tests::nested_original_children_share_the_actual_root_function_owner::{closure#0}
+   6: <tcl_compiler::compilation_unit::conditional_original_body_tests::nested_original_children_share_the_actual_root_function_owner::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- compilation_unit::conditional_original_body_tests::original_child_withdraws_missing_foreign_and_changed_complete_owners stdout ----
+
+thread 'compilation_unit::conditional_original_body_tests::original_child_withdraws_missing_foreign_and_changed_complete_owners' (5413) panicked at rust/tcl-compiler/src/compilation_unit.rs:9201:9:
+assertion failed: original.conditional_original_body_unit(context.commands(), function, tokens,
+        0).is_some()
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: tcl_compiler::compilation_unit::conditional_original_body_tests::original_child_withdraws_missing_foreign_and_changed_complete_owners
+   4: tcl_compiler::compilation_unit::conditional_original_body_tests::original_child_withdraws_missing_foreign_and_changed_complete_owners::{closure#0}
+   5: <tcl_compiler::compilation_unit::conditional_original_body_tests::original_child_withdraws_missing_foreign_and_changed_complete_owners::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- compilation_unit::conditional_original_body_tests::conditional_original_child_inherits_unknown_presence_and_refines_local_stores stdout ----
+
+thread 'compilation_unit::conditional_original_body_tests::conditional_original_child_inherits_unknown_presence_and_refines_local_stores' (5409) panicked at rust/tcl-compiler/src/compilation_unit.rs:9341:14:
+original eval parent
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::option::expect_failed
+   3: <core::option::Option<&tcl_compiler::ir::CommandTokens>>::expect
+   4: tcl_compiler::compilation_unit::conditional_original_body_tests::conditional_original_child_inherits_unknown_presence_and_refines_local_stores
+   5: tcl_compiler::compilation_unit::conditional_original_body_tests::conditional_original_child_inherits_unknown_presence_and_refines_local_stores::{closure#0}
+   6: <tcl_compiler::compilation_unit::conditional_original_body_tests::conditional_original_child_inherits_unknown_presence_and_refines_local_stores::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- compilation_unit::original_receiver_method_facts_tests::original_method_facts_keep_counted_formals_without_class_label_variable_union stdout ----
+
+thread 'compilation_unit::original_receiver_method_facts_tests::original_method_facts_keep_counted_formals_without_class_label_variable_union' (5420) panicked at rust/tcl-compiler/src/compilation_unit.rs:8956:14:
+original method
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::option::expect_failed
+   3: <core::option::Option<&tcl_compiler::ir::MethodDef>>::expect
+   4: tcl_compiler::compilation_unit::original_receiver_method_facts_tests::original_method_facts_keep_counted_formals_without_class_label_variable_union
+   5: tcl_compiler::compilation_unit::original_receiver_method_facts_tests::original_method_facts_keep_counted_formals_without_class_label_variable_union::{closure#0}
+   6: <tcl_compiler::compilation_unit::original_receiver_method_facts_tests::original_method_facts_keep_counted_formals_without_class_label_variable_union::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- compilation_unit::selected_class_roster_tests::genuine_cu_roster_uses_selected_custom_renamed_and_direct_aliased_definers stdout ----
+
+thread 'compilation_unit::selected_class_roster_tests::genuine_cu_roster_uses_selected_custom_renamed_and_direct_aliased_definers' (5423) panicked at rust/tcl-compiler/src/compilation_unit.rs:9500:13:
+namespace eval ns {forge create Empty {}}
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: tcl_compiler::compilation_unit::selected_class_roster_tests::genuine_cu_roster_uses_selected_custom_renamed_and_direct_aliased_definers
+   3: tcl_compiler::compilation_unit::selected_class_roster_tests::genuine_cu_roster_uses_selected_custom_renamed_and_direct_aliased_definers::{closure#0}
+   4: <tcl_compiler::compilation_unit::selected_class_roster_tests::genuine_cu_roster_uses_selected_custom_renamed_and_direct_aliased_definers::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- compilation_unit::smoke::smoke_compile_canonical_snippet stdout ----
+
+thread 'compilation_unit::smoke::smoke_compile_canonical_snippet' (5428) panicked at rust/tcl-compiler/src/compilation_unit.rs:8894:9:
+expected a lowered ::double procedure, got []
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: tcl_compiler::compilation_unit::smoke::smoke_compile_canonical_snippet
+   3: tcl_compiler::compilation_unit::smoke::smoke_compile_canonical_snippet::{closure#0}
+   4: <tcl_compiler::compilation_unit::smoke::smoke_compile_canonical_snippet::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- compilation_unit::tests::build_for_captures_procedures stdout ----
+
+thread 'compilation_unit::tests::build_for_captures_procedures' (5429) panicked at rust/tcl-compiler/src/compilation_unit.rs:7195:9:
+assertion failed: !cu.procedures.is_empty()
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: tcl_compiler::compilation_unit::tests::build_for_captures_procedures
+   4: tcl_compiler::compilation_unit::tests::build_for_captures_procedures::{closure#0}
+   5: <tcl_compiler::compilation_unit::tests::build_for_captures_procedures::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- compilation_unit::tests::build_for_lowers_oo_methods_to_function_units stdout ----
+
+thread 'compilation_unit::tests::build_for_lowers_oo_methods_to_function_units' (5431) panicked at rust/tcl-compiler/src/compilation_unit.rs:7232:9:
+assertion `left == right` failed: method units: []
+  left: []
+ right: ["::Counter::bump", "::Counter::get"]
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<alloc::vec::Vec<&alloc::string::String>, alloc::vec::Vec<&alloc::string::String>>
+   4: tcl_compiler::compilation_unit::tests::build_for_lowers_oo_methods_to_function_units
+   5: tcl_compiler::compilation_unit::tests::build_for_lowers_oo_methods_to_function_units::{closure#0}
+   6: <tcl_compiler::compilation_unit::tests::build_for_lowers_oo_methods_to_function_units::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- compilation_unit::tests::call_site_param_constants::apply_without_a_namespace_element_still_resolves_globally stdout ----
+
+thread 'compilation_unit::tests::call_site_param_constants::apply_without_a_namespace_element_still_resolves_globally' (5434) panicked at rust/tcl-compiler/src/compilation_unit.rs:8057:18:
+::foo::helper analysed
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::option::expect_failed
+   3: <core::option::Option<&tcl_compiler::compilation_unit::FunctionUnit>>::expect
+   4: tcl_compiler::compilation_unit::tests::call_site_param_constants::apply_without_a_namespace_element_still_resolves_globally
+   5: tcl_compiler::compilation_unit::tests::call_site_param_constants::apply_without_a_namespace_element_still_resolves_globally::{closure#0}
+   6: <tcl_compiler::compilation_unit::tests::call_site_param_constants::apply_without_a_namespace_element_still_resolves_globally::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- compilation_unit::tests::call_site_param_constants::apply_with_a_namespace_element_resolves_the_body_against_it stdout ----
+
+thread 'compilation_unit::tests::call_site_param_constants::apply_with_a_namespace_element_resolves_the_body_against_it' (5433) panicked at rust/tcl-compiler/src/compilation_unit.rs:8025:18:
+::foo::helper analysed
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::option::expect_failed
+   3: <core::option::Option<&tcl_compiler::compilation_unit::FunctionUnit>>::expect
+   4: tcl_compiler::compilation_unit::tests::call_site_param_constants::apply_with_a_namespace_element_resolves_the_body_against_it
+   5: tcl_compiler::compilation_unit::tests::call_site_param_constants::apply_with_a_namespace_element_resolves_the_body_against_it::{closure#0}
+   6: <tcl_compiler::compilation_unit::tests::call_site_param_constants::apply_with_a_namespace_element_resolves_the_body_against_it::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- compilation_unit::tests::call_site_param_constants::call_site_inside_catch_body_is_not_missed stdout ----
+
+thread 'compilation_unit::tests::call_site_param_constants::call_site_inside_catch_body_is_not_missed' (5435) panicked at rust/tcl-compiler/src/compilation_unit.rs:8358:18:
+is_even analysed
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::option::expect_failed
+   3: <core::option::Option<&tcl_compiler::compilation_unit::FunctionUnit>>::expect
+   4: tcl_compiler::compilation_unit::tests::call_site_param_constants::call_site_inside_catch_body_is_not_missed
+   5: tcl_compiler::compilation_unit::tests::call_site_param_constants::call_site_inside_catch_body_is_not_missed::{closure#0}
+   6: <tcl_compiler::compilation_unit::tests::call_site_param_constants::call_site_inside_catch_body_is_not_missed::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- compilation_unit::tests::call_site_param_constants::call_site_inside_tcloo_method_body_is_not_missed stdout ----
+
+thread 'compilation_unit::tests::call_site_param_constants::call_site_inside_tcloo_method_body_is_not_missed' (5436) panicked at rust/tcl-compiler/src/compilation_unit.rs:7554:18:
+helper analysed
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::option::expect_failed
+   3: <core::option::Option<&tcl_compiler::compilation_unit::FunctionUnit>>::expect
+   4: tcl_compiler::compilation_unit::tests::call_site_param_constants::call_site_inside_tcloo_method_body_is_not_missed
+   5: tcl_compiler::compilation_unit::tests::call_site_param_constants::call_site_inside_tcloo_method_body_is_not_missed::{closure#0}
+   6: <tcl_compiler::compilation_unit::tests::call_site_param_constants::call_site_inside_tcloo_method_body_is_not_missed::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- compilation_unit::tests::call_site_param_constants::call_site_inside_uplevel_body_is_not_missed stdout ----
+
+thread 'compilation_unit::tests::call_site_param_constants::call_site_inside_uplevel_body_is_not_missed' (5437) panicked at rust/tcl-compiler/src/compilation_unit.rs:8384:18:
+is_even analysed
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::option::expect_failed
+   3: <core::option::Option<&tcl_compiler::compilation_unit::FunctionUnit>>::expect
+   4: tcl_compiler::compilation_unit::tests::call_site_param_constants::call_site_inside_uplevel_body_is_not_missed
+   5: tcl_compiler::compilation_unit::tests::call_site_param_constants::call_site_inside_uplevel_body_is_not_missed::{closure#0}
+   6: <tcl_compiler::compilation_unit::tests::call_site_param_constants::call_site_inside_uplevel_body_is_not_missed::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- compilation_unit::tests::call_site_param_constants::call_site_via_namespace_import_alias_is_not_missed stdout ----
+
+thread 'compilation_unit::tests::call_site_param_constants::call_site_via_namespace_import_alias_is_not_missed' (5438) panicked at rust/tcl-compiler/src/compilation_unit.rs:7584:18:
+helper analysed
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::option::expect_failed
+   3: <core::option::Option<&tcl_compiler::compilation_unit::FunctionUnit>>::expect
+   4: tcl_compiler::compilation_unit::tests::call_site_param_constants::call_site_via_namespace_import_alias_is_not_missed
+   5: tcl_compiler::compilation_unit::tests::call_site_param_constants::call_site_via_namespace_import_alias_is_not_missed::{closure#0}
+   6: <tcl_compiler::compilation_unit::tests::call_site_param_constants::call_site_via_namespace_import_alias_is_not_missed::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- compilation_unit::tests::call_site_param_constants::caller_contents_do_not_license_erasing_retained_parameter_coercions stdout ----
+
+thread 'compilation_unit::tests::call_site_param_constants::caller_contents_do_not_license_erasing_retained_parameter_coercions' (5439) panicked at rust/tcl-compiler/src/compilation_unit.rs:8101:18:
+helper analysed
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::option::expect_failed
+   3: <core::option::Option<&tcl_compiler::compilation_unit::FunctionUnit>>::expect
+   4: tcl_compiler::compilation_unit::tests::call_site_param_constants::caller_contents_do_not_license_erasing_retained_parameter_coercions
+   5: tcl_compiler::compilation_unit::tests::call_site_param_constants::caller_contents_do_not_license_erasing_retained_parameter_coercions::{closure#0}
+   6: <tcl_compiler::compilation_unit::tests::call_site_param_constants::caller_contents_do_not_license_erasing_retained_parameter_coercions::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- compilation_unit::tests::call_site_param_constants::caught_unresolved_command_keeps_its_callback_mutation_boundary stdout ----
+
+thread 'compilation_unit::tests::call_site_param_constants::caught_unresolved_command_keeps_its_callback_mutation_boundary' (5440) panicked at rust/tcl-compiler/src/compilation_unit.rs:8436:18:
+helper analysed
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::option::expect_failed
+   3: <core::option::Option<&tcl_compiler::compilation_unit::FunctionUnit>>::expect
+   4: tcl_compiler::compilation_unit::tests::call_site_param_constants::caught_unresolved_command_keeps_its_callback_mutation_boundary
+   5: tcl_compiler::compilation_unit::tests::call_site_param_constants::caught_unresolved_command_keeps_its_callback_mutation_boundary::{closure#0}
+   6: <tcl_compiler::compilation_unit::tests::call_site_param_constants::caught_unresolved_command_keeps_its_callback_mutation_boundary::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- compilation_unit::tests::call_site_param_constants::conditionally_defined_proc_body_call_sites_are_still_counted stdout ----
+
+thread 'compilation_unit::tests::call_site_param_constants::conditionally_defined_proc_body_call_sites_are_still_counted' (5441) panicked at rust/tcl-compiler/src/compilation_unit.rs:7946:18:
+::helper analysed
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::option::expect_failed
+   3: <core::option::Option<&tcl_compiler::compilation_unit::FunctionUnit>>::expect
+   4: tcl_compiler::compilation_unit::tests::call_site_param_constants::conditionally_defined_proc_body_call_sites_are_still_counted
+   5: tcl_compiler::compilation_unit::tests::call_site_param_constants::conditionally_defined_proc_body_call_sites_are_still_counted::{closure#0}
+   6: <tcl_compiler::compilation_unit::tests::call_site_param_constants::conditionally_defined_proc_body_call_sites_are_still_counted::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- compilation_unit::tests::call_site_param_constants::cross_file::a_file_that_sources_another_declines_the_seed_on_its_own stdout ----
+
+thread 'compilation_unit::tests::call_site_param_constants::cross_file::a_file_that_sources_another_declines_the_seed_on_its_own' (5442) panicked at rust/tcl-compiler/src/compilation_unit.rs:8820:17:
+with the project enumerated, the boundary is no longer a blind spot: []
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: tcl_compiler::compilation_unit::tests::call_site_param_constants::cross_file::a_file_that_sources_another_declines_the_seed_on_its_own
+   3: tcl_compiler::compilation_unit::tests::call_site_param_constants::cross_file::a_file_that_sources_another_declines_the_seed_on_its_own::{closure#0}
+   4: <tcl_compiler::compilation_unit::tests::call_site_param_constants::cross_file::a_file_that_sources_another_declines_the_seed_on_its_own::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- compilation_unit::tests::call_site_param_constants::cross_file::sourcing_file_agreeing_on_the_literal_still_folds stdout ----
+
+thread 'compilation_unit::tests::call_site_param_constants::cross_file::sourcing_file_agreeing_on_the_literal_still_folds' (5451) panicked at rust/tcl-compiler/src/compilation_unit.rs:8696:17:
+every caller in the project passes "prod"; the seed is sound: []
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: tcl_compiler::compilation_unit::tests::call_site_param_constants::cross_file::sourcing_file_agreeing_on_the_literal_still_folds
+   3: tcl_compiler::compilation_unit::tests::call_site_param_constants::cross_file::sourcing_file_agreeing_on_the_literal_still_folds::{closure#0}
+   4: <tcl_compiler::compilation_unit::tests::call_site_param_constants::cross_file::sourcing_file_agreeing_on_the_literal_still_folds::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- compilation_unit::tests::call_site_param_constants::cross_file::unrelated_workspace_file_contributes_nothing stdout ----
+
+thread 'compilation_unit::tests::call_site_param_constants::cross_file::unrelated_workspace_file_contributes_nothing' (5456) panicked at rust/tcl-compiler/src/compilation_unit.rs:8725:17:
+an unrelated file must not retract a sound fold: []
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: tcl_compiler::compilation_unit::tests::call_site_param_constants::cross_file::unrelated_workspace_file_contributes_nothing
+   3: tcl_compiler::compilation_unit::tests::call_site_param_constants::cross_file::unrelated_workspace_file_contributes_nothing::{closure#0}
+   4: <tcl_compiler::compilation_unit::tests::call_site_param_constants::cross_file::unrelated_workspace_file_contributes_nothing::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- compilation_unit::tests::call_site_param_constants::dynamic_dispatch_elsewhere_does_not_disqualify_an_unrelated_seed stdout ----
+
+thread 'compilation_unit::tests::call_site_param_constants::dynamic_dispatch_elsewhere_does_not_disqualify_an_unrelated_seed' (5457) panicked at rust/tcl-compiler/src/compilation_unit.rs:8327:18:
+helper analysed
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::option::expect_failed
+   3: <core::option::Option<&tcl_compiler::compilation_unit::FunctionUnit>>::expect
+   4: tcl_compiler::compilation_unit::tests::call_site_param_constants::dynamic_dispatch_elsewhere_does_not_disqualify_an_unrelated_seed
+   5: tcl_compiler::compilation_unit::tests::call_site_param_constants::dynamic_dispatch_elsewhere_does_not_disqualify_an_unrelated_seed::{closure#0}
+   6: <tcl_compiler::compilation_unit::tests::call_site_param_constants::dynamic_dispatch_elsewhere_does_not_disqualify_an_unrelated_seed::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- compilation_unit::tests::call_site_param_constants::ensemble_map_redirected_caller_does_not_fold_issue_979 stdout ----
+
+thread 'compilation_unit::tests::call_site_param_constants::ensemble_map_redirected_caller_does_not_fold_issue_979' (5458) panicked at rust/tcl-compiler/src/compilation_unit.rs:7734:22:
+helper analysed
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::option::expect_failed
+   3: <core::option::Option<&tcl_compiler::compilation_unit::FunctionUnit>>::expect
+   4: tcl_compiler::compilation_unit::tests::call_site_param_constants::ensemble_map_redirected_caller_does_not_fold_issue_979
+   5: tcl_compiler::compilation_unit::tests::call_site_param_constants::ensemble_map_redirected_caller_does_not_fold_issue_979::{closure#0}
+   6: <tcl_compiler::compilation_unit::tests::call_site_param_constants::ensemble_map_redirected_caller_does_not_fold_issue_979::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- compilation_unit::tests::call_site_param_constants::method_body_bare_call_resolves_against_global_not_class_namespace stdout ----
+
+thread 'compilation_unit::tests::call_site_param_constants::method_body_bare_call_resolves_against_global_not_class_namespace' (5460) panicked at rust/tcl-compiler/src/compilation_unit.rs:7780:18:
+::helper analysed
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::option::expect_failed
+   3: <core::option::Option<&tcl_compiler::compilation_unit::FunctionUnit>>::expect
+   4: tcl_compiler::compilation_unit::tests::call_site_param_constants::method_body_bare_call_resolves_against_global_not_class_namespace
+   5: tcl_compiler::compilation_unit::tests::call_site_param_constants::method_body_bare_call_resolves_against_global_not_class_namespace::{closure#0}
+   6: <tcl_compiler::compilation_unit::tests::call_site_param_constants::method_body_bare_call_resolves_against_global_not_class_namespace::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- compilation_unit::tests::call_site_param_constants::exported_namespace_declines_the_seed_even_with_a_workspace_view stdout ----
+
+thread 'compilation_unit::tests::call_site_param_constants::exported_namespace_declines_the_seed_even_with_a_workspace_view' (5459) panicked at rust/tcl-compiler/src/compilation_unit.rs:7691:22:
+helper analysed
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::option::expect_failed
+   3: <core::option::Option<&tcl_compiler::compilation_unit::FunctionUnit>>::expect
+   4: tcl_compiler::compilation_unit::tests::call_site_param_constants::exported_namespace_declines_the_seed_even_with_a_workspace_view
+   5: tcl_compiler::compilation_unit::tests::call_site_param_constants::exported_namespace_declines_the_seed_even_with_a_workspace_view::{closure#0}
+   6: <tcl_compiler::compilation_unit::tests::call_site_param_constants::exported_namespace_declines_the_seed_even_with_a_workspace_view::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- compilation_unit::tests::call_site_param_constants::namespace_eval_body_nested_in_a_proc_resolves_against_its_own_namespace stdout ----
+
+thread 'compilation_unit::tests::call_site_param_constants::namespace_eval_body_nested_in_a_proc_resolves_against_its_own_namespace' (5461) panicked at rust/tcl-compiler/src/compilation_unit.rs:7984:18:
+::other::helper analysed
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::option::expect_failed
+   3: <core::option::Option<&tcl_compiler::compilation_unit::FunctionUnit>>::expect
+   4: tcl_compiler::compilation_unit::tests::call_site_param_constants::namespace_eval_body_nested_in_a_proc_resolves_against_its_own_namespace
+   5: tcl_compiler::compilation_unit::tests::call_site_param_constants::namespace_eval_body_nested_in_a_proc_resolves_against_its_own_namespace::{closure#0}
+   6: <tcl_compiler::compilation_unit::tests::call_site_param_constants::namespace_eval_body_nested_in_a_proc_resolves_against_its_own_namespace::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- compilation_unit::tests::call_site_param_constants::namespaced_recursive_proc_parity_check_is_not_constant_folded stdout ----
+
+thread 'compilation_unit::tests::call_site_param_constants::namespaced_recursive_proc_parity_check_is_not_constant_folded' (5462) panicked at rust/tcl-compiler/src/compilation_unit.rs:8157:18:
+dfs analysed
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::option::expect_failed
+   3: <core::option::Option<&tcl_compiler::compilation_unit::FunctionUnit>>::expect
+   4: tcl_compiler::compilation_unit::tests::call_site_param_constants::namespaced_recursive_proc_parity_check_is_not_constant_folded
+   5: tcl_compiler::compilation_unit::tests::call_site_param_constants::namespaced_recursive_proc_parity_check_is_not_constant_folded::{closure#0}
+   6: <tcl_compiler::compilation_unit::tests::call_site_param_constants::namespaced_recursive_proc_parity_check_is_not_constant_folded::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- compilation_unit::tests::call_site_param_constants::non_package_file_is_unaffected_by_package_provide_guard stdout ----
+
+thread 'compilation_unit::tests::call_site_param_constants::non_package_file_is_unaffected_by_package_provide_guard' (5463) panicked at rust/tcl-compiler/src/compilation_unit.rs:8487:18:
+helper analysed
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::option::expect_failed
+   3: <core::option::Option<&tcl_compiler::compilation_unit::FunctionUnit>>::expect
+   4: tcl_compiler::compilation_unit::tests::call_site_param_constants::non_package_file_is_unaffected_by_package_provide_guard
+   5: tcl_compiler::compilation_unit::tests::call_site_param_constants::non_package_file_is_unaffected_by_package_provide_guard::{closure#0}
+   6: <tcl_compiler::compilation_unit::tests::call_site_param_constants::non_package_file_is_unaffected_by_package_provide_guard::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- compilation_unit::tests::call_site_param_constants::package_provide_file_disqualifies_every_seed stdout ----
+
+thread 'compilation_unit::tests::call_site_param_constants::package_provide_file_disqualifies_every_seed' (5464) panicked at rust/tcl-compiler/src/compilation_unit.rs:8462:18:
+helper analysed
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::option::expect_failed
+   3: <core::option::Option<&tcl_compiler::compilation_unit::FunctionUnit>>::expect
+   4: tcl_compiler::compilation_unit::tests::call_site_param_constants::package_provide_file_disqualifies_every_seed
+   5: tcl_compiler::compilation_unit::tests::call_site_param_constants::package_provide_file_disqualifies_every_seed::{closure#0}
+   6: <tcl_compiler::compilation_unit::tests::call_site_param_constants::package_provide_file_disqualifies_every_seed::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- compilation_unit::tests::call_site_param_constants::package_provide_mentioned_only_in_a_comment_does_not_disqualify stdout ----
+
+thread 'compilation_unit::tests::call_site_param_constants::package_provide_mentioned_only_in_a_comment_does_not_disqualify' (5465) panicked at rust/tcl-compiler/src/compilation_unit.rs:8513:18:
+helper analysed
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::option::expect_failed
+   3: <core::option::Option<&tcl_compiler::compilation_unit::FunctionUnit>>::expect
+   4: tcl_compiler::compilation_unit::tests::call_site_param_constants::package_provide_mentioned_only_in_a_comment_does_not_disqualify
+   5: tcl_compiler::compilation_unit::tests::call_site_param_constants::package_provide_mentioned_only_in_a_comment_does_not_disqualify::{closure#0}
+   6: <tcl_compiler::compilation_unit::tests::call_site_param_constants::package_provide_mentioned_only_in_a_comment_does_not_disqualify::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- compilation_unit::tests::call_site_param_constants::package_provide_with_unusual_spelling_still_disqualifies stdout ----
+
+thread 'compilation_unit::tests::call_site_param_constants::package_provide_with_unusual_spelling_still_disqualifies' (5466) panicked at rust/tcl-compiler/src/compilation_unit.rs:8539:18:
+helper analysed
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::option::expect_failed
+   3: <core::option::Option<&tcl_compiler::compilation_unit::FunctionUnit>>::expect
+   4: tcl_compiler::compilation_unit::tests::call_site_param_constants::package_provide_with_unusual_spelling_still_disqualifies
+   5: tcl_compiler::compilation_unit::tests::call_site_param_constants::package_provide_with_unusual_spelling_still_disqualifies::{closure#0}
+   6: <tcl_compiler::compilation_unit::tests::call_site_param_constants::package_provide_with_unusual_spelling_still_disqualifies::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- compilation_unit::tests::call_site_param_constants::sibling_namespace_procs_with_same_leaf_name_are_not_conflated stdout ----
+
+thread 'compilation_unit::tests::call_site_param_constants::sibling_namespace_procs_with_same_leaf_name_are_not_conflated' (5469) panicked at rust/tcl-compiler/src/compilation_unit.rs:8251:18:
+::a::go analysed
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::option::expect_failed
+   3: <core::option::Option<&tcl_compiler::compilation_unit::FunctionUnit>>::expect
+   4: tcl_compiler::compilation_unit::tests::call_site_param_constants::sibling_namespace_procs_with_same_leaf_name_are_not_conflated
+   5: tcl_compiler::compilation_unit::tests::call_site_param_constants::sibling_namespace_procs_with_same_leaf_name_are_not_conflated::{closure#0}
+   6: <tcl_compiler::compilation_unit::tests::call_site_param_constants::sibling_namespace_procs_with_same_leaf_name_are_not_conflated::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- compilation_unit::tests::call_site_param_constants::rename_onto_callee_name_disqualifies_call_site_seed stdout ----
+
+thread 'compilation_unit::tests::call_site_param_constants::rename_onto_callee_name_disqualifies_call_site_seed' (5468) panicked at rust/tcl-compiler/src/compilation_unit.rs:8294:18:
+helper analysed
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::option::expect_failed
+   3: <core::option::Option<&tcl_compiler::compilation_unit::FunctionUnit>>::expect
+   4: tcl_compiler::compilation_unit::tests::call_site_param_constants::rename_onto_callee_name_disqualifies_call_site_seed
+   5: tcl_compiler::compilation_unit::tests::call_site_param_constants::rename_onto_callee_name_disqualifies_call_site_seed::{closure#0}
+   6: <tcl_compiler::compilation_unit::tests::call_site_param_constants::rename_onto_callee_name_disqualifies_call_site_seed::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- compilation_unit::tests::call_site_param_constants::recursive_param_version_zero_is_never_const_in_lattice stdout ----
+
+thread 'compilation_unit::tests::call_site_param_constants::recursive_param_version_zero_is_never_const_in_lattice' (5467) panicked at rust/tcl-compiler/src/compilation_unit.rs:8849:18:
+dfs analysed
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::option::expect_failed
+   3: <core::option::Option<&tcl_compiler::compilation_unit::FunctionUnit>>::expect
+   4: tcl_compiler::compilation_unit::tests::call_site_param_constants::recursive_param_version_zero_is_never_const_in_lattice
+   5: tcl_compiler::compilation_unit::tests::call_site_param_constants::recursive_param_version_zero_is_never_const_in_lattice::{closure#0}
+   6: <tcl_compiler::compilation_unit::tests::call_site_param_constants::recursive_param_version_zero_is_never_const_in_lattice::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- compilation_unit::tests::call_site_param_constants::two_same_namespace_callers_with_uniform_literal_still_folds stdout ----
+
+thread 'compilation_unit::tests::call_site_param_constants::two_same_namespace_callers_with_uniform_literal_still_folds' (5471) panicked at rust/tcl-compiler/src/compilation_unit.rs:8209:18:
+go analysed
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::option::expect_failed
+   3: <core::option::Option<&tcl_compiler::compilation_unit::FunctionUnit>>::expect
+   4: tcl_compiler::compilation_unit::tests::call_site_param_constants::two_same_namespace_callers_with_uniform_literal_still_folds
+   5: tcl_compiler::compilation_unit::tests::call_site_param_constants::two_same_namespace_callers_with_uniform_literal_still_folds::{closure#0}
+   6: <tcl_compiler::compilation_unit::tests::call_site_param_constants::two_same_namespace_callers_with_uniform_literal_still_folds::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- compilation_unit::tests::call_site_param_constants::top_level_recursive_proc_parity_check_is_not_constant_folded stdout ----
+
+thread 'compilation_unit::tests::call_site_param_constants::top_level_recursive_proc_parity_check_is_not_constant_folded' (5470) panicked at rust/tcl-compiler/src/compilation_unit.rs:8181:18:
+count_up analysed
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::option::expect_failed
+   3: <core::option::Option<&tcl_compiler::compilation_unit::FunctionUnit>>::expect
+   4: tcl_compiler::compilation_unit::tests::call_site_param_constants::top_level_recursive_proc_parity_check_is_not_constant_folded
+   5: tcl_compiler::compilation_unit::tests::call_site_param_constants::top_level_recursive_proc_parity_check_is_not_constant_folded::{closure#0}
+   6: <tcl_compiler::compilation_unit::tests::call_site_param_constants::top_level_recursive_proc_parity_check_is_not_constant_folded::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- compilation_unit::tests::call_site_param_constants::unrelated_catch_body_does_not_disqualify_a_different_proc stdout ----
+
+thread 'compilation_unit::tests::call_site_param_constants::unrelated_catch_body_does_not_disqualify_a_different_proc' (5472) panicked at rust/tcl-compiler/src/compilation_unit.rs:8414:18:
+helper analysed
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::option::expect_failed
+   3: <core::option::Option<&tcl_compiler::compilation_unit::FunctionUnit>>::expect
+   4: tcl_compiler::compilation_unit::tests::call_site_param_constants::unrelated_catch_body_does_not_disqualify_a_different_proc
+   5: tcl_compiler::compilation_unit::tests::call_site_param_constants::unrelated_catch_body_does_not_disqualify_a_different_proc::{closure#0}
+   6: <tcl_compiler::compilation_unit::tests::call_site_param_constants::unrelated_catch_body_does_not_disqualify_a_different_proc::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- compilation_unit::tests::call_site_param_constants::uplevel_bare_zero_body_resolves_against_the_enclosing_namespace stdout ----
+
+thread 'compilation_unit::tests::call_site_param_constants::uplevel_bare_zero_body_resolves_against_the_enclosing_namespace' (5473) panicked at rust/tcl-compiler/src/compilation_unit.rs:7882:18:
+::foo::helper analysed
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::option::expect_failed
+   3: <core::option::Option<&tcl_compiler::compilation_unit::FunctionUnit>>::expect
+   4: tcl_compiler::compilation_unit::tests::call_site_param_constants::uplevel_bare_zero_body_resolves_against_the_enclosing_namespace
+   5: tcl_compiler::compilation_unit::tests::call_site_param_constants::uplevel_bare_zero_body_resolves_against_the_enclosing_namespace::{closure#0}
+   6: <tcl_compiler::compilation_unit::tests::call_site_param_constants::uplevel_bare_zero_body_resolves_against_the_enclosing_namespace::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- compilation_unit::tests::call_site_param_constants::uplevel_relative_body_keeps_the_enclosing_units_namespace stdout ----
+
+thread 'compilation_unit::tests::call_site_param_constants::uplevel_relative_body_keeps_the_enclosing_units_namespace' (5474) panicked at rust/tcl-compiler/src/compilation_unit.rs:7915:18:
+::foo::helper analysed
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::option::expect_failed
+   3: <core::option::Option<&tcl_compiler::compilation_unit::FunctionUnit>>::expect
+   4: tcl_compiler::compilation_unit::tests::call_site_param_constants::uplevel_relative_body_keeps_the_enclosing_units_namespace
+   5: tcl_compiler::compilation_unit::tests::call_site_param_constants::uplevel_relative_body_keeps_the_enclosing_units_namespace::{closure#0}
+   6: <tcl_compiler::compilation_unit::tests::call_site_param_constants::uplevel_relative_body_keeps_the_enclosing_units_namespace::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- compilation_unit::tests::call_site_param_constants::uplevel_zero_body_resolves_against_global_not_enclosing_namespace stdout ----
+
+thread 'compilation_unit::tests::call_site_param_constants::uplevel_zero_body_resolves_against_global_not_enclosing_namespace' (5475) panicked at rust/tcl-compiler/src/compilation_unit.rs:7838:18:
+::helper analysed
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::option::expect_failed
+   3: <core::option::Option<&tcl_compiler::compilation_unit::FunctionUnit>>::expect
+   4: tcl_compiler::compilation_unit::tests::call_site_param_constants::uplevel_zero_body_resolves_against_global_not_enclosing_namespace
+   5: tcl_compiler::compilation_unit::tests::call_site_param_constants::uplevel_zero_body_resolves_against_global_not_enclosing_namespace::{closure#0}
+   6: <tcl_compiler::compilation_unit::tests::call_site_param_constants::uplevel_zero_body_resolves_against_global_not_enclosing_namespace::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- compilation_unit::tests::colliding_method_reports_keep_independent_analysis_units stdout ----
+
+thread 'compilation_unit::tests::colliding_method_reports_keep_independent_analysis_units' (5478) panicked at rust/tcl-compiler/src/compilation_unit.rs:7206:9:
+assertion `left == right` failed
+  left: 0
+ right: 4
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<usize, usize>
+   4: tcl_compiler::compilation_unit::tests::colliding_method_reports_keep_independent_analysis_units
+   5: tcl_compiler::compilation_unit::tests::colliding_method_reports_keep_independent_analysis_units::{closure#0}
+   6: <tcl_compiler::compilation_unit::tests::colliding_method_reports_keep_independent_analysis_units::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- compilation_unit::tests::call_site_param_constants::wildcard_namespace_import_preserves_actual_identity_and_open_callers stdout ----
+
+thread 'compilation_unit::tests::call_site_param_constants::wildcard_namespace_import_preserves_actual_identity_and_open_callers' (5477) panicked at rust/tcl-compiler/src/compilation_unit.rs:7630:18:
+reached imported proc
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::option::expect_failed
+   3: <core::option::Option<&tcl_compiler::command_binding::SourceCommandTarget>>::expect
+   4: tcl_compiler::compilation_unit::tests::call_site_param_constants::wildcard_namespace_import_preserves_actual_identity_and_open_callers
+   5: tcl_compiler::compilation_unit::tests::call_site_param_constants::wildcard_namespace_import_preserves_actual_identity_and_open_callers::{closure#0}
+   6: <tcl_compiler::compilation_unit::tests::call_site_param_constants::wildcard_namespace_import_preserves_actual_identity_and_open_callers::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- compilation_unit::tests::complexity_guard_flags_byte_huge_proc stdout ----
+
+thread 'compilation_unit::tests::complexity_guard_flags_byte_huge_proc' (5479) panicked at rust/tcl-compiler/src/compilation_unit.rs:7169:48:
+::small built
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::option::expect_failed
+   3: <core::option::Option<&tcl_compiler::compilation_unit::FunctionUnit>>::expect
+   4: tcl_compiler::compilation_unit::tests::complexity_guard_flags_byte_huge_proc
+   5: tcl_compiler::compilation_unit::tests::complexity_guard_flags_byte_huge_proc::{closure#0}
+   6: <tcl_compiler::compilation_unit::tests::complexity_guard_flags_byte_huge_proc::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- compilation_unit::tests::existence_is_unavailable_at_the_fast_tier stdout ----
+
+thread 'compilation_unit::tests::existence_is_unavailable_at_the_fast_tier' (5483) panicked at rust/tcl-compiler/src/compilation_unit.rs:7152:9:
+[]
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: tcl_compiler::compilation_unit::tests::existence_is_unavailable_at_the_fast_tier
+   3: tcl_compiler::compilation_unit::tests::existence_is_unavailable_at_the_fast_tier::{closure#0}
+   4: <tcl_compiler::compilation_unit::tests::existence_is_unavailable_at_the_fast_tier::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- compilation_unit::tests::method_units_carry_the_single_method_facts_carrier stdout ----
+
+thread 'compilation_unit::tests::method_units_carry_the_single_method_facts_carrier' (5487) panicked at rust/tcl-compiler/src/compilation_unit.rs:6960:48:
+method unit built
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::option::expect_failed
+   3: <core::option::Option<&tcl_compiler::compilation_unit::FunctionUnit>>::expect
+   4: tcl_compiler::compilation_unit::tests::method_units_carry_the_single_method_facts_carrier
+   5: tcl_compiler::compilation_unit::tests::method_units_carry_the_single_method_facts_carrier::{closure#0}
+   6: <tcl_compiler::compilation_unit::tests::method_units_carry_the_single_method_facts_carrier::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- compilation_unit::tests::module_realm_refusal_withholds_caller_seeds_and_retires_interprocedural_results stdout ----
+
+thread 'compilation_unit::tests::module_realm_refusal_withholds_caller_seeds_and_retires_interprocedural_results' (5488) panicked at rust/tcl-compiler/src/compilation_unit.rs:5971:38:
+called `Option::unwrap()` on a `None` value
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: core::option::unwrap_failed
+   4: tcl_compiler::compilation_unit::tests::module_realm_refusal_withholds_caller_seeds_and_retires_interprocedural_results
+   5: tcl_compiler::compilation_unit::tests::module_realm_refusal_withholds_caller_seeds_and_retires_interprocedural_results::{closure#0}
+   6: <tcl_compiler::compilation_unit::tests::module_realm_refusal_withholds_caller_seeds_and_retires_interprocedural_results::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- compilation_unit::tests::non_method_units_carry_no_method_facts stdout ----
+
+thread 'compilation_unit::tests::non_method_units_carry_no_method_facts' (5489) panicked at rust/tcl-compiler/src/compilation_unit.rs:6990:14:
+proc unit built
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::option::expect_failed
+   3: <core::option::Option<&tcl_compiler::compilation_unit::FunctionUnit>>::expect
+   4: tcl_compiler::compilation_unit::tests::non_method_units_carry_no_method_facts
+   5: tcl_compiler::compilation_unit::tests::non_method_units_carry_no_method_facts::{closure#0}
+   6: <tcl_compiler::compilation_unit::tests::non_method_units_carry_no_method_facts::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- compilation_unit::tests::memoised_source_facts_retain_nested_bom_and_lexer_overlays stdout ----
+
+thread 'compilation_unit::tests::memoised_source_facts_retain_nested_bom_and_lexer_overlays' (5486) panicked at rust/tcl-compiler/src/compilation_unit.rs:6447:13:
+assertion failed: semantic_bundle_has_source_metadata(&selected)
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: tcl_compiler::compilation_unit::tests::memoised_source_facts_retain_nested_bom_and_lexer_overlays::{closure#0}
+   4: <&mut dyn for<'a, 'b> core::ops::function::FnMut<(&'a tcl_compiler::compilation_unit::LatticeRequest<'b>,), Output = tcl_compiler::compilation_unit::FunctionUnit> as core::ops::function::FnMut<(&tcl_compiler::compilation_unit::LatticeRequest,)>>::call_mut
+   5: tcl_compiler::compilation_unit::build_procedure_units
+   6: <tcl_compiler::compilation_unit::CompilationUnit>::build_with_retained_entry_and_source_syntax
+   7: <tcl_compiler::compilation_unit::CompilationUnit>::build_with_retained_entry
+   8: <tcl_compiler::compilation_unit::CompilationUnit>::build_with_entry
+   9: tcl_compiler::compilation_unit::tests::memoised_source_facts_retain_nested_bom_and_lexer_overlays
+  10: tcl_compiler::compilation_unit::tests::memoised_source_facts_retain_nested_bom_and_lexer_overlays::{closure#0}
+  11: <tcl_compiler::compilation_unit::tests::memoised_source_facts_retain_nested_bom_and_lexer_overlays::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- compilation_unit::tests::prepare_cfg_context_retains_same_tailed_body_parameters stdout ----
+
+thread 'compilation_unit::tests::prepare_cfg_context_retains_same_tailed_body_parameters' (5491) panicked at rust/tcl-compiler/src/test_body_identity.rs:54:28:
+authored fixture body "::a::x" absent
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: tcl_compiler::interprocedural::test_body_identity::fixture_id::<tcl_compiler::ir::Procedure, &tcl_compiler::ir::procedure_identity::ProcedureInventory>::{closure#0}
+   3: <core::option::Option<tcl_core_types::body_identity::ProcedureId>>::unwrap_or_else::<tcl_compiler::interprocedural::test_body_identity::fixture_id<tcl_compiler::ir::Procedure, &tcl_compiler::ir::procedure_identity::ProcedureInventory>::{closure#0}>
+   4: tcl_compiler::interprocedural::test_body_identity::fixture_id::<tcl_compiler::ir::Procedure, &tcl_compiler::ir::procedure_identity::ProcedureInventory>
+   5: tcl_compiler::compilation_unit::tests::prepare_cfg_context_retains_same_tailed_body_parameters
+   6: tcl_compiler::compilation_unit::tests::prepare_cfg_context_retains_same_tailed_body_parameters::{closure#0}
+   7: <tcl_compiler::compilation_unit::tests::prepare_cfg_context_retains_same_tailed_body_parameters::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- compilation_unit::tests::return_type_follows_local_var stdout ----
+
+thread 'compilation_unit::tests::return_type_follows_local_var' (5496) panicked at rust/tcl-compiler/src/compilation_unit.rs:7381:37:
+proc ::f
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::option::expect_failed
+   3: <core::option::Option<&tcl_compiler::compilation_unit::FunctionUnit>>::expect
+   4: tcl_compiler::compilation_unit::tests::return_type_follows_local_var
+   5: tcl_compiler::compilation_unit::tests::return_type_follows_local_var::{closure#0}
+   6: <tcl_compiler::compilation_unit::tests::return_type_follows_local_var::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- compilation_unit::tests::return_type_infers_int_literal stdout ----
+
+thread 'compilation_unit::tests::return_type_infers_int_literal' (5497) panicked at rust/tcl-compiler/src/compilation_unit.rs:7364:37:
+proc ::f
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::option::expect_failed
+   3: <core::option::Option<&tcl_compiler::compilation_unit::FunctionUnit>>::expect
+   4: tcl_compiler::compilation_unit::tests::return_type_infers_int_literal
+   5: tcl_compiler::compilation_unit::tests::return_type_infers_int_literal::{closure#0}
+   6: <tcl_compiler::compilation_unit::tests::return_type_infers_int_literal::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- compilation_unit::tests::return_type_infers_string_literal stdout ----
+
+thread 'compilation_unit::tests::return_type_infers_string_literal' (5498) panicked at rust/tcl-compiler/src/compilation_unit.rs:7371:37:
+proc ::f
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::option::expect_failed
+   3: <core::option::Option<&tcl_compiler::compilation_unit::FunctionUnit>>::expect
+   4: tcl_compiler::compilation_unit::tests::return_type_infers_string_literal
+   5: tcl_compiler::compilation_unit::tests::return_type_infers_string_literal::{closure#0}
+   6: <tcl_compiler::compilation_unit::tests::return_type_infers_string_literal::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- compilation_unit::tests::return_type_joins_branches_to_common_int stdout ----
+
+thread 'compilation_unit::tests::return_type_joins_branches_to_common_int' (5499) panicked at rust/tcl-compiler/src/compilation_unit.rs:7392:37:
+proc ::f
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::option::expect_failed
+   3: <core::option::Option<&tcl_compiler::compilation_unit::FunctionUnit>>::expect
+   4: tcl_compiler::compilation_unit::tests::return_type_joins_branches_to_common_int
+   5: tcl_compiler::compilation_unit::tests::return_type_joins_branches_to_common_int::{closure#0}
+   6: <tcl_compiler::compilation_unit::tests::return_type_joins_branches_to_common_int::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- compilation_unit::tests::return_type_partial_return_widens_via_fallthrough stdout ----
+
+thread 'compilation_unit::tests::return_type_partial_return_widens_via_fallthrough' (5500) panicked at rust/tcl-compiler/src/compilation_unit.rs:7404:37:
+proc ::f
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::option::expect_failed
+   3: <core::option::Option<&tcl_compiler::compilation_unit::FunctionUnit>>::expect
+   4: tcl_compiler::compilation_unit::tests::return_type_partial_return_widens_via_fallthrough
+   5: tcl_compiler::compilation_unit::tests::return_type_partial_return_widens_via_fallthrough::{closure#0}
+   6: <tcl_compiler::compilation_unit::tests::return_type_partial_return_widens_via_fallthrough::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- compilation_unit::tests::runtime_selected_method_commands_guard_deep_cfg_analysis stdout ----
+
+thread 'compilation_unit::tests::runtime_selected_method_commands_guard_deep_cfg_analysis' (5501) panicked at rust/tcl-compiler/src/compilation_unit.rs:7271:18:
+unique retained fixture method
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::option::expect_failed
+   3: <core::option::Option<&tcl_compiler::compilation_unit::FunctionUnit>>::expect
+   4: tcl_compiler::compilation_unit::tests::runtime_selected_method_commands_guard_deep_cfg_analysis
+   5: tcl_compiler::compilation_unit::tests::runtime_selected_method_commands_guard_deep_cfg_analysis::{closure#0}
+   6: <tcl_compiler::compilation_unit::tests::runtime_selected_method_commands_guard_deep_cfg_analysis::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- compilation_unit::tests::original_module_taint_replay_preserves_receivers_and_refuses_foreign_owners stdout ----
+
+thread 'compilation_unit::tests::original_module_taint_replay_preserves_receivers_and_refuses_foreign_owners' (5490) panicked at rust/tcl-compiler/src/compilation_unit.rs:5861:9:
+assertion failed: analysis.global_instance_classes[&body].contains_key(".e")
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: tcl_compiler::compilation_unit::tests::original_module_taint_replay_preserves_receivers_and_refuses_foreign_owners
+   4: tcl_compiler::compilation_unit::tests::original_module_taint_replay_preserves_receivers_and_refuses_foreign_owners::{closure#0}
+   5: <tcl_compiler::compilation_unit::tests::original_module_taint_replay_preserves_receivers_and_refuses_foreign_owners::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- compilation_unit::tests::switch_glob_arm_body_read_counts_as_param_use stdout ----
+
+thread 'compilation_unit::tests::switch_glob_arm_body_read_counts_as_param_use' (5509) panicked at rust/tcl-compiler/src/compilation_unit.rs:7346:41:
+proc ::p should exist
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::option::expect_failed
+   3: <core::option::Option<&tcl_compiler::compilation_unit::FunctionUnit>>::expect
+   4: tcl_compiler::compilation_unit::tests::switch_glob_arm_body_read_counts_as_param_use
+   5: tcl_compiler::compilation_unit::tests::switch_glob_arm_body_read_counts_as_param_use::{closure#0}
+   6: <tcl_compiler::compilation_unit::tests::switch_glob_arm_body_read_counts_as_param_use::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- compilation_unit::tests::switch_subject_counts_as_param_use stdout ----
+
+thread 'compilation_unit::tests::switch_subject_counts_as_param_use' (5510) panicked at rust/tcl-compiler/src/compilation_unit.rs:7322:37:
+proc ::p should exist
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::option::expect_failed
+   3: <core::option::Option<&tcl_compiler::compilation_unit::FunctionUnit>>::expect
+   4: tcl_compiler::compilation_unit::tests::switch_subject_counts_as_param_use
+   5: tcl_compiler::compilation_unit::tests::switch_subject_counts_as_param_use::{closure#0}
+   6: <tcl_compiler::compilation_unit::tests::switch_subject_counts_as_param_use::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- compilation_unit::tests::top_level_var_touched_by_callee_global_is_overdefined stdout ----
+
+thread 'compilation_unit::tests::top_level_var_touched_by_callee_global_is_overdefined' (5512) panicked at rust/tcl-compiler/src/compilation_unit.rs:7022:9:
+prior value must remain represented: [((Symbol(1), 1), Overdefined)]
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: tcl_compiler::compilation_unit::tests::assert_callee_global_write_is_positioned
+   3: tcl_compiler::compilation_unit::tests::top_level_var_touched_by_callee_global_is_overdefined
+   4: tcl_compiler::compilation_unit::tests::top_level_var_touched_by_callee_global_is_overdefined::{closure#0}
+   5: <tcl_compiler::compilation_unit::tests::top_level_var_touched_by_callee_global_is_overdefined::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- compilation_unit::tests::top_level_dual_ported_var_touched_by_callee_global_is_overdefined stdout ----
+
+thread 'compilation_unit::tests::top_level_dual_ported_var_touched_by_callee_global_is_overdefined' (5511) panicked at rust/tcl-compiler/src/compilation_unit.rs:7022:9:
+prior value must remain represented: [((Symbol(1), 1), Overdefined)]
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: tcl_compiler::compilation_unit::tests::assert_callee_global_write_is_positioned
+   3: tcl_compiler::compilation_unit::tests::top_level_dual_ported_var_touched_by_callee_global_is_overdefined
+   4: tcl_compiler::compilation_unit::tests::top_level_dual_ported_var_touched_by_callee_global_is_overdefined::{closure#0}
+   5: <tcl_compiler::compilation_unit::tests::top_level_dual_ported_var_touched_by_callee_global_is_overdefined::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- compilation_unit::tests::top_level_var_untouched_by_any_callee_still_folds stdout ----
+
+thread 'compilation_unit::tests::top_level_var_untouched_by_any_callee_still_folds' (5513) panicked at rust/tcl-compiler/src/compilation_unit.rs:7082:9:
+expected `safe_const` to still fold to a Const
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: tcl_compiler::compilation_unit::tests::top_level_var_untouched_by_any_callee_still_folds
+   3: tcl_compiler::compilation_unit::tests::top_level_var_untouched_by_any_callee_still_folds::{closure#0}
+   4: <tcl_compiler::compilation_unit::tests::top_level_var_untouched_by_any_callee_still_folds::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+
+failures:
+    compilation_unit::conditional_original_body_tests::conditional_empty_child_has_no_report_selected_frame_or_parent_entry_donation
+    compilation_unit::conditional_original_body_tests::conditional_original_child_inherits_unknown_presence_and_refines_local_stores
+    compilation_unit::conditional_original_body_tests::conditional_original_child_keeps_source_config_namespace_and_has_no_event_grant
+    compilation_unit::conditional_original_body_tests::nested_original_children_share_the_actual_root_function_owner
+    compilation_unit::conditional_original_body_tests::original_child_withdraws_missing_foreign_and_changed_complete_owners
+    compilation_unit::original_receiver_method_facts_tests::original_method_facts_keep_counted_formals_without_class_label_variable_union
+    compilation_unit::selected_class_roster_tests::genuine_cu_roster_uses_selected_custom_renamed_and_direct_aliased_definers
+    compilation_unit::smoke::smoke_compile_canonical_snippet
+    compilation_unit::tests::build_for_captures_procedures
+    compilation_unit::tests::build_for_lowers_oo_methods_to_function_units
+    compilation_unit::tests::call_site_param_constants::apply_with_a_namespace_element_resolves_the_body_against_it
+    compilation_unit::tests::call_site_param_constants::apply_without_a_namespace_element_still_resolves_globally
+    compilation_unit::tests::call_site_param_constants::call_site_inside_catch_body_is_not_missed
+    compilation_unit::tests::call_site_param_constants::call_site_inside_tcloo_method_body_is_not_missed
+    compilation_unit::tests::call_site_param_constants::call_site_inside_uplevel_body_is_not_missed
+    compilation_unit::tests::call_site_param_constants::call_site_via_namespace_import_alias_is_not_missed
+    compilation_unit::tests::call_site_param_constants::caller_contents_do_not_license_erasing_retained_parameter_coercions
+    compilation_unit::tests::call_site_param_constants::caught_unresolved_command_keeps_its_callback_mutation_boundary
+    compilation_unit::tests::call_site_param_constants::conditionally_defined_proc_body_call_sites_are_still_counted
+    compilation_unit::tests::call_site_param_constants::cross_file::a_file_that_sources_another_declines_the_seed_on_its_own
+    compilation_unit::tests::call_site_param_constants::cross_file::sourcing_file_agreeing_on_the_literal_still_folds
+    compilation_unit::tests::call_site_param_constants::cross_file::unrelated_workspace_file_contributes_nothing
+    compilation_unit::tests::call_site_param_constants::dynamic_dispatch_elsewhere_does_not_disqualify_an_unrelated_seed
+    compilation_unit::tests::call_site_param_constants::ensemble_map_redirected_caller_does_not_fold_issue_979
+    compilation_unit::tests::call_site_param_constants::exported_namespace_declines_the_seed_even_with_a_workspace_view
+    compilation_unit::tests::call_site_param_constants::method_body_bare_call_resolves_against_global_not_class_namespace
+    compilation_unit::tests::call_site_param_constants::namespace_eval_body_nested_in_a_proc_resolves_against_its_own_namespace
+    compilation_unit::tests::call_site_param_constants::namespaced_recursive_proc_parity_check_is_not_constant_folded
+    compilation_unit::tests::call_site_param_constants::non_package_file_is_unaffected_by_package_provide_guard
+    compilation_unit::tests::call_site_param_constants::package_provide_file_disqualifies_every_seed
+    compilation_unit::tests::call_site_param_constants::package_provide_mentioned_only_in_a_comment_does_not_disqualify
+    compilation_unit::tests::call_site_param_constants::package_provide_with_unusual_spelling_still_disqualifies
+    compilation_unit::tests::call_site_param_constants::recursive_param_version_zero_is_never_const_in_lattice
+    compilation_unit::tests::call_site_param_constants::rename_onto_callee_name_disqualifies_call_site_seed
+    compilation_unit::tests::call_site_param_constants::sibling_namespace_procs_with_same_leaf_name_are_not_conflated
+    compilation_unit::tests::call_site_param_constants::top_level_recursive_proc_parity_check_is_not_constant_folded
+    compilation_unit::tests::call_site_param_constants::two_same_namespace_callers_with_uniform_literal_still_folds
+    compilation_unit::tests::call_site_param_constants::unrelated_catch_body_does_not_disqualify_a_different_proc
+    compilation_unit::tests::call_site_param_constants::uplevel_bare_zero_body_resolves_against_the_enclosing_namespace
+    compilation_unit::tests::call_site_param_constants::uplevel_relative_body_keeps_the_enclosing_units_namespace
+    compilation_unit::tests::call_site_param_constants::uplevel_zero_body_resolves_against_global_not_enclosing_namespace
+    compilation_unit::tests::call_site_param_constants::wildcard_namespace_import_preserves_actual_identity_and_open_callers
+    compilation_unit::tests::colliding_method_reports_keep_independent_analysis_units
+    compilation_unit::tests::complexity_guard_flags_byte_huge_proc
+    compilation_unit::tests::existence_is_unavailable_at_the_fast_tier
+    compilation_unit::tests::memoised_source_facts_retain_nested_bom_and_lexer_overlays
+    compilation_unit::tests::method_units_carry_the_single_method_facts_carrier
+    compilation_unit::tests::module_realm_refusal_withholds_caller_seeds_and_retires_interprocedural_results
+    compilation_unit::tests::non_method_units_carry_no_method_facts
+    compilation_unit::tests::original_module_taint_replay_preserves_receivers_and_refuses_foreign_owners
+    compilation_unit::tests::prepare_cfg_context_retains_same_tailed_body_parameters
+    compilation_unit::tests::return_type_follows_local_var
+    compilation_unit::tests::return_type_infers_int_literal
+    compilation_unit::tests::return_type_infers_string_literal
+    compilation_unit::tests::return_type_joins_branches_to_common_int
+    compilation_unit::tests::return_type_partial_return_widens_via_fallthrough
+    compilation_unit::tests::runtime_selected_method_commands_guard_deep_cfg_analysis
+    compilation_unit::tests::switch_glob_arm_body_read_counts_as_param_use
+    compilation_unit::tests::switch_subject_counts_as_param_use
+    compilation_unit::tests::top_level_dual_ported_var_touched_by_callee_global_is_overdefined
+    compilation_unit::tests::top_level_var_touched_by_callee_global_is_overdefined
+    compilation_unit::tests::top_level_var_untouched_by_any_callee_still_folds
+
+test result: FAILED. 36 passed; 62 failed; 0 ignored; 0 measured; 10353 filtered out; finished in 30.88s
+

@@ -1,0 +1,243 @@
+test compilation_unit::conditional_original_body_tests::conditional_original_child_keeps_source_config_namespace_and_has_no_event_grant ... FAILED
+test compilation_unit::conditional_original_body_tests::conditional_empty_child_has_no_report_selected_frame_or_parent_entry_donation ... FAILED
+test compilation_unit::conditional_original_body_tests::nested_original_children_share_the_actual_root_function_owner ... FAILED
+test compilation_unit::conditional_original_body_tests::original_child_withdraws_missing_foreign_and_changed_complete_owners ... FAILED
+test compilation_unit::conditional_original_body_tests::conditional_original_child_inherits_unknown_presence_and_refines_local_stores ... FAILED
+test compilation_unit::jim_ingress_tests::a_jim_unit_is_built_as_jim_end_to_end ... ok
+test compilation_unit::jim_ingress_tests::jim_aliases_build_the_same_unit ... ok
+test compilation_unit::original_lattice_worker::tests::original_lattice_worker_refuses_public_result_changes_without_changing_report_acceptance ... ok
+test compilation_unit::original_lattice_worker::tests::original_lattice_worker_keeps_actual_recipe_and_refuses_changed_key_or_request ... ok
+test compilation_unit::conditional_original_body_tests::genuine_roster_retains_empty_classes_and_refuses_owner_donation ... ok
+test compilation_unit::original_receiver_method_facts_tests::original_source_context_never_inherits_compatibility_instance_or_execution_fields ... FAILED
+test compilation_unit::original_receiver_method_facts_tests::original_method_facts_keep_counted_formals_without_class_label_variable_union ... FAILED
+test compilation_unit::selected_class_roster_tests::class_source_producer_withdraws_foreign_missing_and_changed_full_owners ... ok
+test compilation_unit::selected_class_roster_tests::retained_roster_projection_shares_empty_custom_and_selected_source_classes ... ok
+test compilation_unit::selected_class_roster_tests::retained_roster_projection_withdraws_changed_cu_module_input_and_store ... ok
+test compilation_unit::selected_class_roster_tests::genuine_cu_roster_uses_selected_custom_renamed_and_direct_aliased_definers ... FAILED
+test compilation_unit::selected_class_roster_tests::source_ssa_missing_entry_never_infers_activation_from_the_report_name ... ok
+test compilation_unit::smoke::smoke_compile_canonical_snippet ... FAILED
+test compilation_unit::tests::build_for_empty_source ... ok
+test compilation_unit::tests::build_for_captures_procedures ... FAILED
+test compilation_unit::tests::build_for_single_statement ... ok
+test compilation_unit::tests::build_for_lowers_oo_methods_to_function_units ... FAILED
+test compilation_unit::selected_class_roster_tests::selected_roster_preserves_changed_definition_and_captured_prefix_refusals ... ok
+test compilation_unit::tests::call_site_param_constants::apply_with_a_namespace_element_resolves_the_body_against_it ... FAILED
+test compilation_unit::tests::call_site_param_constants::apply_without_a_namespace_element_still_resolves_globally ... FAILED
+test compilation_unit::tests::call_site_param_constants::call_site_inside_catch_body_is_not_missed ... FAILED
+test compilation_unit::tests::call_site_param_constants::call_site_inside_uplevel_body_is_not_missed ... FAILED
+test compilation_unit::tests::call_site_param_constants::call_site_inside_tcloo_method_body_is_not_missed ... FAILED
+test compilation_unit::tests::call_site_param_constants::call_site_via_namespace_import_alias_is_not_missed ... FAILED
+test compilation_unit::tests::call_site_param_constants::caller_contents_do_not_license_erasing_retained_parameter_coercions ... FAILED
+test compilation_unit::tests::call_site_param_constants::caught_unresolved_command_keeps_its_callback_mutation_boundary ... FAILED
+test compilation_unit::tests::call_site_param_constants::conditionally_defined_proc_body_call_sites_are_still_counted ... FAILED
+test compilation_unit::tests::call_site_param_constants::cross_file::cross_file_command_prefix_callback_poisons_every_position ... ok
+test compilation_unit::tests::call_site_param_constants::cross_file::cross_file_dynamic_argument_poisons_the_position ... ok
+test compilation_unit::tests::call_site_param_constants::cross_file::a_file_that_sources_another_declines_the_seed_on_its_own ... FAILED
+test compilation_unit::tests::call_site_param_constants::cross_file::cross_file_scan_attributes_the_call_to_the_library_proc ... ok
+test compilation_unit::tests::call_site_param_constants::cross_file::cross_file_rename_poisons_the_callee ... ok
+test compilation_unit::tests::call_site_param_constants::cross_file::sourcing_file_agreeing_on_the_literal_still_folds ... FAILED
+test compilation_unit::tests::call_site_param_constants::cross_file::sourcing_file_with_a_differing_literal_retracts_the_fold ... ok
+test compilation_unit::tests::call_site_param_constants::dynamic_dispatch_elsewhere_does_not_disqualify_an_unrelated_seed ... FAILED
+test compilation_unit::tests::call_site_param_constants::cross_file::unrelated_workspace_file_contributes_nothing ... FAILED
+test compilation_unit::tests::call_site_param_constants::ensemble_map_redirected_caller_does_not_fold_issue_979 ... FAILED
+test compilation_unit::tests::call_site_param_constants::method_body_bare_call_resolves_against_global_not_class_namespace ... FAILED
+test compilation_unit::tests::call_site_param_constants::exported_namespace_declines_the_seed_even_with_a_workspace_view ... FAILED
+test compilation_unit::tests::call_site_param_constants::namespace_eval_body_nested_in_a_proc_resolves_against_its_own_namespace ... FAILED
+test compilation_unit::tests::call_site_param_constants::non_package_file_is_unaffected_by_package_provide_guard ... FAILED
+test compilation_unit::tests::call_site_param_constants::namespaced_recursive_proc_parity_check_is_not_constant_folded ... FAILED
+test compilation_unit::tests::call_site_param_constants::package_provide_mentioned_only_in_a_comment_does_not_disqualify ... FAILED
+test compilation_unit::tests::call_site_param_constants::package_provide_file_disqualifies_every_seed ... FAILED
+test compilation_unit::tests::call_site_param_constants::package_provide_with_unusual_spelling_still_disqualifies ... FAILED
+test compilation_unit::tests::call_site_param_constants::recursive_param_version_zero_is_never_const_in_lattice ... FAILED
+test compilation_unit::tests::call_site_param_constants::rename_onto_callee_name_disqualifies_call_site_seed ... FAILED
+test compilation_unit::tests::call_site_param_constants::sibling_namespace_procs_with_same_leaf_name_are_not_conflated ... FAILED
+test compilation_unit::tests::call_site_param_constants::two_same_namespace_callers_with_uniform_literal_still_folds ... FAILED
+test compilation_unit::tests::call_site_param_constants::top_level_recursive_proc_parity_check_is_not_constant_folded ... FAILED
+test compilation_unit::tests::call_site_param_constants::unrelated_catch_body_does_not_disqualify_a_different_proc ... FAILED
+test compilation_unit::tests::call_site_param_constants::uplevel_bare_zero_body_resolves_against_the_enclosing_namespace ... FAILED
+test compilation_unit::tests::call_site_param_constants::wildcard_import_without_export_does_not_manufacture_a_caller ... ok
+test compilation_unit::tests::call_site_param_constants::uplevel_relative_body_keeps_the_enclosing_units_namespace ... FAILED
+test compilation_unit::tests::call_site_param_constants::uplevel_zero_body_resolves_against_global_not_enclosing_namespace ... FAILED
+test compilation_unit::tests::colliding_method_reports_keep_independent_analysis_units ... FAILED
+test compilation_unit::tests::call_site_param_constants::wildcard_namespace_import_preserves_actual_identity_and_open_callers ... FAILED
+test compilation_unit::tests::complexity_guard_flags_byte_huge_proc ... FAILED
+test compilation_unit::tests::deep_semantic_analysis_materialises_every_retained_body_sidecar ... FAILED
+test compilation_unit::tests::default_unit_source_profile_keeps_explicit_standalone_authoring_purpose ... ok
+test compilation_unit::tests::default_source_purpose_does_not_replace_supplied_input_or_unknown_driver_entry ... ok
+test compilation_unit::tests::existence_is_unavailable_at_the_fast_tier ... FAILED
+test compilation_unit::tests::functions_iterator_yields_top_plus_procs ... ok
+test compilation_unit::tests::method_units_carry_the_single_method_facts_carrier ... FAILED
+test compilation_unit::tests::module_realm_refusal_withholds_caller_seeds_and_retires_interprocedural_results ... FAILED
+test compilation_unit::tests::non_method_units_carry_no_method_facts ... FAILED
+test compilation_unit::tests::memoised_source_facts_retain_nested_bom_and_lexer_overlays ... FAILED
+test compilation_unit::tests::prepare_cfg_context_retains_same_tailed_body_parameters ... FAILED
+test compilation_unit::tests::prepared_binding_mutation_projection_matches_compatibility_scan ... ok
+test compilation_unit::tests::retained_deep_sidecars_keep_availability_and_refuse_missing_function_input ... ok
+test compilation_unit::tests::retained_deep_sidecars_require_the_module_source_owner ... ok
+test compilation_unit::tests::function_consumers_keep_the_actual_generation_and_grammar ... ok
+test compilation_unit::tests::retained_memory_facts_require_matching_module_and_function_owners ... ok
+test compilation_unit::tests::return_type_follows_local_var ... FAILED
+test compilation_unit::tests::return_type_infers_int_literal ... FAILED
+test compilation_unit::tests::return_type_infers_string_literal ... FAILED
+test compilation_unit::tests::original_module_taint_replay_preserves_receivers_and_refuses_foreign_owners ... FAILED
+test compilation_unit::tests::return_type_joins_branches_to_common_int ... FAILED
+test compilation_unit::tests::return_type_partial_return_widens_via_fallthrough ... FAILED
+test compilation_unit::tests::semantic_bundle_keeps_dialect_and_defers_unneeded_world_state ... FAILED
+test compilation_unit::tests::runtime_selected_method_commands_guard_deep_cfg_analysis ... FAILED
+test compilation_unit::tests::semantic_bundle_requires_retained_availability_and_source_grammar ... ok
+test compilation_unit::tests::semantic_value_projection_uses_actual_jim_entry_over_c_catalogue ... ok
+test compilation_unit::tests::supplied_hosted_source_entry_retains_advice_without_activation ... ok
+test compilation_unit::tests::standalone_source_input_keeps_authoring_purpose_and_exact_metadata_currency ... ok
+test compilation_unit::tests::switch_glob_arm_body_read_counts_as_param_use ... FAILED
+test compilation_unit::tests::supplied_source_producer_refuses_changed_profile_and_lexer_metadata ... ok
+test compilation_unit::tests::switch_subject_counts_as_param_use ... FAILED
+test compilation_unit::tests::top_level_dual_ported_var_touched_by_callee_global_is_overdefined ... FAILED
+test compilation_unit::tests::top_level_var_touched_by_callee_global_is_overdefined ... FAILED
+test compilation_unit::tests::with_memory_ssa_populates_optional ... ok
+test compilation_unit::tests::top_level_var_untouched_by_any_callee_still_folds ... FAILED
+test compilation_unit::tests::supplied_source_input_retains_axes_and_independent_logical_entry ... ok
+---- compilation_unit::conditional_original_body_tests::conditional_original_child_keeps_source_config_namespace_and_has_no_event_grant stdout ----
+thread 'compilation_unit::conditional_original_body_tests::conditional_original_child_keeps_source_config_namespace_and_has_no_event_grant' (30321) panicked at rust/tcl-compiler/src/compilation_unit.rs:9027:10:
+---- compilation_unit::conditional_original_body_tests::conditional_empty_child_has_no_report_selected_frame_or_parent_entry_donation stdout ----
+thread 'compilation_unit::conditional_original_body_tests::conditional_empty_child_has_no_report_selected_frame_or_parent_entry_donation' (30319) panicked at rust/tcl-compiler/src/compilation_unit.rs:9341:14:
+---- compilation_unit::conditional_original_body_tests::nested_original_children_share_the_actual_root_function_owner stdout ----
+thread 'compilation_unit::conditional_original_body_tests::nested_original_children_share_the_actual_root_function_owner' (30323) panicked at rust/tcl-compiler/src/compilation_unit.rs:9097:14:
+---- compilation_unit::conditional_original_body_tests::original_child_withdraws_missing_foreign_and_changed_complete_owners stdout ----
+thread 'compilation_unit::conditional_original_body_tests::original_child_withdraws_missing_foreign_and_changed_complete_owners' (30324) panicked at rust/tcl-compiler/src/compilation_unit.rs:9144:9:
+assertion failed: original.conditional_original_body_unit(context.commands(), function, tokens,
+---- compilation_unit::conditional_original_body_tests::conditional_original_child_inherits_unknown_presence_and_refines_local_stores stdout ----
+thread 'compilation_unit::conditional_original_body_tests::conditional_original_child_inherits_unknown_presence_and_refines_local_stores' (30320) panicked at rust/tcl-compiler/src/compilation_unit.rs:9284:14:
+---- compilation_unit::original_receiver_method_facts_tests::original_source_context_never_inherits_compatibility_instance_or_execution_fields stdout ----
+thread 'compilation_unit::original_receiver_method_facts_tests::original_source_context_never_inherits_compatibility_instance_or_execution_fields' (30330) panicked at rust/tcl-compiler/src/compilation_unit.rs:8925:14:
+---- compilation_unit::original_receiver_method_facts_tests::original_method_facts_keep_counted_formals_without_class_label_variable_union stdout ----
+thread 'compilation_unit::original_receiver_method_facts_tests::original_method_facts_keep_counted_formals_without_class_label_variable_union' (30329) panicked at rust/tcl-compiler/src/compilation_unit.rs:8899:14:
+---- compilation_unit::selected_class_roster_tests::genuine_cu_roster_uses_selected_custom_renamed_and_direct_aliased_definers stdout ----
+thread 'compilation_unit::selected_class_roster_tests::genuine_cu_roster_uses_selected_custom_renamed_and_direct_aliased_definers' (30332) panicked at rust/tcl-compiler/src/compilation_unit.rs:9443:13:
+---- compilation_unit::smoke::smoke_compile_canonical_snippet stdout ----
+thread 'compilation_unit::smoke::smoke_compile_canonical_snippet' (30337) panicked at rust/tcl-compiler/src/compilation_unit.rs:8837:9:
+---- compilation_unit::tests::build_for_captures_procedures stdout ----
+thread 'compilation_unit::tests::build_for_captures_procedures' (30338) panicked at rust/tcl-compiler/src/compilation_unit.rs:7138:9:
+assertion failed: !cu.procedures.is_empty()
+---- compilation_unit::tests::build_for_lowers_oo_methods_to_function_units stdout ----
+thread 'compilation_unit::tests::build_for_lowers_oo_methods_to_function_units' (30340) panicked at rust/tcl-compiler/src/compilation_unit.rs:7175:9:
+assertion `left == right` failed: method units: []
+  left: []
+ right: ["::Counter::bump", "::Counter::get"]
+---- compilation_unit::tests::call_site_param_constants::apply_with_a_namespace_element_resolves_the_body_against_it stdout ----
+thread 'compilation_unit::tests::call_site_param_constants::apply_with_a_namespace_element_resolves_the_body_against_it' (30342) panicked at rust/tcl-compiler/src/compilation_unit.rs:7968:18:
+---- compilation_unit::tests::call_site_param_constants::apply_without_a_namespace_element_still_resolves_globally stdout ----
+thread 'compilation_unit::tests::call_site_param_constants::apply_without_a_namespace_element_still_resolves_globally' (30343) panicked at rust/tcl-compiler/src/compilation_unit.rs:8000:18:
+---- compilation_unit::tests::call_site_param_constants::call_site_inside_catch_body_is_not_missed stdout ----
+thread 'compilation_unit::tests::call_site_param_constants::call_site_inside_catch_body_is_not_missed' (30344) panicked at rust/tcl-compiler/src/compilation_unit.rs:8301:18:
+---- compilation_unit::tests::call_site_param_constants::call_site_inside_uplevel_body_is_not_missed stdout ----
+thread 'compilation_unit::tests::call_site_param_constants::call_site_inside_uplevel_body_is_not_missed' (30346) panicked at rust/tcl-compiler/src/compilation_unit.rs:8327:18:
+---- compilation_unit::tests::call_site_param_constants::call_site_inside_tcloo_method_body_is_not_missed stdout ----
+thread 'compilation_unit::tests::call_site_param_constants::call_site_inside_tcloo_method_body_is_not_missed' (30345) panicked at rust/tcl-compiler/src/compilation_unit.rs:7497:18:
+---- compilation_unit::tests::call_site_param_constants::call_site_via_namespace_import_alias_is_not_missed stdout ----
+thread 'compilation_unit::tests::call_site_param_constants::call_site_via_namespace_import_alias_is_not_missed' (30347) panicked at rust/tcl-compiler/src/compilation_unit.rs:7527:18:
+---- compilation_unit::tests::call_site_param_constants::caller_contents_do_not_license_erasing_retained_parameter_coercions stdout ----
+thread 'compilation_unit::tests::call_site_param_constants::caller_contents_do_not_license_erasing_retained_parameter_coercions' (30348) panicked at rust/tcl-compiler/src/compilation_unit.rs:8044:18:
+---- compilation_unit::tests::call_site_param_constants::caught_unresolved_command_keeps_its_callback_mutation_boundary stdout ----
+thread 'compilation_unit::tests::call_site_param_constants::caught_unresolved_command_keeps_its_callback_mutation_boundary' (30349) panicked at rust/tcl-compiler/src/compilation_unit.rs:8379:18:
+---- compilation_unit::tests::call_site_param_constants::conditionally_defined_proc_body_call_sites_are_still_counted stdout ----
+thread 'compilation_unit::tests::call_site_param_constants::conditionally_defined_proc_body_call_sites_are_still_counted' (30350) panicked at rust/tcl-compiler/src/compilation_unit.rs:7889:18:
+---- compilation_unit::tests::call_site_param_constants::cross_file::a_file_that_sources_another_declines_the_seed_on_its_own stdout ----
+thread 'compilation_unit::tests::call_site_param_constants::cross_file::a_file_that_sources_another_declines_the_seed_on_its_own' (30351) panicked at rust/tcl-compiler/src/compilation_unit.rs:8763:17:
+---- compilation_unit::tests::call_site_param_constants::cross_file::sourcing_file_agreeing_on_the_literal_still_folds stdout ----
+thread 'compilation_unit::tests::call_site_param_constants::cross_file::sourcing_file_agreeing_on_the_literal_still_folds' (30356) panicked at rust/tcl-compiler/src/compilation_unit.rs:8639:17:
+---- compilation_unit::tests::call_site_param_constants::dynamic_dispatch_elsewhere_does_not_disqualify_an_unrelated_seed stdout ----
+thread 'compilation_unit::tests::call_site_param_constants::dynamic_dispatch_elsewhere_does_not_disqualify_an_unrelated_seed' (30359) panicked at rust/tcl-compiler/src/compilation_unit.rs:8270:18:
+---- compilation_unit::tests::call_site_param_constants::cross_file::unrelated_workspace_file_contributes_nothing stdout ----
+thread 'compilation_unit::tests::call_site_param_constants::cross_file::unrelated_workspace_file_contributes_nothing' (30358) panicked at rust/tcl-compiler/src/compilation_unit.rs:8668:17:
+---- compilation_unit::tests::call_site_param_constants::ensemble_map_redirected_caller_does_not_fold_issue_979 stdout ----
+thread 'compilation_unit::tests::call_site_param_constants::ensemble_map_redirected_caller_does_not_fold_issue_979' (30360) panicked at rust/tcl-compiler/src/compilation_unit.rs:7677:22:
+---- compilation_unit::tests::call_site_param_constants::method_body_bare_call_resolves_against_global_not_class_namespace stdout ----
+thread 'compilation_unit::tests::call_site_param_constants::method_body_bare_call_resolves_against_global_not_class_namespace' (30362) panicked at rust/tcl-compiler/src/compilation_unit.rs:7723:18:
+---- compilation_unit::tests::call_site_param_constants::exported_namespace_declines_the_seed_even_with_a_workspace_view stdout ----
+thread 'compilation_unit::tests::call_site_param_constants::exported_namespace_declines_the_seed_even_with_a_workspace_view' (30361) panicked at rust/tcl-compiler/src/compilation_unit.rs:7634:22:
+---- compilation_unit::tests::call_site_param_constants::namespace_eval_body_nested_in_a_proc_resolves_against_its_own_namespace stdout ----
+thread 'compilation_unit::tests::call_site_param_constants::namespace_eval_body_nested_in_a_proc_resolves_against_its_own_namespace' (30363) panicked at rust/tcl-compiler/src/compilation_unit.rs:7927:18:
+---- compilation_unit::tests::call_site_param_constants::non_package_file_is_unaffected_by_package_provide_guard stdout ----
+thread 'compilation_unit::tests::call_site_param_constants::non_package_file_is_unaffected_by_package_provide_guard' (30365) panicked at rust/tcl-compiler/src/compilation_unit.rs:8430:18:
+---- compilation_unit::tests::call_site_param_constants::namespaced_recursive_proc_parity_check_is_not_constant_folded stdout ----
+thread 'compilation_unit::tests::call_site_param_constants::namespaced_recursive_proc_parity_check_is_not_constant_folded' (30364) panicked at rust/tcl-compiler/src/compilation_unit.rs:8100:18:
+---- compilation_unit::tests::call_site_param_constants::package_provide_mentioned_only_in_a_comment_does_not_disqualify stdout ----
+thread 'compilation_unit::tests::call_site_param_constants::package_provide_mentioned_only_in_a_comment_does_not_disqualify' (30367) panicked at rust/tcl-compiler/src/compilation_unit.rs:8456:18:
+---- compilation_unit::tests::call_site_param_constants::package_provide_file_disqualifies_every_seed stdout ----
+thread 'compilation_unit::tests::call_site_param_constants::package_provide_file_disqualifies_every_seed' (30366) panicked at rust/tcl-compiler/src/compilation_unit.rs:8405:18:
+---- compilation_unit::tests::call_site_param_constants::package_provide_with_unusual_spelling_still_disqualifies stdout ----
+thread 'compilation_unit::tests::call_site_param_constants::package_provide_with_unusual_spelling_still_disqualifies' (30368) panicked at rust/tcl-compiler/src/compilation_unit.rs:8482:18:
+---- compilation_unit::tests::call_site_param_constants::recursive_param_version_zero_is_never_const_in_lattice stdout ----
+thread 'compilation_unit::tests::call_site_param_constants::recursive_param_version_zero_is_never_const_in_lattice' (30369) panicked at rust/tcl-compiler/src/compilation_unit.rs:8792:18:
+---- compilation_unit::tests::call_site_param_constants::rename_onto_callee_name_disqualifies_call_site_seed stdout ----
+thread 'compilation_unit::tests::call_site_param_constants::rename_onto_callee_name_disqualifies_call_site_seed' (30370) panicked at rust/tcl-compiler/src/compilation_unit.rs:8237:18:
+---- compilation_unit::tests::call_site_param_constants::sibling_namespace_procs_with_same_leaf_name_are_not_conflated stdout ----
+thread 'compilation_unit::tests::call_site_param_constants::sibling_namespace_procs_with_same_leaf_name_are_not_conflated' (30371) panicked at rust/tcl-compiler/src/compilation_unit.rs:8194:18:
+---- compilation_unit::tests::call_site_param_constants::two_same_namespace_callers_with_uniform_literal_still_folds stdout ----
+thread 'compilation_unit::tests::call_site_param_constants::two_same_namespace_callers_with_uniform_literal_still_folds' (30373) panicked at rust/tcl-compiler/src/compilation_unit.rs:8152:18:
+---- compilation_unit::tests::call_site_param_constants::top_level_recursive_proc_parity_check_is_not_constant_folded stdout ----
+thread 'compilation_unit::tests::call_site_param_constants::top_level_recursive_proc_parity_check_is_not_constant_folded' (30372) panicked at rust/tcl-compiler/src/compilation_unit.rs:8124:18:
+---- compilation_unit::tests::call_site_param_constants::unrelated_catch_body_does_not_disqualify_a_different_proc stdout ----
+thread 'compilation_unit::tests::call_site_param_constants::unrelated_catch_body_does_not_disqualify_a_different_proc' (30374) panicked at rust/tcl-compiler/src/compilation_unit.rs:8357:18:
+---- compilation_unit::tests::call_site_param_constants::uplevel_bare_zero_body_resolves_against_the_enclosing_namespace stdout ----
+thread 'compilation_unit::tests::call_site_param_constants::uplevel_bare_zero_body_resolves_against_the_enclosing_namespace' (30375) panicked at rust/tcl-compiler/src/compilation_unit.rs:7825:18:
+---- compilation_unit::tests::call_site_param_constants::uplevel_relative_body_keeps_the_enclosing_units_namespace stdout ----
+thread 'compilation_unit::tests::call_site_param_constants::uplevel_relative_body_keeps_the_enclosing_units_namespace' (30376) panicked at rust/tcl-compiler/src/compilation_unit.rs:7858:18:
+---- compilation_unit::tests::call_site_param_constants::uplevel_zero_body_resolves_against_global_not_enclosing_namespace stdout ----
+thread 'compilation_unit::tests::call_site_param_constants::uplevel_zero_body_resolves_against_global_not_enclosing_namespace' (30377) panicked at rust/tcl-compiler/src/compilation_unit.rs:7781:18:
+---- compilation_unit::tests::colliding_method_reports_keep_independent_analysis_units stdout ----
+thread 'compilation_unit::tests::colliding_method_reports_keep_independent_analysis_units' (30380) panicked at rust/tcl-compiler/src/compilation_unit.rs:7149:9:
+assertion `left == right` failed
+  left: 0
+ right: 4
+---- compilation_unit::tests::call_site_param_constants::wildcard_namespace_import_preserves_actual_identity_and_open_callers stdout ----
+thread 'compilation_unit::tests::call_site_param_constants::wildcard_namespace_import_preserves_actual_identity_and_open_callers' (30379) panicked at rust/tcl-compiler/src/compilation_unit.rs:7573:18:
+---- compilation_unit::tests::complexity_guard_flags_byte_huge_proc stdout ----
+thread 'compilation_unit::tests::complexity_guard_flags_byte_huge_proc' (30381) panicked at rust/tcl-compiler/src/compilation_unit.rs:7112:48:
+---- compilation_unit::tests::deep_semantic_analysis_materialises_every_retained_body_sidecar stdout ----
+thread 'compilation_unit::tests::deep_semantic_analysis_materialises_every_retained_body_sidecar' (30382) panicked at rust/tcl-compiler/src/compilation_unit.rs:7432:9:
+assertion failed: deep.top_level.semantic_facts.executable().function().is_some()
+---- compilation_unit::tests::existence_is_unavailable_at_the_fast_tier stdout ----
+thread 'compilation_unit::tests::existence_is_unavailable_at_the_fast_tier' (30386) panicked at rust/tcl-compiler/src/compilation_unit.rs:7050:43:
+---- compilation_unit::tests::method_units_carry_the_single_method_facts_carrier stdout ----
+thread 'compilation_unit::tests::method_units_carry_the_single_method_facts_carrier' (30390) panicked at rust/tcl-compiler/src/compilation_unit.rs:6903:48:
+---- compilation_unit::tests::module_realm_refusal_withholds_caller_seeds_and_retires_interprocedural_results stdout ----
+thread 'compilation_unit::tests::module_realm_refusal_withholds_caller_seeds_and_retires_interprocedural_results' (30391) panicked at rust/tcl-compiler/src/compilation_unit.rs:5925:38:
+---- compilation_unit::tests::non_method_units_carry_no_method_facts stdout ----
+thread 'compilation_unit::tests::non_method_units_carry_no_method_facts' (30392) panicked at rust/tcl-compiler/src/compilation_unit.rs:6933:14:
+---- compilation_unit::tests::memoised_source_facts_retain_nested_bom_and_lexer_overlays stdout ----
+thread 'compilation_unit::tests::memoised_source_facts_retain_nested_bom_and_lexer_overlays' (30389) panicked at rust/tcl-compiler/src/compilation_unit.rs:6401:13:
+assertion failed: semantic_bundle_has_source_metadata(&selected)
+---- compilation_unit::tests::prepare_cfg_context_retains_same_tailed_body_parameters stdout ----
+thread 'compilation_unit::tests::prepare_cfg_context_retains_same_tailed_body_parameters' (30394) panicked at rust/tcl-compiler/src/test_body_identity.rs:54:28:
+---- compilation_unit::tests::return_type_follows_local_var stdout ----
+thread 'compilation_unit::tests::return_type_follows_local_var' (30399) panicked at rust/tcl-compiler/src/compilation_unit.rs:7324:37:
+---- compilation_unit::tests::return_type_infers_int_literal stdout ----
+thread 'compilation_unit::tests::return_type_infers_int_literal' (30400) panicked at rust/tcl-compiler/src/compilation_unit.rs:7307:37:
+---- compilation_unit::tests::return_type_infers_string_literal stdout ----
+thread 'compilation_unit::tests::return_type_infers_string_literal' (30401) panicked at rust/tcl-compiler/src/compilation_unit.rs:7314:37:
+---- compilation_unit::tests::original_module_taint_replay_preserves_receivers_and_refuses_foreign_owners stdout ----
+thread 'compilation_unit::tests::original_module_taint_replay_preserves_receivers_and_refuses_foreign_owners' (30393) panicked at rust/tcl-compiler/src/compilation_unit.rs:5815:9:
+assertion failed: analysis.global_instance_classes[&body].contains_key(".e")
+---- compilation_unit::tests::return_type_joins_branches_to_common_int stdout ----
+thread 'compilation_unit::tests::return_type_joins_branches_to_common_int' (30402) panicked at rust/tcl-compiler/src/compilation_unit.rs:7335:37:
+---- compilation_unit::tests::return_type_partial_return_widens_via_fallthrough stdout ----
+thread 'compilation_unit::tests::return_type_partial_return_widens_via_fallthrough' (30403) panicked at rust/tcl-compiler/src/compilation_unit.rs:7347:37:
+---- compilation_unit::tests::semantic_bundle_keeps_dialect_and_defers_unneeded_world_state stdout ----
+thread 'compilation_unit::tests::semantic_bundle_keeps_dialect_and_defers_unneeded_world_state' (30405) panicked at rust/tcl-compiler/src/compilation_unit.rs:7380:9:
+assertion `left == right` failed
+  left: 0
+ right: 1
+---- compilation_unit::tests::runtime_selected_method_commands_guard_deep_cfg_analysis stdout ----
+thread 'compilation_unit::tests::runtime_selected_method_commands_guard_deep_cfg_analysis' (30404) panicked at rust/tcl-compiler/src/compilation_unit.rs:7214:18:
+---- compilation_unit::tests::switch_glob_arm_body_read_counts_as_param_use stdout ----
+thread 'compilation_unit::tests::switch_glob_arm_body_read_counts_as_param_use' (30415) panicked at rust/tcl-compiler/src/compilation_unit.rs:7289:41:
+---- compilation_unit::tests::switch_subject_counts_as_param_use stdout ----
+thread 'compilation_unit::tests::switch_subject_counts_as_param_use' (30416) panicked at rust/tcl-compiler/src/compilation_unit.rs:7265:37:
+---- compilation_unit::tests::top_level_dual_ported_var_touched_by_callee_global_is_overdefined stdout ----
+thread 'compilation_unit::tests::top_level_dual_ported_var_touched_by_callee_global_is_overdefined' (30417) panicked at rust/tcl-compiler/src/compilation_unit.rs:6965:9:
+---- compilation_unit::tests::top_level_var_touched_by_callee_global_is_overdefined stdout ----
+thread 'compilation_unit::tests::top_level_var_touched_by_callee_global_is_overdefined' (30418) panicked at rust/tcl-compiler/src/compilation_unit.rs:6965:9:
+---- compilation_unit::tests::top_level_var_untouched_by_any_callee_still_folds stdout ----
+thread 'compilation_unit::tests::top_level_var_untouched_by_any_callee_still_folds' (30419) panicked at rust/tcl-compiler/src/compilation_unit.rs:7025:9:
+test result: FAILED. 33 passed; 65 failed; 0 ignored; 0 measured; 10353 filtered out; finished in 24.69s

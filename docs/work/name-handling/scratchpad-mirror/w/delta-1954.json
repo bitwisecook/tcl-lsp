@@ -1,0 +1,8 @@
+{"scheduled":"2026-10-21T19:06:00Z (handled 19:54Z)",
+ "change_since_previous_report":{"integrated_LSP":0,"total_baseline_delta":0,"effective_delta":0,"verified_complete":0},
+ "admissions":{},
+ "committed":{"d5a44d33c2":"gates agent: cargo-deny clean (wasmtime, webpki-roots, rustls-webpki bumps), ty 26->0, pyright 647->0, owner-resolution 608->310","d7fe1789fc":"user decision: make the owner-resolution manifest truthful"},
+ "progress_uncommitted":{"lowering_stack_overflow":"fixed (deep if, 80 nested namespace eval)","irules":"fresh rule-loader realm for Analyser::analyse; BIG-IP probe evidence: rule-local proc call outside `when` rejected","compile_service":"root cause: entry-less compiles use Direct mode; preflight treats entry-less as provider-required; fix approved","references_rename":"70/98 (from 59), no pass-to-fail","golden_packs":"1367 digest-only + 148 fold lines accepted; foreach line correction accepted; oo-class example to be updated before one regeneration","lsp_clippy":"1059 -> ~345 findings"},
+ "routing":{"compiler-names agent":"R1 completed world dropped by command substitutions, R2 proc body lookup, import alias, W210","compiler agent":"clippy derived_hash_with_manual_eq in ir.rs, definers, C6","compiler-codegen agent":"entry-less preflight + BytecodeObject compile","lsp agent":"class-variable partial-rename refusal, iRules [0] correction, clippy","vm-runtime agent":"oo-class example vocabulary, goldens, pack_source_e2e, cmd_package runtime_version","contracts agent":"truthful owner manifest (310 diagnostics)"},
+ "disk_free_gb":1.9,
+ "next_report_utc":"2026-10-21T20:25:00Z"}
