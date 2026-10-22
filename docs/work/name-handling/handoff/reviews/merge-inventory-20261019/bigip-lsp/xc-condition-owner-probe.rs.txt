@@ -1,0 +1,67 @@
+// Temporary probe for the XC `if` condition source-owner refusal.
+// Paste into `mod original_expression_owner_tests` in rust/f5-xc/src/translator.rs,
+// run `cargo test -p f5-xc --lib -- zz_bigip_probe --nocapture 2>&1 | grep PROBE`,
+// then remove it again.
+    #[test]
+    fn zz_bigip_probe_condition_owner_gates() {
+        let source = r#"when HTTP_REQUEST {if {[HTTP::path] eq "/a"} {pool route}}"#;
+        let registry = irules_registry();
+        let (unit, analysis) = translation_source(source, registry);
+        let module = &unit.ir_module;
+        let clause = first_clause(module);
+        eprintln!("PROBE base={:?} cond={:?}", clause.condition_base, clause.condition);
+        let cur = tcl_compiler::source_graph::current_analysis(source, &analysis);
+        eprintln!("PROBE current_analysis={}", cur.is_some());
+        if let Some((image, config)) = cur {
+            eprintln!("PROBE module.source==image {}", module.source == image);
+            eprintln!("PROBE module.config==config {}", module.lexer_config == config);
+            eprintln!(
+                "PROBE metadata_input==resolved {}",
+                module.source_metadata_input.as_ref() == analysis.resolved_input.as_ref()
+            );
+            eprintln!("PROBE metadata_input some {} resolved some {}", module.source_metadata_input.is_some(), analysis.resolved_input.is_some());
+            eprintln!(
+                "PROBE registry key {}",
+                module.registry_snapshot.as_ref().is_some_and(|snapshot| snapshot.semantic_key() == registry.snapshot().semantic_key())
+            );
+            eprintln!(
+                "PROBE bindings {:?}",
+                module.retained_source_bindings.as_ref().map(|b| b.matches_module(module, registry))
+            );
+        }
+        let context = TranslationContext::new(source, &analysis, module, registry);
+        let advice = SourceExpressionAdvice::new(&context, clause.condition_base);
+        let mut nodes = vec![&clause.condition];
+        while let Some(node) = nodes.pop() {
+            match node {
+                ExprNode::Command { .. } => {
+                    let operand = advice.expression_operand(node);
+                    eprintln!("PROBE operand {}", operand.is_some());
+                    if let Some(operand) = operand {
+                        let original = original_single_source_command_substitution(&operand);
+                        eprintln!("PROBE single_substitution {}", original.is_some());
+                        if let Some(original) = original {
+                            let head = original.command().words.first().unwrap();
+                            let selected = tcl_compiler::registry_invocation::source_structure::source_registry_words_at(source, &analysis, head.span().start());
+                            eprintln!("PROBE source_registry_words_at {}", selected.is_some());
+                            if let Some(selected) = selected {
+                                let input = analysis.resolved_input.as_ref().unwrap();
+                                let (image, config) = cur.unwrap();
+                                eprintln!("PROBE head {} matches_source {} matches_registry {} context {}",
+                                    selected.head_source().and_then(|h| h.word()) == Some(head),
+                                    selected.matches_source(&image, config),
+                                    selected.matches_registry(registry),
+                                    selected.context() == Some(input.context_registry().context()));
+                                eprintln!("PROBE advice_allowed {}", source_xc_advice_allowed(&selected, &analysis));
+                            }
+                        }
+                        eprintln!("PROBE command_for_operand {}", advice.command_for_operand(&operand).is_some());
+                    }
+                }
+                ExprNode::Binary { left, right, .. } => nodes.extend([left.as_ref(), right.as_ref()]),
+                _ => {}
+            }
+        }
+        panic!("probe");
+    }
+
