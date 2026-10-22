@@ -2,7 +2,7 @@
 
 Area: editors/, BIG-IP/F5 crates and LSP modules.
 
-Last updated: 2026-10-22T14:05Z
+Last updated: 2026-10-22T13:30Z
 
 Maintained by the bigip-lsp agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
@@ -10,8 +10,9 @@ Full unit table and evidence: `docs/work/name-handling/handoff/reviews/merge-inv
 
 ## In progress
 
-None — this session is wrapping up; work continues in a fresh cloud session
-from the coordinator's next snapshot (branch `work`).
+XC condition-owner probe in a fresh shallow `work` checkout. Rust 1.99.1;
+pinned C Tcl 9.0.4/8.6.18 and Jim 0.84 references are built and verified.
+The XC probe is still compiling; no validation result yet; the shared-session measurements below remain historical.
 
 ## Outstanding (in priority order)
 
@@ -50,6 +51,17 @@ from the coordinator's next snapshot (branch `work`).
 
 ## Blocked (on whom, and what is needed)
 
+- ILX variable handles need a compiler-owned original source result/setter/read
+  relation. Source inspection found that `ilx_method_calls_from_source_context`
+  deliberately writes `target: None`; this is not an observed failed lookup in
+  compiler value tracking. The current contract and negative tests forbid the
+  old local `HandleScope` inference. Repro, exact cause, existing-owner analogy
+  and required contract: `../handoff/reviews/merge-inventory-20261019/bigip-lsp/ilx-handle-owner-repro.md`.
+  Baseline source at `origin/rust` (`fcb7927f02`) has the old propagation; its
+  execution comparison is pending. Do not weaken the negative tests or claim
+  a runtime handle from source text. BIG-IP will wire the new source owner once
+  available; the coordinator should route the compiler contract.
+
 - First publishDiagnostics >30 s in e2e: likely the quadratic analysis the perf
   agent is fixing — re-measure after its batch lands.
 
@@ -70,6 +82,17 @@ from the coordinator's next snapshot (branch `work`).
   (`bigip-lsp/e2e-20261022-results.txt`).
 
 ## Resume
+
+- Fresh cloud continuation: active shallow checkout is `/workspace/bigip-lsp`,
+  initially `9cd5a75b` on `work`; independent `origin/rust` shallow baseline is
+  `/workspace/bigip-baseline` at `fcb7927f02`. Rust 1.99.1 and the required
+  C Tcl/Jim references are ready. The first cold XC build is in progress;
+  local log `/tmp/bigip-xc-probe.log`. Its uncommitted `zz_bigip_probe.rs` is
+  included temporarily in the existing owner-test module. Remove that include
+  and probe after diagnosis; never stage them. Temporary `/tmp/bigip-test.py`
+  builds, runs and deletes the test executable within one command.
+- ILX source inspection and the missing compiler contract are recorded under
+  Blocked above; baseline execution and e2e attribution remain to do.
 
 - Start from the coordinator's snapshot of this state (branch `work`). Nothing
   is half-edited: every file compiles (the tcl-lsp-server lib test build of
