@@ -85,3 +85,10 @@ full equality and all old endpoints are non-repeatable. Exact inputs/source/
 binary digest: evidence/latest-e4a01bbe/irules-all-old-inputs.json; raw output:
 irules-all-old-control.out. Only the earlier aliases helper was privately
 traced; do not attribute every iRule to that helper without tracing it.
+
+Before changing AnalysisResult::eq, audit memo/Salsa cutoff consumers as well:
+report correspondence must not make a stale runtime subject current or pair an
+old result's owners with a fresh module/host publication lease. If these equality
+scopes differ, an explicit report-comparison operation for the harness is safer
+than changing global equality. This remains an owner design question; perf
+changed no comparator, currentness check or source authority.

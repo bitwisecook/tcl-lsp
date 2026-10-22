@@ -3,7 +3,12 @@
     "base": "e4a01bbe",
     "inputs": "tests-spectcl-build-inputs.json",
     "complete_input_retry": true,
-    "new": "26 pass / 2 budget failures; old still active"
+    "new": "26 pass / 2 budget failures",
+    "old": "27 pass / 1 budget failure",
+    "pass_to_fail": [
+      "every_shipped_pack_loads_identically_with_and_without_the_static_fast_path"
+    ],
+    "controlled_repeat": "latest-e4a01bbe/controlled-default-eval/; same budgets/assertions, otherwise idle host, pending"
   },
   "root_golden_packs": {
     "base": "8a01a718",

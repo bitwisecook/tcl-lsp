@@ -1,9 +1,10 @@
 # perf agent notes: Analyser and SpecTcl
 
-Status at 2026-10-22 18:40 UTC: full batch applied with a temporary switch in
+Status at 2026-10-22 19:53 UTC: full batch applied with a temporary switch in
 `/workspace/tcl-lsp-work`, production base e4a01bbe. No production change is
-committed. The required complete AnalysisResult proof is blocked by an all-old
-object-report comparison failure; selected independent checks are still running.
+committed. The required complete AnalysisResult proof is blocked by all-old
+report/diagnostic comparison failures. A default-profile SpecTcl pass-to-fail
+is also under targeted controlled investigation; no code may be called proven.
 Exact continuation instructions are in `docs/work/name-handling/outstanding/perf.md`.
 
 ## Changes and ownership
@@ -77,7 +78,10 @@ Latest new-only tclIndex timings (milliseconds):
 The new-only probe prints an equality placeholder; these rows prove timing only.
 The older base three-way run established equality at 10/40/100; the old 100-line
 latency was perturbed by debugger sampling and must not support a speedup ratio.
-The full old/new/old 253-line check remains active.
+The full base-8a old/new/old 253-line check PASSED exactly/deterministically:
+new 189,404 ms / old2 5,108,792 ms. It was not debugger-sampled at 253 lines;
+the host was contended. These older-base timings do not replace the latest
+new-only 255,893-ms row above.
 
 Ordinary LSP positive-reference controls passed at n=10/20/40/80, and scope-chain
 controls at 250/500/1000/2000. The work harness uses retained editing inputs as
@@ -120,7 +124,11 @@ Earlier base SpecTcl opt-level-1 eval_loader: all 28 pass in both modes
 same interpreter 30-minute budget failure in both modes (new 3,537.662 s,
 old 5,717.749 s). The earlier default eval_loader run lacked one sparse fixture;
 complete-input default new mode finished 26 pass / 2 fail (4418.488 s),
-now budget-axis and eda_xilinx interpreted wall-budget assertions; old is active. Latest optimized eval_loader completed all 28 PASS in BOTH modes
+new budget-axis and eda_xilinx interpreted wall-budget assertions. Old
+completed 27 pass / 1 fail (2712.566 s): ONE observed pass-to-fail on the
+every_shipped_pack comparison. Its unchanged single-case controlled repeat
+is active in both modes on an otherwise idle host. Original evidence is kept
+in latest-e4a01bbe/tests-spectcl-default-summary.json; the repeat cannot erase it. Latest optimized eval_loader completed all 28 PASS in BOTH modes
 (new 1,488.967 s / old 1,568.082 s), zero pass-to-fail. Latest optimized
 golden_packs completed all 3 PASS in BOTH modes
 (new 651.764 s / old 864.494 s), zero pass-to-fail. Profile

@@ -1,0 +1,9 @@
+{
+  "new": {
+    "returncode": 0,
+    "seconds": 1150.068,
+    "cpu_seconds": 1141.846,
+    "result": "ok",
+    "log": "new.out"
+  }
+}

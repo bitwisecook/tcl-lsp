@@ -2,9 +2,37 @@
 
 Area: Analysis and SpecTcl pack-load cost.
 
-Last updated: 2026-10-22 19:47 UTC
+Last updated: 2026-10-22 20:12 UTC
 
 ## Resume
+
+ADDITIONAL GATE: completed default-profile eval_loader has ONE observed
+pass-to-fail: every_shipped_pack_loads_identically_with_and_without_the_static_fast_path
+(new hits interpreted eda_xilinx wall budget; old passes). New 26/2 in
+4418.488 s, old 27/1 in 2712.566 s; both fail the separate 5-second budget-axis
+assertion. Preserve these outcomes. A targeted controlled repeat of ONLY that
+case is active, both modes on the now-idle host with identical unmodified
+30-minute budget/assertions. /tmp/perf-controlled-eval-proof.py, log
+/tmp/perf-controlled-eval-proof.log; outputs latest-e4a01bbe/controlled-default-eval/.
+Build succeeded in 22.78 s with zero warnings. No other heavy job remains.
+Do not replace the failed comparison with optimized green results or claim
+zero pass-to-fail until the controlled result is assessed and the initial
+observation remains explicit.
+
+Next after the controlled case finishes: verify the all-old equality blockers
+on a FRESH latest-work build before any final hand-back or production commit.
+The completed broad proof is frozen at e4a01bbe, whereas upstream has since
+landed R1/C6/Jim and lint/API batches. Do not assume an older failure still
+occurs on current source. Use another shallow/sparse checkout
+(/workspace/tcl-lsp-current), the existing sparse patterns and oracle tmp
+symlink. Apply the full batch with --zz there. Keep a unique target directory;
+reuse only cached third-party artifacts, invalidate all copied local-crate
+fingerprints/rlibs so no sibling-worktree artifact can masquerade as current.
+Build only the compiler probe first (default opt=0/debug=0 is sufficient for
+the small aliases/E003/hosted all-old controls). Do not run another heavy build
+while the controlled wall-budget case is active. If current blockers persist,
+route the exact new-base evidence and keep the six-file commit held. If they
+clear, resume all required proofs and land only the clean six files.
 
 Active private checkout: `/workspace/tcl-lsp-work`, branch `work`, shallow/sparse.
 Production proof base is `e4a01bbe`; later local commits are evidence only.
@@ -108,7 +136,8 @@ proof is genuinely satisfied or the coordinator resolves this blocker.
 - `/tmp/perf-spectcl-complete-input-retry.log`: complete-input eval_loader
   new mode completed 26 pass / 2 fail (4418.488 s), both budget assertions:
   the 5-second axis test and eda_xilinx interpreted 30-minute exhaustion.
-  Its old mode is active. There is no missing sparse input in this retry. It preserves other summaries.
+  Old completed 27 pass / 1 fail: ONE pass-to-fail on every_shipped_pack;
+  controlled repeat above is active. No missing sparse input in this retry. It preserves other summaries.
   Do not start another default-profile SpecTcl harness over the same filenames
   while this or the old golden process is active.
 - Supplemental base optimized eval_loader: 28 PASS in both modes (1482.833 /
@@ -127,7 +156,9 @@ proof is genuinely satisfied or the coordinator resolves this blocker.
   BOTH origin and latest positive controls PASSED all sizes; source chain also
   completed. Final positive-control table is in evidence/timings.md and
   latest-e4a01bbe/lsp-positive-medians-ms.json. Older work rows remain historical.
-- Old 253-line tclIndex old/new/old remains active in its private copied binary.
+- Full base-8a 10/40/100/253 tclIndex old/new/old FINISHED exactly equal
+  and deterministic. 253 new = 189404 ms / old2 = 5108792 ms; raw
+  work-tclIndex-threeway.out. Its executable was deleted by its command.
   10/40/100 rows were exactly equal; old 100 timing is instrumented by a live
   debugger pause and must not be used as an uninstrumented ratio. A separate
   new-only base-8a 253 timing completed at 326554 ms. Latest e4 new-only
