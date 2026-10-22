@@ -1,0 +1,13 @@
+
+speclib mylib 1 {
+
+    command mylib::strlen {
+        arity 1
+        arg 0 -role Value
+        const_fold -inputs {words} {words ctx} {
+            set subject [lindex $words 0]
+            if {![string is ascii $subject]} { return }
+            fold [string length $subject]
+        }
+    }
+}

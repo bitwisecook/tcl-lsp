@@ -1,0 +1,15 @@
+Thu Oct 22 19:07:58 UTC 2026
+0412d5e49b9e03e3d67235b542c2b28fd5629f3e
+d67c8bade1adda96c788a16d303033b38920ed5f4767a575f6c2d8c72d5384ad  rust/tcl-spectcl/tests/variable_reference_boundaries.rs
+Filesystem      Size  Used Avail Use% Mounted on
+overlay          32G  3.8G   27G  13% /
+   Compiling tcl-spectcl v0.1.0 (/workspace/tcl-lsp-triage/rust/tcl-spectcl)
+    Finished `test` profile [unoptimized] target(s) in 20.01s
+     Running tests/variable_reference_boundaries.rs (target/debug/deps/variable_reference_boundaries-3e46c097dcdbab21)
+
+running 1 test
+test a_live_fold_keeps_declared_effects_and_unclosed_arguments ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 3 filtered out; finished in 57.84s
+
+exit=0 cleaned=Thu Oct 22 19:09:19 UTC 2026

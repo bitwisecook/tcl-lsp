@@ -1,0 +1,483 @@
+Thu Oct 22 18:33:05 UTC 2026
+2d1b85ada2581695670d508ad54c1d57468c1de6
+75328d1f2477c2986332ca2b5fcb4952caf9bc64db7b5343a307d8520f272eed  rust/tcl-spectcl/tests/zz_review_probe.rs
+Filesystem      Size  Used Avail Use% Mounted on
+overlay          32G  3.3G   27G  12% /
+
+GROUP rename budget=1200s Thu Oct 22 18:41:31 UTC 2026
+
+running 1 test
+test rename_with_registry ... WORLD r_n05 tcl8.4 completed=false
+r_n05 tcl8.4 REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+WORLD r_n07 tcl8.4 completed=true
+r_n07 tcl8.4 REFUSED "unreferenced-edit: an edit falls outside the occurrences find-references reports for this binding"
+WORLD r_plain tcl8.4 completed=true
+r_plain tcl8.4 REFUSED "incomplete-original-command-coverage: the complete source contains an executable region or command selection without original coverage"
+WORLD r_noputs tcl8.4 completed=true
+r_noputs tcl8.4 edits=[L0:5 "foo"->"baz"] [L1:0 "foo"->"baz"]  -> saved r_noputs_tcl8.4.tcl
+WORLD r_setonly tcl8.4 completed=true
+r_setonly tcl8.4 REFUSED "incomplete-original-command-coverage: the complete source contains an executable region or command selection without original coverage"
+WORLD r_n04wild tcl8.4 completed=false
+r_n04wild tcl8.4 REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+WORLD r_n04exact tcl8.4 completed=false
+r_n04exact tcl8.4 REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+WORLD r_n03 tcl8.4 completed=true
+r_n03 tcl8.4 edits=[L0:4 "caf"->"zz"] [L2:5 "$caf"->"$zz"]  -> saved r_n03_tcl8.4.tcl
+WORLD r_n05 tcl8.5 completed=false
+r_n05 tcl8.5 REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+WORLD r_n07 tcl8.5 completed=true
+r_n07 tcl8.5 REFUSED "unreferenced-edit: an edit falls outside the occurrences find-references reports for this binding"
+WORLD r_plain tcl8.5 completed=true
+r_plain tcl8.5 REFUSED "incomplete-original-command-coverage: the complete source contains an executable region or command selection without original coverage"
+WORLD r_noputs tcl8.5 completed=true
+r_noputs tcl8.5 edits=[L0:5 "foo"->"baz"] [L1:0 "foo"->"baz"]  -> saved r_noputs_tcl8.5.tcl
+WORLD r_setonly tcl8.5 completed=true
+r_setonly tcl8.5 REFUSED "incomplete-original-command-coverage: the complete source contains an executable region or command selection without original coverage"
+WORLD r_n04wild tcl8.5 completed=false
+r_n04wild tcl8.5 REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+WORLD r_n04exact tcl8.5 completed=false
+r_n04exact tcl8.5 REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+WORLD r_n03 tcl8.5 completed=true
+r_n03 tcl8.5 edits=[L0:4 "caf"->"zz"] [L2:5 "$caf"->"$zz"]  -> saved r_n03_tcl8.5.tcl
+WORLD r_n05 tcl8.6 completed=false
+r_n05 tcl8.6 REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+WORLD r_n07 tcl8.6 completed=true
+r_n07 tcl8.6 REFUSED "unreferenced-edit: an edit falls outside the occurrences find-references reports for this binding"
+WORLD r_plain tcl8.6 completed=true
+r_plain tcl8.6 REFUSED "incomplete-original-command-coverage: the complete source contains an executable region or command selection without original coverage"
+WORLD r_noputs tcl8.6 completed=true
+r_noputs tcl8.6 edits=[L0:5 "foo"->"baz"] [L1:0 "foo"->"baz"]  -> saved r_noputs_tcl8.6.tcl
+WORLD r_setonly tcl8.6 completed=true
+r_setonly tcl8.6 REFUSED "incomplete-original-command-coverage: the complete source contains an executable region or command selection without original coverage"
+WORLD r_n04wild tcl8.6 completed=false
+r_n04wild tcl8.6 REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+WORLD r_n04exact tcl8.6 completed=false
+r_n04exact tcl8.6 REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+WORLD r_n03 tcl8.6 completed=true
+r_n03 tcl8.6 edits=[L0:4 "caf"->"zz"] [L2:5 "$caf"->"$zz"]  -> saved r_n03_tcl8.6.tcl
+WORLD r_n05 tcl9.0 completed=false
+r_n05 tcl9.0 REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+WORLD r_n07 tcl9.0 completed=true
+r_n07 tcl9.0 REFUSED "unreferenced-edit: an edit falls outside the occurrences find-references reports for this binding"
+WORLD r_plain tcl9.0 completed=true
+r_plain tcl9.0 REFUSED "incomplete-original-command-coverage: the complete source contains an executable region or command selection without original coverage"
+WORLD r_noputs tcl9.0 completed=true
+r_noputs tcl9.0 edits=[L0:5 "foo"->"baz"] [L1:0 "foo"->"baz"]  -> saved r_noputs_tcl9.0.tcl
+WORLD r_setonly tcl9.0 completed=true
+r_setonly tcl9.0 REFUSED "incomplete-original-command-coverage: the complete source contains an executable region or command selection without original coverage"
+WORLD r_n04wild tcl9.0 completed=false
+r_n04wild tcl9.0 REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+WORLD r_n04exact tcl9.0 completed=false
+r_n04exact tcl9.0 REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+WORLD r_n03 tcl9.0 completed=true
+r_n03 tcl9.0 edits=[L0:4 "caf"->"zz"] [L2:5 "$caf"->"$zz"]  -> saved r_n03_tcl9.0.tcl
+WORLD r_n05 tcl9.1 completed=false
+r_n05 tcl9.1 REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+WORLD r_n07 tcl9.1 completed=true
+r_n07 tcl9.1 REFUSED "unreferenced-edit: an edit falls outside the occurrences find-references reports for this binding"
+WORLD r_plain tcl9.1 completed=true
+r_plain tcl9.1 REFUSED "incomplete-original-command-coverage: the complete source contains an executable region or command selection without original coverage"
+WORLD r_noputs tcl9.1 completed=true
+r_noputs tcl9.1 edits=[L0:5 "foo"->"baz"] [L1:0 "foo"->"baz"]  -> saved r_noputs_tcl9.1.tcl
+WORLD r_setonly tcl9.1 completed=true
+r_setonly tcl9.1 REFUSED "incomplete-original-command-coverage: the complete source contains an executable region or command selection without original coverage"
+WORLD r_n04wild tcl9.1 completed=false
+r_n04wild tcl9.1 REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+WORLD r_n04exact tcl9.1 completed=false
+r_n04exact tcl9.1 REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+WORLD r_n03 tcl9.1 completed=true
+r_n03 tcl9.1 edits=[L0:4 "caf"->"zz"] [L2:5 "$caf"->"$zz"]  -> saved r_n03_tcl9.1.tcl
+WORLD r_n05 jim completed=false
+r_n05 jim REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+WORLD r_n07 jim completed=false
+r_n07 jim REFUSED "cannot prove the original variable selected by this occurrence"
+WORLD r_plain jim completed=false
+r_plain jim REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+WORLD r_noputs jim completed=false
+r_noputs jim REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+WORLD r_setonly jim completed=false
+r_setonly jim REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+WORLD r_n04wild jim completed=false
+r_n04wild jim REFUSED "the original command selected at this cursor is unavailable; source-only vendor names and unknown native inputs cannot use lexical name edits"
+WORLD r_n04exact jim completed=false
+r_n04exact jim REFUSED "the original command selected at this cursor is unavailable; source-only vendor names and unknown native inputs cannot use lexical name edits"
+WORLD r_n03 jim completed=false
+r_n03 jim REFUSED "cannot prove the original variable selected by this occurrence"
+WORLD r_n06class tcl8.6 completed=true
+r_n06class tcl8.6 REFUSED "original-command-collision: the proposed command name collides with a retained occupied command slot"
+WORLD r_n06method tcl8.6 completed=true
+r_n06method tcl8.6 REFUSED "original-member-collision: another retained source or builtin method occupies the proposed name"
+WORLD r_n06proc tcl8.6 completed=true
+r_n06proc tcl8.6 REFUSED "original-command-collision: the proposed command name collides with a retained occupied command slot"
+WORLD r_classfree tcl8.6 completed=true
+r_classfree tcl8.6 REFUSED "incomplete-original-command-coverage: the complete source contains an executable region or command selection without original coverage"
+WORLD r_n06class tcl9.0 completed=true
+r_n06class tcl9.0 REFUSED "original-command-collision: the proposed command name collides with a retained occupied command slot"
+WORLD r_n06method tcl9.0 completed=true
+r_n06method tcl9.0 REFUSED "original-member-collision: another retained source or builtin method occupies the proposed name"
+WORLD r_n06proc tcl9.0 completed=true
+r_n06proc tcl9.0 REFUSED "original-command-collision: the proposed command name collides with a retained occupied command slot"
+WORLD r_classfree tcl9.0 completed=true
+r_classfree tcl9.0 REFUSED "incomplete-original-command-coverage: the complete source contains an executable region or command selection without original coverage"
+WORLD r_n06class tcl9.1 completed=true
+r_n06class tcl9.1 REFUSED "original-command-collision: the proposed command name collides with a retained occupied command slot"
+WORLD r_n06method tcl9.1 completed=true
+r_n06method tcl9.1 REFUSED "original-member-collision: another retained source or builtin method occupies the proposed name"
+WORLD r_n06proc tcl9.1 completed=true
+r_n06proc tcl9.1 REFUSED "original-command-collision: the proposed command name collides with a retained occupied command slot"
+WORLD r_classfree tcl9.1 completed=true
+r_classfree tcl9.1 REFUSED "incomplete-original-command-coverage: the complete source contains an executable region or command selection without original coverage"
+R_N06 local->sibling core=Err("incomplete-original-command-coverage: the complete source contains an executable region or command selection without original coverage") cross_document_edits=0 allows_lexical_rename_advice=false
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 28 filtered out; finished in 274.68s
+
+GROUP_EXIT rename exit=0 Thu Oct 22 18:46:05 UTC 2026
+
+GROUP core budget=2400s Thu Oct 22 18:46:05 UTC 2026
+
+running 19 tests
+test n01_identity ... N01 tcl8.6 all_procs=["::a:::p"] diags=[]
+N01 tcl8.6 call="{p}]" definitions=[(0, 24)]
+N01 tcl8.6 call="{:p}]" definitions=[(1, 24)]
+N01 tcl9.0 all_procs=["::a:::p"] diags=[]
+N01 tcl9.0 call="{p}]" definitions=[(0, 24)]
+N01 tcl9.0 call="{:p}]" definitions=[(1, 24)]
+N01 tcl9.1 all_procs=["::a:::p"] diags=[]
+N01 tcl9.1 call="{p}]" definitions=[(0, 24)]
+N01 tcl9.1 call="{:p}]" definitions=[(1, 24)]
+N01 empty-tail all_procs=["::n::"] links=[("::a", "::n::")]
+ok
+test n02_jim ... N02 jim all_procs=["::a:::p", "::a::p"] def(a::p)=[] def(a:::p)=[]
+N02 tcl8.6 all_procs=["::a::p"] def(a::p)=[2] def(a:::p)=[2]
+ok
+test n03_variables ... N03 café tcl8.6 def=[(0, 4, 7)] refs=[(0, 4, 7), (2, 5, 9)]
+WORLD n03cafe tcl8.6 completed=true
+n03cafe tcl8.6 edits=[L0:4 "caf"->"zz"] [L2:5 "$caf"->"$zz"]  -> saved n03cafe_tcl8.6.tcl
+N03 café tcl9.0 def=[(0, 4, 7)] refs=[(0, 4, 7), (2, 5, 9)]
+WORLD n03cafe tcl9.0 completed=true
+n03cafe tcl9.0 edits=[L0:4 "caf"->"zz"] [L2:5 "$caf"->"$zz"]  -> saved n03cafe_tcl9.0.tcl
+N03 café jim def=[] refs=[]
+WORLD n03cafe jim completed=false
+n03cafe jim REFUSED "cannot prove the original variable selected by this occurrence"
+N03 nested-brace tcl8.6 def=[(0, 4, 9)]
+N03 nested-brace tcl9.0 def=[(1, 4, 11)]
+N03 nested-brace tcl9.1 def=[(1, 4, 11)]
+N03 suffix tcl8.6 cursor-on-literal-bar def=[]
+ok
+test n04_import_rename ... WORLD n04wild tcl8.4 completed=false
+n04wild tcl8.4 REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+WORLD n04exact tcl8.4 completed=false
+n04exact tcl8.4 REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+WORLD n04wild tcl8.5 completed=false
+n04wild tcl8.5 REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+WORLD n04exact tcl8.5 completed=false
+n04exact tcl8.5 REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+WORLD n04wild tcl8.6 completed=false
+n04wild tcl8.6 REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+WORLD n04exact tcl8.6 completed=false
+n04exact tcl8.6 REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+WORLD n04wild tcl9.0 completed=false
+n04wild tcl9.0 REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+WORLD n04exact tcl9.0 completed=false
+n04exact tcl9.0 REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+WORLD n04wild tcl9.1 completed=false
+n04wild tcl9.1 REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+WORLD n04exact tcl9.1 completed=false
+n04exact tcl9.1 REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+WORLD n04wild jim completed=false
+n04wild jim REFUSED "the original command selected at this cursor is unavailable; source-only vendor names and unknown native inputs cannot use lexical name edits"
+WORLD n04exact jim completed=false
+n04exact jim REFUSED "the original command selected at this cursor is unavailable; source-only vendor names and unknown native inputs cannot use lexical name edits"
+ok
+test n05_control_plain_rename ... N05CTL plain tcl8.6 -> Err("incomplete-original-command-coverage: the complete source contains an executable region or command selection without original coverage")
+N05CTL ns tcl8.6 -> Err("unknown-completed-command-world: a completed original command world is unavailable for collision coverage")
+N05CTL plain tcl9.0 -> Err("incomplete-original-command-coverage: the complete source contains an executable region or command selection without original coverage")
+N05CTL ns tcl9.0 -> Err("unknown-completed-command-world: a completed original command world is unavailable for collision coverage")
+N05CTL plain tcl9.1 -> Err("incomplete-original-command-coverage: the complete source contains an executable region or command selection without original coverage")
+N05CTL ns tcl9.1 -> Err("unknown-completed-command-world: a completed original command world is unavailable for collision coverage")
+ok
+test n05_forced_import ... N05 tcl8.4 refs=[(2, 9)] REFUSED RenameRefusal { reason: "unknown-completed-command-world: a completed original command world is unavailable for collision coverage", range: Some(LspRange { start_line: 2, start_character: 9, end_line: 2, end_character: 12 }) }
+N05 tcl8.5 refs=[(2, 9)] REFUSED RenameRefusal { reason: "unknown-completed-command-world: a completed original command world is unavailable for collision coverage", range: Some(LspRange { start_line: 2, start_character: 9, end_line: 2, end_character: 12 }) }
+N05 tcl8.6 refs=[(2, 9)] REFUSED RenameRefusal { reason: "unknown-completed-command-world: a completed original command world is unavailable for collision coverage", range: Some(LspRange { start_line: 2, start_character: 9, end_line: 2, end_character: 12 }) }
+N05 tcl9.0 refs=[(2, 9)] REFUSED RenameRefusal { reason: "unknown-completed-command-world: a completed original command world is unavailable for collision coverage", range: Some(LspRange { start_line: 2, start_character: 9, end_line: 2, end_character: 12 }) }
+N05 tcl9.1 refs=[(2, 9)] REFUSED RenameRefusal { reason: "unknown-completed-command-world: a completed original command world is unavailable for collision coverage", range: Some(LspRange { start_line: 2, start_character: 9, end_line: 2, end_character: 12 }) }
+N05 jim refs=[(2, 9)] REFUSED RenameRefusal { reason: "unknown-completed-command-world: a completed original command world is unavailable for collision coverage", range: Some(LspRange { start_line: 2, start_character: 9, end_line: 2, end_character: 12 }) }
+ok
+test n06_collisions ... WORLD n06class tcl8.6 completed=true
+n06class tcl8.6 REFUSED "original-command-collision: the proposed command name collides with a retained occupied command slot"
+WORLD n06method tcl8.6 completed=true
+n06method tcl8.6 REFUSED "original-member-collision: another retained source or builtin method occupies the proposed name"
+WORLD n06proc tcl8.6 completed=true
+n06proc tcl8.6 REFUSED "original-command-collision: the proposed command name collides with a retained occupied command slot"
+WORLD n06class tcl9.0 completed=true
+n06class tcl9.0 REFUSED "original-command-collision: the proposed command name collides with a retained occupied command slot"
+WORLD n06method tcl9.0 completed=true
+n06method tcl9.0 REFUSED "original-member-collision: another retained source or builtin method occupies the proposed name"
+WORLD n06proc tcl9.0 completed=true
+n06proc tcl9.0 REFUSED "original-command-collision: the proposed command name collides with a retained occupied command slot"
+WORLD n06class tcl9.1 completed=true
+n06class tcl9.1 REFUSED "original-command-collision: the proposed command name collides with a retained occupied command slot"
+WORLD n06method tcl9.1 completed=true
+n06method tcl9.1 REFUSED "original-member-collision: another retained source or builtin method occupies the proposed name"
+WORLD n06proc tcl9.1 completed=true
+n06proc tcl9.1 REFUSED "original-command-collision: the proposed command name collides with a retained occupied command slot"
+N06 local->sibling core=Err("incomplete-original-command-coverage: the complete source contains an executable region or command selection without original coverage") workspace_has_q=true
+N06 local->sibling cross_document_edits=0 workspace_symbol_rename_edits=None allows_lexical_rename_advice=false
+ok
+test n06_sibling_profile_matrix ... N06_SIBLING tcl8.4 declaration REFUSED "incomplete-original-command-coverage: the complete source contains an executable region or command selection without original coverage"
+N06_SIBLING tcl8.4 call REFUSED "incomplete-original-command-coverage: the complete source contains an executable region or command selection without original coverage"
+N06_SIBLING tcl8.5 declaration REFUSED "incomplete-original-command-coverage: the complete source contains an executable region or command selection without original coverage"
+N06_SIBLING tcl8.5 call REFUSED "incomplete-original-command-coverage: the complete source contains an executable region or command selection without original coverage"
+N06_SIBLING tcl8.6 declaration REFUSED "incomplete-original-command-coverage: the complete source contains an executable region or command selection without original coverage"
+N06_SIBLING tcl8.6 call REFUSED "incomplete-original-command-coverage: the complete source contains an executable region or command selection without original coverage"
+N06_SIBLING tcl9.0 declaration REFUSED "incomplete-original-command-coverage: the complete source contains an executable region or command selection without original coverage"
+N06_SIBLING tcl9.0 call REFUSED "incomplete-original-command-coverage: the complete source contains an executable region or command selection without original coverage"
+N06_SIBLING tcl9.1 declaration REFUSED "incomplete-original-command-coverage: the complete source contains an executable region or command selection without original coverage"
+N06_SIBLING tcl9.1 call REFUSED "incomplete-original-command-coverage: the complete source contains an executable region or command selection without original coverage"
+N06_SIBLING jim declaration REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+N06_SIBLING jim call REFUSED "the original command selected at this cursor is unavailable; source-only vendor names and unknown native inputs cannot use lexical name edits"
+ok
+test n07_speculative_var ... N07 tcl8.4 def=[] diags=["W210"] REFUSED RenameRefusal { reason: "unreferenced-edit: an edit falls outside the occurrences find-references reports for this binding", range: Some(LspRange { start_line: 1, start_character: 16, end_line: 1, end_character: 18 }) }
+N07 tcl8.5 def=[] diags=["W210"] REFUSED RenameRefusal { reason: "unreferenced-edit: an edit falls outside the occurrences find-references reports for this binding", range: Some(LspRange { start_line: 1, start_character: 16, end_line: 1, end_character: 18 }) }
+N07 tcl8.6 def=[] diags=["W210"] REFUSED RenameRefusal { reason: "unreferenced-edit: an edit falls outside the occurrences find-references reports for this binding", range: Some(LspRange { start_line: 1, start_character: 16, end_line: 1, end_character: 18 }) }
+N07 tcl9.0 def=[] diags=["W210"] REFUSED RenameRefusal { reason: "unreferenced-edit: an edit falls outside the occurrences find-references reports for this binding", range: Some(LspRange { start_line: 1, start_character: 16, end_line: 1, end_character: 18 }) }
+N07 tcl9.1 def=[] diags=["W210"] REFUSED RenameRefusal { reason: "unreferenced-edit: an edit falls outside the occurrences find-references reports for this binding", range: Some(LspRange { start_line: 1, start_character: 16, end_line: 1, end_character: 18 }) }
+N07 jim def=[] diags=[] REFUSED RenameRefusal { reason: "cannot prove the original variable selected by this occurrence", range: None }
+ok
+test n08_inliner ... N08 tcl8.4 single-pass=[]
+N08 tcl8.4 changed=false
+N08 tcl8.5 single-pass=[]
+N08 tcl8.5 changed=false
+N08 tcl8.6 single-pass=[]
+N08 tcl8.6 changed=false
+N08 tcl9.0 single-pass=[]
+N08 tcl9.0 changed=false
+N08 tcl9.1 single-pass=[]
+N08 tcl9.1 changed=false
+N08 jim single-pass=[]
+N08 jim changed=false
+ok
+test n08_unit_inference ... N08U proc=::n::p return_type=TypeLattice { repr: Overdefined } sccp_mentions GLOBAL=0 LOCAL=0 INIT=0
+N08U proc=::p return_type=TypeLattice { repr: Overdefined } sccp_mentions GLOBAL=0 LOCAL=0 INIT=0
+N08U proc=::n::c return_type=TypeLattice { repr: Overdefined } sccp_mentions GLOBAL=0 LOCAL=0 INIT=0
+ok
+test n09_compiler_facts ... N09 ctor proc=::n::c return=TypeLattice { repr: Union(BoundedSet { items: [Object(Some("::n::Foo"))] }) } object-types=["TypeLattice { repr: Union(BoundedSet { items: [Object(Some(\"::n::Foo\"))] }) }"]
+N09 ctor_shadow proc=::n::Foo return=TypeLattice { repr: Union(BoundedSet { items: [String] }) } object-types=[]
+N09 ctor_shadow proc=::n::c return=TypeLattice { repr: Overdefined } object-types=[]
+N09 path proc=::n::c direct_calls=["::lib::p"]
+N09 path proc=::p direct_calls=[]
+N09 path proc=::lib::p direct_calls=[]
+N09 taint-dependencies proc=::p callees=[]
+N09 taint-dependencies proc=::lib::p callees=[]
+N09 taint-dependencies proc=::n::c callees=["::p", "::lib::p", "::n::c"]
+N09 path analyser invocation p -> None
+ok
+test n10_classes ... N10 path hover=None type_hierarchy=[] def=[0]
+N10 relation-site supertypes=["::A::Base"] classes=[("::B::Child", ["Base"]), ("::B::Base", []), ("::A::Base", [])]
+N10 missing-qualified supertypes=[]
+ok
+test n11_packages ... N11 resolve_require=["/workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/out/run16-latest/n11pkg/p1.tcl", "/workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/out/run16-latest/n11pkg/p2.tcl"]
+N11 candidate(8.6)=["1.0", "2.0"]
+N11 for_profile=["/workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/out/run16-latest/n11pkg/p1.tcl", "/workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/out/run16-latest/n11pkg/p2.tcl"]
+N11 availability v1.0 = Available
+N11 availability v2.0 = Conditional
+N11 auto_qualify(café, ::)=["café"] auto_qualify(café, ::ns)=["::ns::café", "café"]
+ok
+test n12_incremental ... N12 warm-old=(false, false) replaced=(true, true) fresh-new=(true, true)
+ok
+test n13_source_env ... N13 seeded-child helper resolved=Some("::app::helper") lookup=Some(OriginalCommandLookup { input: OriginalWord(SignatureSourceNameKey { original: NativeWord { arena: ExecutablePartArena { image: SourceImage { bytes: [112, 114, 111, 99, 32, 114, 117, 110, 32, 123, 125, 32, 123, 104, 101, 108, 112, 101, 114, 125, 10], channel: Document, geometry: SourceImageGeometry { byte_hash: 14274516322718360627, line_index: Some(LineIndex { line_starts: [0, 21] }) } }, config: LexerConfig { expand_syntax: true, irules_brace_separator: false, brace_line_continuation: Terminates, strict_quoting: false, braced_var: FirstClose, array_index: Tcl8, base_offset: 0, base_line: 0, base_col: 0, leading_bom: Content, escapes: Tcl86, word_separators: Tcl, quote_termination: Strict, var_syntax: Tcl, brace_backslash_newline: Folds, list_parse: Strict, source_line_endings: TranslateAuto }, variables: WrittenWord, lists: [[SpannedExecutablePart { part: Text(Original), span: Span { start: 13, end: 19 }, source_span: Span { start: 13, end: 19 }, error_term: None, error_kind: None }]] }, config: LexerConfig { expand_syntax: true, irules_brace_separator: false, brace_line_continuation: Terminates, strict_quoting: false, braced_var: FirstClose, array_index: Tcl8, base_offset: 0, base_line: 0, base_col: 0, leading_bom: Content, escapes: Tcl86, word_separators: Tcl, quote_termination: Strict, var_syntax: Tcl, brace_backslash_newline: Folds, list_parse: Strict, source_line_endings: TranslateAuto }, group: WordSpan { kind: Bare, expand: false, tokens: 0..1, span: Span { star
+ok
+test n14_semantic_tokens ... N14 token at 'plain': type=string mods=[]
+ok
+test n15_minify ... N15 a tcl8.6 Compact iso=true
+   profile: procs={} refusals=[MissingAlphaRenameContract] out="proc a {} {return OLD};proc longName {} {return NEW};puts [a];puts [longName]"
+   analysis: procs={} refusals=[MissingAlphaRenameContract] out="proc a {} {return OLD};proc longName {} {return NEW};puts [a];puts [longName]"
+N15 a tcl8.6 Compact iso=false
+   profile: procs={} refusals=[MissingAlphaRenameContract] out="proc a {} {return OLD};proc longName {} {return NEW};puts [a];puts [longName]"
+   analysis: procs={} refusals=[MissingAlphaRenameContract] out="proc a {} {return OLD};proc longName {} {return NEW};puts [a];puts [longName]"
+N15 a tcl8.6 Aggressive iso=true
+   profile: procs={} refusals=[MissingAlphaRenameContract, MissingAliasInsertionContract, MissingSemanticRewriteContract, MissingKeywordSelectionContract] out="proc a {} {return OLD};proc longName {} {return NEW};puts [a];puts [longName]"
+   analysis: procs={} refusals=[MissingAlphaRenameContract, MissingAliasInsertionContract, MissingSemanticRewriteContract, MissingKeywordSelectionContract] out="proc a {} {return OLD};proc longName {} {return NEW};puts [a];puts [longName]"
+N15 a tcl8.6 Aggressive iso=false
+   profile: procs={} refusals=[MissingAlphaRenameContract, MissingAliasInsertionContract, MissingSemanticRewriteContract, MissingKeywordSelectionContract] out="proc a {} {return OLD};proc longName {} {return NEW};puts [a];puts [longName]"
+   analysis: procs={} refusals=[MissingAlphaRenameContract, MissingAliasInsertionContract, MissingSemanticRewriteContract, MissingKeywordSelectionContract] out="proc a {} {return OLD};proc longName {} {return NEW};puts [a];puts [longName]"
+N15 a tcl9.0 Compact iso=true
+   profile: procs={} refusals=[MissingAlphaRenameContract] out="proc a {} {return OLD};proc longName {} {return NEW};puts [a];puts [longName]"
+   analysis: procs={} refusals=[MissingAlphaRenameContract] out="proc a {} {return OLD};proc longName {} {return NEW};puts [a];puts [longName]"
+N15 a tcl9.0 Compact iso=false
+   profile: procs={} refusals=[MissingAlphaRenameContract] out="proc a {} {return OLD};proc longName {} {return NEW};puts [a];puts [longName]"
+   analysis: procs={} refusals=[MissingAlphaRenameContract] out="proc a {} {return OLD};proc longName {} {return NEW};puts [a];puts [longName]"
+N15 a tcl9.0 Aggressive iso=true
+   profile: procs={} refusals=[MissingAlphaRenameContract, MissingAliasInsertionContract, MissingSemanticRewriteContract, MissingKeywordSelectionContract] out="proc a {} {return OLD};proc longName {} {return NEW};puts [a];puts [longName]"
+   analysis: procs={} refusals=[MissingAlphaRenameContract, MissingAliasInsertionContract, MissingSemanticRewriteContract, MissingKeywordSelectionContract] out="proc a {} {return OLD};proc longName {} {return NEW};puts [a];puts [longName]"
+N15 a tcl9.0 Aggressive iso=false
+   profile: procs={} refusals=[MissingAlphaRenameContract, MissingAliasInsertionContract, MissingSemanticRewriteContract, MissingKeywordSelectionContract] out="proc a {} {return OLD};proc longName {} {return NEW};puts [a];puts [longName]"
+   analysis: procs={} refusals=[MissingAlphaRenameContract, MissingAliasInsertionContract, MissingSemanticRewriteContract, MissingKeywordSelectionContract] out="proc a {} {return OLD};proc longName {} {return NEW};puts [a];puts [longName]"
+N15 a jim Compact iso=true
+   profile: procs={} refusals=[MissingAlphaRenameContract] out="proc a {} {return OLD};proc longName {} {return NEW};puts [a];puts [longName]"
+   analysis: procs={} refusals=[MissingAlphaRenameContract] out="proc a {} {return OLD};proc longName {} {return NEW};puts [a];puts [longName]"
+N15 a jim Compact iso=false
+   profile: procs={} refusals=[MissingAlphaRenameContract] out="proc a {} {return OLD};proc longName {} {return NEW};puts [a];puts [longName]"
+   analysis: procs={} refusals=[MissingAlphaRenameContract] out="proc a {} {return OLD};proc longName {} {return NEW};puts [a];puts [longName]"
+N15 a jim Aggressive iso=true
+   profile: procs={} refusals=[MissingAlphaRenameContract, MissingAliasInsertionContract, MissingSemanticRewriteContract, MissingKeywordSelectionContract] out="proc a {} {return OLD};proc longName {} {return NEW};puts [a];puts [longName]"
+   analysis: procs={} refusals=[MissingAlphaRenameContract, MissingAliasInsertionContract, MissingSemanticRewriteContract, MissingKeywordSelectionContract] out="proc a {} {return OLD};proc longName {} {return NEW};puts [a];puts [longName]"
+N15 a jim Aggressive iso=false
+   profile: procs={} refusals=[MissingAlphaRenameContract, MissingAliasInsertionContract, MissingSemanticRewriteContract, MissingKeywordSelectionContract] out="proc a {} {return OLD};proc longName {} {return NEW};puts [a];puts [longName]"
+   analysis: procs={} refusals=[MissingAlphaRenameContract, MissingAliasInsertionContract, MissingSemanticRewriteContract, MissingKeywordSelectionContract] out="proc a {} {return OLD};proc longName {} {return NEW};puts [a];puts [longName]"
+N15 b tcl8.6 Compact iso=true
+   profile: procs={} refusals=[MissingAlphaRenameContract] out="proc longName {} {return NEW};puts [::longName]"
+   analysis: procs={} refusals=[MissingAlphaRenameContract] out="proc longName {} {return NEW};puts [::longName]"
+N15 b tcl8.6 Compact iso=false
+   profile: procs={} refusals=[MissingAlphaRenameContract] out="proc longName {} {return NEW};puts [::longName]"
+   analysis: procs={} refusals=[MissingAlphaRenameContract] out="proc longName {} {return NEW};puts [::longName]"
+N15 b tcl8.6 Aggressive iso=true
+   profile: procs={} refusals=[MissingAlphaRenameContract, MissingAliasInsertionContract, MissingSemanticRewriteContract, MissingKeywordSelectionContract] out="proc longName {} {return NEW};puts [::longName]"
+   analysis: procs={} refusals=[MissingAlphaRenameContract, MissingAliasInsertionContract, MissingSemanticRewriteContract, MissingKeywordSelectionContract] out="proc longName {} {return NEW};puts [::longName]"
+N15 b tcl8.6 Aggressive iso=false
+   profile: procs={} refusals=[MissingAlphaRenameContract, MissingAliasInsertionContract, MissingSemanticRewriteContract, MissingKeywordSelectionContract] out="proc longName {} {return NEW};puts [::longName]"
+   analysis: procs={} refusals=[MissingAlphaRenameContract, MissingAliasInsertionContract, MissingSemanticRewriteContract, MissingKeywordSelectionContract] out="proc longName {} {return NEW};puts [::longName]"
+N15 b tcl9.0 Compact iso=true
+   profile: procs={} refusals=[MissingAlphaRenameContract] out="proc longName {} {return NEW};puts [::longName]"
+   analysis: procs={} refusals=[MissingAlphaRenameContract] out="proc longName {} {return NEW};puts [::longName]"
+N15 b tcl9.0 Compact iso=false
+   profile: procs={} refusals=[MissingAlphaRenameContract] out="proc longName {} {return NEW};puts [::longName]"
+   analysis: procs={} refusals=[MissingAlphaRenameContract] out="proc longName {} {return NEW};puts [::longName]"
+N15 b tcl9.0 Aggressive iso=true
+   profile: procs={} refusals=[MissingAlphaRenameContract, MissingAliasInsertionContract, MissingSemanticRewriteContract, MissingKeywordSelectionContract] out="proc longName {} {return NEW};puts [::longName]"
+   analysis: procs={} refusals=[MissingAlphaRenameContract, MissingAliasInsertionContract, MissingSemanticRewriteContract, MissingKeywordSelectionContract] out="proc longName {} {return NEW};puts [::longName]"
+N15 b tcl9.0 Aggressive iso=false
+   profile: procs={} refusals=[MissingAlphaRenameContract, MissingAliasInsertionContract, MissingSemanticRewriteContract, MissingKeywordSelectionContract] out="proc longName {} {return NEW};puts [::longName]"
+   analysis: procs={} refusals=[MissingAlphaRenameContract, MissingAliasInsertionContract, MissingSemanticRewriteContract, MissingKeywordSelectionContract] out="proc longName {} {return NEW};puts [::longName]"
+N15 b jim Compact iso=true
+   profile: procs={} refusals=[MissingAlphaRenameContract] out="proc longName {} {return NEW};puts [::longName]"
+   analysis: procs={} refusals=[MissingAlphaRenameContract] out="proc longName {} {return NEW};puts [::longName]"
+N15 b jim Compact iso=false
+   profile: procs={} refusals=[MissingAlphaRenameContract] out="proc longName {} {return NEW};puts [::longName]"
+   analysis: procs={} refusals=[MissingAlphaRenameContract] out="proc longName {} {return NEW};puts [::longName]"
+N15 b jim Aggressive iso=true
+   profile: procs={} refusals=[MissingAlphaRenameContract, MissingAliasInsertionContract, MissingSemanticRewriteContract, MissingKeywordSelectionContract] out="proc longName {} {return NEW};puts [::longName]"
+   analysis: procs={} refusals=[MissingAlphaRenameContract, MissingAliasInsertionContract, MissingSemanticRewriteContract, MissingKeywordSelectionContract] out="proc longName {} {return NEW};puts [::longName]"
+N15 b jim Aggressive iso=false
+   profile: procs={} refusals=[MissingAlphaRenameContract, MissingAliasInsertionContract, MissingSemanticRewriteContract, MissingKeywordSelectionContract] out="proc longName {} {return NEW};puts [::longName]"
+   analysis: procs={} refusals=[MissingAlphaRenameContract, MissingAliasInsertionContract, MissingSemanticRewriteContract, MissingKeywordSelectionContract] out="proc longName {} {return NEW};puts [::longName]"
+ok
+test n16_providers ... N16 sighelp tcl8.4 "namespace path " -> None
+N16 sighelp tcl8.6 "namespace pat " -> Some(["namespace path ?namespaceList?"])
+N16 sighelp tcl8.6 "namespace path " -> Some(["namespace path ?namespaceList?"])
+N16 alias-hover=Some("```tcl\nproc ::n::a {} {...}\n```")
+N16 type_definition(puts greet)=[]
+N16 completion f-items=[("f", "\"::A::f\""), ("f", "\"::B::f\"")]
+ok
+
+test result: ok. 19 passed; 0 failed; 0 ignored; 0 measured; 10 filtered out; finished in 758.65s
+
+GROUP_EXIT core exit=0 Thu Oct 22 18:58:44 UTC 2026
+
+GROUP scaling budget=900s Thu Oct 22 18:58:44 UTC 2026
+
+running 1 test
+test scaling_latest_small_rows ... SCALE flat P=25 analyse_ms=23226.7 index_ms=559.647 100_missing_exists_ms=1.591
+SCALE source-chain F=250 build_ms=76.024
+SCALE source-chain F=500 build_ms=352.855
+SCALE source-chain F=1000 build_ms=813.077
+SCALE source-chain F=2000 build_ms=3669.177
+SCALE code-lens P=25 analyse_ms=22906.4 ms=5100.675 lenses=25
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 28 filtered out; finished in 75.00s
+
+GROUP_EXIT scaling exit=0 Thu Oct 22 18:59:59 UTC 2026
+
+GROUP hooks budget=1200s Thu Oct 22 18:59:59 UTC 2026
+
+running 4 tests
+test n17_control_mylib ... N17_CONTROL_INSTALL dsl=1 plan_empty=false notices=[] declined=["None"] registry_profile=Some("tcl8.6")
+N17_PROFILE dsl=1 dialect=None return=false direct=Some("5") O129=["5"]
+N17_PROFILE dsl=1 dialect=None return=true direct=Some("5") O129=["5"]
+N17_PROFILE dsl=1 dialect=Some("tcl8.6") return=false direct=Some("5") O129=["5"]
+N17_PROFILE dsl=1 dialect=Some("tcl8.6") return=true direct=Some("5") O129=["5"]
+N17_CONTROL_INSTALL dsl=2.0 plan_empty=false notices=[] declined=["None"] registry_profile=Some("tcl8.6")
+N17_PROFILE dsl=2.0 dialect=None return=false direct=Some("5") O129=["5"]
+N17_PROFILE dsl=2.0 dialect=None return=true direct=Some("5") O129=["5"]
+N17_PROFILE dsl=2.0 dialect=Some("tcl8.6") return=false direct=Some("5") O129=["5"]
+N17_PROFILE dsl=2.0 dialect=Some("tcl8.6") return=true direct=Some("5") O129=["5"]
+ok
+test n17_live_hook ... N17H dsl=1 fold=$arr($a:b) notices=0 plan_empty=false declined=["None"] O129=["good"]
+N17H dsl=2.0 fold=$arr($a:b) notices=0 plan_empty=false declined=["None"] O129=["good"]
+N17H dsl=2.0 fold=$arr(${a}:b) notices=0 plan_empty=false declined=["None"] O129=["good"]
+N17H dsl=2.0 fold=good notices=0 plan_empty=false declined=["None"] O129=["good"]
+N17H dsl=2.0 fold=[string length [lindex $words 0]] notices=0 plan_empty=false declined=["None"] O129=["5"]
+ok
+test n17_live_hook_effect_control ... N17_EFFECT dsl=1 pure=false braced=false notices=[] declined=["None"] direct=Some("good") O129=["good"]
+N17_EFFECT dsl=1 pure=false braced=true notices=[] declined=["None"] direct=Some("good") O129=["good"]
+N17_EFFECT dsl=1 pure=true braced=false notices=[] declined=["None"] direct=Some("good") O129=["good"]
+N17_EFFECT dsl=1 pure=true braced=true notices=[] declined=["None"] direct=Some("good") O129=["good"]
+N17_EFFECT dsl=2.0 pure=false braced=false notices=[] declined=["None"] direct=Some("good") O129=["good"]
+N17_EFFECT dsl=2.0 pure=false braced=true notices=[] declined=["None"] direct=Some("good") O129=["good"]
+N17_EFFECT dsl=2.0 pure=true braced=false notices=[] declined=["None"] direct=Some("good") O129=["good"]
+N17_EFFECT dsl=2.0 pure=true braced=true notices=[] declined=["None"] direct=Some("good") O129=["good"]
+ok
+test n17_template_registration ... N17T dsl=1 helper=false braced=false fast=true -> commands=["good"] notices=0 load_error=None
+N17T dsl=1 helper=false braced=false fast=false -> commands=["good"] notices=0 load_error=None
+N17T dsl=1 helper=false braced=true fast=true -> commands=["good"] notices=0 load_error=None
+N17T dsl=1 helper=false braced=true fast=false -> commands=["good"] notices=0 load_error=None
+N17T dsl=1 helper=true braced=false fast=true -> commands=["good"] notices=0 load_error=None
+N17T dsl=1 helper=true braced=false fast=false -> commands=["good"] notices=0 load_error=None
+N17T dsl=1 helper=true braced=true fast=true -> commands=["good"] notices=0 load_error=None
+N17T dsl=1 helper=true braced=true fast=false -> commands=["good"] notices=0 load_error=None
+N17T dsl=2.0 helper=false braced=false fast=true -> commands=["good"] notices=0 load_error=None
+N17T dsl=2.0 helper=false braced=false fast=false -> commands=["good"] notices=0 load_error=None
+N17T dsl=2.0 helper=false braced=true fast=true -> commands=["good"] notices=0 load_error=None
+N17T dsl=2.0 helper=false braced=true fast=false -> commands=["good"] notices=0 load_error=None
+N17T dsl=2.0 helper=true braced=false fast=true -> commands=["good"] notices=0 load_error=None
+N17T dsl=2.0 helper=true braced=false fast=false -> commands=["good"] notices=0 load_error=None
+N17T dsl=2.0 helper=true braced=true fast=true -> commands=["good"] notices=0 load_error=None
+N17T dsl=2.0 helper=true braced=true fast=false -> commands=["good"] notices=0 load_error=None
+ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 25 filtered out; finished in 204.37s
+
+GROUP_EXIT hooks exit=0 Thu Oct 22 19:03:24 UTC 2026
+
+GROUP seams budget=600s Thu Oct 22 19:03:25 UTC 2026
+
+running 3 tests
+test seam_extract_inline ... SEAM inline_proc title="Inline proc 'p'" edits=0 disabled=Some("the copied command's implementation is not preserved in the caller namespace") saved seam_inline.tcl
+SEAM extract_variable(result) offered edits=0 disabled=Some("The selection is not a pure original complete word at a reached local source point"); saved seam_extract.tcl
+ok
+test seam_linked_editing ... SEAM linked_editing=Some([(0, 5), (0, 15)])
+ok
+test seam_nested_passthrough_irules ... SEAM nested f5-irules root=0 conditions=[] blocks=0 native_calls=0 calls=["proc", "when"]
+SEAM nested f5-irules root=1 conditions=[] blocks=0 native_calls=0 calls=["uplevel"]
+SEAM nested f5-irules root=2 conditions=[] blocks=0 native_calls=0 calls=["set", "if", "call"]
+SEAM nested f5-irules root=3 conditions=[] blocks=0 native_calls=0 calls=["uplevel"]
+SEAM nested f5-irules root=0 conditions=[] blocks=0 native_calls=0 calls=["proc", "proc"]
+SEAM nested f5-irules root=1 conditions=[] blocks=0 native_calls=0 calls=["uplevel"]
+SEAM nested f5-irules root=2 conditions=[] blocks=0 native_calls=0 calls=["set", "if", "run"]
+SEAM nested f5-irules root=3 conditions=[] blocks=0 native_calls=0 calls=["uplevel"]
+SEAM nested tcl8.6 root=0 conditions=[] blocks=0 native_calls=0 calls=["proc", "proc"]
+SEAM nested tcl8.6 root=1 conditions=[] blocks=0 native_calls=0 calls=["uplevel"]
+SEAM nested tcl8.6 root=2 conditions=["Binary { op: StrEq, left: Var { text: \"$x\", name: \"x\", start: 0, end: 1 }, right: String { text: \"\\\"a\\\"\", start: 6, end: 8 } }"] blocks=1 native_calls=0 calls=["puts", "if"]
+ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 26 filtered out; finished in 96.89s
+
+GROUP_EXIT seams exit=0 Thu Oct 22 19:05:07 UTC 2026
+Thu Oct 22 19:05:07 UTC 2026
+0412d5e49b9e03e3d67235b542c2b28fd5629f3e
+c710e35b4eb63642a7050bc7cec6535b98cbe5a265d035a92cc27acdb96b2278  rust/tcl-compiler/src/const_subst.rs
+Filesystem      Size  Used Avail Use% Mounted on
+overlay          32G  3.8G   27G  13% /
+   Compiling tcl-spectcl v0.1.0 (/workspace/tcl-lsp-triage/rust/tcl-spectcl)
+    Finished `test` profile [unoptimized] target(s) in 11.73s
+     Running tests/pack_source_e2e.rs (target/debug/deps/pack_source_e2e-626cf81c5174631c)
+
+running 1 test
+test a_pack_file_folds_a_call_site_in_the_optimiser ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 9 filtered out; finished in 14.50s
+
+E2E_EXIT=0
+cleaned Thu Oct 22 19:05:34 UTC 2026

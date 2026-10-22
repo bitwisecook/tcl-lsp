@@ -4,41 +4,34 @@ Reviewed report: [naming-migration-review-20261022.md](naming-migration-review-2
 
 Evidence, scripts and logs: [triage-20261022/](triage-20261022/README.md). Live progress and resume steps: [../outstanding/review-triage.md](../outstanding/review-triage.md).
 
-This report is updated after every probe run. Remaining post-R1 and latest-work obligations are stated explicitly.
+**Run16 complete; final replay refreshed for the new source batch.** All 27 semantic observational probes plus one fresh small scaling probe complete on `2d1b85ad` (five groups, every exit 0). The existing `pack_source_e2e::a_pack_file_folds_a_call_site_in_the_optimiser` now passes, and the fresh declared-effect/unclosed-argument regression passes on `0412d5e4`, whose product source is identical. All 107 Tcl files ran on all six engines: 642 executions, 86 generated outputs, 186 matching-profile checks, zero unexpected result. No product code or permanent tests were edited.
 
-**Latest integrated build is runnable again:** e75345a7 fixes the prior integration errors. Run16 compiled on `2d1b85ad` in 8m25s; the fresh six-profile server-shaped rename matrix passed and matches the post-R1 dispositions below. Its returned edits pass 12 matching-profile checks (33 files / 198 engine executions), zero unexpected result (`run16-rename-*`). Closed progress: `run16-progress.log`; static audit: `run16-source-audit.log`. The 19 core tests are active; hooks, seams, fresh small scaling and named e2e remain. No final latest-work sign-off yet.
-
-The failed run15 on be53f58c executed zero probes: 18 compiler + 4 VM integration errors, one warning, Rust1.99.1. Full diagnostics remain in run15-build-error-summary.json/run15-build-errors.log and raw build logs; that earlier build failure is not a semantic finding.
+The fetch after run16 brought `b572c36d` (Jim class ownership and server metadata/lint integration), with tip `5d054dc7`. A complete fresh grouped replay is required before final sign-off; run17 is next. Release gates `make rust-check` and `make prep-pr` remain unrun under the active `work` development-push exception.
 
 ## Validation snapshots
 
-This is an interim report. All independent requested seam/scaling/N17 triage is settled. The post-R1 rename matrix is complete. Run14 completed through N15 on 49b067ce, then was intentionally interrupted at N16 because a187c859 integrated a broad compiler/registry/LSP metadata batch. A complete grouped serial replay on the new tree is next; no final sign-off is claimed. No product code or permanent tests were edited. Required release gates `make rust-check` and `make prep-pr` are unrun under the active `work` development-push exception.
-
 | Evidence | Snapshot | Result |
 |---|---|---|
-| `run10-current.log` main / `run10-source.rs.txt` | compiled `60ce7009` | 24 filter groups / 27 observational probes complete, every group exit 0. Findings and seams match the dispositions below. |
-| `run10-current-oracles.log` / summary | outputs from that executable | 98 files / 588 engine executions; 78 generated files / 138 matching checks; zero unexpected result. |
-| Named existing fold e2e in `run10-current.log` | rebuilt `13050f6a`, includes N17 correction `fd5c12bf` | 0 passed / 1 failed, DSL1 expected `["5"]`, actual `[]`, 11.70s after 13m37s rebuild. |
-| `run11-n17.log`, `run11-variable-boundaries.log` | `0e21cada` | Explicit-context live hooks fold good/5, including undeclared effects; 2 observational probes and 4/4 product regressions pass, including declared-callback barriers. |
-| `run11-n17-oracles.log` / summary | eight fresh folded drivers | 28 files / 168 executions; 48 matched generated checks, zero unexpected result. |
-| `run12-n17-profile.log` / oracle summary | `b3c8ea5b` | Exact guarded body fails direct/optimiser folding in all 8 DSL/context/return combinations; all six engines compute 5. 174 executions / 48 matched checks, zero unexpected output. |
-| `run13-n17-install.log` / oracle summary | post-cleanup `fc5aeac1` | Both guarded hooks install successfully with retained tcl8.6, but still yield no fold. 174 executions / 48 matched checks, zero unexpected output. |
-| `run7-pending.log` | `0434e7e7` | Three seams and individually bounded P25/50/100 lens rows complete; all groups exit 0. Flat P25/50/100/200 and chains are also measured in run6. |
-| `run10-source-audit.log.gz`, `run10-after-fix-source-audit.log.gz` | `60ce7009`, `6ebc499c` | Static server-only seams, arity ownership and scaling structures; latter includes declared-footprint barrier correction. |
+| `run16-latest.log`, `final-probe.rs.txt` | compiled `2d1b85ad` | 27 semantic probes + 1 small scaling probe; all five groups exit 0. Named existing fold e2e rebuilt on source-identical `0412d5e4`: 1 passed, 14.50s. |
+| `run16-latest-oracles.log` / summary | run16 generated sources | 107 files / 642 engine executions, 86 generated files / 186 matching-profile checks, zero unexpected result. |
+| `run16-declared-effects.log` | `0412d5e4` | Existing declared-effect/unclosed-argument barrier regression: 1 passed, 57.84s. |
+| `run16-source-audit.log` | `2d1b85ad` | All static seams inspected; no missing search patterns. Server-only claims remain static. |
+| `run14-*` | `49b067ce`, after R1 | Rename matrix complete. Main replay intentionally interrupted after N15 for broad metadata integration; completed outputs pass 78 matching checks. |
+| `run15-*` | `be53f58c` | Build failed with 18 compiler + 4 VM errors; zero probes. Corrected by `e75345a7`, as run16 demonstrates. |
+| `run10-*`, `run11-*`, `run12-*`, `run13-*` | exact hashes in logs | Earlier N17 progression: simple live hooks fixed; guarded body installed but declined execution. Superseded by run16's successful exact-body and existing e2e checks. |
+| `run6.log`, `run7-pending.log` | `5bd5a503`, `0434e7e7` | Completed requested larger small-size scaling rows; retained as historical measurements, with a fresh run16 small point below. |
 
-Harness passes mean observational probes completed, not that every product answer was correct. R1 controls in run7 locate the absent completed world before analyser transport: plain puts and puts[foo] lack it in both retained realm and result, before/after core seeding; declaration/bare-call controls retain both. R1 landed in ec80a189/79d4e834; its public diagnosis passes 54 subcases (14 positive, 40 negative). Local run14 confirms ordinary puts-call completed worlds on all five C profiles, while import cases remain uncertain and Jim remains limited. The earlier ten-positive-mismatch result is historical.
+Harness passes mean observational probes completed, not that every product answer was correct. R1 landed in `ec80a189`/`79d4e834`; local run14 and run16 confirm ordinary puts-call completed worlds on all five C profiles. Import-specific uncertainty and Jim coverage gaps remain. N04–N07 return no edits in the contested cases, so there is no unsafe proposed edit to execute. Returned control edits, variable-prefix edits, optimiser and minifier outputs were applied to scratch sources and executed.
 
-Earlier setup, incomplete sparse-checkout attempts and stable e2e repeats remain in `cloud-setup.log`, `run5.log`, `run5-e2e-repeat.log` and run6 evidence. Three missing embedded fixture trees were restored; no product verdict is inferred from those checkout failures. Exact probe sources/hashes and per-run provenance distinguish old executable observations from subsequent builds.
-
-**Post-R1 rename replay complete:** run14 compiled on `49b067ce`; server-shaped matrix exited 0 in 284.24s. Closed progress is `run14-progress.log`. All returned edits available at that checkpoint ran on all six engines (`run14-rename-oracles.log` / summary): 33 files / 198 executions, 12 generated files / 12 matching-profile checks, zero unexpected result. Refused N04–N07 cases returned no edit to execute. Run14 later completed 19 groups through N15, all exit 0, then was interrupted at N16 when the reviewed source changed broadly. The remaining groups/e2e did not run and are not counted. Its completed 68 Tcl outputs all passed 78 matching checks (89 files / 534 executions; run14-partial oracle evidence).
+Earlier sparse-checkout build failures and stable historical fold failures remain reproducible in their logs; no current semantic verdict is inferred from failed setup or superseded executables. Losslessly compressed audits and output manifests preserve provenance.
 
 ## Method
 
 - **Oracles.** Each Tcl repro from the review (`triage-20261022/tcl/`) was run with `triage-20261022/oracle.sh <file>` on six engines: `tclsh8.4` (8.4.20), `tclsh8.5` (8.5.19), `tclsh8.6` (8.6.18), `tclsh9.0` (9.0.4), `tclsh9.1` (9.1.0) and Jim 0.84 (`tmp/jimtcl-oracle/jimsh`). Every oracle answer matches the review's expected outcome, including feature-unavailable rows: TclOO is missing on 8.4, 8.5 and Jim, and `namespace path` on 8.4 and Jim.
 - **Probes.** Current production APIs were called from one temporary test, `rust/tcl-spectcl/tests/zz_review_probe.rs` (copy: `triage-20261022/zz_review_probe.rs.txt`).
-  - It was built in the shared target with `CARGO_INCREMENTAL=0 CARGO_PROFILE_TEST_DEBUG=0 CARGO_PROFILE_DEV_DEBUG=0` and run with `--nocapture --test-threads=1`.
+  - It was built in this checkout’s isolated target with `CARGO_INCREMENTAL=0 CARGO_PROFILE_TEST_DEBUG=0 CARGO_PROFILE_DEV_DEBUG=0` and run with `--nocapture --test-threads=1`.
   - `tcl-spectcl` was chosen because one build links `tcl-compiler`, `tcl-lsp-core`, `tcl-spectcl`, `tcl-spec-hooks` and `tcl-engine-tclvm`.
-  - Runs: run1 at 11:01Z (safety batch), run2 at 11:20Z, run3 from 11:28Z to 12:06Z, run4 from 12:13Z to 12:39Z (stopped before scaling when the triage moved to a cloud session). Cloud run6 uses `run6.sh`; the bounded follow-up uses `run-pending.sh` and `pending-probe.rs.txt`. The prepared final latest-work replay is `run-final.sh` with `final-probe.rs.txt`. Logs and hashes are in the evidence directory.
+  - Runs: run1 at 11:01Z (safety batch), run2 at 11:20Z, run3 from 11:28Z to 12:06Z, run4 from 12:13Z to 12:39Z (stopped before scaling when the triage moved to a cloud session). Cloud run6 uses `run6.sh`; the bounded follow-up uses `run-pending.sh` and `pending-probe.rs.txt`. The current complete grouped replay uses `run-latest.sh` with `final-probe.rs.txt`. Logs and hashes are in the evidence directory.
   - Runs 1–4 reported no crate compilation failures. Cloud run5 encountered omitted embedded fixture files in `tcl-test-support`; these checkout errors were repaired without product changes.
 - **Edits.** Returned edits (rename `TextEdit`s, optimiser rewrites, minifier output) were applied to scratch copies (`triage-20261022/out/`), and each copy was run on the same six engines.
 - **Rename entry point.** Rename was probed in two ways:
@@ -50,7 +43,6 @@ Earlier setup, incomplete sparse-checkout attempts and stable e2e repeats remain
   - FIXED: the correct result.
   - CHANGED: different but still wrong, or now refuses or abstains.
   - NOT-APPLICABLE: the code was removed or replaced.
-  - "Refused, pending R1": rename now refuses even plain static cases, because no completed command world is available. That gap is being fixed by compiler-names (R1), and these rows must be re-checked once rename produces edits again.
 
 ## Summary
 
@@ -63,7 +55,7 @@ Earlier setup, incomplete sparse-checkout attempts and stable e2e repeats remain
 | N05 forced-import rename | CHANGED: references correct; post-R1 rename still refuses import-world uncertainty | lsp, compiler-names | same |
 | N06 collision checks | Same-document class/method/proc-to-class guards FIXED; workspace cases refuse at both origins for coverage, no edits | lsp | same; `rename.rs` `cross_document_symbol_edits` |
 | N07 speculative proc variable | CHANGED: safe refusal confirmed after R1; Jim W210 gap remains | lsp | `rename.rs`, `definition.rs` |
-| N08 inliner subset oracle + nested lowering | FIXED (edits and unit inference) | — | — |
+| N08 inliner subset oracle | FIXED (edits and unit inference) | — | — |
 | N09 type/call/taint | Constructor/call graph FIXED; taint dependency resolver conservatively retains all source candidates | — | — |
 | N10 OO class/relation | CHANGED: relations, qualified miss and path-based definition FIXED; path hover/type hierarchy still empty | lsp | `tcl-lsp-core/src/definition.rs:4260` (`resolve_class_target_at`) |
 | N11 packages | CHANGED: `if {0}` provider classified `Conditional` and still selected; `merge_library_files` early return REPRODUCES (static); `auto_qualify` Unicode FIXED | lsp | `tcl-lsp-core/src/package_resolver.rs`, `package_resolver/reachability.rs`, `tcl-lsp-server/src/lib.rs:17823` |
@@ -73,7 +65,7 @@ Earlier setup, incomplete sparse-checkout attempts and stable e2e repeats remain
 | N15 minifier compaction | CHANGED (refuses `MissingAlphaRenameContract`); output behaviour-preserving | lsp | `tcl-lsp-core/src/minify.rs`, `minify/original.rs` |
 | N16 provider fallbacks | FIXED (4/4 rows) | — | — |
 | N17 SpecTcl template | FIXED | — | — |
-| N17 live hook | Explicit-dialect hooks FIXED after `fd5c12bf`; declared barriers preserved (4/4 regressions). Live hooks fold; guarded strlen control installs but yields no fold. Owner trace reports missing native compiler preflight provider | compiler-codegen (`const_subst.rs`, per user decision 13:17Z); vm-runtime (host) | see detail |
+| N17 live hook | FIXED in requested repros: exact guarded body folds in all 8 contexts; named pack e2e passes; declared barriers preserved | — | `run16-latest.log`, `run16-declared-effects.log` |
 | Seam `ns_var_global_fallback` | FIXED (static) | — | — |
 | Seam `WorkspaceIndex::registry_for` | FIXED (static) | — | — |
 | Seam `analyse_with_workspace_classes` | CHANGED (static): resolved input, resource inputs and base-analysis identity retained; source-entry parity not shown | lsp | `tcl-lsp-server/src/lib.rs:20036–20120` |
@@ -227,16 +219,12 @@ Each row gives the evidence (probe call or command and the observed output), the
 
 ### N17: SpecTcl template and live hook
 
-- **Template and substituted value: FIXED.** Direct callbacks return `good`, and the template cases register `good` under both DSL releases, helper/direct forms and fast-path settings. Fresh product `variable_reference_boundaries` on `0e21cada` passes **4/4 tests** in 251.08s, including template parsing, live array-value folding and declared-effect/unclosed-argument barriers.
-- **Explicit-dialect optimisation: FIXED after `fd5c12bf`.** Fresh `run11-n17.log` on `0e21cada` completes two observational tests in 75.36s. All five original hook controls fold to the correct `good` or `5`. All eight DSL/reference/effects combinations directly return `good` and emit O129 `good`, including the four with no declared effects. Explicit pure effects are no longer required on this path.
-- **Declared barriers remain enforced.** The existing regression `a_live_fold_keeps_declared_effects_and_unclosed_arguments` passes; the correction does not allow a declared callback footprint to be erased.
-- **Execution oracles:** `run11-n17-oracles.log` / summary: 28 files / 168 executions, including eight fresh folded drivers / 48 matched checks, zero unexpected result. All fresh generated drivers print `good` on every engine.
-- **Residual guarded-body control: FAILS in both contexts.** The existing `pack_source_e2e::a_pack_file_folds_a_call_site_in_the_optimiser` rebuilt on `13050f6a` fails: 0/1, DSL1 expected `["5"]`, actual `[]` (11.70s after 13m37s build). Fresh `run12-n17-profile.log` on `b3c8ea5b` copies its exact shared hook body and varies DSL1/2, optimiser None/Some(tcl8.6), return/no-return: all eight cases have direct API `None` and O129 `[]`. Thus neither dialect argument nor the return statement explains the residual failure. The simpler unconditional length hook does return/fold `5` in run11.
-- **Guarded-body ground truth:** `tcl/n17-ascii-hook.tcl` evaluates the same callback body; C 8.4–9.1 and pinned Jim all print `ascii=1|hook=5`. `run12-n17-profile-oracles.log` covers 29 files / 174 executions, including eight generated scripts / 48 matched checks, zero unexpected result. The generated fallback scripts preserve the expected result.
-- **Installation/execution distinction settled:** fresh run13 on post-cleanup `fc5aeac1` reports nonempty plans, no notices, `declined=["None"]` and retained `tcl8.6` for both DSLs. All eight guarded-body variants still return API None and O129 empty (one observational test, 29.32s after 11m21s rebuild). The hook is installed; the missing result is later. Its eight generated scripts pass 48 matching-engine checks (29 files / 174 total engine executions).
-- **Independent owner trace:** `owner-n17-public-axes-excerpt.log` quotes the published compiler-codegen diagnostic with commit/blob provenance; it records successful installation followed by `execution refused: native compiler preflight provider required`, no crash, for the same guarded body. This receipt is owner-reported evidence, not another triage execution. A same-body positive case with a genuinely installed provider remains unmeasured; no particular string compiler or missing-provider fix is inferred. Preserve that guard.
-- **Pre-fix contrast:** run6/run7/run10 main on `5bd5a503` / `0434e7e7` / `60ce7009` returned correct direct values, but only the explicit `world_effects none` controls emitted O129. `const_subst.rs` then rejected every conservative unknown footprint. The new selected-declared-footprint guard is present in `fd5c12bf` and audited in `run10-after-fix-source-audit.log.gz`.
-- **Owner:** compiler-codegen / vm-runtime (guarded-hook compilation/execution; `const_subst.rs` correction verified for the successful controls), per the recorded user decision. Triage made no product/test changes. The requested N17 triage is settled: the named existing control fails, some live hooks demonstrably fold correctly, and the residual guarded body is blocked during execution. Only the required final latest-work replay remains.
+- **Status: FIXED in the requested current repros (run16).** Both DSL releases register the expected template value across all 16 combinations. All five original live-hook controls fold `good` or `5`. All eight DSL/reference/effects combinations return and optimise to `good`, including absent explicit effects.
+- **Exact guarded strlen body now works:** all eight DSL1/2 × optimiser None/Some(tcl8.6) × return/no-return cases return direct `Some(5)` and emit O129 `5`; installation has no decline. This is the body used by the existing pack test, not just an unconditional length substitute.
+- **Named existing test:** `pack_source_e2e::a_pack_file_folds_a_call_site_in_the_optimiser` passes 1/1 in 14.50s on product source identical to `2d1b85ad`; it asserts both DSL releases. Fresh existing `a_live_fold_keeps_declared_effects_and_unclosed_arguments` passes 1/1 in 57.84s (`run16-declared-effects.log`). Declared writes/callbacks and unclosed arguments remain barriers.
+- **Ground truth:** `tcl/n17-ascii-hook.tcl` prints `ascii=1|hook=5` on C 8.4–9.1 and pinned Jim. Fresh folded drivers are included in the 186 successful matching-profile checks.
+- **Historical distinction:** `fd5c12bf` repaired the overly broad footprint barrier. Later run12/run13 still installed the guarded body but returned no fold; the separately attributed owner trace reported missing native compiler preflight provider refusal. Those failures no longer reproduce after the reviewed integration used by run16. This does not establish which individual internal change caused the successful guarded execution, or justify bypassing a provider guard.
+- No product/test edits were made by triage. Earlier 4/4 `variable_reference_boundaries` execution is retained in `run11-variable-boundaries.log`; the relevant negative regression was rebuilt and rerun fresh above.
 
 ### Section 3.2 / 3.3 seams
 
@@ -290,3 +278,13 @@ Static inspection still finds the linear live-procedure/class/link scan in `work
 Run14 output storage: `triage-20261022/out/run14-final.tar.gz` retains all 71 generated files (68 root Tcl outputs plus package fixtures); `run14-final.manifest.json` verifies every byte. The interrupted output tree is archived to keep evidence below 5 MB; the current complete replay will retain its fresh outputs directly.
 
 Evidence storage: historical run6 output files are losslessly archived as `out/run6.tar.gz` with a per-file SHA-256 manifest; prior oracle logs remain unchanged. This preserves room for the complete latest-tree raw outputs under the 5 MB evidence limit.
+
+Fresh run16 (`2d1b85ad`) checks the smallest flat/lens point and the full small source-chain range again:
+
+| Workload | Measurement (wall ms, unoptimised test profile) |
+|---|---:|
+| P25 flat analysis / index / 100 missing queries | 23,226.7 / 559.647 / 1.591 |
+| F250 / F500 / F1000 / F2000 source-chain build | 76.024 / 352.855 / 813.077 / 3,669.177 |
+| P25 lens pre-analysis / query / count | 22,906.4 / 5,100.675 / 25 lenses |
+
+Index/query/chain values are minima of three; analysis and lens values are single measurements. The helper named `cpu_ms` uses `Instant`, so these are wall times, not CPU medians. Larger flat/lens rows above belong to the historical run6/run7 snapshots and are not relabelled as latest measurements. Substantial costs persist at the current small point; release latency and RSS remain unmeasured.

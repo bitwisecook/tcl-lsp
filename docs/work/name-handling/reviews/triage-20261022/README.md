@@ -4,19 +4,20 @@ Evidence for the replay of the external review ([../naming-migration-review-2026
 
 | Item | What it is |
 | --- | --- |
-| `run16-progress.log`, `run16-source-audit.log`, `run16-rename-*` | Latest integration compiles; fresh rename matrix/early edits pass, 198 engine executions /12 matching checks. Remaining grouped replay active; live log untracked. |
+| `run16-latest.log`, `run16-latest-oracles.log`, summary, `out/run16-latest/`, `run16-declared-effects.log` | Complete on 2d1b85ad: 27 semantic + 1 scaling probes; named fold e2e and declared-barrier regression pass. 642 engine executions / 186 matching checks, zero unexpected result. |
+| `run16-progress.log`, `run16-source-audit.log`, `run16-rename-*` | Closed earlier prefix, static audit and early rename replay; full completed run16 supersedes the prefix. |
 | `compressed-audits.json`, historical `.log.gz` | Lossless audit compression with original content hashes; read using gzip -dc. |
-| `run15-latest*`, `run15-build-error-summary.json`, `run15-build-errors.log` | Latest integration fails before probes: 18 compiler + 4 VM errors, Rust1.99.1, exit101. Full structured/rendered diagnostics; zero tests. |
+| `run15-latest*`, `run15-build-error-summary.json`, `run15-build-errors.log` | Historical be53f58c integration failed before probes: 18 compiler + 4 VM errors, Rust1.99.1, exit101. Full structured/rendered diagnostics; zero tests. |
 | `run-latest.sh` | Complete grouped serial latest-tree replay, plus fresh small scaling point and existing fold e2e. Core registry startup is shared; hook-mutating tests and seams run in separate processes. |
 | `run14-final.log`, `run14-partial-*`, `out/run14-final.tar.gz`, `out/run14-final.manifest.json` | Run14 completed 19 groups through N15, then was interrupted for a187c859 integration. 534 engine executions / 78 matching checks pass. Archive retains all 71 output files byte-for-byte; extract under a scratch directory if needed. |
-| `run14-progress.log`, `run14-source-audit.log`, `run14-rename-oracles.log`, `run14-rename-oracle-summary.json` | Post-R1 matrix and current final-replay prefix on 49b067ce; 198 engine executions / 12 matching-profile checks of early edits, no unexpected result. Main replay remains active. |
+| `run14-progress.log`, `run14-source-audit.log`, `run14-rename-oracles.log`, `run14-rename-oracle-summary.json` | Post-R1 matrix and current final-replay prefix on 49b067ce; 198 engine executions / 12 matching-profile checks of early edits, no unexpected result. Main replay was later intentionally interrupted for new integration. |
 | `run13-n17-install*`, `owner-n17-public-axes-excerpt.log` | Post-cleanup hooks install with no decline and retained tcl8.6; API still yields no fold. Owner receipt separately reports missing preflight-provider execution refusal. 174 engine executions / 48 matched output checks pass. |
 | `watch-r1.sh` | Bounded fetch-only source-change monitor; never changes the checkout, writes active log outside git. |
 | `run12-n17-profile*`, `tcl/n17-ascii-hook.tcl` | Exact guarded control fails direct/optimiser folding with both DSLs, dialect options and return variants; all six engines compute 5. 174 engine executions / 48 matched checks, no unexpected output. |
 | `run11-n17*`, `run11-variable-boundaries.log`, `run11-source.rs.txt` | Post-fix explicit-context matrix passes; 4/4 existing variable-boundary regressions pass; 168 engine executions / 48 matched generated checks, no unexpected result. |
 | `run11-n17.sh` | Builds/runs/deletes fresh custom matrix and existing declared-callback regression target in one command. |
 | `run10-current.log`, `run10-current-oracles.log`, `run10-current-oracle-summary.json` | Complete interim 27-probe replay at `60ce7009`; 588 engine executions / 138 matched checks, no unexpected output. Later rebuilt existing fold control STILL FAILS on `13050f6a` with the N17 correction. |
-| `run10-progress.log`, `run10-source-audit.log.gz`, `run10-after-fix-source-audit.log.gz`, `run10-startup.log`, `run10-source.rs.txt` | Interim all-finding replay on `60ce7009`: closed prefix through server-shaped rename matrix and static audit; active main log/output replay not yet complete. Startup wrapper correction is separately recorded. |
+| `run10-progress.log`, `run10-source-audit.log.gz`, `run10-after-fix-source-audit.log.gz`, `run10-startup.log`, `run10-source.rs.txt` | Interim all-finding replay on `60ce7009`: closed prefix through server-shaped rename matrix and static audit; main log and full output replay are complete. Startup wrapper correction is separately recorded. |
 | `summarize-oracles.py` | Checks known generated outputs on matching engines and requires manual review for new fixture names; reproduces earlier 126/60 check counts. |
 | `run7-pending.log`, `run7-progress.log`, `run7-pending-oracles.log`, `run7-pending-oracle-summary.json`, `run7-source-audit.log.gz` | Complete bounded follow-up on `0434e7e7`, including P25/50/100 lenses; 180 engine executions / 60 matched generated checks, no unexpected result; static seam audit. |
 | `run-focused.sh`, `run8-n09*` | Focused current-tree runner; initial N09 attempt failed before execution for a private helper. `run9-n09*` is the successful public-ID retry on `128e1bb4`: precise type/call facts, conservatively widened taint dependencies. |
@@ -32,7 +33,7 @@ Evidence for the replay of the external review ([../naming-migration-review-2026
 | `cloud-setup.log` | Cloud checkout, compiler and pinned engine versions; no new probe results. |
 | `zz_review_probe.rs.txt` | Copy of the probe test (`rust/tcl-spectcl/tests/zz_review_probe.rs`); restore it under that path to re-run. |
 | `part2.rs.txt` | Second probe batch draft. |
-| `run5.sh` | **Resume batch**: restores the probe, builds+runs+deletes, logs to `run5.log` here (run from repo root). |
+| `run5.sh` | **Original handoff resume batch**: restores the probe, builds+runs+deletes, logs to `run5.log` here (run from repo root). |
 | `build.sh`, `buildrun.sh`, `run4.sh`, `oracle.sh` | Build/run scripts (build, run and delete in one command) and the tclsh/Jim oracle runner. |
 | `run1.log` … `run4.log` | Filtered probe output per run. |
 | `out/` | Edited sources and pack files produced by the probes (each run on tclsh 8.4–9.1 and Jim). |
