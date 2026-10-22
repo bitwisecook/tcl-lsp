@@ -1231,13 +1231,13 @@ mod tests {
                     .iter()
                     .any(|event| event.event() == "BOGUS_EVENT")
             );
-            assert!(
+            assert_eq!(
                 crate::extract_original_irules_source_object_references(
                     &format!("#changed\n{source}"),
                     &inventory,
                     None
-                )
-                .is_empty()
+                ),
+                [] as [crate::walker::IrulesObjectReference; 0]
             );
         }
     }

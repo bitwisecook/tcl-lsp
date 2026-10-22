@@ -232,7 +232,7 @@ mod tests {
     fn irule_body_unresolved_ref_emits_link_without_target() {
         let source = "ltm rule /Common/r {\nwhen HTTP_REQUEST { pool /Common/missing }\n}\n";
         let links = document_links(source);
-        assert!(!links.is_empty());
+        assert_ne!(links, [] as [crate::links::BigipLink; 0]);
         let link = links
             .iter()
             .find(|l| l.tooltip.contains("/Common/missing"))
@@ -309,12 +309,18 @@ mod tests {
     #[test]
     fn no_irule_no_property_refs_yields_no_links() {
         // A lone pool with no references contributes nothing.
-        assert!(document_links("ltm pool /Common/p { }\n").is_empty());
+        assert_eq!(
+            document_links("ltm pool /Common/p { }\n"),
+            [] as [crate::links::BigipLink; 0]
+        );
     }
 
     #[test]
     fn empty_source_is_safe() {
-        assert!(document_links("").is_empty());
-        assert!(document_links("   \n  ").is_empty());
+        assert_eq!(document_links(""), [] as [crate::links::BigipLink; 0]);
+        assert_eq!(
+            document_links("   \n  "),
+            [] as [crate::links::BigipLink; 0]
+        );
     }
 }

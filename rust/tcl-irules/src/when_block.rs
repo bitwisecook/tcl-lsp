@@ -152,7 +152,7 @@ mod tests {
             panic!("conditional source inventory");
         };
         assert!(!inventory.is_complete());
-        assert!(!inventory.unavailable_sites().is_empty());
+        assert_ne!(inventory.unavailable_sites(), []);
         let declaration = inventory
             .declarations()
             .first()
@@ -164,7 +164,7 @@ mod tests {
             panic!("original hosted card")
         };
         assert!(metadata.authored_barriers().has_unknown_transitions());
-        assert!(!metadata.obligations().is_empty());
+        assert_ne!(metadata.obligations(), []);
     }
 
     #[test]
@@ -172,7 +172,7 @@ mod tests {
         let source =
             "# when HTTP_REQUEST { ignored }\nwhen RULE_INIT { log local0. \"legacy } path\"\n}\n";
         let blocks = when_blocks(source);
-        assert!(blocks.is_empty());
+        assert_eq!(blocks, [] as [tcl_syntax::event_handler::EventHandler; 0]);
     }
 
     #[test]

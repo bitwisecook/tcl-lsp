@@ -1108,7 +1108,10 @@ ltm virtual https {
 ";
         let config = parse_bigip_conf(source, "Common");
         let imported = import_bigip_tls(&config, None, &HashMap::new());
-        assert!(imported.endpoints[0].endpoint.protocols.is_empty());
+        assert_eq!(
+            imported.endpoints[0].endpoint.protocols,
+            [] as [tcl_sslictcl::ProtocolVersion; 0]
+        );
         assert!(imported.notices.iter().any(|notice| {
             notice.kind == "unknown-tmos-version" && notice.object == "/Common/custom"
         }));
@@ -1136,7 +1139,10 @@ ltm virtual https {
         );
         assert_eq!(profile.used_by_virtuals, ["/Common/https"]);
         assert_eq!(imported.endpoints.len(), 1);
-        assert!(imported.endpoints[0].certificates.is_empty());
+        assert_eq!(
+            imported.endpoints[0].certificates,
+            [] as [tcl_sslictcl::Certificate; 0]
+        );
         assert_eq!(
             imported.endpoints[0].key_match.status,
             tcl_sslictcl::KeyMatchStatus::Unknown
@@ -1149,7 +1155,10 @@ ltm virtual https {
             BigipVersion::parse("17.1"),
             &HashMap::new(),
         );
-        assert!(mutated_import.endpoints.is_empty());
+        assert_eq!(
+            mutated_import.endpoints,
+            [] as [crate::tls::VirtualTlsEndpoint; 0]
+        );
     }
 
     #[test]
@@ -1199,7 +1208,13 @@ ltm virtual /Common/https {
 
     #[test]
     fn dynamic_options_do_not_project_a_partial_protocol_set() {
-        assert!(protocols_from_options("no-tlsv1 $runtime_options").is_empty());
-        assert!(protocols_from_options("[profile::options]").is_empty());
+        assert_eq!(
+            protocols_from_options("no-tlsv1 $runtime_options"),
+            [] as [tcl_sslictcl::ProtocolVersion; 0]
+        );
+        assert_eq!(
+            protocols_from_options("[profile::options]"),
+            [] as [tcl_sslictcl::ProtocolVersion; 0]
+        );
     }
 }

@@ -332,8 +332,11 @@ mod tests {
     #[test]
     fn unavailable_irules_alias_does_not_create_object_ref_command() {
         // F5 K36322151 disables `interp`, so this cannot create `p`.
-        assert!(ref_names(&pool_rule("interp alias {} p {} pool\n", "p")).is_empty());
-        assert!(ref_names(&pool_rule("set y 1\n", "p")).is_empty());
+        assert_eq!(
+            ref_names(&pool_rule("interp alias {} p {} pool\n", "p")),
+            [] as [String; 0]
+        );
+        assert_eq!(ref_names(&pool_rule("set y 1\n", "p")), [] as [String; 0]);
         assert_eq!(
             ref_names(&pool_rule("interp alias {} p {} pool\n", "pool")),
             vec!["/Common/web_pool".to_owned()],
@@ -395,7 +398,10 @@ mod tests {
 
     #[test]
     fn authored_nominal_tombstone_withdraws_object_source_schema() {
-        assert!(ref_names(&pool_rule("rename pool p\n", "p")).is_empty());
+        assert_eq!(
+            ref_names(&pool_rule("rename pool p\n", "p")),
+            [] as [String; 0]
+        );
         assert!(
             ref_names(&pool_rule("rename pool p\n", "pool")).is_empty(),
             "source metadata cannot donate the old nominal schema after an explicit source cell barrier"
@@ -436,7 +442,7 @@ mod tests {
                       assign p /Common/web_pool\n\
                       pool $p\n\
                       }\n";
-        assert!(ref_names(source).is_empty());
+        assert_eq!(ref_names(source), [] as [String; 0]);
     }
 
     #[test]
@@ -605,13 +611,13 @@ mod case_list_tests {
             extract_irules_object_references_in_closure(source, None, registry, &displayed),
             original
         );
-        assert!(
+        assert_eq!(
             extract_original_irules_source_object_references(
                 &format!("#changed\n{source}"),
                 &context,
                 None
-            )
-            .is_empty()
+            ),
+            [] as [crate::walker::IrulesObjectReference; 0]
         );
     }
 }
@@ -652,13 +658,13 @@ mod original_object_value_tests {
                 .iter()
                 .all(|reference| reference.category == IrulesObjectReferenceCategory::Pool)
         );
-        assert!(
+        assert_eq!(
             extract_original_irules_source_object_references(
                 &format!("# changed\n{source}"),
                 &context,
                 None
-            )
-            .is_empty()
+            ),
+            [] as [crate::walker::IrulesObjectReference; 0]
         );
     }
 }

@@ -814,7 +814,10 @@ mod tests {
             .iter()
             .filter_map(|n| n["label"].as_str())
             .collect();
-        assert!(!graph["edges"].as_array().expect("edges").is_empty());
+        assert_ne!(
+            graph["edges"].as_array().expect("edges").as_slice(),
+            [] as [serde_json::Value; 0]
+        );
         // The full walk reached the AAA server, the network-access resource, its
         // lease pool and a webtop — linking to everything.
         for needle in [

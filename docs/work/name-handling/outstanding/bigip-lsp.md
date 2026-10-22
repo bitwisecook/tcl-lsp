@@ -2,7 +2,7 @@
 
 Area: editors/, BIG-IP/F5 crates and LSP modules.
 
-Last updated: 2026-10-22T15:46Z
+Last updated: 2026-10-22T16:06Z
 
 Maintained by the bigip-lsp agent. Keep this snapshot and Resume current, and
 push at least every 30 minutes and after each finished item. Full unit table:
@@ -10,8 +10,12 @@ push at least every 30 minutes and after each finished item. Full unit table:
 
 ## In progress
 
-WASM Clippy PASS (zero warnings); native scoped Clippy continues, followed
-by a fresh core pass and owned roots checked with core as a dependency.
+WASM Clippy PASS (zero warnings); the first native keep-going pass has finished.
+Fresh core lint is active, followed by owned roots checked with core as a
+dependency. That pass found 50 test-only `assert_is_empty` lints in BIG-IP,
+iRules, query fixtures and report generator tests. Their equivalent
+assert_eq!/assert_ne! comparisons preserve every empty/non-empty condition
+and show actual values on failure; verification is pending.
 The F5-reversed rewrite comparison and three editor-generator tests are
 building in one command (`/tmp/bigip-without-f5.log`). Its finally block
 restores both loaned server files byte for byte. The with-F5 rewrite case
@@ -23,16 +27,16 @@ assertion; attribution awaits the reversed result.
 1. Restore ILX variable-handle source navigation after the compiler supplies
    the constructor/setter/read relation described under Blocked. Keep the
    current negative assertions and separate source candidates from live handles.
-3. Confirm `current_diagnostics::tests::actual_direct_and_push_rewrites_retain_their_captured_document_source`
+2. Confirm `current_diagnostics::tests::actual_direct_and_push_rewrites_retain_their_captured_document_source`
    fails without the F5 pull change, or fix an attributable regression. The
    exact F5 change is in `c9dc3c2892` (current_diagnostics.rs and only its F5
    lib.rs hunks). Temporary reverse-and-restore testing must retain assertions.
-4. Clippy `-D warnings` on the owned crates and editor generators, including
+3. Clippy `-D warnings` on the owned crates and editor generators, including
    tcl-bigip, tcl-bigip-io, tcl-bigip-query, bigip-query-wasm, tcl-irules, f5-xc,
    f5-cli, tcl-f5mku, bigip-report-gen, tcl-lsp-core, tcl-lsp-server, xtask and
    the previously changed tcl-registry lines. Fix owned findings; route other
    owners' blockers without editing their files.
-5. Re-run the three `xtask gen_editor_configs` tests. Its generated Emacs README
+4. Re-run the three `xtask gen_editor_configs` tests. Its generated Emacs README
    was previously regenerated and `gen-editor-configs --check` passed.
 
 ## Blocked (on whom, and what is needed)
@@ -84,7 +88,7 @@ assertion; attribution awaits the reversed result.
 - Standalone `bigip-query-wasm` Clippy on `wasm32-unknown-unknown`:
   **PASS**, zero warnings, Rust 1.99.1 and workspace-local Clang 19.1.7.
   Exact command/environment/hash receipt: `wasm-clippy-20261022.json`.
-  Six native owned lint findings have corresponding mechanical fixes in
+  Six native owned production-code lint findings have mechanical fixes in
   data-group rendering/ILX hover; compilation confirmed by the WASM graph,
   native lint verification remains pending. No new lint allowance.
 - ILX comparison: `ilx-baseline-20261022.txt` (baseline 1/1) and
@@ -96,37 +100,43 @@ assertion; attribution awaits the reversed result.
 
 ## Resume
 
-- Active shallow `work` checkout: `/workspace/bigip-lsp`. Independent
-  `origin/rust` baseline: `/workspace/bigip-baseline` at `fcb7927f02`.
-  Rust 1.99.1, pinned C Tcl 9.0.4/8.6.18 and Jim 0.84 are built and verified.
-  No temporary probe is left in the source tree.
-- Temporary `/tmp/bigip-env.sh` exports the required oracle variables and
-  CARGO_INCREMENTAL=0 plus test/dev debug=0, then sources agent-build-env.sh.
-  `/tmp/bigip-test.py` builds, runs and deletes each test executable within one
-  command. Build targets are independent between checkouts.
-- Active server run uses `BIGIP_TEST_PLAN` from `/tmp/bigip-server-plan.json`
-  with `/tmp/bigip-test.py --locked -p tcl-lsp-server --lib --test e2e`. The
-  e2e/F5 runs above are done; only the plain-Tcl rewrite process remains. Do not restart it as an unfiltered full suite.
-  Original server session 68675 finished and deleted both test executables.
-  Active sessions: negative comparison/generators 24095; native scoped
-  lint 46036; queued core/owned-root lint 23728. WASM 30313 finished PASS.
-  Logs `/tmp/bigip-{without-f5,clippy-owned-after,clippy-core-final,clippy-roots-final,wasm-clippy-after}*`.
-  `/tmp/bigip-without-f5.py` reverses only the F5 change and restores in a
-  finally block. Do not commit the temporary server diffs.
- The original `/workspace/tcl-lsp` setup rebase was
-  aborted and its tracked files are clean; its ignored oracle directory is
-  retained through the active checkout's `tmp` symlink.
-- Next: finish the running server and clippy checks; rewrite attribution
-  with/without the F5 change; standalone bigip-query-wasm clippy; three generator
-  tests; hand the diagnostics file back.
-  Keep unresolved/compiler-owned items explicit. Never open a PR; the PR to
-  rust remains gated on external review section F.
-- The first server build needed 76 literal oracle snapshots excluded by the
-  sparse checkout. They and 141 further literal fixture inputs are now
-  materialised from HEAD; no code or assertion was changed. The restarted
-  server build has completed and execution has started. The selected e2e aggregate is 6 pass / 16 diagnostic-timeout failures.
-- Validation above used the initial `9cd5a75b` product source plus the XC fix.
-  Remote includes newer compiler/core changes in `d1a5bf95`; running checks
-  remain pinned to `aeecf397`, so they do not validate those later changes. Required
-  repository/host gates remain pending under the authorised development-push
-  exception; these results do not grant release sign-off.
+- Validation checkout: `/workspace/bigip-lsp`, source `aeecf397` plus the two
+  owned lint-only files now pushed in `f26f6a06`. Main branch HEAD stays
+  frozen during builds. A separate coordination-only worktree at
+  `/workspace/bigip-coordination` fetches/rebases and pushes tracking snapshots.
+  Its latest pushed HEAD includes newer compiler/core changes; these builds
+  do not validate those later product changes.
+- `/tmp/bigip-env.sh` exports CARGO_INCREMENTAL=0, test/dev debug=0,
+  TCL_LSP_REQUIRE_TCLSH=9.0,8.6 and the verified pinned Jim/Tcl paths, then
+  sources agent-build-env.sh. `/tmp/bigip-test.py` builds, runs and deletes
+  every test executable within one command. Independent baseline checkout
+  `/workspace/bigip-baseline` remains at `fcb7927f02` with its own target.
+- Server session 68675 is DONE: selected e2e 6 pass/16 first-diagnostic
+  timeouts, F5 unit 1 pass, plain rewrite unit 1 failure. Both executables
+  were deleted. With-F5 receipt: `bigip-lsp/rewrite-with-f5-20261022.txt`.
+- Active comparison/generator session **24095** uses
+  `/tmp/bigip-without-f5.py`; it has TEMPORARILY REVERSED only the two-file F5
+  change `c9dc3c2892`. Its finally block restores both exact originals.
+  **Do not commit the current temporary server diffs or move main HEAD.**
+  The plan runs the three generated-region comparison tests first, then
+  the existing generic rewrite assertion without F5; build/run/delete in
+  one command. Log `/tmp/bigip-without-f5.log`.
+- Native scoped lint **46036** finished exit 101 (50 owned assertion-style
+  findings, now changed equivalently, plus the old core check). The core
+  check had encountered an intermediate adapter lifetime error; that owned
+  error is fixed and compilation confirmed by WASM. Active **23728** runs
+  fresh core lint, then owned roots with core as a dependency (all `-D
+  warnings --no-deps`). Logs `/tmp/bigip-clippy-{owned-after,core-final,roots-final}*`.
+  Standalone WASM **30313** finished PASS with zero warnings.
+- Next: finish the above; fix owned lint findings, route generic ones;
+  after the comparison restores intact F5 source, run server scoped lint.
+  Capture attribution/three generator results, update NOTES and this file,
+  sync main only after verified restoration, fetch/rebase/push, then stop.
+  `current_diagnostics.rs handed back`; no further production change planned.
+- Original `/workspace/tcl-lsp` setup rebase was aborted, tracked files clean;
+  its ignored oracle trees remain reachable via the active `tmp` symlink.
+  Sparse checkout materialised 217 literal fixture inputs from HEAD without
+  changing assertions. No temporary source probe remains.
+- Required repository/host gates remain pending under the authorised
+  development-push exception. Never open a PR; the PR to `rust` remains gated
+  on external-review section F, including integrated-tip validation.

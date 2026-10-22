@@ -219,7 +219,7 @@ mod tests {
             Some(&model),
             tcl_registry::model::ingress::resolve_environment("f5-iapps").analyser_profile(),
         );
-        assert!(diags.is_empty());
+        assert_eq!(diags, [] as [crate::validator::ConfigDiagnostic; 0]);
     }
 
     #[test]
@@ -239,17 +239,17 @@ mod tests {
     fn no_iapp_checks_outside_iapp_dialects() {
         let model = parse_apl(PRESENTATION);
         let refs = extract_iapp_var_refs("set x $::basic__missing");
-        assert!(
+        assert_eq!(
             validate_iapp_implementation(
                 &refs,
                 Some(&model),
                 tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile()
-            )
-            .is_empty()
+            ),
+            [] as [crate::validator::ConfigDiagnostic; 0]
         );
-        assert!(
-            validate_iapp_presentation(&model, Some(&refs), tcl_dialect::DialectProfile::irules())
-                .is_empty()
+        assert_eq!(
+            validate_iapp_presentation(&model, Some(&refs), tcl_dialect::DialectProfile::irules()),
+            [] as [crate::validator::ConfigDiagnostic; 0]
         );
     }
 }

@@ -137,12 +137,12 @@ fn original_source_values_and_standalone_templates_agree_without_a_second_unwrap
             "{none}", "\"none\"", "'none'", "[none]", "(none)", "none,", " none "
         ]
     );
-    assert!(
+    assert_eq!(
         tcl_irules::extract_original_irules_source_object_references(
             &format!("{source}\n# changed"),
             &context,
             Some("ltm"),
-        )
-        .is_empty()
+        ),
+        [] as [tcl_irules::IrulesObjectReference; 0]
     );
 }

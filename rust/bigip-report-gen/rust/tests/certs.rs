@@ -647,7 +647,7 @@ fn cert_fields_and_chain_parsed_from_ucs_filestore() {
     );
     let san = leaf["subjectAlternativeName"].as_str().unwrap();
     assert!(san.contains("api.acme.example") && san.contains("192.0.2.5"));
-    assert!(!leaf["sigAlg"].as_str().unwrap().is_empty());
+    assert_ne!(leaf["sigAlg"].as_str().unwrap(), "");
 
     let chain = leaf["chain"].as_array().unwrap();
     let roles: Vec<&str> = chain.iter().map(|l| l["role"].as_str().unwrap()).collect();

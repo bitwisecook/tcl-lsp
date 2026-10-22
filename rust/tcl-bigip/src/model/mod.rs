@@ -40,7 +40,7 @@ mod tests {
         // Non-empty string defaults survive into the Rust Default.
         let pool = BigipPool::default();
         assert_eq!(pool.module, "ltm");
-        assert!(pool.full_path.is_empty());
+        assert_eq!(pool.full_path, "");
         // Enum field defaults resolve.
         assert_eq!(BigipProfile::default().profile_type, ProfileType::Other);
         assert_eq!(BigipDataGroup::default().kind, DataGroupType::Internal);

@@ -198,7 +198,10 @@ mod tests {
         ] {
             assert!(extract(source).is_empty(), "{source}");
         }
-        assert!(extract("proc priority args {}; priority 100; when HTTP_REQUEST {}").is_empty());
+        assert_eq!(
+            extract("proc priority args {}; priority 100; when HTTP_REQUEST {}"),
+            [] as [crate::event_handlers::IrulesEventHandler; 0]
+        );
         assert_eq!(
             extract("proc priority args {}; priority 100; when HTTP_REQUEST priority 300 {}"),
             vec![IrulesEventHandler {
@@ -240,8 +243,9 @@ mod tests {
         let registry = tcl_registry::model::ingress::static_context_for("f5-irules").commands();
         let source = "when HTTP_REQUEST {}";
         let context = OriginalIrulesSourceContext::capture(source, registry).unwrap();
-        assert!(
-            extract_original_irules_event_handlers("when HTTP_RESPONSE {}", &context).is_empty()
+        assert_eq!(
+            extract_original_irules_event_handlers("when HTTP_RESPONSE {}", &context),
+            [] as [crate::event_handlers::IrulesEventHandler; 0]
         );
         let foreign = tcl_registry::model::ingress::static_context_for("f5-iapps");
         assert!(

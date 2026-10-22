@@ -192,7 +192,10 @@ mod tests {
         // Cursor on `members` (a bare keyword, not a `/`-path) → no refs.
         let line = 1;
         let col = col_of(CONF, line, "members");
-        assert!(references_at(CONF, line, col, true).is_empty());
+        assert_eq!(
+            references_at(CONF, line, col, true),
+            [] as [crate::range::Range; 0]
+        );
     }
 
     #[test]
@@ -214,11 +217,17 @@ mod tests {
     #[test]
     fn cursor_off_token_yields_nothing() {
         // Column far past the end of a short line.
-        assert!(references_at(CONF, 4, 50, true).is_empty());
+        assert_eq!(
+            references_at(CONF, 4, 50, true),
+            [] as [crate::range::Range; 0]
+        );
     }
 
     #[test]
     fn empty_source_is_safe() {
-        assert!(references_at("", 0, 0, true).is_empty());
+        assert_eq!(
+            references_at("", 0, 0, true),
+            [] as [crate::range::Range; 0]
+        );
     }
 }

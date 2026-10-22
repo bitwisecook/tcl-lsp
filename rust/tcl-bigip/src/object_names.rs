@@ -267,7 +267,7 @@ mod tests {
         assert_eq!(matches("p", &paths[..3], policy), ["/Tenant/p"]);
         assert_eq!(matches("p", &paths[..2], policy), ["/Common/p"]);
         assert_eq!(matches("p", &paths[..1], policy), ["/Other/p"]);
-        assert!(matches("missing", &paths, policy).is_empty());
+        assert_eq!(matches("missing", &paths, policy), [] as [&str; 0]);
         assert_eq!(
             matches(
                 "p",
@@ -317,7 +317,10 @@ mod tests {
             ),
             paths
         );
-        assert!(matches("/Absent/p", &paths, ObjectNamePolicy::ExactThenShortName).is_empty());
+        assert_eq!(
+            matches("/Absent/p", &paths, ObjectNamePolicy::ExactThenShortName),
+            [] as [&str; 0]
+        );
         assert_eq!(
             matches("p", &paths, ObjectNamePolicy::ExactThenShortNameOrCommon),
             paths
@@ -346,8 +349,8 @@ mod tests {
                 [format!("/Tenant/{reference}")]
             );
         }
-        assert!(matches("p", &paths, policy).is_empty());
-        assert!(matches("/Other/b", &paths, policy).is_empty());
+        assert_eq!(matches("p", &paths, policy), [] as [&str; 0]);
+        assert_eq!(matches("/Other/b", &paths, policy), [] as [&str; 0]);
     }
 
     #[test]
@@ -380,7 +383,10 @@ mod tests {
             super::owner_partition_reference_paths("p", "vs", ""),
             ["//p", "/Common/p"]
         );
-        assert!(matches("p", &paths, ObjectNamePolicy::Exact).is_empty());
+        assert_eq!(
+            matches("p", &paths, ObjectNamePolicy::Exact),
+            [] as [&str; 0]
+        );
     }
 
     #[test]

@@ -142,7 +142,10 @@ mod tests {
     #[test]
     fn drops_plain_non_iapp_vars() {
         // No `__` separator — not an iApp reference.
-        assert!(extract_iapp_var_refs("set x $::tcl_version").is_empty());
+        assert_eq!(
+            extract_iapp_var_refs("set x $::tcl_version"),
+            [] as [crate::apl::iapp_vars::IappVarRef; 0]
+        );
     }
 
     #[test]
@@ -235,7 +238,7 @@ set e ${::pool__members(0)}";
     #[test]
     fn relative_convention_labels_cannot_supply_a_global_reference() {
         let refs = configured("set a $local__field");
-        assert!(refs.references().is_empty());
+        assert_eq!(refs.references(), []);
         assert!(refs.complete_references().is_none());
     }
 }

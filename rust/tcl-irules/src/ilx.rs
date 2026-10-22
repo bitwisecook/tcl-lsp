@@ -895,11 +895,14 @@ mod tests {
             })
         );
         assert_eq!(got[0].target, None);
-        assert!(!got[0].obligations.is_empty());
+        assert_ne!(
+            got[0].obligations,
+            [] as [crate::ilx::IlxSourceObligation; 0]
+        );
         assert_eq!(&source[got[0].method_span.as_range()], "m");
-        assert!(
-            super::ilx_method_calls_from_source_context(&format!("{source}\n# changed"), &context)
-                .is_empty()
+        assert_eq!(
+            super::ilx_method_calls_from_source_context(&format!("{source}\n# changed"), &context),
+            [] as [crate::ilx::IlxMethodCall; 0]
         );
     }
 
@@ -917,19 +920,19 @@ mod tests {
             assert_eq!(got[0].target, None);
             assert_eq!(got[0].source_target, None);
         }
-        assert!(
+        assert_eq!(
             ilx_method_calls(
                 "when HTTP_REQUEST {ILX::call $h $method}",
                 &irules_registry()
-            )
-            .is_empty()
+            ),
+            [] as [crate::ilx::IlxMethodCall; 0]
         );
-        assert!(
+        assert_eq!(
             ilx_method_calls(
                 "when HTTP_REQUEST {ILX::call $h m}",
                 &CommandRegistry::build_default()
-            )
-            .is_empty()
+            ),
+            [] as [crate::ilx::IlxMethodCall; 0]
         );
     }
 
