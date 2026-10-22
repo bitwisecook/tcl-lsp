@@ -1,0 +1,26 @@
+Thu Oct 22 13:57:20 UTC 2026
+53ec43d12025580b92dbc4325b93ed8702f150a6
+Filesystem      Size  Used Avail Use% Mounted on
+overlay          32G  3.7G   27G  13% /
+   Compiling tcl-spectcl v0.1.0 (/workspace/tcl-lsp-triage/rust/tcl-spectcl)
+    Finished `test` profile [unoptimized] target(s) in 14.52s
+     Running tests/pack_source_e2e.rs (target/debug/deps/pack_source_e2e-626cf81c5174631c)
+
+running 1 test
+test a_pack_file_folds_a_call_site_in_the_optimiser ... 
+thread 'a_pack_file_folds_a_call_site_in_the_optimiser' (22675) panicked at rust/tcl-spectcl/tests/pack_source_e2e.rs:185:9:
+assertion `left == right` failed: DSL 1
+  left: []
+ right: ["5"]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    a_pack_file_folds_a_call_site_in_the_optimiser
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 5 filtered out; finished in 16.17s
+
+error: test failed, to rerun pass `-p tcl-spectcl --test pack_source_e2e`
+exit-e2e=101

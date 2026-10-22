@@ -708,11 +708,28 @@ fn seam_nested_passthrough_irules() {
     for (dialect, s) in cases {
         let registry = tcl_spectcl::bundled::registry_for_dialect(dialect);
         let cu = CompilationUnit::build_for_profile(s, &registry, false, profile(dialect));
-        let dbg = format!("{:?}", cu.ir_module);
-        let mut ops: Vec<String> = dbg.match_indices("op: ").map(|(i, _)| dbg[i + 4..].chars().take_while(|c| c.is_alphanumeric()).collect()).collect();
-        ops.sort();
-        let conds: Vec<String> = dbg.match_indices("condition: ").map(|(i, _)| dbg[i + 11..].chars().take_while(|c| c.is_alphanumeric()).collect()).collect();
-        println!("SEAM nested {dialect} ops={ops:?} if-conditions={conds:?} blocks={}", dbg.matches("Block {").count());
+        let mut roots = vec![&cu.ir_module.top_level];
+        roots.extend(cu.ir_module.procedures.iter().map(|(_, p)| &p.body));
+        roots.extend(cu.ir_module.body_units.iter().map(|(_, p)| &p.body));
+        for (root, script) in roots.into_iter().enumerate() {
+            let mut conditions = Vec::new();
+            let mut blocks = 0usize;
+            let mut native_calls = 0usize;
+            let mut calls = Vec::new();
+            tcl_compiler::ir::for_each_statement(script, &mut |stmt| {
+                use tcl_compiler::ir::Statement;
+                match stmt {
+                    Statement::If { clauses, .. } => {
+                        for clause in clauses { conditions.push(format!("{:?}", clause.condition)); }
+                    }
+                    Statement::Block { .. } => blocks += 1,
+                    Statement::NativeCall { .. } => native_calls += 1,
+                    Statement::Call { command, .. } | Statement::Barrier { command, .. } => calls.push(command.clone()),
+                    _ => {}
+                }
+            });
+            println!("SEAM nested {dialect} root={root} conditions={conditions:?} blocks={blocks} native_calls={native_calls} calls={calls:?}");
+        }
     }
 }
 

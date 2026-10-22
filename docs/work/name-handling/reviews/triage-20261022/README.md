@@ -7,6 +7,7 @@ Evidence for the replay of the external review ([../naming-migration-review-2026
 | `run6.sh`, `replay-oracles.sh`, `source-audit.py` | Prepared full replay, six-engine execution, and static seam evidence runners. |
 | `cloud-baseline-oracles.log` | Fresh 19-file / 114-execution baseline replay; full output and exit codes. |
 | `cloud-source-audit.log` | Current static excerpts; no server protocol claim. |
+| `run5-e2e-repeat.log` | Existing live-fold e2e failure: DSL 1 expected ["5"], got []; stable repeat after the first active log lost diagnostics. |
 | `run5-source.rs.txt` | Exact source launched by the initial cloud run5 (before the expanded follow-up). |
 | `cloud-setup.log` | Cloud checkout, compiler and pinned engine versions; no new probe results. |
 | `zz_review_probe.rs.txt` | Copy of the probe test (`rust/tcl-spectcl/tests/zz_review_probe.rs`); restore it under that path to re-run. |

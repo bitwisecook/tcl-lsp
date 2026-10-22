@@ -6,14 +6,16 @@ Evidence, scripts and logs: [triage-20261022/](triage-20261022/README.md). Live 
 
 This report is updated after every probe run. Rows marked **PENDING** are not settled.
 
-Cloud resumption: 2026-10-22T13:17:02Z in a fresh, shallow selective checkout. Rust 1.99.1 and the exact six engines are provisioned; see [cloud-setup.log](triage-20261022/cloud-setup.log). Run5 is building; its first main command failed because the selective checkout omitted compile-time fixture includes. All three embedded fixture trees are now restored. No new named probe result is available yet; these checkout errors are not product findings. `make rust-check` and `make prep-pr` have not run in this evidence-only session.
+Cloud resumption: 2026-10-22T13:17:02Z in a fresh, shallow selective checkout. Rust 1.99.1 and the exact six engines are provisioned; see [cloud-setup.log](triage-20261022/cloud-setup.log). Run5 completed with checkout-related failures before its main/scaling probes ran. All embedded fixtures and shared libraries are now available. The repeated existing live-fold e2e test fails as detailed below; the complete current-API replay is next. `make rust-check` and `make prep-pr` have not run in this evidence-only session.
 
 ## Cloud validation progress
 
 - **2026-10-22T13:45:08Z:** 19 preserved Tcl inputs replayed on six exact engines: **114 executions, no timeouts**. Complete outputs, exit codes and hashes: [cloud-baseline-oracles.log](triage-20261022/cloud-baseline-oracles.log). Feature-unavailable rows are retained, including Jim's unsupported `interp alias` form; they are not incorrect oracle answers. N17's capture driver registers `good` on every engine.
 - [cloud-source-audit.log](triage-20261022/cloud-source-audit.log) rechecks the static seams on `81a911af`. N11's existing-command early return and N13's four/five-round caps remain. These are source inspections, not server protocol executions.
-- `run5.log` is a **partial, active build log**. The initial main command exited 101 for omitted embedded fixture files; the scaling command also encountered missing includes before all three trees were restored, while the compiler continued building. No named probe result is inferred from these errors. The exact launched source is `run5-source.rs.txt`.
+- `run5.log` is the completed initial cloud build log (with an incomplete e2e diagnostic segment, as explained below). The initial main command exited 101 for omitted embedded fixture files; the scaling command also encountered missing includes before all three trees were restored, while the compiler continued building. No named probe result is inferred from these errors. Rebasing this tracked active log replaced its inode, so the e2e cargo diagnostic segment was lost; a stable repeat is recorded separately. The exact launched source is `run5-source.rs.txt`.
 - The prepared `run6.sh` restores the expanded probe into the authorised temporary path, uses a fresh output directory, records completed-world presence, seeds Jim's compiled-in surfaces as production does, covers all six rename profiles and both sibling collision origins, and distinguishes direct hook answers from optimiser folding with/without declared pure effects. It also replays all findings, scaling and the existing fold e2e test. This is prepared work, not an executed result.
+
+- **Live-fold repeat on `53ec43d1`: 0 passed / 1 failed.** The existing `a_pack_file_folds_a_call_site_in_the_optimiser` fails at `pack_source_e2e.rs:185`: DSL 1 expected `["5"]`, got `[]`. Log: [run5-e2e-repeat.log](triage-20261022/run5-e2e-repeat.log). This confirms the supported control does not fold. The direct/pure contrast remains pending.
 
 ## Method
 
@@ -22,7 +24,7 @@ Cloud resumption: 2026-10-22T13:17:02Z in a fresh, shallow selective checkout. R
   - It was built in the shared target with `CARGO_INCREMENTAL=0 CARGO_PROFILE_TEST_DEBUG=0 CARGO_PROFILE_DEV_DEBUG=0` and run with `--nocapture --test-threads=1`.
   - `tcl-spectcl` was chosen because one build links `tcl-compiler`, `tcl-lsp-core`, `tcl-spectcl`, `tcl-spec-hooks` and `tcl-engine-tclvm`.
   - Runs: run1 at 11:01Z (safety batch), run2 at 11:20Z, run3 from 11:28Z to 12:06Z, run4 from 12:13Z to 12:39Z (stopped before scaling when the triage moved to a cloud session). The resume batch is `triage-20261022/run5.sh`. Logs are `triage-20261022/run*.log`.
-  - No crate failed to compile.
+  - Runs 1–4 reported no crate compilation failures. Cloud run5 encountered omitted embedded fixture files in `tcl-test-support`; these checkout errors were repaired without product changes.
 - **Edits.** Returned edits (rename `TextEdit`s, optimiser rewrites, minifier output) were applied to scratch copies (`triage-20261022/out/`), and each copy was run on the same six engines.
 - **Rename entry point.** Rename was probed in two ways:
   - `rename_with_diagnosis(.., registry=None)` in run1 and run2;
@@ -56,7 +58,7 @@ Cloud resumption: 2026-10-22T13:17:02Z in a fresh, shallow selective checkout. R
 | N15 minifier compaction | CHANGED (refuses `MissingAlphaRenameContract`); output behaviour-preserving | lsp | `tcl-lsp-core/src/minify.rs`, `minify/original.rs` |
 | N16 provider fallbacks | FIXED (4/4 rows) | — | — |
 | N17 SpecTcl template | FIXED | — | — |
-| N17 live hook | CHANGED/REGRESSED: no O129 at all, including for the shipped-style `mylib::strlen` control. **PENDING** run5 check of the existing `pack_source_e2e` fold test | compiler-codegen (`const_subst.rs`, per user decision 13:17Z); vm-runtime (host) | see detail |
+| N17 live hook | CHANGED/REGRESSED: no O129 at all, including for the shipped-style `mylib::strlen` control. Existing fold e2e **FAILS** (DSL 1: expected `["5"]`, got `[]`); direct/pure contrast **PENDING** run6 | compiler-codegen (`const_subst.rs`, per user decision 13:17Z); vm-runtime (host) | see detail |
 | Seam `ns_var_global_fallback` | FIXED (static) | — | — |
 | Seam `WorkspaceIndex::registry_for` | FIXED (static) | — | — |
 | Seam `analyse_with_workspace_classes` | CHANGED (static): resolved input, resource inputs and base-analysis identity retained; source-entry parity not shown | lsp | `tcl-lsp-server/src/lib.rs:20036–20120` |
@@ -230,8 +232,8 @@ Each row gives the evidence (probe call or command and the observed output), the
   - It emits **no** O129 for `fold $arr($a:b)`, `fold $arr(${a}:b)`, `fold good`, or `fold [string length [lindex $words 0]]`.
   - The shipped-style `mylib::strlen` control, which matches `pack_source_e2e.rs`, also gives `O129=[]` and no optimisation codes at all.
   - So the wrong `bad` replacement is gone, but live const-fold hooks do not fold through this path. The review's C.1 requires hooks to execute with meaningful answers.
-  - **PENDING (run5):** the existing `pack_source_e2e::a_pack_file_folds_a_call_site_in_the_optimiser`. Run4 was stopped before reaching it. compiler-codegen has an untracked `rust/tcl-spectcl/tests/zz_ccg_fold_probe.rs`, which may already cover this.
-- **Owner:** unowned (`tcl-spec-hooks`, `tcl-registry/src/pack_hooks*`), vm-runtime (`tcl-spectcl/src/hooks.rs`), compiler-codegen (`tcl-spectcl/src/install.rs`), unowned (`tcl-compiler/src/optimiser/manager.rs`; `optimise_raw` carries a temporary `ZZ_CCG_BASELINE` toggle, unset here).
+  - **Executed on `53ec43d1`:** the existing `pack_source_e2e::a_pack_file_folds_a_call_site_in_the_optimiser` fails: DSL 1 expected `["5"]`, got `[]` (0 passed / 1 failed; 16.17 s). See `run5-e2e-repeat.log`. This confirms the no-fold regression for the supported control. **Pending run6:** direct callback invocation and a `world_effects none` contrast, so this is not a claim that every possible live hook fails.
+- **Owner:** compiler-codegen owns `const_subst.rs` and the N17 live-fold fix per the user's recorded 13:17Z decision; vm-runtime owns the host. The baseline toggle remains unset here.
 
 ### Section 3.2 / 3.3 seams
 
