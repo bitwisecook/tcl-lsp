@@ -1,0 +1,19 @@
+Source: aeecf397, F5 pull change present. Existing assertion unchanged.
+RUN /workspace/bigip-lsp/target/debug/deps/tcl_lsp_server-f8826932e569f8a0 ['current_diagnostics::tests::actual_direct_and_push_rewrites_retain_their_captured_document_source', '--exact', '--nocapture']
+
+running 1 test
+
+thread 'current_diagnostics::tests::actual_direct_and_push_rewrites_retain_their_captured_document_source' (22288) panicked at rust/tcl-lsp-server/src/current_diagnostics.rs:1922:9:
+actual worker must retain an applicable rewrite
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test current_diagnostics::tests::actual_direct_and_push_rewrites_retain_their_captured_document_source ... FAILED
+
+failures:
+
+failures:
+    current_diagnostics::tests::actual_direct_and_push_rewrites_retain_their_captured_document_source
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 840 filtered out; finished in 55.84s
+
+DELETED /workspace/bigip-lsp/target/debug/deps/e2e-b3fb3570cd4bdf0e
+DELETED /workspace/bigip-lsp/target/debug/deps/tcl_lsp_server-f8826932e569f8a0

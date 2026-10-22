@@ -13,27 +13,40 @@ ILX variable handle blocked on the compiler source-relation contract). Continuat
 
 ## Isolated continuation — 2026-10-22
 
-Source `aeecf397`: XC full library 31/31 PASS (new range regression fails
-before the fix), XC command e2e 5/5 PASS, BIG-IP/APL W109 e2e 1/1 PASS,
-F5 model pull-report unit 1/1 PASS. `current_diagnostics.rs handed back`.
-ILX e2e 0/16: every test times out on first diagnostics, including its
-plain-Tcl control. Its source handle-resolution contract is separately
-blocked on the compiler owner; baseline `rust` literal-handle test passes,
-and current refusal tests 2/2 pass. Repros and receipts are indexed in the
-outstanding file. No assertions or latency budgets were weakened.
+Validation source `aeecf397` plus owned lint-only edits in `f26f6a06`,
+`e4a01bbe`, `9d6804c9`. Later coordinator compiler/provider changes need
+integrated-tip validation. Historical shared-session records below remain
+as observations of that earlier build; this section is the current status.
 
-Full strict Clippy failed with 789 compiler and 379 VM dependency errors.
-Standalone WASM Clippy passes with zero warnings (`wasm-clippy-20261022.json`).
-Six mechanical owned production-code lint fixes are cleared by fresh
-normal-library core Clippy; its 54 remaining findings are generic LSP
-blockers (`clippy-core-blockers-20261022.json`). Sixty-six test-only
-empty/non-empty assertions now use equivalent typed equality/inequality
-comparisons for Rust 1.99 Clippy; expectations, inputs and refusal assertions
-are retained. The broad pass adds 53 non-editor xtask + 40 generic registry integration
-blockers (`clippy-consumer-blockers-20261022.json`); 16 further owned fixes
-are applied and cached verification is pending. Checks remain in progress, along with the
-three editor-generator tests and the F5-reversed rewrite comparison.
-These development pushes do not satisfy the external-review section F gate.
+- XC source-owner refusal fixed using the shared inclusive-expression span
+  converter. New ASCII/Unicode/nested regression fails before the fix;
+  full f5-xc library 31/31 PASS and XC command e2e 5/5 PASS. Later Clippy-only
+  assertion spelling changes preserve every prior refusal condition.
+- BIG-IP/APL W109 e2e 1/1 and focused F5 pull-report unit 1/1 PASS.
+  `current_diagnostics.rs handed back`.
+- Editor generated-region comparisons **3/3 PASS** (348.52s), including the
+  previously stale Emacs README comparison. No expected data was changed.
+- Plain-Tcl rewrite assertion fails with F5 (55.84s) and without F5 (12.43s)
+  at the same missing-applicable-rewrite assertion. It was actually rerun
+  unchanged, both server files restored byte for byte and executables deleted.
+  Exact fixture/configuration caveat: `bigip-lsp/rewrite-without-f5-repro.md`.
+- ILX baseline `rust` literal-handle unit 1/1 PASS; current refusal units 2/2
+  PASS. Current producer deliberately leaves variable handles unresolved;
+  compiler source constructor/setter/read relation is missing. ILX e2e 0/16,
+  all first-diagnostic timeouts, including the plain-Tcl control. Repros and
+  required contracts are in the outstanding file.
+- Standalone WASM Clippy PASS, zero warnings. Native scoped F5 crates/editor
+  generators: zero owned findings after six mechanical production cleanups
+  and **66 equivalent empty/non-empty assertion spellings**. No allowance or
+  weakened assertion. Full gate remains blocked by Compiler/VM (789/379),
+  generic core (54), non-editor xtask (53) and generic registry (176).
+  `bigip-lsp/clippy-owned-scoped-20261022.json` and the three blocker indexes
+  retain exact commands/locations. Server scoped lint is the last active check.
+
+All test executables were built, run and deleted within their wrapping
+command. Source inputs came from Registry/KCS/docs; no F5 runtime behavior
+was invented. Required repository/host gates and external-review section F
+remain open; these development pushes do not authorise a PR.
 
 ## Units finished here
 
@@ -70,7 +83,7 @@ These development pushes do not satisfy the external-review section F gate.
 | xtask | `gen-bigip-grammars`, `gen-zed-queries`, `gen-editor-extensions`, `gen-tmlanguage-keywords`, `gen-editor-catalogs`, `gen-editor-configs` — all `--check` OK after regeneration. Tests `gen_bigip_grammars` (4) and `gen_zed_queries` (7) PASS, `editor_extensions` PASS. `rendering_is_idempotent` caught a real bug (a rule whose comment was only the provenance note got it twice) — fixed. The emulated generator output matched the real generator except that file. `gen-editor-configs` was stale on `editors/emacs/README.md` (not BIG-IP: 669c8e2277 moved the plain-tcl auto-mode list to one regexp `add-to-list` without regenerating) — regenerated at the coordinator's request; the 3 `gen_editor_configs` tests that compared it were failing before and are not yet re-run. `zed-query-check`: all queries, including the generated TMSH one, compile against their grammars. |
 | clippy on changed crates | NOT RUN — see below. |
 
-## Not executed (disk-bound; / reached 168 MB free during the first run)
+## Original shared-session gaps (historical; disk-bound at 168 MB free)
 
 1. A passing run of the ILX e2e tests (blocked on the upstream variable-handle
    resolution and diagnostic latency above).

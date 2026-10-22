@@ -2,7 +2,7 @@
 
 Area: editors/, BIG-IP/F5 crates and LSP modules.
 
-Last updated: 2026-10-22T17:14Z
+Last updated: 2026-10-22T17:39Z
 
 Maintained by the bigip-lsp agent. Keep this snapshot and Resume current, and
 push at least every 30 minutes and after each finished item. Full unit table:
@@ -10,46 +10,37 @@ push at least every 30 minutes and after each finished item. Full unit table:
 
 ## In progress
 
-The broad owned-root lint pass reached every selected crate and found 16
-further owned assertion-style findings (editor generators, XC, CLI), all
-changed to equivalent typed equality/inequality assertions. Total test-only
-conditions preserved: 66. Cached verification is running; 53 non-editor
-xtask and 40 registry integration findings are indexed below. The missing
-registry include! fixture was restored unchanged from HEAD.
-
-Comparison/generator build has cleared Compiler, VM, core and dependencies
-and reached the xtask test target. It then runs the three generated-region
-tests and the unchanged plain-Tcl rewrite test WITHOUT only the F5 pull
-change. `/tmp/bigip-without-f5.py` restores both server files in its finally
-block. No comparison result yet; with-F5 failed at the applicable-rewrite
-assertion (55.84s). Server scoped lint must wait for restoration.
+Only server scoped lint and final handoff/sync remain. Server lint session
+**50998** uses the restored F5 source and the same owned-root package graph;
+logs `/tmp/bigip-clippy-server{.jsonl,-build.log}`. No temporary server diff
+remains. Main HEAD is frozen until this last source check finishes.
 
 ## Outstanding (in priority order)
 
-1. Restore ILX variable-handle source navigation after the compiler supplies
-   the constructor/setter/read relation described under Blocked. Keep the
-   current negative assertions and separate source candidates from live handles.
-2. Confirm `current_diagnostics::tests::actual_direct_and_push_rewrites_retain_their_captured_document_source`
-   fails without the F5 pull change, or fix an attributable regression. The
-   exact F5 change is in `c9dc3c2892` (current_diagnostics.rs and only its F5
-   lib.rs hunks). Temporary reverse-and-restore testing must retain assertions.
-3. Clippy `-D warnings` on the owned crates and editor generators, including
-   tcl-bigip, tcl-bigip-io, tcl-bigip-query, bigip-query-wasm, tcl-irules, f5-xc,
-   f5-cli, tcl-f5mku, bigip-report-gen, tcl-lsp-core, tcl-lsp-server, xtask and
-   the previously changed tcl-registry lines. Fix owned findings; route other
-   owners' blockers without editing their files.
-4. Re-run the three `xtask gen_editor_configs` tests. Its generated Emacs README
-   was previously regenerated and `gen-editor-configs --check` passed.
+1. Finish server scoped lint: fix findings in owned F5 modules; route generic
+   provider/current-diagnostics findings to the returned owner. No allowances.
+2. Update final NOTES/tracking, push after fetch/rebase, sync the main checkout
+   without losing the tested source snapshot, then stop. Never open a PR.
+3. ILX source navigation and the 16 e2e cases remain blocked on the contracts
+   below. BIG-IP owns consumer wiring/re-run when those owners deliver.
 
 ## Blocked (on whom, and what is needed)
 
-- Non-editor xtask/registry owners: **53 + 40** assertion-style Clippy
+- Generic diagnostic/compiler rewrite owner: the existing plain-Tcl test
+  `actual_direct_and_push_rewrites_retain_their_captured_document_source`
+  fails at **the same applicable-rewrite assertion without the F5 change**
+  (12.43s; with F5 55.84s). Assertions retained; both original server files
+  restored byte for byte and both executables deleted. Exact fixture,
+  command/configuration caveat and required source-association contract:
+  `../handoff/reviews/merge-inventory-20261019/bigip-lsp/rewrite-without-f5-repro.md`.
+
+- Non-editor xtask/registry owners: **53 + 176** assertion-style Clippy
   findings from the broad scoped pass, outside this agent's explicit editor
   generator/previous-registry-line scope. This includes the BIG-IP schema and
   F5-query documentation gates (not editor generators). Exact primary
   locations/command: `../handoff/reviews/merge-inventory-20261019/bigip-lsp/clippy-consumer-blockers-20261022.json`.
-  No allowance or assertion changes in those files. Library-test registry
-  checking initially hit a missing sparse fixture; restored, rerun pending.
+  No allowance or assertion changes in those files. Registry library-test input restoration is complete; all 229 remaining
+  findings are assertion-style lints outside the owned loaned lines.
 
 - Generic LSP owner: fresh normal-library core Clippy has **54 errors**,
   zero in owned BIG-IP/F5 modules. The six owned production lint findings
@@ -116,49 +107,46 @@ assertion (55.84s). Server scoped lint must wait for restoration.
   Historical F5 unit filter was 32/33; its plain-Tcl rewrite failure still
   needs the attribution above. ILX and strict clippy remain blocked; F5 pull and XC are green.
 
+- Editor generated-region comparisons **3/3 PASS**, 348.52s, no ignored tests.
+  Receipt `editor-config-tests-20261022.txt`. The existing plain rewrite test
+  was actually run without F5 and still fails; source restored, no production
+  edit to the handed-back file remains. Receipts `rewrite-{with,without}-f5-20261022.txt`.
+
 ## Resume
 
-- Validation checkout: `/workspace/bigip-lsp`, source `aeecf397` plus the two
-  owned production lint-only files pushed in `f26f6a06` and the 50 test-only
-  assertion-style changes pushed in `e4a01bbe`, plus 16 further test-only
-  assertion spelling changes in the latest owned commit. Main branch HEAD stays
-  frozen during builds. A separate coordination-only worktree at
-  `/workspace/bigip-coordination` fetches/rebases and pushes tracking snapshots.
-  Its latest pushed HEAD includes newer compiler/core changes; these builds
-  do not validate those later product changes.
-- `/tmp/bigip-env.sh` exports CARGO_INCREMENTAL=0, test/dev debug=0,
-  TCL_LSP_REQUIRE_TCLSH=9.0,8.6 and the verified pinned Jim/Tcl paths, then
-  sources agent-build-env.sh. `/tmp/bigip-test.py` builds, runs and deletes
-  every test executable within one command. Independent baseline checkout
-  `/workspace/bigip-baseline` remains at `fcb7927f02` with its own target.
-- Server session 68675 is DONE: selected e2e 6 pass/16 first-diagnostic
-  timeouts, F5 unit 1 pass, plain rewrite unit 1 failure. Both executables
-  were deleted. With-F5 receipt: `bigip-lsp/rewrite-with-f5-20261022.txt`.
-- Active comparison/generator session **24095** uses
-  `/tmp/bigip-without-f5.py`; it has TEMPORARILY REVERSED only the two-file F5
-  change `c9dc3c2892`. Its finally block restores both exact originals.
-  **Do not commit the current temporary server diffs or move main HEAD.**
-  The plan runs the three generated-region comparison tests first, then
-  the existing generic rewrite assertion without F5; build/run/delete in
-  one command. Log `/tmp/bigip-without-f5.log`.
-- Native scoped lint **46036** finished exit 101 (50 owned assertion-style
-  findings, now changed equivalently, plus the old core check). The core
-  check had encountered an intermediate adapter lifetime error; that owned
-  error is fixed and compilation confirmed by WASM. Finished **23728** has finished fresh core lint (54 generic errors)
-  and completed owned roots (16 additional owned fixes now applied) with core as a dependency (all `-D
-  warnings --no-deps`). Logs `/tmp/bigip-clippy-{owned-after,core-final,roots-final}*`.
-  Active cached verification **25657**; comparison/generators **24095**.
-  Fresh cached root verification logs: `/tmp/bigip-clippy-roots-after*`.
-  Standalone WASM **30313** finished PASS with zero warnings.
-- Next: finish the above; fix owned lint findings, route generic ones;
-  after the comparison restores intact F5 source, run server scoped lint.
-  Capture attribution/three generator results, update NOTES and this file,
-  sync main only after verified restoration, fetch/rebase/push, then stop.
-  `current_diagnostics.rs handed back`; no further production change planned.
-- Original `/workspace/tcl-lsp` setup rebase was aborted, tracked files clean;
-  its ignored oracle trees remain reachable via the active `tmp` symlink.
-  Sparse checkout materialised 218 literal fixture inputs from HEAD without
-  changing assertions. No temporary source probe remains.
-- Required repository/host gates remain pending under the authorised
-  development-push exception. Never open a PR; the PR to `rust` remains gated
-  on external-review section F, including integrated-tip validation.
+- Validation checkout `/workspace/bigip-lsp` remains at `aeecf397` plus owned
+  production lint fixes `f26f6a06`, 50 assertion spellings `e4a01bbe` and 16
+  more in `9d6804c9`. Coordination-only worktree
+  `/workspace/bigip-coordination` fetches/rebases/pushes newer tracking and
+  upstream snapshots; these source-pinned runs do not validate later
+  coordinator compiler/provider changes.
+- Server e2e **68675** finished: XC 5/5, W109 1/1, F5 unit 1/1 PASS;
+  ILX 0/16 first-diagnostic timeouts; plain rewrite fails with F5. Executables
+  deleted. Comparison/generators **24095** finished: **3/3 editor tests PASS**,
+  rewrite fails at the same assertion without F5. Both executables deleted;
+  both original server files restored and their `git diff` is empty.
+- Restoration hashes: current_diagnostics.rs
+  `7fcf6f6dc3b91a8224b6cec6dee8afd21700c6843c6690cd06cfc1217a92986a`;
+  lib.rs `830fd78baa30f46c2baf9944c6cce51183ecd591064e085027036e2467f663f5`.
+- Native scoped lint **26335** finished after restoring all literal fixture
+  inputs: zero owned F5/editor findings, 53 off-scope xtask and 176 generic
+  registry findings. Earlier **25657**, **23728**, **46036** finished; core
+  normal-library has 54 generic errors, zero owned. WASM **30313** PASS.
+  Receipts `clippy-owned-scoped-20261022.json` and blocker indexes above.
+- Only active check: server Clippy **50998**, full owned-root feature graph
+  plus tcl-lsp-server, `--lib --bins --tests --no-deps -- -D warnings`.
+  **Keep main source/HEAD frozen until it finishes.** Afterwards update all
+  final states and push via the coordination worktree, then sync main only
+  after verifying every local owned copy matches the pushed content.
+- `/tmp/bigip-env.sh` exports the required CARGO and oracle variables and
+  sources agent-build-env.sh. C Tcl 9.0.4/8.6.18 and pinned Jim 0.84 are built
+  and verified; Rust 1.99.1 stable. `/tmp/bigip-test.py` builds/runs/deletes in
+  one command. Baseline `/workspace/bigip-baseline` at `fcb7927f02` has its own
+  target; original `/workspace/tcl-lsp` tracked files are clean and its ignored
+  oracle trees are reached via the active `tmp` symlink.
+- 232 literal fixture inputs were materialised from HEAD, with no test data
+  changes. No temporary source probe remains. `current_diagnostics.rs handed back`;
+  the authorised temporary reversal is complete and restored.
+- Required full repository/host gates remain pending under the authorised
+  development-push exception. The PR to `rust` remains gated on external
+  review section F, including integrated-tip validation. Never open a PR.

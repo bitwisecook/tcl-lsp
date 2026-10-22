@@ -1,0 +1,27 @@
+Source: aeecf397 plus owned production lint fixes f26f6a06 and equivalent assertion edits e4a01bbe/9d6804c9.
+F5 pull change c9dc3c2892 reversed only in current_diagnostics.rs/lib.rs; assertions retained.
+Build command: cargo test --no-run --locked -p tcl-lsp-server -p xtask --lib --bin xtask.
+Environment: CARGO_INCREMENTAL=0 CARGO_PROFILE_TEST_DEBUG=0 CARGO_PROFILE_DEV_DEBUG=0; required pinned C Tcl 9.0.4/8.6.18 and Jim 0.84.
+Every test executable built, run and deleted within the same command; both server files restored byte for byte.
+
+
+RUN /workspace/bigip-lsp/target/debug/deps/tcl_lsp_server-f8a689b2df44e20d ['current_diagnostics::tests::actual_direct_and_push_rewrites_retain_their_captured_document_source', '--exact', '--nocapture']
+
+running 1 test
+
+thread 'current_diagnostics::tests::actual_direct_and_push_rewrites_retain_their_captured_document_source' (33540) panicked at rust/tcl-lsp-server/src/current_diagnostics.rs:1870:9:
+actual worker must retain an applicable rewrite
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test current_diagnostics::tests::actual_direct_and_push_rewrites_retain_their_captured_document_source ... FAILED
+
+failures:
+
+failures:
+    current_diagnostics::tests::actual_direct_and_push_rewrites_retain_their_captured_document_source
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 839 filtered out; finished in 12.43s
+
+DELETED /workspace/bigip-lsp/target/debug/deps/xtask-8d9f7e3463b29ab4
+DELETED /workspace/bigip-lsp/target/debug/deps/tcl_lsp_server-f8a689b2df44e20d
+RESTORED /workspace/bigip-lsp/rust/tcl-lsp-server/src/current_diagnostics.rs 7fcf6f6dc3b91a8224b6cec6dee8afd21700c6843c6690cd06cfc1217a92986a
+RESTORED /workspace/bigip-lsp/rust/tcl-lsp-server/src/lib.rs 830fd78baa30f46c2baf9944c6cce51183ecd591064e085027036e2467f663f5

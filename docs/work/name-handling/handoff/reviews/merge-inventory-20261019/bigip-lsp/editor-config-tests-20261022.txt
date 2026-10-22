@@ -1,0 +1,14 @@
+Source: aeecf397 plus owned production lint fixes f26f6a06 and equivalent assertion edits e4a01bbe/9d6804c9.
+F5 pull change c9dc3c2892 reversed only in current_diagnostics.rs/lib.rs; assertions retained.
+Build command: cargo test --no-run --locked -p tcl-lsp-server -p xtask --lib --bin xtask.
+Environment: CARGO_INCREMENTAL=0 CARGO_PROFILE_TEST_DEBUG=0 CARGO_PROFILE_DEV_DEBUG=0; required pinned C Tcl 9.0.4/8.6.18 and Jim 0.84.
+Every test executable built, run and deleted within the same command; both server files restored byte for byte.
+
+RUN /workspace/bigip-lsp/target/debug/deps/xtask-8d9f7e3463b29ab4 ['gen_editor_configs::tests::committed_files_match_generated_regions', 'gen_editor_configs::tests::a_stale_dialect_list_is_regenerated', 'gen_editor_configs::tests::every_declared_region_is_written_by_its_render', '--exact', '--test-threads=1', '--nocapture']
+
+running 3 tests
+test gen_editor_configs::tests::a_stale_dialect_list_is_regenerated ... ok
+test gen_editor_configs::tests::committed_files_match_generated_regions ... ok
+test gen_editor_configs::tests::every_declared_region_is_written_by_its_render ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 366 filtered out; finished in 348.52s

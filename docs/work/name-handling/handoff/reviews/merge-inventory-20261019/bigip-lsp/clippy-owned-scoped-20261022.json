@@ -1,0 +1,261 @@
+{
+  "date_utc": "2026-10-22T17:35:20Z",
+  "command": "cargo clippy --locked --keep-going -p tcl-bigip -p tcl-bigip-io -p tcl-bigip-query -p tcl-irules -p f5-xc -p f5-cli -p tcl-f5mku -p bigip-report-gen-rust -p tcl-registry -p xtask --lib --bins --tests --no-deps --message-format=json -- -D warnings",
+  "source": "aeecf397 plus owned production lint fixes f26f6a06 and equivalent assertion edits e4a01bbe/9d6804c9; all 66 owned assertion conditions retained",
+  "rust": "1.99.1 stable",
+  "exit_code": 101,
+  "fully_owned_primary_crate_diagnostics": 0,
+  "owned_editor_generator_diagnostics": 0,
+  "completed_owned_artifacts": {
+    "f5-cli": [
+      {
+        "target": "cli",
+        "kind": "test",
+        "test_profile": true
+      },
+      {
+        "target": "enrich",
+        "kind": "test",
+        "test_profile": true
+      },
+      {
+        "target": "explain_flow",
+        "kind": "test",
+        "test_profile": true
+      },
+      {
+        "target": "f5-query",
+        "kind": "bin",
+        "test_profile": false
+      },
+      {
+        "target": "f5-query",
+        "kind": "bin",
+        "test_profile": true
+      },
+      {
+        "target": "f5_cli",
+        "kind": "lib",
+        "test_profile": false
+      },
+      {
+        "target": "f5_cli",
+        "kind": "lib",
+        "test_profile": true
+      },
+      {
+        "target": "grep",
+        "kind": "test",
+        "test_profile": true
+      },
+      {
+        "target": "irule",
+        "kind": "test",
+        "test_profile": true
+      },
+      {
+        "target": "pcap_remap",
+        "kind": "test",
+        "test_profile": true
+      },
+      {
+        "target": "query",
+        "kind": "test",
+        "test_profile": true
+      },
+      {
+        "target": "query_help",
+        "kind": "test",
+        "test_profile": true
+      },
+      {
+        "target": "query_input",
+        "kind": "test",
+        "test_profile": true
+      },
+      {
+        "target": "query_merge",
+        "kind": "test",
+        "test_profile": true
+      },
+      {
+        "target": "query_mutation",
+        "kind": "test",
+        "test_profile": true
+      },
+      {
+        "target": "query_render",
+        "kind": "test",
+        "test_profile": true
+      },
+      {
+        "target": "registry_dump",
+        "kind": "test",
+        "test_profile": true
+      },
+      {
+        "target": "remote",
+        "kind": "test",
+        "test_profile": true
+      },
+      {
+        "target": "secrets",
+        "kind": "test",
+        "test_profile": true
+      },
+      {
+        "target": "tmsh",
+        "kind": "test",
+        "test_profile": true
+      },
+      {
+        "target": "validate",
+        "kind": "test",
+        "test_profile": true
+      }
+    ],
+    "f5-xc": [
+      {
+        "target": "differential",
+        "kind": "test",
+        "test_profile": true
+      },
+      {
+        "target": "f5_xc",
+        "kind": "lib",
+        "test_profile": false
+      },
+      {
+        "target": "f5_xc",
+        "kind": "lib",
+        "test_profile": true
+      },
+      {
+        "target": "model",
+        "kind": "test",
+        "test_profile": true
+      }
+    ],
+    "tcl-bigip": [
+      {
+        "target": "integration",
+        "kind": "test",
+        "test_profile": true
+      },
+      {
+        "target": "tcl_bigip",
+        "kind": "lib",
+        "test_profile": false
+      },
+      {
+        "target": "tcl_bigip",
+        "kind": "lib",
+        "test_profile": true
+      }
+    ],
+    "tcl-bigip-io": [
+      {
+        "target": "tcl_bigip_io",
+        "kind": "lib",
+        "test_profile": false
+      },
+      {
+        "target": "tcl_bigip_io",
+        "kind": "lib",
+        "test_profile": true
+      },
+      {
+        "target": "ucs",
+        "kind": "test",
+        "test_profile": true
+      }
+    ],
+    "tcl-bigip-query": [
+      {
+        "target": "integration",
+        "kind": "test",
+        "test_profile": true
+      },
+      {
+        "target": "tcl_bigip_query",
+        "kind": "lib",
+        "test_profile": false
+      },
+      {
+        "target": "tcl_bigip_query",
+        "kind": "lib",
+        "test_profile": true
+      },
+      {
+        "target": "x509_only",
+        "kind": "test",
+        "test_profile": true
+      }
+    ],
+    "tcl-f5mku": [
+      {
+        "target": "tcl_f5mku",
+        "kind": "lib",
+        "test_profile": false
+      },
+      {
+        "target": "tcl_f5mku",
+        "kind": "lib",
+        "test_profile": true
+      }
+    ],
+    "tcl-irules": [
+      {
+        "target": "event_emission",
+        "kind": "test",
+        "test_profile": true
+      },
+      {
+        "target": "object_refs",
+        "kind": "test",
+        "test_profile": true
+      },
+      {
+        "target": "resolve_args",
+        "kind": "test",
+        "test_profile": true
+      },
+      {
+        "target": "script_bearing_args",
+        "kind": "test",
+        "test_profile": true
+      },
+      {
+        "target": "tcl_irules",
+        "kind": "lib",
+        "test_profile": false
+      },
+      {
+        "target": "tcl_irules",
+        "kind": "lib",
+        "test_profile": true
+      },
+      {
+        "target": "walker",
+        "kind": "test",
+        "test_profile": true
+      }
+    ]
+  },
+  "remaining_primary_errors": {
+    "xtask_outside_editor_generator_scope": 53,
+    "generic_registry": 176
+  },
+  "limits": "Full dependency-inclusive gate still fails in Compiler/VM. Core normal-library has 54 generic findings, zero owned. Server check remains pending until F5 source is restored after the negative comparison. Core test lint is not claimed green.",
+  "environment": {
+    "CARGO_INCREMENTAL": "0",
+    "CARGO_PROFILE_TEST_DEBUG": "0",
+    "CARGO_PROFILE_DEV_DEBUG": "0",
+    "CARGO_BUILD_JOBS": "1",
+    "CARGO_TARGET_DIR": "/workspace/bigip-clippy-target"
+  },
+  "raw_sha256": {
+    "bigip-clippy-roots-complete.jsonl": "b3549ce652b5af7e3bd80e1841c6cbeebd0f8afe5c44c1a37c315f993dfee6bb",
+    "bigip-clippy-roots-complete-build.log": "edd462893dce7c4ae993fcbff0f56ccfc8bf644b0602ade3b5b30bae4243ca9a"
+  }
+}
