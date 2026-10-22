@@ -1,0 +1,19 @@
+{
+  "root_eval_loader_current": {
+    "base": "e4a01bbe",
+    "inputs": "tests-spectcl-build-inputs.json",
+    "complete_input_retry": true,
+    "new": "26 pass / 2 budget failures; old still active"
+  },
+  "root_golden_packs": {
+    "base": "8a01a718",
+    "source_snapshot": "work-base-8a01a718-proof-inputs.json",
+    "result": "2 pass / same 1 budget failure in both modes",
+    "note": "Historical frozen binary; root tests-spectcl-build-inputs.json was written by the later eval_loader retry and must NOT be attributed to these golden logs. No separate original build-input or executable digest receipt was captured."
+  },
+  "optimized": {
+    "old_base": "tests-spectcl-opt1-eval_loader-inputs.json",
+    "current_base": "latest-e4a01bbe/tests-spectcl-opt1-*-inputs.json",
+    "note": "Separate opt-level-1 supplementary runs, not a replacement or green claim for default-profile budget assertions."
+  }
+}

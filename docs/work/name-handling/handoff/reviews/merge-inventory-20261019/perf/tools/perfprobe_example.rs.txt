@@ -58,7 +58,11 @@ fn analyse_mode(
 fn diff(r0: &tcl_compiler::analyser::AnalysisResult, r1: &tcl_compiler::analyser::AnalysisResult) {
     let d0: Vec<_> = r0.diagnostics.iter().map(|d| format!("{d:?}")).collect();
     let d1: Vec<_> = r1.diagnostics.iter().map(|d| format!("{d:?}")).collect();
-    eprintln!("MISMATCH diagnostics_equal={}", d0 == d1);
+    eprintln!(
+        "MISMATCH diagnostics_debug_equal={} diagnostics_equal={}",
+        d0 == d1,
+        r0.diagnostics == r1.diagnostics
+    );
     if std::env::var_os("ZZ_DIFF").is_some() {
         // Only diagnostics: the complete AnalysisResult PartialEq remains the verdict.
         // Formatting the complete retained graph duplicates its shared subgraphs.

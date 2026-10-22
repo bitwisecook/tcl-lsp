@@ -1,61 +1,33 @@
 
 running 28 tests
+test a_block_body_is_located_by_position_not_by_whitespace has been running for over 60 seconds
+test a_braced_block_name_is_rejected_on_both_paths has been running for over 60 seconds
 test a_block_body_is_located_by_position_not_by_whitespace ... ok
-test a_budget_blowing_loop_fails_closed_naming_the_axis ... FAILED
 test a_braced_block_name_is_rejected_on_both_paths ... ok
+test a_budget_blowing_loop_fails_closed_naming_the_axis ... FAILED
 test a_clause_grammar_row_with_an_unknown_timing_is_dropped_with_a_notice ... ok
 test a_command_body_may_template_its_own_rows ... ok
 test a_pack_calling_clock_fails_closed_with_the_determinism_notice ... ok
 test a_state_transitions_block_loads_its_rows_and_its_resolver_body ... ok
-test a_templated_pack_equals_its_hand_unrolled_twin ... ok
 test a_content_hash_is_the_snapshot_keys_and_follows_an_included_fragment ... ok
 test a_variable_substitutes_into_rows_at_every_scope ... ok
+test a_wall_clock_blowing_loop_names_its_own_axis ... ok
 test a_workspace_pack_may_still_override_a_shipped_command ... ok
 test an_effect_naming_an_undeclared_family_is_a_notice ... ok
-test a_wall_clock_blowing_loop_names_its_own_axis ... ok
+test a_templated_pack_equals_its_hand_unrolled_twin ... ok
 test an_environment_body_runs_as_a_program ... ok
-test an_unknown_registration_word_classifies_instead_of_erroring ... ok
+test an_included_fragment_loads_identically_on_both_routes ... ok
 test an_untrusted_pack_declaring_dialect_axes_fails_with_the_provenance_error ... ok
 test an_untrusted_pack_touching_a_reserved_name_fails_with_the_provenance_error ... ok
-test an_included_fragment_loads_identically_on_both_routes ... ok
+test an_unknown_registration_word_classifies_instead_of_erroring ... ok
 test available_query_answers_against_the_declared_union ... ok
 test available_query_marks_the_pack_target_dependent_and_uncacheable ... ok
-test every_shipped_pack_loads_identically_with_and_without_the_static_fast_path ... FAILED
-test from_frame_effect_derives_the_alias_pairs_resolver ... ok
 test derived_frame_aliases_register_explicit_logical_source_dispatch ... ok
+test from_frame_effect_derives_the_alias_pairs_resolver ... ok
 test runtime_backing_reads_each_shape_through_both_paths ... ok
+test every_shipped_pack_loads_identically_with_and_without_the_static_fast_path has been running for over 60 seconds
+test semantic_operation_round_trips_through_the_renderer has been running for over 60 seconds
+test semantic_operation_round_trips_through_the_renderer ... ok
 test the_block_readers_still_report_from_the_evaluated_path ... ok
 test the_new_two_point_oh_words_load_identically_on_both_routes ... ok
-test semantic_operation_round_trips_through_the_renderer has been running for over 60 seconds
 test the_ratified_words_load_identically_on_both_routes ... ok
-test semantic_operation_round_trips_through_the_renderer ... ok
-
-failures:
-
----- a_budget_blowing_loop_fails_closed_naming_the_axis stdout ----
-
-thread 'a_budget_blowing_loop_fails_closed_naming_the_axis' (23743) panicked at rust/tcl-spectcl/tests/eval_loader.rs:646:5:
-assertion `left == right` failed: [
-    Notice {
-        context: "pack",
-        line: 1,
-        message: "pack evaluation exhausted its budget on the wall clock axis; registration is transactional, so nothing from this pack is loaded (design E §1.2)",
-        class: Semantic,
-        subject: None,
-    },
-]
-  left: Some(BudgetExhausted("wall clock"))
- right: Some(BudgetExhausted("command steps"))
-note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
-
----- every_shipped_pack_loads_identically_with_and_without_the_static_fast_path stdout ----
-
-thread 'every_shipped_pack_loads_identically_with_and_without_the_static_fast_path' (23875) panicked at rust/tcl-spectcl/src/golden.rs:200:9:
-failed to build shipped-pack inventory under `/workspace/tcl-lsp-work`: failed to read shipped-pack directory `/workspace/tcl-lsp-work/docs/design/spec-dsl-examples`: No such file or directory (os error 2)
-
-
-failures:
-    a_budget_blowing_loop_fails_closed_naming_the_axis
-    every_shipped_pack_loads_identically_with_and_without_the_static_fast_path
-
-test result: FAILED. 26 passed; 2 failed; 0 ignored; 0 measured; 0 filtered out; finished in 405.76s

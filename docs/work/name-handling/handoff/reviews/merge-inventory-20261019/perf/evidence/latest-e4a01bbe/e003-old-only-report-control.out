@@ -1,0 +1,12 @@
+NONDETERMINISTIC old1!=old2
+MISMATCH diagnostics_equal=true
+FIELD_DIFF diagnostics
+det=false
+BAD memo_ms=2732 plain_ms=2046 eq=false samples/diagnostics/E003_proc_call_arity/example.tcl
+files=1 mismatches=1
+
+thread 'main' (34430) panicked at rust/tcl-compiler/examples/zz_latest_perfprobe.rs:200:9:
+assertion `left == right` failed: corpus results must be identical without panics
+  left: 1
+ right: 0
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace

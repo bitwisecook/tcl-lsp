@@ -1,0 +1,11 @@
+{
+  "compiler/lib/new": {
+    "returncode": 101,
+    "seconds": 4888.586,
+    "passed": 151,
+    "failed": 75,
+    "ignored": 0,
+    "timed_out": [],
+    "log": "tests-compiler-lib-new.out"
+  }
+}

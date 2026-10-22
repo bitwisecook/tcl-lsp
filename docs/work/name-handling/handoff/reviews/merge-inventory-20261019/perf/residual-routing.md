@@ -109,3 +109,23 @@ a memo boundary. Preserve actual body/registry/input ownership, branch joins,
 unknown calls, traversal-depth outcomes and complete source-transition effects.
 Do not replace graph semantics with name-only summaries or bypass recursion
 limits. No production edit or proven fix is claimed for this finding.
+
+## Named server cases on frozen e4a01bbe full batch
+
+Both requested 180-second cases completed their bounded comparison, with zero
+pass-to-fail but neither gate green. Source tree and full Rust diff were checked
+against the build-input receipt before copying outputs to latest-e4a01bbe.
+Startup metadata fails its first retained-read-count assertion, 0 versus 1 at
+original_document_metadata_tests.rs:618, in BOTH modes (24.451 / 23.893 s).
+The later factory reindex assertions are unreached. Route this positive-role
+withdrawal to compiler/LSP; perf changed no expectation.
+
+workspace_symbol_caps_its_answer times out at 180 s in BOTH modes
+(180.085 / 180.224 s). Its unchanged fixture analyses 41 real procedures once
+and reuses that analysis across enough documents to exceed the 1,000-symbol
+cap. The timeout does not identify which phase dominates; do not claim an
+index/query attribution without a separate profile. The completed positive
+ordinary-path measurements above establish substantial remaining LSP cost.
+Route the server case and inventory/index reuse to the LSP owner. Retain
+all cap, role, source-owner and reference assertions. Raw summaries distinguish
+timeouts from assertion failures; no timeout is a fabricated Rust test result.

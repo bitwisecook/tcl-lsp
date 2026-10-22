@@ -22,5 +22,11 @@
   "previous_binaries": "8a01a718 proof binaries retain distinct filenames and input bytes; new build does not overwrite them",
   "target_dir": "/workspace/tcl-lsp-work/target-latest",
   "corpus_manifest_sha256": "1af1d00ff415d77d7da1a8441b63b664acd8cd2d834c730f455c383b678875c0",
-  "corpus_audit": "../corpus-roster-audit.json"
+  "corpus_audit": "../corpus-roster-audit.json",
+  "compiled_probe_source": {
+    "commit": "6df7bbea",
+    "path": "docs/work/name-handling/handoff/reviews/merge-inventory-20261019/perf/tools/perfprobe_example.rs.txt",
+    "sha256": "8c30e04f8c4a5dd02c9744ff78efaae257d1bb51647f99df8f8fb9381251cb27",
+    "note": "Matches ignored zz_latest_perfprobe.rs byte for byte; the later recorded probe changes only diagnostic labels, not full-result assertions."
+  }
 }

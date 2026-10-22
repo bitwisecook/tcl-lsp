@@ -1,0 +1,10 @@
+{
+  "production_base": "e4a01bbe",
+  "head": "c93fd973d7f1909f81a80e1d44f4e5c563575cdc",
+  "status": "frozen proof source; complete corpus comparison blocked",
+  "sha256": {
+    "perf-realm-interprocedural.patch": "04532eb7653f439d5df544a7505e7658e9d2a02400e1b736b797ef72c3bbdfa2",
+    "perf.patch": "ef773f30b2794e555b0a5c4728d2d6d700ae2b4779bbb99b971ddb5dc812f4db",
+    "perf-owned.patch": "90b9958661276a302d901d67fdc86c98ebb8abccb85a9ef5704fb811cae9fc76"
+  }
+}

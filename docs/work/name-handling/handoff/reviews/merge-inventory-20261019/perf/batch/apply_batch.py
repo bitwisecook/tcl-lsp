@@ -253,7 +253,10 @@ def original_word(s, p):
 """,
         p,
     )
-    s = rep(s, "absolute NativeWord or", "absolute `NativeWord` or", p)
+    if "absolute NativeWord or" in s:
+        s = rep(s, "absolute NativeWord or", "absolute `NativeWord` or", p)
+    elif s.count("absolute `NativeWord` or") != 1:
+        sys.exit(f"unknown original-word documentation anchor in {p}")
     legacy = block("original_line_at.rs")
     body = legacy.split("{\n", 1)[1].rsplit("\n}", 1)[0]
     old = ""
@@ -375,10 +378,14 @@ fn header_uncached(
         p,
     )
 
-    s = rep(s, "_site: &CommandAllocationSite,", "site: &CommandAllocationSite,", p)
-    s = rep(s, "_site.offset", "site.offset", p)
-    return rep(s, "    if !target.prepended.is_empty() {",
-               "    #[cfg(not(debug_assertions))]\n    let _ = site;\n    if !target.prepended.is_empty() {", p)
+    if "_site: &CommandAllocationSite," in s:
+        s = rep(s, "_site: &CommandAllocationSite,", "site: &CommandAllocationSite,", p)
+        s = rep(s, "_site.offset", "site.offset", p)
+        s = rep(s, "    if !target.prepended.is_empty() {",
+                "    #[cfg(not(debug_assertions))]\n    let _ = site;\n    if !target.prepended.is_empty() {", p)
+    elif s.count("    #[cfg(not(debug_assertions))]\n    let _ = site;\n    if !target.prepended.is_empty() {") != 1:
+        sys.exit(f"unknown incomplete-header debug-coordinate anchor in {p}")
+    return s
 
 
 @edit("rust/tcl-compiler/src/realm.rs")
@@ -393,13 +400,15 @@ def realm(s, p):
 }""",
         p,
     )
+    advice_default = (
+        "Default::default()"
+        if "            source_advice: Default::default(),\n        };" in s
+        else "source_transition_advice::OriginalSourceTransitionAdviceCache::default()"
+    )
     s = rep(
         s,
-        """            source_advice: Default::default(),
-        };""",
-        """            source_advice: Default::default(),
-            query_memo: Default::default(),
-        };""",
+        f"            source_advice: {advice_default},\n        }};",
+        f"            source_advice: {advice_default},\n            query_memo: Default::default(),\n        }};",
         p,
     )
     s = rep(

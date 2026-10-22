@@ -6,6 +6,7 @@
 
 import argparse
 import difflib
+import json
 from pathlib import Path
 import subprocess
 import tempfile
@@ -14,6 +15,7 @@ parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("root", type=Path)
 parser.add_argument("--base", default="HEAD")
 parser.add_argument("--snapshot", type=Path)
+parser.add_argument("--output-dir", type=Path)
 parser.add_argument("--check-toggled", action="store_true")
 args = parser.parse_args()
 root = args.root.resolve()
@@ -59,9 +61,16 @@ with tempfile.TemporaryDirectory(prefix="zz_perf_refresh_") as temporary:
     assert "ZZ_" not in "".join(owned + routed)
     owned = ["\n" if line == " \n" else line for line in owned]
     routed = ["\n" if line == " \n" else line for line in routed]
-    (perf / "perf-owned.patch").write_text("".join(owned))
-    (perf / "perf-realm-interprocedural.patch").write_text("".join(routed))
-    (perf / "perf.patch").write_text("".join(owned + routed))
+    output = args.output_dir.resolve() if args.output_dir else perf
+    output.mkdir(parents=True, exist_ok=True)
+    (output / "perf-owned.patch").write_text("".join(owned))
+    (output / "perf-realm-interprocedural.patch").write_text("".join(routed))
+    (output / "perf.patch").write_text("".join(owned + routed))
+    (output / "patch-inputs.json").write_text(json.dumps({
+        "base": subprocess.check_output(["git", "rev-parse", args.base], cwd=root, text=True).strip(),
+        "owned": paths[1:7], "routed": paths[7:],
+        "validation": "patch generation and formatting only; no semantic proof implied",
+    }, indent=2) + "\n")
     if args.check_toggled:
         toggled = Path(temporary) / "toggled"
         prepare(toggled, True)

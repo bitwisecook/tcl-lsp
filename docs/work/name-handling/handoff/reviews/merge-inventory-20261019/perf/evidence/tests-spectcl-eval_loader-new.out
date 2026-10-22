@@ -33,3 +33,36 @@ test semantic_operation_round_trips_through_the_renderer ... ok
 test the_block_readers_still_report_from_the_evaluated_path ... ok
 test the_new_two_point_oh_words_load_identically_on_both_routes ... ok
 test the_ratified_words_load_identically_on_both_routes ... ok
+test every_shipped_pack_loads_identically_with_and_without_the_static_fast_path ... FAILED
+
+failures:
+
+---- a_budget_blowing_loop_fails_closed_naming_the_axis stdout ----
+
+thread 'a_budget_blowing_loop_fails_closed_naming_the_axis' (30282) panicked at rust/tcl-spectcl/tests/eval_loader.rs:646:5:
+assertion `left == right` failed: [
+    Notice {
+        context: "pack",
+        line: 1,
+        message: "pack evaluation exhausted its budget on the wall clock axis; registration is transactional, so nothing from this pack is loaded (design E §1.2)",
+        class: Semantic,
+        subject: None,
+    },
+]
+  left: Some(BudgetExhausted("wall clock"))
+ right: Some(BudgetExhausted("command steps"))
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- every_shipped_pack_loads_identically_with_and_without_the_static_fast_path stdout ----
+
+thread 'every_shipped_pack_loads_identically_with_and_without_the_static_fast_path' (30552) panicked at rust/tcl-spectcl/tests/eval_loader.rs:194:9:
+/workspace/tcl-lsp-work/specs/eda_xilinx.tclspec: snapshots diverge at line 1 (byte 32):
+  a: …pack eda_xilinx dsl 2.0 display Some("AMD Xilinx Vivado") load_error None…
+  b: …pack eda_xilinx dsl 2.0 display None load_error Some(BudgetExhausted("wall clock"))…
+
+
+failures:
+    a_budget_blowing_loop_fails_closed_naming_the_axis
+    every_shipped_pack_loads_identically_with_and_without_the_static_fast_path
+
+test result: FAILED. 26 passed; 2 failed; 0 ignored; 0 measured; 0 filtered out; finished in 4414.44s

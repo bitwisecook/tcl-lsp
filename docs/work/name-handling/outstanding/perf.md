@@ -2,7 +2,7 @@
 
 Area: Analysis and SpecTcl pack-load cost.
 
-Last updated: 2026-10-22 18:56 UTC
+Last updated: 2026-10-22 19:21 UTC
 
 ## Resume
 
@@ -11,6 +11,18 @@ Production proof base is `e4a01bbe`; later local commits are evidence only.
 The FULL batch is applied with temporary switches in nine Rust files. No
 production code is committed. Do not stage Rust during evidence checkpoints.
 Do not reapply the batch or interrupt the active builds for documentation.
+
+The main perf/*.patch artifacts are refreshed against origin/work 6df7bbea;
+patch-inputs.json and patch-refresh-validation.json record the exact base and
+byte-exact clean application. These refreshed patches are UNPROVEN on that
+base. e4a01bbe proof patches are preserved in
+perf/evidence/latest-e4a01bbe/proof-patches/. The active Rust files are STILL
+the frozen e4 source; do not apply refreshed patches over the running tree.
+For frozen-tree reproduction, use refresh_patches.py ROOT --snapshot
+/tmp/perf-clean-batch --check-toggled --output-dir /tmp/perf-proof-patches.
+For current-origin artifacts, use --base origin/work --snapshot
+/tmp/perf-latest-clean-batch (no --check-toggled). The helper accepts the exact
+upstream lint changes and preserves the new empty-token parse guard.
 
 The old `8a01a718` binaries have separate outputs in perf/evidence. Latest
 outputs are in perf/evidence/latest-e4a01bbe. Frozen old binaries remain valid
@@ -25,6 +37,12 @@ input. Public fields and retained realm/world compare equal. A separate
 machine-level trace locates the first false helper precisely at
 ObjectHandleFacts::analysis_report_eq (object_types/report_comparison.rs).
 See perf/analysis-equality-routing.md and latest-e4a01bbe/aliases-private-eq-trace.out.
+The latest corpus also fails E003_proc_call_arity. Its isolated all-old control
+ALSO fails, specifically with diagnostics PartialEq unequal despite identical
+Debug strings (FIELD_DIFF diagnostics). Existing probe logs' diagnostics_equal
+label means Debug equality only; next-build recorded source fixes the label.
+See e003-old-only-report-control.out / e003-old-only-inputs.json and the routing
+note. Do not discard typed diagnostic subjects or assume their equality.
 This is outside perf ownership. Do not weaken PartialEq, drop the object facts,
 retry until equality happens, or call diagnostics-only equality a proof.
 The six-file production commit remains held until the required full-result
@@ -58,7 +76,8 @@ proof is genuinely satisfied or the coordinator resolves this blocker.
 - `/tmp/perf-latest-crate-lexer-compiler.log`: default test-profile lexer then
   compiler. Lexer completed 583 pass / the same 3 fail in both modes, zero
   pass-to-fail. Compiler build completed and its 226 selected tests are now
-  executing new mode, then old mode. Outputs/summary in latest-e4a01bbe.
+  new mode completed all 226 (151 pass / 75 fail, 4885.43 s); old mode
+  is now running. No regression inventory verdict yet. Outputs/summary in latest-e4a01bbe.
 - Native byte control copies that completed compiler executable privately and
   runs native_array_indices_emit_iteratively_from_the_full_original_arena in
   both modes; existing assertions require 2000 array instructions and x-ff.
@@ -75,18 +94,26 @@ proof is genuinely satisfied or the coordinator resolves this blocker.
   Old golden completed 2 pass / the same 1 fail in 5717.749 s,
   zero pass-to-fail. The server build is now active on e4a01bbe plus full batch,
   with recorded HEAD/diff inputs.
-  Both server modes have the requested 180-second limit, exact declared test
+  Startup completed the same first assertion failure (0 vs 1 at line 618)
+  in both modes, new 24.451 s / old 23.893 s. It does not reach factory reindex.
+  Workspace-symbol timed out at 180 s in BOTH modes (180.085 / 180.224 s).
+  No old test passed and no pass-to-fail occurred; both server gates fail.
+  Exact outputs and validated source inputs are copied into latest-e4a01bbe. Both modes have
+  the requested 180-second limit, exact declared test
   inventory checks, and explicit timeout states separate from assertion results.
 - `/tmp/perf-spectcl-complete-input-retry.log`: complete-input eval_loader
-  retry is active in new mode after the initial SpecTcl stage finished. It preserves other summaries.
+  new mode completed 26 pass / 2 fail (4418.488 s), both budget assertions:
+  the 5-second axis test and eda_xilinx interpreted 30-minute exhaustion.
+  Its old mode is active. There is no missing sparse input in this retry. It preserves other summaries.
   Do not start another default-profile SpecTcl harness over the same filenames
   while this or the old golden process is active.
 - Supplemental base optimized eval_loader: 28 PASS in both modes (1482.833 /
   2614.057 s), zero pass-to-fail. Its later golden BUILD failed because the base
   compiler rlib was invalidated; that is not a semantic regression or proof.
 - `/tmp/perf-run-spec-latest-opt1.py`, log /tmp/perf-latest-spectcl-opt1.log:
-  latest optimized eval_loader new completed all 28 PASS (1488.967 s);
-  old mode is now active, followed by unchanged golden_packs in both modes. Harness debug=0, optimization=1, debug/overflow
+  latest optimized eval_loader completed all 28 PASS in BOTH modes
+  (new 1488.967 s / old 1568.082 s), zero pass-to-fail. Latest optimized
+  golden_packs is next, with unchanged assertions in both modes. Harness debug=0, optimization=1, debug/overflow
   assertions ON; exact library artifacts are recorded. The default-profile
   budget comparisons above remain separately recorded and are not called green.
 - Latest ordinary LSP positive controls completed on the new libraries.
@@ -142,7 +169,8 @@ include it. Owned rustfmt is clean. No existing assertion was weakened.
    lexer parse_cut.rs/source_map.rs; compiler original_word.rs,
    original_name_value.rs, formal_call_advice.rs, incomplete_body_metadata.rs.
    `/tmp/perf-clean-batch` holds clean snapshots. refresh_patches.py ROOT
-   --snapshot /tmp/perf-clean-batch --check-toggled reproduces the nine-file
+   --snapshot /tmp/perf-clean-batch --check-toggled
+   --output-dir /tmp/perf-proof-patches reproduces the nine-file
    experimental tree and six/two split. Never commit realm/interprocedural.
 4. Refresh perf-realm-interprocedural.patch against latest work and, only once
    truly proved, record: "perf-realm-interprocedural.patch proven at <commit>,

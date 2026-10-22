@@ -1,0 +1,8 @@
+{
+  "production_base": "e4a01bbe",
+  "binary_sha256": "45d6e13338f7422e8d044fa2cd9f76f9714fa097b9232f87a261317adfcec679",
+  "source": "samples/diagnostics/E003_proc_call_arity/example.tcl",
+  "source_sha256": "51b6b3b8bfe19a19803e4ea7ae821611002ff4b4fb35e1bd98f63d41e0e40fb4",
+  "all_optimizations_disabled": true,
+  "verdict": "complete AnalysisResult PartialEq"
+}

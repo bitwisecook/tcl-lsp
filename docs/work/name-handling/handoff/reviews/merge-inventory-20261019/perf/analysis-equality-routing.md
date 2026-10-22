@@ -44,3 +44,38 @@ comparison. Exact trace: evidence/latest-e4a01bbe/aliases-object-report-trace.ou
 This narrows the owner investigation to report-source capture/currentness or a
 legitimate absence of correspondence. It is not permission to remove the guard
 or equate independent runtime owners.
+
+## Additional latest corpus blocker: E003 diagnostic subjects
+
+The latest full corpus also fails on
+samples/diagnostics/E003_proc_call_arity/example.tcl, with unequal old endpoints.
+An isolated all-old control using the same completed latest executable ALSO
+fails complete PartialEq (exit 101). Unlike the aliases diagnostic, its public
+diagnostics vector itself compares unequal. Exact outputs/inputs:
+evidence/latest-e4a01bbe/e003-old-only-report-control.out and
+e003-old-only-inputs.json. No private helper trace was taken for this fixture.
+
+The current binary's line `MISMATCH diagnostics_equal=true` compares formatted
+Debug strings ONLY. The independent `FIELD_DIFF diagnostics` line is actual
+PartialEq and shows that vector is unequal despite identical Debug text. This
+label is misleading; the recorded next-build probe now separately prints
+diagnostics_debug_equal and diagnostics_equal. The running executable and
+its log are preserved unchanged. The full AnalysisResult assertion always
+remains the actual verdict; there was no weakened proof.
+
+Diagnostic derives PartialEq over subject, code, span, message, severity and
+fixes. Typed source subjects must retain their real owner/evidence. Route the
+non-repeatable diagnostic/report correspondence to the compiler owner alongside
+the aliases object-report blocker. This note does not identify the specific
+subject variant or authorise omitting it, replacing equality with Debug, or
+using report text as runtime identity.
+
+An owner-level design option is report-scoped subject correspondence inside
+AnalysisResult comparison, authenticated by independently retained input,
+registry, complete source and unique genuine body coordinates. Keep runtime
+DiagnosticSubject/receipt equality strict wherever it protects ownership;
+do not globally change it to printed-name/source-byte equality. This is a
+proposal for the owner to assess, not a proven implementation. Hosted source
+needs its own authentic hosted-policy/container/configuration correspondence;
+the existing Native/versioned eligibility must not be extended by erasing
+that distinction.

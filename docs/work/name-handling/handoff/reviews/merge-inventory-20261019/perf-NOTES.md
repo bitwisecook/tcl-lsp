@@ -12,7 +12,10 @@ Exact continuation instructions are in `docs/work/name-handling/outstanding/perf
 only six files: lexer parse_cut.rs/source_map.rs; compiler original_word.rs,
 original_name_value.rs, formal_call_advice.rs, incomplete_body_metadata.rs.
 `perf/perf-realm-interprocedural.patch` contains the two compiler-owned callers.
-Both patches exclude the switch. The six-file snapshot compiles independently
+Both patches exclude the switch. Main artifacts are refreshed against
+origin/work 6df7bbea; clean application is byte-exact, but semantic proof on
+that revision is pending. Exact e4a01bbe proof patches are retained in
+perf/evidence/latest-e4a01bbe/proof-patches/. The six-file snapshot compiles independently
 of the routed caller; zero owned Clippy diagnostics were observed, with 783
 foreign diagnostics. Global warning/fmt gates are not claimed green.
 
@@ -98,16 +101,21 @@ the endpoint timing difference prevents a stable speedup-factor claim.
 
 Latest lexer lib: 583 pass and the same three fail in each mode, zero pass-to-fail.
 The isolated formal-advice test has the same [] versus [notacommand] assertion
-failure in both modes. Selected compiler filters and both named 180-second server
-cases remain active. Their inventories must finish before regression claims.
+failure in both modes. Selected compiler new mode completed all 226 (151 pass / 75 fail); old is
+active. Startup metadata fails the same first 0-versus-1 assertion in both
+modes (24.451 / 23.893 s), so later reindex assertions are not reached.
+Workspace-symbol times out at 180 s in BOTH modes (180.085 / 180.224 s).
+No pass-to-fail was observed; neither server gate passes.
+These are failed gates, not evidence that the two server cases are repaired.
 
 Earlier base SpecTcl opt-level-1 eval_loader: all 28 pass in both modes
 (new 1,482.833 s, old 2,614.057 s). Default-profile golden_packs: two pass and the
 same interpreter 30-minute budget failure in both modes (new 3,537.662 s,
 old 5,717.749 s). The earlier default eval_loader run lacked one sparse fixture;
-complete-input default run remains active. Latest optimized eval_loader new
-completed all 28 PASS (1,488.967 s); its old mode is now active, followed by
-latest optimized golden_packs in both modes. Profile
+complete-input default new mode finished 26 pass / 2 fail (4418.488 s),
+now budget-axis and eda_xilinx interpreted wall-budget assertions; old is active. Latest optimized eval_loader completed all 28 PASS in BOTH modes
+(new 1,488.967 s / old 1,568.082 s), zero pass-to-fail. Latest optimized
+golden_packs follows, with unchanged assertions in both modes. Profile
 or fixture differences are recorded separately, never presented as green retries.
 
 ## Routed residual work

@@ -1,0 +1,8 @@
+{
+  "build_inputs_head": "75c667c8b1ed8041971de7087e6cdad32b14f477",
+  "production_base": "e4a01bbe",
+  "same_rust_tree_as_production_base": true,
+  "same_rust_diff_as_frozen_full_batch": true,
+  "startup": "same first assertion failure in both modes; later assertions not reached",
+  "workspace_symbol": "timeout180 in both modes; no pass or assertion verdict"
+}

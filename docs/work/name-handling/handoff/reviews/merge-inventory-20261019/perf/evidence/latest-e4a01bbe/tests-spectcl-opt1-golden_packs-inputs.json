@@ -1,0 +1,13 @@
+{
+  "production_base": "e4a01bbe",
+  "source_sha256": "02f9b2acb20c80f328a8a05d12bcc750a9820dac82007097c5f8b08efd3fe984",
+  "method": "Direct rustc test harness linked against exact completed opt-level=1 Cargo library artifacts; does not replace the unoptimized Cargo run",
+  "externs": {
+    "tcl_engine_api": "/workspace/tcl-lsp-work/target-latest/debug/deps/libtcl_engine_api-b42f6e22ef7d502e.rlib",
+    "tcl_spec_hooks": "/workspace/tcl-lsp-work/target-latest/debug/deps/libtcl_spec_hooks-dee49a7a7d6adeae.rlib",
+    "tcl_spectcl": "/workspace/tcl-lsp-work/target-latest/debug/deps/libtcl_spectcl-6a9bfeeb9894c3e8.rlib"
+  },
+  "test_debug": 0,
+  "debug_assertions": true,
+  "overflow_checks": true
+}
