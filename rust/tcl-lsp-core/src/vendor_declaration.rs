@@ -77,9 +77,9 @@ impl<'a> OriginalVendorDeclaration<'a> {
 
 #[derive(Debug, Clone)]
 enum RetainedKind {
-    Procedure(VendorSourceDeclarationMetadata<ProcDef>),
-    Class(VendorSourceDeclarationMetadata<ClassDef>),
-    Symbol(VendorSourceDeclarationMetadata<DefinedSymbol>),
+    Procedure(Box<VendorSourceDeclarationMetadata<ProcDef>>),
+    Class(Box<VendorSourceDeclarationMetadata<ClassDef>>),
+    Symbol(Box<VendorSourceDeclarationMetadata<DefinedSymbol>>),
 }
 
 /// An immutable retained hosted header for readonly indexed source advice.
@@ -116,9 +116,9 @@ pub fn retained_declarations(
             .into_iter()
             .map(|card| RetainedOriginalVendorDeclaration {
                 kind: match card.kind {
-                    Kind::Procedure(row) => RetainedKind::Procedure(row.clone()),
-                    Kind::Class(row) => RetainedKind::Class(row.clone()),
-                    Kind::Symbol(row) => RetainedKind::Symbol(row.clone()),
+                    Kind::Procedure(row) => RetainedKind::Procedure(Box::new(row.clone())),
+                    Kind::Class(row) => RetainedKind::Class(Box::new(row.clone())),
+                    Kind::Symbol(row) => RetainedKind::Symbol(Box::new(row.clone())),
                 },
             })
             .collect(),

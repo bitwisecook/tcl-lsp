@@ -87,22 +87,23 @@ pub(super) fn procedure_view(
             let Some(caller) = caller(source, analysis, &declarations, invocation.range) else {
                 continue;
             };
+            let caller = caller.declaration();
             let caller_id = caller.map_or_else(
                 || super::TOP_LEVEL.to_owned(),
                 |ordinal| format!("declaration-{ordinal}"),
             );
-            let callee_id = format!("declaration-{callee}");
+            let target_id = format!("declaration-{callee}");
             let position = super::pos_value(&index, source, invocation.range.start());
             if let Some(edge) = edges
                 .iter_mut()
-                .find(|edge| edge["caller_id"] == caller_id && edge["callee_id"] == callee_id)
+                .find(|edge| edge["caller_id"] == caller_id && edge["callee_id"] == target_id)
             {
                 let sites = edge["call_sites"].as_array_mut()?;
                 if !sites.contains(&position) {
                     sites.push(position);
                 }
             } else {
-                edges.push(json!({"caller_id": caller_id, "callee_id": callee_id,
+                edges.push(json!({"caller_id": caller_id, "callee_id": target_id,
                     "caller": caller.map_or(super::TOP_LEVEL, |ordinal| labels[ordinal].as_str()),
                     "callee": labels[callee], "call_sites": [position]}));
             }
@@ -249,6 +250,20 @@ pub(super) fn compiled_label<'a>(
     .map(|(_, procedure)| procedure.qualified_name.as_str())
 }
 
+#[derive(Clone, Copy)]
+enum SourceCaller {
+    TopLevel,
+    Procedure(usize),
+}
+impl SourceCaller {
+    fn declaration(self) -> Option<usize> {
+        match self {
+            Self::TopLevel => None,
+            Self::Procedure(ordinal) => Some(ordinal),
+        }
+    }
+}
+
 /// Source containment groups calls under a genuine braced original body word.
 /// This grouping supplies no procedure activation or runtime caller frame.
 fn caller(
@@ -256,7 +271,7 @@ fn caller(
     analysis: &AnalysisResult,
     declarations: &[&SourceDeclarationMetadata<ProcDef>],
     range: tcl_lexer::Span,
-) -> Option<Option<usize>> {
+) -> Option<SourceCaller> {
     let image = tcl_lexer::SourceImage::document(source);
     let config = analysis.body_lexer_config?;
     let realm = analysis.retained_command_realm()?;
@@ -279,9 +294,11 @@ fn caller(
     }
     owners.sort_by_key(|(_, span)| span.len());
     match owners.as_slice() {
-        [] => Some(None),
-        [(ordinal, _)] => Some(Some(*ordinal)),
-        [(ordinal, first), (_, second), ..] if first.len() < second.len() => Some(Some(*ordinal)),
+        [] => Some(SourceCaller::TopLevel),
+        [(ordinal, _)] => Some(SourceCaller::Procedure(*ordinal)),
+        [(ordinal, first), (_, second), ..] if first.len() < second.len() => {
+            Some(SourceCaller::Procedure(*ordinal))
+        }
         _ => None,
     }
 }

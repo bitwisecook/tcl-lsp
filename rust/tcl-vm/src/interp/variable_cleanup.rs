@@ -268,7 +268,7 @@ impl OriginalVariableCleanup {
         }
         if had_taken {
             let _ = self.in_original(vm, |vm| {
-                vm.invalidate_guard_domain(GuardDomain::VariableTrace)
+                vm.invalidate_guard_domain(GuardDomain::VariableTrace);
             });
         }
         let selected = self.cell(vm, id);
@@ -325,7 +325,7 @@ impl OriginalVariableCleanup {
                 let _ = self.retire(vm, VariableRetirement::unpin(id));
             }
             let _ = self.in_original(vm, |vm| {
-                vm.invalidate_guard_domain(GuardDomain::VariableTrace)
+                vm.invalidate_guard_domain(GuardDomain::VariableTrace);
             });
         }
         let _ = self.check(vm);
@@ -1066,7 +1066,7 @@ impl OriginalVariableCleanup {
 }
 
 /// Actual detached roles; C91 default ownership belongs to the old array
-/// until its reached DeleteArrayVar stage. This carrier adds no references.
+/// until its reached `DeleteArrayVar` stage. This carrier adds no references.
 pub(super) struct DetachedVariableState {
     state: VarState,
     default: Option<[crate::Value; 2]>,

@@ -449,7 +449,7 @@ where
     let Some(module) = ir_module else {
         return summaries
             .iter()
-            .map(|(k, v)| (k.clone(), v.clone()))
+            .map(|(k, v)| (*k, v.clone()))
             .collect();
     };
     let mut out: std::collections::HashMap<tcl_core_types::BodyFrameId, ProcEscapeSummary> =
@@ -463,12 +463,12 @@ where
         {
             let slots = assign_local_slots(&proc.body, summary, &proc.params);
             if slots.is_empty() {
-                out.insert(qname.clone(), summary.clone());
+                out.insert(*qname, summary.clone());
             } else {
-                out.insert(qname.clone(), summary.with_local_slots(slots));
+                out.insert(*qname, summary.with_local_slots(slots));
             }
         } else {
-            out.insert(qname.clone(), summary.clone());
+            out.insert(*qname, summary.clone());
         }
     }
     out

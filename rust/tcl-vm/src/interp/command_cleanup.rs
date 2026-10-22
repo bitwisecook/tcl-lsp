@@ -51,7 +51,7 @@ impl OriginalCommandCleanup {
         let c_order = vm
             .actual_native_invocation_dialect()
             .native_command_creation_protocol()
-            .and_then(|recipe| recipe.c_deletion_order());
+            .and_then(tcl_registry::native_command_creation::NativeCommandCreationProtocol::c_deletion_order);
         let c_names = vm
             .actual_native_invocation_dialect()
             .native_command_name_protocol();
@@ -213,7 +213,7 @@ impl OriginalCommandCleanup {
                     .is_some_and(|protocol| protocol.deletion_epoch_after_unlink(true))
             {
                 let _ = self.in_original(vm, |vm| {
-                    vm.note_native_command_name_node_changed(source.generation)
+                    vm.note_native_command_name_node_changed(source.generation);
                 });
             }
             return;
@@ -286,7 +286,7 @@ impl OriginalCommandCleanup {
                 .unwrap_or(false);
             if still_same_import {
                 let _ = self.in_original(vm, |vm| {
-                    vm.drop_relocated_command_sidecars(&live.token.key, live.token.generation)
+                    vm.drop_relocated_command_sidecars(&live.token.key, live.token.generation);
                 });
                 self.unlink(vm, &live.token, false);
             }
@@ -324,7 +324,7 @@ impl OriginalCommandCleanup {
         if matches!(command, Command::Alias { .. } | Command::CrossAlias { .. }) {
             let _ = self.in_original(vm, |vm| {
                 vm.alias_registrations
-                    .forget_deleted(|token| token.generation == source.generation)
+                    .forget_deleted(|token| token.generation == source.generation);
             });
         }
         if let Command::Native(native) = command {
@@ -342,10 +342,9 @@ impl OriginalCommandCleanup {
         // generation after that callback; never adopt a reborn spelling.
         let key = self
             .token(vm, source.generation)
-            .map(|live| live.key)
-            .unwrap_or_else(|| source.key.clone());
+            .map_or_else(|| source.key.clone(), |live| live.key);
         let _ = self.in_original(vm, |vm| {
-            crate::cmd_coro::on_command_deleted_original(vm, &key, source.generation, self)
+            crate::cmd_coro::on_command_deleted_original(vm, &key, source.generation, self);
         });
         if let Command::Object(object) = command {
             let _ = self.in_original(vm, |vm| {
@@ -364,7 +363,7 @@ impl OriginalCommandCleanup {
         }
         if let Command::ChildInterp(child) = command {
             let _ = self.in_original(vm, |vm| {
-                vm.children.retain(|_, candidate| candidate != child)
+                vm.children.retain(|_, candidate| candidate != child);
             });
             let _ = self.in_original(vm, |vm| vm.retire_interp(*child));
         }
@@ -390,7 +389,7 @@ impl OriginalCommandCleanup {
         let reached = retire_original_command(order, |stage| {
             match stage {
                 NativeCommandRetirementStage::Implementation => {
-                    self.implementation(vm, &selected, command, false)
+                    self.implementation(vm, &selected, command, false);
                 }
                 NativeCommandRetirementStage::Imports => self.imports(vm, &selected),
             }
@@ -401,7 +400,7 @@ impl OriginalCommandCleanup {
         }
         if let Some(live) = self.token(vm, source.generation) {
             let _ = self.in_original(vm, |vm| {
-                vm.drop_relocated_command_sidecars(&live.key, live.generation)
+                vm.drop_relocated_command_sidecars(&live.key, live.generation);
             });
             self.unlink(vm, &live, false);
         }

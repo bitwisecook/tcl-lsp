@@ -19,7 +19,7 @@
 //! Original scalar operand preparation followed by genuine stack instructions.
 
 use super::{CodegenCtx, NativeEmissionTask};
-use tcl_bytecode::Op;
+use tcl_bytecode::{Op, Operand};
 use tcl_registry::native_scalar_compilation::{NativeScalarInstruction, NativeScalarOperation};
 
 impl CodegenCtx<'_> {
@@ -41,9 +41,16 @@ impl CodegenCtx<'_> {
         let op = match recipe.operation {
             NativeScalarOperation::StringEqual => Op::STR_EQ,
             NativeScalarOperation::StringLength => Op::STR_LEN,
+            NativeScalarOperation::StringIsAscii => Op::STR_CLASS,
             NativeScalarOperation::ListLength => Op::LIST_LENGTH,
         };
-        operations.push(NativeEmissionTask::SwitchOperation(op, Vec::new(), version));
+        let operands = if recipe.operation == NativeScalarOperation::StringIsAscii {
+            // STR_CLASS_ASCII in the C8.6/9.0/9.1 instruction enum.
+            vec![Operand::Imm(2)]
+        } else {
+            Vec::new()
+        };
+        operations.push(NativeEmissionTask::SwitchOperation(op, operands, version));
         true
     }
 }

@@ -67,7 +67,7 @@ impl AdviceGraph {
         }
         fallback
             .iter()
-            .find(|slot| occupied(*slot))
+            .find(|slot| occupied(slot))
             .or(fallback.last())
             .cloned()
     }

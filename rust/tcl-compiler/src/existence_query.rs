@@ -58,7 +58,11 @@ impl<'a> QueryReading<'a> {
             .filter(|input| {
                 input.lexer_config().nested().normalized() == config.nested().normalized()
             })
-            .and_then(|_| owner.metadata_context(registry).flatten());
+            .and_then(|_| {
+                owner
+                    .metadata_context(registry)
+                    .and_then(crate::registry_invocation::InvocationMetadataSelection::context)
+            });
         Self {
             registry,
             config,

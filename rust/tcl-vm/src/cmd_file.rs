@@ -655,7 +655,7 @@ fn finish_glob_results(
         let probe = if qualified {
             r.clone()
         } else {
-            file_join(&base, r)
+            file_join(base, r)
         };
         glob_types_match(filesystem, &probe, types)
     });

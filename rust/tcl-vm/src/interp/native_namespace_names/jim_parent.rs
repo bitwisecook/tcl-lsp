@@ -64,7 +64,7 @@ impl Vm {
         check: &impl Fn(&mut Vm) -> Result<(), CmdError>,
     ) -> Result<Value, CmdError> {
         check(self)?;
-        let value = self.with_native_interp_result(|value| value.native_lifetime_lease())?;
+        let value = self.with_native_interp_result(Value::native_lifetime_lease)?;
         value.value().check_native_header()?;
         check(self)?;
         Ok(value.into_value())

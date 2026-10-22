@@ -200,7 +200,7 @@ pub(crate) fn on_command_deleted_original(
         });
     }
     let _ = original.in_original(vm, |vm| {
-        vm.retire_parked_lambda_registrations(&mut state.acts)
+        vm.retire_parked_lambda_registrations(&mut state.acts);
     });
     let _ = original.in_original(vm, |vm| vm.abandon_parked_requires(&state.acts));
     let _ = original.in_original(vm, |_| drop(state));

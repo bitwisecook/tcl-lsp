@@ -152,7 +152,8 @@ fn original_increment_metadata<'a>(
         return module
             .source_entry
             .metadata_context
-            .metadata_context(registry);
+            .metadata_context(registry)
+            .map(crate::registry_invocation::InvocationMetadataSelection::context);
     }
     Some(Some(binding.original_invocation_metadata_for_module(
         tokens, module, registry,

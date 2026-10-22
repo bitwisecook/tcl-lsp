@@ -1,0 +1,75 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-22T17:55:45.859536+00:00",
+  "scheduled_report_utc": "2026-10-22T17:55:37+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-22T18:25:37+00:00",
+  "change_since_previous_report": [
+    "PublicR1 passed all54world+nonemptybodylookupchecks in254.76s, clean13m29build; registry3projectioncontrols passed0.50s after4m56build. Sourceguards6510/6509 unchanged. These precede newbatch and do notreplace originalg4/ZZ/eight acceptance.",
+    "C6 publicdiagnosis0/1 in82.12s with5/8mismatches: originalswitchW210 missing,dictforS100spurious,originalinterpTNspurious and2reachedtainted-headTPsmissing. Exactoriginalassertionsretained,5396Rust/Cargo inputsunchanged.",
+    "Integratedlatestwork5a331 ontoactive8478 with exactexpectedmerge-tree proof;7externalstylepathsretained. Firstown rebaseattemptneedednetworkforlazyblobs; recoveredexactfullcheckpointwithallwritesheldthencompletednormalrebase. No losttrackedwork, stash or forcepush.",
+    "Appliedreviewed257pathcoherentAPI/lint/ASCII/minify/lexerbatch plus3pathdictfor/testhelper supplementand1overlappingswitchhunkset,260uniqueproductpaths. All257finalcopiespassedpinnedrustfmt syntax; supplemental4pathsparse; exactbeforehash/applychecks pass. No compile/semanticgreenclaimed.",
+    "NewT105draftremainsOFFTREE: peerreviewblockedmulti-scriptconcat suppression, incomplete lexicalread inventory treatedasabsent, and Listplan fallback/alternativeadmission. Unknown/refusalguardsarebeingstrengthenedbeforeapply.",
+    "Firstall-targets7cratetypecheckattemptstoppedbeforecompilationafter13.1s onblockedtokio-util download; exactnormalnetwork-enabledretryunderway. Sourceisfrozen, logsdrainat20MB, no targetcleanup.",
+    "PinnedJim25manualsemanticcontrols classify17oldfailures; trustedprocmetadata2pathcandidatepeerreviewedunapplied, Jimsourceclasscarrier remainsincomplete. NativeD1-D5, original3guardedlosses, minify/protocol/shippedhosts and latestshippinglatency remainpending.",
+    "Externalfilesfresh17:39/17:38/17:33. BIGIPeditorgenerators3/3pass andgenericrewritefailswithoutF5. Freshregistry176includes136newassertion-stylefindingsofftree; old40+xtask53alreadyapplied. Perf full equalityunproven, routedcompilerpatchwithheld.",
+    "Exactorigin/rustbaseline24,312namedPASS rosterretained; binary-ID/skipinventorylimitsremainexplicit. No auditadmissions, validatedproduct-row changes, sectionFclosures, PR, merge orrelease.",
+    "Fresh externalperf private-Eq trace pinpoints first false helper ObjectHandleFacts::analysis_report_eq; exact differing owner/field cause and full equality proof remain unresolved. Routed read-only source review to names without masking Eq or taking over perf corpus."
+  ],
+  "committed": [
+    "8478a7b5e859ad2a539378c9fe9b6c8fc75c10b3"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Fetch/fast-forward isolatedpublisher, checkpointcompleteworkWIPwithprobeexclusion, freshdepth1fetch/rebaseandnormalpush; rearm18:25report.",
+    "Finishstructuredtypecheckandrouteactualerrorsbyowner; applyreviewedfixesbetweenbuildswithoutlosingfailclosedguards.",
+    "CompleteC6T105/Jimsourceowner/N13publicationretentionandILXauthenticrelation; executeoriginalcompilerfiltersandSpecTclacceptance.",
+    "RunfreshnativeD1-D5/minify/provider/shippinghosts,fullshippinggatesandlatency, accountallbaselineidentitiesandzero-P2F againstexactrust."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-22T17:39Z",
+    "perf": "2026-10-22T17:38Z",
+    "review-triage": "2026-10-22T17:33:15Z"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "All new appliedsource is unmeasured until recorded type/semantic/lint checks complete. Previousscoped R1 passes are attributedprebatch. Manualoracle controls and syntax checks admitno auditunit. AllsectionF boxes andzero-P2F remainopen.",
+  "disk_free_bytes": 13435625472,
+  "baseline_ci_run": 39816429638,
+  "baseline_ci_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731"
+}

@@ -2331,6 +2331,7 @@ pub(crate) fn formatting_range_region(
 
 /// Local parsing belongs to the genuine selected region. Original source
 /// joins continue to use the complete parent `FormatterConfig` and layout.
+#[derive(Clone, Copy)]
 pub(crate) struct FormattingRegion {
     source_offset: u32,
     indent_level: usize,

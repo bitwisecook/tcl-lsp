@@ -186,7 +186,7 @@ pub(crate) fn original_authored_body_procedure_calls_for_module<'a>(
         .original_authored_declaration_body_units
         .iter()
         .filter(|(id, card)| {
-            let Some(procedure) = module.body_units.get(*id) else {
+            let Some(procedure) = module.body_units.get(id) else {
                 return false;
             };
             if !module.procedure_ids.owns(**id)

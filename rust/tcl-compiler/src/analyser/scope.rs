@@ -267,7 +267,6 @@ impl<'a> LogicalVariableScopeAdvice<'a> {
     }
 
     /// Eligible source tables in outer-to-inner order.
-    #[must_use]
     pub fn eligible_scopes(&self) -> impl DoubleEndedIterator<Item = &'a Scope> + '_ {
         self.eligible.iter().map(|&index| self.scopes[index])
     }
@@ -336,13 +335,13 @@ impl<'a> LogicalVariableScopeAdvice<'a> {
                 scope
                     .readonly_dictionary_keys
                     .values()
-                    .filter_map(move |key| {
-                        (key.image == self.image
+                    .filter(move |key| {
+                        key.image == self.image
                             && self.analysis.resolved_input.as_ref() == Some(&key.input)
                             && scope_at(&self.analysis.global_scope, &key.receiver_scope)
-                                .is_some_and(|retained| std::ptr::eq(retained, scope)))
-                        .then(|| key.name())
+                                .is_some_and(|retained| std::ptr::eq(retained, scope))
                     })
+                    .map(ReadonlyDictionaryKeyVariable::name)
             })
             .collect()
     }
@@ -353,12 +352,12 @@ impl<'a> LogicalVariableScopeAdvice<'a> {
         self.root()
             .readonly_dictionary_keys
             .values()
-            .filter_map(|key| {
-                (key.image == self.image
+            .filter(|key| {
+                key.image == self.image
                     && self.analysis.resolved_input.as_ref() == Some(&key.input)
-                    && key.receiver_scope.is_empty())
-                .then(|| key.name())
+                    && key.receiver_scope.is_empty()
             })
+            .map(ReadonlyDictionaryKeyVariable::name)
             .collect()
     }
 
@@ -572,7 +571,7 @@ impl super::types::AnalysisResult {
             cursor = child;
         }
         for scope in &scopes {
-            if scope.isolated_interpreter_source_body {
+            if scope.is_independent_interpreter_source_body() {
                 return None;
             }
             match (
@@ -602,7 +601,7 @@ impl super::types::AnalysisResult {
                         scope
                             .naming_scope
                             .as_ref()
-                            .and_then(|owner| owner.display())
+                            .and_then(crate::command_binding::SourceNamespaceKey::display)
                     };
                     if namespace.is_none() {
                         kind = LogicalVariableScopeKind::UnknownNamespace;
@@ -627,7 +626,7 @@ impl super::types::AnalysisResult {
                         scope
                             .naming_scope
                             .as_ref()
-                            .and_then(|owner| owner.display())
+                            .and_then(crate::command_binding::SourceNamespaceKey::display)
                     };
                 }
                 ScopeKind::Uplevel => {
@@ -2081,7 +2080,7 @@ impl Analyser {
         let [component] = arena.list(arena.root()) else {
             return None;
         };
-        let (name, span) = self.logical_variable_value_component(&arena, component)?;
+        let (name, span) = self.logical_variable_value_component(arena, component)?;
         self.lookup_logical_const_string_at(&name, span)
     }
 
@@ -2167,7 +2166,7 @@ impl Analyser {
         if elements.len() % 2 != 0 {
             return;
         }
-        let Some(input) = self.result.resolved_input.as_ref().cloned() else {
+        let Some(input) = self.result.resolved_input.clone() else {
             return;
         };
         let Some(image) = self
@@ -2215,7 +2214,7 @@ impl Analyser {
             }
         }
         let declarations = elements
-            .chunks_exact(2)
+            .as_chunks::<2>().0.iter()
             .map(|pair| {
                 let name = pair[0].to_string();
                 let declaration = self
@@ -2259,7 +2258,7 @@ impl Analyser {
         let Some(scope) = scope_at_mut(&mut self.result.global_scope, receiver_scope) else {
             return;
         };
-        for pair in elements.chunks_exact(2) {
+        for pair in elements.as_chunks::<2>().0 {
             let name = pair[0].to_string();
             scope.readonly_dictionary_keys.insert(
                 name.clone(),
@@ -4076,7 +4075,7 @@ fn collect_script_command_reads(
         crate::registry_invocation::source_structure::source_registry_words(source, analysis, cmd);
     let roles = selected
         .as_ref()
-        .map(|selected| selected.written_argument_roles())
+        .map(crate::registry_invocation::source_structure::OriginalRegistryWords::written_argument_roles)
         .unwrap_or_default();
     let expr_idx: std::collections::HashSet<_> = roles
         .iter()
@@ -6887,14 +6886,14 @@ impl super::types::AnalysisResult {
         let mut pending = vec![&self.global_scope];
         while let Some(scope) = pending.pop() {
             pending.extend(&scope.children);
-            if !std::ptr::eq(scope, &self.global_scope)
+            if !std::ptr::eq(scope, &raw const self.global_scope)
                 && !scope
                     .body_span
                     .is_some_and(|span| span.start() <= offset && offset < span.end())
             {
                 continue;
             }
-            if scope.isolated_interpreter_source_body {
+            if scope.is_independent_interpreter_source_body() {
                 return Some(SourceInterpreterScopeRelation::IsolatedBody);
             }
             match (

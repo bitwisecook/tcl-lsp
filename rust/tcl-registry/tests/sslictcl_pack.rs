@@ -531,12 +531,12 @@ fn the_sslictcl_family_manufactures_nothing() {
     );
     for grammar in SSLICTCL_GRAMMARS {
         assert_eq!(grammar.family, DefinerFamily::SslicTcl);
-        assert!(grammar.manufacturers.is_empty());
-        assert!(grammar.builtin_object_methods.is_empty());
-        assert!(grammar.builtin_type_methods.is_empty());
-        assert!(grammar.builtin_terminating_methods.is_empty());
-        assert!(grammar.member_body_commands.is_empty());
-        assert!(grammar.implicit_vars.is_empty());
+        assert_eq!(grammar.manufacturers.len(), 0);
+        assert_eq!(grammar.builtin_object_methods.len(), 0);
+        assert_eq!(grammar.builtin_type_methods.len(), 0);
+        assert_eq!(grammar.builtin_terminating_methods.len(), 0);
+        assert_eq!(grammar.member_body_commands.len(), 0);
+        assert_eq!(grammar.implicit_vars.len(), 0);
         assert!(!grammar.bare_word_construction);
         assert!(!grammar.dynamic_method_dispatch);
         assert!(grammar.unknown_dispatch_method.is_none());

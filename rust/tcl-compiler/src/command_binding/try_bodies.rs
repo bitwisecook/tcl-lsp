@@ -43,10 +43,10 @@ impl SourceCommandBindings {
             state,
             &context,
         );
-        let route_context = if usize::from(body.normal.is_some()) + body.abrupt.len() != 1 {
-            context.conditional()
-        } else {
+        let route_context = if usize::from(body.normal.is_some()) + body.abrupt.len() == 1 {
             context
+        } else {
+            context.conditional()
         };
         let mut handled = SourceOutcomes::default();
         if let Some(normal) = &body.normal {

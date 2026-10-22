@@ -471,7 +471,7 @@ impl BytecodeCompileService {
         if plain_command_dispatch {
             lowerer = lowerer.trace_visible();
         }
-        let mut lowerer = lowerer.with_resolved_analysis_input(input.clone());
+        let mut lowerer = lowerer.with_resolved_analysis_input(input);
         lowerer.set_source_analysis_options(options);
         lowerer.lower_script_target(target.source, target.namespace);
         lowerer.finish_module(target.source)

@@ -2278,7 +2278,7 @@ impl Analyser {
                 .filter(|image| image.bytes() == self.source.as_bytes())?;
             let (word, _) =
                 realm.original_written_word_at_span_in_source(image, body_span, config)?;
-            word.content_span().ok().map(|span| span.start())
+            word.content_span().ok().map(tcl_lexer::Span::start)
         });
         #[cfg(debug_assertions)]
         if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_PARAM_ROLES").is_some() {
@@ -3435,7 +3435,7 @@ impl Analyser {
                         formals
                             .name_sources()
                             .iter()
-                            .map(|name| name.source_span())
+                            .map(crate::signature_scan::formal_parameters::OriginalSourceFormalName::source_span)
                             .collect::<Option<Vec<_>>>()?,
                     ))
                 })
@@ -4018,7 +4018,7 @@ impl Analyser {
             let mut child =
                 super::types::Scope::new(super::types::ScopeKind::Namespace, domain.clone());
             child.body_span = Some(body_tok.span);
-            child.isolated_interpreter_source_body = true;
+            child.interpreter_source_body = super::types::InterpreterSourceBody::Independent;
             child.original_interpreter_source_domain = visibility
                 .as_ref()
                 .map(|snapshot| snapshot.reporting_domain(domain.clone()));
@@ -7035,7 +7035,7 @@ impl Analyser {
     ) {
         if args.len() < 2 {
             return;
-        };
+        }
         let original_name = self.original_package_name(arg_tokens.get(1));
         let name = args[1].clone();
         let version = args.get(2).cloned();
@@ -9129,7 +9129,7 @@ impl Analyser {
             .iter()
             .map(|(text, form)| (text.as_str(), *form))
             .collect();
-        let selection = literal_selection(&registry, arm.controller.name(), &words, None)?;
+        let selection = literal_selection(registry, arm.controller.name(), &words, None)?;
         let bodies = self.switch_clause_bodies(arm, &case, &invocation)?;
         if bodies.len() != selection.clauses || Some(selection.subject) != invocation.subject_index
         {
@@ -11388,7 +11388,7 @@ impl Analyser {
             super::scope::scope_at(&self.result.global_scope, &scope_path[..depth]).is_some_and(
                 |scope| {
                     scope.original_interpreter_source_domain.is_none()
-                        && !scope.isolated_interpreter_source_body
+                        && !scope.is_independent_interpreter_source_body()
                 },
             )
         });

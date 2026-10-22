@@ -363,7 +363,10 @@ pub(crate) fn statement_destruction_places_at(
         points.before_statement(block, index),
         points.after_statement(block, index),
         registry,
-        points.source_metadata_owner().metadata_context(registry),
+        points
+            .source_metadata_owner()
+            .metadata_context(registry)
+            .map(crate::registry_invocation::InvocationMetadataSelection::context),
     )
 }
 
@@ -592,7 +595,10 @@ pub fn def_places_at(
     registry: &CommandRegistry,
 ) -> Vec<Place> {
     use tcl_registry::native_compilation::VariableOperandBindingPhase;
-    let metadata = points.source_metadata_owner().metadata_context(registry);
+    let metadata = points
+        .source_metadata_owner()
+        .metadata_context(registry)
+        .map(crate::registry_invocation::InvocationMetadataSelection::context);
     let before = points.before_statement(block, index);
     let after = points.after_statement(block, index);
     if let Some(store) = points.conditional_logical_scalar_store_at(block, index, registry) {

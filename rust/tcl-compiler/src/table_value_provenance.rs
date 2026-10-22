@@ -257,7 +257,9 @@ impl<'a> Query<'a> {
         {
             return None;
         }
-        binding.original_invocation_metadata_for_function(tokens, self.unit, self.registry)
+        binding
+            .original_invocation_metadata_for_function(tokens, self.unit, self.registry)
+            .map(crate::registry_invocation::InvocationMetadataSelection::context)
     }
 
     fn values_at(&mut self, target: &Place, context: &ResolveContext) -> Option<Vec<Stored>> {

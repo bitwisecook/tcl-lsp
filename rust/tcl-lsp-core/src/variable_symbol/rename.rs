@@ -245,8 +245,8 @@ impl LogicalVariableSourceRenameIntent {
         before.sort_by_key(order);
         next.sort_by_key(order);
         (before.len() == next.len()).then_some(())?;
-        let mut groups = std::collections::HashMap::new();
-        let mut inverse = std::collections::HashMap::new();
+        let mut groups = super::VariableSymbolMap::default();
+        let mut inverse = super::VariableSymbolMap::default();
         for (original, proposed) in before.into_iter().zip(next) {
             let expected = if original.symbol() == symbol {
                 original.renamed_input(tail)?

@@ -117,7 +117,7 @@ fn clause_list_patterns(
 
 fn case_patterns(original: &OriginalDiagnosticInvocation) -> Option<Vec<OriginalPattern>> {
     let (case, layout) =
-        original.with_schema(|schema| schema.authored_source_case_pattern_layout())??;
+        original.with_schema(tcl_registry::ResolvedInvocation::authored_source_case_pattern_layout)??;
     if let Some(argument) = layout.clause_list_index {
         return clause_list_patterns(original, argument, case, layout.mode);
     }

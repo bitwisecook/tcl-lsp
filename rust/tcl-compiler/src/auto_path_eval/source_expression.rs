@@ -473,7 +473,7 @@ impl OriginalSourceAutoPathExpression {
                 .split_list(&value)
                 .ok()?
                 .into_iter()
-                .map(|element| element.into_owned())
+                .map(std::borrow::Cow::into_owned)
                 .collect()
             }
         };

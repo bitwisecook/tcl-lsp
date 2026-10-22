@@ -632,7 +632,7 @@ pub fn shimmer_family_checks<S: std::hash::BuildHasher>(
         out.push(Diagnostic::from_sharing(&w));
     }
     let payload_layouts =
-        if is_irules_dialect(fu.source_metadata_input().map(|input| input.unit_profile())) {
+        if is_irules_dialect(fu.source_metadata_input().map(crate::analyser::ResolvedAnalysisInput::unit_profile)) {
             registry.byte_array_payload_layouts()
         } else {
             std::collections::HashMap::new()

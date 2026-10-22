@@ -551,7 +551,9 @@ fn expr_comparison_inversion_string_equal() {
     // tclsh-proof: with a=foo b=bar both `!($a eq $b)` and `$a ne $b` -> 1;
     //   with a=foo b=foo both -> 0 (8.6 + 9.0): the rewrite preserves the
     //   boolean result.
-    assert_eq!(min("if {!($a eq $b)} {puts x}\n"), "if {$a ne $b} {puts x}");
+    // 2026-10-22T13:17Z removes safe gaps; wordop-manual-oracle-20261022.json.
+    // Keep the independent ne inversion expectation; remove only its safe gap.
+    assert_eq!(min("if {!($a eq $b)} {puts x}\n"), "if {$a ne$b} {puts x}");
 }
 
 #[test]
@@ -562,7 +564,8 @@ fn expr_comparison_inversion_membership() {
     //   both -> 0 (8.6 + 9.0).
     assert_eq!(
         min("if {!($x in {a b})} {puts y}\n"),
-        "if {$x ni {a b}} {puts y}",
+        // 13:17 decision and the same pinned wordop source controls.
+        "if {$x ni{a b}} {puts y}",
     );
 }
 
@@ -830,6 +833,73 @@ fn default_minify_compacts_expression_gaps_and_preserves_oracle_results() {
                 .expect("minified oracle execution");
             assert!(before.success() && after.success(), "{dialect}: {output}");
             assert_eq!(before.stdout, b"11\n120\n", "{dialect} original output");
+            assert_eq!(after.stdout, before.stdout, "{dialect}: {output}");
+            assert_eq!(after.stderr, before.stderr, "{dialect}: {output}");
+        }
+    }
+}
+
+#[test]
+fn native_word_operators_remove_safe_gaps_without_changing_tokens_or_data() {
+    // Decision 2026-10-22T13:17Z; pinned control families and negative
+    // boundaries in lsp/wordop-manual-oracle-20261022.json. This executes
+    // actual minifier output while preserving the complete token/data guard.
+    for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+        let mut source = String::from(
+            "set a a\nset b a\nset c c\nset items {a b}\n\
+             puts [expr { $a eq $b }]\n\
+             puts [expr { ($a) ne ($c) }]\n\
+             puts [expr { {a  b} eq {a b} }]\n",
+        );
+        let mut expected = String::from("1\n1\n0\n");
+        if dialect != "tcl8.4" {
+            source.push_str("puts [expr { $a in $items }]\nputs [expr { $c ni $items }]\n");
+            expected.push_str("1\n1\n");
+        }
+        if matches!(dialect, "tcl9.0" | "tcl9.1" | "jim") {
+            source.push_str("puts [expr { ($a) lt ($c) }]\n");
+            expected.push_str("1\n");
+        }
+        let output = min_dialect(&source, dialect);
+        assert!(output.contains("expr {$a eq$b}"), "{dialect}: {output}");
+        assert!(output.contains("expr {($a)ne($c)}"), "{dialect}: {output}");
+        assert!(
+            output.contains("expr {{a  b}eq{a b}}"),
+            "{dialect}: {output}"
+        );
+        if dialect != "tcl8.4" {
+            assert!(output.contains("expr {$a in$items}"), "{dialect}: {output}");
+            assert!(output.contains("expr {$c ni$items}"), "{dialect}: {output}");
+        }
+        if matches!(dialect, "tcl9.0" | "tcl9.1" | "jim") {
+            assert!(output.contains("expr {($a)lt($c)}"), "{dialect}: {output}");
+        }
+        assert_eq!(min_dialect(&output, dialect), output, "{dialect}");
+        let version = match dialect {
+            "tcl8.4" => Some(tcl_dialect::TclVersion::V8_4),
+            "tcl8.5" => Some(tcl_dialect::TclVersion::V8_5),
+            "tcl8.6" => Some(tcl_dialect::TclVersion::V8_6),
+            "tcl9.0" => Some(tcl_dialect::TclVersion::V9_0),
+            "tcl9.1" => Some(tcl_dialect::TclVersion::V9_1),
+            _ => None,
+        };
+        let interpreter = version
+            .and_then(tcl_test_support::witness_tclsh)
+            .map(|oracle| oracle.path)
+            .or_else(|| {
+                (dialect == "jim").then(|| {
+                    tcl_test_support::require_jimsh()
+                        .expect("pinned Jim oracle")
+                        .path
+                })
+            });
+        if let Some(interpreter) = interpreter {
+            let before = tcl_test_support::run_script(&interpreter, source.as_bytes())
+                .expect("original word-operator script");
+            let after = tcl_test_support::run_script(&interpreter, output.as_bytes())
+                .expect("actual minified word-operator script");
+            assert!(before.success() && after.success(), "{dialect}: {output}");
+            assert_eq!(before.stdout, expected.as_bytes(), "{dialect}");
             assert_eq!(after.stdout, before.stdout, "{dialect}: {output}");
             assert_eq!(after.stderr, before.stderr, "{dialect}: {output}");
         }

@@ -570,10 +570,10 @@ mod tests {
     #[test]
     fn a_terminator_that_is_not_a_pair_is_not_flagged() {
         // A newline alone, or a semicolon alone, is not the terminator set.
-        assert!(scan("match c { b'\\n' => {} }\n").is_empty());
-        assert!(scan("match c { b';' => {} }\n").is_empty());
+        assert_eq!(scan("match c { b'\\n' => {} }\n").len(), 0);
+        assert_eq!(scan("match c { b';' => {} }\n").len(), 0);
         // A `\n` and a `;` in different patterns is not an alternation.
-        assert!(scan("match c { b'\\n' => a(), b'x' | b';' => b() }\n").is_empty());
+        assert_eq!(scan("match c { b'\\n' => a(), b'x' | b';' => b() }\n").len(), 0);
     }
 
     #[test]
@@ -599,31 +599,25 @@ mod tests {
     #[test]
     fn trivia_skipping_is_not_a_word_start_machine() {
         // No `prev` binding: a filter, not a state machine.
-        assert!(
-            scan(
+        assert_eq!(scan(
                 "let words = toks.iter().filter(|t| !matches!(t.kind, TokenType::Sep | \
                   TokenType::Eol));\n"
             )
-            .is_empty()
-        );
+            .len(), 0);
         // A wider trivia set is not the two-variant word rule either.
-        assert!(
-            scan(
+        assert_eq!(scan(
                 "fn f() {\n let prev = x;\n if matches!(t.kind, TokenType::Sep | \
                   TokenType::Eol | TokenType::Eof) {}\n}\n"
             )
-            .is_empty()
-        );
+            .len(), 0);
     }
 
     #[test]
     fn a_waiver_is_honoured_on_the_line_and_in_the_block_above() {
-        assert!(
-            scan(
+        assert_eq!(scan(
                 "match c { b'\\n' | b';' => {} } // segmentation-drift-ok: BIG-IP config, not Tcl\n"
             )
-            .is_empty()
-        );
+            .len(), 0);
         let src = "// segmentation-drift-ok: trims a terminator inside an already\n\
                    // segmented command span; the boundary came from the segmenter\n\
                    let a = matches!(b[i], b'\\n' | b';');\n\
@@ -639,15 +633,15 @@ mod tests {
 
     #[test]
     fn a_mention_in_a_comment_or_string_is_not_a_hit() {
-        assert!(scan("// the old shape was b'\\n' | b';'\n").is_empty());
-        assert!(scan("let m = \"b'\\\\n' | b';'\";\n").is_empty());
+        assert_eq!(scan("// the old shape was b'\\n' | b';'\n").len(), 0);
+        assert_eq!(scan("let m = \"b'\\\\n' | b';'\";\n").len(), 0);
     }
 
     #[test]
     fn the_test_tail_is_exempt() {
         let src = "fn f() {}\n#[cfg(test)]\nmod tests {\n    fn g(c: u8) { \
                    let _ = matches!(c, b'\\n' | b';'); }\n}\n";
-        assert!(scan(src).is_empty());
+        assert_eq!(scan(src).len(), 0);
     }
 
     /// The exemption follows the module's own extent, not "everything after
@@ -688,7 +682,7 @@ mod tests {
                     \"extra characters after close-quote\",\n];\n";
         assert_eq!(scan(list).len(), 1, "{:?}", scan(list));
         // One message, raised rather than classified.
-        assert!(scan("return Err(\"missing close-bracket\");\n").is_empty());
+        assert_eq!(scan("return Err(\"missing close-bracket\");\n").len(), 0);
         // Two messages that are not collected into a list.
         let prose = "fn a() { raise(\"missing close-bracket\"); }\n\
                      fn b() { raise(\"missing )\"); }\n";

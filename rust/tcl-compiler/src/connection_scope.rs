@@ -451,7 +451,11 @@ fn function_metadata<'a>(
         .metadata_context
         .is_standalone()
         .then_some(())?;
-    function.cfg.metadata_context.metadata_context(commands)
+    function
+        .cfg
+        .metadata_context
+        .metadata_context(commands)
+        .map(crate::registry_invocation::InvocationMetadataSelection::context)
 }
 
 fn point_metadata<'a>(
@@ -472,6 +476,7 @@ fn point_metadata<'a>(
         .source_binding
         .as_ref()?
         .original_invocation_metadata_for_function(tokens, function, commands)
+        .map(crate::registry_invocation::InvocationMetadataSelection::context)
 }
 
 /// Selected destruction at an authentic original operation. Unknown source,

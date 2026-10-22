@@ -10,8 +10,8 @@ use tcl_lexer::LineIndex;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum Declaration {
-    Callable(crate::call_hierarchy::LogicalCallIdentity),
-    Class(crate::type_hierarchy::LogicalHierarchyClass),
+    Callable(Box<crate::call_hierarchy::LogicalCallIdentity>),
+    Class(Box<crate::type_hierarchy::LogicalHierarchyClass>),
 }
 
 /// Authentic Logical declaration selection for a readonly source lens.
@@ -104,7 +104,7 @@ pub fn logical_source_lenses(
         .iter()
         .map(|item| LogicalSourceLens {
             identity: LogicalLensIdentity {
-                declaration: Declaration::Callable(item.identity().clone()),
+                declaration: Declaration::Callable(Box::new(item.identity().clone())),
             },
             range: item.presentation().selection_range,
             label: item.presentation().name.clone(),
@@ -122,7 +122,7 @@ pub fn logical_source_lenses(
         };
         lenses.push(LogicalSourceLens {
             identity: LogicalLensIdentity {
-                declaration: Declaration::Class(identity),
+                declaration: Declaration::Class(Box::new(identity)),
             },
             range: crate::definition::span_to_range(document.source, &lines, class.name_span),
             label: class.qualified_name.clone(),

@@ -202,6 +202,7 @@ pub(super) fn select_original_advertisement(
         return None;
     };
     let original = advice.original_words();
+    let source_end = u32::try_from(source.len()).ok()?;
     if image.try_text().ok()?.get(region.as_range())? != source
         || original.len() != tokens.len()
         || original.iter().zip(tokens).any(|(word, shown)| {
@@ -211,7 +212,7 @@ pub(super) fn select_original_advertisement(
                 || word.span().end() > region.end()
                 || word.tokens().len() != shown.len()
                 || word.tokens().iter().zip(shown).any(|(actual, shown)| {
-                    shown.span.end() > source.len() as u32
+                    shown.span.end() > source_end
                         || actual.kind != shown.kind
                         || actual.content_offset != shown.content_offset
                         || Some(actual.span.start())

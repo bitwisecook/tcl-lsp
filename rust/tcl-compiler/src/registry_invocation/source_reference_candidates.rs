@@ -176,7 +176,7 @@ fn retain_word_references(
             }
             ExecutablePart::Command { body } => scripts.push(SourceRegion::Script(body)),
             ExecutablePart::Expression { expression } => {
-                scripts.push(SourceRegion::Expression(expression))
+                scripts.push(SourceRegion::Expression(expression));
             }
             ExecutablePart::Text(_) | ExecutablePart::ParseError(_) => {}
         }
@@ -222,7 +222,7 @@ fn retain_expression_span(
                     match part.part {
                         ExecutablePart::Command { body } => work.push(SourceRegion::Script(body)),
                         ExecutablePart::Expression { expression } => {
-                            work.push(SourceRegion::Expression(expression))
+                            work.push(SourceRegion::Expression(expression));
                         }
                         _ => {}
                     }

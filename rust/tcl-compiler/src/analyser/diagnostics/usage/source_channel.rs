@@ -22,7 +22,7 @@ fn original_static_literal(
 
 fn channel_diagnostic(original: &OriginalDiagnosticInvocation) -> Option<Diagnostic> {
     let layout =
-        original.with_schema(|schema| schema.authored_source_channel_configuration())??;
+        original.with_schema(tcl_registry::ResolvedInvocation::authored_source_channel_configuration)??;
     let encoding = original_static_literal(original, layout.encoding)?;
     let translation = original_static_literal(original, layout.translation)?;
     if encoding != layout.binary_value || translation == layout.binary_value {

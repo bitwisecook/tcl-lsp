@@ -2317,7 +2317,7 @@ fn collect_materialisable_slots(
             .values()
             .map(|function| (&function.name, function)),
     ) {
-        let frame = if std::ptr::eq(function, &unit.top_level) {
+        let frame = if std::ptr::eq(function, std::ptr::from_ref(&unit.top_level)) {
             Some(tcl_core_types::BodyFrameId::Top(
                 unit.ir_module.procedure_ids.module_id(),
             ))
@@ -2325,7 +2325,7 @@ fn collect_materialisable_slots(
             function.body_id.map(tcl_core_types::BodyFrameId::Body)
         };
         let summary = frame.and_then(|frame| escape.get(&frame));
-        let sealed_cells = if std::ptr::eq(function, &unit.top_level)
+        let sealed_cells = if std::ptr::eq(function, std::ptr::from_ref(&unit.top_level))
             && environment == CommonAotEnvironment::SealedProgram
         {
             (|| {
@@ -2413,7 +2413,7 @@ fn native_frame_slot_allocation(
     use crate::var_escape::original_slots::OriginalNativeFrameSlot;
     // The entry layout belongs only to the root's actual active frame.
     // It cannot be lent to a separately declared procedure.
-    if !std::ptr::eq(input.function, &input.unit.top_level) {
+    if !std::ptr::eq(input.function, std::ptr::from_ref(&input.unit.top_level)) {
         return None;
     }
     let receipt = OriginalNativeFrameSlot::from_entry(&input.unit.ir_module, cell)?;
@@ -2454,12 +2454,12 @@ fn materialisable_slot_allocation(
     use crate::var_escape::original_slots::OriginalDeclaredProcedureArgumentSlots;
     use crate::var_resolve::VariableCellKey;
     let cell = input.function.ssa.cell_key(input.key.0)?;
-    if std::ptr::eq(input.function, &input.unit.top_level)
+    if std::ptr::eq(input.function, std::ptr::from_ref(&input.unit.top_level))
         && input.unit.ir_module.source_entry.native_entry.is_some()
     {
         return native_frame_slot_allocation(input, cell);
     }
-    if std::ptr::eq(input.function, &input.unit.top_level)
+    if std::ptr::eq(input.function, std::ptr::from_ref(&input.unit.top_level))
         && input.environment == CommonAotEnvironment::SealedProgram
     {
         if !matches!(
@@ -2540,7 +2540,7 @@ fn materialisable_decision(input: &MaterialisableInputs<'_>) -> MaterialisableSl
     if input.function.requires_native_math_binding_validation() {
         return decline(MaterialisableSlotDecline::MathBindingPrerequisiteRequired);
     }
-    if std::ptr::eq(input.function, &input.unit.top_level)
+    if std::ptr::eq(input.function, std::ptr::from_ref(&input.unit.top_level))
         && input.environment == CommonAotEnvironment::Hosted
     {
         return decline(MaterialisableSlotDecline::HostedTopLevelObservable);

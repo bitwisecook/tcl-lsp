@@ -717,8 +717,8 @@ impl Vm {
         )
     }
 
-    /// Jim ArraySet's nullable original-variable read is independent of C's
-    /// LocateArray receiver. This borrows its real selected scalar before COW.
+    /// Jim `ArraySet`'s nullable original-variable read is independent of C's
+    /// `LocateArray` receiver. This borrows its real selected scalar before COW.
     pub(crate) fn original_jim_array_root(
         &mut self,
         original: &Value,
@@ -786,7 +786,7 @@ impl Vm {
             currency
                 .check(self)
                 .map_err(|error| completion_from_cmd_error(self, error))?;
-            reached.map_err(|error| completion_from_cmd_error(self, error.into()))?;
+            reached.map_err(|error| completion_from_cmd_error(self, error))?;
             if let Some((target, level)) = self.original_jim_alias_target(original) {
                 let frame = self.select_execution_frame(level).map_err(super::err)?;
                 let reached = self.original_jim_array_root(target.value(), currency);

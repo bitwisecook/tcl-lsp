@@ -189,7 +189,7 @@ impl Vm {
         self.append_selected_bytes_using(name, key, sources, selected, None, issued.recipe())
     }
 
-    /// The original ObjSetVar2 name and quiet flags survive receiver callbacks.
+    /// The original `ObjSetVar2` name and quiet flags survive receiver callbacks.
     pub(super) fn append_original_c84_selected_variable(
         &mut self,
         original: &Value,

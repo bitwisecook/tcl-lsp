@@ -307,7 +307,7 @@ impl LogicalSourceMemberDeclaration {
             &self.class.image,
         )
     }
-    /// Exact selected ParamList word from this member's own original vector.
+    /// Exact selected `ParamList` word from this member's own original vector.
     #[must_use]
     pub fn original_parameter_word(&self) -> Option<&tcl_lexer::NativeWord> {
         self.class.class.original_members.logical_parameter_operand(
@@ -318,7 +318,7 @@ impl LogicalSourceMemberDeclaration {
         )
     }
 
-    /// Descriptive formals checked against that exact original ParamList by
+    /// Descriptive formals checked against that exact original `ParamList` by
     /// the shared unanimous Logical formal owner, never native binding data.
     #[must_use]
     pub fn original_source_formals(
@@ -992,7 +992,8 @@ impl AnalysisResult {
                 for relation in relations {
                     if contains(relation.operand())
                         && relation.matches_receiver(self, class)
-                        && let Some(Some(target)) = relation.source_class(self)
+                        && let Some(crate::command_binding::LogicalSourceClassRelationTarget::Source(target)) =
+                            relation.source_target(self)
                     {
                         selected.push(target);
                     }
@@ -1039,14 +1040,15 @@ impl AnalysisResult {
             if !provider.matches_receiver(self, class) {
                 return None;
             }
-            if let Some(target) = provider.source_class(self)? {
-                self.logical_source_class_declaration(target)?;
-                if !selected
-                    .iter()
-                    .any(|selected| std::ptr::eq(*selected, target))
-                {
-                    selected.push(target);
+            match provider.source_target(self)? {
+                crate::command_binding::LogicalSourceClassRelationTarget::Source(target) => {
+                    self.logical_source_class_declaration(target)?;
+                    if !selected.iter().any(|selected| std::ptr::eq(*selected, target)) {
+                        selected.push(target);
+                    }
                 }
+                crate::command_binding::LogicalSourceClassRelationTarget::Registry => {}
+                crate::command_binding::LogicalSourceClassRelationTarget::External(_) => return None,
             }
         }
         Some(selected)

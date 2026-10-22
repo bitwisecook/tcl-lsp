@@ -1581,7 +1581,8 @@ impl<'de> Deserialize<'de> for OriginalDeclarationHandle {
         struct Session {
             schema: u8,
             token: u64,
-            session: EditorWireSession,
+            #[serde(rename = "session")]
+            allocation: EditorWireSession,
             #[serde(rename = "wirePurpose")]
             _purpose: RelationshipPurpose,
         }
@@ -1608,7 +1609,7 @@ impl<'de> Deserialize<'de> for OriginalDeclarationHandle {
             Wire::Session(wire) => Ok(Self {
                 schema: wire.schema,
                 token: wire.token,
-                session: Some(wire.session),
+                session: Some(wire.allocation),
             }),
         }
     }

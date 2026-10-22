@@ -167,16 +167,15 @@ impl SourceCommandBindings {
         }
         let name_value =
             super::original_name_value::capture_word(word, state, config).map(Arc::new);
-        let frozen = match frozen_arguments::freeze_word(
+        let Ok(frozen) = frozen_arguments::freeze_word(
             word,
             None,
             name_value.as_deref(),
             config,
             state,
             registry,
-        ) {
-            Ok(frozen) => frozen,
-            Err(()) => return Some(Err(())),
+        ) else {
+            return Some(Err(()));
         };
         prepared
             .effective

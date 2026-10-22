@@ -143,7 +143,7 @@ impl OriginalPackSourceWord {
         self.local.statement.ordinal
     }
     /// Complete local original argv; positions belong to the held local image,
-    /// not a fabricated absolute NativeWord or an evaluated command vector.
+    /// not a fabricated absolute `NativeWord` or an evaluated command vector.
     #[must_use]
     pub fn original_words(&self) -> &[NativeWord] {
         &self.local.statement.words

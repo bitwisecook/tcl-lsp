@@ -56,7 +56,7 @@ impl OriginalNamedManufacture {
         let key = state.original_publication_key(
             &context.namespace_identity(),
             input,
-            super::namespace_slots::PublicationPurpose::Command,
+            super::namespace_slots::PublicationPurpose::Object,
         )?;
         #[cfg(debug_assertions)]
         if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
@@ -308,6 +308,34 @@ mod tests {
                         )
                         .is_some()
                 );
+            }
+        }
+    }
+
+    #[test]
+    fn relative_named_manufacture_uses_the_current_namespace_and_oo_name_recipe() {
+        for version in [TclVersion::V8_6, TclVersion::V9_0, TclVersion::V9_1] {
+            for name in ["rex", ":rex"] {
+                let source = format!(
+                    "proc ::rex args {{return ROOT}}\nnamespace eval ::a {{oo::class create C {{method pick {{}} {{return LOCAL}}}}; C create {name}; {name} pick}}"
+                );
+                let bindings = analyse(&source, version);
+                let offset = u32::try_from(source.rfind(&format!("{name} pick")).unwrap()).unwrap();
+                let point = bindings.invocation_at_source(name, offset);
+                let receiver = point.named_object_instance_at_dispatch()
+                    .expect("relative object survives at its exact current-namespace slot");
+                let state = &point.lookup_state.as_ref().unwrap().state;
+                let key = state.constructed_command_key(receiver).unwrap();
+                let policy = point.original_retained_written_name_input(0).unwrap().policy();
+                let slot = state.original_byte_slot_for_key(key, policy).unwrap();
+                assert_eq!(slot.namespace, tcl_core_types::ByteNamespacePath::from_segments([
+                    tcl_core_types::NameBytes::from(b"a".as_slice()),
+                ]));
+                assert_eq!(slot.simple.as_bytes(), name.as_bytes());
+                let selector = point.original_retained_written_name_input(1).unwrap();
+                assert!(state.retained_instance_method_entry(
+                    receiver, selector.bytes(), selector.policy()
+                ).is_some(), "{version:?}: {name}");
             }
         }
     }

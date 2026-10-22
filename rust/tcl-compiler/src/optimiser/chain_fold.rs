@@ -315,7 +315,7 @@ fn fold_script(
             Statement::While { body, .. }
             | Statement::Catch { body, .. }
             | Statement::Foreach { body, .. } => {
-                fold_script(ctx, body, protected, semantics, depth + 1)
+                fold_script(ctx, body, protected, semantics, depth + 1);
             }
             Statement::Try {
                 body,
@@ -533,6 +533,44 @@ fn replacement_setter(semantics: ChainSourceContext<'_>) -> Option<String> {
         .map(str::to_owned)
 }
 
+struct InitialChainValue {
+    variable: String,
+    value: String,
+    elements: Option<Vec<String>>,
+    setter: String,
+}
+
+fn initial_chain_value(
+    write: Write,
+    semantics: ChainSourceContext<'_>,
+    span: tcl_lexer::Span,
+) -> Option<InitialChainValue> {
+    let absent = !matches!(write, Write::Set { .. })
+        && semantics
+            .lattice
+            .existence_at_statement(span, write_var(&write))
+            == Some(tcl_registry::value_transfer::Existence::Unbound);
+    let (var, chain_value, elements, setter) = match write {
+        Write::Set { var, value, setter } => (var, value, None, setter),
+        Write::Append { var, pieces } if absent => {
+            (var, pieces.concat(), None, replacement_setter(semantics)?)
+        }
+        Write::Lappend { var, elements } if absent => (
+            var,
+            String::new(),
+            Some(elements),
+            replacement_setter(semantics)?,
+        ),
+        Write::Append { .. } | Write::Lappend { .. } => return None,
+    };
+    Some(InitialChainValue {
+        variable: var,
+        value: chain_value,
+        elements,
+        setter,
+    })
+}
+
 /// Attempt to fold a write-chain starting at `script.statements[start]`. Returns the
 /// number of statements consumed (the run length) when a fold fires, else
 /// `None`.
@@ -551,24 +589,12 @@ fn try_fold_chain_at(
         .as_ref()?
         .original_invocation_source_purpose(original, semantics.metadata, semantics.registry)?
         == crate::command_binding::OriginalInvocationSourcePurpose::Logical;
-    let absent = !matches!(write, Write::Set { .. })
-        && semantics
-            .lattice
-            .existence_at_statement(stmts[start].span(), write_var(&write))
-            == Some(tcl_registry::value_transfer::Existence::Unbound);
-    let (var, mut chain_value, mut elements, setter) = match write {
-        Write::Set { var, value, setter } => (var, value, None, setter),
-        Write::Append { var, pieces } if absent => {
-            (var, pieces.concat(), None, replacement_setter(semantics)?)
-        }
-        Write::Lappend { var, elements } if absent => (
-            var,
-            String::new(),
-            Some(elements),
-            replacement_setter(semantics)?,
-        ),
-        Write::Append { .. } | Write::Lappend { .. } => return None,
-    };
+    let InitialChainValue {
+        variable: var,
+        value: mut chain_value,
+        mut elements,
+        setter,
+    } = initial_chain_value(write, semantics, stmts[start].span())?;
     if !semantics.mutations.trusts(&setter) {
         return None;
     }
@@ -636,21 +662,12 @@ fn try_fold_chain_at(
     }
     let var_word = tcl_syntax::word_rules::lexical_unicode_source_word(&var, semantics.config)?;
 
-    let (code, fold_msg, dead_msg, rendered) = if let Some(els) = &elements {
-        (
-            DiagCode::O130,
-            "Fold write-only list build chain",
-            "Remove dead intermediate list write",
-            render_list_word(els, ctx.dialect)?,
-        )
-    } else {
-        (
-            DiagCode::O104,
-            "Fold write-only string build chain",
-            "Remove dead intermediate string write",
-            render_static_string_word_in(&chain_value, semantics.config)?,
-        )
-    };
+    let (code, fold_msg, dead_msg, rendered) = render_chain_value(
+        elements.as_deref(),
+        &chain_value,
+        semantics.config,
+        ctx.dialect,
+    )?;
 
     let source = ctx.source;
     let extents = writes
@@ -685,6 +702,29 @@ fn try_fold_chain_at(
     }
 
     Some(writes.len())
+}
+
+fn render_chain_value(
+    elements: Option<&[String]>,
+    value: &str,
+    config: LexerConfig,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
+) -> Option<(DiagCode, &'static str, &'static str, String)> {
+    Some(if let Some(els) = elements {
+        (
+            DiagCode::O130,
+            "Fold write-only list build chain",
+            "Remove dead intermediate list write",
+            render_list_word(els, dialect)?,
+        )
+    } else {
+        (
+            DiagCode::O104,
+            "Fold write-only string build chain",
+            "Remove dead intermediate string write",
+            render_static_string_word_in(value, config)?,
+        )
+    })
 }
 
 /// Render `elements` as the single `set` value-word that recreates the

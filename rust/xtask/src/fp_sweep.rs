@@ -775,7 +775,7 @@ Prose.
    when HTTP_RESPONSE {
    }
 ";
-        assert!(extract_rst_irules(rst).is_empty());
+        assert_eq!(extract_rst_irules(rst).len(), 0);
     }
 
     #[test]

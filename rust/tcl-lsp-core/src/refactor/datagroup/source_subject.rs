@@ -193,7 +193,7 @@ fn literal_pairs(
             .split_list(value)
             .ok()?
             .into_iter()
-            .map(|value| value.into_owned())
+            .map(std::borrow::Cow::into_owned)
             .collect::<Vec<_>>()
     } else {
         values
@@ -202,13 +202,14 @@ fn literal_pairs(
             .map(|value| Some(std::str::from_utf8(value.as_ref()?).ok()?.to_owned()))
             .collect::<Option<Vec<_>>>()?
     };
-    if strings.is_empty() || !strings.len().is_multiple_of(2) {
+    let (pairs, tail) = strings.as_chunks::<2>();
+    if pairs.is_empty() || !tail.is_empty() {
         return None;
     }
     Some(
-        strings
-            .chunks_exact(2)
-            .map(|pair| (pair[0].clone(), pair[1].clone()))
+        pairs
+            .iter()
+            .map(|[pattern, body]| (pattern.clone(), body.clone()))
             .collect(),
     )
 }

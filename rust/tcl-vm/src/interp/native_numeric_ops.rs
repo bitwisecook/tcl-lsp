@@ -324,7 +324,7 @@ impl<'a> OriginalNumericOps<'a> {
         }
         self.bind_jim_using(original, || current(original))?;
         let reached = operation(&mut || current(original), &mut |actual| {
-            let reached = self.string_using(actual, protocol, &current);
+            let reached = self.string_using(actual, protocol, current);
             self.retain_compound_failure(&reached);
             current(actual)?;
             reached

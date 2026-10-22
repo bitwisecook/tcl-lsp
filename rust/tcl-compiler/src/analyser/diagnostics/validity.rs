@@ -2231,7 +2231,7 @@ impl Analyser {
         cmd_tok: tcl_lexer::Token,
         _scope_path: &[usize],
     ) {
-        let Some(input) = self.result.resolved_input.as_ref().cloned() else {
+        let Some(input) = self.result.resolved_input.clone() else {
             return;
         };
         let image = tcl_lexer::SourceImage::document(&self.source);

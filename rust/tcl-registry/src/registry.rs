@@ -4023,6 +4023,7 @@ impl CommandRegistry {
                             crate::native_compilation::NativeCompilationGrammar::StringTrim { operation, .. } => crate::native_compilation::NativeCompilationGrammar::StringTrim { scope: crate::native_scalar_compilation::NativeScalarScope::PrivateOperands, operation },
                             crate::native_compilation::NativeCompilationGrammar::StringEqual(_) => crate::native_compilation::NativeCompilationGrammar::StringEqual(crate::native_scalar_compilation::NativeScalarScope::PrivateOperands),
                             crate::native_compilation::NativeCompilationGrammar::StringLength(_) => crate::native_compilation::NativeCompilationGrammar::StringLength(crate::native_scalar_compilation::NativeScalarScope::PrivateOperands),
+                            crate::native_compilation::NativeCompilationGrammar::StringIsAscii(_) => crate::native_compilation::NativeCompilationGrammar::StringIsAscii(crate::native_scalar_compilation::NativeScalarScope::PrivateOperands),
                             crate::native_compilation::NativeCompilationGrammar::StringOperand { operation, .. } => crate::native_compilation::NativeCompilationGrammar::StringOperand { scope: crate::native_scalar_compilation::NativeScalarScope::PrivateOperands, operation },
                             grammar => grammar,
                         };

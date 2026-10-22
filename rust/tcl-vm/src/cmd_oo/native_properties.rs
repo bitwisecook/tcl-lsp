@@ -691,13 +691,13 @@ fn configure_all_entered(
 ) -> Completion<Value> {
     let header = match vm.native_all_property_header(target, false, false) {
         Ok(header) => header,
-        Err(e) => return crate::command::completion_from_cmd_error(vm, e.into()),
+        Err(e) => return crate::command::completion_from_cmd_error(vm, e),
     };
     // The configure reader adds one actual List-header role across callbacks.
     let header = header.value().clone();
     let names = match operation.list(vm, &header) {
         Ok(names) => names,
-        Err(e) => return crate::command::completion_from_cmd_error(vm, e.into()),
+        Err(e) => return crate::command::completion_from_cmd_error(vm, e),
     };
     let empty = match operation.dictionary(vm, Vec::new()) {
         Ok(empty) => empty,
@@ -872,7 +872,7 @@ fn invoke_default_entered(
     let namespace = object.ns.clone();
     let mapped = match default_storage_name(vm, target, &accessor.original, operation) {
         Ok(mapped) => mapped,
-        Err(error) => return crate::command::completion_from_cmd_error(vm, error.into()),
+        Err(error) => return crate::command::completion_from_cmd_error(vm, error),
     };
     let variable_bytes = mapped.as_deref().unwrap_or(&bytes);
     let operand = match recipe.object_variable_operand(variable_bytes, namespace.as_bytes()) {
@@ -984,7 +984,7 @@ fn invoke_original_accessor_entered(
             &mut |vm| operation.string(vm, property),
             &mut |vm| operation.check(vm),
         )
-        .map_err(|e| crate::command::completion_from_cmd_error(vm, e.into()))?;
+        .map_err(|e| crate::command::completion_from_cmd_error(vm, e))?;
     // The reached call owns my, accessor and any setter value until invocation ends.
     let result = {
         let Some(head) = vm.oo.property_my_name.clone() else {

@@ -45,7 +45,7 @@ pub(crate) struct LogicalSourceFormalParameters {
     names: Vec<OriginalSourceFormalName>,
 }
 
-/// Typed source topology for a selected authored Logical procedure ParamList.
+/// Typed source topology for a selected authored Logical procedure `ParamList`.
 /// It retains the original word and complete source parameter objects, without
 /// treating them as Native formal bytes, an installed local roster or a frame.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -395,9 +395,9 @@ impl SignatureSourceFormalParameters {
 /// Native byte protocol and authored Logical source fields remain distinct.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum SourceProcedureFormalTopology {
-    /// Native procedure ParamList selected by its Native declaration recipe.
+    /// Native procedure `ParamList` selected by its Native declaration recipe.
     Native(SignatureSourceFormalParameters),
-    /// Authored Logical ParamList selected by its retained Logical declaration.
+    /// Authored Logical `ParamList` selected by its retained Logical declaration.
     Logical(LogicalProcedureFormalTopology),
 }
 

@@ -391,7 +391,7 @@ impl OriginalLogicalStaticOperandPrefix<'_> {
 }
 
 /// Source-only correspondence of two genuinely retained head purposes.
-/// The complete issuers remain separate: a selected effective ResolvedHead
+/// The complete issuers remain separate: a selected effective `ResolvedHead`
 /// never becomes a Written word, and the Written source head acquires no
 /// selected dispatch, entered frame or replacement authority.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -592,7 +592,7 @@ impl OriginalRegistryWords {
     /// Join actual original head words under the same source/config/context
     /// and selected descriptor, without equating their independent purposes.
     /// A differing head origin is admitted only for the existing authored
-    /// transition Written(0) and selected effective ResolvedHead producers.
+    /// transition Written(0) and selected effective `ResolvedHead` producers.
     pub(crate) fn original_source_head_correspondence(
         &self,
         other: &Self,
@@ -2982,7 +2982,7 @@ fn original_scalar_reference_is(
 }
 
 /// Retain the separately selected source-role projection without strengthening
-/// InvocationFacts. The original vector, full input and selected descriptor
+/// `InvocationFacts`. The original vector, full input and selected descriptor
 /// must all agree before this facade can describe possible case bodies.
 pub(crate) fn original_logical_source_case_for_tokens(
     tokens: &crate::ir::CommandTokens,

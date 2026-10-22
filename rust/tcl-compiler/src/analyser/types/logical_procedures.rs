@@ -181,7 +181,7 @@ impl LogicalSourceProcedureDeclaration {
         Some(self.body.scope().scope_body().original_container())
     }
 
-    /// Exact original ParamList operand selected by this retained header's
+    /// Exact original `ParamList` operand selected by this retained header's
     /// own Registry vector. No formal activation or native grammar is issued.
     #[must_use]
     pub fn original_parameter_word(&self) -> Option<&tcl_lexer::NativeWord> {
@@ -200,7 +200,7 @@ impl LogicalSourceProcedureDeclaration {
     }
 
     /// Descriptive formals of this exact original Logical source header. No
-    /// Native ParamList grammar, effective binding or frame is issued.
+    /// Native `ParamList` grammar, effective binding or frame is issued.
     #[must_use]
     pub fn original_source_formals(&self) -> Option<&[tcl_syntax::formal_params::FormalParameter]> {
         self.matches_source(&self.image, &self.input)

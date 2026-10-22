@@ -116,8 +116,7 @@ impl AnalysisFormattingLayout {
         }
         let bodies = member
             .script_bodies()
-            .ok_or(WordCorrespondence)?
-            .into_iter()
+            .iter()
             .map(|body| {
                 let written = body.argument().checked_add(1).ok_or(WordCorrespondence)?;
                 if original.get(written) != Some(body.original_container())

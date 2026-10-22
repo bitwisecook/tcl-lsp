@@ -1,0 +1,26 @@
+--- a/rust/tcl-spectcl/tests/codegen_stamps.rs
++++ b/rust/tcl-spectcl/tests/codegen_stamps.rs
+@@ -443,17 +443,13 @@
+     set.fact_stamps(tcl_compiler::site_claims::evaluator_revision())
+ }
+ 
+-/// Compile `source` against `registry` — the pipeline a compile service runs,
+-/// over a registry that carries the pack.
++/// Compile this whole-document fixture through the production service, which
++/// retains its supplied-source entry and the pack registry's overlay provenance.
+ fn compile(source: &str, registry: &CommandRegistry) -> ModuleAsm {
+-    let config = tcl_lexer::LexerConfig::default();
+-    let ir = tcl_compiler::lowering::lower_script_module_for_bytecode(
+-        source, "", registry, config, None, false,
+-    );
+-    let cfg = tcl_compiler::cfg_builder::build_cfg_codegen_with_registry_and_config(
+-        &ir, false, registry, config,
+-    );
+-    tcl_compiler::codegen::codegen_module(&cfg, &ir, registry).expect("original source namespace")
++    let profile = tcl9();
++    BytecodeCompileService::new(registry.project_for_profile(profile))
++        .compile_for_profile(source, profile)
++        .expect("fixture whole document compiles")
+ }
+ 
+ /// Run a setup script through the default compile service on `vm`.

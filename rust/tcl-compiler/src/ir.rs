@@ -944,7 +944,7 @@ impl CommandTokens {
     /// carrier. This is consistency only: source/config/currentness, synthetic
     /// purpose, Native identity and effective alias/expansion argv are checked
     /// separately by the original owner. Count-only compatibility snapshots
-    /// continue to use words_align_with_argv_text.
+    /// continue to use `words_align_with_argv_text`.
     #[must_use]
     pub fn original_words_match_argv_text(&self) -> bool {
         self.words_align_with_argv_text()

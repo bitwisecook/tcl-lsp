@@ -3077,7 +3077,7 @@ impl Vm {
             };
             state.host = Rc::clone(host);
             state.runtime_version = profile.vm_runtime_version;
-            state.pin = tcl_registry::model::PinnedContext::for_profile(*profile);
+            state.pin = tcl_registry::model::PinnedContext::for_profile(profile);
             state.command_surface_profile = *profile;
             state.actual_engine_profile = Some(*profile);
             state.command_surface_point = Some(crate::environment::surface_point(profile));
@@ -3655,7 +3655,8 @@ impl InterpState {
             const_vars: HashSet::new(),
             commands: HashMap::new(),
             name_world: Rc::new(RefCell::new(NativeNameWorld::new(owner, interpreter))),
-            alias_registrations: Default::default(),
+            alias_registrations:
+                tcl_registry::native_alias_registration::NativeAliasRegistrationTable::default(),
             fixed_math: FixedMathTable::default(),
             module_procs: HashMap::new(),
             resolution_stacks: NamespaceResolutionStacks::default(),
@@ -3752,12 +3753,12 @@ impl Vm {
         &mut self,
         script: bool,
     ) -> Result<Option<NativeTraceResultState>, tcl_runtime_api::NativeExecutionError> {
-        let scope = native_operation_currency::NativeOperationScope::enter_native(self)?;
-        let physical_owner =
-            variable_trace_outcomes::TracePhysicalOwner::capture(self, scope.currency().clone());
         use tcl_registry::native_variable_trace::{
             NativeTraceStatePurpose, NativeTraceStateRecipe,
         };
+        let scope = native_operation_currency::NativeOperationScope::enter_native(self)?;
+        let physical_owner =
+            variable_trace_outcomes::TracePhysicalOwner::capture(self, scope.currency().clone());
         let recipe = self
             .actual_native_invocation_dialect()
             .native_trace_state_recipe(if script {
@@ -5560,7 +5561,7 @@ impl Vm {
         identity.next_generation
     }
 
-    /// Host CString publication uses its selected C API purpose and actual holder.
+    /// Host `CString` publication uses its selected C API purpose and actual holder.
     fn native_host_command_slot(
         &mut self,
         original: &[u8],
@@ -7240,7 +7241,7 @@ impl Vm {
         for realm in [src, target] {
             let Some(receiver) = self
                 .st_of(realm)
-                .and_then(|state| state.name_policy_protocol())
+                .and_then(InterpState::name_policy_protocol)
             else {
                 return self.refuse_host_command("alias interpreter publication issuer".into());
             };
@@ -7950,7 +7951,7 @@ impl Vm {
         if let Some(initialisation) = self
             .actual_native_invocation_dialect()
             .native_bootstrap_protocol()
-            .map(|protocol| protocol.child_initialisation())
+            .map(tcl_registry::special_vars::NativeBootstrapProtocol::child_initialisation)
             .filter(|initialisation| initialisation.initialises_jim_static_extensions())
         {
             if let Err(error) = self.copy_original_jim_child_startup_variables(id, initialisation) {
@@ -8056,7 +8057,7 @@ impl Vm {
                 ]));
             }
             [opt, rest @ ..] if rest.len() <= 1 => (opt, rest),
-            _ => return Err(tcl_cmd_core::CmdError::wrong_args_bytes(usage.as_ref())),
+            _ => return Err(tcl_cmd_core::CmdError::wrong_args_bytes(usage)),
         };
         self.native_static_option_index_checked(opt, DEBUG_OPTIONS.names(), false, "debug option")?;
         context.current(self)?;
@@ -10235,7 +10236,9 @@ impl Vm {
                             return crate::command::completion_from_cmd_error(self, error);
                         }
                     };
-                    let Some(recipe) = self.name_policy_protocol().map(|policy| policy.recipe())
+                    let Some(recipe) = self
+                        .name_policy_protocol()
+                        .map(tcl_syntax::naming::NamePolicyProtocol::recipe)
                     else {
                         return self
                             .refuse_host_command("original child alias target issuer".into());
@@ -13488,10 +13491,7 @@ impl Vm {
                 ) => break,
                 Ok(tcl_runtime_api::AliasPrefixLookup::Prefix(next)) => next,
                 Err(error) => {
-                    return Err(crate::command::completion_from_cmd_error(
-                        self,
-                        error.into(),
-                    ));
+                    return Err(crate::command::completion_from_cmd_error(self, error));
                 }
             };
             let resident = alias.native_object_snapshot().resident.ok_or_else(|| {
@@ -13528,9 +13528,7 @@ impl Vm {
             if let Err(error) = operation.check(self) {
                 return Err(crate::command::completion_from_cmd_error(self, error));
             }
-            if equal
-                .map_err(|error| crate::command::completion_from_cmd_error(self, error.into()))?
-            {
+            if equal.map_err(|error| crate::command::completion_from_cmd_error(self, error))? {
                 let mut message = b"import pattern \"".to_vec();
                 message.extend_from_slice(original);
                 message.extend_from_slice(b"\" would create a loop");
@@ -16129,7 +16127,7 @@ impl Vm {
             let invalidate_namespace = vm
                 .actual_native_invocation_dialect()
                 .native_command_name_protocol()
-                .is_some_and(|protocol| protocol.deletion_invalidates_namespace_after_trace());
+                .is_some_and(tcl_registry::native_command_literal::NativeCommandNameProtocol::deletion_invalidates_namespace_after_trace);
             (
                 hook,
                 dying,
@@ -16143,7 +16141,7 @@ impl Vm {
         };
         if original.check(self).is_ok() {
             let _ = original.in_original(self, |vm| {
-                vm.fire_command_traces_for(key, &display, b"", "delete")
+                vm.fire_command_traces_for(key, &display, b"", "delete");
             });
         }
         let _ = original.in_original(self, |vm| {
@@ -16939,7 +16937,7 @@ impl Vm {
         };
         if self.observed_name_policy_selected() {
             let result = operation(self, &target);
-            return match original.check(self).and_then(|_| scope.check(self)) {
+            return match original.check(self).and_then(|()| scope.check(self)) {
                 Ok(()) => result,
                 Err(error) => {
                     let _ = original.in_original(self, |_| drop(result));
@@ -16969,7 +16967,7 @@ impl Vm {
             }
             let _ = original.retire(self, crate::vars::VariableRetirement::release_operation(id));
         }
-        match original.check(self).and_then(|_| scope.check(self)) {
+        match original.check(self).and_then(|()| scope.check(self)) {
             Ok(()) => result,
             Err(error) => {
                 let _ = original.in_original(self, |_| drop(result));
@@ -17155,7 +17153,7 @@ impl Vm {
         let after_callback = original.check_native(self);
         if after_callback.is_ok() && matches!(reached, Ok(Ok(()))) {
             let _ = original.in_original(self, |vm| {
-                vm.restore_native_global_error_flags(global_error_flags)
+                vm.restore_native_global_error_flags(global_error_flags);
             });
         }
         if let Some(id) = cell.id {
@@ -20244,13 +20242,13 @@ impl Vm {
         original: &Value,
         original_name_scope: &native_name_consumers::OriginalNameConsumerScope,
     ) -> Result<Rc<crate::vars::StaticVariables>, Completion<Value>> {
+        use tcl_registry::native_procedure::{
+            StaticVariableValueError as Error, StaticVariableValueInitialiser as Initialiser,
+        };
         original_name_scope
             .check(self)
             .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
 
-        use tcl_registry::native_procedure::{
-            StaticVariableValueError as Error, StaticVariableValueInitialiser as Initialiser,
-        };
         let dialect = self.actual_native_invocation_dialect();
         if !dialect
             .native_scalar_getter_protocol()
@@ -26826,7 +26824,7 @@ impl Vm {
             let _ = self.take_error_info();
             if command.is_none() {
                 let message = completion.result.string_bytes();
-                self.seed_error_info(message.to_vec());
+                self.seed_error_info(message);
             }
         }
         // An error not yet logged logs the command the top level ran (C's
@@ -26858,7 +26856,7 @@ impl Vm {
         if self.runtime_version().has_unexpected_result_error_codes() {
             err_with_code(
                 message,
-                &format!("TCL UNEXPECTED_RESULT_CODE {}", code.as_int()),
+                format!("TCL UNEXPECTED_RESULT_CODE {}", code.as_int()),
             )
         } else {
             err(message)
@@ -28237,6 +28235,7 @@ impl VarStore for Vm {
         target: &ArrayTarget,
         key: &[u8],
     ) -> Result<bool, tcl_syntax::value::ValueError> {
+        use tcl_runtime_api::variable_destruction::NativeArrayUnsetMemberLookup;
         if self.observed_names.is_some() {
             return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
                 "unmeasured observed variable operation",
@@ -28251,7 +28250,6 @@ impl VarStore for Vm {
                 self.remove_dictionary_element_bytes(id, key)
             });
         }
-        use tcl_runtime_api::variable_destruction::NativeArrayUnsetMemberLookup;
         let id = match self
             .actual_native_invocation_dialect()
             .array_unset_member_lookup()

@@ -2,7 +2,7 @@
 
 Area: routing, snapshots, status documents, release gate.
 
-Last updated: 2026-10-22T17:25:44.599561+00:00
+Last updated: 2026-10-22T17:55:45.594596+00:00
 
 ## In progress
 
@@ -115,3 +115,16 @@ Last updated: 2026-10-22T17:25:44.599561+00:00
 - All4baseline advisories are already remedied by current lock versions (static inspection only); fresh shipping cargo-deny required. Historical work5202 failures yield49unique rendered package/selector baselinePASS matches and22unknowns; roster is retest prioritisation, not latestwork verdict.
 - New53xtask and40registry lint findings routed; xtask exactassertion-spelling draft prepared on copies and registrydraft underway. All prior shared compiler/Core/VM lint/API candidates remain off-tree and uncompiled.
 - Externalfiles are fresh:BIGIP17:14,perf16:52,triage17:15. Optional exhaustive89-field perf diagnostic is preserved, not applied; full equality and routedcompiler patch remain unproven. No audit admissions, validatedproduct-row changes or sectionF closures.
+
+### Current cycle and routing (17:55 UTC)
+
+- PublicR1 passed all54world+nonemptybodylookupchecks in254.76s, clean13m29build; registry3projectioncontrols passed0.50s after4m56build. Sourceguards6510/6509 unchanged. These precede newbatch and do notreplace originalg4/ZZ/eight acceptance.
+- C6 publicdiagnosis0/1 in82.12s with5/8mismatches: originalswitchW210 missing,dictforS100spurious,originalinterpTNspurious and2reachedtainted-headTPsmissing. Exactoriginalassertionsretained,5396Rust/Cargo inputsunchanged.
+- Integratedlatestwork5a331 ontoactive8478 with exactexpectedmerge-tree proof;7externalstylepathsretained. Firstown rebaseattemptneedednetworkforlazyblobs; recoveredexactfullcheckpointwithallwritesheldthencompletednormalrebase. No losttrackedwork, stash or forcepush.
+- Appliedreviewed257pathcoherentAPI/lint/ASCII/minify/lexerbatch plus3pathdictfor/testhelper supplementand1overlappingswitchhunkset,260uniqueproductpaths. All257finalcopiespassedpinnedrustfmt syntax; supplemental4pathsparse; exactbeforehash/applychecks pass. No compile/semanticgreenclaimed.
+- NewT105draftremainsOFFTREE: peerreviewblockedmulti-scriptconcat suppression, incomplete lexicalread inventory treatedasabsent, and Listplan fallback/alternativeadmission. Unknown/refusalguardsarebeingstrengthenedbeforeapply.
+- Firstall-targets7cratetypecheckattemptstoppedbeforecompilationafter13.1s onblockedtokio-util download; exactnormalnetwork-enabledretryunderway. Sourceisfrozen, logsdrainat20MB, no targetcleanup.
+- PinnedJim25manualsemanticcontrols classify17oldfailures; trustedprocmetadata2pathcandidatepeerreviewedunapplied, Jimsourceclasscarrier remainsincomplete. NativeD1-D5, original3guardedlosses, minify/protocol/shippedhosts and latestshippinglatency remainpending.
+- Externalfilesfresh17:39/17:38/17:33. BIGIPeditorgenerators3/3pass andgenericrewritefailswithoutF5. Freshregistry176includes136newassertion-stylefindingsofftree; old40+xtask53alreadyapplied. Perf full equalityunproven, routedcompilerpatchwithheld.
+- Exactorigin/rustbaseline24,312namedPASS rosterretained; binary-ID/skipinventorylimitsremainexplicit. No auditadmissions, validatedproduct-row changes, sectionFclosures, PR, merge orrelease.
+- Fresh externalperf private-Eq trace pinpoints first false helper ObjectHandleFacts::analysis_report_eq; exact differing owner/field cause and full equality proof remain unresolved. Routed read-only source review to names without masking Eq or taking over perf corpus.

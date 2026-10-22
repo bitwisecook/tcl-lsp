@@ -99,7 +99,7 @@ impl tcl_registry::native_jim_lookup::NativeJimNamespaceOriginBackend
 }
 
 /// Actual compiler target/frame observations, with the genuine inherited
-/// currency recorded by SavedExecutionTarget. An authored None remains None.
+/// currency recorded by `SavedExecutionTarget`. An authored None remains None.
 pub(super) struct OriginalLiteralOperation<'a> {
     vm: std::cell::RefCell<&'a mut Vm>,
     target: super::native_operation_currency::SavedExecutionTarget,

@@ -1056,10 +1056,10 @@ fn source_scope_at_offset<'a>(
 /// never select a source scope or decide whether an edit is authorised.
 fn record_variable_report(
     symbol_map: &mut SymbolMap,
-    label: String,
+    label: &str,
     mapping: BTreeMap<String, String>,
 ) {
-    let mut report_label = label.clone();
+    let mut report_label = label.to_owned();
     let mut occurrence = 2;
     while symbol_map.variables.contains_key(&report_label) {
         report_label = format!("{label} [source {occurrence}]");
@@ -1478,7 +1478,7 @@ fn compact_logical_formals(
             mapping.insert(formal.name().to_owned(), short);
         }
         if !mapping.is_empty() {
-            record_variable_report(symbol_map, label, mapping);
+            record_variable_report(symbol_map, &label, mapping);
         }
     }
 }
@@ -1665,7 +1665,7 @@ fn process_scope<'a>(
         }
         if !var_map.is_empty() {
             out.renamed_scopes.push(scope);
-            record_variable_report(out.symbol_map, scope_label.to_owned(), var_map);
+            record_variable_report(out.symbol_map, scope_label, var_map);
         }
     }
 
@@ -2328,7 +2328,7 @@ fn collect_string_literals(
             if word.group().kind != tcl_lexer::WordKind::Quoted {
                 continue;
             }
-            let Ok(content) = word.content_span() else {
+            let Ok(word_span) = word.content_span() else {
                 continue;
             };
             let arena = word.executable_parts();
@@ -2342,7 +2342,7 @@ fn collect_string_literals(
                         span,
                         text: text.to_owned(),
                         config: word.config(),
-                        following_end: content.end() as usize,
+                        following_end: word_span.end() as usize,
                     });
                 }
             }
@@ -2495,14 +2495,14 @@ fn fold_original_static_substrings(
                     if !original
                         .words()
                         .iter()
-                        .any(|written| written.span() == span)
+                        .any(|source_word| source_word.span() == span)
                     {
                         continue;
                     }
-                    let Some(content) = source
+                    let Some(inner_text) = source
                         .get(span.as_range())
-                        .and_then(|written| written.strip_prefix('"'))
-                        .and_then(|written| written.strip_suffix('"'))
+                        .and_then(|source_text| source_text.strip_prefix('"'))
+                        .and_then(|source_text| source_text.strip_suffix('"'))
                     else {
                         continue;
                     };
@@ -2517,7 +2517,7 @@ fn fold_original_static_substrings(
                         continue;
                     };
                     edits.insert((span.start(), span.end()), replacement);
-                    folds.insert(content.to_owned(), value);
+                    folds.insert(inner_text.to_owned(), value);
                 }
             }
         }
@@ -3453,9 +3453,9 @@ enum ExprTok {
     Space,
 }
 
-/// Remove unnecessary whitespace inside an `expr` body, keeping
-/// spaces only around word-operators and between adjacent word
-/// tokens. (no AST shrinking).
+/// Remove expression gaps only when the complete configured token sequence
+/// remains unchanged. Required word boundaries and literal contents survive;
+/// this step performs no AST shrinking.
 fn strip_expr_whitespace(text: &str, env: MinifyEnv<'_>, depth: u32) -> String {
     strip_expr_whitespace_with_script_compaction(text, env, depth, true)
 }
@@ -3506,7 +3506,7 @@ fn strip_expr_whitespace_with_script_compaction(
         let preserves = expression_token_signature(&joined, env, false)
             .zip(expression_token_signature(&spaced, env, false))
             .is_some_and(|(joined, spaced)| joined == spaced);
-        if is_word_op(previous) || is_word_op(current) || !preserves {
+        if !preserves {
             output.push(' ');
         }
         output.push_str(current);
@@ -3816,25 +3816,6 @@ fn tokenise_expr_with_script_compaction(
         Some(output)
     };
     project().unwrap_or_else(|| vec![ExprTok::Other(text.to_owned())])
-}
-
-/// Keep canonical spacing around word operators from the shared inventory.
-fn is_word_op(tok: &str) -> bool {
-    static OPS: std::sync::OnceLock<std::collections::HashSet<&'static str>> =
-        std::sync::OnceLock::new();
-    OPS.get_or_init(|| {
-        tcl_syntax::expr::operators::ALL_BIN_OPS
-            .iter()
-            .map(|op| op.spec().spelling)
-            .chain(
-                tcl_syntax::expr::operators::ALL_UNARY_OPS
-                    .iter()
-                    .map(|op| op.spec().spelling),
-            )
-            .filter(|s| s.as_bytes().first().is_some_and(u8::is_ascii_alphabetic))
-            .collect()
-    })
-    .contains(tok)
 }
 
 #[cfg(test)]
@@ -4952,16 +4933,12 @@ mod tests {
     /// rule reaches them and their inversions remain available.
     #[test]
     fn expr_string_and_membership_inversion_still_applies() {
-        check(
-            "if {!($a eq \"x\")} {puts x}\n",
-            "if {$a ne \"x\"} {puts x}",
-        );
-        check(
-            "if {!($a ne \"x\")} {puts x}\n",
-            "if {$a eq \"x\"} {puts x}",
-        );
-        check("if {!($a in $b)} {puts x}\n", "if {$a ni $b} {puts x}");
-        check("if {!($a ni $b)} {puts x}\n", "if {$a in $b} {puts x}");
+        // 13:17 whitespace decision; pinned C/Jim wordop controls. The
+        // inversion expectations remain independent and unchanged.
+        check("if {!($a eq \"x\")} {puts x}\n", "if {$a ne\"x\"} {puts x}");
+        check("if {!($a ne \"x\")} {puts x}\n", "if {$a eq\"x\"} {puts x}");
+        check("if {!($a in $b)} {puts x}\n", "if {$a ni$b} {puts x}");
+        check("if {!($a ni $b)} {puts x}\n", "if {$a in$b} {puts x}");
     }
 
     #[test]
@@ -5035,9 +5012,12 @@ mod tests {
 
     #[test]
     fn keeps_word_operator_spacing() {
+        // User decision 2026-10-22T13:17Z: remove every safe gap. Pinned
+        // C8.4-9.1/Jim controls (wordop-manual-oracle-20261022.json) prove
+        // the space before eq is required here while eq->$b is removable.
         check(
             "if {$a eq $b} {\n    puts hi\n}\n",
-            "if {$a eq $b} {puts hi}",
+            "if {$a eq$b} {puts hi}",
         );
     }
 
@@ -5456,9 +5436,9 @@ mod tests {
         let mut map = SymbolMap::default();
         let first = BTreeMap::from([("longfirst".to_owned(), "a".to_owned())]);
         let second = BTreeMap::from([("longsecond".to_owned(), "b".to_owned())]);
-        record_variable_report(&mut map, "::same".to_owned(), first.clone());
-        record_variable_report(&mut map, "::same [source 2]".to_owned(), second.clone());
-        record_variable_report(&mut map, "::same".to_owned(), second.clone());
+        record_variable_report(&mut map, "::same", first.clone());
+        record_variable_report(&mut map, "::same [source 2]", second.clone());
+        record_variable_report(&mut map, "::same", second.clone());
         assert_eq!(map.variables.len(), 3);
         assert_eq!(map.variables["::same"], first);
         assert_eq!(map.variables["::same [source 2]"], second);

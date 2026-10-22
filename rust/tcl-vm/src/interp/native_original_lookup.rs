@@ -155,7 +155,9 @@ impl OriginalLookup {
     }
 
     pub(super) fn jim_namespace_original(&self) -> Option<&Value> {
-        self.jim_namespace.as_ref().map(|holder| holder.value())
+        self.jim_namespace
+            .as_ref()
+            .map(NativeObjectLifetimeLease::value)
     }
 
     pub(super) fn read_jim_namespace(&self, vm: &mut Vm) -> Result<Rc<[u8]>, CmdError> {

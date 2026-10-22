@@ -2259,7 +2259,7 @@ impl OriginalSourceClassDeclaration {
             .iter()
             .map(|method| method.original_name_input().bytes())
             .collect::<Vec<_>>();
-        if grammar.family != DefinerFamily::Itcl && names.iter().any(|name| *name == bytes) {
+        if grammar.family != DefinerFamily::Itcl && names.contains(&bytes) {
             return None;
         }
         if let Some(method) = grammar.manufacturer(word) {

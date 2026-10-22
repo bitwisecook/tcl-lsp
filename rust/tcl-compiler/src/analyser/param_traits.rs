@@ -1120,7 +1120,7 @@ fn scan_deep<'p>(
 }
 
 /// Recover a lambda's formal list and body only through the complete document's
-/// retained source invocation. This joins the original selected LambdaLiteral
+/// retained source invocation. This joins the original selected `LambdaLiteral`
 /// ordinal, whole word, source-list children, lexer configuration and body
 /// geometry; cooked token text is not used as an alternate source identity.
 fn selected_lambda_source(
@@ -1146,7 +1146,7 @@ fn selected_lambda_source(
         command_offset,
     )?;
     let selected =
-        words.with_source_schema(&context, |schema| schema.authored_source_lambda_call())??;
+        words.with_source_schema(&context, tcl_registry::ResolvedInvocation::authored_source_lambda_call)??;
     if selected.lambda_argument != argument {
         return None;
     }

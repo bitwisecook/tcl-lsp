@@ -1520,7 +1520,9 @@ mod tests {
                 assert!(plan.fatal_tail.is_none());
                 assert_eq!(plan.commands.len(), 2);
                 let word = &plan.commands[1].words[1];
-                assert_eq!(word.try_text().unwrap(), operand);
+                // This is written source, including quotes, not its evaluated
+                // value. C Tcl 8.6 info frame also retains this quote pair.
+                assert_eq!(word.try_text().unwrap(), written);
                 assert_eq!(word.image(), &image);
                 assert_eq!(word.config(), selected);
             }

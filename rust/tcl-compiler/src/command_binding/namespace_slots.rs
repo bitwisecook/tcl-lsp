@@ -19,6 +19,7 @@ pub(super) enum PublicationPurpose {
     Rename,
     Alias,
     Command,
+    Object,
 }
 
 /// A unique namespace geometry may prove absence; ambiguous geometry is unavailable.
@@ -681,6 +682,9 @@ impl ModuleCommandBindings {
             PublicationPurpose::Alias => protocol.alias_publication_slot(context, name.as_bytes()),
             PublicationPurpose::Command => {
                 protocol.command_c_api_publication_slot(context, name.as_bytes())
+            }
+            PublicationPurpose::Object => {
+                protocol.oo_object_publication_slot(context, name.as_bytes())
             }
         }
         .ok()?;

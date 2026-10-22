@@ -47,11 +47,12 @@ impl SpecPackNoticeSubject {
         word: &str,
         kind: SpecPackNoticeKind,
     ) -> Option<Self> {
-        if word.is_empty() || !word.is_ascii() || word.contains(char::is_whitespace) {
-            return None;
+        #[derive(Clone, Copy)]
+        struct NoticeSite<'a> {
+            line: u32,
+            wanted: &'a str,
+            kind: &'a SpecPackNoticeKind,
         }
-        let image = SourceImage::document(source);
-        let mut sites = Vec::new();
         fn plain(word: &NativeWord) -> Option<&str> {
             if word.group().expand {
                 return None;
@@ -73,11 +74,10 @@ impl SpecPackNoticeSubject {
             region: Span,
             config: LexerConfig,
             depth: u32,
-            line: u32,
-            wanted: &str,
-            kind: &SpecPackNoticeKind,
+            site: NoticeSite<'_>,
             sites: &mut Vec<Span>,
         ) -> Option<()> {
+            let NoticeSite { line, wanted, kind } = site;
             if depth > 32 {
                 return None;
             }
@@ -93,12 +93,16 @@ impl SpecPackNoticeSubject {
                 for (ordinal, word) in command.words.iter().enumerate() {
                     // A notice's line is counted once; no `bytecount` dependency is warranted.
                     #[allow(clippy::naive_bytecount)]
-                    let word_line = 1 + image
-                        .bytes()
-                        .get(..word.span().start() as usize)?
-                        .iter()
-                        .filter(|&&b| b == b'\n')
-                        .count() as u32;
+                    let word_line = u32::try_from(
+                        image
+                            .bytes()
+                            .get(..word.span().start() as usize)?
+                            .iter()
+                            .filter(|&&b| b == b'\n')
+                            .count(),
+                    )
+                    .ok()?
+                    .checked_add(1)?;
                     let position = match kind {
                         SpecPackNoticeKind::Property => ordinal == 0,
                         SpecPackNoticeKind::Flag { row } => {
@@ -120,9 +124,7 @@ impl SpecPackNoticeSubject {
                             word.content_span().ok()?,
                             config,
                             depth + 1,
-                            line,
-                            wanted,
-                            kind,
+                            site,
                             sites,
                         );
                     }
@@ -130,14 +132,21 @@ impl SpecPackNoticeSubject {
             }
             Some(())
         }
+        if word.is_empty() || !word.is_ascii() || word.contains(char::is_whitespace) {
+            return None;
+        }
+        let image = SourceImage::document(source);
+        let mut sites = Vec::new();
         walk(
             &image,
             Span::new(0, u32::try_from(image.len()).ok()?),
             config,
             0,
-            line,
-            word,
-            &kind,
+            NoticeSite {
+                line,
+                wanted: word,
+                kind: &kind,
+            },
             &mut sites,
         )?;
         let [span] = sites.as_slice() else {

@@ -45,6 +45,8 @@ mod native_procedure_name_tests;
 pub use native_procedure::NativeProcedureCommand;
 pub(crate) use native_procedure::{NativeProcedureReference, NativeProcedureResources};
 
+type CatchErrorMetadata = Option<(std::rc::Rc<[u8]>, Value)>;
+
 /// A native builtin: receives argv *without* the command name (Tcl's `objv[1..]`).
 pub type BuiltinFn = fn(&mut Vm, &[Value]) -> Completion<Value>;
 
@@ -315,7 +317,9 @@ pub(crate) fn register_builtins_with_native_core(
     if vm
         .actual_native_invocation_dialect()
         .native_bootstrap_protocol()
-        .is_some_and(|protocol| protocol.registers_core_init_auto_path())
+        .is_some_and(
+            tcl_registry::special_vars::NativeBootstrapProtocol::registers_core_init_auto_path,
+        )
     {
         vm.register_stock_builtin("::tcl::InitAutoPath", Vm::init_auto_path);
     }
@@ -714,7 +718,7 @@ pub(crate) fn build_lambda_proc(
     };
     let body = match vm.capture_procedure_declaration_body(&parts[0], &parts[1]) {
         Ok(body) => body,
-        Err(error) => return Err(completion_from_cmd_error(vm, error.into())),
+        Err(error) => return Err(completion_from_cmd_error(vm, error)),
     };
     let (params_vec, has_args) = match parse_params_value(vm, &parts[0], b"") {
         Ok(parsed) => parsed,
@@ -2011,7 +2015,7 @@ pub(crate) fn parse_params_value(
     let protocol = policy.recipe();
     let outer = match split_formal_values(vm, spec, protocol) {
         Ok(outer) => outer,
-        Err(error) => return Err(completion_from_cmd_error(vm, error.into())),
+        Err(error) => return Err(completion_from_cmd_error(vm, error)),
     };
     let caller = std::cell::RefCell::new(&mut *vm);
     let parsed = parse_formal_parameter_values(
@@ -2029,7 +2033,7 @@ pub(crate) fn parse_params_value(
     let parsed = match parsed {
         Ok(parsed) => parsed,
         Err(FormalParameterValueError::Access(error)) => {
-            return Err(completion_from_cmd_error(vm, error.into()));
+            return Err(completion_from_cmd_error(vm, error));
         }
         Err(FormalParameterValueError::Format(error)) => {
             let message = error.message_for_definition(protocol, procedure);
@@ -2116,7 +2120,7 @@ fn define_procedure(
     let prepared = if creation.definition_formals_precede_name() {
         let body = match vm.capture_procedure_declaration_body(params, body_text) {
             Ok(body) => body,
-            Err(error) => return completion_from_cmd_error(vm, error.into()),
+            Err(error) => return completion_from_cmd_error(vm, error),
         };
         let statics = match definition
             .statics_at
@@ -2151,7 +2155,7 @@ fn define_procedure(
         None => {
             let body = match vm.capture_procedure_declaration_body(params, body_text) {
                 Ok(body) => body,
-                Err(error) => return completion_from_cmd_error(vm, error.into()),
+                Err(error) => return completion_from_cmd_error(vm, error),
             };
             let statics = match definition
                 .statics_at
@@ -3651,7 +3655,7 @@ impl Vm {
         // the completion carries only a lifetime view of the same object.
         match self.publish_native_interp_completion(ok(Value::int(comp.code.as_int()))) {
             Ok(completion) => completion,
-            Err(error) => completion_from_tcl_error(self, error.into()),
+            Err(error) => completion_from_tcl_error(self, error),
         }
     }
 
@@ -3666,8 +3670,7 @@ impl Vm {
             Ok(captured) => captured,
             Err(error) => return completion_from_cmd_error(self, error),
         };
-        comp.result = match self.with_native_interp_result(|result| result.native_lifetime_lease())
-        {
+        comp.result = match self.with_native_interp_result(Value::native_lifetime_lease) {
             Ok(result) => result.into_value(),
             Err(error) => return completion_from_cmd_error(self, error.into()),
         };
@@ -3725,7 +3728,7 @@ impl Vm {
         }
         match self.publish_native_interp_completion(ok(Value::int(comp.code.as_int()))) {
             Ok(completion) => completion,
-            Err(error) => completion_from_tcl_error(self, error.into()),
+            Err(error) => completion_from_tcl_error(self, error),
         }
     }
 
@@ -3748,7 +3751,7 @@ impl Vm {
     fn checked_catch_options(
         &mut self,
         comp: &Completion<Value>,
-    ) -> Result<(Value, Option<(std::rc::Rc<[u8]>, Value)>), TclError> {
+    ) -> Result<(Value, CatchErrorMetadata), TclError> {
         let options = self.completion_options_snapshot(comp)?;
         let metadata = if comp.code == Code::Error {
             let info = opt_get_checked(self, &options, b"-errorinfo")?

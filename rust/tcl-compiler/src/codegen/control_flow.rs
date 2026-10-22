@@ -990,10 +990,7 @@ impl CodegenCtx<'_> {
         }) {
             // `TclCompileDictForCmd` compiles any body, its loop variables
             // locals of the procedure all the same.
-            for name in &vnames {
-                self.intern_compiled_local(name);
-            }
-            self.intern_script_locals(body_text);
+            self.intern_dict_iteration_locals(&vnames, body_text);
             return false;
         }
 
@@ -1004,14 +1001,7 @@ impl CodegenCtx<'_> {
         // the iterator's allocation, the `dictFirst`/`dictNext`/`unsetScalar`
         // operands are emitted with a placeholder and back-patched once the
         // iterator slot is known.
-        let k_slot = bytecode_imm(
-            self.command_variable_slot(vnames[0].as_bytes())
-                .expect("selected native local target"),
-        );
-        let v_slot = bytecode_imm(
-            self.command_variable_slot(vnames[1].as_bytes())
-                .expect("selected native local target"),
-        );
+        let (k_slot, v_slot) = self.dict_iteration_variable_slots(&vnames);
         // C Tcl allocates an unused companion temp right after the loop vars.
         let _spare = self
             .lvt
@@ -1109,6 +1099,25 @@ impl CodegenCtx<'_> {
         true
     }
 
+    fn intern_dict_iteration_locals(&mut self, names: &[String; 2], body: &str) {
+        for name in names {
+            self.intern_compiled_local(name);
+        }
+        self.intern_script_locals(body);
+    }
+
+    fn dict_iteration_variable_slots(&mut self, names: &[String; 2]) -> (i32, i32) {
+        let key = bytecode_imm(
+            self.command_variable_slot(names[0].as_bytes())
+                .expect("selected native local target"),
+        );
+        let value = bytecode_imm(
+            self.command_variable_slot(names[1].as_bytes())
+                .expect("selected native local target"),
+        );
+        (key, value)
+    }
+
     fn dict_map_variable_names(&self, vars_text: &str, body_text: &str) -> Option<[String; 2]> {
         let names = is_two_plain_names(vars_text)?;
         if !self.compiles_locals()
@@ -1134,10 +1143,7 @@ impl CodegenCtx<'_> {
             if self.compiles_locals()
                 && let Some(names) = is_two_plain_names(vars_text)
             {
-                for name in &names {
-                    self.intern_compiled_local(name);
-                }
-                self.intern_script_locals(body_text);
+                self.intern_dict_iteration_locals(&names, body_text);
             }
             return false;
         };
@@ -1145,14 +1151,7 @@ impl CodegenCtx<'_> {
         // Slots: the result accumulator and iterator temps are allocated after
         // the loop vars and the body's locals (interned during body emission),
         // so both are back-patched once known.
-        let k_slot = bytecode_imm(
-            self.command_variable_slot(vnames[0].as_bytes())
-                .expect("selected native local target"),
-        );
-        let v_slot = bytecode_imm(
-            self.command_variable_slot(vnames[1].as_bytes())
-                .expect("selected native local target"),
-        );
+        let (k_slot, v_slot) = self.dict_iteration_variable_slots(&vnames);
         let result_name = format!("#dictmap_res{}", self.catch_depth);
         let iter_name = format!("#dictmap_it{}", self.catch_depth);
         let loop_lbl = self.fresh_label("dict_map_loop");
@@ -1608,22 +1607,7 @@ impl CodegenCtx<'_> {
         let body_cmd = &body_parts[0].0;
         let body_args = &body_parts[1..];
 
-        let needs_start_cmd = self
-            .selected_invocation_traits(body_cmd, body_args)
-            .is_some_and(|traits| traits.contains(Traits::NEEDS_START_CMD));
-
-        let sc_label = if needs_start_cmd {
-            let label = self.fresh_label("catch_body_end");
-            self.emit_comment(
-                Op::START_CMD,
-                vec![Operand::Label(label.clone()), Operand::Imm(1)],
-                "",
-            );
-            self.cmd_index += 1;
-            Some(label)
-        } else {
-            None
-        };
+        let sc_label = self.start_catch_body_command(body_cmd, body_args);
 
         if super::emitter::bytecoded::try_value_bytecoded(self, body_cmd, body_args) {
             if let Some(label) = sc_label {
@@ -1665,17 +1649,7 @@ impl CodegenCtx<'_> {
             Some(InlineCodegenHookId::Expr)
                 if super::cmd_subst::lone_spelled_expression(body_args) =>
             {
-                let expr_text = &body_args[0].0;
-                // Parsed under the compile's dialect, as lowering parses a
-                // statement-position `expr`.
-                let node = self.parse_compile_expr(expr_text);
-                if let Some((msg, opts)) = detect_const_expr_error(&node) {
-                    self.push_lit(&msg);
-                    self.push_lit(&opts);
-                    self.emit(Op::SYNTAX, vec![Operand::Imm(1), Operand::Imm(0)]);
-                } else {
-                    self.emit_expr(&node);
-                }
+                self.emit_catch_expression(&body_args[0].0);
             }
             Some(InlineCodegenHookId::Try) if self.compiles_locals() => {
                 if self
@@ -1707,6 +1681,42 @@ impl CodegenCtx<'_> {
 
         if let Some(label) = sc_label {
             self.place_label(&label);
+        }
+    }
+
+    fn start_catch_body_command(
+        &mut self,
+        command: &str,
+        args: &[(String, bool)],
+    ) -> Option<String> {
+        let needs_start_cmd = self
+            .selected_invocation_traits(command, args)
+            .is_some_and(|traits| traits.contains(Traits::NEEDS_START_CMD));
+
+        if needs_start_cmd {
+            let label = self.fresh_label("catch_body_end");
+            self.emit_comment(
+                Op::START_CMD,
+                vec![Operand::Label(label.clone()), Operand::Imm(1)],
+                "",
+            );
+            self.cmd_index += 1;
+            Some(label)
+        } else {
+            None
+        }
+    }
+
+    fn emit_catch_expression(&mut self, source: &str) {
+        // Parsed under the compile's dialect, as lowering parses a
+        // statement-position `expr`.
+        let node = self.parse_compile_expr(source);
+        if let Some((message, options)) = detect_const_expr_error(&node) {
+            self.push_lit(&message);
+            self.push_lit(&options);
+            self.emit(Op::SYNTAX, vec![Operand::Imm(1), Operand::Imm(0)]);
+        } else {
+            self.emit_expr(&node);
         }
     }
 

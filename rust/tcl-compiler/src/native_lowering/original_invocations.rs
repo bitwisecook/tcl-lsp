@@ -2,7 +2,7 @@
 // Copyright (C) 2026 James Deucker (bitwisecook)
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Original source carriers for NativeLowering descriptor queries.
+//! Original source carriers for `NativeLowering` descriptor queries.
 
 use crate::ir::{CommandTokens, Module, Script, WordExpr};
 use crate::registry_invocation::InvocationMetadataContext;

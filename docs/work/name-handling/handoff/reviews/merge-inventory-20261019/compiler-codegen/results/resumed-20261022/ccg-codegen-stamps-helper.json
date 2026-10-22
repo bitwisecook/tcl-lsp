@@ -1,0 +1,67 @@
+{
+  "utc": "2026-10-22T17:41:00.519561+00:00",
+  "agent_reported": true,
+  "guarded_validation": false,
+  "status": "OFF-TREE ONLY; no canonical writes, Cargo/typecheck or functional result",
+  "patch": "/tmp/ccg-codegen-stamps-helper.patch",
+  "patch_sha256": "630474409ce35c55830049db76b74782ec0408abd83e28bdbf9d2bbd570b5530",
+  "paths": [
+    "rust/tcl-spectcl/tests/codegen_stamps.rs"
+  ],
+  "before_sha256": "5ce332baf481327fa47d9402b5ff9cf0a9b4c3cf553020d62dbc6cc3457725a6",
+  "after_sha256": "9b6c7799bb4cf8506aaddc81a6f2ad7e61ca479cea3047cbff578c4b8719233d",
+  "scope": "Replace only private whole-document helper; use real BytecodeCompileService and existing tcl9 fixture profile, retaining exact projected registry overlay. No new NativeCompilationEntry, native-authority fabrication or fallback branch.",
+  "direct_caller_count": 6,
+  "direct_callers": [
+    "a_workspace_stamp_is_refused_and_specialises_nothing",
+    "an_admitted_alias_stamp_records_the_targets_identity",
+    "the_vm_admits_it_through_the_alias_hop",
+    "a_changed_pack_invalidates_the_site",
+    "a_pack_fold_is_admitted_only_under_its_pack_s_facts",
+    "a_proc_at_the_pack_name_recompiles_plain"
+  ],
+  "unchanged_expected_bytecode_and_assertions": true,
+  "meaningful_existing_controls": [
+    {
+      "target": "tcl-compiler --lib",
+      "selector": "compile_service::tests::explicit_whole_module_artifact_keeps_procedure_inventory",
+      "purpose": "The production whole-document path keeps original procedure source provenance."
+    },
+    {
+      "target": "tcl-compiler --lib",
+      "selector": "compile_service::tests::entered_source_scope_excludes_deferred_bodies_before_cfg_preparation",
+      "purpose": "Entered sources still omit deferred procedure inventory; helper must use whole-document method, not entered-source method."
+    },
+    {
+      "target": "tcl-compiler --lib",
+      "selector": "lowering::tests::lowered_generic_metadata_keeps_supplied_context_and_refuses_missing_driver_input",
+      "purpose": "Unavailable driver input and foreign metadata remain refused; no invented metadata fallback."
+    },
+    {
+      "target": "tcl-compiler --lib",
+      "selector": "inlining::reference::tests::original_reference_candidates_use_selected_labels_instead_of_source_tails",
+      "purpose": "Reference candidates refuse missing source metadata, replaced source and foreign registry, while selected original source remains a positive."
+    },
+    {
+      "target": "tcl-compiler --lib",
+      "selector": "inlining::frame::tests::original_frame_context_declines_missing_foreign_and_stale_carriers",
+      "purpose": "Original-frame context refuses absent/foreign/stale metadata; positive bound source still admitted."
+    },
+    {
+      "target": "tcl-compiler --lib",
+      "selector": "inlining::tests::original_inlining_eligibility_retains_whole_module_and_selected_frame_context",
+      "purpose": "Actual inlining map refuses stripped source metadata and changed source, independently of this test helper."
+    }
+  ],
+  "service_backed_old_failures": "Not attributed to raw helper. Existing service_for(...).compile_for_profile calls (e.g. a_tcl_body_backed_command_is_inlined_and_admitted and Spliced::bindings) already run supplied-source pipeline. Must remeasure combined source; do not claim23oldfails fixed.",
+  "dry_copy_apply": {
+    "exit": 0,
+    "stdout": "checking file rust/tcl-spectcl/tests/codegen_stamps.rs\n",
+    "stderr": ""
+  },
+  "canonical_after_equals_before": true,
+  "syntax_check": {
+    "exit": 0,
+    "scope": "rustfmt --edition2024 --config skip_children=true --emit stdout on copied test file; no canonical formatting"
+  }
+}

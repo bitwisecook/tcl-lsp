@@ -1231,7 +1231,6 @@ fn def_use_graph_for_input(
     registry: &CommandRegistry,
     input: &ResolvedAnalysisInput,
 ) -> Value {
-    let dialect = input.unit_profile();
     fn build_inputs(fu: &FunctionUnit, is_top_level: bool) -> FunctionInputs<'_> {
         FunctionInputs {
             name: fu.name.as_str(),
@@ -1245,6 +1244,7 @@ fn def_use_graph_for_input(
         }
     }
 
+    let dialect = input.unit_profile();
     let profile = dialect;
     let cu = document_unit(source, registry, input).with_interprocedural(registry, Some(profile));
 

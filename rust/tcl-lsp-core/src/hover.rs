@@ -345,10 +345,10 @@ fn math_function_hover(
 fn original_math_function_hover(
     selected: &crate::math_function_symbol::OriginalMathFunctionSelection<'_>,
 ) -> Option<Hover> {
+    use std::fmt::Write;
     if let Some(declaration) = selected.procedure_metadata() {
         return Some(Hover::markdown(proc_hover_text(declaration.metadata())));
     }
-    use std::fmt::Write;
     let spec = selected.builtin_spec()?;
     let hover = spec.hover.as_ref()?;
     let occurrence = selected.occurrence();

@@ -469,12 +469,12 @@ fn codegen_procedures(
         asm.proc_body_src = ir_proc
             .and_then(|p| p.body_source.as_deref())
             .map(|body| module.word_rules.collapse_braced_word(body).into_owned());
-        functions.insert(qname.clone(), asm);
+        functions.insert(*qname, asm);
         if let Some(proc) = ir_proc
             && let Some(body) = &proc.body_source
         {
             provenance.insert(
-                qname.clone(),
+                *qname,
                 tcl_bytecode::ProcedureProvenance {
                     name: proc.qualified_name.clone(),
                     namespace_context: namespace_context

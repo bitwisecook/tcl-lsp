@@ -602,7 +602,7 @@ impl OriginalDeclarationSourceOperandLayout {
                 .map(Some)
                 .ok_or(refusal),
             OwnedInvocationMetadataContext::Standalone => {
-                owner.metadata_context(registry).ok_or(refusal)
+                owner.metadata_context(registry).map(crate::registry_invocation::InvocationMetadataSelection::context).ok_or(refusal)
             }
             OwnedInvocationMetadataContext::Supplied(_)
             | OwnedInvocationMetadataContext::Unavailable => Err(refusal),
@@ -1133,6 +1133,35 @@ impl NestedDeclarationLayoutKey {
     }
 }
 
+/// Hashes select lookup buckets only. Complete sealed source/parent equality
+/// decides each visit; derived memo cells stay in values, never hash-map keys.
+#[derive(Default)]
+struct NestedDeclarationLayoutVisits {
+    buckets: HashMap<u64, Vec<NestedDeclarationLayoutKey>>,
+}
+
+impl NestedDeclarationLayoutVisits {
+    fn insert(&mut self, key: NestedDeclarationLayoutKey) -> bool {
+        use std::hash::BuildHasher;
+        let fingerprint = self.buckets.hasher().hash_one(&key);
+        self.insert_in_bucket(fingerprint, key)
+    }
+
+    fn insert_in_bucket(&mut self, fingerprint: u64, key: NestedDeclarationLayoutKey) -> bool {
+        let bucket = self.buckets.entry(fingerprint).or_default();
+        if bucket.contains(&key) {
+            return false;
+        }
+        bucket.push(key);
+        true
+    }
+
+    #[cfg(test)]
+    fn len(&self) -> usize {
+        self.buckets.values().map(Vec::len).sum()
+    }
+}
+
 /// Pure original source geometry. Lookup worlds remain separate traversal inputs.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 struct NestedLayoutSyntaxKey {
@@ -1596,7 +1625,7 @@ impl SourceCommandBindings {
 
     /// Typed source Logical formal topology from the exact retained declaration.
     /// The returned values keep authored source syntax separate from Native
-    /// ParamList bytes and never grant an entered frame or installed locals.
+    /// `ParamList` bytes and never grant an entered frame or installed locals.
     pub(crate) fn original_logical_formal_topology_at(
         &self,
         site: &CommandAllocationSite,
@@ -1705,7 +1734,7 @@ impl SourceCommandBindings {
         &mut self,
         registry: &tcl_registry::CommandRegistry,
     ) -> usize {
-        let mut visited = HashSet::new();
+        let mut visited = NestedDeclarationLayoutVisits::default();
         self.retain_nested_declared_layouts_with(registry, |source, parents| {
             visited.insert(NestedDeclarationLayoutKey::new(source, parents))
         })
@@ -2365,7 +2394,7 @@ fn standalone_procedure_body_recipe(
     if advice.has_unclosed_source_coverage()
         || !advice
             .original_declaration_metadata_context(registry, tokens)
-            .is_ok_and(|metadata| metadata.is_none_or(|metadata| metadata.is_standalone()))
+            .is_ok_and(|metadata| metadata.is_none_or(crate::registry_invocation::InvocationMetadataContext::is_standalone))
         || observation.config.list_parse != tcl_dialect::ListParse::Strict
         || !matches!(&observation.namespace, super::SourceNamespaceKey::Authored(current) if current == "::")
         || !observation.entry.owns_source(&site.source, site.offset)
@@ -4052,7 +4081,7 @@ mod tests {
             let (mut cached, _) = inventory(source, "puts done");
             let mut original = cached.clone();
             let cached_visits = cached.retain_nested_declared_layouts(registry);
-            let mut visited = HashSet::new();
+            let mut visited = NestedDeclarationLayoutVisits::default();
             let original_visits = original.retain_nested_declared_layouts_using(
                 registry,
                 |source, parents| visited.insert(NestedDeclarationLayoutKey::new(source, parents)),
@@ -4070,7 +4099,7 @@ mod tests {
         // Changing a semantic facet is a distinct source-contract question;
         // these key controls do not manufacture an entered Native frame.
         let (source, parents) = nested_layout_key_fixture();
-        let mut visited = HashSet::new();
+        let mut visited = NestedDeclarationLayoutVisits::default();
         assert!(visited.insert(NestedDeclarationLayoutKey::new(&source, &parents)));
         let mut changed = parents.clone();
         changed[0].words = Arc::from([]);
@@ -4116,6 +4145,19 @@ mod tests {
         );
         assert!(visited.insert(NestedDeclarationLayoutKey::new(&materialised, &parents)));
         assert_eq!(visited.len(), 8);
+    }
+
+    #[test]
+    fn nested_layout_visit_bucket_collision_keeps_distinct_source_worlds() {
+        let (source, parents) = nested_layout_key_fixture();
+        let mut changed = parents.clone();
+        changed[0].namespace = super::super::SourceNamespaceKey::authored("::other");
+        let mut visits = NestedDeclarationLayoutVisits::default();
+        // A shared bucket cannot collapse two authentic parent namespaces.
+        assert!(visits.insert_in_bucket(0, NestedDeclarationLayoutKey::new(&source, &parents)));
+        assert!(visits.insert_in_bucket(0, NestedDeclarationLayoutKey::new(&source, &changed)));
+        assert!(!visits.insert_in_bucket(0, NestedDeclarationLayoutKey::new(&source, &parents)));
+        assert_eq!(visits.len(), 2);
     }
 
     #[test]

@@ -110,7 +110,7 @@ pub(super) fn preserves_visits(
     }
     let scope = ProofScope {
         memo: context.compilation_snapshot.and_then(|snapshot| {
-            (state.baseline.native_entry.is_none() && std::ptr::eq(state, &snapshot.table.state))
+            (state.baseline.native_entry.is_none() && std::ptr::eq(state, &raw const snapshot.table.state))
                 .then_some(&snapshot.table.compiler_name_effects)
         }),
         origin,

@@ -231,7 +231,7 @@ fn jim_math_operand_using(
     match (&parsed, original) {
         (NumValue::Int(integer), Some(original)) => original.cache(value, Number::Int(*integer))?,
         (NumValue::Float(double), Some(original)) => {
-            original.cache(value, Number::Double(*double))?
+            original.cache(value, Number::Double(*double))?;
         }
         (NumValue::Int(integer), None) => value.cache_integer_representation(*integer),
         (NumValue::Float(double), None) => value.cache_double_representation(*double),

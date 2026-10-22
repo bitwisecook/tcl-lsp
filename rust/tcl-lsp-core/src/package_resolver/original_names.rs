@@ -867,7 +867,7 @@ fn survey_index_entries(
         tcl_dialect::DialectProfile::find(version.dialect_name()).expect("C loader release");
     let registry = tcl_registry::model::ingress::static_context_for_profile(profile).commands();
     let analysis = crate::source_structure::analyse_document(content, profile, registry, config);
-    let Some(context) = analysis
+    let Some(registry_context) = analysis
         .resolved_input
         .as_ref()
         .map(tcl_compiler::analyser::ResolvedAnalysisInput::context_registry)
@@ -906,7 +906,7 @@ fn survey_index_entries(
         else {
             continue;
         };
-        if schema.with_source_schema(&context, |schema| {
+        if schema.with_source_schema(&registry_context, |schema| {
             schema.semantics.lowering_hook == Some(tcl_registry::hooks::LoweringHookId::Set)
         }) != Some(true)
         {

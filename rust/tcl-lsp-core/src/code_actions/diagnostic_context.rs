@@ -69,14 +69,14 @@ impl ContextDiagnosticData {
     /// Process-local source-advice handle. Missing or evicted handles abstain.
     #[must_use]
     pub fn to_value(&self) -> serde_json::Value {
+        const MAX_SUBJECTS: usize = 512;
+        const MAX_SOURCE_BYTES: usize = 16 * 1024 * 1024;
         if let Some(notice) = &self.notice {
             return notice.to_value();
         }
         let Some(diagnostic) = &self.diagnostic else {
             return serde_json::Value::Null;
         };
-        const MAX_SUBJECTS: usize = 512;
-        const MAX_SOURCE_BYTES: usize = 16 * 1024 * 1024;
         let mut retained = subjects()
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
@@ -208,6 +208,7 @@ pub(super) fn current_commands(
     analysis: &AnalysisResult,
     registry: &CommandRegistry,
 ) -> Option<Vec<SourceCommand>> {
+    use tcl_compiler::registry_invocation::InvocationWordOrigin;
     let image = SourceImage::document(source);
     let config = analysis.body_lexer_config?;
     let current_registry = analysis.resolved_registry()?;
@@ -217,7 +218,6 @@ pub(super) fn current_commands(
         return None;
     }
     let mut commands = BTreeMap::new();
-    use tcl_compiler::registry_invocation::InvocationWordOrigin;
     let context = analysis.resolved_input.as_ref()?.context_registry();
     let structure =
         crate::source_structure::SourceStructure::capture(source, Some(analysis), config)?;

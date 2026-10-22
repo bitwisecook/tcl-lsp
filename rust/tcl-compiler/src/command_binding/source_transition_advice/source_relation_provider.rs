@@ -169,6 +169,31 @@ fn is_registry_class_root(descriptor: &tcl_registry::CommandSpec) -> bool {
             .is_some_and(|grammar| grammar.family == DefinerFamily::TclOo)
 }
 
+/// A class query has either not visited its parent, refused that visit, or
+/// retained a unanimous provider. A later conflicting visit stays refused.
+enum ClassRelationObservation<T> {
+    Unobserved,
+    Refused,
+    Available(T),
+}
+
+impl<T: PartialEq> ClassRelationObservation<T> {
+    fn retain(&mut self, receipt: Option<T>) {
+        match (&*self, receipt) {
+            (Self::Unobserved, Some(receipt)) => *self = Self::Available(receipt),
+            (Self::Available(previous), Some(current)) if previous == &current => {}
+            _ => *self = Self::Refused,
+        }
+    }
+
+    fn into_provider(self) -> Option<T> {
+        match self {
+            Self::Available(provider) => Some(provider),
+            Self::Unobserved | Self::Refused => None,
+        }
+    }
+}
+
 struct ClassRelationRequest {
     body: OriginalSourceScriptBody,
     parent: Arc<OriginalSourceCommandTransitionAdvice>,
@@ -220,7 +245,7 @@ impl ClassRelationRequest {
 #[derive(Clone, Copy)]
 pub(super) struct ClassRelationQuery<'a> {
     request: &'a ClassRelationRequest,
-    reply: &'a RefCell<Option<Option<OriginalSourceClassRelationProvider>>>,
+    reply: &'a RefCell<ClassRelationObservation<OriginalSourceClassRelationProvider>>,
 }
 
 impl super::super::SourceCommandBindings {
@@ -241,7 +266,7 @@ impl super::super::SourceCommandBindings {
         if request.parent.site().source != seed.origin || request.parent.config != seed.config {
             return None;
         }
-        let reply = RefCell::new(None);
+        let reply = RefCell::new(ClassRelationObservation::Unobserved);
         seed.prepare_for_query(
             &context,
             OriginalSourceCataloguePurpose::CompletePrefix,
@@ -252,7 +277,7 @@ impl super::super::SourceCommandBindings {
                 },
             )),
         )?;
-        reply.into_inner().flatten()
+        reply.into_inner().into_provider()
     }
 }
 
@@ -272,7 +297,7 @@ impl AdviceInvocationContext<'_> {
             .native
             .first()
             .map(NativeWord::span)
-            .map(|span| span.start())
+            .map(tcl_lexer::Span::start)
             != Some(query.request.parent.site().offset)
         {
             return;
@@ -326,12 +351,7 @@ impl AdviceInvocationContext<'_> {
                 receiver: self.source_class_declaration(graph, invocation, schema),
             })
         })();
-        let mut reply = query.reply.borrow_mut();
-        match &*reply {
-            None => *reply = Some(receipt),
-            Some(previous) if previous != &receipt => *reply = Some(None),
-            _ => {}
-        }
+        query.reply.borrow_mut().retain(receipt);
     }
 }
 
@@ -420,13 +440,15 @@ impl LogicalSourceClassRelationProvider {
                 .logical_source_class(analysis)
                 .is_some_and(|selected| std::ptr::eq(selected, class))
     }
-    pub(crate) fn source_class<'a>(
+    pub(crate) fn source_target<'a>(
         &self,
         analysis: &'a crate::analyser::AnalysisResult,
-    ) -> Option<Option<&'a crate::analyser::ClassDef>> {
+    ) -> Option<LogicalSourceClassRelationTarget<'a>> {
         match &self.provider {
-            ClassProvider::Source(class) => class.logical_source_class(analysis).map(Some),
-            ClassProvider::Registry(_) => Some(None),
+            ClassProvider::Source(class) => class
+                .logical_source_class(analysis)
+                .map(LogicalSourceClassRelationTarget::Source),
+            ClassProvider::Registry(_) => Some(LogicalSourceClassRelationTarget::Registry),
         }
     }
 }
@@ -491,7 +513,7 @@ impl LogicalClassRelationRequest {
 #[derive(Clone, Copy)]
 pub(super) struct LogicalClassRelationQuery<'a> {
     request: &'a LogicalClassRelationRequest,
-    reply: &'a RefCell<Option<Option<LogicalSourceClassRelationProvider>>>,
+    reply: &'a RefCell<ClassRelationObservation<LogicalSourceClassRelationProvider>>,
 }
 impl super::super::SourceCommandBindings {
     pub(crate) fn logical_class_relation_provider(
@@ -508,7 +530,7 @@ impl super::super::SourceCommandBindings {
         if request.parent.site().source != seed.origin || request.parent.config != seed.config {
             return None;
         }
-        let reply = RefCell::new(None);
+        let reply = RefCell::new(ClassRelationObservation::Unobserved);
         seed.prepare_for_query(
             &context,
             OriginalSourceCataloguePurpose::CompletePrefix,
@@ -519,7 +541,7 @@ impl super::super::SourceCommandBindings {
                 },
             )),
         )?;
-        reply.into_inner().flatten()
+        reply.into_inner().into_provider()
     }
 }
 impl AdviceInvocationContext<'_> {
@@ -536,7 +558,7 @@ impl AdviceInvocationContext<'_> {
             .native
             .first()
             .map(NativeWord::span)
-            .map(|span| span.start())
+            .map(tcl_lexer::Span::start)
             != Some(query.request.parent.site().offset)
         {
             return;
@@ -571,12 +593,7 @@ impl AdviceInvocationContext<'_> {
                 receiver,
             })
         })();
-        let mut reply = query.reply.borrow_mut();
-        match &*reply {
-            None => *reply = Some(receipt),
-            Some(previous) if previous != &receipt => *reply = Some(None),
-            _ => {}
-        }
+        query.reply.borrow_mut().retain(receipt);
     }
 }
 
@@ -667,7 +684,7 @@ impl LogicalSourceClassRelationCandidates {
 #[derive(Clone, Copy)]
 pub(super) struct LogicalClassRelationCandidatesQuery<'a> {
     request: &'a LogicalClassRelationRequest,
-    reply: &'a RefCell<Option<Option<LogicalSourceClassRelationCandidates>>>,
+    reply: &'a RefCell<ClassRelationObservation<LogicalSourceClassRelationCandidates>>,
 }
 
 impl super::super::SourceCommandBindings {
@@ -685,7 +702,7 @@ impl super::super::SourceCommandBindings {
         if request.parent.site().source != seed.origin || request.parent.config != seed.config {
             return None;
         }
-        let reply = RefCell::new(None);
+        let reply = RefCell::new(ClassRelationObservation::Unobserved);
         seed.prepare_for_query(
             &context,
             OriginalSourceCataloguePurpose::CompletePrefix,
@@ -696,7 +713,7 @@ impl super::super::SourceCommandBindings {
                 },
             )),
         )?;
-        reply.into_inner().flatten()
+        reply.into_inner().into_provider()
     }
 }
 
@@ -715,7 +732,7 @@ impl AdviceInvocationContext<'_> {
             .native
             .first()
             .map(NativeWord::span)
-            .map(|span| span.start())
+            .map(tcl_lexer::Span::start)
             != Some(query.request.parent.site().offset)
         {
             return;
@@ -760,12 +777,7 @@ impl AdviceInvocationContext<'_> {
                 earlier_unknown_mutations: !graph.uncertain_operations.is_empty(),
             })
         })();
-        let mut reply = query.reply.borrow_mut();
-        match &*reply {
-            None => *reply = Some(receipt),
-            Some(previous) if previous != &receipt => *reply = Some(None),
-            _ => {}
-        }
+        query.reply.borrow_mut().retain(receipt);
     }
 }
 

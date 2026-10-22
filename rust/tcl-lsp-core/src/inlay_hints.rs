@@ -182,10 +182,12 @@ pub fn inlay_hints_in_program(
         // they need the registry the same way the type hints do.
         collect_format_string_hints(
             source,
-            dialect,
             analysis,
-            registry,
-            &cu,
+            FormatHintContext {
+                dialect,
+                registry,
+                unit: &cu,
+            },
             range,
             &line_index,
             &mut out,
@@ -814,20 +816,30 @@ fn push_format_hint(
     });
 }
 
+#[derive(Clone, Copy)]
+struct FormatHintContext<'a> {
+    dialect: &'static tcl_dialect::DialectProfile,
+    registry: &'a CommandRegistry,
+    unit: &'a CompilationUnit,
+}
+
 /// Collect format-string specifier hints for the whole document. `cu` is the
 /// same [`CompilationUnit`] the caller built for the type hints: a
 /// format word with no literal content of its own falls back to the
 /// lattice's proven value for it, read off `cu`.
 fn collect_format_string_hints(
     source: &str,
-    dialect: &'static tcl_dialect::DialectProfile,
     analysis: &AnalysisResult,
-    registry: &CommandRegistry,
-    cu: &CompilationUnit,
+    context: FormatHintContext<'_>,
     range: LspRange,
     line_index: &LineIndex,
     out: &mut Vec<InlayHint>,
 ) {
+    let FormatHintContext {
+        dialect,
+        registry,
+        unit: cu,
+    } = context;
     let profile = dialect;
     let Some(config) = analysis.body_lexer_config else {
         return;
@@ -2283,10 +2295,12 @@ mod original_hint_tests {
             let mut out = Vec::new();
             collect_format_string_hints(
                 source,
-                crate::profile_for_dialect("tcl8.6"),
                 &analysis,
-                registry,
-                &unit,
+                FormatHintContext {
+                    dialect: crate::profile_for_dialect("tcl8.6"),
+                    registry,
+                    unit: &unit,
+                },
                 LspRange {
                     start_line: 0,
                     start_character: 0,

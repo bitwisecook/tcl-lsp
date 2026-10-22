@@ -556,7 +556,7 @@ pub(crate) fn logical_value_for_vm(
         && context
             .dialect
             .native_scalar_getter_protocol()
-            .and_then(|scalar| scalar.tcl_version())
+            .and_then(tcl_syntax::scalar_getter::NativeScalarGetterProtocol::tcl_version)
             == Some(tcl_dialect::TclVersion::V8_4)
         && !left.native_object_is_shared()
     {

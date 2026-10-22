@@ -208,6 +208,37 @@ fn is_dynamic_eval_body(view: &crate::registry_invocation::InvocationBodyAssista
 }
 
 impl Analyser {
+    fn emit_body_depth_limit_if_exceeded(&mut self, span: tcl_lexer::Span) -> bool {
+        if !MAX_BODY_DEPTH.exceeded(self.body_depth) {
+            return false;
+        }
+        // Stop descending before the recursive body walk overflows the
+        // stack — the diagnostics collected up to this nesting level
+        // still stand. Report it as a diagnostic (once per walk, not
+        // once per nested body past the cap) rather than truncating
+        // silently: tclsh's own recursion limit raises a catchable
+        // "too many nested evaluations (infinite loop?)" error at this
+        // point rather than continuing quietly, and a process abort is
+        // never the right failure mode either way.
+        if !self.structure_only && !self.e207_emitted {
+            self.e207_emitted = true;
+            self.result
+                .diagnostics
+                .push(crate::analyser::types::Diagnostic::new(
+                    DiagCode::E207,
+                    span,
+                    format!(
+                        "nesting depth exceeds the analysis limit ({} levels) — \
+                     diagnostics for this body and anything nested inside it are not \
+                     collected",
+                        MAX_BODY_DEPTH.0
+                    ),
+                    Severity::Error,
+                ));
+        }
+        true
+    }
+
     /// Re-segment a body script and dispatch each command at
     /// `scope_path`.
     ///
@@ -236,31 +267,7 @@ impl Analyser {
             return;
         }
         self.body_depth += 1;
-        if MAX_BODY_DEPTH.exceeded(self.body_depth) {
-            // Stop descending before the recursive body walk overflows the
-            // stack — the diagnostics collected up to this nesting level
-            // still stand. Report it as a diagnostic (once per walk, not
-            // once per nested body past the cap) rather than truncating
-            // silently: tclsh's own recursion limit raises a catchable
-            // "too many nested evaluations (infinite loop?)" error at this
-            // point rather than continuing quietly, and a process abort is
-            // never the right failure mode either way.
-            if !self.structure_only && !self.e207_emitted {
-                self.e207_emitted = true;
-                self.result
-                    .diagnostics
-                    .push(crate::analyser::types::Diagnostic::new(
-                        DiagCode::E207,
-                        body_tok.span,
-                        format!(
-                            "nesting depth exceeds the analysis limit ({} levels) — \
-                         diagnostics for this body and anything nested inside it are not \
-                         collected",
-                            MAX_BODY_DEPTH.0
-                        ),
-                        Severity::Error,
-                    ));
-            }
+        if self.emit_body_depth_limit_if_exceeded(body_tok.span) {
             self.body_depth -= 1;
             return;
         }
@@ -1677,7 +1684,7 @@ impl Analyser {
             presubstituted_args: false,
         };
         let original = self.original_diagnostic_invocation(&site)?;
-        let transitions = original.with_schema(|schema| schema.state_transitions())?;
+        let transitions = original.with_schema(tcl_registry::ResolvedInvocation::state_transitions)?;
         let mut values = Vec::new();
         let mut tokens = Vec::new();
         for index in 0..original.words().arguments().len() {
@@ -2881,7 +2888,7 @@ impl Analyser {
             );
         let plan = source_words.as_ref().and_then(|words| {
             words
-                .with_source_schema(generation.as_ref(), |schema| schema.clause_plan())
+                .with_source_schema(generation.as_ref(), tcl_registry::ResolvedInvocation::clause_plan)
                 .flatten()
         });
         if let (Some(plan), Some(words)) = (plan.as_ref(), source_words.as_ref()) {

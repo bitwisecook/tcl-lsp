@@ -941,7 +941,7 @@ impl ExecutableFunction {
         })())
     }
 
-    /// Source-backed command effects for one EvaluateExpr value. Outer None
+    /// Source-backed command effects for one `EvaluateExpr` value. Outer None
     /// denotes an explicitly carrierless compatibility function; inner None
     /// denotes a missing/changed production operand owner.
     pub(crate) fn original_expression_command_effects(

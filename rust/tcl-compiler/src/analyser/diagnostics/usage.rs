@@ -1376,7 +1376,7 @@ pub(in crate::analyser) enum W110Anchor<'a> {
 
 /// Propose array-index substitution while preserving the literal source root.
 /// The fallback invokes an unwritten `::set`; its stock meaning is a separate
-/// RequiresReview premise, never an original command selection proof.
+/// `RequiresReview` premise, never an original command selection proof.
 fn build_w216_replacement(
     name: &str,
     inner: &str,

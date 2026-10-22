@@ -794,7 +794,7 @@ mod tests {
     #[test]
     fn comment_citations_are_exempt() {
         let history = "/// The environment-model form of `DialectProfile::by_name(name)`.\n";
-        assert!(scan(history, false).is_empty());
+        assert_eq!(scan(history, false).len(), 0);
         let code = "let p = DialectProfile::by_name(name);\n";
         assert_eq!(scan(code, false).len(), 1);
     }
@@ -804,7 +804,7 @@ mod tests {
     #[test]
     fn registry_internal_survivors_are_scoped() {
         let line = "use crate::profile_queries::ProfileQueries;\n";
-        assert!(scan(line, true).is_empty());
+        assert_eq!(scan(line, true).len(), 0);
         assert_eq!(scan(line, false).len(), 1);
     }
 
@@ -842,13 +842,11 @@ mod tests {
     #[test]
     fn owned_answers_are_free_in_their_owner() {
         let line = "let names = self.builtin_command_names();\n";
-        assert!(
-            scan_owned(
+        assert_eq!(scan_owned(
                 line,
                 Path::new("rust/tcl-compiler/src/analyser/diagnostics/unresolved.rs")
             )
-            .is_empty()
-        );
+            .len(), 0);
         assert_eq!(
             scan_owned(line, Path::new("rust/tcl-lsp-core/src/completion.rs")).len(),
             1
@@ -867,8 +865,8 @@ mod tests {
         // One answer may have several owners — the constant folder asks the
         // registry's availability question legitimately.
         let fold = "if registry.has_command_in_this_dialect(head) { }\n";
-        assert!(scan_owned(fold, Path::new("rust/tcl-compiler/src/codegen/values.rs")).is_empty());
-        assert!(scan_owned(fold, Path::new("rust/tcl-registry/src/registry.rs")).is_empty());
+        assert_eq!(scan_owned(fold, Path::new("rust/tcl-compiler/src/codegen/values.rs")).len(), 0);
+        assert_eq!(scan_owned(fold, Path::new("rust/tcl-registry/src/registry.rs")).len(), 0);
         assert_eq!(
             scan_owned(fold, Path::new("rust/tcl-vm/src/interp.rs")).len(),
             1
@@ -878,13 +876,11 @@ mod tests {
     #[test]
     fn declared_transport_owner_does_not_license_binding_consumers() {
         let field = "pub declared_commands: Option<tcl_registry::model::DeclaredSurface>;";
-        assert!(
-            scan_owned(
+        assert_eq!(scan_owned(
                 field,
                 Path::new("rust/tcl-compiler/src/command_binding/source_analysis_entry.rs")
             )
-            .is_empty()
-        );
+            .len(), 0);
         for consumer in [
             "rust/tcl-compiler/src/command_binding.rs",
             "rust/tcl-compiler/src/command_binding/conditional_body.rs",
@@ -904,7 +900,7 @@ mod tests {
     #[test]
     fn owned_answer_citations_are_exempt() {
         let prose = "/// Answered by `builtin_command_names`, the one oracle.\n";
-        assert!(scan_owned(prose, Path::new("rust/tcl-lsp-core/src/completion.rs")).is_empty());
+        assert_eq!(scan_owned(prose, Path::new("rust/tcl-lsp-core/src/completion.rs")).len(), 0);
         let code = "let names = self.builtin_command_names();\n";
         assert_eq!(
             scan_owned(code, Path::new("rust/tcl-lsp-core/src/completion.rs")).len(),

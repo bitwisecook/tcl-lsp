@@ -416,9 +416,15 @@ mod original_script_syntax_tests {
         assert_eq!(body.image, image);
         assert_eq!(root.missing, None);
         assert_eq!(body.missing, None);
-        assert_eq!(root.tokens[0].source.start(), 3);
+        // Pinned Jim 0.84 keeps a leading BOM as command-name bytes in both
+        // contexts (JimParserInit/JimParseScript), rather than C file-root skipping.
+        assert_eq!(root.tokens[0].source.start(), 0);
         assert_eq!(body.tokens[0].source.start(), 0);
-        assert_ne!(root.tokens[0].value, body.tokens[0].value);
+        assert_eq!(root.tokens[0].value, body.tokens[0].value);
+        assert_eq!(
+            &image.bytes()[root.tokens[0].value.as_range()],
+            "\u{feff}set".as_bytes()
+        );
         let mut foreign = config();
         foreign.braced_var = crate::BracedVarStyle::Tcl9Nesting;
         assert_eq!(

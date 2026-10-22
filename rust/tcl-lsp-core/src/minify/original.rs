@@ -587,10 +587,10 @@ fn syntax_compaction(source: &str, analysis: &AnalysisResult) -> Result<String, 
                 continue;
             };
             // Child scripts keep their independently authenticated script gaps.
-            let candidate =
+            let compacted_candidate =
                 super::strip_expr_whitespace_with_script_compaction(inner, env, 0, false);
             let Some(proof) = tcl_compiler::registry_invocation::source_structure::original_expression_syntax_gap_compaction(
-                source, analysis, command, argument, &candidate,
+                source, analysis, command, argument, &compacted_candidate,
             ) else { continue; };
             if !proof.matches_source(&image, config) || !proof.matches_registry(context.commands())
             {

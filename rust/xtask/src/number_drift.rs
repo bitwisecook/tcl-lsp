@@ -543,12 +543,12 @@ mod tests {
     #[test]
     fn closure_params_after_a_prefix_literal_do_not_match() {
         let src = "let n = pick(\"0x\") | mask(y);\n";
-        assert!(scan(src).is_empty());
+        assert_eq!(scan(src).len(), 0);
     }
 
     #[test]
     fn expression_boundary_owner_is_unique_and_consumed() {
-        assert!(expr_boundary_owner_problems(&crate::util::repo_root()).is_empty());
+        assert_eq!(expr_boundary_owner_problems(&crate::util::repo_root()).len(), 0);
     }
 
     #[test]

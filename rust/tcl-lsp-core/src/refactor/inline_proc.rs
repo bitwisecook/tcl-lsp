@@ -216,7 +216,16 @@ fn plan_inline(
     }
     if !analysis.allows_lexical_declaration_advice() {
         return original_inline_body(
-            source, call, proc_def, analysis, &walk, &body, &nested, numbers,
+            source,
+            call,
+            proc_def,
+            analysis,
+            &walk,
+            InlineBodySyntax {
+                command: &body,
+                nested: &nested,
+                numbers,
+            },
         );
     }
     let bindings = bind_arguments(source, call, proc_def, &walk)?;
@@ -235,6 +244,13 @@ fn plan_inline(
     )
 }
 
+#[derive(Clone, Copy)]
+struct InlineBodySyntax<'a> {
+    command: &'a BodyCommand,
+    nested: &'a [tcl_compiler::segmenter::SegmentedCommand],
+    numbers: NumberSyntax,
+}
+
 /// Rewrite only the selected original allocation and exact formal/argv
 /// topology. Frozen values never erase a written variable or command read.
 fn original_inline_body(
@@ -243,14 +259,17 @@ fn original_inline_body(
     proc_def: &tcl_compiler::analyser::ProcDef,
     analysis: &AnalysisResult,
     walk: &super::FrameWalk<'_>,
-    body: &BodyCommand,
-    nested: &[tcl_compiler::segmenter::SegmentedCommand],
-    numbers: NumberSyntax,
+    syntax: InlineBodySyntax<'_>,
 ) -> Result<String, String> {
     use tcl_compiler::registry_invocation::{
         InvocationWordOrigin, effective_command_words, frozen_argument_words,
     };
     use tcl_syntax::formal_params::FormalByteArgumentBinding;
+    let InlineBodySyntax {
+        command: body,
+        nested,
+        numbers,
+    } = syntax;
     let unavailable =
         || "the original parameter or call operand topology is unavailable".to_owned();
     let record = analysis
@@ -961,24 +980,24 @@ fn literal_substitution_container(
                 if word.group().kind == tcl_lexer::WordKind::Quoted {
                     continue;
                 }
-                let Ok(content) = word.content_span() else {
+                let Ok(expression_span) = word.content_span() else {
                     continue;
                 };
                 let Some(text) = word
                     .image()
                     .try_text()
                     .ok()
-                    .and_then(|text| text.get(content.as_range()))
+                    .and_then(|text| text.get(expression_span.as_range()))
                 else {
                     continue;
                 };
-                let Some(from) = reference.start().checked_sub(content.start()) else {
+                let Some(from) = reference.start().checked_sub(expression_span.start()) else {
                     continue;
                 };
-                let Some(to) = reference.end().checked_sub(content.start()) else {
+                let Some(to) = reference.end().checked_sub(expression_span.start()) else {
                     continue;
                 };
-                if to > content.end() - content.start() {
+                if to > expression_span.end() - expression_span.start() {
                     continue;
                 }
                 let mut context = tcl_syntax::expr::parser::ExprParseContext::for_profile(profile);

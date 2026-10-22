@@ -1997,7 +1997,7 @@ fn source_expression_indices(
     } else {
         let surface = tcl_registry::model::DocumentCommandSurface::new(context.registry, None);
         (
-            in_frame_expression_arg_indices(lookup, &args, &surface),
+            in_frame_expression_arg_indices(lookup, args, &surface),
             surface
                 .commands()
                 .get(lookup)

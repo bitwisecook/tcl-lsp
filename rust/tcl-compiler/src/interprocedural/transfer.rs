@@ -491,7 +491,7 @@ impl<'a> ModuleProcedures<'a> {
     }
 
     pub(crate) fn body_for_cfg(&self, cfg: &CfgFunction) -> Option<Option<crate::ir::ProcedureId>> {
-        if std::ptr::eq(cfg, &self.cfg.top_level) {
+        if std::ptr::eq(cfg, std::ptr::from_ref(&self.cfg.top_level)) {
             return Some(None);
         }
         let mut candidates = self
@@ -504,7 +504,7 @@ impl<'a> ModuleProcedures<'a> {
                 self.units
                     .into_iter()
                     .flat_map(|units| units.iter())
-                    .filter(|(_, row)| std::ptr::eq(cfg, &row.cfg))
+                    .filter(|(_, row)| std::ptr::eq(cfg, std::ptr::from_ref(&row.cfg)))
                     .map(|(id, _)| *id),
             );
         let first = candidates.next()?;

@@ -1804,9 +1804,9 @@ impl tcl_syntax::expr::ExprOps for FoldOps<'_> {
                 return None;
             }
             let left =
-                tcl_syntax::raw_string::RawString::from_unicode(self.text_of(&left, format)?);
+                tcl_syntax::raw_string::RawString::from_unicode(self.text_of(left, format)?);
             let right =
-                tcl_syntax::raw_string::RawString::from_unicode(self.text_of(&right, format)?);
+                tcl_syntax::raw_string::RawString::from_unicode(self.text_of(right, format)?);
             left.compare_character_units(model, &right, (0, 0)).ok()
         })();
         result.ok_or_else(|| {
@@ -1831,8 +1831,8 @@ impl tcl_syntax::expr::ExprOps for FoldOps<'_> {
             .invocation_dialect
             .and_then(tcl_registry::InvocationDialect::double_string_policy)
             .and_then(tcl_dialect::DoubleStringPolicy::constant_format);
-        let left = self.text_of(&left, format).ok_or(())?;
-        let right = self.text_of(&right, format).ok_or(())?;
+        let left = self.text_of(left, format).ok_or(())?;
+        let right = self.text_of(right, format).ok_or(())?;
         Ok(left.as_bytes() == right.as_bytes())
     }
     fn in_list(&mut self, needle: &FoldValue, list: &FoldValue) -> Result<bool, ()> {
@@ -1850,8 +1850,8 @@ impl tcl_syntax::expr::ExprOps for FoldOps<'_> {
             .invocation_dialect
             .and_then(tcl_registry::InvocationDialect::double_string_policy)
             .and_then(tcl_dialect::DoubleStringPolicy::constant_format);
-        let n = self.text_of(&needle, format).ok_or(())?;
-        let list = self.text_of(&list, format).ok_or(())?;
+        let n = self.text_of(needle, format).ok_or(())?;
+        let list = self.text_of(list, format).ok_or(())?;
         Ok(split_tcl_list(&list, self.word_rules).contains(&n))
     }
 
@@ -1923,8 +1923,8 @@ impl tcl_syntax::expr::ExprOps for FoldOps<'_> {
         apply_irules_string_op(
             provider,
             op,
-            &self.text_of(&left, format).ok_or(())?,
-            &self.text_of(&right, format).ok_or(())?,
+            &self.text_of(left, format).ok_or(())?,
+            &self.text_of(right, format).ok_or(())?,
         )
         .map(FoldValue::from_tcl)
         .ok_or(())

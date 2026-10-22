@@ -16,7 +16,7 @@ impl Vm {
         let reached = (|| {
             let elements = match self.native_interpreter_path_elements(path) {
                 Ok(elements) => elements,
-                Err(error) => return completion_from_cmd_error(self, error.into()),
+                Err(error) => return completion_from_cmd_error(self, error),
             };
             // ChildCreate retains the whole original spelling when its list has
             // fewer than two elements; this differs from GetInterp's element loop.
@@ -123,7 +123,7 @@ impl Vm {
         let reached = (|| {
             let elements = self
                 .native_interpreter_path_elements(original)
-                .map_err(|error| completion_from_cmd_error(self, error.into()))?;
+                .map_err(|error| completion_from_cmd_error(self, error))?;
             let mut selected = self.cur;
             for element in elements {
                 let next = self

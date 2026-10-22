@@ -575,7 +575,7 @@ pub fn package_requires_in(content: &str) -> Vec<String> {
     if plan.fatal_tail.is_some() {
         return Vec::new();
     }
-    let context = tcl_registry::model::ingress::static_context_for("tcl");
+    let registry_context = tcl_registry::model::ingress::static_context_for("tcl");
     let mut dialect =
         tcl_registry::InvocationDialect::of_profile(tcl_dialect::DialectProfile::plain_tcl());
     dialect.lexer_grammar = config.grammar_over(dialect.lexer_grammar);
@@ -615,8 +615,8 @@ pub fn package_requires_in(content: &str) -> Vec<String> {
         };
         let Some(schema) =
             tcl_registry::model::assembly::resolve_structured_invocation_in_resolved_context(
-                context.commands(),
-                Some(context.context()),
+                registry_context.commands(),
+                Some(registry_context.context()),
                 tcl_registry::InvocationWords::structured(head, arguments).with_dialect(dialect),
                 tcl_dialect::model::InvocationRealm::InterpreterRuntime,
             )

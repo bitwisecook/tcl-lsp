@@ -452,6 +452,52 @@ fn binary_encode_wrapped(
     }
 }
 
+fn wrapped_line_length(
+    vm: &mut Vm,
+    value: &Value,
+    uu: bool,
+    original: OriginalNumericCommandContext<'_>,
+) -> Result<i64, TclError> {
+    if let Some(authored) = original.authored {
+        let reached = value.as_int_with_stages(Some(authored));
+        original
+            .current(vm)
+            .map_err(TclError::from_execution_failure)?;
+        reached
+    } else {
+        let purpose = if uu {
+            NativeNumericCommandPurpose::UuencodeLineLength
+        } else {
+            NativeNumericCommandPurpose::Base64LineLength
+        };
+        let reached =
+            original_numeric_command_ops(vm, original, purpose, |ops, selected| {
+                match ops.getter(value, selected.getter_kind())? {
+                    tcl_syntax::scalar_getter::NativeScalarGetterValue::Wide(n) if n >= 0 => Ok(n),
+                    tcl_syntax::scalar_getter::NativeScalarGetterValue::Wide(_) => {
+                        let error = selected.negative_line_length_error().ok_or(
+                            tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                                "line length diagnostic",
+                            ),
+                        )?;
+                        Err(tcl_cmd_core::CmdError::with_error_code_bytes(
+                            error.message,
+                            error.error_code,
+                        ))
+                    }
+                    _ => Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                        "line length integer output",
+                    )
+                    .into()),
+                }
+            });
+        original
+            .current(vm)
+            .map_err(TclError::from_execution_failure)?;
+        reached.map_err(|error| crate::command::completion_option_failure(vm, error))
+    }
+}
+
 fn binary_encode_wrapped_in_original(
     vm: &mut Vm,
     args: &[Value],
@@ -478,50 +524,7 @@ fn binary_encode_wrapped_in_original(
             .map_err(TclError::from_execution_failure)?;
         match option.as_ref() {
             b"-maxlen" => {
-                let n = if let Some(authored) = original.authored {
-                    let reached = args[i + 1].as_int_with_stages(Some(authored));
-                    original
-                        .current(vm)
-                        .map_err(TclError::from_execution_failure)?;
-                    reached?
-                } else {
-                    let purpose = if uu {
-                        NativeNumericCommandPurpose::UuencodeLineLength
-                    } else {
-                        NativeNumericCommandPurpose::Base64LineLength
-                    };
-                    let reached =
-                        original_numeric_command_ops(vm, original, purpose, |ops, selected| {
-                            match ops.getter(&args[i + 1], selected.getter_kind())? {
-                                tcl_syntax::scalar_getter::NativeScalarGetterValue::Wide(n)
-                                    if n >= 0 =>
-                                {
-                                    Ok(n)
-                                }
-                                tcl_syntax::scalar_getter::NativeScalarGetterValue::Wide(_) => {
-                                    let error = selected.negative_line_length_error().ok_or(
-                                        tcl_syntax::value::ValueError::CommandProtocolUnavailable(
-                                            "line length diagnostic",
-                                        ),
-                                    )?;
-                                    Err(tcl_cmd_core::CmdError::with_error_code_bytes(
-                                        error.message,
-                                        error.error_code,
-                                    ))
-                                }
-                                _ => {
-                                    Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
-                                        "line length integer output",
-                                    )
-                                    .into())
-                                }
-                            }
-                        });
-                    original
-                        .current(vm)
-                        .map_err(TclError::from_execution_failure)?;
-                    reached.map_err(|error| crate::command::completion_option_failure(vm, error))?
-                };
+                let n = wrapped_line_length(vm, &args[i + 1], uu, original)?;
                 if n < 0 {
                     return Ok(err("line length out of range"));
                 }
@@ -1037,7 +1040,7 @@ fn binary_scan_with_invocation(
                             let vm = &mut *vm.borrow_mut();
                             original
                                 .current_for_value(vm, data_v)
-                                .and_then(|_| original.current_for_value(vm, fmt_v))
+                                .and_then(|()| original.current_for_value(vm, fmt_v))
                                 .map_err(|error| {
                                     crate::command::completion_from_cmd_error(vm, error)
                                 })?;
@@ -1065,7 +1068,7 @@ fn binary_scan_with_invocation(
                             };
                             original
                                 .current_for_value(vm, data_v)
-                                .and_then(|_| original.current_for_value(vm, fmt_v))
+                                .and_then(|()| original.current_for_value(vm, fmt_v))
                                 .map_err(|error| {
                                     crate::command::completion_from_cmd_error(vm, error)
                                 })?;
@@ -1074,7 +1077,7 @@ fn binary_scan_with_invocation(
                             // its full completion remains intact for Guest propagation.
                             original
                                 .current_for_value(vm, data_v)
-                                .and_then(|_| original.current_for_value(vm, fmt_v))
+                                .and_then(|()| original.current_for_value(vm, fmt_v))
                                 .map_err(|error| {
                                     crate::command::completion_from_cmd_error(vm, error)
                                 })?;

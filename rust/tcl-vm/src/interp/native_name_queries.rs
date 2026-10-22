@@ -433,6 +433,10 @@ impl Vm {
         &mut self,
         id: CommandId,
     ) -> Result<Option<Vec<Vec<u8>>>, CmdError> {
+        enum Words {
+            Direct(Vec<crate::NativeObjectLifetimeLease>),
+            List(crate::NativeObjectLifetimeLease),
+        }
         let scope = NativeOperationScope::enter(self)?;
         let key = self
             .command_sidecar_key(id.0)
@@ -464,10 +468,6 @@ impl Vm {
             Ok(())
         };
         let command = self.command_at_sidecar_key(&key);
-        enum Words {
-            Direct(Vec<crate::NativeObjectLifetimeLease>),
-            List(crate::NativeObjectLifetimeLease),
-        }
         let originals = match command.as_ref() {
             Some(Command::Alias { words, .. }) => Some(Words::Direct(
                 words.iter().map(Value::native_lifetime_lease).collect(),

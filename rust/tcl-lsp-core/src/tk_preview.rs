@@ -553,6 +553,7 @@ fn finish_tk_analysis(analysis: TkAnalysis) -> TkUiModel {
     }
 }
 
+#[derive(Clone, Copy)]
 struct TkRegistryContext<'a> {
     registry: &'a CommandRegistry,
     source_analysis: &'a AnalysisResult,

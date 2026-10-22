@@ -2565,7 +2565,7 @@ mod tests {
                         && row.entry == "Namespaces::guard_lookup_environment_revision"
                 })
         );
-        assert!(validate_internal_manifest(&root, &contract).is_empty());
+        assert_eq!(validate_internal_manifest(&root, &contract).len(), 0);
         assert!(
             read_internal_module(&root, "runtime/rust/src/namespace.rs", "crate::other").is_err()
         );
@@ -2842,7 +2842,7 @@ mod tests {
             "`split_list`",
             "`check-name-resolution-proofs`",
         );
-        assert!(validate_manifest(&root, &contract, &makefile, &main).is_empty());
+        assert_eq!(validate_manifest(&root, &contract, &makefile, &main).len(), 0);
         assert!(!naming_proof_gate_is_current(
             &root.join(MAKEFILE_PATH),
             &makefile
@@ -2947,16 +2947,14 @@ mod tests {
             #[cfg(test)] mod tests { fn fixture(){ s.split("::"); } }
             fn production(){ original.matches_source(&image, config); }
         "##;
-        assert!(counted_name_local_recipes(source).is_empty());
+        assert_eq!(counted_name_local_recipes(source).len(), 0);
     }
 
     #[test]
     fn counted_name_facade_inventory_uses_shared_purpose_owners() {
         let root = crate::util::repo_root();
-        assert!(
-            validate_counted_name_facade_consumers(&root)
+        assert_eq!(validate_counted_name_facade_consumers(&root)
                 .unwrap()
-                .is_empty()
-        );
+                .len(), 0);
     }
 }

@@ -121,7 +121,7 @@ impl Vm {
                 context.path().clone(),
                 compiler,
             );
-            unit.manifest = module.manifest.clone();
+            unit.manifest.clone_from(&module.manifest);
             unit.native_cache = native_owner.map(|owner| self.native_cache_stamp(owner));
             self.module_procs.entry(key).or_default().insert(
                 *body_id,

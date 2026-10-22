@@ -740,8 +740,13 @@ fn pack_include_links(
             continue;
         };
         let anchor = include.name_span();
-        let start = line_index.position_at_utf16(anchor.start as u32, source);
-        let end = line_index.position_at_utf16(anchor.end as u32, source);
+        let (Ok(start_offset), Ok(end_offset)) =
+            (u32::try_from(anchor.start), u32::try_from(anchor.end))
+        else {
+            continue;
+        };
+        let start = line_index.position_at_utf16(start_offset, source);
+        let end = line_index.position_at_utf16(end_offset, source);
         links.push(DocumentLink {
             start_line: start.line,
             start_character: start.character.get(),

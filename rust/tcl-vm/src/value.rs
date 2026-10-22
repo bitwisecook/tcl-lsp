@@ -147,6 +147,9 @@ enum NativeValueHandleOwnership {
     LifetimeOnly,
 }
 
+type NativeStringAccess<'a, E> = dyn FnMut(&Value) -> Result<Rc<[u8]>, E> + 'a;
+type NativeValueCheck<'a, E> = dyn FnMut(&Value) -> Result<(), E> + 'a;
+
 impl Clone for Value {
     fn clone(&self) -> Self {
         Self(Rc::clone(&self.0), NativeValueHandleOwnership::Reference)
@@ -686,7 +689,7 @@ enum IntRep {
     JimVariable(JimVariableCache),
     /// Actual Jim Enum or immediate-string cache, with no updater.
     JimOption(tcl_core_types::NativeJimOptionCache),
-    /// Original ParseSubCmd table cache, distinct from Jim Enum and C Index.
+    /// Original `ParseSubCmd` table cache, distinct from Jim Enum and C Index.
     JimSubcommand(tcl_core_types::NativeJimSubcommandCache),
     /// C parsed variable name owns original parts, never a selected receiver.
     NativeParsedVariableName(native_variable_name::ParsedVariableName),
@@ -1053,7 +1056,7 @@ impl PreparedNativeDictionary {
         key: Value,
         value: Value,
         check: &mut dyn FnMut() -> Result<(), tcl_cmd_core::CmdError>,
-        strings: &mut dyn FnMut(&Value) -> Result<Rc<[u8]>, tcl_cmd_core::CmdError>,
+        strings: &mut NativeStringAccess<'_, tcl_cmd_core::CmdError>,
     ) -> Result<(), tcl_cmd_core::CmdError> {
         self.value.set_native_dictionary_member_using(
             key,
@@ -1677,7 +1680,7 @@ impl Value {
         &self,
         protocol: NativeStringProtocol,
         check: &mut dyn FnMut() -> Result<(), E>,
-        strings: &mut dyn FnMut(&Value) -> Result<Rc<[u8]>, E>,
+        strings: &mut NativeStringAccess<'_, E>,
         retain: &mut dyn FnMut(&E),
     ) -> Result<Self, E> {
         self.duplicate_native_object_using(protocol, &mut Some(check), &mut Some(strings), retain)
@@ -1687,7 +1690,7 @@ impl Value {
         &self,
         protocol: NativeStringProtocol,
         check: &mut Option<&mut dyn FnMut() -> Result<(), E>>,
-        strings: &mut Option<&mut dyn FnMut(&Value) -> Result<Rc<[u8]>, E>>,
+        strings: &mut Option<&mut NativeStringAccess<'_, E>>,
         retain: &mut dyn FnMut(&E),
     ) -> Result<Self, E> {
         Self::native_stage_check(check)?;
@@ -1712,7 +1715,11 @@ impl Value {
                 return Err(first);
             }
             if check.is_some() {
-                *duplicate.0.jim_context.borrow_mut() = source_context.clone();
+                duplicate
+                    .0
+                    .jim_context
+                    .borrow_mut()
+                    .clone_from(&source_context);
             }
             Ok(duplicate)
         };
@@ -2054,8 +2061,8 @@ impl Value {
         current: &mut Option<&mut dyn FnMut() -> Result<(), E>>,
         original_string: &mut dyn FnMut() -> Result<Result<Rc<[u8]>, ByteArrayAccessError>, E>,
     ) -> Result<Result<Rc<[u8]>, ByteArrayAccessError>, E> {
-        Self::native_stage_check(current)?;
         use tcl_registry::native_binary_value::NativeBinaryByteConversion;
+        Self::native_stage_check(current)?;
         if conversion == NativeBinaryByteConversion::Utf8 {
             return original_string();
         }
@@ -2708,7 +2715,7 @@ impl Value {
         &self,
         protocol: NativeStringProtocol,
         formatter: Option<&dyn tcl_platform::NativeIntegerFormatter>,
-        check: &mut dyn FnMut(&Value) -> Result<(), E>,
+        check: &mut NativeValueCheck<'_, E>,
     ) -> Result<Rc<[u8]>, E> {
         self.native_string_bytes_checked_for_value_using(protocol, formatter, check, None)
     }
@@ -2719,7 +2726,7 @@ impl Value {
         &self,
         protocol: NativeStringProtocol,
         formatter: Option<&dyn tcl_platform::NativeIntegerFormatter>,
-        check: &mut dyn FnMut(&Value) -> Result<(), E>,
+        check: &mut NativeValueCheck<'_, E>,
         retain: &dyn Fn(&ValueError),
     ) -> Result<Rc<[u8]>, E> {
         self.native_string_bytes_checked_for_value_using(protocol, formatter, check, Some(retain))
@@ -2729,7 +2736,7 @@ impl Value {
         &self,
         protocol: NativeStringProtocol,
         formatter: Option<&dyn tcl_platform::NativeIntegerFormatter>,
-        check: &mut dyn FnMut(&Value) -> Result<(), E>,
+        check: &mut NativeValueCheck<'_, E>,
         retain: Option<&dyn Fn(&ValueError)>,
     ) -> Result<Rc<[u8]>, E> {
         let mut original = |current: &Value| {
@@ -2762,7 +2769,7 @@ impl Value {
 
     fn native_string_stage_check<E>(
         &self,
-        check: &mut Option<&mut dyn FnMut(&Value) -> Result<(), E>>,
+        check: &mut Option<&mut NativeValueCheck<'_, E>>,
     ) -> Result<(), E> {
         if let Some(check) = check {
             let mut stage = || check(self);
@@ -2777,7 +2784,7 @@ impl Value {
         protocol: NativeStringProtocol,
         formatter: Option<&dyn tcl_platform::NativeIntegerFormatter>,
         failure: &dyn Fn(tcl_syntax::native_string::NativeStringUnavailable) -> E,
-        check: &mut Option<&mut dyn FnMut(&Value) -> Result<(), E>>,
+        check: &mut Option<&mut NativeValueCheck<'_, E>>,
     ) -> Result<Rc<[u8]>, E> {
         self.native_string_stage_check(check)?;
         if !self.native_object_is_live() {
@@ -3108,7 +3115,7 @@ impl Value {
         protocol: NativeStringProtocol,
         formatter: Option<&dyn tcl_platform::NativeIntegerFormatter>,
         failure: &dyn Fn(tcl_syntax::native_string::NativeStringUnavailable) -> E,
-        check: &mut Option<&mut dyn FnMut(&Value) -> Result<(), E>>,
+        check: &mut Option<&mut NativeValueCheck<'_, E>>,
     ) -> Result<Rc<[u8]>, E> {
         enum Backing {
             List(crate::NativeListItems),
@@ -5607,7 +5614,7 @@ impl Value {
         elements: &[Self],
         protocol: NativeStringProtocol,
         check: &mut dyn FnMut() -> Result<(), tcl_cmd_core::CmdError>,
-        strings: &mut dyn FnMut(&Value) -> Result<Rc<[u8]>, tcl_cmd_core::CmdError>,
+        strings: &mut NativeStringAccess<'_, tcl_cmd_core::CmdError>,
     ) -> Result<(), tcl_cmd_core::CmdError> {
         self.native_list_replace_prepared_using(
             first,
@@ -5626,7 +5633,7 @@ impl Value {
         elements: &[Self],
         protocol: NativeStringProtocol,
         check: &mut Option<&mut dyn FnMut() -> Result<(), E>>,
-        strings: &mut Option<&mut dyn FnMut(&Value) -> Result<Rc<[u8]>, E>>,
+        strings: &mut Option<&mut NativeStringAccess<'_, E>>,
     ) -> Result<(), E> {
         drop(self.native_object_list_elements_using(protocol, check, strings)?);
         Self::native_stage_check(check)?;
@@ -5703,7 +5710,7 @@ impl Value {
         elements: &[Self],
         protocol: NativeStringProtocol,
         check: &mut dyn FnMut() -> Result<(), tcl_cmd_core::CmdError>,
-        strings: &mut dyn FnMut(&Value) -> Result<Rc<[u8]>, tcl_cmd_core::CmdError>,
+        strings: &mut NativeStringAccess<'_, tcl_cmd_core::CmdError>,
     ) -> Result<(), tcl_cmd_core::CmdError> {
         self.native_list_append_prepared_using(
             elements,
@@ -5718,7 +5725,7 @@ impl Value {
         elements: &[Self],
         protocol: NativeStringProtocol,
         check: &mut Option<&mut dyn FnMut() -> Result<(), E>>,
-        strings: &mut Option<&mut dyn FnMut(&Value) -> Result<Rc<[u8]>, E>>,
+        strings: &mut Option<&mut NativeStringAccess<'_, E>>,
     ) -> Result<(), E> {
         drop(self.native_object_list_elements_using(protocol, check, strings)?);
         Self::native_stage_check(check)?;
@@ -5866,7 +5873,7 @@ impl Value {
         &self,
         protocol: NativeStringProtocol,
         check: &mut dyn FnMut() -> Result<(), tcl_cmd_core::CmdError>,
-        strings: &mut dyn FnMut(&Value) -> Result<Rc<[u8]>, tcl_cmd_core::CmdError>,
+        strings: &mut NativeStringAccess<'_, tcl_cmd_core::CmdError>,
     ) -> Result<Self, tcl_cmd_core::CmdError> {
         self.native_list_copy_using(protocol, &mut Some(check), &mut Some(strings))
     }
@@ -5875,7 +5882,7 @@ impl Value {
         &self,
         protocol: NativeStringProtocol,
         check: &mut Option<&mut dyn FnMut() -> Result<(), E>>,
-        strings: &mut Option<&mut dyn FnMut(&Value) -> Result<Rc<[u8]>, E>>,
+        strings: &mut Option<&mut NativeStringAccess<'_, E>>,
     ) -> Result<Self, E> {
         if protocol
             .tcl_version()
@@ -6085,7 +6092,7 @@ impl Value {
         &self,
         protocol: tcl_syntax::native_string::NativeStringProtocol,
         check: &mut dyn FnMut() -> Result<(), tcl_cmd_core::CmdError>,
-        strings: &mut dyn FnMut(&Value) -> Result<Rc<[u8]>, tcl_cmd_core::CmdError>,
+        strings: &mut NativeStringAccess<'_, tcl_cmd_core::CmdError>,
     ) -> Result<PreparedNativeDictionary, tcl_cmd_core::CmdError> {
         self.prepare_native_dictionary_after_conversion_using(
             protocol,
@@ -6098,7 +6105,7 @@ impl Value {
         &self,
         protocol: tcl_syntax::native_string::NativeStringProtocol,
         check: &mut Option<&mut dyn FnMut() -> Result<(), E>>,
-        strings: &mut Option<&mut dyn FnMut(&Value) -> Result<Rc<[u8]>, E>>,
+        strings: &mut Option<&mut NativeStringAccess<'_, E>>,
     ) -> Result<PreparedNativeDictionary, E> {
         drop(self.native_object_dict_pairs_using(protocol, check, strings)?);
         Self::native_stage_check(check)?;
@@ -6157,7 +6164,7 @@ impl Value {
         value: Value,
         protocol: NativeStringProtocol,
         check: &mut Option<&mut dyn FnMut() -> Result<(), E>>,
-        strings: &mut Option<&mut dyn FnMut(&Value) -> Result<Rc<[u8]>, E>>,
+        strings: &mut Option<&mut NativeStringAccess<'_, E>>,
     ) -> Result<(), E> {
         Self::native_stage_check(check)?;
         key.check_native_header()?;
@@ -6218,7 +6225,7 @@ impl Value {
         self,
         protocol: NativeStringProtocol,
         check: &mut dyn FnMut() -> Result<(), tcl_cmd_core::CmdError>,
-        strings: &mut dyn FnMut(&Value) -> Result<Rc<[u8]>, tcl_cmd_core::CmdError>,
+        strings: &mut NativeStringAccess<'_, tcl_cmd_core::CmdError>,
     ) -> Result<NativeDictionarySearch, tcl_cmd_core::CmdError> {
         self.into_native_dictionary_search_using(protocol, &mut Some(check), &mut Some(strings))
     }
@@ -6227,7 +6234,7 @@ impl Value {
         self,
         protocol: NativeStringProtocol,
         check: &mut Option<&mut dyn FnMut() -> Result<(), E>>,
-        strings: &mut Option<&mut dyn FnMut(&Value) -> Result<Rc<[u8]>, E>>,
+        strings: &mut Option<&mut NativeStringAccess<'_, E>>,
     ) -> Result<NativeDictionarySearch, E> {
         Self::native_stage_check(check)?;
         if check.is_some() {
@@ -6288,7 +6295,7 @@ impl Value {
         &self,
         protocol: NativeStringProtocol,
         check: &mut dyn FnMut() -> Result<(), tcl_cmd_core::CmdError>,
-        strings: &mut dyn FnMut(&Value) -> Result<Rc<[u8]>, tcl_cmd_core::CmdError>,
+        strings: &mut NativeStringAccess<'_, tcl_cmd_core::CmdError>,
     ) -> Result<Vec<(Value, Value)>, tcl_cmd_core::CmdError> {
         self.native_object_dict_pairs_using(protocol, &mut Some(check), &mut Some(strings))
     }
@@ -6312,7 +6319,7 @@ impl Value {
     fn native_compound_string_using<E: From<ValueError>>(
         &self,
         protocol: NativeStringProtocol,
-        strings: &mut Option<&mut dyn FnMut(&Value) -> Result<Rc<[u8]>, E>>,
+        strings: &mut Option<&mut NativeStringAccess<'_, E>>,
     ) -> Result<Rc<[u8]>, E> {
         match strings.as_deref_mut() {
             Some(strings) => strings(self),
@@ -6328,7 +6335,7 @@ impl Value {
         &self,
         protocol: tcl_syntax::native_string::NativeStringProtocol,
         check: &mut Option<&mut dyn FnMut() -> Result<(), E>>,
-        strings: &mut Option<&mut dyn FnMut(&Value) -> Result<Rc<[u8]>, E>>,
+        strings: &mut Option<&mut NativeStringAccess<'_, E>>,
     ) -> Result<Vec<(Value, Value)>, E> {
         Self::native_stage_check(check)?;
         self.check_native_header()?;
@@ -6618,14 +6625,14 @@ impl Value {
             bucket_count,
             protocol,
             &mut (),
-            &mut |_, actual| {
+            &mut |(), actual| {
                 actual.native_string_bytes(protocol).map_err(|error| {
                     ValueError::NativeStringAccess(
                         tcl_syntax::raw_string::NativeStringAccessError::Unavailable(error),
                     )
                 })
             },
-            &mut |_| Ok(()),
+            &mut |()| Ok(()),
         )
     }
 
@@ -7101,7 +7108,7 @@ impl Value {
     /// neutral values retain their existing rendering and UTF8 semantics.
     pub(crate) fn string_bytes_checked_for_value_retaining<E: From<ValueError>>(
         &self,
-        check: &mut dyn FnMut(&Value) -> Result<(), E>,
+        check: &mut NativeValueCheck<'_, E>,
         retain: &dyn Fn(&ValueError),
     ) -> Result<Rc<[u8]>, E> {
         let mut original = |current: &Value| {
@@ -7121,9 +7128,13 @@ impl Value {
     fn to_raw_string_at_depth_using<E: From<ValueError>>(
         &self,
         depth: u32,
-        check: &mut Option<&mut dyn FnMut(&Value) -> Result<(), E>>,
+        check: &mut Option<&mut NativeValueCheck<'_, E>>,
         retain: Option<&dyn Fn(&ValueError)>,
     ) -> Result<(RawString, bool), E> {
+        enum Backing {
+            List(crate::NativeListItems),
+            Dictionary(Rc<Vec<(Value, Value)>>),
+        }
         self.native_string_stage_check(check)?;
         let unavailable = || {
             let error = ValueError::from(
@@ -7158,10 +7169,6 @@ impl Value {
         }
         // Checked recursion keeps the actual backing allocation under a short
         // borrow, without acquiring new native member roles or cloning a parser.
-        enum Backing {
-            List(crate::NativeListItems),
-            Dictionary(Rc<Vec<(Value, Value)>>),
-        }
         let backing = if check.is_some() {
             match &*self.0.intrep.borrow() {
                 IntRep::List { items, .. } => Some(Backing::List(items.lifetime_view())),
@@ -7399,7 +7406,7 @@ impl Value {
     fn render_list_bytes_using<'a, E: From<ValueError>>(
         values: impl Iterator<Item = &'a Self>,
         depth: u32,
-        check: &mut Option<&mut dyn FnMut(&Value) -> Result<(), E>>,
+        check: &mut Option<&mut NativeValueCheck<'_, E>>,
         retain: Option<&dyn Fn(&ValueError)>,
     ) -> Result<(RawString, bool), E> {
         if MAX_LIST_TO_STR_DEPTH.exceeded(depth) {
@@ -7960,7 +7967,7 @@ impl Value {
         syntax: tcl_dialect::ListParse,
         escapes: tcl_dialect::EscapeSyntax,
         check: &mut dyn FnMut() -> Result<(), E>,
-        strings: &mut dyn FnMut(&Value) -> Result<Rc<[u8]>, E>,
+        strings: &mut NativeStringAccess<'_, E>,
     ) -> Result<crate::NativeListItems, E> {
         self.native_list_elements_using(syntax, escapes, &mut Some(check), &mut Some(strings))
     }
@@ -7970,7 +7977,7 @@ impl Value {
         syntax: tcl_dialect::ListParse,
         escapes: tcl_dialect::EscapeSyntax,
         check: &mut Option<&mut dyn FnMut() -> Result<(), E>>,
-        strings: &mut Option<&mut dyn FnMut(&Value) -> Result<Rc<[u8]>, E>>,
+        strings: &mut Option<&mut NativeStringAccess<'_, E>>,
     ) -> Result<crate::NativeListItems, E> {
         Self::native_stage_check(check)?;
         if let IntRep::List { items, .. } = &*self.0.intrep.borrow() {
@@ -8048,7 +8055,7 @@ impl Value {
         &self,
         protocol: tcl_syntax::native_string::NativeStringProtocol,
         check: &mut dyn FnMut() -> Result<(), E>,
-        strings: &mut dyn FnMut(&Value) -> Result<Rc<[u8]>, E>,
+        strings: &mut NativeStringAccess<'_, E>,
     ) -> Result<crate::NativeListItems, E> {
         self.native_object_list_elements_using(protocol, &mut Some(check), &mut Some(strings))
     }
@@ -8057,7 +8064,7 @@ impl Value {
         &self,
         protocol: tcl_syntax::native_string::NativeStringProtocol,
         check: &mut Option<&mut dyn FnMut() -> Result<(), E>>,
-        strings: &mut Option<&mut dyn FnMut(&Value) -> Result<Rc<[u8]>, E>>,
+        strings: &mut Option<&mut NativeStringAccess<'_, E>>,
     ) -> Result<crate::NativeListItems, E> {
         Self::native_stage_check(check)?;
         self.check_native_header()?;

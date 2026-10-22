@@ -81,6 +81,7 @@ pub(crate) use execution_trace::{
     original_procedure_has_execution_trace, trace_set_requires_original_owner,
 };
 pub(crate) use metadata_context::retained_module_metadata_context;
+pub(crate) use metadata_context::InvocationMetadataSelection;
 pub use metadata_context::{
     InvocationMetadataContext, InvocationMetadataInput, OwnedInvocationMetadataContext,
 };
@@ -326,7 +327,35 @@ pub struct ResolvedStatementInvocation {
 /// store, caller identity or outward effect.
 pub(crate) struct LogicalStructuredInvocation {
     invocation: ResolvedStatementInvocation,
-    source_roles: Option<tcl_registry::resolved_invocation::AuthoredLogicalSourceRoleProjection>,
+    source_roles: Option<StructuredSourceRoles>,
+}
+
+/// Distinct source purposes retain their own registry-issued role owners.
+/// The Native case projection needs an actual closed compiler observation;
+/// neither purpose grants a handler, entered arm or completed operation.
+enum StructuredSourceRoles {
+    Logical(tcl_registry::resolved_invocation::AuthoredLogicalSourceRoleProjection),
+    NativeCase(tcl_registry::case_bodies::CaseBodyOperands),
+}
+
+impl StructuredSourceRoles {
+    fn selection_unknown(&self) -> bool {
+        match self {
+            Self::Logical(roles) => roles.selection_unknown(),
+            Self::NativeCase(roles) => roles.selection_unknown,
+        }
+    }
+
+    fn argument_roles(&self) -> Vec<(usize, tcl_registry::ArgRole)> {
+        match self {
+            Self::Logical(roles) => roles.argument_roles().to_vec(),
+            Self::NativeCase(roles) => roles
+                .bodies
+                .iter()
+                .map(|body| (body.argument, tcl_registry::ArgRole::Body))
+                .collect(),
+        }
+    }
 }
 
 impl LogicalStructuredInvocation {
@@ -535,9 +564,33 @@ pub(crate) fn logical_structured_invocation_with_metadata_context(
             context.source_analysis_input()?,
             registry,
         )?;
-        selected.with_metadata_schema(registry, context, realm, |schema| {
-            schema.authored_logical_source_role_projection()
-        })
+        selected
+            .with_metadata_schema(registry, context, realm, |schema| {
+                schema.authored_logical_source_role_projection()
+            })
+            .map(StructuredSourceRoles::Logical)
+    } else if !selected.facts.arg_roles_complete {
+        // A generic native compiler still visits the original command before
+        // argv execution. Its closed lookup can select conditional case syntax
+        // even when a dynamic subject prevents the unrelated full role layout.
+        // A declaration-only or missing compiler point cannot enter this path.
+        let binding = tokens.source_binding.as_ref()?;
+        let lookup = binding.original_compilation_lookup_advice(tokens)?;
+        if lookup.has_unclosed_source_coverage() {
+            return None;
+        }
+        match selected.authored_case_body_selection.as_ref()? {
+            AuthoredSourceCaseBodySelection::Selected(roles)
+                if !roles.selection_unknown
+                    && roles
+                        .bodies
+                        .iter()
+                        .all(|body| selected.argument_literal(body.argument).is_some()) =>
+            {
+                Some(StructuredSourceRoles::NativeCase(roles.clone()))
+            }
+            _ => None,
+        }
     } else {
         None
     };
@@ -690,7 +743,13 @@ fn original_declared_structured_invocation<'a>(
     let advice = if logical_source {
         binding.original_conditional_operand_layout_advice(tokens, registry)
     } else {
-        binding.declaration_operand_layout_advice(tokens)
+        binding
+            .declaration_operand_layout_advice(tokens)
+            .or_else(|| {
+                binding
+                    .original_compilation_lookup_advice(tokens)
+                    .filter(|advice| !advice.has_unclosed_source_coverage())
+            })
     };
     #[cfg(test)]
     trace_original_structure("declaration_advice", tokens, advice.is_some());
@@ -1020,7 +1079,7 @@ fn resolve_original_source_layout(
             return None;
         }
         if !target.prepended.is_empty()
-            && context.is_some_and(|context| context.permits_logical_source_names())
+            && context.is_some_and(crate::registry_invocation::InvocationMetadataContext::permits_logical_source_names)
         {
             let context = context?;
             let purpose = tokens
@@ -5983,16 +6042,15 @@ pub fn original_registry_invocation_assistance_with_metadata_context(
     if let Some(context) = context
         && context
             .source_analysis_input()
-            .is_some_and(|input| input.has_hosted_source_name_context())
+            .is_some_and(crate::analyser::ResolvedAnalysisInput::has_hosted_source_name_context)
     {
         let mut reached = reached?;
         // In the fresh F5 world the original command table answers first;
         // the hosted catalogue is advice only where that lookup has nothing.
         if !reached.candidates.is_empty()
-            && tokens
-                .source_binding
-                .as_ref()
-                .is_some_and(crate::command_binding::SourceInvocationBinding::in_hosted_rule_loader_world)
+            && tokens.source_binding.as_ref().is_some_and(
+                crate::command_binding::SourceInvocationBinding::in_hosted_rule_loader_world,
+            )
         {
             return Some(reached);
         }
@@ -6414,16 +6472,15 @@ impl InvocationBodyAssistance {
         (self
             .caller_name_template_invocation()
             .is_some_and(|actual| std::ptr::eq(actual, selected))
-            || self
-                .conditional_parameter_source()
-                .is_some_and(|owned| std::ptr::eq(&owned.invocation, selected))
-            || self
-                .body_parameter_source
-                .as_ref()
-                .is_some_and(|owned| std::ptr::eq(&owned.invocation, selected)))
+            || self.conditional_parameter_source().is_some_and(|owned| {
+                std::ptr::eq(std::ptr::from_ref(&owned.invocation), selected)
+            })
+            || self.body_parameter_source.as_ref().is_some_and(|owned| {
+                std::ptr::eq(std::ptr::from_ref(&owned.invocation), selected)
+            }))
         .then_some(())?;
         if let Some(owned) = &self.body_parameter_source
-            && std::ptr::eq(&owned.invocation, selected)
+            && std::ptr::eq(std::ptr::from_ref(&owned.invocation), selected)
         {
             let InvocationWordOrigin::Written(written) =
                 selected.effective.origins.get(argument.checked_add(1)?)?
@@ -6437,7 +6494,7 @@ impl InvocationBodyAssistance {
                 .flatten();
         }
         if let Some(owned) = &self.logical_trait_invocation
-            && std::ptr::eq(&owned.invocation, selected)
+            && std::ptr::eq(std::ptr::from_ref(&owned.invocation), selected)
         {
             let word = owned.words.original_argument_word(argument)?;
             let value = tcl_syntax::word_rules::original_static_word_unicode_value(word)?;
@@ -6555,7 +6612,7 @@ impl InvocationBodyAssistance {
         selected: &ResolvedStatementInvocation,
     ) -> Option<Option<(tcl_registry::FrameLevel, usize)>> {
         let owned = self.conditional_parameter_source()?;
-        std::ptr::eq(&owned.invocation, selected).then_some(())?;
+        std::ptr::eq(std::ptr::from_ref(&owned.invocation), selected).then_some(())?;
         Some(
             owned
                 .words
@@ -7168,7 +7225,7 @@ fn original_body_parameter_source_invocation(
     if words.iter().any(|word| word.group().expand) {
         return None;
     }
-    let invocation = resolve_original_declared_layout(registry, metadata, tokens, &layout)?;
+    let invocation = resolve_original_declared_layout(registry, metadata, tokens, layout)?;
     if !invocation.facts.arg_roles_complete
         || invocation.facts.arity_accepts_frozen_arguments() != Some(true)
         || invocation.effective.words.len() != words.len()
@@ -7513,7 +7570,7 @@ pub(crate) fn logical_lambda_parameter_body_assistance(
         || !scope.lambda_source().is_some_and(|owner| owner == lambda)
         || !source_scope.matches_original_content(source, base, input.lexer_config())
         || !source_scope.matches_source(image, input.lexer_config())
-        || !source_scope.matches_context(&context)
+        || !source_scope.matches_context(context)
         || source_scope.content_span().start() < body.content_span().start()
         || source_scope.content_span().end() > body.content_span().end()
         || segment.span.start() < source_scope.content_span().start()
@@ -7526,7 +7583,7 @@ pub(crate) fn logical_lambda_parameter_body_assistance(
     let full_source = image.try_text().ok()?;
     let words =
         source_structure::logical_source_registry_words(full_source, realm, input, &segment)?;
-    let (facts, roles) = words.with_source_schema(&context, |schema| {
+    let (facts, roles) = words.with_source_schema(context, |schema| {
         (
             schema.facts().clone(),
             schema.authored_logical_source_argument_roles(),
@@ -9094,7 +9151,9 @@ mod tests {
                 // original table answers first (user decision
                 // 2026-10-21T00:10Z), so this contract supplies the explicit
                 // unknown-history entry.
-                Some(&crate::command_binding::SourceAnalysisEntry::unknown_history_for_test(&input)),
+                Some(
+                    &crate::command_binding::SourceAnalysisEntry::unknown_history_for_test(&input),
+                ),
                 &input,
             );
             let metadata =

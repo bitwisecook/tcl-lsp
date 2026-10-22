@@ -10,6 +10,32 @@ use std::sync::Arc;
 use tcl_registry::CommandRegistry;
 use tcl_registry::model::{ContextRegistry, ResolvedContext, semantic::SemanticContext};
 
+/// Borrowed metadata selection after its owner accepted the query. Refusal
+/// remains the outer `Option`; `Standalone` is explicit profileless compatibility.
+#[derive(Clone, Copy)]
+pub(crate) enum InvocationMetadataSelection<'a> {
+    Standalone,
+    Retained(InvocationMetadataContext<'a>),
+}
+
+impl<'a> InvocationMetadataSelection<'a> {
+    pub(crate) const fn context(self) -> Option<InvocationMetadataContext<'a>> {
+        match self {
+            Self::Standalone => None,
+            Self::Retained(context) => Some(context),
+        }
+    }
+}
+
+impl<'a> From<Option<InvocationMetadataContext<'a>>> for InvocationMetadataSelection<'a> {
+    fn from(context: Option<InvocationMetadataContext<'a>>) -> Self {
+        match context {
+            Some(context) => Self::Retained(context),
+            None => Self::Standalone,
+        }
+    }
+}
+
 /// Retained metadata availability, independent of source naming and execution.
 /// Missing supplied ownership stays unavailable; standalone compatibility is
 /// an explicit variant shared by source binding and CFG consumers.
@@ -63,7 +89,7 @@ impl OwnedInvocationMetadataContext {
     pub(crate) fn metadata_context<'a>(
         &'a self,
         registry: &CommandRegistry,
-    ) -> Option<Option<InvocationMetadataContext<'a>>> {
+    ) -> Option<InvocationMetadataSelection<'a>> {
         let context = match self {
             Self::Supplied(context) => Some(context.as_ref().into()),
             Self::SuppliedSource(input) => Some(InvocationMetadataContext::for_analysis_input(
@@ -77,7 +103,7 @@ impl OwnedInvocationMetadataContext {
         };
         context
             .is_none_or(|context| context.matches_registry(registry))
-            .then_some(context)
+            .then_some(context.into())
     }
 
     /// Reborrow metadata only for the retained source policy. An independently
@@ -92,7 +118,7 @@ impl OwnedInvocationMetadataContext {
             Self::SuppliedSource(input) => {
                 InvocationMetadataContext::for_source_input(registry, input, config, profile)
             }
-            Self::Standalone | Self::Supplied(_) => self.metadata_context(registry)?,
+            Self::Standalone | Self::Supplied(_) => self.metadata_context(registry)?.context(),
             Self::Unavailable => None,
         }
     }

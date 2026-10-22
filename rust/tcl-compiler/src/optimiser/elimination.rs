@@ -426,7 +426,7 @@ impl<'a> RaiseProof<'a> {
             && self
                 .calls
                 .module
-                .is_none_or(|module| std::ptr::eq(module, &unit.ir_module))
+                .is_none_or(|module| std::ptr::eq(module, &raw const unit.ir_module))
         {
             self.source_unit = Some(unit);
         }
@@ -706,14 +706,14 @@ fn pure_call_targets(ctx: &PassContext<'_>) -> HashSet<crate::ir::ProcedureId> {
         .procedures
         .iter()
         .filter(|(_, summary)| summary.pure)
-        .map(|(name, _)| name.clone())
+        .map(|(name, _)| *name)
         .collect()
 }
 
 /// Run the elimination pass — emits O107, O108, O109, O126
 /// across every function in `cu`.
 pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
-    let is_top_level = |fu: &FunctionUnit| std::ptr::eq(fu, &cu.top_level);
+    let is_top_level = |fu: &FunctionUnit| std::ptr::eq(fu, &raw const cu.top_level);
     // O109/O126 closure: the user-proc / TclOO-method purity sets
     // that gate RHS-side-effect-safe deletion (owned so the `&mut ctx`
     // calls below don't alias `ctx.interproc`).
@@ -862,7 +862,7 @@ fn emit_unreachable(ctx: &mut PassContext<'_>, fu: &FunctionUnit) {
         let Some(block) = fu.cfg.blocks.get(&block_id) else {
             continue;
         };
-        for (index, _statement) in block.statements.iter().enumerate() {
+        for (index, statement) in block.statements.iter().enumerate() {
             let Some(command_span) = fu.cfg.statement_source_edit_span(block_id, index) else {
                 continue;
             };
@@ -880,7 +880,7 @@ fn emit_unreachable(ctx: &mut PassContext<'_>, fu: &FunctionUnit) {
             // the span of the whole `try`, and a handler that never runs —
             // one an earlier handler pre-empts, or a `-` handler — leaves the
             // `try` that does.
-            if encloses_live_code(_statement.span(), &live) {
+            if encloses_live_code(statement.span(), &live) {
                 continue;
             }
             let Some(rewrite_span) = original_statement_rewrite_span(ctx, span) else {
@@ -1108,13 +1108,7 @@ fn emit_dead_stores_and_unused(
         ) {
             continue;
         }
-        let var_base = tcl_syntax::naming::split_element_ref(var).map_or(var, |(root, _)| root);
-        if store_is_seen_elsewhere(fu, chain, &raise_proof.scope_aliases)
-            || call_by_name.contains(var)
-            || call_by_name.contains(var_base)
-            || fu.cfg.alias_observed_vars.contains(var)
-            || fu.cfg.alias_observed_vars.contains(var_base)
-        {
+        if dead_store_alias_observed(fu, chain, var, &raise_proof.scope_aliases, &call_by_name) {
             continue;
         }
         if dead_store_name_observed(ctx, var, module_traced, is_top_level, &bound_writes) {
@@ -1139,6 +1133,21 @@ fn emit_dead_stores_and_unused(
     }
 
     emit_dse_entries(ctx, fu, is_top_level, entries)
+}
+
+fn dead_store_alias_observed(
+    function: &FunctionUnit,
+    chain: &crate::def_use::DefUseChain,
+    variable: &str,
+    scope_aliases: &HashSet<String>,
+    call_by_name: &HashSet<String>,
+) -> bool {
+    let base = tcl_syntax::naming::split_element_ref(variable).map_or(variable, |(root, _)| root);
+    store_is_seen_elsewhere(function, chain, scope_aliases)
+        || call_by_name.contains(variable)
+        || call_by_name.contains(base)
+        || function.cfg.alias_observed_vars.contains(variable)
+        || function.cfg.alias_observed_vars.contains(base)
 }
 
 fn observed_element_stores(

@@ -280,7 +280,7 @@ impl Vm {
             &|error| {
                 original
                     .original
-                    .retain(&mut vm.borrow_mut(), &error.clone().into())
+                    .retain(&mut vm.borrow_mut(), &error.clone().into());
             },
         );
         if let Err(error) = &reached {
@@ -1017,12 +1017,12 @@ impl Vm {
                 .completion_options_snapshot(completion)
                 .map_err(|error| crate::command::completion_from_tcl_error(self, error))?;
             let original = opt_get_checked(self, &options, b"-errorinfo")
-                .map_err(|error| crate::command::completion_from_tcl_error(self, error.into()))?
+                .map_err(|error| crate::command::completion_from_tcl_error(self, error))?
                 .unwrap_or_else(|| completion.result.clone());
             let info = tcl_syntax::value::ValueOps::native_string_bytes(self, &original)
                 .map_err(|error| crate::command::completion_from_tcl_error(self, error.into()))?;
             let code = opt_get_checked(self, &options, b"-errorcode")
-                .map_err(|error| crate::command::completion_from_tcl_error(self, error.into()))?
+                .map_err(|error| crate::command::completion_from_tcl_error(self, error))?
                 .unwrap_or_else(|| Value::from_string_bytes(b"NONE".as_slice()));
             let _ = self.take_error_info();
             self.publish_error(&info, &code);

@@ -1080,7 +1080,7 @@ fn record_call_site_evidence(
         });
     let Some(invocation) = invocation else {
         if context
-            .and_then(|metadata| metadata.source_analysis_input())
+            .and_then(crate::registry_invocation::InvocationMetadataContext::source_analysis_input)
             .is_some_and(|input| {
                 tokens.source_binding.as_ref().is_some_and(|binding| {
                     binding
@@ -1536,7 +1536,7 @@ fn record_invocation(
             record_unresolved_word_dispatch(out, ctx, name, args);
         }
         for target in &binding.targets {
-            record_source_target(out, ctx, args, &source, target);
+            record_source_target(out, ctx, args, source, target);
         }
     }
 }
@@ -2029,7 +2029,7 @@ pub(crate) fn collect_call_site_constants(
             unenumerable_reach: &reach,
             unresolved_handler,
         };
-        let funcs = call_site_scan_functions(&cfg_module, &extra_callers);
+        let funcs = call_site_scan_functions(cfg_module, extra_callers);
         let mut out = CallSiteEvidence::default();
         record_future_callers(&mut out, &ctx, future_call_sites);
         record_runtime_selected_extra_callers(&mut out, &ctx, extra_callers);
@@ -2215,7 +2215,7 @@ fn collect_original_scope_var_facts(
             };
             match stmt {
                 Statement::AssignConst { name, value, .. } => {
-                    out.note_assignment(name, Some(value))
+                    out.note_assignment(name, Some(value));
                 }
                 Statement::AssignValue {
                     name,
@@ -2228,7 +2228,7 @@ fn collect_original_scope_var_facts(
                     out.note_assignment(name, value);
                 }
                 Statement::AssignExpr { name, .. } | Statement::Incr { name, .. } => {
-                    out.note_write_word(name)
+                    out.note_write_word(name);
                 }
                 Statement::UpFrame { .. } => out.cross_frame_write = true,
                 Statement::Call { .. } | Statement::Barrier { .. } => {

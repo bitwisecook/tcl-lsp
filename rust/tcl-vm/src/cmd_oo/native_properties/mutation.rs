@@ -20,7 +20,6 @@ fn run_effect(
     work: impl FnOnce(&mut Vm, &OriginalOoNameScope) -> Result<(), CmdError>,
 ) -> Result<(), CmdError> {
     let scope = NativeOperationScope::enter(vm).map_err(|error| {
-        let error = CmdError::from(error);
         retain(vm, &error);
         error
     })?;
@@ -191,7 +190,7 @@ fn actual_header(
     OriginalNumericOps::in_original_scope(vm, &operation.operation)?.current_for_value(original)
 }
 
-/// SetPropertyList's incoming-reference stage follows cache retirement. Capture
+/// `SetPropertyList`'s incoming-reference stage follows cache retirement. Capture
 /// leases themselves add no native member reference or String getter authority.
 pub(super) fn install_members(
     vm: &mut Vm,
@@ -275,7 +274,7 @@ pub(super) fn install_members(
     Ok(names)
 }
 
-/// GetPropertyList's caller role: the original member headers become actual List
+/// `GetPropertyList`'s caller role: the original member headers become actual List
 /// members without sorting, rebuilding their spellings or pre-hashing them.
 fn member_list(
     vm: &mut Vm,
@@ -384,7 +383,7 @@ pub(super) fn slot(
     operation.complete(vm, reached)
 }
 
-/// BuildPropertyList performs each actual comparison before that member's List
+/// `BuildPropertyList` performs each actual comparison before that member's List
 /// append reference. It retains no native +1 merely to guard the old roster.
 fn registration_list(
     vm: &mut Vm,

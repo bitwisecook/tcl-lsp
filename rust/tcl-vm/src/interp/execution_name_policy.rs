@@ -22,6 +22,9 @@ pub(super) enum ObservedInputReplacementStage {
     CacheRetired,
 }
 
+type ObservedInputStage<'a> =
+    dyn FnMut(&mut Vm, ObservedInputReplacementStage) -> Result<(), tcl_cmd_core::CmdError> + 'a;
+
 #[derive(Clone)]
 pub(super) struct ObservedNameSelection {
     policy: ObservedBigIpNamePolicy,
@@ -329,12 +332,7 @@ impl Vm {
         &mut self,
         names: Option<ObservedNameSelection>,
         storage: Option<ObservedFrameStorage>,
-        mut stage: Option<
-            &mut dyn FnMut(
-                &mut Self,
-                ObservedInputReplacementStage,
-            ) -> Result<(), tcl_cmd_core::CmdError>,
-        >,
+        mut stage: Option<&mut ObservedInputStage<'_>>,
     ) -> Result<bool, tcl_cmd_core::CmdError> {
         let target = stage
             .as_ref()
@@ -374,12 +372,7 @@ impl Vm {
     fn invalidate_execution_name_policy_using(
         &mut self,
         changed: bool,
-        stage: &mut Option<
-            &mut dyn FnMut(
-                &mut Self,
-                ObservedInputReplacementStage,
-            ) -> Result<(), tcl_cmd_core::CmdError>,
-        >,
+        stage: &mut Option<&mut ObservedInputStage<'_>>,
         target: Option<&super::native_operation_currency::SavedExecutionTarget>,
     ) -> Result<(), tcl_cmd_core::CmdError> {
         self.name_world.borrow_mut().execution_name_policy = self.execution_name_policy();
@@ -462,12 +455,7 @@ impl Vm {
 
     fn check_observed_input_stage(
         &mut self,
-        stage: &mut Option<
-            &mut dyn FnMut(
-                &mut Self,
-                ObservedInputReplacementStage,
-            ) -> Result<(), tcl_cmd_core::CmdError>,
-        >,
+        stage: &mut Option<&mut ObservedInputStage<'_>>,
         reached: ObservedInputReplacementStage,
     ) -> Result<(), tcl_cmd_core::CmdError> {
         let result = stage

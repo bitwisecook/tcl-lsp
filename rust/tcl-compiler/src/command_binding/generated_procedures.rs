@@ -306,7 +306,7 @@ impl OriginalNativeProcedureBody {
             OriginalNativeProcedureRecipe::ReadFlow { read_flow, .. } => {
                 &read_flow.header.source_slot
             }
-            OriginalNativeProcedureRecipe::Source(source) => source.slot(),
+            OriginalNativeProcedureRecipe::Source(source) => source.declaration_slot(),
         }
     }
     pub(crate) fn original_name_input(

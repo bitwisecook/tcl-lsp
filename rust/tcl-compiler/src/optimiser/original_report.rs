@@ -156,7 +156,7 @@ impl OriginalOptimiserAssembly {
     ) -> Self {
         let owner = cu
             .original_optimiser_prepared_unit(registry, dialect)
-            .filter(|owner| owner.is_whole_source_unit());
+            .filter(crate::compilation_unit::OriginalOptimiserPreparedUnit::is_whole_source_unit);
         let mut expected = HashMap::new();
         let mut complete = cu.methods.is_empty();
         let required: HashSet<_> = cu

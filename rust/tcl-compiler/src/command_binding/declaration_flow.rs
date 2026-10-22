@@ -1047,7 +1047,7 @@ impl Builder<'_> {
                     return None;
                 }
                 let source = entry.source();
-                if &source.origin != &site.source || !entry.owns_source(&site.source, site.offset) {
+                if source.origin != site.source || !entry.owns_source(&site.source, site.offset) {
                     return None;
                 }
                 tcl_lexer::Span::new(

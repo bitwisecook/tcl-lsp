@@ -389,10 +389,8 @@ pub(crate) fn method_word(method: &OriginalSourceMethodMetadata) -> Option<Strin
     )
 }
 
-pub(crate) fn method_label(method: &OriginalSourceMethodMetadata) -> Option<String> {
-    Some(tcl_syntax::native_string::resident_name_label(
-        method.original_name_input().bytes(),
-    ))
+pub(crate) fn method_label(method: &OriginalSourceMethodMetadata) -> String {
+    tcl_syntax::native_string::resident_name_label(method.original_name_input().bytes())
 }
 
 pub(crate) fn own_method_labels(class: &ClassDef, side: MemberSide) -> Option<Vec<String>> {
@@ -400,7 +398,7 @@ pub(crate) fn own_method_labels(class: &ClassDef, side: MemberSide) -> Option<Ve
         .original_members
         .methods(side)?
         .iter()
-        .filter_map(method_label)
+        .map(method_label)
         .collect::<Vec<_>>();
     labels.sort();
     Some(labels)

@@ -1885,15 +1885,11 @@ fn bigip_lookup_misses_are_graceful() {
     assert!(reg.get("__not_a_real_kind__").is_none());
     assert!(reg.get_by_header("nope", "nope").is_none());
     assert!(reg.kind_for_header("nope", "nope").is_none());
-    assert!(reg.candidate_registry_kinds_for_display("").is_empty());
-    assert!(
-        reg.candidate_kinds_for_key("k", None, None, None)
-            .is_empty()
-    );
-    assert!(
-        reg.candidate_kinds_for_section_item("s", Some("nope"), Some("nope"))
-            .is_empty()
-    );
+    assert_eq!(reg.candidate_registry_kinds_for_display("").len(), 0);
+    assert_eq!(reg.candidate_kinds_for_key("k", None, None, None)
+            .len(), 0);
+    assert_eq!(reg.candidate_kinds_for_section_item("s", Some("nope"), Some("nope"))
+            .len(), 0);
 }
 
 // SWEEP 3 — iRules event ⇄ command cross-product accessors over the corpus.
@@ -1983,10 +1979,8 @@ fn sweep_event_command_legality_consistent() {
     }
 
     // An unknown event is illegal for everything and yields an empty listing.
-    assert!(
-        reg.valid_irules_commands_for_event("__FAKE__", &events, &profiles, None)
-            .is_empty()
-    );
+    assert_eq!(reg.valid_irules_commands_for_event("__FAKE__", &events, &profiles, None)
+            .len(), 0);
     let unknown = reg.event_info("__fake__", &events, &profiles, None);
     assert!(!unknown.known);
     assert_eq!(unknown.side, "unknown");

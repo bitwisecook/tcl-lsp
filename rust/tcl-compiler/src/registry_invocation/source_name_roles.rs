@@ -107,12 +107,7 @@ impl SourceNameRoleInventory {
     ) -> Self {
         let direct_written_arguments = invocation.effective.origins.len()
             == invocation.effective.words.len()
-            && invocation.effective.origins.len()
-                == invocation
-                    .arguments
-                    .len()
-                    .checked_add(1)
-                    .unwrap_or(usize::MAX)
+            && invocation.effective.origins.len() == invocation.arguments.len().saturating_add(1)
             && invocation
                 .effective
                 .origins
@@ -622,7 +617,7 @@ fn from_source_words(
         roles,
         roles_complete,
         direct_written_arguments: words.origins().len()
-            == words.arguments().len().checked_add(1).unwrap_or(usize::MAX)
+            == words.arguments().len().saturating_add(1)
             && words
                 .origins()
                 .iter()

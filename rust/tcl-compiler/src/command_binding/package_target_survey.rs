@@ -6,21 +6,21 @@ use super::*;
 /// Immutable source-model premise, never a package database/provision result.
 #[derive(Debug, Clone)]
 pub(crate) struct OriginalPackageIndexSourceModel {
-    _origin: Arc<SourceOriginId>,
-    _input: crate::analyser::ResolvedAnalysisInput,
+    origin: Arc<SourceOriginId>,
+    input: crate::analyser::ResolvedAnalysisInput,
     _words: Arc<[tcl_lexer::NativeWord]>,
-    _namespaces: Vec<SourceNamespaceKey>,
-    _subject: Option<String>,
+    namespaces: Vec<SourceNamespaceKey>,
+    subject: Option<String>,
     _advice: Arc<OriginalSourceCommandTransitionAdvice>,
     _layouts: Vec<Arc<OriginalCompilationLookupAdvice>>,
 }
 
 impl OriginalPackageIndexSourceModel {
     pub(crate) fn same_source_context(&self, parent: &Self) -> bool {
-        self._origin == parent._origin
-            && self._input == parent._input
-            && self._subject == parent._subject
-            && self._namespaces == parent._namespaces
+        self.origin == parent.origin
+            && self.input == parent.input
+            && self.subject == parent.subject
+            && self.namespaces == parent.namespaces
     }
 }
 
@@ -141,11 +141,11 @@ impl SourceCommandBindings {
         namespaces.sort();
         namespaces.dedup();
         Some(OriginalPackageIndexSourceModel {
-            _origin: Arc::clone(origin),
-            _input: input.clone(),
+            origin: Arc::clone(origin),
+            input: input.clone(),
             _words: Arc::from(command.words.clone()),
-            _namespaces: namespaces,
-            _subject: subject.map(str::to_owned),
+            namespaces: namespaces,
+            subject: subject.map(str::to_owned),
             _advice: Arc::clone(advice),
             _layouts: layouts,
         })

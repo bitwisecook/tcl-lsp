@@ -566,10 +566,8 @@ fn unknown_event_is_illegal_for_all() {
         &events,
         &profiles
     ));
-    assert!(
-        reg.valid_irules_commands_for_event("TOTALLY_FAKE_EVENT", &events, &profiles, None)
-            .is_empty()
-    );
+    assert_eq!(reg.valid_irules_commands_for_event("TOTALLY_FAKE_EVENT", &events, &profiles, None)
+            .len(), 0);
 }
 
 /// The HTTP2 family is legal in `HTTP_REQUEST` and in the message-routing
@@ -692,7 +690,7 @@ fn event_info_for_unknown_event() {
     let info = reg.event_info("totally_fake_event", &events, &profiles, None);
     assert_eq!(info.event, "TOTALLY_FAKE_EVENT");
     assert!(!info.known);
-    assert!(info.valid_commands.is_empty());
+    assert_eq!(info.valid_commands.len(), 0);
     assert_eq!(info.side, "unknown");
     assert!(info.transport.is_none());
 }
@@ -789,7 +787,7 @@ fn http_version_arg0_is_closed_value_set() {
 fn set_has_no_closed_value_args() {
     let (reg, ds) = reg_and_set("tcl8.6");
     let spec = reg.get_for_surface("set", ds).expect("set registered");
-    assert!(spec.closed_value_args.is_empty());
+    assert_eq!(spec.closed_value_args.len(), 0);
 }
 
 // `when` argument values cover the event corpus
@@ -3282,7 +3280,7 @@ fn mqtt_payload_forms_declare_event_and_collection_contracts() {
     assert_eq!(collected.only_in, &["MQTT_CLIENT_DATA", "MQTT_SERVER_DATA"]);
     let dynamic = mqtt.event_requirements_for_args(&["$form"]);
     assert!(!dynamic.matched_form);
-    assert!(dynamic.only_in.is_empty());
+    assert_eq!(dynamic.only_in.len(), 0);
 
     let diameter = reg
         .data_collection_operation("DIAMETER::payload")

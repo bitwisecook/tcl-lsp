@@ -1012,7 +1012,7 @@ impl<'a> CfgBuilder<'a> {
                 .command_classes
                 .metadata
                 .source_analysis_input()
-                .is_some_and(|input| input.has_logical_source_name_context());
+                .is_some_and(crate::analyser::ResolvedAnalysisInput::has_logical_source_name_context);
         let span = stmt.span();
         let mut produced = self.upvar_invalidated(stmt);
         let mut unknown_locations = logical_call;
@@ -3980,7 +3980,7 @@ fn build_cfg_inner_with_context(
             .with_invocation_namespace(namespace)
             .with_source_binding_timeline(timeline);
         proc_cfgs.insert(
-            qname.clone(),
+            *qname,
             builder.build_function(&proc.qualified_name, &proc.body),
         );
     }

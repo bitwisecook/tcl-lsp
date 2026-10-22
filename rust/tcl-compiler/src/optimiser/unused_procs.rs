@@ -152,15 +152,15 @@ fn reachable_procs(
     interproc: &crate::interprocedural::InterproceduralAnalysis,
 ) -> HashSet<crate::ir::ProcedureId> {
     let mut visited: HashSet<crate::ir::ProcedureId> = HashSet::new();
-    let mut stack: Vec<crate::ir::ProcedureId> = roots.iter().cloned().collect();
+    let mut stack: Vec<crate::ir::ProcedureId> = roots.iter().copied().collect();
     while let Some(current) = stack.pop() {
-        if !visited.insert(current.clone()) {
+        if !visited.insert(current) {
             continue;
         }
         if let Some(summary) = interproc.procedures.get(&current) {
             for callee in &summary.calls {
                 if !visited.contains(callee) {
-                    stack.push(callee.clone());
+                    stack.push(*callee);
                 }
             }
         }

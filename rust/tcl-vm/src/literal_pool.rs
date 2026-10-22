@@ -28,15 +28,19 @@ impl NativeLiteralUnavailable {
     }
 }
 
+type LiteralCurrencyCheck<'a> = dyn Fn() -> Result<(), NativeLiteralUnavailable> + 'a;
+type LiteralStringAccess<'a> = dyn Fn(
+        &Value,
+        NativeStringProtocol,
+        &LiteralCurrencyCheck<'_>,
+    ) -> Result<Vec<u8>, NativeLiteralUnavailable>
+    + 'a;
+
 /// Descriptive checks supplied by the actual compiler caller. These callbacks
 /// grant no Native entry, formatting capability or literal constructor role.
 pub(crate) struct OriginalLiteralCallbacks<'a> {
-    pub(crate) check: &'a dyn Fn() -> Result<(), NativeLiteralUnavailable>,
-    pub(crate) string: &'a dyn Fn(
-        &Value,
-        NativeStringProtocol,
-        &dyn Fn() -> Result<(), NativeLiteralUnavailable>,
-    ) -> Result<Vec<u8>, NativeLiteralUnavailable>,
+    pub(crate) check: &'a LiteralCurrencyCheck<'a>,
+    pub(crate) string: &'a LiteralStringAccess<'a>,
     pub(crate) refuse: &'a dyn Fn(tcl_syntax::value::ValueError) -> NativeLiteralUnavailable,
 }
 
@@ -136,7 +140,7 @@ impl NativeLiteralWorld {
                         .value()
                         .native_string_bytes_checked_for_value(protocol, None, &mut |value| {
                             registration()?;
-                            value.check_native_header().map_err(&refuse)
+                            value.check_native_header().map_err(refuse)
                         })
                         .map(|bytes| bytes.to_vec())
                 }
@@ -1288,7 +1292,7 @@ pub(crate) fn create_local_names_using(
                     .value()
                     .native_string_bytes_checked_for_value(protocol, None, &mut |value| {
                         registration()?;
-                        value.check_native_header().map_err(&refuse)
+                        value.check_native_header().map_err(refuse)
                     })
                     .map(|bytes| bytes.to_vec())
             }

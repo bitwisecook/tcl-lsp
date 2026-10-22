@@ -82,8 +82,8 @@ pub struct LogicalImplementationAdvice {
 }
 #[derive(Debug, Clone)]
 enum LogicalImplementationRoot {
-    Class(crate::type_hierarchy::LogicalHierarchyClass),
-    Member(tcl_compiler::analyser::types::LogicalSourceMemberDeclaration),
+    Class(Box<crate::type_hierarchy::LogicalHierarchyClass>),
+    Member(Box<tcl_compiler::analyser::types::LogicalSourceMemberDeclaration>),
 }
 impl LogicalImplementationAdvice {
     /// Revalidate the independent current document and selected source root.
@@ -146,11 +146,11 @@ pub fn logical_implementation_advice(
             crate::type_hierarchy::logical_implementation_classes(source, analysis, target, false)?;
         let mut targets = Vec::new();
         for class in classes.classes {
-            targets.push(LogicalImplementationRoot::Class(
+            targets.push(LogicalImplementationRoot::Class(Box::new(
                 crate::type_hierarchy::LogicalHierarchyClass::capture(
                     uri, source, analysis, class,
                 )?,
-            ));
+            )));
             spans.insert((class.name_span.start(), class.name_span.end()));
         }
         let incomplete = classes.incomplete || selection.has_unresolved_applicability();
@@ -158,7 +158,7 @@ pub fn logical_implementation_advice(
             uri: uri.to_owned(),
             image,
             input: analysis.resolved_input.as_ref()?.clone(),
-            root: LogicalImplementationRoot::Class(selection),
+            root: LogicalImplementationRoot::Class(Box::new(selection)),
             targets,
             ranges: finish(source, &index, spans),
             incomplete,
@@ -198,7 +198,7 @@ pub fn logical_implementation_advice(
                 .as_ref()
                 == Some(&name)
             {
-                targets.push(LogicalImplementationRoot::Member(candidate));
+                targets.push(LogicalImplementationRoot::Member(Box::new(candidate)));
                 spans.insert((method.name_span.start(), method.name_span.end()));
             }
         }
@@ -207,7 +207,7 @@ pub fn logical_implementation_advice(
         uri: uri.to_owned(),
         image,
         input: analysis.resolved_input.as_ref()?.clone(),
-        root: LogicalImplementationRoot::Member(member),
+        root: LogicalImplementationRoot::Member(Box::new(member)),
         targets,
         ranges: finish(source, &index, spans),
         incomplete,

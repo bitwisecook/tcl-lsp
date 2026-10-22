@@ -223,7 +223,7 @@ fn collect_statement_accesses(
             points
                 .source_metadata_owner()
                 .metadata_context(registry)
-                .flatten(),
+                .and_then(crate::registry_invocation::InvocationMetadataSelection::context),
         ) && after.dynamic_bindings)
     {
         selected.push((crate::place::unknown_top(), true, true));

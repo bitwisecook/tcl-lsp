@@ -1039,8 +1039,8 @@ impl Lowerer<'_> {
         else {
             return Err("try with malformed handler variable list");
         };
-        let var_name = var_names.first().map(|name| name.to_string());
-        let options_var = var_names.get(1).map(|name| name.to_string());
+        let var_name = var_names.first().map(ToString::to_string);
+        let options_var = var_names.get(1).map(ToString::to_string);
         let handler_tok = arg_tokens.get(body_idx);
         // A handler whose script word is the fall-through marker shares the
         // next handler's body (like `switch`). Tcl recognises the marker by

@@ -101,7 +101,7 @@ impl AdviceGraph {
                                     .input(subject)?
                                     .native_input()
                                     .filter(|input| input.policy() == *policy)
-                                    .map(|input| input.bytes())
+                                    .map(crate::signature_scan::scope::SignatureSourceNameInput::bytes)
                             })
                             .collect::<Option<Vec<_>>>()?;
                         NamespaceTransition::export_pattern_byte_operands(&inputs, *policy)?.0

@@ -95,22 +95,26 @@ pub(super) fn scan_survey(
     })
 }
 
+struct ControlAdmission {
+    lookup_closed: bool,
+    roles_complete: bool,
+}
+
 struct Control {
     words: OriginalRegistryWords,
     traits: Traits,
     chain: bool,
     registration: bool,
     stops: bool,
-    closed: bool,
+    admission: ControlAdmission,
     original: tcl_lexer::NativeScriptCommandWords,
-    source_control: Option<OriginalPackageIndexControl>,
+    package_control: Option<OriginalPackageIndexControl>,
     source_clauses: Option<Vec<(Option<usize>, usize)>>,
-    roles_complete: bool,
     advertisement: Option<std::sync::Arc<OriginalPackageIndexAdvertisement>>,
 }
 impl Control {
     fn path_admitted(&self) -> bool {
-        self.closed || self.source_control.is_some()
+        self.admission.lookup_closed || self.package_control.is_some()
     }
 }
 
@@ -197,11 +201,13 @@ impl Walker<'_, '_> {
             chain,
             registration,
             stops,
-            closed,
+            admission: ControlAdmission {
+                lookup_closed: closed,
+                roles_complete,
+            },
             original: original.clone(),
-            source_control,
+            package_control: source_control,
             source_clauses,
-            roles_complete,
             advertisement,
         })
     }
@@ -290,7 +296,7 @@ impl Walker<'_, '_> {
             let (bodies, bodies_complete) = self.bodies(&control.words);
             if !control.path_admitted()
                 || !bodies_complete
-                || (self.survey.is_some() && !control.roles_complete)
+                || (self.survey.is_some() && !control.admission.roles_complete)
             {
                 self.complete = false;
             }

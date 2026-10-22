@@ -1,0 +1,15 @@
+{
+  "utc": "2026-10-22T17:47:27.132271+00:00",
+  "base_head": "8478a7b5e859ad2a539378c9fe9b6c8fc75c10b3",
+  "supplemental_applied": "ac9e62029fd4274a918ca8fe07e440d3f11c5455995cf8225e5366070d6d09f6",
+  "switch_applied": "f83667654aa5ec35afdff6ec8ca668f1a42b973411bb835fc4b48474d68073aa",
+  "supplemental_paths": [
+    "rust/tcl-compiler/src/deferred_writes/supplied.rs",
+    "rust/tcl-registry/src/resolved_invocation.rs",
+    "rust/tcl-spectcl/tests/codegen_stamps.rs",
+    "rust/tcl-compiler/src/registry_invocation.rs"
+  ],
+  "syntax_checked": true,
+  "cargo_typecheck": false,
+  "semantic_acceptance": false
+}

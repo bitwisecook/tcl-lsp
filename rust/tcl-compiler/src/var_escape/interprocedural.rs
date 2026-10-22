@@ -218,7 +218,7 @@ pub fn solve_interprocedural_escape<S: BuildHasher>(
     let mut downgraded_fallback: HashMap<tcl_core_types::BodyFrameId, bool> = HashMap::new();
     for (qname, summary) in summaries {
         let call_fallback_final = summary.has_call_fallback() && graph.unresolved.contains(qname);
-        downgraded_fallback.insert(qname.clone(), summary.has_fallback() || call_fallback_final);
+        downgraded_fallback.insert(*qname, summary.has_fallback() || call_fallback_final);
     }
 
     // Materialise the final per-proc summary.
@@ -235,7 +235,7 @@ pub fn solve_interprocedural_escape<S: BuildHasher>(
         new_summary
             .flags
             .set(EscapeFlags::HAS_FALLBACK, downgraded_fallback[qname]);
-        result.insert(qname.clone(), new_summary);
+        result.insert(*qname, new_summary);
     }
 
     downgrade_non_pure_leaf_callers(&mut result, graph);
@@ -254,30 +254,30 @@ fn propagate_transitive_sources<S: BuildHasher>(
 ) {
     let mut transitive_sources: HashMap<tcl_core_types::BodyFrameId, HashSet<String>> = summaries
         .iter()
-        .map(|(k, s)| (k.clone(), s.upvar_source_names.iter().cloned().collect()))
+        .map(|(k, s)| (*k, s.upvar_source_names.iter().cloned().collect()))
         .collect();
     let mut transitive_unbounded: HashMap<tcl_core_types::BodyFrameId, bool> = summaries
         .iter()
-        .map(|(k, s)| (k.clone(), s.unbounded_upvar_source()))
+        .map(|(k, s)| (*k, s.unbounded_upvar_source()))
         .collect();
 
     // Reverse edges: qname → set of qnames that call it.
     let mut callers_of: HashMap<tcl_core_types::BodyFrameId, HashSet<tcl_core_types::BodyFrameId>> =
         summaries
             .keys()
-            .map(|k| (k.clone(), HashSet::new()))
+            .map(|k| (*k, HashSet::new()))
             .collect();
     for (qname, callees) in resolved_callees {
         for callee in callees {
             callers_of
-                .entry(callee.clone())
+                .entry(*callee)
                 .or_default()
-                .insert(qname.clone());
+                .insert(*qname);
         }
     }
 
-    let mut worklist: VecDeque<tcl_core_types::BodyFrameId> = summaries.keys().cloned().collect();
-    let mut in_worklist: HashSet<tcl_core_types::BodyFrameId> = summaries.keys().cloned().collect();
+    let mut worklist: VecDeque<tcl_core_types::BodyFrameId> = summaries.keys().copied().collect();
+    let mut in_worklist: HashSet<tcl_core_types::BodyFrameId> = summaries.keys().copied().collect();
     while let Some(qname) = worklist.pop_front() {
         in_worklist.remove(&qname);
         let current_sources = transitive_sources[&qname].clone();
@@ -303,7 +303,7 @@ fn propagate_transitive_sources<S: BuildHasher>(
                 }
             }
             if changed && !in_worklist.contains(&caller) {
-                worklist.push_back(caller.clone());
+                worklist.push_back(caller);
                 in_worklist.insert(caller);
             }
         }

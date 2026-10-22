@@ -24,7 +24,7 @@ pub(in crate::analyser) fn original_index_diagnostics(
     // naming.diagnostic.registry-source-ownership
     // docs/design/analysis/name-resolution-proofs/diagnostic-registry-source-ownership.md
     let Some(selected) = original
-        .with_schema(|schema| schema.authored_source_index_bounds())
+        .with_schema(tcl_registry::ResolvedInvocation::authored_source_index_bounds)
         .flatten()
     else {
         return Vec::new();

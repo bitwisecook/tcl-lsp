@@ -431,7 +431,7 @@ impl OriginalCacheWorld {
             || vm
                 .actual_native_invocation_dialect()
                 .native_tcloo_method_cache_protocol()
-                .map(|selected| selected.strings())
+                .map(NativeTclOoMethodCacheProtocol::strings)
                 != Some(protocol.strings())
             || selected_stamp(&vm.oo, target, external, protocol)
                 != Some((self.table_owner, self.stamp))

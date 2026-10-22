@@ -253,7 +253,7 @@ impl SourceCommandBindings {
                         failures.retain(|failure| &failure.entry.namespace == namespace);
                     }
                     !failures.is_empty()
-                })
+                });
             },
         );
     }

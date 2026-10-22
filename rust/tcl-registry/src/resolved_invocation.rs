@@ -1657,6 +1657,69 @@ pub enum SourceCallbackRetention {
     Unproven,
 }
 
+/// Source-value executable capability of one retained command schema.
+/// This is neither handler identity nor execution, callback entry or Normal.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SourceExecutableValueCapability {
+    /// Every authored role, form, option and prefix contract excludes code values.
+    Absent,
+    /// At least one authored layout can carry a script, lambda or command prefix.
+    MayContain,
+    /// Selection or the closed resolver vocabulary is unavailable.
+    Unproven,
+}
+
+fn source_executable_traits(traits: Traits) -> bool {
+    traits.intersects(Traits::EVALUATES_CODE | Traits::DEFERS_BODY | Traits::WRAPS_COMMAND_PREFIX)
+}
+
+fn source_option_has_executable_value(option: &OptionSpec) -> bool {
+    option.value_role().is_some_and(ArgRole::has_script_timing)
+        || option
+            .value_also_role()
+            .is_some_and(ArgRole::has_script_timing)
+        || option.value_script_timing().is_some()
+}
+
+fn source_form_has_executable_value(form: &crate::forms::CommandForm) -> bool {
+    form.arg_roles
+        .iter()
+        .any(|(_, role)| role.has_script_timing())
+        || form.options.iter().any(source_option_has_executable_value)
+        || form.traits.is_some_and(source_executable_traits)
+}
+
+fn source_sub_has_executable_value(sub: &crate::SubCommand) -> bool {
+    sub.arg_roles
+        .iter()
+        .any(|(_, role)| role.has_script_timing())
+        || sub
+            .arg_role_resolver_roles
+            .iter()
+            .any(|role| role.has_script_timing())
+        || sub
+            .repeated_args
+            .iter()
+            .any(|layout| layout.role.has_script_timing())
+        || sub.clause_grammar.is_some()
+        || source_executable_traits(sub.traits)
+        || sub.body_execution.is_some()
+        || !sub.command_prefixes.is_empty()
+        || sub.command_prefix_resolver.is_some()
+        || sub.script_timing_resolver.is_some()
+        || !sub.callback_taint_inputs.is_empty()
+        || sub.options.iter().any(source_option_has_executable_value)
+        || sub
+            .subcommand_forms
+            .iter()
+            .any(source_form_has_executable_value)
+        || sub.sub_subcommands.iter().any(|nested| {
+            nested
+                .options
+                .is_some_and(|options| options.iter().any(source_option_has_executable_value))
+        })
+}
+
 /// An owned, target-neutral projection of a resolved registry invocation.
 ///
 /// This is the hand-off shape for executable IR and shared optimisation
@@ -3877,6 +3940,80 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
             .find(|option| option.values.contains(&relative))?
             .option?
             .value_variable_scope()
+    }
+
+    /// Closed negative capability independent of ordinary data-role layout.
+    /// The private selected command owner retains all authored forms and
+    /// subcommands, so an empty positive position list never proves absence.
+    /// Dynamic resolvers need their declared closed role vocabulary. This
+    /// supplies no implementation, source frame, Native or successful handler.
+    #[must_use]
+    pub fn authored_source_executable_value_capability(&self) -> SourceExecutableValueCapability {
+        use SourceExecutableValueCapability::{Absent, MayContain, Unproven};
+        if !matches!(
+            self.subcommand,
+            SubcommandResolution::NotApplicable
+                | SubcommandResolution::Exact(_)
+                | SubcommandResolution::UniquePrefix(_)
+        ) {
+            return Unproven;
+        }
+        let spec = self.selected.spec;
+        if self.selected.form.is_none()
+            && (!spec.command_forms.is_empty()
+                || spec
+                    .subcommands
+                    .iter()
+                    .any(|sub| !sub.subcommand_forms.is_empty())
+                || self
+                    .selected
+                    .sub
+                    .is_some_and(|sub| !sub.subcommand_forms.is_empty()))
+        {
+            return Unproven;
+        }
+        if [
+            ArgRole::Body,
+            ArgRole::LambdaLiteral,
+            ArgRole::CommandPrefix,
+        ]
+        .into_iter()
+        .any(|role| crate::CommandRegistry::spec_may_have_arg_role(spec, role))
+            || source_executable_traits(spec.traits)
+            || spec.body_execution.is_some()
+            || spec.definition_body.is_some()
+            || !spec.command_prefixes.is_empty()
+            || spec.command_prefix_resolver.is_some()
+            || spec.script_timing_resolver.is_some()
+            || !spec.callback_taint_inputs.is_empty()
+            || spec.options.iter().any(source_option_has_executable_value)
+            || spec
+                .command_forms
+                .iter()
+                .any(source_form_has_executable_value)
+            || self
+                .selected
+                .form
+                .is_some_and(source_form_has_executable_value)
+            || spec.subcommands.iter().any(source_sub_has_executable_value)
+            || self
+                .selected
+                .sub
+                .is_some_and(source_sub_has_executable_value)
+        {
+            return MayContain;
+        }
+        if (spec.has_dynamic_argument_roles() && spec.arg_role_resolver_roles.is_empty())
+            || spec.subcommands.iter().any(|sub| {
+                sub.has_dynamic_argument_roles() && sub.arg_role_resolver_roles.is_empty()
+            })
+            || self.selected.sub.is_some_and(|sub| {
+                sub.has_dynamic_argument_roles() && sub.arg_role_resolver_roles.is_empty()
+            })
+        {
+            return Unproven;
+        }
+        Absent
     }
 
     /// Executable source-script positions from the selected descriptors and
@@ -6172,6 +6309,141 @@ fn sole_world_effect_descriptor(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn source_executable_value_absence_keeps_data_role_ambiguity_separate() {
+        use super::SourceExecutableValueCapability::{Absent, MayContain, Unproven};
+        use crate::InvocationWord::{Dynamic, Literal};
+        let mut registry = crate::CommandRegistry::build_default();
+        let payload = [Dynamic];
+        let selected = registry
+            .resolve_structured_invocation(
+                crate::InvocationWords::structured(Literal("puts"), &payload),
+                None,
+            )
+            .resolved()
+            .unwrap();
+        assert!(!selected.authored_source_argument_roles().1);
+        assert_eq!(
+            selected.authored_source_executable_value_capability(),
+            Absent
+        );
+        // Public summaries do not author the private command capability.
+        let mut reported = selected;
+        reported.semantics.arg_roles = &[(0, crate::ArgRole::Body)];
+        assert_eq!(
+            reported.authored_source_executable_value_capability(),
+            Absent
+        );
+        for (head, arguments) in [
+            ("after", &["0", "set", "x", "1"][..]),
+            ("apply", &["{} {set x 1}"][..]),
+            ("lsort", &["-command", "compare", "a b"][..]),
+            ("button", &[".b", "-command", "set x 1"][..]),
+        ] {
+            let selected = registry.resolve_invocation(head, arguments, None).unwrap();
+            assert_eq!(
+                selected.authored_source_executable_value_capability(),
+                MayContain,
+                "{head}"
+            );
+        }
+        let unknown = [Dynamic, Literal("x")];
+        let selected = registry
+            .resolve_structured_invocation(
+                crate::InvocationWords::structured(Literal("namespace"), &unknown),
+                None,
+            )
+            .resolved()
+            .unwrap();
+        assert_eq!(
+            selected.authored_source_executable_value_capability(),
+            Unproven
+        );
+        registry.insert(crate::CommandSpec {
+            name: "unclassified_layout",
+            arg_role_resolver: Some(|_| vec![(0, crate::ArgRole::Body)]),
+            ..crate::CommandSpec::DEFAULT
+        });
+        let selected = registry
+            .resolve_invocation("unclassified_layout", &["value"], None)
+            .unwrap();
+        assert_eq!(
+            selected.authored_source_executable_value_capability(),
+            Unproven
+        );
+    }
+
+    #[test]
+    fn source_executable_value_capability_keeps_actual_private_instance_and_nested_options() {
+        use super::SourceExecutableValueCapability::MayContain;
+        const OPTIONS: &[OptionSpec] = &[OptionSpec {
+            name: "-script",
+            value: crate::hover::OptionValue::script(),
+            ..OptionSpec::DEFAULT
+        }];
+        let registry = crate::CommandRegistry::build_default();
+        let selected = registry
+            .resolve_invocation("puts", &["data"], None)
+            .unwrap();
+        let member = crate::SubCommand {
+            name: "run",
+            arg_roles: &[(0, crate::ArgRole::Body)],
+            ..crate::SubCommand::DEFAULT
+        };
+        let mut instance = selected;
+        instance.selected.instance = true;
+        instance.selected.sub = Some(&member);
+        assert_eq!(
+            instance.authored_source_executable_value_capability(),
+            MayContain
+        );
+        let nested = crate::SubCommand {
+            name: "nested",
+            sub_subcommands: &[crate::spec::SubSubCommand {
+                name: "register",
+                options: Some(OPTIONS),
+                ..crate::spec::SubSubCommand::DEFAULT
+            }],
+            ..crate::SubCommand::DEFAULT
+        };
+        instance.selected.sub = Some(&nested);
+        assert_eq!(
+            instance.authored_source_executable_value_capability(),
+            MayContain
+        );
+        let form = crate::forms::CommandForm {
+            arg_roles: &[(0, crate::ArgRole::LambdaLiteral)],
+            ..crate::forms::CommandForm::DEFAULT
+        };
+        instance.selected.sub = None;
+        instance.selected.form = Some(&form);
+        assert_eq!(
+            instance.authored_source_executable_value_capability(),
+            MayContain
+        );
+        let timing = crate::SubCommand {
+            name: "timing",
+            script_timing_resolver: Some(|_| Vec::new()),
+            ..crate::SubCommand::DEFAULT
+        };
+        instance.selected.form = None;
+        instance.selected.sub = Some(&timing);
+        assert_eq!(
+            instance.authored_source_executable_value_capability(),
+            MayContain
+        );
+        let callback = crate::SubCommand {
+            name: "callback",
+            callback_taint_inputs: &[(0, &[])],
+            ..crate::SubCommand::DEFAULT
+        };
+        instance.selected.sub = Some(&callback);
+        assert_eq!(
+            instance.authored_source_executable_value_capability(),
+            MayContain
+        );
+    }
+
     #[test]
     fn frozen_source_retention_separates_ordinary_values_and_deferred_hooks() {
         use super::SourceCallbackRetention::{Absent, MayRetain};

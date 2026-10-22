@@ -23,7 +23,7 @@
 //! common Tcl commands (expr, incr, string, list, dict, etc.).
 
 use tcl_bytecode::EnteredCommandSite;
-use tcl_cmd_core::index::IndexCompiler;
+use tcl_cmd_core::index::{Encoded, IndexCompiler};
 use tcl_registry::hooks::InlineCodegenHookId;
 
 use crate::ir::{CommandTokens, WordExpr};
@@ -1531,18 +1531,7 @@ impl CodegenCtx<'_> {
                 self.emit_inline_array(cmd, &inline_args);
             }
             InlineCodegenHookId::String => {
-                let previous_inline = self.used_inline_cmd_subst;
-                let Some(canonical) = self.canonical_subcommand_args(cmd, &inline_args) else {
-                    return false;
-                };
-                if !self.try_emit_inline_string_invoke_replace(
-                    previous_inline,
-                    cmd,
-                    &site.binding,
-                    &canonical,
-                    false,
-                ) && !self.try_emit_compiled_index_command(cmd, &inline_args)
-                {
+                if !self.try_inline_statement_string(cmd, &site.binding, &inline_args) {
                     return false;
                 }
             }
@@ -1559,6 +1548,20 @@ impl CodegenCtx<'_> {
         });
         self.require_site_binding(&site, &shape);
         true
+    }
+
+    fn try_inline_statement_string(
+        &mut self,
+        cmd: &str,
+        binding: &tcl_runtime_api::CommandBindingIdentity,
+        args: &[(String, bool)],
+    ) -> bool {
+        let previous_inline = self.used_inline_cmd_subst;
+        let Some(canonical) = self.canonical_subcommand_args(cmd, args) else {
+            return false;
+        };
+        self.try_emit_inline_string_invoke_replace(previous_inline, cmd, binding, &canonical, false)
+            || self.try_emit_compiled_index_command(cmd, args)
     }
 
     /// Inline-compile a `[cmd arg ...]` command substitution.
@@ -1835,12 +1838,7 @@ impl CodegenCtx<'_> {
                 self.load_var(&args[0].0);
             }
             Some((InlineCodegenHookId::String, binding)) if args.len() >= 2 => {
-                if let Some(canonical) = self.canonical_subcommand_args(cmd, args) {
-                    self.emit_inline_string(cmd, &binding, &canonical);
-                } else {
-                    self.used_inline_cmd_subst = false;
-                    self.emit_generic_cmd_subst(cmd, args);
-                }
+                self.emit_canonical_inline_string(cmd, &binding, args);
             }
             Some((InlineCodegenHookId::Lindex, _)) => {
                 self.emit_inline_or_generic_cmd_subst(cmd, args, |ctx| {
@@ -1864,11 +1862,7 @@ impl CodegenCtx<'_> {
                 self.emit_string_is_generic(cmd, &binding, &args[1..]);
             }
             Some((InlineCodegenHookId::List, _)) if !args.is_empty() && !text.contains("{*}") => {
-                self.used_inline_cmd_subst = true;
-                for (index, (a, b)) in args.iter().enumerate() {
-                    self.emit_native_argument_word(index, a, *b);
-                }
-                self.emit(Op::LIST, vec![Operand::Imm(bytecode_imm(args.len()))]);
+                self.emit_inline_list(args);
             }
             Some((InlineCodegenHookId::Array, _)) if args.len() >= 2 => {
                 self.emit_inline_array(cmd, args);
@@ -1888,6 +1882,28 @@ impl CodegenCtx<'_> {
                 self.emit_generic_cmd_subst(cmd, args);
             }
         }
+    }
+
+    fn emit_canonical_inline_string(
+        &mut self,
+        cmd: &str,
+        binding: &tcl_runtime_api::CommandBindingIdentity,
+        args: &[(String, bool)],
+    ) {
+        if let Some(canonical) = self.canonical_subcommand_args(cmd, args) {
+            self.emit_inline_string(cmd, binding, &canonical);
+        } else {
+            self.used_inline_cmd_subst = false;
+            self.emit_generic_cmd_subst(cmd, args);
+        }
+    }
+
+    fn emit_inline_list(&mut self, args: &[(String, bool)]) {
+        self.used_inline_cmd_subst = true;
+        for (index, (word, braced)) in args.iter().enumerate() {
+            self.emit_native_argument_word(index, word, *braced);
+        }
+        self.emit(Op::LIST, vec![Operand::Imm(bytecode_imm(args.len()))]);
     }
 
     /// Emit a `{*}`-expanded command substitution in value position:
@@ -2964,7 +2980,6 @@ impl CodegenCtx<'_> {
                     // The literal index as the invocation's release compiles it
                     // (8.6's `TclIndexEncode`), or as it reads it running when
                     // the release evaluates the command directly.
-                    use tcl_cmd_core::index::Encoded;
                     match tcl_cmd_core::index::encode(text, release, !self.in_direct_command())? {
                         Encoded::Index(index) => i32::try_from(index).ok(),
                         Encoded::FromEnd(offset) if offset <= 0 => end_relative_imm(offset),

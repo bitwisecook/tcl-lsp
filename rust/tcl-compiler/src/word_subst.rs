@@ -267,7 +267,7 @@ pub(crate) fn original_source_dependency_regions(
                         && selected.facts().body_interpreter
                             == tcl_registry::BodyInterpreter::Current =>
                 {
-                    out.scripts.push(content)
+                    out.scripts.push(content);
                 }
                 _ => out.unknown = true,
             }
@@ -1614,7 +1614,7 @@ fn collect_variable_index(
                 );
             }
             ExecutablePart::Expression { .. } | ExecutablePart::ParseError(_) => {
-                out.incomplete = true
+                out.incomplete = true;
             }
             ExecutablePart::Variable { index: None, .. } | ExecutablePart::Text(_) => {}
         }

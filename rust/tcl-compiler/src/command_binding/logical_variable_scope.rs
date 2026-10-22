@@ -203,7 +203,7 @@ impl OriginalLogicalVariableScope {
         if let LogicalVariableFrameRecipe::Formal(card) = &self.frame {
             return card
                 .formal_topology()
-                .and_then(|topology| topology.original_name_fields())
+                .and_then(crate::command_binding::formal_topology::OriginalFormalTopology::original_name_fields)
                 .is_some_and(|fields| {
                     fields
                         .iter()

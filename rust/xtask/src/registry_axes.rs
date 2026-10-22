@@ -1280,11 +1280,11 @@ mod tests {
         assert!(hits.iter().all(|h| h.anchor == Some(1)));
         // A table nothing reads is not compared later.
         let unused = "const MODES: &[&str] = &[\"-exact\", \"-nocase\"];\n";
-        assert!(lines(unused).is_empty());
+        assert_eq!(lines(unused).len(), 0);
         // A table of another type is not a string table.
         let other =
             "const PAIRS: &[(&str, u8)] = &[(\"-exact\", 1)];\nfn f() -> usize { PAIRS.len() }\n";
-        assert!(lines(other).is_empty());
+        assert_eq!(lines(other).len(), 0);
     }
 
     #[test]
@@ -1403,14 +1403,12 @@ mod tests {
                 .any(|v| v.contains("gone.rs` has 0") && v.contains("lower the pin"))
         );
         assert!(verdicts.iter().any(|v| v.contains("held clean")));
-        assert!(
-            ratchet_verdicts(
+        assert_eq!(ratchet_verdicts(
                 &lint_with(&[("rust/x/a.rs", 2)]),
                 &[("rust/x/a.rs", 2)],
                 &[]
             )
-            .is_empty()
-        );
+            .len(), 0);
     }
 
     #[test]

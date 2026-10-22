@@ -2119,6 +2119,14 @@ impl ClassCommandFallback {
     }
 }
 
+/// Whether this body belongs to the surrounding interpreter's source walk.
+/// This is independent of lambda context and TclOO lookup/callability axes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum InterpreterSourceBody {
+    Enclosing,
+    Independent,
+}
+
 /// A lexical scope (global, namespace, or proc body).
 ///
 /// The analyser builds a tree of these as it walks; the root is
@@ -2152,7 +2160,7 @@ pub struct Scope {
     /// its own call/formal/source context is unavailable.
     pub(super) requires_original_lambda_source_context: bool,
     /// An independently walked interpreter script has its own source root.
-    pub(super) isolated_interpreter_source_body: bool,
+    pub(super) interpreter_source_body: InterpreterSourceBody,
     /// Retained authored namespace geometry; supplies no actual activation or token.
     pub naming_scope: Option<crate::signature_scan::scope::SignatureNamespaceScope>,
     /// Scope kind (global, namespace, proc).
@@ -2247,6 +2255,10 @@ pub struct Scope {
 }
 
 impl Scope {
+    pub(super) const fn is_independent_interpreter_source_body(&self) -> bool {
+        matches!(self.interpreter_source_body, InterpreterSourceBody::Independent)
+    }
+
     /// Construct a fresh empty scope.
     #[must_use]
     pub fn new(kind: ScopeKind, name: impl Into<String>) -> Self {
@@ -2255,7 +2267,7 @@ impl Scope {
             original_interpreter_source_domain: None,
             original_logical_lambda_namespace: None,
             requires_original_lambda_source_context: false,
-            isolated_interpreter_source_body: false,
+            interpreter_source_body: InterpreterSourceBody::Enclosing,
             naming_scope: None,
             original_member_context: None,
             original_receiver_body_declaration: None,
@@ -2882,9 +2894,21 @@ pub struct AnalysisResult {
 }
 
 // Reports compare original source coordinates; retained consumer ownership stays exact.
+// Exhaustive destructuring makes a newly added field a compile error until its
+// reporting comparison is chosen. The object-handle report is the sole field
+// with a purpose-specific comparison; every other field retains ordinary Eq.
+macro_rules! analysis_result_report_eq {
+    ($left:expr, $right:expr; [$($before:ident),*]; $report:ident; [$($after:ident),*]) => {{
+        let AnalysisResult { $($before,)* $report, $($after,)* } = $left;
+        $($before == &$right.$before &&)*
+            $report.analysis_report_eq(&$right.$report)
+            $(&& $after == &$right.$after)*
+    }};
+}
+
 impl PartialEq for AnalysisResult {
     fn eq(&self, other: &Self) -> bool {
-        let Self {
+        analysis_result_report_eq!(self, other; [
             optimiser_source_origin,
             analysis_context_unavailable,
             command_realm,
@@ -2958,8 +2982,8 @@ impl PartialEq for AnalysisResult {
             regex_patterns,
             suppressed_lines,
             unknown_proc_info,
-            instance_classes,
-            object_handle_facts,
+            instance_classes
+        ]; object_handle_facts; [
             created_instance_commands,
             instance_command_bindings,
             ambiguous_instance_names,
@@ -2973,100 +2997,8 @@ impl PartialEq for AnalysisResult {
             hierarchy_cache,
             dialect,
             body_lexer_config,
-            library_versions,
-        } = self;
-        optimiser_source_origin == &other.optimiser_source_origin
-            && analysis_context_unavailable == &other.analysis_context_unavailable
-            && command_realm == &other.command_realm
-            && original_command_world == &other.original_command_world
-            && lexical_declaration_advice == &other.lexical_declaration_advice
-            && resolved_input == &other.resolved_input
-            && original_vendor_source_names == &other.original_vendor_source_names
-            && original_vendor_variable_advice == &other.original_vendor_variable_advice
-            && original_vendor_variable_bodies == &other.original_vendor_variable_bodies
-            && global_scope == &other.global_scope
-            && all_procs == &other.all_procs
-            && original_procedure_metadata == &other.original_procedure_metadata
-            && original_vendor_procedure_metadata == &other.original_vendor_procedure_metadata
-            && original_vendor_class_metadata == &other.original_vendor_class_metadata
-            && original_symbol_metadata == &other.original_symbol_metadata
-            && original_vendor_symbol_metadata == &other.original_vendor_symbol_metadata
-            && proc_declaration_sites == &other.proc_declaration_sites
-            && superseded_procs == &other.superseded_procs
-            && all_classes == &other.all_classes
-            && logical_procedure_declarations == &other.logical_procedure_declarations
-            && logical_class_declarations == &other.logical_class_declarations
-            && original_class_metadata == &other.original_class_metadata
-            && original_class_configuration_metadata == &other.original_class_configuration_metadata
-            && original_object_configuration_metadata
-                == &other.original_object_configuration_metadata
-            && superseded_classes == &other.superseded_classes
-            && class_body_spans == &other.class_body_spans
-            && all_variables == &other.all_variables
-            && all_defined_symbols == &other.all_defined_symbols
-            && diagnostics == &other.diagnostics
-            && command_invocations == &other.command_invocations
-            && package_requires == &other.package_requires
-            && package_provides == &other.package_provides
-            && package_ifneededs == &other.package_ifneededs
-            && package_prefer_latest == &other.package_prefer_latest
-            && has_dynamic_providers == &other.has_dynamic_providers
-            && source_targets == &other.source_targets
-            && path_constant_assignments == &other.path_constant_assignments
-            && command_aliases == &other.command_aliases
-            && alias_offsets == &other.alias_offsets
-            && renamed_commands == &other.renamed_commands
-            && rename_offsets == &other.rename_offsets
-            && ensemble_subcommand_targets == &other.ensemble_subcommand_targets
-            && prefixless_ensembles == &other.prefixless_ensembles
-            && namespace_imports == &other.namespace_imports
-            && namespace_forgets == &other.namespace_forgets
-            && original_namespace_patterns == &other.original_namespace_patterns
-            && destroyed_commands == &other.destroyed_commands
-            && namespace_exports == &other.namespace_exports
-            && original_namespace_exports == &other.original_namespace_exports
-            && original_namespace_export_unknowns == &other.original_namespace_export_unknowns
-            && namespace_paths == &other.namespace_paths
-            && namespace_path_computed == &other.namespace_path_computed
-            && auto_path_entries == &other.auto_path_entries
-            && qualified_var_refs == &other.qualified_var_refs
-            && original_variable_symbols == &other.original_variable_symbols
-            && original_variable_write_advice == &other.original_variable_write_advice
-            && original_variable_symbol_conflicts == &other.original_variable_symbol_conflicts
-            && original_variable_roots == &other.original_variable_roots
-            && original_variable_alias_sites == &other.original_variable_alias_sites
-            && original_variable_name_unknowns == &other.original_variable_name_unknowns
-            && original_variable_alias_obligations == &other.original_variable_alias_obligations
-            && original_variable_alias_operands == &other.original_variable_alias_operands
-            && original_variable_alias_source_operands
-                == &other.original_variable_alias_source_operands
-            && original_variable_alias_receipts == &other.original_variable_alias_receipts
-            && namespace_refs == &other.namespace_refs
-            && namespace_name_unknowns == &other.namespace_name_unknowns
-            && dynamic_variable_names == &other.dynamic_variable_names
-            && namespace_overrides == &other.namespace_overrides
-            && stub_commands == &other.stub_commands
-            && stub_expr_defs == &other.stub_expr_defs
-            && regex_patterns == &other.regex_patterns
-            && suppressed_lines == &other.suppressed_lines
-            && unknown_proc_info == &other.unknown_proc_info
-            && instance_classes == &other.instance_classes
-            && object_handle_facts.analysis_report_eq(&other.object_handle_facts)
-            && created_instance_commands == &other.created_instance_commands
-            && instance_command_bindings == &other.instance_command_bindings
-            && ambiguous_instance_names == &other.ambiguous_instance_names
-            && object_methods == &other.object_methods
-            && object_member_state == &other.object_member_state
-            && unresolved_command_sites == &other.unresolved_command_sites
-            && scoped_command_regions == &other.scoped_command_regions
-            && original_scoped_bodies == &other.original_scoped_bodies
-            && original_conditional_registry_metadata
-                == &other.original_conditional_registry_metadata
-            && scoped_sibling_defs == &other.scoped_sibling_defs
-            && hierarchy_cache == &other.hierarchy_cache
-            && dialect == &other.dialect
-            && body_lexer_config == &other.body_lexer_config
-            && library_versions == &other.library_versions
+            library_versions
+        ])
     }
 }
 
@@ -5574,6 +5506,43 @@ p\uD801";
             .collect::<Vec<_>>();
         assert!(calls.iter().any(|input| input.bytes() == b"p\xed\xa0\x80"));
         assert!(calls.iter().any(|input| input.bytes() == b"p\xed\xa0\x81"));
+    }
+
+    #[test]
+    fn original_colon_collision_keeps_both_slots_and_allocation_joins() {
+        // N01: C Tcl 8.6/9.0/9.1 keep a:/p and a/:p distinct despite
+        // their colliding full-name reports. Original slots own this join.
+        let source = "namespace eval {a:} {proc p {} {return LEFT}}\n\
+namespace eval a {proc :p {} {return RIGHT}}\n\
+namespace eval {a:} {p}\n\
+namespace eval a {:p}";
+        for dialect in ["tcl8.6", "tcl9.0", "tcl9.1"] {
+            let mut result = crate::analyser::Analyser::new().analyse(source, dialect);
+            result.all_procs.clear();
+            result.superseded_procs.clear();
+            let declarations = result.original_procedure_declarations().collect::<Vec<_>>();
+            assert_eq!(declarations.len(), 2, "{dialect}");
+            let slots = [(b"a:".as_slice(), b"p".as_slice()), (b"a", b":p")]
+                .map(|(namespace, simple)| tcl_core_types::ByteCommandSlot {
+                    namespace: tcl_core_types::ByteNamespacePath::from_segments([namespace]),
+                    simple: tcl_core_types::NameBytes::from(simple),
+                });
+            let offsets = [source.rfind("{p}").unwrap() + 1, source.rfind("{:p}").unwrap() + 1];
+            for (index, offset) in offsets.into_iter().enumerate() {
+                let call = result.command_invocations.iter().find(|call| {
+                    call.range.start() == u32::try_from(offset).unwrap()
+                }).expect("original authored call");
+                assert!(call.original_lookup.is_some(), "{dialect}: {offset}");
+                for (target, slot) in slots.iter().enumerate() {
+                    let declaration = declarations.iter().find(|declaration| {
+                        declaration.name().slot() == slot
+                    }).expect("independently retained typed slot");
+                    assert_eq!(crate::source_graph::invocation_targets_declaration_in(
+                        source, &result, source, &result, call, declaration, false
+                    ), index == target, "{dialect}: call {index}, target {target}");
+                }
+            }
+        }
     }
 
     #[test]

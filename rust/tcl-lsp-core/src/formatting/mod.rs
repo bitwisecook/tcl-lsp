@@ -607,8 +607,8 @@ mod tests {
             crate::source_structure::SourceSyntaxStructure::capture(source, &analysis).unwrap();
         let head = u32::try_from(source.rfind("method m").unwrap()).unwrap();
         let member = structure.definition_member_at(head).unwrap().unwrap();
-        assert_eq!(member.script_bodies().unwrap().len(), 1);
-        assert_eq!(member.script_bodies().unwrap()[0].argument(), 2);
+        assert_eq!(member.script_bodies().len(), 1);
+        assert_eq!(member.script_bodies()[0].argument(), 2);
         let helper = "proc f {} {method m {} {puts α}}\r\n";
         let analysis = Analyser::new().analyse(helper, "tcl");
         let structure =

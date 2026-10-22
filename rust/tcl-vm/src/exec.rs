@@ -59,6 +59,7 @@ mod native_try_tests;
 mod native_uplevel_tests;
 
 use std::collections::HashMap;
+use std::ops::ControlFlow;
 use std::rc::Rc;
 
 use crate::interp::native_operation_currency::{NativeOperationCurrency, NativeOperationScope};
@@ -175,6 +176,13 @@ pub(crate) struct NativeJimVectorFrame {
     words: crate::NativeListItems,
 }
 
+/// Whether bytecode-entry bookkeeping has completed for this activation.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum BytecodeEntry {
+    Pending,
+    Entered,
+}
+
 /// One activation record owned by the interpreter or a parked coroutine.
 pub(crate) struct Frame {
     jim_script_entry: Option<crate::native_jim_script::NativeJimScriptEntry>,
@@ -216,7 +224,7 @@ pub(crate) struct Frame {
     /// (`[namespace, words…]`), kept for the error trace.
     dispatched_invocation: Option<Value>,
     /// Original invoking stack references remain owned through the callee
-    /// activation; the reporting CallFrame separately borrows lifetime views.
+    /// activation; the reporting `CallFrame` separately borrows lifetime views.
     _procedure_invocation: Option<(Value, Vec<Value>)>,
     /// Literal command tokens resolved at their command-head push, before the
     /// remaining words perform substitutions. Entries are keyed by the
@@ -253,7 +261,7 @@ pub(crate) struct Frame {
     catch_ranges: Vec<CatchRange>,
     /// Lifetime view of the actual result after a completed command.
     last_result: Option<crate::NativeObjectLifetimeLease>,
-    native_bytecode_entered: bool,
+    native_bytecode_entry: BytecodeEntry,
     /// A replacement dispatch handed to this activation after procedure exit.
     deferred_dispatch: Option<Box<Tick>>,
     /// Carried return options in this evaluation frame. An ordinary successful
@@ -730,7 +738,7 @@ impl Frame {
             expand_markers: Vec::new(),
             catch_ranges: Vec::new(),
             last_result: None,
-            native_bytecode_entered: false,
+            native_bytecode_entry: BytecodeEntry::Pending,
             deferred_dispatch: None,
             last_options: Value::empty(),
             is_proc,
@@ -917,7 +925,7 @@ impl Frame {
     ) -> Self {
         let mut frame = Self::new(unit, false);
         frame.original_invocation = Some(original);
-        frame.native_bytecode_entered = true;
+        frame.native_bytecode_entry = BytecodeEntry::Entered;
         frame
     }
 
@@ -1159,7 +1167,7 @@ fn build_off2idx(asm: &FunctionAsm) -> HashMap<i32, usize> {
 }
 
 /// The instructions [`Vm::tick_invoke`] executes: those that run a command
-/// (and so may recurse natively into a TclOO method) while their frame is live.
+/// (and so may recurse natively into a `TclOO` method) while their frame is live.
 fn is_invoke_op(op: Op) -> bool {
     matches!(
         op,
@@ -1944,7 +1952,7 @@ impl Vm {
     /// `true` for [`invoke_command`](Self::invoke_command) running a proc body.
     ///
     /// The frame is boxed so no copy of it stays in this frame (or the
-    /// caller's) while the activation runs: a TclOO method call recurses
+    /// caller's) while the activation runs: a `TclOO` method call recurses
     /// natively through here (see `OO_DISPATCH_DEPTH_LIMIT`).
     fn run_activation(&mut self, initial: Box<Frame>) -> Completion<Value> {
         let mut acts = Vec::new();
@@ -2975,10 +2983,7 @@ impl Vm {
         let c = match self.publish_native_interp_completion(c) {
             Ok(completion) => completion,
             Err(error) => {
-                return Some(crate::command::completion_from_tcl_error(
-                    self,
-                    error.into(),
-                ));
+                return Some(crate::command::completion_from_tcl_error(self, error));
             }
         };
         if c.code == Code::Error {
@@ -3684,7 +3689,7 @@ impl Vm {
         let Some(parent) = acts.last_mut() else {
             return Some(match self.publish_native_interp_completion(completion) {
                 Ok(completion) => completion,
-                Err(error) => crate::command::completion_from_tcl_error(self, error.into()),
+                Err(error) => crate::command::completion_from_tcl_error(self, error),
             });
         };
         match self.fold_child_completion(parent, completion) {
@@ -3793,8 +3798,8 @@ impl Vm {
         {
             let key = match self.native_name_operand_bytes_checked(&c.result) {
                 Ok(key) => key,
-                Err(_refusal) => {
-                    return Err(crate::command::completion_from_cmd_error(self, _refusal));
+                Err(refusal) => {
+                    return Err(crate::command::completion_from_cmd_error(self, refusal));
                 }
             };
             c = match self.read_variable_result_bytes(&base, Some(&key)) {
@@ -5463,7 +5468,7 @@ impl Vm {
                 }
             }
             Tick::Return(_) | Tick::Suspend(_) => {
-                f.exec_leave.push(Self::original_scope_context(original))
+                f.exec_leave.push(Self::original_scope_context(original));
             }
             Tick::Continue | Tick::Tailcall(_) => {}
         }
@@ -5509,8 +5514,8 @@ impl Vm {
             return self.tick_each_loop(f);
         }
         let asm = match self.tick_bytecode_prologue(f) {
-            Ok(asm) => asm,
-            Err(tick) => return tick,
+            ControlFlow::Continue(asm) => asm,
+            ControlFlow::Break(tick) => return tick,
         };
         let instr = &asm.instructions[f.pc - 1];
         // Command invocation recurses natively for a TclOO method call (see
@@ -5534,17 +5539,17 @@ impl Vm {
     /// command-boundary bookkeeping, stale-command replay, and the debugger seams.
     /// Returns the frame's function with `f.pc` already past the instruction to
     /// execute, or the tick that ends this step early. Kept out of line so its
-    /// locals are not on the native stack while the instruction runs (a TclOO
+    /// locals are not on the native stack while the instruction runs (a `TclOO`
     /// method call recurses natively through the INVOKE path).
     #[inline(never)]
-    fn tick_bytecode_prologue(&mut self, f: &mut Frame) -> Result<Rc<FunctionAsm>, Tick> {
-        if !f.native_bytecode_entered {
+    fn tick_bytecode_prologue(&mut self, f: &mut Frame) -> ControlFlow<Tick, Rc<FunctionAsm>> {
+        if f.native_bytecode_entry == BytecodeEntry::Pending {
             if let Err(refusal) = self.reset_native_ensemble_rewrite(
                 tcl_registry::native_ensemble_rewrite::EnsembleRewriteResetEvent::BytecodeEntry,
             ) {
-                return Err(Tick::Return(refusal));
+                return ControlFlow::Break(Tick::Return(refusal));
             }
-            f.native_bytecode_entered = true;
+            f.native_bytecode_entry = BytecodeEntry::Entered;
         }
         // A control transfer may skip an entered command's invoke (an error,
         // catch jump, or stale-command replay). Drop only entries whose
@@ -5558,14 +5563,14 @@ impl Vm {
             .retain(|operation| operation.start <= f.pc && f.pc < operation.end);
         let asm = Rc::clone(&f.asm);
         if f.pc >= asm.instructions.len() {
-            return Err(self.finish_frame_result(f));
+            return ControlFlow::Break(self.finish_frame_result(f));
         }
         let instr = &asm.instructions[f.pc];
         if let Some(tick) = self.enter_native_operations(f, &asm, instr) {
-            return Err(tick);
+            return ControlFlow::Break(tick);
         }
         if let Some(tick) = self.enter_native_compiler_selection(f, &asm, instr) {
-            return Err(tick);
+            return ControlFlow::Break(tick);
         }
         // A release that keeps the commands running bytecode compiled (8.4)
         // checks its compile epoch only as it enters a unit: note when.
@@ -5585,10 +5590,9 @@ impl Vm {
         if instr.source_command_boundary.is_start() {
             f.last_result = None;
             if let Err(error) = self.reset_native_jim_result() {
-                return Err(Tick::Return(crate::command::completion_from_tcl_error(
-                    self,
-                    error.into(),
-                )));
+                return ControlFlow::Break(Tick::Return(
+                    crate::command::completion_from_tcl_error(self, error.into()),
+                ));
             }
         }
         if instr.op != Op::START_CMD
@@ -5607,73 +5611,13 @@ impl Vm {
             if self.active_native_bindings_match(f, &asm) && !self.step_trace_active() {
                 f.command_epoch = self.trace_deopt_epoch();
             } else {
-                if self
-                    .resolve_compiled_namespace_context(&instr.source_namespace_context())
-                    .is_none()
-                {
-                    return Err(Tick::Return(err(
-                        "native replay namespace context is unavailable",
-                    )));
-                }
-                let child = match self.compile_plain_function_cached_bytes(
-                    tcl_runtime_api::ScriptCompileTargetBytes {
-                        source: &instr.source_cmd_text,
-                        namespace: &instr.source_command_namespace,
-                    },
-                ) {
-                    Ok(asm) => asm,
-                    Err(error) => {
-                        return Err(Tick::Return(crate::command::completion_from_tcl_error(
-                            self, error,
-                        )));
-                    }
-                };
-                let mut after = f.pc + 1;
-                while after < asm.instructions.len() {
-                    let candidate = &asm.instructions[after];
-                    if candidate.source_command_boundary.is_start() {
-                        // A command substitution has its own executable source
-                        // boundary inside the enclosing command. Replaying the
-                        // enclosing command already executes that substitution,
-                        // so resuming at the nested boundary would execute the
-                        // outer command repeatedly and eventually consume a
-                        // half-rebuilt operand stack. The compiler's exact spans
-                        // give the nesting relation without naming either
-                        // command; the first non-contained boundary is this
-                        // command's continuation.
-                        let nested = instr.source_span.zip(candidate.source_span).is_some_and(
-                            |(outer, inner)| {
-                                outer.start() <= inner.start() && inner.end() <= outer.end()
-                            },
-                        );
-                        if !nested {
-                            break;
-                        }
-                    }
-                    after += 1;
-                }
-                // Resume on this command's trailing POP so the transparent
-                // child's result becomes the parent's ordinary last result.
-                f.pc = if after > f.pc + 1 && asm.instructions[after - 1].op == Op::POP {
-                    after - 1
-                } else {
-                    after
-                };
-                return Err(Tick::PushScript {
-                    script: Box::new(
-                        self.compiled_unit(child, instr.source_command_namespace.clone()),
-                    ),
-                    label: None,
-                    cleanup_proc: None,
-                    fatal_tail: None,
-                    namespace: ScriptNamespace::CommandBoundary(instr.source_namespace_context()),
-                });
+                return ControlFlow::Break(self.replay_stale_command(f, &asm, instr));
             }
         }
         if let Err(completion) =
             self.capture_entered_command(f, &asm, instr, f.pc.saturating_add(1))
         {
-            return Err(Tick::Return(completion));
+            return ControlFlow::Break(Tick::Return(completion));
         }
         if instr
             .completion_option_scope
@@ -5692,7 +5636,7 @@ impl Vm {
             && !command_is_dispatched(&asm, f.pc)
             && let Some(exceeded) = self.charge_command()
         {
-            return Err(Tick::Return(exceeded));
+            return ControlFlow::Break(Tick::Return(exceeded));
         }
         f.pc += 1;
         // Line-watch seam: keep the embedder's cell on the dispatching
@@ -5702,13 +5646,80 @@ impl Vm {
         #[allow(clippy::redundant_closure_for_method_calls)] // Span isn't named in this crate.
         let span_start = instr.source_span.map(|s| s.start());
         if self.debug_step(instr.source_line, span_start, &instr.source_cmd_text) {
-            return Err(Tick::Return(Completion::new(
+            return ControlFlow::Break(Tick::Return(Completion::new(
                 Code::Error,
                 Value::string("debug: terminated"),
                 Value::empty(),
             )));
         }
-        Ok(asm)
+        ControlFlow::Continue(asm)
+    }
+
+    /// Recompile the source command at its original boundary and resume after it.
+    /// The caller has already performed entry and result-owner bookkeeping.
+    fn replay_stale_command(
+        &mut self,
+        f: &mut Frame,
+        asm: &Rc<FunctionAsm>,
+        instr: &Instruction,
+    ) -> Tick {
+        if self
+            .resolve_compiled_namespace_context(&instr.source_namespace_context())
+            .is_none()
+        {
+            return Tick::Return(err("native replay namespace context is unavailable"));
+        }
+        let child = match self.compile_plain_function_cached_bytes(
+            tcl_runtime_api::ScriptCompileTargetBytes {
+                source: &instr.source_cmd_text,
+                namespace: &instr.source_command_namespace,
+            },
+        ) {
+            Ok(asm) => asm,
+            Err(error) => {
+                return Tick::Return(crate::command::completion_from_tcl_error(self, error));
+            }
+        };
+        let mut after = f.pc + 1;
+        while after < asm.instructions.len() {
+            let candidate = &asm.instructions[after];
+            if candidate.source_command_boundary.is_start() {
+                // A command substitution has its own executable source
+                // boundary inside the enclosing command. Replaying the
+                // enclosing command already executes that substitution,
+                // so resuming at the nested boundary would execute the
+                // outer command repeatedly and eventually consume a
+                // half-rebuilt operand stack. The compiler's exact spans
+                // give the nesting relation without naming either
+                // command; the first non-contained boundary is this
+                // command's continuation.
+                let nested =
+                    instr
+                        .source_span
+                        .zip(candidate.source_span)
+                        .is_some_and(|(outer, inner)| {
+                            outer.start() <= inner.start() && inner.end() <= outer.end()
+                        });
+                if !nested {
+                    break;
+                }
+            }
+            after += 1;
+        }
+        // Resume on this command's trailing POP so the transparent
+        // child's result becomes the parent's ordinary last result.
+        f.pc = if after > f.pc + 1 && asm.instructions[after - 1].op == Op::POP {
+            after - 1
+        } else {
+            after
+        };
+        Tick::PushScript {
+            script: Box::new(self.compiled_unit(child, instr.source_command_namespace.clone())),
+            label: None,
+            cleanup_proc: None,
+            fatal_tail: None,
+            namespace: ScriptNamespace::CommandBoundary(instr.source_namespace_context()),
+        }
     }
 
     /// Execute one non-invoking instruction (`f.pc` is already past it).
@@ -5873,11 +5884,11 @@ impl Vm {
                 // therefore are not safe acknowledgement/replay points. Leave
                 // the frame stale until a real source boundary is reached.
                 if f.command_epoch != current_epoch && !instr.source_cmd_text.is_empty() {
-                    if self.active_native_bindings_match(f, &asm) && !self.step_trace_active() {
+                    if self.active_native_bindings_match(f, asm) && !self.step_trace_active() {
                         f.command_epoch = current_epoch;
                     } else {
                         let Some(target) =
-                            label0(instr).and_then(|label| label_to_idx(&asm, &f.off2idx, label))
+                            label0(instr).and_then(|label| label_to_idx(asm, &f.off2idx, label))
                         else {
                             return Tick::Return(err(
                                 "stale startCommand has no valid continuation",
@@ -5935,19 +5946,19 @@ impl Vm {
                 if let Some(idx) = instr
                     .catch_target
                     .as_deref()
-                    .and_then(|label| label_to_idx(&asm, &f.off2idx, label))
+                    .and_then(|label| label_to_idx(asm, &f.off2idx, label))
                 {
                     f.catch_ranges.push(CatchRange {
                         target_idx: idx,
                         start_idx: instr
                             .catch_start
                             .as_deref()
-                            .and_then(|label| label_to_idx(&asm, &f.off2idx, label))
+                            .and_then(|label| label_to_idx(asm, &f.off2idx, label))
                             .unwrap_or(f.pc),
                         end_idx: instr
                             .catch_end
                             .as_deref()
-                            .and_then(|label| label_to_idx(&asm, &f.off2idx, label))
+                            .and_then(|label| label_to_idx(asm, &f.off2idx, label))
                             .unwrap_or(idx),
                         stack_len: f.stack.len(),
                         foreach_len: f.foreach_stack.len(),
@@ -6777,7 +6788,7 @@ impl Vm {
 
             // Control flow.
             Op::JUMP1 | Op::JUMP4 => {
-                if let Some(idx) = jump_target(&asm, &f.off2idx, instr) {
+                if let Some(idx) = jump_target(asm, &f.off2idx, instr) {
                     f.pc = idx;
                 }
             }
@@ -6789,7 +6800,7 @@ impl Vm {
                     tcl_registry::native_boolean_truth::NativeBooleanTruthPurpose::ConditionalJump,
                 ) {
                     Ok(true) => {
-                        if let Some(idx) = jump_target(&asm, &f.off2idx, instr) {
+                        if let Some(idx) = jump_target(asm, &f.off2idx, instr) {
                             f.pc = idx;
                         }
                     }
@@ -6807,7 +6818,7 @@ impl Vm {
                     tcl_registry::native_boolean_truth::NativeBooleanTruthPurpose::ConditionalJump,
                 ) {
                     Ok(false) => {
-                        if let Some(idx) = jump_target(&asm, &f.off2idx, instr) {
+                        if let Some(idx) = jump_target(asm, &f.off2idx, instr) {
                             f.pc = idx;
                         }
                     }
@@ -6831,7 +6842,7 @@ impl Vm {
                     unreachable!("authenticated native switch table");
                 };
                 if let Some(label) = label
-                    && let Some(index) = label_to_idx(&asm, &f.off2idx, label)
+                    && let Some(index) = label_to_idx(asm, &f.off2idx, label)
                 {
                     f.pc = index;
                 }
@@ -6840,7 +6851,7 @@ impl Vm {
                 let key = pop(f).to_str();
                 if let Some(jt) = &instr.jump_table
                     && let Some(label) = jt.get(&*key)
-                    && let Some(idx) = label_to_idx(&asm, &f.off2idx, label)
+                    && let Some(idx) = label_to_idx(asm, &f.off2idx, label)
                 {
                     f.pc = idx;
                 }
@@ -7322,6 +7333,22 @@ impl Vm {
             // `INST_STR_CLASS`: the empty string matches, otherwise every
             // character must satisfy the class comparator. Shares the classifier
             // with the `string is` command.
+            Op::STR_CLASS if instr.native_switch_version.is_some() => {
+                if imm0(instr) != 2 {
+                    return Tick::Return(
+                        self.refuse_host_command(
+                            "unmodeled native string class instruction".into(),
+                        ),
+                    );
+                }
+                let original = pop(f);
+                let result = try_core!(self.execute_native_ascii_predicate(
+                    &original,
+                    instr.native_switch_version.unwrap(),
+                ));
+                drop(original);
+                f.stack.push(result);
+            }
             Op::STR_CLASS => {
                 let class_id = u8::try_from(imm0(instr)).unwrap_or(u8::MAX);
                 let Some(class) = tcl_bytecode::str_class_name(class_id) else {
@@ -7529,8 +7556,7 @@ impl Vm {
                         .push(bytes.map_or_else(Value::empty, Value::from_native_string_bytes)),
                     Err(error) => {
                         return Tick::Return(crate::command::completion_from_cmd_error(
-                            self,
-                            error.into(),
+                            self, error,
                         ));
                     }
                 }
@@ -7552,8 +7578,7 @@ impl Vm {
                     }
                     Err(error) => {
                         return Tick::Return(crate::command::completion_from_cmd_error(
-                            self,
-                            error.into(),
+                            self, error,
                         ));
                     }
                 }
@@ -9444,7 +9469,7 @@ impl Vm {
             let message = c.result.to_str().to_string();
             self.seed_error_info_frame(
                 &message,
-                &format!("\n    ({op} trace on \"{}{marker}\")", &command[..end]),
+                format!("\n    ({op} trace on \"{}{marker}\")", &command[..end]),
             );
             self.mark_error_logged();
         } else if op == "leave" {
@@ -9618,7 +9643,7 @@ impl Vm {
         }
         let res = self
             .publish_native_interp_completion(res)
-            .map_err(|error| crate::command::completion_from_tcl_error(self, error.into()))?;
+            .map_err(|error| crate::command::completion_from_tcl_error(self, error))?;
         self.deliver_sync(f, res)
     }
 
@@ -9883,7 +9908,7 @@ impl Vm {
 
     /// The procedure arm of [`Self::dispatch_selected_words`], out of line so
     /// its locals are not in the frame a native command dispatch recurses
-    /// through (a TclOO method call; see `OO_DISPATCH_DEPTH_LIMIT`).
+    /// through (a `TclOO` method call; see `OO_DISPATCH_DEPTH_LIMIT`).
     #[inline(never)]
     fn dispatch_procedure_words(
         &mut self,
@@ -11041,7 +11066,7 @@ impl Vm {
                 CommandSidecarKey::Hidden(_) => None,
             })
             .unwrap_or("");
-        let _jim_lease = self.retain_original_jim_command(original, Some(selected_key));
+        let jim_lease = self.retain_original_jim_command(original, Some(selected_key));
         self.enter_native_jim_vector_command(original, &command);
         let saved_handler = self.take_native_handler_metadata();
         let usage_scope = self.enter_native_usage_scope(usage);
@@ -11056,7 +11081,7 @@ impl Vm {
             self.leave_native_usage_scope(usage_scope);
             self.restore_native_handler_metadata(saved_handler);
             drop(direct_import);
-            drop(_jim_lease);
+            drop(jim_lease);
             let retired =
                 std::mem::replace(&mut self.native_invocation.arguments, previous_arguments);
             drop(retired);
@@ -11166,11 +11191,11 @@ impl Vm {
         self.restore_native_handler_metadata(saved_handler);
         let completion = self
             .publish_native_interp_completion(result)
-            .unwrap_or_else(|error| crate::command::completion_from_tcl_error(self, error.into()));
+            .unwrap_or_else(|error| crate::command::completion_from_tcl_error(self, error));
         drop(direct_import);
         // Native result ownership is settled before the invoked node retires;
         // its cleanup still observes this actual argv until it has finished.
-        drop(_jim_lease);
+        drop(jim_lease);
         let retired = std::mem::replace(&mut self.native_invocation.arguments, previous_arguments);
         drop(retired);
         completion
@@ -11324,10 +11349,7 @@ impl Vm {
                 });
             }
             Err(error) => {
-                return Tick::Return(crate::command::completion_from_cmd_error(
-                    self,
-                    error.into(),
-                ));
+                return Tick::Return(crate::command::completion_from_cmd_error(self, error));
             }
         };
         let words = crate::NativeListItems::invocation_view(Rc::new(
@@ -11487,7 +11509,7 @@ impl Vm {
                     return self.deliver_tailcall_completion(acts, completion);
                 }
                 Err(error) => {
-                    let completion = crate::command::completion_from_cmd_error(self, error.into());
+                    let completion = crate::command::completion_from_cmd_error(self, error);
                     return self.deliver_tailcall_completion(acts, completion);
                 }
             };

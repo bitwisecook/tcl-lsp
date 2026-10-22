@@ -558,7 +558,7 @@ fn bindings_from_self_dispatch(
         ctx,
         cmd,
         entry.body(),
-        format!("{}::{}", class.command, entry.name()),
+        &format!("{}::{}", class.command, entry.name()),
         &names,
         |i| template.literal_parameter_argument(i),
         out,
@@ -586,7 +586,7 @@ fn bindings_from_declared_self_dispatch(
         ctx,
         cmd,
         template.callee_body().source(),
-        template.display_name().to_owned(),
+        template.display_name(),
         &names,
         |i| template.literal_parameter_argument(i),
         out,
@@ -597,7 +597,7 @@ fn scan_self_method_body<'a>(
     ctx: &BindingScan<'_>,
     cmd: &tcl_compiler::segmenter::SegmentedCommand,
     script: &tcl_compiler::command_binding::ExecutedScriptSource,
-    callee: String,
+    callee: &str,
     param_names: &[&str],
     literal_argument: impl Fn(usize) -> Option<(usize, &'a str)>,
     out: &mut Vec<CallerFrameBinding>,
@@ -630,7 +630,7 @@ fn scan_self_method_body<'a>(
     }
     if let Some(written) = targets.get(ctx.name) {
         out.push(CallerFrameBinding {
-            callee: callee.clone(),
+            callee: callee.to_owned(),
             param: None,
             arg_span: head.span,
             call_span: head.span,
@@ -672,7 +672,7 @@ fn scan_self_method_body<'a>(
             continue;
         }
         out.push(CallerFrameBinding {
-            callee: callee.clone(),
+            callee: callee.to_owned(),
             param: Some((*param).to_string()),
             arg_span: arg_tok.span,
             call_span: head.span,

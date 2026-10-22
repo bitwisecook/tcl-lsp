@@ -13671,7 +13671,7 @@ impl ModuleCommandBindings {
             registry,
             namespace,
             tcl_registry::Traits::empty(),
-            owner.metadata_context(registry).flatten(),
+            owner.metadata_context(registry).and_then(crate::registry_invocation::InvocationMetadataSelection::context),
         );
     }
     /// Advance conditional source effects using the independently retained

@@ -795,7 +795,7 @@ impl Analyser {
             if let Some(rv) = rv
                 && factory_locals.get(qname).is_some_and(|s| s.contains(rv))
             {
-                object_returning.insert(qname.clone());
+                object_returning.insert(*qname);
             }
         }
 
@@ -2363,7 +2363,9 @@ fn dispatch_table_values(
         {
             return None;
         }
-        binding.original_invocation_metadata_for_function(tokens, unit, registry)?
+        binding
+            .original_invocation_metadata_for_function(tokens, unit, registry)?
+            .context()
     };
     let config = unit.source_lexer_config();
     let calls =
@@ -2389,7 +2391,9 @@ fn dispatch_table_values(
         if !owner.owns_original_tokens(&nested) {
             return None;
         }
-        nested_binding.original_invocation_metadata_for_function(&nested, unit, registry)?
+        nested_binding
+            .original_invocation_metadata_for_function(&nested, unit, registry)?
+            .context()
     };
     let (input, keys) =
         crate::registry_invocation::normal_representation_invocation_with_metadata_context(

@@ -50,7 +50,7 @@ struct OwnObjectMethod {
 enum Target {
     Declaration {
         class: CommandAllocationSite,
-        method: OriginalSourceMemberDeclaration,
+        method: Box<OriginalSourceMemberDeclaration>,
         call_point: bool,
     },
     OwnObject(Box<OwnObjectMethod>),
@@ -59,7 +59,7 @@ enum Target {
     /// its source class, the final segment names a class-side member.
     SourceClassProcCall(Box<OriginalSourceClassProcCall>),
     ClassLookup {
-        lookup: OriginalCommandLookup,
+        lookup: Box<OriginalCommandLookup>,
         known_class: bool,
     },
 }
@@ -219,7 +219,7 @@ impl OriginalMethodCandidate {
     #[must_use]
     pub fn hover(&self) -> Option<crate::hover::Hover> {
         if let Some(object) = &self.object {
-            let method = crate::original_oo::method_label(&self.method)?;
+            let method = crate::original_oo::method_label(&self.method);
             let owner = object
                 .name_input()
                 .map(|input| tcl_syntax::native_string::resident_name_label(input.bytes()));
@@ -239,7 +239,7 @@ impl OriginalMethodCandidate {
         }
         let input = self.class_input.as_ref()?;
         let class = tcl_syntax::native_string::resident_name_label(input.bytes());
-        let method = crate::original_oo::method_label(&self.method)?;
+        let method = crate::original_oo::method_label(&self.method);
         let kind = match self.method.side() {
             MemberSide::Instance => "method",
             MemberSide::ClassObject => "classmethod",
@@ -288,7 +288,7 @@ fn declaration_query(
         consumer_config: currency.1,
         target: Target::Declaration {
             class: class.declaration_site().clone(),
-            method: method.declaration().clone(),
+            method: Box::new(method.declaration().clone()),
             call_point,
         },
     }
@@ -564,7 +564,7 @@ fn unresolved_class_lookup_query(
         consumer_image,
         consumer_config,
         target: Target::ClassLookup {
-            lookup: lookup.clone(),
+            lookup: Box::new(lookup.clone()),
             known_class,
         },
     }))
@@ -1029,7 +1029,8 @@ fn candidate_for_records(
                     .original_members
                     .declarations()
                     .filter(|declaration| {
-                        declaration.side() == query.side && declaration.declaration() == method
+                        declaration.side() == query.side
+                            && declaration.declaration() == method.as_ref()
                     });
             let Some(method) = methods.next() else {
                 return ControlFlow::Break(None);

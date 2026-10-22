@@ -106,6 +106,13 @@ impl Interp {
                     )
                     .map_err(|error| self.report_cmd_error(error.into()))?
                 }
+                NativeScalarOperation::StringIsAscii => {
+                    let result = self
+                        .native_scalar_ascii_result(operands[0].as_ptr(), version)
+                        .map_err(|error| self.report_cmd_error(error))?;
+                    drop(operands);
+                    result
+                }
                 operation => {
                     let input = operands[0].as_ptr();
                     let length = match operation {
@@ -117,8 +124,9 @@ impl Interp {
                                 .map_err(|first| self.report_cmd_error(first))?;
                             captured.length(self)
                         }
-                        NativeScalarOperation::StringEqual => {
-                            unreachable!("equality handled above")
+                        NativeScalarOperation::StringEqual
+                        | NativeScalarOperation::StringIsAscii => {
+                            unreachable!("predicate handled above")
                         }
                     }
                     .map_err(|error| self.report_cmd_error(error.into()))?;
@@ -145,6 +153,54 @@ impl Interp {
             .check(self, &arguments)
             .map_err(|first| self.report_cmd_error(first))?;
         reached
+    }
+
+    /// Reach STR_CLASS's Unicode getter on its original stack operand, then
+    /// retain the actual C execution environment's Boolean result constant.
+    fn native_scalar_ascii_result(
+        &self,
+        input: *mut obj::TclObj,
+        version: tcl_dialect::TclVersion,
+    ) -> Result<obj::Owned, tcl_cmd_core::CmdError> {
+        let dialect = self.native_invocation_dialect();
+        if version < tcl_dialect::TclVersion::V8_6
+            || dialect.tcl_version != Some(version)
+            || dialect.native_error_log_protocol().is_none()
+        {
+            return Err(ValueError::CommandProtocolUnavailable(
+                "native compiled ASCII predicate issuer",
+            )
+            .into());
+        }
+        let protocol = self
+            .name_policy_protocol()
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "native compiled ASCII Unicode getter",
+            ))?
+            .string_protocol();
+        if protocol.tcl_version() != Some(version) {
+            return Err(ValueError::CommandProtocolUnavailable(
+                "native compiled ASCII Unicode version",
+            )
+            .into());
+        }
+        let arguments = OriginalArguments::enter(self, &[input])?;
+        let frame = BodyListFrame::capture(self);
+        let mut current = || {
+            frame.check(self, &arguments)?;
+            arguments.check_original_for(self, 0, input)
+        };
+        let units = obj::native_unicode_units_checked(input, protocol, &mut current, &mut || {
+            arguments.bytes_using(0, &|| frame.check(self, &arguments))
+        })?;
+        current()?;
+        let matched = units.iter().all(|unit| *unit <= 0x7f);
+        drop(units);
+        let result = self
+            .native_execution_boolean_constant(matched)
+            .map(obj::Owned::retain)?;
+        current()?;
+        Ok(result)
     }
 
     fn native_scalar_length_result(

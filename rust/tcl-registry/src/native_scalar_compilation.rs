@@ -45,6 +45,8 @@ pub enum NativeScalarOperation {
     StringEqual,
     /// Reach the original character-length accessor.
     StringLength,
+    /// C8.6+ non-strict ASCII `STR_CLASS` over one original subject.
+    StringIsAscii,
     /// Reach the original list-length accessor.
     ListLength,
 }
@@ -55,7 +57,7 @@ impl NativeScalarOperation {
     pub const fn arity(self) -> usize {
         match self {
             Self::StringEqual => 2,
-            Self::StringLength | Self::ListLength => 1,
+            Self::StringLength | Self::StringIsAscii | Self::ListLength => 1,
         }
     }
 
@@ -65,6 +67,9 @@ impl NativeScalarOperation {
         match self {
             Self::StringEqual => Some(&STRING_EQUAL_IMPLEMENTATION),
             Self::StringLength => Some(&STRING_LENGTH_IMPLEMENTATION),
+            Self::StringIsAscii => {
+                Some(&crate::native_string_is_compilation::STRING_IS_IMPLEMENTATION)
+            }
             Self::ListLength => None,
         }
     }
@@ -110,6 +115,11 @@ pub fn select_original(
     semantic: SemanticOperationId,
 ) -> NativeCompilationSelection {
     use NativeCompilationSelection as Selection;
+    // StringIs needs its independent compile-known class gate before it
+    // can become a one-subject scalar instruction.
+    if operation == NativeScalarOperation::StringIsAscii {
+        return Selection::Unknown;
+    }
     let Ok(projected) = project_native_compiler_words(words, version) else {
         return Selection::Unknown;
     };

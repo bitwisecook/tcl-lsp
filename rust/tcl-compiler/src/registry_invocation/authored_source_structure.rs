@@ -80,12 +80,7 @@ impl AuthoredSourceStructuredInvocation {
     pub(crate) fn direct_written_arguments(&self) -> bool {
         self.invocation.effective.origins.len() == self.invocation.effective.words.len()
             && self.invocation.effective.origins.len()
-                == self
-                    .invocation
-                    .arguments
-                    .len()
-                    .checked_add(1)
-                    .unwrap_or(usize::MAX)
+                == self.invocation.arguments.len().saturating_add(1)
             && self
                 .invocation
                 .effective

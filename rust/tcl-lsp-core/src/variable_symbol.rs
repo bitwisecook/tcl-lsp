@@ -16,6 +16,50 @@ use tcl_compiler::signature_scan::variable_symbol::{
 };
 use tcl_lexer::Span;
 
+/// A storage map for immutable typed variable-symbol equality. Source caches
+/// stay in values; their hash is only a bucket selector and never an identity.
+pub(crate) struct VariableSymbolMap<V> {
+    buckets: std::collections::HashMap<u64, Vec<(SignatureSourceVariableSymbol, V)>>,
+}
+
+impl<V> Default for VariableSymbolMap<V> {
+    fn default() -> Self {
+        Self {
+            buckets: std::collections::HashMap::new(),
+        }
+    }
+}
+
+impl<V> VariableSymbolMap<V> {
+    fn bucket(&self, symbol: &SignatureSourceVariableSymbol) -> u64 {
+        use std::hash::BuildHasher;
+        self.buckets.hasher().hash_one(symbol)
+    }
+
+    /// Borrow only after comparing the complete typed symbol inside its bucket.
+    pub(crate) fn get(&self, symbol: &SignatureSourceVariableSymbol) -> Option<&V> {
+        self.buckets
+            .get(&self.bucket(symbol))?
+            .iter()
+            .find(|(candidate, _)| candidate == symbol)
+            .map(|(_, value)| value)
+    }
+
+    /// Replace only an equal typed symbol; a hash collision stays a separate row.
+    pub(crate) fn insert(&mut self, symbol: SignatureSourceVariableSymbol, value: V) -> Option<V> {
+        let hash = self.bucket(&symbol);
+        let bucket = self.buckets.entry(hash).or_default();
+        if let Some((_, previous)) = bucket
+            .iter_mut()
+            .find(|(candidate, _)| candidate == &symbol)
+        {
+            return Some(std::mem::replace(previous, value));
+        }
+        bucket.push((symbol, value));
+        None
+    }
+}
+
 mod rename;
 pub use rename::original_variable_rename_edits;
 

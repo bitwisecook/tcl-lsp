@@ -178,7 +178,7 @@ impl ObjectHandleFacts {
         let frames = unit
             .all_body_function_units()
             .filter_map(|function| {
-                if std::ptr::eq(function, &unit.top_level) {
+                if std::ptr::eq(function, std::ptr::from_ref(&unit.top_level)) {
                     Some(BodyFrameId::Top(module.procedure_ids.module_id()))
                 } else {
                     function

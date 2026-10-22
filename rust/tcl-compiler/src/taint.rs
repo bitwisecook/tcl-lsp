@@ -2491,8 +2491,8 @@ pub(crate) fn propagate_taints(
     // O(procedures) per call site. The solve's summaries take
     // precedence (their key set).
     let known_procs: Option<HashSet<crate::ir::ProcedureId>> = match (taint_summaries, interproc) {
-        (Some(s), _) => Some(s.keys().cloned().collect()),
-        (None, Some(ia)) => Some(ia.procedures.keys().cloned().collect()),
+        (Some(s), _) => Some(s.keys().copied().collect()),
+        (None, Some(ia)) => Some(ia.procedures.keys().copied().collect()),
         (None, None) => None,
     };
     let ctx = TaintCtx {
@@ -4040,7 +4040,7 @@ fn taint_callback_substitution_report(
             &fu.cfg,
             registry,
             cu.interproc.as_ref(),
-            !std::ptr::eq(fu, &cu.top_level),
+            !std::ptr::eq(fu, std::ptr::from_ref(&cu.top_level)),
             source,
         );
         for block in fu.cfg.blocks.values() {
@@ -4856,7 +4856,7 @@ pub fn shadowed_builtin_names_for_module_function(
             return None;
         }
     } else {
-        std::ptr::eq(function, &unit.top_level).then_some(())?;
+        std::ptr::eq(function, std::ptr::from_ref(&unit.top_level)).then_some(())?;
         if let Some(context) = module.top_level_namespace_context.as_ref() {
             path(context)?
         } else if module.source_entry.metadata_context.is_standalone() {
@@ -7716,7 +7716,7 @@ fn branch_source_read_versions(
         .variable_accesses
         .iter()
         .filter(|access| {
-            access.owner.is_expression_evaluation_of(&parent_site)
+            access.owner.is_expression_evaluation_of(parent_site)
                 && access.source.span.start() >= span.start()
                 && access.source.span.end() <= span.end()
         })

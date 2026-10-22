@@ -1003,7 +1003,7 @@ impl ValueOps for Vm {
             self,
             value,
             &mut |_, _| Ok(()),
-            |interpreter, original| interpreter.list_elements(original),
+            ValueOps::list_elements,
         )
     }
 

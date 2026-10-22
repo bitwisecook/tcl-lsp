@@ -856,7 +856,7 @@ impl Scan<'_> {
             TransitionSubject::Literal(name)
             | TransitionSubject::LocatedLiteral { value: name, .. } => self.note(name),
             TransitionSubject::LocatedNativeBytes { .. } | TransitionSubject::Unknown { .. } => {
-                self.out.any = true
+                self.out.any = true;
             }
         }
     }

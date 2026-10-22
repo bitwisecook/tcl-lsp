@@ -27,7 +27,7 @@ use super::{
 /// means a supplied Native entry owns the request, including unsupported naming
 /// purposes; it grants no dispatch, handler entry, compilation or trace absence.
 /// Logical and Standalone retain their own explicitly selected source models.
-/// AuthoredSimulation retains a selected software naming policy for model source
+/// `AuthoredSimulation` retains a selected software naming policy for model source
 /// advice only; it supplies no Native entry, dispatch or trace-absence owner.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum OriginalInvocationSourcePurpose {

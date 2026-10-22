@@ -903,7 +903,8 @@ fn written_span(
     src: &[u8],
     config: LexerConfig,
 ) -> Option<crate::Span> {
-    let last = tokens.get(word.tokens.end.checked_sub(1)?)?;
+    // An empty or foreign token range cannot borrow the preceding word's token.
+    let last = tokens.get(word.tokens.clone())?.last()?;
     let end = match crate::native_word::complete_group_span(src, word, *last, config) {
         Ok(span) => span.end(),
         // An incomplete variable still needs its original bytes inspected for

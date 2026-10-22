@@ -295,7 +295,7 @@ impl Vm {
         let entered = self.enter_package_table(authored);
         let result = callback(self, &entered);
         entered.with_saved(self, original, false, |vm| {
-            vm.restore_package_table(&entered)
+            vm.restore_package_table(&entered);
         })?;
         original.check(self)?;
         Ok(result)
@@ -333,7 +333,7 @@ fn namespace_member_in_original(
     };
     let members = match operands.list(vm, table) {
         Ok(members) => members,
-        Err(error) => return crate::command::completion_from_cmd_error(vm, error.into()),
+        Err(error) => return crate::command::completion_from_cmd_error(vm, error),
     };
     let names = members
         .iter()

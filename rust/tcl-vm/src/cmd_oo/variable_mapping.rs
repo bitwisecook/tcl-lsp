@@ -18,7 +18,7 @@ use tcl_syntax::{
 
 type Slot = (OoId, bool, bool);
 
-/// This worker selects only a genuine audited C TclOO naming provider.
+/// This worker selects only a genuine audited C `TclOO` naming provider.
 pub(super) fn selected(policy: NamePolicyProtocol) -> bool {
     policy.authority() == NamePolicyAuthority::Native
         && matches!(policy.recipe(), NativeNameProtocol::C(version) if version >= tcl_dialect::TclVersion::V8_6)

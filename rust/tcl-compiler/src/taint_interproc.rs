@@ -500,7 +500,7 @@ fn original_return_word_uses(
                             spellings.push(spelling.as_str());
                         }
                         WordPart::CommandSubstitution { spelling, .. } => {
-                            spellings.push(spelling.as_str())
+                            spellings.push(spelling.as_str());
                         }
                         WordPart::Opaque { text, .. } => {
                             out.unknown = true;
@@ -1377,7 +1377,7 @@ impl InterprocTaintResult {
         cu: &'a CompilationUnit,
         fu: &'a FunctionUnit,
     ) -> &'a HashMap<ValueKey, TaintLattice> {
-        if std::ptr::eq(fu, &cu.top_level) {
+        if std::ptr::eq(fu, std::ptr::from_ref(&cu.top_level)) {
             return &self.top_taints;
         }
         let Some(id) = fu.body_id else {
@@ -1530,7 +1530,7 @@ pub fn converge_summaries_with(
             .original_procedure_for_body(**qname)
             .expect("current original procedure body");
         summaries.insert(
-            (*qname).clone(),
+            **qname,
             ProcTaintSummary::untainted_for_source(
                 &proc.qualified_name,
                 &proc.params,
@@ -1539,7 +1539,7 @@ pub fn converge_summaries_with(
             ),
         );
     }
-    let known: HashSet<crate::ir::ProcedureId> = summaries.keys().cloned().collect();
+    let known: HashSet<crate::ir::ProcedureId> = summaries.keys().copied().collect();
 
     // `callers[Q]` = procedures that directly call `Q`; when `Q`'s summary changes
     // its callers are re-queued. Without a call graph, re-queue everything.
@@ -1618,7 +1618,7 @@ pub fn converge_summaries_with(
                     })
                 };
                 if summaries.get(*qname) != Some(&inferred) {
-                    summaries.insert((*qname).clone(), inferred);
+                    summaries.insert(**qname, inferred);
                     // Re-queue `qname` itself (a self-recursive proc reads its own
                     // summary) plus its known callers from the reverse call graph.
                     next.insert(**qname);
@@ -1659,7 +1659,7 @@ pub fn converge_summaries_with(
                 })
             };
             if summaries.get(*qname) != Some(&inferred) {
-                summaries.insert((*qname).clone(), inferred);
+                summaries.insert(**qname, inferred);
                 moved.insert(**qname);
             }
         }
@@ -1826,7 +1826,7 @@ fn solve_interprocedural_taints_with_context(
         .filter_map(|(id, _)| cu.function_for_body(Some(*id)).map(|_| id))
         .collect();
     proc_names.sort();
-    let known: HashSet<crate::ir::ProcedureId> = summaries.keys().cloned().collect();
+    let known: HashSet<crate::ir::ProcedureId> = summaries.keys().copied().collect();
 
     // Top-level taints under the converged summaries.
     let top_instance_classes = instance_classes_for_function(
@@ -1856,13 +1856,13 @@ fn solve_interprocedural_taints_with_context(
     let mut proc_taints: HashMap<crate::ir::ProcedureId, HashMap<ValueKey, TaintLattice>> =
         HashMap::new();
     for qname in &proc_names {
-        entry_taints.insert((*qname).clone(), HashMap::new());
-        proc_taints.insert((*qname).clone(), HashMap::new());
+        entry_taints.insert(**qname, HashMap::new());
+        proc_taints.insert(**qname, HashMap::new());
     }
 
     let mut queue: VecDeque<crate::ir::ProcedureId> =
-        proc_names.iter().map(|q| (*q).clone()).collect();
-    let mut queued: HashSet<crate::ir::ProcedureId> = queue.iter().cloned().collect();
+        proc_names.iter().map(|q| **q).collect();
+    let mut queued: HashSet<crate::ir::ProcedureId> = queue.iter().copied().collect();
 
     // Initial flows from the top level.
     let initial_flows = resolve_call_flows(
@@ -1877,7 +1877,7 @@ fn solve_interprocedural_taints_with_context(
     );
     for (callee, args) in initial_flows {
         if update_entry(&summaries, &mut entry_taints, &callee, &args)
-            && queued.insert(callee.clone())
+            && queued.insert(callee)
         {
             queue.push_back(callee);
         }
@@ -1905,10 +1905,10 @@ fn solve_interprocedural_taints_with_context(
             }
         }
         let graph = graphs
-            .entry(qname.clone())
+            .entry(qname)
             .or_insert_with(|| TaintGraph::new(&fu.cfg, &fu.ssa, &fu.sccp));
         let instance_classes = instance_classes_by_proc
-            .entry(qname.clone())
+            .entry(qname)
             .or_insert_with(|| {
                 instance_classes_for_function(
                     &fu.cfg,
@@ -1939,11 +1939,11 @@ fn solve_interprocedural_taints_with_context(
             &known,
             &summaries,
         );
-        proc_taints.insert(qname.clone(), taints);
+        proc_taints.insert(qname, taints);
 
         for (callee, args) in flows {
             if update_entry(&summaries, &mut entry_taints, &callee, &args)
-                && queued.insert(callee.clone())
+                && queued.insert(callee)
             {
                 queue.push_back(callee);
             }

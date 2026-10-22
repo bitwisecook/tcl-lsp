@@ -53,7 +53,7 @@ struct GlobalWriteSemantics<'a> {
 impl<'a> GlobalWriteSemantics<'a> {
     fn logical_source(&self) -> bool {
         self.input
-            .is_some_and(|input| input.has_logical_source_name_context())
+            .is_some_and(crate::analyser::ResolvedAnalysisInput::has_logical_source_name_context)
     }
 
     fn logical_footprint(
@@ -444,7 +444,7 @@ pub(crate) fn own_frame_global_writes_with_metadata_context<'a>(
 }
 
 /// Explicit source-only catalogue compatibility. An unprofiled catalogue has
-/// no SemanticContext; that deliberate absence never admits supplied refusal.
+/// no `SemanticContext`; that deliberate absence never admits supplied refusal.
 pub(crate) fn own_frame_global_writes_standalone(
     body: &Script,
     registry: &tcl_registry::CommandRegistry,
@@ -1590,7 +1590,7 @@ pub(super) fn direct_call_targets(
                     .iter()
                     .any(|word| word.legacy_text().contains('[')) =>
                 {
-                    opaque = true
+                    opaque = true;
                 }
                 None => {}
             }

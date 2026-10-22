@@ -218,7 +218,10 @@ impl<'a> TraceCtx<'a> {
         {
             return None;
         }
-        self.cfg.metadata_context.metadata_context(self.registry)
+        self.cfg
+            .metadata_context
+            .metadata_context(self.registry)
+            .map(crate::registry_invocation::InvocationMetadataSelection::context)
     }
 
     fn tokens(self) -> Option<&'a crate::ir::CommandTokens> {

@@ -83,7 +83,7 @@ fn member_keyword_hover(source: &str, analysis: &AnalysisResult, cursor: u32) ->
     }
     let class = analysis
         .original_class_declarations()
-        .map(|record| record.metadata())
+        .map(tcl_compiler::signature_scan::original_name::SourceDeclarationMetadata::metadata)
         .filter(|class| class.body_span.start() < cursor && cursor < class.body_span.end())
         .min_by_key(|class| class.body_span.end() - class.body_span.start())?;
     let qname = &class.qualified_name;

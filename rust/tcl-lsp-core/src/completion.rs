@@ -1415,12 +1415,10 @@ fn original_method_candidate_items_with_own_at(
             if names.contains(&key) {
                 continue;
             }
-            let (Some(label), Some(spelling)) = (
-                crate::original_oo::method_label(&method),
-                crate::original_oo::method_word(&method),
-            ) else {
+            let Some(spelling) = crate::original_oo::method_word(&method) else {
                 continue;
             };
+            let label = crate::original_oo::method_label(&method);
             if !label.starts_with(partial) && !spelling.starts_with(partial) {
                 continue;
             }

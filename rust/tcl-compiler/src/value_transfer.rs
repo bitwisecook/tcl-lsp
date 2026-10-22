@@ -1341,12 +1341,14 @@ impl<'a> LatticeDriver<'a> {
     }
 
     /// Retain the CFG's original availability mode. A missing actual input
-    /// cannot acquire detached catalogue compatibility from TraceInputs::None.
+    /// cannot acquire detached catalogue compatibility from `TraceInputs::None`.
     pub(crate) fn with_cfg_metadata(
         mut self,
         owner: &'a crate::registry_invocation::OwnedInvocationMetadataContext,
     ) -> Self {
-        self.metadata_context = owner.metadata_context(self.registry);
+        self.metadata_context = owner
+            .metadata_context(self.registry)
+            .map(crate::registry_invocation::InvocationMetadataSelection::context);
         if let Some(input) = owner.source_analysis_input() {
             let agrees = self.source_metadata_input.is_some_and(|trace| {
                 std::ptr::eq(
@@ -1516,11 +1518,11 @@ impl<'a> LatticeDriver<'a> {
             return None;
         }
         let words = literal_words(&cooked);
-        let Some(outer) = module.outer_steps(&callee) else {
+        let Some(outer) = module.outer_steps(callee) else {
             self.record_undecided();
             return None;
         };
-        let places = match module.call_transfer(&callee, &words) {
+        let places = match module.call_transfer(callee, &words) {
             Some(crate::interprocedural::CallTransfer::Never) => {
                 return Some(self.never_completes(&defs));
             }
@@ -1535,7 +1537,7 @@ impl<'a> LatticeDriver<'a> {
             None
         } else {
             let Some(rerun) = self.statement_rerun(
-                (module, &callee),
+                (module, callee),
                 (block, index),
                 (&cooked, &places),
                 (values, ssa),
@@ -1726,11 +1728,11 @@ impl<'a> LatticeDriver<'a> {
             return None;
         }
         let words = literal_words(&cooked);
-        let Some(outer) = module.outer_steps(&callee) else {
+        let Some(outer) = module.outer_steps(callee) else {
             self.record_undecided();
             return declined(DeclineReason::Unsupported);
         };
-        let places = match module.call_transfer(&callee, &words) {
+        let places = match module.call_transfer(callee, &words) {
             Some(crate::interprocedural::CallTransfer::Places(places)) => places,
             Some(crate::interprocedural::CallTransfer::Never) if self.raises_end_paths() => {
                 return raises();
@@ -1762,12 +1764,12 @@ impl<'a> LatticeDriver<'a> {
             ssa,
             sources: cooked.iter().map(|arg| arg.source).collect(),
         };
-        let links = module.links(&callee)?;
+        let links = module.links(callee)?;
         let (arguments, seeds) = match self.run_seeds(&inputs, (words.len(), &places), ssa) {
             Ok(seeds) => seeds,
             Err(answer) => return answered(answer, Vec::new()),
         };
-        let after = self.rerun_with((module, &callee), &arguments, &seeds);
+        let after = self.rerun_with((module, callee), &arguments, &seeds);
         match after.as_deref() {
             Some(after) if !after.completes => {
                 if self.raises_end_paths() {
@@ -3997,7 +3999,7 @@ impl<'a> LatticeDriver<'a> {
             }
             return DefValues::PerDef(widened(defs));
         };
-        let view = view_of(&resolved, &texts, &words, InvocationLayout::Source);
+        let view = view_of(resolved, &texts, &words, InvocationLayout::Source);
         let mut inputs = LatticeInputs {
             original: original.cloned(),
             written_arguments,
@@ -4013,7 +4015,7 @@ impl<'a> LatticeDriver<'a> {
             ssa,
             sources: cooked.iter().map(|arg| arg.source).collect(),
         };
-        inputs.resolve_roles_over_values(&resolved);
+        inputs.resolve_roles_over_values(resolved);
         self.call_defs(head, semantics, defs, &inputs)
     }
 
@@ -4300,7 +4302,7 @@ impl<'a> LatticeDriver<'a> {
             });
         }
         let semantics = resolved.semantics.value.semantics()?;
-        let view = view_of(&resolved, &texts, &words, InvocationLayout::Source);
+        let view = view_of(resolved, &texts, &words, InvocationLayout::Source);
         let mut inputs = LatticeInputs {
             original: original.cloned(),
             written_arguments,
@@ -4320,7 +4322,7 @@ impl<'a> LatticeDriver<'a> {
         // a statement's does, so a word the lattice proves no longer hides
         // them (`set b $a`).
         if policy != NestedPolicy::EffectFreeOnly {
-            inputs.resolve_roles_over_values(&resolved);
+            inputs.resolve_roles_over_values(resolved);
         }
         let route = semantics.route();
         // A word that raises ends the invocation before the command runs,
@@ -4706,7 +4708,7 @@ impl<'a> LatticeDriver<'a> {
                 .cloned()
                 .collect(),
             words: Words::Independent,
-            view: view_of(&resolved, &texts, &words, InvocationLayout::Source),
+            view: view_of(resolved, &texts, &words, InvocationLayout::Source),
             uses: from.uses,
             values: from.values,
             ssa: from.ssa,

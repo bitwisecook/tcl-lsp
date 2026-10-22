@@ -396,6 +396,19 @@ fn selected_values(
     schema: &tcl_registry::ResolvedInvocation<'_, '_>,
     logical: bool,
 ) -> Option<SelectedValues> {
+    // A complete registry capability can exclude executable values even when
+    // unrelated channel/option/data roles cannot be selected. This stays inside
+    // the original owner/footprint/alternative gates above; positive script
+    // positions and Native handler/frame authority remain independent.
+    if schema.authored_source_executable_value_capability()
+        == tcl_registry::resolved_invocation::SourceExecutableValueCapability::Absent
+    {
+        return Some(SelectedValues {
+            deferred: Vec::new(),
+            immediate: Vec::new(),
+            lambdas: Vec::new(),
+        });
+    }
     let (roles, complete) = if logical {
         schema.authored_logical_source_argument_roles()
     } else {

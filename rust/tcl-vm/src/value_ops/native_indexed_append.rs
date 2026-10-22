@@ -17,7 +17,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! Checked native append into a private indexed String result.
-//! Its owning result stays with CmdCore; append transports retain allocation
+//! Its owning result stays with `CmdCore`; append transports retain allocation
 //! safety only and cannot introduce an extra native reference or COW stage.
 
 use crate::{

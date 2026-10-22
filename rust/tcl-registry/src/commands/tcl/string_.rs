@@ -1437,6 +1437,13 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "is",
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::StringIsAscii(
+                crate::native_scalar_compilation::NativeScalarScope::PublicMember,
+            ),
+            operation: SemanticOperationId::Intrinsic(IntrinsicId::StringIs),
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
         semantic_operation: Some(SemanticOperationId::Intrinsic(IntrinsicId::StringIs)),
         // `-failindex` is written only when the class test fails.
         traits: Traits::CONDITIONAL_VARIABLE_WRITE,

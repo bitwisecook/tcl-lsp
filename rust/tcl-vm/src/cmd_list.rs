@@ -466,6 +466,7 @@ impl tcl_cmd_core::native_jim_lsearch::NativeJimLsearchObjects for Vm {
 /// the comparison modes.
 fn cmd_lsort(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     use tcl_cmd_core::index::NativeIndexOps;
+    use tcl_cmd_core::lsort::{Lsort, build_command, prepare, sort_command};
     if vm.index_c_version().is_some() || vm.index_jim_sort_selected() {
         let release = vm.runtime_version();
         return match tcl_cmd_core::lsort::run_original(
@@ -479,7 +480,6 @@ fn cmd_lsort(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             Err(completion) => completion,
         };
     }
-    use tcl_cmd_core::lsort::{Lsort, build_command, prepare, sort_command};
     let release = vm.runtime_version();
     let mut job = match prepare(vm, args, release) {
         Ok(Lsort::Done(v)) => return ok(v),

@@ -4,7 +4,7 @@ use super::{InterpState, Local, Value, VarId, Vm};
 use tcl_registry::special_vars::{NativeErrorStorageVariable as Variable, NativeErrorVariableRead};
 use tcl_syntax::value::ValueOps;
 
-/// The two original object names owned by C8.4's interpreter ExecEnv.
+/// The two original object names owned by C8.4's interpreter `ExecEnv`.
 /// Field order retires errorInfo before errorCode, after the live birth ends.
 pub(super) struct C84ExecutionEnvironmentErrorNames {
     birth: std::rc::Rc<()>,
@@ -140,11 +140,10 @@ impl Vm {
             self.native_errors.c84_execution_names = Some(names);
             original_names.check(self)
         })();
-        let reached = reached.map_err(|error| {
+        let reached = reached.inspect_err(|error| {
             if let Some(cause) = error.native_execution_refusal() {
                 self.retain_native_execution_refusal(cause.clone());
             }
-            error
         });
         original_names.finish(self)?;
         reached
@@ -192,11 +191,10 @@ impl Vm {
             drop(reached);
             name.check(self, &scope)
         })();
-        let reached = reached.map_err(|error| {
+        let reached = reached.inspect_err(|error| {
             if let Some(cause) = error.native_execution_refusal() {
                 self.retain_native_execution_refusal(cause.clone());
             }
-            error
         });
         scope.finish(self)?;
         reached
@@ -217,11 +215,10 @@ impl Vm {
             drop(reached);
             name.check(self, &scope)
         })();
-        let reached = reached.map_err(|error| {
+        let reached = reached.inspect_err(|error| {
             if let Some(cause) = error.native_execution_refusal() {
                 self.retain_native_execution_refusal(cause.clone());
             }
-            error
         });
         scope.finish(self)?;
         reached

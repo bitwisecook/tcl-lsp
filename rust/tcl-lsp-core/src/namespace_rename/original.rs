@@ -308,6 +308,7 @@ pub fn original_namespace_rename_edits(
     symbol: &OriginalNamespaceSymbol,
     new_tail: &str,
 ) -> Result<Vec<TextEdit>, RenameRefusal> {
+    use tcl_compiler::signature_scan::scope::{SignatureSourceCommand, SourceCommandPublication};
     if analysis.resolved_profile() != Some(dialect) {
         return Err(RenameRefusal::at(
             "the requested profile differs from the retained analysis input".to_owned(),
@@ -440,9 +441,6 @@ pub fn original_namespace_rename_edits(
                     "the declaration has no retained original namespace",
                 )
             })?;
-        use tcl_compiler::signature_scan::scope::{
-            SignatureSourceCommand, SourceCommandPublication,
-        };
         let reissued = match publication.publication() {
             SourceCommandPublication::NamedCommand => {
                 SignatureSourceCommand::procedure_from_key(current, input)

@@ -91,7 +91,7 @@ impl<'a> SsaInvocationContext<'a> {
         Self {
             registry,
             metadata,
-            standalone: metadata.is_some_and(|context| context.is_standalone())
+            standalone: metadata.is_some_and(crate::registry_invocation::InvocationMetadataContext::is_standalone)
                 || (standalone_owner && metadata.is_none()),
         }
     }
@@ -290,7 +290,10 @@ fn bound_defs(
                 context,
                 after,
                 registry,
-                points.source_metadata_owner().metadata_context(registry),
+                points
+                    .source_metadata_owner()
+                    .metadata_context(registry)
+                    .map(crate::registry_invocation::InvocationMetadataSelection::context),
             )
             .into_iter()
             .map(|(key, _)| key),
@@ -2115,7 +2118,7 @@ impl<'a> SsaSourceView<'a> {
         registry: &CommandRegistry,
     ) -> Option<OriginalSourceSsaDefinitionName> {
         let function = unit.function_for_body(Some(body))?;
-        if !std::ptr::eq(self.ssa, &function.ssa) {
+        if !std::ptr::eq(self.ssa, std::ptr::from_ref(&function.ssa)) {
             return None;
         }
         let module = &unit.ir_module;
@@ -3387,7 +3390,6 @@ impl SsaFunction {
     }
 
     /// Actual SSA symbols paired with their location identity.
-    #[must_use]
     pub fn cell_symbols(&self) -> impl Iterator<Item = (Symbol, &VariableCellKey)> {
         self.cell_indices
             .iter()
@@ -3408,7 +3410,6 @@ impl SsaFunction {
     }
 
     /// Original source-only variable identities paired with their own SSA symbols.
-    #[must_use]
     pub fn source_variable_symbols(
         &self,
     ) -> impl Iterator<
@@ -3453,7 +3454,7 @@ impl SsaFunction {
             .point_contexts
             .as_ref()
             .and_then(|points| points.source_metadata_owner().source_analysis_input())
-            .is_some_and(|input| input.has_logical_source_name_context());
+            .is_some_and(crate::analyser::ResolvedAnalysisInput::has_logical_source_name_context);
         let applicable = self.blocks.get(&block).and_then(|body| body.statements.get(index)).is_some_and(|statement| {
             matches!(&statement.statement, Statement::Call { tokens, foreach_groups: None, .. } if tokens.as_ref().is_none_or(|tokens| tokens.synthetic.is_none()))
         });
@@ -3734,7 +3735,6 @@ impl SsaFunction {
     }
 
     /// Every symbol in this function's actual interner, independent of identity domain.
-    #[must_use]
     pub fn variable_symbols(&self) -> impl Iterator<Item = Symbol> {
         (0..self.var_names.len())
             .map(|index| Symbol(u32::try_from(index).expect("SSA variable count fits in u32")))
@@ -4327,7 +4327,7 @@ fn defs_of_in_context(
                     selection.registry,
                     selection
                         .metadata
-                        .and_then(|metadata| metadata.source_analysis_input()),
+                        .and_then(crate::registry_invocation::InvocationMetadataContext::source_analysis_input),
                 )
                 .into_iter()
                 .collect()
@@ -7055,7 +7055,9 @@ fn mirror_top_level_global_option_defs(
     func: &mut cfg::Function,
     registry: &CommandRegistry,
 ) -> bool {
-    let Some(Some(metadata)) = func.metadata_context.metadata_context(registry) else {
+    let Some(crate::registry_invocation::InvocationMetadataSelection::Retained(metadata)) =
+        func.metadata_context.metadata_context(registry)
+    else {
         return false;
     };
     let mut changed = false;
@@ -7117,7 +7119,9 @@ pub(crate) fn enrich_instance_option_defs_with_initial(
     registry: &CommandRegistry,
     _initial: &crate::taint::InstanceClassState,
 ) -> HashSet<String> {
-    let Some(Some(metadata)) = func.metadata_context.metadata_context(registry) else {
+    let Some(crate::registry_invocation::InvocationMetadataSelection::Retained(metadata)) =
+        func.metadata_context.metadata_context(registry)
+    else {
         return HashSet::new();
     };
     let mut instance_defs = HashSet::new();
@@ -8043,7 +8047,7 @@ impl<'a> RenameWalk<'a> {
         }
         if let Some(input) = self
             .metadata
-            .and_then(|metadata| metadata.source_analysis_input())
+            .and_then(crate::registry_invocation::InvocationMetadataContext::source_analysis_input)
             && let Some(tokens) = self.points.source_tokens_at(point.0, point.1)
             && let Some(binding) = tokens.source_binding.as_ref()
         {
@@ -8107,7 +8111,7 @@ impl<'a> RenameWalk<'a> {
             let original_name = if let Some(metadata) = self.metadata
                 && metadata
                     .source_analysis_input()
-                    .is_some_and(|input| input.has_logical_source_name_context())
+                    .is_some_and(crate::analyser::ResolvedAnalysisInput::has_logical_source_name_context)
                 && tokens.source_binding.as_ref().is_some_and(|binding| {
                     !binding.has_original_logical_source_advice()
                         && !binding.has_original_native_source_command()
@@ -8329,7 +8333,8 @@ impl<'a> RenameWalk<'a> {
             registry,
             self.points
                 .source_metadata_owner()
-                .metadata_context(registry),
+                .metadata_context(registry)
+                .map(crate::registry_invocation::InvocationMetadataSelection::context),
         );
         let switch_may = bound_names(
             switch_may_defs_in_context(stmt, self.invocation_context(registry)),
@@ -8426,8 +8431,8 @@ impl<'a> RenameWalk<'a> {
 
         if self
             .metadata
-            .and_then(|metadata| metadata.source_analysis_input())
-            .is_some_and(|input| input.has_logical_source_name_context())
+            .and_then(crate::registry_invocation::InvocationMetadataContext::source_analysis_input)
+            .is_some_and(crate::analyser::ResolvedAnalysisInput::has_logical_source_name_context)
             && matches!(stmt, Statement::Call { tokens, foreach_groups: None, .. } if tokens.as_ref().is_none_or(|tokens| tokens.synthetic.is_none()))
         {
             let original = original_source_may_call_from_inventory(
@@ -8846,7 +8851,10 @@ pub(crate) fn build_ssa_with_context_for_entry(
     entry_bindings: Option<&[String]>,
 ) -> SsaFunction {
     let standalone_owner = func.metadata_context.is_standalone();
-    let metadata = func.metadata_context.metadata_context(registry).flatten();
+    let metadata = func
+        .metadata_context
+        .metadata_context(registry)
+        .and_then(crate::registry_invocation::InvocationMetadataSelection::context);
     build_ssa_with_context_for_entry_and_metadata(
         func,
         registry,
@@ -16571,7 +16579,9 @@ mod unavailable_metadata_value_effect_tests {
             .expect("the standalone CFG retains the original set invocation");
         let selection = SsaInvocationContext::supplied_with_standalone_owner(
             &registry,
-            cfg.metadata_context.metadata_context(&registry).flatten(),
+            cfg.metadata_context
+                .metadata_context(&registry)
+                .and_then(crate::registry_invocation::InvocationMetadataSelection::context),
             cfg.metadata_context.is_standalone(),
         );
         let mut scanner = VarReferenceScanner::with_config(
@@ -16596,7 +16606,7 @@ mod unavailable_metadata_value_effect_tests {
             unavailable_cfg
                 .metadata_context
                 .metadata_context(&registry)
-                .flatten(),
+                .and_then(crate::registry_invocation::InvocationMetadataSelection::context),
             unavailable_cfg.metadata_context.is_standalone(),
         );
         assert!(!unavailable.standalone);

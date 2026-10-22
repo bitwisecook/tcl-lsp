@@ -511,7 +511,7 @@ pub fn inline_uplevel_passthrough(module: &mut Module, registry: &CommandRegistr
     let mut top = std::mem::take(&mut module.top_level);
     rewrite_script_in_place(&mut top, "::", &context);
     module.top_level = top;
-    let proc_qnames: Vec<crate::ir::ProcedureId> = module.procedures.keys().cloned().collect();
+    let proc_qnames: Vec<crate::ir::ProcedureId> = module.procedures.keys().copied().collect();
     for qname in proc_qnames {
         if let Some(proc) = module.procedures.get_mut(&qname) {
             let Some(caller_ns) = proc

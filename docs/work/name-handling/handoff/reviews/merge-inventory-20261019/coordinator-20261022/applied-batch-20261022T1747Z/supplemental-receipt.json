@@ -1,0 +1,61 @@
+{
+  "base_candidate_patch": "/tmp/naming-post-c6-combined-shadow-20261022/final-combined.patch",
+  "base_candidate_patch_sha256": "0cf92182e4ec6232769d465cb9cfa0ede5ba5d165a598579807e6a6a4701b6c9",
+  "base_composition_receipt_sha256": "e61f2ac51ead99b197959b8c9d91f1ea4d9c46619b19a34c2e4fe4198630cfdf",
+  "base_final257_copy_manifest_sha256": "7c5ee8608296de9cf41bd40c8f3948fa2b7e44752ee89b7a600ed489a0eec89e",
+  "supplementals": [
+    {
+      "name": "compiler-names-c6-executable-capability",
+      "patch": "/tmp/compiler-names-c6-executable-capability.patch",
+      "sha256": "e9b766da0e0e29ab6aa14190f59ee388884e489be68cd20593a9d2b921d8ab68",
+      "bytes": 12474,
+      "target_paths": [
+        "rust/tcl-compiler/src/deferred_writes/supplied.rs",
+        "rust/tcl-registry/src/resolved_invocation.rs"
+      ],
+      "exit_code": 0,
+      "log": "/tmp/naming-post-c6-supplemental-20261022/logs/compiler-names-c6-executable-capability.log",
+      "log_bytes": 123
+    },
+    {
+      "name": "ccg-codegen-stamps-helper",
+      "patch": "/tmp/ccg-codegen-stamps-helper.patch",
+      "sha256": "630474409ce35c55830049db76b74782ec0408abd83e28bdbf9d2bbd570b5530",
+      "bytes": 1238,
+      "target_paths": [
+        "rust/tcl-spectcl/tests/codegen_stamps.rs"
+      ],
+      "exit_code": 0,
+      "log": "/tmp/naming-post-c6-supplemental-20261022/logs/ccg-codegen-stamps-helper.log",
+      "log_bytes": 55
+    }
+  ],
+  "supplemental_patch": "/tmp/naming-post-c6-supplemental-20261022/supplemental.patch",
+  "supplemental_patch_sha256": "ac9e62029fd4274a918ca8fe07e440d3f11c5455995cf8225e5366070d6d09f6",
+  "supplemental_patch_bytes": 14029,
+  "changed_path_count": 3,
+  "changed_paths": [
+    "rust/tcl-compiler/src/deferred_writes/supplied.rs",
+    "rust/tcl-registry/src/resolved_invocation.rs",
+    "rust/tcl-spectcl/tests/codegen_stamps.rs"
+  ],
+  "base_path_count": 260,
+  "changed_base_path_sha256": {
+    "rust/tcl-compiler/src/deferred_writes/supplied.rs": "6a7a7ada5fef0ec604739c7ec0359a5a875fccfa659cb61a5f080965b3362030",
+    "rust/tcl-registry/src/resolved_invocation.rs": "cc877f233de0030a0ee428ad3866d497832c0b8e86983b558202fde124055785",
+    "rust/tcl-spectcl/tests/codegen_stamps.rs": "5ce332baf481327fa47d9402b5ff9cf0a9b4c3cf553020d62dbc6cc3457725a6"
+  },
+  "addition_paths": [],
+  "supplemental_context_paths_copied_from_canonical_unchanged": [
+    "rust/tcl-compiler/src/deferred_writes/supplied.rs",
+    "rust/tcl-registry/src/resolved_invocation.rs",
+    "rust/tcl-spectcl/tests/codegen_stamps.rs"
+  ],
+  "strict_sequential_apply_succeeded": true,
+  "zero_fuzz_dry_run_exit": 0,
+  "applycheck_log": "/tmp/naming-post-c6-supplemental-20261022/applycheck.log",
+  "applycheck_log_bytes": 178,
+  "canonical_files_written": false,
+  "cargo_or_build_run": false,
+  "claims": "Applicability to the 257 shadow only; no semantic/type/build assertion."
+}

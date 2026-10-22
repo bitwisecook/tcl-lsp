@@ -735,7 +735,7 @@ impl Analyser {
                     .get(id)
                     .map_or(BodyFrame::TopLevel, BodyFrame::Procedure),
                 (&extra_known_defined, &cross_event_vars),
-                Some(&module),
+                Some(module),
             );
             self.emit_channel_diagnostics(fu);
             self.emit_irules_cell_diagnostics(

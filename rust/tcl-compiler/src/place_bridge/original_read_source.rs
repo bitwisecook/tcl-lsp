@@ -23,7 +23,11 @@ impl<'a> ArgumentReadInput<'a> {
         if owner.is_standalone() {
             Self::Standalone
         } else {
-            Self::Supplied(owner.metadata_context(registry).flatten())
+            Self::Supplied(
+                owner
+                    .metadata_context(registry)
+                    .and_then(crate::registry_invocation::InvocationMetadataSelection::context),
+            )
         }
     }
 
@@ -208,7 +212,9 @@ mod tests {
                 assert!(
                     crate::registry_invocation::normal_transfer_invocation_with_metadata_context(
                         registry,
-                        owner.metadata_context(registry).flatten(),
+                        owner.metadata_context(registry).and_then(
+                            crate::registry_invocation::InvocationMetadataSelection::context
+                        ),
                         &boundary
                     )
                     .is_none()
@@ -481,7 +487,7 @@ mod tests {
             points
                 .source_metadata_owner()
                 .metadata_context(registry)
-                .flatten()
+                .and_then(crate::registry_invocation::InvocationMetadataSelection::context)
         ));
         let mut withdrawn = function.cfg.clone();
         withdrawn.metadata_context = OwnedInvocationMetadataContext::Unavailable;

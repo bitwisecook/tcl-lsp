@@ -57,8 +57,8 @@ impl Vm {
         .then_some(protocol)
     }
 
-    /// Tcl 8.4's Tcl_SetObjErrorCode uses a bare CString with GLOBAL_ONLY,
-    /// without an object-name getter or TCL_LEAVE_ERR_MSG.
+    /// Tcl 8.4's `Tcl_SetObjErrorCode` uses a bare `CString` with `GLOBAL_ONLY`,
+    /// without an object-name getter or `TCL_LEAVE_ERR_MSG`.
     pub(super) fn store_original_c84_global_error_code(
         &mut self,
         value: Value,
@@ -1632,7 +1632,7 @@ impl Vm {
                 if element_birth
                     && self
                         .native_c_variable_name_protocol()
-                        .is_some_and(|protocol| protocol.element_table_retains_original())
+                        .is_some_and(tcl_syntax::native_variable_name::NativeVariableNameProtocol::element_table_retains_original)
                     && let (Some(array), Some(member)) =
                         (captured.cell.array, captured.cell.elem.as_ref())
                 {
@@ -1687,7 +1687,7 @@ impl Vm {
         self.store_original_c_variable_in(original, value, purpose, None)
     }
 
-    /// C8.4 ObjSetVar2 keeps its original header and GLOBAL_ONLY/quiet purpose.
+    /// C8.4 `ObjSetVar2` keeps its original header and `GLOBAL_ONLY`/quiet purpose.
     pub(super) fn store_original_c84_global_error_object(
         &mut self,
         original: &Value,

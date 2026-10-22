@@ -175,7 +175,7 @@ impl RetainedSourceModuleBindings {
             positioned: Arc::new(bindings.clone()),
             procedures: module
                 .original_source_procedure_bodies()
-                .map(|(name, procedure)| (name.clone(), OriginalProcedureSource::retain(procedure)))
+                .map(|(name, procedure)| (*name, OriginalProcedureSource::retain(procedure)))
                 .collect(),
             installed_procedures: module
                 .installed_procedure_body_units

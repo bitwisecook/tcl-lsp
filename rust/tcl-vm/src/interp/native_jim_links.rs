@@ -296,9 +296,7 @@ impl Vm {
                     };
                 }
                 self.install_original_jim_variable(original, &bytes, &original_names)
-                    .map_err(|error| {
-                        crate::command::completion_from_cmd_error(self, error.into())
-                    })?;
+                    .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
                 if let Some((target, level)) = self.original_jim_alias_target(original) {
                     let frame = self.select_execution_frame(level).map_err(super::err)?;
                     let result = self.unset_original_named_variable(target.value(), complain);
@@ -378,7 +376,7 @@ impl Vm {
             .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
         let frame = self
             .select_execution_frame_checked(level)
-            .map_err(|error| crate::command::completion_from_cmd_error(self, error.into()))?;
+            .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
         let result = self.store_original_named_variable(target, value);
         self.restore_execution_frame(frame);
         caller

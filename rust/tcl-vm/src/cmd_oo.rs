@@ -631,7 +631,7 @@ fn property_slot(vm: &mut Vm, args: &[Value], obj: bool, writable: bool) -> Comp
                 vm, target, class, writable, operation, names,
             ) {
                 Ok(names) => names,
-                Err(error) => return crate::command::completion_from_cmd_error(vm, error.into()),
+                Err(error) => return crate::command::completion_from_cmd_error(vm, error),
             };
             if let Err(error) = original_names.check_target(vm) {
                 return crate::command::completion_from_cmd_error(vm, error);
@@ -845,7 +845,7 @@ fn apply_property_bytes(
         if let Err(error) =
             native_properties::register_property(vm, target, is_class, name, readable, writable)
         {
-            return Err(crate::command::completion_from_cmd_error(vm, error.into()));
+            return Err(crate::command::completion_from_cmd_error(vm, error));
         }
         for (key, method) in [(read_method, get_m), (write_method, set_m)] {
             original_names
@@ -1875,7 +1875,7 @@ fn invocation_method_chain(
             ) {
                 Ok(chain) => chain,
                 Err(error) => {
-                    return Err(crate::command::completion_from_cmd_error(vm, error.into()));
+                    return Err(crate::command::completion_from_cmd_error(vm, error));
                 }
             }
         } else {
@@ -2169,7 +2169,7 @@ fn prepare_method_step(
         native_resources: Rc::default(),
         name: format!("{obj_ns}::{method}"),
         command_ns_id: ns_id,
-        simple_name: tcl_core_types::NameBytes::from(vm.oo.method_name_bytes(&method)),
+        simple_name: tcl_core_types::NameBytes::from(vm.oo.method_name_bytes(method)),
         execution_namespace: crate::interp::ProcedureNamespace::Resolved {
             path: vm.namespace_path_for_token(ns_id),
             token: ns_id,
@@ -3580,7 +3580,7 @@ fn build_method(
 ) -> Result<Method, Completion<Value>> {
     let body_src = vm
         .capture_procedure_declaration_body(params_spec, body)
-        .map_err(|error| crate::command::completion_from_cmd_error(vm, error.into()))?;
+        .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
     let (params, has_args) = parse_params_value(vm, params_spec, b"")?;
     Ok(Method {
         parameters: MethodParameters {
@@ -4343,7 +4343,7 @@ fn info_object_properties(vm: &mut Vm, obj: OoId, extra: &[Value]) -> Completion
     {
         return match vm.native_all_property_header(obj, false, writable) {
             Ok(header) => ok(header.value().clone()),
-            Err(error) => crate::command::completion_from_cmd_error(vm, error.into()),
+            Err(error) => crate::command::completion_from_cmd_error(vm, error),
         };
     }
     if vm
@@ -4353,7 +4353,7 @@ fn info_object_properties(vm: &mut Vm, obj: OoId, extra: &[Value]) -> Completion
     {
         return match vm.native_declared_property_header(obj, false, writable) {
             Ok(header) => ok(header),
-            Err(error) => crate::command::completion_from_cmd_error(vm, error.into()),
+            Err(error) => crate::command::completion_from_cmd_error(vm, error),
         };
     }
     let mut names: BTreeSet<String> = BTreeSet::new();
@@ -4652,7 +4652,7 @@ fn info_class_properties(vm: &mut Vm, cls: OoId, extra: &[Value]) -> Completion<
     {
         return match vm.native_all_property_header(cls, true, writable) {
             Ok(header) => ok(header.value().clone()),
-            Err(error) => crate::command::completion_from_cmd_error(vm, error.into()),
+            Err(error) => crate::command::completion_from_cmd_error(vm, error),
         };
     }
     if vm
@@ -4662,7 +4662,7 @@ fn info_class_properties(vm: &mut Vm, cls: OoId, extra: &[Value]) -> Completion<
     {
         return match vm.native_declared_property_header(cls, true, writable) {
             Ok(header) => ok(header),
-            Err(error) => crate::command::completion_from_cmd_error(vm, error.into()),
+            Err(error) => crate::command::completion_from_cmd_error(vm, error),
         };
     }
     let mut names: BTreeSet<String> = BTreeSet::new();

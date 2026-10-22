@@ -322,6 +322,84 @@ pub(crate) fn apply(
     publish(vm, &mut ops, prepared)
 }
 
+fn publish_error_fields(
+    vm: &mut Vm,
+    scope: &NativeOperationScope,
+    ops: &mut NativeReturnOps,
+    prepared: &return_options::PreparedReturn<Value>,
+) -> Option<Completion<Value>> {
+    if ops.protocol == ReturnOptionsProtocol::Jim084 {
+        for pair in &prepared.options {
+            match pair.name_in(ops.protocol) {
+                b"-errorinfo" => vm.jim_errors.stack.adopt_explicit(pair.value.clone()),
+                b"-errorcode" => {
+                    if let Err(error) = scope.check(vm) {
+                        return Some(crate::command::completion_from_cmd_error(vm, error));
+                    }
+                    let _ = vm.store_original_jim_global_error_code(
+                        pair.value.native_lifetime_lease().into_value(),
+                    );
+                    if let Some(refusal) = vm.refused_completion() {
+                        return Some(refusal);
+                    }
+                    if let Err(error) = scope.check(vm) {
+                        return Some(crate::command::completion_from_cmd_error(vm, error));
+                    }
+                }
+                _ => {}
+            }
+        }
+    } else {
+        for pair in &prepared.options {
+            match pair.name_in(ops.protocol) {
+                b"-errorinfo" => match with_original_return_ops(vm, scope, ops, |checked| {
+                    checked.bytes(&pair.value)
+                }) {
+                    Ok(bytes) if !bytes.is_empty() => {
+                        vm.seed_error_info_original(&pair.value, &bytes);
+                    }
+                    Ok(_) => {}
+                    Err(error) => {
+                        return Some(crate::command::completion_from_cmd_error(vm, error));
+                    }
+                },
+                b"-errorstack" if vm.supports_error_stack() => {
+                    match with_original_return_ops(vm, scope, ops, |checked| {
+                        checked.list(&pair.value)
+                    }) {
+                        Ok(parts) => vm.seed_error_stack_parts(&parts),
+                        Err(error) => {
+                            return Some(crate::command::completion_from_cmd_error(vm, error));
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+    let original = prepared
+        .options
+        .iter()
+        .find(|pair| pair.name_in(ops.protocol) == b"-errorcode");
+    let _ = vm.retain_return_error_code(
+        original.map(|pair| &pair.value),
+        ops.protocol != ReturnOptionsProtocol::Jim084,
+    );
+    // C8.4's `return -errorcode` stores the global code at once
+    // (`Tcl_SetObjErrorCode`), which the first errorInfo frame then keeps
+    // (8.4.20: `return -errorcode {A B} -code error y` → `{A B}`).
+    if ops.protocol == ReturnOptionsProtocol::Tcl84
+        && vm.uses_c84_global_error_info()
+        && let Some(pair) = original
+    {
+        vm.restore_guest_error_code(pair.value.clone());
+        if let Some(refusal) = vm.refused_completion() {
+            return Some(refusal);
+        }
+    }
+    None
+}
+
 pub(crate) fn publish(
     vm: &mut Vm,
     ops: &mut NativeReturnOps,
@@ -337,72 +415,10 @@ pub(crate) fn publish(
     {
         vm.observe_native_error_result(original);
     }
-    if code == Code::Error && ops.protocol == ReturnOptionsProtocol::Jim084 {
-        for pair in &prepared.options {
-            match pair.name_in(ops.protocol) {
-                b"-errorinfo" => vm.jim_errors.stack.adopt_explicit(pair.value.clone()),
-                b"-errorcode" => {
-                    if let Err(error) = scope.check(vm) {
-                        return crate::command::completion_from_cmd_error(vm, error);
-                    }
-                    let _ = vm.store_original_jim_global_error_code(
-                        pair.value.native_lifetime_lease().into_value(),
-                    );
-                    if let Some(refusal) = vm.refused_completion() {
-                        return refusal;
-                    }
-                    if let Err(error) = scope.check(vm) {
-                        return crate::command::completion_from_cmd_error(vm, error);
-                    }
-                }
-                _ => {}
-            }
-        }
-    } else if code == Code::Error {
-        for pair in &prepared.options {
-            match pair.name_in(ops.protocol) {
-                b"-errorinfo" => match with_original_return_ops(vm, &scope, ops, |checked| {
-                    checked.bytes(&pair.value)
-                }) {
-                    Ok(bytes) if !bytes.is_empty() => {
-                        vm.seed_error_info_original(&pair.value, &bytes);
-                    }
-                    Ok(_) => {}
-                    Err(error) => return crate::command::completion_from_cmd_error(vm, error),
-                },
-                b"-errorstack" if vm.supports_error_stack() => {
-                    match with_original_return_ops(vm, &scope, ops, |checked| {
-                        checked.list(&pair.value)
-                    }) {
-                        Ok(parts) => vm.seed_error_stack_parts(&parts),
-                        Err(error) => return crate::command::completion_from_cmd_error(vm, error),
-                    }
-                }
-                _ => {}
-            }
-        }
-    }
-    if code == Code::Error {
-        let original = prepared
-            .options
-            .iter()
-            .find(|pair| pair.name_in(ops.protocol) == b"-errorcode");
-        let _ = vm.retain_return_error_code(
-            original.map(|pair| &pair.value),
-            ops.protocol != ReturnOptionsProtocol::Jim084,
-        );
-        // C8.4's `return -errorcode` stores the global code at once
-        // (`Tcl_SetObjErrorCode`), which the first errorInfo frame then keeps
-        // (8.4.20: `return -errorcode {A B} -code error y` → `{A B}`).
-        if ops.protocol == ReturnOptionsProtocol::Tcl84
-            && vm.uses_c84_global_error_info()
-            && let Some(pair) = original
-        {
-            vm.restore_guest_error_code(pair.value.clone());
-            if let Some(refusal) = vm.refused_completion() {
-                return refusal;
-            }
-        }
+    if code == Code::Error
+        && let Some(refusal) = publish_error_fields(vm, &scope, ops, &prepared)
+    {
+        return refusal;
     }
     if code == Code::Error
         && vm

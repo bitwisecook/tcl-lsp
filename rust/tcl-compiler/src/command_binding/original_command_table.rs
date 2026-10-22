@@ -1806,6 +1806,9 @@ impl ModuleCommandBindings {
             super::namespace_slots::PublicationPurpose::Command => {
                 recipe.command_c_api_publication_slot(scope.context()?, input.bytes())
             }
+            super::namespace_slots::PublicationPurpose::Object => {
+                recipe.oo_object_publication_slot(scope.context()?, input.bytes())
+            }
         }
         .ok()?;
         if matches!(

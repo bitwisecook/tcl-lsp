@@ -166,7 +166,8 @@ impl OriginalTokenRoles {
             {
                 continue;
             }
-            self.names.insert(token.span.start(), (token.span, kind));
+            self.names
+                .insert(token.span.start(), (token.span, kind.clone()));
             let input = SignatureSourceNameKey::from_original_native_word(
                 word,
                 tcl_syntax::word_rules::WordValueRules::from_config(&config),
@@ -244,7 +245,7 @@ impl OriginalTokenRoles {
             if let Some((span, kind)) = self.names.get(&token.span.start())
                 && *span == token.span
             {
-                overrides.insert(token.span.start(), *kind);
+                overrides.insert(token.span.start(), kind.clone());
             }
         }
         let Some(analysis) = ctx.analysis else {
@@ -499,7 +500,7 @@ fn insert_member_source_role(
                 overrides.entry(token.span.start()).or_insert(kind);
             }
         } else {
-            super::mark_literal_fragments(command, word.word_span(), kind, overrides);
+            super::mark_literal_fragments(command, word.word_span(), &kind, overrides);
         }
     }
 }
@@ -559,7 +560,7 @@ pub(super) fn insert_definition_member_overrides(
             .into_iter()
             .flatten()
         {
-            insert_member_source_role(command, word, role, kind, overrides);
+            insert_member_source_role(command, word, role, kind.clone(), overrides);
         }
     }
     for reference in members.references(original).into_iter().flatten() {
@@ -818,7 +819,10 @@ fn insert_source_case_overrides(
     {
         overrides.insert(
             token.span.start(),
-            ArgOverride::CaseList(spec, case.mode == tcl_registry::spec::CaseMatchMode::Regexp),
+            ArgOverride::CaseList(
+                Box::new(spec),
+                case.mode == tcl_registry::spec::CaseMatchMode::Regexp,
+            ),
         );
     }
     for clause in schema
@@ -836,7 +840,7 @@ fn insert_source_case_overrides(
             super::mark_literal_fragments(
                 command,
                 token.span,
-                ArgOverride::RegexPattern,
+                &ArgOverride::RegexPattern,
                 overrides,
             );
         }
@@ -1014,7 +1018,7 @@ fn insert_logical_inline_member_overrides(
                     .checked_add(2)
                     .and_then(|ordinal| words.operands.get(ordinal)?.as_ref()?.word.as_ref())
                 {
-                    insert_member_source_role(command, word, role, kind, overrides);
+                    insert_member_source_role(command, word, role, kind.clone(), overrides);
                 }
             }
         }
@@ -1095,7 +1099,7 @@ pub(super) fn insert_format_overrides(
                     tcl_registry::FormatType::Binary => ArgOverride::BinaryFormat,
                     tcl_registry::FormatType::Regsub => ArgOverride::RegsubReplace,
                 };
-                super::mark_literal_fragments(command, token.span, kind, overrides);
+                super::mark_literal_fragments(command, token.span, &kind, overrides);
             }
         }
     });
@@ -1124,7 +1128,7 @@ pub(super) fn insert_pattern_overrides(
                 super::mark_literal_fragments(
                     command,
                     token.span,
-                    ArgOverride::RegexPattern,
+                    &ArgOverride::RegexPattern,
                     overrides,
                 );
             }

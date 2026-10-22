@@ -159,8 +159,8 @@ pub(crate) fn compute(ir: &IrModule, registry: &CommandRegistry) -> MethodDispat
 
 /// Direct dispatch facts per method, including every retained replacement
 /// body (the live body is one of them, so the union is the sound answer).
-fn method_dispatch_facts<'a>(
-    ir: &'a IrModule,
+fn method_dispatch_facts(
+    ir: &IrModule,
     registry: &CommandRegistry,
     comp_of: &HashMap<String, usize>,
     proc_facts: &HashMap<crate::ir::ProcedureId, DispatchFacts>,
@@ -285,8 +285,8 @@ fn uf_find(parent: &mut [usize], i: usize) -> usize {
 /// Dispatch facts for every module proc, closed over the proc call graph
 /// (a proc that calls a proc that dispatches `$obj m` dispatches it too,
 /// on behalf of whoever called it).
-fn proc_dispatch_facts<'a>(
-    ir: &'a IrModule,
+fn proc_dispatch_facts(
+    ir: &IrModule,
     registry: &CommandRegistry,
     comp_of: &HashMap<String, usize>,
 ) -> HashMap<crate::ir::ProcedureId, DispatchFacts> {
@@ -351,9 +351,9 @@ fn proc_dispatch_facts<'a>(
 
 /// Everything [`collect_dispatches`] needs to classify one call head.
 struct ScanEnv<'a> {
-    // The outer option retains terminal supplied refusal. Some(None) is only
-    // the deliberately unprofiled standalone compatibility route.
-    metadata: Option<Option<crate::registry_invocation::InvocationMetadataContext<'a>>>,
+    // Absence retains terminal supplied refusal; Standalone is the deliberately
+    // unprofiled compatibility route.
+    metadata: Option<crate::registry_invocation::InvocationMetadataSelection<'a>>,
     registry: &'a CommandRegistry,
     comp_of: &'a HashMap<String, usize>,
     proc_facts: &'a HashMap<crate::ir::ProcedureId, DispatchFacts>,
@@ -364,7 +364,7 @@ struct ScanEnv<'a> {
 fn dispatch_metadata<'a>(
     registry: &CommandRegistry,
     module: &'a IrModule,
-) -> Option<Option<crate::registry_invocation::InvocationMetadataContext<'a>>> {
+) -> Option<crate::registry_invocation::InvocationMetadataSelection<'a>> {
     if module.source_metadata_input.is_none()
         && module.source_entry.metadata_context.is_standalone()
         && module.source_entry.native_entry.is_none()
@@ -383,7 +383,7 @@ fn dispatch_metadata<'a>(
             return None;
         }
         crate::registry_invocation::InvocationMetadataContext::for_module(registry, module)
-            .map(Some)
+            .map(crate::registry_invocation::InvocationMetadataSelection::Retained)
     }
 }
 
@@ -392,7 +392,7 @@ impl ScanEnv<'_> {
         &self,
         tokens: &crate::ir::CommandTokens,
     ) -> Option<Vec<crate::word_subst::LiftedCall>> {
-        let metadata = self.metadata?;
+        let metadata = self.metadata?.context();
         if let Some(metadata) = metadata.filter(|metadata| !metadata.is_standalone()) {
             return crate::word_subst::checked_original_lifted_calls_with_metadata_context(
                 tokens,
@@ -427,7 +427,8 @@ impl ScanEnv<'_> {
             crate::ir_helpers::evaluated_command_substitutions_with_metadata_context(
                 statement,
                 self.registry,
-                self.metadata.flatten(),
+                self.metadata
+                    .and_then(crate::registry_invocation::InvocationMetadataSelection::context),
                 self.ir.lexer_config.nested(),
             )
         }
@@ -526,7 +527,9 @@ fn classify_tokens(
                 record_procedure(target, env, facts, callees);
             }
             _ if target.registry_backed => {
-                let metadata = env.metadata.flatten();
+                let metadata = env
+                    .metadata
+                    .and_then(crate::registry_invocation::InvocationMetadataSelection::context);
                 let invocation = match metadata {
                     Some(metadata) => match binding.original_invocation_source_purpose(
                         tokens, metadata, env.registry,
@@ -543,7 +546,7 @@ fn classify_tokens(
                             ),
                         None => None,
                     },
-                    None if matches!(env.metadata, Some(None)) =>
+                    None if matches!(env.metadata, Some(crate::registry_invocation::InvocationMetadataSelection::Standalone)) =>
                         // The unprofiled standalone owner has no supplied receiver.
                         crate::registry_invocation::resolved_tokens_invocation_with_metadata_context(
                             env.registry, None, tokens,
@@ -560,7 +563,7 @@ fn classify_tokens(
                 }
                 if let Some(call) = crate::registry_invocation::normal_user_procedure_invocation_with_metadata_context(
                     env.registry,
-                    env.metadata.flatten(),
+                    env.metadata.and_then(crate::registry_invocation::InvocationMetadataSelection::context),
                     tokens,
                 ) {
                     let selected = binding.lookup_command_word(&call.target);

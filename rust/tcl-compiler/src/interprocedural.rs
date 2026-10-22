@@ -943,7 +943,7 @@ fn build_interprocedural_analysis_inner(
                     if let Some(summary) = procedures.get(qname) {
                         transfer.result = return_shape(summary);
                     }
-                    (qname.clone(), transfer)
+                    (*qname, transfer)
                 })
                 .collect()
         })
@@ -1274,7 +1274,7 @@ fn close_tainted_global_writes(
                 .flatten()
                 .cloned()
                 .collect();
-            let caller_writes = writes.entry(caller.clone()).or_default();
+            let caller_writes = writes.entry(*caller).or_default();
             let old_len = caller_writes.len();
             caller_writes.extend(inherited);
             changed |= caller_writes.len() != old_len;
@@ -1955,7 +1955,7 @@ fn compute_all_transitive_calls(
 ) -> HashMap<ProcedureId, HashSet<ProcedureId>> {
     let mut out: HashMap<ProcedureId, HashSet<ProcedureId>> = HashMap::with_capacity(known.len());
     for qname in known {
-        out.insert(qname.clone(), compute_transitive_calls(qname, local));
+        out.insert(*qname, compute_transitive_calls(qname, local));
     }
     out
 }
@@ -1971,11 +1971,11 @@ fn compute_all_transitive_calls(
 fn fixpoint_pure(local: &HashMap<ProcedureId, LocalFacts>) -> HashMap<ProcedureId, bool> {
     let mut pure: HashMap<ProcedureId, bool> = local
         .iter()
-        .map(|(q, f)| (q.clone(), f.local_pure))
+        .map(|(q, f)| (*q, f.local_pure))
         .collect();
     let mut bounded: HashMap<ProcedureId, bool> = local
         .iter()
-        .map(|(q, f)| (q.clone(), !f.impure_beyond_links))
+        .map(|(q, f)| (*q, !f.impure_beyond_links))
         .collect();
     loop {
         let mut changed = false;
@@ -2003,11 +2003,11 @@ fn fixpoint_pure(local: &HashMap<ProcedureId, LocalFacts>) -> HashMap<ProcedureI
                 )
             };
             if now_bounded != bounded[qname] {
-                bounded.insert(qname.clone(), now_bounded);
+                bounded.insert(*qname, now_bounded);
                 changed = true;
             }
             if now_pure != pure[qname] {
-                pure.insert(qname.clone(), now_pure);
+                pure.insert(*qname, now_pure);
                 changed = true;
             }
         }
@@ -2045,11 +2045,11 @@ fn fixpoint_effects(
 ) {
     let mut reads: HashMap<ProcedureId, EffectRegion> = local
         .iter()
-        .map(|(q, f)| (q.clone(), f.effect_reads))
+        .map(|(q, f)| (*q, f.effect_reads))
         .collect();
     let mut writes: HashMap<ProcedureId, EffectRegion> = local
         .iter()
-        .map(|(q, f)| (q.clone(), f.effect_writes))
+        .map(|(q, f)| (*q, f.effect_writes))
         .collect();
     let mut changed = true;
     while changed {
@@ -2065,11 +2065,11 @@ fn fixpoint_effects(
                     .unwrap_or(EffectRegion::UNKNOWN_STATE);
             }
             if r != reads[qname] {
-                reads.insert(qname.clone(), r);
+                reads.insert(*qname, r);
                 changed = true;
             }
             if w != writes[qname] {
-                writes.insert(qname.clone(), w);
+                writes.insert(*qname, w);
                 changed = true;
             }
         }
@@ -2113,7 +2113,7 @@ fn materialise_summaries(
             .into_iter()
             .collect();
         calls_list.sort();
-        let mut direct_calls: Vec<ProcedureId> = facts.direct_calls.iter().cloned().collect();
+        let mut direct_calls: Vec<ProcedureId> = facts.direct_calls.iter().copied().collect();
         direct_calls.sort();
         let is_pure = *pure.get(qname).unwrap_or(&false);
 
@@ -2139,7 +2139,7 @@ fn materialise_summaries(
         );
 
         procedures.insert(
-            qname.clone(),
+            *qname,
             ProcSummary {
                 qualified_name: report_label,
                 params: proc.params.clone(),
@@ -2340,14 +2340,14 @@ fn original_parameter_observation_owner(scan: ProcScan<'_>) -> Option<ProcedureI
                 .parameters()
                 .iter()
                 .map(|formal| formal.name.as_slice())
-                .eq(procedure.params.iter().map(|name| name.as_bytes()))
+                .eq(procedure.params.iter().map(String::as_bytes))
         };
         if !formals {
             return None;
         }
         if let Some(unit) = scan.unit {
             let function = unit.function_for_body(Some(id))?;
-            if !std::ptr::eq(&unit.ir_module, module)
+            if !std::ptr::eq(std::ptr::from_ref(&unit.ir_module), module)
                 || unit.source.as_bytes() != module.source.bytes()
                 || unit
                     .original_procedure_for_body(id)
@@ -2918,7 +2918,7 @@ fn scan_call_facts(command: &str, args: &[String], ctx: ScanCtx<'_>, facts: &mut
             && is_plain_proc_name(&word)
             && let Some(target) = possible_body_id(&word, ctx)
         {
-            facts.procedure_calls.push((target.clone(), None));
+            facts.procedure_calls.push((target, None));
             facts.direct_calls.insert(target);
         }
     }
@@ -2949,8 +2949,8 @@ fn scan_call_facts(command: &str, args: &[String], ctx: ScanCtx<'_>, facts: &mut
     if let Some(target) = &internal_target {
         facts
             .procedure_calls
-            .push((target.clone(), (!invokes_named_proc).then(|| args.to_vec())));
-        facts.direct_calls.insert(target.clone());
+            .push((*target, (!invokes_named_proc).then(|| args.to_vec())));
+        facts.direct_calls.insert(*target);
     } else {
         // Side-effect classification is dialect-agnostic here
         // (`classify_side_effects_in` is called with no dialect): a
@@ -4556,7 +4556,7 @@ fn note_params_in_expr(
             note_params_in_expr(right, params, facts, config, depth + 1);
         }
         ExprNode::Unary { operand, .. } => {
-            note_params_in_expr(operand, params, facts, config, depth + 1)
+            note_params_in_expr(operand, params, facts, config, depth + 1);
         }
         ExprNode::Ternary {
             condition,
@@ -4995,16 +4995,16 @@ fn compute_transitive_calls(
     let mut visited: HashSet<ProcedureId> = HashSet::new();
     let mut stack: Vec<ProcedureId> = Vec::new();
     if let Some(f) = local.get(root) {
-        stack.extend(f.direct_calls.iter().cloned());
+        stack.extend(f.direct_calls.iter().copied());
     }
     while let Some(cur) = stack.pop() {
-        if !visited.insert(cur.clone()) {
+        if !visited.insert(cur) {
             continue;
         }
         if let Some(f) = local.get(&cur) {
             for d in &f.direct_calls {
                 if !visited.contains(d) {
-                    stack.push(d.clone());
+                    stack.push(*d);
                 }
             }
         }

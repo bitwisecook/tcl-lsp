@@ -513,9 +513,8 @@ impl SourceSyntaxDefinitionMember<'_> {
     /// Selected member scripts retain their original containers and ordinals.
     pub(crate) fn script_bodies(
         &self,
-    ) -> Option<Vec<tcl_compiler::registry_invocation::OriginalSourceDefinitionMemberScriptBody>>
-    {
-        Some(self.bodies.clone())
+    ) -> &[tcl_compiler::registry_invocation::OriginalSourceDefinitionMemberScriptBody] {
+        &self.bodies
     }
 
     /// The genuine parent vocabulary region that selected this member.
@@ -2703,7 +2702,7 @@ mod tests {
             .definition_member_at(head("method good"))
             .unwrap()
             .unwrap();
-        assert_eq!(member.script_bodies().unwrap().len(), 1);
+        assert_eq!(member.script_bodies().len(), 1);
         assert!(
             syntax
                 .definition_member_at(head("if $condition"))
@@ -2725,7 +2724,6 @@ mod tests {
                 .unwrap()
                 .unwrap()
                 .script_bodies()
-                .unwrap()
                 .is_empty()
         );
     }

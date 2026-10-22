@@ -354,7 +354,7 @@ impl CommandBindingRealm {
         if !self
             .source_input
             .as_ref()
-            .is_some_and(|input| input.has_logical_source_name_context())
+            .is_some_and(crate::analyser::ResolvedAnalysisInput::has_logical_source_name_context)
         {
             return written;
         }
@@ -629,9 +629,9 @@ impl CommandBindingRealm {
             bindings,
             source_input: self.source_input.clone(),
             specs: self.specs.clone(),
-            original_tokens: Default::default(),
-            original_bindings: Default::default(),
-            source_advice: Default::default(),
+            original_tokens: original_tokens::OriginalCommandTokenCache::default(),
+            original_bindings: original_bindings::OriginalInvocationBindingCache::default(),
+            source_advice: source_transition_advice::OriginalSourceTransitionAdviceCache::default(),
         };
         Some((script, realm))
     }

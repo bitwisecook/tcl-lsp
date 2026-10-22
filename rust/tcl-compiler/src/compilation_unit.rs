@@ -3187,7 +3187,7 @@ fn build_procedure_units(
         // and (d) the seeds encode into the hashable key form.
         let has_instance_global_writes = ctx
             .tainted_global_writes
-            .get(&id)
+            .get(id)
             .is_some_and(|writes| !writes.is_empty());
         // The memo request retains the complete module mutation obligations;
         // a shadow or unknown callback rekeys the lattice rather than borrowing
@@ -4020,7 +4020,7 @@ impl CompilationUnit {
                 tainted_global_writes: &tainted_global_writes,
                 procedures: Some(&module_procedures),
             },
-            cache.as_mut().map(|callback| &mut **callback),
+            cache.as_deref_mut(),
             options.config,
         );
         #[cfg(any(test, debug_assertions))]
@@ -4049,7 +4049,7 @@ impl CompilationUnit {
             &ir_module,
             &extra_callers,
             body_unit_context,
-            cache.as_mut().map(|callback| &mut **callback),
+            cache.as_deref_mut(),
             DeclaredBodyMemoContext {
                 prepared: cfg_context.map(|prepared| &prepared.context),
                 dialect,
@@ -4747,7 +4747,7 @@ impl CompilationUnit {
                         .unwrap_or_else(|| fu.interproc_taints(registry, &interproc, dialect)),
                 )
             };
-            new_taints.push((qname.clone(), taints));
+            new_taints.push((*qname, taints));
         }
         for (qname, taints) in new_taints {
             if let Some(fu) = self.procedures.get_mut(&qname) {

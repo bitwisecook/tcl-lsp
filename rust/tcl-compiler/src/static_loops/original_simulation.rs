@@ -228,7 +228,7 @@ impl<'a> StaticLoopSource<'a> {
         script: &Script,
         statement: &Statement,
     ) -> Option<crate::registry_invocation::source_structure::OriginalSourceCase> {
-        let metadata = self.metadata.metadata_context(self.registry)??;
+        let metadata = self.metadata.metadata_context(self.registry)?.context()?;
         let tokens = script.retained_source_tokens_for_statement(statement)?;
         let binding = tokens.source_binding.as_ref()?;
         let metadata = binding.original_invocation_metadata_for_input(

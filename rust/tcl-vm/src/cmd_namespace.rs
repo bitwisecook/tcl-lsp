@@ -239,7 +239,10 @@ fn namespace_frame_arguments(
     }
     entered.elements()?;
     original_names.check(vm)?;
-    Ok(words.into_iter().map(|word| word.into_value()).collect())
+    Ok(words
+        .into_iter()
+        .map(crate::value::NativeObjectLifetimeLease::into_value)
+        .collect())
 }
 
 pub(crate) fn register(vm: &mut Vm) {

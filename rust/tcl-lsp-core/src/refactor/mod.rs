@@ -296,6 +296,15 @@ pub fn token_end_offset(source: &str, tok: Token) -> u32 {
     }
 }
 
+/// The selected template facet remains distinct from a non-template command;
+/// unavailable source/options stay in the independent outer Option.
+pub(crate) enum TemplateSubstitution {
+    /// The selected command performs no template substitution.
+    NotSubstitution,
+    /// The selected descriptor owns these template-kind metadata flags.
+    Selected(tcl_registry::substitution::SubstitutionKinds),
+}
+
 /// Refactoring traversal over the actual retained document configuration and
 /// positioned command owner. Conditional structure cannot certify execution.
 pub(crate) struct FrameWalk<'a> {
@@ -409,7 +418,7 @@ impl<'a> FrameWalk<'a> {
         &self,
         source: &str,
         command: &SegmentedCommand,
-    ) -> Option<Option<tcl_registry::substitution::SubstitutionKinds>> {
+    ) -> Option<TemplateSubstitution> {
         self.source_words(source, command)?.with_source_schema(
             &self.analysis.resolved_input.as_ref()?.context_registry(),
             |schema| {
@@ -420,9 +429,9 @@ impl<'a> FrameWalk<'a> {
                 {
                     schema
                         .authored_source_substitution_proposal(schema.words.arguments())
-                        .map(Some)
+                        .map(TemplateSubstitution::Selected)
                 } else {
-                    Some(None)
+                    Some(TemplateSubstitution::NotSubstitution)
                 }
             },
         )?
@@ -518,7 +527,7 @@ impl<'a> FrameWalk<'a> {
                 );
             }
         }
-        if let Some(kinds) = self.substitution_kinds(source, command)? {
+        if let TemplateSubstitution::Selected(kinds) = self.substitution_kinds(source, command)? {
             let variables = match selected.dialect()?.family()? {
                 tcl_dialect::model::Family::Tcl => {
                     tcl_lexer::word_parts::TemplateVariableSyntax::CTcl

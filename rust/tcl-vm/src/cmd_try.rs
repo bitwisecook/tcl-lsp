@@ -263,7 +263,7 @@ fn original_jim_errorcode_prefix_match(
             Err(crate::command::completion_from_cmd_error(vm, first))
         }
         Ok(value) => finished
-            .map(|_| value)
+            .map(|()| value)
             .map_err(|error| crate::command::completion_from_cmd_error(vm, error)),
     }
 }
@@ -342,7 +342,7 @@ fn capture_original_jim_try_variables(
             Err(crate::command::completion_from_cmd_error(vm, first))
         }
         Ok(names) => finished
-            .map(|_| names)
+            .map(|()| names)
             .map_err(|error| crate::command::completion_from_cmd_error(vm, error)),
     }
 }

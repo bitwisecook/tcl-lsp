@@ -50,7 +50,7 @@ impl Value {
         last: i64,
         protocol: NativeStringProtocol,
         check: &mut dyn FnMut() -> Result<(), E>,
-        strings: &mut dyn FnMut(&Value) -> Result<std::rc::Rc<[u8]>, E>,
+        strings: &mut super::NativeStringAccess<'_, E>,
     ) -> Result<Self, E> {
         self.native_list_selected_range_using(
             NativeListRangeSelection::Command { first, last },
@@ -73,7 +73,7 @@ impl Value {
         selection: NativeListRangeSelection,
         protocol: NativeStringProtocol,
         check: &mut Option<&mut dyn FnMut() -> Result<(), E>>,
-        strings: &mut Option<&mut dyn FnMut(&Value) -> Result<std::rc::Rc<[u8]>, E>>,
+        strings: &mut Option<&mut super::NativeStringAccess<'_, E>>,
     ) -> Result<Self, E> {
         Self::native_stage_check(check)?;
         if check.is_some() {
@@ -229,35 +229,59 @@ impl Value {
                     Ok(self.clone())
                 }
             }
-            NativeListRangeAction::Window { range, span } => {
-                if shared {
-                    let result = items.range_header(range)?;
-                    Ok(Self::from_parts(
-                        None,
-                        IntRep::List {
-                            canonical: result.canonical_state(),
-                            items: result,
-                            string_protocol: std::cell::Cell::new(Some(protocol)),
-                        },
-                    ))
-                } else {
-                    let previous = canonical.get();
-                    items.select_window(range, span)?;
-                    Self::native_stage_check(check)?;
-                    if check.is_some() {
-                        self.check_native_header()?;
-                    }
-                    if version < TclVersion::V9_0 {
-                        items.canonical_state().set(previous);
-                    }
-                    *canonical = items.canonical_state();
-                    drop(primary);
-                    self.invalidate_native_list_string();
-                    Ok(self.clone())
-                }
-            }
+            NativeListRangeAction::Window { range, span } => self.apply_native_list_window_using(
+                (range, span),
+                primary,
+                shared,
+                version,
+                protocol,
+                check,
+            ),
         }
     }
+    fn apply_native_list_window_using<E: From<ValueError>>(
+        &self,
+        window: (std::ops::Range<usize>, bool),
+        mut primary: std::cell::RefMut<'_, IntRep>,
+        shared: bool,
+        version: TclVersion,
+        protocol: NativeStringProtocol,
+        check: &mut Option<&mut dyn FnMut() -> Result<(), E>>,
+    ) -> Result<Self, E> {
+        let (range, span) = window;
+        let IntRep::List {
+            items, canonical, ..
+        } = &mut *primary
+        else {
+            unreachable!("original List getter installed its storage")
+        };
+        if shared {
+            let result = items.range_header(range)?;
+            Ok(Self::from_parts(
+                None,
+                IntRep::List {
+                    canonical: result.canonical_state(),
+                    items: result,
+                    string_protocol: std::cell::Cell::new(Some(protocol)),
+                },
+            ))
+        } else {
+            let previous = canonical.get();
+            items.select_window(range, span)?;
+            Self::native_stage_check(check)?;
+            if check.is_some() {
+                self.check_native_header()?;
+            }
+            if version < TclVersion::V9_0 {
+                items.canonical_state().set(previous);
+            }
+            *canonical = items.canonical_state();
+            drop(primary);
+            self.invalidate_native_list_string();
+            Ok(self.clone())
+        }
+    }
+
     /// Reached range getter when the native VM discards the result.
     pub(crate) fn native_list_range_validate(
         &self,

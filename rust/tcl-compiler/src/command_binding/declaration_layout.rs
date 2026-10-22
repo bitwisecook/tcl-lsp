@@ -1916,14 +1916,14 @@ impl DeclarationSourceOperandLayoutAdvice {
         &self,
         registry: &tcl_registry::CommandRegistry,
         tokens: &crate::ir::CommandTokens,
-    ) -> Option<Option<crate::registry_invocation::InvocationMetadataContext<'_>>> {
+    ) -> Option<crate::registry_invocation::InvocationMetadataSelection<'_>> {
         self.current_conditional_source_advice(tokens)?;
         match &self.kind {
             DeclarationSourceOperandLayoutKind::Original(advice) => advice
                 .original_declaration_metadata_context(registry, tokens)
-                .ok(),
+                .ok().map(crate::registry_invocation::InvocationMetadataSelection::from),
             DeclarationSourceOperandLayoutKind::Configured { layout, .. } => {
-                layout.source_metadata_context(registry, tokens).ok()
+                layout.source_metadata_context(registry, tokens).ok().map(crate::registry_invocation::InvocationMetadataSelection::from)
             }
         }
     }
@@ -1941,7 +1941,7 @@ impl DeclarationSourceOperandLayoutAdvice {
         ) -> Option<T>,
     ) -> Option<T> {
         let advice = self.current_conditional_source_advice(tokens)?;
-        let metadata = self.current_metadata_context(registry, tokens)?;
+        let metadata = self.current_metadata_context(registry, tokens)?.context();
         let mut selected = None;
         for target in advice.targets() {
             if !target.registry_backed {
@@ -3144,7 +3144,7 @@ impl<'a> OriginalDeclarationWordSource<'a> {
                 .map(Some)
                 .ok_or(refusal),
             OwnedInvocationMetadataContext::Standalone => {
-                owner.metadata_context(registry).ok_or(refusal)
+                owner.metadata_context(registry).map(crate::registry_invocation::InvocationMetadataSelection::context).ok_or(refusal)
             }
             OwnedInvocationMetadataContext::Supplied(_)
             | OwnedInvocationMetadataContext::Unavailable => Err(refusal),

@@ -171,7 +171,7 @@ impl Analyser {
         ));
     }
 
-    /// Called after the whole-CU WordIndex proves an original written value at
+    /// Called after the whole-CU `WordIndex` proves an original written value at
     /// its authentic source point. Missing/stale CUs retain the old warning;
     /// captures never borrow the calling site's value proof.
     pub(in crate::analyser) fn refine_original_path_arguments(

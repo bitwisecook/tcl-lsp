@@ -528,7 +528,7 @@ mod tests {
         let scanned: BTreeSet<String> = BTreeSet::new();
         let refs: BTreeSet<String> = ["still_a_real_gap".to_owned()].into_iter().collect();
         let stale = find_stale_known_gaps(&["still_a_real_gap"], &scanned, &refs);
-        assert!(stale.is_empty());
+        assert_eq!(stale.len(), 0);
     }
 
     #[test]
@@ -561,7 +561,7 @@ mod tests {
         let not_declared: Vec<&String> = directory.difference(&declared).collect();
         assert_eq!(not_declared, vec![&"orphan".to_owned()]);
         let missing_files: Vec<&String> = declared.difference(&directory).collect();
-        assert!(missing_files.is_empty());
+        assert_eq!(missing_files.len(), 0);
 
         let _ = std::fs::remove_dir_all(&dir);
     }

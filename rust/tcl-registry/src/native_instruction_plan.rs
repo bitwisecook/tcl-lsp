@@ -945,6 +945,13 @@ fn selected_projected_instruction_plan(
             .ok_or(Unavailable::OperandGeometry),
         );
     }
+    if let NativeCompilationGrammar::StringIsAscii(scope) = spec.grammar {
+        return Some(
+            crate::native_string_is_compilation::instruction(words, operand_from, scope, version)
+                .map(NativeInstructionPlan::Scalar)
+                .ok_or(Unavailable::OperandGeometry),
+        );
+    }
     if let NativeCompilationGrammar::StringOperand { scope, operation } = spec.grammar {
         return Some(
             crate::native_string_operand_compilation::compile_native_string_operand(

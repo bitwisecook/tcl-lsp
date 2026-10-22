@@ -236,7 +236,7 @@ impl NativeIndexOps for Vm {
     fn index_c_version(&self) -> Option<tcl_dialect::TclVersion> {
         self.actual_native_invocation_dialect()
             .native_string_protocol()
-            .and_then(|protocol| protocol.tcl_version())
+            .and_then(NativeStringProtocol::tcl_version)
     }
     fn original_c_option_path(
         &mut self,
@@ -289,6 +289,7 @@ impl NativeIndexOps for Vm {
         command: tcl_cmd_core::native_option_index::OptionCommand,
         kind: tcl_cmd_core::index::ListNumericKind,
     ) -> Result<Option<tcl_cmd_core::index::ListNumber>, CmdError> {
+        use crate::expr::{original_numeric_command_ops, with_original_numeric_command};
         use tcl_cmd_core::index::{ListNumber, ListNumericKind};
         use tcl_cmd_core::native_option_index::OptionCommand;
         use tcl_registry::native_numeric_error::NativeNumericCommandPurpose as Purpose;
@@ -299,7 +300,6 @@ impl NativeIndexOps for Vm {
             (OptionCommand::Sort, ListNumericKind::Integer) => Purpose::ListSortInteger,
             (OptionCommand::Sort, ListNumericKind::Real) => Purpose::ListSortReal,
         };
-        use crate::expr::{original_numeric_command_ops, with_original_numeric_command};
         with_original_numeric_command(self, CmdError::from, |vm, context| {
             original_numeric_command_ops(vm, context, purpose, |numeric, selected| {
                 let reached = numeric.getter(original, selected.getter_kind());
@@ -434,7 +434,7 @@ impl NativeIndexOps for Vm {
     fn index_jim_sort_selected(&self) -> bool {
         self.actual_native_invocation_dialect()
             .native_scalar_getter_protocol()
-            .is_some_and(|selected| selected.is_jim084())
+            .is_some_and(tcl_syntax::scalar_getter::NativeScalarGetterProtocol::is_jim084)
     }
     fn index_native_sort<E>(
         &mut self,
@@ -773,7 +773,7 @@ impl NativeIndexOps for Vm {
                 OriginalNumericOps::in_original_scope(interpreter, &operation)?
                     .current_for_value(original)
             },
-            |interpreter, original| interpreter.index_list_elements(original),
+            NativeIndexOps::index_list_elements,
         )
     }
     fn index_list_member(

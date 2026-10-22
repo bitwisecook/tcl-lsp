@@ -155,6 +155,7 @@ fn pre_invocation_operand_version(
     }) else {
         return version;
     };
+    let metadata = metadata.context();
     let calls =
         if let Some(actual) = metadata.filter(|actual| actual.source_analysis_input().is_some()) {
             crate::word_subst::checked_original_lifted_calls_with_metadata_context(
@@ -228,7 +229,9 @@ fn fold_literal_list_call(
     }
     let registry = fu.semantic_value_projection.retained_registry()?;
     let config = retained_config(fu, config)?;
-    let metadata = binding.original_invocation_metadata_for_function(tokens, fu, registry)?;
+    let metadata = binding
+        .original_invocation_metadata_for_function(tokens, fu, registry)?
+        .context();
     let calls =
         if let Some(actual) = metadata.filter(|actual| actual.source_analysis_input().is_some()) {
             crate::word_subst::checked_original_lifted_calls_with_metadata_context(
@@ -249,7 +252,8 @@ fn fold_literal_list_call(
     let metadata = nested
         .source_binding
         .as_ref()?
-        .original_invocation_metadata_for_function(&nested, fu, registry)?;
+        .original_invocation_metadata_for_function(&nested, fu, registry)?
+        .context();
     let normal =
         crate::registry_invocation::normal_representation_invocation_with_metadata_context(
             registry, metadata, &nested,

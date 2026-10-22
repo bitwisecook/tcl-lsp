@@ -735,6 +735,55 @@ fn command_transfer(
     Some(())
 }
 
+/// Optional authored-key capture is stronger than original source arguments;
+/// refusing this projection must not erase their independently retained words.
+fn authored_logical_alias_prefix_inputs(
+    original: &LogicalOriginalInvocation,
+    arguments: &[tcl_registry::TransitionSubject],
+    input: &crate::analyser::ResolvedAnalysisInput,
+    config: tcl_lexer::LexerConfig,
+) -> Option<Vec<crate::signature_scan::scope::SignatureSourceNameInput>> {
+    let policy = tcl_registry::InvocationDialect::of_profile(input.analyser_profile())
+        .authored_name_policy()?;
+    (tcl_registry::InvocationDialect::of_profile(input.unit_profile()).authored_name_policy()
+        == Some(policy))
+    .then_some(())?;
+    let purpose =
+        crate::signature_scan::original_name::OriginalSourceNamePurpose::for_analysis_input(
+            input, None, policy,
+        );
+    let captured = arguments
+        .iter()
+        .map(|subject| {
+            let effective = subject.argument_index()?;
+            let value = original.arguments.get(effective)?;
+            (subject.literal() == Some(value.as_str())).then_some(())?;
+            let input = if effective < original.target.prepended.len() {
+                original
+                    .target
+                    .logical_original_prefix
+                    .as_ref()?
+                    .inputs()?
+                    .get(effective)?
+                    .clone()
+            } else {
+                let written = effective
+                    .checked_sub(original.target.prepended.len())?
+                    .checked_add(1)?;
+                let word = original.words.get(written)?;
+                crate::signature_scan::scope::SignatureSourceNameInput::OriginalWord(
+                    purpose.key(
+                        word,
+                        tcl_syntax::word_rules::WordValueRules::from_config(&config),
+                    )?,
+                )
+            };
+            (input.bytes() == value.as_bytes() && input.policy() == policy).then_some(input)
+        })
+        .collect::<Option<Vec<_>>>()?;
+    Some(captured)
+}
+
 fn retain_logical_alias_prefix(
     original: &LogicalOriginalInvocation,
     transition: &CommandBindingTransition,
@@ -782,47 +831,7 @@ fn retain_logical_alias_prefix(
         .collect::<Option<Vec<_>>>()?;
     // The stronger authored-key projection remains independently unavailable
     // when this Logical source purpose has no naming recipe.
-    let captured = (|| {
-        let policy = tcl_registry::InvocationDialect::of_profile(input.analyser_profile())
-            .authored_name_policy()?;
-        (tcl_registry::InvocationDialect::of_profile(input.unit_profile()).authored_name_policy()
-            == Some(policy))
-        .then_some(())?;
-        let purpose =
-            crate::signature_scan::original_name::OriginalSourceNamePurpose::for_analysis_input(
-                &input, None, policy,
-            );
-        let captured = arguments
-            .iter()
-            .map(|subject| {
-                let effective = subject.argument_index()?;
-                let value = original.arguments.get(effective)?;
-                (subject.literal() == Some(value.as_str())).then_some(())?;
-                let input = if effective < original.target.prepended.len() {
-                    original
-                        .target
-                        .logical_original_prefix
-                        .as_ref()?
-                        .inputs()?
-                        .get(effective)?
-                        .clone()
-                } else {
-                    let written = effective
-                        .checked_sub(original.target.prepended.len())?
-                        .checked_add(1)?;
-                    let word = original.words.get(written)?;
-                    crate::signature_scan::scope::SignatureSourceNameInput::OriginalWord(
-                        purpose.key(
-                            word,
-                            tcl_syntax::word_rules::WordValueRules::from_config(&context.config),
-                        )?,
-                    )
-                };
-                (input.bytes() == value.as_bytes() && input.policy() == policy).then_some(input)
-            })
-            .collect::<Option<Vec<_>>>()?;
-        Some(captured)
-    })();
+    let captured = authored_logical_alias_prefix_inputs(original, arguments, &input, context.config);
     let key = state.publication_key_at(
         &SourceNamespaceKey::authored("::"),
         alias.literal()?,

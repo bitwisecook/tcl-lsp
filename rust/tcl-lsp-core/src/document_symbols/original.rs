@@ -84,9 +84,7 @@ pub(super) fn source_outline(
             continue;
         }
         let input = declaration.name_input();
-        let Some(name) = label(input.bytes(), input.policy(), config) else {
-            continue;
-        };
+        let name = label(input.bytes(), input.policy(), config);
         let metadata = declaration.metadata();
         nodes.push(Node {
             symbol: DocumentSymbol {
@@ -197,9 +195,7 @@ pub(super) fn source_outline(
         ) {
             continue;
         }
-        let Some(name) = label(input.bytes(), input.policy(), config) else {
-            continue;
-        };
+        let name = label(input.bytes(), input.policy(), config);
         let Some(bodies) = scopes.get(&reference.span) else {
             continue;
         };
@@ -228,13 +224,11 @@ pub(super) fn source_outline(
         if key.source_image() != &image || key.lexer_config() != config {
             continue;
         }
-        let Some(name) = label(
+        let name = label(
             declaration.name().slot().simple.as_bytes(),
             key.policy(),
             config,
-        ) else {
-            continue;
-        };
+        );
         let metadata = declaration.metadata();
         let selection = span_to_range(source, &index, key.span());
         nodes.push(Node {
@@ -262,13 +256,11 @@ pub(super) fn source_outline(
         if key.source_image() != &image || key.lexer_config() != config {
             continue;
         }
-        let Some(name) = label(
+        let name = label(
             declaration.name().slot().simple.as_bytes(),
             key.policy(),
             config,
-        ) else {
-            continue;
-        };
+        );
         let metadata = declaration.metadata();
         let selection = span_to_range(source, &index, key.span());
         // Special-member keywords report the original class body. Named
@@ -307,9 +299,7 @@ pub(super) fn source_outline(
                 if member.native_class_delegate() && !seen.insert(identity) {
                     continue;
                 }
-                let Some(name) = crate::original_oo::method_label(&member) else {
-                    continue;
-                };
+                let name = crate::original_oo::method_label(&member);
                 let method = member.metadata();
                 let name_span = member
                     .original_name_input()
@@ -341,9 +331,7 @@ pub(super) fn source_outline(
                     if original.source_image() != &image || original.lexer_config() != config {
                         continue;
                     }
-                    let Some(name) = label(original.bytes(), original.policy(), config) else {
-                        continue;
-                    };
+                    let name = label(original.bytes(), original.policy(), config);
                     let range = span_to_range(source, &index, original.span());
                     children.push(DocumentSymbol {
                         name,
@@ -370,7 +358,7 @@ pub(super) fn source_outline(
             home: command_home(declaration.name()),
         });
     }
-    let mut variables = FxHashSet::default();
+    let mut variables = crate::variable_symbol::VariableSymbolMap::default();
     let mut declarations: Vec<_> = analysis
         .original_variable_symbols
         .iter()
@@ -378,7 +366,7 @@ pub(super) fn source_outline(
         .collect();
     declarations.sort_by_key(|occurrence| occurrence.span().start());
     for occurrence in declarations {
-        if variables.contains(occurrence.symbol()) {
+        if variables.get(occurrence.symbol()).is_some() {
             continue;
         }
         let input = occurrence.original_name_input();
@@ -390,10 +378,8 @@ pub(super) fn source_outline(
         ) {
             continue;
         }
-        let Some(name) = label(input.bytes(), input.policy(), config) else {
-            continue;
-        };
-        variables.insert(occurrence.symbol().clone());
+        let name = label(input.bytes(), input.policy(), config);
+        let _ = variables.insert(occurrence.symbol().clone(), ());
         let range = span_to_range(source, &index, occurrence.span());
         nodes.push(Node {
             symbol: DocumentSymbol {
@@ -451,9 +437,7 @@ pub(super) fn source_outline(
                 protocol.separate_variable_input(root, element)
             }
         };
-        let Some(name) = label(projection.root().selected(), input.policy(), config) else {
-            continue;
-        };
+        let name = label(projection.root().selected(), input.policy(), config);
         written.push((advice.span(), input));
         let range = span_to_range(source, &index, advice.span());
         nodes.push(Node {
@@ -486,12 +470,8 @@ fn command_home(
     }
 }
 
-fn label(
-    bytes: &[u8],
-    _policy: NamePolicyProtocol,
-    _config: tcl_lexer::LexerConfig,
-) -> Option<String> {
-    Some(tcl_syntax::native_string::resident_name_label(bytes))
+fn label(bytes: &[u8], _policy: NamePolicyProtocol, _config: tcl_lexer::LexerConfig) -> String {
+    tcl_syntax::native_string::resident_name_label(bytes)
 }
 
 fn assemble(nodes: Vec<Node>) -> Vec<DocumentSymbol> {

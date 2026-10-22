@@ -554,3 +554,6 @@ fn a_derived_body_runs_under_the_release_the_call_is_analysed_under() {
         }
     }
 }
+
+#[path = "support/native_string_is_ascii.rs"]
+mod native_string_is_ascii;

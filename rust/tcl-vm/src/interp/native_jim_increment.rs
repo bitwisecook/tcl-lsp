@@ -88,7 +88,7 @@ impl Vm {
                 return Ok(Some(member));
             }
             self.install_original_jim_variable(original, &bytes, &original_names)
-                .map_err(|error| crate::command::completion_from_cmd_error(self, error.into()))?;
+                .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
             if let Some((target, level)) = self.original_jim_alias_target(original) {
                 let frame = self.select_execution_frame(level).map_err(super::err)?;
                 let result = self.read_original_jim_update(target.value());

@@ -650,6 +650,7 @@ impl CompilerTraversal<'_> {
         >,
     ) -> Option<SourceNativeCompilationFailure> {
         use tcl_registry::native_compilation::NativeExpressionCompilerStep as Step;
+        use tcl_registry::native_expression_program::ExpressionProgramEmission;
         let image = self.chunk.source.source_image().clone();
         if image.bytes().get(program.span.as_range()) != Some(program.source.as_slice()) {
             self.require_provider();
@@ -726,20 +727,33 @@ impl CompilerTraversal<'_> {
                 return Some(failure);
             }
         }
+        let emission = self.original_expression_emission(program, context.registry);
+        let evaluation_known = emission != ExpressionProgramEmission::Unavailable;
+        if !evaluation_known {
+            self.require_provider();
+        }
+        None
+    }
+
+    fn original_expression_emission(
+        &self,
+        program: &tcl_registry::native_expression_program::NativeExpressionProgram,
+        registry: &tcl_registry::CommandRegistry,
+    ) -> tcl_registry::native_expression_program::ExpressionProgramEmission {
         use tcl_registry::native_expression_program::{
             ExpressionProgramEmission, expression_program_emission,
             expression_program_emission_for_policy, native_expression_evaluation_policy,
         };
         let baseline = &self.state.baseline;
-        let emission = match baseline.native_entry.as_ref() {
+        match baseline.native_entry.as_ref() {
             Some(entry) => expression_program_emission(program, entry),
             // An entry-less compile is a fresh interpreter of its profile,
             // whose expression policy is that release's own.
             None if !baseline.unknown_entry => baseline
                 .dialect
-                .and_then(|dialect| dialect.execution_point())
+                .and_then(tcl_registry::InvocationDialect::execution_point)
                 .and_then(|point| {
-                    let profile = context.registry.profile()?;
+                    let profile = registry.profile()?;
                     let policy = native_expression_evaluation_policy(profile, point)?;
                     Some(expression_program_emission_for_policy(
                         program,
@@ -749,12 +763,7 @@ impl CompilerTraversal<'_> {
                 })
                 .unwrap_or(ExpressionProgramEmission::Unavailable),
             None => ExpressionProgramEmission::Unavailable,
-        };
-        let evaluation_known = emission != ExpressionProgramEmission::Unavailable;
-        if !evaluation_known {
-            self.require_provider();
         }
-        None
     }
 
     fn original_operand(

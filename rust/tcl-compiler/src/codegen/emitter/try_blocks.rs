@@ -152,7 +152,7 @@ fn catch_region_outputs(
             .then(|| statement.tokens())
             .flatten()
     })?;
-    let context = cfg.metadata_context.metadata_context(registry)?;
+    let context = cfg.metadata_context.metadata_context(registry)?.context();
     let normal = crate::registry_invocation::normal_transfer_invocation_with_metadata_context(
         registry, context, tokens,
     )?;

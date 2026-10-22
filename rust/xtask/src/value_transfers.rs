@@ -1297,7 +1297,7 @@ mod tests {
         let verdicts = ratchet_verdicts(&lint, &pins, &[]);
         assert_eq!(verdicts.len(), 2, "{verdicts:?}");
         assert!(verdicts.iter().all(|v| v.contains("lower the pin")));
-        assert!(ratchet_verdicts(&lint, &[("rust/x/a.rs", 1)], &[]).is_empty());
+        assert_eq!(ratchet_verdicts(&lint, &[("rust/x/a.rs", 1)], &[]).len(), 0);
     }
 
     #[test]
@@ -1336,7 +1336,7 @@ mod tests {
                 .any(|v| v.contains("`rust/x/c.rs`, which RATCHET does not pin"))
         );
         let agreed = [("rust/x/a.rs", 2), ("rust/x/b.rs", 5), ("rust/x/c.rs", 1)];
-        assert!(ledger_verdicts(doc, &agreed).is_empty());
+        assert_eq!(ledger_verdicts(doc, &agreed).len(), 0);
     }
 
     #[test]

@@ -940,7 +940,7 @@ mod tests {
     fn fragments_cover_intra_file_and_ignore_fences_and_templates() {
         let headings = heading_slugs("# Current section\n```md\n# Hidden section\n```\n");
         let (path, fragment) = split_link_fragment("#current-section");
-        assert!(path.is_empty());
+        assert_eq!(path.len(), 0);
         assert!(headings.contains(fragment.unwrap()));
         assert!(!headings.contains("hidden-section"));
         assert!(is_template_placeholder("<pass-anchor>"));

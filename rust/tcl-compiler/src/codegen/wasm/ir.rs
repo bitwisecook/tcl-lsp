@@ -977,12 +977,8 @@ impl WasmModule {
 
             let param_count = func.params.len();
             for (j, lt) in func.locals.iter().enumerate() {
-                let local_idx = param_count + j;
-                lines.push(format!(
-                    "    (local {} {})",
-                    local_ids[local_idx],
-                    lt.wat_name()
-                ));
+                let slot = param_count + j;
+                lines.push(format!("    (local {} {})", local_ids[slot], lt.wat_name()));
             }
 
             let mut indent = 2usize;

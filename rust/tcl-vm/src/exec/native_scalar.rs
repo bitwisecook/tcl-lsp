@@ -23,6 +23,43 @@ use tcl_registry::native_scalar_compilation::NativeScalarOperation;
 use tcl_syntax::value::{ValueError, ValueOps};
 
 impl Vm {
+    /// Only the admitted non-strict C ASCII STR_CLASS form reaches this worker.
+    pub(super) fn execute_native_ascii_predicate(
+        &mut self,
+        original: &Value,
+        version: tcl_dialect::TclVersion,
+    ) -> Result<Value, tcl_cmd_core::CmdError> {
+        let ops = crate::interp::native_numeric_ops::OriginalNumericOps::entered(self)?;
+        let dialect = ops.dialect();
+        if version < tcl_dialect::TclVersion::V8_6
+            || dialect.tcl_version != Some(version)
+            || dialect.native_error_log_protocol().is_none()
+        {
+            return Err(ValueError::CommandProtocolUnavailable(
+                "native compiled ASCII predicate issuer",
+            )
+            .into());
+        }
+        let protocol =
+            dialect
+                .native_string_protocol()
+                .ok_or(ValueError::CommandProtocolUnavailable(
+                    "native compiled ASCII Unicode getter",
+                ))?;
+        let units = original.native_unicode_units_checked(
+            protocol,
+            &mut || ops.current_for_value(original),
+            &mut || ops.string(original, protocol),
+        )?;
+        ops.current_for_value(original)?;
+        let matched = units.iter().all(|unit| *unit <= 0x7f);
+        drop(units);
+        ops.with_vm_for_value(original, |vm| {
+            vm.native_c_execution_boolean(matched, version)
+                .map_err(Into::into)
+        })
+    }
+
     pub(super) fn execute_native_scalar_length(
         &mut self,
         original: &Value,
@@ -38,7 +75,7 @@ impl Vm {
         let length = match operation {
             NativeScalarOperation::StringLength => self.native_char_len(original)?,
             NativeScalarOperation::ListLength => self.list_len(original)?,
-            NativeScalarOperation::StringEqual => {
+            NativeScalarOperation::StringEqual | NativeScalarOperation::StringIsAscii => {
                 return Err(ValueError::CommandProtocolUnavailable(
                     "native length instruction",
                 ));

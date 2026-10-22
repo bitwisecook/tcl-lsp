@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Conditional original TclOO link descriptions and their member declarations.
+//! Conditional original `TclOO` link descriptions and their member declarations.
 
 use super::{AnalysisResult, ClassDef, MemberSide, OriginalSourceMethodMetadata, Scope};
 use crate::{

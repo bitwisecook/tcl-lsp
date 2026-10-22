@@ -1775,16 +1775,16 @@ fn original_assignment_name(
 }
 
 /// The unchanged value operand uses its original point grammar, including
-/// upstream AssignValue escape preservation. This supplies no store authority.
+/// upstream `AssignValue` escape preservation. This supplies no store authority.
 fn original_assignment_literal(
     unit: &FunctionUnit,
     module: &Module,
     registry: &CommandRegistry,
     statement: &Statement,
 ) -> Option<String> {
-    let value = match statement {
-        Statement::AssignConst { value, .. } | Statement::AssignValue { value, .. } => value,
-        _ => return None,
+    let (Statement::AssignConst { value, .. } | Statement::AssignValue { value, .. }) = statement
+    else {
+        return None;
     };
     let tokens = crate::ir::CommandBindingSites::unanimous_statement_source_tokens(
         &unit.cfg.command_binding_sites,
@@ -2302,7 +2302,7 @@ fn collect_defined_procs(
         for op in ops {
             match op {
                 NativeOp::DefineProc { entry_key, .. } => {
-                    out.insert(entry_key.clone());
+                    out.insert(*entry_key);
                 }
                 NativeOp::IfElse {
                     then_ops, else_ops, ..

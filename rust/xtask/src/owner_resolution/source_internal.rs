@@ -3501,7 +3501,7 @@ mod file_route_tests {
         ] {
             let (coverage, problems) = validate(&fixture.0, &changed);
             assert!(coverage.is_empty());
-            assert!(!problems.is_empty());
+            assert_ne!(problems.len(), 0);
         }
     }
 
@@ -3600,11 +3600,11 @@ mod file_route_tests {
             std::fs::write(fixture.0.join("rust/a/Cargo.toml"), changed).unwrap();
             let (coverage, failures) = validate(&fixture.0, &manifest());
             assert!(coverage.is_empty());
-            assert!(!failures.is_empty());
+            assert_ne!(failures.len(), 0);
         }
         std::fs::write(fixture.0.join("rust/a/Cargo.toml"), cargo).unwrap();
         std::fs::create_dir(fixture.0.join("rust/a/src/bin")).unwrap();
-        assert!(!validate(&fixture.0, &manifest()).1.is_empty());
+        assert_ne!(validate(&fixture.0, &manifest()).1.len(), 0);
     }
 
     #[test]
@@ -3665,7 +3665,7 @@ mod file_route_tests {
         ] {
             let (coverage, failures) = validate(&fixture.0, &format!("{START}\n{changed}\n{END}"));
             assert!(coverage.is_empty());
-            assert!(!failures.is_empty());
+            assert_ne!(failures.len(), 0);
         }
     }
 }

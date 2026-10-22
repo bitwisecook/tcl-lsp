@@ -3049,7 +3049,7 @@ impl<'r> Lowerer<'r> {
                 .map(|owner| {
                     owner.retain_source_structure_input(
                         self.invocation_metadata_context()
-                            .and_then(|metadata| metadata.source_analysis_input()),
+                            .and_then(crate::registry_invocation::InvocationMetadataContext::source_analysis_input),
                     )
                 })
             })

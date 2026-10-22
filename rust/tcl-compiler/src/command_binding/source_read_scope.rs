@@ -185,7 +185,7 @@ pub(crate) fn source_targets_match_advice(
     else {
         return false;
     };
-    for target in binding.targets.iter() {
+    for target in &binding.targets {
         if !target.registry_backed
             || !context
                 .context()

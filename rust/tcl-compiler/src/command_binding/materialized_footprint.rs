@@ -283,12 +283,12 @@ impl SourceInvocationBinding {
         tokens: &CommandTokens,
         function: &crate::compilation_unit::FunctionUnit,
         registry: &CommandRegistry,
-    ) -> Option<Option<InvocationMetadataContext<'a>>> {
+    ) -> Option<crate::registry_invocation::InvocationMetadataSelection<'a>> {
         if let Some(input) = function.source_metadata_input() {
             function.invocation_metadata_context(registry)?;
             return self
                 .original_invocation_metadata_for_input(tokens, input, registry)
-                .map(Some);
+                .map(crate::registry_invocation::InvocationMetadataSelection::Retained);
         }
         let config = self.original_invocation_config(tokens, registry)?;
         if config.nested().normalized() != function.source_lexer_config().nested().normalized() {
@@ -478,7 +478,7 @@ impl SourceInvocationBinding {
                 if !point.is_standalone() {
                     return Err(refusal);
                 }
-                point.metadata_context(registry).ok_or(refusal)
+                point.metadata_context(registry).map(crate::registry_invocation::InvocationMetadataSelection::context).ok_or(refusal)
             }
             OwnedInvocationMetadataContext::Supplied(_)
             | OwnedInvocationMetadataContext::Unavailable => Err(refusal),
@@ -2066,6 +2066,7 @@ mod tests {
         let metadata = binding
             .original_invocation_metadata_for_function(tokens, function, context.commands())
             .unwrap()
+            .context()
             .unwrap();
         assert_eq!(
             metadata.source_analysis_input(),

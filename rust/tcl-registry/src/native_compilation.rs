@@ -842,6 +842,8 @@ pub enum NativeCompilationGrammar {
     NamespaceString(crate::native_namespace_string_compilation::NativeNamespaceStringOperation),
     /// Native string equality; unsupported options use a private invocation from 8.6.
     StringEqual(crate::native_scalar_compilation::NativeScalarScope),
+    /// C8.6+ exact non-strict ASCII class test; other forms remain unclosed.
+    StringIsAscii(crate::native_scalar_compilation::NativeScalarScope),
     /// C8.4+ string length accepts one evaluated operand; refused modern
     /// public forms retain the selected private worker invocation.
     StringLength(crate::native_scalar_compilation::NativeScalarScope),
@@ -1898,6 +1900,14 @@ impl NativeCompilationSpec {
                     && matches!(count, 1 | 2)
             }
             NativeCompilationGrammar::StringEqual(_) => count == 2,
+            NativeCompilationGrammar::StringIsAscii(scope) => {
+                let from = operand_from
+                    + usize::from(
+                        scope == crate::native_scalar_compilation::NativeScalarScope::PublicMember,
+                    );
+                words.original_words().len().checked_sub(from) == Some(2)
+                    && words.literal(from) == Some(b"ascii")
+            }
             NativeCompilationGrammar::StringLength(_)
             | NativeCompilationGrammar::ListLength
             | NativeCompilationGrammar::NamespaceOrigin
@@ -2038,6 +2048,7 @@ impl NativeCompilationSpec {
             | NativeCompilationGrammar::StringMatch(_)
             | NativeCompilationGrammar::StringEqual(_)
             | NativeCompilationGrammar::StringLength(_)
+            | NativeCompilationGrammar::StringIsAscii(_)
             | NativeCompilationGrammar::StringOperand { .. }
             | NativeCompilationGrammar::ListLength
             | NativeCompilationGrammar::Tailcall
@@ -2314,7 +2325,8 @@ impl NativeCompilationSpec {
             | NativeCompilationGrammar::NamespaceCurrent
             | NativeCompilationGrammar::NamespaceOrigin
             | NativeCompilationGrammar::NamespaceCode
-            | NativeCompilationGrammar::NamespaceString(_) => version >= TclVersion::V8_6,
+            | NativeCompilationGrammar::NamespaceString(_)
+            | NativeCompilationGrammar::StringIsAscii(_) => version >= TclVersion::V8_6,
             NativeCompilationGrammar::Uplevel => version >= TclVersion::V9_1,
             NativeCompilationGrammar::StringOperand { operation, .. } => {
                 version >= operation.hook_from()
@@ -2373,7 +2385,9 @@ impl NativeCompilationSpec {
         }
         if matches!(
             self.grammar,
-            NativeCompilationGrammar::StringEqual(
+            NativeCompilationGrammar::StringIsAscii(
+                crate::native_scalar_compilation::NativeScalarScope::PublicMember,
+            ) | NativeCompilationGrammar::StringEqual(
                 crate::native_scalar_compilation::NativeScalarScope::PublicMember,
             ) | NativeCompilationGrammar::StringLength(
                 crate::native_scalar_compilation::NativeScalarScope::PublicMember,
@@ -2450,6 +2464,14 @@ impl NativeCompilationSpec {
                 },
             );
         }
+        if self.grammar
+            == NativeCompilationGrammar::StringIsAscii(
+                crate::native_scalar_compilation::NativeScalarScope::PublicMember,
+            )
+        {
+            return implementation_version_matches(dialect, TclVersion::V8_5)
+                .then_some(crate::native_string_is_compilation::STRING_IS_IMPLEMENTATION);
+        }
         if let NativeCompilationGrammar::StringTrim {
             scope: crate::native_scalar_compilation::NativeScalarScope::PublicMember,
             operation,
@@ -2521,6 +2543,9 @@ impl NativeCompilationSpec {
     fn operation_matches_grammar(self) -> bool {
         if let NativeCompilationGrammar::WithImplementationPath { compiler, .. } = self.grammar {
             return compiler.operation_matches_grammar() && self.operation == compiler.operation;
+        }
+        if matches!(self.grammar, NativeCompilationGrammar::StringIsAscii(_)) {
+            return self.operation == SemanticOperationId::Intrinsic(crate::IntrinsicId::StringIs);
         }
         self.operation != SemanticOperationId::Intrinsic(crate::IntrinsicId::ListConstruct)
             || matches!(
@@ -2825,6 +2850,15 @@ impl NativeCompilationSpec {
         }
         if let NativeCompilationGrammar::StringTrim { scope, .. } = self.grammar {
             return Some(crate::native_string_trim_compilation::select_original(
+                words,
+                operand_from,
+                scope,
+                version,
+                self.operation,
+            ));
+        }
+        if let NativeCompilationGrammar::StringIsAscii(scope) = self.grammar {
+            return Some(crate::native_string_is_compilation::select_original(
                 words,
                 operand_from,
                 scope,
@@ -3310,7 +3344,9 @@ impl NativeCompilationSpec {
         }
         let retains_member = matches!(
             self.grammar,
-            NativeCompilationGrammar::StringEqual(
+            NativeCompilationGrammar::StringIsAscii(
+                crate::native_scalar_compilation::NativeScalarScope::PublicMember
+            ) | NativeCompilationGrammar::StringEqual(
                 crate::native_scalar_compilation::NativeScalarScope::PublicMember
             ) | NativeCompilationGrammar::StringLength(
                 crate::native_scalar_compilation::NativeScalarScope::PublicMember
@@ -4044,6 +4080,19 @@ impl NativeCompilationSpec {
             }
             NativeCompilationGrammar::InfoCommands => {
                 info_commands_grammar(words, shapes, version, self.operation)
+            }
+            NativeCompilationGrammar::StringIsAscii(scope) => {
+                let from = usize::from(
+                    scope == crate::native_scalar_compilation::NativeScalarScope::PublicMember,
+                );
+                crate::native_string_is_compilation::select_shapes(
+                    shapes,
+                    words.arguments().literal_at(0).map(str::as_bytes),
+                    words.arguments().literal_at(from).map(str::as_bytes),
+                    scope,
+                    version,
+                    self.operation,
+                )
             }
             NativeCompilationGrammar::StringEqual(scope) => string_member_arity_grammar(
                 words,

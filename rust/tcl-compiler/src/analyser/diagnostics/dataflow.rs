@@ -1377,7 +1377,7 @@ is renamed or deleted in this file."
             fields
                 .iter()
                 .map(|field| field.name())
-                .eq(ir_proc.params.iter().map(|name| name.as_bytes()))
+                .eq(ir_proc.params.iter().map(String::as_bytes))
                 .then_some(fields)
         };
         select().unwrap_or_default()
@@ -2061,7 +2061,10 @@ is renamed or deleted in this file."
                                 &access.original_spelling,
                                 &registry,
                             )
-                            .map(|presence| (presence.may_be_undefined(), presence.may_be_defined()))
+                            .map(|presence| (
+                                presence.may_be_undefined(),
+                                presence.may_be_defined()
+                            ))
                         );
                     }
                     let Some(presence) = view
@@ -4283,6 +4286,7 @@ fn original_store_metadata<'a>(
         .source_binding
         .as_ref()?
         .original_invocation_metadata_for_function(tokens, function, registry)?
+        .context()
 }
 
 fn function_declaration_flow(
@@ -4986,7 +4990,7 @@ impl<'a> SourceMatcherLayout<'a> {
             ArgRole, native_compilation::SuccessfulHandlerSpec,
             variable_output::NativeVariableOutputSpec,
         };
-        let facts = words.with_source_schema(context, |invocation| invocation.facts())?;
+        let facts = words.with_source_schema(context, tcl_registry::ResolvedInvocation::facts)?;
         let SuccessfulHandlerSpec::ConditionalVariableOperands(protocol) =
             facts.successful_handler?
         else {

@@ -49,9 +49,9 @@ pub(crate) fn original_hidden_reads(
                 if index != usize::MAX {
                     let statement = &block.statements[index];
                     if statement.source_edit_span().is_some()
-                        && !statement
+                        && statement
                             .tokens()
-                            .is_some_and(|tokens| !tokens.evaluates_words())
+                            .is_none_or(crate::ir::CommandTokens::evaluates_words)
                     {
                         out.opaque = true;
                     }
@@ -107,7 +107,7 @@ pub(crate) fn original_hidden_reads(
 }
 
 /// Ordinary source substitutions obey the actual grammar and protected braces.
-/// By-name command reads are supplied separately by original_hidden_reads.
+/// By-name command reads are supplied separately by `original_hidden_reads`.
 pub(crate) fn original_textual_reads(
     source: &str,
     function: &FunctionUnit,

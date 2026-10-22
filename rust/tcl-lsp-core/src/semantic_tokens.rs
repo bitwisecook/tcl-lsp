@@ -1413,7 +1413,7 @@ fn is_event_name(s: &str) -> bool {
 
 /// How a specific argument token should be classified, overriding the
 /// default lexer-kind classification.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 enum ArgOverride {
     /// Classify the whole token as this kind (e.g. an event name).
     Kind(TokenKind),
@@ -1478,7 +1478,7 @@ enum ArgOverride {
     /// [`CaseListSpec`] is registry data, so the walker names no command; the
     /// `bool` is whether *this call* put the list in regex mode
     /// (`switch -regexp`).
-    CaseList(tcl_registry::CaseListSpec, bool),
+    CaseList(Box<tcl_registry::CaseListSpec>, bool),
     /// A structural keyword word at an argument position (`if`'s
     /// `then`/`elseif`/`else`, `try`'s `on`/`trap`/`finally`), carried
     /// by `ArgRole::Keyword` → highlighted as `Keyword` rather than a
@@ -1646,7 +1646,7 @@ fn push_regsub_subtokens(
 fn mark_literal_fragments(
     seg: &tcl_compiler::segmenter::SegmentedCommand,
     word_span: tcl_lexer::Span,
-    ov: ArgOverride,
+    ov: &ArgOverride,
     overrides: &mut FxHashMap<u32, ArgOverride>,
 ) {
     for t in &seg.all_tokens {
@@ -1654,7 +1654,9 @@ fn mark_literal_fragments(
             && t.span.end() <= word_span.end()
             && matches!(t.kind, TokenType::Str | TokenType::Esc)
         {
-            overrides.entry(t.span.start()).or_insert(ov);
+            overrides
+                .entry(t.span.start())
+                .or_insert_with(|| ov.clone());
         }
     }
 }
@@ -1674,7 +1676,7 @@ fn mark_regex_source_words(
     }
     for word in &seg.argv {
         if let Some(&full_span) = regex_sources.get(&word.span.start()) {
-            mark_literal_fragments(seg, full_span, ArgOverride::RegexPattern, overrides);
+            mark_literal_fragments(seg, full_span, &ArgOverride::RegexPattern, overrides);
         }
     }
 }
@@ -2361,7 +2363,9 @@ fn retag_original_variable_argument(
         let braced = token.kind == TokenType::Str
             && matches!(geometry.form(), OriginalVariableNameWordForm::Static { .. });
         if literal || braced {
-            overrides.entry(token.span.start()).or_insert(kind);
+            overrides
+                .entry(token.span.start())
+                .or_insert_with(|| kind.clone());
         }
     }
 }
@@ -3890,7 +3894,7 @@ fn insert_original_procedure_argument_role_geometry(
                     continue;
                 }
                 if matches!(override_kind, ArgOverride::VarDecl | ArgOverride::VarRef) {
-                    retag_original_variable_argument(seg, word, override_kind, overrides);
+                    retag_original_variable_argument(seg, word, override_kind.clone(), overrides);
                 } else if tcl_syntax::word_rules::original_static_word_unicode_value(word).is_some()
                     && word
                         .tokens()
@@ -3902,7 +3906,9 @@ fn insert_original_procedure_argument_role_geometry(
                         .iter()
                         .filter(|token| matches!(token.kind, TokenType::Esc | TokenType::Str))
                     {
-                        overrides.entry(token.span.start()).or_insert(override_kind);
+                        overrides
+                            .entry(token.span.start())
+                            .or_insert_with(|| override_kind.clone());
                     }
                 }
             } else if let Some(input) = operand.input()
@@ -3996,9 +4002,9 @@ fn classify_and_push_if(cond: bool, ctx: ScriptCtx<'_>, tok: Token, entries: &mu
 
 /// The fixed `(kind, modifier)` for overrides that emit their token verbatim,
 /// or `None` for overrides that need custom handling (recursion / sub-tokens).
-fn verbatim_token_kind(ov: ArgOverride) -> Option<(TokenKind, u32)> {
+fn verbatim_token_kind(ov: &ArgOverride) -> Option<(TokenKind, u32)> {
     match ov {
-        ArgOverride::Kind(kind) => Some((kind, 0)),
+        ArgOverride::Kind(kind) => Some((*kind, 0)),
         ArgOverride::Decorator => Some((TokenKind::Decorator, 0)),
         ArgOverride::VarDecl => Some((TokenKind::Variable, MOD_DECLARATION)),
         ArgOverride::VarRef => Some((TokenKind::Variable, 0)),
@@ -4032,7 +4038,7 @@ fn emit_arg_token(
         ..ctx
     };
     // Overrides that emit their token verbatim collapse to one path.
-    if let Some((kind, modifier)) = override_kind.copied().and_then(verbatim_token_kind) {
+    if let Some((kind, modifier)) = override_kind.and_then(verbatim_token_kind) {
         push_token(line_index, full_source, *tok, kind, modifier, entries);
         return;
     }
@@ -4646,7 +4652,7 @@ fn bind_loop_vars_for_call(
     if command.is_partial {
         return;
     }
-    let Some(roles) = words.roles() else {
+    let Some(argument_roles) = words.roles() else {
         return;
     };
     let original_words = tcl_compiler::ir::CommandTokens::from_segmented(
@@ -4654,7 +4660,7 @@ fn bind_loop_vars_for_call(
         config,
         command,
     );
-    for &(ordinal, role) in roles {
+    for &(ordinal, role) in argument_roles {
         if role != tcl_registry::ArgRole::LoopVarList {
             continue;
         }
@@ -4795,7 +4801,8 @@ fn collect_entries(
     let dialect = current.profile();
     let generation = current.context();
     let lexical = analysis.allows_lexical_declaration_advice();
-    let analysis = Some(analysis);
+    let retained = analysis;
+    let analysis = Some(retained);
     let mut entries: Vec<Entry> = Vec::new();
     let line_index = LineIndex::new(source);
     let profile = dialect;
@@ -4873,12 +4880,7 @@ fn collect_entries(
     // surfaces it as a loop — and feeds the value variable(s) into the handle
     // map (the SpiceGenTcl `allNodes` / `actOnParam` shape).
     if lexical {
-        augment_loop_var_handles(
-            source,
-            analysis.unwrap(),
-            &object_collections,
-            &mut object_classes,
-        );
+        augment_loop_var_handles(source, retained, &object_collections, &mut object_classes);
     }
 
     // snit object-handle bindings the compiler CFG doesn't surface — `install
@@ -4886,7 +4888,7 @@ fn collect_entries(
     // via a source scan, since snit method bodies (where these live) are not
     // lowered into the CFG `object_handle_classes` reads.
     if lexical {
-        augment_snit_handles(source, analysis.unwrap(), classes, &mut object_classes);
+        augment_snit_handles(source, retained, classes, &mut object_classes);
     }
 
     // Walk every segmented command (recursing into braced bodies, braced

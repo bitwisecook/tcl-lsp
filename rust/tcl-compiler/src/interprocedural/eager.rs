@@ -132,7 +132,7 @@ impl EagerInvocations {
                 };
                 for callee in &reach.named {
                     if load.named.get(callee).is_none_or(|old| position < *old) {
-                        load.named.insert(callee.clone(), position);
+                        load.named.insert(*callee, position);
                         changed = true;
                     }
                 }
@@ -226,7 +226,7 @@ impl DefinitionReach {
                 .direct_calls
                 .iter()
                 .filter(|callee| self.defined(callee, qname))
-                .cloned()
+                .copied()
                 .collect();
         }
     }

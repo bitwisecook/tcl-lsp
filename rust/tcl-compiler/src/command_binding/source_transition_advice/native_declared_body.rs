@@ -43,7 +43,7 @@ impl OriginalNativeSourceDeclaration {
     pub(crate) fn name_input(&self) -> &SignatureSourceNameInput {
         &self.name
     }
-    pub(crate) fn slot(&self) -> &tcl_core_types::ByteCommandSlot {
+    pub(crate) fn declaration_slot(&self) -> &tcl_core_types::ByteCommandSlot {
         &self.procedure.declaration_slot
     }
     pub(crate) fn namespace(&self) -> &SourceNamespaceKey {
@@ -68,7 +68,7 @@ impl OriginalNativeSourceDeclaration {
     }
     pub(crate) fn label(&self) -> Option<String> {
         std::str::from_utf8(&tcl_syntax::naming::native_command_full_name_bytes(
-            self.slot(),
+            self.declaration_slot(),
         ))
         .ok()
         .map(str::to_owned)

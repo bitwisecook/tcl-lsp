@@ -1019,7 +1019,7 @@ fn walk_stmt(
             // local, but a nested `uplevel 1` still reaches this procedure's
             // caller and must participate in the summary.
             (false, 0) => {
-                walk_script(&body, params, registry, bindings, namespace, info);
+                walk_script(body, params, registry, bindings, namespace, info);
             }
             // `uplevel #0` selects the global frame, which is owned by the
             // global-write summary rather than this caller-frame projection.
@@ -1033,20 +1033,20 @@ fn walk_stmt(
                 walk_script(&c.body, params, registry, bindings, namespace, info);
             }
             if let Some(e) = else_body {
-                walk_script(&e, params, registry, bindings, namespace, info);
+                walk_script(e, params, registry, bindings, namespace, info);
             }
         }
         Statement::For {
             init, next, body, ..
         } => {
-            walk_script(&init, params, registry, bindings, namespace, info);
-            walk_script(&next, params, registry, bindings, namespace, info);
-            walk_script(&body, params, registry, bindings, namespace, info);
+            walk_script(init, params, registry, bindings, namespace, info);
+            walk_script(next, params, registry, bindings, namespace, info);
+            walk_script(body, params, registry, bindings, namespace, info);
         }
         Statement::While { body, .. }
         | Statement::Foreach { body, .. }
         | Statement::Catch { body, .. } => {
-            walk_script(&body, params, registry, bindings, namespace, info);
+            walk_script(body, params, registry, bindings, namespace, info);
         }
         Statement::Block {
             body,
@@ -1054,10 +1054,10 @@ fn walk_stmt(
             ..
         } => {
             if let Some(context) = body.namespace_context.as_deref() {
-                walk_script(&body, params, registry, bindings, context, info);
+                walk_script(body, params, registry, bindings, context, info);
             } else if bindings.is_none() {
                 walk_script(
-                    &body,
+                    body,
                     params,
                     registry,
                     bindings,
@@ -1074,11 +1074,11 @@ fn walk_stmt(
         } => {
             for arm in arms {
                 if let Some(b) = &arm.body {
-                    walk_script(&b, params, registry, bindings, namespace, info);
+                    walk_script(b, params, registry, bindings, namespace, info);
                 }
             }
             if let Some(b) = default_body {
-                walk_script(&b, params, registry, bindings, namespace, info);
+                walk_script(b, params, registry, bindings, namespace, info);
             }
         }
         Statement::Try {
@@ -1087,12 +1087,12 @@ fn walk_stmt(
             finally_body,
             ..
         } => {
-            walk_script(&body, params, registry, bindings, namespace, info);
+            walk_script(body, params, registry, bindings, namespace, info);
             for h in handlers {
                 walk_script(&h.body, params, registry, bindings, namespace, info);
             }
             if let Some(f) = finally_body {
-                walk_script(&f, params, registry, bindings, namespace, info);
+                walk_script(f, params, registry, bindings, namespace, info);
             }
         }
         _ => {}
@@ -1163,7 +1163,7 @@ fn record_logical_frame_invocation(
     };
     match layout {
         FrameArgLayout::AliasPairs => {
-            record_logical_alias_pairs(invocation, selection, context, info)
+            record_logical_alias_pairs(invocation, selection, context, info);
         }
         FrameArgLayout::ScriptInCurrentFrame | FrameArgLayout::ScriptInSelectedFrame => {
             record_logical_frame_script(invocation, layout, selection, context, info);

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! ParseSubCmd consumes the original object's distinct native table cache.
+//! `ParseSubCmd` consumes the original object's distinct native table cache.
 
 use super::*;
 use crate::interp::native_name_consumers::OriginalNameConsumerScope;
@@ -83,7 +83,7 @@ pub(super) fn select(
     }
 }
 
-/// Private ListJoin output or the actual retained result of a failed lsort.
+/// Private `ListJoin` output or the actual retained result of a failed lsort.
 struct OriginalParserCommandList {
     original: Value,
     fresh: bool,
@@ -141,7 +141,7 @@ fn command_list(
     drop(list);
     scope.current_for_value(vm, selector)?;
     let code = completion.code;
-    let sorted = vm.with_native_interp_result(|value| value.native_lifetime_lease())?;
+    let sorted = vm.with_native_interp_result(Value::native_lifetime_lease)?;
     drop(completion);
     let current = |vm: &mut Vm| -> Result<(), CmdError> {
         scope.current_for_value(vm, selector)?;

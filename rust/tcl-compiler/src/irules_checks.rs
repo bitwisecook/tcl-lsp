@@ -482,7 +482,8 @@ impl<'a> IrulesSourceQuery<'a> {
             .iter()
             .find(|(_, owned)| std::ptr::eq(*owned, function))
         else {
-            return std::ptr::eq(function, &self.unit.top_level).then_some(None);
+            return std::ptr::eq(function, std::ptr::from_ref(&self.unit.top_level))
+                .then_some(None);
         };
         let Some(expected) = module.irules_event_bodies.get(key) else {
             return owned.irules_event_body.is_none().then_some(None);
@@ -5121,7 +5122,9 @@ mod original_collection_source_tests {
                 declared_commands: None,
             },
             unknown_history
-                .then(|| crate::command_binding::SourceAnalysisEntry::unknown_history_for_test(&input))
+                .then(|| {
+                    crate::command_binding::SourceAnalysisEntry::unknown_history_for_test(&input)
+                })
                 .as_ref(),
             &input,
         );

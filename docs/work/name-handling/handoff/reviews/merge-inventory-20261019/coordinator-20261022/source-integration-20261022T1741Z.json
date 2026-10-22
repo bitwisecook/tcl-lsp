@@ -1,0 +1,22 @@
+{
+  "utc": "2026-10-22T17:41:54.204376+00:00",
+  "source_before": "aadae1854e97d9557d7bb47b356ebccfd9780958",
+  "upstream": "5a331e1fe5cfa6713377a420a890ea4d24387d6e",
+  "published_source_base": "d7ff1142a478fcdb8231457723033865e4f818ee",
+  "expected_tree": "8b873899746f15f30e6c1362cd4689938835780a",
+  "external_product_paths": [
+    "rust/f5-cli/tests/cli.rs",
+    "rust/f5-cli/tests/remote.rs",
+    "rust/f5-xc/src/translator.rs",
+    "rust/f5-xc/tests/model.rs",
+    "rust/xtask/src/editor_extensions.rs",
+    "rust/xtask/src/gen_jetbrains.rs",
+    "rust/xtask/src/gen_tmlanguage_keywords.rs"
+  ],
+  "merge_tree_conflicts": false,
+  "completed_utc": "2026-10-22T17:44:30.026380+00:00",
+  "source_after": "8478a7b5e859ad2a539378c9fe9b6c8fc75c10b3",
+  "actual_tree": "8b873899746f15f30e6c1362cd4689938835780a",
+  "expected_tree_matches": true,
+  "first_attempt": "Interrupted owned rebase after lazy-blob reads failed with restricted network. Aborted only own interrupted operation with all agent writes held, verified exact full checkpoint restored, then retried with normal network permission. No uncommitted tracked work existed or was discarded."
+}

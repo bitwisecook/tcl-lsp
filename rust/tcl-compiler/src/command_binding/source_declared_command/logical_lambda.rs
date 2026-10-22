@@ -157,7 +157,7 @@ impl OriginalLogicalLambdaBody {
         let context = input.context_registry();
         let call = self
             .words
-            .with_source_schema(&context, |schema| schema.authored_source_lambda_call())??;
+            .with_source_schema(&context, tcl_registry::ResolvedInvocation::authored_source_lambda_call)??;
         let formals = self.formals.as_deref()?;
         if call.count.indeterminate {
             return None;
@@ -206,7 +206,7 @@ impl OriginalLogicalLambdaBody {
         let span = field.source_span()?;
         if fields.len() != 1 + usize::from(expected.default.is_some())
             || field.value() != expected.name
-            || fields.get(1).map(|field| field.value()) != expected.default.as_deref()
+            || fields.get(1).map(tcl_syntax::word_rules::OriginalSourceListElement::value) != expected.default.as_deref()
             || field.original_word() != self.lambda()
             || self.lambda.image().bytes().get(span.as_range())? != expected.name.as_bytes()
             || formals.name_sources().get(parameter)?.source_span() != Some(span)

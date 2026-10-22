@@ -536,12 +536,12 @@ pub(crate) fn exported_original_for_purpose<'e>(
     import_site: RunPoint<'_>,
     purpose: NamespaceStatementPurpose,
 ) -> ExportVerdict {
+    use tcl_compiler::signature_scan::scope::SignatureNamespaceScope;
     if !tcl_syntax::native_glob::NativeGlobProtocol::from_name_policy(policy)
         .export_filter_applies()
     {
         return ExportVerdict::Exported;
     }
-    use tcl_compiler::signature_scan::scope::SignatureNamespaceScope;
     let matching = events.filter(|(event, _)| event.policy() == policy
         && matches!(event.context(), SignatureNamespaceScope::C(path) if *path == slot.namespace))
         .collect::<Vec<_>>();

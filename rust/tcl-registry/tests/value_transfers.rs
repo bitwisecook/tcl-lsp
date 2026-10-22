@@ -275,7 +275,7 @@ fn expression_assembly_follows_the_word_kinds() {
     assert_eq!(substituted.text(), Ok("1 + 1 * 2"));
     assert!(matches!(substituted, ExpressionSource::Substituted(_)));
     // The substituted text is what the engine reads: its reads are its own.
-    assert!(EXPR.variable_reads(&quoted).is_empty());
+    assert_eq!(EXPR.variable_reads(&quoted).len(), 0);
 
     let bare = TestInputs::new("expr", vec![literal("7", None)]);
     assert_eq!(
@@ -745,7 +745,7 @@ fn catch_completes_with_the_code_its_script_observes() {
             );
             let (reported, writes, stores) = caught_summary(&answer);
             assert_eq!(reported, *observed, "{dialect:?} {completion:?}");
-            assert!(writes.is_empty());
+            assert_eq!(writes.len(), 0);
             let dictionary = format!("unavailable 2 Some(Dict) {}", options.unwrap_or("-"));
             assert_eq!(stores, [format!("write 1 {stored}"), dictionary]);
         }
@@ -1160,7 +1160,7 @@ fn a_handler_chain_runs_the_first_match_as_tclsh_does() {
     assert_eq!(chain.first_taking(Code::Error), Some(0));
     assert!(!chain.preempted(0) && chain.preempted(1));
     assert_eq!(chain.live_group(0), [0]);
-    assert!(chain.live_group(1).is_empty());
+    assert_eq!(chain.live_group(1).len(), 0);
 
     // try {error boom} on error {} {A} on 1 {} {B}                      ;# A
     let chain = handler_chain(&[on_error, ("on", "1", false)], "tcl8.6");
@@ -1170,7 +1170,7 @@ fn a_handler_chain_runs_the_first_match_as_tclsh_does() {
     let chain = handler_chain(&[dash("error"), on_ok], "tcl8.6");
     assert_eq!(chain.first_taking(Code::Error), Some(0));
     assert_eq!((chain.owner(0), chain.owner(1)), (1, 1));
-    assert!(chain.live_group(0).is_empty());
+    assert_eq!(chain.live_group(0).len(), 0);
     assert_eq!(chain.live_group(1), [0, 1]);
 
     // try {error boom} on error {} - on error {} {B} on ok {} {C}       ;# B
@@ -1200,7 +1200,7 @@ fn a_handler_chain_runs_the_first_match_as_tclsh_does() {
     // try {error boom} on error {} {E} trap {} {} {T}                   ;# E
     let chain = handler_chain(&[on_error, ("trap", "", false)], "tcl8.6");
     assert!(chain.preempted(1));
-    assert!(chain.live_group(1).is_empty());
+    assert_eq!(chain.live_group(1).len(), 0);
 
     // The loop jumps a handler takes: a trap selects errors only, and a
     // selector the registry cannot read might select anything.
@@ -1623,7 +1623,7 @@ fn incoming_targets_default_to_the_cell_update_target() {
             literal("1", None),
         ],
     );
-    assert!(STRING_RANGE.incoming_targets(&inputs).is_empty());
+    assert_eq!(STRING_RANGE.incoming_targets(&inputs).len(), 0);
 }
 
 /// `set name value` writes the value byte for byte and returns it; `set
@@ -1649,7 +1649,7 @@ fn the_cell_write_route_writes_and_reads_the_exact_value() {
             value: ExactValue::from_literal(" a "),
         }]
     );
-    assert!(CELL_WRITE.incoming_targets(&write).is_empty());
+    assert_eq!(CELL_WRITE.incoming_targets(&write).len(), 0);
 
     let read_inputs = |prior: FactView| {
         let mut inputs = TestInputs::new("set", vec![literal("v", Some(ArgRole::VarRead))]);
@@ -1661,7 +1661,7 @@ fn the_cell_write_route_writes_and_reads_the_exact_value() {
     let seven = ExactValue::from_literal("7");
     let outcome = evaluated(read(FactView::Exact(seven.clone(), None))).expect("a read");
     assert_eq!(outcome.result, ExactValueOrUnavailable::Exact(seven));
-    assert!(outcome.ordered_stores.is_empty());
+    assert_eq!(outcome.ordered_stores.len(), 0);
     assert_eq!(read(FactView::Pending), EvalAnswer::Pending);
     assert_eq!(
         read(FactView::Top(DeclineReason::UnboundPlace)),
@@ -4619,7 +4619,7 @@ fn append_and_list_append_run_the_shared_cores() {
         },
         "`lappend` over `{{` raises `unmatched open brace in list`, after no store"
     );
-    assert!(raises.ordered_stores.is_empty());
+    assert_eq!(raises.ordered_stores.len(), 0);
     assert!(matches!(
         raises.result,
         ExactValueOrUnavailable::Unavailable(_)
@@ -7206,7 +7206,7 @@ fn a_reference_body_is_a_declared_implementation_when_the_sandbox_can_express_it
         },
         source.to_owned(),
     )]);
-    assert!(wide.packs[0].commands[0].hooks.is_empty());
+    assert_eq!(wide.packs[0].commands[0].hooks.len(), 0);
     assert!(
         wide.notices
             .iter()
@@ -7765,7 +7765,7 @@ fn error_raises_its_message_and_code() {
     let EvalAnswer::Evaluated(outcome) = &answer else {
         panic!("{answer:?}");
     };
-    assert!(outcome.ordered_stores.is_empty());
+    assert_eq!(outcome.ordered_stores.len(), 0);
     assert!(matches!(
         outcome.result,
         ExactValueOrUnavailable::Unavailable(_)

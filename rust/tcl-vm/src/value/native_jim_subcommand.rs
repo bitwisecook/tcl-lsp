@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Same-original ParseSubCmd primary with its authentic static table owner.
+//! Same-original `ParseSubCmd` primary with its authentic static table owner.
 
 use super::{IntRep, Value};
 use tcl_core_types::NativeJimSubcommandCache;

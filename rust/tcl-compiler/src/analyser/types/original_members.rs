@@ -718,7 +718,7 @@ impl OriginalSourceMemberLedger {
         (body.tokens().first()?.span == selected.body_span).then_some(body)
     }
 
-    /// ParamList from the same genuine member vector and selected role ordinal.
+    /// `ParamList` from the same genuine member vector and selected role ordinal.
     pub(crate) fn logical_parameter_operand(
         &self,
         side: MemberSide,

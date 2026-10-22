@@ -487,7 +487,7 @@ impl CodegenCtx<'_> {
             self.lexer_config(),
         ) {
             tcl_syntax::word_rules::CompiledWordSubstitution::LiteralValue => {
-                self.push_lit_exact(value)
+                self.push_lit_exact(value);
             }
             tcl_syntax::word_rules::CompiledWordSubstitution::Deferred => self.push_lit(value),
         }

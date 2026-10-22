@@ -748,6 +748,24 @@ struct SequenceCommand {
     script_operands: Option<Vec<tcl_lexer::Span>>,
 }
 
+#[derive(Debug, Clone, Copy)]
+enum ScriptScheduling {
+    None,
+    Deferred,
+    Immediate { once: bool },
+}
+impl ScriptScheduling {
+    fn runs_now(self) -> bool {
+        matches!(self, Self::Immediate { .. })
+    }
+    fn defers(self) -> bool {
+        matches!(self, Self::Deferred)
+    }
+    fn enters_once(self) -> bool {
+        matches!(self, Self::Immediate { once: true })
+    }
+}
+
 /// Registry control facts of one command, for the sequence.
 #[derive(Debug, Clone, Copy)]
 struct CommandFlow {
@@ -757,15 +775,11 @@ struct CommandFlow {
     /// or the command evaluates another file (`source`), whose own `return`
     /// ends this document's normal completion.
     may_end_load: bool,
-    /// A script operand may run before the command returns.
-    runs_now: bool,
-    /// Its script operands are stored for a later invocation.
-    defers: bool,
+    /// Mutually exclusive immediate/deferred/no-script scheduling.
+    scheduling: ScriptScheduling,
     /// The Registry may give it a command prefix to invoke (`lsort -command`,
     /// `regsub -command`), or cannot rule one out.
     invokes_prefix: bool,
-    /// Its bodies run once, immediately and in the current frame.
-    enters_once: bool,
 }
 
 /// One original Registry selection per command, shared by the sequence and
@@ -852,24 +866,28 @@ impl SequenceCapture<'_> {
                         .contains(tcl_registry::Traits::TRANSFERS_CONTROL)
                         || schema.semantics.body_execution
                             == Some(tcl_registry::body_execution::BodyExecutionSpec::SourceFile),
-                    runs_now: !matches!(flow, ScriptBodyFlow::Deferred | ScriptBodyFlow::None),
-                    defers: matches!(flow, ScriptBodyFlow::Deferred),
+                    scheduling: match flow {
+                        ScriptBodyFlow::Deferred => ScriptScheduling::Deferred,
+                        ScriptBodyFlow::None => ScriptScheduling::None,
+                        _ => ScriptScheduling::Immediate {
+                            once: schema.semantics.frame_effect.is_none_or(|effect| {
+                                effect.level_word
+                                    == tcl_registry::frame_effect::FrameLevelWord::None
+                            }) && matches!(
+                                flow,
+                                ScriptBodyFlow::Sequence(_)
+                                    | ScriptBodyFlow::ConcatenatedScript { .. }
+                            ),
+                        },
+                    },
                     invokes_prefix: schema.authored_source_retains_callback() != Some(false),
-                    enters_once: schema.semantics.frame_effect.is_none_or(|effect| {
-                        effect.level_word == tcl_registry::frame_effect::FrameLevelWord::None
-                    }) && matches!(
-                        flow,
-                        ScriptBodyFlow::Sequence(_) | ScriptBodyFlow::ConcatenatedScript { .. }
-                    ),
                 }
             })
             .unwrap_or(CommandFlow {
                 terminates: false,
                 may_end_load: true,
-                runs_now: true,
-                defers: false,
+                scheduling: ScriptScheduling::Immediate { once: false },
                 invokes_prefix: true,
-                enters_once: false,
             })
     }
 
@@ -909,7 +927,7 @@ impl SequenceCapture<'_> {
         flow: CommandFlow,
     ) -> Vec<tcl_lexer::Span> {
         let at = command.span.start();
-        if !flow.enters_once
+        if !flow.scheduling.enters_once()
             || self
                 .structure
                 .caller_context_unavailable_bodies
@@ -938,7 +956,7 @@ impl SequenceCapture<'_> {
         flow: CommandFlow,
         regions: &[SequenceRegion],
     ) -> bool {
-        if !flow.runs_now {
+        if !flow.scheduling.runs_now() {
             return false;
         }
         let Some(roles) = words.roles() else {
@@ -974,7 +992,7 @@ impl SequenceCapture<'_> {
         let carries = |role: ArgRole| {
             role.carries_script() || matches!(role, ArgRole::OpaqueScript | ArgRole::CommandPrefix)
         };
-        if flow.defers {
+        if flow.scheduling.defers() {
             return false;
         }
         if flow.invokes_prefix {
@@ -1149,7 +1167,7 @@ impl DocumentSequence {
                 at,
             );
             if let (Some(words), Some(flow)) = (words, flow)
-                && flow.defers
+                && flow.scheduling.defers()
             {
                 sequence.mark(&capture.deferred_bodies(words), |region| {
                     region.deferred = true;

@@ -93,7 +93,7 @@ pub enum ObjectFactOwner {
 }
 
 fn frame_for_unit(cu: &CompilationUnit, fu: &FunctionUnit) -> Option<BodyFrameId> {
-    if std::ptr::eq(fu, &cu.top_level) {
+    if std::ptr::eq(fu, std::ptr::from_ref(&cu.top_level)) {
         Some(BodyFrameId::Top(cu.ir_module.procedure_ids.module_id()))
     } else {
         fu.body_id.map(BodyFrameId::Body)
@@ -549,7 +549,7 @@ fn build_facts_gated(
     // Original source bodies supply factory candidates independently of
     // callable publication and SSA proof.
     for (name, procedure) in cu.ir_module.original_source_procedure_bodies() {
-        if context.is_some_and(|context| context.permits_logical_source_names())
+        if context.is_some_and(crate::registry_invocation::InvocationMetadataContext::permits_logical_source_names)
             || !cu.procedures.contains_key(name)
         {
             harvest_script_factories(
@@ -1333,7 +1333,7 @@ fn scan_flow_edges(
         .ir_module
         .original_source_procedure_bodies()
         .filter(|(name, _)| {
-            metadata_context.is_some_and(|context| context.permits_logical_source_names())
+            metadata_context.is_some_and(crate::registry_invocation::InvocationMetadataContext::permits_logical_source_names)
                 || !cu.procedures.contains_key(*name)
         })
         .map(|(id, procedure)| (BodyFrameId::Body(*id), &procedure.body))

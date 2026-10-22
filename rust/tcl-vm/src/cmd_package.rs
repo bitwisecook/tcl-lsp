@@ -458,7 +458,7 @@ fn jim_require(vm: &mut OriginalPackage<'_>, name: &NameBytes) -> Completion<Val
     };
     let directories = match vm.list(&paths) {
         Ok(paths) => paths,
-        Err(error) => return crate::command::completion_from_cmd_error(vm, error.into()),
+        Err(error) => return crate::command::completion_from_cmd_error(vm, error),
     };
     for directory in directories.iter() {
         let directory = match package_operand_bytes(vm, directory) {

@@ -694,19 +694,7 @@ fn couple_const_dead_store_chain(
     //
     // Either way reject a value bearing `$ [ ] \`: it could re-substitute
     // differently once inlined, so those are left to the conservative path.
-    let inlined_value = match def_stmt {
-        crate::ir::Statement::AssignConst { value, .. } => value.clone(),
-        crate::ir::Statement::AssignExpr { .. } | crate::ir::Statement::AssignValue { .. } => {
-            let Some(LatticeValue::Const(c)) = fu.sccp.values.get(&(symbol, chain.key.1)) else {
-                return None;
-            };
-            super::helpers::literals::format_constant_with_policy(
-                c,
-                crate::tcl_expr_eval::FoldPolicy::from_registry(registry),
-            )?
-        }
-        _ => return None,
-    };
+    let inlined_value = coupled_constant_value(fu, def_stmt, (symbol, chain.key.1), registry)?;
     if inlined_value.contains(['$', '[', ']', '\\']) {
         return None;
     }
@@ -748,6 +736,28 @@ fn couple_const_dead_store_chain(
         del_span,
         "",
     ))
+}
+
+fn coupled_constant_value(
+    function: &crate::compilation_unit::FunctionUnit,
+    statement: &crate::ir::Statement,
+    value: (crate::ssa::Symbol, u32),
+    registry: &CommandRegistry,
+) -> Option<String> {
+    Some(match statement {
+        crate::ir::Statement::AssignConst { value, .. } => value.clone(),
+        crate::ir::Statement::AssignExpr { .. } | crate::ir::Statement::AssignValue { .. } => {
+            let Some(crate::analyses::LatticeValue::Const(c)) = function.sccp.values.get(&value)
+            else {
+                return None;
+            };
+            super::helpers::literals::format_constant_with_policy(
+                c,
+                crate::tcl_expr_eval::FoldPolicy::from_registry(registry),
+            )?
+        }
+        _ => return None,
+    })
 }
 
 /// Textual coupling check (robust to def-use gaps such as

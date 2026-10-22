@@ -7968,6 +7968,13 @@ struct ExportGate<'a> {
     globs: Vec<&'a str>,
 }
 
+#[derive(Clone, Copy)]
+struct ExportQuery<'p, 's> {
+    pattern: Option<&'p tcl_compiler::signature_scan::original_name::SourceNamespacePattern>,
+    subjects: &'s [&'s tcl_compiler::signature_scan::scope::SignatureSourceCommand],
+    source_known: bool,
+}
+
 impl<'a> ExportGate<'a> {
     /// The gate for `source_ns` as seen from the import at `site`, or an empty
     /// gate when the namespace has no export rows at all.
@@ -7976,11 +7983,14 @@ impl<'a> ExportGate<'a> {
         order: &crate::source_graph::RunOrder,
         source_ns: &str,
         site: ImportSite<'_>,
-        original: Option<&tcl_compiler::signature_scan::original_name::SourceNamespacePattern>,
-        subjects: &[&'a tcl_compiler::signature_scan::scope::SignatureSourceCommand],
-        native_source_known: bool,
+        query: ExportQuery<'_, '_>,
         purpose: crate::namespace_import::NamespaceStatementPurpose,
     ) -> Self {
+        let ExportQuery {
+            pattern: original,
+            subjects,
+            source_known: native_source_known,
+        } = query;
         if let Some(original) = original {
             if tcl_syntax::native_glob::NativeGlobProtocol::from_name_policy(
                 original.name_input().policy(),
@@ -8310,9 +8320,11 @@ impl<'a> WildcardImportIndex<'a> {
                         &order,
                         &imp.source_ns,
                         imp.site(),
-                        imp.original_pattern.as_ref(),
-                        &original_subjects,
-                        imp.native_source.is_some(),
+                        ExportQuery {
+                            pattern: imp.original_pattern.as_ref(),
+                            subjects: &original_subjects,
+                            source_known: imp.native_source.is_some(),
+                        },
                         purpose,
                     ),
                     registry: index.registry_for(&imp.uri),
@@ -8334,9 +8346,11 @@ impl<'a> WildcardImportIndex<'a> {
                             &order,
                             &gate.source_ns,
                             gate.site(uri),
-                            gate.original_pattern.as_ref(),
-                            &original_subjects,
-                            gate.native_source.is_some(),
+                            ExportQuery {
+                                pattern: gate.original_pattern.as_ref(),
+                                subjects: &original_subjects,
+                                source_known: gate.native_source.is_some(),
+                            },
                             purpose,
                         ),
                     });

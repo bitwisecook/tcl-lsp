@@ -124,6 +124,7 @@ impl Vm {
         original: &Value,
         purpose: NativeNamePurpose,
     ) -> Result<Option<OriginalJimCommandKey>, CmdError> {
+        use tcl_syntax::naming::NativeJimNamespaceConstruction;
         if !self.uses_native_jim_lookup() {
             return Ok(None);
         }
@@ -160,7 +161,6 @@ impl Vm {
             .map_err(|_| {
                 ValueError::CommandProtocolUnavailable("original Jim publication key purpose")
             })?;
-        use tcl_syntax::naming::NativeJimNamespaceConstruction;
         let key = match construction {
             NativeJimNamespaceConstruction::RetainOriginal => original.clone(),
             NativeJimNamespaceConstruction::DuplicateNamespaceAndAppend => {

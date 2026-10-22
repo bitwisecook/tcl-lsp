@@ -1143,7 +1143,7 @@ pub(crate) fn analyse_original_dispatch_stability(
 ) -> DispatchProofAnalysis {
     let grammar = metadata
         .filter(|metadata| metadata.matches_registry(registry))
-        .and_then(|metadata| metadata.source_analysis_input())
+        .and_then(crate::registry_invocation::InvocationMetadataContext::source_analysis_input)
         .map(crate::analyser::ResolvedAnalysisInput::lexer_config);
     analyse_dispatch_stability_using(function, entry, grammar, &|invoke, facts| {
         original_ledger_subject(invoke, facts, registry, metadata)

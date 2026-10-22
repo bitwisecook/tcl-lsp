@@ -369,7 +369,7 @@ fn pre_edit_refusal(
 }
 
 /// A variable a TclOO class declares with `variable NAME` is linked into
-/// every method body (tclsh 8.6/9.0: `oo::class create C {variable n; method
+/// every method body (tclsh `8.6`/`9.0`: `oo::class create C {variable n; method
 /// get {} {return $n}; method set {x} {set n $x}}` shares one `n` per object).
 /// The original variable symbol of a method-body read does not yet unify the
 /// class declaration and the other methods' uses, so renaming it would edit

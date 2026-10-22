@@ -46,7 +46,7 @@ pub fn specialise_factories_with_cap(module: &mut Module, _registry: &CommandReg
         .filter_map(|(label, allocation)| {
             let count = counts.entry(allocation.site.clone()).or_insert(0usize);
             *count += 1;
-            (*count > cap).then(|| label.clone())
+            (*count > cap).then_some(*label)
         })
         .collect();
     for label in removed {
@@ -61,7 +61,7 @@ pub fn specialise_factories_with_cap(module: &mut Module, _registry: &CommandReg
         .filter_map(|(label, allocation)| {
             let count = counts.entry(allocation.site.clone()).or_insert(0usize);
             *count += 1;
-            (*count > cap).then(|| label.clone())
+            (*count > cap).then_some(*label)
         })
         .collect();
     for label in removed {

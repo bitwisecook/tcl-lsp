@@ -38,10 +38,10 @@ use tcl_lexer::{
 use super::syntax::{build::build_document, segment::segments_from_document};
 use crate::segmenter::SegmentedCommand;
 
-/// The newest major vocabulary interpreted by the SpecTcl loader.
+/// The newest major vocabulary interpreted by the `SpecTcl` loader.
 pub const NEWEST_SUPPORTED_MAJOR: u32 = 2;
 
-/// Fixed SpecTcl file grammar, with an explicit whole-file or nested purpose.
+/// Fixed `SpecTcl` file grammar, with an explicit whole-file or nested purpose.
 #[must_use]
 pub fn pack_source_lexer_config(purpose: SourceSegmentationPurpose) -> LexerConfig {
     purpose.config(LexerConfig {
@@ -490,7 +490,7 @@ mod tests {
     }
 }
 
-/// Distinct data channels of the fixed SpecTcl source authoring language.
+/// Distinct data channels of the fixed `SpecTcl` source authoring language.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PackWordSourcePurpose {
     /// Preserve the loader's captured CST text, including braced continuations.
@@ -499,7 +499,7 @@ pub enum PackWordSourcePurpose {
     StaticDescriptor,
 }
 
-/// Historical presentation of an authored SpecTcl word, not a safety proof.
+/// Historical presentation of an authored `SpecTcl` word, not a safety proof.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PackWordSourceStyle {
     /// Prefer the existing compact ASCII presentation, otherwise use braces.
@@ -561,7 +561,7 @@ fn pack_word_source_matches(proposal: &str, text: &str, purpose: PackWordSourceP
     admits().is_some()
 }
 
-/// Author one word under the actual fixed SpecTcl loader grammar.
+/// Author one word under the actual fixed `SpecTcl` loader grammar.
 /// The real complete CST row must reproduce the raw captured text. Descriptor
 /// data additionally requires exact static Unicode value correspondence.
 /// This creates proposed source, never an original word or execution recipe.
@@ -623,7 +623,7 @@ pub fn pack_descriptor_list_source_word<S: AsRef<str>>(items: &[S]) -> Option<St
 
 /// Historical quoted recovery proposal for an export that already records a
 /// loss. Escaping does not establish raw CST round-trip or descriptor value;
-/// callers must retain the explicit ExportLoss rather than use it as admission.
+/// callers must retain the explicit `ExportLoss` rather than use it as admission.
 #[must_use]
 pub fn pack_lossy_quoted_source_word(text: &str) -> String {
     let mut out = String::with_capacity(text.len() + 2);

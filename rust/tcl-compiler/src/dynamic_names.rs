@@ -771,7 +771,9 @@ impl<'a> Commands<'a> {
         {
             None
         } else {
-            owner.metadata_context(registry)
+            owner
+                .metadata_context(registry)
+                .map(crate::registry_invocation::InvocationMetadataSelection::context)
         };
         Self {
             registry,

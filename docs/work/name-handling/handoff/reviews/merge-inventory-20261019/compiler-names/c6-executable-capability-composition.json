@@ -1,0 +1,12 @@
+{
+  "patch": "/tmp/compiler-names-c6-executable-capability.patch",
+  "sha256": "e9b766da0e0e29ab6aa14190f59ee388884e489be68cd20593a9d2b921d8ab68",
+  "paths": [
+    "rust/tcl-registry/src/resolved_invocation.rs",
+    "rust/tcl-compiler/src/deferred_writes/supplied.rs"
+  ],
+  "base": "names12patch56path shadow; both functional files refreshed from verified unchanged registry3 source manifest",
+  "apply": 0,
+  "diagnostics": [],
+  "scope": "off-tree assembly only; no canonical source mutation, Cargo or acceptance"
+}

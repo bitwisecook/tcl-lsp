@@ -238,7 +238,7 @@ impl NativeJimScriptState {
             None
         };
         if let Some(location) = location {
-            *location = script_location.clone();
+            location.clone_from(&script_location);
         }
         if flags.is_none() {
             if let Some(message) =

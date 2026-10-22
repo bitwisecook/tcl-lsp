@@ -5,14 +5,14 @@
 //! Namespace holders of exact retained procedure implementations.
 //!
 //! Each entry retains the original immutable command-table Arc. Its address is
-//! only a lookup bucket: Arc::ptr_eq authenticates reuse. Existing table changes
+//! only a lookup bucket: `Arc::ptr_eq` authenticates reuse. Existing table changes
 //! must continue through COW mutation or replacement, so a cached table cannot
 //! change in place and each changed table gets its own index. Equal copied table
 //! contents do not authenticate another retained table's derived index.
 //!
 //! A collector clone starts with an empty cache; warmth affects neither semantic
 //! equality nor Debug output. Entries retain no collector and introduce no Arc
-//! cycle. Index construction runs outside the cache mutex through OnceLock.
+//! cycle. Index construction runs outside the cache mutex through `OnceLock`.
 //! Only namespace holders are indexed. Full metadata, frame, actual incoming and
 //! completion-outcome states remain with their existing owners and consumers.
 

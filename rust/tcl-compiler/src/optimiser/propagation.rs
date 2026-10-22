@@ -331,27 +331,10 @@ fn run_load_forwarding(
         return;
     }
 
-    // Independent of the SCCP lattice (see the doc comment on the call
-    // site in `run`), this pass must apply the same externally-mutable
-    // guard SCCP applies to its own lattice — a `global`/`variable`/
-    // `upvar`/`trace`-aliased name's "sole reaching def" is not actually
-    // sole: some other call frame can reassign it between the def and a
-    // later use.
-    let Some(metadata) = fu.invocation_metadata_context_for_module(trace.registry, module) else {
+    let Some((trace, escaping)) = load_forwarding_escaping(module, fu, extra_escaping, trace)
+    else {
         return;
     };
-    let trace = crate::sccp::TraceInputs {
-        source_metadata_input: metadata.source_analysis_input(),
-        ..trace
-    };
-    let mut escaping = crate::var_observability::analyse_var_observability_with_metadata_context(
-        &fu.cfg,
-        trace.registry,
-        Some(metadata),
-    )
-    .escaping_var_names();
-    escaping.extend(extra_escaping.iter().cloned());
-    trace.extend_module_escaping(&mut escaping);
 
     for chain in fu.def_use.chains.values() {
         if chain.definition.kind != DefKind::Statement {
@@ -460,6 +443,38 @@ fn run_load_forwarding(
             );
         }
     }
+}
+
+fn load_forwarding_escaping<'a>(
+    module: &'a crate::ir::Module,
+    fu: &'a FunctionUnit,
+    extra_escaping: &std::collections::HashSet<String>,
+    trace: crate::sccp::TraceInputs<'a>,
+) -> Option<(
+    crate::sccp::TraceInputs<'a>,
+    std::collections::HashSet<String>,
+)> {
+    // Independent of the SCCP lattice (see the doc comment on the call
+    // site in `run`), this pass must apply the same externally-mutable
+    // guard SCCP applies to its own lattice — a `global`/`variable`/
+    // `upvar`/`trace`-aliased name's "sole reaching def" is not actually
+    // sole: some other call frame can reassign it between the def and a
+    // later use.
+    let metadata = fu.invocation_metadata_context_for_module(trace.registry, module)?;
+    let trace = crate::sccp::TraceInputs {
+        source_metadata_input: metadata.source_analysis_input(),
+        ..trace
+    };
+    let mut escaping = crate::var_observability::analyse_var_observability_with_metadata_context(
+        &fu.cfg,
+        trace.registry,
+        Some(metadata),
+    )
+    .escaping_var_names();
+    escaping.extend(extra_escaping.iter().cloned());
+    trace.extend_module_escaping(&mut escaping);
+
+    Some((trace, escaping))
 }
 
 fn forwarding_literal(
@@ -873,30 +888,7 @@ fn forward_candidate(
         return None;
     }
 
-    let def_key = chain.key;
-    // SCCP constants belong to O100.
-    if let Some(sym) = fu.def_use.symbol(&fu.ssa, def_key.0)
-        && matches!(
-            fu.sccp.values.get(&(sym, def_key.1)),
-            Some(LatticeValue::Const(_))
-        )
-        && fu.sccp.materialises((sym, def_key.1))
-    {
-        return None;
-    }
-    // Skip statements another pass already rewrote or consumed.
-    let def_key_sym = fu
-        .def_use
-        .symbol(&fu.ssa, def_key.0)
-        .map(|s| (s, def_key.1));
-    if ctx
-        .propagated_expr_stmts
-        .contains(&(def.block.clone(), def_idx))
-        || ctx
-            .propagated_expr_stmts
-            .contains(&(use_site.block.clone(), use_idx))
-        || def_key_sym.is_some_and(|k| ctx.propagated_branch_uses.contains(&k))
-    {
+    if forwarding_value_consumed(env, chain, use_site, def_idx, use_idx) {
         return None;
     }
 
@@ -925,6 +917,46 @@ fn forward_candidate(
         env.rewritten,
         fu.base_offset,
     )
+}
+
+fn forwarding_value_consumed(
+    env: &ForwardEnv<'_>,
+    chain: &crate::def_use::DefUseChain,
+    use_site: &crate::def_use::UseSite,
+    def_idx: usize,
+    use_idx: usize,
+) -> bool {
+    let fu = env.fu;
+    let ctx = env.ctx;
+    let def = &chain.definition;
+    let def_key = chain.key;
+    // SCCP constants belong to O100.
+    if let Some(sym) = fu.def_use.symbol(&fu.ssa, def_key.0)
+        && matches!(
+            fu.sccp.values.get(&(sym, def_key.1)),
+            Some(LatticeValue::Const(_))
+        )
+        && fu.sccp.materialises((sym, def_key.1))
+    {
+        return true;
+    }
+    // Skip statements another pass already rewrote or consumed.
+    let def_key_sym = fu
+        .def_use
+        .symbol(&fu.ssa, def_key.0)
+        .map(|s| (s, def_key.1));
+    if ctx
+        .propagated_expr_stmts
+        .contains(&(def.block.clone(), def_idx))
+        || ctx
+            .propagated_expr_stmts
+            .contains(&(use_site.block.clone(), use_idx))
+        || def_key_sym.is_some_and(|k| ctx.propagated_branch_uses.contains(&k))
+    {
+        return true;
+    }
+
+    false
 }
 
 /// Whether any statement other than the endpoint use has a wildcard
@@ -1348,7 +1380,6 @@ fn walk_oo_statement(
         // Retain its actual Script-owned vector and result word when replacing
         // the value; the original head and unrelated argv stay untouched.
         Statement::Return {
-            span,
             value: Some(raw),
             expr: None,
             ..
@@ -1356,10 +1387,8 @@ fn walk_oo_statement(
             ctx,
             cu,
             stmt,
-            *span,
             raw,
             frame,
-            constants,
             script.retained_source_tokens_for_statement(stmt),
         ),
         Statement::If {
@@ -1383,7 +1412,7 @@ fn walk_oo_statement(
         | Statement::Catch { body, .. }
         | Statement::Foreach { body, .. }
         | Statement::Block { body, .. } => {
-            walk_oo_script(ctx, cu, body, frame, constants, depth + 1)
+            walk_oo_script(ctx, cu, body, frame, constants, depth + 1);
         }
         Statement::Try {
             body,
@@ -1574,10 +1603,9 @@ fn visit_oo_frame_folds(
             Some(&frame.defining_class),
             metadata,
             ctx.dialect,
-        ) {
-            if let Some(word) = render_propagation_word(&value, ctx.lexer_config()) {
-                rewrites.push((call.span, word));
-            }
+        ) && let Some(word) = render_propagation_word(&value, ctx.lexer_config())
+        {
+            rewrites.push((call.span, word));
         }
     }
     for (span, folded) in rewrites {
@@ -1598,10 +1626,8 @@ fn try_oo_frame_return_fold(
     ctx: &mut PassContext<'_>,
     cu: &CompilationUnit,
     statement: &Statement,
-    _span: tcl_lexer::Span,
     raw: &str,
     frame: &OoFrame,
-    _constants: &std::collections::HashMap<String, String>,
     tokens: Option<&CommandTokens>,
 ) {
     let Some(registry) = ctx.registry else {
@@ -1868,19 +1894,8 @@ fn walk_statement(
         statement @ Statement::Return { .. } => {
             try_fold_return_terminator(ctx, statement, constants, &cu.ir_module, source.tokens);
         }
-        Statement::AssignExpr {
-            span, name, expr, ..
-        } => {
-            try_substitute_assign_expr(
-                ctx,
-                source,
-                *span,
-                name,
-                expr,
-                constants,
-                numeric,
-                &cu.ir_module.procedures,
-            );
+        Statement::AssignExpr { span, expr, .. } => {
+            try_substitute_assign_expr(ctx, source, *span, expr, constants, numeric);
         }
         Statement::If {
             clauses, else_body, ..
@@ -2156,7 +2171,7 @@ fn try_fold_static_proc_call(
     // call runs (e.g. `proc a {…} …; proc b {…} …; rename b a` moves `b`'s
     // body onto the name `a`; a later `[a …]` call must not fold to `a`'s
     // original body).
-    if !ctx.command_mutations.trusts_proc_binding(&qname) {
+    if !ctx.command_mutations.trusts_proc_binding(qname) {
         return;
     }
     if !summary.can_fold_static_calls {
@@ -2436,20 +2451,18 @@ fn try_substitute_assign_expr(
     ctx: &mut PassContext<'_>,
     source: StatementSource<'_>,
     span: tcl_lexer::Span,
-    _name: &str,
     expr: &crate::expr_ast::ExprNode,
     constants: &std::collections::HashMap<String, String>,
     numeric: NumericCtx<'_>,
-    _procedures: &crate::ir::ProcedureInventory,
 ) {
-    let Some(rewrite_span) = original_statement_rewrite_span(ctx, span) else {
-        return;
-    };
-
     use super::helpers::expr_simplify::{
         expr_has_command_subst, instcombine_expr_typed, substitute_expr_constants_for_execution,
     };
     use crate::tcl_expr_eval::{Env, format_tcl_value_with_policy};
+
+    let Some(rewrite_span) = original_statement_rewrite_span(ctx, span) else {
+        return;
+    };
 
     if matches!(expr, crate::expr_ast::ExprNode::Raw { .. }) {
         return;

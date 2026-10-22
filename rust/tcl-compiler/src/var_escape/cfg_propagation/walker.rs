@@ -615,7 +615,7 @@ fn handle_stmt_assign_or_incr(
         }
         match stmt {
             Statement::AssignConst { value, .. } => {
-                state.note_original_literal_assign(&name, value)
+                state.note_original_literal_assign(&name, value);
             }
             Statement::AssignValue { value, .. }
                 if !value.is_empty() && !is_dynamic_token(value) =>

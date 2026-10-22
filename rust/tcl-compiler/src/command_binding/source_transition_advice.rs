@@ -2024,7 +2024,7 @@ impl AdviceGraph {
                     }
                 }
                 StateTransition::Namespace(transition) => {
-                    self.apply_source_namespace(receipt, transition)?
+                    self.apply_source_namespace(receipt, transition)?;
                 }
                 _ => {}
             }

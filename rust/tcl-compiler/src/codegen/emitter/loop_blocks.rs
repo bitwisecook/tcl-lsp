@@ -104,9 +104,7 @@ pub fn detect_foreach(cfg: &CfgFunction) -> Option<HashMap<String, ForeachInfo>>
         else {
             return None;
         };
-        let Some(block) = cfg.blocks.get(header) else {
-            return None;
-        };
+        let block = cfg.blocks.get(header)?;
         let Some(
             terminator @ Terminator::Branch {
                 true_target,

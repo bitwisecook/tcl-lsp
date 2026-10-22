@@ -69,7 +69,7 @@ pub(crate) struct NativeNameWorld {
     pub(super) command_name_epochs: HashMap<u64, u64>,
     /// Atomic replacement already advanced this node before neutral raw unlink.
     pub(super) command_name_retiring: HashSet<u64>,
-    /// Actual C CMD_IS_DELETED guard, separate from cache epoch publication.
+    /// Actual C `CMD_IS_DELETED` guard, separate from cache epoch publication.
     pub(super) command_deletion_active: HashSet<u64>,
     /// Delete-trace completion has published this token's compiler mutation.
     pub(super) command_compiler_deletion_published: HashSet<u64>,

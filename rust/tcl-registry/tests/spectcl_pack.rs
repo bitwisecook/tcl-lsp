@@ -248,10 +248,8 @@ fn object_class_finds_its_block_past_any_flags() {
         );
     }
     // A bare reference form (`object_class NAME`) claims no block at all.
-    assert!(
-        reg.arg_indices_for_role("object_class", &["Resistor"], ArgRole::Body)
-            .is_empty()
-    );
+    assert_eq!(reg.arg_indices_for_role("object_class", &["Resistor"], ArgRole::Body)
+            .len(), 0);
     // …and it is deliberately not a *member row* of the command grammar: a
     // member layout cannot express two optional flags of different widths, so
     // it would have painted `-superclass`'s braced class list as a block. The
@@ -274,11 +272,11 @@ fn object_class_finds_its_block_past_any_flags() {
 fn the_spectcl_family_manufactures_nothing() {
     for grammar in SPECTCL_GRAMMARS {
         assert_eq!(grammar.family, DefinerFamily::SpecTcl);
-        assert!(grammar.manufacturers.is_empty());
-        assert!(grammar.builtin_object_methods.is_empty());
-        assert!(grammar.builtin_type_methods.is_empty());
-        assert!(grammar.member_body_commands.is_empty());
-        assert!(grammar.implicit_vars.is_empty());
+        assert_eq!(grammar.manufacturers.len(), 0);
+        assert_eq!(grammar.builtin_object_methods.len(), 0);
+        assert_eq!(grammar.builtin_type_methods.len(), 0);
+        assert_eq!(grammar.member_body_commands.len(), 0);
+        assert_eq!(grammar.implicit_vars.len(), 0);
         assert!(!grammar.bare_word_construction);
         assert!(!grammar.dynamic_method_dispatch);
         assert!(grammar.unknown_dispatch_method.is_none());
