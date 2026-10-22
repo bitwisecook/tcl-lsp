@@ -193,6 +193,63 @@ impl ObjectReportSource {
     }
 }
 
+#[cfg(test)]
+fn trace_declaration_cardinality(
+    module: &crate::ir::Module,
+    id: ProcedureId,
+    procedure: &crate::ir::Procedure,
+    total: usize,
+) {
+    if std::env::var_os("TCL_LSP_TRACE_REPORT_DECLARATIONS").is_none() {
+        return;
+    }
+    let Some(site) = procedure.declaration_site.as_ref() else {
+        return;
+    };
+    let named = module.procedures.at_declaration(site).count();
+    let lowered = module
+        .body_lowerings()
+        .filter(|(_, body)| body.declaration_site.as_ref() == Some(site))
+        .count();
+    eprintln!(
+        "REPORT_DECLARATION_CARDINALITY offset={} total={total} named={named} lowerings={lowered} body_kind={:?} current_id_owned={} current_named={} current_lowering={} classification={}",
+        site.offset,
+        procedure.body_kind,
+        module.procedure_ids.owns(id),
+        module.procedures.contains_key(&id),
+        module
+            .body_lowerings()
+            .any(|(candidate, _)| *candidate == id),
+        if total == 0 {
+            "missing-joined-site"
+        } else {
+            "multiple-joined-bodies"
+        },
+    );
+    for (ordinal, (candidate, body)) in module
+        .procedures
+        .at_declaration(site)
+        .chain(
+            module
+                .body_lowerings()
+                .filter(|(_, body)| body.declaration_site.as_ref() == Some(site)),
+        )
+        .take(8)
+        .enumerate()
+    {
+        eprintln!(
+            "REPORT_DECLARATION_BODY ordinal={ordinal} same_id={} owned={} kind={:?} span_start={} span_end={} body_offset={} same_original_span={}",
+            *candidate == id,
+            module.procedure_ids.owns(*candidate),
+            body.body_kind,
+            body.span.start(),
+            body.span.end(),
+            body.body_offset,
+            body.span == procedure.span,
+        );
+    }
+}
+
 impl ObjectHandleFacts {
     pub(crate) fn retain_report_source(
         &mut self,
@@ -265,6 +322,8 @@ impl ObjectHandleFacts {
                     )
                     .count();
                 if count != 1 {
+                    #[cfg(test)]
+                    trace_declaration_cardinality(module, *id, procedure, count);
                     return;
                 }
             }
@@ -379,6 +438,25 @@ impl ObjectHandleFacts {
 #[cfg(test)]
 mod tests {
     use crate::analyser::Analyser;
+
+    #[test]
+    fn current_native_alias_report_capture_control() {
+        let source = include_str!("../../tests/data/name-consumers/aliases.tcl");
+        let first = Analyser::new().analyse(source, "tcl8.6");
+        let second = Analyser::new().analyse(source, "tcl8.6");
+        eprintln!(
+            "REPORT_CONTROL label=aliases dialect=tcl8.6 bytes={} full_equal={} diagnostics_equal={} reports_present={}/{}",
+            source.len(),
+            first == second,
+            first.diagnostics == second.diagnostics,
+            first.object_handle_facts.report_source.is_some(),
+            second.object_handle_facts.report_source.is_some(),
+        );
+        assert!(
+            first == second,
+            "unchanged complete AnalysisResult equality: aliases"
+        );
+    }
 
     #[test]
     fn independent_logical_reports_match_original_coordinates_without_equal_runtime_owners() {

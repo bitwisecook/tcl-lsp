@@ -1,0 +1,50 @@
+{
+  "started_utc": "2026-10-22T22:56:13.445285+00:00",
+  "finished_utc": "2026-10-22T22:56:51.263745+00:00",
+  "suite_pid": 171058,
+  "records": [
+    {
+      "log": "/tmp/compiler-rbs-existing-trace/20261022T225613.320793Z/original_while1_existing_compiler_source_trace.log",
+      "test_pid": 171375,
+      "cargo_pid": 171368,
+      "observed_utc": "2026-10-22T22:56:30.717243+00:00",
+      "start_uptime_seconds": 34450.37,
+      "exe_path": "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/tcl_compiler-ef22ef87d0bd65a7",
+      "exe_device": 27,
+      "exe_inode": 296224,
+      "cargo_start_uptime_seconds": 34449.5,
+      "guard_pid": 171367,
+      "guard_start_uptime_seconds": 34449.45,
+      "test_argv": [
+        "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/tcl_compiler-ef22ef87d0bd65a7",
+        "analyser::diagnostics::fp::rbs::fp_rbs_15_while1_break_in_opaque_switch_exits_loop",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "cargo_argv": [
+        "/workspace/.rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/bin/cargo",
+        "test",
+        "--locked",
+        "-p",
+        "tcl-compiler",
+        "--lib",
+        "analyser::diagnostics::fp::rbs::fp_rbs_15_while1_break_in_opaque_switch_exits_loop",
+        "--",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "suite_start_uptime_seconds": 34433.03,
+      "budget_seconds": 180.0,
+      "budget_scope": "entire selected test process; compilation excluded",
+      "signals": [],
+      "timed_out": false,
+      "outcome": "exited_before_deadline",
+      "runtime_timer_attached_before_test_start": true,
+      "finished_observed_utc": "2026-10-22T22:56:38.927300+00:00",
+      "runtime_observed_seconds": 8.32999999999447
+    }
+  ],
+  "watchdog_failure": null
+}

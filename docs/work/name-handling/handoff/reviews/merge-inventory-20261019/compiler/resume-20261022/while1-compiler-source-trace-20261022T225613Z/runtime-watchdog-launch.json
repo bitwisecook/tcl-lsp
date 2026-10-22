@@ -1,0 +1,23 @@
+{
+  "started_utc": "2026-10-22T22:56:13.253618+00:00",
+  "suite_pid": 171058,
+  "observer_pid": 171060,
+  "pins_before": {
+    "/tmp/compiler-rbs-existing-trace-v1/run.sh": "00908167cf415e1864842db85cf8207598dbc6c0e3d32fb9697b055935480ee0",
+    "/tmp/compiler-rbs-existing-trace-v1/runtime-watchdog.py": "46d6f2dc2abd95a6286caa748b411ae4c2b7783b71f190deefba1878abfb12b1",
+    "/tmp/compiler-rbs-existing-trace-v1/plan.json": "63b08ace8660f7fd233c7e20f0d8e6b5d461d0d9cbd2241146a6335cb6c25dbc"
+  },
+  "receipt": "/tmp/compiler-rbs-existing-trace/20261022T225613.320793Z",
+  "timer_seconds": 180,
+  "runtime_scope": "whole selected executable, excluding compilation",
+  "root_authorization": "Prepared exactRBS existingtrace only; explicit root GO required",
+  "finished_utc": "2026-10-22T22:56:51.335777+00:00",
+  "suite_exit": 1,
+  "observer_exit": 0,
+  "pins_after": {
+    "/tmp/compiler-rbs-existing-trace-v1/run.sh": "00908167cf415e1864842db85cf8207598dbc6c0e3d32fb9697b055935480ee0",
+    "/tmp/compiler-rbs-existing-trace-v1/runtime-watchdog.py": "46d6f2dc2abd95a6286caa748b411ae4c2b7783b71f190deefba1878abfb12b1",
+    "/tmp/compiler-rbs-existing-trace-v1/plan.json": "63b08ace8660f7fd233c7e20f0d8e6b5d461d0d9cbd2241146a6335cb6c25dbc"
+  },
+  "runtime_acceptance_invalid": false
+}

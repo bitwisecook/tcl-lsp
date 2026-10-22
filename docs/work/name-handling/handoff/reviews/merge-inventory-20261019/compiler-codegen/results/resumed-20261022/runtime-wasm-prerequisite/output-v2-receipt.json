@@ -1,0 +1,58 @@
+{
+  "utc": "2026-10-22T23:16:51.248494+00:00",
+  "status": "Off-tree syntax/apply/inverse plus synthetic existing-filter framing proof only; no Cargo/type/runtime",
+  "supersedes_blocked_patch": "e67e2e9e44ce14d00605b6b22b92879b13184993ff1dacc6689ba57a5265da51",
+  "reason": "Prior output concatenation could hide first stderr warning after non-newline stdout or libtest prefix. Preserve old proposal immutable, use new line boundaries.",
+  "path": "rust/tcl-compiler/tests/common/wasm_link.rs",
+  "before_sha256": "07681f09c547282760ad743932c82ed2a8b092c49ef1d6f04d30c14fb77a65d6",
+  "proposed_sha256": "de050db427aedf0de4a349f1820a5cd3ab25d02d6edcfe080ccfa2826e3b68fe",
+  "patch_sha256": "edb8bedd6211f481ab32bf07766ee4ce8a6b555984c7e00ca933de0e92cd1093",
+  "boundary": "Leading newline before stdout, explicit newline between stdout/stderr, eprintln trailing newline. Captured string contents unchanged.",
+  "preserved": "Exact Command/args/env/status/failure return/error/artifact checks and all assertions/fixtures/selectors unchanged. Output on failure remains original report.",
+  "checks": {
+    "stdin_rustfmt_edition2024_parse": true,
+    "delta_only_format": true,
+    "git_apply_check": true,
+    "exact_inverse": true,
+    "existing_filter_sha256": "7ddda3a9ed45f6d521086eff16094a284189d418fe5c356c9b4d4aa3aac9a9d6",
+    "synthetic_cases": [
+      {
+        "libtest_prefix": false,
+        "stdout_unterminated": false,
+        "stdout_contains_warning": false,
+        "stderr_warning_retained_and_detected": true
+      },
+      {
+        "libtest_prefix": false,
+        "stdout_unterminated": true,
+        "stdout_contains_warning": false,
+        "stderr_warning_retained_and_detected": true
+      },
+      {
+        "libtest_prefix": false,
+        "stdout_unterminated": true,
+        "stdout_contains_warning": true,
+        "stderr_warning_retained_and_detected": true
+      },
+      {
+        "libtest_prefix": true,
+        "stdout_unterminated": false,
+        "stdout_contains_warning": false,
+        "stderr_warning_retained_and_detected": true
+      },
+      {
+        "libtest_prefix": true,
+        "stdout_unterminated": true,
+        "stdout_contains_warning": false,
+        "stderr_warning_retained_and_detected": true
+      },
+      {
+        "libtest_prefix": true,
+        "stdout_unterminated": true,
+        "stdout_contains_warning": true,
+        "stderr_warning_retained_and_detected": true
+      }
+    ]
+  },
+  "limits": "Synthetic proof checks actual existing outer filter literal and warning detector against all six stream-prefix/unterminated-stdout cases. Actual nested Cargo warning/run acceptance pending assigned native slot; no warning suppression."
+}

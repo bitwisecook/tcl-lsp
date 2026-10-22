@@ -1,0 +1,52 @@
+{
+  "recorded_at_utc": "2026-10-22T23:19:33.542273Z",
+  "kind": "read-only old-CI attribution, not current reproduction",
+  "source": "CI5205 shard3 old2b934",
+  "archive": "coordinator-20261022/ci5205-shard3-exact-selector-join-20261022T2307Z",
+  "no_cargo": true,
+  "names_clusters": [
+    {
+      "binary": "tcl-compiler::side_effects_binding",
+      "count": 10,
+      "pattern": "binding_* actual Unknown versus Builtin/Proc/Alias/Opaque",
+      "current_source_route": "CfgLookupContexts::binding_at requires actual body/standalone holder at end point; original_point requires lookup snapshot and authentic retained namespace. No weakened fallback authorized."
+    },
+    {
+      "binary": "tcl-compiler::side_effects_binding",
+      "count": 2,
+      "pattern": "module_scan nested/dynamic rename inside proc incorrectly trusted",
+      "status": "distinct complete-procedure-source mutation summary route; producer unmeasured current"
+    },
+    {
+      "binary": "tcl-compiler::command_resolution_conformance",
+      "count": 1,
+      "pattern": "first vector line47 absolute ::p unresolved",
+      "fixture": ":: | - | ::p | ::p | ::p",
+      "limit": "fails before colon/path cases; no inference all exotic cases fail"
+    },
+    {
+      "binary": "tcl-compiler::release_units",
+      "count": 3,
+      "pattern": "missing ::p assembly or substituted invoke under Tcl8.4",
+      "status": "shared fresh entry/procedure publication or release-specific metadata candidates, exact current producer unmeasured"
+    }
+  ],
+  "bpf21": {
+    "owner": "compiler-names",
+    "exact_excerpts": "bpf21-excerpts.json",
+    "current_producer_chain": [
+      "OriginalBpfSource::from_module -> authentic SourceBpfModuleContext/RetainedSourceModuleBindings",
+      "BpfSourceScript::from_module -> complete independent original script comparison/validate_script",
+      "bind_original -> install_source_bpf_command on exact original full word vector",
+      "SelectedWhenDeclaration -> original body projection -> prepared_body -> bind_original",
+      "selected phase -> template/unroll/profile typed transforms -> runtime-selected CFG -> selected_command"
+    ],
+    "diagnostic_representative": "bpf-tcl::deploy::no_attach_leaves_metadata_empty, when XDP { pass }, missing selection span11..15",
+    "limits": [
+      "Old log only: no current reproduction or exact first dropped receipt established",
+      "Do not replace selection with rendered head or generic registry lookup",
+      "Do not alter BadAttach/TypeMismatch/UndefinedVar/UnknownCommand assertions",
+      "No broad21 or554 rerun"
+    ]
+  }
+}

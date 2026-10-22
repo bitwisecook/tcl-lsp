@@ -1,0 +1,16 @@
+{
+  "prepared_utc": "2026-10-22T23:12:23.202269+00:00",
+  "status": "OFFTREE pure cfgtest observer, untyped/unrun; root source-window approval required",
+  "source_head": "ba02fd7035ad3a35bf3f64f6260b2204590f33be",
+  "path": "rust/tcl-compiler/src/object_types/report_comparison.rs",
+  "before_sha256": "177494838ad7937bded1f0000d84469b29df73ce94ffd8c4696f340c46c2c07b",
+  "after_sha256": "719090a5769f973bcfc81efa3eddf2f9d23ce0b90ff742e63a42105d818a5096",
+  "patch_sha256": "5836d112cc1af04e4cc0b512464ba9993f0583648ef017e6c4f97f0240d60bf1",
+  "env": {
+    "TCL_LSP_TRACE_REPORT_DECLARATIONS": "1"
+  },
+  "scope": "Original count!=1 predicate and immediate refusal unchanged; bounded failed-site observation ONLY. Requeries immutable actual named/lowered inventories after failure to classify missing vs multiple and actual typed body roles/current ownership. No captured eligibility/totality change, no Eq/assertion change. Max8 detail rows per reached refusal.",
+  "syntax_exit": 0,
+  "applycheck_exit": 0,
+  "applycheck_stderr": ""
+}

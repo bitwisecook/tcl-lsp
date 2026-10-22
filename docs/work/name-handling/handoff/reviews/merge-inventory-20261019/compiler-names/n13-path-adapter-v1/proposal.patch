@@ -1,0 +1,253 @@
+--- a/rust/tcl-compiler/src/auto_path_eval.rs
++++ b/rust/tcl-compiler/src/auto_path_eval.rs
+@@ -385,7 +385,6 @@
+ };
+ 
+ mod path_constants;
+-pub(crate) use path_constants::extend_path_constant_assignments_from_analysis_commands;
+ pub use path_constants::{
+     FoldedPathConstants, PathConstantAssignments, PathConstantImports, PathConstantLookup,
+     PathConstantValue, PathConstantView, PathConstantWrite, constant_path_assignments,
+@@ -393,6 +392,10 @@
+     constant_path_assignments_in_namespace, constant_path_assignments_with_naming_policy,
+     fold_constant_assignments, fold_constant_assignments_with_imports,
+     path_source_word_is_available,
++};
++pub(crate) use path_constants::{
++    extend_path_constant_assignments_from_analysis_commands,
++    path_constant_prefix_for_source_analysis,
+ };
+ 
+ /// A plain scalar variable word: no substitution markers, no array element.
+--- a/rust/tcl-compiler/src/auto_path_eval/path_constants.rs
++++ b/rust/tcl-compiler/src/auto_path_eval/path_constants.rs
+@@ -25,8 +25,11 @@
+ use super::{assigned_name_value_indices, is_plain_scalar_name, namespace_body_index, raw_value};
+ 
+ mod original;
+-pub(crate) use original::extend_path_constant_assignments_from_analysis_commands;
+ pub use original::{constant_path_assignments_from_analysis, path_source_word_is_available};
++pub(crate) use original::{
++    extend_path_constant_assignments_from_analysis_commands,
++    path_constant_prefix_for_source_analysis,
++};
+ 
+ /// A selected global home or an original lexical local activation.
+ #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+--- a/rust/tcl-compiler/src/auto_path_eval/path_constants/original.rs
++++ b/rust/tcl-compiler/src/auto_path_eval/path_constants/original.rs
+@@ -14,6 +14,71 @@
+     source: &'a str,
+     analysis: &'a AnalysisResult,
+     context: &'a ContextRegistry,
++}
++
++/// Exact conditional path prefix selected by a checked source cut. This is
++/// raw source advice; physical filenames and conditional import homes remain
++/// separate caller obligations, never runtime variable values.
++pub(crate) fn path_constant_prefix_for_source_analysis(
++    source: &str,
++    analysis: &AnalysisResult,
++    head: u32,
++) -> Option<PathConstantAssignments> {
++    if let Some(region) = analysis.original_source_region() {
++        return Some(region.path_inventory(analysis)?.before(head));
++    }
++    crate::source_graph::current_analysis(source, analysis)?;
++    let input = analysis.resolved_input.as_ref()?;
++    let realm = analysis.retained_command_realm_arc()?;
++    let image = SourceImage::document(source);
++    let assignments = if let Some(point) = realm
++        .source_bindings_ref()
++        .original_inherited_source_entry()
++    {
++        let namespace = point.namespace().advisory_key()?;
++        let commands = crate::segmenter::segment_commands_with_offset_and_config(
++            source,
++            0,
++            input.lexer_config(),
++        );
++        let mut assignments = PathConstantAssignments::default();
++        extend_path_constant_assignments_from_analysis_commands(
++            source,
++            analysis,
++            &commands,
++            Some(&namespace),
++            &mut assignments,
++        )
++        .then_some(())?;
++        assignments
++    } else {
++        analysis.path_constant_assignments.clone()
++    };
++    assignments
++        .matches_source_owner(input, &image, realm)
++        .then_some(())?;
++    Some(assignments.before(head))
++}
++
++impl crate::command_binding::OriginalSourceConditionalRegion {
++    /// Raw conditional path advice only from this issuer's actual remaining
++    /// commands and checked namespace geometry. No whole inventory, native
++    /// cell/value, completed child effect or import continuity is supplied.
++    #[must_use]
++    pub fn path_inventory(&self, analysis: &AnalysisResult) -> Option<PathConstantAssignments> {
++        let (commands, namespace) = self.original_path_commands(analysis)?;
++        let namespace = namespace.advisory_key()?;
++        let source = self.source_image().try_text().ok()?;
++        let mut out = PathConstantAssignments::default();
++        extend_path_constant_assignments_from_analysis_commands(
++            source,
++            analysis,
++            &commands,
++            Some(&namespace),
++            &mut out,
++        )
++        .then_some(out)
++    }
+ }
+ 
+ /// Inventory source writes under the actual image, availability and full
+--- a/rust/tcl-compiler/src/command_binding/conditional_source/region.rs
++++ b/rust/tcl-compiler/src/command_binding/conditional_source/region.rs
+@@ -959,6 +959,23 @@
+ }
+ 
+ impl OriginalSourceConditionalRegion {
++    /// Original captured segments for this exact frame, not a whole-image scan.
++    pub(crate) fn original_path_commands(
++        &self,
++        analysis: &crate::analyser::AnalysisResult,
++    ) -> Option<(Vec<crate::segmenter::SegmentedCommand>, SourceNamespaceKey)> {
++        self.matches_region_analysis(analysis).then_some(())?;
++        let frame = self.0.entry.frame();
++        let origin = self.0.bindings.source_origin()?;
++        self.0
++            .entry
++            .original_plan(origin, self.input().lexer_config())?;
++        Some((
++            frame.commands.get(frame.next..)?.to_vec(),
++            frame.context.namespace_key.clone(),
++        ))
++    }
++
+     /// A replay join retains the exact immediate prefix and the actual issued
+     /// frame inventory. A dependency ancestor or matching image is insufficient.
+     pub(crate) fn reissues_original_source_command(
+--- a/rust/tcl-compiler/src/registry_invocation/source_structure/source_load/frontier.rs
++++ b/rust/tcl-compiler/src/registry_invocation/source_structure/source_load/frontier.rs
+@@ -39,6 +39,24 @@
+     pub fn point(&self) -> &OriginalSourcePointEntry {
+         self.kernel.point()
+     }
++    /// Raw path assignments before this cut's actual handler head. This omits
++    /// the current SourceLoad barrier, never a preceding opaque/write barrier.
++    /// Physical filename and genuine imported global homes remain host-owned;
++    /// no runtime value, local-cell import or child-return continuity is granted.
++    #[must_use]
++    pub fn path_advice_before_handler(
++        &self,
++        parent: &AnalysisResult,
++    ) -> Option<crate::auto_path_eval::PathConstantAssignments> {
++        self.matches_parent_analysis(parent).then_some(())?;
++        let head = self.load.words.head_source()?.word()?;
++        crate::auto_path_eval::path_constant_prefix_for_source_analysis(
++            head.image().try_text().ok()?,
++            parent,
++            head.span().start(),
++        )
++    }
++
+     /// Rejoin this exact parent view; physical publication is independent.
+     #[must_use]
+     pub fn matches_parent_analysis(&self, parent: &AnalysisResult) -> bool {
+@@ -293,6 +311,89 @@
+             panic!("genuine finite kernel cut required: {frontier:?}");
+         };
+         cut
++    }
++
++    #[test]
++    fn path_prefix_is_cut_before_the_actual_head_and_refuses_foreign_owner() {
++        let source = "set ::sourceDir /LIB; source child.tcl; set ::late LATE";
++        let parent = Analyser::new().analyse(source, "tcl8.6");
++        let load = load(source, &parent, "source child");
++        let cut = expect_cut(load.frontier(&parent));
++        let prefix = cut.path_advice_before_handler(&parent).unwrap();
++        let folded = crate::auto_path_eval::fold_constant_assignments(&prefix, None);
++        let at = load.path_word().unwrap().span().start();
++        assert_eq!(folded.lookup_at("::sourceDir", at).as_deref(), Some("/LIB"));
++        assert!(folded.lookup_at("::late", at).is_none());
++        assert_ne!(folded.exported().len(), 0);
++        let too_late = crate::auto_path_eval::fold_constant_assignments(
++            &parent.path_constant_assignments.before(at),
++            None,
++        );
++        assert_eq!(
++            too_late.exported().len(),
++            0,
++            "operand offset includes own SourceLoad barrier"
++        );
++        let foreign = Analyser::new().analyse(source, "tcl8.6");
++        assert!(cut.path_advice_before_handler(&foreign).is_none());
++        let mut changed = parent.clone();
++        changed.body_lexer_config = None;
++        assert!(cut.path_advice_before_handler(&changed).is_none());
++    }
++
++    #[test]
++    fn region_path_inventory_uses_only_its_actual_remaining_commands() {
++        let source =
++            "set ::before ROOT; source first.tcl; set ::regionValue SUFFIX; source second.tcl";
++        let parent = Analyser::new().analyse(source, "tcl8.6");
++        let first = load(source, &parent, "source first");
++        let cut = expect_cut(first.frontier(&parent));
++        let child = Analyser::new()
++            .analyse_with_source_point_entry("", "tcl8.6", cut.point())
++            .unwrap();
++        let continuation = first.conditional_continuation(&parent, &child).unwrap();
++        let chain = continuation.source_regions(&parent, &child).unwrap();
++        let region = chain.regions().first().unwrap();
++        let view = Analyser::new()
++            .analyse_source_region(region, &parent, &child)
++            .unwrap();
++        let inventory = region.path_inventory(&view).unwrap();
++        let folded = crate::auto_path_eval::fold_constant_assignments(&inventory, None);
++        let at = u32::try_from(source.find("source second").unwrap()).unwrap() - 1;
++        assert_eq!(
++            folded.lookup_at("::regionValue", at).as_deref(),
++            Some("SUFFIX")
++        );
++        assert!(folded.lookup_at("::before", at).is_none());
++        assert!(region.path_inventory(&parent).is_none());
++        let mut stripped = view.clone();
++        stripped.original_source_region = None;
++        assert!(region.path_inventory(&stripped).is_none());
++        assert!(crate::source_graph::current_analysis(source, &view).is_none());
++    }
++
++    #[test]
++    fn inherited_path_prefix_retains_exact_source_namespace_home() {
++        let source = "namespace eval app {source child.tcl}";
++        let parent = Analyser::new().analyse(source, "tcl8.6");
++        let first = load(source, &parent, "source child");
++        let cut = expect_cut(first.frontier(&parent));
++        let child_source = "set local LOCAL; set ::global GLOBAL; source leaf.tcl";
++        let child = Analyser::new()
++            .analyse_with_source_point_entry(child_source, "tcl8.6", cut.point())
++            .unwrap();
++        let leaf = load(child_source, &child, "source leaf");
++        let leaf_cut = expect_cut(leaf.frontier(&child));
++        let prefix = leaf_cut.path_advice_before_handler(&child).unwrap();
++        let folded = crate::auto_path_eval::fold_constant_assignments(&prefix, None);
++        let at = leaf.path_word().unwrap().span().start();
++        assert_eq!(folded.lookup_at("local", at).as_deref(), Some("LOCAL"));
++        assert_eq!(
++            folded.lookup_at("::app::local", at).as_deref(),
++            Some("LOCAL")
++        );
++        assert!(folded.lookup_at("::local", at).is_none());
++        assert_eq!(folded.lookup_at("::global", at).as_deref(), Some("GLOBAL"));
+     }
+ 
+     #[test]

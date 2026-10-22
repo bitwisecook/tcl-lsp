@@ -1,0 +1,7 @@
+{
+  "utc": "2026-10-22T23:08:07.723273+00:00",
+  "source_published_commit": "c7296ee035b7ca95b36b5c9fcb20f3813dceb12b",
+  "active_before_sha256": "0c555faf153245a1def04da4cc561cd002df77014f0eb8650ba4eb8360f675c4",
+  "resolved_sha256": "42f27a895c60098638063e2279d336ac5a53148523b23848ee5a2b8dd9c87890",
+  "meaning": "Synchronize active docs with confirmed published conflict resolution: preserve external current perf owner brief/header and append coordinator user-decision routing. No perf work taken over; no timestamp refreshed."
+}

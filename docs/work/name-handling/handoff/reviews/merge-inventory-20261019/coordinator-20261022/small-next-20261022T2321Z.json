@@ -1,0 +1,34 @@
+{
+  "utc": "2026-10-22T23:21:47.707409+00:00",
+  "source_before": "ba02fd7035ad3a35bf3f64f6260b2204590f33be",
+  "patch_sha256": "ba78c567fde48799fb781eb9a2363c44466367c9b8c1f1bb19f4fa290e770070",
+  "composition_receipt_sha256": "c265af9cfdcd396d92a4e69acc59b95c5f565a9f0106ef0ec0ed9e915643f932",
+  "status": "Applied reviewed3patches; untyped/unrun",
+  "all_before_after_hashes_verified": true,
+  "whole_build_lock_held": true,
+  "no_live_cargo_or_rustc": true,
+  "files": {
+    "rust/tcl-compiler/src/object_types/report_comparison.rs": {
+      "before_sha256": "177494838ad7937bded1f0000d84469b29df73ce94ffd8c4696f340c46c2c07b",
+      "proposed_sha256": "fd0bf28fd7227bb534a5f482fd4b5c218d1cff320e7690c53144ca74e5a6a594"
+    },
+    "rust/tcl-compiler/tests/common/wasm_link.rs": {
+      "before_sha256": "07681f09c547282760ad743932c82ed2a8b092c49ef1d6f04d30c14fb77a65d6",
+      "proposed_sha256": "de050db427aedf0de4a349f1820a5cd3ab25d02d6edcfe080ccfa2826e3b68fe"
+    },
+    "rust/tcl-lsp-core/tests/lsp_core_residual.rs": {
+      "before_sha256": "7cbf5c5aba1110a93957cef75e365e47e7c715f5d7848dbfd6e9598014be590c",
+      "proposed_sha256": "be15d4278db166724bcc7a644e2da740244d2f6388cec6aa42c9b6291adb03bc"
+    }
+  },
+  "protocol_v2_root_review": {
+    "all_protocol_source_destination_hashes_verified": true,
+    "all_exact_replacement_sequences_verified": true,
+    "original34_rows_preserved": true,
+    "expected_filters": 25,
+    "expected_tests": 35,
+    "plan_sha256": "ac0de417c4c8f4ee093050b1531bf84634d31c05d232a6263bafd83d5bb57355",
+    "receipt_sha256": "944f7bcddf9a062903c5a09a62071f4df28bf3bafea02a4739a22c3067a07251"
+  },
+  "gate_admissions": []
+}

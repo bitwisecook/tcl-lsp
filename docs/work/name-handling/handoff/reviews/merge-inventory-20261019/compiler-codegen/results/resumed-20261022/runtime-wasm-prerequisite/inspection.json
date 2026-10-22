@@ -1,0 +1,107 @@
+{
+  "utc": "2026-10-22T23:12:09.587628+00:00",
+  "status": "Read-only prerequisite inspection; no Cargo, runtime build, target cleanup, source edits or tool provisioning performed",
+  "source_records": [
+    {
+      "path": "rust/tcl-compiler/tests/common/wasm_link.rs",
+      "exists": true,
+      "sha256": "07681f09c547282760ad743932c82ed2a8b092c49ef1d6f04d30c14fb77a65d6"
+    },
+    {
+      "path": "rust/tcl-compiler/tests/wasm_real_link.rs",
+      "exists": true,
+      "sha256": "ff2d3a6cf4925491ee916591c30234a7c7b0f60ab21f9b2db0ee9cf088433645"
+    },
+    {
+      "path": "runtime/rust/Cargo.toml",
+      "exists": true,
+      "sha256": "a86fd0e9c18a2ceb79b349de4774034f69bc8f64d789943d9afd3af1a40aae05"
+    },
+    {
+      "path": "runtime/rust/Cargo.lock",
+      "exists": true,
+      "sha256": "50749871ad9964f2708fbaa3c2bfd9174c885b992299170b5156ac7f3f0995a1"
+    },
+    {
+      "path": "runtime/rust/build.rs",
+      "exists": true,
+      "sha256": "fd1fea9d02fa1dd7d869a71effa55af9c73e78183b1a805d28cd828fc6680a34"
+    },
+    {
+      "path": "rust/tcl-fuzz/src/wasm_diff.rs",
+      "exists": true,
+      "sha256": "9e4e33019d60f95f9504910ed20c9d1f06b600565244d1dc5f09ab1c2d162c89"
+    },
+    {
+      "path": "rust/tcl-fuzz/src/wasm_diff/host_abi.rs",
+      "exists": true,
+      "sha256": "2eb2975f6db15d34868450f0475c67efadfdb3c28b87b3893c66031a45b4fb5b"
+    },
+    {
+      "path": ".cargo/config.toml",
+      "exists": true,
+      "sha256": "113008ac8e2a706dcf0c7c1f399e07077dd04175415f53415678756cd0123169"
+    }
+  ],
+  "runtime_artifact": {
+    "path": "/workspace/naming-migration-active/tcl-lsp/target/tcl_reserved_runtime/wasm32-wasip1/debug/tcl_runtime.wasm",
+    "exists_at_inspection": false,
+    "sha256": null
+  },
+  "required_by": {
+    "native_seven": "All seven exact wasm_real_link fixture functions call real_link_runtime before compile or native-admission assertions",
+    "optional_derived_two": "No standalone runtime.wasm prerequisite; native SpectCl dev-dependency/runtime engine closure only",
+    "full_51": "No standalone runtime.wasm prerequisite in the frozen five-job inventory",
+    "fuzz_13": "No standalone runtime.wasm prerequisite: embedded Wasmtime Module plus fresh native VM and nine descriptor-selected host imports",
+    "import_interning_two_units": "No standalone runtime.wasm prerequisite; these two exact compiler library unit controls are not in current55/native7/full51"
+  },
+  "existing_prerequisite": {
+    "entry": "rust/tcl-compiler/tests/common/wasm_link.rs::real_link_runtime -> missing_requirements -> build_reserved_runtime",
+    "requirements": [
+      "wasmtime --version succeeds",
+      "rustc --print target-libdir --target wasm32-wasip1 succeeds and directory exists",
+      "selected WASI_SDK_PATH/bin/clang exists",
+      "selected TCL_TOMMATH_DIR/tommath.h exists; pinned9.0.4 explicitly selected"
+    ],
+    "required_environment": {
+      "TCL_REQUIRE_WASM_LINK": "1",
+      "WASI_SDK_PATH": "/workspace/.toolchains/wasi-sdk-34.0",
+      "TCL_TOMMATH_DIR": "/workspace/naming-migration-active/tcl-lsp/tmp/tcl9.0.4/libtommath"
+    },
+    "child_argv": [
+      "cargo",
+      "build",
+      "--manifest-path",
+      "/workspace/naming-migration-active/tcl-lsp/runtime/rust/Cargo.toml",
+      "--target",
+      "wasm32-wasip1",
+      "--target-dir",
+      "/workspace/naming-migration-active/tcl-lsp/target/tcl_reserved_runtime"
+    ],
+    "child_environment_override": {
+      "RUSTFLAGS": "-C link-arg=--global-base=2097152"
+    },
+    "features": "No --features or --no-default-features; runtime standalone crate has no default feature set; wasm_stdlib and engine are not enabled by this helper",
+    "profile": "Default dev/debug output path; inherited CARGO_PROFILE_DEV_DEBUG=0, jobs2, no incremental from approved environment",
+    "locking": "Outer reviewed native runner holds /tmp/tcl-lsp-naming-build.lock for entire cargo-test plus nested runtime Cargo, assertions, artifact/source/provider receipts; no separate queue",
+    "artifact_authority": "Ordinary child Cargo build from current runtime source and normal freshness; checkout-local explicit target directory; no artifact copy/manual exe/CAS/timestamp override",
+    "link_properties": "runtime build.rs emits reserved global-base, --export-table and --growable-table; fixture runtime_identity executes actual artifact under wasmtime and check_manifest requires ABI+intrinsic-table agreement before link",
+    "skip_policy": "TCL_REQUIRE_WASM_LINK=1 makes missing requirements or failed child build panic, not skip",
+    "warning_visibility_limit": "Existing build_reserved_runtime uses Command.output and discards stdout/stderr after successful child Cargo. Outer test log therefore cannot by itself prove child runtime build had zero warnings. This inspection does not add a new claim or change the frozen runner/fixture."
+  },
+  "bounded_execution_plan": [
+    "Remain off-queue until root GO after current VM/compiler/kernel slots and actual-tool-pin review.",
+    "Optional two observer may execute without runtime.wasm; retain exact assertions and retire owned observer only in coordinator source window before frozen full51 source pins.",
+    "Native baseline command bash /tmp/ccg-wasm-five-v6-run.sh baseline already builds authentic runtime automatically in first selector; no separate prebuild is required for functional execution.",
+    "Retain existing required exact three product hashes, full-source/provider/tool pins, inherited encoded-Rustflags/override refusal, >=2GiB disk check and five-second own-process-group watchdog, filtered20MiB log, actual test exe/runtime hashes and no cleanup. A build failure has no native-admission verdict.",
+    "First successful child artifact establishes actual runtime SHA/size/mtime; unchanged SHA required for remaining jobs in each phase. Five baseline outcomes remain distinct from two new controls.",
+    "Then separate new-controls command bash /tmp/ccg-wasm-five-v6-run.sh new-controls; no selector/assertion/feature/budget changes.",
+    "Fuzz13 uses native host and embedded Wasmtime, and can be scheduled independently of runtime.wasm once root assigns slot; no compiled-control-flow interpreter fallback.",
+    "Two exact new import-interning library unit controls remain separate coverage obligations, not silently added to native7/full51/current55."
+  ],
+  "frozen_native_plan": {
+    "path": "/tmp/ccg-wasm-five-v6-plan.json",
+    "sha256": "38145a1d649fe52e2ced3b17a2dd84b509c90f87d04751c19dc38d861863e0d6"
+  },
+  "acceptance": "No build/type/runtime/zero-warning acceptance or missing Native provider fix inferred. Standalone runtime build prerequisite is fixture infrastructure, not a general VM parity dependency."
+}

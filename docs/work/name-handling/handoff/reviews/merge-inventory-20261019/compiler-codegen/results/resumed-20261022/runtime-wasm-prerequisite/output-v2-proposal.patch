@@ -1,0 +1,14 @@
+--- a/rust/tcl-compiler/tests/common/wasm_link.rs
++++ b/rust/tcl-compiler/tests/common/wasm_link.rs
+@@ -298,6 +298,11 @@
+             String::from_utf8_lossy(&out.stderr),
+         ));
+     }
++    eprintln!(
++        "\n{}\n{}",
++        String::from_utf8_lossy(&out.stdout),
++        String::from_utf8_lossy(&out.stderr),
++    );
+     let artifact = target_dir.join("wasm32-wasip1/debug/tcl_runtime.wasm");
+     if !artifact.is_file() {
+         return Err(format!(

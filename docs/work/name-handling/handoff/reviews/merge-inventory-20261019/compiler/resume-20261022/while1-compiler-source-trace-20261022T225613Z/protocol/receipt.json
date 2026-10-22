@@ -1,0 +1,73 @@
+{
+  "prepared_utc": "2026-10-22T22:53:46.803537+00:00",
+  "plan_sha256": "63b08ace8660f7fd233c7e20f0d8e6b5d461d0d9cbd2241146a6335cb6c25dbc",
+  "copy_changes": [
+    {
+      "from": "/tmp/compiler-focused-guarded-cargo.py",
+      "to": "/tmp/compiler-rbs-existing-trace-v1/guarded-cargo.py",
+      "before_sha256": "6efcb95a3b12e9c230ca22e597285e344766d508bb01772d9c8409f5cb0eb62c",
+      "after_sha256": "f8e9d7f8cb7b24b64872d7b6dcbc330da17ffaabfc9994cfcd6d7c59be3256df",
+      "replacements": [
+        [
+          "|ORIGINAL_SOURCE_JOIN|N17G|REPORT_",
+          "|ORIGINAL_|NATIVE_|N17G|REPORT_"
+        ]
+      ]
+    },
+    {
+      "from": "/tmp/compiler-focused-suite.py",
+      "to": "/tmp/compiler-rbs-existing-trace-v1/suite.py",
+      "before_sha256": "a1bf61cc510910aa5b17ff95e70e770f0b795cb64a597c20ba7c22c062209b2c",
+      "after_sha256": "002758f58473a645f95cd12d788e2922a47d34b049c6a07f9762fd7c4bea5577",
+      "replacements": [
+        [
+          "/tmp/compiler-focused-guarded-cargo.py",
+          "/tmp/compiler-rbs-existing-trace-v1/guarded-cargo.py"
+        ],
+        [
+          "/tmp/compiler-focused-suite.py",
+          "/tmp/compiler-rbs-existing-trace-v1/suite.py"
+        ],
+        [
+          "/tmp/compiler-focused-run.sh",
+          "/tmp/compiler-rbs-existing-trace-v1/run.sh"
+        ],
+        [
+          "Path('/tmp/compiler-focused')",
+          "Path('/tmp/compiler-rbs-existing-trace')"
+        ]
+      ]
+    },
+    {
+      "from": "/tmp/compiler-focused-run.sh",
+      "to": "/tmp/compiler-rbs-existing-trace-v1/run.sh",
+      "before_sha256": "a730e14a0487a05ae3ee4a414a1d74c0ea47d31b3b8c1309979417af968da2f4",
+      "after_sha256": "00908167cf415e1864842db85cf8207598dbc6c0e3d32fb9697b055935480ee0",
+      "replacements": [
+        [
+          "/tmp/compiler-focused-suite.py",
+          "/tmp/compiler-rbs-existing-trace-v1/suite.py"
+        ]
+      ]
+    },
+    {
+      "from": "/tmp/compiler-focused-runtime-watchdog-v5.py",
+      "to": "/tmp/compiler-rbs-existing-trace-v1/runtime-watchdog.py",
+      "before_sha256": "c3a9ddbd812938dbfb336e96b4616361c378e030aa1b1d8fdd609a5f483f4191",
+      "after_sha256": "46d6f2dc2abd95a6286caa748b411ae4c2b7783b71f190deefba1878abfb12b1",
+      "replacements": [
+        [
+          "/tmp/compiler-focused-suite.py",
+          "/tmp/compiler-rbs-existing-trace-v1/suite.py"
+        ],
+        [
+          "/tmp/compiler-focused-guarded-cargo.py",
+          "/tmp/compiler-rbs-existing-trace-v1/guarded-cargo.py"
+        ]
+      ]
+    }
+  ],
+  "limits": "Script syntax validation only; same source/runtime result not measured. No primary file mutation. Watchdog only two owned exact-path allowlist substitutions, reviewedv5 semantics unchanged.",
+  "launch_sha256": "300a9e94650d2ae8140aad621d0d621bb3fee611b31fd864779e80935444658c",
+  "launch_scope": "Same existing launcher lifecycle/pins, paths/plan/rootreceipt only substituted; no execute."
+}

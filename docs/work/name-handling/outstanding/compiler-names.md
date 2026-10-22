@@ -2,11 +2,17 @@
 
 Area: command_binding.rs (except the C6 hunks), command_binding/compiled_invocation.rs, source name lookup, analyser scope/commands, nested lookups, W210 pkgIndex entry plumbing.
 
-Last updated: 2026-10-22T23:02:25Z (agent-reported work only)
+Last updated: 2026-10-22T23:14:26.719915Z (agent-reported work only)
 
 Maintained by the compiler-names agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## In progress (resumed in /workspace/naming-migration-active/tcl-lsp; g4 first)
+
+**Resume / current source state:** coordinator-reported ba02fd7035ad3a35bf3f64f6260b2204590f33be contains all23 verified batch paths, including frontier-v4 b8e4, first-six G4 owner diagnostics1d696, N13 point diagnostics61f3 and corrected immediate namespace-purpose v2 63fafe. Earlier below descriptions of these as awaiting apply are historical preparation, superseded by this source-state receipt. Typing/runtime of this batch remain pending. Product/Cargo HOLD continues; VM owns the sole next bounded slot, compiler finite34 includes the exact new frontier9. No Cargo is queued from this role. Keep direct visit trace interpretation narrow: zero direct records does not prove no child compiler visits.
+
+**Authentic path adapter frozen off-tree:** e8e201887fcb2cbf96dd650c127d86c50f3c91dfe7163d778016c89f61fd10c5 (`compiler-names/n13-path-adapter-v1/`) adds actual CurrentCut head-prefix advice and exact issued-region command inventory, five paths/three controls. Current isolated formatting/apply checks pass; compiler bounded review is pending and LSP is wiring the exact APIs off-tree. Earlier opaque/write/source barriers remain; imported value-only maps cannot prove unknown local/namespace shadow absence. Restrict imports to explicit global home or an actual typed home/shadow receipt. Completed-child/global-return continuity is still a separate unresolved sealed transfer; no Native/runtime variable donation, barrier erasure or whole-region catalogue is supplied.
+
+**Host review state:** LSP v11 ca327956 includes the reviewed actual materialized-parent coverage and exact replay association withdrawal corrections, plus a behavior-preserving phase extraction. Names bounded structural review finds no new blocker in the examined extraction; host remains off-tree/untyped/unrun with actual path/deep continuity and protocol gates outstanding. The alias cardinality observer5836d112 has bounded static peer review clear: original refusal/Eq unchanged, at most eight typed rows; actual declaration count zero versus multiple remains unmeasured.
 
 **Core all-targets typecheck PASS (22:17:32.769815Z):** exact4f534 network-enabled Core-only runner completed Cargo0/zero errors/zero warnings on54daa7bc6,5m18s. All6535 present source/provider inputs and HEAD unchanged,174109bytes without truncation/diskabort, session26919 reaped and lock explicitly handed to compiler for authorised TEMP3/55. Full independent archive `compiler-names/n13-core-20261022T221150Z/` includes runner and source/provider/artifact guards. This verifies the reviewed test-only256 alignment and actual AnalysisResult Send+Sync test bound; no tests ran and no N13 behavioural/release admission follows. Frontier classifier remains off-tree in progress, independent of the now-recorded ILX-only opaque-call navigation stop policy.
 

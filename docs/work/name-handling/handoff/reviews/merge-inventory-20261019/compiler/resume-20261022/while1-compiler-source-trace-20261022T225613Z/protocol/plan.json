@@ -1,0 +1,42 @@
+{
+  "prepared_utc": "2026-10-22T22:53:46.803537+00:00",
+  "status": "OFFTREE frozen proposed exact diagnostic; root GO required, no Cargo queued",
+  "required_filters": [
+    {
+      "label": "original_while1_existing_compiler_source_trace",
+      "selector": "analyser::diagnostics::fp::rbs::fp_rbs_15_while1_break_in_opaque_switch_exits_loop",
+      "exact": true,
+      "expected_selected": 1,
+      "diagnostic_only": true,
+      "env": {
+        "TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS": "1",
+        "TCL_LSP_TRACE_ORIGINAL_DECLARATION": "1",
+        "TCL_LSP_NATIVE_CODEGEN_DIAGNOSTIC": "1"
+      },
+      "purpose": "Expected original unchanged diagnostic failure; distinguish actual compiler observation/target closure from Direct syntax metadata without new instrumentation"
+    }
+  ],
+  "expected_filters": 1,
+  "expected_selected": 1,
+  "runtime_seconds": 180,
+  "runtime_scope": "whole selected test executable process, excludes compilation",
+  "source_policy": "No source/assert/instrumentation change; same frozen100394input/providers/artifact join with stopped55 required",
+  "log_policy": "20MiB filtered cap; isolated copies widen ONLY prefixes from ORIGINAL_SOURCE_JOIN to all ORIGINAL_|NATIVE_, retain rest; no primary runner/helper mutation. Missing trace is never treated as proof if cap/truncation/retention check fails.",
+  "artifact_expected_sha256": "542120d61494bcb1cfb331c5fa8278b6eb68a97f2ed3a21368f6dce2e2c64348",
+  "trace_prefixes": [
+    "ORIGINAL_CHILD_GUARD",
+    "ORIGINAL_WORD_CONFIG",
+    "ORIGINAL_DECLARATION",
+    "ORIGINAL_SOURCE_JOIN",
+    "ORIGINAL_BODY_INVENTORY",
+    "NATIVE_COMPILER_ATTACHMENT",
+    "NATIVE_ORIGINAL_COMPILER_LOOKUP",
+    "NATIVE_ORIGINAL_COMPILER_WORLD",
+    "NATIVE_ORIGINAL_COMPILER_CELL",
+    "NATIVE_ORIGINAL_COMPILER_TARGET",
+    "NATIVE_ORIGINAL_COMPILER_FACTS_MISSING",
+    "NATIVE_CODEGEN_REFUSAL",
+    "NATIVE_CODEGEN_ADMISSION",
+    "NATIVE_BYTE_COMMAND_UNAVAILABLE"
+  ]
+}

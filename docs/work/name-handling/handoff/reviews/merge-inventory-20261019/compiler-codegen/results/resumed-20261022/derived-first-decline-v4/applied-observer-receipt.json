@@ -1,0 +1,17 @@
+{
+  "utc": "2026-10-22T23:07:27.544128+00:00",
+  "status": "Read-only exact2 observer application verification only. No Cargo/sourcewrites/current Git inference.",
+  "files": [
+    {
+      "path": "rust/tcl-spectcl/tests/pack_source_e2e.rs",
+      "sha256": "e1ed4fb25d4aeba91df7e0185dec4b029d11bd7dda8d7093750bdc22f76307b7"
+    },
+    {
+      "path": "rust/tcl-spectcl/tests/support/derived_first_decline.rs",
+      "sha256": "6f430e9f4ef863ba559714749f5eddec5f09f07abe549dbb654c7a33d5f07bc1"
+    }
+  ],
+  "parent_reported_commit": "ba02fd7035ad3a35bf3f64f6260b2204590f33be",
+  "parent_reported_scope": "Transport recovered; root verified all23 batch posthashes/canonicalreceipt/commit. SourceHOLD/docsCLEAR, VMboundary3/Jim1 nextslot; no CCGGO.",
+  "limits": "No new observer type/functional/Clippy acceptance, no native5+2/full51 execution. Original51 must wait exact observer cleanup or separate explicitly pinned measurement."
+}

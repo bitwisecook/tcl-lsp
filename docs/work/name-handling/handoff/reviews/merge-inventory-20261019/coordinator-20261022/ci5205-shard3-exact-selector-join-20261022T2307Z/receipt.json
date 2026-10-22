@@ -1,0 +1,101 @@
+{
+  "schema": "ci5205-shard3-exact-selector-join-receipt-v1",
+  "recorded_at_utc": "2026-10-22T23:07Z",
+  "scope": "One completed Rust test shard only; not a full CI or release verdict.",
+  "current_run": {
+    "workflow_run_id": 39845788481,
+    "run_number": 5205,
+    "head_sha": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+    "job_id": 120061100614,
+    "job_name": "rust-tests-shard (3/5)",
+    "nextest_run_id": "43cde985-03be-460a-a4b5-cf88e50ec0f2",
+    "profile": "default",
+    "conclusion": "failure"
+  },
+  "baseline": {
+    "run_id": 39816429638,
+    "run_number": 5203,
+    "head_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731",
+    "record_count": 24312,
+    "provenance_file": "../origin-rust-ci-5203-outcomes-20261022.json",
+    "helper": "../baseline-exact-comparator-20261022/ci5203_exact_selector_compare.py",
+    "helper_sha256": "65cb36e14d9145039546e4b5a0b0de02b01e9feb749bc05f2d846d7c3625eaf2"
+  },
+  "current_log": {
+    "path": "shard3-raw.log",
+    "bytes": 4159039,
+    "sha256": "278aff271a8b44ec5def7e6180349d64e1d5e7e7916dd76a2a5f9678a79c9c45"
+  },
+  "current_outcomes": {
+    "path": "current-outcomes.json",
+    "bytes": 1615722,
+    "sha256": "f0fc9917bb94759a1afdc34201676f506345faaba4d3c33822ef1e89291d7444"
+  },
+  "parser": {
+    "path": "parse-current.py",
+    "bytes": 4674,
+    "sha256": "7c5444d710469b271096d45b8ff5c794fcd6bb287d9ad2d908ac582b19d4a6d2",
+    "runtime_source_path": "/tmp/ci5205-shard3-exact-join/parse-current.py"
+  },
+  "nextest_summary": {
+    "reported_tests_run": 3897,
+    "passed": 3053,
+    "failed": 844,
+    "skipped_summary_count": 1,
+    "named_records": 3897,
+    "named_pass": 3053,
+    "named_fail": 844,
+    "named_skip": 0,
+    "repeated_failure_lines_deduplicated": 844,
+    "skipped_binaries_at_startup": 43
+  },
+  "comparison": {
+    "path": "/tmp/ci5205-shard3-exact-join/comparison.json",
+    "sha256": "19efa358f42a6378780ec5d5badf4843d0ee5b16ea33f51e8c3cdc829ef87015",
+    "status": "compared",
+    "identity": [
+      "binary_id",
+      "selector"
+    ],
+    "counts": {
+      "matched_passes": 2502,
+      "regressions": 822,
+      "unknown": 20988,
+      "extra_current_passes": 551,
+      "unmatched_current_nonpass": 22
+    },
+    "duplicate_keys": 0,
+    "p2f_detail": {
+      "path": "matched-baseline-pass-current-fail.json",
+      "bytes": 866148,
+      "sha256": "b03734d3c887fc1f09e4dc054881bf8bfde96edb34e9e1800e8bad9385140d1d"
+    },
+    "archived_lossless_gzip": {
+      "path": "comparison.json.gz",
+      "bytes": 766796,
+      "sha256": "1827f2e8afd41bf36a0f75cdf995c8d9b64fd31532f6530a40987a10cbdf9dc5",
+      "uncompressed_bytes": 16443673,
+      "uncompressed_sha256": "19efa358f42a6378780ec5d5badf4843d0ee5b16ea33f51e8c3cdc829ef87015"
+    },
+    "replay_recipe": "replay.md",
+    "baseline_outcomes_sha256": "e481a695912b73493afff3238318c2d77d042bbb5d4dfd2e75d754ca7f97e7df",
+    "comparator_sha256": "65cb36e14d9145039546e4b5a0b0de02b01e9feb749bc05f2d846d7c3625eaf2"
+  },
+  "owner_route_counts": {
+    "LSP": 39,
+    "VM/runtime": 158,
+    "compiler": 565,
+    "compiler (provisional package-level route)": 2,
+    "compiler-codegen (provisional package-level route)": 21,
+    "unassigned/needs coordinator routing": 37
+  },
+  "owner_route_note": "Package-level routing is provisional where marked; unresolved packages are not assigned by inference. Route identifies likely accountable team only, not a failure cause.",
+  "limitations": [
+    "Only exact (binary_id, selector) pairs are joined.",
+    "The 20,988 baseline identities absent from this shard are unknown, not pass/fail; they include tests run on other shards or otherwise absent from this log.",
+    "The one reported skipped test has no named identity; 43 startup-skipped binaries likewise have no named outcomes.",
+    "The 22 current failures without baseline rows are unmatched nonpasses, not baseline P2Fs.",
+    "This shard is incomplete relative to the full workflow and does not establish a whole-run or release result.",
+    "The comparison helper preserves canonical baseline records; no baseline data was rewritten."
+  ]
+}

@@ -1,0 +1,254 @@
+[
+  {
+    "binary_id": "bpf-tcl::deploy",
+    "selector": "attach_bad_arity_rejected",
+    "failure_excerpt": [
+      "thread 'attach_bad_arity_rejected' (17365) panicked at rust/bpf-tcl/tests/deploy.rs:86:5:",
+      "assertion `left == right` failed",
+      "left: OutOfSubset",
+      "right: BadAttach",
+      "stack backtrace:",
+      "0: __rustc::rust_begin_unwind"
+    ]
+  },
+  {
+    "binary_id": "bpf-tcl::deploy",
+    "selector": "attach_does_not_disturb_the_program_body",
+    "failure_excerpt": [
+      "thread 'attach_does_not_disturb_the_program_body' (17370) panicked at rust/bpf-tcl/tests/deploy.rs:99:38:",
+      "compiles: BpfError { span: Span { start: 53, end: 75 }, code: OutOfSubset, msg: \"DSL phase requires its complete original source and naming context\" }",
+      "stack backtrace:",
+      "0: __rustc::rust_begin_unwind",
+      "at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/std/src/panicking.rs:679:5",
+      "1: core::panicking::panic_fmt"
+    ]
+  },
+  {
+    "binary_id": "bpf-tcl::deploy",
+    "selector": "attach_is_carried_onto_the_matching_program",
+    "failure_excerpt": [
+      "thread 'attach_is_carried_onto_the_matching_program' (17373) panicked at rust/bpf-tcl/tests/deploy.rs:33:38:",
+      "compiles: BpfError { span: Span { start: 27, end: 39 }, code: OutOfSubset, msg: \"DSL command requires its retained original or typed generated selection\" }",
+      "stack backtrace:",
+      "0: __rustc::rust_begin_unwind",
+      "at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/std/src/panicking.rs:679:5",
+      "1: core::panicking::panic_fmt"
+    ]
+  },
+  {
+    "binary_id": "bpf-tcl::deploy",
+    "selector": "attach_mismatched_type_rejected",
+    "failure_excerpt": [
+      "thread 'attach_mismatched_type_rejected' (17376) panicked at rust/bpf-tcl/tests/deploy.rs:65:5:",
+      "assertion `left == right` failed",
+      "left: OutOfSubset",
+      "right: BadAttach",
+      "stack backtrace:",
+      "0: __rustc::rust_begin_unwind"
+    ]
+  },
+  {
+    "binary_id": "bpf-tcl::deploy",
+    "selector": "attach_socket_filter_matches_socket_program",
+    "failure_excerpt": [
+      "thread 'attach_socket_filter_matches_socket_program' (17379) panicked at rust/bpf-tcl/tests/deploy.rs:47:38:",
+      "compiles: BpfError { span: Span { start: 45, end: 51 }, code: OutOfSubset, msg: \"DSL command requires its retained original or typed generated selection\" }",
+      "stack backtrace:",
+      "0: __rustc::rust_begin_unwind",
+      "at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/std/src/panicking.rs:679:5",
+      "1: core::panicking::panic_fmt"
+    ]
+  },
+  {
+    "binary_id": "bpf-tcl::deploy",
+    "selector": "no_attach_leaves_metadata_empty",
+    "failure_excerpt": [
+      "thread 'no_attach_leaves_metadata_empty' (17382) panicked at rust/bpf-tcl/tests/deploy.rs:55:56:",
+      "compiles: BpfError { span: Span { start: 11, end: 15 }, code: OutOfSubset, msg: \"DSL command requires its retained original or typed generated selection\" }",
+      "stack backtrace:",
+      "0: __rustc::rust_begin_unwind",
+      "at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/std/src/panicking.rs:679:5",
+      "1: core::panicking::panic_fmt"
+    ]
+  },
+  {
+    "binary_id": "bpf-tcl::deploy",
+    "selector": "two_attach_decls_rejected",
+    "failure_excerpt": [
+      "thread 'two_attach_decls_rejected' (17384) panicked at rust/bpf-tcl/tests/deploy.rs:80:5:",
+      "assertion `left == right` failed",
+      "left: OutOfSubset",
+      "right: BadAttach",
+      "stack backtrace:",
+      "0: __rustc::rust_begin_unwind"
+    ]
+  },
+  {
+    "binary_id": "bpf-tcl::deploy",
+    "selector": "unknown_attach_kind_rejected",
+    "failure_excerpt": [
+      "thread 'unknown_attach_kind_rejected' (17387) panicked at rust/bpf-tcl/tests/deploy.rs:71:5:",
+      "assertion `left == right` failed",
+      "left: OutOfSubset",
+      "right: BadAttach",
+      "stack backtrace:",
+      "0: __rustc::rust_begin_unwind"
+    ]
+  },
+  {
+    "binary_id": "bpf-tcl::diagnostics",
+    "selector": "rejects_concurrency_primitives",
+    "failure_excerpt": [
+      "thread 'rejects_concurrency_primitives' (17390) panicked at rust/bpf-tcl/tests/diagnostics.rs:99:9:",
+      "`coroutine c mygen` message: DSL command requires its retained original or typed generated selection",
+      "stack backtrace:",
+      "0: __rustc::rust_begin_unwind",
+      "at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/std/src/panicking.rs:679:5",
+      "1: core::panicking::panic_fmt"
+    ]
+  },
+  {
+    "binary_id": "bpf-tcl::diagnostics",
+    "selector": "rejects_pointer_arithmetic",
+    "failure_excerpt": [
+      "thread 'rejects_pointer_arithmetic' (17395) panicked at rust/bpf-tcl/tests/diagnostics.rs:49:5:",
+      "assertion `left == right` failed",
+      "left: OutOfSubset",
+      "right: TypeMismatch",
+      "stack backtrace:",
+      "0: __rustc::rust_begin_unwind"
+    ]
+  },
+  {
+    "binary_id": "bpf-tcl::diagnostics",
+    "selector": "rejects_undefined_var",
+    "failure_excerpt": [
+      "thread 'rejects_undefined_var' (17399) panicked at rust/bpf-tcl/tests/diagnostics.rs:55:5:",
+      "assertion `left == right` failed",
+      "left: OutOfSubset",
+      "right: UndefinedVar",
+      "stack backtrace:",
+      "0: __rustc::rust_begin_unwind"
+    ]
+  },
+  {
+    "binary_id": "bpf-tcl::diagnostics",
+    "selector": "rejects_unknown_command",
+    "failure_excerpt": [
+      "thread 'rejects_unknown_command' (17401) panicked at rust/bpf-tcl/tests/diagnostics.rs:61:5:",
+      "assertion `left == right` failed",
+      "left: OutOfSubset",
+      "right: UnknownCommand",
+      "stack backtrace:",
+      "0: __rustc::rust_begin_unwind"
+    ]
+  },
+  {
+    "binary_id": "bpf-tcl::elf",
+    "selector": "matches_clang_reference_machine_and_type",
+    "failure_excerpt": [
+      "thread 'matches_clang_reference_machine_and_type' (17408) panicked at rust/bpf-tcl/tests/elf.rs:39:33:",
+      "compiles: BpfError { span: Span { start: 11, end: 15 }, code: OutOfSubset, msg: \"DSL command requires its retained original or typed generated selection\" }",
+      "stack backtrace:",
+      "0: __rustc::rust_begin_unwind",
+      "at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/std/src/panicking.rs:679:5",
+      "1: core::panicking::panic_fmt"
+    ]
+  },
+  {
+    "binary_id": "bpf-tcl::elf",
+    "selector": "readelf_lists_our_sections_and_symbol",
+    "failure_excerpt": [
+      "thread 'readelf_lists_our_sections_and_symbol' (17415) panicked at rust/bpf-tcl/tests/elf.rs:39:33:",
+      "compiles: BpfError { span: Span { start: 11, end: 15 }, code: OutOfSubset, msg: \"DSL command requires its retained original or typed generated selection\" }",
+      "stack backtrace:",
+      "0: __rustc::rust_begin_unwind",
+      "at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/std/src/panicking.rs:679:5",
+      "1: core::panicking::panic_fmt"
+    ]
+  },
+  {
+    "binary_id": "bpf-tcl::elf",
+    "selector": "readelf_sees_em_bpf_relocatable",
+    "failure_excerpt": [
+      "thread 'readelf_sees_em_bpf_relocatable' (17419) panicked at rust/bpf-tcl/tests/elf.rs:39:33:",
+      "compiles: BpfError { span: Span { start: 11, end: 15 }, code: OutOfSubset, msg: \"DSL command requires its retained original or typed generated selection\" }",
+      "stack backtrace:",
+      "0: __rustc::rust_begin_unwind",
+      "at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/std/src/panicking.rs:679:5",
+      "1: core::panicking::panic_fmt"
+    ]
+  },
+  {
+    "binary_id": "bpf-tcl::maps",
+    "selector": "map_counter_accumulates",
+    "failure_excerpt": [
+      "thread 'map_counter_accumulates' (17422) panicked at rust/bpf-tcl/tests/maps.rs:36:42:",
+      "counter should compile: BpfError { span: Span { start: 21, end: 41 }, code: OutOfSubset, msg: \"DSL command requires its retained original or typed generated selection\" }",
+      "stack backtrace:",
+      "0: __rustc::rust_begin_unwind",
+      "at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/std/src/panicking.rs:679:5",
+      "1: core::panicking::panic_fmt"
+    ]
+  },
+  {
+    "binary_id": "bpf-tcl::maps",
+    "selector": "map_set_then_get_roundtrips",
+    "failure_excerpt": [
+      "thread 'map_set_then_get_roundtrips' (17424) panicked at rust/bpf-tcl/tests/maps.rs:65:38:",
+      "compile: BpfError { span: Span { start: 21, end: 37 }, code: OutOfSubset, msg: \"DSL command requires its retained original or typed generated selection\" }",
+      "stack backtrace:",
+      "0: __rustc::rust_begin_unwind",
+      "at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/std/src/panicking.rs:679:5",
+      "1: core::panicking::panic_fmt"
+    ]
+  },
+  {
+    "binary_id": "bpf-tcl::maps",
+    "selector": "unknown_map_is_rejected",
+    "failure_excerpt": [
+      "thread 'unknown_map_is_rejected' (17426) panicked at rust/bpf-tcl/tests/maps.rs:75:5:",
+      "assertion `left == right` failed",
+      "left: OutOfSubset",
+      "right: UndefinedVar",
+      "stack backtrace:",
+      "0: __rustc::rust_begin_unwind"
+    ]
+  },
+  {
+    "binary_id": "bpf-tcl::templates",
+    "selector": "template_param_controls_flow",
+    "failure_excerpt": [
+      "thread 'template_param_controls_flow' (17438) panicked at rust/bpf-tcl/tests/templates.rs:30:38:",
+      "compiles: BpfError { span: Span { start: 105, end: 123 }, code: OutOfSubset, msg: \"DSL phase requires its complete original source and naming context\" }",
+      "stack backtrace:",
+      "0: __rustc::rust_begin_unwind",
+      "at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/std/src/panicking.rs:679:5",
+      "1: core::panicking::panic_fmt"
+    ]
+  },
+  {
+    "binary_id": "bpf-tcl::templates",
+    "selector": "template_param_drops_when_over_limit",
+    "failure_excerpt": [
+      "thread 'template_param_drops_when_over_limit' (17441) panicked at rust/bpf-tcl/tests/templates.rs:30:38:",
+      "compiles: BpfError { span: Span { start: 105, end: 121 }, code: OutOfSubset, msg: \"DSL phase requires its complete original source and naming context\" }",
+      "stack backtrace:",
+      "0: __rustc::rust_begin_unwind",
+      "at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/std/src/panicking.rs:679:5",
+      "1: core::panicking::panic_fmt"
+    ]
+  },
+  {
+    "binary_id": "bpf-tcl::templates",
+    "selector": "template_use_accumulates",
+    "failure_excerpt": [
+      "thread 'template_use_accumulates' (17443) panicked at rust/bpf-tcl/tests/templates.rs:30:38:",
+      "compiles: BpfError { span: Span { start: 131, end: 150 }, code: OutOfSubset, msg: \"DSL command requires its retained original or typed generated selection\" }",
+      "stack backtrace:",
+      "0: __rustc::rust_begin_unwind",
+      "at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/std/src/panicking.rs:679:5",
+      "1: core::panicking::panic_fmt"
+    ]
+  }
+]

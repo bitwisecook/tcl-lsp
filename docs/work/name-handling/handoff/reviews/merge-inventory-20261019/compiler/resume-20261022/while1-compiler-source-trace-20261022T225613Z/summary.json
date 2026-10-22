@@ -1,0 +1,115 @@
+{
+  "prepared_utc": "2026-10-22T23:05:58.185704+00:00",
+  "status": "Original exact while1 expected diagnostic assertion failure0/1,7.96s,notacceptance",
+  "actual_root_GO": "Root explicitly authorized exact launch300a9 after full-runner copy/prefix/selector review; launcher retained prepared-status string from frozen proposal, this measured authorization is independent.",
+  "first_source_authority": "Explicit authored C8.6 simulation; root Authored(::), namespace_rowsNone, target runtime/compiler hookNone. Not physical Native compiler proof.",
+  "actual_attachment": "offset23 reached-without-child Generic returns before direct compiler rows; structure earlier selectors allfalse",
+  "guards": "All100394source/providers/artifact stable,0warnings/no timeout/disk/cap, lockreleased22:56:50.966998Z; executable retained",
+  "original_files": [
+    {
+      "name": "build-environment.json",
+      "sha256": "f65f1d4f1881525578afca4684740168fa9e8796c2403344c288d066b47a55f6",
+      "bytes": 850
+    },
+    {
+      "name": "current-rust-diff.patch",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "name": "final.json",
+      "sha256": "dbaf04e67a5652e8f4fa5a0857ac54876673b59b597600ecd701810a471d57e7",
+      "bytes": 207
+    },
+    {
+      "name": "head-after.txt",
+      "sha256": "e4e14d8ff5749a286c01fe4875b91afffe099781e2d7bcc0032642e9966100a3",
+      "bytes": 41
+    },
+    {
+      "name": "head-before.txt",
+      "sha256": "e4e14d8ff5749a286c01fe4875b91afffe099781e2d7bcc0032642e9966100a3",
+      "bytes": 41
+    },
+    {
+      "name": "original_while1_existing_compiler_source_trace.log",
+      "sha256": "252e2b4e338743d240384311bbdabf2032fd2fe8b9224bb9bb5a06db4b7f2502",
+      "bytes": 3573777
+    },
+    {
+      "name": "original_while1_existing_compiler_source_trace.log.artifact.json",
+      "sha256": "ec029816d283d12a59fdb1214265a880a13ef975e0814dbc9417322d5ed3de25",
+      "bytes": 312
+    },
+    {
+      "name": "original_while1_existing_compiler_source_trace.log.command",
+      "sha256": "7933abe5eb4e29dcfb38f096ed549cea24543da238c58a22fc1de26ec5bc3256",
+      "bytes": 165
+    },
+    {
+      "name": "original_while1_existing_compiler_source_trace.log.env.json",
+      "sha256": "2c495d0e515e216ab2cba861181da0af7fcbad8b3aab1af8ca053877ea0bf2eb",
+      "bytes": 138
+    },
+    {
+      "name": "original_while1_existing_compiler_source_trace.log.process.json",
+      "sha256": "9731dcfcd4cee3326a1d92fc13dc1d10ca988c13fb016e6440f730570333f7fc",
+      "bytes": 639
+    },
+    {
+      "name": "original_while1_existing_compiler_source_trace.log.result.json",
+      "sha256": "b24b32a281e252815b20b6ad9d3ea21596649753dfc2a23861beddabc68b6290",
+      "bytes": 1175
+    },
+    {
+      "name": "original_while1_existing_compiler_source_trace.log.sha256.json",
+      "sha256": "f9d183ec3cf5d7a747adf72b4e046fdd834a6cf0bd1677a8373642ede68b41bb",
+      "bytes": 1344
+    },
+    {
+      "name": "original_while1_existing_compiler_source_trace.log.source-after.json",
+      "sha256": "a6e7cf1d4beaab84288ca40bc4f813d2a5434c991a81ce6ae05423e879a68fea",
+      "bytes": 12726957
+    },
+    {
+      "name": "plan.json",
+      "sha256": "63b08ace8660f7fd233c7e20f0d8e6b5d461d0d9cbd2241146a6335cb6c25dbc",
+      "bytes": 1945
+    },
+    {
+      "name": "providers-after.json",
+      "sha256": "bfa3e8e7b689dadefe4417f1f953cf6cafe06bfba4c8a2ed261111baa103c246",
+      "bytes": 31165
+    },
+    {
+      "name": "providers-before.json",
+      "sha256": "bfa3e8e7b689dadefe4417f1f953cf6cafe06bfba4c8a2ed261111baa103c246",
+      "bytes": 31165
+    },
+    {
+      "name": "results.json",
+      "sha256": "8c4fe8a2c04759a3ca22956df0f7a306c793c3996fcddd5262df19d429c3fc3d",
+      "bytes": 1271
+    },
+    {
+      "name": "runner-inputs.json",
+      "sha256": "75ada94358a8d47db937c928196570aec48f639fc4b3b8f2af90ca179fd9e81f",
+      "bytes": 693
+    },
+    {
+      "name": "runtime-watchdog-launch.json",
+      "sha256": "33d4902d193c5eeb40d2d7bd260c85afd4890ab3e46834445fd05bed8a656977",
+      "bytes": 1283
+    },
+    {
+      "name": "runtime-watchdog.json",
+      "sha256": "74f53620bba8adfb22927c18249dfb517c691ea3690c751dfef3b20789f321bc",
+      "bytes": 1843
+    },
+    {
+      "name": "source-before.json",
+      "sha256": "a6e7cf1d4beaab84288ca40bc4f813d2a5434c991a81ce6ae05423e879a68fea",
+      "bytes": 12726957
+    }
+  ]
+}

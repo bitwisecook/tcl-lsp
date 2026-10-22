@@ -1,0 +1,69 @@
+{
+  "schema": "coordinator-small-next-offtree-v1",
+  "created_utc": "2026-10-22T23:19:52.920156+00:00",
+  "status": "off-tree composition only; no canonical writes, Cargo, or test execution",
+  "source_head_at_capture": "ba02fd7035ad3a35bf3f64f6260b2204590f33be",
+  "components": [
+    {
+      "path": "/tmp/compiler-alias-declaration-cardinality-v2/proposal.patch",
+      "sha256": "75559b93a95ab6131ea49e1f50a1233fe4da237bd901fbf99451095447c970d9",
+      "owner_review": "names peer-clear",
+      "base_sha256": "177494838ad7937bded1f0000d84469b29df73ce94ffd8c4696f340c46c2c07b",
+      "proposed_sha256": "fd0bf28fd7227bb534a5f482fd4b5c218d1cff320e7690c53144ca74e5a6a594"
+    },
+    {
+      "path": "/tmp/ccg-runtime-build-output-v2/proposal.patch",
+      "sha256": "edb8bedd6211f481ab32bf07766ee4ce8a6b555984c7e00ca933de0e92cd1093",
+      "owner_review": "compiler peer-clear",
+      "base_sha256": "07681f09c547282760ad743932c82ed2a8b092c49ef1d6f04d30c14fb77a65d6",
+      "proposed_sha256": "de050db427aedf0de4a349f1820a5cd3ab25d02d6edcfe080ccfa2826e3b68fe"
+    },
+    {
+      "path": "/tmp/lsp-minify-membership-spacing-expectation-v2/proposal.patch",
+      "sha256": "3872fb6edea1e5a25f02ed26008477ab323dacffabb09bfc18007b3bb8f59627",
+      "owner_review": "root reviewed existing decision and matching C Tcl/Jim five pairs",
+      "base_sha256": "7cbf5c5aba1110a93957cef75e365e47e7c715f5d7848dbfd6e9598014be590c",
+      "proposed_sha256": "be15d4278db166724bcc7a644e2da740244d2f6388cec6aa42c9b6291adb03bc"
+    }
+  ],
+  "files": {
+    "rust/tcl-compiler/src/object_types/report_comparison.rs": {
+      "before_sha256": "177494838ad7937bded1f0000d84469b29df73ce94ffd8c4696f340c46c2c07b",
+      "proposed_sha256": "fd0bf28fd7227bb534a5f482fd4b5c218d1cff320e7690c53144ca74e5a6a594"
+    },
+    "rust/tcl-compiler/tests/common/wasm_link.rs": {
+      "before_sha256": "07681f09c547282760ad743932c82ed2a8b092c49ef1d6f04d30c14fb77a65d6",
+      "proposed_sha256": "de050db427aedf0de4a349f1820a5cd3ab25d02d6edcfe080ccfa2826e3b68fe"
+    },
+    "rust/tcl-lsp-core/tests/lsp_core_residual.rs": {
+      "before_sha256": "7cbf5c5aba1110a93957cef75e365e47e7c715f5d7848dbfd6e9598014be590c",
+      "proposed_sha256": "be15d4278db166724bcc7a644e2da740244d2f6388cec6aa42c9b6291adb03bc"
+    }
+  },
+  "combined_patch": {
+    "path": "/tmp/coordinator-small-next-2320/combined.patch",
+    "sha256": "ba78c567fde48799fb781eb9a2363c44466367c9b8c1f1bb19f4fa290e770070",
+    "git_apply_check": "not used for absolute /tmp copy path; GNU patch --fuzz=0 applied to independent copy with no offset/fuzz/reject and byte-matched final shadow"
+  },
+  "checks": {
+    "pinned_rustfmt": "/workspace/.rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/bin/rustfmt",
+    "rustfmt_version": "rustfmt 1.10.0-stable (58cf8f9c35 2026-10-13)",
+    "rustfmt_check": "edition=2024, skip_children=true, --check; exit 0 for three named copied files; hashes unchanged",
+    "zero_fuzz_copy_application": "exit 0, no offset/fuzz/reject/skip messages; independent copy byte-equal to composed work shadow",
+    "canonical_post_sha256": {
+      "rust/tcl-compiler/src/object_types/report_comparison.rs": "177494838ad7937bded1f0000d84469b29df73ce94ffd8c4696f340c46c2c07b",
+      "rust/tcl-compiler/tests/common/wasm_link.rs": "07681f09c547282760ad743932c82ed2a8b092c49ef1d6f04d30c14fb77a65d6",
+      "rust/tcl-lsp-core/tests/lsp_core_residual.rs": "7cbf5c5aba1110a93957cef75e365e47e7c715f5d7848dbfd6e9598014be590c"
+    }
+  },
+  "protocol_v2_review": {
+    "receipt": "/tmp/compiler-postbatch-focused-v2/protocol-receipt.json",
+    "plan_sha256": "ac0de417c4c8f4ee093050b1531bf84634d31c05d232a6263bafd83d5bb57355",
+    "v1_plan_sha256": "0989a2d00fdc18d962a67f049a2d211b0bee58884644599154347bd3d577c9f1",
+    "source_patch_pin": "75559b93a95ab6131ea49e1f50a1233fe4da237bd901fbf99451095447c970d9",
+    "comparison": "All original 24 filter rows byte/structure-identical in order; one explicit alias-declaration cardinality diagnostic row appended (expected_selected 1, env TCL_LSP_TRACE_REPORT_DECLARATIONS=1); totals 25 filters/35 selections. All other required selectors remain unchanged.",
+    "guards": "v1/v2 plan fields equal for source/provider/artifact/disk guards, expected filter policy, assertion policy, diagnostic policy, scope, and 180-second whole-libtest timeout excluding compilation.",
+    "protocol_delta": "Path/pin/receipt-directory routing only for suite/watcher/launch, plus alias diagnostic authorization text. Guarded cargo wrapper byte-identical. Watchdog changes are exact v1\u2192v2 path substitutions only; v2 keeps v5 logic.",
+    "limitations": "Static/off-tree plan review only. Not run or accepted; no semantic test result."
+  }
+}

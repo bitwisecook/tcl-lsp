@@ -1,0 +1,48 @@
+{
+  "utc": "2026-10-22T23:10:18.896548+00:00",
+  "status": "OFF-TREE raw conditional path prefix/extent adapter; peer/type/runtime pending; NOT completed-child/global-return continuity",
+  "sha256": "e8e201887fcb2cbf96dd650c127d86c50f3c91dfe7163d778016c89f61fd10c5",
+  "paths": [
+    {
+      "path": "rust/tcl-compiler/src/auto_path_eval.rs",
+      "before_sha256": "9ea185d2324961ef1862e56e06bc8a58559ecb78d9f563c3b80e26ce6201797f",
+      "after_sha256": "71472078a31f7659e521f04c82c6615bd861271e95ce6b2289fb51bd872c7937"
+    },
+    {
+      "path": "rust/tcl-compiler/src/auto_path_eval/path_constants.rs",
+      "before_sha256": "1d4303b55f6b7fc63432ea4c3465fdddcfc5b9568b076387f0aa4f1110111825",
+      "after_sha256": "23712fa02a5a46f97e2d621f6dce5e52b5854524cac6c35937bf996e341d3c11"
+    },
+    {
+      "path": "rust/tcl-compiler/src/auto_path_eval/path_constants/original.rs",
+      "before_sha256": "4f1f4aba9f1c09a9880b1171fe9b004404f2866962f95806b86eaced7cf83a4b",
+      "after_sha256": "ea4881da1fa25c2776ecc832695d9e419afd1e234f0b6197afbb41e0a8a35e3b"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/conditional_source/region.rs",
+      "before_sha256": "673ac9a33a82a21e1a376ba066105c09abdf2f3cfbe6bce23c22e80faf0347a8",
+      "after_sha256": "4a56bb32352489f9e4f4ccb826a5cc47eefe8f73fe1633e4aa5e519ddaec5b82"
+    },
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation/source_structure/source_load/frontier.rs",
+      "before_sha256": "843968c0aee743aa3c86e954bb3c3e0e2c353acf1f42c0dc32cd68315699b9e8",
+      "after_sha256": "142ade2a74744c30bb8e2ff7a1321550673dea9a7ed9e861e2cf4712db803188"
+    }
+  ],
+  "api": [
+    "CurrentCut::path_advice_before_handler(&AnalysisResult)->Option<PathConstantAssignments>",
+    "Region::path_inventory(&AnalysisResult)->Option<PathConstantAssignments>"
+  ],
+  "tests": [
+    "path_prefix_is_cut_before_the_actual_head_and_refuses_foreign_owner",
+    "region_path_inventory_uses_only_its_actual_remaining_commands",
+    "inherited_path_prefix_retains_exact_source_namespace_home"
+  ],
+  "limits": [
+    "No Native cell/value/frame, whole region catalogue or runtime SourceLoad/normal proof.",
+    "Actual retained namespace advisory key must pass existing checked geometry correspondence; no unchecked display reparsing.",
+    "Conditional imports/unknown lexical homes and shadow membership remain caller obligations; globals-only exported values cannot reconstruct unknown namespace-local cells.",
+    "Completed-child/global-return path continuity remains separate unresolved sealed transfer; all earlier opaque/write/SourceLoad barriers retained.",
+    "Exported value-only imports discard unknown namespace/local shadow membership; imported lookup requires explicit global-home or actual typed home/shadow receipt. Unqualified inherited fallback must refuse."
+  ]
+}

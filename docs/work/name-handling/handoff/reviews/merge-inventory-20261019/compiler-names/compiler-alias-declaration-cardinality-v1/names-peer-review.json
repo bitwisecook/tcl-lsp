@@ -1,0 +1,16 @@
+{
+  "recorded_at_utc": "2026-10-22T23:14:26.719915Z",
+  "kind": "bounded-static-peer-review-only",
+  "patch_sha256": "5836d112cc1af04e4cc0b512464ba9993f0583648ef017e6c4f97f0240d60bf1",
+  "status": "No concrete blocker in observer delta; untyped and unrun",
+  "verified": [
+    "Original count != 1 and immediate return unchanged",
+    "cfg(test) and env gated immutable same-site requery",
+    "At most eight typed body detail rows per reached refusal",
+    "No report eligibility, Eq, assertions, Native or currentness grants changed"
+  ],
+  "limits": [
+    "Actual count zero versus multiple remains unmeasured",
+    "No compiler/type/runtime/release acceptance"
+  ]
+}
