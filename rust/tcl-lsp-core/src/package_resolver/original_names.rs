@@ -631,8 +631,7 @@ fn original_package_entries(
         tcl_registry::model::ingress::static_context_for(version.dialect_name()).commands();
     let profile =
         tcl_dialect::DialectProfile::find(version.dialect_name()).expect("C loader release");
-    let analysis = memoised_index_analysis(content, profile, registry, config);
-    let analysis = analysis.as_ref();
+    let analysis = crate::source_structure::analyse_document(content, profile, registry, config);
     let Some(bindings) = analysis.retained_command_realm() else {
         return Vec::new();
     };
@@ -758,79 +757,6 @@ pub(super) struct OriginalAutoIndexRegistration {
     file: PathBuf,
 }
 
-/// Process-wide memo of the analyses behind package-index surveys
-/// (`pkgIndex.tcl` / `tclIndex`), keyed by their complete inputs: exact bytes,
-/// static release profile and Registry, and lexer grammar. A workspace rescan,
-/// a folder add or a second backend re-surveys the same installed indexes
-/// (user decision 2026-10-19T11:00Z `product_fixes`: "host Tcl install rescan
-/// cache"); the analysis is a pure function of these inputs, so a hit is the
-/// analysis a recomputation would produce. File-existence filtering stays with
-/// each caller and is never cached.
-fn memoised_index_analysis(
-    content: &str,
-    profile: &'static tcl_dialect::DialectProfile,
-    registry: &'static tcl_registry::CommandRegistry,
-    config: LexerConfig,
-) -> std::sync::Arc<tcl_compiler::analyser::AnalysisResult> {
-    type Row = (
-        &'static str,
-        tcl_registry::RegistrySemanticKey,
-        LexerConfig,
-        std::sync::Arc<str>,
-        std::sync::Arc<tcl_compiler::analyser::AnalysisResult>,
-    );
-    /// Bounds on the retained index sources (and with them their analyses):
-    /// an entry count, a total byte budget, and a per-index size above which
-    /// nothing is retained at all.
-    const MAX_ENTRIES: usize = 64;
-    const MAX_TOTAL_BYTES: usize = 4 * 1024 * 1024;
-    const MAX_INDEX_BYTES: usize = 256 * 1024;
-    static MEMO: std::sync::Mutex<std::collections::VecDeque<Row>> =
-        std::sync::Mutex::new(std::collections::VecDeque::new());
-    let key = registry.snapshot().semantic_key();
-    let lookup = |memo: &std::collections::VecDeque<Row>| {
-        memo.iter()
-            .find(|(name, registry, grammar, bytes, _)| {
-                *name == profile.name
-                    && *registry == key
-                    && *grammar == config
-                    && bytes.as_ref() == content
-            })
-            .map(|row| std::sync::Arc::clone(&row.4))
-    };
-    if let Some(hit) = lookup(
-        &MEMO
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner),
-    ) {
-        return hit;
-    }
-    let analysis = std::sync::Arc::new(crate::source_structure::analyse_document(
-        content, profile, registry, config,
-    ));
-    if content.len() > MAX_INDEX_BYTES {
-        return analysis;
-    }
-    let mut memo = MEMO
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner);
-    if lookup(&memo).is_none() {
-        memo.push_back((
-            profile.name,
-            key,
-            config,
-            std::sync::Arc::from(content),
-            std::sync::Arc::clone(&analysis),
-        ));
-        while memo.len() > MAX_ENTRIES
-            || memo.iter().map(|row| row.3.len()).sum::<usize>() > MAX_TOTAL_BYTES
-        {
-            memo.pop_front();
-        }
-    }
-    analysis
-}
-
 fn original_index_entries(
     content: &str,
     index_dir: &Path,
@@ -879,8 +805,7 @@ fn original_index_entries(
     let profile =
         tcl_dialect::DialectProfile::find(version.dialect_name()).expect("C loader release");
     let registry = tcl_registry::model::ingress::static_context_for_profile(profile).commands();
-    let analysis = memoised_index_analysis(content, profile, registry, config);
-    let analysis = analysis.as_ref();
+    let analysis = crate::source_structure::analyse_document(content, profile, registry, config);
     let Some(context) = analysis
         .resolved_input
         .as_ref()
@@ -949,31 +874,6 @@ fn original_index_entries(
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    /// The index-survey memo answers only for identical complete inputs: a
-    /// different Registry (a pack reload or another release) or changed bytes
-    /// is analysed again.
-    #[test]
-    fn index_analysis_memo_is_keyed_on_registry_and_bytes() {
-        let config = LexerConfig::default();
-        let tcl86 = tcl_dialect::DialectProfile::find("tcl8.6").expect("tcl8.6");
-        let tcl90 = tcl_dialect::DialectProfile::find("tcl9.0").expect("tcl9.0");
-        let registry86 = tcl_registry::model::ingress::static_context_for_profile(tcl86).commands();
-        let registry90 = tcl_registry::model::ingress::static_context_for_profile(tcl90).commands();
-        let content = "set auto_index(memo_probe_cmd) [list source [file join $dir m.tcl]]\n";
-        let first = memoised_index_analysis(content, tcl86, registry86, config);
-        let again = memoised_index_analysis(content, tcl86, registry86, config);
-        assert!(std::sync::Arc::ptr_eq(&first, &again));
-        let other_registry = memoised_index_analysis(content, tcl86, registry90, config);
-        assert!(!std::sync::Arc::ptr_eq(&first, &other_registry));
-        let edited = memoised_index_analysis(
-            "set auto_index(memo_probe_cmd) [list source [file join $dir n.tcl]]\n",
-            tcl86,
-            registry86,
-            config,
-        );
-        assert!(!std::sync::Arc::ptr_eq(&first, &edited));
-    }
 
     #[test]
     fn original_package_advice_keeps_unowned_reports_and_metadata_distinct() {
