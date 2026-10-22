@@ -1,0 +1,12 @@
+{
+  "diagnostic-while1-opaque-switch.log.source-after.json": {
+    "bytes": 12722771,
+    "gzip": "source-manifests/d140ed20669e933a5b7380c9ded790d3f69d925406f4b1bf1d43daeb506c5eeb.json.gz",
+    "original_sha256": "d140ed20669e933a5b7380c9ded790d3f69d925406f4b1bf1d43daeb506c5eeb"
+  },
+  "source-before.json": {
+    "bytes": 12722771,
+    "gzip": "source-manifests/d140ed20669e933a5b7380c9ded790d3f69d925406f4b1bf1d43daeb506c5eeb.json.gz",
+    "original_sha256": "d140ed20669e933a5b7380c9ded790d3f69d925406f4b1bf1d43daeb506c5eeb"
+  }
+}

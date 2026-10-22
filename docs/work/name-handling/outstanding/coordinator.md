@@ -2,7 +2,7 @@
 
 Area: routing, snapshots, status documents, release gate.
 
-Last updated: 2026-10-22T19:25:42.833673+00:00
+Last updated: 2026-10-22T19:56:15.121392+00:00
 
 ## In progress
 
@@ -180,3 +180,29 @@ Last updated: 2026-10-22T19:25:42.833673+00:00
 - Independent comparator helper validates exact baseline binary/selector pairs, rejects duplicate identities, treats missing/skipped current rows as unknown, and preserves all original provenance. Synthetic controls and same-receipt plumbing checks pass; no shipping-work verdict.
 - Original g4 main now passes1/1 with exact source/provider postguards. All four original C6 failure selectors join exact baseline namedPASS; four new failing taint/list controls are absent from baseline. Partial local attribution retains different-profile and suite-completeness limits.
 - Hosted work CI will be dispatched after this snapshot under the existing2026-10-19T14:20Z authorization to obtain a complete current failure inventory in parallel; branch dispatch uses hosted runners and native_release_build_proof=false, with no release/tag/publish.
+
+### Hosted inventory dispatch (19:29 UTC)
+
+- Dispatched hosted CI5204 on exact work7cca49ca73 under the recorded19October authorization. It measures the assembled batch and known local failures, with native_release_build_proof=false and all tag publication gates false. Complete failure inventory and exact baseline comparison are pending; no release acceptance.
+
+### Functional handoff and disk recovery (19:35 UTC)
+
+- Compiler original18 completed at19:28:30.571324Z:39 selected,23 pass and16 fail, including the diagnostic ZZ row. All100,371 source hashes and pinned providers matched. Scanner exact followup passed1; Logical-role followup failed before accessor matching because the source issuer returnedNone. A separate unchanged switch diagnostic failed as expected, with selected invocation guards absent despite retained word/vector owners. Final guards closed19:33:55 and the build lock was released. No assertion changes.
+- Reclaimed4,500,864,640bytes of duplicate active Git packs between runs. Every removed object is retained in the existing acyclic preload alternate; before/after refs, worktrees and reachable/missing-object inventories are identical. No source/index/target/test executable changed; all unique and publisher packs remain. Free disk is11.7GB. Receipts and exact procedure are archived.
+- LSP has explicit GO for CURRENT three original loss selectors and only necessary same-artifact phase replays. Canonical source stays frozen; no competing Cargo is queued.
+
+### Current cycle and routing (19:55 UTC)
+
+- Primary goal remains clean LSP merge/release readiness from rust; remaining migration follows. No PR, merge, tag, release, audit admission or validated product-row change.
+- 19:25 snapshot normal-pushed7cca49 after safe fetch/rebase retry. Hosted CI5204 dispatched on exact7cca49 at19:29:12 under recorded authorization, hosted runners and no native-release proof/publish.
+- Original compiler18 closed39 selected,23 pass16 fail including ZZ diagnostic. All100371 source/provider guards matched. g4 main passes and ZZ nine rows have no panic; all eight existing naming assertions remain failed and unchanged. Four C6 failures match exact baseline PASS.
+- Scanner followup passes1; Logical-role followup fails before the accessor because issuer is unavailable. One unchanged traced switch failure has intact word/vector owners but no selected invocation. Existing-trace import/list diagnostics are prepared for the slot after LSP.
+- Reclaimed4,500,864,640bytes of duplicate active Git packs after exact existing-alternate OID coverage and identical before/after refs/worktrees/reachable+missing sets. No source, index, target or executable changed; unique/publisher/preload packs retained.
+- LSP CURRENT3 source remains frozen. Its current Core artifact built15m28; first deep-source selector executes with unchanged180s/stack. No functional result is claimed yet. Minify12 and VM/codegen plans are prepared, not run.
+- CI5204 main Rust shards/native archive/compatibility stopped before listing/execution on the single known unused helper warning, denied by Cargo. Strict gate separately found216 formatting hunks across65 Rust paths. Browser cfg compilation found one stale pack_seq identifier.
+- Root dependency audit passes all four checks, then cargo-deny-all.sh stops on mirrored historical Cargo.lock with no manifest. The other actual workspace audits remain unrun. Narrow mirror-prefix exclusion retains missing-manifest failures elsewhere and leaves archival bytes/policy intact.
+- Runtime CI emitted53 failed selectors then aborted during TLS teardown. Exact baseline comparison finds two prior named passes now fail; other51 and abort selector are absent baseline, not inferred regressions. The run is incomplete. Pinned C alias-order evidence and catch evidence remain separate from actual runtime attribution.
+- Prepared publisher-only commitd6833259: cfg(test) helper gate, one browser pack-generation identifier, archive-lock selection fix, pinned rustfmt65 files, and guarded runtime TLS cleanup plus2controls. Peer/static/syntax/format checks pass; runtime tests are unrun. Active LSP inputs are untouched and now deliberately older; source integration follows between runs.
+- N13 remains incomplete. Stage4/cheap-entry/context corrections and exact continuation capture/join are off-tree; region replay, per-view append and end-to-end two-parent/12hop controls remain needed. No source-only entry gains Native/Loaded/frame/compiler authority.
+- External perf19:47 and triage19:33:51 are fresh. BIG-IP final18:08 remains stale and already flagged; no takeover. Perf full equality remains unproven and realm patch is withheld. All section F and complete zero-pass-to-fail gates remain open.
+- First LSP current loss is now measured: exact deep-source selector timeout at180s, unchanged artifact SHA43cf7a64 and no assertion/stack-abort output. It is absent baseline namedPASS roster, so not labelled an actual-rust regression; guarded capture loss remains open. Namespace80/DB and final source guards are pending.

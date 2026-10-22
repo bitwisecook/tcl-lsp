@@ -1,0 +1,9 @@
+{
+  "/tmp/compiler-c6-original/20261022T185226.681972Z/original_taint_operands_require_the_current_operation_and_original_child.log": "953eca9a253acbd429e6e253d913e3e3ff422ac48c3a902e9f870a89291961e3",
+  "/tmp/compiler-c6-original/20261022T185226.681972Z/original_taint_operands_require_the_current_operation_and_original_child.log.artifact.json": "bd3fe63cd332c812424c927fe0b4da741e8bb56383cfc5994690efa03b82463e",
+  "/tmp/compiler-c6-original/20261022T185226.681972Z/original_taint_operands_require_the_current_operation_and_original_child.log.command": "104b3dd672ea1ae717669fb3420aeba9d9309927641a4d8cdfd01e06116b9af4",
+  "/tmp/compiler-c6-original/20261022T185226.681972Z/original_taint_operands_require_the_current_operation_and_original_child.log.env.json": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356",
+  "/tmp/compiler-c6-original/20261022T185226.681972Z/original_taint_operands_require_the_current_operation_and_original_child.log.process.json": "b78223a8cf64ddc9bae0a8e83f2c2530bf94e757ccee68f1ab9241eab73e27df",
+  "/tmp/compiler-c6-original/20261022T185226.681972Z/original_taint_operands_require_the_current_operation_and_original_child.log.result.json": "e2a43af70347916123fde2c91a8ab0a3d0761c9c8b2ba543043946ee53378e53",
+  "/tmp/compiler-c6-original/20261022T185226.681972Z/original_taint_operands_require_the_current_operation_and_original_child.log.source-after.json": "d140ed20669e933a5b7380c9ded790d3f69d925406f4b1bf1d43daeb506c5eeb"
+}

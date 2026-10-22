@@ -1,0 +1,394 @@
+warning: method `native_argument_input` is never used
+  --> rust/tcl-compiler/src/analyser/original_definer.rs:79:19
+warning: `tcl-compiler` (lib) generated 1 warning
+    Finished `test` profile [unoptimized] target(s) in 0.98s
+     Running unittests src/lib.rs (target/debug/deps/tcl_compiler-ef22ef87d0bd65a7)
+running 1 test
+test analyser::types::original_declaration_inventory_tests::zz_probe_import_and_crlf ... ZZ_REGISTERED head=proc offset=20 descriptor=true facts_native=true subcommand=NotApplicable
+ZZ_SELECT_TARGET head=proc offset=20 registered=Some(Generic)
+ZZ_REGISTERED head=namespace offset=34 descriptor=true facts_native=true subcommand=Exact { spelling: "export", canonical_name: "export" }
+ZZ_SELECT_TARGET head=namespace offset=34 registered=Some(NamedInvocation { lookup: NativeCompilerImplementationLookup { ensemble: "::namespace", member: "export", slot: "::tcl::namespace::export", command: "namespace", prepended: ["export"] }, arguments_from: 1, protocol: Direct })
+ZZ_REGISTERED head=proc offset=20 descriptor=true facts_native=true subcommand=NotApplicable
+ZZ_SELECT_TARGET head=proc offset=20 registered=Some(Generic)
+ZZ_COMMAND ["proc", "p", "", ""] ns=Authored("::a") opaque_before=false opaque_after=false abrupt=[]
+ZZ_REGISTERED head=namespace offset=34 descriptor=true facts_native=true subcommand=Exact { spelling: "export", canonical_name: "export" }
+ZZ_SELECT_TARGET head=namespace offset=34 registered=Some(NamedInvocation { lookup: NativeCompilerImplementationLookup { ensemble: "::namespace", member: "export", slot: "::tcl::namespace::export", command: "namespace", prepended: ["export"] }, arguments_from: 1, protocol: Direct })
+ZZ_COMMAND ["namespace", "export", "p"] ns=Authored("::a") opaque_before=false opaque_after=false abrupt=[]
+ZZ_UNCLOSED ["namespace", "eval", "::a", "proc p {} {}; namespace export p"] transitions=Declared(StateTransitions { facts: [StateTransitionFact { transition: Namespace(Ensure { namespace: Named(LocatedLiteral { value: "::a", argument_index: 1 }) }), commit: MayCommitBeforeAbruptCompletion }] }) kind=Builtin reg=true roles=true sub=Exact { spelling: "eval", canonical_name: "eval" } cb=CallbackEffect { kinds: CallbackKinds(2), reentrancy: CurrentInterpreter } ctm=false traits=Traits(618970038100411735251353666)
+ZZ_COMMAND ["namespace", "eval", "::a", "proc p {} {}; namespace export p"] ns=Authored("::") opaque_before=false opaque_after=false abrupt=[Tcl(Error)]
+ZZ_REGISTERED head=namespace offset=74 descriptor=true facts_native=true subcommand=Exact { spelling: "import", canonical_name: "import" }
+ZZ_SELECT_TARGET head=namespace offset=74 registered=Some(NamedInvocation { lookup: NativeCompilerImplementationLookup { ensemble: "::namespace", member: "import", slot: "::tcl::namespace::import", command: "namespace", prepended: ["import"] }, arguments_from: 1, protocol: Direct })
+ZZ_REGISTERED head=namespace offset=74 descriptor=true facts_native=true subcommand=Exact { spelling: "import", canonical_name: "import" }
+ZZ_SELECT_TARGET head=namespace offset=74 registered=Some(NamedInvocation { lookup: NativeCompilerImplementationLookup { ensemble: "::namespace", member: "import", slot: "::tcl::namespace::import", command: "namespace", prepended: ["import"] }, arguments_from: 1, protocol: Direct })
+ZZ_UNCLOSED ["namespace", "import", "::a::p"] transitions=Declared(StateTransitions { facts: [StateTransitionFact { transition: Namespace(Import { namespace: Current, force: Some(false), patterns: [LocatedLiteral { value: "::a::p", argument_index: 0 }] }), commit: MayCommitBeforeAbruptCompletion }] }) kind=Builtin reg=true roles=true sub=Exact { spelling: "import", canonical_name: "import" } cb=CallbackEffect { kinds: CallbackKinds(0), reentrancy: Never } ctm=false traits=Traits(587438276395139138)
+ZZ_COMMAND ["namespace", "import", "::a::p"] ns=Authored("::b") opaque_before=false opaque_after=false abrupt=[Unknown]
+ZZ_COMMAND ["p"] ns=Authored("::b") opaque_before=false opaque_after=false abrupt=[]
+ZZ_UNCLOSED ["namespace", "eval", "::b", "namespace import ::a::p; p"] transitions=Declared(StateTransitions { facts: [StateTransitionFact { transition: Namespace(Ensure { namespace: Named(LocatedLiteral { value: "::b", argument_index: 1 }) }), commit: MayCommitBeforeAbruptCompletion }] }) kind=Builtin reg=true roles=true sub=Exact { spelling: "eval", canonical_name: "eval" } cb=CallbackEffect { kinds: CallbackKinds(2), reentrancy: CurrentInterpreter } ctm=false traits=Traits(618970038100411735251353666)
+ZZ_COMMAND ["namespace", "eval", "::b", "namespace import ::a::p; p"] ns=Authored("::") opaque_before=false opaque_after=false abrupt=[Tcl(Error), Unknown]
+ZZ_UNKNOWN_HANDLER unknown=false absent=false targets=[("::unknown", true, Builtin, 0, false)]
+ZZ_COMPLETED_WORLD complete=false closed=false unclosed=true opaque=false unknown_handler=true step=false observed=false routes=[Tcl(Error), Unknown]
+ZZ_REGISTERED head=proc offset=20 descriptor=true facts_native=true subcommand=NotApplicable
+ZZ_SELECT_TARGET head=proc offset=20 registered=Some(Generic)
+ZZ_REGISTERED head=namespace offset=34 descriptor=true facts_native=true subcommand=Exact { spelling: "export", canonical_name: "export" }
+ZZ_SELECT_TARGET head=namespace offset=34 registered=Some(NamedInvocation { lookup: NativeCompilerImplementationLookup { ensemble: "::namespace", member: "export", slot: "::tcl::namespace::export", command: "namespace", prepended: ["export"] }, arguments_from: 1, protocol: Direct })
+ZZ_REGISTERED head=proc offset=20 descriptor=true facts_native=true subcommand=NotApplicable
+ZZ_SELECT_TARGET head=proc offset=20 registered=Some(Generic)
+ZZ_COMMAND ["proc", "p", "", ""] ns=Authored("::a") opaque_before=false opaque_after=false abrupt=[]
+ZZ_REGISTERED head=namespace offset=34 descriptor=true facts_native=true subcommand=Exact { spelling: "export", canonical_name: "export" }
+ZZ_SELECT_TARGET head=namespace offset=34 registered=Some(NamedInvocation { lookup: NativeCompilerImplementationLookup { ensemble: "::namespace", member: "export", slot: "::tcl::namespace::export", command: "namespace", prepended: ["export"] }, arguments_from: 1, protocol: Direct })
+ZZ_COMMAND ["namespace", "export", "p"] ns=Authored("::a") opaque_before=false opaque_after=false abrupt=[]
+ZZ_UNCLOSED ["namespace", "eval", "::a", "proc p {} {}; namespace export p"] transitions=Declared(StateTransitions { facts: [StateTransitionFact { transition: Namespace(Ensure { namespace: Named(LocatedLiteral { value: "::a", argument_index: 1 }) }), commit: MayCommitBeforeAbruptCompletion }] }) kind=Builtin reg=true roles=true sub=Exact { spelling: "eval", canonical_name: "eval" } cb=CallbackEffect { kinds: CallbackKinds(2), reentrancy: CurrentInterpreter } ctm=false traits=Traits(618970038100411735251353666)
+ZZ_COMMAND ["namespace", "eval", "::a", "proc p {} {}; namespace export p"] ns=Authored("::") opaque_before=false opaque_after=false abrupt=[Tcl(Error)]
+ZZ_REGISTERED head=namespace offset=74 descriptor=true facts_native=true subcommand=Exact { spelling: "import", canonical_name: "import" }
+ZZ_SELECT_TARGET head=namespace offset=74 registered=Some(NamedInvocation { lookup: NativeCompilerImplementationLookup { ensemble: "::namespace", member: "import", slot: "::tcl::namespace::import", command: "namespace", prepended: ["import"] }, arguments_from: 1, protocol: Direct })
+ZZ_REGISTERED head=namespace offset=74 descriptor=true facts_native=true subcommand=Exact { spelling: "import", canonical_name: "import" }
+ZZ_SELECT_TARGET head=namespace offset=74 registered=Some(NamedInvocation { lookup: NativeCompilerImplementationLookup { ensemble: "::namespace", member: "import", slot: "::tcl::namespace::import", command: "namespace", prepended: ["import"] }, arguments_from: 1, protocol: Direct })
+ZZ_UNCLOSED ["namespace", "import", "::a::p"] transitions=Declared(StateTransitions { facts: [StateTransitionFact { transition: Namespace(Import { namespace: Current, force: Some(false), patterns: [LocatedLiteral { value: "::a::p", argument_index: 0 }] }), commit: MayCommitBeforeAbruptCompletion }] }) kind=Builtin reg=true roles=true sub=Exact { spelling: "import", canonical_name: "import" } cb=CallbackEffect { kinds: CallbackKinds(0), reentrancy: Never } ctm=false traits=Traits(587438276395139138)
+ZZ_COMMAND ["namespace", "import", "::a::p"] ns=Authored("::b") opaque_before=false opaque_after=false abrupt=[Unknown]
+ZZ_COMMAND ["p"] ns=Authored("::b") opaque_before=false opaque_after=false abrupt=[]
+ZZ_UNCLOSED ["namespace", "eval", "::b", "namespace import ::a::p; p"] transitions=Declared(StateTransitions { facts: [StateTransitionFact { transition: Namespace(Ensure { namespace: Named(LocatedLiteral { value: "::b", argument_index: 1 }) }), commit: MayCommitBeforeAbruptCompletion }] }) kind=Builtin reg=true roles=true sub=Exact { spelling: "eval", canonical_name: "eval" } cb=CallbackEffect { kinds: CallbackKinds(2), reentrancy: CurrentInterpreter } ctm=false traits=Traits(618970038100411735251353666)
+ZZ_COMMAND ["namespace", "eval", "::b", "namespace import ::a::p; p"] ns=Authored("::") opaque_before=false opaque_after=false abrupt=[Tcl(Error), Unknown]
+ZZ_UNKNOWN_HANDLER unknown=false absent=false targets=[("::unknown", true, Builtin, 0, false)]
+ZZ_COMPLETED_WORLD complete=false closed=false unclosed=true opaque=false unknown_handler=true step=false observed=false routes=[Tcl(Error), Unknown]
+ZZ_RESULT "namespace eval ::a {proc p {} {}; namespace export p}\nnamespace eval ::b {namespace import ::a::p; p}\n" ok=true
+ZZ_WORLD false
+ZZ_ROW namespace at=0 input=true lookup=true reference=Some(SourceCommandReference { slot: None, original_slot: Some((CommandSlot { namespace: ByteNamespacePath([]), simple: NameBytes([110, 97, 109, 101, 115, 112, 97, 99, 101]) }, NamePolicyProtocol { recipe: C(V8_6), authority: AuthoredSimulat
+ZZ_ROW proc at=20 input=true lookup=true reference=Some(SourceCommandReference { slot: None, original_slot: Some((CommandSlot { namespace: ByteNamespacePath([]), simple: NameBytes([112, 114, 111, 99]) }, NamePolicyProtocol { recipe: C(V8_6), authority: AuthoredSimulation })), binding: Direc
+ZZ_ROW namespace at=34 input=true lookup=true reference=Some(SourceCommandReference { slot: None, original_slot: Some((CommandSlot { namespace: ByteNamespacePath([]), simple: NameBytes([110, 97, 109, 101, 115, 112, 97, 99, 101]) }, NamePolicyProtocol { recipe: C(V8_6), authority: AuthoredSimulat
+ZZ_ROW namespace at=54 input=true lookup=true reference=Some(SourceCommandReference { slot: None, original_slot: Some((CommandSlot { namespace: ByteNamespacePath([]), simple: NameBytes([110, 97, 109, 101, 115, 112, 97, 99, 101]) }, NamePolicyProtocol { recipe: C(V8_6), authority: AuthoredSimulat
+ZZ_ROW namespace at=74 input=true lookup=true reference=Some(SourceCommandReference { slot: None, original_slot: Some((CommandSlot { namespace: ByteNamespacePath([]), simple: NameBytes([110, 97, 109, 101, 115, 112, 97, 99, 101]) }, NamePolicyProtocol { recipe: C(V8_6), authority: AuthoredSimulat
+ZZ_ROW p at=99 input=true lookup=true reference=Some(SourceCommandReference { slot: None, original_slot: Some((CommandSlot { namespace: ByteNamespacePath([NameBytes([98])]), simple: NameBytes([112]) }, NamePolicyProtocol { recipe: C(V8_6), authority: AuthoredSimulation })), binding: Impo
+ZZ_REGISTERED head=proc offset=20 descriptor=true facts_native=true subcommand=NotApplicable
+ZZ_SELECT_TARGET head=proc offset=20 registered=Some(Generic)
+ZZ_REGISTERED head=namespace offset=34 descriptor=true facts_native=true subcommand=Exact { spelling: "export", canonical_name: "export" }
+ZZ_SELECT_TARGET head=namespace offset=34 registered=Some(NamedInvocation { lookup: NativeCompilerImplementationLookup { ensemble: "::namespace", member: "export", slot: "::tcl::namespace::export", command: "namespace", prepended: ["export"] }, arguments_from: 1, protocol: Direct })
+ZZ_REGISTERED head=proc offset=20 descriptor=true facts_native=true subcommand=NotApplicable
+ZZ_SELECT_TARGET head=proc offset=20 registered=Some(Generic)
+ZZ_COMMAND ["proc", "p", "", ""] ns=Authored("::a") opaque_before=false opaque_after=false abrupt=[]
+ZZ_REGISTERED head=namespace offset=34 descriptor=true facts_native=true subcommand=Exact { spelling: "export", canonical_name: "export" }
+ZZ_SELECT_TARGET head=namespace offset=34 registered=Some(NamedInvocation { lookup: NativeCompilerImplementationLookup { ensemble: "::namespace", member: "export", slot: "::tcl::namespace::export", command: "namespace", prepended: ["export"] }, arguments_from: 1, protocol: Direct })
+ZZ_COMMAND ["namespace", "export", "p"] ns=Authored("::a") opaque_before=false opaque_after=false abrupt=[]
+ZZ_UNCLOSED ["namespace", "eval", "::a", "proc p {} {}; namespace export p"] transitions=Declared(StateTransitions { facts: [StateTransitionFact { transition: Namespace(Ensure { namespace: Named(LocatedLiteral { value: "::a", argument_index: 1 }) }), commit: MayCommitBeforeAbruptCompletion }] }) kind=Builtin reg=true roles=true sub=Exact { spelling: "eval", canonical_name: "eval" } cb=CallbackEffect { kinds: CallbackKinds(2), reentrancy: CurrentInterpreter } ctm=false traits=Traits(618970038100411735251353666)
+ZZ_COMMAND ["namespace", "eval", "::a", "proc p {} {}; namespace export p"] ns=Authored("::") opaque_before=false opaque_after=false abrupt=[Tcl(Error)]
+ZZ_UNCLOSED ["namespace", "import", "::a::p"] transitions=Declared(StateTransitions { facts: [StateTransitionFact { transition: Namespace(Import { namespace: Current, force: Some(false), patterns: [LocatedLiteral { value: "::a::p", argument_index: 1 }] }), commit: MayCommitBeforeAbruptCompletion }] }) kind=Builtin reg=true roles=true sub=Exact { spelling: "import", canonical_name: "import" } cb=CallbackEffect { kinds: CallbackKinds(0), reentrancy: Never } ctm=false traits=Traits(587438276395139138)
+ZZ_COMMAND ["namespace", "import", "::a::p"] ns=Authored("::") opaque_before=false opaque_after=false abrupt=[Unknown]
+ZZ_COMMAND ["p"] ns=Authored("::") opaque_before=false opaque_after=false abrupt=[]
+ZZ_UNKNOWN_HANDLER unknown=false absent=false targets=[("::unknown", true, Builtin, 0, false)]
+ZZ_COMPLETED_WORLD complete=false closed=false unclosed=true opaque=false unknown_handler=true step=false observed=false routes=[Tcl(Error), Unknown]
+ZZ_REGISTERED head=proc offset=20 descriptor=true facts_native=true subcommand=NotApplicable
+ZZ_SELECT_TARGET head=proc offset=20 registered=Some(Generic)
+ZZ_REGISTERED head=namespace offset=34 descriptor=true facts_native=true subcommand=Exact { spelling: "export", canonical_name: "export" }
+ZZ_SELECT_TARGET head=namespace offset=34 registered=Some(NamedInvocation { lookup: NativeCompilerImplementationLookup { ensemble: "::namespace", member: "export", slot: "::tcl::namespace::export", command: "namespace", prepended: ["export"] }, arguments_from: 1, protocol: Direct })
+ZZ_REGISTERED head=proc offset=20 descriptor=true facts_native=true subcommand=NotApplicable
+ZZ_SELECT_TARGET head=proc offset=20 registered=Some(Generic)
+ZZ_COMMAND ["proc", "p", "", ""] ns=Authored("::a") opaque_before=false opaque_after=false abrupt=[]
+ZZ_REGISTERED head=namespace offset=34 descriptor=true facts_native=true subcommand=Exact { spelling: "export", canonical_name: "export" }
+ZZ_SELECT_TARGET head=namespace offset=34 registered=Some(NamedInvocation { lookup: NativeCompilerImplementationLookup { ensemble: "::namespace", member: "export", slot: "::tcl::namespace::export", command: "namespace", prepended: ["export"] }, arguments_from: 1, protocol: Direct })
+ZZ_COMMAND ["namespace", "export", "p"] ns=Authored("::a") opaque_before=false opaque_after=false abrupt=[]
+ZZ_UNCLOSED ["namespace", "eval", "::a", "proc p {} {}; namespace export p"] transitions=Declared(StateTransitions { facts: [StateTransitionFact { transition: Namespace(Ensure { namespace: Named(LocatedLiteral { value: "::a", argument_index: 1 }) }), commit: MayCommitBeforeAbruptCompletion }] }) kind=Builtin reg=true roles=true sub=Exact { spelling: "eval", canonical_name: "eval" } cb=CallbackEffect { kinds: CallbackKinds(2), reentrancy: CurrentInterpreter } ctm=false traits=Traits(618970038100411735251353666)
+ZZ_COMMAND ["namespace", "eval", "::a", "proc p {} {}; namespace export p"] ns=Authored("::") opaque_before=false opaque_after=false abrupt=[Tcl(Error)]
+ZZ_UNCLOSED ["namespace", "import", "::a::p"] transitions=Declared(StateTransitions { facts: [StateTransitionFact { transition: Namespace(Import { namespace: Current, force: Some(false), patterns: [LocatedLiteral { value: "::a::p", argument_index: 1 }] }), commit: MayCommitBeforeAbruptCompletion }] }) kind=Builtin reg=true roles=true sub=Exact { spelling: "import", canonical_name: "import" } cb=CallbackEffect { kinds: CallbackKinds(0), reentrancy: Never } ctm=false traits=Traits(587438276395139138)
+ZZ_COMMAND ["namespace", "import", "::a::p"] ns=Authored("::") opaque_before=false opaque_after=false abrupt=[Unknown]
+ZZ_COMMAND ["p"] ns=Authored("::") opaque_before=false opaque_after=false abrupt=[]
+ZZ_UNKNOWN_HANDLER unknown=false absent=false targets=[("::unknown", true, Builtin, 0, false)]
+ZZ_COMPLETED_WORLD complete=false closed=false unclosed=true opaque=false unknown_handler=true step=false observed=false routes=[Tcl(Error), Unknown]
+ZZ_RESULT "namespace eval ::a {proc p {} {}; namespace export p}\nnamespace import ::a::p\np\n" ok=true
+ZZ_WORLD false
+ZZ_ROW namespace at=0 input=true lookup=true reference=Some(SourceCommandReference { slot: None, original_slot: Some((CommandSlot { namespace: ByteNamespacePath([]), simple: NameBytes([110, 97, 109, 101, 115, 112, 97, 99, 101]) }, NamePolicyProtocol { recipe: C(V8_6), authority: AuthoredSimulat
+ZZ_ROW proc at=20 input=true lookup=true reference=Some(SourceCommandReference { slot: None, original_slot: Some((CommandSlot { namespace: ByteNamespacePath([]), simple: NameBytes([112, 114, 111, 99]) }, NamePolicyProtocol { recipe: C(V8_6), authority: AuthoredSimulation })), binding: Direc
+ZZ_ROW namespace at=34 input=true lookup=true reference=Some(SourceCommandReference { slot: None, original_slot: Some((CommandSlot { namespace: ByteNamespacePath([]), simple: NameBytes([110, 97, 109, 101, 115, 112, 97, 99, 101]) }, NamePolicyProtocol { recipe: C(V8_6), authority: AuthoredSimulat
+ZZ_ROW namespace at=54 input=true lookup=true reference=Some(SourceCommandReference { slot: None, original_slot: Some((CommandSlot { namespace: ByteNamespacePath([]), simple: NameBytes([110, 97, 109, 101, 115, 112, 97, 99, 101]) }, NamePolicyProtocol { recipe: C(V8_6), authority: AuthoredSimulat
+ZZ_ROW p at=78 input=true lookup=true reference=Some(SourceCommandReference { slot: None, original_slot: Some((CommandSlot { namespace: ByteNamespacePath([]), simple: NameBytes([112]) }, NamePolicyProtocol { recipe: C(V8_6), authority: AuthoredSimulation })), binding: Imported { origin: 
+ZZ_COMMAND ["oo::class", "create", "Widget", "\r\n    method render {} {\r\n        puts \"widget $label\"\r\n    }\r\n"] ns=Authored("::") opaque_before=false opaque_after=false abrupt=[]
+ZZ_UNKNOWN_HANDLER unknown=false absent=false targets=[("::unknown", true, Builtin, 0, false)]
+ZZ_COMPLETED_WORLD complete=true closed=true unclosed=false opaque=false unknown_handler=true step=false observed=false routes=[]
+ZZ_REGISTERED head=puts offset=32 descriptor=true facts_native=true subcommand=NotApplicable
+ZZ_SELECT_TARGET head=puts offset=32 registered=Some(Generic)
+ZZ_REGISTERED head=puts offset=32 descriptor=true facts_native=true subcommand=NotApplicable
+ZZ_SELECT_TARGET head=puts offset=32 registered=Some(Generic)
+ZZ_COMMAND ["puts", "widget ${label}"] ns=Authored("::") opaque_before=false opaque_after=false abrupt=[Tcl(Error)]
+ZZ_COMMAND ["oo::class", "create", "Widget", "\r\n    method render {} {\r\n        puts \"widget $label\"\r\n    }\r\n"] ns=Authored("::") opaque_before=false opaque_after=false abrupt=[]
+ZZ_UNKNOWN_HANDLER unknown=false absent=false targets=[("::unknown", true, Builtin, 0, false)]
+ZZ_COMPLETED_WORLD complete=true closed=true unclosed=false opaque=false unknown_handler=true step=false observed=false routes=[]
+ZZ_REGISTERED head=puts offset=32 descriptor=true facts_native=true subcommand=NotApplicable
+ZZ_SELECT_TARGET head=puts offset=32 registered=Some(Generic)
+ZZ_REGISTERED head=puts offset=32 descriptor=true facts_native=true subcommand=NotApplicable
+ZZ_SELECT_TARGET head=puts offset=32 registered=Some(Generic)
+ZZ_COMMAND ["puts", "widget ${label}"] ns=Authored("::") opaque_before=false opaque_after=false abrupt=[Tcl(Error)]
+ZZ_RESULT "oo::class create Widget {\r\n    method render {} {\r\n        puts \"widget $label\"\r\n    }\r\n}" ok=true
+ZZ_WORLD true
+ZZ_ROW oo::class at=0 input=true lookup=true reference=Some(SourceCommandReference { slot: None, original_slot: Some((CommandSlot { namespace: ByteNamespacePath([NameBytes([111, 111])]), simple: NameBytes([99, 108, 97, 115, 115]) }, NamePolicyProtocol { recipe: C(V8_6), authority: AuthoredSimul
+ZZ_ROW puts at=59 input=false lookup=false reference=None
+ZZ_REGISTERED head=oo::class offset=21 descriptor=true facts_native=true subcommand=Exact { spelling: "create", canonical_name: "create" }
+ZZ_SELECT_TARGET head=oo::class offset=21 registered=Some(Generic)
+ZZ_REGISTERED head=oo::class offset=21 descriptor=true facts_native=true subcommand=Exact { spelling: "create", canonical_name: "create" }
+ZZ_SELECT_TARGET head=oo::class offset=21 registered=Some(Generic)
+ZZ_COMMAND ["oo::class", "create", "Widget", ""] ns=Authored("::a") opaque_before=false opaque_after=false abrupt=[]
+ZZ_COMMAND ["namespace", "eval", "::a", " oo::class create Widget {} "] ns=Authored("::") opaque_before=false opaque_after=false abrupt=[]
+ZZ_COMMAND ["Widget", "new"] ns=Authored("::a") opaque_before=false opaque_after=false abrupt=[]
+ZZ_COMMAND ["namespace", "eval", "::a", " Widget new "] ns=Authored("::") opaque_before=false opaque_after=false abrupt=[]
+ZZ_UNKNOWN_HANDLER unknown=false absent=false targets=[("::unknown", true, Builtin, 0, false)]
+ZZ_COMPLETED_WORLD complete=true closed=true unclosed=false opaque=false unknown_handler=true step=false observed=false routes=[]
+ZZ_REGISTERED head=oo::class offset=21 descriptor=true facts_native=true subcommand=Exact { spelling: "create", canonical_name: "create" }
+ZZ_SELECT_TARGET head=oo::class offset=21 registered=Some(Generic)
+ZZ_REGISTERED head=oo::class offset=21 descriptor=true facts_native=true subcommand=Exact { spelling: "create", canonical_name: "create" }
+ZZ_SELECT_TARGET head=oo::class offset=21 registered=Some(Generic)
+ZZ_COMMAND ["oo::class", "create", "Widget", ""] ns=Authored("::a") opaque_before=false opaque_after=false abrupt=[]
+ZZ_COMMAND ["namespace", "eval", "::a", " oo::class create Widget {} "] ns=Authored("::") opaque_before=false opaque_after=false abrupt=[]
+ZZ_COMMAND ["Widget", "new"] ns=Authored("::a") opaque_before=false opaque_after=false abrupt=[]
+ZZ_COMMAND ["namespace", "eval", "::a", " Widget new "] ns=Authored("::") opaque_before=false opaque_after=false abrupt=[]
+ZZ_UNKNOWN_HANDLER unknown=false absent=false targets=[("::unknown", true, Builtin, 0, false)]
+ZZ_COMPLETED_WORLD complete=true closed=true unclosed=false opaque=false unknown_handler=true step=false observed=false routes=[]
+ZZ_COMMAND ["oo::class", "create", "Widget", ""] ns=Authored("::a") opaque_before=false opaque_after=true abrupt=[Unknown]
+ZZ_RESULT "namespace eval ::a { oo::class create Widget {} }\nnamespace eval ::a { Widget new }\n" ok=true
+ZZ_WORLD true
+ZZ_ROW namespace at=0 input=true lookup=true reference=Some(SourceCommandReference { slot: None, original_slot: Some((CommandSlot { namespace: ByteNamespacePath([]), simple: NameBytes([110, 97, 109, 101, 115, 112, 97, 99, 101]) }, NamePolicyProtocol { recipe: C(V8_6), authority: AuthoredSimulat
+ZZ_ROW oo::class at=21 input=true lookup=true reference=Some(SourceCommandReference { slot: None, original_slot: Some((CommandSlot { namespace: ByteNamespacePath([NameBytes([111, 111])]), simple: NameBytes([99, 108, 97, 115, 115]) }, NamePolicyProtocol { recipe: C(V8_6), authority: AuthoredSimul
+ZZ_ROW namespace at=50 input=true lookup=true reference=Some(SourceCommandReference { slot: None, original_slot: Some((CommandSlot { namespace: ByteNamespacePath([]), simple: NameBytes([110, 97, 109, 101, 115, 112, 97, 99, 101]) }, NamePolicyProtocol { recipe: C(V8_6), authority: AuthoredSimulat
+ZZ_ROW Widget at=71 input=true lookup=true reference=Some(SourceCommandReference { slot: None, original_slot: Some((CommandSlot { namespace: ByteNamespacePath([NameBytes([97])]), simple: NameBytes([87, 105, 100, 103, 101, 116]) }, NamePolicyProtocol { recipe: C(V8_6), authority: AuthoredSimul
+ZZ_COMMAND ["oo::class", "create", "C", " variable n; method get {} {return $n} "] ns=Authored("::") opaque_before=false opaque_after=false abrupt=[]
+ZZ_UNKNOWN_HANDLER unknown=false absent=false targets=[("::unknown", true, Builtin, 0, false)]
+ZZ_COMPLETED_WORLD complete=true closed=true unclosed=false opaque=false unknown_handler=true step=false observed=false routes=[]
+ZZ_REGISTERED head=return offset=48 descriptor=true facts_native=true subcommand=NotApplicable
+ZZ_SELECT_TARGET head=return offset=48 registered=Some(Inline { operation: StructuredLowering(Return), guard: BeforeArguments })
+ZZ_REGISTERED head=return offset=48 descriptor=true facts_native=true subcommand=NotApplicable
+ZZ_SELECT_TARGET head=return offset=48 registered=Some(Inline { operation: StructuredLowering(Return), guard: BeforeArguments })
+ZZ_COMMAND ["return", "${n}"] ns=Authored("::") opaque_before=false opaque_after=false abrupt=[Tcl(Error)]
+ZZ_COMMAND ["oo::class", "create", "C", " variable n; method get {} {return $n} "] ns=Authored("::") opaque_before=false opaque_after=false abrupt=[]
+ZZ_UNKNOWN_HANDLER unknown=false absent=false targets=[("::unknown", true, Builtin, 0, false)]
+ZZ_COMPLETED_WORLD complete=true closed=true unclosed=false opaque=false unknown_handler=true step=false observed=false routes=[]
+ZZ_REGISTERED head=return offset=48 descriptor=true facts_native=true subcommand=NotApplicable
+ZZ_SELECT_TARGET head=return offset=48 registered=Some(Inline { operation: StructuredLowering(Return), guard: BeforeArguments })
+ZZ_REGISTERED head=return offset=48 descriptor=true facts_native=true subcommand=NotApplicable
+ZZ_SELECT_TARGET head=return offset=48 registered=Some(Inline { operation: StructuredLowering(Return), guard: BeforeArguments })
+ZZ_COMMAND ["return", "${n}"] ns=Authored("::") opaque_before=false opaque_after=false abrupt=[Tcl(Error)]
+ZZ_RESULT "oo::class create C { variable n; method get {} {return $n} }\n" ok=true
+ZZ_WORLD true
+ZZ_ROW oo::class at=0 input=true lookup=true reference=Some(SourceCommandReference { slot: None, original_slot: Some((CommandSlot { namespace: ByteNamespacePath([NameBytes([111, 111])]), simple: NameBytes([99, 108, 97, 115, 115]) }, NamePolicyProtocol { recipe: C(V8_6), authority: AuthoredSimul
+ZZ_ROW return at=48 input=true lookup=true reference=None
+ZZ_COMMAND ["proc", "greet", "", " return hi "] ns=Authored("::") opaque_before=false opaque_after=false abrupt=[]
+ZZ_REGISTERED head=return offset=16 descriptor=true facts_native=true subcommand=NotApplicable
+ZZ_SELECT_TARGET head=return offset=16 registered=Some(Inline { operation: StructuredLowering(Return), guard: BeforeArguments })
+ZZ_REGISTERED head=return offset=16 descriptor=true facts_native=true subcommand=NotApplicable
+ZZ_SELECT_TARGET head=return offset=16 registered=Some(Inline { operation: StructuredLowering(Return), guard: BeforeArguments })
+ZZ_COMMAND ["return", "hi"] ns=Authored("::") opaque_before=false opaque_after=false abrupt=[Return(ReturnCompletionRoute { eventual_code: Ok, remaining_level: 1 })]
+ZZ_COMMAND ["greet"] ns=Authored("::") opaque_before=false opaque_after=false abrupt=[]
+ZZ_COMMAND ["puts", "[greet]"] ns=Authored("::") opaque_before=false opaque_after=false abrupt=[Unknown]
+ZZ_REGISTERED head=return offset=16 descriptor=true facts_native=true subcommand=NotApplicable
+ZZ_SELECT_TARGET head=return offset=16 registered=Some(Inline { operation: StructuredLowering(Return), guard: BeforeArguments })
+ZZ_REGISTERED head=return offset=16 descriptor=true facts_native=true subcommand=NotApplicable
+ZZ_SELECT_TARGET head=return offset=16 registered=Some(Inline { operation: StructuredLowering(Return), guard: BeforeArguments })
+ZZ_COMMAND ["return", "hi"] ns=Authored("::") opaque_before=false opaque_after=false abrupt=[Return(ReturnCompletionRoute { eventual_code: Ok, remaining_level: 1 })]
+ZZ_COMMAND ["greet"] ns=Authored("::") opaque_before=false opaque_after=false abrupt=[]
+ZZ_COMMAND ["puts", "[greet]"] ns=Authored("::") opaque_before=false opaque_after=false abrupt=[Unknown]
+ZZ_UNKNOWN_HANDLER unknown=false absent=false targets=[("::unknown", true, Builtin, 0, false)]
+ZZ_UNKNOWN_HANDLER unknown=false absent=false targets=[("::unknown", true, Builtin, 0, false)]
+ZZ_COMPLETED_WORLD complete=false closed=true unclosed=false opaque=false unknown_handler=true step=false observed=false routes=[Unknown]
+ZZ_REGISTERED head=return offset=16 descriptor=true facts_native=true subcommand=NotApplicable
+ZZ_SELECT_TARGET head=return offset=16 registered=Some(Inline { operation: StructuredLowering(Return), guard: BeforeArguments })
+ZZ_REGISTERED head=return offset=16 descriptor=true facts_native=true subcommand=NotApplicable
+ZZ_SELECT_TARGET head=return offset=16 registered=Some(Inline { operation: StructuredLowering(Return), guard: BeforeArguments })
+ZZ_COMMAND ["return", "hi"] ns=Authored("::") opaque_before=false opaque_after=false abrupt=[Return(ReturnCompletionRoute { eventual_code: Ok, remaining_level: 1 })]
+ZZ_COMMAND ["proc", "greet", "", " return hi "] ns=Authored("::") opaque_before=false opaque_after=false abrupt=[]
+ZZ_REGISTERED head=return offset=16 descriptor=true facts_native=true subcommand=NotApplicable
+ZZ_SELECT_TARGET head=return offset=16 registered=Some(Inline { operation: StructuredLowering(Return), guard: BeforeArguments })
+ZZ_REGISTERED head=return offset=16 descriptor=true facts_native=true subcommand=NotApplicable
+ZZ_SELECT_TARGET head=return offset=16 registered=Some(Inline { operation: StructuredLowering(Return), guard: BeforeArguments })
+ZZ_COMMAND ["return", "hi"] ns=Authored("::") opaque_before=false opaque_after=false abrupt=[Return(ReturnCompletionRoute { eventual_code: Ok, remaining_level: 1 })]
+ZZ_COMMAND ["greet"] ns=Authored("::") opaque_before=false opaque_after=false abrupt=[]
+ZZ_COMMAND ["puts", "[greet]"] ns=Authored("::") opaque_before=false opaque_after=false abrupt=[Unknown]
+ZZ_REGISTERED head=return offset=16 descriptor=true facts_native=true subcommand=NotApplicable
+ZZ_SELECT_TARGET head=return offset=16 registered=Some(Inline { operation: StructuredLowering(Return), guard: BeforeArguments })
+ZZ_REGISTERED head=return offset=16 descriptor=true facts_native=true subcommand=NotApplicable
+ZZ_SELECT_TARGET head=return offset=16 registered=Some(Inline { operation: StructuredLowering(Return), guard: BeforeArguments })
+ZZ_COMMAND ["return", "hi"] ns=Authored("::") opaque_before=false opaque_after=false abrupt=[Return(ReturnCompletionRoute { eventual_code: Ok, remaining_level: 1 })]
+ZZ_COMMAND ["greet"] ns=Authored("::") opaque_before=false opaque_after=false abrupt=[]
+ZZ_COMMAND ["puts", "[greet]"] ns=Authored("::") opaque_before=false opaque_after=false abrupt=[Unknown]
+ZZ_UNKNOWN_HANDLER unknown=false absent=false targets=[("::unknown", true, Builtin, 0, false)]
+ZZ_UNKNOWN_HANDLER unknown=false absent=false targets=[("::unknown", true, Builtin, 0, false)]
+ZZ_COMPLETED_WORLD complete=false closed=true unclosed=false opaque=false unknown_handler=true step=false observed=false routes=[Unknown]
+ZZ_REGISTERED head=return offset=16 descriptor=true facts_native=true subcommand=NotApplicable
+ZZ_SELECT_TARGET head=return offset=16 registered=Some(Inline { operation: StructuredLowering(Return), guard: BeforeArguments })
+ZZ_REGISTERED head=return offset=16 descriptor=true facts_native=true subcommand=NotApplicable
+ZZ_SELECT_TARGET head=return offset=16 registered=Some(Inline { operation: StructuredLowering(Return), guard: BeforeArguments })
+ZZ_COMMAND ["return", "hi"] ns=Authored("::") opaque_before=false opaque_after=false abrupt=[Return(ReturnCompletionRoute { eventual_code: Ok, remaining_level: 1 })]
+ZZ_RESULT "proc greet {} { return hi }\nputs [greet]\nputs [greet]\n" ok=true
+ZZ_WORLD true
+ZZ_ROW proc at=0 input=true lookup=true reference=Some(SourceCommandReference { slot: None, original_slot: Some((CommandSlot { namespace: ByteNamespacePath([]), simple: NameBytes([112, 114, 111, 99]) }, NamePolicyProtocol { recipe: C(V8_6), authority: AuthoredSimulation })), binding: Direc
+ZZ_ROW return at=16 input=true lookup=true reference=Some(SourceCommandReference { slot: None, original_slot: Some((CommandSlot { namespace: ByteNamespacePath([]), simple: NameBytes([114, 101, 116, 117, 114, 110]) }, NamePolicyProtocol { recipe: C(V8_6), authority: AuthoredSimulation })), bin
+ZZ_ROW puts at=28 input=true lookup=true reference=Some(SourceCommandReference { slot: None, original_slot: Some((CommandSlot { namespace: ByteNamespacePath([]), simple: NameBytes([112, 117, 116, 115]) }, NamePolicyProtocol { recipe: C(V8_6), authority: AuthoredSimulation })), binding: Dire
+ZZ_ROW greet at=34 input=true lookup=true reference=Some(SourceCommandReference { slot: None, original_slot: Some((CommandSlot { namespace: ByteNamespacePath([]), simple: NameBytes([103, 114, 101, 101, 116]) }, NamePolicyProtocol { recipe: C(V8_6), authority: AuthoredSimulation })), binding:
+ZZ_ROW puts at=41 input=true lookup=true reference=Some(SourceCommandReference { slot: None, original_slot: Some((CommandSlot { namespace: ByteNamespacePath([]), simple: NameBytes([112, 117, 116, 115]) }, NamePolicyProtocol { recipe: C(V8_6), authority: AuthoredSimulation })), binding: Dire
+ZZ_ROW greet at=47 input=true lookup=true reference=Some(SourceCommandReference { slot: None, original_slot: Some((CommandSlot { namespace: ByteNamespacePath([]), simple: NameBytes([103, 114, 101, 101, 116]) }, NamePolicyProtocol { recipe: C(V8_6), authority: AuthoredSimulation })), binding:
+ZZ_REGISTERED head=namespace offset=18 descriptor=true facts_native=true subcommand=Exact { spelling: "export", canonical_name: "export" }
+ZZ_SELECT_TARGET head=namespace offset=18 registered=Some(NamedInvocation { lookup: NativeCompilerImplementationLookup { ensemble: "::namespace", member: "export", slot: "::tcl::namespace::export", command: "namespace", prepended: ["export"] }, arguments_from: 1, protocol: Direct })
+ZZ_REGISTERED head=proc offset=38 descriptor=true facts_native=true subcommand=NotApplicable
+ZZ_SELECT_TARGET head=proc offset=38 registered=Some(Generic)
+ZZ_REGISTERED head=namespace offset=18 descriptor=true facts_native=true subcommand=Exact { spelling: "export", canonical_name: "export" }
+ZZ_SELECT_TARGET head=namespace offset=18 registered=Some(NamedInvocation { lookup: NativeCompilerImplementationLookup { ensemble: "::namespace", member: "export", slot: "::tcl::namespace::export", command: "namespace", prepended: ["export"] }, arguments_from: 1, protocol: Direct })
+ZZ_COMMAND ["namespace", "export", "*"] ns=Authored("::a") opaque_before=false opaque_after=false abrupt=[]
+ZZ_REGISTERED head=proc offset=38 descriptor=true facts_native=true subcommand=NotApplicable
+ZZ_SELECT_TARGET head=proc offset=38 registered=Some(Generic)
+ZZ_COMMAND ["proc", "foo", "", "return A"] ns=Authored("::a") opaque_before=false opaque_after=false abrupt=[]
+ZZ_UNCLOSED ["namespace", "eval", "a", "namespace export *; proc foo {} {return A}"] transitions=Declared(StateTransitions { facts: [StateTransitionFact { transition: Namespace(Ensure { namespace: Named(LocatedLiteral { value: "a", argument_index: 1 }) }), commit: MayCommitBeforeAbruptCompletion }] }) kind=Builtin reg=true roles=true sub=Exact { spelling: "eval", canonical_name: "eval" } cb=CallbackEffect { kinds: CallbackKinds(2), reentrancy: CurrentInterpreter } ctm=false traits=Traits(618970038100411735251353666)
+ZZ_COMMAND ["namespace", "eval", "a", "namespace export *; proc foo {} {return A}"] ns=Authored("::") opaque_before=false opaque_after=false abrupt=[Tcl(Error)]
+ZZ_REGISTERED head=proc offset=81 descriptor=true facts_native=true subcommand=NotApplicable
+ZZ_SELECT_TARGET head=proc offset=81 registered=Some(Generic)
+ZZ_REGISTERED head=namespace offset=105 descriptor=true facts_native=true subcommand=Exact { spelling: "import", canonical_name: "import" }
+ZZ_SELECT_TARGET head=namespace offset=105 registered=Some(NamedInvocation { lookup: NativeCompilerImplementationLookup { ensemble: "::namespace", member: "import", slot: "::tcl::namespace::import", command: "namespace", prepended: ["import"] }, arguments_from: 1, protocol: Direct })
+ZZ_REGISTERED head=puts offset=137 descriptor=true facts_native=true subcommand=NotApplicable
+ZZ_SELECT_TARGET head=puts offset=137 registered=Some(Generic)
+ZZ_REGISTERED head=proc offset=81 descriptor=true facts_native=true subcommand=NotApplicable
+ZZ_SELECT_TARGET head=proc offset=81 registered=Some(Generic)
+ZZ_COMMAND ["proc", "foo", "", "return B"] ns=Authored("::b") opaque_before=false opaque_after=false abrupt=[]
+ZZ_REGISTERED head=namespace offset=105 descriptor=true facts_native=true subcommand=Exact { spelling: "import", canonical_name: "import" }
+ZZ_SELECT_TARGET head=namespace offset=105 registered=Some(NamedInvocation { lookup: NativeCompilerImplementationLookup { ensemble: "::namespace", member: "import", slot: "::tcl::namespace::import", command: "namespace", prepended: ["import"] }, arguments_from: 1, protocol: Direct })
+ZZ_UNCLOSED ["namespace", "import", "-force", "::a::*"] transitions=Declared(StateTransitions { facts: [StateTransitionFact { transition: Namespace(Import { namespace: Current, force: Some(true), patterns: [LocatedLiteral { value: "::a::*", argument_index: 1 }] }), commit: MayCommitBeforeAbruptCompletion }] }) kind=Builtin reg=true roles=true sub=Exact { spelling: "import", canonical_name: "import" } cb=CallbackEffect { kinds: CallbackKinds(0), reentrancy: Never } ctm=false traits=Traits(587438276395139138)
+ZZ_COMMAND ["namespace", "import", "-force", "::a::*"] ns=Authored("::b") opaque_before=false opaque_after=false abrupt=[Unknown]
+ZZ_REGISTERED head=puts offset=137 descriptor=true facts_native=true subcommand=NotApplicable
+ZZ_SELECT_TARGET head=puts offset=137 registered=Some(Generic)
+ZZ_REGISTERED head=return offset=51 descriptor=true facts_native=true subcommand=NotApplicable
+ZZ_SELECT_TARGET head=return offset=51 registered=Some(Inline { operation: StructuredLowering(Return), guard: BeforeArguments })
+ZZ_REGISTERED head=return offset=51 descriptor=true facts_native=true subcommand=NotApplicable
+ZZ_SELECT_TARGET head=return offset=51 registered=Some(Inline { operation: StructuredLowering(Return), guard: BeforeArguments })
+ZZ_COMMAND ["return", "A"] ns=Authored("::a") opaque_before=false opaque_after=false abrupt=[Return(ReturnCompletionRoute { eventual_code: Ok, remaining_level: 1 })]
+ZZ_COMMAND ["foo"] ns=Authored("::b") opaque_before=false opaque_after=false abrupt=[]
+ZZ_COMMAND ["puts", "[foo]"] ns=Authored("::b") opaque_before=false opaque_after=false abrupt=[Unknown]
+ZZ_UNCLOSED ["namespace", "eval", "b", "proc foo {} {return B}; namespace import -force ::a::*; puts [foo]"] transitions=Declared(StateTransitions { facts: [StateTransitionFact { transition: Namespace(Ensure { namespace: Named(LocatedLiteral { value: "b", argument_index: 1 }) }), commit: MayCommitBeforeAbruptCompletion }] }) kind=Builtin reg=true roles=true sub=Exact { spelling: "eval", canonical_name: "eval" } cb=CallbackEffect { kinds: CallbackKinds(2), reentrancy: CurrentInterpreter } ctm=false traits=Traits(618970038100411735251353666)
+ZZ_COMMAND ["namespace", "eval", "b", "proc foo {} {return B}; namespace import -force ::a::*; puts [foo]"] ns=Authored("::") opaque_before=false opaque_after=false abrupt=[Tcl(Error), Unknown]
+ZZ_UNKNOWN_HANDLER unknown=false absent=false targets=[("::unknown", true, Builtin, 0, false)]
+ZZ_COMPLETED_WORLD complete=false closed=false unclosed=true opaque=false unknown_handler=true step=false observed=false routes=[Tcl(Error), Unknown]
+ZZ_REGISTERED head=return offset=51 descriptor=true facts_native=true subcommand=NotApplicable
+ZZ_SELECT_TARGET head=return offset=51 registered=Some(Inline { operation: StructuredLowering(Return), guard: BeforeArguments })
+ZZ_REGISTERED head=return offset=51 descriptor=true facts_native=true subcommand=NotApplicable
+ZZ_SELECT_TARGET head=return offset=51 registered=Some(Inline { operation: StructuredLowering(Return), guard: BeforeArguments })
+ZZ_COMMAND ["return", "A"] ns=Authored("::a") opaque_before=false opaque_after=false abrupt=[Return(ReturnCompletionRoute { eventual_code: Ok, remaining_level: 1 })]
+ZZ_REGISTERED head=namespace offset=18 descriptor=true facts_native=true subcommand=Exact { spelling: "export", canonical_name: "export" }
+ZZ_SELECT_TARGET head=namespace offset=18 registered=Some(NamedInvocation { lookup: NativeCompilerImplementationLookup { ensemble: "::namespace", member: "export", slot: "::tcl::namespace::export", command: "namespace", prepended: ["export"] }, arguments_from: 1, protocol: Direct })
+ZZ_REGISTERED head=proc offset=38 descriptor=true facts_native=true subcommand=NotApplicable
+ZZ_SELECT_TARGET head=proc offset=38 registered=Some(Generic)
+ZZ_REGISTERED head=namespace offset=18 descriptor=true facts_native=true subcommand=Exact { spelling: "export", canonical_name: "export" }
+ZZ_SELECT_TARGET head=namespace offset=18 registered=Some(NamedInvocation { lookup: NativeCompilerImplementationLookup { ensemble: "::namespace", member: "export", slot: "::tcl::namespace::export", command: "namespace", prepended: ["export"] }, arguments_from: 1, protocol: Direct })
+ZZ_COMMAND ["namespace", "export", "*"] ns=Authored("::a") opaque_before=false opaque_after=false abrupt=[]
+ZZ_REGISTERED head=proc offset=38 descriptor=true facts_native=true subcommand=NotApplicable
+ZZ_SELECT_TARGET head=proc offset=38 registered=Some(Generic)
+ZZ_COMMAND ["proc", "foo", "", "return A"] ns=Authored("::a") opaque_before=false opaque_after=false abrupt=[]
+ZZ_UNCLOSED ["namespace", "eval", "a", "namespace export *; proc foo {} {return A}"] transitions=Declared(StateTransitions { facts: [StateTransitionFact { transition: Namespace(Ensure { namespace: Named(LocatedLiteral { value: "a", argument_index: 1 }) }), commit: MayCommitBeforeAbruptCompletion }] }) kind=Builtin reg=true roles=true sub=Exact { spelling: "eval", canonical_name: "eval" } cb=CallbackEffect { kinds: CallbackKinds(2), reentrancy: CurrentInterpreter } ctm=false traits=Traits(618970038100411735251353666)
+ZZ_COMMAND ["namespace", "eval", "a", "namespace export *; proc foo {} {return A}"] ns=Authored("::") opaque_before=false opaque_after=false abrupt=[Tcl(Error)]
+ZZ_REGISTERED head=proc offset=81 descriptor=true facts_native=true subcommand=NotApplicable
+ZZ_SELECT_TARGET head=proc offset=81 registered=Some(Generic)
+ZZ_REGISTERED head=namespace offset=105 descriptor=true facts_native=true subcommand=Exact { spelling: "import", canonical_name: "import" }
+ZZ_SELECT_TARGET head=namespace offset=105 registered=Some(NamedInvocation { lookup: NativeCompilerImplementationLookup { ensemble: "::namespace", member: "import", slot: "::tcl::namespace::import", command: "namespace", prepended: ["import"] }, arguments_from: 1, protocol: Direct })
+ZZ_REGISTERED head=puts offset=137 descriptor=true facts_native=true subcommand=NotApplicable
+ZZ_SELECT_TARGET head=puts offset=137 registered=Some(Generic)
+ZZ_REGISTERED head=proc offset=81 descriptor=true facts_native=true subcommand=NotApplicable
+ZZ_SELECT_TARGET head=proc offset=81 registered=Some(Generic)
+ZZ_COMMAND ["proc", "foo", "", "return B"] ns=Authored("::b") opaque_before=false opaque_after=false abrupt=[]
+ZZ_REGISTERED head=namespace offset=105 descriptor=true facts_native=true subcommand=Exact { spelling: "import", canonical_name: "import" }
+ZZ_SELECT_TARGET head=namespace offset=105 registered=Some(NamedInvocation { lookup: NativeCompilerImplementationLookup { ensemble: "::namespace", member: "import", slot: "::tcl::namespace::import", command: "namespace", prepended: ["import"] }, arguments_from: 1, protocol: Direct })
+ZZ_UNCLOSED ["namespace", "import", "-force", "::a::*"] transitions=Declared(StateTransitions { facts: [StateTransitionFact { transition: Namespace(Import { namespace: Current, force: Some(true), patterns: [LocatedLiteral { value: "::a::*", argument_index: 1 }] }), commit: MayCommitBeforeAbruptCompletion }] }) kind=Builtin reg=true roles=true sub=Exact { spelling: "import", canonical_name: "import" } cb=CallbackEffect { kinds: CallbackKinds(0), reentrancy: Never } ctm=false traits=Traits(587438276395139138)
+ZZ_COMMAND ["namespace", "import", "-force", "::a::*"] ns=Authored("::b") opaque_before=false opaque_after=false abrupt=[Unknown]
+ZZ_REGISTERED head=puts offset=137 descriptor=true facts_native=true subcommand=NotApplicable
+ZZ_SELECT_TARGET head=puts offset=137 registered=Some(Generic)
+ZZ_REGISTERED head=return offset=51 descriptor=true facts_native=true subcommand=NotApplicable
+ZZ_SELECT_TARGET head=return offset=51 registered=Some(Inline { operation: StructuredLowering(Return), guard: BeforeArguments })
+ZZ_REGISTERED head=return offset=51 descriptor=true facts_native=true subcommand=NotApplicable
+ZZ_SELECT_TARGET head=return offset=51 registered=Some(Inline { operation: StructuredLowering(Return), guard: BeforeArguments })
+ZZ_COMMAND ["return", "A"] ns=Authored("::a") opaque_before=false opaque_after=false abrupt=[Return(ReturnCompletionRoute { eventual_code: Ok, remaining_level: 1 })]
+ZZ_COMMAND ["foo"] ns=Authored("::b") opaque_before=false opaque_after=false abrupt=[]
+ZZ_COMMAND ["puts", "[foo]"] ns=Authored("::b") opaque_before=false opaque_after=false abrupt=[Unknown]
+ZZ_UNCLOSED ["namespace", "eval", "b", "proc foo {} {return B}; namespace import -force ::a::*; puts [foo]"] transitions=Declared(StateTransitions { facts: [StateTransitionFact { transition: Namespace(Ensure { namespace: Named(LocatedLiteral { value: "b", argument_index: 1 }) }), commit: MayCommitBeforeAbruptCompletion }] }) kind=Builtin reg=true roles=true sub=Exact { spelling: "eval", canonical_name: "eval" } cb=CallbackEffect { kinds: CallbackKinds(2), reentrancy: CurrentInterpreter } ctm=false traits=Traits(618970038100411735251353666)
+ZZ_COMMAND ["namespace", "eval", "b", "proc foo {} {return B}; namespace import -force ::a::*; puts [foo]"] ns=Authored("::") opaque_before=false opaque_after=false abrupt=[Tcl(Error), Unknown]
+ZZ_UNKNOWN_HANDLER unknown=false absent=false targets=[("::unknown", true, Builtin, 0, false)]
+ZZ_COMPLETED_WORLD complete=false closed=false unclosed=true opaque=false unknown_handler=true step=false observed=false routes=[Tcl(Error), Unknown]
+ZZ_REGISTERED head=return offset=51 descriptor=true facts_native=true subcommand=NotApplicable
+ZZ_SELECT_TARGET head=return offset=51 registered=Some(Inline { operation: StructuredLowering(Return), guard: BeforeArguments })
+ZZ_REGISTERED head=return offset=51 descriptor=true facts_native=true subcommand=NotApplicable
+ZZ_SELECT_TARGET head=return offset=51 registered=Some(Inline { operation: StructuredLowering(Return), guard: BeforeArguments })
+ZZ_COMMAND ["return", "A"] ns=Authored("::a") opaque_before=false opaque_after=false abrupt=[Return(ReturnCompletionRoute { eventual_code: Ok, remaining_level: 1 })]
+ZZ_RESULT "namespace eval a {namespace export *; proc foo {} {return A}}; namespace eval b {proc foo {} {return B}; namespace import -force ::a::*; puts [foo]}\n" ok=true
+ZZ_WORLD false
+ZZ_ROW namespace at=0 input=true lookup=true reference=Some(SourceCommandReference { slot: None, original_slot: Some((CommandSlot { namespace: ByteNamespacePath([]), simple: NameBytes([110, 97, 109, 101, 115, 112, 97, 99, 101]) }, NamePolicyProtocol { recipe: C(V8_6), authority: AuthoredSimulat
+ZZ_ROW namespace at=18 input=true lookup=true reference=Some(SourceCommandReference { slot: None, original_slot: Some((CommandSlot { namespace: ByteNamespacePath([]), simple: NameBytes([110, 97, 109, 101, 115, 112, 97, 99, 101]) }, NamePolicyProtocol { recipe: C(V8_6), authority: AuthoredSimulat
+ZZ_ROW proc at=38 input=true lookup=true reference=Some(SourceCommandReference { slot: None, original_slot: Some((CommandSlot { namespace: ByteNamespacePath([]), simple: NameBytes([112, 114, 111, 99]) }, NamePolicyProtocol { recipe: C(V8_6), authority: AuthoredSimulation })), binding: Direc
+ZZ_ROW return at=51 input=true lookup=true reference=Some(SourceCommandReference { slot: None, original_slot: Some((CommandSlot { namespace: ByteNamespacePath([]), simple: NameBytes([114, 101, 116, 117, 114, 110]) }, NamePolicyProtocol { recipe: C(V8_6), authority: AuthoredSimulation })), bin
+ZZ_ROW namespace at=63 input=true lookup=true reference=Some(SourceCommandReference { slot: None, original_slot: Some((CommandSlot { namespace: ByteNamespacePath([]), simple: NameBytes([110, 97, 109, 101, 115, 112, 97, 99, 101]) }, NamePolicyProtocol { recipe: C(V8_6), authority: AuthoredSimulat
+ZZ_ROW proc at=81 input=true lookup=true reference=Some(SourceCommandReference { slot: None, original_slot: Some((CommandSlot { namespace: ByteNamespacePath([]), simple: NameBytes([112, 114, 111, 99]) }, NamePolicyProtocol { recipe: C(V8_6), authority: AuthoredSimulation })), binding: Direc
+ZZ_ROW return at=94 input=false lookup=false reference=None
+ZZ_ROW namespace at=105 input=true lookup=true reference=Some(SourceCommandReference { slot: None, original_slot: Some((CommandSlot { namespace: ByteNamespacePath([]), simple: NameBytes([110, 97, 109, 101, 115, 112, 97, 99, 101]) }, NamePolicyProtocol { recipe: C(V8_6), authority: AuthoredSimulat
+ZZ_ROW puts at=137 input=true lookup=true reference=Some(SourceCommandReference { slot: None, original_slot: Some((CommandSlot { namespace: ByteNamespacePath([]), simple: NameBytes([112, 117, 116, 115]) }, NamePolicyProtocol { recipe: C(V8_6), authority: AuthoredSimulation })), binding: Dire
+ZZ_ROW foo at=143 input=true lookup=false reference=Some(SourceCommandReference { slot: None, original_slot: Some((CommandSlot { namespace: ByteNamespacePath([NameBytes([98])]), simple: NameBytes([102, 111, 111]) }, NamePolicyProtocol { recipe: C(V8_6), authority: AuthoredSimulation })), bin
+ZZ_REGISTERED head=oo::class offset=21 descriptor=true facts_native=true subcommand=Exact { spelling: "create", canonical_name: "create" }
+ZZ_SELECT_TARGET head=oo::class offset=21 registered=Some(Generic)
+ZZ_REGISTERED head=oo::class offset=21 descriptor=true facts_native=true subcommand=Exact { spelling: "create", canonical_name: "create" }
+ZZ_SELECT_TARGET head=oo::class offset=21 registered=Some(Generic)
+ZZ_COMMAND ["oo::class", "create", "C", ""] ns=Authored("::a") opaque_before=false opaque_after=false abrupt=[]
+ZZ_COMMAND ["C", "create", "rex"] ns=Authored("::a") opaque_before=false opaque_after=false abrupt=[]
+ZZ_COMMAND ["namespace", "eval", "::a", " oo::class create C {}; C create rex "] ns=Authored("::") opaque_before=false opaque_after=false abrupt=[]
+ZZ_COMMAND ["rex", "destroy"] ns=Authored("::a") opaque_before=false opaque_after=true abrupt=[Unknown]
+ZZ_UNCLOSED ["namespace", "eval", "::a", " rex destroy "] transitions=Declared(StateTransitions { facts: [StateTransitionFact { transition: Namespace(Ensure { namespace: Named(LocatedLiteral { value: "::a", argument_index: 1 }) }), commit: MayCommitBeforeAbruptCompletion }] }) kind=Builtin reg=true roles=true sub=Exact { spelling: "eval", canonical_name: "eval" } cb=CallbackEffect { kinds: CallbackKinds(2), reentrancy: CurrentInterpreter } ctm=false traits=Traits(618970038100411735251353666)
+ZZ_COMMAND ["namespace", "eval", "::a", " rex destroy "] ns=Authored("::") opaque_before=false opaque_after=true abrupt=[Unknown]
+ZZ_UNKNOWN_HANDLER unknown=true absent=true targets=[]
+ZZ_COMPLETED_WORLD complete=false closed=false unclosed=true opaque=true unknown_handler=false step=false observed=false routes=[Unknown]
+ZZ_REGISTERED head=oo::class offset=21 descriptor=true facts_native=true subcommand=Exact { spelling: "create", canonical_name: "create" }
+ZZ_SELECT_TARGET head=oo::class offset=21 registered=Some(Generic)
+ZZ_REGISTERED head=oo::class offset=21 descriptor=true facts_native=true subcommand=Exact { spelling: "create", canonical_name: "create" }
+ZZ_SELECT_TARGET head=oo::class offset=21 registered=Some(Generic)
+ZZ_COMMAND ["oo::class", "create", "C", ""] ns=Authored("::a") opaque_before=false opaque_after=false abrupt=[]
+ZZ_COMMAND ["C", "create", "rex"] ns=Authored("::a") opaque_before=false opaque_after=false abrupt=[]
+ZZ_COMMAND ["namespace", "eval", "::a", " oo::class create C {}; C create rex "] ns=Authored("::") opaque_before=false opaque_after=false abrupt=[]
+ZZ_COMMAND ["rex", "destroy"] ns=Authored("::a") opaque_before=false opaque_after=true abrupt=[Unknown]
+ZZ_UNCLOSED ["namespace", "eval", "::a", " rex destroy "] transitions=Declared(StateTransitions { facts: [StateTransitionFact { transition: Namespace(Ensure { namespace: Named(LocatedLiteral { value: "::a", argument_index: 1 }) }), commit: MayCommitBeforeAbruptCompletion }] }) kind=Builtin reg=true roles=true sub=Exact { spelling: "eval", canonical_name: "eval" } cb=CallbackEffect { kinds: CallbackKinds(2), reentrancy: CurrentInterpreter } ctm=false traits=Traits(618970038100411735251353666)
+ZZ_COMMAND ["namespace", "eval", "::a", " rex destroy "] ns=Authored("::") opaque_before=false opaque_after=true abrupt=[Unknown]
+ZZ_UNKNOWN_HANDLER unknown=true absent=true targets=[]
+ZZ_COMPLETED_WORLD complete=false closed=false unclosed=true opaque=true unknown_handler=false step=false observed=false routes=[Unknown]
+ZZ_RESULT "namespace eval ::a { oo::class create C {}; C create rex }\nnamespace eval ::a { rex destroy }\n" ok=true
+ZZ_WORLD false
+ZZ_ROW namespace at=0 input=true lookup=true reference=Some(SourceCommandReference { slot: None, original_slot: Some((CommandSlot { namespace: ByteNamespacePath([]), simple: NameBytes([110, 97, 109, 101, 115, 112, 97, 99, 101]) }, NamePolicyProtocol { recipe: C(V8_6), authority: AuthoredSimulat
+ZZ_ROW oo::class at=21 input=true lookup=true reference=Some(SourceCommandReference { slot: None, original_slot: Some((CommandSlot { namespace: ByteNamespacePath([NameBytes([111, 111])]), simple: NameBytes([99, 108, 97, 115, 115]) }, NamePolicyProtocol { recipe: C(V8_6), authority: AuthoredSimul
+ZZ_ROW C at=44 input=true lookup=true reference=Some(SourceCommandReference { slot: None, original_slot: Some((CommandSlot { namespace: ByteNamespacePath([NameBytes([97])]), simple: NameBytes([67]) }, NamePolicyProtocol { recipe: C(V8_6), authority: AuthoredSimulation })), binding: Direc
+ZZ_ROW namespace at=59 input=true lookup=true reference=Some(SourceCommandReference { slot: None, original_slot: Some((CommandSlot { namespace: ByteNamespacePath([]), simple: NameBytes([110, 97, 109, 101, 115, 112, 97, 99, 101]) }, NamePolicyProtocol { recipe: C(V8_6), authority: AuthoredSimulat
+ZZ_ROW rex at=80 input=true lookup=true reference=Some(SourceCommandReference { slot: None, original_slot: Some((CommandSlot { namespace: ByteNamespacePath([NameBytes([97])]), simple: NameBytes([114, 101, 120]) }, NamePolicyProtocol { recipe: C(V8_6), authority: AuthoredSimulation })), bin
+ZZ_REGISTERED head=oo::class offset=20 descriptor=true facts_native=true subcommand=Exact { spelling: "create", canonical_name: "create" }
+ZZ_SELECT_TARGET head=oo::class offset=20 registered=Some(Generic)
+ZZ_REGISTERED head=oo::class offset=20 descriptor=true facts_native=true subcommand=Exact { spelling: "create", canonical_name: "create" }
+ZZ_SELECT_TARGET head=oo::class offset=20 registered=Some(Generic)
+ZZ_COMMAND ["oo::class", "create", "C", ""] ns=Authored("::lib") opaque_before=false opaque_after=false abrupt=[]
+ZZ_COMMAND ["namespace", "eval", "lib", "oo::class create C {}"] ns=Authored("::") opaque_before=false opaque_after=false abrupt=[]
+ZZ_REGISTERED head=namespace offset=64 descriptor=true facts_native=true subcommand=Exact { spelling: "path", canonical_name: "path" }
+ZZ_SELECT_TARGET head=namespace offset=64 registered=Some(NamedInvocation { lookup: NativeCompilerImplementationLookup { ensemble: "::namespace", member: "path", slot: "::tcl::namespace::path", command: "namespace", prepended: ["path"] }, arguments_from: 1, protocol: Direct })
+ZZ_REGISTERED head=namespace offset=64 descriptor=true facts_native=true subcommand=Exact { spelling: "path", canonical_name: "path" }
+ZZ_SELECT_TARGET head=namespace offset=64 registered=Some(NamedInvocation { lookup: NativeCompilerImplementationLookup { ensemble: "::namespace", member: "path", slot: "::tcl::namespace::path", command: "namespace", prepended: ["path"] }, arguments_from: 1, protocol: Direct })
+ZZ_UNCLOSED ["namespace", "path", "::lib"] transitions=Declared(StateTransitions { facts: [StateTransitionFact { transition: Namespace(SetPath { namespace: Current, path: LocatedLiteral { value: "::lib", argument_index: 0 } }), commit: OnOkOnly }] }) kind=Builtin reg=true roles=true sub=Exact { spelling: "path", canonical_name: "path" } cb=CallbackEffect { kinds: CallbackKinds(0), reentrancy: Never } ctm=false traits=Traits(10977524091715650)
+ZZ_COMMAND ["namespace", "path", "::lib"] ns=Authored("::app") opaque_before=false opaque_after=false abrupt=[Unknown]
+ZZ_COMMAND ["C", "new"] ns=Authored("::app") opaque_before=false opaque_after=false abrupt=[]
+ZZ_UNCLOSED ["namespace", "eval", "app", "namespace path ::lib; C new"] transitions=Declared(StateTransitions { facts: [StateTransitionFact { transition: Namespace(Ensure { namespace: Named(LocatedLiteral { value: "app", argument_index: 1 }) }), commit: MayCommitBeforeAbruptCompletion }] }) kind=Builtin reg=true roles=true sub=Exact { spelling: "eval", canonical_name: "eval" } cb=CallbackEffect { kinds: CallbackKinds(2), reentrancy: CurrentInterpreter } ctm=false traits=Traits(618970038100411735251353666)
+ZZ_COMMAND ["namespace", "eval", "app", "namespace path ::lib; C new"] ns=Authored("::") opaque_before=false opaque_after=false abrupt=[Tcl(Error), Unknown]
+ZZ_UNKNOWN_HANDLER unknown=false absent=false targets=[("::unknown", true, Builtin, 0, false)]
+ZZ_COMPLETED_WORLD complete=false closed=false unclosed=true opaque=false unknown_handler=true step=false observed=false routes=[Tcl(Error), Unknown]
+ZZ_REGISTERED head=oo::class offset=20 descriptor=true facts_native=true subcommand=Exact { spelling: "create", canonical_name: "create" }
+ZZ_SELECT_TARGET head=oo::class offset=20 registered=Some(Generic)
+ZZ_REGISTERED head=oo::class offset=20 descriptor=true facts_native=true subcommand=Exact { spelling: "create", canonical_name: "create" }
+ZZ_SELECT_TARGET head=oo::class offset=20 registered=Some(Generic)
+ZZ_COMMAND ["oo::class", "create", "C", ""] ns=Authored("::lib") opaque_before=false opaque_after=false abrupt=[]
+ZZ_COMMAND ["namespace", "eval", "lib", "oo::class create C {}"] ns=Authored("::") opaque_before=false opaque_after=false abrupt=[]
+ZZ_REGISTERED head=namespace offset=64 descriptor=true facts_native=true subcommand=Exact { spelling: "path", canonical_name: "path" }
+ZZ_SELECT_TARGET head=namespace offset=64 registered=Some(NamedInvocation { lookup: NativeCompilerImplementationLookup { ensemble: "::namespace", member: "path", slot: "::tcl::namespace::path", command: "namespace", prepended: ["path"] }, arguments_from: 1, protocol: Direct })
+ZZ_REGISTERED head=namespace offset=64 descriptor=true facts_native=true subcommand=Exact { spelling: "path", canonical_name: "path" }
+ZZ_SELECT_TARGET head=namespace offset=64 registered=Some(NamedInvocation { lookup: NativeCompilerImplementationLookup { ensemble: "::namespace", member: "path", slot: "::tcl::namespace::path", command: "namespace", prepended: ["path"] }, arguments_from: 1, protocol: Direct })
+ZZ_UNCLOSED ["namespace", "path", "::lib"] transitions=Declared(StateTransitions { facts: [StateTransitionFact { transition: Namespace(SetPath { namespace: Current, path: LocatedLiteral { value: "::lib", argument_index: 0 } }), commit: OnOkOnly }] }) kind=Builtin reg=true roles=true sub=Exact { spelling: "path", canonical_name: "path" } cb=CallbackEffect { kinds: CallbackKinds(0), reentrancy: Never } ctm=false traits=Traits(10977524091715650)
+ZZ_COMMAND ["namespace", "path", "::lib"] ns=Authored("::app") opaque_before=false opaque_after=false abrupt=[Unknown]
+ZZ_COMMAND ["C", "new"] ns=Authored("::app") opaque_before=false opaque_after=false abrupt=[]
+ZZ_UNCLOSED ["namespace", "eval", "app", "namespace path ::lib; C new"] transitions=Declared(StateTransitions { facts: [StateTransitionFact { transition: Namespace(Ensure { namespace: Named(LocatedLiteral { value: "app", argument_index: 1 }) }), commit: MayCommitBeforeAbruptCompletion }] }) kind=Builtin reg=true roles=true sub=Exact { spelling: "eval", canonical_name: "eval" } cb=CallbackEffect { kinds: CallbackKinds(2), reentrancy: CurrentInterpreter } ctm=false traits=Traits(618970038100411735251353666)
+ZZ_COMMAND ["namespace", "eval", "app", "namespace path ::lib; C new"] ns=Authored("::") opaque_before=false opaque_after=false abrupt=[Tcl(Error), Unknown]
+ZZ_UNKNOWN_HANDLER unknown=false absent=false targets=[("::unknown", true, Builtin, 0, false)]
+ZZ_COMPLETED_WORLD complete=false closed=false unclosed=true opaque=false unknown_handler=true step=false observed=false routes=[Tcl(Error), Unknown]
+ZZ_COMMAND ["oo::class", "create", "C", ""] ns=Authored("::lib") opaque_before=false opaque_after=true abrupt=[Unknown]
+ZZ_RESULT "namespace eval lib {oo::class create C {}}; namespace eval app {namespace path ::lib; C new}" ok=true
+ZZ_WORLD false
+ZZ_ROW namespace at=0 input=true lookup=true reference=Some(SourceCommandReference { slot: None, original_slot: Some((CommandSlot { namespace: ByteNamespacePath([]), simple: NameBytes([110, 97, 109, 101, 115, 112, 97, 99, 101]) }, NamePolicyProtocol { recipe: C(V8_6), authority: AuthoredSimulat
+ZZ_ROW oo::class at=20 input=true lookup=true reference=Some(SourceCommandReference { slot: None, original_slot: Some((CommandSlot { namespace: ByteNamespacePath([NameBytes([111, 111])]), simple: NameBytes([99, 108, 97, 115, 115]) }, NamePolicyProtocol { recipe: C(V8_6), authority: AuthoredSimul
+ZZ_ROW namespace at=44 input=true lookup=true reference=Some(SourceCommandReference { slot: None, original_slot: Some((CommandSlot { namespace: ByteNamespacePath([]), simple: NameBytes([110, 97, 109, 101, 115, 112, 97, 99, 101]) }, NamePolicyProtocol { recipe: C(V8_6), authority: AuthoredSimulat
+ZZ_ROW namespace at=64 input=true lookup=true reference=Some(SourceCommandReference { slot: None, original_slot: Some((CommandSlot { namespace: ByteNamespacePath([]), simple: NameBytes([110, 97, 109, 101, 115, 112, 97, 99, 101]) }, NamePolicyProtocol { recipe: C(V8_6), authority: AuthoredSimulat
+ZZ_ROW C at=86 input=true lookup=true reference=Some(SourceCommandReference { slot: None, original_slot: Some((CommandSlot { namespace: ByteNamespacePath([NameBytes([108, 105, 98])]), simple: NameBytes([67]) }, NamePolicyProtocol { recipe: C(V8_6), authority: AuthoredSimulation })), bind
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 10486 filtered out; finished in 22.13s

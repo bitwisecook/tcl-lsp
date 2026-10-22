@@ -1,0 +1,41 @@
+{
+  "actual_selected": 1,
+  "artifacts": [
+    {
+      "age_seconds": 542.4925909042358,
+      "mtime_utc": "2026-10-22T19:15:58.640841+00:00",
+      "path": "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/tcl_compiler-ef22ef87d0bd65a7",
+      "retained": true,
+      "sha256": "d7d3fd6be30e1677717d9031d69961190b490f6f0fc7ad35941348c36be35cc6"
+    }
+  ],
+  "cargo_wrapper_exit": 101,
+  "command": [
+    "cargo",
+    "test",
+    "--locked",
+    "-p",
+    "tcl-compiler",
+    "--lib",
+    "command_binding::conditional_expression_tests::conditional_expression_template_retains_grammar_without_actual_entry",
+    "--",
+    "--exact",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "expected_selected": 1,
+  "label": "g4-regress-conditional_expression_template_retains_grammar_without_actual_entry",
+  "log_at_cap": false,
+  "providers_stable": true,
+  "selector": "command_binding::conditional_expression_tests::conditional_expression_template_retains_grammar_without_actual_entry",
+  "source_stable": true,
+  "summaries": [
+    [
+      "FAILED",
+      "0",
+      "1",
+      "0"
+    ]
+  ],
+  "warnings": true
+}

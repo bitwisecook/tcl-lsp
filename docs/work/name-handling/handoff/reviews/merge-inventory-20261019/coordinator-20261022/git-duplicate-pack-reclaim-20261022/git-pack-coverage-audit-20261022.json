@@ -1,0 +1,159 @@
+{
+  "scope": "read-only Git pack/index coverage audit; no pack files changed",
+  "free_space_observed_gib": 6.7,
+  "alternates_graph": {
+    "active": "/workspace/naming-migration-active/tcl-lsp/.git/objects -> /workspace/naming-migration/tcl-lsp/.git/objects",
+    "publisher": "/workspace/naming-migration-publish/tcl-lsp/.git/objects -> /workspace/naming-migration-active/tcl-lsp/.git/objects",
+    "preload": "no alternates observed"
+  },
+  "coverage_method": "git show-index on local .idx files; exact sorted object-ID set comparisons; no decompression of multi-GB packs; not pack integrity/reachability verification",
+  "preload_pack": {
+    "path": "/workspace/naming-migration/tcl-lsp/.git/objects/pack/pack-f7bb4166f901f044ce97be9f58c41479b27afcd0.pack",
+    "bytes": 6346032106,
+    "oid_count": 86849,
+    "index_sha256": "9a05045307e0e5134b233e041a4f937ebd7a1a91e4035d7c98b13dda9715263c",
+    "sorted_oid_set_sha256": "a70ff8a1107edbf87032735892e207d4194fd40be8bff443ff3a1fdc5c5a1d3e"
+  },
+  "active_duplicate_candidate_packs": [
+    {
+      "repo": "active",
+      "stem": "pack-967ba4f0abab61d8947ebeb463aef7d153b0888f",
+      "pack_bytes": 1067071057,
+      "idx_bytes": 1500024,
+      "promisor_exists": true,
+      "oid_count": 53534,
+      "old_preload_intersection": 53534,
+      "unique_vs_old_preload": 0,
+      "idx_sha256": "f526c93e0f6591e85590da6c0d5ae772eac33d75a93133c01c40e9279213cb42",
+      "sorted_oid_set_sha256": "b10720ec5f12a14294a4302f058c44b7b4a1bc711dad6706f6711d4c6414c589"
+    },
+    {
+      "repo": "active",
+      "stem": "pack-db32d2f939f3e3d0205f151dd6fca9fc39c84af5",
+      "pack_bytes": 1073746601,
+      "idx_bytes": 1572068,
+      "promisor_exists": true,
+      "oid_count": 56107,
+      "old_preload_intersection": 56107,
+      "unique_vs_old_preload": 0,
+      "idx_sha256": "07efb659433d984a4d38a184f7c7ce64455d770c737059abee361c0dbe6682f1",
+      "sorted_oid_set_sha256": "7fa452f8d377b4413c733b9e0e9a9c0e29575ff449cd7282f7ccfeecc7b17c2e"
+    },
+    {
+      "repo": "active",
+      "stem": "pack-6f34cc9f7e7fac233596626373ed0d4dfc749c5c",
+      "pack_bytes": 1180615657,
+      "idx_bytes": 1945084,
+      "promisor_exists": true,
+      "oid_count": 69429,
+      "old_preload_intersection": 69429,
+      "unique_vs_old_preload": 0,
+      "idx_sha256": "252a9a7b8f991fd0b52d8cc0b60acbda7e7612a0885f7859445ea7d47c9194a8",
+      "sorted_oid_set_sha256": "9d7223cfe4a87740b6e02d1f17ab13bf51ad1b80b118f268ad03f6dde28049e8"
+    },
+    {
+      "repo": "active",
+      "stem": "pack-0078b635fe413739f1428ad5d94390bffae11336",
+      "pack_bytes": 1172529069,
+      "idx_bytes": 1885080,
+      "promisor_exists": true,
+      "oid_count": 67286,
+      "old_preload_intersection": 67286,
+      "unique_vs_old_preload": 0,
+      "idx_sha256": "d2ded9f027ca4d7a30f7233da0a7a8d40accf5a1ded5d53c72dd8cee29c341bd",
+      "sorted_oid_set_sha256": "d824b85b129c617ac244b79eb78b3eba5f6b45b8671b46d5b0f2fa0342829514"
+    }
+  ],
+  "candidate_pack_bytes": 4493962384,
+  "candidate_index_bytes": 6902256,
+  "candidate_total_bytes": 4500864640,
+  "active_unique_pack_to_keep": {
+    "stem": "pack-d0d247f407f01fbbe2113d44aab91d09e0805a3e",
+    "pack_bytes": 5274429,
+    "idx_bytes": 537972,
+    "oid_count": 19175,
+    "covered_by_preload": 0,
+    "unique_vs_preload": 19175
+  },
+  "publisher_large_packs": [
+    {
+      "repo": "publisher",
+      "stem": "pack-10762b97f49e5f51f709e9ef255d689957743d9e",
+      "pack_bytes": 720424142,
+      "idx_bytes": 1192556,
+      "oid_count": 42553,
+      "covered_by_active_plus_preload": 42553,
+      "unique_vs_active_plus_preload": 0,
+      "sorted_oid_set_sha256": "7d58d8b3a88ea093835cde35017a206b32d534aadf5d6f16bb783ca50369d7b7"
+    },
+    {
+      "repo": "publisher",
+      "stem": "pack-0e8e1722e7e9a5973d055c6e2f6444d05b06ab2c",
+      "pack_bytes": 1195071882,
+      "idx_bytes": 1970032,
+      "oid_count": 70320,
+      "covered_by_active_plus_preload": 69952,
+      "unique_vs_active_plus_preload": 368,
+      "sorted_oid_set_sha256": "c530ac9442bb561009db3755d2dbcfca70efa1db5831cdf784a09b99dee04040"
+    },
+    {
+      "repo": "publisher",
+      "stem": "pack-cd94ce2cbad80af28adb3adccdb6602a44378856",
+      "pack_bytes": 2890826474,
+      "idx_bytes": 52340,
+      "oid_count": 1825,
+      "covered_by_active_plus_preload": 1540,
+      "unique_vs_active_plus_preload": 285,
+      "sorted_oid_set_sha256": "86b236a40554c0472eefe1e0fd60a0ebadd56f72c56d61dcd03552bff55c5082"
+    }
+  ],
+  "safe_candidate_procedure_for_owner": "Do not delete anything based on this receipt alone. If root chooses reclaim, first pause all Git operations on active and publisher; re-run exact OID coverage comparing each candidate active pack index to the retained preload pack index; verify the acyclic alternates files remain unchanged and preload pack+index remain present/readable; then only root may remove the four specifically listed active .pack/.idx/.promisor triplets, preserving all other packs. Afterward, verify active and publisher object lookup for all refs/worktrees and status without allowing network lazy fetch. Never remove preload pack, active pack-d0d247..., or publisher packs with unique OIDs. No deletion was performed.",
+  "reachable_history_large_blobs_from_readonly_scan": {
+    "repository": "/workspace/naming-migration-publish/tcl-lsp",
+    "scope": "GIT_NO_LAZY_FETCH=1 git rev-list --objects --all across refs/history, followed by cat-file --batch-check; this is not a HEAD-only checkout inventory",
+    "reachable_objects_scanned": 93053,
+    "largest_blobs": [
+      {
+        "bytes": 101139656,
+        "oid": "8c89ce6e74c8a5ce20493eb4e6d366499630762c",
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen269/sealed-vm-image/pinned-vm269.elf"
+      },
+      {
+        "bytes": 94147631,
+        "oid": "ba483ba9870aaae7fe8543617c124dbe714437e6",
+        "path": "docs/design/analysis/name-resolution-proofs/manifest.json"
+      },
+      {
+        "bytes": 94147480,
+        "oid": "e7f9deb612e1c5a361bcbc13f74d21ceadfb9eff",
+        "path": "docs/design/analysis/name-resolution-proofs/manifest.json"
+      },
+      {
+        "bytes": 82790279,
+        "oid": "24432d7384ea16047ac8e58d0b8803834d2797f2",
+        "path": "experiments/name-handling/patterns/f5/answers/nh20261012native1/records.json"
+      },
+      {
+        "bytes": 67967345,
+        "oid": "9f76290c6abb0ee1d537dd6b717ae83b1c07b2a1",
+        "path": "docs/work/name-handling/handoff/ordinary-m12-complete-1546-and-permission-repairs.tar.gz"
+      },
+      {
+        "bytes": 56228488,
+        "oid": "72aa6b05a5ce74caaa4bffc90df0528327fc35f2",
+        "path": "docs/work/name-handling/handoff/repository-audit-progress-20261016T025923Z.tar.gz"
+      },
+      {
+        "bytes": 55175525,
+        "oid": "56a6c5636922e528f2ff1ae594e0d11459c9dbf5",
+        "path": "docs/work/name-handling/handoff/validation-runtime-8df-full174.tar.gz"
+      },
+      {
+        "bytes": 54263980,
+        "oid": "de687aeaa58f7bb8e18cf338a437193d67354736",
+        "path": "docs/work/name-handling/handoff/validation-vm-8df-full133.tar.gz"
+      }
+    ],
+    "interpretation_limit": "These are reachable through publisher refs/history, not proven present in the exact CI5204 HEAD tree. The HEAD-only ls-tree follow-up was cancelled on root request; no claim about checkout footprint."
+  }
+}

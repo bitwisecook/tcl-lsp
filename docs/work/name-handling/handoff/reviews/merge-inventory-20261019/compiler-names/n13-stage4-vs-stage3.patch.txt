@@ -1,0 +1,92 @@
+--- a/rust/tcl-compiler/src/command_binding/source_point_entry.rs
++++ b/rust/tcl-compiler/src/command_binding/source_point_entry.rs
+@@ -717,7 +717,7 @@
+             );
+             assert!(module.source_entry.native_entry.is_none());
+             assert!(module.source_entry.compiled_variable_provider.is_none());
+-            assert!(module.original_native_declaration_body_units.is_empty());
++            assert_eq!(module.original_native_declaration_body_units.len(), 0);
+         }
+         let mut bytecode = crate::lowering::Lowerer::with_config(registry, input.lexer_config())
+             .for_bytecode_backend();
+@@ -731,6 +731,65 @@
+             module.source_entry.native_compilation,
+             tcl_registry::native_compilation::NativeCompilationContext::default()
+         );
++    }
++
++    #[test]
++    fn inherited_child_unit_retains_the_actual_point_after_external_handles_drop() {
++        let source = "source child.tcl";
++        let parent = crate::analyser::Analyser::new().analyse(source, "tcl8.6");
++        let point = crate::registry_invocation::source_structure::original_project_source_load_at(
++            source, &parent, 0,
++        )
++        .unwrap()
++        .source_point_entry(&parent)
++        .unwrap();
++        let weak_payload = Arc::downgrade(&point.payload);
++        let weak_owner = Arc::downgrade(&point.payload.owner);
++        let input = point.input().clone();
++        let child_source = "proc run {} {return VALUE}";
++        let child = crate::analyser::Analyser::new()
++            .analyse_with_source_point_entry(child_source, "tcl8.6", &point)
++            .unwrap();
++        assert!(point.matches_child_analysis(&child));
++        let mut unit = child
++            .original_optimiser_source_unit(
++                child_source,
++                input.borrowed_context_registry().commands(),
++                None,
++            )
++            .unwrap();
++        assert!(Arc::ptr_eq(
++            &unit
++                .ir_module
++                .source_entry
++                .source_point_entry
++                .as_ref()
++                .unwrap()
++                .payload,
++            &point.payload,
++        ));
++        drop(child);
++        drop(point);
++        drop(parent);
++        let payload = weak_payload
++            .upgrade()
++            .expect("retained unit owns full point");
++        let owner = weak_owner
++            .upgrade()
++            .expect("retained point owns actual parent");
++        assert!(Arc::ptr_eq(&payload.owner, &owner));
++        let strong_before = Arc::strong_count(&payload);
++        // Count this exact field's strong ownership independently of any cache
++        // or other unit receipts that may also retain the same full payload.
++        let retained = unit
++            .ir_module
++            .source_entry
++            .source_point_entry
++            .take()
++            .unwrap();
++        assert!(Arc::ptr_eq(&retained.payload, &payload));
++        drop(retained);
++        assert_eq!(Arc::strong_count(&payload), strong_before - 1);
+     }
+ 
+     #[test]
+--- a/rust/tcl-compiler/src/registry_invocation/source_structure/source_load.rs
++++ b/rust/tcl-compiler/src/registry_invocation/source_structure/source_load.rs
+@@ -373,11 +373,7 @@
+             unit.ir_module.source_entry.native_compilation,
+             tcl_registry::native_compilation::NativeCompilationContext::default()
+         );
+-        assert!(
+-            unit.ir_module
+-                .original_native_declaration_body_units
+-                .is_empty()
+-        );
++        assert_eq!(unit.ir_module.original_native_declaration_body_units.len(), 0);
+         assert!(
+             child
+                 .original_optimiser_source_unit(

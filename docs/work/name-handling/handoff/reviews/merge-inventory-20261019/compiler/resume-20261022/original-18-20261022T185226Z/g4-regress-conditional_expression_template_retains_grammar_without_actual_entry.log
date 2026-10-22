@@ -1,0 +1,19 @@
+warning: method `native_argument_input` is never used
+  --> rust/tcl-compiler/src/analyser/original_definer.rs:79:19
+warning: `tcl-compiler` (lib) generated 1 warning
+    Finished `test` profile [unoptimized] target(s) in 0.39s
+     Running unittests src/lib.rs (target/debug/deps/tcl_compiler-ef22ef87d0bd65a7)
+running 1 test
+test command_binding::conditional_expression_tests::conditional_expression_template_retains_grammar_without_actual_entry ... 
+thread 'command_binding::conditional_expression_tests::conditional_expression_template_retains_grammar_without_actual_entry' (107805) panicked at rust/tcl-compiler/src/command_binding/conditional_expression_tests.rs:53:5:
+assertion `left == right` failed
+  left: Reached
+ right: Conditional
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 10486 filtered out; finished in 0.47s
+error: test failed, to rerun pass `-p tcl-compiler --lib`

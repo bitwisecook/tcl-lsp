@@ -1,10 +1,95 @@
 {
+  "compiled_list_head_.log.source-after.json": {
+    "bytes": 12722771,
+    "gzip": "source-manifests/d140ed20669e933a5b7380c9ded790d3f69d925406f4b1bf1d43daeb506c5eeb.json.gz",
+    "original_sha256": "d140ed20669e933a5b7380c9ded790d3f69d925406f4b1bf1d43daeb506c5eeb"
+  },
   "fp_rbs_15.log.source-after.json": {
     "bytes": 12722771,
     "gzip": "source-manifests/d140ed20669e933a5b7380c9ded790d3f69d925406f4b1bf1d43daeb506c5eeb.json.gz",
     "original_sha256": "d140ed20669e933a5b7380c9ded790d3f69d925406f4b1bf1d43daeb506c5eeb"
   },
+  "fp_sh_21.log.source-after.json": {
+    "bytes": 12722771,
+    "gzip": "source-manifests/d140ed20669e933a5b7380c9ded790d3f69d925406f4b1bf1d43daeb506c5eeb.json.gz",
+    "original_sha256": "d140ed20669e933a5b7380c9ded790d3f69d925406f4b1bf1d43daeb506c5eeb"
+  },
+  "fp_tnt_03.log.source-after.json": {
+    "bytes": 12722771,
+    "gzip": "source-manifests/d140ed20669e933a5b7380c9ded790d3f69d925406f4b1bf1d43daeb506c5eeb.json.gz",
+    "original_sha256": "d140ed20669e933a5b7380c9ded790d3f69d925406f4b1bf1d43daeb506c5eeb"
+  },
+  "g4-main.log.source-after.json": {
+    "bytes": 12722771,
+    "gzip": "source-manifests/d140ed20669e933a5b7380c9ded790d3f69d925406f4b1bf1d43daeb506c5eeb.json.gz",
+    "original_sha256": "d140ed20669e933a5b7380c9ded790d3f69d925406f4b1bf1d43daeb506c5eeb"
+  },
+  "g4-regress-conditional_expression_template_retains_grammar_without_actual_entry.log.source-after.json": {
+    "bytes": 12722771,
+    "gzip": "source-manifests/d140ed20669e933a5b7380c9ded790d3f69d925406f4b1bf1d43daeb506c5eeb.json.gz",
+    "original_sha256": "d140ed20669e933a5b7380c9ded790d3f69d925406f4b1bf1d43daeb506c5eeb"
+  },
+  "g4-regress-declaration_layout_keeps_its_original_table_without_a_compiler_visit.log.source-after.json": {
+    "bytes": 12722771,
+    "gzip": "source-manifests/d140ed20669e933a5b7380c9ded790d3f69d925406f4b1bf1d43daeb506c5eeb.json.gz",
+    "original_sha256": "d140ed20669e933a5b7380c9ded790d3f69d925406f4b1bf1d43daeb506c5eeb"
+  },
+  "g4-regress-original_immediate_body_namespace_keeps_actual_native_conditional_and_error_prefix.log.source-after.json": {
+    "bytes": 12722771,
+    "gzip": "source-manifests/d140ed20669e933a5b7380c9ded790d3f69d925406f4b1bf1d43daeb506c5eeb.json.gz",
+    "original_sha256": "d140ed20669e933a5b7380c9ded790d3f69d925406f4b1bf1d43daeb506c5eeb"
+  },
+  "g4-regress-original_namespace_import_keeps_the_source_declaration_allocation.log.source-after.json": {
+    "bytes": 12722771,
+    "gzip": "source-manifests/d140ed20669e933a5b7380c9ded790d3f69d925406f4b1bf1d43daeb506c5eeb.json.gz",
+    "original_sha256": "d140ed20669e933a5b7380c9ded790d3f69d925406f4b1bf1d43daeb506c5eeb"
+  },
+  "g4-regress-scoped_lifecycle_coverage_keeps_declared_issuer_frame_and_original_source.log.source-after.json": {
+    "bytes": 12722771,
+    "gzip": "source-manifests/d140ed20669e933a5b7380c9ded790d3f69d925406f4b1bf1d43daeb506c5eeb.json.gz",
+    "original_sha256": "d140ed20669e933a5b7380c9ded790d3f69d925406f4b1bf1d43daeb506c5eeb"
+  },
+  "g4-regress-scoped_nested_normalisation_keeps_original_world_frame_and_source.log.source-after.json": {
+    "bytes": 12722771,
+    "gzip": "source-manifests/d140ed20669e933a5b7380c9ded790d3f69d925406f4b1bf1d43daeb506c5eeb.json.gz",
+    "original_sha256": "d140ed20669e933a5b7380c9ded790d3f69d925406f4b1bf1d43daeb506c5eeb"
+  },
+  "g4-regress-scoped_procedure_equivalence_keeps_independent_world_and_completion_obligations.log.source-after.json": {
+    "bytes": 12722771,
+    "gzip": "source-manifests/d140ed20669e933a5b7380c9ded790d3f69d925406f4b1bf1d43daeb506c5eeb.json.gz",
+    "original_sha256": "d140ed20669e933a5b7380c9ded790d3f69d925406f4b1bf1d43daeb506c5eeb"
+  },
+  "g4-regress-selected_nested_normalisation_projects_actual_operand_and_command_source.log.source-after.json": {
+    "bytes": 12722771,
+    "gzip": "source-manifests/d140ed20669e933a5b7380c9ded790d3f69d925406f4b1bf1d43daeb506c5eeb.json.gz",
+    "original_sha256": "d140ed20669e933a5b7380c9ded790d3f69d925406f4b1bf1d43daeb506c5eeb"
+  },
+  "g4-zz.log.source-after.json": {
+    "bytes": 12722771,
+    "gzip": "source-manifests/d140ed20669e933a5b7380c9ded790d3f69d925406f4b1bf1d43daeb506c5eeb.json.gz",
+    "original_sha256": "d140ed20669e933a5b7380c9ded790d3f69d925406f4b1bf1d43daeb506c5eeb"
+  },
+  "original_cross_interp_script_reads_keep_the_tainted_command_word.log.source-after.json": {
+    "bytes": 12722771,
+    "gzip": "source-manifests/d140ed20669e933a5b7380c9ded790d3f69d925406f4b1bf1d43daeb506c5eeb.json.gz",
+    "original_sha256": "d140ed20669e933a5b7380c9ded790d3f69d925406f4b1bf1d43daeb506c5eeb"
+  },
+  "original_taint_operands_require_the_current_operation_and_original_child.log.source-after.json": {
+    "bytes": 12722771,
+    "gzip": "source-manifests/d140ed20669e933a5b7380c9ded790d3f69d925406f4b1bf1d43daeb506c5eeb.json.gz",
+    "original_sha256": "d140ed20669e933a5b7380c9ded790d3f69d925406f4b1bf1d43daeb506c5eeb"
+  },
+  "original_taint_read_inventory_keeps_array_index_and_nested_substitution_sites.log.source-after.json": {
+    "bytes": 12722771,
+    "gzip": "source-manifests/d140ed20669e933a5b7380c9ded790d3f69d925406f4b1bf1d43daeb506c5eeb.json.gz",
+    "original_sha256": "d140ed20669e933a5b7380c9ded790d3f69d925406f4b1bf1d43daeb506c5eeb"
+  },
   "source-before.json": {
+    "bytes": 12722771,
+    "gzip": "source-manifests/d140ed20669e933a5b7380c9ded790d3f69d925406f4b1bf1d43daeb506c5eeb.json.gz",
+    "original_sha256": "d140ed20669e933a5b7380c9ded790d3f69d925406f4b1bf1d43daeb506c5eeb"
+  },
+  "syntax_expression_gaps_keep_token_data_and_dispatch_guards.log.source-after.json": {
     "bytes": 12722771,
     "gzip": "source-manifests/d140ed20669e933a5b7380c9ded790d3f69d925406f4b1bf1d43daeb506c5eeb.json.gz",
     "original_sha256": "d140ed20669e933a5b7380c9ded790d3f69d925406f4b1bf1d43daeb506c5eeb"

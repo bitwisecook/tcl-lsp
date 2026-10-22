@@ -1,0 +1,75 @@
+{
+  "scope": "off-tree proposal only; canonical script unchanged",
+  "canonical_script": "/workspace/naming-migration-active/tcl-lsp/scripts/dev/cargo-deny-all.sh",
+  "canonical_sha256_before_and_after": "a0761cb7e4b5daf971118ea2c6fb40873bacc559982b6e8ce739f4cc51ac4962",
+  "proposed_script": "/tmp/cargo-deny-offtree/work/scripts/dev/cargo-deny-all.sh",
+  "proposed_script_sha256": "a1ca3354b2fce7d755317b57b23b86953b0087f8233da0af03f33b8f1ba47b26",
+  "patch": "/tmp/cargo-deny-offtree/proposal.patch",
+  "patch_sha256": "857decf32b161a0ddef8b74e65322defbf48c1878602c41ce7f9545793194c01",
+  "bash_n": "pass",
+  "git_apply_check_against_active_checkout": "pass; no changes applied",
+  "real_tracked_lock_inventory": {
+    "unfiltered_count": 14,
+    "selected_count": 12,
+    "excluded_count": 2,
+    "unfiltered_paths": [
+      "Cargo.lock",
+      "docs/work/name-handling/scratchpad-mirror/i37/roster/a/Cargo.lock",
+      "docs/work/name-handling/scratchpad-mirror/i37/roster/b/Cargo.lock",
+      "editors/zed/Cargo.lock",
+      "runtime/rust/Cargo.lock",
+      "rust/bigip-query-wasm/Cargo.lock",
+      "rust/bigip-report-gen/python/Cargo.lock",
+      "rust/bigip-report-gen/wasm/Cargo.lock",
+      "rust/tcl-explorer-wasm/Cargo.lock",
+      "rust/tcl-lsp-server-wasi/Cargo.lock",
+      "rust/tcl-lsp-server-wasm/Cargo.lock",
+      "rust/tcl-spec-studio-wasm/Cargo.lock",
+      "rust/tcl-vm-wasm/Cargo.lock",
+      "rust/zed-query-check/Cargo.lock"
+    ],
+    "excluded_exact_prefix_paths": [
+      "docs/work/name-handling/scratchpad-mirror/i37/roster/a/Cargo.lock",
+      "docs/work/name-handling/scratchpad-mirror/i37/roster/b/Cargo.lock"
+    ],
+    "selected_paths": [
+      "Cargo.lock",
+      "editors/zed/Cargo.lock",
+      "runtime/rust/Cargo.lock",
+      "rust/bigip-query-wasm/Cargo.lock",
+      "rust/bigip-report-gen/python/Cargo.lock",
+      "rust/bigip-report-gen/wasm/Cargo.lock",
+      "rust/tcl-explorer-wasm/Cargo.lock",
+      "rust/tcl-lsp-server-wasi/Cargo.lock",
+      "rust/tcl-lsp-server-wasm/Cargo.lock",
+      "rust/tcl-spec-studio-wasm/Cargo.lock",
+      "rust/tcl-vm-wasm/Cargo.lock",
+      "rust/zed-query-check/Cargo.lock"
+    ],
+    "every_selected_lock_has_adjacent_manifest": true,
+    "missing_selected_manifests": [],
+    "equation": "selected == all tracked exact Cargo.lock paths minus only docs/work/name-handling/scratchpad-mirror/**"
+  },
+  "fakegit_fakecargo_positive_case": {
+    "input_paths": [
+      "Cargo.lock",
+      "docs/work/name-handling/scratchpad-mirror/i37/roster/a/Cargo.lock",
+      "docs/work/name-handling/scratchpad-mirror/i37/roster/b/Cargo.lock"
+    ],
+    "exit": 0,
+    "fake_cargo_invocations": 1,
+    "result": "archived mirror lockfiles skipped; real workspace lock processed"
+  },
+  "fakegit_fakecargo_fail_closed_case": {
+    "input_paths": [
+      "Cargo.lock",
+      "docs/work/name-handling/scratchpad-mirror/i37/roster/a/Cargo.lock",
+      "docs/work/name-handling/scratchpad-mirror/i37/roster/b/Cargo.lock",
+      "orphan/Cargo.lock"
+    ],
+    "exit": 1,
+    "fake_cargo_invocations": 1,
+    "observed_error": "ERROR: tracked orphan/Cargo.lock has no adjacent orphan/Cargo.toml"
+  },
+  "limitations": "No Cargo, real cargo-deny, install, or canonical write was run."
+}

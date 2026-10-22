@@ -75,5 +75,64 @@
   "validation_note": "No release-gate closures or audit admissions. Current partial compiler failures/warning are preserved. Baseline identity recovery is a provenance correction, not a current-work green verdict. Static off-tree reviews and prepared selector plans are not runtime acceptance.",
   "disk_free_bytes": 7182192640,
   "baseline_ci_run": 39816429638,
-  "baseline_ci_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731"
+  "baseline_ci_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731",
+  "publication_followup": {
+    "utc": "2026-10-22T19:29:11.520495+00:00",
+    "scheduled": "2026-10-22T19:25:37Z",
+    "source_snapshot": "6a307dbd603c94b1bcbf6572fa596de7b993da2e",
+    "published_snapshot": "7cca49ca73b67aab94bcd9aa27a3a358273e4d78",
+    "pre_push_depth1_fetch": "539a45cb3e8de875812f6923606ddc57ee85e486",
+    "normal_push": "539a45cb3e..7cca49ca73 HEAD:work accepted after one safe fetch/rebase retry",
+    "product_tree_diff": [],
+    "disk_free_bytes": 7178244096,
+    "next_cycle": "2026-10-22T19:55:37Z",
+    "reminder_session": 64676,
+    "gate_changes": [],
+    "audit_admissions": []
+  },
+  "shipping_ci_inventory_dispatch": {
+    "utc": "2026-10-22T19:30:23.026267+00:00",
+    "run_id": 39840492769,
+    "run_number": 5204,
+    "created_at": "2026-10-22T19:29:12Z",
+    "url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/39840492769",
+    "actual_head_sha": "7cca49ca73b67aab94bcd9aa27a3a358273e4d78",
+    "branch": "work",
+    "workflow": "ci.yml",
+    "event": "workflow_dispatch",
+    "inputs": {
+      "rust_tests_runner": "hosted",
+      "native_release_build_proof": false
+    },
+    "authorization": "handoff/reviews/resume-20261017-diagnosis/user-decisions-20261019T1420Z.json decisions.ci_dispatch",
+    "purpose": "Complete named current failure inventory against rust CI5203, concurrent with local narrowly scoped repairs. This snapshot still has known local failures and warning; not final release acceptance.",
+    "release_publish": "Tag gates false; no PR, tag, merge or release.",
+    "status_at_observation": "in_progress",
+    "source_product_equivalence": {
+      "active_snapshot": "6a307dbd603c94b1bcbf6572fa596de7b993da2e",
+      "product_tree_diff": []
+    },
+    "next_poll_utc": "2026-10-22T19:40:00Z",
+    "comparison_baseline": {
+      "run": 39816429638,
+      "sha": "fcb7927f02b5395753247b322fdd7be87ae5c731",
+      "named_passes": 24312,
+      "exact_binary_ids": 24312,
+      "summary_unnamed_skips": 4625
+    }
+  },
+  "post_cycle_functional_and_disk_followup": {
+    "utc": "2026-10-22T19:36:15.644839+00:00",
+    "compiler_original_selected": 39,
+    "compiler_original_pass": 23,
+    "compiler_original_fail": 16,
+    "includes_diagnostic_ZZ_row": true,
+    "scanner_pass": 1,
+    "logical_residual_issuer_failure": 1,
+    "final_diagnostic_source_provider_guards": "100371 unchanged, no cap/disk abort; artifact retained",
+    "disk_reclaimed_bytes": 4500864640,
+    "object_availability_unchanged": true,
+    "lsp_current3": "GO at19:35 after compiler lock release and verified disk recovery",
+    "gate_changes": []
+  }
 }

@@ -1,0 +1,1 @@
+cargo test --locked -p tcl-compiler --lib analyser::types::original_declaration_inventory_tests::completed_world_follows_the_normal_completion_path_and_entered_bodies_keep_lookups -- --exact --nocapture --test-threads=1

@@ -1,0 +1,22 @@
+{
+  "prepared_utc": "2026-10-22T19:28:42.714830+00:00",
+  "status": "READY OFF-TREE PLAN ONLY; no Cargo queued; explicit root GO required",
+  "scope": "One root-authorised diagnostic replay of original failing while1 switch TP, existing tracing only; not substituted acceptance",
+  "names_plan_sha256": "997c27f4c049ae76b90749730b70192bf02e2583ba2d36c8b96a5f21ce9ddd4f",
+  "required_filters": [
+    {
+      "label": "diagnostic-while1-opaque-switch",
+      "selector": "analyser::diagnostics::fp::rbs::fp_rbs_15_while1_break_in_opaque_switch_exits_loop",
+      "exact": true,
+      "expected_selected": 1,
+      "env": {
+        "TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS": "1"
+      },
+      "diagnostic_only": true
+    }
+  ],
+  "expectations": [
+    "Exactly one unchanged original failure with existing trace env. Diagnostic attribution only; no probe/source/instrumentation install. Must retain all source/provider/disk/artifact guards and then release to LSP."
+  ],
+  "guards": "Global lock over entire suite; all local workspace source/fixture/Cargo input inventory + current Rust diff; provider wrappers/actual workers/Rust tools/transitive shared binaries before/after; 5second disk monitor interrupts only own Cargo process group below2GiB; per-log20MiB filtered cap; no executable cleanup"
+}

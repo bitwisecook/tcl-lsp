@@ -1,0 +1,23 @@
+{
+  "status": "OFF-TREE candidate composing after immutable stage4; syntax parsed only, no Cargo/tests/typecheck",
+  "created_utc": "2026-10-22T19:34:32.776764+00:00",
+  "patch": "/tmp/compiler-names-n13-entry-reborrow.patch",
+  "sha256": "664eb22c24307efe2b6b6b846b6a9f0039cd4401f65c854d2c251b5967a6ee86",
+  "paths": [
+    {
+      "path": "rust/tcl-compiler/src/analyser/types.rs",
+      "before_sha256": "db100105f9e566cd3fa91d6de8cc30faf83ede2158872954a36985d1c342f5a1",
+      "after_sha256": "03177bc4766753fec5d4633f2406398063d1c675cf89fbf383a9197c43b6b2f5"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/source_point_entry.rs",
+      "before_sha256": "d23bf5810c7b38c2985d51cfd1fda840f675361435f661c82dc767ee28e444a8",
+      "after_sha256": "6d0881621136947ba7f036c0ad8de785fb6a64ba419c24416d644ae0bf53cd08"
+    },
+    {
+      "path": "rust/tcl-compiler/src/compilation_unit/optimiser_source_owner.rs",
+      "before_sha256": "26052ada62cdc935df8f4cb3592b092d8dd0ca083c32c2c02b71c73359b5b92d",
+      "after_sha256": "d33a18737a96ed244e36810ab61f9fd27ab9cc77cc0c9cc1fc694b8b7928a937"
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "utc": "2026-10-22T19:52:30.947668+00:00",
+  "patch_sha256": "0091e4c14f769239f970d1a91b28cba70198d3bab51330c0b5074ad203ae9160",
+  "peer_review": "compiler-names approves product cleanup and nonvacuous TLS/control changes, unrun",
+  "publisher_only": true,
+  "active_tree": "untouched; currentLSPsourcefrozen",
+  "runtime_rustfmt_edition": 2021,
+  "applied_hashes": {
+    "runtime/rust/src/obj.rs": "1acc6e6ea079c6a2d5689f5d59667bead93a47edd6b29a21ef896015140baa69",
+    "runtime/rust/src/native_source.rs": "93f7df13fd631fdd07a0a4249cde4c14db88e5038adfc80176f24c6956aecea5",
+    "runtime/rust/src/obj/tls_retirement_tests.rs": "927749a0d0553ed0692630cd3b36ff8b30f93a4e5bdfbd096f5ddcde0a44f86a"
+  },
+  "cargo_or_tests": 0
+}

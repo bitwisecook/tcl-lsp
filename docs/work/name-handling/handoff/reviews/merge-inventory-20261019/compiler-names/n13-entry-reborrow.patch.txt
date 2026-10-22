@@ -1,0 +1,131 @@
+--- a/rust/tcl-compiler/src/analyser/types.rs
++++ b/rust/tcl-compiler/src/analyser/types.rs
+@@ -3732,6 +3732,33 @@
+             .rebuild_for_current_analysis(source, registry, input, external)
+     }
+ 
++    /// Reborrow the actual source entry without rebuilding a unit. Missing or
++    /// stale ownership refuses; no fresh entry is substituted for this request.
++    #[must_use]
++    pub fn original_source_analysis_entry(
++        &self,
++        source: &str,
++        registry: &tcl_registry::CommandRegistry,
++        external: Option<&crate::unit_scope::CallSiteEvidence>,
++    ) -> Option<std::sync::Arc<crate::command_binding::SourceAnalysisEntry>> {
++        crate::source_graph::current_analysis(source, self)?;
++        let input = self.resolved_input.as_ref()?;
++        let realm = self.retained_command_realm()?;
++        realm.matches_resolved_analysis_input(input).then_some(())?;
++        let entry = self
++            .optimiser_source_origin
++            .as_ref()?
++            .source_analysis_entry_for_current_analysis(source, registry, input, external)?;
++        if entry
++            .source_point_entry
++            .as_ref()
++            .is_some_and(|point| !point.matches_child_analysis(self))
++        {
++            return None;
++        }
++        Some(entry)
++    }
++
+     /// Exact temporal source world used by this analysis. Missing evidence
+     /// remains unknown; rebuilding a realm from the dialect label cannot
+     /// replace its native entry, provider or source-instance obligations.
+--- a/rust/tcl-compiler/src/command_binding/source_point_entry.rs
++++ b/rust/tcl-compiler/src/command_binding/source_point_entry.rs
+@@ -793,6 +793,45 @@
+     }
+ 
+     #[test]
++    fn source_entry_reborrow_keeps_the_same_inherited_request_without_a_unit_build() {
++        let point = point();
++        let input = point.input();
++        let registry = input.borrowed_context_registry().commands();
++        let source = "proc run {} {return VALUE}";
++        let child = crate::analyser::Analyser::new()
++            .analyse_with_source_point_entry(source, "tcl8.6", &point)
++            .unwrap();
++        let entry = child
++            .original_source_analysis_entry(source, registry, None)
++            .unwrap();
++        assert_eq!(entry.source_point_entry.as_ref(), Some(&point));
++        assert!(entry.native_entry.is_none());
++        assert_eq!(entry.native_compilation, Default::default());
++        assert!(
++            child
++                .original_source_analysis_entry("WRONG", registry, None)
++                .is_none()
++        );
++        let mut unavailable = child.clone();
++        unavailable.analysis_context_unavailable = Some(tcl_registry::model::OverlayMiss {
++            environment: "tcl8.6".to_owned(),
++            overlay: 1,
++        });
++        assert!(
++            unavailable
++                .original_source_analysis_entry(source, registry, None)
++                .is_none()
++        );
++        let mut wrong_config = child.clone();
++        wrong_config.body_lexer_config = None;
++        assert!(
++            wrong_config
++                .original_source_analysis_entry(source, registry, None)
++                .is_none()
++        );
++    }
++
++    #[test]
+     fn source_point_token_lifetime_and_equality_keep_the_full_live_receipt() {
+         fn hash(value: &impl Hash) -> u64 {
+             let mut hasher = std::collections::hash_map::DefaultHasher::new();
+--- a/rust/tcl-compiler/src/compilation_unit/optimiser_source_owner.rs
++++ b/rust/tcl-compiler/src/compilation_unit/optimiser_source_owner.rs
+@@ -292,6 +292,29 @@
+         self.0.analysis_context.evaluator_revision
+             == u64::from(tcl_registry::pack_hooks::evaluator_generation().0)
+     }
++    pub(crate) fn source_analysis_entry_for_current_analysis(
++        &self,
++        source: &str,
++        registry: &CommandRegistry,
++        input: &crate::analyser::ResolvedAnalysisInput,
++        external: Option<&crate::unit_scope::CallSiteEvidence>,
++    ) -> Option<Arc<crate::command_binding::SourceAnalysisEntry>> {
++        self.matches_source_request(source, registry, input, external)
++            .then(|| Arc::new(self.0.entry.clone()))
++    }
++    fn matches_source_request(
++        &self,
++        source: &str,
++        registry: &CommandRegistry,
++        input: &crate::analyser::ResolvedAnalysisInput,
++        external: Option<&crate::unit_scope::CallSiteEvidence>,
++    ) -> bool {
++        self.0.image == tcl_lexer::SourceImage::document(source)
++            && &self.0.input == input
++            && self.0.registry == registry.snapshot()
++            && self.0.external_call_sites.as_ref() == external
++            && self.is_current_analysis_context()
++    }
+     pub(crate) fn rebuild_for_current_analysis(
+         &self,
+         source: &str,
+@@ -299,13 +322,7 @@
+         input: &crate::analyser::ResolvedAnalysisInput,
+         external: Option<&crate::unit_scope::CallSiteEvidence>,
+     ) -> Option<CompilationUnit> {
+-        if self.0.image != tcl_lexer::SourceImage::document(source)
+-            || &self.0.input != input
+-            || self.0.registry != registry.snapshot()
+-            || self.0.external_call_sites.as_ref() != external
+-            || self.0.analysis_context.evaluator_revision
+-                != u64::from(tcl_registry::pack_hooks::evaluator_generation().0)
+-        {
++        if !self.matches_source_request(source, registry, input, external) {
+             return None;
+         }
+         // Reuse the same private source pipeline once, with the exact original

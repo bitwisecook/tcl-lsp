@@ -1,0 +1,8 @@
+{
+  "utc": "2026-10-22T19:43:12.068399+00:00",
+  "patch_sha256": "857decf32b161a0ddef8b74e65322defbf48c1878602c41ce7f9545793194c01",
+  "approved_for_next_coordinated_source_window": true,
+  "basis": "Recorded snapshot policy keeps work-only archival evidence outside deliverable source. The exact mirror prefix is historical evidence, not a Cargo workspace. All twelve actual lockfiles stay selected; missing-manifest errors for any other selected path remain fatal. No archived bytes/names or advisory/license policy changed.",
+  "validation": "bash syntax, applicability, actual tracked inventory and positive/orphan fake-command controls are recorded; no real cargo-deny run or all-workspaces verdict.",
+  "canonical_source_unchanged_during_LSP_guarded_run": true
+}

@@ -1,0 +1,34 @@
+{
+  "task": "read-only cargo-deny CI5204 failure attribution",
+  "run": "CI5204 job 120039917005",
+  "log_path": "/tmp/work-ci5204/cargo-deny.log",
+  "log_bytes": 576000,
+  "log_sha256": "399d96fc537dc5869898f00a449b7f26c46f8a2e0154e98b6d284e886dd8610b",
+  "workflow": ".github/workflows/ci.yml:2512-2525",
+  "command": "bash scripts/dev/cargo-deny-all.sh",
+  "script": "scripts/dev/cargo-deny-all.sh:13-30",
+  "observed_log_lines": {
+    "run_command": "329",
+    "first_audit": "336 (Cargo.toml / Cargo.lock)",
+    "all_audit_summaries": "6015: advisories ok, bans ok, licenses ok, sources ok",
+    "fatal_error": "6016: ERROR: tracked docs/work/name-handling/scratchpad-mirror/i37/roster/a/Cargo.lock has no adjacent docs/work/name-handling/scratchpad-mirror/i37/roster/a/Cargo.toml",
+    "exit": "6017: Process completed with exit code 1"
+  },
+  "tracked_orphan_lockfiles": [
+    {
+      "path": "docs/work/name-handling/scratchpad-mirror/i37/roster/a/Cargo.lock",
+      "adjacent_manifest": "docs/work/name-handling/scratchpad-mirror/i37/roster/a/Cargo.toml",
+      "manifest_exists": false,
+      "git_blob": "d8edcafe0b572be121d936dfd1162c01846eb2e6"
+    },
+    {
+      "path": "docs/work/name-handling/scratchpad-mirror/i37/roster/b/Cargo.lock",
+      "adjacent_manifest": "docs/work/name-handling/scratchpad-mirror/i37/roster/b/Cargo.toml",
+      "manifest_exists": false,
+      "git_blob": "71745f909f1df95ea83a58608b68f560c37423b5"
+    }
+  ],
+  "warnings": "Cargo deny emitted unmatched-license-allowance and duplicate-version warnings; four audit checks passed. These warnings are not the failing condition.",
+  "attribution": "The script enumerates every tracked exact-name Cargo.lock via :(glob)**/Cargo.lock, then requires an adjacent Cargo.toml. The first docs snapshot lock is therefore treated as a workspace lock and triggers the explicit shell error after root workspace cargo-deny succeeds. The second docs snapshot lock would trigger the same guard if the first were addressed.",
+  "limitations": "No policy, script, lockfile, or dependency changes were made. This receipt attributes the CI failure only; no local cargo-deny execution was performed."
+}

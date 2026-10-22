@@ -1,0 +1,36 @@
+{
+  "status": "FROZEN OFF-TREE first-edge host v2 review artifact; syntax only, not integration-ready/compiled; no canonical Rust/Cargo",
+  "source_path": "/tmp/lsp-n13-host-views/source_views-v2.rs.txt",
+  "source_sha256": "a5bbbb531f4fbba52393c2e7ef9e40c48b315282e6ef114cf482ba3731640c73",
+  "implemented_draft": [
+    "actual FreshAnalysis producer Arc plus independent physical SourceFile/config/input/path/publication capture",
+    "opaque checked nonreused session view IDs and strong actual parent/point chain",
+    "whole-URI atomic index+view-table replacement, exact unchanged-producer reuse, index-revision gate",
+    "strict all-ancestor physical source/config/epoch/factory/path/publication checks after async saved-source reads",
+    "saved typed declaration wire stamp resolves exact live view before identity/metadata; no analysis_for/URI/text renewal",
+    "separate source-view currency excludes unrelated global DB revision but preserves existing readonly report guard untouched"
+  ],
+  "missing_before_integration": [
+    "compiler stage3 matches_child_analysis and axes/native-boundary review",
+    "Backend session table field/initializers and readonly child-module registration",
+    "root/inherited work classifier and reconciliation queue/cache wiring; None required edge must stay pending",
+    "view-aware Core declaration/class/hierarchy/reference inventories and target lifting",
+    "actual A-retired/byteequal-B-current protocol control execution",
+    "focused compile/Clippy/runtime tests; no approval to apply partial module"
+  ],
+  "currency_scope": "only genuine FreshAnalysisSeed producer is admitted; exact SourceFile/published path/input/config and fresh epoch/factory checked; no DB-produced enriched analysis is silently projected into this purpose",
+  "known_guard_note": "all source views retain original index revision; unrelated legacy index replacement retires eligibility rather than renewing saved view",
+  "wire_dependency": "/tmp/lsp-n13-source-view-wire-v3/proposal.patch SHA2ca3c23d",
+  "known_open_integration_checks": [
+    "duplicate saved-source provider admissions must be deduplicated if actual provider callback requires it",
+    "root producer classification/cache/reconciler must be wired before any partial module apply",
+    "off-tree draft is not yet a complete crate patch or all-targets/lint result"
+  ],
+  "compiler_dependency": "/tmp/compiler-names-n13-stage3.patch SHA1b884f3d exact child rejoin; all controls unrun",
+  "successor_corrections": [
+    "same-URI ancestor publication explicitly unavailable in first-edge scope",
+    "saved locator resolve renders inside checked lease; no explicit escaping current Arc result",
+    "physical child ordinary input/config remains separately current; inherited interpretation uses actual point-owned parent input and returned child resolved input; exact matches_child_analysis required"
+  ],
+  "delta_sha256": "95b3873e0f3cb2d662f7cbda28a7ac0b76913b2c363df6ef82132197fc647dde"
+}

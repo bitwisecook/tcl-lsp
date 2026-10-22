@@ -1,0 +1,18 @@
+warning: method `native_argument_input` is never used
+  --> rust/tcl-compiler/src/analyser/original_definer.rs:79:19
+warning: `tcl-compiler` (lib) generated 1 warning
+    Finished `test` profile [unoptimized] target(s) in 0.53s
+     Running unittests src/lib.rs (target/debug/deps/tcl_compiler-ef22ef87d0bd65a7)
+running 1 test
+test registry_invocation::source_taint::tests::original_taint_read_inventory_keeps_array_index_and_nested_substitution_sites ... 
+thread 'registry_invocation::source_taint::tests::original_taint_read_inventory_keeps_array_index_and_nested_substitution_sites' (105695) panicked at rust/tcl-compiler/src/registry_invocation/source_taint.rs:823:92:
+called `Option::unwrap()` on a `None` value
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    registry_invocation::source_taint::tests::original_taint_read_inventory_keeps_array_index_and_nested_substitution_sites
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 10486 filtered out; finished in 0.96s
+error: test failed, to rerun pass `-p tcl-compiler --lib`

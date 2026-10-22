@@ -1,0 +1,55 @@
+{
+  "reviewed_utc": "2026-10-22T19:29:05.031227+00:00",
+  "reviewer": "vm-runtime",
+  "artifacts": [
+    {
+      "path": "/tmp/compiler-names-n13-stage3.patch",
+      "sha256": "1b884f3d45bc332fa9279423de109c48dc0ca012f0c3980e588e1271234c9459"
+    },
+    {
+      "path": "/tmp/compiler-names-n13-stage3-vs-stage2.patch",
+      "sha256": "30d801dc866378619c73ed15897abd720299c79b2e475ccdf1cb762f70615a76"
+    },
+    {
+      "path": "/tmp/lsp-n13-host-views/source_views-v2.rs.txt",
+      "sha256": "a5bbbb531f4fbba52393c2e7ef9e40c48b315282e6ef114cf482ba3731640c73"
+    }
+  ],
+  "scope": "Static review only of requested stage2 axis/frame corrections, explicit decode/refusal/debt and childcurrentness controls; no application/Cargo/typecheck/test/wholeN13 approval.",
+  "disposition": "Requested N13-VM-1 and N13-VM-2 static gaps addressed in examined stage3 paths. N13-HOST-VM-1 context conflation corrected in examined frozenhostv2. No new concrete blocker identified within these bounded corrections; fullhost/continuation remains partial.",
+  "corrections_checked": [
+    {
+      "prior": "N13-VM-1",
+      "observation": "Point payload now retains SourceCompilationScope; minted_entry derives raw execution_name_policy, invocation_dialect, logical/vendor full input from actualpoint snapshot baseline and availabilityrealm from actualsnapshot.realm. child_state compares exactmetadataowner/sourcepoint/realm/rawpolicy/fullinputs/dialect/scope and existing config/registry/contracts/Nativeabsences. Copiesactualpoint state then rebuilds availabilitysemantics in thatsame pointrealm; this does not supply enteredNative authority.",
+      "fixed_controls": "Changedrealm/policy/dialectNone or9.0/logical/vendor/scope/nativeProcedureCode variants require None, terminalmetadataunavailable, no inheritedentry and no completedrootstate; untouchedexactmintedentry positive retained. UNRUN."
+    },
+    {
+      "prior": "N13-VM-2",
+      "observation": "set_source_analysis_options validates pointchild state before copyingoptions; incompatibleoptions become explicitSuppliedSource(None)+unknownentry withpointretained. Ordinary lower refuses invalidpoint and allbytecode targets using existingBarrier. Both lower_procedure_target and lower_script_target hit refuse_inherited_runtime_target BEFORE namespace/ProcedureCodewrite; moduleNativecontext remainsdefault, Nativeentry/provider absent. Nativecompiler/bodycompilation functions remain withheld and inheritedactualbodyunit list empty.",
+      "fixed_controls": "Procedure+script runtimetargets expect singleBarrier/defaultNativecontext/noentry/noProvider/noNativebodyunits; bytecode lower expectsBarrier/defaultcontext. Existing ordinary optimiser samepointpositive remains. UNRUN."
+    },
+    {
+      "prior": "explicitloaddecode debt/refusal",
+      "observation": "Publicsourcepointissuer requires pathordinal0/effectivepostheadlen1 and exact originalwordcount2. It rejects flags/-encoding/-nopkg and dynamicdecoder forms instead of relying on editorread_document/CRnormalization as Nativeingress. New obligations API always reports HandlerSelection/FileReadAndDecode/ContainingBody. NoNativeLoaded/Nativeargument/frame/body receipt is minted.",
+      "fixed_controls": "Source9.0 encodingstatic/dynamic/nopkg cases cannot issuepoint; existing simple2wordpoint remainspositive and FileReadAndDecode debt asserted. Conditional if-let tests permit alreadyrefusedloadcards; adjacentexistingloadschema positive controls independently exercise supportedflagpathcards. UNRUN."
+    },
+    {
+      "prior": "childcurrency",
+      "observation": "matches_child_analysis requires exactpointinput, retainedrealm/currentoriginalimage+bodyconfig/availability and actual inheritedentry==point. Physicalpublicationcurrency explicitlyremains hostresponsibility. ForeignbyteequalparentBchild/parentaschild refuse, exactpointchildaccepts; OverlayMiss/wrongbodyconfig child refuses. Transitiveactualancestor declaration joins unchanged.",
+      "fixed_controls": "New childcurrency fixednegatives and existing byteequalforeignparent/changedtext/9.0negative are retained. UNRUN."
+    },
+    {
+      "prior": "N13-HOST-VM-1",
+      "observation": "Hostv2 removesphysicalinput==interpretationinput only for inheritedvariant; actualdriver uses savedparent interpretationinput/dialect and retains childreturnedresolvedinput, checkedby exactpoint.matches_child_analysis. Rootvariant stillrequires physicalinput==rootinput. PhysicalSourceFile/input/config/publicationcurrency still independentlychecked; producerphysicalconfig retained forordinaryconfigchange invalidation. No compileraxis relaxation.",
+      "fixed_controls": "No hostv2runtimecontrols present/executed yet; two-parentdifferentcontexts and A-retired/B-current remain required."
+    }
+  ],
+  "remaining_no_closure": [
+    "Prefix/tail normalcontinuation/sourceeffects, two-parent/twelvehop convergence and hostprovider/publicationconsumerwiring remain partial; firstedgepoint cannot certify parenttail or absence.",
+    "HandlerSelection/FileReadAndDecode/ContainingBody debt must survive declaration/action consumers; obligations API alone doesnotprove wiring.",
+    "Hostv2 sameURIancestor refusal is conservative; do not describe sameURItailcontinuation supported.",
+    "Complete originalsourcepurpose/publicentry audit and compiler+hosttypecheck/strictClippy/fmt/fixedtests remain required.",
+    "No currentNativeopcodeexploit or runtimeacceptance result was produced by this review."
+  ],
+  "held_cleanup": "Rootapproved off-tree a34c9b61 testonlyhelper gate still unapplied; nosourcewrites/builds."
+}

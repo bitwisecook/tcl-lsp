@@ -1,0 +1,8 @@
+warning: method `native_argument_input` is never used
+  --> rust/tcl-compiler/src/analyser/original_definer.rs:79:19
+warning: `tcl-compiler` (lib) generated 1 warning
+    Finished `test` profile [unoptimized] target(s) in 2.22s
+     Running unittests src/lib.rs (target/debug/deps/tcl_compiler-ef22ef87d0bd65a7)
+running 1 test
+test compile_service::tests::a_variable_reference_ends_where_the_release_scanner_ends_it ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 10486 filtered out; finished in 57.32s

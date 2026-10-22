@@ -1,0 +1,1335 @@
+﻿2026-10-22T19:33:45.7000744Z Current runner version: '2.338.0'
+2026-10-22T19:33:45.7034188Z ##[group]Runner Image Provisioner
+2026-10-22T19:33:45.7035046Z Hosted Compute Agent
+2026-10-22T19:33:45.7035944Z Version: 20261012.601
+2026-10-22T19:33:45.7036729Z Commit: f3dc54e1fb89da6852db922499a0233137369e1d
+2026-10-22T19:33:45.7037920Z Build Date: 2026-10-12T17:48:21Z
+2026-10-22T19:33:45.7038686Z Worker ID: {8f602484-85e7-4103-a95e-e6f51ba32d58}
+2026-10-22T19:33:45.7039424Z Region: southcentralus
+2026-10-22T19:33:45.7039999Z Cloud: Azure
+2026-10-22T19:33:45.7040609Z ##[endgroup]
+2026-10-22T19:33:45.7042170Z ##[group]Operating System
+2026-10-22T19:33:45.7042856Z Ubuntu
+2026-10-22T19:33:45.7043397Z 26.04.1
+2026-10-22T19:33:45.7043896Z LTS
+2026-10-22T19:33:45.7044447Z ##[endgroup]
+2026-10-22T19:33:45.7045023Z ##[group]Runner Image
+2026-10-22T19:33:45.7045597Z Image: ubuntu-26.04
+2026-10-22T19:33:45.7046217Z Version: 20261012.163.1
+2026-10-22T19:33:45.7047813Z Included Software: https://github.com/actions/runner-images/blob/ubuntu26/20261012.163/images/ubuntu/Ubuntu2604-Readme.md
+2026-10-22T19:33:45.7049584Z Image Release: https://github.com/actions/runner-images/releases/tag/ubuntu26%2F20261012.163
+2026-10-22T19:33:45.7050627Z ##[endgroup]
+2026-10-22T19:33:45.7052183Z ##[group]GITHUB_TOKEN Permissions
+2026-10-22T19:33:45.7054458Z Contents: read
+2026-10-22T19:33:45.7055119Z Metadata: read
+2026-10-22T19:33:45.7055690Z ##[endgroup]
+2026-10-22T19:33:45.7058196Z Secret source: Actions
+2026-10-22T19:33:45.7059148Z Cache mode: write
+2026-10-22T19:33:45.7060582Z Prepare workflow directory
+2026-10-22T19:33:45.7457856Z Prepare all required actions
+2026-10-22T19:33:45.7511452Z Getting action download info
+2026-10-22T19:33:46.0012593Z Download action repository 'actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1' (SHA:3d3c42e5aac5ba805825da76410c181273ba90b1)
+2026-10-22T19:33:46.1054541Z Download action repository 'actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f' (SHA:ecabd13d1c56bd1345c230e542e9144811ad706f)
+2026-10-22T19:33:46.4169994Z Getting action download info
+2026-10-22T19:33:46.5140626Z Download action repository 'Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6' (SHA:6323deb102c322ba6fcbdcafc7e3dddab59af2b6)
+2026-10-22T19:33:47.0550439Z Complete job name: runtime-rust-tests
+2026-10-22T19:33:47.1494549Z ##[group]Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+2026-10-22T19:33:47.1496369Z with:
+2026-10-22T19:33:47.1497394Z   fetch-depth: 1
+2026-10-22T19:33:47.1498327Z   repository: bitwisecook/tcl-lsp
+2026-10-22T19:33:47.1506736Z   token: ***
+2026-10-22T19:33:47.1507912Z   ssh-strict: true
+2026-10-22T19:33:47.1508786Z   ssh-user: git
+2026-10-22T19:33:47.1509664Z   persist-credentials: true
+2026-10-22T19:33:47.1510621Z   clean: true
+2026-10-22T19:33:47.1511499Z   sparse-checkout-cone-mode: true
+2026-10-22T19:33:47.1512567Z   fetch-tags: false
+2026-10-22T19:33:47.1513456Z   show-progress: true
+2026-10-22T19:33:47.1514343Z   lfs: false
+2026-10-22T19:33:47.1515174Z   submodules: false
+2026-10-22T19:33:47.1516099Z   set-safe-directory: true
+2026-10-22T19:33:47.1517254Z   allow-unsafe-pr-checkout: false
+2026-10-22T19:33:47.1518607Z env:
+2026-10-22T19:33:47.1519414Z   CARGO_INCREMENTAL: 0
+2026-10-22T19:33:47.1520361Z   CARGO_PROFILE_DEV_DEBUG: 0
+2026-10-22T19:33:47.1521384Z ##[endgroup]
+2026-10-22T19:33:47.2528769Z Syncing repository: bitwisecook/tcl-lsp
+2026-10-22T19:33:47.2531484Z ##[group]Getting Git version info
+2026-10-22T19:33:47.2532889Z Working directory is '/home/runner/work/tcl-lsp/tcl-lsp'
+2026-10-22T19:33:47.2538715Z [command]/usr/bin/git version
+2026-10-22T19:33:47.2593162Z git version 2.55.0
+2026-10-22T19:33:47.2618838Z ##[endgroup]
+2026-10-22T19:33:47.2628886Z Temporarily overriding HOME='/home/runner/work/_temp/307d7354-8936-4ffc-b81b-f399c97ad057' before making global git config changes
+2026-10-22T19:33:47.2632715Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-22T19:33:47.2635910Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/tcl-lsp/tcl-lsp
+2026-10-22T19:33:47.2700165Z Deleting the contents of '/home/runner/work/tcl-lsp/tcl-lsp'
+2026-10-22T19:33:47.2711152Z ##[group]Determining repository object format
+2026-10-22T19:33:47.2714659Z ##[endgroup]
+2026-10-22T19:33:47.2717934Z ##[group]Initializing the repository
+2026-10-22T19:33:47.2723840Z [command]/usr/bin/git init /home/runner/work/tcl-lsp/tcl-lsp
+2026-10-22T19:33:47.2903058Z hint: Using 'master' as the name for the initial branch. This default branch name
+2026-10-22T19:33:47.2906505Z hint: will change to "main" in Git 3.0. To configure the initial branch name
+2026-10-22T19:33:47.2910768Z hint: to use in all of your new repositories, which will suppress this warning,
+2026-10-22T19:33:47.2913915Z hint: call:
+2026-10-22T19:33:47.2915883Z hint:
+2026-10-22T19:33:47.2918492Z hint: 	git config --global init.defaultBranch <name>
+2026-10-22T19:33:47.2921285Z hint:
+2026-10-22T19:33:47.2923673Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+2026-10-22T19:33:47.2927624Z hint: 'development'. The just-created branch can be renamed via this command:
+2026-10-22T19:33:47.2930955Z hint:
+2026-10-22T19:33:47.2932548Z hint: 	git branch -m <name>
+2026-10-22T19:33:47.2934217Z hint:
+2026-10-22T19:33:47.2936396Z hint: Disable this message with "git config set advice.defaultBranchName false"
+2026-10-22T19:33:47.2940259Z Initialized empty Git repository in /home/runner/work/tcl-lsp/tcl-lsp/.git/
+2026-10-22T19:33:47.2946006Z [command]/usr/bin/git remote add origin https://github.com/bitwisecook/tcl-lsp
+2026-10-22T19:33:47.2987364Z ##[endgroup]
+2026-10-22T19:33:47.2990061Z ##[group]Disabling automatic garbage collection
+2026-10-22T19:33:47.2992689Z [command]/usr/bin/git config --local gc.auto 0
+2026-10-22T19:33:47.3027612Z ##[endgroup]
+2026-10-22T19:33:47.3029424Z ##[group]Setting up auth
+2026-10-22T19:33:47.3030872Z Removing SSH command configuration
+2026-10-22T19:33:47.3033593Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-22T19:33:47.3080115Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-22T19:33:47.3563789Z Removing HTTP extra header
+2026-10-22T19:33:47.3570552Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-22T19:33:47.3606151Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-22T19:33:47.3872261Z Removing includeIf entries pointing to credentials config files
+2026-10-22T19:33:47.3878130Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-22T19:33:47.3912992Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-22T19:33:47.4197439Z [command]/usr/bin/git config --file /home/runner/work/_temp/git-credentials-a3dd6c11-b3be-4e01-93c7-d7a09b092ff3.config http.https://github.com/.extraheader AUTHORIZATION: basic ***
+2026-10-22T19:33:47.4237485Z [command]/usr/bin/git config --local includeIf.gitdir:/home/runner/work/tcl-lsp/tcl-lsp/.git.path /home/runner/work/_temp/git-credentials-a3dd6c11-b3be-4e01-93c7-d7a09b092ff3.config
+2026-10-22T19:33:47.4271112Z [command]/usr/bin/git config --local includeIf.gitdir:/home/runner/work/tcl-lsp/tcl-lsp/.git/worktrees/*.path /home/runner/work/_temp/git-credentials-a3dd6c11-b3be-4e01-93c7-d7a09b092ff3.config
+2026-10-22T19:33:47.4307950Z [command]/usr/bin/git config --local includeIf.gitdir:/github/workspace/.git.path /github/runner_temp/git-credentials-a3dd6c11-b3be-4e01-93c7-d7a09b092ff3.config
+2026-10-22T19:33:47.4340307Z [command]/usr/bin/git config --local includeIf.gitdir:/github/workspace/.git/worktrees/*.path /github/runner_temp/git-credentials-a3dd6c11-b3be-4e01-93c7-d7a09b092ff3.config
+2026-10-22T19:33:47.4370367Z ##[endgroup]
+2026-10-22T19:33:47.4371908Z ##[group]Fetching the repository
+2026-10-22T19:33:47.4377733Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +7cca49ca73b67aab94bcd9aa27a3a358273e4d78:refs/remotes/origin/work
+2026-10-22T19:38:47.7228690Z From https://github.com/bitwisecook/tcl-lsp
+2026-10-22T19:38:47.7229593Z  * [new ref]             7cca49ca73b67aab94bcd9aa27a3a358273e4d78 -> origin/work
+2026-10-22T19:38:47.7240451Z [command]/usr/bin/git branch --list --remote origin/work
+2026-10-22T19:38:47.7270810Z   origin/work
+2026-10-22T19:38:47.7279850Z [command]/usr/bin/git rev-parse refs/remotes/origin/work
+2026-10-22T19:38:47.7305810Z 7cca49ca73b67aab94bcd9aa27a3a358273e4d78
+2026-10-22T19:38:47.7310418Z ##[endgroup]
+2026-10-22T19:38:47.7311083Z ##[group]Determining the checkout info
+2026-10-22T19:38:47.7311938Z ##[endgroup]
+2026-10-22T19:38:47.7316729Z [command]/usr/bin/git sparse-checkout disable
+2026-10-22T19:38:47.7361086Z [command]/usr/bin/git config --local --unset-all extensions.worktreeConfig
+2026-10-22T19:38:47.7394737Z ##[group]Checking out the ref
+2026-10-22T19:38:47.7399183Z [command]/usr/bin/git checkout --progress --force -B work refs/remotes/origin/work
+2026-10-22T19:38:49.0740771Z Updating files:   2% (3261/119392)
+2026-10-22T19:38:50.0782645Z Updating files:   3% (3582/119392)
+2026-10-22T19:38:50.8489101Z Updating files:   3% (4510/119392)
+2026-10-22T19:38:51.4048500Z Updating files:   3% (4663/119392)
+2026-10-22T19:38:51.9129318Z Updating files:   4% (4776/119392)
+2026-10-22T19:38:52.9074990Z Updating files:   4% (4943/119392)
+2026-10-22T19:38:53.3267381Z Updating files:   4% (5451/119392)
+2026-10-22T19:38:53.9118001Z Updating files:   5% (5970/119392)
+2026-10-22T19:38:53.9187397Z Updating files:   5% (7113/119392)
+2026-10-22T19:38:53.9778345Z Updating files:   6% (7164/119392)
+2026-10-22T19:38:54.2683295Z Updating files:   7% (8358/119392)
+2026-10-22T19:38:54.9082073Z Updating files:   8% (9552/119392)
+2026-10-22T19:38:55.8979125Z Updating files:   8% (10610/119392)
+2026-10-22T19:38:56.9005139Z Updating files:   8% (10625/119392)
+2026-10-22T19:38:57.9205905Z Updating files:   8% (10632/119392)
+2026-10-22T19:38:58.9423940Z Updating files:   8% (10640/119392)
+2026-10-22T19:38:59.3851422Z Updating files:   8% (10648/119392)
+2026-10-22T19:38:59.8963602Z Updating files:   9% (10746/119392)
+2026-10-22T19:39:00.9032021Z Updating files:   9% (11559/119392)
+2026-10-22T19:39:01.0577253Z Updating files:   9% (11577/119392)
+2026-10-22T19:39:01.1762128Z Updating files:  10% (11940/119392)
+2026-10-22T19:39:01.3055406Z Updating files:  11% (13134/119392)
+2026-10-22T19:39:01.3595228Z Updating files:  12% (14328/119392)
+2026-10-22T19:39:01.5968281Z Updating files:  13% (15521/119392)
+2026-10-22T19:39:01.7563830Z Updating files:  14% (16715/119392)
+2026-10-22T19:39:01.8417491Z Updating files:  15% (17909/119392)
+2026-10-22T19:39:01.8539533Z Updating files:  15% (18840/119392)
+2026-10-22T19:39:01.8979572Z Updating files:  16% (19103/119392)
+2026-10-22T19:39:01.9534886Z Updating files:  17% (20297/119392)
+2026-10-22T19:39:02.0022046Z Updating files:  18% (21491/119392)
+2026-10-22T19:39:02.0638568Z Updating files:  19% (22685/119392)
+2026-10-22T19:39:02.1368310Z Updating files:  20% (23879/119392)
+2026-10-22T19:39:02.2691052Z Updating files:  21% (25073/119392)
+2026-10-22T19:39:02.3724781Z Updating files:  22% (26267/119392)
+2026-10-22T19:39:02.4455760Z Updating files:  23% (27461/119392)
+2026-10-22T19:39:02.5730097Z Updating files:  24% (28655/119392)
+2026-10-22T19:39:02.6262796Z Updating files:  25% (29848/119392)
+2026-10-22T19:39:02.6639688Z Updating files:  26% (31042/119392)
+2026-10-22T19:39:02.7027667Z Updating files:  27% (32236/119392)
+2026-10-22T19:39:02.7495022Z Updating files:  28% (33430/119392)
+2026-10-22T19:39:02.8607949Z Updating files:  29% (34624/119392)
+2026-10-22T19:39:02.8764609Z Updating files:  29% (35469/119392)
+2026-10-22T19:39:02.9235052Z Updating files:  30% (35818/119392)
+2026-10-22T19:39:02.9727925Z Updating files:  31% (37012/119392)
+2026-10-22T19:39:03.0213876Z Updating files:  32% (38206/119392)
+2026-10-22T19:39:03.0675302Z Updating files:  33% (39400/119392)
+2026-10-22T19:39:03.1140420Z Updating files:  34% (40594/119392)
+2026-10-22T19:39:03.1622173Z Updating files:  35% (41788/119392)
+2026-10-22T19:39:03.4148472Z Updating files:  36% (42982/119392)
+2026-10-22T19:39:03.4655979Z Updating files:  37% (44176/119392)
+2026-10-22T19:39:03.5296356Z Updating files:  38% (45369/119392)
+2026-10-22T19:39:03.5867716Z Updating files:  39% (46563/119392)
+2026-10-22T19:39:03.6392503Z Updating files:  40% (47757/119392)
+2026-10-22T19:39:03.6935137Z Updating files:  41% (48951/119392)
+2026-10-22T19:39:03.7446567Z Updating files:  42% (50145/119392)
+2026-10-22T19:39:03.8416697Z Updating files:  43% (51339/119392)
+2026-10-22T19:39:03.9414272Z Updating files:  43% (51736/119392)
+2026-10-22T19:39:04.1931812Z Updating files:  44% (52533/119392)
+2026-10-22T19:39:04.4595974Z Updating files:  45% (53727/119392)
+2026-10-22T19:39:04.6551381Z Updating files:  46% (54921/119392)
+2026-10-22T19:39:04.7656708Z Updating files:  47% (56115/119392)
+2026-10-22T19:39:04.8416526Z Updating files:  48% (57309/119392)
+2026-10-22T19:39:04.8702215Z Updating files:  48% (58249/119392)
+2026-10-22T19:39:05.7969877Z Updating files:  49% (58503/119392)
+2026-10-22T19:39:05.8416496Z Updating files:  50% (59696/119392)
+2026-10-22T19:39:05.9531376Z Updating files:  50% (60125/119392)
+2026-10-22T19:39:06.1487668Z Updating files:  51% (60890/119392)
+2026-10-22T19:39:06.2207501Z Updating files:  52% (62084/119392)
+2026-10-22T19:39:06.3177077Z Updating files:  53% (63278/119392)
+2026-10-22T19:39:06.4735001Z Updating files:  54% (64472/119392)
+2026-10-22T19:39:06.6004409Z Updating files:  55% (65666/119392)
+2026-10-22T19:39:06.6899898Z Updating files:  56% (66860/119392)
+2026-10-22T19:39:06.7538480Z Updating files:  57% (68054/119392)
+2026-10-22T19:39:06.8360113Z Updating files:  58% (69248/119392)
+2026-10-22T19:39:06.8415109Z Updating files:  59% (70442/119392)
+2026-10-22T19:39:07.1608008Z Updating files:  59% (70519/119392)
+2026-10-22T19:39:07.2706017Z Updating files:  60% (71636/119392)
+2026-10-22T19:39:07.4888163Z Updating files:  61% (72830/119392)
+2026-10-22T19:39:07.8648452Z Updating files:  62% (74024/119392)
+2026-10-22T19:39:07.9118486Z Updating files:  63% (75217/119392)
+2026-10-22T19:39:07.9583982Z Updating files:  63% (75332/119392)
+2026-10-22T19:39:08.0668109Z Updating files:  64% (76411/119392)
+2026-10-22T19:39:08.5554186Z Updating files:  65% (77605/119392)
+2026-10-22T19:39:08.8699976Z Updating files:  66% (78799/119392)
+2026-10-22T19:39:08.8728223Z Updating files:  66% (79975/119392)
+2026-10-22T19:39:09.1408401Z Updating files:  67% (79993/119392)
+2026-10-22T19:39:09.4511234Z Updating files:  68% (81187/119392)
+2026-10-22T19:39:09.8669271Z Updating files:  69% (82381/119392)
+2026-10-22T19:39:10.1597287Z Updating files:  69% (82492/119392)
+2026-10-22T19:39:10.4885635Z Updating files:  70% (83575/119392)
+2026-10-22T19:39:10.5701506Z Updating files:  71% (84769/119392)
+2026-10-22T19:39:10.8225321Z Updating files:  72% (85963/119392)
+2026-10-22T19:39:10.8415774Z Updating files:  73% (87157/119392)
+2026-10-22T19:39:11.1987619Z Updating files:  73% (87420/119392)
+2026-10-22T19:39:11.5380543Z Updating files:  74% (88351/119392)
+2026-10-22T19:39:11.6931240Z Updating files:  75% (89544/119392)
+2026-10-22T19:39:11.8416818Z Updating files:  76% (90738/119392)
+2026-10-22T19:39:11.8445541Z Updating files:  76% (91872/119392)
+2026-10-22T19:39:12.0357484Z Updating files:  77% (91932/119392)
+2026-10-22T19:39:12.1097443Z Updating files:  78% (93126/119392)
+2026-10-22T19:39:12.2092457Z Updating files:  79% (94320/119392)
+2026-10-22T19:39:12.4678055Z Updating files:  80% (95514/119392)
+2026-10-22T19:39:12.8286122Z Updating files:  81% (96708/119392)
+2026-10-22T19:39:12.8539126Z Updating files:  82% (97902/119392)
+2026-10-22T19:39:13.2935559Z Updating files:  82% (98061/119392)
+2026-10-22T19:39:13.3849605Z Updating files:  83% (99096/119392)
+2026-10-22T19:39:13.4747963Z Updating files:  84% (100290/119392)
+2026-10-22T19:39:13.6024999Z Updating files:  85% (101484/119392)
+2026-10-22T19:39:13.8416794Z Updating files:  86% (102678/119392)
+2026-10-22T19:39:13.8864995Z Updating files:  86% (103351/119392)
+2026-10-22T19:39:13.9904005Z Updating files:  87% (103872/119392)
+2026-10-22T19:39:14.1934246Z Updating files:  88% (105065/119392)
+2026-10-22T19:39:14.3281657Z Updating files:  89% (106259/119392)
+2026-10-22T19:39:14.7764704Z Updating files:  90% (107453/119392)
+2026-10-22T19:39:14.8417516Z Updating files:  91% (108647/119392)
+2026-10-22T19:39:14.8644432Z Updating files:  91% (109471/119392)
+2026-10-22T19:39:14.9703127Z Updating files:  92% (109841/119392)
+2026-10-22T19:39:15.0116509Z Updating files:  93% (111035/119392)
+2026-10-22T19:39:15.0550043Z Updating files:  94% (112229/119392)
+2026-10-22T19:39:15.1838252Z Updating files:  95% (113423/119392)
+2026-10-22T19:39:15.2566723Z Updating files:  96% (114617/119392)
+2026-10-22T19:39:15.3361659Z Updating files:  97% (115811/119392)
+2026-10-22T19:39:15.4441488Z Updating files:  98% (117005/119392)
+2026-10-22T19:39:15.5516048Z Updating files:  99% (118199/119392)
+2026-10-22T19:39:15.5516562Z Updating files: 100% (119392/119392)
+2026-10-22T19:39:15.5517220Z Updating files: 100% (119392/119392), done.
+2026-10-22T19:39:15.6879853Z Switched to a new branch 'work'
+2026-10-22T19:39:15.6881103Z branch 'work' set up to track 'origin/work'.
+2026-10-22T19:39:15.7951537Z ##[endgroup]
+2026-10-22T19:39:15.8123936Z [command]/usr/bin/git log -1 --format=%H
+2026-10-22T19:39:15.8150719Z 7cca49ca73b67aab94bcd9aa27a3a358273e4d78
+2026-10-22T19:39:15.9076736Z ##[group]Run actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f
+2026-10-22T19:39:15.9077436Z with:
+2026-10-22T19:39:15.9077636Z   toolchain: stable
+2026-10-22T19:39:15.9077866Z   cache-key: runtime-rust-tests
+2026-10-22T19:39:15.9078118Z   build-warnings: deny
+2026-10-22T19:39:15.9078325Z   cache: true
+2026-10-22T19:39:15.9078522Z   cache-on-failure: true
+2026-10-22T19:39:15.9078739Z   cache-bin: true
+2026-10-22T19:39:15.9078964Z   cache-provider: github
+2026-10-22T19:39:15.9079198Z   cache-all-crates: false
+2026-10-22T19:39:15.9079437Z   cache-workspace-crates: false
+2026-10-22T19:39:15.9079684Z   cache-save-if: true
+2026-10-22T19:39:15.9079892Z   cache-targets: true
+2026-10-22T19:39:15.9080094Z   matcher: true
+2026-10-22T19:39:15.9080292Z   override: true
+2026-10-22T19:39:15.9080483Z env:
+2026-10-22T19:39:15.9080663Z   CARGO_INCREMENTAL: 0
+2026-10-22T19:39:15.9080877Z   CARGO_PROFILE_DEV_DEBUG: 0
+2026-10-22T19:39:15.9081100Z ##[endgroup]
+2026-10-22T19:39:15.9149589Z ##[start-action display=Unbork mac;id=__actions-rust-lang_setup-rust-toolchain.__run]
+2026-10-22T19:39:15.9155969Z ##[end-action id=__actions-rust-lang_setup-rust-toolchain.__run;outcome=skipped;conclusion=skipped;duration_ms=0]
+2026-10-22T19:39:15.9196771Z ##[start-action display=Run : construct rustup command line;id=__actions-rust-lang_setup-rust-toolchain.flags]
+2026-10-22T19:39:15.9233960Z ##[group]Run : construct rustup command line
+2026-10-22T19:39:15.9234373Z [36;1m: construct rustup command line[0m
+2026-10-22T19:39:15.9234882Z [36;1mecho "targets=$(for t in ${_srt_targets//,/ }; do echo -n ' --target' $t; done)" >> $GITHUB_OUTPUT[0m
+2026-10-22T19:39:15.9235587Z [36;1mecho "components=$(for c in ${_srt_components//,/ }; do echo -n ' --component' $c; done)" >> $GITHUB_OUTPUT[0m
+2026-10-22T19:39:15.9236131Z [36;1mecho "downgrade=" >> $GITHUB_OUTPUT[0m
+2026-10-22T19:39:16.0038465Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2026-10-22T19:39:16.0038936Z env:
+2026-10-22T19:39:16.0039207Z   CARGO_INCREMENTAL: 0
+2026-10-22T19:39:16.0039508Z   CARGO_PROFILE_DEV_DEBUG: 0
+2026-10-22T19:39:16.0039817Z   _srt_targets: 
+2026-10-22T19:39:16.0040077Z   _srt_components: 
+2026-10-22T19:39:16.0040344Z ##[endgroup]
+2026-10-22T19:39:16.0240083Z ##[end-action id=__actions-rust-lang_setup-rust-toolchain.flags;outcome=success;conclusion=success;duration_ms=104]
+2026-10-22T19:39:16.0246123Z ##[start-action display=Setting Environment Variables;id=__actions-rust-lang_setup-rust-toolchain.__run_2]
+2026-10-22T19:39:16.0265358Z ##[group]Run if [[ ! -v CARGO_INCREMENTAL ]]; then
+2026-10-22T19:39:16.0265738Z [36;1mif [[ ! -v CARGO_INCREMENTAL ]]; then[0m
+2026-10-22T19:39:16.0266061Z [36;1m  echo "CARGO_INCREMENTAL=0" >> $GITHUB_ENV[0m
+2026-10-22T19:39:16.0266352Z [36;1mfi[0m
+2026-10-22T19:39:16.0266583Z [36;1mif [[ ! -v CARGO_PROFILE_DEV_DEBUG ]]; then[0m
+2026-10-22T19:39:16.0267247Z [36;1m  echo "CARGO_PROFILE_DEV_DEBUG=0" >> $GITHUB_ENV[0m
+2026-10-22T19:39:16.0267579Z [36;1mfi[0m
+2026-10-22T19:39:16.0267821Z [36;1mif [[ ! -v CARGO_TERM_COLOR ]]; then[0m
+2026-10-22T19:39:16.0268160Z [36;1m  echo "CARGO_TERM_COLOR=always" >> $GITHUB_ENV[0m
+2026-10-22T19:39:16.0268459Z [36;1mfi[0m
+2026-10-22T19:39:16.0268670Z [36;1mif [[ ! -v RUST_BACKTRACE ]]; then[0m
+2026-10-22T19:39:16.0268988Z [36;1m  echo "RUST_BACKTRACE=short" >> $GITHUB_ENV[0m
+2026-10-22T19:39:16.0269278Z [36;1mfi[0m
+2026-10-22T19:39:16.0269541Z [36;1mif [[ ( ! -v RUSTFLAGS ) && $_srt_NEW_RUSTFLAGS != "" ]]; then[0m
+2026-10-22T19:39:16.0269971Z [36;1m  echo "RUSTFLAGS=$_srt_NEW_RUSTFLAGS" >> $GITHUB_ENV[0m
+2026-10-22T19:39:16.0270290Z [36;1mfi[0m
+2026-10-22T19:39:16.0270622Z [36;1mif [[ ( ! -v CARGO_BUILD_WARNINGS ) && $_srt_CARGO_BUILD_WARNINGS != "" ]]; then[0m
+2026-10-22T19:39:16.0271134Z [36;1m  echo "CARGO_BUILD_WARNINGS=$_srt_CARGO_BUILD_WARNINGS" >> $GITHUB_ENV[0m
+2026-10-22T19:39:16.0271519Z [36;1mfi[0m
+2026-10-22T19:39:16.0271785Z [36;1m# Enable faster sparse index on nightly[0m
+2026-10-22T19:39:16.0272356Z [36;1m# The value is ignored on stable and causes no problems[0m
+2026-10-22T19:39:16.0272921Z [36;1m# https://internals.rust-lang.org/t/call-for-testing-cargo-sparse-registry/16862[0m
+2026-10-22T19:39:16.0273445Z [36;1mif [[ ! -v CARGO_UNSTABLE_SPARSE_REGISTRY ]]; then[0m
+2026-10-22T19:39:16.0273844Z [36;1m  echo "CARGO_UNSTABLE_SPARSE_REGISTRY=true" >> $GITHUB_ENV[0m
+2026-10-22T19:39:16.0274192Z [36;1mfi[0m
+2026-10-22T19:39:16.0274460Z [36;1mif [[ ! -v CARGO_REGISTRIES_CRATES_IO_PROTOCOL ]]; then[0m
+2026-10-22T19:39:16.0274893Z [36;1m  echo "CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse" >> $GITHUB_ENV[0m
+2026-10-22T19:39:16.0275254Z [36;1mfi[0m
+2026-10-22T19:39:16.0333837Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2026-10-22T19:39:16.0334178Z env:
+2026-10-22T19:39:16.0334382Z   CARGO_INCREMENTAL: 0
+2026-10-22T19:39:16.0334615Z   CARGO_PROFILE_DEV_DEBUG: 0
+2026-10-22T19:39:16.0334848Z   _srt_NEW_RUSTFLAGS: 
+2026-10-22T19:39:16.0335082Z   _srt_CARGO_BUILD_WARNINGS: deny
+2026-10-22T19:39:16.0335322Z ##[endgroup]
+2026-10-22T19:39:16.0431114Z ##[end-action id=__actions-rust-lang_setup-rust-toolchain.__run_2;outcome=success;conclusion=success;duration_ms=18]
+2026-10-22T19:39:16.0433973Z ##[start-action display=Install Rust Problem Matcher;id=__actions-rust-lang_setup-rust-toolchain.__run_3]
+2026-10-22T19:39:16.0494217Z ##[group]Run echo "::add-matcher::/home/runner/work/_actions/actions-rust-lang/setup-rust-toolchain/ecabd13d1c56bd1345c230e542e9144811ad706f/rust.json"
+2026-10-22T19:39:16.0495269Z [36;1mecho "::add-matcher::/home/runner/work/_actions/actions-rust-lang/setup-rust-toolchain/ecabd13d1c56bd1345c230e542e9144811ad706f/rust.json"[0m
+2026-10-22T19:39:16.0560107Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2026-10-22T19:39:16.0560454Z env:
+2026-10-22T19:39:16.0560654Z   CARGO_INCREMENTAL: 0
+2026-10-22T19:39:16.0560884Z   CARGO_PROFILE_DEV_DEBUG: 0
+2026-10-22T19:39:16.0561129Z   CARGO_TERM_COLOR: always
+2026-10-22T19:39:16.0561376Z   RUST_BACKTRACE: short
+2026-10-22T19:39:16.0561602Z   CARGO_BUILD_WARNINGS: deny
+2026-10-22T19:39:16.0561859Z   CARGO_UNSTABLE_SPARSE_REGISTRY: true
+2026-10-22T19:39:16.0562154Z   CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
+2026-10-22T19:39:16.0562436Z ##[endgroup]
+2026-10-22T19:39:16.0715337Z ##[end-action id=__actions-rust-lang_setup-rust-toolchain.__run_3;outcome=success;conclusion=success;duration_ms=28]
+2026-10-22T19:39:16.0719742Z ##[start-action display=Install rustup, if needed;id=__actions-rust-lang_setup-rust-toolchain.__run_4]
+2026-10-22T19:39:16.0738795Z ##[group]Run if ! command -v rustup &> /dev/null ; then
+2026-10-22T19:39:16.0739187Z [36;1mif ! command -v rustup &> /dev/null ; then[0m
+2026-10-22T19:39:16.0739852Z [36;1m  curl --proto '=https' --tlsv1.2 --retry 10 --retry-connrefused -fsSL "https://sh.rustup.rs" | sh -s -- --default-toolchain none -y[0m
+2026-10-22T19:39:16.0740466Z [36;1m[0m
+2026-10-22T19:39:16.0740741Z [36;1m  # Resolve the correct CARGO_HOME path depending on OS[0m
+2026-10-22T19:39:16.0741123Z [36;1m  if [[ "$RUNNER_OS" == "Windows" ]]; then[0m
+2026-10-22T19:39:16.0741564Z [36;1m    echo "${CARGO_HOME:-$USERPROFILE/.cargo}/bin" | sed 's|/|\\|g' >> $GITHUB_PATH[0m
+2026-10-22T19:39:16.0741985Z [36;1m  else[0m
+2026-10-22T19:39:16.0742250Z [36;1m    echo "${CARGO_HOME:-$HOME/.cargo}/bin" >> $GITHUB_PATH[0m
+2026-10-22T19:39:16.0742571Z [36;1m  fi[0m
+2026-10-22T19:39:16.0742757Z [36;1mfi[0m
+2026-10-22T19:39:16.0804466Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2026-10-22T19:39:16.0804818Z env:
+2026-10-22T19:39:16.0805010Z   CARGO_INCREMENTAL: 0
+2026-10-22T19:39:16.0805254Z   CARGO_PROFILE_DEV_DEBUG: 0
+2026-10-22T19:39:16.0805497Z   CARGO_TERM_COLOR: always
+2026-10-22T19:39:16.0805725Z   RUST_BACKTRACE: short
+2026-10-22T19:39:16.0805951Z   CARGO_BUILD_WARNINGS: deny
+2026-10-22T19:39:16.0806201Z   CARGO_UNSTABLE_SPARSE_REGISTRY: true
+2026-10-22T19:39:16.0806505Z   CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
+2026-10-22T19:39:16.0806790Z   RUNNER_OS: Linux
+2026-10-22T19:39:16.0807328Z ##[endgroup]
+2026-10-22T19:39:16.0901446Z ##[end-action id=__actions-rust-lang_setup-rust-toolchain.__run_4;outcome=success;conclusion=success;duration_ms=18]
+2026-10-22T19:39:16.0906717Z ##[start-action display=rustup toolchain install stable;id=__actions-rust-lang_setup-rust-toolchain.__run_5]
+2026-10-22T19:39:16.0928342Z ##[group]Run # Check if value is set
+2026-10-22T19:39:16.0928660Z [36;1m# Check if value is set[0m
+2026-10-22T19:39:16.0928940Z [36;1mif [[ -n "$_srt_rust_src_dir" ]][0m
+2026-10-22T19:39:16.0929210Z [36;1mthen[0m
+2026-10-22T19:39:16.0929451Z [36;1m  # If value is set the directory must exist[0m
+2026-10-22T19:39:16.0929772Z [36;1m  if [[ -d "$_srt_rust_src_dir" ]][0m
+2026-10-22T19:39:16.0930034Z [36;1m  then[0m
+2026-10-22T19:39:16.0930236Z [36;1m    cd "$_srt_rust_src_dir"[0m
+2026-10-22T19:39:16.0930479Z [36;1m  else[0m
+2026-10-22T19:39:16.0930803Z [36;1m    echo "'rust-src-dir' does not point to an existing directory" >&2[0m
+2026-10-22T19:39:16.0931286Z [36;1m    echo "The value of 'rust-src-dir' is: ${_srt_rust_src_dir}" >&2[0m
+2026-10-22T19:39:16.0931641Z [36;1m    exit 1[0m
+2026-10-22T19:39:16.0931839Z [36;1m  fi[0m
+2026-10-22T19:39:16.0932023Z [36;1mfi[0m
+2026-10-22T19:39:16.0932360Z [36;1mif [[ -z "$_srt_toolchain" && ( -f "rust-toolchain" || -f "rust-toolchain.toml") ]][0m
+2026-10-22T19:39:16.0932761Z [36;1mthen[0m
+2026-10-22T19:39:16.0933014Z [36;1m  # Install the toolchain as specified in the file[0m
+2026-10-22T19:39:16.0933438Z [36;1m  # rustup show is the old way that implicitly installed a toolchain[0m
+2026-10-22T19:39:16.0933873Z [36;1m  # rustup toolchain install is the new explicit way[0m
+2026-10-22T19:39:16.0934342Z [36;1m  # https://github.com/rust-lang/rustup/issues/3635#issuecomment-2343511297[0m
+2026-10-22T19:39:16.0934832Z [36;1m  rustup show active-toolchain || rustup toolchain install[0m
+2026-10-22T19:39:16.0935206Z [36;1m  if [[ -n $_srt_components ]]; then[0m
+2026-10-22T19:39:16.0935544Z [36;1m    rustup component add ${_srt_components//,/ }[0m
+2026-10-22T19:39:16.0935840Z [36;1m  fi[0m
+2026-10-22T19:39:16.0936050Z [36;1m  if [[ -n $_srt_targets ]]; then[0m
+2026-10-22T19:39:16.0936352Z [36;1m    rustup target add ${_srt_targets//,/ }[0m
+2026-10-22T19:39:16.0936642Z [36;1m  fi[0m
+2026-10-22T19:39:16.0936825Z [36;1melse[0m
+2026-10-22T19:39:16.0937272Z [36;1m  if [[ -z "$_srt_toolchain" ]][0m
+2026-10-22T19:39:16.0937535Z [36;1m  then[0m
+2026-10-22T19:39:16.0937986Z [36;1m    _srt_toolchain=stable[0m
+2026-10-22T19:39:16.0938231Z [36;1m  fi[0m
+2026-10-22T19:39:16.0938593Z [36;1m  rustup toolchain install ${_srt_toolchain//,/ }  --profile minimal --no-self-update[0m
+2026-10-22T19:39:16.0939051Z [36;1m  # Take the last element from the list[0m
+2026-10-22T19:39:16.0939357Z [36;1m  if [[ "$_srt_override" == "true" ]][0m
+2026-10-22T19:39:16.0939627Z [36;1m  then[0m
+2026-10-22T19:39:16.0939877Z [36;1m    rustup override set ${_srt_toolchain//*,/ }[0m
+2026-10-22T19:39:16.0940172Z [36;1m  fi[0m
+2026-10-22T19:39:16.0940361Z [36;1mfi[0m
+2026-10-22T19:39:16.0999691Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2026-10-22T19:39:16.1000030Z env:
+2026-10-22T19:39:16.1000219Z   CARGO_INCREMENTAL: 0
+2026-10-22T19:39:16.1000453Z   CARGO_PROFILE_DEV_DEBUG: 0
+2026-10-22T19:39:16.1000699Z   CARGO_TERM_COLOR: always
+2026-10-22T19:39:16.1000932Z   RUST_BACKTRACE: short
+2026-10-22T19:39:16.1001154Z   CARGO_BUILD_WARNINGS: deny
+2026-10-22T19:39:16.1001406Z   CARGO_UNSTABLE_SPARSE_REGISTRY: true
+2026-10-22T19:39:16.1001693Z   CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
+2026-10-22T19:39:16.1001980Z   _srt_toolchain: stable
+2026-10-22T19:39:16.1002198Z   _srt_targets: 
+2026-10-22T19:39:16.1002395Z   _srt_components: 
+2026-10-22T19:39:16.1002596Z   _srt_override: true
+2026-10-22T19:39:16.1002797Z   _srt_rust_src_dir: 
+2026-10-22T19:39:16.1002993Z ##[endgroup]
+2026-10-22T19:39:16.3275527Z info: syncing channel updates for stable-x86_64-unknown-linux-gnu
+2026-10-22T19:39:16.6406339Z info: latest update on 2026-10-15 for version 1.99.1 (58cf8f9c3 2026-10-13)
+2026-10-22T19:39:16.6560524Z info: removing previous version of component rustfmt
+2026-10-22T19:39:16.6585578Z info: removing previous version of component clippy
+2026-10-22T19:39:16.6599898Z info: removing previous version of component cargo
+2026-10-22T19:39:16.6653781Z info: removing previous version of component rust-std
+2026-10-22T19:39:16.6705799Z info: removing previous version of component rustc
+2026-10-22T19:39:16.6761788Z info: downloading 5 components
+2026-10-22T19:39:25.6263350Z 
+2026-10-22T19:39:25.6333437Z   stable-x86_64-unknown-linux-gnu updated - rustc 1.99.1 (58cf8f9c3 2026-10-13) (from rustc 1.99.0 (b940084d7 2026-09-28))
+2026-10-22T19:39:25.6334281Z 
+2026-10-22T19:39:25.6648208Z info: override toolchain for /home/runner/work/tcl-lsp/tcl-lsp set to stable-x86_64-unknown-linux-gnu
+2026-10-22T19:39:25.6669833Z ##[end-action id=__actions-rust-lang_setup-rust-toolchain.__run_5;outcome=success;conclusion=success;duration_ms=9576]
+2026-10-22T19:39:25.6673380Z ##[start-action display=Print installed versions;id=__actions-rust-lang_setup-rust-toolchain.versions]
+2026-10-22T19:39:25.6694651Z ##[group]Run echo "rustc-version=$(rustc --version)" >> $GITHUB_OUTPUT
+2026-10-22T19:39:25.6695145Z [36;1mecho "rustc-version=$(rustc --version)" >> $GITHUB_OUTPUT[0m
+2026-10-22T19:39:25.6695527Z [36;1m_srt_VERBOSE=$(rustc --version --verbose)[0m
+2026-10-22T19:39:25.6695828Z [36;1mecho "$_srt_VERBOSE"[0m
+2026-10-22T19:39:25.6696173Z [36;1mecho "cargo-version=$(cargo --version)" >> $GITHUB_OUTPUT[0m
+2026-10-22T19:39:25.6696538Z [36;1mcargo --version --verbose[0m
+2026-10-22T19:39:25.6696876Z [36;1mecho "rustup-version=$(rustup --version)" >> $GITHUB_OUTPUT[0m
+2026-10-22T19:39:25.6697675Z [36;1mrustup --version[0m
+2026-10-22T19:39:25.6697907Z [36;1m[0m
+2026-10-22T19:39:25.6698338Z [36;1m_srt_DATE=$(echo "$_srt_VERBOSE" | sed -ne 's/^commit-date: \(20[0-9][0-9]\)-\([01][0-9]\)-\([0-3][0-9]\)$/\1\2\3/p')[0m
+2026-10-22T19:39:25.6698935Z [36;1m_srt_HASH=$(echo "$_srt_VERBOSE" | sed -ne 's/^commit-hash: //p')[0m
+2026-10-22T19:39:25.6699428Z [36;1mecho "cachekey=$(echo $_srt_DATE$_srt_HASH | head -c12)" >> $GITHUB_OUTPUT[0m
+2026-10-22T19:39:25.6759204Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2026-10-22T19:39:25.6759539Z env:
+2026-10-22T19:39:25.6759727Z   CARGO_INCREMENTAL: 0
+2026-10-22T19:39:25.6759957Z   CARGO_PROFILE_DEV_DEBUG: 0
+2026-10-22T19:39:25.6760203Z   CARGO_TERM_COLOR: always
+2026-10-22T19:39:25.6760618Z   RUST_BACKTRACE: short
+2026-10-22T19:39:25.6760854Z   CARGO_BUILD_WARNINGS: deny
+2026-10-22T19:39:25.6761096Z   CARGO_UNSTABLE_SPARSE_REGISTRY: true
+2026-10-22T19:39:25.6761403Z   CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
+2026-10-22T19:39:25.6761686Z ##[endgroup]
+2026-10-22T19:39:25.7065788Z rustc 1.99.1 (58cf8f9c3 2026-10-13)
+2026-10-22T19:39:25.7066237Z binary: rustc
+2026-10-22T19:39:25.7066522Z commit-hash: 58cf8f9c35b355199727627d07ae34a4e2846d67
+2026-10-22T19:39:25.7066854Z commit-date: 2026-10-13
+2026-10-22T19:39:25.7067514Z host: x86_64-unknown-linux-gnu
+2026-10-22T19:39:25.7067770Z release: 1.99.1
+2026-10-22T19:39:25.7067978Z LLVM version: 23.1.1
+2026-10-22T19:39:25.7417996Z cargo 1.99.1 (5f94df478 2026-08-27)
+2026-10-22T19:39:25.7418544Z release: 1.99.1
+2026-10-22T19:39:25.7419016Z commit-hash: 5f94df4789f005f9a352888e8355ffc645b7ed0e
+2026-10-22T19:39:25.7419571Z commit-date: 2026-08-27
+2026-10-22T19:39:25.7419986Z host: x86_64-unknown-linux-gnu
+2026-10-22T19:39:25.7420478Z libgit2: 1.9.6 (sys:0.21.0 vendored)
+2026-10-22T19:39:25.7421124Z libcurl: 8.21.0-DEV (sys:0.4.90+curl-8.21.0 vendored ssl:OpenSSL/3.6.3)
+2026-10-22T19:39:25.7421783Z ssl: OpenSSL 3.6.3 9 Jun 2026
+2026-10-22T19:39:25.7422235Z os: Ubuntu 26.4.0 (resolute) [64-bit]
+2026-10-22T19:39:25.7456011Z info: This is the version for the rustup toolchain manager, not the rustc compiler.
+2026-10-22T19:39:25.7534273Z info: the currently active `rustc` version is `rustc 1.99.1 (58cf8f9c3 2026-10-13)`
+2026-10-22T19:39:25.7572395Z info: This is the version for the rustup toolchain manager, not the rustc compiler.
+2026-10-22T19:39:25.7572995Z rustup 1.29.1 (d95a37b6a 2026-08-13)
+2026-10-22T19:39:25.7645324Z info: the currently active `rustc` version is `rustc 1.99.1 (58cf8f9c3 2026-10-13)`
+2026-10-22T19:39:25.7742187Z ##[end-action id=__actions-rust-lang_setup-rust-toolchain.versions;outcome=success;conclusion=success;duration_ms=106]
+2026-10-22T19:39:25.7745094Z ##[start-action display=Downgrade registry access protocol when needed;id=__actions-rust-lang_setup-rust-toolchain.__run_6]
+2026-10-22T19:39:25.7764211Z ##[group]Run # Not all versions support setting CARGO_REGISTRIES_CRATES_IO_PROTOCOL
+2026-10-22T19:39:25.7764779Z [36;1m# Not all versions support setting CARGO_REGISTRIES_CRATES_IO_PROTOCOL[0m
+2026-10-22T19:39:25.7765303Z [36;1m# On versions 1.66, 1.67, and 1.68.0-nightly the value "sparse" is still unstable.[0m
+2026-10-22T19:39:25.7765859Z [36;1m# https://github.com/dtolnay/rust-toolchain/pull/69#discussion_r1107268108[0m
+2026-10-22T19:39:25.7766444Z [36;1m# If we detect an incompatible value, set it to "git" which is always supported.[0m
+2026-10-22T19:39:25.7767497Z [36;1mif [[ "rustc 1.99.1 (58cf8f9c3 2026-10-13)" =~ ^rustc\ (1\.6[67]\.|1\.68\.0-nightly) && "${CARGO_REGISTRIES_CRATES_IO_PROTOCOL}" == "sparse" ]]; then[0m
+2026-10-22T19:39:25.7768156Z [36;1m  echo "Downgrade cargo registry protocol to git"[0m
+2026-10-22T19:39:25.7768560Z [36;1m  echo "CARGO_REGISTRIES_CRATES_IO_PROTOCOL=git" >> $GITHUB_ENV[0m
+2026-10-22T19:39:25.7768917Z [36;1mfi[0m
+2026-10-22T19:39:25.7828167Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2026-10-22T19:39:25.7828502Z env:
+2026-10-22T19:39:25.7828690Z   CARGO_INCREMENTAL: 0
+2026-10-22T19:39:25.7828913Z   CARGO_PROFILE_DEV_DEBUG: 0
+2026-10-22T19:39:25.7829147Z   CARGO_TERM_COLOR: always
+2026-10-22T19:39:25.7829371Z   RUST_BACKTRACE: short
+2026-10-22T19:39:25.7829590Z   CARGO_BUILD_WARNINGS: deny
+2026-10-22T19:39:25.7829829Z   CARGO_UNSTABLE_SPARSE_REGISTRY: true
+2026-10-22T19:39:25.7830121Z   CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
+2026-10-22T19:39:25.7830402Z ##[endgroup]
+2026-10-22T19:39:25.7913265Z ##[end-action id=__actions-rust-lang_setup-rust-toolchain.__run_6;outcome=success;conclusion=success;duration_ms=16]
+2026-10-22T19:39:25.7915466Z ##[start-action display=Setup Rust Caching;id=__actions-rust-lang_setup-rust-toolchain.__Swatinem_rust-cache]
+2026-10-22T19:39:25.7973414Z ##[group]Run Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6
+2026-10-22T19:39:25.7973980Z with:
+2026-10-22T19:39:25.7974175Z   cache-on-failure: true
+2026-10-22T19:39:25.7974400Z   cache-bin: true
+2026-10-22T19:39:25.7974607Z   cache-provider: github
+2026-10-22T19:39:25.7974834Z   cache-all-crates: false
+2026-10-22T19:39:25.7975070Z   cache-workspace-crates: false
+2026-10-22T19:39:25.7975320Z   cache-targets: true
+2026-10-22T19:39:25.7975532Z   save-if: true
+2026-10-22T19:39:25.7975737Z   key: runtime-rust-tests
+2026-10-22T19:39:25.7975971Z   prefix-key: v0-rust
+2026-10-22T19:39:25.7976184Z   add-job-id-key: true
+2026-10-22T19:39:25.7976423Z   add-rust-environment-hash-key: true
+2026-10-22T19:39:25.7976691Z   lookup-only: false
+2026-10-22T19:39:25.7976893Z   cmd-format: {0}
+2026-10-22T19:39:25.7977262Z env:
+2026-10-22T19:39:25.7977442Z   CARGO_INCREMENTAL: 0
+2026-10-22T19:39:25.7977654Z   CARGO_PROFILE_DEV_DEBUG: 0
+2026-10-22T19:39:25.7977883Z   CARGO_TERM_COLOR: always
+2026-10-22T19:39:25.7978103Z   RUST_BACKTRACE: short
+2026-10-22T19:39:25.7978317Z   CARGO_BUILD_WARNINGS: deny
+2026-10-22T19:39:25.7978565Z   CARGO_UNSTABLE_SPARSE_REGISTRY: true
+2026-10-22T19:39:25.7978848Z   CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
+2026-10-22T19:39:25.7979118Z ##[endgroup]
+2026-10-22T19:39:34.8739901Z ##[group]Cache Configuration
+2026-10-22T19:39:34.8740490Z Cache Provider:
+2026-10-22T19:39:34.8740940Z     github
+2026-10-22T19:39:34.8741276Z Workspaces:
+2026-10-22T19:39:34.8741695Z     /home/runner/work/tcl-lsp/tcl-lsp
+2026-10-22T19:39:34.8742187Z Cache Paths:
+2026-10-22T19:39:34.8742588Z     /home/runner/.cargo/bin
+2026-10-22T19:39:34.8743645Z     /home/runner/.cargo/.crates.toml
+2026-10-22T19:39:34.8744375Z     /home/runner/.cargo/.crates2.json
+2026-10-22T19:39:34.8745040Z     /home/runner/.cargo/registry
+2026-10-22T19:39:34.8745643Z     /home/runner/.cargo/git
+2026-10-22T19:39:34.8746284Z     /home/runner/work/tcl-lsp/tcl-lsp/target
+2026-10-22T19:39:34.8747125Z Restore Key:
+2026-10-22T19:39:34.8747846Z     v0-rust-runtime-rust-tests-runtime-rust-tests-Linux-x64-9c09dd5e
+2026-10-22T19:39:34.8748680Z Cache Key:
+2026-10-22T19:39:34.8749463Z     v0-rust-runtime-rust-tests-runtime-rust-tests-Linux-x64-9c09dd5e-b2d9d405
+2026-10-22T19:39:34.8750376Z .. Prefix:
+2026-10-22T19:39:34.8750975Z   - v0-rust-runtime-rust-tests-runtime-rust-tests-Linux-x64
+2026-10-22T19:39:34.8751733Z .. Environment considered:
+2026-10-22T19:39:34.8752149Z   - Rust Versions:
+2026-10-22T19:39:34.8752605Z     - 1.99.1 x86_64-unknown-linux-gnu 58cf8f9c35b355199727627d07ae34a4e2846d67
+2026-10-22T19:39:34.8753126Z   - CARGO_BUILD_WARNINGS
+2026-10-22T19:39:34.8753467Z   - CARGO_INCREMENTAL
+2026-10-22T19:39:34.8753767Z   - CARGO_PROFILE_DEV_DEBUG
+2026-10-22T19:39:34.8754115Z   - CARGO_REGISTRIES_CRATES_IO_PROTOCOL
+2026-10-22T19:39:34.8754480Z   - CARGO_TERM_COLOR
+2026-10-22T19:39:34.8754786Z   - CARGO_UNSTABLE_SPARSE_REGISTRY
+2026-10-22T19:39:34.8755193Z   - RUST_BACKTRACE
+2026-10-22T19:39:34.8755638Z .. Lockfiles considered:
+2026-10-22T19:39:34.8756253Z   - /home/runner/work/tcl-lsp/tcl-lsp/.cargo/config.toml
+2026-10-22T19:39:34.8757102Z   - /home/runner/work/tcl-lsp/tcl-lsp/Cargo.lock
+2026-10-22T19:39:34.8757756Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust-toolchain.toml
+2026-10-22T19:39:34.8758559Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/bigip-report-gen/rust/Cargo.toml
+2026-10-22T19:39:34.8759354Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/bpf-tcl-codegen/Cargo.toml
+2026-10-22T19:39:34.8759839Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/bpf-tcl-ir/Cargo.toml
+2026-10-22T19:39:34.8760277Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/bpf-tcl/Cargo.toml
+2026-10-22T19:39:34.8760682Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/f5-cli/Cargo.toml
+2026-10-22T19:39:34.8761073Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/f5-xc/Cargo.toml
+2026-10-22T19:39:34.8761492Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-bigip-io/Cargo.toml
+2026-10-22T19:39:34.8761947Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-bigip-query/Cargo.toml
+2026-10-22T19:39:34.8762411Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-bigip/Cargo.toml
+2026-10-22T19:39:34.8763080Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-bytecode/Cargo.toml
+2026-10-22T19:39:34.8763567Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-cli-support/Cargo.toml
+2026-10-22T19:39:34.8764022Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-cli/Cargo.toml
+2026-10-22T19:39:34.8764443Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-cmd-core/Cargo.toml
+2026-10-22T19:39:34.8764881Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-compiler/Cargo.toml
+2026-10-22T19:39:34.8765346Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-core-types/Cargo.toml
+2026-10-22T19:39:34.8765812Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-cshim/Cargo.toml
+2026-10-22T19:39:34.8766242Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-debugger/Cargo.toml
+2026-10-22T19:39:34.8766678Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-diagram/Cargo.toml
+2026-10-22T19:39:34.8767386Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-dialect/Cargo.toml
+2026-10-22T19:39:34.8767841Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-engine-api/Cargo.toml
+2026-10-22T19:39:34.8768313Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-engine-tclvm/Cargo.toml
+2026-10-22T19:39:34.8768787Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-engine-wasm/Cargo.toml
+2026-10-22T19:39:34.8769533Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-explorer/Cargo.toml
+2026-10-22T19:39:34.8770323Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-f5mku/Cargo.toml
+2026-10-22T19:39:34.8770765Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-fuzz/Cargo.toml
+2026-10-22T19:39:34.8771372Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-host-c-abi/Cargo.toml
+2026-10-22T19:39:34.8771847Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-host-native/Cargo.toml
+2026-10-22T19:39:34.8772300Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-irule-test/Cargo.toml
+2026-10-22T19:39:34.8772735Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-irules/Cargo.toml
+2026-10-22T19:39:34.8773158Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-lexer/Cargo.toml
+2026-10-22T19:39:34.8773583Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-lsp-core/Cargo.toml
+2026-10-22T19:39:34.8774016Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-lsp-db/Cargo.toml
+2026-10-22T19:39:34.8774550Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-lsp-server-wasi/.cargo/config.toml
+2026-10-22T19:39:34.8775055Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-lsp-server/Cargo.toml
+2026-10-22T19:39:34.8775487Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-mcp/Cargo.toml
+2026-10-22T19:39:34.8775918Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-pkg-model/Cargo.toml
+2026-10-22T19:39:34.8776355Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-pkg/Cargo.toml
+2026-10-22T19:39:34.8776771Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-platform/Cargo.toml
+2026-10-22T19:39:34.8777549Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-regex/Cargo.toml
+2026-10-22T19:39:34.8777979Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-registry/Cargo.toml
+2026-10-22T19:39:34.8778780Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/selected-provenance/repo-inputs/.cargo/config.toml
+2026-10-22T19:39:34.8779973Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/selected-provenance/rust-toolchain/lib/rustlib/components
+2026-10-22T19:39:34.8781245Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/selected-provenance/rust-toolchain/lib/rustlib/manifest-rust-std-wasm32-wasip1
+2026-10-22T19:39:34.8782603Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/selected-provenance/rust-toolchain/lib/rustlib/multirust-channel-manifest.toml
+2026-10-22T19:39:34.8783910Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/selected-provenance/rust-toolchain/lib/rustlib/multirust-config.toml
+2026-10-22T19:39:34.8784771Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-runtime-api/Cargo.toml
+2026-10-22T19:39:34.8785379Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-sandbox/Cargo.toml
+2026-10-22T19:39:34.8785835Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-spec-hooks/Cargo.toml
+2026-10-22T19:39:34.8786292Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-spec-studio/Cargo.toml
+2026-10-22T19:39:34.8786733Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-spectcl/Cargo.toml
+2026-10-22T19:39:34.8787465Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-sslictcl/Cargo.toml
+2026-10-22T19:39:34.8787910Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-syntax/Cargo.toml
+2026-10-22T19:39:34.8788356Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-test-support/Cargo.toml
+2026-10-22T19:39:34.8788808Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-userdirs/Cargo.toml
+2026-10-22T19:39:34.8789242Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-version/Cargo.toml
+2026-10-22T19:39:34.8789670Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-vm-cli/Cargo.toml
+2026-10-22T19:39:34.8790079Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-vm/Cargo.toml
+2026-10-22T19:39:34.8790480Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/xtask/Cargo.toml
+2026-10-22T19:39:34.8791102Z ##[endgroup]
+2026-10-22T19:39:34.8791231Z 
+2026-10-22T19:39:34.8791357Z ... Restoring cache ...
+2026-10-22T19:39:35.0324357Z Cache hit for restore-key: v0-rust-runtime-rust-tests-runtime-rust-tests-Linux-x64-9c09dd5e-a11fd4a7
+2026-10-22T19:39:36.1949311Z Received 110339805 of 110339805 (100.0%), 103.4 MBs/sec
+2026-10-22T19:39:36.1950452Z Cache Size: ~105 MB (110339805 B)
+2026-10-22T19:39:36.2056699Z [command]/usr/bin/tar -xf /home/runner/work/_temp/383c65ce-0285-4701-8630-0678581a1ffa/cache.tzst -P -C /home/runner/work/tcl-lsp/tcl-lsp --use-compress-program unzstd
+2026-10-22T19:39:36.7533516Z Cache restored successfully
+2026-10-22T19:39:36.7584431Z Restored from cache key "v0-rust-runtime-rust-tests-runtime-rust-tests-Linux-x64-9c09dd5e-a11fd4a7" full match: false.
+2026-10-22T19:39:36.7812377Z ##[end-action id=__actions-rust-lang_setup-rust-toolchain.__Swatinem_rust-cache;outcome=success;conclusion=success;duration_ms=10989]
+2026-10-22T19:39:36.7877266Z ##[group]Run make runtime-rust-test-no-tommath
+2026-10-22T19:39:36.7877893Z [36;1mmake runtime-rust-test-no-tommath[0m
+2026-10-22T19:39:36.7940681Z shell: /usr/bin/bash -e {0}
+2026-10-22T19:39:36.7940939Z env:
+2026-10-22T19:39:36.7941133Z   CARGO_INCREMENTAL: 0
+2026-10-22T19:39:36.7941376Z   CARGO_PROFILE_DEV_DEBUG: 0
+2026-10-22T19:39:36.7941619Z   CARGO_TERM_COLOR: always
+2026-10-22T19:39:36.7941857Z   RUST_BACKTRACE: short
+2026-10-22T19:39:36.7942085Z   CARGO_BUILD_WARNINGS: deny
+2026-10-22T19:39:36.7942339Z   CARGO_UNSTABLE_SPARSE_REGISTRY: true
+2026-10-22T19:39:36.7942634Z   CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
+2026-10-22T19:39:36.7942921Z   CACHE_ON_FAILURE: true
+2026-10-22T19:39:36.7943146Z ##[endgroup]
+2026-10-22T19:39:37.5875104Z [1m[92m    Updating[0m crates.io index
+2026-10-22T19:39:37.6669992Z [1m[92m Downloading[0m crates ...
+2026-10-22T19:39:37.7958700Z [1m[92m  Downloaded[0m find-msvc-tools v0.1.15
+2026-10-22T19:39:37.7973841Z [1m[92m  Downloaded[0m cc v1.9.0
+2026-10-22T19:39:38.0907360Z [1m[92m   Compiling[0m typenum v1.20.1
+2026-10-22T19:39:38.0908389Z [1m[92m   Compiling[0m proc-macro2 v1.0.107
+2026-10-22T19:39:38.0909598Z [1m[92m   Compiling[0m cfg-if v1.0.5
+2026-10-22T19:39:38.0910662Z [1m[92m   Compiling[0m unicode-ident v1.0.27
+2026-10-22T19:39:38.1180129Z [1m[92m   Compiling[0m quote v1.0.47
+2026-10-22T19:39:38.1548661Z [1m[92m   Compiling[0m bitflags v2.13.2
+2026-10-22T19:39:38.2864155Z [1m[92m   Compiling[0m tcl-dialect v0.1.0 (/home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-dialect)
+2026-10-22T19:39:38.2918338Z [1m[92m   Compiling[0m const-oid v0.10.2
+2026-10-22T19:39:38.4194924Z [1m[92m   Compiling[0m tcl-core-types v0.1.0 (/home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-core-types)
+2026-10-22T19:39:38.4218194Z [1m[92m   Compiling[0m thiserror v2.0.21
+2026-10-22T19:39:38.6346609Z [1m[92m   Compiling[0m libm v0.2.16
+2026-10-22T19:39:38.9378529Z [1m[92m   Compiling[0m syn v3.0.9
+2026-10-22T19:39:38.9798442Z [1m[92m   Compiling[0m cpufeatures v0.3.1
+2026-10-22T19:39:39.0028563Z [1m[92m   Compiling[0m hybrid-array v0.4.15
+2026-10-22T19:39:39.0180356Z [1m[92m   Compiling[0m bytecount v0.6.9
+2026-10-22T19:39:39.5458664Z [1m[92m   Compiling[0m crypto-common v0.2.2
+2026-10-22T19:39:40.3443818Z [1m[92m   Compiling[0m block-buffer v0.12.1
+2026-10-22T19:39:40.4418190Z [1m[92m   Compiling[0m digest v0.11.3
+2026-10-22T19:39:40.5238585Z [1m[92m   Compiling[0m libc v0.2.190
+2026-10-22T19:39:40.5398270Z [1m[92m   Compiling[0m sha2 v0.11.1
+2026-10-22T19:39:40.8058779Z [1m[92m   Compiling[0m shlex v2.0.1
+2026-10-22T19:39:40.8118040Z [1m[92m   Compiling[0m find-msvc-tools v0.1.15
+2026-10-22T19:39:40.9178924Z [1m[92m   Compiling[0m tcl-platform v0.1.0 (/home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-platform)
+2026-10-22T19:39:40.9648462Z [1m[92m   Compiling[0m cc v1.9.0
+2026-10-22T19:39:41.3258658Z [1m[92m   Compiling[0m cfg_aliases v0.2.2
+2026-10-22T19:39:41.3538616Z [1m[92m   Compiling[0m nix v0.31.3
+2026-10-22T19:39:41.3982624Z [1m[92m   Compiling[0m thiserror-impl v2.0.21
+2026-10-22T19:39:41.5948816Z [1m[92m   Compiling[0m sha1 v0.11.0
+2026-10-22T19:39:41.7538472Z [1m[92m   Compiling[0m md-5 v0.11.0
+2026-10-22T19:39:41.8678690Z [1m[92m   Compiling[0m crc32fast v1.5.2
+2026-10-22T19:39:42.0118522Z [1m[92m   Compiling[0m simd-adler32 v0.3.10
+2026-10-22T19:39:42.1543882Z [1m[92m   Compiling[0m adler2 v2.0.1
+2026-10-22T19:39:42.2154572Z [1m[92m   Compiling[0m miniz_oxide v0.9.1
+2026-10-22T19:39:42.5579885Z [1m[92m   Compiling[0m tcl-lexer v0.1.0 (/home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-lexer)
+2026-10-22T19:39:42.6238766Z [1m[92m   Compiling[0m tcl-host-c-abi v0.1.0 (/home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-host-c-abi)
+2026-10-22T19:39:42.8813092Z [1m[92m   Compiling[0m smallvec v1.16.3
+2026-10-22T19:39:43.0433154Z [1m[92m   Compiling[0m rustc-hash v2.1.3
+2026-10-22T19:39:43.0936313Z [1m[92m   Compiling[0m tcl-runtime v0.1.0 (/home/runner/work/tcl-lsp/tcl-lsp/runtime/rust)
+2026-10-22T19:39:43.2742304Z [1m[92m   Compiling[0m flate2 v1.1.10
+2026-10-22T19:39:43.5651774Z [1m[92m   Compiling[0m tcl-syntax v0.1.0 (/home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-syntax)
+2026-10-22T19:39:43.7858505Z [1m[33mwarning[0m: tcl-runtime@0.1.0: libtommath source not found; bignum backend disabled
+2026-10-22T19:39:43.9577670Z [1m[92m   Compiling[0m tcl-host-native v0.1.0 (/home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-host-native)
+2026-10-22T19:39:43.9579663Z [1m[92m   Compiling[0m tcl-test-support v0.1.0 (/home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-test-support)
+2026-10-22T19:39:46.4307270Z [1m[92m   Compiling[0m tcl-runtime-api v0.1.0 (/home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-runtime-api)
+2026-10-22T19:39:47.4188874Z [1m[92m   Compiling[0m tcl-cmd-core v0.1.0 (/home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-cmd-core)
+2026-10-22T19:39:47.4190193Z [1m[92m   Compiling[0m tcl-bytecode v0.1.0 (/home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-bytecode)
+2026-10-22T19:39:50.1068248Z [1m[92m   Compiling[0m tcl-regex v0.1.0 (/home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-regex)
+2026-10-22T19:39:50.5310619Z [1m[92m   Compiling[0m tcl-registry v0.1.0 (/home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-registry)
+2026-10-22T19:40:53.9314943Z [1m[92m    Finished[0m `test` profile [unoptimized] target(s) in 1m 16s
+2026-10-22T19:40:54.0941138Z [1m[92m     Running[0m unittests src/lib.rs (target/debug/deps/tcl_runtime-6d1450336240dc60)
+2026-10-22T19:40:54.1003296Z 
+2026-10-22T19:40:54.1003682Z running 2145 tests
+2026-10-22T19:40:59.5330014Z test builtins::native_variable_operand_tests::original_increment_successful_rows_keep_legacy_amount_before_modern_name ... FAILED
+2026-10-22T19:40:59.5332025Z test builtins::native_variable_operand_tests::original_increment_first_refusal_retains_selected_reached_operand_and_amount_hold ... FAILED
+2026-10-22T19:40:59.7977844Z test builtins::native_subst_operand_tests::catch_original_output_names_match_counted_native_controls ... ok
+2026-10-22T19:41:00.6988943Z test builtins::native_variable_operand_tests::original_unset_prefix_effect_survives_host_refusal_without_reading_later_name ... ok
+2026-10-22T19:41:00.7038401Z test builtins::native_variable_operand_tests::original_unset_successful_rows_preserve_sequential_original_names ... ok
+2026-10-22T19:41:01.1338882Z test builtins::native_variable_operand_tests::original_increment_write_callback_keeps_reached_store_before_first_cause_settlement ... ok
+2026-10-22T19:41:01.6428956Z test builtins::native_subst_operand_tests::original_subst_options_match_counted_native_families ... ok
+2026-10-22T19:41:02.0018302Z test builtins::tests::raw_cr_escapes_match_tcl9 ... ok
+2026-10-22T19:41:02.2501426Z test builtins::tests::interp_limit_type_word_resolves_like_tcl_get_index_from_obj ... ok
+2026-10-22T19:41:02.2508373Z test builtins::tests::interp_debug_option_uses_c_noun_and_abbreviates ... ok
+2026-10-22T19:41:02.2532966Z test builtins::tests::interp_limit_option_words_resolve_like_tcl_get_index_from_obj ... ok
+2026-10-22T19:41:02.2717986Z test builtins::tests::subst_option_words_resolve_like_tcl_get_index_from_obj ... ok
+2026-10-22T19:41:02.5188264Z test builtins::tests::unset_nocomplain_and_dashdash ... ok
+2026-10-22T19:41:02.5189950Z test bytearray::native_append_route_controls::neutral_binary_append_preserves_its_independent_retirement_route ... ok
+2026-10-22T19:41:02.5221005Z test builtins::tests::subst_variables_commands_backslashes ... ok
+2026-10-22T19:41:02.5248005Z test bytearray::tests::byte_array_keeps_raw_payload_while_generating_a_unicode_string_rep ... ok
+2026-10-22T19:41:02.5277750Z test builtins::tests::subst_variable_colon_runs_match_tcl ... ok
+2026-10-22T19:41:02.5308033Z test bytearray::tests::canonical_and_allocated_empty_buffers_have_distinct_lifetimes ... ok
+2026-10-22T19:41:02.5357895Z test bytearray::tests::resident_byte_array_string_bytes_are_never_regenerated ... ok
+2026-10-22T19:41:02.5658110Z test builtins::tests::unterminated_braced_var_raises_missing_close_brace ... ok
+2026-10-22T19:41:02.5681547Z test bytearray::tests::unicode_string_to_byte_conversion_is_release_gated ... ok
+2026-10-22T19:41:02.8188963Z test bytearray::native_scalar_string_refusal_tests::original_primitive_scalar_storage_admission_precedes_bytearray_materialization ... ok
+2026-10-22T19:41:04.1458547Z test capi::collections::tests::original_collection_dictionary_members_require_their_retained_protocol ... ok
+2026-10-22T19:41:05.3330448Z test bytearray::tests::unavailable_byte_array_factory_refuses_without_replacing_guest_result ... ok
+2026-10-22T19:41:05.3468401Z test capi::collections::tests::original_collection_null_missing_and_foreign_issuers_cannot_supply_a_view ... ok
+2026-10-22T19:41:05.8498716Z test capi::collections::tests::original_collection_parse_failure_keeps_original_primary_and_owned_children ... ok
+2026-10-22T19:41:06.0218570Z test capi::collections::tests::original_collection_empty_and_abstract_length_keep_their_actual_cache_purposes ... ok
+2026-10-22T19:41:06.0489542Z test capi::collections::tests::original_collection_rc0_views_keep_header_and_backing_copy_on_write_separate ... ok
+2026-10-22T19:41:06.9509465Z test capi::collections::tests::original_index_cache_keeps_table_stride_protocol_and_selected_output_width ... ok
+2026-10-22T19:41:07.4898509Z test capi::scalar::tests::scalar_context_does_not_keep_engine_or_retired_object_alive ... ok
+2026-10-22T19:41:08.3495816Z test capi::collections::tests::original_collection_retirement_runs_once_before_later_cache_publication ... ok
+2026-10-22T19:41:08.3699740Z test capi::scalar::tests::scalar_context_duplicate_and_replacement_keep_owner_without_native_refs ... ok
+2026-10-22T19:41:08.6778845Z test capi::scalar::tests::scalar_context_recheck_retains_reached_cache_and_refuses_later_policy_change ... ok
+2026-10-22T19:41:08.8039430Z test capi::scalar::tests::scalar_context_missing_numeric_abi_and_first_host_cause_are_terminal ... ok
+2026-10-22T19:41:09.1028793Z test bytearray::tests::byte_array_updater_retains_engine_recipe_and_actual_empty_storage_identity ... ok
+2026-10-22T19:41:09.1698282Z test capi::scalar::tests::scalar_context_same_profile_world_change_and_restore_cannot_revive_issuer ... ok
+2026-10-22T19:41:09.2768870Z test capi::scalar::tests::scalar_jim_context_cannot_borrow_a_foreign_original_numeric_host ... ok
+2026-10-22T19:41:09.3348424Z test capi::scalar::tests::scalar_jim_public_boolean_keeps_raw_integer_separate_from_expression_truth ... ok
+2026-10-22T19:41:09.3578420Z test capi::scalar::tests::scalar_engine_importer_issues_context_only_for_selected_scalar_purpose ... ok
+2026-10-22T19:41:09.4400904Z test capi::scalar::tests::scalar_context_rejects_foreign_engine_and_policy_change_and_restore ... ok
+2026-10-22T19:41:09.5548573Z test capi::scalar::tests::scalar_null_access_requires_original_engine_and_changes_no_guest_state ... ok
+2026-10-22T19:41:09.8548993Z test capi::collections::tests::original_collection_updaters_keep_reached_string_and_stop_before_cache_or_outputs ... FAILED
+2026-10-22T19:41:10.4658823Z test cmd_alias::original_alias_key_tests::original_alias_rename_keeps_measured_record_and_destination_key_roles ... ok
+2026-10-22T19:41:10.6348871Z test cmd_alias::original_alias_key_tests::original_jim_key_retirement_runs_before_value_cleanup_without_adopting_replacement ... ok
+2026-10-22T19:41:10.6898709Z test cmd_alias::original_alias_key_tests::original_jim_rename_qualification_and_table_key_keep_distinct_native_references ... ok
+2026-10-22T19:41:10.7748537Z test cmd_alias::original_alias_key_tests::original_alias_replacement_keeps_measured_name_key_and_query_roles ... ok
+2026-10-22T19:41:10.8069183Z test cmd_alias::original_alias_key_tests::original_jim_replacement_refusal_keeps_occupied_key_and_reached_name_result ... ok
+2026-10-22T19:41:11.4199512Z test cmd_alias::original_alias_storage_tests::original_alias_capture_and_query_match_the_measured_member_and_header_recipe ... FAILED
+2026-10-22T19:41:11.6748937Z test cmd_alias::original_alias_storage_tests::original_child_handle_alias_retains_lazy_parent_members_and_selected_name_role ... FAILED
+2026-10-22T19:41:11.7319168Z test cmd_alias::original_alias_storage_tests::original_alias_query_retains_unread_members_until_the_last_query_is_released ... ok
+2026-10-22T19:41:13.3631701Z test cmd_alias::original_operand_tests::original_alias_prefix_refusal_is_reached_only_at_actual_invocation ... ok
+2026-10-22T19:41:14.4739974Z test cmd_alias::original_operand_tests::original_alias_reads_stop_before_later_prefix_and_publication ... ok
+2026-10-22T19:41:16.0538955Z test cmd_alias::original_operand_tests::original_child_alias_adapters_keep_guest_code_result_and_typed_refusal ... ok
+2026-10-22T19:41:16.9478876Z test cmd_alias::original_operand_tests::original_hidden_child_result_getter_preserves_namespace_cleanup_and_first_cause ... ok
+2026-10-22T19:41:18.0979552Z test cmd_alias::original_operand_tests::original_child_handle_alias_reads_the_selected_operand_before_publication ... ok
+2026-10-22T19:41:18.3246191Z test cmd_alias::original_operand_tests::original_interpreter_path_reads_selected_list_and_original_elements ... ok
+2026-10-22T19:41:20.0795461Z test cmd_alias::native_option_tables::interp_subcommand_words_resolve_like_original_native_option_tables ... ok
+2026-10-22T19:41:20.0928960Z test cmd_alias::original_operand_tests::original_interpreter_options_and_names_keep_actual_read_order_and_refusal ... ok
+2026-10-22T19:41:20.3498549Z test cmd_alias::tests::a_longer_alias_cycle_is_refused_at_its_closing_hop ... ok
+2026-10-22T19:41:20.3608663Z test cmd_alias::tests::a_mutual_alias_pair_is_refused_at_the_closing_alias ... ok
+2026-10-22T19:41:20.6208329Z test cmd_alias::tests::a_refused_rename_leaves_the_destination_command_intact ... ok
+2026-10-22T19:41:20.6329918Z test cmd_alias::tests::a_rename_that_would_close_a_loop_is_refused_and_rolled_back ... ok
+2026-10-22T19:41:20.8929048Z test cmd_alias::tests::a_self_alias_is_refused_and_destroys_the_command_it_displaced ... ok
+2026-10-22T19:41:20.8936853Z test cmd_alias::tests::alias_create_and_dispatch ... ok
+2026-10-22T19:41:21.1588333Z test cmd_alias::tests::alias_delete_unbinds ... ok
+2026-10-22T19:41:21.1607943Z test cmd_alias::tests::alias_does_not_follow_target_rename ... ok
+2026-10-22T19:41:21.1798356Z test cmd_alias::original_rename_operation_tests::original_rename_observers_keep_reached_effects_and_stop_later_result_publication ... ok
+2026-10-22T19:41:21.2188317Z test cmd_alias::tests::alias_publication_uses_current_c_holder_and_preserves_jim_incompatible_api ... FAILED
+2026-10-22T19:41:21.4172304Z test cmd_alias::tests::alias_prepends_frozen_prefix ... ok
+2026-10-22T19:41:21.4378170Z test cmd_alias::tests::alias_query_returns_target_and_prefix ... ok
+2026-10-22T19:41:21.4858074Z test cmd_alias::tests::alias_to_deleted_target_errors_lazily ... ok
+2026-10-22T19:41:21.5368397Z test cmd_alias::tests::child_alias_publication_matches_original_supported_provider_apis ... FAILED
+2026-10-22T19:41:21.6878172Z test cmd_alias::tests::aliases_lists_every_alias ... FAILED
+2026-10-22T19:41:22.0850614Z test cmd_alias::tests::child_shorthand_visibility_ops_are_leak_free ... ok
+2026-10-22T19:41:22.8708616Z test cmd_alias::tests::interp_abbreviated_operations_dispatch_in_root_and_child ... ok
+2026-10-22T19:41:23.3948768Z test cmd_alias::tests::hidden_options_refuse_namespace_on_the_original_c84_table ... ok
+2026-10-22T19:41:23.5079077Z test cmd_alias::tests::jim_alias_owner_replaces_canonical_root_slots_and_keeps_local_competition ... ok
+2026-10-22T19:41:23.6258422Z test cmd_alias::tests::jim_child_alias_result_is_born_in_the_actual_parent_allocator ... ok
+2026-10-22T19:41:23.7969360Z test cmd_alias::tests::jim_child_constructor_refusal_preserves_typed_cause_and_parent_result ... ok
+2026-10-22T19:41:23.9410033Z test cmd_alias::tests::interp_create_and_invokehidden_options_resolve_like_tcl_get_index_from_obj ... ok
+2026-10-22T19:41:24.1128481Z test cmd_alias::tests::jim_child_counted_crossings_match_original_native_public_rows ... ok
+2026-10-22T19:41:24.2468606Z test cmd_alias::tests::jim_interpreter_handle_factory_alias_frame_and_deletion ... ok
+2026-10-22T19:41:24.2668833Z test cmd_alias::tests::jim_core_alias_retains_original_name_result_and_prefix_members ... ok
+2026-10-22T19:41:24.3878415Z test cmd_alias::tests::jim_interpreter_handle_isolation ... ok
+2026-10-22T19:41:24.5404344Z test cmd_alias::tests::legitimate_alias_chains_and_late_binding_still_work ... ok
+2026-10-22T19:41:24.6118162Z test cmd_alias::tests::original_jim_core_alias_matches_all_four_standalone_native_public_rows ... FAILED
+2026-10-22T19:41:25.0178416Z test cmd_alias::tests::rename_and_hide_error_shapes_and_lifecycle ... ok
+2026-10-22T19:41:25.2808345Z test cmd_alias::tests::rename_builtin_return_is_allowed ... ok
+2026-10-22T19:41:25.5383865Z test cmd_alias::tests::rename_missing_is_an_error ... ok
+2026-10-22T19:41:25.7989787Z test cmd_alias::tests::rename_moves_a_command ... ok
+2026-10-22T19:41:26.0598420Z test cmd_alias::tests::rename_to_empty_deletes ... ok
+2026-10-22T19:41:26.3638452Z test cmd_alias::tests::trailing_separator_definitions_match_resolution ... ok
+2026-10-22T19:41:27.2178444Z test cmd_alias::tests::visibility_failures_match_direct_and_child_oracles ... ok
+2026-10-22T19:41:27.3128783Z test cmd_alias::tests::c_child_constructor_refusal_keeps_owner_cause_without_success_result ... ok
+2026-10-22T19:41:28.1889303Z test cmd_array::original_argument_tests::original_array_for_assigns_actual_retained_key_without_synthesizing_a_header ... ok
+2026-10-22T19:41:28.2858741Z test cmd_array::original_argument_tests::original_array_for_selected_rejections_leave_later_member_getters_unreached ... ok
+2026-10-22T19:41:28.6908782Z test cmd_array::original_argument_tests::original_array_for_successful_rows_read_member_names_only_after_array_selection ... ok
+2026-10-22T19:41:29.9698626Z test cmd_array::original_argument_tests::original_array_operand_refusal_keeps_prefix_effect_and_stops_later_key ... ok
+2026-10-22T19:41:30.3908843Z test cmd_alias::tests::original_interpreter_paths_preserve_child_keys_and_create_result_objects ... ok
+2026-10-22T19:41:30.5118827Z test cmd_array::original_argument_tests::original_jim_array_set_existing_dictionary_checks_each_reached_key_and_retirement ... ok
+2026-10-22T19:41:30.7508891Z test cmd_array::original_list_conversion_tests::original_array_for_length_retirement_refuses_before_array_and_script_getters ... FAILED
+2026-10-22T19:41:31.2238774Z test cmd_array::original_argument_tests::original_array_set_old_value_retirement_stops_before_write_observer ... ok
+2026-10-22T19:41:31.7478772Z test cmd_array::original_argument_tests::original_array_set_successful_rows_preserve_selected_header_getter_order ... ok
+2026-10-22T19:41:32.0148625Z test cmd_array::tests::array_ensemble_and_default_option_resolve_like_tclsh ... ok
+2026-10-22T19:41:32.2688709Z test cmd_array::tests::array_get_preserves_parentheses_in_the_array_base ... ok
+2026-10-22T19:41:32.5321236Z test cmd_array::tests::array_set_get_names_size ... ok
+2026-10-22T19:41:32.7870837Z test cmd_array::tests::array_unset ... ok
+2026-10-22T19:41:33.6868608Z test cmd_array::tests::dictionary_update_first_original_mapping_reaches_caller_storage ... FAILED
+2026-10-22T19:41:33.7618364Z test cmd_array::tests::jim_array_byte_keys_count_and_unset_without_unicode_projection ... ok
+2026-10-22T19:41:33.8368408Z test cmd_array::tests::jim_dictionary_array_reads_keep_static_copies_and_selected_frames ... ok
+2026-10-22T19:41:33.9178396Z test cmd_array::tests::jim_dictionary_worker_requires_explicit_distribution_initialisation ... FAILED
+2026-10-22T19:41:33.9768326Z test cmd_array::tests::native_search_lifecycle_keeps_shell_gc_and_invalidates_real_mutations ... FAILED
+2026-10-22T19:41:34.0308502Z test cmd_array::tests::original_array_set_declines_without_a_genuine_c_variable_issuer ... ok
+2026-10-22T19:41:34.2808934Z test cmd_array::tests::original_array_set_default_engine_keeps_its_actual_variable_recipe ... ok
+2026-10-22T19:41:35.1418488Z test cmd_array::tests::original_array_set_name_and_values_keep_their_genuine_headers ... ok
+2026-10-22T19:41:35.2028365Z test cmd_array::tests::original_array_set_selects_root_before_parity_and_keeps_callback_results ... FAILED
+2026-10-22T19:41:35.2458016Z test cmd_array::tests::array_default_usage_matches_native_literal_dynamic_and_callback_entries ... ok
+2026-10-22T19:41:36.2178564Z test cmd_array::tests::search_absence_and_original_root_retirement_are_guest_observations ... ok
+2026-10-22T19:41:36.7168556Z test cmd_array::tests::variable_container_storage_matches_all_native_columns ... FAILED
+2026-10-22T19:41:36.9708533Z test cmd_array::tests::whole_array_unset_preserves_constant_error_identity ... ok
+2026-10-22T19:41:37.0278669Z test cmd_array::undefined_root::original_traced_array_root_materialisation_matches_six_native_source_results ... FAILED
+2026-10-22T19:41:37.5139076Z test cmd_binary::original_line_length_tests::original_binary_base64_wide_and_uuencode_int_remain_distinct ... FAILED
+2026-10-22T19:41:39.4788967Z test cmd_array::tests::array_default_matches_all_native_state_and_callback_controls ... FAILED
+2026-10-22T19:41:39.7218798Z test cmd_binary::original_line_length_tests::original_binary_numeric_updater_withdrawal_stops_before_data_and_guest_publication ... ok
+2026-10-22T19:41:40.2448806Z test cmd_binary::tests::actual_usage_rewrite_retains_byte_values_and_requires_the_full_prefix ... ok
+2026-10-22T19:41:40.3459145Z test cmd_binary::original_line_length_tests::original_binary_maxlen_uses_selected_primitive_errors_and_never_index_grammar ... ok
+2026-10-22T19:41:40.4488849Z test cmd_binary::tests::binary_objects_and_decoders_follow_actual_native_input_policies ... ok
+2026-10-22T19:41:40.4628205Z test cmd_binary::tests::binary_ensembles_resolve_like_tclsh ... ok
+2026-10-22T19:41:41.5008748Z test cmd_binary::tests::byte_array_string_shimmer_uses_the_release_selected_byte_policy ... ok
+2026-10-22T19:41:41.7754308Z test cmd_binary::tests::encode_decode_and_unsigned_scan ... ok
+2026-10-22T19:41:42.0798227Z test cmd_binary::tests::format_and_scan_roundtrip ... ok
+2026-10-22T19:41:42.3588255Z test cmd_binary::tests::scan_values_and_count ... ok
+2026-10-22T19:41:42.6318372Z test cmd_chan::tests::chan_ensemble_forwards_and_reports ... ok
+2026-10-22T19:41:42.7318710Z test cmd_binary::tests::binary_usage_retains_actual_names_and_native_prefix_quoting ... ok
+2026-10-22T19:41:42.9134871Z test cmd_chan::tests::open_write_read_gets_eof ... ok
+2026-10-22T19:41:43.1078187Z test cmd_chan::tests::read_write_modes_read_and_write ... ok
+2026-10-22T19:41:43.1958276Z test cmd_chan::tests::seek_origin_resolves_like_tcl_get_index_from_obj ... ok
+2026-10-22T19:41:43.3698351Z test cmd_chan::tests::unknown_channel_errors ... ok
+2026-10-22T19:41:43.4128462Z test cmd_clock::bootstrap_tests::absent_native_environment_capability_refuses_and_failed_creation_releases_pool_owner ... ok
+2026-10-22T19:41:43.6068827Z test cmd_clock::bootstrap_tests::c86_clock_scalar_births_preserve_epochs_and_reading_replacement_advances_them ... ok
+2026-10-22T19:41:43.6127458Z 
+2026-10-22T19:41:43.6138270Z running 1 test
+2026-10-22T19:41:43.6348711Z test cmd_clock::bootstrap_tests::deleting_getenv_first_keeps_parse_format_args_pool_until_its_retirement ... ok
+2026-10-22T19:41:43.9288795Z test cmd_clock::bootstrap_tests::parse_format_args_matches_the_eleven_original_c86_cases ... FAILED
+2026-10-22T19:41:44.1638663Z test cmd_clock::bootstrap_tests::parse_format_args_retains_supplied_objects_and_pool_members_after_retirement ... ok
+2026-10-22T19:41:45.0017778Z test cmd_clock::bootstrap_tests::private_clock_workers_have_actual_selected_c86_shipped_backing_and_null_hooks ... ok
+2026-10-22T19:41:45.2528764Z test cmd_clock::get_date_fields_tests::active_call_pool_lease_survives_all_three_real_worker_deletions ... ok
+2026-10-22T19:41:45.4769073Z test cmd_clock::get_date_fields_tests::aliased_worker_arity_uses_original_invocation_spelling ... ok
+2026-10-22T19:41:45.7138383Z test cmd_clock::get_date_fields_tests::empty_localtime_refuses_before_guest_catch_continues ... ok
+2026-10-22T19:41:45.9407986Z RELEASE 8.6.18 AVAILABLE 1
+2026-10-22T19:41:45.9538748Z test cmd_clock::get_date_fields_tests::get_date_fields_matches_original_c86_rows_except_unavailable_localtime ... FAILED
+2026-10-22T19:41:46.1878900Z test cmd_clock::get_date_fields_tests::original_name_dict_keys_and_three_worker_retirement_preserve_native_roles ... ok
+2026-10-22T19:41:46.3362210Z test cmd_clock::bootstrap_tests::getenv_preserves_actual_unix_bytes_and_current_host_view ... ok
+2026-10-22T19:41:46.3397680Z 
+2026-10-22T19:41:46.3400475Z test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2144 filtered out; finished in 2.72s
+2026-10-22T19:41:46.3401402Z 
+2026-10-22T19:41:46.3418610Z test cmd_clock::bootstrap_tests::getenv_preserves_actual_unix_bytes_and_current_host_view ... ok
+2026-10-22T19:41:46.4349117Z test cmd_clock::get_date_fields_tests::parse_format_conflict_pool_lease_survives_all_three_real_worker_deletions ... ok
+2026-10-22T19:41:46.4498176Z test cmd_array::tests::original_search_handle_cache_matches_all_native_columns ... ok
+2026-10-22T19:41:46.5928501Z test cmd_clock::get_date_fields_tests::parse_format_success_pool_lease_survives_all_three_real_worker_deletions ... ok
+2026-10-22T19:41:47.1828607Z test cmd_clock::get_date_fields_tests::reached_real_getter_context_table_or_row_effect_retains_first_host_cause ... ok
+2026-10-22T19:41:47.4118891Z test cmd_control::original_list_conversion_tests::original_each_value_copy_retirement_keeps_prepared_variable_owner_and_first_cause ... ok
+2026-10-22T19:41:47.8658815Z test cmd_control::original_list_conversion_tests::original_each_variable_copy_retirement_refuses_before_value_and_body_getters ... ok
+2026-10-22T19:41:48.1572785Z test cmd_control::tests::foreach_single_multi_var_and_parallel ... ok
+2026-10-22T19:41:48.1648107Z test cmd_control::tests::tailcall_resolves_after_issuer_leave_in_the_callers_variable_frame ... ok
+2026-10-22T19:41:48.4468592Z test cmd_control::tests::tailcall_returns_the_invoked_result_from_the_proc ... ok
+2026-10-22T19:41:48.7128485Z test cmd_control::tests::time_reports_microseconds_and_propagates ... ok
+2026-10-22T19:41:49.5598624Z test cmd_control::tests::time_retains_original_list_body_and_result_objects ... ok
+2026-10-22T19:41:49.8958416Z test cmd_control::tests::timerate_options_calibrate_and_errors ... ok
+2026-10-22T19:41:50.2279094Z test cmd_control::tests::timerate_reports_the_eight_word_list_and_honours_limits ... ok
+2026-10-22T19:41:52.2678718Z test cmd_coro::native_injection_tests::original_coroutine_probe_and_injection_match_counted_object_controls ... ok
+2026-10-22T19:41:53.2868798Z test cmd_coro::native_injection_tests::original_injection_order_and_error_continuation_match_native_callbacks ... ok
+2026-10-22T19:41:53.3398552Z test cmd_coro::native_original_holder_tests::original_coroutine_holder_lifecycle_matches_all_native_public_results ... FAILED
+2026-10-22T19:41:57.1168375Z test cmd_coro::original_operand_tests::coroutine_name_lookup_preserves_native_missing_and_unavailable_boundaries ... ok
+2026-10-22T19:41:57.3698876Z test cmd_coro::original_operand_tests::coroutine_probe_and_injection_keep_opaque_names_and_original_objects ... ok
+2026-10-22T19:41:57.6463121Z test cmd_coro::tests::a_coroutine_can_rename_itself_and_keep_running ... ok
+2026-10-22T19:41:57.9358543Z test cmd_coro::tests::a_rename_carries_a_live_coroutine_to_its_new_name ... ok
+2026-10-22T19:41:58.2278415Z test cmd_coro::tests::a_suspended_coroutine_holds_the_namespace_it_parked_in ... ok
+2026-10-22T19:41:58.4998361Z test cmd_coro::tests::corotype_reports_active_and_yield ... ok
+2026-10-22T19:41:58.7898820Z test cmd_coro::tests::deleting_a_suspended_coroutine_abandons_its_retained_namespace ... ok
+2026-10-22T19:41:59.3108499Z test cmd_coro::tests::original_injection_public_completions_match_both_c9_releases ... FAILED
+2026-10-22T19:41:59.5658586Z test cmd_coro::tests::probe_handoff_preserves_the_original_jim_trace_object ... ok
+2026-10-22T19:41:59.6408734Z test cmd_dict::native_path_publication_tests::original_path_missing_variable_publication_matches_all_15_available_native_windows ... FAILED
+2026-10-22T19:42:00.1618443Z test capi::scalar::tests::scalar_public_facade_matches_recorded_live_and_null_c_primitives ... ok
+2026-10-22T19:42:00.4529501Z test cmd_dict::native_scope_trace_tests::dictionary_scope_reads_match_64_native_callback_windows ... FAILED
+2026-10-22T19:42:00.4798502Z test cmd_dict::native_scope_trace_tests::dictionary_scope_read_returns_the_same_original_dictionary_header ... ok
+2026-10-22T19:42:00.5338502Z test cmd_dict::original_path_tests::original_dictionary_generic_unset_missing_root_and_sugar_required_unset_remain_distinct ... ok
+2026-10-22T19:42:00.6448893Z test cmd_dict::original_path_tests::original_dictionary_key_refusal_retains_early_empty_publication_and_stops_later_keys ... ok
+2026-10-22T19:42:00.6807867Z test cmd_dict::original_map_option_cleanup_tests::original_dict_map_option_refusal_retires_its_allocated_accumulator ... ok
+2026-10-22T19:42:00.7078729Z test cmd_dict::original_path_tests::original_dictionary_stock_set_and_unset_use_retained_alias_and_member_roots ... ok
+2026-10-22T19:42:00.7948897Z test cmd_dict::original_path_tests::original_dictionary_subcommand_getter_refuses_before_name_and_worker_effects ... ok
+2026-10-22T19:42:01.9879428Z test cmd_dict::tests::create_get_size ... ok
+2026-10-22T19:42:02.0508678Z test cmd_dict::tests::deeply_nested_dict_path_set_and_unset_survive ... ok
+2026-10-22T19:42:02.3182292Z test cmd_dict::tests::dict_for_iterates_in_order ... ok
+2026-10-22T19:42:03.5369253Z test cmd_dict::tests::dict_ensemble_and_filter_type_resolve_like_tclsh ... ok
+2026-10-22T19:42:03.6458554Z test cmd_dict::tests::dict_lappend_validation_is_unaffected_by_shimmering ... ok
+2026-10-22T19:42:04.0398648Z test cmd_control::native_each_loop_tests::generic_each_loops_match_all_406_original_native_physical_windows ... FAILED
+2026-10-22T19:42:04.0628383Z test cmd_dict::tests::dictionary_receiver_and_defaults_match_original_native_scripts ... FAILED
+2026-10-22T19:42:04.2988245Z test cmd_dict::tests::get_missing_key_errors ... ok
+2026-10-22T19:42:04.8959377Z test cmd_control::native_each_loop_tests::generic_each_loops_match_all_120_original_native_completions ... ok
+2026-10-22T19:42:05.3698504Z test cmd_dict::tests::dict_lappend_validation_matches_c_tcl_for_every_non_dict_shape ... ok
+2026-10-22T19:42:05.4188185Z test cmd_dict::tests::keys_values_insertion_order ... ok
+2026-10-22T19:42:05.4468014Z test cmd_dict::tests::info_uses_the_shared_hash_statistics_owner ... ok
+2026-10-22T19:42:05.6268375Z test cmd_dict::tests::getdef_returns_default_on_miss ... ok
+2026-10-22T19:42:05.6317911Z test cmd_dict::tests::merge_later_wins_first_position_kept ... ok
+2026-10-22T19:42:06.1968419Z test cmd_dict::tests::moderately_nested_dict_path_set_unset_unaffected ... ok
+2026-10-22T19:42:06.9218391Z test cmd_dict::tests::replace_and_remove ... ok
+2026-10-22T19:42:06.9228416Z test cmd_error::tests::automatic_jim_error_stacks_match_the_actual_native_interpreter ... ok
+2026-10-22T19:42:06.9718120Z test cmd_dict::tests::set_and_unset_variable_cow ... ok
+2026-10-22T19:42:06.9848111Z test cmd_dict::tests::selected_dictionary_completion_and_scripted_worker_lookup ... FAILED
+2026-10-22T19:42:07.2498232Z test cmd_error::tests::catch_options_dict ... ok
+2026-10-22T19:42:07.3798870Z test cmd_error::tests::catch_preserves_custom_return_options_on_legacy_releases ... ok
+2026-10-22T19:42:07.5288312Z test cmd_error::tests::catch_success_and_error_codes ... ok
+2026-10-22T19:42:07.8818543Z test cmd_error::tests::eight_four_catch_takes_no_options_variable ... FAILED
+2026-10-22T19:42:08.1758375Z test cmd_error::tests::error_info_stack_traces ... ok
+2026-10-22T19:42:08.3248550Z test cmd_error::tests::dynamic_catch_resets_error_state_in_all_six_native_engines ... ok
+2026-10-22T19:42:08.4458104Z test cmd_error::tests::error_stamps_globals ... ok
+2026-10-22T19:42:08.5878270Z test cmd_error::tests::exit_records_code_and_is_uncatchable ... ok
+2026-10-22T19:42:08.7158247Z test cmd_error::tests::explicit_errorinfo_retains_the_prior_error_stack ... ok
+2026-10-22T19:42:08.7758683Z test cmd_error::tests::jim_capture_prefix::original_jim_catch_prefix_cannot_use_source_wrapping_as_native_execution ... ok
+2026-10-22T19:42:08.9478453Z test cmd_error::tests::jim_automatic_stack_uses_evaluation_receipts_before_unwinding ... ok
+2026-10-22T19:42:09.2758596Z test cmd_error::tests::catch_arity_rejects_before_body_under_legacy_c ... ok
+2026-10-22T19:42:09.7578583Z test cmd_error::tests::jim_output_name_stages::jim_output_names_reach_length_before_message_and_options_production ... ok
+2026-10-22T19:42:10.0978469Z test cmd_error::tests::native_jim_error_keeps_raw_stack_trace_and_does_not_publish_c_globals ... ok
+2026-10-22T19:42:12.0789137Z test cmd_error::tests::jim_catch_switches_and_process_exit_use_native_completion_protocol ... ok
+2026-10-22T19:42:12.6508360Z test cmd_dict::tests::read_only_dict_path_uses_the_dict_noun_fragment_and_error_code ... ok
+2026-10-22T19:42:12.7079018Z test cmd_error::tests::original_c_output_names::original_c_catch_uses_original_name_headers_and_keeps_unassigned_options_original ... ok
+2026-10-22T19:42:12.7688524Z test cmd_error::tests::original_c_try_output_names::original_c_try_retains_selected_handler_member_names_and_validates_before_body ... FAILED
+2026-10-22T19:42:12.9838330Z test cmd_error::tests::throw_sets_errorcode ... ok
+2026-10-22T19:42:13.0518275Z test cmd_error::tests::try_handler_type_resolves_like_tcl_get_index_from_obj ... ok
+2026-10-22T19:42:13.1218818Z test cmd_error::tests::original_jim_output_keys::original_jim_catch_and_try_publish_original_output_keys_and_preserve_earlier_keys ... ok
+2026-10-22T19:42:13.2738338Z test cmd_error::tests::try_on_and_trap_and_finally ... ok
+2026-10-22T19:42:13.4309181Z test cmd_eval::native_frame_reference_tests::frame_reference_cache_refuses_foreign_issuers_and_retired_headers ... ok
+2026-10-22T19:42:13.5348750Z test cmd_eval::native_frame_reference_tests::original_frame_level_callbacks_cannot_restore_currency_before_script_or_cache ... ok
+2026-10-22T19:42:13.5658493Z test cmd_eval::native_frame_reference_tests::compiled_frame_and_single_script_list_use_same_original_operation ... ok
+2026-10-22T19:42:13.8378872Z test cmd_eval::native_frame_reference_tests::original_frame_level_missing_environment_is_terminal_only_at_reached_numeric_stage ... ok
+2026-10-22T19:42:13.8438537Z test cmd_eval::native_frame_reference_tests::original_frame_level_lease_refuses_retired_header_and_replaced_current_activation ... ok
+2026-10-22T19:42:13.9849019Z test cmd_eval::native_frame_reference_tests::original_frame_level_numeric_callbacks_stop_after_reached_environment_effect ... ok
+2026-10-22T19:42:14.0879487Z test cmd_error::tests::jim_capture_prefix::original_jim_try_prefix_cells_use_bounded_native_getters_and_refuse_unbound_shifts ... ok
+2026-10-22T19:42:14.6858715Z test cmd_eval::native_frame_reference_tests::original_frame_level_uses_entered_environment_and_preserves_native_counts ... ok
+2026-10-22T19:42:14.7018396Z test cmd_eval::native_frame_reference_tests::required_upvar_level_does_not_borrow_optional_leading_frame_default ... ok
+2026-10-22T19:42:14.9508124Z test cmd_eval::tests::eval_runs_in_current_scope ... ok
+2026-10-22T19:42:14.9778377Z test cmd_eval::native_frame_reference_tests::level_reference_reselects_current_frames_in_thirty_native_windows ... ok
+2026-10-22T19:42:15.2099260Z test cmd_eval::tests::uplevel_bad_level ... ok
+2026-10-22T19:42:16.7029304Z test cmd_eval::tests::eval_compiles_original_counted_opaque_string_source ... ok
+2026-10-22T19:42:16.9808488Z test cmd_eval::tests::original_list_eval_retains_members_and_does_not_generate_source ... ok
+2026-10-22T19:42:17.3028352Z test cmd_eval::tests::uplevel_object_dispatch_preserves_release_specific_list_entry ... ok
+2026-10-22T19:42:17.5359053Z test cmd_event::tests::update_and_after_words_resolve_like_tcl_get_index_from_obj ... ok
+2026-10-22T19:42:18.3088319Z test cmd_format::tests::alternate_decimal_uses_shared_tcl9_semantics ... ok
+2026-10-22T19:42:18.7959429Z test cmd_format::tests::format_bignum_modifier_is_rejected_in_tcl84_issue_2162 ... ok
+2026-10-22T19:42:19.1288769Z test cmd_event::native_original_tests::original_vwait_extended_forms_decline_before_global_observers_or_callbacks ... ok
+2026-10-22T19:42:19.3918297Z test cmd_format::tests::format_overflow_width_errors_not_panics ... ok
+2026-10-22T19:42:19.4068690Z test cmd_format::tests::format_conversions_flags_width ... ok
+2026-10-22T19:42:19.4078732Z test cmd_event::native_original_tests::original_list_event_scripts_retain_counted_name_objects ... ok
+2026-10-22T19:42:19.6728902Z test cmd_fs::tests::file_ensemble_miss_carries_the_full_option_list ... ok
+2026-10-22T19:42:19.9218199Z test cmd_format::tests::pointer_and_long_widths_are_lp64_issue_2163 ... ok
+2026-10-22T19:42:19.9902228Z test cmd_fs::tests::file_extended_subcommands_cover_native_host_surface ... ok
+2026-10-22T19:42:20.1988451Z test cmd_fs::tests::file_mkdir_size_type_delete ... ok
+2026-10-22T19:42:20.2647973Z test cmd_fs::tests::file_path_ops ... ok
+2026-10-22T19:42:20.7708334Z test cmd_format::tests::integer_conversions_honour_width_and_signedness_issue_1782 ... ok
+2026-10-22T19:42:20.9788333Z test cmd_fs::tests::file_surface_and_permissions_follow_the_runtime_profile ... ok
+2026-10-22T19:42:21.0327840Z test cmd_fs::tests::glob_finds_files ... ok
+2026-10-22T19:42:21.2458854Z test cmd_fs::tests::glob_option_words_resolve_like_tcl_get_index_from_obj ... ok
+2026-10-22T19:42:21.2608242Z test cmd_fs::tests::glob_type_kind_union_still_requires_executable_qualification ... ok
+2026-10-22T19:42:21.4858692Z test cmd_fs::tests::glob_type_readable_writable_executable_qualifiers_remain_conjunctive ... ok
+2026-10-22T19:42:21.4877585Z test cmd_fs::tests::glob_type_original_tcltest_selector_keeps_supported_kind_alternatives ... ok
+2026-10-22T19:42:21.7278517Z test cmd_fs::tests::glob_type_regular_file_directory_unions_match_original_c86_rows ... ok
+2026-10-22T19:42:21.9898331Z test cmd_fs::tests::source_evaluates_a_file ... ok
+2026-10-22T19:42:22.5388660Z test cmd_fs::tests::file_worker_runtime_headers_match_all_190_original_native_snapshots ... ok
+2026-10-22T19:42:22.7978378Z test cmd_fs::tests::tempdir_template_honours_its_parent_and_requires_it_to_exist ... ok
+2026-10-22T19:42:22.8258628Z test cmd_fs::tests::source_uses_actual_argument_and_return_protocols ... ok
+2026-10-22T19:42:23.8436119Z test cmd_info::literal_script_tests::original_jim_info_literal_scripts_use_actual_mutable_commands_and_caller_namespace ... ok
+2026-10-22T19:42:23.8908245Z test cmd_fs::tests::path_names_read_as_the_emulated_release_reads_them ... ok
+2026-10-22T19:42:23.9118575Z test cmd_info::native_jim::inventory_stage_tests::original_jim_inventory_default_helper_matches_original_namespace_aware_pattern_stages ... FAILED
+2026-10-22T19:42:23.9758562Z test cmd_info::native_jim::inventory_stage_tests::original_jim_inventory_reaches_actual_replaced_and_deleted_info_helper ... FAILED
+2026-10-22T19:42:24.0288529Z test cmd_info::native_commands_tests::original_info_commands_matches_all_110_native_pattern_object_windows ... FAILED
+2026-10-22T19:42:24.0348476Z test cmd_info::native_jim::inventory_stage_tests::original_jim_inventory_stops_after_actual_pattern_getter_withdraws_current_namespace ... ok
+2026-10-22T19:42:24.0848373Z test cmd_info::native_jim::tests::current_lsort_failure_is_reported_by_the_selected_jim_parser ... ok
+2026-10-22T19:42:24.1398473Z test cmd_info::native_jim::variable_inventory_tests::original_jim_bootstrap_keys_have_first_native_owners_and_retire_with_their_entries ... ok
+2026-10-22T19:42:24.3068654Z test cmd_info::native_jim::variable_inventory_tests::original_jim_inventory_receipt_does_not_retain_key_or_follow_recreated_slot ... ok
+2026-10-22T19:42:24.3238537Z test cmd_info::native_jim::inventory_stage_tests::original_jim_inventory_preflight_preserves_nons_and_worker_arity_namespace_getter_order ... ok
+2026-10-22T19:42:24.3821414Z test cmd_info::native_jim::variable_inventory_tests::original_jim_variable_inventory_returns_same_keys_and_preserves_top_locals_empty ... ok
+2026-10-22T19:42:24.4258684Z test cmd_info::native_jim::variable_inventory_tests::original_jim_variable_inventories_keep_raw_and_helper_namespace_frame_stages ... FAILED
+2026-10-22T19:42:24.4408179Z test cmd_info::native_jim_inventory_tests::original_alias_diagnostic_extents_match_all_12_native_public_windows ... FAILED
+2026-10-22T19:42:24.4798709Z test cmd_info::native_jim_inventory_tests::original_alias_queries_and_inventory_compare_all_24_native_windows ... FAILED
+2026-10-22T19:42:26.2978192Z test cmd_info::native_jim_inventory_tests::original_info_dispatch_matches_all_12_native_public_windows ... ok
+2026-10-22T19:42:26.3618545Z test cmd_info::native_jim_inventory_tests::original_procedure_usage_extents_match_all_24_native_public_windows ... FAILED
+2026-10-22T19:42:27.1188208Z test cmd_info::native_jim::tests::original_jim_info_parser_reports_match_all_native_info_rows ... ok
+2026-10-22T19:42:27.2828463Z test cmd_info::native_oo::tests::original_tcloo_info_bootstrap_preserves_private_ensemble_targets ... ok
+2026-10-22T19:42:27.3948646Z test cmd_info::native_jim_inventory_tests::original_jim_inventory_and_current_helper_sources_match_all_native_columns ... FAILED
+2026-10-22T19:42:28.8058686Z test cmd_info::original_argument_tests::original_info_default_failed_lookup_leaves_destination_getter_unreached ... ok
+2026-10-22T19:42:28.9838782Z test cmd_info::original_argument_tests::original_info_default_positive_rows_keep_selected_getter_order_and_borrowed_value ... ok
+2026-10-22T19:42:29.4368853Z test cmd_info::original_argument_tests::original_info_getter_first_cause_stops_later_operands_and_result_publication ... ok
+2026-10-22T19:42:29.6708738Z test cmd_info::original_argument_tests::original_info_direct_name_workers_stop_before_result_after_getter_refusal ... ok
+2026-10-22T19:42:29.6998006Z test cmd_info::tests::fresh_interp_exposes_c_create_interp_versions ... ok
+2026-10-22T19:42:29.7058181Z test cmd_info::original_argument_tests::original_info_exists_public_row_preserves_original_name_on_all_six_providers ... ok
+2026-10-22T19:42:29.9438573Z test cmd_info::tests::info_commands_qualified_pattern ... ok
+2026-10-22T19:42:29.9677863Z test cmd_info::tests::info_complete_balances ... ok
+2026-10-22T19:42:30.0488580Z test cmd_info::tests::info_consts_enumerates_bindings_and_namespace_global_fallback ... ok
+2026-10-22T19:42:30.2358288Z test cmd_info::tests::info_ensemble_miss_carries_the_full_option_list ... ok
+2026-10-22T19:42:30.2988074Z test cmd_info::tests::info_consts_includes_only_tcloo_instance_links ... ok
+2026-10-22T19:42:30.3288180Z test cmd_info::tests::info_exists_scalar_and_array ... ok
+2026-10-22T19:42:30.5159786Z test cmd_info::tests::info_frame_stack ... ok
+2026-10-22T19:42:30.5618447Z test cmd_info::tests::info_frame_uplevel_is_eval_typed_without_level ... ok
+2026-10-22T19:42:30.5947849Z test cmd_info::tests::info_level_and_vars ... ok
+2026-10-22T19:42:30.7867906Z test cmd_info::tests::info_level_reports_call_words ... ok
+2026-10-22T19:42:30.8239039Z test cmd_info::tests::info_patchlevel_still_errors_after_global_is_unset ... ok
+2026-10-22T19:42:30.8718137Z test cmd_info::tests::info_proc_introspection_errors ... ok
+2026-10-22T19:42:31.0328593Z test cmd_info::tests::original_info_functions_follow_selected_native_script_and_helpers ... FAILED
+2026-10-22T19:42:31.0678158Z test cmd_info::tests::info_procs ... ok
+2026-10-22T19:42:31.3248638Z test cmd_jim_exists::tests::original_jim_exists_matches_command_variable_and_enum_observations ... ok
+2026-10-22T19:42:31.3908619Z test cmd_jim_exists::tests::original_jim_exists_retains_hot_command_and_variable_objects_and_refuses_unknown_channel_flags ... ok
+2026-10-22T19:42:32.6488481Z test cmd_info::tests::original_info_complete_retains_checked_string_worker_and_selected_runtime_grammar ... ok
+2026-10-22T19:42:32.8748611Z test cmd_list::c86_split_tests::empty_set_reuses_actual_children_and_retained_child_survives_list_retirement ... ok
+2026-10-22T19:42:33.1008832Z test cmd_list::c86_split_tests::written_nul_delimiter_reaches_actual_source_producer_before_binary_split ... ok
+2026-10-22T19:42:33.5600120Z test cmd_list::native_jim_lsearch_controls::jim_lsearch_preserves_all_24_original_native_option_and_callback_controls ... FAILED
+2026-10-22T19:42:34.5718672Z test cmd_info::tests::original_info_loaded_uses_counted_interpreter_path_elements ... ok
+2026-10-22T19:42:34.6329586Z test cmd_list::native_original_group_command_controls::original_cli_group_fields_match_native656_source_capture ... FAILED
+2026-10-22T19:42:34.6388497Z test cmd_event::native_original_tests::original_event_scripts_global_waits_and_timer_turns_match_native_controls ... ok
+2026-10-22T19:42:35.4328939Z test cmd_list::c86_split_tests::actual_native_c86_split_preserves_18_raw_rows_and_result_ownership ... ok
+2026-10-22T19:42:35.4878966Z test cmd_list::native_original_group_command_controls::original_guest_compare_failure_preserves_result_and_native651_context ... ok
+2026-10-22T19:42:35.7368818Z test cmd_list::native_original_numeric_controls::original_numeric_search_sort_public_predicates_match_independent_native645_and647 ... FAILED
+2026-10-22T19:42:36.0178258Z test cmd_list::tests::duplicate_preserves_string_rep ... ok
+2026-10-22T19:42:36.2788155Z test cmd_list::tests::errors ... ok
+2026-10-22T19:42:37.5698589Z test cmd_list::tests::hex_indices_and_counts_accepted ... ok
+2026-10-22T19:42:38.4695786Z test cmd_list::tests::empty_append_native_contracts_preserve_bytes_and_selected_validation ... ok
+2026-10-22T19:42:38.9689055Z test cmd_list::native_original_group_command_controls::original_grouping_failure_metadata_and_pre_frame_boundary_follow_native651_and_source ... ok
+2026-10-22T19:42:39.1348260Z test cmd_list::tests::lappend_builds_and_cow ... ok
+2026-10-22T19:42:39.5215311Z test cmd_list::tests::lappend_read_trace_fires_but_swallows_error ... ok
+2026-10-22T19:42:39.9258264Z test cmd_list::tests::lappend_write_trace_unset_and_rewrite ... ok
+2026-10-22T19:42:40.0098038Z test cmd_list::tests::lappend_shared_core_parity ... ok
+2026-10-22T19:42:40.2997918Z test cmd_list::tests::lassign_assigns_and_returns_rest ... ok
+2026-10-22T19:42:40.7028241Z test cmd_list::tests::ledit_errors ... ok
+2026-10-22T19:42:41.7338221Z test cmd_list::tests::list_and_llength ... ok
+2026-10-22T19:42:41.8430463Z test cmd_list::tests::lindex_and_lrange ... ok
+2026-10-22T19:42:42.0908349Z test cmd_list::tests::ledit_replaces_in_place ... ok
+2026-10-22T19:42:42.8668226Z test cmd_list::tests::lsearch_errors ... ok
+2026-10-22T19:42:43.1398331Z test cmd_list::tests::lreverse_concat_join_split ... ok
+2026-10-22T19:42:45.6149019Z test cmd_list::tests::lrepeat_linsert_lreplace ... ok
+2026-10-22T19:42:47.5188666Z test cmd_list::tests::lsearch_modes ... ok
+2026-10-22T19:42:50.2458360Z test cmd_list::tests::lset_bounds_follow_real_c_releases_and_current_jim ... ok
+2026-10-22T19:42:51.1548484Z test cmd_list::tests::lsearch_shared_core ... ok
+2026-10-22T19:42:51.5388294Z test cmd_list::tests::lset_errors ... ok
+2026-10-22T19:42:53.0988241Z test cmd_list::tests::lsort_errors ... ok
+2026-10-22T19:42:54.5172272Z test cmd_list::tests::lset_sets_and_appends ... ok
+2026-10-22T19:42:54.9028468Z test cmd_list::tests::native_index_grammar_matches_real_c_and_jim_observations ... FAILED
+2026-10-22T19:42:55.5161913Z test cmd_list::tests::string_rep_survives_shimmer ... ok
+2026-10-22T19:42:55.8158510Z test cmd_list::tests::native_concat_preserves_selected_engine_and_object_representation ... ok
+2026-10-22T19:42:55.9308750Z test cmd_misc::native_encoding_tests::external_utf8_binary_result_refuses_foreign_or_jim_issuer ... ok
+2026-10-22T19:42:56.3888306Z test cmd_list::tests::var_read_miss_three_way ... ok
+2026-10-22T19:42:56.7859724Z test cmd_misc::tests::clock_ensemble_resolves_like_tclsh ... ok
+2026-10-22T19:42:57.6208397Z test cmd_list::tests::lset_appends_at_the_length_only_from_8_6 ... ok
+2026-10-22T19:42:57.8828357Z test cmd_misc::tests::encoding_ensemble_resolves_like_tclsh ... ok
+2026-10-22T19:42:58.6908285Z test cmd_misc::tests::encoding_convertfrom_decodes_per_release ... ok
+2026-10-22T19:42:59.0508753Z test cmd_list::native_original_group_command_controls::grouped_sort_and_original_comparator_result_public_predicates_match_native651 ... FAILED
+2026-10-22T19:42:59.8469475Z test cmd_namespace::native_ensemble_tests::counted_map_collision_preserves_native_unreleased_reference_after_teardown ... ok
+2026-10-22T19:43:02.6239278Z test cmd_namespace::native_ensemble_tests::reached_original_prefix_survives_custom_head_retiring_the_ensemble ... ok
+2026-10-22T19:43:02.6769074Z test cmd_namespace::native_holder_routing::original_jim_ensemble_sources_match_all_native_rooted_public_results ... FAILED
+2026-10-22T19:43:02.7288584Z test cmd_namespace::native_holder_routing::original_jim_namespace_library_sources_match_all_native_provider_results ... FAILED
+2026-10-22T19:43:03.2768767Z test cmd_namespace::native_jim_code_tests::jim_namespace_code_keeps_actual_helper_publication_through_refresh_and_replacement ... ok
+2026-10-22T19:43:03.3394091Z test cmd_namespace::native_jim_code_tests::original_jim_namespace_code_keeps_reached_helper_getters_and_original_argument_identity ... FAILED
+2026-10-22T19:43:03.6629344Z test cmd_namespace::native_holder_routing::original_ensemble_holder_source_controls_match_all_native_providers ... FAILED
+2026-10-22T19:43:03.8404489Z test cmd_namespace::native_jim_delete_tests::original_jim_namespace_delete_dispatches_actual_replaced_or_deleted_helper ... ok
+2026-10-22T19:43:03.8638673Z test cmd_namespace::native_jim_delete_tests::original_jim_namespace_delete_preserves_helper_getters_original_names_and_command_retirement ... FAILED
+2026-10-22T19:43:04.3622764Z test cmd_namespace::native_jim_inscope_tests::jim_namespace_inscope_keeps_actual_helper_publication_through_refresh_and_replacement ... ok
+2026-10-22T19:43:04.4396383Z test cmd_namespace::native_holder_routing::original_command_holder_source_controls_match_all_native_providers ... FAILED
+2026-10-22T19:43:04.5221903Z test cmd_namespace::native_jim_helper_literal_head_tests::original_jim_public_helper_lookup_retains_the_recognised_original_selector ... ok
+2026-10-22T19:43:04.5937554Z test cmd_namespace::native_jim_origin_tests::original_jim_namespace_origin_keeps_reached_helper_getters_and_original_argument_identity ... FAILED
+2026-10-22T19:43:04.7128827Z test cmd_namespace::native_jim_parent_tests::jim_parent_refuses_after_original_name_getter_or_result_retirement_changes_current_namespace ... ok
+2026-10-22T19:43:04.9279083Z test cmd_namespace::native_jim_origin_tests::jim_namespace_origin_keeps_actual_helper_publication_through_refresh_and_replacement ... ok
+2026-10-22T19:43:05.1688888Z test cmd_namespace::native_jim_text_result_tests::jim_namespace_text_refuses_after_name_getter_or_result_retirement_changes_current_namespace ... ok
+2026-10-22T19:43:05.3508607Z test cmd_namespace::native_jim_inscope_tests::original_jim_namespace_inscope_keeps_selected_tailcall_and_original_list_elements ... ok
+2026-10-22T19:43:05.4298491Z test cmd_misc::native_encoding_tests::original_utf8_conversion_matches_all_55_c_object_storage_windows ... ok
+2026-10-22T19:43:05.4512010Z test cmd_namespace::native_jim_parent_tests::original_jim_parent_keeps_textual_missing_names_getters_primaries_and_empty_result_identity ... ok
+2026-10-22T19:43:05.8868855Z test cmd_namespace::native_jim_upvar_tests::original_jim_namespace_upvar_dispatches_actual_replaced_or_deleted_helper ... ok
+2026-10-22T19:43:05.9789789Z test cmd_namespace::native_upvar_tests::jim_namespace_upvar_forwards_root_worker_without_changing_variable_frame ... ok
+2026-10-22T19:43:06.7728934Z test cmd_namespace::native_jim_text_result_tests::original_jim_namespace_text_keeps_shared_empty_counted_empty_and_original_tail_identity ... ok
+2026-10-22T19:43:06.7796025Z test cmd_namespace::native_jim_upvar_tests::original_jim_namespace_upvar_preserves_selected_arguments_empty_padding_and_real_links ... ok
+2026-10-22T19:43:07.2308746Z test cmd_namespace::original_argument_tests::original_namespace_getter_refusal_keeps_prefix_effects_and_later_argument_unread ... ok
+2026-10-22T19:43:09.5930087Z test cmd_namespace::native_upvar_tests::namespace_upvar_original_vectors_match_eighteen_native_arity_windows ... ok
+2026-10-22T19:43:09.6679320Z test cmd_namespace::original_argument_tests::original_namespace_patterns_match_reached_jim_getter_and_public_effect_windows ... FAILED
+2026-10-22T19:43:09.7478657Z test cmd_namespace::original_import_alias_tests::original_jim_import_follows_original_alias_lists_and_refuses_destination_loops ... FAILED
+2026-10-22T19:43:09.7658807Z test cmd_namespace::native_map_prefix_tests::original_counted_map_prefix_vectors_match_all_20_c_public_windows ... ok
+2026-10-22T19:43:09.8258509Z test cmd_namespace::original_import_alias_tests::original_jim_import_keeps_root_alias_lookup_separate_from_destination_collisions ... FAILED
+2026-10-22T19:43:09.8427477Z 
+2026-10-22T19:43:09.8438971Z thread 'cmd_namespace::original_import_alias_tests::original_jim_import_prefix_keeps_the_enumerated_hash_key_after_source_deletion' (4431) panicked at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/std/src/thread/local.rs:429:25:
+2026-10-22T19:43:09.8445379Z cannot access a Thread Local Storage value during or after destruction: AccessError
+2026-10-22T19:43:09.8446125Z stack backtrace:
+2026-10-22T19:43:09.8446446Z    0: __rustc::rust_begin_unwind
+2026-10-22T19:43:09.8446733Z    1: core::panicking::panic_fmt
+2026-10-22T19:43:09.8447650Z    2: std::thread::local::panic_access_error
+2026-10-22T19:43:09.8449312Z    3: <std::thread::local::LocalKey<core::cell::RefCell<std::collections::hash::map::HashMap<usize, tcl_runtime_api::script_source_location::ScriptSourceLocation<core::option::Option<alloc::rc::Rc<[u8]>>>>>>>::with::<tcl_runtime::obj::revoke_script_location::{closure#0}, core::option::Option<tcl_runtime_api::script_source_location::ScriptSourceLocation<core::option::Option<alloc::rc::Rc<[u8]>>>>>
+2026-10-22T19:43:09.8451354Z    4: tcl_runtime::obj::revoke_script_location
+2026-10-22T19:43:09.8451675Z    5: tcl_runtime::obj::free_obj
+2026-10-22T19:43:09.8451952Z    6: tcl_runtime::obj::decr_ref_count
+2026-10-22T19:43:09.8452305Z    7: <tcl_runtime::obj::Owned as core::ops::drop::Drop>::drop
+2026-10-22T19:43:09.8452703Z    8: core::ptr::drop_glue::<tcl_runtime::obj::Owned>
+2026-10-22T19:43:09.8453164Z    9: core::ptr::drop_glue::<tcl_runtime::frame::native_variable_names::NativeHashKey>
+2026-10-22T19:43:09.8454637Z   10: <<alloc::collections::btree::node::Handle<alloc::collections::btree::node::NodeRef<alloc::collections::btree::node::marker::Dying, _, _, _>, alloc::collections::btree::node::marker::KV>>::drop_key_val::Dropper<tcl_runtime::frame::native_variable_names::NativeHashKey> as core::ops::drop::Drop>::drop
+2026-10-22T19:43:09.8457194Z   11: core::ptr::drop_glue::<<alloc::collections::btree::node::Handle<alloc::collections::btree::node::NodeRef<alloc::collections::btree::node::marker::Dying, _, _, _>, alloc::collections::btree::node::marker::KV>>::drop_key_val::Dropper<tcl_runtime::frame::native_variable_names::NativeHashKey>>
+2026-10-22T19:43:09.8460264Z   12: <alloc::collections::btree::node::Handle<alloc::collections::btree::node::NodeRef<alloc::collections::btree::node::marker::Dying, alloc::vec::Vec<u8>, tcl_runtime::frame::native_variable_names::NativeHashKey, alloc::collections::btree::node::marker::LeafOrInternal>, alloc::collections::btree::node::marker::KV>>::drop_key_val
+2026-10-22T19:43:09.8463322Z   13: <alloc::collections::btree::map::IntoIter<alloc::vec::Vec<u8>, tcl_runtime::frame::native_variable_names::NativeHashKey> as core::ops::drop::Drop>::drop
+2026-10-22T19:43:09.8465218Z   14: core::ptr::drop_glue::<alloc::collections::btree::map::IntoIter<alloc::vec::Vec<u8>, tcl_runtime::frame::native_variable_names::NativeHashKey>>
+2026-10-22T19:43:09.8467285Z   15: <alloc::collections::btree::map::BTreeMap<alloc::vec::Vec<u8>, tcl_runtime::frame::native_variable_names::NativeHashKey> as core::ops::drop::Drop>::drop
+2026-10-22T19:43:09.8469143Z   16: core::ptr::drop_glue::<alloc::collections::btree::map::BTreeMap<alloc::vec::Vec<u8>, tcl_runtime::frame::native_variable_names::NativeHashKey>>
+2026-10-22T19:43:09.8471090Z   17: core::ptr::drop_glue::<core::cell::UnsafeCell<alloc::collections::btree::map::BTreeMap<alloc::vec::Vec<u8>, tcl_runtime::frame::native_variable_names::NativeHashKey>>>
+2026-10-22T19:43:09.8473124Z   18: core::ptr::drop_glue::<core::cell::RefCell<alloc::collections::btree::map::BTreeMap<alloc::vec::Vec<u8>, tcl_runtime::frame::native_variable_names::NativeHashKey>>>
+2026-10-22T19:43:09.8475430Z   19: <alloc::rc::Rc<core::cell::RefCell<alloc::collections::btree::map::BTreeMap<alloc::vec::Vec<u8>, tcl_runtime::frame::native_variable_names::NativeHashKey>>>>::drop_slow
+2026-10-22T19:43:09.8477728Z   20: <alloc::rc::Rc<core::cell::RefCell<alloc::collections::btree::map::BTreeMap<alloc::vec::Vec<u8>, tcl_runtime::frame::native_variable_names::NativeHashKey>>> as core::ops::drop::Drop>::drop
+2026-10-22T19:43:09.8479817Z   21: core::ptr::drop_glue::<alloc::rc::Rc<core::cell::RefCell<alloc::collections::btree::map::BTreeMap<alloc::vec::Vec<u8>, tcl_runtime::frame::native_variable_names::NativeHashKey>>>>
+2026-10-22T19:43:09.8481184Z   22: core::ptr::drop_glue::<tcl_runtime::frame::VarTable>
+2026-10-22T19:43:09.8481883Z   23: core::ptr::drop_glue::<[tcl_runtime::frame::VarTable]>
+2026-10-22T19:43:09.8482702Z   24: <alloc::vec::Vec<tcl_runtime::frame::VarTable> as core::ops::drop::Drop>::drop
+2026-10-22T19:43:09.8483553Z   25: core::ptr::drop_glue::<alloc::vec::Vec<tcl_runtime::frame::VarTable>>
+2026-10-22T19:43:09.8484253Z   26: core::ptr::drop_glue::<(alloc::vec::Vec<alloc::rc::Rc<tcl_runtime::obj::Owned>>, alloc::vec::Vec<tcl_runtime::frame::VarTable>)>
+2026-10-22T19:43:09.8485075Z   27: core::mem::drop::<(alloc::vec::Vec<alloc::rc::Rc<tcl_runtime::obj::Owned>>, alloc::vec::Vec<tcl_runtime::frame::VarTable>)>
+2026-10-22T19:43:09.8485856Z   28: <tcl_runtime::interp::Interp as tcl_runtime_api::jim_interpreter::JimInterpreterTeardown>::release_frames
+2026-10-22T19:43:09.8487273Z   29: tcl_runtime_api::jim_interpreter::teardown_jim_interpreter::<tcl_runtime::interp::Interp>
+2026-10-22T19:43:09.8488196Z   30: <tcl_runtime::interp::Interp>::retire_jim_interpreter
+2026-10-22T19:43:09.8488626Z   31: <tcl_runtime::interp::Interp as core::ops::drop::Drop>::drop
+2026-10-22T19:43:09.8489045Z   32: core::ptr::drop_glue::<tcl_runtime::interp::Interp>
+2026-10-22T19:43:09.8489529Z   33: core::ptr::drop_glue::<core::option::Option<tcl_runtime::interp::Interp>>
+2026-10-22T19:43:09.8490148Z   34: core::ptr::drop_glue::<core::cell::UnsafeCell<core::option::Option<tcl_runtime::interp::Interp>>>
+2026-10-22T19:43:09.8491077Z   35: core::ptr::drop_glue::<core::cell::RefCell<core::option::Option<tcl_runtime::interp::Interp>>>
+2026-10-22T19:43:09.8492512Z   36: std::sys::thread_local::native::eager::destroy::<core::cell::RefCell<core::option::Option<tcl_runtime::interp::Interp>>>::{closure#0}
+2026-10-22T19:43:09.8494486Z   37: std::sys::thread_local::abort_on_dtor_unwind::<std::sys::thread_local::native::eager::destroy<core::cell::RefCell<core::option::Option<tcl_runtime::interp::Interp>>>::{closure#0}>
+2026-10-22T19:43:09.8496417Z   38: std::sys::thread_local::native::eager::destroy::<core::cell::RefCell<core::option::Option<tcl_runtime::interp::Interp>>>
+2026-10-22T19:43:09.8497661Z   39: __call_tls_dtors
+2026-10-22T19:43:09.8498043Z   40: <unknown>
+2026-10-22T19:43:09.8498389Z   41: <unknown>
+2026-10-22T19:43:09.8499061Z note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+2026-10-22T19:43:09.8499672Z 
+2026-10-22T19:43:09.8501279Z thread 'cmd_namespace::original_import_alias_tests::original_jim_import_prefix_keeps_the_enumerated_hash_key_after_source_deletion' (4431) panicked at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/std/src/thread/local.rs:429:25:
+2026-10-22T19:43:09.8503419Z cannot access a Thread Local Storage value during or after destruction: AccessError
+2026-10-22T19:43:09.8504170Z stack backtrace:
+2026-10-22T19:43:09.8505315Z    0:     0x626372f02071 - <<std[68c81ae915296b05]::sys::backtrace::BacktraceLock>::print::DisplayBacktrace as core[efd5e57aef94d71e]::fmt::Display>::fmt
+2026-10-22T19:43:09.8506615Z    1:     0x626372f1b49a - core[efd5e57aef94d71e]::fmt::write
+2026-10-22T19:43:09.8507959Z    2:     0x626372f0975c - <std[68c81ae915296b05]::sys::stdio::unix::Stderr as core[efd5e57aef94d71e]::io::write::Write>::write_fmt
+2026-10-22T19:43:09.8509004Z    3:     0x626372ed91c6 - std[68c81ae915296b05]::panicking::default_hook::{closure#0}
+2026-10-22T19:43:09.8509533Z    4:     0x626372ef7b41 - std[68c81ae915296b05]::panicking::default_hook
+2026-10-22T19:43:09.8510444Z    5:     0x62637248d060 - test[ff178199d140d5fa]::test_main_inner::<test[ff178199d140d5fa]::test_main_static::{closure#0}>::{closure#0}
+2026-10-22T19:43:09.8512153Z    6:     0x626371499a79 - <alloc[c23e483dde3f7cfb]::boxed::Box<dyn for<'a, 'b> core[efd5e57aef94d71e]::ops::function::Fn<(&'a std[68c81ae915296b05]::panic::PanicHookInfo<'b>,), Output = ()> + core[efd5e57aef94d71e]::marker::Send + core[efd5e57aef94d71e]::marker::Sync> as core[efd5e57aef94d71e]::ops::function::Fn<(&std[68c81ae915296b05]::panic::PanicHookInfo,)>>::call
+2026-10-22T19:43:09.8513765Z    7:     0x626371b91bfd - tcl_runtime[53d9f2a1ba08e3bd]::cmd_coro::imp::ensure_quiet_terminate_hook::{closure#0}::{closure#0}
+2026-10-22T19:43:09.8514484Z    8:     0x626372ef7ea2 - std[68c81ae915296b05]::panicking::panic_with_hook
+2026-10-22T19:43:09.8515029Z    9:     0x626372ed9272 - std[68c81ae915296b05]::panicking::panic_handler::{closure#0}
+2026-10-22T19:43:09.8515866Z   10:     0x626372ed0db9 - std[68c81ae915296b05]::sys::backtrace::__rust_end_short_backtrace::<std[68c81ae915296b05]::panicking::panic_handler::{closure#0}, !>
+2026-10-22T19:43:09.8516619Z   11:     0x626372eda30d - __rustc[3d2f79520d6fa809]::rust_begin_unwind
+2026-10-22T19:43:09.8517377Z   12:     0x626372f1bcbc - core[efd5e57aef94d71e]::panicking::panic_fmt
+2026-10-22T19:43:09.8517890Z   13:     0x626372ef9fcf - std[68c81ae915296b05]::thread::local::panic_access_error
+2026-10-22T19:43:09.8520500Z   14:     0x6263714f969e - <std[68c81ae915296b05]::thread::local::LocalKey<core[efd5e57aef94d71e]::cell::RefCell<std[68c81ae915296b05]::collections::hash::map::HashMap<usize, tcl_runtime_api[9fe19002a35f316f]::script_source_location::ScriptSourceLocation<core[efd5e57aef94d71e]::option::Option<alloc[c23e483dde3f7cfb]::rc::Rc<[u8]>>>>>>>::with::<tcl_runtime[53d9f2a1ba08e3bd]::obj::revoke_script_location::{closure#0}, core[efd5e57aef94d71e]::option::Option<tcl_runtime_api[9fe19002a35f316f]::script_source_location::ScriptSourceLocation<core[efd5e57aef94d71e]::option::Option<alloc[c23e483dde3f7cfb]::rc::Rc<[u8]>>>>>
+2026-10-22T19:43:09.8523197Z   15:     0x626371a8fd5c - tcl_runtime[53d9f2a1ba08e3bd]::obj::revoke_script_location
+2026-10-22T19:43:09.8523716Z   16:     0x626371a95aa5 - tcl_runtime[53d9f2a1ba08e3bd]::obj::free_obj
+2026-10-22T19:43:09.8524197Z   17:     0x626371a8b48d - tcl_runtime[53d9f2a1ba08e3bd]::obj::decr_ref_count
+2026-10-22T19:43:09.8524845Z   18:     0x626371b2c119 - <tcl_runtime[53d9f2a1ba08e3bd]::obj::Owned as core[efd5e57aef94d71e]::ops::drop::Drop>::drop
+2026-10-22T19:43:09.8525600Z   19:     0x626371d03f5e - core[efd5e57aef94d71e]::ptr::drop_glue::<tcl_runtime[53d9f2a1ba08e3bd]::obj::Owned>
+2026-10-22T19:43:09.8526448Z   20:     0x626371d0c10e - core[efd5e57aef94d71e]::ptr::drop_glue::<tcl_runtime[53d9f2a1ba08e3bd]::frame::native_variable_names::NativeHashKey>
+2026-10-22T19:43:09.8528747Z   21:     0x6263710f5ef9 - <<alloc[c23e483dde3f7cfb]::collections::btree::node::Handle<alloc[c23e483dde3f7cfb]::collections::btree::node::NodeRef<alloc[c23e483dde3f7cfb]::collections::btree::node::marker::Dying, _, _, _>, alloc[c23e483dde3f7cfb]::collections::btree::node::marker::KV>>::drop_key_val::Dropper<tcl_runtime[53d9f2a1ba08e3bd]::frame::native_variable_names::NativeHashKey> as core[efd5e57aef94d71e]::ops::drop::Drop>::drop
+2026-10-22T19:43:09.8531792Z   22:     0x626371cfcac6 - core[efd5e57aef94d71e]::ptr::drop_glue::<<alloc[c23e483dde3f7cfb]::collections::btree::node::Handle<alloc[c23e483dde3f7cfb]::collections::btree::node::NodeRef<alloc[c23e483dde3f7cfb]::collections::btree::node::marker::Dying, _, _, _>, alloc[c23e483dde3f7cfb]::collections::btree::node::marker::KV>>::drop_key_val::Dropper<tcl_runtime[53d9f2a1ba08e3bd]::frame::native_variable_names::NativeHashKey>>
+2026-10-22T19:43:09.8535045Z   23:     0x62637109efbc - <alloc[c23e483dde3f7cfb]::collections::btree::node::Handle<alloc[c23e483dde3f7cfb]::collections::btree::node::NodeRef<alloc[c23e483dde3f7cfb]::collections::btree::node::marker::Dying, alloc[c23e483dde3f7cfb]::vec::Vec<u8>, tcl_runtime[53d9f2a1ba08e3bd]::frame::native_variable_names::NativeHashKey, alloc[c23e483dde3f7cfb]::collections::btree::node::marker::LeafOrInternal>, alloc[c23e483dde3f7cfb]::collections::btree::node::marker::KV>>::drop_key_val
+2026-10-22T19:43:09.8538158Z   24:     0x626371c7bb3d - <<alloc[c23e483dde3f7cfb]::collections::btree::map::IntoIter<_, _, _> as core[efd5e57aef94d71e]::ops::drop::Drop>::drop::DropGuard<alloc[c23e483dde3f7cfb]::vec::Vec<u8>, tcl_runtime[53d9f2a1ba08e3bd]::frame::native_variable_names::NativeHashKey, alloc[c23e483dde3f7cfb]::alloc::Global> as core[efd5e57aef94d71e]::ops::drop::Drop>::drop
+2026-10-22T19:43:09.8543831Z   25:     0x626371cfcf2e - core[efd5e57aef94d71e]::ptr::drop_glue::<<alloc[c23e483dde3f7cfb]::collections::btree::map::IntoIter<_, _, _> as core[efd5e57aef94d71e]::ops::drop::Drop>::drop::DropGuard<alloc[c23e483dde3f7cfb]::vec::Vec<u8>, tcl_runtime[53d9f2a1ba08e3bd]::frame::native_variable_names::NativeHashKey, alloc[c23e483dde3f7cfb]::alloc::Global>>
+2026-10-22T19:43:09.8547879Z   26:     0x626371c8de2a - <alloc[c23e483dde3f7cfb]::collections::btree::map::IntoIter<alloc[c23e483dde3f7cfb]::vec::Vec<u8>, tcl_runtime[53d9f2a1ba08e3bd]::frame::native_variable_names::NativeHashKey> as core[efd5e57aef94d71e]::ops::drop::Drop>::drop
+2026-10-22T19:43:09.8550717Z   27:     0x626371cfc4ae - core[efd5e57aef94d71e]::ptr::drop_glue::<alloc[c23e483dde3f7cfb]::collections::btree::map::IntoIter<alloc[c23e483dde3f7cfb]::vec::Vec<u8>, tcl_runtime[53d9f2a1ba08e3bd]::frame::native_variable_names::NativeHashKey>>
+2026-10-22T19:43:09.8552432Z   28:     0x626371c73e58 - <alloc[c23e483dde3f7cfb]::collections::btree::map::BTreeMap<alloc[c23e483dde3f7cfb]::vec::Vec<u8>, tcl_runtime[53d9f2a1ba08e3bd]::frame::native_variable_names::NativeHashKey> as core[efd5e57aef94d71e]::ops::drop::Drop>::drop
+2026-10-22T19:43:09.8554099Z   29:     0x626371cfc34e - core[efd5e57aef94d71e]::ptr::drop_glue::<alloc[c23e483dde3f7cfb]::collections::btree::map::BTreeMap<alloc[c23e483dde3f7cfb]::vec::Vec<u8>, tcl_runtime[53d9f2a1ba08e3bd]::frame::native_variable_names::NativeHashKey>>
+2026-10-22T19:43:09.8556064Z   30:     0x626371ce2c2e - core[efd5e57aef94d71e]::ptr::drop_glue::<core[efd5e57aef94d71e]::cell::UnsafeCell<alloc[c23e483dde3f7cfb]::collections::btree::map::BTreeMap<alloc[c23e483dde3f7cfb]::vec::Vec<u8>, tcl_runtime[53d9f2a1ba08e3bd]::frame::native_variable_names::NativeHashKey>>>
+2026-10-22T19:43:09.8558306Z   31:     0x626371ce4daa - core[efd5e57aef94d71e]::ptr::drop_glue::<core[efd5e57aef94d71e]::cell::RefCell<alloc[c23e483dde3f7cfb]::collections::btree::map::BTreeMap<alloc[c23e483dde3f7cfb]::vec::Vec<u8>, tcl_runtime[53d9f2a1ba08e3bd]::frame::native_variable_names::NativeHashKey>>>
+2026-10-22T19:43:09.8560187Z   32:     0x6263711f2624 - <alloc[c23e483dde3f7cfb]::rc::Rc<core[efd5e57aef94d71e]::cell::RefCell<alloc[c23e483dde3f7cfb]::collections::btree::map::BTreeMap<alloc[c23e483dde3f7cfb]::vec::Vec<u8>, tcl_runtime[53d9f2a1ba08e3bd]::frame::native_variable_names::NativeHashKey>>>>::drop_slow
+2026-10-22T19:43:09.8562224Z   33:     0x62637124b704 - <alloc[c23e483dde3f7cfb]::rc::Rc<core[efd5e57aef94d71e]::cell::RefCell<alloc[c23e483dde3f7cfb]::collections::btree::map::BTreeMap<alloc[c23e483dde3f7cfb]::vec::Vec<u8>, tcl_runtime[53d9f2a1ba08e3bd]::frame::native_variable_names::NativeHashKey>>> as core[efd5e57aef94d71e]::ops::drop::Drop>::drop
+2026-10-22T19:43:09.8564333Z   34:     0x626371cef68e - core[efd5e57aef94d71e]::ptr::drop_glue::<alloc[c23e483dde3f7cfb]::rc::Rc<core[efd5e57aef94d71e]::cell::RefCell<alloc[c23e483dde3f7cfb]::collections::btree::map::BTreeMap<alloc[c23e483dde3f7cfb]::vec::Vec<u8>, tcl_runtime[53d9f2a1ba08e3bd]::frame::native_variable_names::NativeHashKey>>>>
+2026-10-22T19:43:09.8565717Z   35:     0x626371d05809 - core[efd5e57aef94d71e]::ptr::drop_glue::<tcl_runtime[53d9f2a1ba08e3bd]::frame::VarTable>
+2026-10-22T19:43:09.8566464Z   36:     0x626371d17872 - core[efd5e57aef94d71e]::ptr::drop_glue::<[tcl_runtime[53d9f2a1ba08e3bd]::frame::VarTable]>
+2026-10-22T19:43:09.8567754Z   37:     0x62637196d541 - <alloc[c23e483dde3f7cfb]::vec::Vec<tcl_runtime[53d9f2a1ba08e3bd]::frame::VarTable> as core[efd5e57aef94d71e]::ops::drop::Drop>::drop
+2026-10-22T19:43:09.8568793Z   38:     0x626371cf1efd - core[efd5e57aef94d71e]::ptr::drop_glue::<alloc[c23e483dde3f7cfb]::vec::Vec<tcl_runtime[53d9f2a1ba08e3bd]::frame::VarTable>>
+2026-10-22T19:43:09.8570146Z   39:     0x626371d1c4fb - core[efd5e57aef94d71e]::ptr::drop_glue::<(alloc[c23e483dde3f7cfb]::vec::Vec<alloc[c23e483dde3f7cfb]::rc::Rc<tcl_runtime[53d9f2a1ba08e3bd]::obj::Owned>>, alloc[c23e483dde3f7cfb]::vec::Vec<tcl_runtime[53d9f2a1ba08e3bd]::frame::VarTable>)>
+2026-10-22T19:43:09.8571826Z   40:     0x62637151acc6 - core[efd5e57aef94d71e]::mem::drop::<(alloc[c23e483dde3f7cfb]::vec::Vec<alloc[c23e483dde3f7cfb]::rc::Rc<tcl_runtime[53d9f2a1ba08e3bd]::obj::Owned>>, alloc[c23e483dde3f7cfb]::vec::Vec<tcl_runtime[53d9f2a1ba08e3bd]::frame::VarTable>)>
+2026-10-22T19:43:09.8573207Z   41:     0x626370f9fc23 - <tcl_runtime[53d9f2a1ba08e3bd]::interp::Interp as tcl_runtime_api[9fe19002a35f316f]::jim_interpreter::JimInterpreterTeardown>::release_frames
+2026-10-22T19:43:09.8574311Z   42:     0x626371714dae - tcl_runtime_api[9fe19002a35f316f]::jim_interpreter::teardown_jim_interpreter::<tcl_runtime[53d9f2a1ba08e3bd]::interp::Interp>
+2026-10-22T19:43:09.8575137Z   43:     0x626370dd05b0 - <tcl_runtime[53d9f2a1ba08e3bd]::interp::Interp>::retire_jim_interpreter
+2026-10-22T19:43:09.8575866Z   44:     0x626370f86359 - <tcl_runtime[53d9f2a1ba08e3bd]::interp::Interp as core[efd5e57aef94d71e]::ops::drop::Drop>::drop
+2026-10-22T19:43:09.8576644Z   45:     0x626371d07f6d - core[efd5e57aef94d71e]::ptr::drop_glue::<tcl_runtime[53d9f2a1ba08e3bd]::interp::Interp>
+2026-10-22T19:43:09.8577797Z   46:     0x626371ce7c38 - core[efd5e57aef94d71e]::ptr::drop_glue::<core[efd5e57aef94d71e]::option::Option<tcl_runtime[53d9f2a1ba08e3bd]::interp::Interp>>
+2026-10-22T19:43:09.8579022Z   47:     0x626371ce2836 - core[efd5e57aef94d71e]::ptr::drop_glue::<core[efd5e57aef94d71e]::cell::UnsafeCell<core[efd5e57aef94d71e]::option::Option<tcl_runtime[53d9f2a1ba08e3bd]::interp::Interp>>>
+2026-10-22T19:43:09.8580490Z   48:     0x626371ce473a - core[efd5e57aef94d71e]::ptr::drop_glue::<core[efd5e57aef94d71e]::cell::RefCell<core[efd5e57aef94d71e]::option::Option<tcl_runtime[53d9f2a1ba08e3bd]::interp::Interp>>>
+2026-10-22T19:43:09.8581892Z   49:     0x6263718ddaed - std[68c81ae915296b05]::sys::thread_local::native::eager::destroy::<core[efd5e57aef94d71e]::cell::RefCell<core[efd5e57aef94d71e]::option::Option<tcl_runtime[53d9f2a1ba08e3bd]::interp::Interp>>>::{closure#0}
+2026-10-22T19:43:09.8583648Z   50:     0x626371d21e59 - std[68c81ae915296b05]::sys::thread_local::abort_on_dtor_unwind::<std[68c81ae915296b05]::sys::thread_local::native::eager::destroy<core[efd5e57aef94d71e]::cell::RefCell<core[efd5e57aef94d71e]::option::Option<tcl_runtime[53d9f2a1ba08e3bd]::interp::Interp>>>::{closure#0}>
+2026-10-22T19:43:09.8585335Z   51:     0x6263718c6ead - std[68c81ae915296b05]::sys::thread_local::native::eager::destroy::<core[efd5e57aef94d71e]::cell::RefCell<core[efd5e57aef94d71e]::option::Option<tcl_runtime[53d9f2a1ba08e3bd]::interp::Interp>>>
+2026-10-22T19:43:09.8586201Z   52:     0x7da7a604a57f - __call_tls_dtors
+2026-10-22T19:43:09.8586511Z   53:     0x7da7a60abcfc - <unknown>
+2026-10-22T19:43:09.8586798Z   54:     0x7da7a613f55c - <unknown>
+2026-10-22T19:43:09.8587305Z   55:                0x0 - <unknown>
+2026-10-22T19:43:09.8587481Z 
+2026-10-22T19:43:09.8588323Z thread 'cmd_namespace::original_import_alias_tests::original_jim_import_prefix_keeps_the_enumerated_hash_key_after_source_deletion' (4431) panicked at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/core/src/panicking.rs:233:5:
+2026-10-22T19:43:09.8589312Z panic in a destructor during cleanup
+2026-10-22T19:43:09.8589628Z thread caused non-unwinding panic. aborting.
+2026-10-22T19:43:11.4027814Z [1m[91merror[0m: test failed, to rerun pass `--lib`
+2026-10-22T19:43:11.4028303Z 
+2026-10-22T19:43:11.4028412Z Caused by:
+2026-10-22T19:43:11.4029541Z   process didn't exit successfully: `/home/runner/work/tcl-lsp/tcl-lsp/runtime/rust/target/debug/deps/tcl_runtime-6d1450336240dc60` (signal: 6, SIGABRT: process abort signal)
+2026-10-22T19:43:11.4101453Z make: *** [Makefile:2880: runtime-rust-test-no-tommath] Error 101
+2026-10-22T19:43:11.4126844Z ##[error]Process completed with exit code 2.
+2026-10-22T19:43:11.4461944Z Post job cleanup.
+2026-10-22T19:43:11.4465243Z ##[start-action display=Setup Rust Caching;id=__3c05578d-6c71-4fc5-8550-349821d87991.__Swatinem_rust-cache]
+2026-10-22T19:43:11.4509246Z Post job cleanup.
+2026-10-22T19:43:11.6066293Z ##[group]Cache Configuration
+2026-10-22T19:43:11.6067405Z Cache Provider:
+2026-10-22T19:43:11.6068316Z     github
+2026-10-22T19:43:11.6069027Z Workspaces:
+2026-10-22T19:43:11.6069631Z     /home/runner/work/tcl-lsp/tcl-lsp
+2026-10-22T19:43:11.6070350Z Cache Paths:
+2026-10-22T19:43:11.6070962Z     /home/runner/.cargo/bin
+2026-10-22T19:43:11.6071662Z     /home/runner/.cargo/.crates.toml
+2026-10-22T19:43:11.6072496Z     /home/runner/.cargo/.crates2.json
+2026-10-22T19:43:11.6073341Z     /home/runner/.cargo/registry
+2026-10-22T19:43:11.6074144Z     /home/runner/.cargo/git
+2026-10-22T19:43:11.6074935Z     /home/runner/work/tcl-lsp/tcl-lsp/target
+2026-10-22T19:43:11.6075744Z Restore Key:
+2026-10-22T19:43:11.6076707Z     v0-rust-runtime-rust-tests-runtime-rust-tests-Linux-x64-9c09dd5e
+2026-10-22T19:43:11.6077960Z Cache Key:
+2026-10-22T19:43:11.6078875Z     v0-rust-runtime-rust-tests-runtime-rust-tests-Linux-x64-9c09dd5e-b2d9d405
+2026-10-22T19:43:11.6079867Z .. Prefix:
+2026-10-22T19:43:11.6080609Z   - v0-rust-runtime-rust-tests-runtime-rust-tests-Linux-x64
+2026-10-22T19:43:11.6081487Z .. Environment considered:
+2026-10-22T19:43:11.6082227Z   - Rust Versions:
+2026-10-22T19:43:11.6083169Z     - 1.99.1 x86_64-unknown-linux-gnu 58cf8f9c35b355199727627d07ae34a4e2846d67
+2026-10-22T19:43:11.6084226Z   - CARGO_BUILD_WARNINGS
+2026-10-22T19:43:11.6084942Z   - CARGO_INCREMENTAL
+2026-10-22T19:43:11.6085634Z   - CARGO_PROFILE_DEV_DEBUG
+2026-10-22T19:43:11.6087212Z   - CARGO_REGISTRIES_CRATES_IO_PROTOCOL
+2026-10-22T19:43:11.6088126Z   - CARGO_TERM_COLOR
+2026-10-22T19:43:11.6088985Z   - CARGO_UNSTABLE_SPARSE_REGISTRY
+2026-10-22T19:43:11.6089759Z   - RUST_BACKTRACE
+2026-10-22T19:43:11.6090441Z .. Lockfiles considered:
+2026-10-22T19:43:11.6091342Z   - /home/runner/work/tcl-lsp/tcl-lsp/.cargo/config.toml
+2026-10-22T19:43:11.6092323Z   - /home/runner/work/tcl-lsp/tcl-lsp/Cargo.lock
+2026-10-22T19:43:11.6093272Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust-toolchain.toml
+2026-10-22T19:43:11.6094444Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/bigip-report-gen/rust/Cargo.toml
+2026-10-22T19:43:11.6095649Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/bpf-tcl-codegen/Cargo.toml
+2026-10-22T19:43:11.6097141Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/bpf-tcl-ir/Cargo.toml
+2026-10-22T19:43:11.6098295Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/bpf-tcl/Cargo.toml
+2026-10-22T19:43:11.6099288Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/f5-cli/Cargo.toml
+2026-10-22T19:43:11.6100392Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/f5-xc/Cargo.toml
+2026-10-22T19:43:11.6101601Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-bigip-io/Cargo.toml
+2026-10-22T19:43:11.6102687Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-bigip-query/Cargo.toml
+2026-10-22T19:43:11.6103863Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-bigip/Cargo.toml
+2026-10-22T19:43:11.6104970Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-bytecode/Cargo.toml
+2026-10-22T19:43:11.6106113Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-cli-support/Cargo.toml
+2026-10-22T19:43:11.6107548Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-cli/Cargo.toml
+2026-10-22T19:43:11.6108895Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-cmd-core/Cargo.toml
+2026-10-22T19:43:11.6110081Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-compiler/Cargo.toml
+2026-10-22T19:43:11.6110882Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-core-types/Cargo.toml
+2026-10-22T19:43:11.6111759Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-cshim/Cargo.toml
+2026-10-22T19:43:11.6112729Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-debugger/Cargo.toml
+2026-10-22T19:43:11.6113703Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-diagram/Cargo.toml
+2026-10-22T19:43:11.6114758Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-dialect/Cargo.toml
+2026-10-22T19:43:11.6116073Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-engine-api/Cargo.toml
+2026-10-22T19:43:11.6117352Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-engine-tclvm/Cargo.toml
+2026-10-22T19:43:11.6118375Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-engine-wasm/Cargo.toml
+2026-10-22T19:43:11.6119340Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-explorer/Cargo.toml
+2026-10-22T19:43:11.6120389Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-f5mku/Cargo.toml
+2026-10-22T19:43:11.6121535Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-fuzz/Cargo.toml
+2026-10-22T19:43:11.6122714Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-host-c-abi/Cargo.toml
+2026-10-22T19:43:11.6123919Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-host-native/Cargo.toml
+2026-10-22T19:43:11.6125138Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-irule-test/Cargo.toml
+2026-10-22T19:43:11.6126315Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-irules/Cargo.toml
+2026-10-22T19:43:11.6127735Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-lexer/Cargo.toml
+2026-10-22T19:43:11.6134538Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-lsp-core/Cargo.toml
+2026-10-22T19:43:11.6135549Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-lsp-db/Cargo.toml
+2026-10-22T19:43:11.6136616Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-lsp-server-wasi/.cargo/config.toml
+2026-10-22T19:43:11.6137988Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-lsp-server/Cargo.toml
+2026-10-22T19:43:11.6138952Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-mcp/Cargo.toml
+2026-10-22T19:43:11.6139640Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-pkg-model/Cargo.toml
+2026-10-22T19:43:11.6140234Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-pkg/Cargo.toml
+2026-10-22T19:43:11.6141492Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-platform/Cargo.toml
+2026-10-22T19:43:11.6142075Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-regex/Cargo.toml
+2026-10-22T19:43:11.6142933Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-registry/Cargo.toml
+2026-10-22T19:43:11.6143904Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/selected-provenance/repo-inputs/.cargo/config.toml
+2026-10-22T19:43:11.6145464Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/selected-provenance/rust-toolchain/lib/rustlib/components
+2026-10-22T19:43:11.6147416Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/selected-provenance/rust-toolchain/lib/rustlib/manifest-rust-std-wasm32-wasip1
+2026-10-22T19:43:11.6150199Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/selected-provenance/rust-toolchain/lib/rustlib/multirust-channel-manifest.toml
+2026-10-22T19:43:11.6152360Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-registry/tests/data/native_rust_wasi_libc_environment_original/selected-provenance/rust-toolchain/lib/rustlib/multirust-config.toml
+2026-10-22T19:43:11.6153689Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-runtime-api/Cargo.toml
+2026-10-22T19:43:11.6154705Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-sandbox/Cargo.toml
+2026-10-22T19:43:11.6155554Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-spec-hooks/Cargo.toml
+2026-10-22T19:43:11.6156064Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-spec-studio/Cargo.toml
+2026-10-22T19:43:11.6156526Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-spectcl/Cargo.toml
+2026-10-22T19:43:11.6157257Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-sslictcl/Cargo.toml
+2026-10-22T19:43:11.6158127Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-syntax/Cargo.toml
+2026-10-22T19:43:11.6159071Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-test-support/Cargo.toml
+2026-10-22T19:43:11.6160037Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-userdirs/Cargo.toml
+2026-10-22T19:43:11.6160939Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-version/Cargo.toml
+2026-10-22T19:43:11.6161815Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-vm-cli/Cargo.toml
+2026-10-22T19:43:11.6162932Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-vm/Cargo.toml
+2026-10-22T19:43:11.6163721Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/xtask/Cargo.toml
+2026-10-22T19:43:11.6164864Z ##[endgroup]
+2026-10-22T19:43:11.6165085Z 
+2026-10-22T19:43:14.9216094Z ... Cleaning /home/runner/work/tcl-lsp/tcl-lsp/target ...
+2026-10-22T19:43:14.9220828Z ... Cleaning cargo registry (cache-all-crates: false) ...
+2026-10-22T19:43:15.9547791Z ... Cleaning cargo/bin ...
+2026-10-22T19:43:15.9571155Z ... Cleaning cargo git cache ...
+2026-10-22T19:43:15.9575391Z ... Saving cache ...
+2026-10-22T19:43:15.9752795Z [command]/usr/bin/tar --posix -cf cache.tzst --exclude cache.tzst -P -C /home/runner/work/tcl-lsp/tcl-lsp --files-from manifest.txt --use-compress-program zstdmt
+2026-10-22T19:43:17.7108394Z Sent 19005440 of 110353180 (17.2%), 18.1 MBs/sec
+2026-10-22T19:43:18.7110194Z Sent 37158912 of 110353180 (33.7%), 17.7 MBs/sec
+2026-10-22T19:43:19.7115032Z Sent 45875200 of 110353180 (41.6%), 14.6 MBs/sec
+2026-10-22T19:43:20.7116804Z Sent 53084160 of 110353180 (48.1%), 12.7 MBs/sec
+2026-10-22T19:43:21.7115547Z Sent 60227584 of 110353180 (54.6%), 11.5 MBs/sec
+2026-10-22T19:43:22.7111157Z Sent 67371008 of 110353180 (61.1%), 10.7 MBs/sec
+2026-10-22T19:43:23.7116888Z Sent 76087296 of 110353180 (68.9%), 10.4 MBs/sec
+2026-10-22T19:43:24.7118277Z Sent 84803584 of 110353180 (76.8%), 10.1 MBs/sec
+2026-10-22T19:43:25.7112530Z Sent 95158272 of 110353180 (86.2%), 10.1 MBs/sec
+2026-10-22T19:43:26.7119234Z Sent 104071168 of 110353180 (94.3%), 9.9 MBs/sec
+2026-10-22T19:43:27.7124280Z Sent 110353180 of 110353180 (100.0%), 9.6 MBs/sec
+2026-10-22T19:43:28.3659817Z ##[end-action id=__3c05578d-6c71-4fc5-8550-349821d87991.__Swatinem_rust-cache;outcome=success;conclusion=success;duration_ms=16919]
+2026-10-22T19:43:28.3744562Z Post job cleanup.
+2026-10-22T19:43:28.4636551Z [command]/usr/bin/git version
+2026-10-22T19:43:28.4694411Z git version 2.55.0
+2026-10-22T19:43:28.4731901Z Temporarily overriding HOME='/home/runner/work/_temp/86ae1777-19d9-4463-a69a-69d52be26f54' before making global git config changes
+2026-10-22T19:43:28.4733315Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-22T19:43:28.4737279Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/tcl-lsp/tcl-lsp
+2026-10-22T19:43:28.4776540Z Removing SSH command configuration
+2026-10-22T19:43:28.4783748Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-22T19:43:28.4825207Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-22T19:43:28.5396265Z Removing HTTP extra header
+2026-10-22T19:43:28.5403076Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-22T19:43:28.5469284Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-22T19:43:28.5967546Z Removing includeIf entries pointing to credentials config files
+2026-10-22T19:43:28.5974308Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-22T19:43:28.6007460Z includeif.gitdir:/home/runner/work/tcl-lsp/tcl-lsp/.git.path
+2026-10-22T19:43:28.6008421Z includeif.gitdir:/home/runner/work/tcl-lsp/tcl-lsp/.git/worktrees/*.path
+2026-10-22T19:43:28.6008931Z includeif.gitdir:/github/workspace/.git.path
+2026-10-22T19:43:28.6009375Z includeif.gitdir:/github/workspace/.git/worktrees/*.path
+2026-10-22T19:43:28.6018504Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/tcl-lsp/tcl-lsp/.git.path
+2026-10-22T19:43:28.6044561Z /home/runner/work/_temp/git-credentials-a3dd6c11-b3be-4e01-93c7-d7a09b092ff3.config
+2026-10-22T19:43:28.6055832Z [command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/tcl-lsp/tcl-lsp/.git.path \/home\/runner\/work\/_temp\/git\-credentials\-a3dd6c11\-b3be\-4e01\-93c7\-d7a09b092ff3\.config
+2026-10-22T19:43:28.6092886Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/tcl-lsp/tcl-lsp/.git/worktrees/*.path
+2026-10-22T19:43:28.6117905Z /home/runner/work/_temp/git-credentials-a3dd6c11-b3be-4e01-93c7-d7a09b092ff3.config
+2026-10-22T19:43:28.6129224Z [command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/tcl-lsp/tcl-lsp/.git/worktrees/*.path \/home\/runner\/work\/_temp\/git\-credentials\-a3dd6c11\-b3be\-4e01\-93c7\-d7a09b092ff3\.config
+2026-10-22T19:43:28.6170248Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git.path
+2026-10-22T19:43:28.6193871Z /github/runner_temp/git-credentials-a3dd6c11-b3be-4e01-93c7-d7a09b092ff3.config
+2026-10-22T19:43:28.6202305Z [command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git.path \/github\/runner_temp\/git\-credentials\-a3dd6c11\-b3be\-4e01\-93c7\-d7a09b092ff3\.config
+2026-10-22T19:43:28.6238308Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git/worktrees/*.path
+2026-10-22T19:43:28.6263008Z /github/runner_temp/git-credentials-a3dd6c11-b3be-4e01-93c7-d7a09b092ff3.config
+2026-10-22T19:43:28.6269991Z [command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git/worktrees/*.path \/github\/runner_temp\/git\-credentials\-a3dd6c11\-b3be\-4e01\-93c7\-d7a09b092ff3\.config
+2026-10-22T19:43:28.6304748Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-22T19:43:28.6794924Z Removing credentials config '/home/runner/work/_temp/git-credentials-a3dd6c11-b3be-4e01-93c7-d7a09b092ff3.config'
+2026-10-22T19:43:28.6970968Z Cleaning up orphan processes

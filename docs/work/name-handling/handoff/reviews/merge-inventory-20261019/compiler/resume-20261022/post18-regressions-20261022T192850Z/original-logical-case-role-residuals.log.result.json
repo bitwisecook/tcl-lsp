@@ -1,0 +1,41 @@
+{
+  "actual_selected": 1,
+  "artifacts": [
+    {
+      "age_seconds": 894.5995151996613,
+      "mtime_utc": "2026-10-22T19:15:58.640841+00:00",
+      "path": "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/tcl_compiler-ef22ef87d0bd65a7",
+      "retained": true,
+      "sha256": "d7d3fd6be30e1677717d9031d69961190b490f6f0fc7ad35941348c36be35cc6"
+    }
+  ],
+  "cargo_wrapper_exit": 101,
+  "command": [
+    "cargo",
+    "test",
+    "--locked",
+    "-p",
+    "tcl-compiler",
+    "--lib",
+    "registry_invocation::tests::original_logical_case_roles_keep_selection_residuals_out_of_structured_ir",
+    "--",
+    "--exact",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "expected_selected": 1,
+  "label": "original-logical-case-role-residuals",
+  "log_at_cap": false,
+  "providers_stable": true,
+  "selector": "registry_invocation::tests::original_logical_case_roles_keep_selection_residuals_out_of_structured_ir",
+  "source_stable": true,
+  "summaries": [
+    [
+      "FAILED",
+      "0",
+      "1",
+      "0"
+    ]
+  ],
+  "warnings": true
+}

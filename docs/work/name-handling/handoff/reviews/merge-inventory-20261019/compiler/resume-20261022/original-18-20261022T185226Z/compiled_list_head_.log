@@ -1,0 +1,26 @@
+warning: method `native_argument_input` is never used
+  --> rust/tcl-compiler/src/analyser/original_definer.rs:79:19
+warning: `tcl-compiler` (lib) generated 1 warning
+    Finished `test` profile [unoptimized] target(s) in 1.30s
+     Running unittests src/lib.rs (target/debug/deps/tcl_compiler-ef22ef87d0bd65a7)
+running 3 tests
+test command_binding::original_compiled_list_owner_join_tests::compiled_list_head_original_owner_refuses_unknown_binding_join ... 
+thread 'command_binding::original_compiled_list_owner_join_tests::compiled_list_head_original_owner_refuses_unknown_binding_join' (106079) panicked at rust/tcl-compiler/src/command_binding.rs:25547:9:
+assertion `left == right` failed
+  left: None
+ right: Some("puts")
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+test registry_invocation::source_taint::tests::compiled_list_head_refuses_variable_heads_and_expanded_original_operands ... ok
+test registry_invocation::source_taint::tests::compiled_list_head_uses_one_current_original_compiler_owner ... 
+thread 'registry_invocation::source_taint::tests::compiled_list_head_uses_one_current_original_compiler_owner' (106098) panicked at rust/tcl-compiler/src/registry_invocation/source_taint.rs:878:9:
+assertion `left == right` failed
+  left: None
+ right: Some("puts")
+FAILED
+
+failures:
+
+failures:
+test result: FAILED. 1 passed; 2 failed; 0 ignored; 0 measured; 10484 filtered out; finished in 2.90s
+error: test failed, to rerun pass `-p tcl-compiler --lib`

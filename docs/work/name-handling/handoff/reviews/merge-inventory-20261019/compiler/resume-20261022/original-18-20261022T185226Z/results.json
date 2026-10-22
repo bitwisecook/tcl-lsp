@@ -38,5 +38,708 @@
       ]
     ],
     "warnings": true
+  },
+  {
+    "actual_selected": 7,
+    "artifacts": [
+      {
+        "age_seconds": 162.37589263916016,
+        "mtime_utc": "2026-10-22T19:15:58.640841+00:00",
+        "path": "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/tcl_compiler-ef22ef87d0bd65a7",
+        "retained": true,
+        "sha256": "d7d3fd6be30e1677717d9031d69961190b490f6f0fc7ad35941348c36be35cc6"
+      }
+    ],
+    "cargo_wrapper_exit": 0,
+    "command": [
+      "cargo",
+      "test",
+      "--locked",
+      "-p",
+      "tcl-compiler",
+      "--lib",
+      "fp_sh_21",
+      "--",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "expected_selected": 7,
+    "label": "fp_sh_21",
+    "log_at_cap": false,
+    "providers_stable": true,
+    "selector": "fp_sh_21",
+    "source_stable": true,
+    "summaries": [
+      [
+        "ok",
+        "7",
+        "0",
+        "0"
+      ]
+    ],
+    "warnings": true
+  },
+  {
+    "actual_selected": 6,
+    "artifacts": [
+      {
+        "age_seconds": 218.69346952438354,
+        "mtime_utc": "2026-10-22T19:15:58.640841+00:00",
+        "path": "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/tcl_compiler-ef22ef87d0bd65a7",
+        "retained": true,
+        "sha256": "d7d3fd6be30e1677717d9031d69961190b490f6f0fc7ad35941348c36be35cc6"
+      }
+    ],
+    "cargo_wrapper_exit": 101,
+    "command": [
+      "cargo",
+      "test",
+      "--locked",
+      "-p",
+      "tcl-compiler",
+      "--lib",
+      "fp_tnt_03",
+      "--",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "expected_selected": 6,
+    "label": "fp_tnt_03",
+    "log_at_cap": false,
+    "providers_stable": true,
+    "selector": "fp_tnt_03",
+    "source_stable": true,
+    "summaries": [
+      [
+        "FAILED",
+        "5",
+        "1",
+        "0"
+      ]
+    ],
+    "warnings": true
+  },
+  {
+    "actual_selected": 1,
+    "artifacts": [
+      {
+        "age_seconds": 235.52766823768616,
+        "mtime_utc": "2026-10-22T19:15:58.640841+00:00",
+        "path": "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/tcl_compiler-ef22ef87d0bd65a7",
+        "retained": true,
+        "sha256": "d7d3fd6be30e1677717d9031d69961190b490f6f0fc7ad35941348c36be35cc6"
+      }
+    ],
+    "cargo_wrapper_exit": 101,
+    "command": [
+      "cargo",
+      "test",
+      "--locked",
+      "-p",
+      "tcl-compiler",
+      "--lib",
+      "original_cross_interp_script_reads_keep_the_tainted_command_word",
+      "--",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "expected_selected": 1,
+    "label": "original_cross_interp_script_reads_keep_the_tainted_command_word",
+    "log_at_cap": false,
+    "providers_stable": true,
+    "selector": "original_cross_interp_script_reads_keep_the_tainted_command_word",
+    "source_stable": true,
+    "summaries": [
+      [
+        "FAILED",
+        "0",
+        "1",
+        "0"
+      ]
+    ],
+    "warnings": true
+  },
+  {
+    "actual_selected": 1,
+    "artifacts": [
+      {
+        "age_seconds": 246.65174198150635,
+        "mtime_utc": "2026-10-22T19:15:58.640841+00:00",
+        "path": "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/tcl_compiler-ef22ef87d0bd65a7",
+        "retained": true,
+        "sha256": "d7d3fd6be30e1677717d9031d69961190b490f6f0fc7ad35941348c36be35cc6"
+      }
+    ],
+    "cargo_wrapper_exit": 101,
+    "command": [
+      "cargo",
+      "test",
+      "--locked",
+      "-p",
+      "tcl-compiler",
+      "--lib",
+      "original_taint_read_inventory_keeps_array_index_and_nested_substitution_sites",
+      "--",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "expected_selected": 1,
+    "label": "original_taint_read_inventory_keeps_array_index_and_nested_substitution_sites",
+    "log_at_cap": false,
+    "providers_stable": true,
+    "selector": "original_taint_read_inventory_keeps_array_index_and_nested_substitution_sites",
+    "source_stable": true,
+    "summaries": [
+      [
+        "FAILED",
+        "0",
+        "1",
+        "0"
+      ]
+    ],
+    "warnings": true
+  },
+  {
+    "actual_selected": 1,
+    "artifacts": [
+      {
+        "age_seconds": 257.42462134361267,
+        "mtime_utc": "2026-10-22T19:15:58.640841+00:00",
+        "path": "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/tcl_compiler-ef22ef87d0bd65a7",
+        "retained": true,
+        "sha256": "d7d3fd6be30e1677717d9031d69961190b490f6f0fc7ad35941348c36be35cc6"
+      }
+    ],
+    "cargo_wrapper_exit": 0,
+    "command": [
+      "cargo",
+      "test",
+      "--locked",
+      "-p",
+      "tcl-compiler",
+      "--lib",
+      "original_taint_operands_require_the_current_operation_and_original_child",
+      "--",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "expected_selected": 1,
+    "label": "original_taint_operands_require_the_current_operation_and_original_child",
+    "log_at_cap": false,
+    "providers_stable": true,
+    "selector": "original_taint_operands_require_the_current_operation_and_original_child",
+    "source_stable": true,
+    "summaries": [
+      [
+        "ok",
+        "1",
+        "0",
+        "0"
+      ]
+    ],
+    "warnings": true
+  },
+  {
+    "actual_selected": 3,
+    "artifacts": [
+      {
+        "age_seconds": 272.5758399963379,
+        "mtime_utc": "2026-10-22T19:15:58.640841+00:00",
+        "path": "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/tcl_compiler-ef22ef87d0bd65a7",
+        "retained": true,
+        "sha256": "d7d3fd6be30e1677717d9031d69961190b490f6f0fc7ad35941348c36be35cc6"
+      }
+    ],
+    "cargo_wrapper_exit": 101,
+    "command": [
+      "cargo",
+      "test",
+      "--locked",
+      "-p",
+      "tcl-compiler",
+      "--lib",
+      "compiled_list_head_",
+      "--",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "expected_selected": 3,
+    "label": "compiled_list_head_",
+    "log_at_cap": false,
+    "providers_stable": true,
+    "selector": "compiled_list_head_",
+    "source_stable": true,
+    "summaries": [
+      [
+        "FAILED",
+        "1",
+        "2",
+        "0"
+      ]
+    ],
+    "warnings": true
+  },
+  {
+    "actual_selected": 1,
+    "artifacts": [
+      {
+        "age_seconds": 303.97746658325195,
+        "mtime_utc": "2026-10-22T19:15:58.640841+00:00",
+        "path": "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/tcl_compiler-ef22ef87d0bd65a7",
+        "retained": true,
+        "sha256": "d7d3fd6be30e1677717d9031d69961190b490f6f0fc7ad35941348c36be35cc6"
+      }
+    ],
+    "cargo_wrapper_exit": 0,
+    "command": [
+      "cargo",
+      "test",
+      "--locked",
+      "-p",
+      "tcl-compiler",
+      "--lib",
+      "syntax_expression_gaps_keep_token_data_and_dispatch_guards",
+      "--",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "expected_selected": 1,
+    "label": "syntax_expression_gaps_keep_token_data_and_dispatch_guards",
+    "log_at_cap": false,
+    "providers_stable": true,
+    "selector": "syntax_expression_gaps_keep_token_data_and_dispatch_guards",
+    "source_stable": true,
+    "summaries": [
+      [
+        "ok",
+        "1",
+        "0",
+        "0"
+      ]
+    ],
+    "warnings": true
+  },
+  {
+    "actual_selected": 1,
+    "artifacts": [
+      {
+        "age_seconds": 476.34405612945557,
+        "mtime_utc": "2026-10-22T19:15:58.640841+00:00",
+        "path": "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/tcl_compiler-ef22ef87d0bd65a7",
+        "retained": true,
+        "sha256": "d7d3fd6be30e1677717d9031d69961190b490f6f0fc7ad35941348c36be35cc6"
+      }
+    ],
+    "cargo_wrapper_exit": 0,
+    "command": [
+      "cargo",
+      "test",
+      "--locked",
+      "-p",
+      "tcl-compiler",
+      "--lib",
+      "analyser::types::original_declaration_inventory_tests::completed_world_follows_the_normal_completion_path_and_entered_bodies_keep_lookups",
+      "--",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "expected_selected": 1,
+    "label": "g4-main",
+    "log_at_cap": false,
+    "providers_stable": true,
+    "selector": "analyser::types::original_declaration_inventory_tests::completed_world_follows_the_normal_completion_path_and_entered_bodies_keep_lookups",
+    "source_stable": true,
+    "summaries": [
+      [
+        "ok",
+        "1",
+        "0",
+        "0"
+      ]
+    ],
+    "warnings": true
+  },
+  {
+    "actual_selected": 1,
+    "artifacts": [
+      {
+        "age_seconds": 522.5008189678192,
+        "mtime_utc": "2026-10-22T19:15:58.640841+00:00",
+        "path": "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/tcl_compiler-ef22ef87d0bd65a7",
+        "retained": true,
+        "sha256": "d7d3fd6be30e1677717d9031d69961190b490f6f0fc7ad35941348c36be35cc6"
+      }
+    ],
+    "cargo_wrapper_exit": 0,
+    "command": [
+      "cargo",
+      "test",
+      "--locked",
+      "-p",
+      "tcl-compiler",
+      "--lib",
+      "analyser::types::original_declaration_inventory_tests::zz_probe_import_and_crlf",
+      "--",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "diagnostic_only": true,
+    "expected_selected": 1,
+    "label": "g4-zz",
+    "log_at_cap": false,
+    "providers_stable": true,
+    "requires_separate_fact_review": true,
+    "selector": "analyser::types::original_declaration_inventory_tests::zz_probe_import_and_crlf",
+    "source_stable": true,
+    "summaries": [
+      [
+        "ok",
+        "1",
+        "0",
+        "0"
+      ]
+    ],
+    "warnings": true,
+    "zz_result_rows": [
+      "ZZ_RESULT \"namespace eval ::a {proc p {} {}; namespace export p}\\nnamespace eval ::b {namespace import ::a::p; p}\\n\" ok=true",
+      "ZZ_RESULT \"namespace eval ::a {proc p {} {}; namespace export p}\\nnamespace import ::a::p\\np\\n\" ok=true",
+      "ZZ_RESULT \"oo::class create Widget {\\r\\n    method render {} {\\r\\n        puts \\\"widget $label\\\"\\r\\n    }\\r\\n}\" ok=true",
+      "ZZ_RESULT \"namespace eval ::a { oo::class create Widget {} }\\nnamespace eval ::a { Widget new }\\n\" ok=true",
+      "ZZ_RESULT \"oo::class create C { variable n; method get {} {return $n} }\\n\" ok=true",
+      "ZZ_RESULT \"proc greet {} { return hi }\\nputs [greet]\\nputs [greet]\\n\" ok=true",
+      "ZZ_RESULT \"namespace eval a {namespace export *; proc foo {} {return A}}; namespace eval b {proc foo {} {return B}; namespace import -force ::a::*; puts [foo]}\\n\" ok=true",
+      "ZZ_RESULT \"namespace eval ::a { oo::class create C {}; C create rex }\\nnamespace eval ::a { rex destroy }\\n\" ok=true",
+      "ZZ_RESULT \"namespace eval lib {oo::class create C {}}; namespace eval app {namespace path ::lib; C new}\" ok=true"
+    ]
+  },
+  {
+    "actual_selected": 1,
+    "artifacts": [
+      {
+        "age_seconds": 542.4925909042358,
+        "mtime_utc": "2026-10-22T19:15:58.640841+00:00",
+        "path": "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/tcl_compiler-ef22ef87d0bd65a7",
+        "retained": true,
+        "sha256": "d7d3fd6be30e1677717d9031d69961190b490f6f0fc7ad35941348c36be35cc6"
+      }
+    ],
+    "cargo_wrapper_exit": 101,
+    "command": [
+      "cargo",
+      "test",
+      "--locked",
+      "-p",
+      "tcl-compiler",
+      "--lib",
+      "command_binding::conditional_expression_tests::conditional_expression_template_retains_grammar_without_actual_entry",
+      "--",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "expected_selected": 1,
+    "label": "g4-regress-conditional_expression_template_retains_grammar_without_actual_entry",
+    "log_at_cap": false,
+    "providers_stable": true,
+    "selector": "command_binding::conditional_expression_tests::conditional_expression_template_retains_grammar_without_actual_entry",
+    "source_stable": true,
+    "summaries": [
+      [
+        "FAILED",
+        "0",
+        "1",
+        "0"
+      ]
+    ],
+    "warnings": true
+  },
+  {
+    "actual_selected": 1,
+    "artifacts": [
+      {
+        "age_seconds": 552.5813357830048,
+        "mtime_utc": "2026-10-22T19:15:58.640841+00:00",
+        "path": "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/tcl_compiler-ef22ef87d0bd65a7",
+        "retained": true,
+        "sha256": "d7d3fd6be30e1677717d9031d69961190b490f6f0fc7ad35941348c36be35cc6"
+      }
+    ],
+    "cargo_wrapper_exit": 101,
+    "command": [
+      "cargo",
+      "test",
+      "--locked",
+      "-p",
+      "tcl-compiler",
+      "--lib",
+      "command_binding::declaration_layout::tests::declaration_layout_keeps_its_original_table_without_a_compiler_visit",
+      "--",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "expected_selected": 1,
+    "label": "g4-regress-declaration_layout_keeps_its_original_table_without_a_compiler_visit",
+    "log_at_cap": false,
+    "providers_stable": true,
+    "selector": "command_binding::declaration_layout::tests::declaration_layout_keeps_its_original_table_without_a_compiler_visit",
+    "source_stable": true,
+    "summaries": [
+      [
+        "FAILED",
+        "0",
+        "1",
+        "0"
+      ]
+    ],
+    "warnings": true
+  },
+  {
+    "actual_selected": 1,
+    "artifacts": [
+      {
+        "age_seconds": 566.35644698143,
+        "mtime_utc": "2026-10-22T19:15:58.640841+00:00",
+        "path": "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/tcl_compiler-ef22ef87d0bd65a7",
+        "retained": true,
+        "sha256": "d7d3fd6be30e1677717d9031d69961190b490f6f0fc7ad35941348c36be35cc6"
+      }
+    ],
+    "cargo_wrapper_exit": 101,
+    "command": [
+      "cargo",
+      "test",
+      "--locked",
+      "-p",
+      "tcl-compiler",
+      "--lib",
+      "command_binding::expression_preparation::tests::scoped_nested_normalisation_keeps_original_world_frame_and_source",
+      "--",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "expected_selected": 1,
+    "label": "g4-regress-scoped_nested_normalisation_keeps_original_world_frame_and_source",
+    "log_at_cap": false,
+    "providers_stable": true,
+    "selector": "command_binding::expression_preparation::tests::scoped_nested_normalisation_keeps_original_world_frame_and_source",
+    "source_stable": true,
+    "summaries": [
+      [
+        "FAILED",
+        "0",
+        "1",
+        "0"
+      ]
+    ],
+    "warnings": true
+  },
+  {
+    "actual_selected": 1,
+    "artifacts": [
+      {
+        "age_seconds": 580.8185510635376,
+        "mtime_utc": "2026-10-22T19:15:58.640841+00:00",
+        "path": "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/tcl_compiler-ef22ef87d0bd65a7",
+        "retained": true,
+        "sha256": "d7d3fd6be30e1677717d9031d69961190b490f6f0fc7ad35941348c36be35cc6"
+      }
+    ],
+    "cargo_wrapper_exit": 101,
+    "command": [
+      "cargo",
+      "test",
+      "--locked",
+      "-p",
+      "tcl-compiler",
+      "--lib",
+      "command_binding::expression_preparation::tests::selected_nested_normalisation_projects_actual_operand_and_command_source",
+      "--",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "expected_selected": 1,
+    "label": "g4-regress-selected_nested_normalisation_projects_actual_operand_and_command_source",
+    "log_at_cap": false,
+    "providers_stable": true,
+    "selector": "command_binding::expression_preparation::tests::selected_nested_normalisation_projects_actual_operand_and_command_source",
+    "source_stable": true,
+    "summaries": [
+      [
+        "FAILED",
+        "0",
+        "1",
+        "0"
+      ]
+    ],
+    "warnings": true
+  },
+  {
+    "actual_selected": 1,
+    "artifacts": [
+      {
+        "age_seconds": 595.529049873352,
+        "mtime_utc": "2026-10-22T19:15:58.640841+00:00",
+        "path": "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/tcl_compiler-ef22ef87d0bd65a7",
+        "retained": true,
+        "sha256": "d7d3fd6be30e1677717d9031d69961190b490f6f0fc7ad35941348c36be35cc6"
+      }
+    ],
+    "cargo_wrapper_exit": 101,
+    "command": [
+      "cargo",
+      "test",
+      "--locked",
+      "-p",
+      "tcl-compiler",
+      "--lib",
+      "command_binding::lifecycle_advice::tests::scoped_lifecycle_coverage_keeps_declared_issuer_frame_and_original_source",
+      "--",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "expected_selected": 1,
+    "label": "g4-regress-scoped_lifecycle_coverage_keeps_declared_issuer_frame_and_original_source",
+    "log_at_cap": false,
+    "providers_stable": true,
+    "selector": "command_binding::lifecycle_advice::tests::scoped_lifecycle_coverage_keeps_declared_issuer_frame_and_original_source",
+    "source_stable": true,
+    "summaries": [
+      [
+        "FAILED",
+        "0",
+        "1",
+        "0"
+      ]
+    ],
+    "warnings": true
+  },
+  {
+    "actual_selected": 1,
+    "artifacts": [
+      {
+        "age_seconds": 614.7463884353638,
+        "mtime_utc": "2026-10-22T19:15:58.640841+00:00",
+        "path": "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/tcl_compiler-ef22ef87d0bd65a7",
+        "retained": true,
+        "sha256": "d7d3fd6be30e1677717d9031d69961190b490f6f0fc7ad35941348c36be35cc6"
+      }
+    ],
+    "cargo_wrapper_exit": 101,
+    "command": [
+      "cargo",
+      "test",
+      "--locked",
+      "-p",
+      "tcl-compiler",
+      "--lib",
+      "command_binding::normal_result::tests::scoped_procedure_equivalence_keeps_independent_world_and_completion_obligations",
+      "--",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "expected_selected": 1,
+    "label": "g4-regress-scoped_procedure_equivalence_keeps_independent_world_and_completion_obligations",
+    "log_at_cap": false,
+    "providers_stable": true,
+    "selector": "command_binding::normal_result::tests::scoped_procedure_equivalence_keeps_independent_world_and_completion_obligations",
+    "source_stable": true,
+    "summaries": [
+      [
+        "FAILED",
+        "0",
+        "1",
+        "0"
+      ]
+    ],
+    "warnings": true
+  },
+  {
+    "actual_selected": 1,
+    "artifacts": [
+      {
+        "age_seconds": 674.7696766853333,
+        "mtime_utc": "2026-10-22T19:15:58.640841+00:00",
+        "path": "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/tcl_compiler-ef22ef87d0bd65a7",
+        "retained": true,
+        "sha256": "d7d3fd6be30e1677717d9031d69961190b490f6f0fc7ad35941348c36be35cc6"
+      }
+    ],
+    "cargo_wrapper_exit": 101,
+    "command": [
+      "cargo",
+      "test",
+      "--locked",
+      "-p",
+      "tcl-compiler",
+      "--lib",
+      "command_binding::original_body_namespace::tests::original_immediate_body_namespace_keeps_actual_native_conditional_and_error_prefix",
+      "--",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "expected_selected": 1,
+    "label": "g4-regress-original_immediate_body_namespace_keeps_actual_native_conditional_and_error_prefix",
+    "log_at_cap": false,
+    "providers_stable": true,
+    "selector": "command_binding::original_body_namespace::tests::original_immediate_body_namespace_keeps_actual_native_conditional_and_error_prefix",
+    "source_stable": true,
+    "summaries": [
+      [
+        "FAILED",
+        "0",
+        "1",
+        "0"
+      ]
+    ],
+    "warnings": true
+  },
+  {
+    "actual_selected": 1,
+    "artifacts": [
+      {
+        "age_seconds": 729.436516046524,
+        "mtime_utc": "2026-10-22T19:15:58.640841+00:00",
+        "path": "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/tcl_compiler-ef22ef87d0bd65a7",
+        "retained": true,
+        "sha256": "d7d3fd6be30e1677717d9031d69961190b490f6f0fc7ad35941348c36be35cc6"
+      }
+    ],
+    "cargo_wrapper_exit": 101,
+    "command": [
+      "cargo",
+      "test",
+      "--locked",
+      "-p",
+      "tcl-compiler",
+      "--lib",
+      "command_binding::source_command_world::tests::original_namespace_import_keeps_the_source_declaration_allocation",
+      "--",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "expected_selected": 1,
+    "label": "g4-regress-original_namespace_import_keeps_the_source_declaration_allocation",
+    "log_at_cap": false,
+    "providers_stable": true,
+    "selector": "command_binding::source_command_world::tests::original_namespace_import_keeps_the_source_declaration_allocation",
+    "source_stable": true,
+    "summaries": [
+      [
+        "FAILED",
+        "0",
+        "1",
+        "0"
+      ]
+    ],
+    "warnings": true
   }
 ]

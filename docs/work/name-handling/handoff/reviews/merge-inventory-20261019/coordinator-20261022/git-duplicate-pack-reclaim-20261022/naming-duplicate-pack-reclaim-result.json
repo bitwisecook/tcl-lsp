@@ -1,0 +1,67 @@
+{
+  "started_utc": "2026-10-22T19:35:02.862546+00:00",
+  "finished_utc": "2026-10-22T19:35:20.425608+00:00",
+  "scope": "Only four exactly duplicate active-clone Git pack/index/promisor sets; no worktree/source/index/refs/shallow/target/test executable changed. Existing acyclic alternates unchanged.",
+  "preload_pack_retained": "/workspace/naming-migration/tcl-lsp/.git/objects/pack/pack-f7bb4166f901f044ce97be9f58c41479b27afcd0.pack",
+  "coverage_receipt_sha256": "66a79cc03d11112c9d5167f8420e767773af11f3528e4232481d57817d362d8e",
+  "all_candidate_oids_covered_by_retained_preload": true,
+  "before_after_refs_worktrees_and_reachable_missing_sets_equal": true,
+  "reachable_inventory_counts": {
+    "/workspace/naming-migration-active/tcl-lsp": 95426,
+    "/workspace/naming-migration-publish/tcl-lsp": 95613
+  },
+  "removed": [
+    {
+      "path": "/workspace/naming-migration-active/tcl-lsp/.git/objects/pack/pack-967ba4f0abab61d8947ebeb463aef7d153b0888f.pack",
+      "bytes": 1067071057
+    },
+    {
+      "path": "/workspace/naming-migration-active/tcl-lsp/.git/objects/pack/pack-967ba4f0abab61d8947ebeb463aef7d153b0888f.idx",
+      "bytes": 1500024
+    },
+    {
+      "path": "/workspace/naming-migration-active/tcl-lsp/.git/objects/pack/pack-967ba4f0abab61d8947ebeb463aef7d153b0888f.promisor",
+      "bytes": 0
+    },
+    {
+      "path": "/workspace/naming-migration-active/tcl-lsp/.git/objects/pack/pack-db32d2f939f3e3d0205f151dd6fca9fc39c84af5.pack",
+      "bytes": 1073746601
+    },
+    {
+      "path": "/workspace/naming-migration-active/tcl-lsp/.git/objects/pack/pack-db32d2f939f3e3d0205f151dd6fca9fc39c84af5.idx",
+      "bytes": 1572068
+    },
+    {
+      "path": "/workspace/naming-migration-active/tcl-lsp/.git/objects/pack/pack-db32d2f939f3e3d0205f151dd6fca9fc39c84af5.promisor",
+      "bytes": 0
+    },
+    {
+      "path": "/workspace/naming-migration-active/tcl-lsp/.git/objects/pack/pack-6f34cc9f7e7fac233596626373ed0d4dfc749c5c.pack",
+      "bytes": 1180615657
+    },
+    {
+      "path": "/workspace/naming-migration-active/tcl-lsp/.git/objects/pack/pack-6f34cc9f7e7fac233596626373ed0d4dfc749c5c.idx",
+      "bytes": 1945084
+    },
+    {
+      "path": "/workspace/naming-migration-active/tcl-lsp/.git/objects/pack/pack-6f34cc9f7e7fac233596626373ed0d4dfc749c5c.promisor",
+      "bytes": 0
+    },
+    {
+      "path": "/workspace/naming-migration-active/tcl-lsp/.git/objects/pack/pack-0078b635fe413739f1428ad5d94390bffae11336.pack",
+      "bytes": 1172529069
+    },
+    {
+      "path": "/workspace/naming-migration-active/tcl-lsp/.git/objects/pack/pack-0078b635fe413739f1428ad5d94390bffae11336.idx",
+      "bytes": 1885080
+    },
+    {
+      "path": "/workspace/naming-migration-active/tcl-lsp/.git/objects/pack/pack-0078b635fe413739f1428ad5d94390bffae11336.promisor",
+      "bytes": 0
+    }
+  ],
+  "removed_bytes": 4500864640,
+  "free_before": 7175811072,
+  "free_after": 11676708864,
+  "unique_packs_and_all_publisher_packs_retained": true
+}

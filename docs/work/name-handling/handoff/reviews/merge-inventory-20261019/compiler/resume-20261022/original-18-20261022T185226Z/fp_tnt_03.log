@@ -1,0 +1,22 @@
+warning: method `native_argument_input` is never used
+  --> rust/tcl-compiler/src/analyser/original_definer.rs:79:19
+warning: `tcl-compiler` (lib) generated 1 warning
+    Finished `test` profile [unoptimized] target(s) in 0.76s
+     Running unittests src/lib.rs (target/debug/deps/tcl_compiler-ef22ef87d0bd65a7)
+running 6 tests
+test analyser::diagnostics::fp::tnt::fp_tnt_03_eval_list_literal_head_no_t100 ... ok
+test analyser::diagnostics::fp::tnt::fp_tnt_03_eval_list_tainted_head_fires_t100 ... ok
+test analyser::diagnostics::fp::tnt::fp_tnt_03_eval_list_via_var_still_fires ... ok
+test analyser::diagnostics::fp::tnt::fp_tnt_03_interp_eval_list_literal_head_no_t105 ... 
+thread 'analyser::diagnostics::fp::tnt::fp_tnt_03_interp_eval_list_literal_head_no_t105' (105273) panicked at rust/tcl-compiler/src/analyser/diagnostics/fp/tnt.rs:173:5:
+FP-TNT-03 TN: [list puts $raw] interp eval must suppress T105; emitted ["T105"]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+test analyser::diagnostics::fp::tnt::fp_tnt_03_interp_eval_list_tainted_head_fires_t105 ... ok
+test analyser::diagnostics::fp::tnt::fp_tnt_03_uplevel_list_tainted_head_fires_t100 ... ok
+
+failures:
+
+failures:
+test result: FAILED. 5 passed; 1 failed; 0 ignored; 0 measured; 10481 filtered out; finished in 25.05s
+error: test failed, to rerun pass `-p tcl-compiler --lib`

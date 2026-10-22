@@ -1,0 +1,128 @@
+{
+  "executed_utc": "2026-10-22T19:54:03.989507+00:00",
+  "scope": "Finite actualC semanticcontrols only; noRust/Cargo, noassertioncorrection/passclaim forruntime. Exact originalaliases and8.4catch script expectedvalues inspected, no weakenedexpectation.",
+  "rows": [
+    {
+      "version": "8.4",
+      "case": "aliases",
+      "argv": [
+        "/workspace/naming-toolchains/bin/tclsh8.4",
+        "/tmp/vm-runtime-two-regressions-oracles/aliases.tcl"
+      ],
+      "wrapper_sha256": "d47422869429a960bccf50aee8a56ce7a6a4250e7d54235b4fe5628eef3420d1",
+      "wrapper_text": "#!/bin/sh\nunset TCL_LIBRARY\nexec \"/workspace/naming-toolchains/tmp/tcl8.4.20/unix/tclsh\" \"$@\"\n",
+      "script_sha256": "1a075844d3539d9311e24f3e4218d6545af95de5155f55107477221af54e5ac4",
+      "exit": 0,
+      "stdout": "aliases {store =}\n",
+      "stderr": "",
+      "provider_files": [
+        {
+          "path": "/workspace/naming-toolchains/tmp/tcl8.4.20/unix/tclsh",
+          "sha256": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85"
+        }
+      ]
+    },
+    {
+      "version": "8.4",
+      "case": "catch84",
+      "argv": [
+        "/workspace/naming-toolchains/bin/tclsh8.4",
+        "/tmp/vm-runtime-two-regressions-oracles/catch84.tcl"
+      ],
+      "wrapper_sha256": "d47422869429a960bccf50aee8a56ce7a6a4250e7d54235b4fe5628eef3420d1",
+      "wrapper_text": "#!/bin/sh\nunset TCL_LIBRARY\nexec \"/workspace/naming-toolchains/tmp/tcl8.4.20/unix/tclsh\" \"$@\"\n",
+      "script_sha256": "467dde88232b702441a8e8784efd2c835b8c2ea4882ae3fb183945f729117981",
+      "exit": 0,
+      "stdout": "catch_error {1 {wrong # args: should be \"catch command ?varName?\"} NONE}\ncatch_success {0 1}\n",
+      "stderr": "",
+      "provider_files": [
+        {
+          "path": "/workspace/naming-toolchains/tmp/tcl8.4.20/unix/tclsh",
+          "sha256": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85"
+        }
+      ]
+    },
+    {
+      "version": "8.5",
+      "case": "aliases",
+      "argv": [
+        "/workspace/naming-toolchains/bin/tclsh8.5",
+        "/tmp/vm-runtime-two-regressions-oracles/aliases.tcl"
+      ],
+      "wrapper_sha256": "9a9d095dbb73cad65fb94e0ba5535f4ac2eacc7ad724221c2a7a10cfba293c72",
+      "wrapper_text": "#!/bin/sh\nunset TCL_LIBRARY\nexec \"/workspace/naming-toolchains/tmp/tcl8.5.19/unix/tclsh\" \"$@\"\n",
+      "script_sha256": "1a075844d3539d9311e24f3e4218d6545af95de5155f55107477221af54e5ac4",
+      "exit": 0,
+      "stdout": "aliases {store =}\n",
+      "stderr": "",
+      "provider_files": [
+        {
+          "path": "/workspace/naming-toolchains/tmp/tcl8.5.19/unix/tclsh",
+          "sha256": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961"
+        }
+      ]
+    },
+    {
+      "version": "8.6",
+      "case": "aliases",
+      "argv": [
+        "/workspace/naming-toolchains/bin/tclsh8.6",
+        "/tmp/vm-runtime-two-regressions-oracles/aliases.tcl"
+      ],
+      "wrapper_sha256": "510e4222983400330693f2db9095ab69e05a1e2cc0e8c21efb8107e1d7b3b447",
+      "wrapper_text": "#!/bin/sh\nunset TCL_LIBRARY\nexec \"/workspace/naming-toolchains/tmp/tcl8.6.18/unix/tclsh\" \"$@\"\n",
+      "script_sha256": "1a075844d3539d9311e24f3e4218d6545af95de5155f55107477221af54e5ac4",
+      "exit": 0,
+      "stdout": "aliases {store =}\n",
+      "stderr": "",
+      "provider_files": [
+        {
+          "path": "/workspace/naming-toolchains/tmp/tcl8.6.18/unix/tclsh",
+          "sha256": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c"
+        }
+      ]
+    },
+    {
+      "version": "9.0",
+      "case": "aliases",
+      "argv": [
+        "/workspace/naming-toolchains/bin/tclsh9.0",
+        "/tmp/vm-runtime-two-regressions-oracles/aliases.tcl"
+      ],
+      "wrapper_sha256": "deb0648e6dad85c119e39aa0c28147b1839b35fc0ebb6f0e2669e504afa5aa5c",
+      "wrapper_text": "#!/bin/sh\nunset TCL_LIBRARY\nexec \"/workspace/naming-toolchains/tmp/tcl9.0.4/unix/tclsh\" \"$@\"\n",
+      "script_sha256": "1a075844d3539d9311e24f3e4218d6545af95de5155f55107477221af54e5ac4",
+      "exit": 0,
+      "stdout": "aliases {store =}\n",
+      "stderr": "",
+      "provider_files": [
+        {
+          "path": "/workspace/naming-toolchains/tmp/tcl9.0.4/unix/tclsh",
+          "sha256": "80667c5d2784438d3e1bd195ac0a76875bf973aa480253041d2d2715b0143c6b"
+        }
+      ]
+    },
+    {
+      "version": "9.1",
+      "case": "aliases",
+      "argv": [
+        "/workspace/naming-toolchains/bin/tclsh9.1",
+        "/tmp/vm-runtime-two-regressions-oracles/aliases.tcl"
+      ],
+      "wrapper_sha256": "8cbf4f56b0831bc96f057e37cf762d12e981f44d3fd42f1c5ae130880c79ad06",
+      "wrapper_text": "#!/bin/sh\nunset TCL_LIBRARY\nexec \"/workspace/naming-toolchains/tmp/tcl9.1.0/unix/tclsh\" \"$@\"\n",
+      "script_sha256": "1a075844d3539d9311e24f3e4218d6545af95de5155f55107477221af54e5ac4",
+      "exit": 0,
+      "stdout": "aliases {store =}\n",
+      "stderr": "",
+      "provider_files": [
+        {
+          "path": "/workspace/naming-toolchains/tmp/tcl9.1.0/unix/tclsh",
+          "sha256": "509c977b93f8976239a0a0b2e5cdda9364735031cec292e1fcac5c696e06ff60"
+        }
+      ]
+    }
+  ],
+  "recorded_provider_hashes_utc": "2026-10-22T19:54:27.969577+00:00",
+  "interpretation": "AliasexactC result store = across all5; oldBTreeMap-sorted = store expectedvalue differsfromC.8.4catch originalexpectationmatchesC unchanged. NotRustruntimeacceptance."
+}

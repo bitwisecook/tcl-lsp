@@ -1,0 +1,17 @@
+{
+  "status": "FROZEN OFF-TREE v3 static-review candidate; syntax/apply checks only, not Cargo/type/runtime validated",
+  "path": "rust/tcl-lsp-core/src/original_declaration.rs",
+  "before_sha256": "d665ce6edc542e38135ff367e8c0398f2afa6f5d2d6de73c6151af9653abe60a",
+  "proposed_sha256": "e17b21a594fb4492c8661f7d203cad955dd964b908ea3c55442e1db4afce811b",
+  "patch_sha256": "2ca3c23de730aea4a1a6109e546fd4a8e19257ef9e4c7aafaa1cf9c9b90c1beb",
+  "successor_correction": "v2 wrongly expected three serialized fields despite existing session wirePurpose; v3 retains all four fields and a dedicated originalSourceViewRelationship purpose bound to schema5",
+  "unchanged": "legacy Native1/TYPE2 two-field and CALL3/LENS4 logicalSourceRelationship wire behavior unchanged",
+  "controls": [
+    "original typed A/B/restoredA stamp controls retained",
+    "real foreign-Backend counter/session controls retained",
+    "missing entropy affects new source-view kind only",
+    "four-field schema5/session/wirePurpose roundtrip",
+    "missing/wrong purpose/session and cross-family schema refusal"
+  ],
+  "limit": "storage controls do not establish actual host publication, source entry, or Native authority"
+}

@@ -2,7 +2,7 @@
 
 Area: tcl-vm, runtime/rust, tcl-spectcl, tcl-spec-studio: SpecTcl execution and acceptance.
 
-Last updated: 2026-10-22T19:23:42Z (partial host N13 purpose/context review complete; one context limitation sent LSP; cfg(test) cleanup root-approved held; no VM Cargo queued)
+Last updated: 2026-10-22T19:52:17Z (CI5204 standalone runtime TLS abort triangulated; two exact baseline regressions; narrow TLS patch peer-approved off-tree, no VM Cargo queued)
 
 Maintained by the vm-runtime agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
@@ -113,6 +113,69 @@ Off-tree patch `/tmp/vm-runtime-unused-native-argument-input/test-only-helper.pa
 SHA-256 `a34c9b61752f06cd0c25f2e7575c8e8a99b5ca518c5c1f87b15b047e3464e0f8`,
 has before/after hash receipt and root static approval. It remains unapplied for
 the next coordinated source window; no allows, Rust writes or Cargo here.
+
+Bounded successor review is complete for compiler N13 stage3 exact full
+`1b884f3d45bc332fa9279423de109c48dc0ca012f0c3980e588e1271234c9459`
+and delta `30d801dc866378619c73ed15897abd720299c79b2e475ccdf1cb762f70615a76`,
+plus frozen host v2 `a5bbbb531f4fbba52393c2e7ef9e40c48b315282e6ef114cf482ba3731640c73`.
+Report `/tmp/vm-runtime-n13-stage3-peer-review.json` SHA-256
+`a981367acdb556ff81101f4bacf1fa615d3e3f5f6c9793ae4867bec82ce31973`.
+The two stage2 gaps are addressed in examined source: exact raw minted
+realm/policy/dialect/Logical/Vendor/full-input/scope comparison and same-point
+availability semantics; malformed lowerer options become unavailable, and
+runtime procedure/script targets plus bytecode lowering hit the existing Barrier
+before Native ProcedureCode. Default Native context, missing entry/provider and
+empty Native body units remain asserted. New child matching negatives cover
+foreign point, unavailable analysis and missing body config. Exact two original
+words/path0 refuse unowned decode forms; HandlerSelection, FileReadAndDecode and
+ContainingBody debts remain explicit. No new concrete blocker was identified in
+these bounded corrections; no compile/run or whole N13 approval follows.
+
+Host v2 addresses the prior context conflation: physical publication/config
+currency stays independently checked while inherited analysis uses exact saved
+parent interpretation input/dialect and checks returned child point ownership.
+Root views still require physical input equal actual root input. Two-parent
+runtime acceptance and A-retired/B-current are still unrun. First-edge views do
+not grant parent-tail continuation, Native loading or applicability debt erasure;
+consumer debt wiring, prefix/tail effects, twelve-hop convergence, complete
+purpose audit and all type/strict-lint/functional gates remain open. Every N13
+artifact here remains off-tree and canonical Rust stays frozen.
+
+Actual CI5204 standalone `runtime-rust-tests` job120042246152 failed on source
+`7cca49ca73b67aab94bcd9aa27a3a358273e4d78` before completing its 2145-test
+no-tommath library suite. The exact TLS stack is `OWNER<Interp>` destructor →
+Jim teardown/release_frames → VarTable/NativeHashKey → Owned::drop → free_obj →
+revoke_script_location → destroyed SCRIPT_LOCATIONS.with → AccessError/double
+panic/SIGABRT. Runtime native_source::forget_context also uses .with immediately
+after that cleanup and is a second static teardown seam. Existing tcl-vm TLS
+retirement fixes do not cover these distinct standalone runtime functions.
+
+Closed baseline CI5203 job119956196088 on fcb7927f succeeds, with no TLS abort.
+Exact decoded GitHub job logs, named delta and source-body joins are copied to
+`handoff/reviews/merge-inventory-20261019/vm-runtime/runs/ci5204-runtime-triage-20261022T1950Z/`.
+Of 53 current emitted FAILED names, only two are actual named baseline PASS →
+FAIL: `cmd_alias::tests::aliases_lists_every_alias` and
+`cmd_error::tests::eight_four_catch_takes_no_options_variable`. Both current test
+function bodies are byte-identical to exact baseline source (hashes retained).
+Other51 failed names and the named abort-thread test are absent from baseline
+rows; the successful baseline job is not named-pass evidence for them. The
+abort prevents final assertion diagnostics, so the two predicates' exact failed
+assertion versus leak-counter boundary is not yet measured. No expectation or
+assertion was changed. General VM parity stays parked.
+
+Narrow cleanup fix is off-tree at
+`/tmp/vm-runtime-runtime-tls-shadow/runtime-tls-retirement.patch`, exact SHA-256
+`0091e4c14f769239f970d1a91b28cba70198d3bab51330c0b5074ad203ae9160`,
+with current before/after hashes in its receipt. Only metadata revoke/weak-context
+forget use try_with to ignore inaccessible TLS cleanup. Original free_obj live
+retirement, object generation, caches and owners stay unchanged; lookup/bind/
+getter APIs receive no new authority. Plain empty-HashMap TLS initializers have
+no object callbacks. Two new test controls probe both real maps unavailable
+before actual Owned drop, and verify ordinary live TLS source-metadata/file Weak
+release. Names independently found no remaining bounded static blocker after
+requiring those nonvacuous probes. UNCOMPILED/UNRUN, held for root publisher
+window; original CI abort selector, both new controls and two baseline regressions
+still require exact execution. No canonical Rust writes or Cargo here.
 
 Trusted Jim proc attachment has compiler static approval, including exact
 trusted compiled-in boundary, selected row and pointer/generation idempotence.

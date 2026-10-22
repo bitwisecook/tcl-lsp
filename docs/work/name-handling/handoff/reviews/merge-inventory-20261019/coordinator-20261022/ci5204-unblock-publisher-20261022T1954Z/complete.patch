@@ -1,0 +1,3327 @@
+diff --git a/runtime/rust/src/native_source.rs b/runtime/rust/src/native_source.rs
+index 7f1d97a91..5d7d580eb 100644
+--- a/runtime/rust/src/native_source.rs
++++ b/runtime/rust/src/native_source.rs
+@@ -381,7 +381,8 @@ pub(crate) fn copy_context(original: *mut TclObj, duplicate: *mut TclObj) {
+ }
+ 
+ pub(crate) fn forget_context(value: *mut TclObj) {
+-    OBJECT_CONTEXTS.with(|contexts| contexts.borrow_mut().remove(&(value as usize)));
++    // Retirement cannot recreate a destroyed weak-context map.
++    let _ = OBJECT_CONTEXTS.try_with(|contexts| contexts.borrow_mut().remove(&(value as usize)));
+ }
+ 
+ pub(crate) fn context(value: *mut TclObj) -> Result<Rc<NativeJimObjectContext>, ValueError> {
+@@ -531,3 +532,8 @@ extern "C" fn source_dup(original: *mut TclObj, duplicate: *mut TclObj) {
+ #[cfg(test)]
+ #[path = "native_source_tests.rs"]
+ mod tests;
++
++#[cfg(test)]
++pub(crate) fn context_map_available_for_retirement_test() -> bool {
++    OBJECT_CONTEXTS.try_with(|_| ()).is_ok()
++}
+diff --git a/runtime/rust/src/obj.rs b/runtime/rust/src/obj.rs
+index bc479635b..a3ab654db 100644
+--- a/runtime/rust/src/obj.rs
++++ b/runtime/rust/src/obj.rs
+@@ -582,7 +582,8 @@ pub(crate) fn script_location(obj: *mut TclObj) -> Option<(Option<std::rc::Rc<[u
+ }
+ 
+ fn revoke_script_location(obj: *mut TclObj) {
+-    SCRIPT_LOCATIONS.with(|locations| locations.borrow_mut().remove(&(obj as usize)));
++    // The object is already retired; an unavailable TLS map owns no live metadata.
++    let _ = SCRIPT_LOCATIONS.try_with(|locations| locations.borrow_mut().remove(&(obj as usize)));
+ }
+ 
+ /// Install the native lazy double conversion of the executing engine.
+@@ -3403,3 +3404,7 @@ mod native_scalar_adoption_tests;
+ #[cfg(test)]
+ #[path = "obj/native_duplicate_controls.rs"]
+ mod native_duplicate_controls;
++
++#[cfg(test)]
++#[path = "obj/tls_retirement_tests.rs"]
++mod tls_retirement_tests;
+diff --git a/runtime/rust/src/obj/tls_retirement_tests.rs b/runtime/rust/src/obj/tls_retirement_tests.rs
+new file mode 100644
+index 000000000..b5539ab3f
+--- /dev/null
++++ b/runtime/rust/src/obj/tls_retirement_tests.rs
+@@ -0,0 +1,53 @@
++// tcl-lsp — a language server and toolchain for Tcl
++// Copyright (C) 2026 James Deucker (bitwisecook)
++// SPDX-License-Identifier: AGPL-3.0-or-later
++
++use super::{new_string_bytes, retain_script_location, script_location, Owned, SCRIPT_LOCATIONS};
++use std::cell::RefCell;
++use std::rc::Rc;
++
++struct RetainedObject(Option<Owned>);
++
++impl Drop for RetainedObject {
++    fn drop(&mut self) {
++        if self.0.is_some() {
++            assert!(SCRIPT_LOCATIONS.try_with(|_| ()).is_err());
++            assert!(!crate::native_source::context_map_available_for_retirement_test());
++        }
++        // The real Owned field retires only after the unavailable-map probes.
++    }
++}
++
++thread_local! {
++    // Register this owner first so both metadata maps retire before its object.
++    static HOLDER: RefCell<RetainedObject> = RefCell::new(RetainedObject(None));
++}
++
++#[test]
++fn original_object_retirement_after_metadata_tls_destruction_does_not_abort() {
++    let worker = std::thread::spawn(|| {
++        HOLDER.with(|_| ());
++        let object = Owned::fresh(new_string_bytes(b"retained original"));
++        retain_script_location(object.as_ptr(), None, 7);
++        // Initialize the real weak-context TLS after the holder as well.
++        crate::native_source::forget_context(object.as_ptr());
++        HOLDER.with(|holder| holder.borrow_mut().0 = Some(object));
++    });
++    worker
++        .join()
++        .expect("original object retires at thread exit");
++}
++
++#[test]
++fn original_object_retirement_while_tls_is_live_releases_source_metadata() {
++    let object = Owned::fresh(new_string_bytes(b"ordinary retirement"));
++    let pointer = object.as_ptr();
++    let file: Rc<[u8]> = Rc::from(b"original.tcl".as_slice());
++    let weak = Rc::downgrade(&file);
++    retain_script_location(pointer, Some(file), 11);
++    assert!(weak.upgrade().is_some());
++    assert_eq!(script_location(pointer).unwrap().1, 11);
++    drop(object);
++    assert!(script_location(pointer).is_none());
++    assert!(weak.upgrade().is_none(), "live metadata owner was released");
++}
+diff --git a/rust/tcl-compiler/src/analyser/original_definer.rs b/rust/tcl-compiler/src/analyser/original_definer.rs
+index 917f045df..907c4add6 100644
+--- a/rust/tcl-compiler/src/analyser/original_definer.rs
++++ b/rust/tcl-compiler/src/analyser/original_definer.rs
+@@ -76,6 +76,7 @@ impl OriginalClassDefinerSource {
+             .then_some(descriptor)
+     }
+ 
++    #[cfg(test)]
+     pub(super) fn native_argument_input(
+         &self,
+         ordinal: usize,
+diff --git a/rust/tcl-compiler/src/analyser/scope.rs b/rust/tcl-compiler/src/analyser/scope.rs
+index 1e5cdb1d2..628002b66 100644
+--- a/rust/tcl-compiler/src/analyser/scope.rs
++++ b/rust/tcl-compiler/src/analyser/scope.rs
+@@ -598,10 +598,9 @@ impl super::types::AnalysisResult {
+                     {
+                         None
+                     } else {
+-                        scope
+-                            .naming_scope
+-                            .as_ref()
+-                            .and_then(crate::signature_scan::scope::SignatureNamespaceScope::display)
++                        scope.naming_scope.as_ref().and_then(
++                            crate::signature_scan::scope::SignatureNamespaceScope::display,
++                        )
+                     };
+                     if namespace.is_none() {
+                         kind = LogicalVariableScopeKind::UnknownNamespace;
+@@ -623,10 +622,9 @@ impl super::types::AnalysisResult {
+                     {
+                         None
+                     } else {
+-                        scope
+-                            .naming_scope
+-                            .as_ref()
+-                            .and_then(crate::signature_scan::scope::SignatureNamespaceScope::display)
++                        scope.naming_scope.as_ref().and_then(
++                            crate::signature_scan::scope::SignatureNamespaceScope::display,
++                        )
+                     };
+                 }
+                 ScopeKind::Uplevel => {
+@@ -2214,7 +2212,9 @@ impl Analyser {
+             }
+         }
+         let declarations = elements
+-            .as_chunks::<2>().0.iter()
++            .as_chunks::<2>()
++            .0
++            .iter()
+             .map(|pair| {
+                 let name = pair[0].to_string();
+                 let declaration = self
+diff --git a/rust/tcl-compiler/src/analyser/types.rs b/rust/tcl-compiler/src/analyser/types.rs
+index 7cff09468..8c3eb8d2b 100644
+--- a/rust/tcl-compiler/src/analyser/types.rs
++++ b/rust/tcl-compiler/src/analyser/types.rs
+@@ -2256,7 +2256,10 @@ pub struct Scope {
+ 
+ impl Scope {
+     pub(super) const fn is_independent_interpreter_source_body(&self) -> bool {
+-        matches!(self.interpreter_source_body, InterpreterSourceBody::Independent)
++        matches!(
++            self.interpreter_source_body,
++            InterpreterSourceBody::Independent
++        )
+     }
+ 
+     /// Construct a fresh empty scope.
+@@ -5522,24 +5525,42 @@ namespace eval a {:p}";
+             result.superseded_procs.clear();
+             let declarations = result.original_procedure_declarations().collect::<Vec<_>>();
+             assert_eq!(declarations.len(), 2, "{dialect}");
+-            let slots = [(b"a:".as_slice(), b"p".as_slice()), (b"a", b":p")]
+-                .map(|(namespace, simple)| tcl_core_types::ByteCommandSlot {
+-                    namespace: tcl_core_types::ByteNamespacePath::from_segments([namespace]),
+-                    simple: tcl_core_types::NameBytes::from(simple),
++            let slots =
++                [(b"a:".as_slice(), b"p".as_slice()), (b"a", b":p")].map(|(namespace, simple)| {
++                    tcl_core_types::ByteCommandSlot {
++                        namespace: tcl_core_types::ByteNamespacePath::from_segments([namespace]),
++                        simple: tcl_core_types::NameBytes::from(simple),
++                    }
+                 });
+-            let offsets = [source.rfind("{p}").unwrap() + 1, source.rfind("{:p}").unwrap() + 1];
++            let offsets = [
++                source.rfind("{p}").unwrap() + 1,
++                source.rfind("{:p}").unwrap() + 1,
++            ];
+             for (index, offset) in offsets.into_iter().enumerate() {
+-                let call = result.command_invocations.iter().find(|call| {
+-                    call.range.start() == u32::try_from(offset).unwrap()
+-                }).expect("original authored call");
++                let call = result
++                    .command_invocations
++                    .iter()
++                    .find(|call| call.range.start() == u32::try_from(offset).unwrap())
++                    .expect("original authored call");
+                 assert!(call.original_lookup.is_some(), "{dialect}: {offset}");
+                 for (target, slot) in slots.iter().enumerate() {
+-                    let declaration = declarations.iter().find(|declaration| {
+-                        declaration.name().slot() == slot
+-                    }).expect("independently retained typed slot");
+-                    assert_eq!(crate::source_graph::invocation_targets_declaration_in(
+-                        source, &result, source, &result, call, declaration, false
+-                    ), index == target, "{dialect}: call {index}, target {target}");
++                    let declaration = declarations
++                        .iter()
++                        .find(|declaration| declaration.name().slot() == slot)
++                        .expect("independently retained typed slot");
++                    assert_eq!(
++                        crate::source_graph::invocation_targets_declaration_in(
++                            source,
++                            &result,
++                            source,
++                            &result,
++                            call,
++                            declaration,
++                            false
++                        ),
++                        index == target,
++                        "{dialect}: call {index}, target {target}"
++                    );
+                 }
+             }
+         }
+@@ -5692,9 +5713,18 @@ namespace eval N {proc p\u0000tail {} {return LOCAL}; p\u0000tail}";
+                 // premise: nothing lets a builtin re-enter Tcl. A program
+                 // that installs such a hook withholds the completed world.
+                 ("proc xf args {}\nchan push stdout ::xf\nputs hi\n", false),
+-                ("proc rc args {}\nset c [chan create write ::rc]\nputs $c hi\n", false),
+-                ("proc cb args {}\ntrace add variable x write ::cb\nset x 1\n", false),
+-                ("proc cb args {}\ntrace add execution puts enter ::cb\nputs hi\n", false),
++                (
++                    "proc rc args {}\nset c [chan create write ::rc]\nputs $c hi\n",
++                    false,
++                ),
++                (
++                    "proc cb args {}\ntrace add variable x write ::cb\nset x 1\n",
++                    false,
++                ),
++                (
++                    "proc cb args {}\ntrace add execution puts enter ::cb\nputs hi\n",
++                    false,
++                ),
+                 ("proc cb args {}\nnamespace unknown ::cb\nputs hi\n", false),
+                 // Retained scripts include empty timer scripts and concatenated
+                 // multiword forms. Their single-body ordinals are not complete
+@@ -5717,7 +5747,9 @@ namespace eval N {proc p\u0000tail {} {return LOCAL}; p\u0000tail}";
+                     .is_some()
+                     != completed
+                 {
+-                    mismatches.push(format!("{dialect}: {use_site:?}: world expected {completed}"));
++                    mismatches.push(format!(
++                        "{dialect}: {use_site:?}: world expected {completed}"
++                    ));
+                 }
+                 // Every command of the body keeps its own original lookup
+                 // however often, and from wherever, the body is entered.
+@@ -5791,7 +5823,10 @@ namespace eval N {proc p\u0000tail {} {return LOCAL}; p\u0000tail}";
+                 "tcl8.6",
+                 "oo::class create C { variable n; method get {} {return $n} }\n",
+             ),
+-            ("tcl8.6", "proc greet {} { return hi }\nputs [greet]\nputs [greet]\n"),
++            (
++                "tcl8.6",
++                "proc greet {} { return hi }\nputs [greet]\nputs [greet]\n",
++            ),
+             (
+                 "tcl8.6",
+                 "namespace eval a {namespace export *; proc foo {} {return A}}; namespace eval b {proc foo {} {return B}; namespace import -force ::a::*; puts [foo]}\n",
+@@ -5814,7 +5849,9 @@ namespace eval N {proc p\u0000tail {} {return LOCAL}; p\u0000tail}";
+                     "ZZ_WORLD {}",
+                     result
+                         .retained_command_realm()
+-                        .and_then(crate::realm::CommandBindingRealm::original_completed_command_world)
++                        .and_then(
++                            crate::realm::CommandBindingRealm::original_completed_command_world
++                        )
+                         .is_some()
+                 );
+                 for row in &result.command_invocations {
+diff --git a/rust/tcl-compiler/src/analyser/types/logical_members.rs b/rust/tcl-compiler/src/analyser/types/logical_members.rs
+index 594e29a24..93fc2621b 100644
+--- a/rust/tcl-compiler/src/analyser/types/logical_members.rs
++++ b/rust/tcl-compiler/src/analyser/types/logical_members.rs
+@@ -992,8 +992,11 @@ impl AnalysisResult {
+                 for relation in relations {
+                     if contains(relation.operand())
+                         && relation.matches_receiver(self, class)
+-                        && let Some(crate::command_binding::LogicalSourceClassRelationTarget::Source(target)) =
+-                            relation.source_target(self)
++                        && let Some(
++                            crate::command_binding::LogicalSourceClassRelationTarget::Source(
++                                target,
++                            ),
++                        ) = relation.source_target(self)
+                     {
+                         selected.push(target);
+                     }
+@@ -1043,12 +1046,17 @@ impl AnalysisResult {
+             match provider.source_target(self)? {
+                 crate::command_binding::LogicalSourceClassRelationTarget::Source(target) => {
+                     self.logical_source_class_declaration(target)?;
+-                    if !selected.iter().any(|selected| std::ptr::eq(*selected, target)) {
++                    if !selected
++                        .iter()
++                        .any(|selected| std::ptr::eq(*selected, target))
++                    {
+                         selected.push(target);
+                     }
+                 }
+                 crate::command_binding::LogicalSourceClassRelationTarget::Registry => {}
+-                crate::command_binding::LogicalSourceClassRelationTarget::External(_) => return None,
++                crate::command_binding::LogicalSourceClassRelationTarget::External(_) => {
++                    return None;
++                }
+             }
+         }
+         Some(selected)
+diff --git a/rust/tcl-compiler/src/cfg_builder/mod.rs b/rust/tcl-compiler/src/cfg_builder/mod.rs
+index 4a3222f77..fdae6d72a 100644
+--- a/rust/tcl-compiler/src/cfg_builder/mod.rs
++++ b/rust/tcl-compiler/src/cfg_builder/mod.rs
+@@ -1012,7 +1012,9 @@ impl<'a> CfgBuilder<'a> {
+                 .command_classes
+                 .metadata
+                 .source_analysis_input()
+-                .is_some_and(crate::analyser::ResolvedAnalysisInput::has_logical_source_name_context);
++                .is_some_and(
++                    crate::analyser::ResolvedAnalysisInput::has_logical_source_name_context,
++                );
+         let span = stmt.span();
+         let mut produced = self.upvar_invalidated(stmt);
+         let mut unknown_locations = logical_call;
+@@ -4368,7 +4370,8 @@ impl CfgCommandClasses {
+     fn metadata_context(
+         &self,
+     ) -> Option<Option<crate::registry_invocation::InvocationMetadataContext<'_>>> {
+-        self.metadata.metadata_context(self.registry.registry())
++        self.metadata
++            .metadata_context(self.registry.registry())
+             .map(crate::registry_invocation::InvocationMetadataSelection::context)
+     }
+ 
+diff --git a/rust/tcl-compiler/src/codegen/control_flow.rs b/rust/tcl-compiler/src/codegen/control_flow.rs
+index 1a10f2ee1..29d92c5f1 100644
+--- a/rust/tcl-compiler/src/codegen/control_flow.rs
++++ b/rust/tcl-compiler/src/codegen/control_flow.rs
+@@ -2724,9 +2724,8 @@ mod tests {
+         let registry = CommandRegistry::build_default();
+         let compiled = |release: &str, is_proc: bool, args: &[(&str, bool)]| {
+             let mut ctx = CodegenCtx::new(is_proc, &[], &registry);
+-            ctx.dialect = Some(
+-                tcl_registry::model::ingress::resolve_environment(release).analyser_profile(),
+-            );
++            ctx.dialect =
++                Some(tcl_registry::model::ingress::resolve_environment(release).analyser_profile());
+             ctx.release_compiled("dict", args)
+         };
+         let update = [
+@@ -2760,7 +2759,17 @@ mod tests {
+                 assert_eq!(compiled(release, true, &args), None, "{release} {args:?}");
+             }
+             assert_eq!(
+-                compiled(release, true, &[("update", false), ("d", false), ("k", false), ("v", false), ("$body", false)]),
++                compiled(
++                    release,
++                    true,
++                    &[
++                        ("update", false),
++                        ("d", false),
++                        ("k", false),
++                        ("v", false),
++                        ("$body", false)
++                    ]
++                ),
+                 None,
+                 "{release}: a substituted body is left to the command"
+             );
+diff --git a/rust/tcl-compiler/src/codegen/native_failure.rs b/rust/tcl-compiler/src/codegen/native_failure.rs
+index a94ef6856..769ff21c1 100644
+--- a/rust/tcl-compiler/src/codegen/native_failure.rs
++++ b/rust/tcl-compiler/src/codegen/native_failure.rs
+@@ -199,7 +199,8 @@ mod tests {
+     #[test]
+     fn an_entry_less_fresh_compile_presents_its_own_compiler_rejection() {
+         let present = |module: &crate::ir::Module, registry: &tcl_registry::CommandRegistry| {
+-            let execution = crate::cfg_builder::build_cfg_codegen_with_registry(module, false, registry);
++            let execution =
++                crate::cfg_builder::build_cfg_codegen_with_registry(module, false, registry);
+             super::super::codegen_module(&execution, module, registry)
+                 .expect("original source namespace")
+                 .top_level
+diff --git a/rust/tcl-compiler/src/codegen/statements/native_scalar.rs b/rust/tcl-compiler/src/codegen/statements/native_scalar.rs
+index 32960ea67..f5e6f6d3f 100644
+--- a/rust/tcl-compiler/src/codegen/statements/native_scalar.rs
++++ b/rust/tcl-compiler/src/codegen/statements/native_scalar.rs
+@@ -105,7 +105,9 @@ impl CodegenCtx<'_> {
+         let concat = |count: usize| {
+             NativeEmissionTask::SwitchOperation(
+                 Op::STR_CONCAT1,
+-                vec![Operand::Imm(i32::try_from(count).expect("at most 254 operands"))],
++                vec![Operand::Imm(
++                    i32::try_from(count).expect("at most 254 operands"),
++                )],
+                 version,
+             )
+         };
+@@ -117,7 +119,9 @@ impl CodegenCtx<'_> {
+         let mut folded: Option<Vec<u8>> = None;
+         for (operand, literal) in recipe.operands.into_iter().zip(recipe.literals) {
+             if let Some(value) = literal {
+-                folded.get_or_insert_with(Vec::new).extend_from_slice(&value);
++                folded
++                    .get_or_insert_with(Vec::new)
++                    .extend_from_slice(&value);
+                 continue;
+             }
+             if let Some(value) = folded.take() {
+diff --git a/rust/tcl-compiler/src/command_binding.rs b/rust/tcl-compiler/src/command_binding.rs
+index 968bc9537..273d428ab 100644
+--- a/rust/tcl-compiler/src/command_binding.rs
++++ b/rust/tcl-compiler/src/command_binding.rs
+@@ -146,7 +146,6 @@ pub use source_catalogue_advice::{
+     OriginalCatalogueSourceCandidate, OriginalCatalogueSourceObligation,
+ };
+ pub(crate) use source_transition_advice::LogicalSourceClassRelationProvider;
+-pub use source_transition_advice::{OriginalAuthoredJimClass, OriginalConditionalLambdaFormattingBody};
+ pub use source_transition_advice::{
+     LogicalExternalClassMemberSelector, OriginalLogicalAbsoluteCommandCandidate,
+     OriginalLogicalCallbackCandidates, OriginalLogicalCommandCandidates,
+@@ -156,23 +155,26 @@ pub use source_transition_advice::{
+     OriginalSourceCallbackProcedureRefusal, OriginalSourceCallbackProcedureTarget,
+     OriginalSourceCallbackProcedureTargetKind, OriginalSourceCallbackRegistration,
+     OriginalSourceClassCandidate, OriginalSourceClassDeclaration, OriginalSourceClassHandleBinding,
+-    OriginalSourceClassInstance, OriginalSourceClassInstanceWords, OriginalSourceClassPublication,
+-    OriginalSourceClassProcCall, OriginalSourceClassPublications, OriginalSourceClassReference,
+-    OriginalSourceCommandTransition,
+-    OriginalSourceCommandTransitionAdvice, OriginalSourceConfiguredClassReference,
+-    OriginalSourceConstructorBodyAttempt, OriginalSourceConstructorBodyCoverage,
+-    OriginalSourceConstructorBodyDisposition, OriginalSourceConstructorCall,
+-    OriginalSourceConstructorShape, OriginalSourceInterpreterHandleBody,
+-    OriginalSourceInterpreterPathBinding, OriginalSourceProcedureCandidate,
+-    OriginalSourceProcedurePublication, OriginalSourceProcedurePublications,
+-    OriginalSourceProducedCommandPrefix, OriginalSourceRegisteredHandleBinding,
+-    OriginalSourceRegisteredInstance, OriginalSourceRegisteredInstanceWords, SourceAdviceNameInput,
++    OriginalSourceClassInstance, OriginalSourceClassInstanceWords, OriginalSourceClassProcCall,
++    OriginalSourceClassPublication, OriginalSourceClassPublications, OriginalSourceClassReference,
++    OriginalSourceCommandTransition, OriginalSourceCommandTransitionAdvice,
++    OriginalSourceConfiguredClassReference, OriginalSourceConstructorBodyAttempt,
++    OriginalSourceConstructorBodyCoverage, OriginalSourceConstructorBodyDisposition,
++    OriginalSourceConstructorCall, OriginalSourceConstructorShape,
++    OriginalSourceInterpreterHandleBody, OriginalSourceInterpreterPathBinding,
++    OriginalSourceProcedureCandidate, OriginalSourceProcedurePublication,
++    OriginalSourceProcedurePublications, OriginalSourceProducedCommandPrefix,
++    OriginalSourceRegisteredHandleBinding, OriginalSourceRegisteredInstance,
++    OriginalSourceRegisteredInstanceWords, SourceAdviceNameInput,
+     SourceCommandTransitionObligation,
+ };
+ pub use source_transition_advice::{
+     LogicalSourceClassRelationCandidates, LogicalSourceClassRelationTarget,
+     OriginalSourceClassRelationProvider, OriginalSourcePublicationProposal,
+ };
++pub use source_transition_advice::{
++    OriginalAuthoredJimClass, OriginalConditionalLambdaFormattingBody,
++};
+ pub use source_transition_advice::{
+     OriginalNativeProcedureBodyCommand, OriginalSourceProcedureCall,
+ };
+@@ -8939,8 +8941,15 @@ impl SourceCommandBindings {
+                     "ZZ_COMMAND {:?} ns={:?} opaque_before={zz_before} opaque_after={} abrupt={:?}",
+                     segment.texts,
+                     context.namespace_identity(),
+-                    command.normal.as_ref().is_some_and(|normal| normal.opaque_domain),
+-                    command.abrupt.iter().map(|(route, _)| route).collect::<Vec<_>>(),
++                    command
++                        .normal
++                        .as_ref()
++                        .is_some_and(|normal| normal.opaque_domain),
++                    command
++                        .abrupt
++                        .iter()
++                        .map(|(route, _)| route)
++                        .collect::<Vec<_>>(),
+                 );
+             }
+             #[cfg(debug_assertions)]
+@@ -10533,7 +10542,15 @@ impl SourceCommandBindings {
+                 if std::env::var_os("ZZ_PROBE_OPAQUE").is_some() {
+                     eprintln!(
+                         "ZZ_UNCLOSED_EARLY {:?} transitions={:?} kind={:?} reg={} roles={} sub={:?} cb={:?} ctm={} traits={:?}",
+-                        native.segment.texts, facts.state_transitions, native.target.kind, native.target.registry_backed, facts.arg_roles_complete, facts.subcommand, facts.effects.callback(), facts.effects.legacy().command_table_mutation, facts.traits
++                        native.segment.texts,
++                        facts.state_transitions,
++                        native.target.kind,
++                        native.target.registry_backed,
++                        facts.arg_roles_complete,
++                        facts.subcommand,
++                        facts.effects.callback(),
++                        facts.effects.legacy().command_table_mutation,
++                        facts.traits
+                     );
+                 }
+                 normal.unclosed_command_world = true;
+@@ -10612,14 +10629,22 @@ impl SourceCommandBindings {
+         );
+         if (requires_reentry_guard(facts)
+             || (outcomes.normal_completion.is_none()
+-                    && !command_world_closed_on_normal_return(native.target, facts)))
++                && !command_world_closed_on_normal_return(native.target, facts)))
+             && let Some(normal) = outcomes.normal.as_mut()
+         {
+             #[cfg(test)]
+             if std::env::var_os("ZZ_PROBE_OPAQUE").is_some() {
+                 eprintln!(
+                     "ZZ_UNCLOSED {:?} transitions={:?} kind={:?} reg={} roles={} sub={:?} cb={:?} ctm={} traits={:?}",
+-                    native.segment.texts, facts.state_transitions, native.target.kind, native.target.registry_backed, facts.arg_roles_complete, facts.subcommand, facts.effects.callback(), facts.effects.legacy().command_table_mutation, facts.traits
++                    native.segment.texts,
++                    facts.state_transitions,
++                    native.target.kind,
++                    native.target.registry_backed,
++                    facts.arg_roles_complete,
++                    facts.subcommand,
++                    facts.effects.callback(),
++                    facts.effects.legacy().command_table_mutation,
++                    facts.traits
+                 );
+             }
+             normal.unclosed_command_world = true;
+@@ -13671,7 +13696,9 @@ impl ModuleCommandBindings {
+             registry,
+             namespace,
+             tcl_registry::Traits::empty(),
+-            owner.metadata_context(registry).and_then(crate::registry_invocation::InvocationMetadataSelection::context),
++            owner
++                .metadata_context(registry)
++                .and_then(crate::registry_invocation::InvocationMetadataSelection::context),
+         );
+     }
+     /// Advance conditional source effects using the independently retained
+diff --git a/rust/tcl-compiler/src/command_binding/analysis_body_correspondence.rs b/rust/tcl-compiler/src/command_binding/analysis_body_correspondence.rs
+index dd7a906f3..8670aefcf 100644
+--- a/rust/tcl-compiler/src/command_binding/analysis_body_correspondence.rs
++++ b/rust/tcl-compiler/src/command_binding/analysis_body_correspondence.rs
+@@ -531,7 +531,8 @@ fn collect_registry_dependencies(
+         bindings
+             .baseline
+             .metadata_context
+-            .metadata_context(registry)?.context()?,
++            .metadata_context(registry)?
++            .context()?,
+     )?;
+     for child in children {
+         calls.push(child.tokens?);
+@@ -766,7 +767,8 @@ fn collect_readonly_source_registry_dependencies(
+             bindings
+                 .baseline
+                 .metadata_context
+-                .metadata_context(registry)?.context()?,
++                .metadata_context(registry)?
++                .context()?,
+         )?
+     };
+     for child in children {
+diff --git a/rust/tcl-compiler/src/command_binding/cfg_lookup_context.rs b/rust/tcl-compiler/src/command_binding/cfg_lookup_context.rs
+index a98ca6fa9..e775672f1 100644
+--- a/rust/tcl-compiler/src/command_binding/cfg_lookup_context.rs
++++ b/rust/tcl-compiler/src/command_binding/cfg_lookup_context.rs
+@@ -104,7 +104,9 @@ impl CfgLookupContexts {
+             BindingInvocationMetadata::Standalone
+         } else {
+             BindingInvocationMetadata::Supplied(
+-                cfg.metadata_context.metadata_context(registry).and_then(crate::registry_invocation::InvocationMetadataSelection::context),
++                cfg.metadata_context
++                    .metadata_context(registry)
++                    .and_then(crate::registry_invocation::InvocationMetadataSelection::context),
+             )
+         }
+     }
+diff --git a/rust/tcl-compiler/src/command_binding/compiled_preflight.rs b/rust/tcl-compiler/src/command_binding/compiled_preflight.rs
+index d6d8931ce..62c3c9b98 100644
+--- a/rust/tcl-compiler/src/command_binding/compiled_preflight.rs
++++ b/rust/tcl-compiler/src/command_binding/compiled_preflight.rs
+@@ -802,7 +802,12 @@ impl CompilerTraversal<'_> {
+             (visit.selection, visit.spec),
+         )?;
+         if matches!(visit.selection, NativeCompilationSelection::Inline { .. }) {
+-            return self.with_command_dependency(Some(failure), &visit.target, &visit.head, context);
++            return self.with_command_dependency(
++                Some(failure),
++                &visit.target,
++                &visit.head,
++                context,
++            );
+         }
+         Some(failure)
+     }
+diff --git a/rust/tcl-compiler/src/command_binding/declaration_layout.rs b/rust/tcl-compiler/src/command_binding/declaration_layout.rs
+index b07e641df..4f01af1c8 100644
+--- a/rust/tcl-compiler/src/command_binding/declaration_layout.rs
++++ b/rust/tcl-compiler/src/command_binding/declaration_layout.rs
+@@ -1921,10 +1921,12 @@ impl DeclarationSourceOperandLayoutAdvice {
+         match &self.kind {
+             DeclarationSourceOperandLayoutKind::Original(advice) => advice
+                 .original_declaration_metadata_context(registry, tokens)
+-                .ok().map(crate::registry_invocation::InvocationMetadataSelection::from),
+-            DeclarationSourceOperandLayoutKind::Configured { layout, .. } => {
+-                layout.source_metadata_context(registry, tokens).ok().map(crate::registry_invocation::InvocationMetadataSelection::from)
+-            }
++                .ok()
++                .map(crate::registry_invocation::InvocationMetadataSelection::from),
++            DeclarationSourceOperandLayoutKind::Configured { layout, .. } => layout
++                .source_metadata_context(registry, tokens)
++                .ok()
++                .map(crate::registry_invocation::InvocationMetadataSelection::from),
+         }
+     }
+ 
+@@ -3143,9 +3145,10 @@ impl<'a> OriginalDeclarationWordSource<'a> {
+                 .metadata_context_for_source(registry, self.config, Some(input.unit_profile()))
+                 .map(Some)
+                 .ok_or(refusal),
+-            OwnedInvocationMetadataContext::Standalone => {
+-                owner.metadata_context(registry).map(crate::registry_invocation::InvocationMetadataSelection::context).ok_or(refusal)
+-            }
++            OwnedInvocationMetadataContext::Standalone => owner
++                .metadata_context(registry)
++                .map(crate::registry_invocation::InvocationMetadataSelection::context)
++                .ok_or(refusal),
+             OwnedInvocationMetadataContext::Supplied(_)
+             | OwnedInvocationMetadataContext::Unavailable => Err(refusal),
+         }
+diff --git a/rust/tcl-compiler/src/command_binding/declaration_preview.rs b/rust/tcl-compiler/src/command_binding/declaration_preview.rs
+index e1d9f8f1a..31fc5fd34 100644
+--- a/rust/tcl-compiler/src/command_binding/declaration_preview.rs
++++ b/rust/tcl-compiler/src/command_binding/declaration_preview.rs
+@@ -601,9 +601,10 @@ impl OriginalDeclarationSourceOperandLayout {
+                 .metadata_context_for_source(registry, self.config, Some(input.unit_profile()))
+                 .map(Some)
+                 .ok_or(refusal),
+-            OwnedInvocationMetadataContext::Standalone => {
+-                owner.metadata_context(registry).map(crate::registry_invocation::InvocationMetadataSelection::context).ok_or(refusal)
+-            }
++            OwnedInvocationMetadataContext::Standalone => owner
++                .metadata_context(registry)
++                .map(crate::registry_invocation::InvocationMetadataSelection::context)
++                .ok_or(refusal),
+             OwnedInvocationMetadataContext::Supplied(_)
+             | OwnedInvocationMetadataContext::Unavailable => Err(refusal),
+         }
+@@ -2394,7 +2395,11 @@ fn standalone_procedure_body_recipe(
+     if advice.has_unclosed_source_coverage()
+         || !advice
+             .original_declaration_metadata_context(registry, tokens)
+-            .is_ok_and(|metadata| metadata.is_none_or(crate::registry_invocation::InvocationMetadataContext::is_standalone))
++            .is_ok_and(|metadata| {
++                metadata.is_none_or(
++                    crate::registry_invocation::InvocationMetadataContext::is_standalone,
++                )
++            })
+         || observation.config.list_parse != tcl_dialect::ListParse::Strict
+         || !matches!(&observation.namespace, super::SourceNamespaceKey::Authored(current) if current == "::")
+         || !observation.entry.owns_source(&site.source, site.offset)
+diff --git a/rust/tcl-compiler/src/command_binding/ensemble_compilation.rs b/rust/tcl-compiler/src/command_binding/ensemble_compilation.rs
+index f10fdc68c..614bb2d81 100644
+--- a/rust/tcl-compiler/src/command_binding/ensemble_compilation.rs
++++ b/rust/tcl-compiler/src/command_binding/ensemble_compilation.rs
+@@ -305,7 +305,11 @@ impl ModuleCommandBindings {
+         if !self.original_compiler_worker_node_holds(&worker) {
+             #[cfg(test)]
+             if std::env::var_os("ZZ_PROBE_ENSEMBLE").is_some() {
+-                eprintln!("ZZ_ENSEMBLE head={head} worker node does not hold {:?} opaque={}", worker.slot, self.has_opaque_domain());
++                eprintln!(
++                    "ZZ_ENSEMBLE head={head} worker node does not hold {:?} opaque={}",
++                    worker.slot,
++                    self.has_opaque_domain()
++                );
+             }
+             return Some(ActualEnsemblePlan::Unknown);
+         }
+diff --git a/rust/tcl-compiler/src/command_binding/hosted_procedure_body.rs b/rust/tcl-compiler/src/command_binding/hosted_procedure_body.rs
+index d2152eb18..2c246cc20 100644
+--- a/rust/tcl-compiler/src/command_binding/hosted_procedure_body.rs
++++ b/rust/tcl-compiler/src/command_binding/hosted_procedure_body.rs
+@@ -368,8 +368,7 @@ mod tests {
+         );
+         let registry = input.borrowed_context_registry().commands();
+         let entry = if unknown_history {
+-            super::super::SourceAnalysisEntry::for_hosted_source(&input)
+-                .expect("hosted F5 input")
++            super::super::SourceAnalysisEntry::for_hosted_source(&input).expect("hosted F5 input")
+         } else {
+             super::super::SourceAnalysisEntry::for_supplied_source(
+                 registry,
+diff --git a/rust/tcl-compiler/src/command_binding/logical_operation.rs b/rust/tcl-compiler/src/command_binding/logical_operation.rs
+index 74b9394a1..a852d9dda 100644
+--- a/rust/tcl-compiler/src/command_binding/logical_operation.rs
++++ b/rust/tcl-compiler/src/command_binding/logical_operation.rs
+@@ -771,12 +771,10 @@ fn authored_logical_alias_prefix_inputs(
+                     .checked_sub(original.target.prepended.len())?
+                     .checked_add(1)?;
+                 let word = original.words.get(written)?;
+-                crate::signature_scan::scope::SignatureSourceNameInput::OriginalWord(
+-                    purpose.key(
+-                        word,
+-                        tcl_syntax::word_rules::WordValueRules::from_config(&config),
+-                    )?,
+-                )
++                crate::signature_scan::scope::SignatureSourceNameInput::OriginalWord(purpose.key(
++                    word,
++                    tcl_syntax::word_rules::WordValueRules::from_config(&config),
++                )?)
+             };
+             (input.bytes() == value.as_bytes() && input.policy() == policy).then_some(input)
+         })
+@@ -831,7 +829,8 @@ fn retain_logical_alias_prefix(
+         .collect::<Option<Vec<_>>>()?;
+     // The stronger authored-key projection remains independently unavailable
+     // when this Logical source purpose has no naming recipe.
+-    let captured = authored_logical_alias_prefix_inputs(original, arguments, &input, context.config);
++    let captured =
++        authored_logical_alias_prefix_inputs(original, arguments, &input, context.config);
+     let key = state.publication_key_at(
+         &SourceNamespaceKey::authored("::"),
+         alias.literal()?,
+diff --git a/rust/tcl-compiler/src/command_binding/materialized_footprint.rs b/rust/tcl-compiler/src/command_binding/materialized_footprint.rs
+index e7d46f185..5e460a88b 100644
+--- a/rust/tcl-compiler/src/command_binding/materialized_footprint.rs
++++ b/rust/tcl-compiler/src/command_binding/materialized_footprint.rs
+@@ -478,7 +478,10 @@ impl SourceInvocationBinding {
+                 if !point.is_standalone() {
+                     return Err(refusal);
+                 }
+-                point.metadata_context(registry).map(crate::registry_invocation::InvocationMetadataSelection::context).ok_or(refusal)
++                point
++                    .metadata_context(registry)
++                    .map(crate::registry_invocation::InvocationMetadataSelection::context)
++                    .ok_or(refusal)
+             }
+             OwnedInvocationMetadataContext::Supplied(_)
+             | OwnedInvocationMetadataContext::Unavailable => Err(refusal),
+diff --git a/rust/tcl-compiler/src/command_binding/named_manufacture.rs b/rust/tcl-compiler/src/command_binding/named_manufacture.rs
+index de4c1cf0c..727576e68 100644
+--- a/rust/tcl-compiler/src/command_binding/named_manufacture.rs
++++ b/rust/tcl-compiler/src/command_binding/named_manufacture.rs
+@@ -322,20 +322,34 @@ mod tests {
+                 let bindings = analyse(&source, version);
+                 let offset = u32::try_from(source.rfind(&format!("{name} pick")).unwrap()).unwrap();
+                 let point = bindings.invocation_at_source(name, offset);
+-                let receiver = point.named_object_instance_at_dispatch()
++                let receiver = point
++                    .named_object_instance_at_dispatch()
+                     .expect("relative object survives at its exact current-namespace slot");
+                 let state = &point.lookup_state.as_ref().unwrap().state;
+                 let key = state.constructed_command_key(receiver).unwrap();
+-                let policy = point.original_retained_written_name_input(0).unwrap().policy();
++                let policy = point
++                    .original_retained_written_name_input(0)
++                    .unwrap()
++                    .policy();
+                 let slot = state.original_byte_slot_for_key(key, policy).unwrap();
+-                assert_eq!(slot.namespace, tcl_core_types::ByteNamespacePath::from_segments([
+-                    tcl_core_types::NameBytes::from(b"a".as_slice()),
+-                ]));
++                assert_eq!(
++                    slot.namespace,
++                    tcl_core_types::ByteNamespacePath::from_segments([
++                        tcl_core_types::NameBytes::from(b"a".as_slice()),
++                    ])
++                );
+                 assert_eq!(slot.simple.as_bytes(), name.as_bytes());
+                 let selector = point.original_retained_written_name_input(1).unwrap();
+-                assert!(state.retained_instance_method_entry(
+-                    receiver, selector.bytes(), selector.policy()
+-                ).is_some(), "{version:?}: {name}");
++                assert!(
++                    state
++                        .retained_instance_method_entry(
++                            receiver,
++                            selector.bytes(),
++                            selector.policy()
++                        )
++                        .is_some(),
++                    "{version:?}: {name}"
++                );
+             }
+         }
+     }
+diff --git a/rust/tcl-compiler/src/command_binding/original_compiler_effects.rs b/rust/tcl-compiler/src/command_binding/original_compiler_effects.rs
+index c93e53d16..348cb6965 100644
+--- a/rust/tcl-compiler/src/command_binding/original_compiler_effects.rs
++++ b/rust/tcl-compiler/src/command_binding/original_compiler_effects.rs
+@@ -110,8 +110,9 @@ pub(super) fn preserves_visits(
+     }
+     let scope = ProofScope {
+         memo: context.compilation_snapshot.and_then(|snapshot| {
+-            (state.baseline.native_entry.is_none() && std::ptr::eq(state, &raw const snapshot.table.state))
+-                .then_some(&snapshot.table.compiler_name_effects)
++            (state.baseline.native_entry.is_none()
++                && std::ptr::eq(state, &raw const snapshot.table.state))
++            .then_some(&snapshot.table.compiler_name_effects)
+         }),
+         origin,
+         namespace: context.namespace_identity(),
+diff --git a/rust/tcl-compiler/src/command_binding/source_analysis_entry.rs b/rust/tcl-compiler/src/command_binding/source_analysis_entry.rs
+index 1826fc323..3c04db375 100644
+--- a/rust/tcl-compiler/src/command_binding/source_analysis_entry.rs
++++ b/rust/tcl-compiler/src/command_binding/source_analysis_entry.rs
+@@ -450,8 +450,9 @@ impl SourceAnalysisEntry {
+         if let Some(policy) = policy {
+             entry.unknown_entry = false;
+             entry.invocation_realm = tcl_dialect::model::InvocationRealm::RuleLoader;
+-            entry.execution_name_policy =
+-                Some(tcl_syntax::naming::ExecutionNamePolicy::NativeRecipe(policy));
++            entry.execution_name_policy = Some(
++                tcl_syntax::naming::ExecutionNamePolicy::NativeRecipe(policy),
++            );
+             entry.native_compilation = crate::environment_ingress::authoring_native_compilation();
+         }
+         Some(entry)
+diff --git a/rust/tcl-compiler/src/command_binding/source_declared_command/logical_lambda.rs b/rust/tcl-compiler/src/command_binding/source_declared_command/logical_lambda.rs
+index dcc54cd5a..e171f61cc 100644
+--- a/rust/tcl-compiler/src/command_binding/source_declared_command/logical_lambda.rs
++++ b/rust/tcl-compiler/src/command_binding/source_declared_command/logical_lambda.rs
+@@ -206,7 +206,10 @@ impl OriginalLogicalLambdaBody {
+         let span = field.source_span()?;
+         if fields.len() != 1 + usize::from(expected.default.is_some())
+             || field.value() != expected.name
+-            || fields.get(1).map(tcl_syntax::word_rules::OriginalSourceListElement::value) != expected.default.as_deref()
++            || fields
++                .get(1)
++                .map(tcl_syntax::word_rules::OriginalSourceListElement::value)
++                != expected.default.as_deref()
+             || field.original_word() != self.lambda()
+             || self.lambda.image().bytes().get(span.as_range())? != expected.name.as_bytes()
+             || formals.name_sources().get(parameter)?.source_span() != Some(span)
+diff --git a/rust/tcl-compiler/src/command_binding/source_transition_advice/source_configured_class.rs b/rust/tcl-compiler/src/command_binding/source_transition_advice/source_configured_class.rs
+index 50bc30a8a..b6bd17b39 100644
+--- a/rust/tcl-compiler/src/command_binding/source_transition_advice/source_configured_class.rs
++++ b/rust/tcl-compiler/src/command_binding/source_transition_advice/source_configured_class.rs
+@@ -77,9 +77,8 @@ impl AdviceGraph {
+     ) -> Option<Arc<OriginalSourceClassDeclaration>> {
+         match (&self.policy, input) {
+             (AdviceNamingPolicy::Native(policy), SourceAdviceNameInput::Native(name))
+-                if *policy == name.policy() =>
+-            {}
+-            (AdviceNamingPolicy::Logical(_), SourceAdviceNameInput::Logical(_)) => {},
++                if *policy == name.policy() => {}
++            (AdviceNamingPolicy::Logical(_), SourceAdviceNameInput::Logical(_)) => {}
+             _ => return None,
+         }
+         let key = self.selected_head_key(input.bytes())?;
+diff --git a/rust/tcl-compiler/src/compile_service.rs b/rust/tcl-compiler/src/compile_service.rs
+index 09ede2afd..55171ede9 100644
+--- a/rust/tcl-compiler/src/compile_service.rs
++++ b/rust/tcl-compiler/src/compile_service.rs
+@@ -82,7 +82,9 @@ fn fresh_document_input(
+ /// whose fresh command world the module is compiled for.
+ fn profile_less_engine() -> &'static DialectProfile {
+     tcl_registry::model::ingress::resolve_environment(
+-        DialectProfile::plain_tcl().vm_runtime_version.dialect_name(),
++        DialectProfile::plain_tcl()
++            .vm_runtime_version
++            .dialect_name(),
+     )
+     .unit_profile()
+ }
+@@ -3533,7 +3535,9 @@ mod tests {
+                 assert!(std::ptr::eq(module.profile, DialectProfile::plain_tcl()));
+             }
+         }
+-        let module = BytecodeCompileService::default().compile("set x 1").unwrap();
++        let module = BytecodeCompileService::default()
++            .compile("set x 1")
++            .unwrap();
+         assert!(
+             module
+                 .top_level
+@@ -3579,11 +3583,18 @@ mod tests {
+                 );
+             }
+             assert!(
+-                !module.top_level.instructions.iter().any(|instruction| matches!(
+-                    instruction.op,
+-                    tcl_bytecode::Op::INVOKE_STK1 | tcl_bytecode::Op::INVOKE_STK4
+-                ) && (instruction.source_cmd_text.bytes().starts_with(b"set ")
+-                    || instruction.source_cmd_text.bytes().starts_with(b"lassign "))),
++                !module
++                    .top_level
++                    .instructions
++                    .iter()
++                    .any(|instruction| matches!(
++                        instruction.op,
++                        tcl_bytecode::Op::INVOKE_STK1 | tcl_bytecode::Op::INVOKE_STK4
++                    ) && (instruction
++                        .source_cmd_text
++                        .bytes()
++                        .starts_with(b"set ")
++                        || instruction.source_cmd_text.bytes().starts_with(b"lassign "))),
+                 "{dialect}: {:?}",
+                 module.top_level.instructions
+             );
+@@ -3642,9 +3653,7 @@ mod tests {
+         const EXPECTED: &str = "good|good|lone-good|ns-good|ns-good|x:b|x:|x.b|x:b";
+         let scripts = [
+             format!("{SETUP}{RESULT}\n"),
+-            format!(
+-                "proc p {{}} {{\n    global a a:b a: arr\n    {RESULT}\n}}\n{SETUP}p\n"
+-            ),
++            format!("proc p {{}} {{\n    global a a:b a: arr\n    {RESULT}\n}}\n{SETUP}p\n"),
+         ];
+         for release in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+             let profile = tcl_registry::model::ingress::resolve_environment(release).unit_profile();
+@@ -3732,5 +3741,4 @@ mod tests {
+             "an unknown entry's compiler table is not the profile's"
+         );
+     }
+-
+ }
+diff --git a/rust/tcl-compiler/src/compiler_checks.rs b/rust/tcl-compiler/src/compiler_checks.rs
+index d3002adf3..663b7ebfe 100644
+--- a/rust/tcl-compiler/src/compiler_checks.rs
++++ b/rust/tcl-compiler/src/compiler_checks.rs
+@@ -631,12 +631,14 @@ pub fn shimmer_family_checks<S: std::hash::BuildHasher>(
+     ) {
+         out.push(Diagnostic::from_sharing(&w));
+     }
+-    let payload_layouts =
+-        if is_irules_dialect(fu.source_metadata_input().map(crate::analyser::ResolvedAnalysisInput::unit_profile)) {
+-            registry.byte_array_payload_layouts()
+-        } else {
+-            std::collections::HashMap::new()
+-        };
++    let payload_layouts = if is_irules_dialect(
++        fu.source_metadata_input()
++            .map(crate::analyser::ResolvedAnalysisInput::unit_profile),
++    ) {
++        registry.byte_array_payload_layouts()
++    } else {
++        std::collections::HashMap::new()
++    };
+     for w in
+         find_byte_array_warnings_with_context(&fu.cfg, &fu.ssa, &fu.sccp, context, &payload_layouts)
+     {
+diff --git a/rust/tcl-compiler/src/interprocedural.rs b/rust/tcl-compiler/src/interprocedural.rs
+index 69e27fb8e..f5f5a4c9f 100644
+--- a/rust/tcl-compiler/src/interprocedural.rs
++++ b/rust/tcl-compiler/src/interprocedural.rs
+@@ -1969,10 +1969,8 @@ fn compute_all_transitive_calls(
+ /// observes but through those links, and calls only procedures of the same
+ /// kind with places of its own, its links' among them.
+ fn fixpoint_pure(local: &HashMap<ProcedureId, LocalFacts>) -> HashMap<ProcedureId, bool> {
+-    let mut pure: HashMap<ProcedureId, bool> = local
+-        .iter()
+-        .map(|(q, f)| (*q, f.local_pure))
+-        .collect();
++    let mut pure: HashMap<ProcedureId, bool> =
++        local.iter().map(|(q, f)| (*q, f.local_pure)).collect();
+     let mut bounded: HashMap<ProcedureId, bool> = local
+         .iter()
+         .map(|(q, f)| (*q, !f.impure_beyond_links))
+@@ -2043,14 +2041,10 @@ fn fixpoint_effects(
+     HashMap<ProcedureId, EffectRegion>,
+     HashMap<ProcedureId, EffectRegion>,
+ ) {
+-    let mut reads: HashMap<ProcedureId, EffectRegion> = local
+-        .iter()
+-        .map(|(q, f)| (*q, f.effect_reads))
+-        .collect();
+-    let mut writes: HashMap<ProcedureId, EffectRegion> = local
+-        .iter()
+-        .map(|(q, f)| (*q, f.effect_writes))
+-        .collect();
++    let mut reads: HashMap<ProcedureId, EffectRegion> =
++        local.iter().map(|(q, f)| (*q, f.effect_reads)).collect();
++    let mut writes: HashMap<ProcedureId, EffectRegion> =
++        local.iter().map(|(q, f)| (*q, f.effect_writes)).collect();
+     let mut changed = true;
+     while changed {
+         changed = false;
+diff --git a/rust/tcl-compiler/src/object_types.rs b/rust/tcl-compiler/src/object_types.rs
+index 05918055a..104a6d61c 100644
+--- a/rust/tcl-compiler/src/object_types.rs
++++ b/rust/tcl-compiler/src/object_types.rs
+@@ -549,8 +549,9 @@ fn build_facts_gated(
+     // Original source bodies supply factory candidates independently of
+     // callable publication and SSA proof.
+     for (name, procedure) in cu.ir_module.original_source_procedure_bodies() {
+-        if context.is_some_and(crate::registry_invocation::InvocationMetadataContext::permits_logical_source_names)
+-            || !cu.procedures.contains_key(name)
++        if context.is_some_and(
++            crate::registry_invocation::InvocationMetadataContext::permits_logical_source_names,
++        ) || !cu.procedures.contains_key(name)
+         {
+             harvest_script_factories(
+                 &procedure.body,
+@@ -1333,8 +1334,9 @@ fn scan_flow_edges(
+         .ir_module
+         .original_source_procedure_bodies()
+         .filter(|(name, _)| {
+-            metadata_context.is_some_and(crate::registry_invocation::InvocationMetadataContext::permits_logical_source_names)
+-                || !cu.procedures.contains_key(*name)
++            metadata_context.is_some_and(
++                crate::registry_invocation::InvocationMetadataContext::permits_logical_source_names,
++            ) || !cu.procedures.contains_key(*name)
+         })
+         .map(|(id, procedure)| (BodyFrameId::Body(*id), &procedure.body))
+         .chain(
+diff --git a/rust/tcl-compiler/src/registry_invocation.rs b/rust/tcl-compiler/src/registry_invocation.rs
+index 9d0a93b2b..5928edd57 100644
+--- a/rust/tcl-compiler/src/registry_invocation.rs
++++ b/rust/tcl-compiler/src/registry_invocation.rs
+@@ -80,8 +80,8 @@ pub(crate) use execution_trace::{
+     original_execution_trace_keys, original_invocation_has_execution_trace,
+     original_procedure_has_execution_trace, trace_set_requires_original_owner,
+ };
+-pub(crate) use metadata_context::retained_module_metadata_context;
+ pub(crate) use metadata_context::InvocationMetadataSelection;
++pub(crate) use metadata_context::retained_module_metadata_context;
+ pub use metadata_context::{
+     InvocationMetadataContext, InvocationMetadataInput, OwnedInvocationMetadataContext,
+ };
+@@ -1080,7 +1080,9 @@ fn resolve_original_source_layout(
+             return None;
+         }
+         if !target.prepended.is_empty()
+-            && context.is_some_and(crate::registry_invocation::InvocationMetadataContext::permits_logical_source_names)
++            && context.is_some_and(
++                crate::registry_invocation::InvocationMetadataContext::permits_logical_source_names,
++            )
+         {
+             let context = context?;
+             let purpose = tokens
+diff --git a/rust/tcl-compiler/src/signature_scan/formal_parameters.rs b/rust/tcl-compiler/src/signature_scan/formal_parameters.rs
+index b38026a4f..26404e268 100644
+--- a/rust/tcl-compiler/src/signature_scan/formal_parameters.rs
++++ b/rust/tcl-compiler/src/signature_scan/formal_parameters.rs
+@@ -470,21 +470,24 @@ fn original_formal_field(
+         let whole = (!element.source.literal && input.bytes() == child.bytes())
+             .then(|| element.source.value.clone());
+         let range = whole.or_else(|| {
+-            element.source.literal.then(|| {
+-                Some(
+-                    element
+-                        .source
+-                        .value
+-                        .start
+-                        .checked_add(inner.source.value.start)?
+-                        ..element
++            element
++                .source
++                .literal
++                .then(|| {
++                    Some(
++                        element
+                             .source
+                             .value
+                             .start
+-                            .checked_add(inner.source.value.end)?,
+-                )
+-            })
+-            .flatten()
++                            .checked_add(inner.source.value.start)?
++                            ..element
++                                .source
++                                .value
++                                .start
++                                .checked_add(inner.source.value.end)?,
++                    )
++                })
++                .flatten()
+         });
+         (input, range)
+     };
+diff --git a/rust/tcl-compiler/src/ssa.rs b/rust/tcl-compiler/src/ssa.rs
+index f1d62edf7..82047d30e 100644
+--- a/rust/tcl-compiler/src/ssa.rs
++++ b/rust/tcl-compiler/src/ssa.rs
+@@ -91,7 +91,8 @@ impl<'a> SsaInvocationContext<'a> {
+         Self {
+             registry,
+             metadata,
+-            standalone: metadata.is_some_and(crate::registry_invocation::InvocationMetadataContext::is_standalone)
++            standalone: metadata
++                .is_some_and(crate::registry_invocation::InvocationMetadataContext::is_standalone)
+                 || (standalone_owner && metadata.is_none()),
+         }
+     }
+@@ -8109,9 +8110,9 @@ impl<'a> RenameWalk<'a> {
+             && let Some(tokens) = self.points.source_tokens_at(point.0, point.1)
+         {
+             let original_name = if let Some(metadata) = self.metadata
+-                && metadata
+-                    .source_analysis_input()
+-                    .is_some_and(crate::analyser::ResolvedAnalysisInput::has_logical_source_name_context)
++                && metadata.source_analysis_input().is_some_and(
++                    crate::analyser::ResolvedAnalysisInput::has_logical_source_name_context,
++                )
+                 && tokens.source_binding.as_ref().is_some_and(|binding| {
+                     !binding.has_original_logical_source_advice()
+                         && !binding.has_original_native_source_command()
+diff --git a/rust/tcl-compiler/src/taint_interproc.rs b/rust/tcl-compiler/src/taint_interproc.rs
+index d3dd50783..c6b9e3f38 100644
+--- a/rust/tcl-compiler/src/taint_interproc.rs
++++ b/rust/tcl-compiler/src/taint_interproc.rs
+@@ -1860,8 +1860,7 @@ fn solve_interprocedural_taints_with_context(
+         proc_taints.insert(**qname, HashMap::new());
+     }
+ 
+-    let mut queue: VecDeque<crate::ir::ProcedureId> =
+-        proc_names.iter().map(|q| **q).collect();
++    let mut queue: VecDeque<crate::ir::ProcedureId> = proc_names.iter().map(|q| **q).collect();
+     let mut queued: HashSet<crate::ir::ProcedureId> = queue.iter().copied().collect();
+ 
+     // Initial flows from the top level.
+@@ -1876,9 +1875,7 @@ fn solve_interprocedural_taints_with_context(
+         &summaries,
+     );
+     for (callee, args) in initial_flows {
+-        if update_entry(&summaries, &mut entry_taints, &callee, &args)
+-            && queued.insert(callee)
+-        {
++        if update_entry(&summaries, &mut entry_taints, &callee, &args) && queued.insert(callee) {
+             queue.push_back(callee);
+         }
+     }
+@@ -1907,17 +1904,15 @@ fn solve_interprocedural_taints_with_context(
+         let graph = graphs
+             .entry(qname)
+             .or_insert_with(|| TaintGraph::new(&fu.cfg, &fu.ssa, &fu.sccp));
+-        let instance_classes = instance_classes_by_proc
+-            .entry(qname)
+-            .or_insert_with(|| {
+-                instance_classes_for_function(
+-                    &fu.cfg,
+-                    registry,
+-                    interproc,
+-                    true,
+-                    TaintSourceContext::for_module_function(registry, &cu.ir_module, fu),
+-                )
+-            });
++        let instance_classes = instance_classes_by_proc.entry(qname).or_insert_with(|| {
++            instance_classes_for_function(
++                &fu.cfg,
++                registry,
++                interproc,
++                true,
++                TaintSourceContext::for_module_function(registry, &cu.ir_module, fu),
++            )
++        });
+         let taints = run_propagation(
+             graph,
+             fu,
+@@ -1942,8 +1937,7 @@ fn solve_interprocedural_taints_with_context(
+         proc_taints.insert(qname, taints);
+ 
+         for (callee, args) in flows {
+-            if update_entry(&summaries, &mut entry_taints, &callee, &args)
+-                && queued.insert(callee)
++            if update_entry(&summaries, &mut entry_taints, &callee, &args) && queued.insert(callee)
+             {
+                 queue.push_back(callee);
+             }
+diff --git a/rust/tcl-compiler/src/tcl_expr_eval.rs b/rust/tcl-compiler/src/tcl_expr_eval.rs
+index 0095c6151..87931e131 100644
+--- a/rust/tcl-compiler/src/tcl_expr_eval.rs
++++ b/rust/tcl-compiler/src/tcl_expr_eval.rs
+@@ -1803,8 +1803,7 @@ impl tcl_syntax::expr::ExprOps for FoldOps<'_> {
+             if model == StringCharacterModel::Jim084Utf8 {
+                 return None;
+             }
+-            let left =
+-                tcl_syntax::raw_string::RawString::from_unicode(self.text_of(left, format)?);
++            let left = tcl_syntax::raw_string::RawString::from_unicode(self.text_of(left, format)?);
+             let right =
+                 tcl_syntax::raw_string::RawString::from_unicode(self.text_of(right, format)?);
+             left.compare_character_units(model, &right, (0, 0)).ok()
+diff --git a/rust/tcl-compiler/src/var_escape/interprocedural.rs b/rust/tcl-compiler/src/var_escape/interprocedural.rs
+index 18ee57fd3..6f3fcf592 100644
+--- a/rust/tcl-compiler/src/var_escape/interprocedural.rs
++++ b/rust/tcl-compiler/src/var_escape/interprocedural.rs
+@@ -263,16 +263,10 @@ fn propagate_transitive_sources<S: BuildHasher>(
+ 
+     // Reverse edges: qname → set of qnames that call it.
+     let mut callers_of: HashMap<tcl_core_types::BodyFrameId, HashSet<tcl_core_types::BodyFrameId>> =
+-        summaries
+-            .keys()
+-            .map(|k| (*k, HashSet::new()))
+-            .collect();
++        summaries.keys().map(|k| (*k, HashSet::new())).collect();
+     for (qname, callees) in resolved_callees {
+         for callee in callees {
+-            callers_of
+-                .entry(*callee)
+-                .or_default()
+-                .insert(*qname);
++            callers_of.entry(*callee).or_default().insert(*qname);
+         }
+     }
+ 
+diff --git a/rust/tcl-compiler/src/var_escape/slot_resolution.rs b/rust/tcl-compiler/src/var_escape/slot_resolution.rs
+index 88a6034af..f25e4e24e 100644
+--- a/rust/tcl-compiler/src/var_escape/slot_resolution.rs
++++ b/rust/tcl-compiler/src/var_escape/slot_resolution.rs
+@@ -447,10 +447,7 @@ where
+     S: std::hash::BuildHasher,
+ {
+     let Some(module) = ir_module else {
+-        return summaries
+-            .iter()
+-            .map(|(k, v)| (*k, v.clone()))
+-            .collect();
++        return summaries.iter().map(|(k, v)| (*k, v.clone())).collect();
+     };
+     let mut out: std::collections::HashMap<tcl_core_types::BodyFrameId, ProcEscapeSummary> =
+         std::collections::HashMap::with_capacity(summaries.len());
+diff --git a/rust/tcl-lsp-server/src/lib.rs b/rust/tcl-lsp-server/src/lib.rs
+index 20ef66206..609fe8dff 100644
+--- a/rust/tcl-lsp-server/src/lib.rs
++++ b/rust/tcl-lsp-server/src/lib.rs
+@@ -17090,14 +17090,13 @@ impl Backend {
+             if document.text.as_ref() != source {
+                 return Ok(std::ops::ControlFlow::Break(Vec::new()));
+             }
+-            return Box::pin(self
+-                .original_method_locations_for_snapshot(
+-                    (uri.clone(), document, generation),
+-                    analysis,
+-                    position,
+-                    epoch,
+-                ))
+-                .await;
++            return Box::pin(self.original_method_locations_for_snapshot(
++                (uri.clone(), document, generation),
++                analysis,
++                position,
++                epoch,
++            ))
++            .await;
+         }
+         use std::ops::ControlFlow;
+         let target = match self
+@@ -26745,7 +26744,7 @@ impl Backend {
+         };
+         let publication_is_current = {
+             let current = self.spec_packs.lock().await;
+-            current.seq == pack_seq && Arc::ptr_eq(&current.packs, &pack_set)
++            current.seq == pack_generation && Arc::ptr_eq(&current.packs, &pack_set)
+         };
+         if self.diag_inputs_epoch() == epoch && publication_is_current {
+             inputs.inputs_epoch = Some(epoch);
+@@ -39494,8 +39493,9 @@ mod tests {
+                 .original_declaration_documents(&base)
+                 .await
+                 .unwrap()
+-                .len()
+-        , 0);
++                .len(),
++            0
++        );
+         for dialect in ["tcl8.6", "tcl9.1", "jimtcl", "f5-irules"] {
+             let document = DocumentState::new(source.to_owned(), dialect.to_owned())
+                 .with_language_id("tcl".to_owned());
+@@ -39632,10 +39632,10 @@ mod tests {
+             .unwrap()
+             .expect("a pure consumer retains the exact original provider");
+         assert_eq!(identity.uri(), provider.as_str());
+-        let references = Box::pin(backend
+-            .reference_locations(&consumer, &document, &analysis, position, false))
+-            .await
+-            .unwrap();
++        let references =
++            Box::pin(backend.reference_locations(&consumer, &document, &analysis, position, false))
++                .await
++                .unwrap();
+         assert_eq!(references.len(), 1);
+         assert_eq!(references[0].uri, consumer);
+         assert_eq!(
+@@ -39645,10 +39645,10 @@ mod tests {
+                 .await
+                 .unwrap()
+         );
+-        let references = Box::pin(backend
+-            .reference_locations(&consumer, &document, &analysis, position, true))
+-            .await
+-            .unwrap();
++        let references =
++            Box::pin(backend.reference_locations(&consumer, &document, &analysis, position, true))
++                .await
++                .unwrap();
+         assert_eq!(references.len(), 2);
+         assert!(references.iter().any(|location| location.uri == provider));
+         assert!(
+@@ -39666,12 +39666,12 @@ mod tests {
+         let duplicate = Uri::from_str("file:///original-reference-duplicate.tcl").unwrap();
+         register(&backend, &duplicate, source).await;
+         assert_eq!(
+-            Box::pin(backend
+-                .reference_locations(&consumer, &document, &analysis, position, false))
++            Box::pin(backend.reference_locations(&consumer, &document, &analysis, position, false))
+                 .await
+                 .unwrap()
+-                .len()
+-        , 0);
++                .len(),
++            0
++        );
+     }
+ 
+     #[tokio::test]
+@@ -39705,26 +39705,28 @@ mod tests {
+             character: 2,
+         };
+         assert_eq!(
+-            Box::pin(backend
+-                .reference_locations(&consumer, &document, &analysis, position, true))
++            Box::pin(backend.reference_locations(&consumer, &document, &analysis, position, true))
+                 .await
+                 .unwrap()
+-                .len()
+-        , 0);
++                .len(),
++            0
++        );
+         assert_eq!(
+             backend
+                 .resolve_workspace_symbols(&consumer, &document.text, &analysis, position)
+                 .await
+                 .unwrap()
+-                .len()
+-        , 0);
++                .len(),
++            0
++        );
+         assert_eq!(
+             backend
+                 .cross_document_definition(&consumer, &document.text, position, &analysis)
+                 .await
+                 .unwrap()
+-                .len()
+-        , 0);
++                .len(),
++            0
++        );
+         assert!(
+             backend
+                 .original_declaration_identity_at(
+@@ -39786,8 +39788,9 @@ mod tests {
+                 .await
+                 .unwrap()
+                 .unwrap()
+-                .len()
+-        , 0);
++                .len(),
++            0
++        );
+         let mut foreign = item.clone();
+         foreign.uri = base.clone();
+         assert_eq!(
+@@ -39796,8 +39799,9 @@ mod tests {
+                 .await
+                 .unwrap()
+                 .unwrap()
+-                .len()
+-        , 0);
++                .len(),
++            0
++        );
+         register(&backend, &child, &format!("# changed\n{child_source}")).await;
+         assert_eq!(
+             backend
+@@ -39805,8 +39809,9 @@ mod tests {
+                 .await
+                 .unwrap()
+                 .unwrap()
+-                .len()
+-        , 0);
++                .len(),
++            0
++        );
+     }
+ 
+     #[tokio::test]
+@@ -40186,8 +40191,9 @@ info exists ::N::v\uD800";
+                 .cross_document_variable_definition(&first, source, position, &analysis,)
+                 .await
+                 .unwrap()
+-                .len()
+-        , 0);
++                .len(),
++            0
++        );
+         assert!(
+             backend
+                 .cross_document_variable_hover(&first, source, position, &analysis,)
+@@ -40207,8 +40213,9 @@ info exists ::N::v\uD800";
+                 .resolve_original_indexed_locations(vec![retained.clone()])
+                 .await
+                 .unwrap()
+-                .len()
+-        , 0);
++                .len(),
++            0
++        );
+ 
+         // Equal source geometry does not make another selected dialect current.
+         backend.documents.lock("test").await.insert(
+@@ -40220,15 +40227,17 @@ info exists ::N::v\uD800";
+                 .resolve_original_indexed_locations(vec![retained])
+                 .await
+                 .unwrap()
+-                .len()
+-        , 0);
++                .len(),
++            0
++        );
+         assert_eq!(
+             backend
+                 .cross_document_variable_definition(&first, source, position, &analysis,)
+                 .await
+                 .unwrap()
+-                .len()
+-        , 0);
++                .len(),
++            0
++        );
+         assert_eq!(
+             backend
+                 .original_namespace_locations(&first, source, &analysis, &symbol, true, true,)
+@@ -40381,8 +40390,8 @@ namespace exists n\uD800";
+         ))
+         .await
+         .unwrap();
+-        let std::ops::ControlFlow::Break(definitions) = Box::pin(backend
+-            .original_method_locations_at(
++        let std::ops::ControlFlow::Break(definitions) =
++            Box::pin(backend.original_method_locations_at(
+                 &consumer,
+                 consumer_source,
+                 &consumer_analysis,
+@@ -40396,8 +40405,8 @@ namespace exists n\uD800";
+         };
+         assert_eq!(definitions.len(), 1);
+         assert_eq!(definitions[0].uri, provider);
+-        let std::ops::ControlFlow::Break(references) = Box::pin(backend
+-            .original_method_locations_at(
++        let std::ops::ControlFlow::Break(references) =
++            Box::pin(backend.original_method_locations_at(
+                 &consumer,
+                 consumer_source,
+                 &consumer_analysis,
+@@ -40413,17 +40422,19 @@ namespace exists n\uD800";
+         };
+         assert_eq!(references.len(), 1);
+         assert_eq!(references[0].uri, consumer);
+-        let std::ops::ControlFlow::Break(Some(hover)) = Box::pin(backend
+-            .original_method_hover_at(&consumer, consumer_source, &consumer_analysis, position))
+-            .await
+-            .unwrap()
+-        else {
++        let std::ops::ControlFlow::Break(Some(hover)) = Box::pin(backend.original_method_hover_at(
++            &consumer,
++            consumer_source,
++            &consumer_analysis,
++            position,
++        ))
++        .await
++        .unwrap() else {
+             panic!("original method hover");
+         };
+         assert!(hover.value.contains("Possible source declaration"));
+         assert_eq!(
+-            Box::pin(backend
+-                .compute_definition(&consumer, position))
++            Box::pin(backend.compute_definition(&consumer, position))
+                 .await
+                 .unwrap(),
+             definitions
+@@ -40448,22 +40459,21 @@ namespace exists n\uD800";
+             std::ops::ControlFlow::Break(None)
+         ));
+         assert_eq!(
+-            Box::pin(backend
+-                .compute_definition(&consumer, position))
++            Box::pin(backend.compute_definition(&consumer, position))
+                 .await
+                 .unwrap()
+-                .len()
+-        , 0);
++                .len(),
++            0
++        );
+         assert!(matches!(
+-            Box::pin(backend
+-                .original_method_hover_at(
+-                    &consumer,
+-                    &format!("#{consumer_source}"),
+-                    &consumer_analysis,
+-                    position,
+-                ))
+-                .await
+-                .unwrap(),
++            Box::pin(backend.original_method_hover_at(
++                &consumer,
++                &format!("#{consumer_source}"),
++                &consumer_analysis,
++                position,
++            ))
++            .await
++            .unwrap(),
+             std::ops::ControlFlow::Break(None)
+         ));
+     }
+@@ -40520,13 +40530,14 @@ namespace exists n\uD800";
+                     .unwrap(),
+                 std::ops::ControlFlow::Continue(())
+             ));
+-            let locations = Box::pin(backend.compute_definition(&uri, position)).await.unwrap();
++            let locations = Box::pin(backend.compute_definition(&uri, position))
++                .await
++                .unwrap();
+             assert_eq!(locations.len(), 1);
+             assert_eq!(locations[0].uri, uri);
+             assert_eq!(locations[0].range.start.line, declaration_line);
+             assert!(
+-                Box::pin(backend
+-                    .original_method_hover_at(&uri, source, &analysis, position))
++                Box::pin(backend.original_method_hover_at(&uri, source, &analysis, position))
+                     .await
+                     .unwrap()
+                     .is_continue()
+@@ -40741,8 +40752,9 @@ info exists ::N::v\uD800";
+                 "oo::class create Old {}",
+                 tcl_lsp_core::profile_for_dialect("tcl8.4"),
+             )
+-            .len()
+-        , 0);
++            .len(),
++            0
++        );
+     }
+ 
+     #[test]
+@@ -41546,7 +41558,10 @@ info exists ::N::v\uD800";
+         let other = Uri::from_file_path("/proj/other.tcl").unwrap();
+         let index = ws_index(&[(&main, "package require Tk\n"), (&other, "proc o {} {}\n")]);
+         // Auto mode: other.tcl is not sourced by main, so it inherits nothing.
+-        assert_eq!(compute_inherited_requires(&index, &other, &[], Some(&root)).len(), 0);
++        assert_eq!(
++            compute_inherited_requires(&index, &other, &[], Some(&root)).len(),
++            0
++        );
+         // Explicit entry point: other.tcl inherits main.tcl's Tk.
+         let entries = vec!["main.tcl".to_owned()];
+         let inherited = compute_inherited_requires(&index, &other, &entries, Some(&root));
+@@ -42642,7 +42657,10 @@ info exists ::N::v\uD800";
+         assert_eq!(data["kind"], "analysisContextUnavailable");
+         assert_eq!(data["environment"], "tcl9.0");
+         assert_eq!(data["overlay"], u64::MAX);
+-        assert_eq!(lift_report("", &core_policy::apply(Vec::new(), &open_policy())).len(), 0);
++        assert_eq!(
++            lift_report("", &core_policy::apply(Vec::new(), &open_policy())).len(),
++            0
++        );
+     }
+ 
+     fn has_code(diags: &[tower_lsp_server::ls_types::Diagnostic], code: &str) -> bool {
+@@ -45410,8 +45428,9 @@ info exists ::N::v\uD800";
+             callback_pull_report(&backend, &caller, source)
+                 .await
+                 .unwrap()
+-                .len()
+-        , 0);
++                .len(),
++            0
++        );
+         set_callback_project_advice(&backend, true).await;
+         assert_eq!(
+             diag_codes(
+@@ -45444,8 +45463,9 @@ info exists ::N::v\uD800";
+             callback_pull_report(&backend, &caller, current_source)
+                 .await
+                 .unwrap()
+-                .len()
+-        , 0);
++                .len(),
++            0
++        );
+         let stale = backend
+             .project_callback_diagnostics_if(true, current_source, &old_analysis, &HashSet::new())
+             .await
+@@ -45494,8 +45514,9 @@ info exists ::N::v\uD800";
+             callback_pull_report(&backend, &caller, source)
+                 .await
+                 .unwrap()
+-                .len()
+-        , 0);
++                .len(),
++            0
++        );
+         let analysis = backend
+             .analysis_for(&caller, Arc::from(source), "tcl8.6".to_owned())
+             .await
+@@ -46343,16 +46364,15 @@ info exists ::N::v\uD800";
+ 
+         let user_uri = Uri::from_file_path(ws.0.join("reporoot/examples/user.tcl")).unwrap();
+         register(&backend, &user_uri, user_src).await;
+-        let locs = Box::pin(backend
+-            .compute_definition(
+-                &user_uri,
+-                Position {
+-                    line: 2,
+-                    character: 16,
+-                },
+-            ))
+-            .await
+-            .unwrap();
++        let locs = Box::pin(backend.compute_definition(
++            &user_uri,
++            Position {
++                line: 2,
++                character: 16,
++            },
++        ))
++        .await
++        .unwrap();
+         assert_eq!(
+             locs.len(),
+             1,
+@@ -46600,16 +46620,15 @@ info exists ::N::v\uD800";
+ 
+             let user_uri = Uri::from_file_path(ws.0.join(&name)).unwrap();
+             register(&backend, &user_uri, &user_src).await;
+-            let locs = Box::pin(backend
+-                .compute_definition(
+-                    &user_uri,
+-                    Position {
+-                        line: 2,
+-                        character: 12,
+-                    },
+-                ))
+-                .await
+-                .unwrap();
++            let locs = Box::pin(backend.compute_definition(
++                &user_uri,
++                Position {
++                    line: 2,
++                    character: 12,
++                },
++            ))
++            .await
++            .unwrap();
+             assert_eq!(
+                 locs.len(),
+                 1,
+@@ -46814,16 +46833,15 @@ info exists ::N::v\uD800";
+ 
+         let user_uri = Uri::from_file_path(ws.0.join("reporoot/examples/user.tcl")).unwrap();
+         register(&backend, &user_uri, &user_src).await;
+-        let locs = Box::pin(backend
+-            .compute_definition(
+-                &user_uri,
+-                Position {
+-                    line: 2,
+-                    character: 4,
+-                },
+-            ))
+-            .await
+-            .unwrap_or_default();
++        let locs = Box::pin(backend.compute_definition(
++            &user_uri,
++            Position {
++                line: 2,
++                character: 4,
++            },
++        ))
++        .await
++        .unwrap_or_default();
+         assert_eq!(locs.len(), 1, "expected one definition, got: {locs:?}");
+         assert!(
+             locs[0].uri.as_str().contains("/v2/"),
+@@ -47895,16 +47913,15 @@ info exists ::N::v\uD800";
+     async fn did_open_stores_document() {
+         let backend = test_backend();
+         let uri = Uri::from_str("file:///open.tcl").unwrap();
+-        Box::pin(backend
+-            .did_open(DidOpenTextDocumentParams {
+-                text_document: tower_lsp_server::ls_types::TextDocumentItem {
+-                    uri: uri.clone(),
+-                    language_id: "tcl".to_owned(),
+-                    version: 7,
+-                    text: "set x 1\n".to_owned(),
+-                },
+-            }))
+-            .await;
++        Box::pin(backend.did_open(DidOpenTextDocumentParams {
++            text_document: tower_lsp_server::ls_types::TextDocumentItem {
++                uri: uri.clone(),
++                language_id: "tcl".to_owned(),
++                version: 7,
++                text: "set x 1\n".to_owned(),
++            },
++        }))
++        .await;
+         let docs = backend.documents.lock("test").await;
+         let doc = docs.get(&uri).expect("did_open should store the document");
+         assert_eq!(&*doc.text, "set x 1\n");
+@@ -47914,16 +47931,15 @@ info exists ::N::v\uD800";
+     async fn did_change_replaces_document_text() {
+         let backend = test_backend();
+         let uri = Uri::from_str("file:///chg.tcl").unwrap();
+-        Box::pin(backend
+-            .did_open(DidOpenTextDocumentParams {
+-                text_document: tower_lsp_server::ls_types::TextDocumentItem {
+-                    uri: uri.clone(),
+-                    language_id: "tcl".to_owned(),
+-                    version: 1,
+-                    text: "set x 1\n".to_owned(),
+-                },
+-            }))
+-            .await;
++        Box::pin(backend.did_open(DidOpenTextDocumentParams {
++            text_document: tower_lsp_server::ls_types::TextDocumentItem {
++                uri: uri.clone(),
++                language_id: "tcl".to_owned(),
++                version: 1,
++                text: "set x 1\n".to_owned(),
++            },
++        }))
++        .await;
+         // A full-document replacement (`range: None`).
+         backend
+             .did_change(DidChangeTextDocumentParams {
+@@ -47991,16 +48007,15 @@ info exists ::N::v\uD800";
+     async fn did_close_drops_the_diagnostics_slot() {
+         let backend = test_backend();
+         let uri = Uri::from_str("file:///slot-drop.tcl").unwrap();
+-        Box::pin(backend
+-            .did_open(DidOpenTextDocumentParams {
+-                text_document: tower_lsp_server::ls_types::TextDocumentItem {
+-                    uri: uri.clone(),
+-                    language_id: "tcl".to_owned(),
+-                    version: 1,
+-                    text: "proc foo {} { set y 1 }\n".to_owned(),
+-                },
+-            }))
+-            .await;
++        Box::pin(backend.did_open(DidOpenTextDocumentParams {
++            text_document: tower_lsp_server::ls_types::TextDocumentItem {
++                uri: uri.clone(),
++                language_id: "tcl".to_owned(),
++                version: 1,
++                text: "proc foo {} { set y 1 }\n".to_owned(),
++            },
++        }))
++        .await;
+         assert!(
+             backend.diag_slots.lock().await.contains_key(&uri),
+             "sanity: opening a document schedules it, creating the slot",
+@@ -53512,16 +53527,15 @@ proc p {} {
+             let backend = Arc::clone(&backend);
+             let uri = uri.clone();
+             async move {
+-                Box::pin(backend
+-                    .did_open(DidOpenTextDocumentParams {
+-                        text_document: tower_lsp_server::ls_types::TextDocumentItem {
+-                            uri,
+-                            language_id: "tcl".to_owned(),
+-                            version: 1,
+-                            text: "set release_ready 1\n".to_owned(),
+-                        },
+-                    }))
+-                    .await;
++                Box::pin(backend.did_open(DidOpenTextDocumentParams {
++                    text_document: tower_lsp_server::ls_types::TextDocumentItem {
++                        uri,
++                        language_id: "tcl".to_owned(),
++                        version: 1,
++                        text: "set release_ready 1\n".to_owned(),
++                    },
++                }))
++                .await;
+             }
+         });
+ 
+@@ -53633,16 +53647,15 @@ proc p {} {
+             let backend = Arc::clone(&backend);
+             let uri = uri.clone();
+             async move {
+-                Box::pin(backend
+-                    .did_open(DidOpenTextDocumentParams {
+-                        text_document: tower_lsp_server::ls_types::TextDocumentItem {
+-                            uri,
+-                            language_id: "tcl".to_owned(),
+-                            version: 1,
+-                            text: "set release_ready 1\n".to_owned(),
+-                        },
+-                    }))
+-                    .await;
++                Box::pin(backend.did_open(DidOpenTextDocumentParams {
++                    text_document: tower_lsp_server::ls_types::TextDocumentItem {
++                        uri,
++                        language_id: "tcl".to_owned(),
++                        version: 1,
++                        text: "set release_ready 1\n".to_owned(),
++                    },
++                }))
++                .await;
+             }
+         });
+ 
+@@ -53715,16 +53728,15 @@ proc p {} {
+             let backend = Arc::clone(&backend);
+             let uri = uri.clone();
+             async move {
+-                Box::pin(backend
+-                    .did_open(DidOpenTextDocumentParams {
+-                        text_document: tower_lsp_server::ls_types::TextDocumentItem {
+-                            uri,
+-                            language_id: "tcl".to_owned(),
+-                            version: 1,
+-                            text: live_text.to_owned(),
+-                        },
+-                    }))
+-                    .await;
++                Box::pin(backend.did_open(DidOpenTextDocumentParams {
++                    text_document: tower_lsp_server::ls_types::TextDocumentItem {
++                        uri,
++                        language_id: "tcl".to_owned(),
++                        version: 1,
++                        text: live_text.to_owned(),
++                    },
++                }))
++                .await;
+             }
+         });
+ 
+@@ -54508,16 +54520,15 @@ proc p {} {
+             let backend = Arc::clone(&backend);
+             let uri = uri.clone();
+             async move {
+-                Box::pin(backend
+-                    .did_open(DidOpenTextDocumentParams {
+-                        text_document: tower_lsp_server::ls_types::TextDocumentItem {
+-                            uri,
+-                            language_id: "tcl".to_owned(),
+-                            version: 1,
+-                            text: "proc fresh {} {}\n".to_owned(),
+-                        },
+-                    }))
+-                    .await;
++                Box::pin(backend.did_open(DidOpenTextDocumentParams {
++                    text_document: tower_lsp_server::ls_types::TextDocumentItem {
++                        uri,
++                        language_id: "tcl".to_owned(),
++                        version: 1,
++                        text: "proc fresh {} {}\n".to_owned(),
++                    },
++                }))
++                .await;
+             }
+         });
+         crate::rt::timeout(std::time::Duration::from_secs(5), async {
+@@ -55771,8 +55782,7 @@ proc p {} {
+         }
+         // From main.tcl, jumping on `shared_helper` resolves to
+         // lib.tcl's declaration.
+-        let locs = Box::pin(backend
+-            .compute_definition(&main_uri, Position::new(0, 0)))
++        let locs = Box::pin(backend.compute_definition(&main_uri, Position::new(0, 0)))
+             .await
+             .expect("definition ok");
+         assert_eq!(locs.len(), 1, "{locs:?}");
+@@ -55818,8 +55828,7 @@ proc p {} {
+             index.add_document(main_uri.as_str(), &main_analysis);
+         }
+         // Cursor on the bareword `bar` call (line 1, col 0).
+-        let locs = Box::pin(backend
+-            .compute_definition(&main_uri, Position::new(1, 0)))
++        let locs = Box::pin(backend.compute_definition(&main_uri, Position::new(1, 0)))
+             .await
+             .expect("definition ok");
+         assert_eq!(locs.len(), 1, "{locs:?}");
+@@ -55860,8 +55869,7 @@ proc p {} {
+             let main_analysis = a2.analyse(main_src, "tcl8.6").clone();
+             index.add_document(main_uri.as_str(), &main_analysis);
+         }
+-        let locs = Box::pin(backend
+-            .compute_definition(&main_uri, Position::new(1, 0)))
++        let locs = Box::pin(backend.compute_definition(&main_uri, Position::new(1, 0)))
+             .await
+             .expect("definition ok");
+         assert!(
+@@ -56000,8 +56008,7 @@ proc p {} {
+         );
+         // Cursor on the `greet` call (line 1) resolves locally;
+         // the result points at the same document, line 0.
+-        let locs = Box::pin(backend
+-            .compute_definition(&uri, Position::new(1, 0)))
++        let locs = Box::pin(backend.compute_definition(&uri, Position::new(1, 0)))
+             .await
+             .expect("definition ok");
+         assert_eq!(locs.len(), 1, "{locs:?}");
+@@ -56493,16 +56500,15 @@ proc p {} {
+             let backend = Arc::clone(&backend);
+             let uri = uri.clone();
+             tokio::spawn(async move {
+-                Box::pin(backend
+-                    .did_open(DidOpenTextDocumentParams {
+-                        text_document: tower_lsp_server::ls_types::TextDocumentItem {
+-                            uri,
+-                            language_id: "tcl".to_owned(),
+-                            version: 1,
+-                            text: "set x 1\n".to_owned(),
+-                        },
+-                    }))
+-                    .await;
++                Box::pin(backend.did_open(DidOpenTextDocumentParams {
++                    text_document: tower_lsp_server::ls_types::TextDocumentItem {
++                        uri,
++                        language_id: "tcl".to_owned(),
++                        version: 1,
++                        text: "set x 1\n".to_owned(),
++                    },
++                }))
++                .await;
+             })
+         };
+ 
+@@ -58271,8 +58277,7 @@ proc p {} {
+             work_done_progress_params: WorkDoneProgressParams::default(),
+             partial_result_params: PartialResultParams::default(),
+         };
+-        let refs = Box::pin(backend
+-            .references(params))
++        let refs = Box::pin(backend.references(params))
+             .await
+             .expect("ok")
+             .expect("some references");
+@@ -58592,8 +58597,9 @@ proc p {} {
+                 .autoload_definition(&app, &format!("{source} "), position, &analysis)
+                 .await
+                 .unwrap()
+-                .len()
+-        , 0);
++                .len(),
++            0
++        );
+         let mut missing = analysis.as_ref().clone();
+         missing.resolved_input = None;
+         assert_eq!(
+@@ -58601,8 +58607,9 @@ proc p {} {
+                 .autoload_definition(&app, source, position, &missing)
+                 .await
+                 .unwrap()
+-                .len()
+-        , 0);
++                .len(),
++            0
++        );
+         assert!(
+             backend
+                 .cross_document_hover(&app, source, position, &missing)
+@@ -58615,8 +58622,9 @@ proc p {} {
+                 .autoload_definition(&app, source, Position::new(0, 17), &analysis)
+                 .await
+                 .unwrap()
+-                .len()
+-        , 0);
++                .len(),
++            0
++        );
+     }
+ 
+     #[tokio::test]
+@@ -61417,16 +61425,15 @@ proc p {} {
+             let backend = Arc::clone(&backend);
+             let uri = uri.clone();
+             async move {
+-                Box::pin(backend
+-                    .did_open(DidOpenTextDocumentParams {
+-                        text_document: tower_lsp_server::ls_types::TextDocumentItem {
+-                            uri,
+-                            language_id: "tcl".to_owned(),
+-                            version: 2,
+-                            text: reopened.to_owned(),
+-                        },
+-                    }))
+-                    .await;
++                Box::pin(backend.did_open(DidOpenTextDocumentParams {
++                    text_document: tower_lsp_server::ls_types::TextDocumentItem {
++                        uri,
++                        language_id: "tcl".to_owned(),
++                        version: 2,
++                        text: reopened.to_owned(),
++                    },
++                }))
++                .await;
+             }
+         });
+         crate::rt::timeout(std::time::Duration::from_secs(5), async {
+@@ -63948,7 +63955,10 @@ proc p {} {
+                 include_declaration: true,
+             },
+         };
+-        let result = Box::pin(backend.references(params)).await.expect("ok").expect("some");
++        let result = Box::pin(backend.references(params))
++            .await
++            .expect("ok")
++            .expect("some");
+         // Declaration (lib:0) + local call (lib:1) + cross-doc
+         // call (consumer:0) = 3 locations across 2 files.
+         assert_eq!(result.len(), 3, "{result:?}");
+@@ -64838,8 +64848,7 @@ proc p {} {
+             work_done_progress_params: WorkDoneProgressParams::default(),
+             partial_result_params: PartialResultParams::default(),
+         };
+-        let refs = Box::pin(backend
+-            .references(params))
++        let refs = Box::pin(backend.references(params))
+             .await
+             .expect("ok")
+             .expect("some references");
+@@ -64873,8 +64882,7 @@ proc p {} {
+             "oo::class create Dog {\n    superclass Animal\n}\nset d [Dog new]\n$d speak\n",
+         )
+         .await;
+-        let defs = Box::pin(backend
+-            .compute_definition(&dog, Position::new(4, 4)))
++        let defs = Box::pin(backend.compute_definition(&dog, Position::new(4, 4)))
+             .await
+             .unwrap();
+         assert_eq!(defs.len(), 1, "{defs:?}");
+@@ -64905,8 +64913,7 @@ proc p {} {
+         )
+         .await;
+         // `$d speak` is on line 4; `speak` starts at column 3.
+-        let defs = Box::pin(backend
+-            .compute_definition(&dog, Position::new(4, 4)))
++        let defs = Box::pin(backend.compute_definition(&dog, Position::new(4, 4)))
+             .await
+             .expect("ok");
+         assert_eq!(defs.len(), 1, "{defs:?}");
+@@ -64938,8 +64945,7 @@ proc p {} {
+         )
+         .await;
+         register(&backend, &main, "set d [Dog new]\n$d speak\n").await;
+-        let defs = Box::pin(backend
+-            .compute_definition(&main, Position::new(1, 4)))
++        let defs = Box::pin(backend.compute_definition(&main, Position::new(1, 4)))
+             .await
+             .expect("ok");
+         assert_eq!(
+@@ -64967,8 +64973,7 @@ proc p {} {
+         )
+         .await;
+         register(&backend, &main, "set v [Vault new]\n$v _secret\n").await;
+-        let defs = Box::pin(backend
+-            .compute_definition(&main, Position::new(1, 5)))
++        let defs = Box::pin(backend.compute_definition(&main, Position::new(1, 5)))
+             .await
+             .expect("ok");
+         assert!(
+@@ -65036,8 +65041,7 @@ proc p {} {
+             work_done_progress_params: WorkDoneProgressParams::default(),
+             partial_result_params: PartialResultParams::default(),
+         };
+-        let refs = Box::pin(backend
+-            .references(params))
++        let refs = Box::pin(backend.references(params))
+             .await
+             .expect("ok")
+             .expect("some references");
+@@ -65058,8 +65062,7 @@ proc p {} {
+         // Go-to-definition on `$a speak` in the pure-consumer main.tcl resolves
+         // `a`'s class cross-file (oracle-aware) and jumps to `Animal::speak`.
+         let (backend, animal, main) = register_consumer_workspace().await;
+-        let defs = Box::pin(backend
+-            .compute_definition(&main, Position::new(1, 4)))
++        let defs = Box::pin(backend.compute_definition(&main, Position::new(1, 4)))
+             .await
+             .expect("ok");
+         assert_eq!(defs.len(), 1, "{defs:?}");
+@@ -66490,16 +66493,15 @@ proc p {} {
+         let backend = test_backend();
+         let uri: Uri = "file:///project/main.tcl".parse().unwrap();
+         let source = "source \"lib/old.tcl\"\n";
+-        Box::pin(backend
+-            .did_open(DidOpenTextDocumentParams {
+-                text_document: tower_lsp_server::ls_types::TextDocumentItem {
+-                    uri: uri.clone(),
+-                    language_id: "tcl".to_owned(),
+-                    version: 17,
+-                    text: source.to_owned(),
+-                },
+-            }))
+-            .await;
++        Box::pin(backend.did_open(DidOpenTextDocumentParams {
++            text_document: tower_lsp_server::ls_types::TextDocumentItem {
++                uri: uri.clone(),
++                language_id: "tcl".to_owned(),
++                version: 17,
++                text: source.to_owned(),
++            },
++        }))
++        .await;
+         let result = backend
+             .will_rename_files(RenameFilesParams {
+                 files: vec![tower_lsp_server::ls_types::FileRename {
+@@ -67423,17 +67425,17 @@ mod retained_class_family_receiver_tests {
+         let itcl_classes = itcl_index.classes_named("::C");
+         let other_classes = other_index.classes_named("::C");
+         assert_eq!(
+-            Backend::classmethod_dispatch_names(&itcl_classes, &[], "make", true, nominal)
+-                .len()
+-        , 0);
++            Backend::classmethod_dispatch_names(&itcl_classes, &[], "make", true, nominal).len(),
++            0
++        );
+         assert_eq!(
+             Backend::classmethod_dispatch_names(&other_classes, &[], "make", true, nominal),
+             vec!["::C".to_owned()]
+         );
+         assert_eq!(
+-            Backend::classmethod_dispatch_names(&other_classes, &[], "make", false, nominal)
+-                .len()
+-        , 0);
++            Backend::classmethod_dispatch_names(&other_classes, &[], "make", false, nominal).len(),
++            0
++        );
+         let mut missing = other;
+         missing.resolved_input = None;
+         let unknown_index = core_workspace_index::WorkspaceIndex::from_documents([(
+@@ -67443,8 +67445,9 @@ mod retained_class_family_receiver_tests {
+         let unknown = unknown_index.classes_named("::C");
+         assert_eq!(unknown[0].definer_family(), None);
+         assert_eq!(
+-            Backend::classmethod_dispatch_names(&unknown, &[], "make", true, nominal).len()
+-        , 0);
++            Backend::classmethod_dispatch_names(&unknown, &[], "make", true, nominal).len(),
++            0
++        );
+     }
+ }
+ 
+@@ -67873,8 +67876,9 @@ mod pack_configuration_input_gate_tests {
+                     },
+                     Vec::new()
+                 )
+-                .len()
+-        , 0);
++                .len(),
++            0
++        );
+         assert_eq!(
+             backend
+                 .diagnostic_publisher
+@@ -67889,8 +67893,9 @@ mod pack_configuration_input_gate_tests {
+                     },
+                     Vec::new()
+                 )
+-                .len()
+-        , 0);
++                .len(),
++            0
++        );
+         let replacement = Arc::new(tcl_spectcl::PackSet::default());
+         assert_eq!(
+             backend
+@@ -67906,8 +67911,9 @@ mod pack_configuration_input_gate_tests {
+                     },
+                     Vec::new()
+                 )
+-                .len()
+-        , 0);
++                .len(),
++            0
++        );
+         let other_registry = backend.registry_for_dialect("tcl9.0").await;
+         assert_eq!(
+             backend
+@@ -67923,8 +67929,9 @@ mod pack_configuration_input_gate_tests {
+                     },
+                     Vec::new()
+                 )
+-                .len()
+-        , 0);
++                .len(),
++            0
++        );
+         std::fs::write(&path, "speclib changed 1.0 {}\n")
+             .expect("change the actual provider source");
+         assert_eq!(
+@@ -67941,8 +67948,9 @@ mod pack_configuration_input_gate_tests {
+                     },
+                     Vec::new()
+                 )
+-                .len()
+-        , 0);
++                .len(),
++            0
++        );
+         std::fs::remove_file(path).expect("remove the temporary pack source");
+     }
+ }
+@@ -68061,8 +68069,9 @@ mod native_cross_document_snapshot_tests {
+                 )
+                 .await
+                 .unwrap()
+-                .len()
+-        , 0);
++                .len(),
++            0
++        );
+     }
+ }
+ 
+@@ -68212,10 +68221,14 @@ mod original_method_final_source_batch_tests {
+         let caller = (uri.clone(), document, generation);
+         let position = Position::new(0, u32::try_from(source.find("member").unwrap()).unwrap());
+         let epoch = backend.diag_inputs_epoch();
+-        let first = Box::pin(backend
+-            .original_method_locations_for_snapshot(caller.clone(), &analysis, position, epoch))
+-            .await
+-            .unwrap();
++        let first = Box::pin(backend.original_method_locations_for_snapshot(
++            caller.clone(),
++            &analysis,
++            position,
++            epoch,
++        ))
++        .await
++        .unwrap();
+         assert!(
+             matches!(first, std::ops::ControlFlow::Break(ref locations) if locations.len() == 1)
+         );
+diff --git a/rust/tcl-lsp-server/src/original_document_metadata_tests.rs b/rust/tcl-lsp-server/src/original_document_metadata_tests.rs
+index 9d70d50a9..d9af11db2 100644
+--- a/rust/tcl-lsp-server/src/original_document_metadata_tests.rs
++++ b/rust/tcl-lsp-server/src/original_document_metadata_tests.rs
+@@ -229,14 +229,16 @@ fn unindexed_tokens_refuse_withdrawn_source_metadata_and_availability() {
+         assert_eq!(
+             unindexed_semantic_tokens_for_range(source, &refused, Some(whole_source_range(source)))
+                 .data
+-                .len()
+-        , 0);
++                .len(),
++            0
++        );
+     }
+     assert_eq!(
+         unindexed_semantic_tokens("metadata_read changed", &analysis)
+             .data
+-            .len()
+-    , 0);
++            .len(),
++        0
++    );
+ }
+ 
+ #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+@@ -981,12 +983,9 @@ async fn document_symbols_keep_the_resource_input_and_withdraw_unavailable_overl
+                 && symbol.kind == CoreSymbolKind::Function)
+     );
+     assert_eq!(
+-        backend
+-            .db_document_symbols(&sibling)
+-            .await
+-            .unwrap()
+-            .len()
+-    , 0);
++        backend.db_document_symbols(&sibling).await.unwrap().len(),
++        0
++    );
+ 
+     backend
+         .db_set_source(&uri, "proc edited_outline {} {}", "tcl".to_owned())
+diff --git a/rust/tcl-lsp-server/src/original_document_path_admission_tests.rs b/rust/tcl-lsp-server/src/original_document_path_admission_tests.rs
+index 89a46fe2f..fe7d8df5a 100644
+--- a/rust/tcl-lsp-server/src/original_document_path_admission_tests.rs
++++ b/rust/tcl-lsp-server/src/original_document_path_admission_tests.rs
+@@ -104,9 +104,7 @@ async fn refused_open_and_unknown_change_publish_no_document_source_or_index() {
+         "file:///open%2Fsplit.tcl",
+     ] {
+         let target = uri(raw);
+-        Box::pin(backend
+-            .did_open(opened(&target, "proc rejected {} {}")))
+-            .await;
++        Box::pin(backend.did_open(opened(&target, "proc rejected {} {}"))).await;
+         backend
+             .did_change(changed(&target, "proc changed_rejected {} {}"))
+             .await;
+@@ -731,9 +729,7 @@ async fn opening_waiting_for_index_cannot_retire_after_mapping_withdrawal() {
+     let worker_backend = Arc::clone(&backend);
+     let worker_target = target.clone();
+     let opening = tokio::spawn(async move {
+-        Box::pin(worker_backend
+-            .did_open(opened(&worker_target, "set new_open 1")))
+-            .await;
++        Box::pin(worker_backend.did_open(opened(&worker_target, "set new_open 1"))).await;
+     });
+     tokio::time::timeout(std::time::Duration::from_secs(180), async {
+         loop {
+diff --git a/rust/tcl-lsp-server/src/original_workspace_diagnostics_tests.rs b/rust/tcl-lsp-server/src/original_workspace_diagnostics_tests.rs
+index 977e15e21..82322921d 100644
+--- a/rust/tcl-lsp-server/src/original_workspace_diagnostics_tests.rs
++++ b/rust/tcl-lsp-server/src/original_workspace_diagnostics_tests.rs
+@@ -192,7 +192,10 @@ fn original_workspace_diagnostics_keep_current_source_advice_after_foreign_repor
+     assert!(!identity.is_current("file:///caller.tcl", source, &changed));
+     assert!(!identity.is_current("file:///caller.tcl", "proc retained {} {}", &analysis));
+     // Missing current source ownership cannot enable reporting compatibility.
+-    assert_eq!(cross_file_arity_diagnostics(&changed, &reporting, |_| false).len(), 0);
++    assert_eq!(
++        cross_file_arity_diagnostics(&changed, &reporting, |_| false).len(),
++        0
++    );
+     assert_eq!(
+         refine_workspace_index_w123(
+             vec![original.clone()],
+@@ -241,8 +244,9 @@ fn explicit_lexical_workspace_diagnostics_retain_their_compatibility_behaviour()
+         tcl_compiler::analyser::Severity::Hint,
+     );
+     assert_eq!(
+-        refine_workspace_index_w123(vec![diagnostic], &analysis, None, &calls, false).len()
+-    , 0);
++        refine_workspace_index_w123(vec![diagnostic], &analysis, None, &calls, false).len(),
++        0
++    );
+ }
+ 
+ fn reporting_analysis_with_input(
+diff --git a/rust/tcl-lsp-server/src/provider_source/tests.rs b/rust/tcl-lsp-server/src/provider_source/tests.rs
+index fc46cf069..c47bc7a82 100644
+--- a/rust/tcl-lsp-server/src/provider_source/tests.rs
++++ b/rust/tcl-lsp-server/src/provider_source/tests.rs
+@@ -226,7 +226,10 @@ async fn disk_package_providers_keep_source_dialect_and_refuse_uncaptured_paths(
+         tcl_lsp_core::profile_for_dialect("tcl9.0")
+     );
+     assert!(current.analysis.all_procs.contains_key("::provided"));
+-    assert_ne!(defined_original_commands_from_analysis(&current.text, &current.analysis).len(), 0);
++    assert_ne!(
++        defined_original_commands_from_analysis(&current.text, &current.analysis).len(),
++        0
++    );
+     assert!(matches!(
+         supplied.inventory(
+             Path::new("/library/absent.tcl"),
+diff --git a/rust/tcl-lsp-server/src/readonly_reference_reports.rs b/rust/tcl-lsp-server/src/readonly_reference_reports.rs
+index 565c4e0ad..4832550a3 100644
+--- a/rust/tcl-lsp-server/src/readonly_reference_reports.rs
++++ b/rust/tcl-lsp-server/src/readonly_reference_reports.rs
+@@ -2256,8 +2256,9 @@ mod tests {
+                 .original_declaration_reference_locations(&identity, &uri, false)
+                 .await
+                 .unwrap()
+-                .len()
+-        , 0);
++                .len(),
++            0
++        );
+         let lenses = backend
+             .code_lens(CodeLensParams {
+                 text_document: TextDocumentIdentifier { uri: uri.clone() },
+@@ -2541,8 +2542,9 @@ mod logical_hierarchy_tests {
+                 .await
+                 .unwrap()
+                 .unwrap()
+-                .len()
+-        , 0);
++                .len(),
++            0
++        );
+         let mut foreign = item.clone();
+         foreign.uri = base.clone();
+         assert_eq!(
+@@ -2551,8 +2553,9 @@ mod logical_hierarchy_tests {
+                 .await
+                 .unwrap()
+                 .unwrap()
+-                .len()
+-        , 0);
++                .len(),
++            0
++        );
+         register(&backend, &child, &format!("{child_source}\n# changed")).await;
+         assert_eq!(
+             backend
+@@ -2560,8 +2563,9 @@ mod logical_hierarchy_tests {
+                 .await
+                 .unwrap()
+                 .unwrap()
+-                .len()
+-        , 0);
++                .len(),
++            0
++        );
+     }
+ 
+     #[tokio::test]
+@@ -2624,8 +2628,9 @@ mod logical_hierarchy_tests {
+                 .finish_logical_hierarchy_items(&documents, &items, epoch, generation)
+                 .await
+                 .unwrap()
+-                .len()
+-        , 0);
++                .len(),
++            0
++        );
+     }
+ }
+ 
+@@ -2700,8 +2705,9 @@ mod conditional_navigation_publication_tests {
+                 .finish_logical_hierarchy_advice(&[document], &advice, epoch, generation)
+                 .await
+                 .unwrap()
+-                .len()
+-        , 0);
++                .len(),
++            0
++        );
+     }
+ 
+     #[tokio::test]
+@@ -2821,12 +2827,18 @@ mod logical_call_wire_tests {
+         item.range = Range::default();
+         item.selection_range = Range::default();
+         let params = serde_json::from_value(serde_json::json!({"item":item})).unwrap();
+-        let incoming = Box::pin(backend.incoming_calls(params)).await.unwrap().unwrap();
++        let incoming = Box::pin(backend.incoming_calls(params))
++            .await
++            .unwrap()
++            .unwrap();
+         assert_eq!(incoming.len(), 1);
+         assert_eq!(incoming[0].from.uri, caller);
+         assert_eq!(incoming[0].from.name, "::caller");
+         let params = serde_json::from_value(serde_json::json!({"item":incoming[0].from})).unwrap();
+-        let outgoing = Box::pin(backend.outgoing_calls(params)).await.unwrap().unwrap();
++        let outgoing = Box::pin(backend.outgoing_calls(params))
++            .await
++            .unwrap()
++            .unwrap();
+         assert_eq!(outgoing.len(), 1);
+         assert_eq!(outgoing[0].to.uri, target);
+         assert!(outgoing[0].to.data.is_some());
+@@ -3282,19 +3294,37 @@ mod logical_call_backend_session_tests {
+         for (backend, item) in [(&first, &old), (&second, &current)] {
+             let params = serde_json::from_value(serde_json::json!({"item":item})).unwrap();
+             assert_eq!(
+-                Box::pin(backend.incoming_calls(params)).await.unwrap().unwrap().len(),
++                Box::pin(backend.incoming_calls(params))
++                    .await
++                    .unwrap()
++                    .unwrap()
++                    .len(),
+                 1
+             );
+             let params = serde_json::from_value(serde_json::json!({"item":item})).unwrap();
+             assert_eq!(
+-                Box::pin(backend.outgoing_calls(params)).await.unwrap().unwrap().len(),
++                Box::pin(backend.outgoing_calls(params))
++                    .await
++                    .unwrap()
++                    .unwrap()
++                    .len(),
+                 1
+             );
+         }
+         let params = serde_json::from_value(serde_json::json!({"item":old})).unwrap();
+-        assert!(Box::pin(second.incoming_calls(params)).await.unwrap().is_none());
++        assert!(
++            Box::pin(second.incoming_calls(params))
++                .await
++                .unwrap()
++                .is_none()
++        );
+         let params = serde_json::from_value(serde_json::json!({"item":old})).unwrap();
+-        assert!(Box::pin(second.outgoing_calls(params)).await.unwrap().is_none());
++        assert!(
++            Box::pin(second.outgoing_calls(params))
++                .await
++                .unwrap()
++                .is_none()
++        );
+     }
+ }
+ 
+diff --git a/rust/tcl-registry/src/commands/tcl/package_.rs b/rust/tcl-registry/src/commands/tcl/package_.rs
+index 9f7193ace..d4dee6bd0 100644
+--- a/rust/tcl-registry/src/commands/tcl/package_.rs
++++ b/rust/tcl-registry/src/commands/tcl/package_.rs
+@@ -957,8 +957,9 @@ mod tests {
+                     .declared()
+                     .expect("declared package transitions")
+                     .facts()
+-                    .len()
+-            , 0);
++                    .len(),
++                0
++            );
+         }
+         let facts = registry
+             .resolve_invocation("package", &["ifneeded", "p", "1", "set ::loaded 1"], None)
+@@ -1082,8 +1083,9 @@ mod tests {
+                     .declared()
+                     .expect("declared package transitions")
+                     .facts()
+-                    .len()
+-            , 0);
++                    .len(),
++                0
++            );
+         }
+     }
+ 
+diff --git a/rust/tcl-registry/src/commands/tcl/string_.rs b/rust/tcl-registry/src/commands/tcl/string_.rs
+index c1fee4117..f88669d99 100644
+--- a/rust/tcl-registry/src/commands/tcl/string_.rs
++++ b/rust/tcl-registry/src/commands/tcl/string_.rs
+@@ -1072,7 +1072,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
+         native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+             grammar: crate::native_compilation::NativeCompilationGrammar::StringOperand {
+                 scope: crate::native_scalar_compilation::NativeScalarScope::PublicMember,
+-                operation: crate::native_string_operand_compilation::NativeStringOperandOperation::Cat,
++                operation:
++                    crate::native_string_operand_compilation::NativeStringOperandOperation::Cat,
+             },
+             operation: SemanticOperationId::Invoke,
+             body: crate::native_compilation::NativeBodyCompilation::Inherit,
+diff --git a/rust/tcl-registry/src/commands/tcllib/mod.rs b/rust/tcl-registry/src/commands/tcllib/mod.rs
+index 4634f1e01..512fd1079 100644
+--- a/rust/tcl-registry/src/commands/tcllib/mod.rs
++++ b/rust/tcl-registry/src/commands/tcllib/mod.rs
+@@ -1017,7 +1017,8 @@ mod tests {
+         );
+         assert_eq!(
+             reg.arg_indices_for_role("control::do", &one, ArgRole::Keyword)
+-                .len(), 0,
++                .len(),
++            0,
+         );
+         // malformed two-word form (`body` + lone option): no keyword role.
+         let two = ["{body}", "while"];
+@@ -1028,7 +1029,8 @@ mod tests {
+         );
+         assert_eq!(
+             reg.arg_indices_for_role("control::do", &two, ArgRole::Expr)
+-                .len(), 0,
++                .len(),
++            0,
+         );
+     }
+ 
+diff --git a/rust/tcl-registry/src/commands/tk/ttk__treeview.rs b/rust/tcl-registry/src/commands/tk/ttk__treeview.rs
+index fb32a2e16..b5ee6bda7 100644
+--- a/rust/tcl-registry/src/commands/tk/ttk__treeview.rs
++++ b/rust/tcl-registry/src/commands/tk/ttk__treeview.rs
+@@ -1702,7 +1702,10 @@ mod tests {
+             vec![(3, ArgRole::Body)],
+             "unique-prefix tag bind is executable too"
+         );
+-        assert_eq!(tag.arg_role_resolver.unwrap()(&["bind", "warning", "<Button-1>"]).len(), 0);
++        assert_eq!(
++            tag.arg_role_resolver.unwrap()(&["bind", "warning", "<Button-1>"]).len(),
++            0
++        );
+         let scope = tag.option_scope(Some("configure"), None, Some("9.1"), spec().surface);
+         assert_eq!(scope.sub_subcommand, Some("configure"));
+         assert!(
+diff --git a/rust/tcl-registry/src/definer.rs b/rust/tcl-registry/src/definer.rs
+index c0056489b..dfdb56855 100644
+--- a/rust/tcl-registry/src/definer.rs
++++ b/rust/tcl-registry/src/definer.rs
+@@ -6136,8 +6136,9 @@ mod tests {
+         assert_eq!(
+             grammar
+                 .member_arg_indices_for_role_in("property", &args, query, ArgRole::ParamList)
+-                .len()
+-        , 0);
++                .len(),
++            0
++        );
+     }
+ 
+     #[test]
+diff --git a/rust/tcl-registry/src/events.rs b/rust/tcl-registry/src/events.rs
+index c764d23b2..50e66f38d 100644
+--- a/rust/tcl-registry/src/events.rs
++++ b/rust/tcl-registry/src/events.rs
+@@ -5049,8 +5049,9 @@ mod original_event_source_config_tests {
+                 SourceSegmentationPurpose::NestedScript,
+                 &WrittenHeadResolver,
+             )
+-            .len()
+-        , 0);
++            .len(),
++            0
++        );
+         assert_eq!(
+             top_level_when_handlers_with_source_config_and_head_resolver(
+                 source,
+@@ -5059,8 +5060,9 @@ mod original_event_source_config_tests {
+                 SourceSegmentationPurpose::WholeInput,
+                 &WrittenHeadResolver,
+             )
+-            .len()
+-        , 0);
++            .len(),
++            0
++        );
+         assert_eq!(parent.leading_bom, tcl_lexer::LeadingBom::Skip);
+ 
+         let source = "\u{feff}priority 730\nwhen HTTP_REQUEST {}";
+diff --git a/rust/tcl-registry/src/native_compilation.rs b/rust/tcl-registry/src/native_compilation.rs
+index cc20833ad..730bb4679 100644
+--- a/rust/tcl-registry/src/native_compilation.rs
++++ b/rust/tcl-registry/src/native_compilation.rs
+@@ -8300,8 +8300,9 @@ mod tests {
+         assert_eq!(
+             crate::CommandRegistry::build_default()
+                 .native_compiler_implementation_slots(jim)
+-                .len()
+-        , 0);
++                .len(),
++            0
++        );
+     }
+ 
+     #[test]
+diff --git a/rust/tcl-registry/src/native_expression_program.rs b/rust/tcl-registry/src/native_expression_program.rs
+index 09f4fac8f..904c814cf 100644
+--- a/rust/tcl-registry/src/native_expression_program.rs
++++ b/rust/tcl-registry/src/native_expression_program.rs
+@@ -1254,7 +1254,8 @@ mod tests {
+         assert_eq!(
+             modern
+                 .compiler_steps(|_| panic!("modern compiler has no fixed table lookup"))
+-                .len()
+-        , 0);
++                .len(),
++            0
++        );
+     }
+ }
+diff --git a/rust/tcl-registry/src/registry.rs b/rust/tcl-registry/src/registry.rs
+index 68e2f412b..4c1bf33c7 100644
+--- a/rust/tcl-registry/src/registry.rs
++++ b/rust/tcl-registry/src/registry.rs
+@@ -10914,8 +10914,9 @@ mod tests {
+         // Fully supplied leaves none.
+         assert_eq!(
+             reg.unfilled_trailing_roles("catch", &["{body}", "res", "opts"])
+-                .len()
+-        , 0);
++                .len(),
++            0
++        );
+     }
+ 
+     #[test]
+@@ -10971,10 +10972,7 @@ mod tests {
+     #[test]
+     fn unfilled_trailing_roles_is_empty_for_an_unknown_command() {
+         let reg = CommandRegistry::build_default();
+-        assert_eq!(
+-            reg.unfilled_trailing_roles("no_such_command", &[])
+-                .len()
+-        , 0);
++        assert_eq!(reg.unfilled_trailing_roles("no_such_command", &[]).len(), 0);
+     }
+ 
+     #[test]
+@@ -12251,8 +12249,9 @@ mod tests {
+         // literal level must not be mis-tagged as a script.
+         assert_eq!(
+             reg.arg_indices_for_role("uplevel", &["1"], ArgRole::Body)
+-                .len()
+-        , 0);
++                .len(),
++            0
++        );
+     }
+ 
+     #[test]
+@@ -12713,16 +12712,18 @@ mod tests {
+                     "mutated-pattern-format-owner",
+                     InvocationArguments::structured(&dynamic),
+                 )
+-                .len()
+-        , 0);
++                .len(),
++            0
++        );
+         assert_eq!(
+             registry
+                 .format_string_args_words(
+                     "mutated-pattern-format-owner",
+                     InvocationArguments::structured(&dynamic),
+                 )
+-                .len()
+-        , 0);
++                .len(),
++            0
++        );
+ 
+         let fixed = [
+             InvocationWord::Literal("-skip"),
+@@ -12790,8 +12791,9 @@ mod tests {
+         );
+         assert_eq!(
+             reg.pattern_args("lsearch", &["-exact", "{a b}", "a+"])
+-                .len()
+-        , 0);
++                .len(),
++            0
++        );
+     }
+ 
+     #[test]
+@@ -15400,12 +15402,14 @@ mod tests {
+         );
+         assert_eq!(
+             reg.arg_indices_evaluated_in_frame("lindex", &["$x", "0"])
+-                .len()
+-        , 0);
++                .len(),
++            0
++        );
+         assert_eq!(
+             reg.arg_indices_evaluated_in_frame("apply", &["{{} {puts $x}}"])
+-                .len()
+-        , 0);
++                .len(),
++            0
++        );
+     }
+ 
+     /// `unset -nocomplain -- a b` skips the leading options and names only the
+@@ -19117,7 +19121,8 @@ mod tests {
+         assert_eq!(
+             switch
+                 .arg_indices_for_role("switch", &["$subject", "$cases"], ArgRole::Body)
+-                .len(), 0,
++                .len(),
++            0,
+         );
+     }
+ 
+diff --git a/rust/tcl-registry/src/resolved_invocation.rs b/rust/tcl-registry/src/resolved_invocation.rs
+index 27465f661..4e1a163f7 100644
+--- a/rust/tcl-registry/src/resolved_invocation.rs
++++ b/rust/tcl-registry/src/resolved_invocation.rs
+@@ -9330,13 +9330,9 @@ mod tests {
+                 .all(|access| access.domain == WorldStateDomain::InterpreterResult)
+         );
+         assert_eq!(
+-            normal
+-                .state_transitions
+-                .declared()
+-                .unwrap()
+-                .facts()
+-                .len()
+-        , 0);
++            normal.state_transitions.declared().unwrap().facts().len(),
++            0
++        );
+         let dynamic = [
+             crate::InvocationWord::Literal("format"),
+             crate::InvocationWord::Literal("a*"),
+@@ -10447,8 +10443,9 @@ mod tests {
+                 .declared()
+                 .expect("interp alias declares transitions")
+                 .facts()
+-                .len()
+-        , 0);
++                .len(),
++            0
++        );
+ 
+         let delete = registry
+             .resolve_invocation(
+@@ -12737,8 +12734,9 @@ mod logical_source_alias_projection_tests {
+                 .authored_logical_source_state_transitions()
+                 .unwrap()
+                 .facts()
+-                .len()
+-        , 0);
++                .len(),
++            0
++        );
+         assert_eq!(schema.state_transitions().facts().len(), 0);
+     }
+     #[test]
+diff --git a/rust/tcl-registry/src/source_file.rs b/rust/tcl-registry/src/source_file.rs
+index cb268d4d0..71f0f463d 100644
+--- a/rust/tcl-registry/src/source_file.rs
++++ b/rust/tcl-registry/src/source_file.rs
+@@ -333,8 +333,9 @@ mod tests {
+                 SOURCE_TRANSITIONS
+                     .resolve(InvocationArguments::structured(words))
+                     .facts()
+-                    .len()
+-            , 0);
++                    .len(),
++                0
++            );
+         }
+     }
+ 
+diff --git a/rust/tcl-registry/src/spec.rs b/rust/tcl-registry/src/spec.rs
+index 9d5bd7fc2..07bc29cdf 100644
+--- a/rust/tcl-registry/src/spec.rs
++++ b/rust/tcl-registry/src/spec.rs
+@@ -5650,8 +5650,9 @@ mod tests {
+                 Some(SurfaceQuery::core(Family::Tcl, "9.0")),
+                 Some("3.0")
+             )
+-            .len()
+-        , 0);
++            .len(),
++            0
++        );
+         // Retirement is exclusive, so 2.9 still documents it.
+         assert_eq!(
+             spec.primary_synopsis(Some("2.9")),
+diff --git a/rust/tcl-registry/src/state_transition.rs b/rust/tcl-registry/src/state_transition.rs
+index 8858306f5..b377703ff 100644
+--- a/rust/tcl-registry/src/state_transition.rs
++++ b/rust/tcl-registry/src/state_transition.rs
+@@ -3194,8 +3194,9 @@ mod tests {
+             replaced
+                 .resolve_logical_source_frame_aliases(arguments)
+                 .facts()
+-                .len()
+-        , 0);
++                .len(),
++            0
++        );
+     }
+ 
+     /// The alias facts a `from-frame-effect` resolver derives, and its two
+@@ -3314,8 +3315,9 @@ mod tests {
+                 &[InvocationWord::Expanded, InvocationWord::Literal("b")]
+             )
+             .facts()
+-            .len()
+-        , 0);
++            .len(),
++            0
++        );
+     }
+ 
+     /// Counted operands remain byte values in the shared alias projection.
+diff --git a/rust/tcl-registry/src/taint.rs b/rust/tcl-registry/src/taint.rs
+index 84859c1f6..c07c495b5 100644
+--- a/rust/tcl-registry/src/taint.rs
++++ b/rust/tcl-registry/src/taint.rs
+@@ -1386,8 +1386,9 @@ y"}"#,
+                 v91,
+                 &["-matchvar", "-integer", "-regexp", "--", "$x", "1 a"]
+             )
+-            .len()
+-        , 0);
++            .len(),
++            0
++        );
+         // C rejects these before reading any operand.
+         for args in [
+             &["-integer", "-regexp", "$x", "1 a"][..],
+diff --git a/rust/tcl-registry/tests/name_lookup_issue_witnesses.rs b/rust/tcl-registry/tests/name_lookup_issue_witnesses.rs
+index d7a3e2507..26b4767cf 100644
+--- a/rust/tcl-registry/tests/name_lookup_issue_witnesses.rs
++++ b/rust/tcl-registry/tests/name_lookup_issue_witnesses.rs
+@@ -90,13 +90,16 @@ fn tcllib_join_and_split_outputs_share_variable_name_roles() {
+         ),
+         [3, 4]
+     );
+-    assert_eq!(registry
++    assert_eq!(
++        registry
+             .arg_indices_for_role(
+                 "struct::list",
+                 &["split", "values", "predicate"],
+                 ArgRole::VarWrite
+             )
+-            .len(), 0);
++            .len(),
++        0
++    );
+ }
+ 
+ #[test]
+diff --git a/rust/tcl-registry/tests/registry_commands.rs b/rust/tcl-registry/tests/registry_commands.rs
+index 90224f831..07ffc6209 100644
+--- a/rust/tcl-registry/tests/registry_commands.rs
++++ b/rust/tcl-registry/tests/registry_commands.rs
+@@ -566,8 +566,11 @@ fn unknown_event_is_illegal_for_all() {
+         &events,
+         &profiles
+     ));
+-    assert_eq!(reg.valid_irules_commands_for_event("TOTALLY_FAKE_EVENT", &events, &profiles, None)
+-            .len(), 0);
++    assert_eq!(
++        reg.valid_irules_commands_for_event("TOTALLY_FAKE_EVENT", &events, &profiles, None)
++            .len(),
++        0
++    );
+ }
+ 
+ /// The HTTP2 family is legal in `HTTP_REQUEST` and in the message-routing
+diff --git a/rust/tcl-registry/tests/registry_sweep.rs b/rust/tcl-registry/tests/registry_sweep.rs
+index 5b5f99331..ec9f2bc86 100644
+--- a/rust/tcl-registry/tests/registry_sweep.rs
++++ b/rust/tcl-registry/tests/registry_sweep.rs
+@@ -1886,10 +1886,12 @@ fn bigip_lookup_misses_are_graceful() {
+     assert!(reg.get_by_header("nope", "nope").is_none());
+     assert!(reg.kind_for_header("nope", "nope").is_none());
+     assert_eq!(reg.candidate_registry_kinds_for_display("").len(), 0);
+-    assert_eq!(reg.candidate_kinds_for_key("k", None, None, None)
+-            .len(), 0);
+-    assert_eq!(reg.candidate_kinds_for_section_item("s", Some("nope"), Some("nope"))
+-            .len(), 0);
++    assert_eq!(reg.candidate_kinds_for_key("k", None, None, None).len(), 0);
++    assert_eq!(
++        reg.candidate_kinds_for_section_item("s", Some("nope"), Some("nope"))
++            .len(),
++        0
++    );
+ }
+ 
+ // SWEEP 3 — iRules event ⇄ command cross-product accessors over the corpus.
+@@ -1979,8 +1981,11 @@ fn sweep_event_command_legality_consistent() {
+     }
+ 
+     // An unknown event is illegal for everything and yields an empty listing.
+-    assert_eq!(reg.valid_irules_commands_for_event("__FAKE__", &events, &profiles, None)
+-            .len(), 0);
++    assert_eq!(
++        reg.valid_irules_commands_for_event("__FAKE__", &events, &profiles, None)
++            .len(),
++        0
++    );
+     let unknown = reg.event_info("__fake__", &events, &profiles, None);
+     assert!(!unknown.known);
+     assert_eq!(unknown.side, "unknown");
+diff --git a/rust/tcl-registry/tests/spectcl_pack.rs b/rust/tcl-registry/tests/spectcl_pack.rs
+index 17f6e2962..de1697dff 100644
+--- a/rust/tcl-registry/tests/spectcl_pack.rs
++++ b/rust/tcl-registry/tests/spectcl_pack.rs
+@@ -248,8 +248,11 @@ fn object_class_finds_its_block_past_any_flags() {
+         );
+     }
+     // A bare reference form (`object_class NAME`) claims no block at all.
+-    assert_eq!(reg.arg_indices_for_role("object_class", &["Resistor"], ArgRole::Body)
+-            .len(), 0);
++    assert_eq!(
++        reg.arg_indices_for_role("object_class", &["Resistor"], ArgRole::Body)
++            .len(),
++        0
++    );
+     // …and it is deliberately not a *member row* of the command grammar: a
+     // member layout cannot express two optional flags of different widths, so
+     // it would have painted `-superclass`'s braced class list as a block. The
+diff --git a/rust/tcl-spectcl/src/install.rs b/rust/tcl-spectcl/src/install.rs
+index 5713ae686..8284dfafe 100644
+--- a/rust/tcl-spectcl/src/install.rs
++++ b/rust/tcl-spectcl/src/install.rs
+@@ -247,7 +247,9 @@ fn added_command_compiler(
+     if let Some(target) = added.alias_of
+         && crate::stamps::carries_stamp(added)
+     {
+-        return registry.get(target).and_then(|target| target.native_compilation);
++        return registry
++            .get(target)
++            .and_then(|target| target.native_compilation);
+     }
+     Some(tcl_registry::native_compilation::NativeCompilationSpec {
+         grammar: tcl_registry::native_compilation::NativeCompilationGrammar::NoHook,
+@@ -461,7 +463,10 @@ mod tests {
+         let set = crate::bundled::load_from(&specs);
+         let registry = crate::bundled::registry_for_dialect_from("tcl9.0", &set);
+         let unpack = registry.get("vendor::unpack").expect("installed");
+-        assert!(unpack.codegen_hook.is_some(), "the bundled stamp is admitted");
++        assert!(
++            unpack.codegen_hook.is_some(),
++            "the bundled stamp is admitted"
++        );
+         assert_eq!(
+             unpack.native_compilation,
+             registry.get("lassign").unwrap().native_compilation
+diff --git a/rust/xtask/src/command_backing.rs b/rust/xtask/src/command_backing.rs
+index 372776732..275ef58f6 100644
+--- a/rust/xtask/src/command_backing.rs
++++ b/rust/xtask/src/command_backing.rs
+@@ -750,9 +750,12 @@ mod tests {
+         let (arms, arities) = scan_file_surface(&root).expect("scan file runtime surface");
+         assert!(arms.contains("atime"));
+         assert_eq!(arities.get("stat"), Some(&(1, 2)));
+-        assert_eq!(file_fidelity_errors(&root)
++        assert_eq!(
++            file_fidelity_errors(&root)
+                 .expect("compare file runtime surface")
+-                .len(), 0);
++                .len(),
++            0
++        );
+     }
+ 
+     #[test]
+diff --git a/rust/xtask/src/dialect_drift.rs b/rust/xtask/src/dialect_drift.rs
+index babfd1f6d..b13419897 100644
+--- a/rust/xtask/src/dialect_drift.rs
++++ b/rust/xtask/src/dialect_drift.rs
+@@ -532,8 +532,14 @@ mod tests {
+     #[test]
+     fn an_ambient_expression_parse_is_a_hit_and_a_profile_one_is_not() {
+         assert_eq!(scan(REL, "let e = parse_expr(text, None);\n").len(), 1);
+-        assert_eq!(scan(REL, "let e = parse_expr(text, Some(profile.name));\n").len(), 0);
+-        assert_eq!(scan(REL, "let e = parse_expr_for_profile(text, profile);\n").len(), 0);
++        assert_eq!(
++            scan(REL, "let e = parse_expr(text, Some(profile.name));\n").len(),
++            0
++        );
++        assert_eq!(
++            scan(REL, "let e = parse_expr_for_profile(text, profile);\n").len(),
++            0
++        );
+         assert_eq!(scan(REL, "let g = LexerGrammar::default();\n").len(), 1);
+         assert_eq!(
+             scan(REL, "let c = LexerConfig::for_profile(None);\n").len(),
+@@ -546,20 +552,29 @@ mod tests {
+         let src = "use crate::cfg_builder::build_cfg;\nlet m = build_cfg(&module);\n";
+         assert_eq!(scan(REL, src).len(), 1);
+         // A different `build_cfg` (a local view builder) is not the entry.
+-        assert_eq!(scan(
++        assert_eq!(
++            scan(
+                 REL,
+                 "fn build_cfg(v: &[Value]) {}\nlet n = build_cfg(data);\n"
+             )
+-            .len(), 0);
++            .len(),
++            0
++        );
+         // The tail of a longer identifier is not the entry either.
+-        assert_eq!(scan(
++        assert_eq!(
++            scan(
+                 REL,
+                 "use crate::cfg_builder::build_cfg;\nlower_and_build_cfg(src, o);\n"
+             )
+-            .len(), 0);
++            .len(),
++            0
++        );
+         assert_eq!(scan(REL, "let m = build_cfg(&module);\n").len(), 0);
+         assert_eq!(scan(CFG_OWNER, "let m = build_cfg(&module);\n").len(), 0);
+-        assert_eq!(scan(REL, "let m = build_cfg_with_config(&module, cfg);\n").len(), 0);
++        assert_eq!(
++            scan(REL, "let m = build_cfg_with_config(&module, cfg);\n").len(),
++            0
++        );
+     }
+ 
+     #[test]
+@@ -598,11 +613,14 @@ mod tests {
+ 
+     #[test]
+     fn a_fixed_literal_name_is_an_ingress_but_a_name_variable_is_a_hit() {
+-        assert_eq!(scan(
++        assert_eq!(
++            scan(
+                 REL,
+                 "let c = LexerConfig::for_file_dialect(\"f5-irules\");\n"
+             )
+-            .len(), 0);
++            .len(),
++            0
++        );
+         assert_eq!(
+             scan(REL, "let c = LexerConfig::for_dialect(profile.name);\n").len(),
+             1
+@@ -622,11 +640,14 @@ mod tests {
+         let src = "for c in segment_commands(source) {}\n";
+         assert_eq!(scan(REL, src).len(), 1);
+         assert_eq!(scan("rust/tcl-compiler/src/segmenter.rs", src).len(), 0);
+-        assert_eq!(scan(
++        assert_eq!(
++            scan(
+                 REL,
+                 "for c in segment_commands_with_offset_and_config(s, 0, cfg) {}\n"
+             )
+-            .len(), 0);
++            .len(),
++            0
++        );
+     }
+ 
+     #[test]
+diff --git a/rust/xtask/src/number_drift.rs b/rust/xtask/src/number_drift.rs
+index 5561b083d..b1ece6c4d 100644
+--- a/rust/xtask/src/number_drift.rs
++++ b/rust/xtask/src/number_drift.rs
+@@ -548,7 +548,10 @@ mod tests {
+ 
+     #[test]
+     fn expression_boundary_owner_is_unique_and_consumed() {
+-        assert_eq!(expr_boundary_owner_problems(&crate::util::repo_root()).len(), 0);
++        assert_eq!(
++            expr_boundary_owner_problems(&crate::util::repo_root()).len(),
++            0
++        );
+     }
+ 
+     #[test]
+diff --git a/rust/xtask/src/owner_resolution.rs b/rust/xtask/src/owner_resolution.rs
+index dca0993d3..2939ee718 100644
+--- a/rust/xtask/src/owner_resolution.rs
++++ b/rust/xtask/src/owner_resolution.rs
+@@ -2588,7 +2588,8 @@ mod tests {
+ 
+     #[test]
+     fn the_editor_catalog_gate_resolves_to_its_dispatch_arm() {
+-        let main = "        Command::GenEditorCatalogs { check } => gen_editor_catalogs::run(check),\n";
++        let main =
++            "        Command::GenEditorCatalogs { check } => gen_editor_catalogs::run(check),\n";
+         assert!(xtask_dispatches(main, "gen-editor-catalogs"));
+         assert!(!xtask_dispatches(main, "gen-editor-extensions"));
+     }
+@@ -2842,7 +2843,10 @@ mod tests {
+             "`split_list`",
+             "`check-name-resolution-proofs`",
+         );
+-        assert_eq!(validate_manifest(&root, &contract, &makefile, &main).len(), 0);
++        assert_eq!(
++            validate_manifest(&root, &contract, &makefile, &main).len(),
++            0
++        );
+         assert!(!naming_proof_gate_is_current(
+             &root.join(MAKEFILE_PATH),
+             &makefile
+@@ -2953,8 +2957,9 @@ mod tests {
+     #[test]
+     fn counted_name_facade_inventory_uses_shared_purpose_owners() {
+         let root = crate::util::repo_root();
+-        assert_eq!(validate_counted_name_facade_consumers(&root)
+-                .unwrap()
+-                .len(), 0);
++        assert_eq!(
++            validate_counted_name_facade_consumers(&root).unwrap().len(),
++            0
++        );
+     }
+ }
+diff --git a/rust/xtask/src/registry_axes.rs b/rust/xtask/src/registry_axes.rs
+index 8bc92f95d..5004f9cf9 100644
+--- a/rust/xtask/src/registry_axes.rs
++++ b/rust/xtask/src/registry_axes.rs
+@@ -1403,12 +1403,15 @@ mod tests {
+                 .any(|v| v.contains("gone.rs` has 0") && v.contains("lower the pin"))
+         );
+         assert!(verdicts.iter().any(|v| v.contains("held clean")));
+-        assert_eq!(ratchet_verdicts(
++        assert_eq!(
++            ratchet_verdicts(
+                 &lint_with(&[("rust/x/a.rs", 2)]),
+                 &[("rust/x/a.rs", 2)],
+                 &[]
+             )
+-            .len(), 0);
++            .len(),
++            0
++        );
+     }
+ 
+     #[test]
+diff --git a/rust/xtask/src/retired_api_gate.rs b/rust/xtask/src/retired_api_gate.rs
+index f8904d144..2637fb0eb 100644
+--- a/rust/xtask/src/retired_api_gate.rs
++++ b/rust/xtask/src/retired_api_gate.rs
+@@ -842,11 +842,14 @@ mod tests {
+     #[test]
+     fn owned_answers_are_free_in_their_owner() {
+         let line = "let names = self.builtin_command_names();\n";
+-        assert_eq!(scan_owned(
++        assert_eq!(
++            scan_owned(
+                 line,
+                 Path::new("rust/tcl-compiler/src/analyser/diagnostics/unresolved.rs")
+             )
+-            .len(), 0);
++            .len(),
++            0
++        );
+         assert_eq!(
+             scan_owned(line, Path::new("rust/tcl-lsp-core/src/completion.rs")).len(),
+             1
+@@ -865,8 +868,14 @@ mod tests {
+         // One answer may have several owners — the constant folder asks the
+         // registry's availability question legitimately.
+         let fold = "if registry.has_command_in_this_dialect(head) { }\n";
+-        assert_eq!(scan_owned(fold, Path::new("rust/tcl-compiler/src/codegen/values.rs")).len(), 0);
+-        assert_eq!(scan_owned(fold, Path::new("rust/tcl-registry/src/registry.rs")).len(), 0);
++        assert_eq!(
++            scan_owned(fold, Path::new("rust/tcl-compiler/src/codegen/values.rs")).len(),
++            0
++        );
++        assert_eq!(
++            scan_owned(fold, Path::new("rust/tcl-registry/src/registry.rs")).len(),
++            0
++        );
+         assert_eq!(
+             scan_owned(fold, Path::new("rust/tcl-vm/src/interp.rs")).len(),
+             1
+@@ -876,11 +885,14 @@ mod tests {
+     #[test]
+     fn declared_transport_owner_does_not_license_binding_consumers() {
+         let field = "pub declared_commands: Option<tcl_registry::model::DeclaredSurface>;";
+-        assert_eq!(scan_owned(
++        assert_eq!(
++            scan_owned(
+                 field,
+                 Path::new("rust/tcl-compiler/src/command_binding/source_analysis_entry.rs")
+             )
+-            .len(), 0);
++            .len(),
++            0
++        );
+         for consumer in [
+             "rust/tcl-compiler/src/command_binding.rs",
+             "rust/tcl-compiler/src/command_binding/conditional_body.rs",
+@@ -900,7 +912,10 @@ mod tests {
+     #[test]
+     fn owned_answer_citations_are_exempt() {
+         let prose = "/// Answered by `builtin_command_names`, the one oracle.\n";
+-        assert_eq!(scan_owned(prose, Path::new("rust/tcl-lsp-core/src/completion.rs")).len(), 0);
++        assert_eq!(
++            scan_owned(prose, Path::new("rust/tcl-lsp-core/src/completion.rs")).len(),
++            0
++        );
+         let code = "let names = self.builtin_command_names();\n";
+         assert_eq!(
+             scan_owned(code, Path::new("rust/tcl-lsp-core/src/completion.rs")).len(),
+diff --git a/rust/xtask/src/segmentation_drift.rs b/rust/xtask/src/segmentation_drift.rs
+index 1dc5c17f2..5082b98ef 100644
+--- a/rust/xtask/src/segmentation_drift.rs
++++ b/rust/xtask/src/segmentation_drift.rs
+@@ -573,7 +573,10 @@ mod tests {
+         assert_eq!(scan("match c { b'\\n' => {} }\n").len(), 0);
+         assert_eq!(scan("match c { b';' => {} }\n").len(), 0);
+         // A `\n` and a `;` in different patterns is not an alternation.
+-        assert_eq!(scan("match c { b'\\n' => a(), b'x' | b';' => b() }\n").len(), 0);
++        assert_eq!(
++            scan("match c { b'\\n' => a(), b'x' | b';' => b() }\n").len(),
++            0
++        );
+     }
+ 
+     #[test]
+@@ -599,25 +602,34 @@ mod tests {
+     #[test]
+     fn trivia_skipping_is_not_a_word_start_machine() {
+         // No `prev` binding: a filter, not a state machine.
+-        assert_eq!(scan(
++        assert_eq!(
++            scan(
+                 "let words = toks.iter().filter(|t| !matches!(t.kind, TokenType::Sep | \
+                   TokenType::Eol));\n"
+             )
+-            .len(), 0);
++            .len(),
++            0
++        );
+         // A wider trivia set is not the two-variant word rule either.
+-        assert_eq!(scan(
++        assert_eq!(
++            scan(
+                 "fn f() {\n let prev = x;\n if matches!(t.kind, TokenType::Sep | \
+                   TokenType::Eol | TokenType::Eof) {}\n}\n"
+             )
+-            .len(), 0);
++            .len(),
++            0
++        );
+     }
+ 
+     #[test]
+     fn a_waiver_is_honoured_on_the_line_and_in_the_block_above() {
+-        assert_eq!(scan(
++        assert_eq!(
++            scan(
+                 "match c { b'\\n' | b';' => {} } // segmentation-drift-ok: BIG-IP config, not Tcl\n"
+             )
+-            .len(), 0);
++            .len(),
++            0
++        );
+         let src = "// segmentation-drift-ok: trims a terminator inside an already\n\
+                    // segmented command span; the boundary came from the segmenter\n\
+                    let a = matches!(b[i], b'\\n' | b';');\n\
+diff --git a/scripts/dev/cargo-deny-all.sh b/scripts/dev/cargo-deny-all.sh
+index 9239cbe14..1511ff2d3 100755
+--- a/scripts/dev/cargo-deny-all.sh
++++ b/scripts/dev/cargo-deny-all.sh
+@@ -7,12 +7,12 @@ repo_root="$(git rev-parse --show-toplevel)"
+ cd "$repo_root"
+ 
+ lockfiles=()
+-# Match lockfiles named exactly `Cargo.lock`: a plain `'*Cargo.lock'` glob also
+-# picks up archived evidence such as `docs/**/original-Cargo.lock`, which has no
+-# workspace manifest beside it.
++# Match workspace lockfiles named exactly `Cargo.lock`. The scratchpad mirror
++# stores historical lockfile evidence under docs/, not independent workspaces.
+ while IFS= read -r -d '' lockfile; do
+     lockfiles+=("$lockfile")
+-done < <(git ls-files -z -- ':(glob)**/Cargo.lock')
++done < <(git ls-files -z -- ':(glob)**/Cargo.lock' \
++    ':(exclude)docs/work/name-handling/scratchpad-mirror/**')
+ 
+ if ((${#lockfiles[@]} == 0)); then
+     echo "ERROR: no tracked Cargo.lock files found" >&2

@@ -1,0 +1,78 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-22T19:56:15.289365+00:00",
+  "scheduled_report_utc": "2026-10-22T19:55:37+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-22T20:25:37+00:00",
+  "change_since_previous_report": [
+    "Primary goal remains clean LSP merge/release readiness from rust; remaining migration follows. No PR, merge, tag, release, audit admission or validated product-row change.",
+    "19:25 snapshot normal-pushed7cca49 after safe fetch/rebase retry. Hosted CI5204 dispatched on exact7cca49 at19:29:12 under recorded authorization, hosted runners and no native-release proof/publish.",
+    "Original compiler18 closed39 selected,23 pass16 fail including ZZ diagnostic. All100371 source/provider guards matched. g4 main passes and ZZ nine rows have no panic; all eight existing naming assertions remain failed and unchanged. Four C6 failures match exact baseline PASS.",
+    "Scanner followup passes1; Logical-role followup fails before the accessor because issuer is unavailable. One unchanged traced switch failure has intact word/vector owners but no selected invocation. Existing-trace import/list diagnostics are prepared for the slot after LSP.",
+    "Reclaimed4,500,864,640bytes of duplicate active Git packs after exact existing-alternate OID coverage and identical before/after refs/worktrees/reachable+missing sets. No source, index, target or executable changed; unique/publisher/preload packs retained.",
+    "LSP CURRENT3 source remains frozen. Its current Core artifact built15m28; first deep-source selector executes with unchanged180s/stack. No functional result is claimed yet. Minify12 and VM/codegen plans are prepared, not run.",
+    "CI5204 main Rust shards/native archive/compatibility stopped before listing/execution on the single known unused helper warning, denied by Cargo. Strict gate separately found216 formatting hunks across65 Rust paths. Browser cfg compilation found one stale pack_seq identifier.",
+    "Root dependency audit passes all four checks, then cargo-deny-all.sh stops on mirrored historical Cargo.lock with no manifest. The other actual workspace audits remain unrun. Narrow mirror-prefix exclusion retains missing-manifest failures elsewhere and leaves archival bytes/policy intact.",
+    "Runtime CI emitted53 failed selectors then aborted during TLS teardown. Exact baseline comparison finds two prior named passes now fail; other51 and abort selector are absent baseline, not inferred regressions. The run is incomplete. Pinned C alias-order evidence and catch evidence remain separate from actual runtime attribution.",
+    "Prepared publisher-only commitd6833259: cfg(test) helper gate, one browser pack-generation identifier, archive-lock selection fix, pinned rustfmt65 files, and guarded runtime TLS cleanup plus2controls. Peer/static/syntax/format checks pass; runtime tests are unrun. Active LSP inputs are untouched and now deliberately older; source integration follows between runs.",
+    "N13 remains incomplete. Stage4/cheap-entry/context corrections and exact continuation capture/join are off-tree; region replay, per-view append and end-to-end two-parent/12hop controls remain needed. No source-only entry gains Native/Loaded/frame/compiler authority.",
+    "External perf19:47 and triage19:33:51 are fresh. BIG-IP final18:08 remains stale and already flagged; no takeover. Perf full equality remains unproven and realm patch is withheld. All section F and complete zero-pass-to-fail gates remain open.",
+    "First LSP current loss is now measured: exact deep-source selector timeout at180s, unchanged artifact SHA43cf7a64 and no assertion/stack-abort output. It is absent baseline namedPASS roster, so not labelled an actual-rust regression; guarded capture loss remains open. Namespace80/DB and final source guards are pending."
+  ],
+  "committed": [
+    "6a307dbd603c94b1bcbf6572fa596de7b993da2e"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Checkpoint/publish full work WIP alongside reviewed publisher-only CI unblock; fresh depth1 fetch/rebase/normal push, report freshness/disk and re-arm20:25 reminder.",
+    "Finish LSP CURRENT3 and necessary phase-only replays on frozen old source, then two unchanged compiler diagnostics and coordinated source integration.",
+    "Dispatch next hosted current inventory after CI unblock; collect exact named current outcomes against rust5203 rather than treating build failures as executed tests.",
+    "Complete C6/source ownership, N13 continuation/view wiring, SpecTcl/VM acceptance, minify and native/browser/WASI/shipping performance gates."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-22T18:08Z",
+    "perf": "2026-10-22T19:47Z",
+    "review-triage": "2026-10-22T19:33:51Z"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "No audit admissions or gate closures. CI5204 main suites compile-blocked before named outcomes, standalone runtime partial; local passes/failures retain exact old-source attribution. Publisher CI unblock has static/format proof only and intentionally differs from frozen active source. All complete latest-SHA release checks remain required.",
+  "disk_free_bytes": 10309066752,
+  "baseline_ci_run": 39816429638,
+  "baseline_ci_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731"
+}

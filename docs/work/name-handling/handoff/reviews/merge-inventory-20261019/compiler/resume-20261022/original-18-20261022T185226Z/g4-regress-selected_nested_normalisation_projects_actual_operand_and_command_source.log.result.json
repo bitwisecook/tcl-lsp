@@ -1,0 +1,41 @@
+{
+  "actual_selected": 1,
+  "artifacts": [
+    {
+      "age_seconds": 580.8185510635376,
+      "mtime_utc": "2026-10-22T19:15:58.640841+00:00",
+      "path": "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/tcl_compiler-ef22ef87d0bd65a7",
+      "retained": true,
+      "sha256": "d7d3fd6be30e1677717d9031d69961190b490f6f0fc7ad35941348c36be35cc6"
+    }
+  ],
+  "cargo_wrapper_exit": 101,
+  "command": [
+    "cargo",
+    "test",
+    "--locked",
+    "-p",
+    "tcl-compiler",
+    "--lib",
+    "command_binding::expression_preparation::tests::selected_nested_normalisation_projects_actual_operand_and_command_source",
+    "--",
+    "--exact",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "expected_selected": 1,
+  "label": "g4-regress-selected_nested_normalisation_projects_actual_operand_and_command_source",
+  "log_at_cap": false,
+  "providers_stable": true,
+  "selector": "command_binding::expression_preparation::tests::selected_nested_normalisation_projects_actual_operand_and_command_source",
+  "source_stable": true,
+  "summaries": [
+    [
+      "FAILED",
+      "0",
+      "1",
+      "0"
+    ]
+  ],
+  "warnings": true
+}

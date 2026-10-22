@@ -1,0 +1,18 @@
+[
+  {
+    "file": "cmd_alias.rs",
+    "test": "aliases_lists_every_alias",
+    "source_identical": true,
+    "baseline_body_sha256": "cb3057bfd6a52c8e32e0b89f9fc2839eca17ffeeb8ccd7a529def7e59937ae48",
+    "current_body_sha256": "cb3057bfd6a52c8e32e0b89f9fc2839eca17ffeeb8ccd7a529def7e59937ae48",
+    "body": "    fn aliases_lists_every_alias() {\n        leak_free(|i| {\n            i.eval_str(b\"interp alias {} = {} set\");\n            i.eval_str(b\"interp alias {} store {} set k\");\n            assert_eq!(i.eval_str(b\"interp aliases {}\"), Code::Ok);\n            // BTreeMap order \u2192 sorted by name.\n            assert_eq!(i.result_bytes(), b\"= store\");\n        });\n    }"
+  },
+  {
+    "file": "cmd_error.rs",
+    "test": "eight_four_catch_takes_no_options_variable",
+    "source_identical": true,
+    "baseline_body_sha256": "fa67760c37c3c7399487f5b8b70945009e680a63f9cb92de0e7b9cbaeea82a90",
+    "current_body_sha256": "fa67760c37c3c7399487f5b8b70945009e680a63f9cb92de0e7b9cbaeea82a90",
+    "body": "    fn eight_four_catch_takes_no_options_variable() {\n        use tcl_dialect::TclVersion;\n\n        leak_free(|i| {\n            i.set_runtime_version(TclVersion::V8_4);\n            assert_eq!(\n                run(i, b\"list [catch {catch {set x 1} r o} m] $m $::errorCode\"),\n                b\"1 {wrong # args: should be \\\"catch command ?varName?\\\"} NONE\"\n            );\n            assert_eq!(run(i, b\"list [catch {set x 1} r] $r\"), b\"0 1\");\n            i.eval_str(b\"unset -nocomplain m r x\");\n        });\n    }"
+  }
+]

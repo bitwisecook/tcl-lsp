@@ -1,0 +1,70 @@
+{
+  "utc": "2026-10-22T19:56:15.401528+00:00",
+  "rows": [
+    {
+      "role": "bigip-lsp",
+      "last_reported_utc": "2026-10-22T18:08:00+00:00",
+      "age_minutes": 108.26,
+      "under60_minutes": false,
+      "source": "publisher latest fetched role file"
+    },
+    {
+      "role": "compiler-codegen",
+      "last_reported_utc": "2026-10-22T19:25:00+00:00",
+      "age_minutes": 31.26,
+      "under60_minutes": true,
+      "source": "active role file"
+    },
+    {
+      "role": "compiler-names",
+      "last_reported_utc": "2026-10-22T19:52:28+00:00",
+      "age_minutes": 3.79,
+      "under60_minutes": true,
+      "source": "active role file"
+    },
+    {
+      "role": "compiler",
+      "last_reported_utc": "2026-10-22T19:46:40+00:00",
+      "age_minutes": 9.59,
+      "under60_minutes": true,
+      "source": "active role file"
+    },
+    {
+      "role": "coordinator",
+      "last_reported_utc": "2026-10-22T19:56:15.121392+00:00",
+      "age_minutes": 0.0,
+      "under60_minutes": true,
+      "source": "active role file"
+    },
+    {
+      "role": "lsp",
+      "last_reported_utc": "2026-10-22T19:49:09+00:00",
+      "age_minutes": 7.11,
+      "under60_minutes": true,
+      "source": "active role file"
+    },
+    {
+      "role": "perf",
+      "last_reported_utc": "2026-10-22T19:47:00+00:00",
+      "age_minutes": 9.26,
+      "under60_minutes": true,
+      "source": "publisher latest fetched role file"
+    },
+    {
+      "role": "review-triage",
+      "last_reported_utc": "2026-10-22T19:33:51+00:00",
+      "age_minutes": 22.41,
+      "under60_minutes": true,
+      "source": "publisher latest fetched role file"
+    },
+    {
+      "role": "vm-runtime",
+      "last_reported_utc": "2026-10-22T19:52:17+00:00",
+      "age_minutes": 3.97,
+      "under60_minutes": true,
+      "source": "active role file"
+    }
+  ],
+  "disk_free_bytes": 10309058560,
+  "stale_external_action": "BIG-IP final handoff18:08 already flagged to user19:09; no takeover."
+}

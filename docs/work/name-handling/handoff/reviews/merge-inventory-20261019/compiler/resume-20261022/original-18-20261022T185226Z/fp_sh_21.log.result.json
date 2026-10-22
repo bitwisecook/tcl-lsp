@@ -1,0 +1,40 @@
+{
+  "actual_selected": 7,
+  "artifacts": [
+    {
+      "age_seconds": 162.37589263916016,
+      "mtime_utc": "2026-10-22T19:15:58.640841+00:00",
+      "path": "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/tcl_compiler-ef22ef87d0bd65a7",
+      "retained": true,
+      "sha256": "d7d3fd6be30e1677717d9031d69961190b490f6f0fc7ad35941348c36be35cc6"
+    }
+  ],
+  "cargo_wrapper_exit": 0,
+  "command": [
+    "cargo",
+    "test",
+    "--locked",
+    "-p",
+    "tcl-compiler",
+    "--lib",
+    "fp_sh_21",
+    "--",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "expected_selected": 7,
+  "label": "fp_sh_21",
+  "log_at_cap": false,
+  "providers_stable": true,
+  "selector": "fp_sh_21",
+  "source_stable": true,
+  "summaries": [
+    [
+      "ok",
+      "7",
+      "0",
+      "0"
+    ]
+  ],
+  "warnings": true
+}

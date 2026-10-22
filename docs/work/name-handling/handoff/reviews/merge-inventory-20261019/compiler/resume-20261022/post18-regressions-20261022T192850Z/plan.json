@@ -1,0 +1,26 @@
+{
+  "prepared_utc": "2026-10-22T19:21:23.954848+00:00",
+  "status": "READY OFF-TREE PLAN ONLY; no Cargo queued; explicit root GO required",
+  "scope": "Two separately root-authorised exact follow-up regressions after immutable18; same source/profile/provider/disk/artifact guards",
+  "names_plan_sha256": "997c27f4c049ae76b90749730b70192bf02e2583ba2d36c8b96a5f21ce9ddd4f",
+  "required_filters": [
+    {
+      "label": "release-scanner-variable-boundary",
+      "selector": "compile_service::tests::a_variable_reference_ends_where_the_release_scanner_ends_it",
+      "exact": true,
+      "expected_selected": 1,
+      "env": {}
+    },
+    {
+      "label": "original-logical-case-role-residuals",
+      "selector": "registry_invocation::tests::original_logical_case_roles_keep_selection_residuals_out_of_structured_ir",
+      "exact": true,
+      "expected_selected": 1,
+      "env": {}
+    }
+  ],
+  "expectations": [
+    "Exactly one original release-scanner regression and exactly one existing Logical case-role regression affected by the R3 accessor correction. No source/probe installation."
+  ],
+  "guards": "Global lock over entire suite; all local workspace source/fixture/Cargo input inventory + current Rust diff; provider wrappers/actual workers/Rust tools/transitive shared binaries before/after; 5second disk monitor interrupts only own Cargo process group below2GiB; per-log20MiB filtered cap; no executable cleanup"
+}

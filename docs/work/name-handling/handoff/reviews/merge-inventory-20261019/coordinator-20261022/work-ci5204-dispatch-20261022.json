@@ -1,0 +1,31 @@
+{
+  "utc": "2026-10-22T19:30:23.026267+00:00",
+  "run_id": 39840492769,
+  "run_number": 5204,
+  "created_at": "2026-10-22T19:29:12Z",
+  "url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/39840492769",
+  "actual_head_sha": "7cca49ca73b67aab94bcd9aa27a3a358273e4d78",
+  "branch": "work",
+  "workflow": "ci.yml",
+  "event": "workflow_dispatch",
+  "inputs": {
+    "rust_tests_runner": "hosted",
+    "native_release_build_proof": false
+  },
+  "authorization": "handoff/reviews/resume-20261017-diagnosis/user-decisions-20261019T1420Z.json decisions.ci_dispatch",
+  "purpose": "Complete named current failure inventory against rust CI5203, concurrent with local narrowly scoped repairs. This snapshot still has known local failures and warning; not final release acceptance.",
+  "release_publish": "Tag gates false; no PR, tag, merge or release.",
+  "status_at_observation": "in_progress",
+  "source_product_equivalence": {
+    "active_snapshot": "6a307dbd603c94b1bcbf6572fa596de7b993da2e",
+    "product_tree_diff": []
+  },
+  "next_poll_utc": "2026-10-22T19:40:00Z",
+  "comparison_baseline": {
+    "run": 39816429638,
+    "sha": "fcb7927f02b5395753247b322fdd7be87ae5c731",
+    "named_passes": 24312,
+    "exact_binary_ids": 24312,
+    "summary_unnamed_skips": 4625
+  }
+}

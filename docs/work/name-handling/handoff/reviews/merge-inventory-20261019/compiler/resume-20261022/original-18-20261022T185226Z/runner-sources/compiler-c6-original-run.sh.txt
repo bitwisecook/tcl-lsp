@@ -1,0 +1,4 @@
+#!/bin/bash
+set -u
+source /tmp/tcl-lsp-naming-env.sh
+exec python3 /tmp/compiler-c6-original-suite.py "${1:-/tmp/compiler-c6-original-plan.json}"

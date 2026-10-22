@@ -1,0 +1,44 @@
+{
+  "status": "OFF-TREE PARTIAL genuine plan/root-outcome/advice-graph join + typed continuation; no region resumption yet; syntax parsed only, uncompiled/unrun and not integration-ready",
+  "created_utc": "2026-10-22T19:52:28Z",
+  "patch": "/tmp/compiler-names-n13-region-kernel-join-v3.patch",
+  "sha256": "1fb880731bd0e7358c5dfb570f588656453d665dd3846b8d33ceafbb3a7bfe37",
+  "composes_after": "/tmp/compiler-names-n13-entry-reborrow.patch",
+  "review_changes": [
+    "sticky refusal for every repeated known site, including unsupported frame/prefix",
+    "distinct conditional namespace delegation, no entered Native receipt",
+    "root outcome inventory before fallback; closed normal child only",
+    "positive selected grammar and per-operation authored FallsThrough/frozen callback retention/role acceptance; unmatched operations refuse final graph",
+    "actual parent/child owners and plan retained; live same-request carrier reuse only"
+  ],
+  "paths": [
+    {
+      "path": "rust/tcl-compiler/src/command_binding.rs",
+      "after_sha256": "4e758a5a7df6d0c39c8c8016365370dd604f66d5bcb784cf1abd25f86d6bad8f"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/original_namespace_body.rs",
+      "after_sha256": "5084a083c35ea57d2e9c90f88e1b4c70fceb34de11055729058c32f0f3f604a4"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/conditional_source.rs",
+      "after_sha256": "c5eb8024e6f6941adc8512d037f6a5a532c3b4623faa2f700d2d54af2bd3e523"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/source_point_entry.rs",
+      "after_sha256": "a1b2748cedb9157a99c79321cff99c72358341e5a1d7af0cd49fad604610384b"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/source_transition_advice.rs",
+      "after_sha256": "a8fa6d2a10fb904f1b3ba977073d7c40ef428b4701793d744259a139b7881bb2"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/source_transition_advice/source_point.rs",
+      "after_sha256": "8f91e35cd343eb41d080749833d7419b372267328120550b7ee02f4cd34791be"
+    },
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation/source_structure/source_load.rs",
+      "after_sha256": "ac30e06c53d2545463c36e1577c1ea162592ed4af05daae2204ac52531bf1c8f"
+    }
+  ]
+}

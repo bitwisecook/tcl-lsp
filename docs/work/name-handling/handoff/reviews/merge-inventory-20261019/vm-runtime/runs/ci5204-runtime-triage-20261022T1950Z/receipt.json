@@ -1,0 +1,55 @@
+{
+  "recorded_utc": "2026-10-22T19:49:53.045061+00:00",
+  "current_job": 120042246152,
+  "baseline_job": 119956196088,
+  "baseline_source": "fcb7927f02b5395753247b322fdd7be87ae5c731",
+  "baseline_result": "SUCCESS closed job metadata and log, no TLSabort; exactnewabortselector absent baseline rows.",
+  "files": [
+    {
+      "file": "runtime-rust-tests.log",
+      "bytes": 135359,
+      "sha256": "426a84775ee3a29abc982ccbd61dc1bfaa2a6732da5aeb687d1d5a639e4ce62b"
+    },
+    {
+      "file": "runtime-baseline-119956196088.log",
+      "bytes": 258991,
+      "sha256": "5aa462b23077b24cbe852e856f611546c88b46b017656663d83cca38905c066d"
+    },
+    {
+      "file": "runtime-baseline-delta.json",
+      "bytes": 12284,
+      "sha256": "17c406a3fda310b097989413423a2774c5e95ffaf31ea4972eee35d942653803"
+    },
+    {
+      "file": "baseline-cmd_alias.rs",
+      "bytes": 73003,
+      "sha256": "5105c00da950c1560fc382b0de4a1b7c981a7c3e3562b39bb1e11b0609ca61bd"
+    },
+    {
+      "file": "baseline-cmd_error.rs",
+      "bytes": 40344,
+      "sha256": "425bbcd7b2ce89f893184094a7374c603b583061dfb86bbec74dce37c066b92c"
+    },
+    {
+      "file": "runtime-two-regression-source.json",
+      "bytes": 1565,
+      "sha256": "9d0d61130d086afe81e4c626cbf7c82fd148ea6f0b3f5e4686bbabb9cc9bbee7"
+    }
+  ],
+  "attribution": "53current emitted FAILED rows before abort:2namedbaselinePASS\u2192FAIL,51namesabsent baseline rows. Aborted2145no-tommathlibrary suite incomplete; noassertion details fromabortedharness, nofailedpredicateinferenceforTLSnamedthread.",
+  "two_baseline_regressions": [
+    "cmd_alias::tests::aliases_lists_every_alias",
+    "cmd_error::tests::eight_four_catch_takes_no_options_variable"
+  ],
+  "confirmed_stack": "TLS OWNER<Interp> dtor\u2192JimInterpreterTeardown release_frames\u2192VarTable/NativeHashKey\u2192Owned::drop\u2192free_obj\u2192revoke_script_location\u2192SCRIPT_LOCATIONS.with AccessError\u2192destructor unwind\u2192SIGABRT.",
+  "next_tls_seam": "free_obj followsrevoke_script_location withnative_source::forget_context OBJECT_CONTEXTS.with. Samecleanuphardeningcandidate, notobservedsecondstack.",
+  "scope": "RuntimeEngine optional supportedSpecTclengine holdsInterp; sharedfree_obj cleanup usedinallruntimeownedobjectdropping. PrimaryproductionSpecTcl TclVmEngine distinct(existingVMfix); noVMfixclaimforstandaloneRuntime. ExactSpecTclworkercrashnotyetmeasured.",
+  "fix_candidate": "/tmp/vm-runtime-runtime-tls-shadow/runtime-tls-retirement.patch SHA0091e4c14f769239f970d1a91b28cba70198d3bab51330c0b5074ad203ae9160 names independently statically approved; two genuineTLSunavailable probes beforeOwnedfielddrop. OFF-TREEuncompiled/unrun.",
+  "two_regression_sources": "Fetched exactfcb7927f rawsources throughGitHubplugin; both currenttest function bodies byte-identical tobaseline, hashes/runtime-two-regression-source.json. CIabort prevents per-testassertiondiagnostic summary, so notyet knownsemanticassertionvsleakcounters. Originalexpectations unchanged.",
+  "finite_c_oracles": {
+    "path": "finite-c-oracles/receipt.json",
+    "sha256": "2653306c1296094228aead0e38b0c37d888b94601e36b43ef752e210f47f5197",
+    "result": "Aliasstore = measuredonall5pinnedCproviders, oldtestexpects = store(BTreeMapsort).8.4catch exactoldexpectationconfirmed. NoRustresultorassertionchange.",
+    "scope": "Narrow documentedC-oracle correctioncandidate; currentruntimeactualfailedassertion unavailablebecauseCIabort. No weakerassertion/prodorderingfixproposed."
+  }
+}
