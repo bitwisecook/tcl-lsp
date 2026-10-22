@@ -1,0 +1,2 @@
+tcl-spectcl:pack_source_e2e test result: FAILED. 3 passed; 3 failed; 0 ignored; 0 measured; 0 filtered out; finished in 7.17s (wall 7s)
+tcl-spec-studio:pack_store test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 57.61s (wall 58s)

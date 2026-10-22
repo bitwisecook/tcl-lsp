@@ -2,87 +2,82 @@
 
 Area: Replay of the external review's findings on the current tree.
 
-Last updated: 2026-10-22T12:30Z
+Last updated: 2026-10-22T12:45Z
 
 Maintained by the review-triage agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## Resume
 
-**Status per finding:** see [../reviews/naming-migration-review-20261022-triage.md](../reviews/naming-migration-review-20261022-triage.md). It is updated after every run.
+Handed off at 12:45Z. The triage moves to its own cloud session on branch `work`.
+
+- **Status per finding:** see [../reviews/naming-migration-review-20261022-triage.md](../reviews/naming-migration-review-20261022-triage.md). It has a summary table and per-finding detail, and is up to date through run 4.
+- **Evidence:** [../reviews/triage-20261022/](../reviews/triage-20261022/README.md), containing the probe source `zz_review_probe.rs.txt`, logs `run1.log`…`run4.log`, edited outputs in `out/`, repros in `tcl/`, and `oracle.sh`.
+- **Probe file:** `rust/tcl-spectcl/tests/zz_review_probe.rs` has been deleted from the tree. `run5.sh` restores it from the evidence copy and deletes it again when it finishes.
 
 **Settled:**
 
 | Finding | Status |
 |---|---|
-| N01 | REPRODUCES; the empty-tail part is FIXED |
-| N02 | CHANGED |
+| N01 | REPRODUCES (slot collapse); empty tail FIXED |
+| N02 | CHANGED (Jim identities distinct; definition abstains) |
 | N03 | FIXED |
 | N08 | FIXED |
-| N09 | constructor FIXED; call graph CHANGED |
+| N09 | constructor FIXED; call graph CHANGED (no summary for `::n::c`) |
 | N10 | CHANGED; `namespace path` class selection REPRODUCES |
-| N11 | CHANGED; merge early return REPRODUCES |
+| N11 | CHANGED (`if {0}` is `Conditional`, still selected); merge early return REPRODUCES (static) |
 | N12 | FIXED |
 | N13 | REPRODUCES |
 | N14 | FIXED |
-| N15 | CHANGED (refuses) |
+| N15 | CHANGED (refuses `MissingAlphaRenameContract`) |
 | N16 | FIXED |
 | N17 template | FIXED |
-| `ns_var_global_fallback` | FIXED |
-| `registry_for` | FIXED |
-| `analyse_with_workspace_classes` | CHANGED |
+| `ns_var_global_fallback` | FIXED (static) |
+| `registry_for` | FIXED (static) |
+| `analyse_with_workspace_classes` | CHANGED (static) |
 | `insert_rebound_candidates` | NOT-APPLICABLE |
-| `method_barrier` | FIXED |
+| `method_barrier` | FIXED (static) |
+| linked editing | FIXED (static and executed) |
 
-**Refused, pending R1** (re-check once compiler-names' completed-command-world fix lets rename produce edits): N04, N05, N06, N07.
+**Refused, pending R1** (compiler-names' completed-command-world fix): N04, N05, N06, N07. Rename refuses even `proc foo; puts [foo]`.
 
-**Pending run 4:**
-- N17 live hook, including the existing `pack_source_e2e` fold test;
-- the nested passthrough lowering, extract/inline and linked-editing probes;
-- the section 4.1 scaling rows.
+**Pending:**
+1. N17 live hook. No O129 appears for any hook, including the `mylib::strlen` control. Run the existing `pack_source_e2e::a_pack_file_folds_a_call_site_in_the_optimiser` to confirm whether live const-fold hooks fold at all. compiler-codegen's `zz_ccg_fold_probe.rs` may already cover this.
+2. Nested passthrough lowering for iRules: run 4's probe was inconclusive and has been reworked.
+3. Extract/inline: print `Refactoring::disabled` to confirm these are refusals.
+4. Section 4.1 scaling rows at P = 25–200. Run 3 measured 248 s to analyse a 250-proc file.
+5. Re-check N04, N05, N06 and N07 via `rename_with_registry` once R1 lands.
 
-**Re-run the current batch:**
+**Command to re-run the pending batch** (from the repository root, with `df -h /` above 2.4 GB):
 
-1. Restore the probe if it is absent: `cp docs/work/name-handling/reviews/triage-20261022/zz_review_probe.rs.txt rust/tcl-spectcl/tests/zz_review_probe.rs`.
-2. Wait until `df -h /` shows more than 2.3 GB free.
-3. Run `bash docs/work/name-handling/reviews/triage-20261022/run4.sh`. It builds, runs and deletes in one command, and writes its log to the scratch `run4.log`; copy that log into `triage-20261022/`.
-4. To re-check R1 later, run the test filter `rename_with_registry` in the same way:
+```sh
+bash docs/work/name-handling/reviews/triage-20261022/run5.sh
+```
 
-   ```sh
-   CARGO_INCREMENTAL=0 CARGO_PROFILE_TEST_DEBUG=0 CARGO_PROFILE_DEV_DEBUG=0 \
-     cargo test -p tcl-spectcl --test zz_review_probe -- --nocapture --test-threads=1 rename_with_registry
-   rm -f target/debug/deps/zz_review_probe-*[0-9a-f]
-   ```
+It restores the probe, builds, runs and deletes the executables in one command, writes `triage-20261022/run5.log` and `out/`, then removes the probe file. Run edited outputs with `bash docs/work/name-handling/reviews/triage-20261022/oracle.sh <abs path>`.
 
-   Run both lines in one command. Then apply the edits it saves under `ZZ_SCRATCH` with `oracle.sh`.
-
-**Next steps after run 4:**
-
-1. Fill the PENDING rows in the triage report.
-2. Refresh `triage-20261022/zz_review_probe.rs.txt` from the probe file.
-3. Delete `rust/tcl-spectcl/tests/zz_review_probe.rs`.
-4. Hand back.
+**Then:**
+1. Read `run5.log`.
+2. Fill the PENDING rows in the triage report: the summary table and the per-finding detail.
+3. Keep `triage-20261022/` under 5 MB.
 
 ## In progress
 
-- Run 4, started 12:13Z, is waiting on the shared cargo lock. It runs the seams, the scaling rows (P = 25–200) and the existing `pack_source_e2e` fold test.
+- Nothing. Work is handed off.
 
 ## Outstanding (in priority order)
 
-1. Interpret run 4 and fill the PENDING rows in the triage report.
-2. Refresh the evidence copy of the probe, then delete `rust/tcl-spectcl/tests/zz_review_probe.rs` and the scratch files.
-3. Later, after R1 lands: re-run `rename_with_registry` and settle N04, N05, N06 and N07.
+1. Run `run5.sh` in the cloud session and settle the pending items listed above.
+2. After R1 lands, re-check N04, N05, N06 and N07.
 
 ## Blocked (on whom, and what is needed)
 
-- N04, N05, N06 and N07 are blocked on R1 (compiler-names): rename refuses plain static cases such as `proc foo; puts [foo]`.
+- N04, N05, N06 and N07 are blocked on R1 (compiler-names).
 
 ## Done since the last update (with evidence: test counts, commit or snapshot)
 
-- At 12:30Z, the triage report was rewritten with every settled row, both in the summary and in per-finding detail: evidence, oracle result, owner, files and fix direction.
-- Run 3 rename results (with registry and program view):
-  - N04 and N05 refuse with "unknown-completed-command-world".
-  - N06 refuses with specific collision reasons.
-  - N07 refuses with "unreferenced-edit".
-  - The plain-rename controls `puts [foo]` and `set x [foo]` refuse with "incomplete-original-command-coverage".
-- N11: p2 is classified `Conditional` and still selected.
-- N17: the `mylib::strlen` control also emits no O129.
+- Run 4 (12:13Z–12:39Z) ran 3 seam tests, all passing:
+  - Linked editing returns only the declaration and its resolved self-call.
+  - The inline-proc and extract-variable actions were offered, but applying their edits left the source unchanged, so they are probably disabled refusals. Both outputs run correctly on 6 engines.
+  - The nested-passthrough probe was inconclusive.
+- Run 4 was stopped before scaling and the e2e step when the triage was moved.
+- The evidence directory was refreshed with the probe copy, `run3.log`, `run4.log`, `out/`, `run4.sh`, `oracle.sh` and the new `run5.sh`. The probe file was deleted from the tree, and the triage executables were deleted from `target/`.

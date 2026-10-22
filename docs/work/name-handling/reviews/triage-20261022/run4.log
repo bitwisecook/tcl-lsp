@@ -1,2 +1,51 @@
 start Thu Oct 22 12:13:12 UTC 2026 avail= 4406M
     Blocking waiting for file lock on build directory
+   Compiling tcl-cmd-core v0.1.0 (/home/user/tcl-lsp/rust/tcl-cmd-core)
+   Compiling syn v2.0.119
+   Compiling nom v7.1.3
+   Compiling displaydoc v0.2.7
+   Compiling serde_json v1.0.154
+   Compiling rusticata-macros v4.1.0
+   Compiling serde_derive v1.0.229
+   Compiling ref-cast-impl v1.0.27
+   Compiling ref-cast v1.0.27
+   Compiling tcl-engine-api v0.1.0 (/home/user/tcl-lsp/rust/tcl-engine-api)
+   Compiling fluent-uri v0.4.1
+   Compiling synstructure v0.13.2
+   Compiling tcl-pkg-model v0.1.0 (/home/user/tcl-lsp/rust/tcl-pkg-model)
+   Compiling tcl-regex v0.1.0 (/home/user/tcl-lsp/rust/tcl-regex)
+   Compiling asn1-rs-impl v0.2.0
+   Compiling asn1-rs-derive v0.6.0
+   Compiling tcl-registry v0.1.0 (/home/user/tcl-lsp/rust/tcl-registry)
+   Compiling serde v1.0.229
+   Compiling asn1-rs v0.7.2
+   Compiling der-parser v10.0.0
+   Compiling oid-registry v0.8.1
+   Compiling x509-parser v0.18.1
+   Compiling tcl-compiler v0.1.0 (/home/user/tcl-lsp/rust/tcl-compiler)
+   Compiling tcl-vm v0.1.0 (/home/user/tcl-lsp/rust/tcl-vm)
+   Compiling tcl-sslictcl v0.1.0 (/home/user/tcl-lsp/rust/tcl-sslictcl)
+   Compiling tcl-irules v0.1.0 (/home/user/tcl-lsp/rust/tcl-irules)
+   Compiling tcl-engine-tclvm v0.1.0 (/home/user/tcl-lsp/rust/tcl-engine-tclvm)
+   Compiling tcl-spec-hooks v0.1.0 (/home/user/tcl-lsp/rust/tcl-spec-hooks)
+   Compiling tcl-bigip v0.1.0 (/home/user/tcl-lsp/rust/tcl-bigip)
+   Compiling tcl-lsp-core v0.1.0 (/home/user/tcl-lsp/rust/tcl-lsp-core)
+   Compiling tcl-spectcl v0.1.0 (/home/user/tcl-lsp/rust/tcl-spectcl)
+    Finished `test` profile [unoptimized] target(s) in 19m 31s
+     Running tests/zz_review_probe.rs (target/debug/deps/zz_review_probe-c6f4e9c3e1246f5c)
+
+running 3 tests
+test seam_extract_inline ... SEAM inline_proc title="Inline proc 'p'" saved seam_inline.tcl
+SEAM extract_variable(result) offered; saved seam_extract.tcl
+ok
+test seam_linked_editing ... SEAM linked_editing=Some([(0, 5), (0, 15)])
+ok
+test seam_nested_passthrough_irules ... SEAM nested f5-irules op=Contains count_op=0 count_Block=0 count_Raw=336
+SEAM nested tcl8.6 op=Eq count_op=0 count_Block=1 count_Raw=927
+ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 23 filtered out; finished in 51.10s
+
+exit-seam=0
+    Blocking waiting for file lock on build directory
+--- run4 stopped 12:39:07 while waiting on cargo lock for scaling_rows rebuild

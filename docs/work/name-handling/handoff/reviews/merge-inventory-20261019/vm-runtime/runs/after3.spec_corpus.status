@@ -1,0 +1,5 @@
+test a_hostile_pack_degrades_to_abstention_and_never_hangs ... FAILED
+test corpus_watchdog_scales_with_work_requested ... ok
+test every_shipped_tclspec_loads_installs_and_analyses_against_corpus ... FAILED
+test shared_analysis_fallbacks_are_never_silent ... ok
+test shared_unit_matches_legacy_for_representative_profiles ... FAILED

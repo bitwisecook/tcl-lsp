@@ -12,7 +12,7 @@ This report is updated after every probe run. Rows marked **PENDING** are not se
 - **Probes.** Current production APIs were called from one temporary test, `rust/tcl-spectcl/tests/zz_review_probe.rs` (copy: `triage-20261022/zz_review_probe.rs.txt`).
   - It was built in the shared target with `CARGO_INCREMENTAL=0 CARGO_PROFILE_TEST_DEBUG=0 CARGO_PROFILE_DEV_DEBUG=0` and run with `--nocapture --test-threads=1`.
   - `tcl-spectcl` was chosen because one build links `tcl-compiler`, `tcl-lsp-core`, `tcl-spectcl`, `tcl-spec-hooks` and `tcl-engine-tclvm`.
-  - Runs: run1 at 11:01Z (safety batch), run2 at 11:20Z, run3 from 11:28Z to 12:06Z, run4 from 12:15Z. Logs are `triage-20261022/run*.log`.
+  - Runs: run1 at 11:01Z (safety batch), run2 at 11:20Z, run3 from 11:28Z to 12:06Z, run4 from 12:13Z to 12:39Z (stopped before scaling when the triage moved to a cloud session). The resume batch is `triage-20261022/run5.sh`. Logs are `triage-20261022/run*.log`.
   - No crate failed to compile.
 - **Edits.** Returned edits (rename `TextEdit`s, optimiser rewrites, minifier output) were applied to scratch copies (`triage-20261022/out/`), and each copy was run on the same six engines.
 - **Rename entry point.** Rename was probed in two ways:
@@ -47,16 +47,16 @@ This report is updated after every probe run. Rows marked **PENDING** are not se
 | N15 minifier compaction | CHANGED (refuses `MissingAlphaRenameContract`); output behaviour-preserving | lsp | `tcl-lsp-core/src/minify.rs`, `minify/original.rs` |
 | N16 provider fallbacks | FIXED (4/4 rows) | — | — |
 | N17 SpecTcl template | FIXED | — | — |
-| N17 live hook | CHANGED/REGRESSED: no O129 at all, including for the shipped-style `mylib::strlen` control. **PENDING** run4 check of the existing `pack_source_e2e` fold test | unowned (`tcl-spec-hooks`, `tcl-registry/src/pack_hooks`), vm-runtime (`tcl-spectcl/src/hooks.rs`), compiler-codegen (`install.rs`) | see detail |
+| N17 live hook | CHANGED/REGRESSED: no O129 at all, including for the shipped-style `mylib::strlen` control. **PENDING** run5 check of the existing `pack_source_e2e` fold test | unowned (`tcl-spec-hooks`, `tcl-registry/src/pack_hooks`), vm-runtime (`tcl-spectcl/src/hooks.rs`), compiler-codegen (`install.rs`) | see detail |
 | Seam `ns_var_global_fallback` | FIXED (static) | — | — |
 | Seam `WorkspaceIndex::registry_for` | FIXED (static) | — | — |
 | Seam `analyse_with_workspace_classes` | CHANGED (static): resolved input, resource inputs and base-analysis identity retained; source-entry parity not shown | lsp | `tcl-lsp-server/src/lib.rs:20036–20120` |
-| Seam nested passthrough lowering | **PENDING** run4 | compiler | `tcl-compiler/src/inline_uplevel.rs` |
+| Seam nested passthrough lowering | **PENDING** (run4 probe inconclusive; reworked for run5). Static: nested lowering now uses `analyse_script_at_site` and `entry.options()` | compiler | `tcl-compiler/src/inline_uplevel.rs:559–660` |
 | Seam `insert_rebound_candidates` | NOT-APPLICABLE (removed) | — | — |
 | Seam `method_barrier` | FIXED (static) | — | — |
-| Seam linked-editing self-name fallback | FIXED (static); probe **PENDING** run4 | — | — |
-| Seam extract/inline refactors | **PENDING** run4 | lsp | `tcl-lsp-core/src/refactor/` |
-| 4.1 scaling rows | **PENDING** run4. Run3 measured 248 s to analyse a flat 250-proc file and 6.5 s to index it (review: 5.7 ms) | — | — |
+| Seam linked-editing self-name fallback | FIXED (static, plus executed probe) | — | — |
+| Seam extract/inline refactors | Safe in run4 (no behaviour-changing edit); whether this is a disabled refusal is **PENDING** run5 | lsp | `tcl-lsp-core/src/refactor/` |
+| 4.1 scaling rows | **PENDING** run5 (run4 was stopped before scaling). Run3 measured 248 s to analyse a flat 250-proc file and 6.5 s to index it (review: 5.7 ms) | perf / lsp | `workspace_index.rs:7496`, `source_graph.rs:1627`, `code_lens.rs` |
 
 ## Per-finding detail
 
@@ -221,7 +221,7 @@ Each row gives the evidence (probe call or command and the observed output), the
   - It emits **no** O129 for `fold $arr($a:b)`, `fold $arr(${a}:b)`, `fold good`, or `fold [string length [lindex $words 0]]`.
   - The shipped-style `mylib::strlen` control, which matches `pack_source_e2e.rs`, also gives `O129=[]` and no optimisation codes at all.
   - So the wrong `bad` replacement is gone, but live const-fold hooks do not fold through this path. The review's C.1 requires hooks to execute with meaningful answers.
-  - **PENDING:** the run4 result of the existing `pack_source_e2e::a_pack_file_folds_a_call_site_in_the_optimiser`.
+  - **PENDING (run5):** the existing `pack_source_e2e::a_pack_file_folds_a_call_site_in_the_optimiser`. Run4 was stopped before reaching it. compiler-codegen has an untracked `rust/tcl-spectcl/tests/zz_ccg_fold_probe.rs`, which may already cover this.
 - **Owner:** unowned (`tcl-spec-hooks`, `tcl-registry/src/pack_hooks*`), vm-runtime (`tcl-spectcl/src/hooks.rs`), compiler-codegen (`tcl-spectcl/src/install.rs`), unowned (`tcl-compiler/src/optimiser/manager.rs`; `optimise_raw` carries a temporary `ZZ_CCG_BASELINE` toggle, unset here).
 
 ### Section 3.2 / 3.3 seams
@@ -233,14 +233,22 @@ Each row gives the evidence (probe call or command and the observed output), the
   - Not visibly forwarded: the source-analysis entry or seed.
   - No parity test was found.
   - Location: `tcl-lsp-server/src/lib.rs:20036–20120`. Owner: lsp.
-- **Nested passthrough lowering:** **PENDING** run4.
+- **Nested passthrough lowering:** **PENDING.** The run4 probe (`CompilationUnit::build_for_profile`, then counting `op: Contains` in `Debug` of `ir_module`) found no `Contains`/`Eq` ops even for the direct condition, so the count pattern was wrong.
+  - The iRules case produced no inlined `Block` (the `run {...}` call inside `when` is not inlined).
+  - The Tcl case inlined one `Block`.
+  - The probe was rewritten for run5 to list all ops and `if` condition node kinds, and to try `call run {...}` and a proc-body form under `f5-irules`.
+  - Static: nested lowering now passes `entry.options()` and the site-analysed bindings (`inline_uplevel.rs`, `try_inline_callsite`).
 - **`insert_rebound_candidates`: NOT-APPLICABLE.** Removed in cf8f1bc85b and replaced by `collect_namespace_resolution` (`command_binding.rs`).
 - **`method_barrier`: FIXED (static).** The global-first and first-tail `class_head_component` was removed (944d156922). `hierarchy_components` unions only retained relation candidates and widens on unknowns; test `retained_dispatch_does_not_select_an_unrelated_class_tail`.
-- **Linked-editing self-name fallback: FIXED (static).** `OriginalLinkedSourceSpelling::capture` requires `invocation_targets_declaration` or a call-declaration match. The literal fallback survives only as a `#[cfg(test)]` helper. Probe **PENDING** run4.
-- **Extract/inline refactors:** **PENDING** run4.
+- **Linked-editing self-name fallback: FIXED (static).** `OriginalLinkedSourceSpelling::capture` requires `invocation_targets_declaration` or a call-declaration match. The literal fallback survives only as a `#[cfg(test)]` helper. Executed (run4): for `proc greet {} {greet}` plus an unrelated `n::greet`, `linked_editing_ranges` from the declaration gives `[(0,5),(0,15)]`, the declaration and its own resolved self-call only.
+- **Extract/inline refactors** (run4):
+  - `inline_proc` on `[p]` in `::n::c`, with `::p` and `::n::p` both defined, returned "Inline proc 'p'" (N08 shape).
+  - `extract_variable(.., "result")` was offered where `result` already exists.
+  - Applying either one's `edits` left the source unchanged (`out/seam_inline.tcl` prints `LOCAL`; `out/seam_extract.tcl` prints `5|1` on six engines). Both are therefore probably `disabled` refusals, which a `Refactoring` with no edits signals.
+  - No unsafe edit was observed. Run5 prints `disabled` to confirm.
 
 ### Section 4.1 scaling rows
 
-**PENDING** run4, which uses smaller sizes. Run3: analysing a flat file of 250 `proc pNNNNNNNN {} {}` took 248,263 ms of wall time in the debug test profile, on a heavily shared machine; `WorkspaceIndex::from_documents` took 6,538 ms (the review measured 5.718 ms); 100 missing `workspace_command_exists_for_call` calls took 13.9 ms. The process was then killed by the session stop.
+**PENDING** run5, which uses smaller sizes (P = 25, 50, 100, 200; code lenses P = 25, 50, 100; source chain F = 250–2000). Run4 was stopped before scaling ran. Run3: analysing a flat file of 250 `proc pNNNNNNNN {} {}` took 248,263 ms of wall time in the debug test profile, on a heavily shared machine; `WorkspaceIndex::from_documents` took 6,538 ms (the review measured 5.718 ms); 100 missing `workspace_command_exists_for_call` calls took 13.9 ms. The process was then killed by the session stop.
 
 By reading the code, the linear scan in `workspace_command_exists_for_call` (`workspace_index.rs:7496`) and the root-ward `paths: UriMap<Vec<Placed>>` in `RunOrder` (`source_graph.rs:1627`) are both still present.

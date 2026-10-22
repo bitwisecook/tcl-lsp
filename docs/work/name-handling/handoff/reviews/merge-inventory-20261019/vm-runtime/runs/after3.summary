@@ -1,0 +1,5 @@
+tcl-spec-studio:spectcl_ports test result: FAILED. 10 passed; 2 failed; 0 ignored; 0 measured; 0 filtered out; finished in 9.04s (wall 9s)
+tcl-spec-studio:pack_store test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 50.86s (wall 51s)
+tcl-spectcl:golden_packs test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1123.11s (wall 1124s)
+tcl-spectcl:spec_corpus test result: FAILED. 2 passed; 3 failed; 0 ignored; 0 measured; 0 filtered out; finished in 600.01s (wall 600s)
+tcl-spectcl:pack_is_real_tcl test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.33s (wall 0s)
