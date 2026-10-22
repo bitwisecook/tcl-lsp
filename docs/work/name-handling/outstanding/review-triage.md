@@ -2,7 +2,7 @@
 
 Area: Replay of the external review's findings on the current tree.
 
-Last updated: 2026-10-22T13:59:37Z
+Last updated: 2026-10-22T14:17:22Z
 
 Maintained by the review-triage agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. This agent commits and pushes it after each run and at least every 30 minutes.
 
@@ -12,7 +12,11 @@ Maintained by the review-triage agent. It lists what this agent considers it mus
 
 **Executed repeat:** `run5-e2e-repeat.log` records the existing `pack_source_e2e::a_pack_file_folds_a_call_site_in_the_optimiser` on `53ec43d1`: **0 passed / 1 failed**, DSL 1 expected `["5"]`, got `[]`. No O129 replacement is emitted. Runtime 16.17 s. Its executable and the temporary probe are deleted. All shared libraries are now built.
 
-**Next command after this checkpoint is pushed:** `source /tmp/review-triage-env.sh; bash docs/work/name-handling/reviews/triage-20261022/run6.sh`. This is the first complete current-API replay on this disk. It uses fresh `out/run6/`, prints completed-world presence, covers six rename profiles and both sibling cursor origins, compares N17 direct calls and declared/undeclared pure effects, and rechecks all findings and scaling. The nested-lowering probe now walks actual IR statements with `ir::for_each_statement`; it never searches whole-module Debug output. Follow with `bash docs/work/name-handling/reviews/triage-20261022/replay-oracles.sh run6` and `python3 docs/work/name-handling/reviews/triage-20261022/source-audit.py > docs/work/name-handling/reviews/triage-20261022/run6-source-audit.log`.
+**Active:** `run6.sh` is running (tool session 64190; test PID 22926). The test executable is built and running; its temporary `.rs` was deleted before this checkpoint. `run6.log` remains untracked and open by the runner; **do not stage or rebase that active file**. `run6-progress.log` is a closed prefix snapshot for this push. The remaining e2e step does not need the temporary probe.
+
+Completed fresh observations so far (not the final run result): N01 metadata still collapses but both declaration targets are now correct on C 8.6/9.0/9.1; empty-tail link correct. N02 Jim identities distinct but definitions empty after proper core-surface seeding. N03 C Tcl spans/edits correct, but Jim definition/references empty and rename refuses. N04 refuses both import forms on all six profiles (completed world false). N05 references select only the shadowed declaration; all six rename attempts refuse. N06 currently refuses class/proc collisions with UnknownWorld and methods with incomplete current member roster; its earlier specific collision refusals are not the current result. The six-profile sibling matrix now refuses at both declaration and call origins (all C: UnknownWorld; Jim declaration: UnknownWorld, call: original command unavailable). N07 refuses without navigating to the global on all profiles; W210 is present on C profiles but absent on Jim. The later server-shaped controls are still pending.
+
+**Next:** let the full run finish. Inspect the server-shaped `rename_with_registry` controls for R1, the direct/pure hook contrast, refactor disabled reasons, actual IR conditions and scaling rows. Then `bash docs/work/name-handling/reviews/triage-20261022/replay-oracles.sh run6` and `python3 docs/work/name-handling/reviews/triage-20261022/source-audit.py > docs/work/name-handling/reviews/triage-20261022/run6-source-audit.log`. Update and push the full run before starting a further run. Fetch latest work, and recheck affected findings after fixes; do not finish while the required R1 follow-up is still blocked.
 
 **Keep active build logs outside git mutations:** do not rebase a tracked log while its writer is running. Wait for the run to finish, then update/commit/push. During long runs a separate completed snapshot can be committed, but never replace the file an active command has open.
 
@@ -32,9 +36,9 @@ The complete original checkout was too large to recover promptly; the user autho
 
 | Finding | Status |
 |---|---|
-| N01 | REPRODUCES (slot collapse); empty tail FIXED |
+| N01 | CHANGED: metadata slot collapse remains; navigation now selects both correct declarations; empty tail FIXED |
 | N02 | CHANGED (Jim identities distinct; definition abstains) |
-| N03 | FIXED |
+| N03 | C Tcl FIXED; Jim CHANGED (definition/references abstain; rename refuses) |
 | N08 | FIXED |
 | N09 | constructor FIXED; call graph CHANGED (no summary for `::n::c`) |
 | N10 | CHANGED; `namespace path` class selection REPRODUCES |
@@ -76,7 +80,7 @@ It restores the probe, builds, runs and deletes the executables in one command, 
 
 ## In progress
 
-- Run6 ready: pending seam checks, direct/pure live-hook contrast, six-profile rename with registry, every finding and small scaling rows.
+- Run6 active: current prefix evidence is in `run6-progress.log`. Pending direct/pure live-hook contrast, seam checks, server-shaped rename controls, remaining findings and scaling.
 - Required release gates `make rust-check` and `make prep-pr` are not run; this is evidence-only work under the active `work` development-push exception.
 
 ## Outstanding (in priority order)
@@ -103,3 +107,5 @@ It restores the probe, builds, runs and deletes the executables in one command, 
 - 2026-10-22T13:45:08Z: cloud baseline replay completed: 19 preserved Tcl files, 114 engine executions, no timeouts (`cloud-baseline-oracles.log`). Feature-unavailable rows retain their nonzero exit codes. N17 driver registers `good` on all six engines. Static source excerpts: `cloud-source-audit.log`; pending current-API rows remain pending.
 
 - 2026-10-22T13:59:37Z: run5 finished; repeat of the existing fold test confirms a real failure (0 passed / 1 failed; DSL 1 expected ["5"], got []). Evidence: `run5-e2e-repeat.log`. No product files or tests were edited. Required release gates remain unrun.
+
+- 2026-10-22T14:16:15Z: checkpoint of the first completed run6 observations; the active log is preserved outside the index. Snapshot: `run6-progress.log`. No new edit output has yet been validated on the oracles; those outputs remain uncommitted until replay.

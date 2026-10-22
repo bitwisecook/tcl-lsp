@@ -10,6 +10,8 @@ Cloud resumption: 2026-10-22T13:17:02Z in a fresh, shallow selective checkout. R
 
 ## Cloud validation progress
 
+**Run6 active (2026-10-22T14:16:15Z):** [run6-progress.log](triage-20261022/run6-progress.log) is a closed prefix snapshot from `5bd5a503`; the full log and edit replay are pending. Current observations below supersede the older runs where stated. No final summary or completed migration is claimed.
+
 - **2026-10-22T13:45:08Z:** 19 preserved Tcl inputs replayed on six exact engines: **114 executions, no timeouts**. Complete outputs, exit codes and hashes: [cloud-baseline-oracles.log](triage-20261022/cloud-baseline-oracles.log). Feature-unavailable rows are retained, including Jim's unsupported `interp alias` form; they are not incorrect oracle answers. N17's capture driver registers `good` on every engine.
 - [cloud-source-audit.log](triage-20261022/cloud-source-audit.log) rechecks the static seams on `81a911af`. N11's existing-command early return and N13's four/five-round caps remain. These are source inspections, not server protocol executions.
 - `run5.log` is the completed initial cloud build log (with an incomplete e2e diagnostic segment, as explained below). The initial main command exited 101 for omitted embedded fixture files; the scaling command also encountered missing includes before all three trees were restored, while the compiler continued building. No named probe result is inferred from these errors. Rebasing this tracked active log replaced its inode, so the e2e cargo diagnostic segment was lost; a stable repeat is recorded separately. The exact launched source is `run5-source.rs.txt`.
@@ -41,12 +43,12 @@ Cloud resumption: 2026-10-22T13:17:02Z in a fresh, shallow selective checkout. R
 
 | Finding / seam | Status | Owner | Current files |
 |---|---|---|---|
-| N01 colliding identities | REPRODUCES (C Tcl `a:`/`p` vs `a`/`:p` collapse); empty-tail link FIXED | unowned (closest compiler-names) | `tcl-compiler/src/analyser/types.rs:2415`, `analyser/handlers.rs` |
+| N01 colliding identities | CHANGED: `all_procs` still collapses; both definition targets FIXED on C 8.6/9.0/9.1; empty-tail link FIXED | unowned (closest compiler-names) | `tcl-compiler/src/analyser/types.rs:2415`, `analyser/handlers.rs` |
 | N02 Jim colon policy | CHANGED: identities distinct; definition abstains under Jim | compiler-names (naming), lsp (definition) | `tcl-syntax/src/naming.rs`, `tcl-lsp-core/src/definition.rs` |
-| N03 variable cursor/profile | FIXED | — | — |
+| N03 variable cursor/profile | C Tcl FIXED; Jim CHANGED (definition/references abstain and rename refuses) | lsp / compiler-names | `tcl-lsp-core/src/definition.rs`, original variable bindings |
 | N04 imported-source rename | Refused, pending R1 | lsp (planner), compiler-names (R1 world) | `tcl-lsp-core/src/original_command_rename.rs`, `rename.rs` |
 | N05 forced-import rename | Refused, pending R1 (references correct) | lsp, compiler-names | same |
-| N06 collision checks | Refused, pending R1. Specific collision refusals fire for class, method and proc→class; the sibling-file case refuses generically | lsp | same; `rename.rs` `cross_document_symbol_edits` |
+| N06 collision checks | Refused, pending R1. Run6 class/proc and sibling cases refuse with UnknownWorld; methods lack a complete current member roster | lsp | same; `rename.rs` `cross_document_symbol_edits` |
 | N07 speculative proc variable | Refused, pending R1. Definition no longer walks to the global | lsp | `rename.rs`, `definition.rs` |
 | N08 inliner subset oracle + nested lowering | FIXED (edits and unit inference) | — | — |
 | N09 type/call/taint | Constructor typing FIXED; call graph CHANGED (`::n::c` has no summary, so it abstains) | unowned | `tcl-compiler/src/interprocedural.rs` |
@@ -75,7 +77,8 @@ Each row gives the evidence (probe call or command and the observed output), the
 
 ### N01: colliding / display identities
 
-- **Status:** REPRODUCES (slot collapse). The empty-tail part is FIXED.
+- **Status:** CHANGED. The `all_procs` display-key map still collapses two slots. Navigation now distinguishes both declarations; the empty-tail part remains FIXED.
+- **Fresh run6:** on C 8.6, 9.0 and 9.1 the calls in `{p}]` and `{:p}]` target `(0,24)` and `(1,24)` respectively. This is corrected navigation despite the single `::a:::p` metadata entry; the map collision alone is not evidence that these current definition calls select the wrong entity.
 - **Evidence:** `Analyser::new().analyse(src, "tcl8.6"|"tcl9.0")` on the review's `a:`/`:p` script (`tcl/n01.tcl`) gives `all_procs=["::a:::p"]`: one entry for two runtime slots. `diags=[]`, so the review's false unknown-command diagnostic is gone.
 - **Oracle:** 8.6, 9.0 and 9.1 print `LEFT|RIGHT`. 8.4 and 8.5 reject `proc :p`. Jim prints `RIGHT|RIGHT`.
 - **Empty tail:** for `tcl/n01b.tcl`, `WorkspaceIndex::command_links()` gives `("::a", "::n::")`. The target is preserved, so this part is FIXED. The oracle prints `EMPTY` on all C releases.
@@ -94,7 +97,8 @@ Each row gives the evidence (probe call or command and the observed output), the
 
 ### N03: variable cursor / profile
 
-- **Status:** FIXED.
+- **Status:** C Tcl FIXED; Jim CHANGED.
+- **Fresh run6:** C 8.6/9.0 still edit only `caf` and `$caf`; C 9.1 joins 9.0 in selecting `a{b}` for nested braces. Under Jim, with compiled-in core surfaces explicitly seeded as production does, definition and references for `$café` are both empty and rename refuses. The earlier Jim navigation result below is historical, not the current result.
 - **Evidence for `set caf A; set café B; puts $café`:**
   - Under tcl8.6 and tcl9.0, `definition` gives `(0,4,7)` (the `caf` declaration), and references give `(0,4,7)` and `(2,5,9)`. Rename to `zz` edits `caf` and `$caf`; the edited file (`out/r_n03_tcl8.6.tcl`) prints `Aé` on all C Tcl releases.
   - Under Jim, `definition` gives `(1,4,8)` (`café`), and the rename output prints `B` on Jim.
@@ -106,6 +110,7 @@ Each row gives the evidence (probe call or command and the observed output), the
 ### N04: imported-command source rename
 
 - **Status:** refused, pending R1.
+- **Fresh run6:** wildcard and exact forms refuse on all six profiles. `original_completed_command_world()` is false in every case; C profiles report UnknownWorld, Jim reports the original command unavailable. No edit was returned.
 - **Evidence:** `rename_in_program` (run3) from `proc bar` to `baz` returns `REFUSED "unknown-completed-command-world …"` for both the wildcard (`tcl/n04w.tcl`) and the exact-import form, under tcl8.4, tcl8.6 and tcl9.0. Under Jim it refuses with "the original command selected at this cursor is unavailable …". No edit is produced, so nothing ran.
 - **Oracle:** the original prints `1` on all six engines.
 - **Owner:** lsp (`tcl-lsp-core/src/original_command_rename.rs`, which raises `UnknownWorld` at `occupied()`; also `rename.rs`), plus compiler-names for the completed command world (R1).
@@ -114,6 +119,7 @@ Each row gives the evidence (probe call or command and the observed output), the
 ### N05: forced-import rename vs references
 
 - **Status:** refused, pending R1.
+- **Fresh run6:** all six profiles return only `(2,9)` from references and refuse rename with UnknownWorld. Simple `proc foo; puts [foo]` controls through `rename_with_diagnosis` also refuse on C 8.6/9.0/9.1; the server-shaped controls are later in this active run.
 - **Evidence:** `references` from the `b::foo` declaration gives only `(2,9)`, which is correct. Rename is `REFUSED "unknown-completed-command-world …"`, both through `rename_with_diagnosis` without a registry and through `rename_in_program` with the registry and program view, under tcl8.4, tcl8.6, tcl9.0 and Jim.
 - **Controls (run3):**
   - `proc foo {} {return A}; puts [foo]` refuses with "incomplete-original-command-coverage".
@@ -126,6 +132,7 @@ Each row gives the evidence (probe call or command and the observed output), the
 ### N06: rename collision checks
 
 - **Status:** refused, pending R1.
+- **Fresh run6 supersedes the older specific refusals below:** C 8.6/9.0/9.1 refuse class and proc→class with UnknownWorld, and method rename with `unknown-current-source-member-roster`. The general refusal keeps edits disabled but does not establish that the destination-specific collision check now runs. The six-profile sibling matrix also refuses at both origins: all C profiles give UnknownWorld; Jim gives UnknownWorld from the declaration and original-command-unavailable from the call. No edited sibling fixture is produced.
 - **Evidence (`rename_in_program`, tcl8.6 and tcl9.0):**
   - Class `A`→`B`: `original-command-collision`.
   - Method `old`→`dest`: `original-member-collision`.
@@ -140,6 +147,7 @@ Each row gives the evidence (probe call or command and the observed output), the
 ### N07: speculative proc-variable binding
 
 - **Status:** refused, pending R1.
+- **Fresh run6:** definition is empty on all six profiles; no request edits the unrelated global. C profiles report W210 and refuse with `unreferenced-edit`; Jim reports no W210 and refuses because the original variable cannot be proved. This is a safe refusal, with a separate Jim analysis gap. The server-shaped matrix and required post-R1 replay remain pending.
 - **Evidence for `set g 1; proc p {} {puts $g}`:**
   - Definition from `$g` is now `[]`; it no longer walks out to the global. W210 is still reported.
   - Run1, without a registry: rename to `h` edits only the proc-local `$g`. The global is untouched, under tcl8.4, tcl8.6, tcl9.0 and Jim.
