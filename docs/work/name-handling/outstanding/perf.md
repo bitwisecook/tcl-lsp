@@ -2,14 +2,20 @@
 
 Area: Analysis and SpecTcl pack-load cost.
 
-Last updated: 2026-10-22 15:45 UTC
+Last updated: 2026-10-22 16:18 UTC
 
 Maintained by the perf agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## Resume
 
 Active checkout: `/workspace/tcl-lsp-work`, shallow `work` clone with selected
-sources and proof inputs. Base for the current full-batch proof: `8a01a718`.
+sources and proof inputs. Source HEAD is now `e4a01bbe` (latest fetched work),
+with the full toggled batch reproduced exactly against that base. Existing
+binaries continue their `8a01a718` runs without changing their input bytes;
+new proof outputs are isolated under `perf/evidence/latest-e4a01bbe/`.
+The prior local docs graph was already pushed/rebased; it is preserved locally
+at refs/perf/base-before-latest-sync. Source adoption preserved every live
+output and all nine proof edits; none overlapped the fetched upstream paths.
 The original checkout at `/workspace/tcl-lsp` has an interrupted checkout from
 an oversized history fetch; do not use it as the active source tree. Its ignored
 `tmp/` holds the built Tcl/Jim oracles, shared through the active checkout's
@@ -35,8 +41,14 @@ All **102 `.tcl` + 15 `.irul` inputs are present**. The origin/rust timing run
 has completed on all of them, the synthetic cases, exact Tk tclIndex prefixes,
 and actual LSP document/index/existence/code-lens and source-chain shapes.
 These baseline timing-only rows do not compare AnalysisResult across branches.
-The optimized build finished in 90m 59s. The full-batch old/new/old corpus
-run is executing; all completed rows are equal so far, not a complete verdict.
+The optimized base-8a01a718 build finished in 90m 59s. Its full-batch
+old/new/old corpus run is executing; completed rows remain equal, not a complete
+corpus verdict. A separate complete ordered PackSet Debug comparison PASSED:
+old1=62828 ms, new=25493 ms, old2=120495 ms, deterministic=true,
+equal_complete_debug=true. Exact output: packset-base-8a01a718-threeway.out.
+10/40/100-line tclIndex results are exactly equal; the 253-line old run is
+still active. The 100-line old timing was instrumented by a live debugger
+pause and is not an uninstrumented latency comparison.
 
 The lexer lib proof finished: **583 pass / 3 fail in both modes**, identical
 pass/fail inventories and zero pass-to-fail. Captured outputs and summary:
@@ -64,6 +76,30 @@ and two routed files, no switch. `tools/refresh_patches.py ROOT --snapshot
 /tmp/perf-clean-batch --check-toggled` reproduces the proof tree byte-for-byte.
 
 ## In progress
+
+- Latest proof build/run: /tmp/perf-run-latest.sh, target-latest, separate
+  zz_latest_perfprobe/zz_latest_spectclprobe sources and binaries. Logs:
+  /tmp/perf-latest-probe-build.log and /tmp/perf-latest-run.log. Outputs:
+  perf/evidence/latest-e4a01bbe/. The initial latest build was stopped early
+  to give it a separate target; it must not share base dependencies that the
+  supplemental optimized SpecTcl script may still read. Same-worktree cached
+  dependencies were copied; Cargo rebuilds the changed workspace crates.
+- Latest lexer/compiler default-profile runs: /tmp/perf-latest-crate-lexer-compiler.log,
+  target-tests, with --evidence-dir perf/evidence/latest-e4a01bbe. The base
+  SpecTcl executable is statically linked and unaffected by library rebuilds;
+  do not rebuild/delete its golden executable before its existing run ends.
+- The base optimized SpecTcl eval_loader control passed all 28 new-mode tests
+  in 1482.833 s and is running old mode. Its later golden compilation must not
+  be accepted as base evidence: the first latest Cargo attempt invalidated the
+  base compiler rlib. The required unoptimized base golden run remains valid
+  and active; latest complete-input SpecTcl still requires both suites/modes.
+  Never treat a missing/mixed dependency build failure as a semantic regression.
+- The two server filters now use the explicitly requested 180-second limit in
+  BOTH modes. The runner lists each selected test first, records timed_out
+  separately from Rust assertion outcomes, and preserves exact declared test
+  inventories. No assertion or ignored-test state is changed. The queued
+  initial server command will compile current source, records its HEAD/diff
+  fingerprint, and therefore belongs to latest source rather than base 8a.
 
 - origin/work advanced to `a5aeb5a7` with source changes in other owners' files.
   Active build results are pinned to production base `8a01a718`; they are not

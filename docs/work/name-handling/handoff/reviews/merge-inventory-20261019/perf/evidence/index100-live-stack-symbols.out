@@ -1,0 +1,44 @@
+[Thread debugging using libthread_db enabled]
+Using host libthread_db library "/lib/x86_64-linux-gnu/libthread_db.so.1".
+eq<u8> () at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/core/src/ptr/non_null.rs:1663
+
+warning: 1663	/rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/core/src/ptr/non_null.rs: No such file or directory
+
+Thread 1 (Thread 0x7fd0b88c9e00 (LWP 25146) "zz_indexprobe"):
+#0  eq<u8> () at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/core/src/ptr/non_null.rs:1663
+#1  next<u8> () at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/core/src/slice/iter/macros.rs:180
+#2  next<core::slice::iter::Iter<u8>> () at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/core/src/iter/adapters/enumerate.rs:80
+#3  from_bytes () at rust/tcl-lexer/src/line_index.rs:160
+#4  0x000055a2b81e86ec in {closure#0}<&[u8]> () at rust/tcl-lexer/src/source_map.rs:289
+#5  then<tcl_lexer::line_index::LineIndex, tcl_lexer::source_map::{impl#7}::from_bytes::{closure_env#0}<&[u8]>> () at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/core/src/bool.rs:66
+#6  from_bytes<&[u8]> () at rust/tcl-lexer/src/source_map.rs:289
+#7  0x000055a2b8200f9b in {closure#0} () at rust/tcl-lexer/src/parse_cut.rs:486
+#8  get_or_insert_with<tcl_lexer::source_map::SourceImage, tcl_lexer::parse_cut::first_parse_cut_channel_in_anchored::{closure_env#0}> () at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/core/src/option.rs:1826
+#9  first_parse_cut_channel_in_anchored () at rust/tcl-lexer/src/parse_cut.rs:486
+#10 0x000055a2b8205347 in first_parse_cut_channel_in_with_descent () at rust/tcl-lexer/src/parse_cut.rs:467
+#11 first_parse_cut_channel_in () at rust/tcl-lexer/src/parse_cut.rs:449
+#12 first_parse_cut_image_in_checked () at rust/tcl-lexer/src/parse_cut.rs:320
+#13 capture_native_script_words () at rust/tcl-lexer/src/native_script_words.rs:266
+#14 0x000055a2b8204c2d in native_script_words_in_with_purpose () at rust/tcl-lexer/src/native_script_words.rs:199
+#15 native_script_words_in () at rust/tcl-lexer/src/native_script_words.rs:178
+#16 0x000055a2b7a2addd in header_uncached () at rust/tcl-compiler/src/command_binding/incomplete_body_metadata.rs:86
+#17 0x000055a2b7a2d6ae in header () at rust/tcl-compiler/src/command_binding/incomplete_body_metadata.rs:46
+#18 0x000055a2b73aeac1 in incomplete_body_operand_layout_advice () at rust/tcl-compiler/src/command_binding/incomplete_body_metadata.rs:458
+#19 0x000055a2b7a14577 in original_incomplete_body_registry_invocation_assistance () at rust/tcl-compiler/src/registry_invocation.rs:6040
+#20 0x000055a2b7a452cf in {closure#0} () at rust/tcl-compiler/src/registry_invocation/source_structure.rs:1073
+#21 or_else<tcl_compiler::registry_invocation::RegistryInvocationAssistance, tcl_compiler::registry_invocation::source_structure::selected_registry_words_in_original_image::{closure_env#0}> () at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/core/src/option.rs:1652
+#22 selected_registry_words_in_original_image () at rust/tcl-compiler/src/registry_invocation/source_structure.rs:1072
+#23 0x000055a2b7a3f503 in selected_registry_words_in_realm () at rust/tcl-compiler/src/registry_invocation/source_structure.rs:1049
+#24 0x000055a2b7a41bab in selected_registry_words_with_context () at rust/tcl-compiler/src/registry_invocation/source_structure.rs:973
+#25 0x000055a2b7a35df3 in selected_registry_words () at rust/tcl-compiler/src/registry_invocation/source_structure.rs:956
+#26 0x000055a2b7a48891 in source_registry_words_with_definition_parent () at rust/tcl-compiler/src/registry_invocation/source_structure.rs:1783
+#27 0x000055a2b7b2c5f1 in source_registry_words () at rust/tcl-compiler/src/registry_invocation/source_structure.rs:1492
+#28 collect () at rust/tcl-compiler/src/auto_path_eval/path_constants/original.rs:172
+#29 0x000055a2b7c331cf in extend_path_constant_assignments_from_analysis_commands () at rust/tcl-compiler/src/auto_path_eval/path_constants/original.rs:60
+#30 0x000055a2b7b763b2 in record_path_constant_candidates () at rust/tcl-compiler/src/analyser/state.rs:3005
+#31 0x000055a2b7b708cf in walk_commands_top_level () at rust/tcl-compiler/src/analyser/state.rs:2481
+#32 0x000055a2b7b7b1b4 in analyse () at rust/tcl-compiler/src/analyser/state.rs:2349
+#33 0x000055a2b67cb07b in analyse_mode () at rust/tcl-compiler/examples/zz_perfprobe.rs:46
+#34 0x000055a2b67cb1ad in run () at rust/tcl-compiler/examples/zz_perfprobe.rs:77
+overlong character literal
+[Inferior 1 (process 25146) detached]

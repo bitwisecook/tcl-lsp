@@ -1,0 +1,88 @@
+{
+  "production_base": "8a01a718 + full batch",
+  "origin": "fcb7927f",
+  "unit": "milliseconds",
+  "measurement": "wall clock, opt-level=1, debug assertions and line tables; concurrent work; median of 3 query runs. Analysis runs once per size. Not cross-branch result equality.",
+  "data": {
+    "origin/document": {
+      "10": {
+        "analyse_us": 191.802,
+        "index_us": 0.082,
+        "existence_100_us": 0.099,
+        "lenses_us": 0.302
+      },
+      "20": {
+        "analyse_us": 62.695,
+        "index_us": 0.043,
+        "existence_100_us": 0.356,
+        "lenses_us": 1.857
+      },
+      "40": {
+        "analyse_us": 375.824,
+        "index_us": 0.092,
+        "existence_100_us": 0.691,
+        "lenses_us": 6.323
+      },
+      "80": {
+        "analyse_us": 802.071,
+        "index_us": 0.547,
+        "existence_100_us": 2.417,
+        "lenses_us": 24.129
+      }
+    },
+    "origin/chain": {
+      "250": {
+        "build_us": 19.849
+      },
+      "500": {
+        "build_us": 95.574
+      },
+      "1000": {
+        "build_us": 379.542
+      },
+      "2000": {
+        "build_us": 1544.137
+      }
+    },
+    "work/document": {
+      "10": {
+        "analyse_us": 4941.733,
+        "index_us": 58.271,
+        "existence_100_us": 0.476,
+        "lenses_us": 67.261
+      },
+      "20": {
+        "analyse_us": 9557.68,
+        "index_us": 269.56,
+        "existence_100_us": 2.385,
+        "lenses_us": 789.784
+      },
+      "40": {
+        "analyse_us": 9575.356,
+        "index_us": 514.987,
+        "existence_100_us": 2.803,
+        "lenses_us": 5042.101
+      },
+      "80": {
+        "analyse_us": 38597.95,
+        "index_us": 931.05,
+        "existence_100_us": 3.92,
+        "lenses_us": 11160.625
+      }
+    },
+    "work/chain": {
+      "250": {
+        "build_us": 15.62
+      },
+      "500": {
+        "build_us": 56.871
+      },
+      "1000": {
+        "build_us": 929.938
+      },
+      "2000": {
+        "build_us": 1691.583
+      }
+    }
+  }
+}

@@ -14,5 +14,13 @@
     "failed": 2,
     "ignored": 0,
     "log": "tests-spectcl-eval_loader-old.out"
+  },
+  "spectcl/golden_packs/new": {
+    "returncode": 101,
+    "seconds": 3537.662,
+    "passed": 2,
+    "failed": 1,
+    "ignored": 0,
+    "log": "tests-spectcl-golden_packs-new.out"
   }
 }

@@ -24,3 +24,12 @@ test derived_frame_aliases_register_explicit_logical_source_dispatch ... ok
 test from_frame_effect_derives_the_alias_pairs_resolver ... ok
 test runtime_backing_reads_each_shape_through_both_paths ... ok
 test every_shipped_pack_loads_identically_with_and_without_the_static_fast_path has been running for over 60 seconds
+test semantic_operation_round_trips_through_the_renderer has been running for over 60 seconds
+test semantic_operation_round_trips_through_the_renderer ... ok
+test the_block_readers_still_report_from_the_evaluated_path ... ok
+test the_new_two_point_oh_words_load_identically_on_both_routes ... ok
+test the_ratified_words_load_identically_on_both_routes ... ok
+test every_shipped_pack_loads_identically_with_and_without_the_static_fast_path ... ok
+
+test result: ok. 28 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1482.66s
+

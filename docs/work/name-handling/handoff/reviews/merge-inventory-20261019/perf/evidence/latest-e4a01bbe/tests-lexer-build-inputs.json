@@ -1,0 +1,7 @@
+{
+  "head": "e4a01bbed36b9b2f4b64dc6d8623daed41f4867b",
+  "rust_diff_sha256": "0cf3d7623c773d4bb8cc7ca1129dbbeb63f4afdf6a020b430819b1bae2ba5747",
+  "profile": "test opt-level=0 debug=0 incremental=0",
+  "target_dir": "/workspace/tcl-lsp-work/target-tests",
+  "server_timeout_seconds_both_modes": 180
+}

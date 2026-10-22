@@ -1,0 +1,23 @@
+{
+  "production_base": "e4a01bbed36b9b2f4b64dc6d8623daed41f4867b",
+  "source_sha256": {
+    "rust/tcl-compiler/src/command_binding/formal_call_advice.rs": "fdba14212b0774c1f7b146af62ff7f42be2c0cfcebee0fe039982d70d823de11",
+    "rust/tcl-compiler/src/command_binding/incomplete_body_metadata.rs": "897b1fd377bd4f6bbf391b37fb6ab919b77f0023cdc07904d6640a67ed69255b",
+    "rust/tcl-compiler/src/command_binding/original_name_value.rs": "5509e61550912d96e3a7249e43e36ed3eaabd694cd22e4ebbc112295d54cc502",
+    "rust/tcl-compiler/src/interprocedural.rs": "064177e62225509b170b21a1ea790d30fb48f7f6fce4524615450c1d7705ae6e",
+    "rust/tcl-compiler/src/parsing/spectcl_source/original_word.rs": "f2ea2f1a37fe20f574fe2633a8f10ff9c52fe966e2240e2128bde9fe6a3d4410",
+    "rust/tcl-compiler/src/realm.rs": "d9e091f7ce304a61779513cde86f85483ff14e22d6d41547b3328053bbac2e64",
+    "rust/tcl-lexer/src/lib.rs": "7b4e00279e030075f7e5a44f5c814ad15b0583bad93007977a7720156d4326b9",
+    "rust/tcl-lexer/src/parse_cut.rs": "6119eaf6e5d1927ed88472ee7c0721d2d0898f0e87ab6580129ae6a181869438",
+    "rust/tcl-lexer/src/source_map.rs": "7ffa531e6839433fc6b45dedaf061ea8f551e97fe14c35df44704b3833a0f35d"
+  },
+  "patch_sha256": {
+    "perf-analyser-segments.patch": "88e85b0cfd6e18b518783bbfd24aa21fd486cfdc7d4ad2136bc1fef67a862b73",
+    "perf-realm-interprocedural.patch": "04532eb7653f439d5df544a7505e7658e9d2a02400e1b736b797ef72c3bbdfa2",
+    "perf.patch": "ef773f30b2794e555b0a5c4728d2d6d700ae2b4779bbb99b971ddb5dc812f4db",
+    "perf-analyser-images.patch": "a5cf32bf080e4f75f755e639542052762d9bd43e2cc4432cf7ee390fc83243c8",
+    "perf-owned.patch": "90b9958661276a302d901d67fdc86c98ebb8abccb85a9ef5704fb811cae9fc76"
+  },
+  "profiles": "optimized probes: opt-level=1, line tables, debug assertions; test profile: opt-level=0, debug=0; all incremental=0",
+  "previous_binaries": "8a01a718 proof binaries retain distinct filenames and input bytes; new build does not overwrite them"
+}

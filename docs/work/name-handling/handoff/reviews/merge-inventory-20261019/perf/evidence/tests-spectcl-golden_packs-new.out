@@ -4,3 +4,23 @@ test every_shipped_pack_still_loads_to_its_golden_snapshot has been running for 
 test every_shipped_pack_upgrades_to_2_0_and_loads_identically has been running for over 60 seconds
 test every_shipped_pack_still_loads_to_its_golden_snapshot ... ok
 test no_golden_snapshot_is_orphaned ... ok
+test every_shipped_pack_upgrades_to_2_0_and_loads_identically ... FAILED
+
+failures:
+
+---- every_shipped_pack_upgrades_to_2_0_and_loads_identically stdout ----
+
+thread 'every_shipped_pack_upgrades_to_2_0_and_loads_identically' (23929) panicked at rust/tcl-spectcl/tests/golden_packs.rs:255:9:
+/workspace/tcl-lsp-work/specs/eda_xilinx.tclspec: the 2.0 rewrite loads differently through the interpreter.
+line 3:
+  golden: pack eda_xilinx dsl <any> display Some("AMD Xilinx Vivado") load_error None
+  now   : pack eda_xilinx dsl <any> display None load_error Some(BudgetExhausted("wall clock"))
+
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    every_shipped_pack_upgrades_to_2_0_and_loads_identically
+
+test result: FAILED. 2 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3537.36s
+

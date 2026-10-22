@@ -56,7 +56,7 @@ Rust 1.99.1, opt-level 1, debug assertions and line tables, incremental off,
 `-j2`; separate target directories for each tree. Builds ran concurrently,
 so these wall-clock diagnostics are not release latency or a clean exponent
 measurement. The baseline is the verified origin/rust `fcb7927f`; work proof
-is based on `8a01a718` plus the refreshed full batch. Work results are pending.
+is based on `8a01a718` plus the refreshed full batch. Work corpus/synthetic/PackSet results remain in progress; the completed ordinary LSP rows below are pinned to this base, before rebasing.
 
 Tk 8.6.18 `library/tclIndex`: 253 lines, SHA-256
 `e7ea83cd5df322fb760c9787c9eda92bad3d048737be28d2c9606b9243cf0bbb`.
@@ -68,11 +68,11 @@ Exactly the same first 10/40/100/253 lines are used in both trees.
 | calls 20 (median of 3 warmed runs) | 76 ms | pending | pending |
 | calls 40 (median of 3 warmed runs) | 129 ms | pending | pending |
 | calls 80 (median of 3 warmed runs) | 109 ms | pending | pending |
-| tclIndex 10 lines | 163 ms | pending | pending |
-| tclIndex 40 lines | 492 ms | pending | pending |
-| tclIndex 100 lines | 1021 ms | pending | pending |
+| tclIndex 10 lines | 163 ms | 1084 ms | 920 ms |
+| tclIndex 40 lines | 492 ms | 34482 ms | 16086 ms |
+| tclIndex 100 lines | 1021 ms | 459444 ms (instrumented) | 37237 ms |
 | tclIndex 253 lines | 1596 ms | pending | pending |
-| load_embedded | 4665 ms | pending | pending |
+| load_embedded | 4665 ms | old1 62828 / old2 120495 ms | 25493 ms |
 
 Raw timing-only runs: `origin-calls.out`, `origin-upvar.out`, `origin-procs.out`,
 `origin-tclIndex.out`, `origin-corpus.out` (102), `origin-irules.out` (15),
@@ -84,3 +84,42 @@ index intake and code lenses retain every measured procedure. Source-chain
 construction uses the public RunOrder compatibility ingress, separately from
 actual source/provider admission. No unavailable provider is counted as a
 fast successful document query.
+
+### Ordinary analysed-document path, base 8a01a718 + full batch
+
+All declaration/index/lens count assertions passed. Work rows use the actual
+Logical publication path; they do not count an unavailable provider as fast.
+The batch leaves these costs unresolved. Values below are milliseconds,
+medians of three queries on each retained analysis; analysis itself runs once.
+The host was contended, so use the results as diagnostic scaling evidence.
+
+| Procedures/calls | origin index | work index | origin 100 misses | work 100 misses | origin lenses | work lenses |
+|---:|---:|---:|---:|---:|---:|---:|
+| 10 | 0.082 | 58.271 | 0.099 | 0.476 | 0.302 | 67.261 |
+| 20 | 0.043 | 269.560 | 0.356 | 2.385 | 1.857 | 789.784 |
+| 40 | 0.092 | 514.987 | 0.691 | 2.803 | 6.323 | 5042.101 |
+| 80 | 0.547 | 931.050 | 2.417 | 3.920 | 24.129 | 11160.625 |
+
+The current lens implementation reconstructs the Logical call inventory and
+WorkspaceIndex multiple times per declaration, including inside currentness
+checks. See residual-routing.md for the request-scoped owner handoff; none of
+these checks may be bypassed to obtain a faster result.
+
+The separately measured public RunOrder compatibility source chain still
+copies full ancestry paths; this is not a Native/provider ingress benchmark.
+
+| Files | origin chain build | work chain build |
+|---:|---:|---:|
+| 250 | 19.849 | 15.620 |
+| 500 | 95.574 | 56.871 |
+| 1000 | 379.542 | 929.938 |
+| 2000 | 1544.137 | 1691.583 |
+
+Raw outputs and exact library artifact paths accompany the table.
+
+The 100-line tclIndex process was briefly stopped for a live stack while in
+the old uncached header path. Its old timing includes instrumentation effects
+and must not be used as an uninstrumented latency ratio. The captured stack
+is index100-live-stack-symbols.out. The separate PackSet control compares the
+complete ordered Debug structures, not sorted lines: deterministic=true and
+equal_complete_debug=true (packset-base-8a01a718-threeway.out).

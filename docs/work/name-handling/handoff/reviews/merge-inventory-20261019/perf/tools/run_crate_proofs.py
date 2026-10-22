@@ -5,6 +5,7 @@
 """Build, compare both switch modes, and delete each test executable."""
 
 import argparse
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -15,11 +16,13 @@ import time
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("root", type=Path)
 parser.add_argument("--target-dir", type=Path)
+parser.add_argument("--evidence-dir", type=Path)
 parser.add_argument("--stage", choices=("lexer", "compiler", "spectcl", "server", "all"), default="all")
 parser.add_argument("--suite", action="append", help="Rerun only these suites; preserve other saved outcomes")
 args = parser.parse_args()
 root = args.root.resolve()
-evidence = root / "docs/work/name-handling/handoff/reviews/merge-inventory-20261019/perf/evidence"
+evidence = args.evidence_dir or root / "docs/work/name-handling/handoff/reviews/merge-inventory-20261019/perf/evidence"
+evidence.mkdir(parents=True, exist_ok=True)
 env = dict(os.environ, CARGO_INCREMENTAL="0", CARGO_PROFILE_TEST_DEBUG="0",
            TCL_LSP_REQUIRE_TCLSH="9.0,8.6", TCL_LSP_JIMSH=str(root / "tmp/jimtcl-oracle/jimsh"),
            CARGO_TARGET_DIR=str((args.target_dir or root / "target").resolve()))
@@ -54,6 +57,13 @@ for stage, (package, targets, suites) in stages.items():
             summary.update(json.loads(saved_summary.read_text()))
     build_json = Path(f"/tmp/perf-{stage}-test-build.jsonl")
     build_log = Path(f"/tmp/perf-{stage}-test-build.log")
+    source_diff = subprocess.check_output(["git", "diff", "--", "rust"], cwd=root)
+    (evidence / f"tests-{stage}-build-inputs.json").write_text(json.dumps({
+        "head": subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=root, text=True).strip(),
+        "rust_diff_sha256": hashlib.sha256(source_diff).hexdigest(),
+        "profile": "test opt-level=0 debug=0 incremental=0", "target_dir": env["CARGO_TARGET_DIR"],
+        "server_timeout_seconds_both_modes": 180,
+    }, indent=2) + "\n")
     print(f"BUILD {stage}", flush=True)
     with build_json.open("w") as out, build_log.open("w") as err:
         built = subprocess.run(["cargo", "test", "--locked", "-j2", "-p", package, *targets,
@@ -76,6 +86,12 @@ for stage, (package, targets, suites) in stages.items():
         for suite, selected in suites:
             exe = (artifacts[suite] if stage == "spectcl" else next(iter(artifacts.values())))
             outcomes = {}
+            expected_server_tests = None
+            if stage == "server":
+                listed = subprocess.check_output([str(exe), *selected, "--list"],
+                                                 cwd=root / "rust" / package, env=env, text=True)
+                expected_server_tests = set(re.findall(r"^(.+): test$", listed, re.M))
+                assert expected_server_tests, f"no declared tests for {suite}"
             for mode in ("new", "old"):
                 log = evidence / f"tests-{stage}-{suite}-{mode}.out"
                 package_root = root / "rust" / package
@@ -87,12 +103,18 @@ for stage, (package, targets, suites) in stages.items():
                         result = subprocess.run([str(exe), *selected, "--test-threads=2"],
                                                 cwd=package_root, env=mode_env, stdout=out,
                                                 stderr=subprocess.STDOUT,
-                                                timeout=180 if stage == "server" and mode == "new" else None)
+                                                timeout=180 if stage == "server" else None)
                         code = result.returncode
                     except subprocess.TimeoutExpired:
                         code = "timeout180"
                 text = log.read_text()
                 rows = dict(re.findall(r"^test (.+?) \.\.\. (ok|FAILED|ignored)$", text, re.M))
+                if expected_server_tests is not None:
+                    assert set(rows) <= expected_server_tests, f"unexpected tests in {log}"
+                    if code == "timeout180":
+                        # A timeout is a separate failed gate state, never an assertion result.
+                        rows.update({name: "timeout180" for name in expected_server_tests - set(rows)})
+                    assert set(rows) == expected_server_tests, f"incomplete test inventory in {log}"
                 assert rows or code == "timeout180", f"no test outcomes in {log}"
                 outcomes[mode] = rows
                 summary[f"{stage}/{suite}/{mode}"] = {
@@ -100,6 +122,7 @@ for stage, (package, targets, suites) in stages.items():
                     "passed": sum(x == "ok" for x in rows.values()),
                     "failed": sum(x == "FAILED" for x in rows.values()),
                     "ignored": sum(x == "ignored" for x in rows.values()),
+                    "timed_out": sorted(name for name, state in rows.items() if state == "timeout180"),
                     "log": log.name,
                 }
                 if code:
