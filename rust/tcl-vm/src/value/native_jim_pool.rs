@@ -76,7 +76,10 @@ impl JimAllocationScope {
 }
 impl Drop for ScopeOwner {
     fn drop(&mut self) {
-        let removed = ENTERED.with(|stack| {
+        // During thread exit the stack may already be destroyed; then there
+        // is nothing left to unwind, and touching it would panic in a
+        // destructor.
+        let removed = ENTERED.try_with(|stack| {
             let mut stack = stack.borrow_mut();
             let index = stack
                 .iter()
@@ -89,7 +92,12 @@ impl Drop for ScopeOwner {
 }
 
 pub(super) fn construct(parts: ObjectRepresentations) -> Rc<Obj> {
-    let entered = ENTERED.with(|stack| stack.borrow().last().cloned());
+    // No entered allocator survives the stack's own destruction at thread
+    // exit: a value constructed then is an ordinary unpooled one.
+    let entered = ENTERED
+        .try_with(|stack| stack.borrow().last().cloned())
+        .ok()
+        .flatten();
     let allocation = entered.filter(|entry| (entry.current)()).and_then(|entry| {
         let pool = entry.pool.as_ref()?;
         pool.0

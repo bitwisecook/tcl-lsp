@@ -104,14 +104,18 @@ impl DoubleFormatContext {
             version: dialect.tcl_version,
             policy,
         };
-        let precision = DOUBLE_PRECISIONS.with(|values| {
-            Rc::clone(
-                values
-                    .borrow_mut()
-                    .entry(key)
-                    .or_insert_with(|| Rc::new(Cell::new(policy.default_precision()))),
-            )
-        });
+        // After the table's destruction at thread exit, a context gets its
+        // own cell at the release default rather than panicking.
+        let precision = DOUBLE_PRECISIONS
+            .try_with(|values| {
+                Rc::clone(
+                    values
+                        .borrow_mut()
+                        .entry(key)
+                        .or_insert_with(|| Rc::new(Cell::new(policy.default_precision()))),
+                )
+            })
+            .unwrap_or_else(|_| Rc::new(Cell::new(policy.default_precision())));
         Some(Self { policy, precision })
     }
 

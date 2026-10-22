@@ -22,13 +22,32 @@ thread_local! {
 struct RetirementDrain;
 impl Drop for RetirementDrain {
     fn drop(&mut self) {
-        DRAINING.with(|draining| draining.set(false));
+        let _ = DRAINING.try_with(|draining| draining.set(false));
     }
 }
 
+/// Release a detached header through the thread's pending queue, so a deep
+/// value retires iteratively rather than by recursion.
+///
+/// During thread exit the queue may already be destroyed — a `Vm` held by
+/// another thread-local (a pack hook host) can drop after it. Touching a
+/// destroyed thread-local panics inside a destructor, which aborts the
+/// process, so then the header is leaked instead: the thread is ending, and
+/// its values hold only memory.
 pub(super) fn release(header: RetiredNativeHeader) {
-    PENDING.with(|pending| pending.borrow_mut().push(header));
-    if DRAINING.with(|draining| draining.replace(true)) {
+    let mut header = Some(header);
+    let queued = PENDING
+        .try_with(|pending| pending.borrow_mut().extend(header.take()))
+        .is_ok()
+        && header.is_none();
+    if !queued {
+        std::mem::forget(header);
+        return;
+    }
+    if DRAINING
+        .try_with(|draining| draining.replace(true))
+        .unwrap_or(true)
+    {
         return;
     }
     let _drain = RetirementDrain;
@@ -39,7 +58,10 @@ pub(super) fn release(header: RetiredNativeHeader) {
             format,
             location,
             context,
-        }) = PENDING.with(|pending| pending.borrow_mut().pop())
+        }) = PENDING
+            .try_with(|pending| pending.borrow_mut().pop())
+            .ok()
+            .flatten()
         else {
             break;
         };
