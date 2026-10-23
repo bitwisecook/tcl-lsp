@@ -2,11 +2,18 @@
 
 Area: tcl-vm, runtime/rust, tcl-spectcl, tcl-spec-studio: SpecTcl execution and acceptance.
 
-Last updated: 2026-10-23T04:38Z (Spec66v4 RUNNING; generationzero3/3PASS targetguardsvalid; total52=37PASS15FAIL; seedafterpublish1next)
+Last updated: 2026-10-23T04:40Z (Spec66v4 RUNNING; seedafterpublish1/1PASS targetguardsvalid; total53=38PASS15FAIL; EDA8+5next)
 
 Maintained by the vm-runtime agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## Resume
+
+Fifthtarget jim_seed_after_publish1 closed1/1PASS,0W,targetsource/provider/
+artifactguards valid. Archive `vm-runtime/runs/spec66-jim_seed_after_publish-target-20261023/manifest.txt`
+SHA15b12797,28logicalfiles; root notified completedtargetpush. Total53
+observed38PASS15FAIL; only EDA loadables8/environment5 remain, fullphasepending.
+No new causes/fixes; sourceHOLD/root sole slot retained.
+
 
 Fourth target jim_generation_zero3 completed3/3PASS, build0W and targetsource/
 provider/artifactguards valid. Original longest selector91.19s remained

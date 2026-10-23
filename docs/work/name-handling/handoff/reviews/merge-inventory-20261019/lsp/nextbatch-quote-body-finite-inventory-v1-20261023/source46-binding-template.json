@@ -1,0 +1,18 @@
+{
+  "utc": "2026-10-23T04:41:45.069227+00:00",
+  "status": "source46 binding TEMPLATE only; frozen inventory23 unchanged; no runnable/GO/HEAD minted",
+  "inventory_sha256": "22097938475c38b67fc383007098a89c5b174a71a401cd444edfd287740d3790",
+  "source46_map_path": "/tmp/name-handling-eight-package-check-v8-source46/source46-manifest.json",
+  "source46_map_sha256": "9fdfc31e7ab3786eee7f41afa8c67bbd4e0209c4e12bf4818881734732aef0e6",
+  "eight_package_plan_path": "/tmp/name-handling-eight-package-check-v8-source46/plan.json",
+  "eight_package_plan_sha256": "5b60b936ebec8d802c55c60c1566e19f66901b991324394eb5b6a0cd241ca68b",
+  "consumer_components_match_candidate46": true,
+  "required_after_root_integration": [
+    "actualapproved product HEAD/tree exact and every46 committedblob/worktree finalhash",
+    "whole source/provider captures and actual currentCargoartifact joins",
+    "actual8packagePASS0W receipt exactproduct/plan/packages/guards",
+    "versioned runnable plan+runner inputs+explicitrootGO afteractive66 closure/priority"
+  ],
+  "case_list": "excluded provisional; no new case assertion/selector added",
+  "no_claim": "all23runtime UNRUN; static/compile/manual evidence is separate; no release/D6/host acceptance"
+}

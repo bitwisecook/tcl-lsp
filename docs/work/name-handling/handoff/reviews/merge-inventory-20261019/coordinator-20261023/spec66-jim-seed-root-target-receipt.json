@@ -1,0 +1,11 @@
+{
+  "utc": "2026-10-23T04:42:06.819027+00:00",
+  "target": "jim_seed_after_publish",
+  "observed": 1,
+  "passes": 1,
+  "failures": 0,
+  "manifest_sha256": "15b12797393c57f8491c18088e5635939c351c8564f650e3e0d0b13625008a25",
+  "payload_files_verified": 28,
+  "all_target_guards_valid": true,
+  "full66_closure_claim": false
+}

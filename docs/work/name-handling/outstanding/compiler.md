@@ -2,13 +2,15 @@
 
 Area: Lowering, C6 fresh builders, iRules RuleLoader realm, itcl/snit, OO.
 
-Last updated: 2026-10-23T04:35:55.509098+00:00 (Jim7 source46 inventory frozen; trace68062b5d peerCLEAR51d3caf0; integration/typing pending)
+Last updated: 2026-10-23T04:41:11.574221+00:00 (G4 original4 supplement frozen; selected compiler35filters58tests; source46 integration/typing pending)
 
 Maintained by the compiler agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 Full change notes: `docs/work/name-handling/handoff/reviews/merge-inventory-20261019/sol-49-NOTES.md`.
 
 ## Resume
+
+**Root-selected compiler35filters58tests:** Immutable original31/54 design retained; separate `compiler/resume-20261022/g4-original4-source46-supplement-v1/inventory.json` SHA866d289329d28edff65d292b864e72ab31f63b1c7d37318bb77a110fbd94136f adds original declaration-layout/lifecycle/immediate-namespace/import-allocation selectors,1 each. Original environments preserved (namespace/import command-table+opaque flags; others empty). Combined inventory proves all original49 first8 G4 coverage plus genuineConditional positive. Zero package-aware exact/substring overlap with compiler54/LSP23/Jim7. No source/assertion changes, no GO/runnable/Cargo. Exact source46 integrated product/fullmanifest/HEAD pending; current verdicts of four additions unmeasured.
 
 **Jim source46 inventory frozen, not runnable:** `compiler/resume-20261022/jim-source46-finite-inventory-v1/inventory.json` SHA186ce988c48a110fa054a676120f637dbfac453c8064e5496f996aa2b6c2497d: exact original Jim document5 with existing proposed pure trace env plus separately identifiable original own-surface2 proc-row failures,7filters7tests/two fresh target-specific CargoJSON integration artifacts. Zero package-aware exact/substring overlap with immutable compiler54 and LSP23. Intended root NEXTv4 cumulative46 manifest/patch pinned; actual integrated product/HEAD/full-source binding pending. No runnable launcher/GO or oldprotocol modification. Diagnostic68062b5d bounded names staticCLEAR51d3caf052a5c1602d636e74f7c0bbc6b86cecf1cb9ad4a4c9a1f9e6336291e3, separately archived; untyped/unrun. Root selects diagnostic4 plus CCG structural3 into next batch; no more components before typing. Source/Cargo/Git HOLD.
 
