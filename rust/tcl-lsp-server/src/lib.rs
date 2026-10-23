@@ -15321,15 +15321,16 @@ impl Backend {
             }
         }
 
+        let mut snapshot = doc.clone();
         for attempt in 0..2 {
             let source = self
-                .capture_coarse_semantic_source(uri, doc)
+                .capture_coarse_semantic_source(uri, &snapshot)
                 .await?
                 .ok_or_else(coarse_semantic_source_changed)?;
             let analysis = Arc::new(
                 readonly_reference_reports::CoarseSemanticTokenSource::analysis(&source).clone(),
             );
-            let text = Arc::clone(&doc.text);
+            let text = Arc::clone(&snapshot.text);
             let data = crate::rt::spawn_blocking(move || {
                 configured_coarse_semantic_tokens(&text, &analysis)
             })
@@ -15339,7 +15340,10 @@ impl Backend {
                 message: format!("semantic_tokens worker panicked: {err}").into(),
                 data: None,
             })??;
-            if attempt == 0 && self.coarse_source_needs_recompute(&source).await? {
+            if attempt == 0
+                && let Some(current) = self.coarse_source_recompute_snapshot(&source).await?
+            {
+                snapshot = current;
                 continue;
             }
             return Ok(SemanticTokenCoreData {
