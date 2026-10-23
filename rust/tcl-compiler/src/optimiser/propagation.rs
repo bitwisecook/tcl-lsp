@@ -1742,6 +1742,12 @@ fn run_function(
         "CCG24 stage=function-enter authored={}",
         script.is_authored_source()
     );
+    n17_live_trace!(
+        "function-entry body={:?} authored={} statements={} namespace={namespace}",
+        fu.body_id,
+        script.is_authored_source(),
+        script.statements.len()
+    );
     // A computed or opaque variable name can rewrite any local binding under
     // a spelling absent from SCCP's per-name lattice.  Do not let its raw
     // constants reach the text-level folds below: unlike
@@ -1749,6 +1755,10 @@ fn run_function(
     // dynamic-name guard and could emit (for example) `return 1` after a
     // depth-capped nested substitution may have run `set $name 2`.
     if fu.dynamic_barrier_blocks_value_motion() {
+        n17_live_trace!(
+            "decline=propagation-dynamic-value-motion-barrier body={:?}",
+            fu.body_id
+        );
         ccg_row24_trace!(ctx, "CCG24 stage=dynamic-barrier");
         // A local value-motion barrier withdraws lattice substitutions. Exact
         // original invocation receipts still independently authorise closed
@@ -1891,7 +1901,16 @@ fn walk_script(
         script.is_authored_source(),
         script.statements.len()
     );
+    n17_live_trace!(
+        "walk-script depth={depth} authored={} statements={}",
+        script.is_authored_source(),
+        script.statements.len()
+    );
     if super::MAX_OPTIMISER_WALK_DEPTH.exceeded(depth) || !script.is_authored_source() {
+        n17_live_trace!(
+            "decline=walk-script depth={depth} authored={}",
+            script.is_authored_source()
+        );
         return;
     }
     for stmt in &script.statements {

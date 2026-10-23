@@ -58,8 +58,14 @@ pub(super) fn report(
     let original_count = unit
         .ir_module
         .procedures
-        .values()
-        .filter(|body| body.qualified_name == "::p")
+        .iter()
+        .chain(unit.ir_module.body_lowerings())
+        .filter(|(id, body)| {
+            body.qualified_name == "::p"
+                && unit
+                    .original_procedure_for_body(**id)
+                    .is_some_and(|original| std::ptr::eq(original, *body))
+        })
         .count();
     eprintln!(
         "N17G2 dialect={dialect} call={call:?} original-p-count={original_count} retained-input={} exact-metadata={} host={}",
@@ -67,11 +73,20 @@ pub(super) fn report(
         metadata.is_some(),
         tcl_registry::pack_hooks::has_host()
     );
-    for (id, body) in &unit.ir_module.procedures {
-        if body.qualified_name != "::p" {
+    for (id, body) in unit
+        .ir_module
+        .procedures
+        .iter()
+        .chain(unit.ir_module.body_lowerings())
+    {
+        if body.qualified_name != "::p"
+            || !unit
+                .original_procedure_for_body(*id)
+                .is_some_and(|original| std::ptr::eq(original, body))
+        {
             continue;
         }
-        let function = unit.procedures.get(id);
+        let function = unit.function_for_body(Some(*id));
         eprintln!(
             "N17G2 owner-id={} analysis={} body-id-rejoin={}",
             unit.ir_module.procedure_ids.owns(*id),
