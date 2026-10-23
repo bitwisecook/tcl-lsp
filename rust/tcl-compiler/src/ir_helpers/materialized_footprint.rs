@@ -231,7 +231,7 @@ pub(crate) fn footprint_command_words(
     command: &crate::segmenter::SegmentedCommand,
 ) -> Vec<CommandWord> {
     let words = super::command_words(source, config, command);
-    if words.iter().any(|word| !word.source_available) {
+    if words.iter().any(|word| !word.has_source_geometry()) {
         return words;
     }
     let tokens = crate::ir::CommandTokens::from_segmented(source, config, command);
@@ -245,7 +245,7 @@ pub(crate) fn footprint_command_words(
                 config.escapes,
                 rules,
             );
-            if word.source_available
+            if word.has_source_geometry()
                 && let Some(value) = value.as_registry_word().literal()
             {
                 value.clone_into(&mut word.text);
@@ -295,7 +295,7 @@ fn script_writes(
     for (partial, words) in value_commands(text, context.config) {
         out.opaque |= partial;
         for word in words.iter().filter(|word| !word.braced_literal) {
-            if !word.source_available {
+            if !word.has_source_geometry() {
                 out.opaque = true;
                 continue;
             }
