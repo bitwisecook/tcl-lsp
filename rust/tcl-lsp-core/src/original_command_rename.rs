@@ -337,34 +337,7 @@ fn document_requests(
                     return Err(OriginalCommandRenameRefusal::IncompleteCoverage);
                 }
             } else {
-                // A genuine direct source procedure with static argv has no
-                // Registry-defined executable argument regions. Its own body
-                // is visited at the separately selected declaration worker.
-                let reference = reference
-                    .as_ref()
-                    .ok_or(OriginalCommandRenameRefusal::IncompleteCoverage)?;
-                if !reference.is_direct_definition()
-                    || !document
-                        .analysis
-                        .original_procedure_declarations()
-                        .any(|row| {
-                            crate::original_declaration::reference_matches_declaration(
-                                reference, row, false,
-                            )
-                        })
-                {
-                    return Err(OriginalCommandRenameRefusal::IncompleteCoverage);
-                }
-                let captured = tcl_registry::native_compiler_words::NativeCompilerWords::capture(
-                    &words,
-                    input.policy().string_protocol(),
-                )
-                .map_err(|_| OriginalCommandRenameRefusal::IncompleteCoverage)?;
-                if words.iter().enumerate().any(|(ordinal, word)| {
-                    word.group().expand || captured.literal(ordinal).is_none()
-                }) {
-                    return Err(OriginalCommandRenameRefusal::IncompleteCoverage);
-                }
+                reject_incomplete_source_procedure(document, reference.as_ref(), &words, &input)?;
             }
         }
     }
@@ -408,29 +381,7 @@ fn original_command_rename_units(
     tail: &[u8],
 ) -> Result<Vec<WorkspaceTextEdit>, OriginalCommandRenameRefusal> {
     let mut uris = HashSet::new();
-    for document in documents {
-        if !uris.insert(document.uri) {
-            return Err(OriginalCommandRenameRefusal::AmbiguousOwner);
-        }
-        let image = SourceImage::document(document.source);
-        let config = document
-            .analysis
-            .body_lexer_config
-            .ok_or(OriginalCommandRenameRefusal::StaleSource)?;
-        if !document
-            .analysis
-            .matches_original_source_image(&image, config)
-        {
-            return Err(OriginalCommandRenameRefusal::StaleSource);
-        }
-        let world = document
-            .analysis
-            .original_completed_command_world()
-            .ok_or(OriginalCommandRenameRefusal::UnknownWorld)?;
-        if world.source_image() != &image || world.lexer_config() != config {
-            return Err(OriginalCommandRenameRefusal::StaleSource);
-        }
-    }
+    validate_rename_document_owners(documents, &mut uris)?;
     let owner = documents
         .iter()
         .find(|document| document.uri == identity.uri())
@@ -451,22 +402,7 @@ fn original_command_rename_units(
         ),
         _ => return Err(OriginalCommandRenameRefusal::UnsupportedRole),
     };
-    let owners = documents
-        .iter()
-        .flat_map(|document| {
-            document
-                .analysis
-                .original_procedure_declarations()
-                .map(|row| (row.declaration_site(), row.name()))
-                .chain(
-                    document
-                        .analysis
-                        .original_class_declarations()
-                        .map(|row| (row.declaration_site(), row.name())),
-                )
-        })
-        .filter(|(site, name)| *site == declaration.site() && *name == declaration.name())
-        .count();
+    let owners = declaration_owner_count(documents, &declaration);
     if owners != 1 {
         return Err(OriginalCommandRenameRefusal::AmbiguousOwner);
     }
@@ -523,19 +459,7 @@ fn original_command_rename_units(
     }
     let mut edits = Vec::new();
     for &document in documents {
-        if let Declaration::Procedure(row) = &declaration {
-            match crate::math_function_symbol::procedure_references_in(
-                document.source,
-                document.analysis,
-                owner.source,
-                owner.analysis,
-                row,
-                true,
-            ) {
-                Some(rows) if rows.is_empty() => {}
-                Some(_) | None => return Err(OriginalCommandRenameRefusal::ReadonlyMathReferences),
-            }
-        }
+        reject_readonly_math_references(document, owner, &declaration)?;
         let mut requests =
             document_requests(document, documents, &declaration, &destination, tail)?;
         if document.uri == owner.uri {
@@ -552,14 +476,7 @@ fn original_command_rename_units(
             });
         }
     }
-    edits.sort_by(|a, b| {
-        (&a.uri, a.span.start(), a.span.end()).cmp(&(&b.uri, b.span.start(), b.span.end()))
-    });
-    for pair in edits.windows(2) {
-        if pair[0].uri == pair[1].uri && pair[0].span.end() > pair[1].span.start() {
-            return Err(OriginalCommandRenameRefusal::UneditableInput);
-        }
-    }
+    validate_workspace_edit_order(&mut edits)?;
     Ok(edits)
 }
 
@@ -764,6 +681,128 @@ pub fn original_command_prepare_span_in(
     original_command_rename_units(documents, identity, tail)?;
     crate::original_name_edit::original_static_name_value_span(&input, native)
         .ok_or(OriginalCommandRenameRefusal::UneditableInput)
+}
+
+fn reject_incomplete_source_procedure(
+    document: OriginalDeclarationDocument<'_>,
+    reference: Option<&SourceCommandReference>,
+    words: &[tcl_lexer::NativeWord],
+    input: &SignatureSourceNameInput,
+) -> Result<(), OriginalCommandRenameRefusal> {
+    // A genuine direct source procedure with static argv has no
+    // Registry-defined executable argument regions. Its own body
+    // is visited at the separately selected declaration worker.
+    let reference = reference.ok_or(OriginalCommandRenameRefusal::IncompleteCoverage)?;
+    if !reference.is_direct_definition()
+        || !document
+            .analysis
+            .original_procedure_declarations()
+            .any(|row| {
+                crate::original_declaration::reference_matches_declaration(reference, row, false)
+            })
+    {
+        return Err(OriginalCommandRenameRefusal::IncompleteCoverage);
+    }
+    let captured = tcl_registry::native_compiler_words::NativeCompilerWords::capture(
+        words,
+        input.policy().string_protocol(),
+    )
+    .map_err(|_| OriginalCommandRenameRefusal::IncompleteCoverage)?;
+    if words
+        .iter()
+        .enumerate()
+        .any(|(ordinal, word)| word.group().expand || captured.literal(ordinal).is_none())
+    {
+        return Err(OriginalCommandRenameRefusal::IncompleteCoverage);
+    }
+    Ok(())
+}
+
+fn validate_rename_document_owners<'a>(
+    documents: &[OriginalDeclarationDocument<'a>],
+    uris: &mut HashSet<&'a str>,
+) -> Result<(), OriginalCommandRenameRefusal> {
+    for document in documents {
+        if !uris.insert(document.uri) {
+            return Err(OriginalCommandRenameRefusal::AmbiguousOwner);
+        }
+        let image = SourceImage::document(document.source);
+        let config = document
+            .analysis
+            .body_lexer_config
+            .ok_or(OriginalCommandRenameRefusal::StaleSource)?;
+        if !document
+            .analysis
+            .matches_original_source_image(&image, config)
+        {
+            return Err(OriginalCommandRenameRefusal::StaleSource);
+        }
+        let world = document
+            .analysis
+            .original_completed_command_world()
+            .ok_or(OriginalCommandRenameRefusal::UnknownWorld)?;
+        if world.source_image() != &image || world.lexer_config() != config {
+            return Err(OriginalCommandRenameRefusal::StaleSource);
+        }
+    }
+    Ok(())
+}
+
+fn declaration_owner_count(
+    documents: &[OriginalDeclarationDocument<'_>],
+    declaration: &Declaration<'_>,
+) -> usize {
+    documents
+        .iter()
+        .flat_map(|document| {
+            document
+                .analysis
+                .original_procedure_declarations()
+                .map(|row| (row.declaration_site(), row.name()))
+                .chain(
+                    document
+                        .analysis
+                        .original_class_declarations()
+                        .map(|row| (row.declaration_site(), row.name())),
+                )
+        })
+        .filter(|(site, name)| *site == declaration.site() && *name == declaration.name())
+        .count()
+}
+
+fn reject_readonly_math_references(
+    document: OriginalDeclarationDocument<'_>,
+    owner: &OriginalDeclarationDocument<'_>,
+    declaration: &Declaration<'_>,
+) -> Result<(), OriginalCommandRenameRefusal> {
+    if let Declaration::Procedure(row) = declaration {
+        match crate::math_function_symbol::procedure_references_in(
+            document.source,
+            document.analysis,
+            owner.source,
+            owner.analysis,
+            row,
+            true,
+        ) {
+            Some(rows) if rows.is_empty() => {}
+            Some(_) | None => return Err(OriginalCommandRenameRefusal::ReadonlyMathReferences),
+        }
+    }
+    Ok(())
+}
+
+fn validate_workspace_edit_order(
+    edits: &mut [WorkspaceTextEdit],
+) -> Result<(), OriginalCommandRenameRefusal> {
+    edits.sort_by(|a, b| {
+        (&a.uri, a.span.start(), a.span.end()).cmp(&(&b.uri, b.span.start(), b.span.end()))
+    });
+    for pair in edits.windows(2) {
+        if pair[0].uri == pair[1].uri && pair[0].span.end() > pair[1].span.start() {
+            return Err(OriginalCommandRenameRefusal::UneditableInput);
+        }
+    }
+    Ok(())
 }
 
 #[cfg(test)]

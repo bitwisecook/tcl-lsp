@@ -261,10 +261,7 @@ fn original_inline_body(
     walk: &super::FrameWalk<'_>,
     syntax: InlineBodySyntax<'_>,
 ) -> Result<String, String> {
-    use tcl_compiler::registry_invocation::{
-        InvocationWordOrigin, effective_command_words, frozen_argument_words,
-    };
-    use tcl_syntax::formal_params::FormalByteArgumentBinding;
+    use tcl_compiler::registry_invocation::{effective_command_words, frozen_argument_words};
     let InlineBodySyntax {
         command: body,
         nested,
@@ -294,35 +291,7 @@ fn original_inline_body(
         let bytes = value
             .literal_bytes()
             .ok_or_else(|| "an argument's complete native value is unknown".to_owned())?;
-        match origin {
-            InvocationWordOrigin::Written(written) => {
-                let input = binding
-                    .original_written_name_input(&tokens, *written)
-                    .ok_or_else(unavailable)?;
-                let key = input.original_word_key().ok_or_else(|| {
-                    "inlining would remove an observable written argument evaluation".to_owned()
-                })?;
-                if key.bytes() != bytes {
-                    return Err(unavailable());
-                }
-            }
-            InvocationWordOrigin::ExpandedElement { written, element } => {
-                let parent = binding
-                    .original_written_name_input(&tokens, *written)
-                    .ok_or_else(unavailable)?;
-                if parent.original_static_list_container().is_none() {
-                    return Err("inlining would remove a substituted list evaluation".to_owned());
-                }
-                let child = parent
-                    .original_list_element(*element)
-                    .ok_or_else(unavailable)?;
-                if child.bytes() != bytes {
-                    return Err(unavailable());
-                }
-            }
-            InvocationWordOrigin::BindingPrefix(_) => {}
-            InvocationWordOrigin::ResolvedHead => return Err(unavailable()),
-        }
+        validate_inline_argument_origin(origin, bytes, &tokens, binding, &unavailable)?;
         arguments.push(bytes.to_vec());
     }
     if arguments.len() != effective.words.len().saturating_sub(1) {
@@ -334,174 +303,44 @@ fn original_inline_body(
     let mut bindings = std::collections::BTreeMap::new();
     let mut rest_names = std::collections::BTreeSet::new();
     for row in rows {
-        match row {
-            FormalByteArgumentBinding::Value {
-                parameter,
-                argument,
-            } => {
-                bindings.insert(
-                    formals
-                        .parameters()
-                        .get(parameter)
-                        .ok_or_else(unavailable)?
-                        .name
-                        .clone(),
-                    arguments.get(argument).ok_or_else(unavailable)?.clone(),
-                );
-            }
-            FormalByteArgumentBinding::Default { parameter } => {
-                let parameter = formals
-                    .parameters()
-                    .get(parameter)
-                    .ok_or_else(unavailable)?;
-                bindings.insert(
-                    parameter.name.clone(),
-                    parameter.default.clone().ok_or_else(unavailable)?,
-                );
-            }
-            FormalByteArgumentBinding::Rest { name, .. } => {
-                rest_names.insert(name);
-            }
-            FormalByteArgumentBinding::CallerLink { .. } => {
-                return Err(
-                    "a caller-link formal would select a different frame after inlining".to_owned(),
-                );
-            }
-        }
+        append_inline_formal_binding(
+            row,
+            &formals,
+            &arguments,
+            &mut bindings,
+            &mut rest_names,
+            &unavailable,
+        )?;
     }
     let protocol = formals.original_input().policy().string_protocol();
     let mut references = std::collections::BTreeMap::new();
     let mut expression_ranges = Vec::new();
     for command in std::iter::once(&body.command).chain(nested) {
-        let selected = walk
-            .structure(source, command)
-            .ok_or_else(|| "the original body command structure is unavailable".to_owned())?;
-        let body_tokens = walk.tokens(source, command);
-        let head = body_tokens
-            .source_binding
-            .as_ref()
-            .and_then(|binding| binding.original_written_name_input(&body_tokens, 0))
-            .and_then(|input| input.original_word_key().cloned())
-            .ok_or_else(|| "the copied command head has no original static producer".to_owned())?;
-        // This narrow proposal facade addresses authored Registry names. A
-        // body alias or qualified/opaque head needs its separate byte proposal
-        // lookup; re-encoding a displayed or resolved name would lose identity.
-        if !selected.facts.canonical_command.is_ascii()
-            || head.bytes() != selected.facts.canonical_command.as_bytes()
-            || !binding.original_proposed_registry_commands(
-                &tokens,
-                registry,
-                &[&selected.facts.canonical_command],
-            )
-        {
-            return Err(
-                "the copied command's implementation is not preserved in the caller namespace"
-                    .to_owned(),
-            );
-        }
-        if tcl_registry::traits::is_frame_sensitive(selected.facts.traits) {
-            return Err("the body calls a command that acts on the call frame".to_owned());
-        }
-        if selected
-            .facts
-            .arg_roles
-            .iter()
-            .any(|(_, role)| matches!(role, ArgRole::VarWrite | ArgRole::LoopVarList))
-        {
-            return Err("the body assigns or binds variables in its own frame".to_owned());
-        }
-        if selected.facts.body_kind != tcl_registry::BodyKind::Plain
-            && selected
-                .facts
-                .arg_roles
-                .iter()
-                .any(|(_, role)| matches!(role, ArgRole::Body | ArgRole::LambdaLiteral))
-        {
-            return Err("the body opens a distinct naming or variable frame".to_owned());
-        }
-        for (written, role) in selected.written_argument_roles() {
-            if role == ArgRole::Expr {
-                let token = command.argv.get(written + 1).ok_or_else(unavailable)?;
-                expression_ranges.push(token.span);
-            }
-            if matches!(role, ArgRole::VarRead) {
-                return Err("the body reads a variable through a name operand".to_owned());
-            }
-        }
-        for arena in walk.components(source, command).ok_or_else(unavailable)? {
-            for part in arena.all_parts() {
-                let tcl_lexer::ExecutablePart::Variable { name, index } = part.part else {
-                    continue;
-                };
-                let name = tcl_syntax::backslash::native_source_literal_bytes(
-                    arena.bytes(name).ok_or_else(unavailable)?,
-                    image.channel(),
-                    protocol,
-                )
-                .map_err(|_| unavailable())?
-                .into_owned();
-                if index.is_some() {
-                    return Err(
-                        "an array reference needs its original activation and index evaluation"
-                            .to_owned(),
-                    );
-                }
-                if rest_names.contains(&name) {
-                    return Err(
-                        "the body reads a variadic list whose word quoting cannot be preserved"
-                            .to_owned(),
-                    );
-                }
-                if !bindings.contains_key(&name) {
-                    return Err(
-                        "the body reads a variable outside its original formal bindings".to_owned(),
-                    );
-                }
-                references.insert((part.span.start(), part.span.end()), name);
-            }
-        }
+        collect_inline_body_references(
+            source,
+            command,
+            walk,
+            (&tokens, binding, registry),
+            (&image, protocol, &rest_names, &bindings),
+            (&mut references, &mut expression_ranges),
+            &unavailable,
+        )?;
     }
     let mut replacements = Vec::new();
     for ((start, end), name) in references {
-        let bytes = bindings.get(&name).ok_or_else(unavailable)?;
-        let text =
-            tcl_syntax::backslash::native_literal_source_text(bytes, image.channel(), protocol)
-                .filter(|text| {
-                    tcl_syntax::word_rules::lexical_unicode_source_word_matches(
-                        text,
-                        text,
-                        walk.config.nested(),
-                    )
-                })
-                .ok_or_else(|| {
-                    "a bound native value cannot be written as an inert literal in the body"
-                        .to_owned()
-                })?;
-        if expression_ranges
-            .iter()
-            .any(|span| start >= span.start() && end <= span.end())
-            && !is_expr_literal(&text, numbers)
-        {
-            return Err(
-                "a nonnumeric bound value cannot replace an expression variable".to_owned(),
-            );
-        }
-        let text = literal_substitution_container(
+        replacements.push(inline_bound_value_replacement(
             source,
             analysis,
             walk,
-            body,
-            nested,
-            tcl_lexer::Span::new(start, end),
-            &text,
-        )
-        .ok_or_else(|| {
-            "a bound value cannot preserve its actual source substitution container".to_owned()
-        })?;
-        let start = start.checked_sub(body.origin).ok_or_else(unavailable)? as usize;
-        let end = end.checked_sub(body.origin).ok_or_else(unavailable)? as usize;
-        body.text.get(start..end).ok_or_else(unavailable)?;
-        replacements.push((start, end, text));
+            InlineBodySyntax {
+                command: body,
+                nested,
+                numbers,
+            },
+            (&image, protocol),
+            (&bindings, &expression_ranges),
+            (start, end, &name),
+        )?);
     }
     let mut rewritten = body.text.clone();
     replacements.sort_by_key(|(start, _, _)| std::cmp::Reverse(*start));
@@ -1108,6 +947,268 @@ fn is_plain_word(value: &str) -> bool {
 /// operand — turning a working script into a runtime error.
 fn is_expr_literal(value: &str, numbers: NumberSyntax) -> bool {
     tcl_syntax::number::is_whole_number(value, numbers)
+}
+
+fn validate_inline_argument_origin(
+    origin: &tcl_compiler::registry_invocation::InvocationWordOrigin,
+    bytes: &[u8],
+    tokens: &tcl_compiler::ir::CommandTokens,
+    binding: &tcl_compiler::command_binding::SourceInvocationBinding,
+    unavailable: &impl Fn() -> String,
+) -> Result<(), String> {
+    use tcl_compiler::registry_invocation::InvocationWordOrigin;
+    match origin {
+        InvocationWordOrigin::Written(written) => {
+            let input = binding
+                .original_written_name_input(tokens, *written)
+                .ok_or_else(unavailable)?;
+            let key = input.original_word_key().ok_or_else(|| {
+                "inlining would remove an observable written argument evaluation".to_owned()
+            })?;
+            if key.bytes() != bytes {
+                return Err(unavailable());
+            }
+        }
+        InvocationWordOrigin::ExpandedElement { written, element } => {
+            let parent = binding
+                .original_written_name_input(tokens, *written)
+                .ok_or_else(unavailable)?;
+            if parent.original_static_list_container().is_none() {
+                return Err("inlining would remove a substituted list evaluation".to_owned());
+            }
+            let child = parent
+                .original_list_element(*element)
+                .ok_or_else(unavailable)?;
+            if child.bytes() != bytes {
+                return Err(unavailable());
+            }
+        }
+        InvocationWordOrigin::BindingPrefix(_) => {}
+        InvocationWordOrigin::ResolvedHead => return Err(unavailable()),
+    }
+    Ok(())
+}
+
+fn collect_inline_body_references(
+    source: &str,
+    command: &tcl_compiler::segmenter::SegmentedCommand,
+    walk: &super::FrameWalk<'_>,
+    call: (
+        &tcl_compiler::ir::CommandTokens,
+        &tcl_compiler::command_binding::SourceInvocationBinding,
+        &tcl_registry::CommandRegistry,
+    ),
+    values: (
+        &tcl_lexer::SourceImage,
+        tcl_syntax::native_string::NativeStringProtocol,
+        &std::collections::BTreeSet<Vec<u8>>,
+        &std::collections::BTreeMap<Vec<u8>, Vec<u8>>,
+    ),
+    output: (
+        &mut std::collections::BTreeMap<(u32, u32), Vec<u8>>,
+        &mut Vec<tcl_lexer::Span>,
+    ),
+    unavailable: &impl Fn() -> String,
+) -> Result<(), String> {
+    let (tokens, binding, registry) = call;
+    let (image, protocol, rest_names, bindings) = values;
+    let (references, expression_ranges) = output;
+    let selected = walk
+        .structure(source, command)
+        .ok_or_else(|| "the original body command structure is unavailable".to_owned())?;
+    let body_tokens = walk.tokens(source, command);
+    let head = body_tokens
+        .source_binding
+        .as_ref()
+        .and_then(|binding| binding.original_written_name_input(&body_tokens, 0))
+        .and_then(|input| input.original_word_key().cloned())
+        .ok_or_else(|| "the copied command head has no original static producer".to_owned())?;
+    // This narrow proposal facade addresses authored Registry names. A
+    // body alias or qualified/opaque head needs its separate byte proposal
+    // lookup; re-encoding a displayed or resolved name would lose identity.
+    if !selected.facts.canonical_command.is_ascii()
+        || head.bytes() != selected.facts.canonical_command.as_bytes()
+        || !binding.original_proposed_registry_commands(
+            tokens,
+            registry,
+            &[&selected.facts.canonical_command],
+        )
+    {
+        return Err(
+            "the copied command's implementation is not preserved in the caller namespace"
+                .to_owned(),
+        );
+    }
+    if tcl_registry::traits::is_frame_sensitive(selected.facts.traits) {
+        return Err("the body calls a command that acts on the call frame".to_owned());
+    }
+    if selected
+        .facts
+        .arg_roles
+        .iter()
+        .any(|(_, role)| matches!(role, ArgRole::VarWrite | ArgRole::LoopVarList))
+    {
+        return Err("the body assigns or binds variables in its own frame".to_owned());
+    }
+    if selected.facts.body_kind != tcl_registry::BodyKind::Plain
+        && selected
+            .facts
+            .arg_roles
+            .iter()
+            .any(|(_, role)| matches!(role, ArgRole::Body | ArgRole::LambdaLiteral))
+    {
+        return Err("the body opens a distinct naming or variable frame".to_owned());
+    }
+    for (written, role) in selected.written_argument_roles() {
+        if role == ArgRole::Expr {
+            let token = command.argv.get(written + 1).ok_or_else(unavailable)?;
+            expression_ranges.push(token.span);
+        }
+        if matches!(role, ArgRole::VarRead) {
+            return Err("the body reads a variable through a name operand".to_owned());
+        }
+    }
+    for arena in walk.components(source, command).ok_or_else(unavailable)? {
+        for part in arena.all_parts() {
+            let tcl_lexer::ExecutablePart::Variable { name, index } = part.part else {
+                continue;
+            };
+            let name = tcl_syntax::backslash::native_source_literal_bytes(
+                arena.bytes(name).ok_or_else(unavailable)?,
+                image.channel(),
+                protocol,
+            )
+            .map_err(|_| unavailable())?
+            .into_owned();
+            if index.is_some() {
+                return Err(
+                    "an array reference needs its original activation and index evaluation"
+                        .to_owned(),
+                );
+            }
+            if rest_names.contains(&name) {
+                return Err(
+                    "the body reads a variadic list whose word quoting cannot be preserved"
+                        .to_owned(),
+                );
+            }
+            if !bindings.contains_key(&name) {
+                return Err(
+                    "the body reads a variable outside its original formal bindings".to_owned(),
+                );
+            }
+            references.insert((part.span.start(), part.span.end()), name);
+        }
+    }
+    Ok(())
+}
+
+fn inline_bound_value_replacement(
+    source: &str,
+    analysis: &AnalysisResult,
+    walk: &super::FrameWalk<'_>,
+    syntax: InlineBodySyntax<'_>,
+    owner: (
+        &tcl_lexer::SourceImage,
+        tcl_syntax::native_string::NativeStringProtocol,
+    ),
+    values: (
+        &std::collections::BTreeMap<Vec<u8>, Vec<u8>>,
+        &[tcl_lexer::Span],
+    ),
+    reference: (u32, u32, &[u8]),
+) -> Result<(usize, usize, String), String> {
+    let InlineBodySyntax {
+        command: body,
+        nested,
+        numbers,
+    } = syntax;
+    let (image, protocol) = owner;
+    let (bindings, expression_ranges) = values;
+    let (start, end, name) = reference;
+    let unavailable =
+        || "the original parameter or call operand topology is unavailable".to_owned();
+    let bytes = bindings.get(name).ok_or_else(unavailable)?;
+    let text = tcl_syntax::backslash::native_literal_source_text(bytes, image.channel(), protocol)
+        .filter(|text| {
+            tcl_syntax::word_rules::lexical_unicode_source_word_matches(
+                text,
+                text,
+                walk.config.nested(),
+            )
+        })
+        .ok_or_else(|| {
+            "a bound native value cannot be written as an inert literal in the body".to_owned()
+        })?;
+    if expression_ranges
+        .iter()
+        .any(|span| start >= span.start() && end <= span.end())
+        && !is_expr_literal(&text, numbers)
+    {
+        return Err("a nonnumeric bound value cannot replace an expression variable".to_owned());
+    }
+    let text = literal_substitution_container(
+        source,
+        analysis,
+        walk,
+        body,
+        nested,
+        tcl_lexer::Span::new(start, end),
+        &text,
+    )
+    .ok_or_else(|| {
+        "a bound value cannot preserve its actual source substitution container".to_owned()
+    })?;
+    let start = start.checked_sub(body.origin).ok_or_else(unavailable)? as usize;
+    let end = end.checked_sub(body.origin).ok_or_else(unavailable)? as usize;
+    body.text.get(start..end).ok_or_else(unavailable)?;
+    Ok((start, end, text))
+}
+
+fn append_inline_formal_binding(
+    row: tcl_syntax::formal_params::FormalByteArgumentBinding,
+    formals: &tcl_compiler::signature_scan::formal_parameters::SignatureSourceFormalParameters,
+    arguments: &[Vec<u8>],
+    bindings: &mut std::collections::BTreeMap<Vec<u8>, Vec<u8>>,
+    rest_names: &mut std::collections::BTreeSet<Vec<u8>>,
+    unavailable: &impl Fn() -> String,
+) -> Result<(), String> {
+    use tcl_syntax::formal_params::FormalByteArgumentBinding;
+    match row {
+        FormalByteArgumentBinding::Value {
+            parameter,
+            argument,
+        } => {
+            bindings.insert(
+                formals
+                    .parameters()
+                    .get(parameter)
+                    .ok_or_else(unavailable)?
+                    .name
+                    .clone(),
+                arguments.get(argument).ok_or_else(unavailable)?.clone(),
+            );
+        }
+        FormalByteArgumentBinding::Default { parameter } => {
+            let parameter = formals
+                .parameters()
+                .get(parameter)
+                .ok_or_else(unavailable)?;
+            bindings.insert(
+                parameter.name.clone(),
+                parameter.default.clone().ok_or_else(unavailable)?,
+            );
+        }
+        FormalByteArgumentBinding::Rest { name, .. } => {
+            rest_names.insert(name);
+        }
+        FormalByteArgumentBinding::CallerLink { .. } => {
+            return Err(
+                "a caller-link formal would select a different frame after inlining".to_owned(),
+            );
+        }
+    }
+    Ok(())
 }
 
 #[cfg(test)]

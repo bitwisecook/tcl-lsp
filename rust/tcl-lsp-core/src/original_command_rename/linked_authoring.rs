@@ -87,74 +87,83 @@ impl<'a> OriginalLinkedSourceSpelling<'a> {
                 }
             }
         } else {
-            // This local owner is request-scoped; it is never a wire locator or
-            // evidence that another equal-byte document has the same identity.
-            let document = OriginalDeclarationDocument {
-                uri: "",
-                source,
-                analysis,
-            };
-            for declaration in analysis.original_procedure_declarations() {
-                let identity = OriginalDeclarationIdentity::for_procedure(
-                    document.uri,
-                    source,
-                    analysis,
-                    declaration,
-                )?;
-                let input = identity.input()?;
-                let extent = crate::original_name_edit::original_static_name_value_span(
-                    input,
-                    input.policy().recipe().command_tail_extent(input.bytes())?,
-                )?;
-                let text = source.get(extent.as_range())?;
-                if !plain_component(text) {
-                    continue;
-                }
-                let mut spans = vec![extent];
-                for invocation in &analysis.command_invocations {
-                    if invocation.indirect
-                        || !invocation.lookup.is_execution_site()
-                        || !contains(declaration.metadata().body_span, invocation.range.start())
-                        || !crate::original_declaration::invocation_targets_declaration(
-                            source,
-                            analysis,
-                            invocation,
-                            declaration,
-                            false,
-                        )
-                    {
-                        continue;
-                    }
-                    let Some(input) = &invocation.original_name_input else {
-                        continue;
-                    };
-                    let Some(component) =
-                        input.policy().recipe().command_tail_extent(input.bytes())
-                    else {
-                        continue;
-                    };
-                    let Some(span) = crate::original_name_edit::original_static_name_value_span(
-                        input, component,
-                    ) else {
-                        continue;
-                    };
-                    if source.get(span.as_range()) == Some(text) {
-                        spans.push(span);
-                    }
-                }
-                if spans.len() > 1 && spans.iter().any(|span| contains(*span, cursor)) {
-                    // Existing atomic preparation independently closes current
-                    // publication, source coverage and observer/link obligations.
-                    // Its current-tail proposal proves no future-name collision.
-                    super::original_command_prepare_span(document, &identity, cursor).ok()?;
-                    candidates.push(Self { spans, text });
-                }
-            }
+            Self::append_native_candidates(source, analysis, cursor, &mut candidates)?;
         }
         if candidates.len() != 1 {
             return None;
         }
         candidates.pop()
+    }
+
+    fn append_native_candidates(
+        source: &'a str,
+        analysis: &AnalysisResult,
+        cursor: u32,
+        candidates: &mut Vec<Self>,
+    ) -> Option<()> {
+        // This local owner is request-scoped; it is never a wire locator or
+        // evidence that another equal-byte document has the same identity.
+        let document = OriginalDeclarationDocument {
+            uri: "",
+            source,
+            analysis,
+        };
+        for declaration in analysis.original_procedure_declarations() {
+            let identity = OriginalDeclarationIdentity::for_procedure(
+                document.uri,
+                source,
+                analysis,
+                declaration,
+            )?;
+            let input = identity.input()?;
+            let extent = crate::original_name_edit::original_static_name_value_span(
+                input,
+                input.policy().recipe().command_tail_extent(input.bytes())?,
+            )?;
+            let text = source.get(extent.as_range())?;
+            if !plain_component(text) {
+                continue;
+            }
+            let mut spans = vec![extent];
+            for invocation in &analysis.command_invocations {
+                if invocation.indirect
+                    || !invocation.lookup.is_execution_site()
+                    || !contains(declaration.metadata().body_span, invocation.range.start())
+                    || !crate::original_declaration::invocation_targets_declaration(
+                        source,
+                        analysis,
+                        invocation,
+                        declaration,
+                        false,
+                    )
+                {
+                    continue;
+                }
+                let Some(input) = &invocation.original_name_input else {
+                    continue;
+                };
+                let Some(component) = input.policy().recipe().command_tail_extent(input.bytes())
+                else {
+                    continue;
+                };
+                let Some(span) =
+                    crate::original_name_edit::original_static_name_value_span(input, component)
+                else {
+                    continue;
+                };
+                if source.get(span.as_range()) == Some(text) {
+                    spans.push(span);
+                }
+            }
+            if spans.len() > 1 && spans.iter().any(|span| contains(*span, cursor)) {
+                // Existing atomic preparation independently closes current
+                // publication, source coverage and observer/link obligations.
+                // Its current-tail proposal proves no future-name collision.
+                super::original_command_prepare_span(document, &identity, cursor).ok()?;
+                candidates.push(Self { spans, text });
+            }
+        }
+        Some(())
     }
 
     pub(crate) fn spans(&self) -> &[Span] {
