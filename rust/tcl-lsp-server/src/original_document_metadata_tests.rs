@@ -881,15 +881,7 @@ fn assert_formatter_document_source(document: &DocumentState, source: &str) {
     assert_eq!(document.raw(), source);
 }
 
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn optimise_document_keeps_workspace_roles_and_refuses_unavailable_input() {
-    // naming.compiler.original-analysis-metadata-context
-    // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
-    // Source rewrites retain authored pack roles without a Native entry.
-    let (backend, registry) = workspace_pack_backend().await;
-    let uri = Uri::from_str("file:///workspace/supplied-optimiser.tcl").unwrap();
-    let source =
-        "proc subject {} {if {1} {unindexed_metadata::read ::retained} else {puts omitted}}";
+async fn prepare_aggressive_optimiser_document(backend: &Backend, uri: &Uri, source: &str) {
     backend.documents.lock("test").await.insert(
         uri.clone(),
         DocumentState::new(source.to_owned(), "tcl".to_owned()),
@@ -900,6 +892,18 @@ async fn optimise_document_keeps_workspace_roles_and_refuses_unavailable_input()
         }))
         .await
         .unwrap();
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn optimise_document_keeps_workspace_roles_and_refuses_unavailable_input() {
+    // naming.compiler.original-analysis-metadata-context
+    // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+    // Source rewrites retain authored pack roles without a Native entry.
+    let (backend, registry) = workspace_pack_backend().await;
+    let uri = Uri::from_str("file:///workspace/supplied-optimiser.tcl").unwrap();
+    let source =
+        "proc subject {} {if {1} {unindexed_metadata::read ::retained} else {puts omitted}}";
+    prepare_aggressive_optimiser_document(&backend, &uri, source).await;
     let analysis = backend
         .analysis_for(&uri, Arc::from(source), "tcl".to_owned())
         .await
