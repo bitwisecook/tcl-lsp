@@ -2202,7 +2202,10 @@ impl CommandRegistry {
     /// from the compiled-in universe and replace a visible shipped row even
     /// when the authored override is deliberately surface-less. This preserves
     /// the public insertion contract used by custom `SpecTcl` commands without
-    /// weakening release or dialect filtering for shipped commands.
+    /// weakening release or dialect filtering for shipped commands. The
+    /// permissive fallback has no selected release: it retains all admitted
+    /// candidates so a later independently selected compiler point can resolve
+    /// its original registration without borrowing a different release's row.
     #[must_use]
     pub fn project_for_profile(&self, profile: &'static tcl_dialect::DialectProfile) -> Self {
         let mut projected = Self::build_default();
@@ -2236,9 +2239,19 @@ impl CommandRegistry {
             .by_name
             .iter()
             .filter_map(|(&name, specs)| {
-                projected
-                    .best_visible(specs, Some(query))
-                    .map(|spec| (name, vec![spec]))
+                let selected: Vec<_> = if profile.is_fallback() {
+                    specs
+                        .iter()
+                        .copied()
+                        .filter(|spec| projected.spec_visible(spec, Some(query)))
+                        .collect()
+                } else {
+                    projected
+                        .best_visible(specs, Some(query))
+                        .into_iter()
+                        .collect()
+                };
+                (!selected.is_empty()).then_some((name, selected))
             })
             .collect();
         let mut overlays_by_name: FxHashMap<_, Vec<_>> = FxHashMap::default();
@@ -20136,6 +20149,78 @@ mod selected_try_list_controls {
                 0
             )
             .is_none()
+        );
+    }
+}
+
+#[cfg(test)]
+mod fallback_projection_compiler_tests {
+    use super::CommandRegistry;
+    use tcl_dialect::DialectProfile;
+
+    #[test]
+    fn fallback_projection_keeps_the_actual_registered_compilers_release() {
+        let source = CommandRegistry::build_default();
+        let fallback = source.project_for_profile(DialectProfile::plain_tcl());
+        let current = DialectProfile::find("tcl9.0").expect("catalogue profile");
+        let dialect = crate::InvocationDialect::of_profile(current);
+        let spec = fallback
+            .native_compilation_for_registration("catch", dialect)
+            .expect("the original C9 catch registration remains represented");
+        assert_eq!(
+            spec.grammar,
+            crate::native_compilation::NativeCompilationGrammar::Catch
+        );
+        assert_eq!(
+            Some(spec),
+            source.native_compilation_for_registration("catch", dialect)
+        );
+        assert!(std::ptr::eq(
+            fallback
+                .get_for_surface("catch", fallback.own_surface_query())
+                .unwrap(),
+            source
+                .get_for_surface("catch", Some(DialectProfile::plain_tcl().surface_query()))
+                .unwrap()
+        ));
+        assert!(
+            fallback
+                .native_compilation_for_registration("unregistered_compiler_probe", dialect)
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn exact_projection_does_not_borrow_a_newer_registered_compiler_row() {
+        let source = CommandRegistry::build_default();
+        let old = source.project_for_profile(DialectProfile::find("tcl8.4").unwrap());
+        let old_dialect =
+            crate::InvocationDialect::of_profile(DialectProfile::find("tcl8.4").unwrap());
+        let new_dialect =
+            crate::InvocationDialect::of_profile(DialectProfile::find("tcl9.0").unwrap());
+        assert!(
+            old.native_compilation_for_registration("catch", old_dialect)
+                .is_some()
+        );
+        assert!(
+            old.native_compilation_for_registration("catch", new_dialect)
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn fallback_projection_preserves_an_authored_compiler_descriptor_refusal() {
+        let mut source = CommandRegistry::build_default();
+        source.insert_static(Box::leak(Box::new(crate::CommandSpec {
+            name: "catch",
+            ..crate::CommandSpec::DEFAULT
+        })));
+        let fallback = source.project_for_profile(DialectProfile::plain_tcl());
+        let dialect = crate::InvocationDialect::of_profile(DialectProfile::find("tcl9.0").unwrap());
+        assert!(
+            fallback
+                .native_compilation_for_registration("catch", dialect)
+                .is_none()
         );
     }
 }

@@ -2379,6 +2379,26 @@ mod tests {
         });
     }
 
+    fn declared_trace_option(profile: &'static tcl_dialect::DialectProfile, form: &str) -> String {
+        const TABLE: &[&[u8]] = &[
+            b"add",
+            b"info",
+            b"remove",
+            b"variable",
+            b"vdelete",
+            b"vinfo",
+        ];
+        let visible = crate::environment::release_subcommands(profile.name, "trace", TABLE);
+        let names = visible
+            .iter()
+            .map(|name| std::str::from_utf8(name).unwrap())
+            .collect::<Vec<_>>();
+        match tcl_cmd_core::trace::resolve_option(form.split_whitespace().next().unwrap(), &names) {
+            Ok(_) => "0:".to_owned(),
+            Err(error) => format!("1:{}", error.message().unwrap()),
+        }
+    }
+
     /// The `trace` option table is the pinned profile's, not the plain release
     /// its runtime version names: an iRules interpreter emulates 8.4 but the
     /// TMM's Tcl has only the three legacy forms, so `trace add` — which
@@ -2399,6 +2419,9 @@ mod tests {
                     format!("set r \"[catch {{trace {form}}} m]:$m\"").as_bytes(),
                 );
                 answer = i.result_bytes();
+                if answer.starts_with(b"0:") {
+                    assert_eq!(i.traces.borrow().traces.len(), 1);
+                }
             });
             String::from_utf8(answer).expect("utf-8")
         };
@@ -2407,12 +2430,24 @@ mod tests {
         let add = "add variable x write cb";
         let legacy = "variable x w cb";
 
+        // The hosted profile declares a table, not a physical TMM trace/Index provider.
+        // Keep declaration outcomes separate from the actual Tcl registration checks below.
+        leak_free(|i| {
+            i.set_dialect_profile(tcl_dialect::DialectProfile::irules());
+            assert!(i.name_policy_protocol().is_none());
+            assert!(i
+                .native_invocation_dialect()
+                .native_index_lookup_protocol()
+                .is_none());
+            let _ = i.eval_str(b"trace variable x w cb");
+            assert!(i.host_refusal_pending());
+        });
         assert_eq!(
-            probe(Some(tcl_dialect::DialectProfile::irules()), add),
+            declared_trace_option(tcl_dialect::DialectProfile::irules(), add),
             "1:bad option \"add\": must be variable, vdelete, or vinfo"
         );
         assert_eq!(
-            probe(Some(tcl_dialect::DialectProfile::irules()), legacy),
+            declared_trace_option(tcl_dialect::DialectProfile::irules(), legacy),
             "0:"
         );
         assert_eq!(probe(Some(resolve("tcl8.4")), add), "0:");

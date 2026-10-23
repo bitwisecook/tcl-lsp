@@ -138,10 +138,9 @@ fn bytes_to_value(vm: &Vm, bytes: &[u8]) -> Value {
     {
         return Value::from_string_bytes(bytes);
     }
-    if let Some(recipe) = vm
-        .object_materialization()
-        .and_then(|purpose| purpose.byte_array_string_recipe())
-    {
+    if let Some(recipe) = vm.object_materialization().and_then(
+        crate::interp::object_materialization::ObjectMaterialization::byte_array_string_recipe,
+    ) {
         return Value::from_byte_array_recipe(std::rc::Rc::from(bytes), recipe);
     }
     // The unselected portable carrier retains its old neutral constructor;

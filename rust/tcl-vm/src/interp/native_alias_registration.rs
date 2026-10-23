@@ -94,23 +94,21 @@ impl Vm {
                         "original alias registration implementation",
                     ),
                 )?;
-                let (registration, report) = match &mut command {
-                    Command::Alias {
-                        registration_name,
-                        publication_name,
-                        ..
-                    }
-                    | Command::CrossAlias {
-                        registration_name,
-                        publication_name,
-                        ..
-                    } => (registration_name, publication_name),
-                    _ => {
-                        return Err(ValueError::CommandProtocolUnavailable(
-                            "original alias registration kind",
-                        )
-                        .into());
-                    }
+                let (Command::Alias {
+                    registration_name: registration,
+                    publication_name: report,
+                    ..
+                }
+                | Command::CrossAlias {
+                    registration_name: registration,
+                    publication_name: report,
+                    ..
+                }) = &mut command
+                else {
+                    return Err(ValueError::CommandProtocolUnavailable(
+                        "original alias registration kind",
+                    )
+                    .into());
                 };
                 if !registration
                     .as_ref()
@@ -196,23 +194,21 @@ impl Vm {
                     let live = self.command_token_at_generation(token.generation).ok_or(
                         ValueError::CommandProtocolUnavailable("original alias inventory token"),
                     )?;
-                    let registration = match self.command_at_sidecar_key(&live.key) {
-                        Some(
-                            Command::Alias {
-                                registration_name: Some(registration_name),
-                                ..
-                            }
-                            | Command::CrossAlias {
-                                registration_name: Some(registration_name),
-                                ..
-                            },
-                        ) => registration_name,
-                        _ => {
-                            return Err(ValueError::CommandProtocolUnavailable(
-                                "original alias inventory implementation",
-                            )
-                            .into());
+                    let Some(
+                        Command::Alias {
+                            registration_name: Some(registration),
+                            ..
                         }
+                        | Command::CrossAlias {
+                            registration_name: Some(registration),
+                            ..
+                        },
+                    ) = self.command_at_sidecar_key(&live.key)
+                    else {
+                        return Err(ValueError::CommandProtocolUnavailable(
+                            "original alias inventory implementation",
+                        )
+                        .into());
                     };
                     scope.current_for_value(self, &registration)?;
                     Ok(registration)

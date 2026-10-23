@@ -2017,19 +2017,20 @@ pub(crate) fn parse_params_value(
         Ok(outer) => outer,
         Err(error) => return Err(completion_from_cmd_error(vm, error)),
     };
-    let caller = std::cell::RefCell::new(&mut *vm);
-    let parsed = parse_formal_parameter_values(
-        &outer,
-        protocol,
-        |value, _| split_formal_values(&mut caller.borrow_mut(), value, protocol),
-        |value| {
-            caller
-                .borrow_mut()
-                .native_name_operand_bytes_checked(value)
-                .map(|bytes| bytes.to_vec())
-        },
-    );
-    drop(caller);
+    let parsed = {
+        let caller = std::cell::RefCell::new(&mut *vm);
+        parse_formal_parameter_values(
+            &outer,
+            protocol,
+            |value, _| split_formal_values(&mut caller.borrow_mut(), value, protocol),
+            |value| {
+                caller
+                    .borrow_mut()
+                    .native_name_operand_bytes_checked(value)
+                    .map(|bytes| bytes.to_vec())
+            },
+        )
+    };
     let parsed = match parsed {
         Ok(parsed) => parsed,
         Err(FormalParameterValueError::Access(error)) => {
@@ -2150,27 +2151,26 @@ fn define_procedure(
     let Some(parameter_grammar) = vm.native_invocation_dialect().parameter_grammar() else {
         return err("native parameter grammar is not selected");
     };
-    let (body, statics, (params_vec, has_args)) = match prepared {
-        Some(prepared) => prepared,
-        None => {
-            let body = match vm.capture_procedure_declaration_body(params, body_text) {
-                Ok(body) => body,
-                Err(error) => return completion_from_cmd_error(vm, error),
-            };
-            let statics = match definition
-                .statics_at
-                .map(|index| vm.prepare_procedure_statics_value(&args[index]))
-                .transpose()
-            {
-                Ok(statics) => statics,
-                Err(error) => return error,
-            };
-            let parameters = match parse_params_value(vm, params, &written) {
-                Ok(parameters) => parameters,
-                Err(error) => return error,
-            };
-            (body, statics, parameters)
-        }
+    let (body, statics, (params_vec, has_args)) = if let Some(prepared) = prepared {
+        prepared
+    } else {
+        let body = match vm.capture_procedure_declaration_body(params, body_text) {
+            Ok(body) => body,
+            Err(error) => return completion_from_cmd_error(vm, error),
+        };
+        let statics = match definition
+            .statics_at
+            .map(|index| vm.prepare_procedure_statics_value(&args[index]))
+            .transpose()
+        {
+            Ok(statics) => statics,
+            Err(error) => return error,
+        };
+        let parameters = match parse_params_value(vm, params, &written) {
+            Ok(parameters) => parameters,
+            Err(error) => return error,
+        };
+        (body, statics, parameters)
     };
     let (reg_name, slot, ns_id) = match vm.native_procedure_publication(&written) {
         Ok(publication) => publication,

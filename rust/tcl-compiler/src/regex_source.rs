@@ -289,7 +289,7 @@ fn literal_value_word_span(
         return None;
     }
     let tokens = stmt.tokens()?;
-    let metadata = source_metadata_at(tokens, module, registry)?;
+    let metadata = source_metadata_at(tokens, module, registry)?.context();
     let value = if let Some(metadata) = metadata.filter(|metadata| {
         tokens.source_binding.as_ref().and_then(|binding| {
             binding.original_invocation_source_purpose(tokens, *metadata, registry)
@@ -348,7 +348,7 @@ fn source_metadata_at<'a>(
     tokens: &'a crate::ir::CommandTokens,
     module: &crate::ir::Module,
     registry: &CommandRegistry,
-) -> Option<Option<crate::registry_invocation::InvocationMetadataContext<'a>>> {
+) -> Option<crate::registry_invocation::InvocationMetadataSelection<'a>> {
     let owner = module.retained_source_bindings.as_deref()?;
     if !owner.matches_module(module, registry)
         || tokens.synthetic.is_some()
@@ -359,14 +359,18 @@ fn source_metadata_at<'a>(
     if module.source_entry.metadata_context.is_standalone()
         && module.source_metadata_input.is_none()
     {
-        return owner.owns_original_tokens(tokens).then_some(None);
+        return owner
+            .owns_original_tokens(tokens)
+            .then_some(crate::registry_invocation::InvocationMetadataSelection::Standalone);
     }
-    Some(Some(
-        tokens
-            .source_binding
-            .as_ref()?
-            .original_invocation_metadata_for_module(tokens, module, registry)?,
-    ))
+    Some(
+        crate::registry_invocation::InvocationMetadataSelection::Retained(
+            tokens
+                .source_binding
+                .as_ref()?
+                .original_invocation_metadata_for_module(tokens, module, registry)?,
+        ),
+    )
 }
 
 /// The full span of the word beginning at byte `start`: for a `"…"` / `{…}`
@@ -472,7 +476,7 @@ fn regex_pattern_word<'a>(
     registry: &CommandRegistry,
 ) -> Option<&'a crate::ir::WordExpr> {
     let tokens = stmt.tokens()?;
-    let metadata = source_metadata_at(tokens, module, registry)?;
+    let metadata = source_metadata_at(tokens, module, registry)?.context();
     let idx = if let Some(metadata) = metadata.filter(|metadata| {
         tokens.source_binding.as_ref().and_then(|binding| {
             binding.original_invocation_source_purpose(tokens, *metadata, registry)
@@ -568,7 +572,8 @@ mod tests {
             &unit.ir_module,
             context.commands(),
         )
-        .unwrap();
+        .unwrap()
+        .context();
         assert!(
             crate::registry_invocation::normal_representation_invocation_with_metadata_context(
                 context.commands(),

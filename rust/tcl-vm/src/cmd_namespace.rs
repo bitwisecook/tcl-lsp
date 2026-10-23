@@ -141,6 +141,7 @@ fn eval_in_ns(
 
 /// Original body operands retain their own source and concatenation protocols.
 /// Assembly occurs in the already selected namespace frame, after argv is set.
+#[derive(Clone, Copy)]
 enum NamespaceBody<'a> {
     Eval(&'a [Value]),
     Inscope {
@@ -580,26 +581,22 @@ fn cmd_namespace_in(
             }
             "parent" | "children" => {
                 if subcommand_name == "parent" && name_policy.recipe().is_jim084() {
-                    let original = match rest.first() {
-                        Some(original) => original.native_lifetime_lease().into_value(),
-                        None => {
-                            if let crate::interp::NamespaceExecutionContext::OriginalJim(context) =
-                                vm.current_namespace_execution_context()
-                                && let Err(error) =
-                                    context.materialize_using(vm, &|vm| original_names.check(vm))
-                            {
-                                return crate::command::completion_from_cmd_error(vm, error);
-                            }
-                            match vm.with_jim_current_namespace(|original| {
-                                Ok(original.native_lifetime_lease().into_value())
-                            }) {
-                                Ok(original) => original,
-                                Err(error) => {
-                                    return crate::command::completion_from_cmd_error(
-                                        vm,
-                                        error.into(),
-                                    );
-                                }
+                    let original = if let Some(original) = rest.first() {
+                        original.native_lifetime_lease().into_value()
+                    } else {
+                        if let crate::interp::NamespaceExecutionContext::OriginalJim(context) =
+                            vm.current_namespace_execution_context()
+                            && let Err(error) =
+                                context.materialize_using(vm, &|vm| original_names.check(vm))
+                        {
+                            return crate::command::completion_from_cmd_error(vm, error);
+                        }
+                        match vm.with_jim_current_namespace(|original| {
+                            Ok(original.native_lifetime_lease().into_value())
+                        }) {
+                            Ok(original) => original,
+                            Err(error) => {
+                                return crate::command::completion_from_cmd_error(vm, error.into());
                             }
                         }
                     };

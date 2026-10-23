@@ -46,7 +46,7 @@ use tcl_registry::{CommandRegistry, Traits};
 
 use crate::compilation_unit::FunctionUnit;
 use crate::ir::Statement;
-use crate::registry_invocation::InvocationMetadataContext;
+use crate::registry_invocation::InvocationMetadataSelection;
 use crate::var_resolve::{VariableCellKey, VariableCellSet, VariableCellTable};
 
 /// A resolved cross-event cell; namespace cells and flow locals never alias.
@@ -432,7 +432,7 @@ fn function_metadata<'a>(
     function: &'a FunctionUnit,
     commands: &CommandRegistry,
     module: Option<&crate::ir::Module>,
-) -> Option<Option<InvocationMetadataContext<'a>>> {
+) -> Option<InvocationMetadataSelection<'a>> {
     if let Some(module) = module {
         module
             .retained_source_bindings
@@ -441,21 +441,19 @@ fn function_metadata<'a>(
             .then_some(())?;
         return function
             .invocation_metadata_context_for_module(commands, module)
-            .map(Some);
+            .map(InvocationMetadataSelection::Retained);
     }
     if function.source_metadata_input().is_some() {
-        return function.invocation_metadata_context(commands).map(Some);
+        return function
+            .invocation_metadata_context(commands)
+            .map(InvocationMetadataSelection::Retained);
     }
     function
         .cfg
         .metadata_context
         .is_standalone()
         .then_some(())?;
-    function
-        .cfg
-        .metadata_context
-        .metadata_context(commands)
-        .map(crate::registry_invocation::InvocationMetadataSelection::context)
+    function.cfg.metadata_context.metadata_context(commands)
 }
 
 fn point_metadata<'a>(
@@ -463,20 +461,19 @@ fn point_metadata<'a>(
     tokens: &'a crate::ir::CommandTokens,
     commands: &CommandRegistry,
     module: Option<&crate::ir::Module>,
-) -> Option<Option<InvocationMetadataContext<'a>>> {
+) -> Option<InvocationMetadataSelection<'a>> {
     if let Some(module) = module {
         function.invocation_metadata_context_for_module(commands, module)?;
         return tokens
             .source_binding
             .as_ref()?
             .original_invocation_metadata_for_module(tokens, module, commands)
-            .map(Some);
+            .map(InvocationMetadataSelection::Retained);
     }
     tokens
         .source_binding
         .as_ref()?
         .original_invocation_metadata_for_function(tokens, function, commands)
-        .map(crate::registry_invocation::InvocationMetadataSelection::context)
 }
 
 /// Selected destruction at an authentic original operation. Unknown source,
@@ -498,7 +495,7 @@ pub(crate) fn statement_destroys(
         return Some(false);
     }
     let tokens = function.cfg.source_tokens_at(block, index)?;
-    let context = point_metadata(function, tokens, commands, module)?;
+    let context = point_metadata(function, tokens, commands, module)?.context();
     let invocation = crate::registry_invocation::resolved_tokens_invocation_with_metadata_context(
         commands, context, tokens,
     )
@@ -574,7 +571,7 @@ fn statement_clobbers(
             return true;
         }
     }
-    crate::memory_ssa::is_clobber_with_metadata_context(statement, commands, context)
+    crate::memory_ssa::is_clobber_with_metadata_context(statement, commands, context.context())
 }
 
 pub(crate) fn cell_from_place(place: &crate::place::Place) -> Option<EventCell> {

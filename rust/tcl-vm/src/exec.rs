@@ -225,7 +225,7 @@ pub(crate) struct Frame {
     dispatched_invocation: Option<Value>,
     /// Original invoking stack references remain owned through the callee
     /// activation; the reporting `CallFrame` separately borrows lifetime views.
-    _procedure_invocation: Option<(Value, Vec<Value>)>,
+    procedure_invocation: Option<(Value, Vec<Value>)>,
     /// Literal command tokens resolved at their command-head push, before the
     /// remaining words perform substitutions. Entries are keyed by the
     /// matching command continuation so nested substitutions compose without
@@ -726,7 +726,7 @@ impl Frame {
             tailcall_owners: Vec::new(),
             original_invocation: None,
             dispatched_invocation: None,
-            _procedure_invocation: None,
+            procedure_invocation: None,
             entered_commands: Vec::new(),
             chunk_native_compiler_selections: std::collections::HashSet::new(),
             entered_native_compiler_selections: Vec::new(),
@@ -2273,7 +2273,7 @@ impl Vm {
                     // The C bytecode caller keeps its operand stack until
                     // TclNREvalObjv returns (tclExecute.c doInvocation/cleanupV).
                     // Move those same owning references with this activation.
-                    frame._procedure_invocation = Some((invoked, argv));
+                    frame.procedure_invocation = Some((invoked, argv));
                     frame.lambda_registration = lambda_registration;
                     self.push_frame(acts, frame);
                     TickAction::Resume
@@ -10457,11 +10457,10 @@ impl Vm {
                 .and_then(|numeric| numeric.getter(value, NativeScalarGetterKind::Int))
             {
                 Ok(NativeScalarGetterValue::Wide(integer)) => Ok(Some(integer)),
-                Ok(_) => Ok(None),
                 Err(error) if error.native_execution_refusal().is_some() => {
                     Err(crate::command::completion_from_cmd_error(self, error))
                 }
-                Err(_) => Ok(None),
+                Ok(_) | Err(_) => Ok(None),
             }
         };
         self.finish_original_dispatch(&original, reached)
@@ -11928,8 +11927,8 @@ mod tests {
         let head_loan = invoked.native_lifetime_lease();
         let argument_loan = argument.native_lifetime_lease();
         let mut frame = super::Frame::new(vm.current_placeholder_unit(), true);
-        frame._procedure_invocation = Some((invoked, vec![argument]));
-        let (head, arguments) = frame._procedure_invocation.as_ref().unwrap();
+        frame.procedure_invocation = Some((invoked, vec![argument]));
+        let (head, arguments) = frame.procedure_invocation.as_ref().unwrap();
         assert!(head.is_same_object(head_loan.value()));
         assert!(arguments[0].is_same_object(argument_loan.value()));
         assert_eq!(head.native_object_reference_count(), 1);

@@ -9,7 +9,7 @@ use crate::{
     ir::{CommandTokens, Provenance, WordExpr, WordPart},
     place::Place,
     registry_invocation::{
-        InvocationMetadataContext, normal_representation_invocation_with_metadata_context,
+        InvocationMetadataSelection, normal_representation_invocation_with_metadata_context,
         normal_transfer_invocation_with_metadata_context,
     },
     value_provenance::ValueContributor,
@@ -239,7 +239,7 @@ impl<'a> Query<'a> {
     fn invocation_metadata<'b>(
         &self,
         tokens: &'b CommandTokens,
-    ) -> Option<Option<InvocationMetadataContext<'b>>> {
+    ) -> Option<InvocationMetadataSelection<'b>> {
         let owner = self.module.retained_source_bindings.as_deref()?;
         if !owner.matches_module(self.module, self.registry) {
             return None;
@@ -250,16 +250,14 @@ impl<'a> Query<'a> {
                 .invocation_metadata_context_for_module(self.registry, self.module)?;
             return binding
                 .original_invocation_metadata_for_module(tokens, self.module, self.registry)
-                .map(Some);
+                .map(InvocationMetadataSelection::Retained);
         }
         if !self.module.source_entry.metadata_context.is_standalone()
             || !owner.owns_original_tokens(tokens)
         {
             return None;
         }
-        binding
-            .original_invocation_metadata_for_function(tokens, self.unit, self.registry)
-            .map(crate::registry_invocation::InvocationMetadataSelection::context)
+        binding.original_invocation_metadata_for_function(tokens, self.unit, self.registry)
     }
 
     fn values_at(&mut self, target: &Place, context: &ResolveContext) -> Option<Vec<Stored>> {
@@ -358,7 +356,7 @@ impl<'a> Query<'a> {
         if !self.authored_carrier(tokens) {
             return None;
         }
-        let metadata = self.invocation_metadata(tokens)?;
+        let metadata = self.invocation_metadata(tokens)?.context();
         let normal =
             normal_transfer_invocation_with_metadata_context(self.registry, metadata, tokens)?;
         let context = &tokens.source_binding.as_ref()?.variable_context;
@@ -442,7 +440,7 @@ impl<'a> Query<'a> {
         if let Some(value) = self.literal(word) {
             return Some(vec![Stored::Literal(value)]);
         }
-        let metadata = self.invocation_metadata(tokens)?;
+        let metadata = self.invocation_metadata(tokens)?.context();
         let config = self.unit.source_lexer_config();
         let calls = if let Some(actual) =
             metadata.filter(|actual| actual.source_analysis_input().is_some())
@@ -466,7 +464,7 @@ impl<'a> Query<'a> {
         {
             return None;
         }
-        let metadata = self.invocation_metadata(&nested)?;
+        let metadata = self.invocation_metadata(&nested)?.context();
         let normal = normal_representation_invocation_with_metadata_context(
             self.registry,
             metadata,

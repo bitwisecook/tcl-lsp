@@ -717,25 +717,22 @@ fn compare_string_units_using(
 ) -> Result<Ordering, TclError> {
     let model =
         model.ok_or(tcl_syntax::raw_string::NativeValueAccessRefusal::CharacterModelUnavailable)?;
-    let (left_bytes, right_bytes, counts) = match context {
-        Some(context) => {
-            let left = context.string_for_value(a)?;
-            let right = context.string_for_value(b)?;
-            context.current_for_value(a)?;
-            let left_count = a.native_character_count(model, None)?;
-            context.current_for_value(a)?;
-            context.current_for_value(b)?;
-            let right_count = b.native_character_count(model, None)?;
-            context.current_for_value(b)?;
-            (left, right, (left_count, right_count))
-        }
-        None => {
-            let counts = (
-                a.native_character_count(model, None)?,
-                b.native_character_count(model, None)?,
-            );
-            (a.string_bytes(), b.string_bytes(), counts)
-        }
+    let (left_bytes, right_bytes, counts) = if let Some(context) = context {
+        let left = context.string_for_value(a)?;
+        let right = context.string_for_value(b)?;
+        context.current_for_value(a)?;
+        let left_count = a.native_character_count(model, None)?;
+        context.current_for_value(a)?;
+        context.current_for_value(b)?;
+        let right_count = b.native_character_count(model, None)?;
+        context.current_for_value(b)?;
+        (left, right, (left_count, right_count))
+    } else {
+        let counts = (
+            a.native_character_count(model, None)?,
+            b.native_character_count(model, None)?,
+        );
+        (a.string_bytes(), b.string_bytes(), counts)
     };
     let left = tcl_syntax::raw_string::RawString::from_bytes(left_bytes);
     let right = tcl_syntax::raw_string::RawString::from_bytes(right_bytes);
