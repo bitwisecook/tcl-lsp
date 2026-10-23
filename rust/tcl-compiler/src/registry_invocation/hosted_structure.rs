@@ -307,8 +307,14 @@ impl SourceStructuredInvocation {
     }
     pub(crate) fn lowering_identity(&self) -> super::SelectedLoweringBindingIdentity<'_> {
         match self {
-            Self::Logical(_) => {
-                super::SelectedLoweringBindingIdentity::Logical(self.descriptor_key())
+            Self::Logical(selected) => {
+                if selected.is_authored_simulation() {
+                    super::SelectedLoweringBindingIdentity::AuthoredSimulationSourceSchema(
+                        self.descriptor_key(),
+                    )
+                } else {
+                    super::SelectedLoweringBindingIdentity::Logical(self.descriptor_key())
+                }
             }
             Self::Authored(_) => {
                 super::SelectedLoweringBindingIdentity::AuthoredSourceSchema(self.descriptor_key())

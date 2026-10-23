@@ -1,0 +1,17 @@
+{
+  "role": "compiler",
+  "utc": "2026-10-23T00:10:30.841309+00:00",
+  "patch_sha256": "909d989cc7abf9c464f6617b6eb0b9ecf6043f160ea701519581232bb09b40dc",
+  "status": "BOUNDED STATIC CLEAR; untyped/unrun, no acceptance",
+  "findings": [
+    "BodyWalk invokes existing SourcePoint-only observer after selected schema and retained arity debt, matching root placement before handler/effects. No normal-completion observer is added.",
+    "Original observer matches exact source origin and original NativeWords, checks real SourceLoad ordinal, namespace and existing graph debts. Query.seen marks every duplicate observation refused; repeated surveys cannot silently pick one graph.",
+    "Conditional body graphs retain their namespace/current uncertainty/arity/context debt; copying a graph is not a Native frame or definite completion grant.",
+    "Real namespace SourceLoad\u2192child declaration control and equal-byte foreign-parent/unknown-writer negatives retain actual source owners and nonempty obligations."
+  ],
+  "limits": [
+    "Actual nested positive and all previous failing region/frontier controls unrun on proposal.",
+    "Duplicate visits may conservatively lose precision; they do not forge a unique source graph.",
+    "Does not claim root allocator or AuthoredSimulation RBS repair."
+  ]
+}

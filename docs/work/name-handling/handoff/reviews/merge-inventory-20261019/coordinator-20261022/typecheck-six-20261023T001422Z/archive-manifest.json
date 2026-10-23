@@ -1,0 +1,123 @@
+{
+  "utc": "2026-10-23T00:14:45.396913+00:00",
+  "source": "/tmp/compiler-names-n13-typecheck-six-20261023T0009Z",
+  "summary": {
+    "cargo_exits": [
+      101
+    ],
+    "compiler_errors": 2,
+    "compiler_warnings": 0,
+    "head_after": "32433f2e5993578dea297ff6cd8b41492758a0d1",
+    "head_before": "32433f2e5993578dea297ff6cd8b41492758a0d1",
+    "passed": false,
+    "phases_completed": 1,
+    "provider_changes": [],
+    "retained_log_bytes": 314794,
+    "retention_cap_bytes": 20971520,
+    "scope": "Typecheck only, no tests or N13 functional admission. All six packages share one keep-going all-targets invocation; Cargo controls dependency failures. HEAD/index-only coordinator changes are recorded independently.",
+    "source_and_providers_unchanged": true,
+    "source_changes": [],
+    "source_count_after": 6541,
+    "source_count_before": 6541,
+    "utc": "2026-10-23T00:14:22.502440+00:00"
+  },
+  "files": [
+    {
+      "original_name": "after-providers.json",
+      "original_bytes": 31165,
+      "original_sha256": "bfa3e8e7b689dadefe4417f1f953cf6cafe06bfba4c8a2ed261111baa103c246",
+      "stored": "after-providers.json",
+      "stored_bytes": 31165,
+      "stored_sha256": "bfa3e8e7b689dadefe4417f1f953cf6cafe06bfba4c8a2ed261111baa103c246"
+    },
+    {
+      "original_name": "after-source.json",
+      "original_bytes": 872949,
+      "original_sha256": "c42cad7303339d21dbe8bd403e0fbf22bba78ee90d06136ed78cdbe00b1c1e81",
+      "stored": "after-source.json.gz",
+      "stored_bytes": 300239,
+      "stored_sha256": "6994bb479d8ea2fd7d1142717d625b641a9d9029dbeb3531059bddb0021aa28b"
+    },
+    {
+      "original_name": "before-providers.json",
+      "original_bytes": 31165,
+      "original_sha256": "bfa3e8e7b689dadefe4417f1f953cf6cafe06bfba4c8a2ed261111baa103c246",
+      "stored": "before-providers.json",
+      "stored_bytes": 31165,
+      "stored_sha256": "bfa3e8e7b689dadefe4417f1f953cf6cafe06bfba4c8a2ed261111baa103c246"
+    },
+    {
+      "original_name": "before-source.json",
+      "original_bytes": 872949,
+      "original_sha256": "0e08a3a0185957c9e2acd06245ee2778768ed1e3b0dc53de4e9f8811b3f0411a",
+      "stored": "before-source.json.gz",
+      "stored_bytes": 300238,
+      "stored_sha256": "b53883834e2ae1fa592b81c6a56303378311b8b77571915d005ba9f380e03629"
+    },
+    {
+      "original_name": "combined-artifacts.json",
+      "original_bytes": 360277,
+      "original_sha256": "d740bcbcae3dddaf9a37a5809f949085e05aa29c437bd9c021582ae49b6c3595",
+      "stored": "combined-artifacts.json.gz",
+      "stored_bytes": 32058,
+      "stored_sha256": "fdd006de522b979dd594e9a9cb5cab5ebd73348ea5c225d2e3ae69dba7255d4e"
+    },
+    {
+      "original_name": "combined-result.json",
+      "original_bytes": 3523,
+      "original_sha256": "9008a11424343dc72f392ccad3cc155970982b1e08f1fb69a21e23f80e733918",
+      "stored": "combined-result.json",
+      "stored_bytes": 3523,
+      "stored_sha256": "9008a11424343dc72f392ccad3cc155970982b1e08f1fb69a21e23f80e733918"
+    },
+    {
+      "original_name": "combined-started.json",
+      "original_bytes": 396,
+      "original_sha256": "f24ae77cb55400939d826c45e5418cb9e7b5b5bd10523e779421e2418d57c653",
+      "stored": "combined-started.json",
+      "stored_bytes": 396,
+      "stored_sha256": "f24ae77cb55400939d826c45e5418cb9e7b5b5bd10523e779421e2418d57c653"
+    },
+    {
+      "original_name": "combined.stderr.log",
+      "original_bytes": 1642,
+      "original_sha256": "400b61416547802c77d58418d3e0af990bc0c84cd5790a7875bbaba5a9d6c063",
+      "stored": "combined.stderr.log",
+      "stored_bytes": 1642,
+      "stored_sha256": "400b61416547802c77d58418d3e0af990bc0c84cd5790a7875bbaba5a9d6c063"
+    },
+    {
+      "original_name": "combined.stdout.jsonl",
+      "original_bytes": 313152,
+      "original_sha256": "4a8e24d3533048fb889abb872dd21db02a6f4e2db616c635addd4df9bb35466d",
+      "stored": "combined.stdout.jsonl.gz",
+      "stored_bytes": 21627,
+      "stored_sha256": "635181d3541371630c0c0dd3f1e5026ee778d9730dd5bf50e9e722c6c546d305"
+    },
+    {
+      "original_name": "lock-claimed.json",
+      "original_bytes": 930,
+      "original_sha256": "7f4afbc6fbc74dc497c61c2875f7fa69f89951bed33bfb154fbe985f7307f173",
+      "stored": "lock-claimed.json",
+      "stored_bytes": 930,
+      "stored_sha256": "7f4afbc6fbc74dc497c61c2875f7fa69f89951bed33bfb154fbe985f7307f173"
+    },
+    {
+      "original_name": "lock-released.json",
+      "original_bytes": 65,
+      "original_sha256": "b2e4254b6ecc738c018ab80e5105a83ddc3b13d08ebf2c8452d89b37b0cf4d7b",
+      "stored": "lock-released.json",
+      "stored_bytes": 65,
+      "stored_sha256": "b2e4254b6ecc738c018ab80e5105a83ddc3b13d08ebf2c8452d89b37b0cf4d7b"
+    },
+    {
+      "original_name": "summary.json",
+      "original_bytes": 745,
+      "original_sha256": "d46fc8ea2689e59ce56fb2e93cc1278088272fdb7d75daa3ffacc82be1f281b3",
+      "stored": "summary.json",
+      "stored_bytes": 745,
+      "stored_sha256": "d46fc8ea2689e59ce56fb2e93cc1278088272fdb7d75daa3ffacc82be1f281b3"
+    }
+  ],
+  "acceptance": "FAIL; two actual LSP missing-current_analysis typing errors. No runtime or release admission."
+}

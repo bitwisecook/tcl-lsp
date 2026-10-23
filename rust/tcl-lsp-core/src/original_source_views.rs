@@ -38,10 +38,11 @@ impl OriginalSourceViewDocument<'_> {
             return None;
         }
         match self.region {
-            None => {
-                crate::source_graph::current_analysis(self.document.source, self.document.analysis)
-                    .map(|_| ())
-            }
+            None => crate::original_context::CurrentSourceContext::capture(
+                self.document.source,
+                self.document.analysis,
+            )
+            .map(|_| ()),
             Some(region) => {
                 let analysis = self.document.analysis;
                 let config = analysis.body_lexer_config?;

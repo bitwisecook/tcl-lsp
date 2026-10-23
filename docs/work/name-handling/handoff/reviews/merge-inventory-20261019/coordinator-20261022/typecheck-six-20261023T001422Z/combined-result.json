@@ -1,0 +1,98 @@
+{
+  "argv": [
+    "cargo",
+    "check",
+    "--locked",
+    "--keep-going",
+    "-p",
+    "tcl-compiler",
+    "-p",
+    "tcl-lsp-core",
+    "-p",
+    "tcl-lsp-db",
+    "-p",
+    "tcl-lsp-server",
+    "-p",
+    "tcl-vm",
+    "-p",
+    "tcl-fuzz",
+    "--all-targets",
+    "--message-format=json"
+  ],
+  "cargo_exit": 101,
+  "disk_abort": false,
+  "error_count": 2,
+  "errors": [
+    {
+      "code": "E0425",
+      "message": "cannot find function `current_analysis` in module `crate::source_graph`",
+      "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-lsp-core#0.1.0",
+      "primary_spans": [
+        {
+          "byte_end": 2657,
+          "byte_start": 2641,
+          "column_end": 58,
+          "column_start": 42,
+          "expansion": null,
+          "file_name": "rust/tcl-lsp-core/src/workspace_index/source_views.rs",
+          "is_primary": true,
+          "label": "not found in `crate::source_graph`",
+          "line_end": 76,
+          "line_start": 76,
+          "suggested_replacement": null,
+          "suggestion_applicability": null,
+          "text": [
+            {
+              "highlight_end": 58,
+              "highlight_start": 42,
+              "text": "            None => crate::source_graph::current_analysis(source, analysis).is_some(),"
+            }
+          ]
+        }
+      ],
+      "rendered": "error[E0425]: cannot find function `current_analysis` in module `crate::source_graph`\n  --> rust/tcl-lsp-core/src/workspace_index/source_views.rs:76:42\n   |\n76 |             None => crate::source_graph::current_analysis(source, analysis).is_some(),\n   |                                          ^^^^^^^^^^^^^^^^ not found in `crate::source_graph`\n\n"
+    },
+    {
+      "code": "E0425",
+      "message": "cannot find function `current_analysis` in module `crate::source_graph`",
+      "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-lsp-core#0.1.0",
+      "primary_spans": [
+        {
+          "byte_end": 1950,
+          "byte_start": 1934,
+          "column_end": 54,
+          "column_start": 38,
+          "expansion": null,
+          "file_name": "rust/tcl-lsp-core/src/original_source_views.rs",
+          "is_primary": true,
+          "label": "not found in `crate::source_graph`",
+          "line_end": 42,
+          "line_start": 42,
+          "suggested_replacement": null,
+          "suggestion_applicability": null,
+          "text": [
+            {
+              "highlight_end": 54,
+              "highlight_start": 38,
+              "text": "                crate::source_graph::current_analysis(self.document.source, self.document.analysis)"
+            }
+          ]
+        }
+      ],
+      "rendered": "error[E0425]: cannot find function `current_analysis` in module `crate::source_graph`\n  --> rust/tcl-lsp-core/src/original_source_views.rs:42:38\n   |\n42 |                 crate::source_graph::current_analysis(self.document.source, self.document.analysis)\n   |                                      ^^^^^^^^^^^^^^^^ not found in `crate::source_graph`\n\n"
+    }
+  ],
+  "logs_truncated": false,
+  "minimum_free_bytes": 12020117504,
+  "overlong_json_lines": 0,
+  "parse_errors": 0,
+  "passed": false,
+  "retained_bytes": 314794,
+  "retention_budget": 20971520,
+  "stderr_bytes": 1642,
+  "stdout_bytes": 313152,
+  "termination_scope": "Only this Popen-created Cargo session/process group; no cleanup/deletion",
+  "utc": "2026-10-23T00:14:10.928081+00:00",
+  "warning_count": 0,
+  "warnings": []
+}

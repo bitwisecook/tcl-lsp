@@ -1,0 +1,231 @@
+{
+  "utc": "2026-10-23T00:09:15.737496+00:00",
+  "status": "Read-only post-apply readiness: all5 exact native1/N17two sourcepins match canonical; no queue",
+  "candidate_receipt": {
+    "path": "/tmp/coordinator-n13-candidate-2323/receipt.json",
+    "sha256": "8efee4e03fe26260407377cd0120e0773e183668c4c5ea69993c95d5e39d46e4"
+  },
+  "source_rows": [
+    {
+      "plan": "native1",
+      "path": "rust/tcl-vm/tests/cmd_control_e2e.rs",
+      "sha256": "a89c3a8e1fde338f4e485adeed59054c2fad3dfe7a16548084e37e37a7e37db1",
+      "current": "a89c3a8e1fde338f4e485adeed59054c2fad3dfe7a16548084e37e37a7e37db1",
+      "current_match": true,
+      "candidate": null,
+      "candidate_match": "untouched/not in candidate"
+    },
+    {
+      "plan": "native1",
+      "path": "rust/tcl-bytecode/src/lib.rs",
+      "sha256": "20dae111eda5c9620b0bbb1fa691db9ce296e14e5f6d3f1157a48d01fd53aa6e",
+      "current": "20dae111eda5c9620b0bbb1fa691db9ce296e14e5f6d3f1157a48d01fd53aa6e",
+      "current_match": true,
+      "candidate": "20dae111eda5c9620b0bbb1fa691db9ce296e14e5f6d3f1157a48d01fd53aa6e",
+      "candidate_match": true
+    },
+    {
+      "plan": "native1",
+      "path": "rust/tcl-compiler/src/compile_service.rs",
+      "sha256": "41f76c717a37f9be2ccafbdda0daf1c23c44641cc190acd3e849e5faee356e66",
+      "current": "41f76c717a37f9be2ccafbdda0daf1c23c44641cc190acd3e849e5faee356e66",
+      "current_match": true,
+      "candidate": "41f76c717a37f9be2ccafbdda0daf1c23c44641cc190acd3e849e5faee356e66",
+      "candidate_match": true
+    },
+    {
+      "plan": "n17two",
+      "path": "rust/tcl-spectcl/tests/pack_source_e2e.rs",
+      "sha256": "e1ed4fb25d4aeba91df7e0185dec4b029d11bd7dda8d7093750bdc22f76307b7",
+      "current": "e1ed4fb25d4aeba91df7e0185dec4b029d11bd7dda8d7093750bdc22f76307b7",
+      "current_match": true,
+      "candidate": null,
+      "candidate_match": "untouched/not in candidate"
+    },
+    {
+      "plan": "n17two",
+      "path": "rust/tcl-spectcl/tests/support/derived_first_decline.rs",
+      "sha256": "6f430e9f4ef863ba559714749f5eddec5f09f07abe549dbb654c7a33d5f07bc1",
+      "current": "6f430e9f4ef863ba559714749f5eddec5f09f07abe549dbb654c7a33d5f07bc1",
+      "current_match": true,
+      "candidate": null,
+      "candidate_match": "untouched/not in candidate"
+    }
+  ],
+  "runner_pins": [
+    {
+      "path": "/tmp/tcl-lsp-naming-env.sh",
+      "matches": true
+    },
+    {
+      "path": "/tmp/compiler-c6-guarded-cargo.py",
+      "matches": true
+    },
+    {
+      "path": "/tmp/compiler-c6-provider-manifest.py",
+      "matches": true
+    },
+    {
+      "path": "/tmp/ccg-postbatch-functional-v3-suite.py",
+      "matches": true
+    },
+    {
+      "path": "/tmp/ccg-postbatch-functional-v3-run.sh",
+      "matches": true
+    },
+    {
+      "path": "/tmp/naming-oracle-setup.json",
+      "matches": true
+    },
+    {
+      "path": "/tmp/ccg-current-base-provider-seal-20261022.json",
+      "matches": true
+    },
+    {
+      "path": "/tmp/ccg-selected-actual-tool-pins-20261022.json",
+      "matches": true
+    },
+    {
+      "path": "/tmp/ccg-actual-c-and-rust-linker-supplement-20261022.json",
+      "matches": true
+    },
+    {
+      "path": "/usr/lib/gcc/x86_64-linux-gnu/14/libgcc.a",
+      "matches": true
+    },
+    {
+      "path": "/lib64/ld-linux-x86-64.so.2",
+      "matches": true
+    },
+    {
+      "path": "/lib/x86_64-linux-gnu/libc.so.6",
+      "matches": true
+    },
+    {
+      "path": "/usr/lib/gcc/x86_64-linux-gnu/14/liblto_plugin.so",
+      "matches": true
+    },
+    {
+      "path": "/lib/x86_64-linux-gnu/libbfd-2.44-system.so",
+      "matches": true
+    },
+    {
+      "path": "/lib/x86_64-linux-gnu/libsframe.so.1",
+      "matches": true
+    },
+    {
+      "path": "/lib/x86_64-linux-gnu/libz.so.1",
+      "matches": true
+    },
+    {
+      "path": "/lib/x86_64-linux-gnu/libzstd.so.1",
+      "matches": true
+    },
+    {
+      "path": "/usr/bin/ar",
+      "matches": true
+    },
+    {
+      "path": "/usr/bin/as",
+      "matches": true
+    },
+    {
+      "path": "/lib/x86_64-linux-gnu/libgmp.so.10",
+      "matches": true
+    },
+    {
+      "path": "/lib/x86_64-linux-gnu/libm.so.6",
+      "matches": true
+    },
+    {
+      "path": "/lib/x86_64-linux-gnu/libmpfr.so.6",
+      "matches": true
+    },
+    {
+      "path": "/lib/x86_64-linux-gnu/libisl.so.23",
+      "matches": true
+    },
+    {
+      "path": "/lib/x86_64-linux-gnu/libmpc.so.3",
+      "matches": true
+    },
+    {
+      "path": "/usr/libexec/gcc/x86_64-linux-gnu/14/cc1",
+      "matches": true
+    },
+    {
+      "path": "/usr/bin/cc",
+      "matches": true
+    },
+    {
+      "path": "/usr/libexec/gcc/x86_64-linux-gnu/14/collect2",
+      "matches": true
+    },
+    {
+      "path": "/lib/x86_64-linux-gnu/libctf.so.0",
+      "matches": true
+    },
+    {
+      "path": "/lib/x86_64-linux-gnu/libjansson.so.4",
+      "matches": true
+    },
+    {
+      "path": "/usr/bin/ld",
+      "matches": true
+    },
+    {
+      "path": "/lib/x86_64-linux-gnu/libdl.so.2",
+      "matches": true
+    },
+    {
+      "path": "/lib/x86_64-linux-gnu/libgcc_s.so.1",
+      "matches": true
+    },
+    {
+      "path": "/lib/x86_64-linux-gnu/libpthread.so.0",
+      "matches": true
+    },
+    {
+      "path": "/lib/x86_64-linux-gnu/librt.so.1",
+      "matches": true
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/bin/../../../libLLVM.so.23.1-rust-1.99.1-stable",
+      "matches": true
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/bin/rust-lld",
+      "matches": true
+    }
+  ],
+  "watchdog": {
+    "path": "/tmp/ccg-diagnostic-three-v2/runtime-watchdog.py",
+    "sha256": "7495aee1f9e85080dff5c2fdd67595257908b138a85ae315b2319ccbfa08d3f7",
+    "peer_review": "Still prerequisite unless coordinator has independent clear;180sec executable runtime, compilation excluded; attach-before-test and complete watcher receipt required."
+  },
+  "explorer_boundaries": [
+    {
+      "axis": "method unit",
+      "fact": "all_snapshots explicitly chains methods and body_lowering_functions; semantic maps all snapshots without name filter.",
+      "next_fact": "Check actual unit.methods, method.name and snapshot list before semantic projection; do not assume missing iteration."
+    },
+    {
+      "axis": "SCCP selection/routes/types",
+      "fact": "serialise_sccp reads actual snap.unit.sccp selections/route_tally/value facts. Old failures span independent compiler routes; no current upstream receipt measured.",
+      "next_fact": "Join retained input + first actual admission/route facts for representative original selector before changing serializer or expectations."
+    },
+    {
+      "axis": "top-level bytecode",
+      "fact": "Original set x1/puts$x fixture still asserts storeStk+invokeStk1+done; old first failure storeStk.",
+      "next_fact": "Compare actual finished FunctionAsm instruction stream with structured dump; no bytecode operation repair inferred from missing output."
+    },
+    {
+      "axis": "AOT render/JSON/native wasm/CLI",
+      "fact": "Old render and JSON both expose same execution-trace/four-premise decline rather than seven expected premises.",
+      "next_fact": "Actual producer/admission facts required; native exact1 only measures representative VM admission, cannot establish Explorer/CLI common cause."
+    }
+  ],
+  "limits": "Coverage01a is included in candidate; unmeasured. Float16a excluded/unapproved, original Float assertion unresolved.21 confirmed older Explorer pass-to-fail and3 unmatched unknown remain distinct. No source/provider mutation or runtime acceptance.",
+  "canonical_checkpoint_agent_reported": "32433f2e599",
+  "typecheck_agent_reported": "/tmp/compiler-names-n13-typecheck-six-20261023T0009Z (running; no verdict)"
+}

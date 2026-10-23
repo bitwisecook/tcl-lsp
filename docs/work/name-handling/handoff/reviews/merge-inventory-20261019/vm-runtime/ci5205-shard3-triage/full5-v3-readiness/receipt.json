@@ -1,0 +1,16 @@
+{
+  "utc": "2026-10-23T00:08:32.999323+00:00",
+  "status": "static readiness only; no execution, provider capture, lock, Cargo or tests",
+  "parent_runner_sha256": "6c4b2024df5b3f3a5ada79cdb02ac6c03a3b1436a1523e70da2e2573ff1ed135",
+  "delta": [
+    "BASE changes to v3 preserving v2",
+    "continue deadline monitoring after pipe EOF while child remains alive"
+  ],
+  "plan_byte_identical": true,
+  "files": {
+    "run.py": "fcf0e2b6420bfb4c03036d2c9d599a10766568dff7443af083f6fc24ea4fdc09",
+    "provider-chain.py": "a647bf8699e1eecebce0702d01d11206f4d8a1a7d09f6661afd9ef928a52a5d9",
+    "observer-proposal.patch": "c0c5ad46b1ccd296f57f08bd579718b019842bf6b25cf29c0381497018b94b16",
+    "full_tommath5-plan.json": "e9778397aa8bef8ec363c8a15d7470e61bd35b16913adb48e20cf7f32c72ab72"
+  }
+}

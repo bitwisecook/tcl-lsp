@@ -1,0 +1,9 @@
+{
+  "candidate_root": "/tmp/coordinator-n13-next-source-2324",
+  "patch_sha256": "207d6b8415b60ef600e616cb90e2900fdb38da7c1a99d16d92128a797f3966c3",
+  "fullmanifest_sha256": "3055ae8f0165969170b3122790d0e1ae4d6453f830e38e6600543661e8d2b1f5",
+  "file_count": 7,
+  "component_count": 3,
+  "status": "off-tree candidate only; untyped and unrun; source hold",
+  "verification": "all three component patch hashes checked; all bases exact except documented AuthoredSimulation declaration_layout predecessor; rustfmt idempotent on owned copies; independent git apply --check/reapply byte comparison passed; git diff --check passed"
+}

@@ -2985,6 +2985,57 @@ impl super::OriginalCompilationLookupAdvice {
 }
 
 impl super::OriginalCompilationLookupAdvice {
+    /// Closed source syntax in the positively retained authored simulation.
+    /// The namespace belongs to that source world, independently of a physical
+    /// variable frame, Native registration, compilation or successful handler.
+    pub(crate) fn closed_authored_simulation_source_lookup(
+        &self,
+        tokens: &crate::ir::CommandTokens,
+        metadata: crate::registry_invocation::InvocationMetadataContext<'_>,
+        registry: &tcl_registry::CommandRegistry,
+    ) -> bool {
+        let Ok(Some(original)) = self.original_declaration_metadata_context(registry, tokens)
+        else {
+            return false;
+        };
+        let (Some(held), Some(input)) = (
+            original.source_analysis_input(),
+            metadata.source_analysis_input(),
+        ) else {
+            return false;
+        };
+        let state = &self.snapshot.state;
+        held == input
+            && !input.has_logical_source_name_context()
+            && !input.has_hosted_source_name_context()
+            && self.original_source_purpose(metadata, registry)
+                == Some(super::OriginalInvocationSourcePurpose::AuthoredSimulation)
+            && state.baseline.native_entry.is_none()
+            && state.baseline.source_point_entry.is_none()
+            && state.baseline.logical_source_input.is_none()
+            && state.baseline.vendor_source_input.is_none()
+            && state.baseline.hosted_execution_context.is_none()
+            && !state.baseline.unknown_entry
+            && !self.unknown
+            && !self.may_be_absent
+            && !self.targets.is_empty()
+            && !state.has_opaque_domain()
+            && !state.source_step_observed()
+            && state.command_observers.is_quiet()
+            && matches!(&self.namespace, super::SourceNamespaceKey::Authored(_))
+            && state.namespaces.contains(&self.namespace)
+            && self.targets.iter().all(|target| {
+                target.kind == super::BindingKind::Builtin
+                    && target.registry_backed
+                    && target.prepended.is_empty()
+                    && target.implementation_generation == 0
+                    && target.runtime_implementation_generation.is_none()
+                    && state.retained_target_is_current(target)
+                    && !state.source_execution_observed(target.identity.as_ref())
+                    && !state.runtime_execution_observed(target.identity.as_ref())
+            })
+    }
+
     /// Purpose of this already joined original declaration or compiler layout.
     /// The shared baseline classifier issues no invocation, frame or handler.
     pub(crate) fn original_source_purpose(

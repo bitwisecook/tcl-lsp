@@ -73,7 +73,9 @@ impl WorkspaceOriginalSourceView {
             return false;
         }
         match region {
-            None => crate::source_graph::current_analysis(source, analysis).is_some(),
+            None => {
+                crate::original_context::CurrentSourceContext::capture(source, analysis).is_some()
+            }
             Some(region) => analysis.body_lexer_config.is_some_and(|config| {
                 region.matches_region_analysis(analysis)
                     && analysis.original_source_region() == Some(region)

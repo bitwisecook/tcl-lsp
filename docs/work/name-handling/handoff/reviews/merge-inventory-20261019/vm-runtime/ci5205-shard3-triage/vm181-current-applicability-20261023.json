@@ -1,0 +1,162 @@
+{
+  "utc": "2026-10-23T00:16:12.014208+00:00",
+  "status": "read-only static old-inventory applicability; no Clippy/build/test/queue",
+  "inventory_source": "docs/work/name-handling/handoff/reviews/merge-inventory-20261019/coordinator-20261022/registry-targeted-clippy-20261022T2044Z/vm-runtime-diagnostics.json",
+  "inventory_count": 181,
+  "current_measured_count": null,
+  "category_counts": {
+    "binding's name is too similar to existing binding": 3,
+    "empty line after doc comment": 1,
+    "this argument is passed by value, but not consumed in the function body": 14,
+    "this function has too many lines (N/100)": 67,
+    "this argument (272 byte) is passed by value, but might be more efficient if passed by reference (limit: 256 byte)": 5,
+    "this `if` statement can be collapsed": 43,
+    "this could be rewritten as `let...else`": 9,
+    "this match could be written as a `let` statement": 1,
+    "this function has too many arguments (9/7)": 2,
+    "redundant closure": 1,
+    "borrow of a mutable reference": 1,
+    "large size difference between variants": 2,
+    "usage of wildcard import": 4,
+    "you seem to be trying to use `match` for destructuring a single pattern. Consider using `if let`": 4,
+    "using `map_err` over `inspect_err`": 1,
+    "call to `std::mem::drop` with a value that does not implement `Drop`. Dropping such a type only extends its contained lifetimes": 1,
+    "item in documentation is missing backticks": 1,
+    "used underscore-prefixed binding": 1,
+    "this function has too many arguments (8/7)": 5,
+    "these match arms have identical bodies": 2,
+    "this block may be rewritten with the `?` operator": 2,
+    "unused `self` argument": 2,
+    "returning the result of a `let` binding from a block": 2,
+    "this boolean expression can be simplified": 3,
+    "replacing an `Option` with `Some(..)`": 2,
+    "this `if` can be collapsed into the outer `match`": 1,
+    "enclosing `Ok` and `?` operator are unneeded": 1
+  },
+  "composed_patch_sha256": "d6e1f4ea4c11a085f48b8ccfb6b0fa2a47645da472395483dccd7aea2daf7cde",
+  "composition_paths_static_base_match": [
+    "rust/tcl-vm/src/cmd_binary.rs",
+    "rust/tcl-vm/src/cmd_namespace.rs",
+    "rust/tcl-vm/src/cmd_namespace/native_jim_helpers.rs",
+    "rust/tcl-vm/src/cmd_namespace/native_jim_subcommands.rs",
+    "rust/tcl-vm/src/cmd_oo.rs",
+    "rust/tcl-vm/src/cmd_oo/native_properties/mutation.rs",
+    "rust/tcl-vm/src/cmd_oo/native_properties/mutation/tests.rs",
+    "rust/tcl-vm/src/cmd_oo/native_properties/original_stages.rs",
+    "rust/tcl-vm/src/cmd_oo/variable_mapping.rs",
+    "rust/tcl-vm/src/cmd_package.rs",
+    "rust/tcl-vm/src/cmd_try.rs",
+    "rust/tcl-vm/src/command.rs",
+    "rust/tcl-vm/src/error.rs",
+    "rust/tcl-vm/src/exec.rs",
+    "rust/tcl-vm/src/exec/native_scalar.rs",
+    "rust/tcl-vm/src/interp.rs",
+    "rust/tcl-vm/src/interp/command_cleanup.rs",
+    "rust/tcl-vm/src/interp/execution_name_policy.rs",
+    "rust/tcl-vm/src/interp/native_name_consumers.rs",
+    "rust/tcl-vm/src/interp/native_name_queries.rs",
+    "rust/tcl-vm/src/interp/native_string_stage_tests.rs",
+    "rust/tcl-vm/src/interp/native_variable_names.rs",
+    "rust/tcl-vm/src/interp/oo_cleanup.rs",
+    "rust/tcl-vm/src/interp/oo_cleanup/active_frame.rs",
+    "rust/tcl-vm/src/interp/variable_cleanup.rs",
+    "rust/tcl-vm/src/native_return_merge.rs",
+    "rust/tcl-vm/src/value.rs",
+    "rust/tcl-vm/src/value/native_compound.rs",
+    "rust/tcl-vm/src/value_ops.rs",
+    "rust/tcl-vm/src/value_ops/native_jim_index.rs",
+    "rust/tcl-vm/src/value_ops/native_list_index.rs"
+  ],
+  "composition_paths_drifted": [],
+  "existing_components": [
+    {
+      "path": "/tmp/vm-runtime-clippy-181-shadow/mechanical-api.patch",
+      "sha256": "b9a74082980eacfc4bfaf1ca34d8c9e20ede3c58aa1c1c21baffa55b84a7cc8f",
+      "role": "private full-profile borrow/error projection",
+      "exit": 0
+    },
+    {
+      "path": "/tmp/vm-runtime-clippy-181-structural/variable-instruction-extraction.patch",
+      "sha256": "bf43b517c31a394afccadbbd78f2e83175be51f509458a50aeed876866bafcc6",
+      "role": "51-opcode/44-arm variable worker extraction, CCG bounded static approved",
+      "exit": 0
+    },
+    {
+      "path": "/tmp/vm-runtime-clippy-181-structural/variable-instruction-docfix.patch",
+      "sha256": "16ee16f2f2b3e5d2d1ee60375077dc6c726d9578c92d2717c8b85cbf93023cbf",
+      "role": "unchanged module macros move before existing dict docblock",
+      "exit": 0
+    },
+    {
+      "path": "/tmp/vm-runtime-clippy-181-small-shadow/small-cleanups.patch",
+      "sha256": "c97521609239b7742e86f2b811a911039ce8deb6bbba190d38bb6ce5ffbadb09",
+      "role": "explicit imports and mechanical getter/error spelling",
+      "exit": 0
+    },
+    {
+      "path": "/tmp/vm-runtime-clippy-181-guard-shadow/guard-collapse.patch",
+      "sha256": "81fca17eecfb57bb4868eb431f212a9b4a1fe8858599312ad0b545c3568a5378",
+      "role": "43 guard pairs, coordination static review",
+      "exit": 0
+    },
+    {
+      "path": "/tmp/vm-runtime-clippy-181-value-shadow/value-extraction.patch",
+      "sha256": "4cffeae5998863b4d5521280493746f14a56b8132e29ddf06c03b6239c9e9427",
+      "role": "compound type and pure representation helper extraction",
+      "exit": 0
+    },
+    {
+      "path": "/tmp/vm-runtime-clippy-181-letelse-shadow/letelse.patch",
+      "sha256": "bbb1a7459632086c9f4a1b87594b3780ebc20dc57cfffd726e0c16b29b5050d1",
+      "role": "7 success identity-match with existing divergent fallback",
+      "exit": 0
+    },
+    {
+      "path": "/tmp/vm-runtime-clippy-181-scalar-shadow/scalar-variable-extraction.patch",
+      "sha256": "a9c4ff2ae223c7d627c8e6a1776bed23105c014d55dbbcbbad5d6888a4e9d0a3",
+      "exit": 0
+    },
+    {
+      "path": "/tmp/vm-runtime-clippy-181-try-shadow/try-clause-extraction-v2.patch",
+      "sha256": "f547c799a8cfb6ec03683037650fd9a20c1e6079919d849cc0da7e9d701f7069",
+      "exit": 0
+    }
+  ],
+  "priorities": [
+    {
+      "priority": 1,
+      "category": "mechanical/API borrows, naming/docs/imports and getter spelling",
+      "shipping_relevance": "VM is production SpecTcl host; strict warnings gate shipping dependency build even outside a specific hook fixture",
+      "existing_patches": [
+        "mechanical-api.patch",
+        "small-cleanups.patch"
+      ],
+      "limits": "API borrow signatures need typing through actual consumers; no measured warning reduction"
+    },
+    {
+      "priority": 2,
+      "category": "43 ordered guard collapses and 7 divergent fallback let-else rewrites",
+      "shipping_relevance": "namespace/variable/OO/return cleanup and native name routing are exercised by SpecTcl host",
+      "existing_patches": [
+        "guard-collapse.patch",
+        "letelse.patch"
+      ],
+      "limits": "retain outer-before-inner execution and temporary/drop/retirement order; independent guard review exists, no dynamic admission"
+    },
+    {
+      "priority": 3,
+      "category": "67 too-many-lines, 7 too-many-arguments, 2 large-enum findings",
+      "shipping_relevance": "strict VM gate applies; no general parity expansion is needed to recognise shipping gate debt",
+      "existing_patches": [
+        "variable-instruction-extraction.patch",
+        "value-extraction.patch",
+        "scalar-variable-extraction.patch",
+        "try-clause-extraction-v2.patch"
+      ],
+      "limits": "only selected structural findings addressed; stack3 original pre-lint measurements required before extraction integration; new dispatcher/helper frame cannot be validated by token equality"
+    }
+  ],
+  "uncovered_limit": "31 composition paths include one new file; matching baseline bytes shows patch source applicability only, not complete coverage of181 diagnostics. Remaining findings require fresh strict measurement after functional/runtime priority. No lint expansion/integration now.",
+  "primary_next": "fullTommath5-v3 observer diagnostic after coordinator typing GO; separate standalone backend provenance",
+  "no_allow_assertion_weakening": true
+}

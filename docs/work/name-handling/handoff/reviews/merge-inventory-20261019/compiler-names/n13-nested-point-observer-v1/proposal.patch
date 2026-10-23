@@ -1,0 +1,50 @@
+--- a/rust/tcl-compiler/src/command_binding/source_transition_advice/body_effects.rs
++++ b/rust/tcl-compiler/src/command_binding/source_transition_advice/body_effects.rs
+@@ -1314,6 +1314,8 @@
+             lineage: &lineage,
+         };
+         self.context.retain_arity_debt(graph, invocation, &schema)?;
++        self.context
++            .observe_source_point(graph, invocation.native, &schema);
+         self.retain_child_schema(graph, invocation, &schema)?;
+         let retained_lifecycle = if let Some(tape) = &mut self.inventory {
+             self.context.retain_c_source_lifecycle_inventory(
+--- a/rust/tcl-compiler/src/command_binding/source_transition_advice/source_point.rs
++++ b/rust/tcl-compiler/src/command_binding/source_transition_advice/source_point.rs
+@@ -382,3 +382,36 @@
+         );
+     }
+ }
++
++#[cfg(test)]
++mod nested_source_point_controls {
++    use crate::analyser::Analyser;
++    use crate::registry_invocation::source_structure::original_project_source_load_at;
++
++    #[test]
++    fn nested_namespace_point_uses_the_selected_body_graph_without_normal_or_native_grants() {
++        let source = "namespace eval ::app {source child.tcl}";
++        let parent = Analyser::new().analyse(source, "tcl8.6");
++        let offset = u32::try_from(source.find("source child").unwrap()).unwrap();
++        let load = original_project_source_load_at(source, &parent, offset).unwrap();
++        let point = load.source_point_entry(&parent).unwrap();
++        assert!(point.matches_parent_analysis(&parent));
++        assert!(!point.matches_parent_analysis(&Analyser::new().analyse(source, "tcl8.6")));
++        let child = Analyser::new()
++            .analyse_with_source_point_entry("proc child {} {}", "tcl8.6", &point)
++            .expect("actual nested namespace source graph");
++        assert!(point.matches_child_analysis(&child));
++        assert!(child.all_procs.contains_key("::app::child"));
++        assert!(!child.all_procs.contains_key("::child"));
++        assert!(!point.obligations().is_empty());
++        let source = "namespace eval ::app {unknown_writer; source child.tcl}";
++        let parent = Analyser::new().analyse(source, "tcl8.6");
++        let offset = u32::try_from(source.find("source child").unwrap()).unwrap();
++        assert!(
++            original_project_source_load_at(source, &parent, offset)
++                .unwrap()
++                .source_point_entry(&parent)
++                .is_none()
++        );
++    }
++}

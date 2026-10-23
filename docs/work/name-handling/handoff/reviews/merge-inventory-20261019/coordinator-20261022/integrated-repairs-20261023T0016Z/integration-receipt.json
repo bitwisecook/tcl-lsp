@@ -1,0 +1,13 @@
+{
+  "utc": "2026-10-23T00:16:14.235875+00:00",
+  "head_before": "32433f2e5993578dea297ff6cd8b41492758a0d1",
+  "patch_sha256": "207d6b8415b60ef600e616cb90e2900fdb38da7c1a99d16d92128a797f3966c3",
+  "manifest_sha256": "3055ae8f0165969170b3122790d0e1ae4d6453f830e38e6600543661e8d2b1f5",
+  "files": 7,
+  "components": 3,
+  "all_before_and_after_hashes_verified": true,
+  "build_lock_held": true,
+  "live_cargo_rustc": [],
+  "git_diff_check": true,
+  "scope": "Peer-reviewed source repair integration only; untyped/unrun, no runtime or release validation."
+}

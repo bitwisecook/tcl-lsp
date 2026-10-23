@@ -1314,6 +1314,8 @@ impl BodyWalk<'_, '_> {
             lineage: &lineage,
         };
         self.context.retain_arity_debt(graph, invocation, &schema)?;
+        self.context
+            .observe_source_point(graph, invocation.native, &schema);
         self.retain_child_schema(graph, invocation, &schema)?;
         let retained_lifecycle = if let Some(tape) = &mut self.inventory {
             self.context.retain_c_source_lifecycle_inventory(

@@ -1,0 +1,70 @@
+{
+  "tool": "/workspace/.rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/bin/rustfmt",
+  "version": "rustfmt 1.10.0-stable (58cf8f9c35 2026-10-13)",
+  "config": "skip_children=true, edition2024",
+  "files": [
+    {
+      "path": "rust/tcl-compiler/src/command_binding/declaration_layout.rs",
+      "edition": "2024",
+      "before_sha256": "8aa8ee9a575d5055ff23f0c3e1f5f5ae49056de153b748c503b4650186af2b45",
+      "after_sha256": "8aa8ee9a575d5055ff23f0c3e1f5f5ae49056de153b748c503b4650186af2b45",
+      "changed": false,
+      "delta_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "delta_path": "/tmp/coordinator-n13-next-source-2324/format-rust_tcl-compiler_src_command_binding_declaration_layout.rs.patch"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/source_transition_advice/body_effects.rs",
+      "edition": "2024",
+      "before_sha256": "85b02e785ff82ec05b021fef0641d61b0f782ee830a41aff8a128f0c38a7df28",
+      "after_sha256": "85b02e785ff82ec05b021fef0641d61b0f782ee830a41aff8a128f0c38a7df28",
+      "changed": false,
+      "delta_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "delta_path": "/tmp/coordinator-n13-next-source-2324/format-rust_tcl-compiler_src_command_binding_source_transition_advice_body_effects.rs.patch"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/source_transition_advice/source_point.rs",
+      "edition": "2024",
+      "before_sha256": "d7e56a61d651005d569897cc50c9cf4c11ddddab9fb00b47cde52b0992b2e311",
+      "after_sha256": "d7e56a61d651005d569897cc50c9cf4c11ddddab9fb00b47cde52b0992b2e311",
+      "changed": false,
+      "delta_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "delta_path": "/tmp/coordinator-n13-next-source-2324/format-rust_tcl-compiler_src_command_binding_source_transition_advice_source_point.rs.patch"
+    },
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation.rs",
+      "edition": "2024",
+      "before_sha256": "9f3b5460d2140c3ef0eef94ab7cbac1f4ce9111872e7671b2235d6b6c196ab0a",
+      "after_sha256": "9f3b5460d2140c3ef0eef94ab7cbac1f4ce9111872e7671b2235d6b6c196ab0a",
+      "changed": false,
+      "delta_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "delta_path": "/tmp/coordinator-n13-next-source-2324/format-rust_tcl-compiler_src_registry_invocation.rs.patch"
+    },
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation/hosted_structure.rs",
+      "edition": "2024",
+      "before_sha256": "1f24a7162408b4d879bf260d66578bb9741f2171bdf17f145ee746216132cdc2",
+      "after_sha256": "1f24a7162408b4d879bf260d66578bb9741f2171bdf17f145ee746216132cdc2",
+      "changed": false,
+      "delta_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "delta_path": "/tmp/coordinator-n13-next-source-2324/format-rust_tcl-compiler_src_registry_invocation_hosted_structure.rs.patch"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/original_source_views.rs",
+      "edition": "2024",
+      "before_sha256": "9b5cf928ab74299d3686f8744de497d8399c56b3e3a4b1dd7240349818826cb3",
+      "after_sha256": "9b5cf928ab74299d3686f8744de497d8399c56b3e3a4b1dd7240349818826cb3",
+      "changed": false,
+      "delta_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "delta_path": "/tmp/coordinator-n13-next-source-2324/format-rust_tcl-lsp-core_src_original_source_views.rs.patch"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/workspace_index/source_views.rs",
+      "edition": "2024",
+      "before_sha256": "7ae920fce2224b9c33b015e0c8c0c1add5c53c8db0b5e70fb6c2bc51d4719ec0",
+      "after_sha256": "7ae920fce2224b9c33b015e0c8c0c1add5c53c8db0b5e70fb6c2bc51d4719ec0",
+      "changed": false,
+      "delta_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "delta_path": "/tmp/coordinator-n13-next-source-2324/format-rust_tcl-lsp-core_src_workspace_index_source_views.rs.patch"
+    }
+  ]
+}

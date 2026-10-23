@@ -1,0 +1,17 @@
+{
+  "attempted_utc": "2026-10-23T00:11Z",
+  "run_id": 39845788481,
+  "job_id": 120061100771,
+  "operation": "Read existing completed job logs through GitHub connector",
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "tool call error: tool call failed for `codex_apps/github.fetch_workflow_job_logs`\n\nCaused by:\n    Mcp error: -32603: MCP request timed out"
+      }
+    ],
+    "isError": true
+  },
+  "named_outcomes": "Unavailable; no named verdict inferred",
+  "mutations": []
+}

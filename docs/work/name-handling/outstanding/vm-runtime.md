@@ -2,11 +2,40 @@
 
 Area: tcl-vm, runtime/rust, tcl-spectcl, tcl-spec-studio: SpecTcl execution and acceptance.
 
-Last updated: 2026-10-22T23:54:06Z (replacement shell verified; representative19 runnable protocol prepared off-tree only; compiler remaining33 sole window; product HOLD/docs CLEAR)
+Last updated: 2026-10-23T00:16Z (VM181 old inventory static applicability checked; all31 composition base paths match current; full5-v3 observer remains primary next; no Clippy/build/queue)
 
 Maintained by the vm-runtime agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## Resume
+
+VM181 static inventory review at00:16Z: historical181 findings comprise67
+function-length,43 collapsible-if,19 by-value/API-borrow,9 let-else,7 argument
+count,3 similar-name,2 large-variant and31 other findings. All31 frozen
+composition base paths still match current canonical hashes (one intentionally
+absent new file included); this supports static applicability only. Existing
+mechanical/API and small-cleanup drafts are the first practical strict-gate
+fixes after functional diagnostics; ordered guard/let-else drafts follow.
+Structural variable/scalar/value/try extractions require typing and original
+pre-lint stack3 acceptance before integration; do not infer stack safety from
+body equality. Evidence `vm-runtime/ci5205-shard3-triage/vm181-current-applicability-20261023.json`
+records categories/components and current base matches. No Clippy/count
+remeasurement, new patch expansion, build or queue. Full5-v3 observer remains
+the primary runtime slot after typing; no allowance/assertion changes.
+
+
+Static readiness at00:08Z confirms all three full5 observer source pins exactly
+match candidate2323/work; canonical application/typing is coordinator-owned.
+Full5 immutable v2 is preserved. Safe v3 successor at
+`/tmp/vm-runtime-full-tommath5-v3/` uses the same plan `e9778397`, observer
+`c0c5ad46` and provider helper `a647bf86`; runner `fcf0e2b6` changes only its
+BASE and EOF-live deadline loop. Representative19 plan `b17f0fcc`/runner
+`b7919d97`/helper `a647bf86` remain byte-identical and AST-valid. Evidence:
+`vm-runtime/ci5205-shard3-triage/full5-v3-readiness/candidate-readiness.json`.
+These are static checks only, with no build/provider capture/lock/test/queue.
+Full backend's genuine have_tommath Cargo cfg and no-warning requirements
+remain mandatory; full5 and no-TomMath observations stay separate. Original
+scripts/assertions and all171/151 unsampled obligations remain unchanged.
+
 
 Replacement vm-runtime shell recovered at23:54Z on active `daf77ef40` and
 verified frozen observer/full-TomMath5/shard3 roster hashes unchanged. No VM

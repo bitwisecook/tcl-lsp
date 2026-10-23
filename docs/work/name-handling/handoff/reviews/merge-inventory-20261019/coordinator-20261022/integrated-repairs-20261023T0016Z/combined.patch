@@ -1,0 +1,605 @@
+diff --git a/rust/tcl-compiler/src/command_binding/declaration_layout.rs b/rust/tcl-compiler/src/command_binding/declaration_layout.rs
+index 87cd09d..70254a6 100644
+--- a/rust/tcl-compiler/src/command_binding/declaration_layout.rs
++++ b/rust/tcl-compiler/src/command_binding/declaration_layout.rs
+@@ -2985,6 +2985,57 @@ impl super::OriginalCompilationLookupAdvice {
+ }
+ 
+ impl super::OriginalCompilationLookupAdvice {
++    /// Closed source syntax in the positively retained authored simulation.
++    /// The namespace belongs to that source world, independently of a physical
++    /// variable frame, Native registration, compilation or successful handler.
++    pub(crate) fn closed_authored_simulation_source_lookup(
++        &self,
++        tokens: &crate::ir::CommandTokens,
++        metadata: crate::registry_invocation::InvocationMetadataContext<'_>,
++        registry: &tcl_registry::CommandRegistry,
++    ) -> bool {
++        let Ok(Some(original)) = self.original_declaration_metadata_context(registry, tokens)
++        else {
++            return false;
++        };
++        let (Some(held), Some(input)) = (
++            original.source_analysis_input(),
++            metadata.source_analysis_input(),
++        ) else {
++            return false;
++        };
++        let state = &self.snapshot.state;
++        held == input
++            && !input.has_logical_source_name_context()
++            && !input.has_hosted_source_name_context()
++            && self.original_source_purpose(metadata, registry)
++                == Some(super::OriginalInvocationSourcePurpose::AuthoredSimulation)
++            && state.baseline.native_entry.is_none()
++            && state.baseline.source_point_entry.is_none()
++            && state.baseline.logical_source_input.is_none()
++            && state.baseline.vendor_source_input.is_none()
++            && state.baseline.hosted_execution_context.is_none()
++            && !state.baseline.unknown_entry
++            && !self.unknown
++            && !self.may_be_absent
++            && !self.targets.is_empty()
++            && !state.has_opaque_domain()
++            && !state.source_step_observed()
++            && state.command_observers.is_quiet()
++            && matches!(&self.namespace, super::SourceNamespaceKey::Authored(_))
++            && state.namespaces.contains(&self.namespace)
++            && self.targets.iter().all(|target| {
++                target.kind == super::BindingKind::Builtin
++                    && target.registry_backed
++                    && target.prepended.is_empty()
++                    && target.implementation_generation == 0
++                    && target.runtime_implementation_generation.is_none()
++                    && state.retained_target_is_current(target)
++                    && !state.source_execution_observed(target.identity.as_ref())
++                    && !state.runtime_execution_observed(target.identity.as_ref())
++            })
++    }
++
+     /// Purpose of this already joined original declaration or compiler layout.
+     /// The shared baseline classifier issues no invocation, frame or handler.
+     pub(crate) fn original_source_purpose(
+diff --git a/rust/tcl-compiler/src/command_binding/source_transition_advice/body_effects.rs b/rust/tcl-compiler/src/command_binding/source_transition_advice/body_effects.rs
+index 9bcc849..1398dfa 100644
+--- a/rust/tcl-compiler/src/command_binding/source_transition_advice/body_effects.rs
++++ b/rust/tcl-compiler/src/command_binding/source_transition_advice/body_effects.rs
+@@ -1314,6 +1314,8 @@ impl BodyWalk<'_, '_> {
+             lineage: &lineage,
+         };
+         self.context.retain_arity_debt(graph, invocation, &schema)?;
++        self.context
++            .observe_source_point(graph, invocation.native, &schema);
+         self.retain_child_schema(graph, invocation, &schema)?;
+         let retained_lifecycle = if let Some(tape) = &mut self.inventory {
+             self.context.retain_c_source_lifecycle_inventory(
+diff --git a/rust/tcl-compiler/src/command_binding/source_transition_advice/source_point.rs b/rust/tcl-compiler/src/command_binding/source_transition_advice/source_point.rs
+index 55389d8..6f7a8e8 100644
+--- a/rust/tcl-compiler/src/command_binding/source_transition_advice/source_point.rs
++++ b/rust/tcl-compiler/src/command_binding/source_transition_advice/source_point.rs
+@@ -382,3 +382,36 @@ mod conditional_region_purpose_controls {
+         );
+     }
+ }
++
++#[cfg(test)]
++mod nested_source_point_controls {
++    use crate::analyser::Analyser;
++    use crate::registry_invocation::source_structure::original_project_source_load_at;
++
++    #[test]
++    fn nested_namespace_point_uses_the_selected_body_graph_without_normal_or_native_grants() {
++        let source = "namespace eval ::app {source child.tcl}";
++        let parent = Analyser::new().analyse(source, "tcl8.6");
++        let offset = u32::try_from(source.find("source child").unwrap()).unwrap();
++        let load = original_project_source_load_at(source, &parent, offset).unwrap();
++        let point = load.source_point_entry(&parent).unwrap();
++        assert!(point.matches_parent_analysis(&parent));
++        assert!(!point.matches_parent_analysis(&Analyser::new().analyse(source, "tcl8.6")));
++        let child = Analyser::new()
++            .analyse_with_source_point_entry("proc child {} {}", "tcl8.6", &point)
++            .expect("actual nested namespace source graph");
++        assert!(point.matches_child_analysis(&child));
++        assert!(child.all_procs.contains_key("::app::child"));
++        assert!(!child.all_procs.contains_key("::child"));
++        assert!(!point.obligations().is_empty());
++        let source = "namespace eval ::app {unknown_writer; source child.tcl}";
++        let parent = Analyser::new().analyse(source, "tcl8.6");
++        let offset = u32::try_from(source.find("source child").unwrap()).unwrap();
++        assert!(
++            original_project_source_load_at(source, &parent, offset)
++                .unwrap()
++                .source_point_entry(&parent)
++                .is_none()
++        );
++    }
++}
+diff --git a/rust/tcl-compiler/src/registry_invocation.rs b/rust/tcl-compiler/src/registry_invocation.rs
+index 028a7cc..2b4b141 100644
+--- a/rust/tcl-compiler/src/registry_invocation.rs
++++ b/rust/tcl-compiler/src/registry_invocation.rs
+@@ -331,6 +331,7 @@ pub struct ResolvedStatementInvocation {
+ pub(crate) struct LogicalStructuredInvocation {
+     invocation: ResolvedStatementInvocation,
+     source_roles: Option<StructuredSourceRoles>,
++    source_purpose: crate::command_binding::OriginalInvocationSourcePurpose,
+ }
+ 
+ /// Distinct source purposes retain their own registry-issued role owners.
+@@ -339,20 +340,23 @@ pub(crate) struct LogicalStructuredInvocation {
+ enum StructuredSourceRoles {
+     Logical(tcl_registry::resolved_invocation::AuthoredLogicalSourceRoleProjection),
+     NativeCase(tcl_registry::case_bodies::CaseBodyOperands),
++    AuthoredSimulationCase(tcl_registry::case_bodies::CaseBodyOperands),
+ }
+ 
+ impl StructuredSourceRoles {
+     fn selection_unknown(&self) -> bool {
+         match self {
+             Self::Logical(roles) => roles.selection_unknown(),
+-            Self::NativeCase(roles) => roles.selection_unknown,
++            Self::NativeCase(roles) | Self::AuthoredSimulationCase(roles) => {
++                roles.selection_unknown
++            }
+         }
+     }
+ 
+     fn argument_roles(&self) -> Vec<(usize, tcl_registry::ArgRole)> {
+         match self {
+             Self::Logical(roles) => roles.argument_roles().to_vec(),
+-            Self::NativeCase(roles) => roles
++            Self::NativeCase(roles) | Self::AuthoredSimulationCase(roles) => roles
+                 .bodies
+                 .iter()
+                 .map(|body| (body.argument, tcl_registry::ArgRole::Body))
+@@ -362,6 +366,11 @@ impl StructuredSourceRoles {
+ }
+ 
+ impl LogicalStructuredInvocation {
++    pub(crate) fn is_authored_simulation(&self) -> bool {
++        self.source_purpose
++            == crate::command_binding::OriginalInvocationSourcePurpose::AuthoredSimulation
++    }
++
+     pub(crate) fn canonical_command(&self) -> &str {
+         &self.invocation.facts.canonical_command
+     }
+@@ -473,6 +482,9 @@ impl LogicalStructuredInvocation {
+     }
+ 
+     pub(crate) fn error_context(&self) -> Option<tcl_registry::InlineBodyErrorContext> {
++        if self.is_authored_simulation() {
++            return None;
++        }
+         self.invocation.facts.operation.inline_body_error_context()
+     }
+ }
+@@ -507,11 +519,12 @@ pub(crate) fn logical_structured_invocation_with_metadata_context(
+     tokens: &CommandTokens,
+     bindings: Option<&crate::command_binding::SourceCommandBindings>,
+ ) -> Option<LogicalStructuredInvocation> {
+-    let logical_source = tokens
++    let source_purpose = tokens
+         .source_binding
+         .as_ref()?
+-        .original_source_advice_purpose(tokens, context, registry)?
+-        == crate::command_binding::OriginalInvocationSourcePurpose::Logical;
++        .original_source_advice_purpose(tokens, context, registry)?;
++    let logical_source =
++        source_purpose == crate::command_binding::OriginalInvocationSourcePurpose::Logical;
+     if !context.matches_registry(registry) {
+         #[cfg(test)]
+         trace_original_structure("registry", tokens, false);
+@@ -573,13 +586,24 @@ pub(crate) fn logical_structured_invocation_with_metadata_context(
+             })
+             .map(StructuredSourceRoles::Logical)
+     } else if !selected.facts.arg_roles_complete {
+-        // A generic native compiler still visits the original command before
+-        // argv execution. Its closed lookup can select conditional case syntax
+-        // even when a dynamic subject prevents the unrelated full role layout.
+-        // A declaration-only or missing compiler point cannot enter this path.
++        // Case syntax retains its independently selected source purpose.
++        // Native lookup requires its original compiler observation; authored
++        // simulation retains its source namespace without a physical frame.
+         let binding = tokens.source_binding.as_ref()?;
+-        let lookup = binding.original_compilation_lookup_advice(tokens)?;
+-        if lookup.has_unclosed_source_coverage() {
++        let authored_simulation = source_purpose
++            == crate::command_binding::OriginalInvocationSourcePurpose::AuthoredSimulation;
++        let lookup = if authored_simulation {
++            binding
++                .declaration_operand_layout_advice(tokens)
++                .or_else(|| binding.original_compilation_lookup_advice(tokens))?
++        } else {
++            binding.original_compilation_lookup_advice(tokens)?
++        };
++        if if authored_simulation {
++            !lookup.closed_authored_simulation_source_lookup(tokens, context, registry)
++        } else {
++            lookup.has_unclosed_source_coverage()
++        } {
+             return None;
+         }
+         match selected.authored_case_body_selection.as_ref()? {
+@@ -590,13 +614,79 @@ pub(crate) fn logical_structured_invocation_with_metadata_context(
+                         .iter()
+                         .all(|body| selected.argument_literal(body.argument).is_some()) =>
+             {
+-                Some(StructuredSourceRoles::NativeCase(roles.clone()))
++                Some(if authored_simulation {
++                    StructuredSourceRoles::AuthoredSimulationCase(roles.clone())
++                } else {
++                    StructuredSourceRoles::NativeCase(roles.clone())
++                })
+             }
+             _ => None,
+         }
+     } else {
+         None
+     };
++    if source_purpose == crate::command_binding::OriginalInvocationSourcePurpose::AuthoredSimulation
++    {
++        let advice = tokens
++            .source_binding
++            .as_ref()?
++            .declaration_operand_layout_advice(tokens)
++            .or_else(|| {
++                tokens
++                    .source_binding
++                    .as_ref()?
++                    .original_compilation_lookup_advice(tokens)
++            })?;
++        if !advice.closed_authored_simulation_source_lookup(tokens, context, registry) {
++            return None;
++        }
++        let config = context.source_analysis_input()?.lexer_config();
++        if tokens.words().iter().any(|word| match word {
++            WordExpr::Literal { .. } | WordExpr::BracedLiteral { .. } => false,
++            WordExpr::Variable { .. } => {
++                word.sole_variable_substitution()
++                    .is_none_or(|(spelling, _)| {
++                        tcl_syntax::naming::whole_scalar_variable_reference_name(spelling, config)
++                            .is_none()
++                    })
++            }
++            _ => true,
++        }) {
++            return None;
++        }
++        let roles = source_roles.as_ref().map_or_else(
++            || selected.written_argument_roles(),
++            StructuredSourceRoles::argument_roles,
++        );
++        selected.with_metadata_schema(registry, context, advice.realm(), |schema| {
++            use tcl_registry::hooks::LoweringHookId;
++            if !matches!(
++                schema.facts().lowering_hook?,
++                LoweringHookId::If
++                    | LoweringHookId::Switch
++                    | LoweringHookId::While
++                    | LoweringHookId::For
++                    | LoweringHookId::Foreach
++                    | LoweringHookId::Lmap
++                    | LoweringHookId::Catch
++                    | LoweringHookId::Try
++            ) || schema.semantics.frame_effect.is_some()
++                || schema.semantics.body_kind != tcl_registry::BodyKind::Plain
++                || schema.semantics.body_interpreter != tcl_registry::BodyInterpreter::Current
++            {
++                return None;
++            }
++            for &(argument, role) in &roles {
++                if role == tcl_registry::ArgRole::Body
++                    && schema.authored_source_script_timing_at(argument)?
++                        != tcl_registry::ScriptTiming::SameInvocation
++                {
++                    return None;
++                }
++            }
++            Some(())
++        })?;
++    }
+     // A possible case body is readonly advice. Unreadable option selection
+     // retains generic IR instead of borrowing a definitive Switch topology.
+     if source_roles
+@@ -669,6 +759,7 @@ pub(crate) fn logical_structured_invocation_with_metadata_context(
+     Some(LogicalStructuredInvocation {
+         invocation: selected,
+         source_roles,
++        source_purpose,
+     })
+ }
+ 
+@@ -706,11 +797,12 @@ fn original_declared_structured_invocation<'a>(
+     tokens: &CommandTokens,
+ ) -> Option<ResolvedStatementInvocation> {
+     let context = context.into();
+-    let logical_source = tokens
++    let source_purpose = tokens
+         .source_binding
+         .as_ref()?
+-        .original_source_advice_purpose(tokens, context, registry)?
+-        == crate::command_binding::OriginalInvocationSourcePurpose::Logical;
++        .original_source_advice_purpose(tokens, context, registry)?;
++    let logical_source =
++        source_purpose == crate::command_binding::OriginalInvocationSourcePurpose::Logical;
+     if !context.matches_registry(registry) {
+         #[cfg(test)]
+         trace_original_structure("declaration_registry", tokens, false);
+@@ -745,6 +837,12 @@ fn original_declared_structured_invocation<'a>(
+     }
+     let advice = if logical_source {
+         binding.original_conditional_operand_layout_advice(tokens, registry)
++    } else if source_purpose
++        == crate::command_binding::OriginalInvocationSourcePurpose::AuthoredSimulation
++    {
++        binding
++            .declaration_operand_layout_advice(tokens)
++            .or_else(|| binding.original_compilation_lookup_advice(tokens))
+     } else {
+         binding
+             .declaration_operand_layout_advice(tokens)
+@@ -762,6 +860,10 @@ fn original_declared_structured_invocation<'a>(
+     // independent frame gate and cannot borrow that source-only closure.
+     let closed = if logical_source {
+         advice.closed_logical_source_lookup()
++    } else if source_purpose
++        == crate::command_binding::OriginalInvocationSourcePurpose::AuthoredSimulation
++    {
++        advice.closed_authored_simulation_source_lookup(tokens, context, registry)
+     } else {
+         advice.closed_lookup()
+     };
+@@ -783,11 +885,12 @@ fn original_inline_control_structured_invocation(
+     context: InvocationMetadataContext<'_>,
+     tokens: &CommandTokens,
+ ) -> Option<ResolvedStatementInvocation> {
+-    let logical_source = tokens
++    let source_purpose = tokens
+         .source_binding
+         .as_ref()?
+-        .original_source_advice_purpose(tokens, context, registry)?
+-        == crate::command_binding::OriginalInvocationSourcePurpose::Logical;
++        .original_source_advice_purpose(tokens, context, registry)?;
++    let logical_source =
++        source_purpose == crate::command_binding::OriginalInvocationSourcePurpose::Logical;
+     if !context.matches_registry(registry) || logical_source {
+         return None;
+     }
+@@ -1479,6 +1582,7 @@ pub(crate) enum SelectedLoweringBindingIdentity<'a> {
+     NativeSourceSchema(tcl_registry::CanonicalCommandDescriptorKey<'a>),
+     LogicalSourceSchema(tcl_registry::CanonicalCommandDescriptorKey<'a>),
+     AuthoredSourceSchema(tcl_registry::CanonicalCommandDescriptorKey<'a>),
++    AuthoredSimulationSourceSchema(tcl_registry::CanonicalCommandDescriptorKey<'a>),
+ }
+ 
+ impl<'a> SelectedLoweringBindingIdentity<'a> {
+@@ -1489,6 +1593,7 @@ impl<'a> SelectedLoweringBindingIdentity<'a> {
+             | Self::HostedSchema(key)
+             | Self::NativeSourceSchema(key)
+             | Self::LogicalSourceSchema(key)
++            | Self::AuthoredSimulationSourceSchema(key)
+             | Self::AuthoredSourceSchema(key) => key,
+         }
+     }
+@@ -1500,6 +1605,7 @@ impl<'a> SelectedLoweringBindingIdentity<'a> {
+             | Self::HostedSchema(key)
+             | Self::NativeSourceSchema(key)
+             | Self::LogicalSourceSchema(key)
++            | Self::AuthoredSimulationSourceSchema(key)
+             | Self::AuthoredSourceSchema(key) => key.label(),
+         };
+         tcl_syntax::naming::unroot_rooted_key(name).unwrap_or(name)
+@@ -12295,3 +12401,156 @@ mod original_body_parameter_source_tests {
+         );
+     }
+ }
++
++#[cfg(test)]
++mod authored_simulation_structure_controls {
++    use super::*;
++
++    fn module(source: &str) -> crate::ir::Module {
++        let context = tcl_registry::model::ingress::static_context_for("tcl8.6");
++        crate::compilation_unit::CompilationUnit::build_for_profile(
++            source,
++            context.commands(),
++            false,
++            context.commands().profile().unwrap(),
++        )
++        .ir_module
++    }
++
++    fn switch_tokens(module: &crate::ir::Module) -> CommandTokens {
++        let mut pending = module
++            .procedures
++            .values()
++            .map(|p| &p.body)
++            .collect::<Vec<_>>();
++        while let Some(script) = pending.pop() {
++            for statement in &script.statements {
++                if let Some(tokens) = script.retained_source_tokens_for_statement(statement)
++                    && tokens
++                        .argv_texts
++                        .first()
++                        .is_some_and(|head| head == "switch")
++                {
++                    return tokens.clone();
++                }
++                pending.extend(statement.child_scripts());
++            }
++        }
++        panic!("actual retained switch command");
++    }
++
++    #[test]
++    fn authored_simulation_case_structure_retains_source_purpose_without_native_frame() {
++        let source = "proc f {x} {while 1 {switch -glob $x {a* {break} default {break}}}; puts $y}";
++        let module = module(source);
++        let tokens = switch_tokens(&module);
++        let registry = module.resolved_registry();
++        let context = InvocationMetadataContext::for_module(registry, &module).unwrap();
++        let binding = tokens.source_binding.as_ref().unwrap();
++        assert_eq!(
++            binding.original_source_advice_purpose(&tokens, context, registry),
++            Some(crate::command_binding::OriginalInvocationSourcePurpose::AuthoredSimulation)
++        );
++        let advice = binding
++            .declaration_operand_layout_advice(&tokens)
++            .or_else(|| binding.original_compilation_lookup_advice(&tokens))
++            .unwrap();
++        assert!(!advice.closed_lookup());
++        assert!(advice.closed_authored_simulation_source_lookup(&tokens, context, registry));
++        let selected =
++            logical_structured_invocation_with_metadata_context(registry, context, &tokens, None)
++                .expect("actual authored source case schema");
++        assert!(selected.is_authored_simulation());
++        assert!(matches!(
++            selected.source_roles.as_ref(),
++            Some(StructuredSourceRoles::AuthoredSimulationCase(_))
++        ));
++        let selected = SourceStructuredInvocation::Logical(Box::new(selected));
++        assert!(matches!(
++            selected.lowering_identity(),
++            SelectedLoweringBindingIdentity::AuthoredSimulationSourceSchema(_)
++        ));
++        assert_eq!(
++            selected.lowering_hook(),
++            Some(tcl_registry::hooks::LoweringHookId::Switch)
++        );
++        assert_eq!(
++            selected.written_roles(),
++            vec![(2, tcl_registry::ArgRole::Body)]
++        );
++        assert!(selected.error_context().is_none());
++        assert!(module.source_entry.native_entry.is_none());
++        assert_eq!(
++            binding.native_compilation_admission_selection(),
++            tcl_registry::native_compilation::NativeCompilationSelection::Generic
++        );
++        assert!(admitted_native_compiler_invocation(registry, None, &tokens).is_none());
++        assert!(
++            normal_representation_invocation_with_metadata_context(
++                registry,
++                Some(context),
++                &tokens
++            )
++            .is_none()
++        );
++        let mut changed = tokens.clone();
++        changed.argv_texts[1] = "-exact".to_owned();
++        assert!(
++            logical_structured_invocation_with_metadata_context(registry, context, &changed, None)
++                .is_none()
++        );
++        changed = tokens.clone();
++        changed.source_binding = None;
++        assert!(
++            logical_structured_invocation_with_metadata_context(registry, context, &changed, None)
++                .is_none()
++        );
++        let input = module.source_metadata_input.as_ref().unwrap();
++        let mut changed_config = input.lexer_config();
++        changed_config.strict_quoting = !changed_config.strict_quoting;
++        let changed_input = crate::analyser::ResolvedAnalysisInput::new(
++            input.analyser_profile(),
++            input.unit_profile(),
++            input.context_registry(),
++            changed_config,
++        );
++        let changed_context =
++            InvocationMetadataContext::for_analysis_input(registry, &changed_input).unwrap();
++        assert!(!advice.closed_authored_simulation_source_lookup(
++            &tokens,
++            changed_context,
++            registry
++        ));
++        assert!(
++            logical_structured_invocation_with_metadata_context(
++                registry,
++                changed_context,
++                &tokens,
++                None
++            )
++            .is_none()
++        );
++    }
++
++    #[test]
++    fn authored_simulation_case_structure_refuses_unknown_shadowed_and_dynamic_source() {
++        for source in [
++            "proc switch args {}; proc f {x} {switch -glob $x {a* {break} default {break}}}",
++            "proc f {x} {unknown_writer; switch -glob $x {a* {break} default {break}}}",
++            "proc f {x body} {switch -glob $x a* $body default {break}}",
++            "proc f {x cases} {switch -glob $x {*}$cases}",
++            "proc f {} {switch -glob [unknown_writer] {a* {break} default {break}}}",
++        ] {
++            let module = module(source);
++            let tokens = switch_tokens(&module);
++            let registry = module.resolved_registry();
++            let context = InvocationMetadataContext::for_module(registry, &module).unwrap();
++            assert!(
++                logical_structured_invocation_with_metadata_context(
++                    registry, context, &tokens, None
++                )
++                .is_none()
++            );
++        }
++    }
++}
+diff --git a/rust/tcl-compiler/src/registry_invocation/hosted_structure.rs b/rust/tcl-compiler/src/registry_invocation/hosted_structure.rs
+index fa830f3..941f57a 100644
+--- a/rust/tcl-compiler/src/registry_invocation/hosted_structure.rs
++++ b/rust/tcl-compiler/src/registry_invocation/hosted_structure.rs
+@@ -307,8 +307,14 @@ impl SourceStructuredInvocation {
+     }
+     pub(crate) fn lowering_identity(&self) -> super::SelectedLoweringBindingIdentity<'_> {
+         match self {
+-            Self::Logical(_) => {
+-                super::SelectedLoweringBindingIdentity::Logical(self.descriptor_key())
++            Self::Logical(selected) => {
++                if selected.is_authored_simulation() {
++                    super::SelectedLoweringBindingIdentity::AuthoredSimulationSourceSchema(
++                        self.descriptor_key(),
++                    )
++                } else {
++                    super::SelectedLoweringBindingIdentity::Logical(self.descriptor_key())
++                }
+             }
+             Self::Authored(_) => {
+                 super::SelectedLoweringBindingIdentity::AuthoredSourceSchema(self.descriptor_key())
+diff --git a/rust/tcl-lsp-core/src/original_source_views.rs b/rust/tcl-lsp-core/src/original_source_views.rs
+index 31d2ec6..fd6129c 100644
+--- a/rust/tcl-lsp-core/src/original_source_views.rs
++++ b/rust/tcl-lsp-core/src/original_source_views.rs
+@@ -38,10 +38,11 @@ impl OriginalSourceViewDocument<'_> {
+             return None;
+         }
+         match self.region {
+-            None => {
+-                crate::source_graph::current_analysis(self.document.source, self.document.analysis)
+-                    .map(|_| ())
+-            }
++            None => crate::original_context::CurrentSourceContext::capture(
++                self.document.source,
++                self.document.analysis,
++            )
++            .map(|_| ()),
+             Some(region) => {
+                 let analysis = self.document.analysis;
+                 let config = analysis.body_lexer_config?;
+diff --git a/rust/tcl-lsp-core/src/workspace_index/source_views.rs b/rust/tcl-lsp-core/src/workspace_index/source_views.rs
+index bc73a22..59d3c7a 100644
+--- a/rust/tcl-lsp-core/src/workspace_index/source_views.rs
++++ b/rust/tcl-lsp-core/src/workspace_index/source_views.rs
+@@ -73,7 +73,9 @@ impl WorkspaceOriginalSourceView {
+             return false;
+         }
+         match region {
+-            None => crate::source_graph::current_analysis(source, analysis).is_some(),
++            None => {
++                crate::original_context::CurrentSourceContext::capture(source, analysis).is_some()
++            }
+             Some(region) => analysis.body_lexer_config.is_some_and(|config| {
+                 region.matches_region_analysis(analysis)
+                     && analysis.original_source_region() == Some(region)
