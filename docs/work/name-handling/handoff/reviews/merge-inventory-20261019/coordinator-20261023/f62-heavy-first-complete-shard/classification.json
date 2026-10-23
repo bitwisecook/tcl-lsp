@@ -1,0 +1,3002 @@
+{
+  "utc": "2026-10-23T16:20:17.987783+00:00",
+  "run": 39978501863,
+  "job": 120500263098,
+  "raw_sha256": "c487acc00ba0e09204587b61fe6250638ee2666b6009357ade8bec8c43496846",
+  "baseline_path": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/coordinator-20261023/ci5206-log-triage/new-completed-0200Z/heavy-baseline-outcomes.json",
+  "baseline_sha256": "e2358ffcfdf301fbc797d7bdd7f7c825f645fb684a3191edd11a9afb37b17d38",
+  "baseline_run": {
+    "number": 5203,
+    "id": 39816429638,
+    "ref": "rust",
+    "head_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731",
+    "job_id": 119956195910
+  },
+  "selected": 355,
+  "terminal": 355,
+  "unique_terminal": 355,
+  "selected_terminal_exact": true,
+  "status_counts": {
+    "ok": 318,
+    "failed": 37
+  },
+  "run_end": [
+    {
+      "seq": 720,
+      "nonce": "d0bfdcba43491f25563eaafc",
+      "kind": "run-end",
+      "nextest_exit": 100,
+      "capture_valid": true
+    }
+  ],
+  "lifecycle": "complete nextest100 with capture_valid=true, no missing selected terminal/no timeout/crash statuses",
+  "baseline_rows": 312,
+  "baseline_missing_current": [
+    [
+      "tcl-irule-test",
+      "embedded::tests::itest_core_when_loader_contract"
+    ]
+  ],
+  "join_counts": {
+    "PASS": 318,
+    "addedFAIL": 21,
+    "P2F": 16
+  },
+  "failure_owner_counts": {
+    "bigip": 37
+  },
+  "scope": "Heavy job only exact binary+selector baseline join; NOT complete all5 jobs+3 e2e baseline comparison. Console failure samples are truncated; artifact12515082018 holds fuller evidence.",
+  "rows": [
+    {
+      "binary_id": "f5-cli",
+      "selector": "commands::fetch::tests::fetch_artefact_name_is_stable_for_the_same_instant",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.013851297,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli",
+      "selector": "commands::fetch::tests::fetch_artefact_name_embeds_the_process_id",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.014474356,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli",
+      "selector": "commands::fetch::tests::fetch_artefact_name_differs_within_the_same_second",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.014539144,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli",
+      "selector": "commands::query::provider_source_tests::archive_content_donors_retain_original_bytes_before_mutation",
+      "current": "ok",
+      "baseline": null,
+      "exec_time": 0.017862917,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli",
+      "selector": "commands::query::ucs_cert_tests::reader_errors_on_missing_member",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.241427253,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli",
+      "selector": "commands::query::ucs_cert_tests::uri_and_percent_decode",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.013551769,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli",
+      "selector": "commands::query::ucs_cert_tests::ucs_cert_reaches_cert_through_the_dsl",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.239831783,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli",
+      "selector": "commands::query::ucs_cert_tests::reader_reads_and_parses_real_cert",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.260253372,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli",
+      "selector": "commands::remote::auth::tests::opaque_environment_child",
+      "current": "ok",
+      "baseline": null,
+      "exec_time": 0.013844322,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli",
+      "selector": "commands::remote::object_io::tests::every_offered_kind_resolves_to_an_endpoint",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.013671759,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli",
+      "selector": "commands::remote::object_io::tests::the_kind_set_is_sorted_and_its_error_lists_all_of_it",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.014417215,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli",
+      "selector": "commands::remote::ssh::tests::accept_host_key_accepts_a_matching_known_host",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.014875437,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli",
+      "selector": "commands::remote::auth::tests::opaque_environment_is_present_but_explicit_user_wins",
+      "current": "ok",
+      "baseline": null,
+      "exec_time": 0.040694241,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli",
+      "selector": "commands::remote::ssh::tests::accept_host_key_accepts_and_persists_a_new_host",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.018545694,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli",
+      "selector": "commands::remote::ssh::tests::accept_host_key_fails_closed_when_the_store_cannot_be_written",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.014863614,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli",
+      "selector": "commands::remote::ssh::tests::accept_host_key_rejects_a_changed_key",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.015200429,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli",
+      "selector": "commands::remote::ssh::tests::scf_save_builds_tmsh_command_and_path",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.014955181,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli",
+      "selector": "commands::remote::ssh::tests::ucs_save_builds_tmsh_command_and_path",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.01499464,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli",
+      "selector": "commands::remote::ssh::tests::verify_host_key_distinguishes_non_standard_ports",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.017954219,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli",
+      "selector": "commands::remote::ssh::tests::verify_host_key_reports_changed_for_a_different_key",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.011525674,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli",
+      "selector": "commands::remote::ssh::tests::verify_host_key_is_new_for_a_different_host_in_the_same_store",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.01708129,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli",
+      "selector": "commands::remote::ssh::tests::verify_host_key_reports_known_after_learning",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.014572453,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli",
+      "selector": "commands::remote::ssh::tests::verify_host_key_reports_new_for_unknown_host",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.014503249,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli",
+      "selector": "commands::remote::ssh::tests::verify_host_key_reports_new_when_store_does_not_exist",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.014215378,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::cli",
+      "selector": "diff_add_remove_json",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.026485618,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::cli",
+      "selector": "diff_add_remove_text",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.027262011,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::cli",
+      "selector": "diff_reads_ucs",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.031715942,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::cli",
+      "selector": "diff_scalar_modify",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.028375643,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::cli",
+      "selector": "diff_tmsh_input",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.030036562,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::cli",
+      "selector": "explain_reads_ucs",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.024463428,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::cli",
+      "selector": "extract_encrypted_ucs",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.404068779,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::cli",
+      "selector": "extract_plain_ucs",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.021784476,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::cli",
+      "selector": "extract_plain_ucs_include_extras",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.026431052,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::cli",
+      "selector": "merge",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.020747027,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::cli",
+      "selector": "merge_refuses_opaque_path_without_opening_replacement_sibling",
+      "current": "ok",
+      "baseline": null,
+      "exec_time": 0.035500186,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::cli",
+      "selector": "mutating_queries_require_faithful_named_and_structured_donors",
+      "current": "ok",
+      "baseline": null,
+      "exec_time": 0.058955785,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::cli",
+      "selector": "query_archive_file_donors_keep_original_bytes_before_mutation",
+      "current": "ok",
+      "baseline": null,
+      "exec_time": 0.099126462,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli",
+      "selector": "commands::explain::source_event_tests::source_event_report_separates_owned_empty_and_unavailable",
+      "current": "failed",
+      "baseline": null,
+      "exec_time": 1.21228054,
+      "owner": "bigip",
+      "console_sample": "\\nthread 'commands::explain::source_event_tests::source_event_report_separates_owned_empty_and_unavailable' (4021) panicked at r",
+      "console_sample_is_truncated": true,
+      "classification": "addedFAIL"
+    },
+    {
+      "binary_id": "f5-cli::cli",
+      "selector": "split_then_merge",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.042114228,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::cli",
+      "selector": "source_transforms_refuse_invalid_name_bytes_before_artifacts",
+      "current": "ok",
+      "baseline": null,
+      "exec_time": 0.187205115,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::enrich",
+      "selector": "pcapng_dry_run_name_index_matches",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.031878466,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::enrich",
+      "selector": "pcapng_refuses_missing_input_file",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.029874063,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::enrich",
+      "selector": "wireshark_refuses_non_directory_output",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.0266534,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::enrich",
+      "selector": "wireshark_refuses_nonempty_dir_without_force",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.029590814,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::enrich",
+      "selector": "wireshark_summary_stderr_matches",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.030585634,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::cli",
+      "selector": "explain_virtual_json",
+      "current": "failed",
+      "baseline": "PASS",
+      "exec_time": 8.850519083,
+      "owner": "bigip",
+      "console_sample": "\\nthread 'explain_virtual_json' (4123) panicked at rust/f5-cli/tests/cli.rs:55:5:\\nassertion `left == right` failed: f5 diff out",
+      "console_sample_is_truncated": true,
+      "classification": "P2F"
+    },
+    {
+      "binary_id": "f5-cli::explain_flow",
+      "selector": "tshark_enrichment_marks_used_tshark",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.014778307,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::explain_flow",
+      "selector": "tshark_filter_is_reported_repr_style",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.012930349,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::explain_flow",
+      "selector": "without_tshark_used_tshark_is_false",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.061943552,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::cli",
+      "selector": "explain_virtual_text",
+      "current": "failed",
+      "baseline": "PASS",
+      "exec_time": 10.19300158,
+      "owner": "bigip",
+      "console_sample": "\\nthread 'explain_virtual_text' (4125) panicked at rust/f5-cli/tests/cli.rs:55:5:\\nassertion `left == right` failed: f5 diff out",
+      "console_sample_is_truncated": true,
+      "classification": "P2F"
+    },
+    {
+      "binary_id": "f5-cli::grep",
+      "selector": "grep_both",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 7.36388991,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::grep",
+      "selector": "grep_cidr",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 9.479593579,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::grep",
+      "selector": "grep_forward",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 7.625983222,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::grep",
+      "selector": "grep_include_body",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 7.389249826,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::grep",
+      "selector": "grep_json",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 7.466158642,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::grep",
+      "selector": "grep_literal",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 7.49990167,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::grep",
+      "selector": "grep_max_depth",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 7.502041807,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::grep",
+      "selector": "grep_no_match",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 7.309222486,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::grep",
+      "selector": "grep_regex",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 7.235407948,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::irule",
+      "selector": "context_no_irules_found_exits_1",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.104215553,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::irule",
+      "selector": "extract_rejects_standalone_irule",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.021281872,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::irule",
+      "selector": "extract_rejects_the_long_irules_spelling_too",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.021252577,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::grep",
+      "selector": "grep_reverse",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 7.275138312,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::irule",
+      "selector": "format_resolves_the_irules_profile_for_its_dialect",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 32.019131699,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::explain_flow",
+      "selector": "simulate_json_populates_simulated_fields",
+      "current": "failed",
+      "baseline": "PASS",
+      "exec_time": 84.033392148,
+      "owner": "bigip",
+      "console_sample": "test simulate_json_populates_simulated_fields has been running for over 60 seconds\\n\\nthread 'simulate_json_populates_simulated_",
+      "console_sample_is_truncated": true,
+      "classification": "P2F"
+    },
+    {
+      "binary_id": "f5-cli::irule",
+      "selector": "help_works_for_all_subs",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.123961728,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::irule",
+      "selector": "lint_clean_input_no_findings",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.162059107,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::explain_flow",
+      "selector": "simulate_runs_irule_and_selects_pool",
+      "current": "failed",
+      "baseline": "PASS",
+      "exec_time": 84.403499359,
+      "owner": "bigip",
+      "console_sample": "test simulate_runs_irule_and_selects_pool has been running for over 60 seconds\\n\\nthread 'simulate_runs_irule_and_selects_pool' ",
+      "console_sample_is_truncated": true,
+      "classification": "P2F"
+    },
+    {
+      "binary_id": "f5-cli::irule",
+      "selector": "no_input_errors_exit_2",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.022600409,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::irule",
+      "selector": "pgo_is_not_a_known_subcommand",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.020086219,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::irule",
+      "selector": "pgo_not_listed_in_irule_help",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.022753314,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::irule",
+      "selector": "trace_keeps_data_group_from_braced_expression_command",
+      "current": "failed",
+      "baseline": "PASS",
+      "exec_time": 0.176206904,
+      "owner": "bigip",
+      "console_sample": "\\nthread 'trace_keeps_data_group_from_braced_expression_command' (4346) panicked at rust/f5-cli/tests/irule.rs:195:5:\\nassertion",
+      "console_sample_is_truncated": true,
+      "classification": "P2F"
+    },
+    {
+      "binary_id": "f5-cli::irule",
+      "selector": "trace_uses_the_event_closure_not_the_first_handler_body",
+      "current": "failed",
+      "baseline": "PASS",
+      "exec_time": 0.178206254,
+      "owner": "bigip",
+      "console_sample": "\\nthread 'trace_uses_the_event_closure_not_the_first_handler_body' (4350) panicked at rust/f5-cli/tests/irule.rs:219:5:\\nasserti",
+      "console_sample_is_truncated": true,
+      "classification": "P2F"
+    },
+    {
+      "binary_id": "f5-cli::pcap_remap",
+      "selector": "libpcap_forward_byte_identical",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.02396833,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::pcap_remap",
+      "selector": "libpcap_round_trip_identity",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.038903995,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::pcap_remap",
+      "selector": "list_schemas",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.020684571,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::pcap_remap",
+      "selector": "list_schemas_with_overlay_byte_identical",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.021066352,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::pcap_remap",
+      "selector": "overlay_makes_unknown_trailer_known",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.023642497,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::pcap_remap",
+      "selector": "pcapng_forward_byte_identical",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.023311974,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::pcap_remap",
+      "selector": "unknown_trailer_error_exits_2_and_writes_nothing",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.020523175,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::pcap_remap",
+      "selector": "unknown_trailer_preserve_byte_identical",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.019890415,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::pcap_remap",
+      "selector": "unknown_trailer_sweep_byte_identical",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.021496471,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::query",
+      "selector": "ex14_group_by",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.041684688,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::query",
+      "selector": "ex19_named_source",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.040787963,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::query",
+      "selector": "ex1_vs_pool",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.040233944,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::query",
+      "selector": "ex20_dupes",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.042461157,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::query",
+      "selector": "ex21_sort_by",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.043357942,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::query",
+      "selector": "ex22_max_by",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.041509659,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::query",
+      "selector": "ex24_index",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.042217804,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::query",
+      "selector": "ex2_regex_name",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.044483217,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::query",
+      "selector": "ex3_select_irule",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.042320943,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::query",
+      "selector": "ex4_cidr_member",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.044186502,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::query",
+      "selector": "mode_json",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.041241889,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::query",
+      "selector": "mode_paths",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.040497669,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::query",
+      "selector": "mode_raw",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.043590769,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::query",
+      "selector": "mode_scf",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.041604484,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::query",
+      "selector": "mode_table",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.045910134,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::query",
+      "selector": "multi_file_banner",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.037623392,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::query",
+      "selector": "multi_file_json",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.034915241,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::query",
+      "selector": "pool_member_addrs",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.04078597,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::query",
+      "selector": "pool_names",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.040256709,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::query",
+      "selector": "select_pool",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.041290333,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::query",
+      "selector": "vs_dest",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.04069409,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::query",
+      "selector": "vs_length",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.041117038,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::query",
+      "selector": "vs_name_pool_obj",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.040150917,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::query",
+      "selector": "vs_names",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.040093689,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::query",
+      "selector": "vs_pool",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.041625957,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::query",
+      "selector": "vs_regex_name",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.042846769,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::query_help",
+      "selector": "help_dsl",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.019784337,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::query_help",
+      "selector": "help_dsl_short_circuits_without_inputs",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.01970163,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::query_help",
+      "selector": "help_examples",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.019452349,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::query_input",
+      "selector": "err_bad_binding_identifier",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.020099019,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::query_input",
+      "selector": "err_duplicate_name",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.020423156,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::query_input",
+      "selector": "err_load_missing_file",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.043666455,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::query_input",
+      "selector": "err_missing_file",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.024430719,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::query_input",
+      "selector": "err_unknown_kind",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.024617315,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::query_input",
+      "selector": "help_inputs",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.020818742,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::query_input",
+      "selector": "input_csv_col",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.039428329,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::query_input",
+      "selector": "input_csv_headers",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.040158138,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::query_input",
+      "selector": "input_csv_json",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.039668427,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::query_input",
+      "selector": "input_f5log_json",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.03927199,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::query_input",
+      "selector": "input_f5log_select",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.040517518,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::query_input",
+      "selector": "input_generic_json",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.041178181,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::query_input",
+      "selector": "input_json_field",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.040868717,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::query_input",
+      "selector": "input_json_iter",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.039692243,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::query_input",
+      "selector": "input_json_obj",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.040134872,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::query_input",
+      "selector": "input_json_select",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.040190967,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::query_input",
+      "selector": "input_jsonl_iter",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.039518407,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::query_input",
+      "selector": "input_jsonl_select",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.040216827,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::query_input",
+      "selector": "load_csv",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.041664887,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::query_input",
+      "selector": "load_f5log",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.042974645,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::query_input",
+      "selector": "load_json",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.047884076,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::query_input",
+      "selector": "load_json_iter",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.039832369,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::query_input",
+      "selector": "load_jsonl",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.041404318,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::query_merge",
+      "selector": "merge_collision_refused",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.027384808,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::query_merge",
+      "selector": "merge_json_envelope",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.037043874,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::query_merge",
+      "selector": "merge_pool_length",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.037574848,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::query_merge",
+      "selector": "merge_referenced_by_cross_file",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.126302316,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::query_merge",
+      "selector": "merge_refs_cross_file",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.116891751,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::query_merge",
+      "selector": "merge_virtual_names",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.042241751,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::query_mutation",
+      "selector": "noop_matches_object_but_same_text_exits_1",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.04388891,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::query_mutation",
+      "selector": "noop_strict_exits_2",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.044686559,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::query_mutation",
+      "selector": "select_nothing_queues_no_edit_exits_0",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.041837642,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::query_render",
+      "selector": "ascii_blocks_bad_style",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.040433018,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::query_render",
+      "selector": "ascii_blocks_flat",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.039648118,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::query_render",
+      "selector": "ascii_blocks_nested",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.041074949,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::query_render",
+      "selector": "ascii_blocks_square_min_width",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.039773346,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::query_render",
+      "selector": "empty_key_render_opt",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.020154526,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::query_render",
+      "selector": "gantt_default",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.041958534,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::query_render",
+      "selector": "gantt_objectref_rows_rejected",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.041127299,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::query_render",
+      "selector": "gantt_unit_minutes_10",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.041755473,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::query_render",
+      "selector": "malformed_render_opt",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.02025042,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::query_render",
+      "selector": "mermaid_bad_direction",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.039182988,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::query_render",
+      "selector": "mermaid_chain",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.038667292,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::query_render",
+      "selector": "mermaid_direction_tb",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.038832941,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::query_render",
+      "selector": "unknown_renderer",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.0419294,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::irule",
+      "selector": "format_under_a_core_tcl_dialect_leaves_the_ghost_separator_alone",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 35.150924324,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::registry_dump",
+      "selector": "all_section_bundles_every_subsection",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 34.576335533,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::irule",
+      "selector": "format_accepts_both_irules_dialect_spellings",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 99.822943825,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::registry_dump",
+      "selector": "unknown_section_fails_cleanly",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.023300985,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::remote",
+      "selector": "invalid_json_position",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.068543774,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::remote",
+      "selector": "missing_host_errors_for_all_verbs",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.051933709,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::remote",
+      "selector": "missing_password_after_env_host_and_user",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.021269316,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::remote",
+      "selector": "missing_payload_file_errno_message",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.020814524,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::remote",
+      "selector": "missing_user_after_env_host",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.021308184,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::remote",
+      "selector": "push_dry_run_name_only_target",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.021052125,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::remote",
+      "selector": "ssh_transport_connection_refused",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.021194923,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::remote",
+      "selector": "unknown_kind_rejected_by_clap",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.020237627,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::remote",
+      "selector": "unknown_transport_rejected_by_clap",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.020439594,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::secrets",
+      "selector": "alias_encrypt_decrypt",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.029239326,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::secrets",
+      "selector": "bad_key_errors",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.020669634,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::secrets",
+      "selector": "encrypt_is_idempotent",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.052567222,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::secrets",
+      "selector": "encrypt_skips_existing_crypt_hash",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.028073273,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::secrets",
+      "selector": "key_from_env",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.028339197,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::secrets",
+      "selector": "key_from_file",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.03124078,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::secrets",
+      "selector": "missing_key_errors",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.025708121,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::secrets",
+      "selector": "round_trip",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.051622455,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::secrets",
+      "selector": "tmsh_delta_does_not_recreate_existing_objects",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.038800978,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::tmsh",
+      "selector": "unknown_include_kind_errors",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.022440937,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::validate",
+      "selector": "json_category_field_is_config_or_irule",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 2.677947358,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::registry_dump",
+      "selector": "commands_section_produces_snapshot",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 33.438983271,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::validate",
+      "selector": "missing_file_errors",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.021075839,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "bpf_diff::tests::fn_registry_spelling_changes_are_not_hidden_in_the_generator",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.026455706,
+      "owner": "compiler"
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "bpf_diff::tests::seed_mapping_selects_exactly_the_second_byte",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.01474388,
+      "owner": "compiler"
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "bpf_diff::tests::tn_zero_selected_byte_is_the_socket_filter_drop_verdict",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 1.706132398,
+      "owner": "compiler"
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "bpf_diff::tests::tp_real_ebpf_program_returns_the_selected_packet_byte",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 1.430823438,
+      "owner": "compiler"
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "characterize::tests::classifies_each_oracle_relationship",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.015365635,
+      "owner": "compiler"
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "characterize::tests::unavailable_or_timed_out_backend_is_incomplete_not_agreement",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.014346552,
+      "owner": "compiler"
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "engine::tests::emulated_engines_accept_a_release_flag_but_tclsh_uses_its_selected_binary",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.0155837,
+      "owner": "compiler"
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "engine::tests::explicit_override_wins_regardless_of_convention",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.014433499,
+      "owner": "compiler"
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "engine::tests::labels_are_distinct_for_findings_namespacing",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.013814282,
+      "owner": "compiler"
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "engine::tests::runtime_rust_carries_the_quiet_flag",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.013986742,
+      "owner": "compiler"
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "engine::tests::tclvm_and_tclsh_carry_no_extra_args",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.013437662,
+      "owner": "compiler"
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "findings::rate_replay_tests::a_changed_rate_regenerates_a_different_script",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.018522068,
+      "owner": "compiler"
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "findings::rate_replay_tests::restore_leaves_the_shape_bounds_alone",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.012850162,
+      "owner": "compiler"
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "findings::rate_replay_tests::restoring_the_recorded_rates_reproduces_the_recorded_script",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.017821868,
+      "owner": "compiler"
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "findings::tests::a_finding_persists_the_canonical_campaign_release_for_replay",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.01613203,
+      "owner": "compiler"
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "findings::tests::a_finding_records_both_engines_versions_and_the_skew_flag",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.014611349,
+      "owner": "compiler"
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "findings::tests::load_checked_rejects_a_json_only_orphan",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.022513671,
+      "owner": "compiler"
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "findings::tests::load_checked_rejects_a_tcl_only_orphan",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.016604185,
+      "owner": "compiler"
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "findings::tests::load_checked_rejects_an_interrupted_staged_record",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.014649736,
+      "owner": "compiler"
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "findings::tests::promotion_never_overwrites_an_interleaved_final_and_keeps_damage_visible",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.015297366,
+      "owner": "compiler"
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "findings::tests::record_dedups_and_summarises",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.01502223,
+      "owner": "compiler"
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "findings::tests::record_promotes_a_complete_pair_without_leaving_stages",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.016326244,
+      "owner": "compiler"
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "findings::tests::reproducer_store_creates_its_directory_and_persists_a_script",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.014756579,
+      "owner": "compiler"
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "findings::tests::reproducer_store_surfaces_directory_and_write_failures",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.01535588,
+      "owner": "compiler"
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "findings::tests::summary_rejects_a_staged_companion",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.01611218,
+      "owner": "compiler"
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "generator::tests::balanced_delimiters",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.020567038,
+      "owner": "compiler"
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "generator::tests::brace_balanced_matches_a_real_walk",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.012895991,
+      "owner": "compiler"
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "generator::tests::broadened_grammar_is_exercised",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.026681359,
+      "owner": "compiler"
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "generator::tests::caller_frame_shapes_are_exercised",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.039052666,
+      "owner": "compiler"
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "generator::tests::deterministic_for_seed",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.013340014,
+      "owner": "compiler"
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "generator::tests::dynamic_name_shapes_are_exercised",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.039332921,
+      "owner": "compiler"
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "generator::tests::every_word_shape_and_context_is_reachable",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.018924668,
+      "owner": "compiler"
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "generator::tests::expr_and_mathfunc_additions_are_exercised",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.061398101,
+      "owner": "compiler"
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "generator::tests::malformed_expr_is_top_level_only",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.014366728,
+      "owner": "compiler"
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "generator::tests::malformed_expr_rate_zero_opts_out",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.018575769,
+      "owner": "compiler"
+    },
+    {
+      "binary_id": "f5-cli::validate",
+      "selector": "lint_alias_matches_validate",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 5.417314933,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "generator::tests::malformed_expressions_reach_scripts_at_the_default_rate",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.026829774,
+      "owner": "compiler"
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "generator::tests::malformed_expressions_stay_inside_the_expr_grammar",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.017906871,
+      "owner": "compiler"
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "generator::tests::malformed_modes_each_render_their_documented_shape",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.016428104,
+      "owner": "compiler"
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "generator::tests::namespace_inscope_list_args_are_exercised",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.035002104,
+      "owner": "compiler"
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "generator::tests::nonempty_and_prints",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.020014697,
+      "owner": "compiler"
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "generator::tests::power_and_shift_operands_are_magnitude_bounded",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.02366975,
+      "owner": "compiler"
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "generator::tests::unbalanced_shapes_never_reach_a_bracing_context",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.016927585,
+      "owner": "compiler"
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "generator::tests::while_and_for_counters_are_depth_qualified",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.031336465,
+      "owner": "compiler"
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "generator::tests::word_shape_rate_zero_opts_out_and_leaves_the_stream_alone",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.027848576,
+      "owner": "compiler"
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "generator::tests::word_shapes_each_render_their_documented_spelling",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.014060544,
+      "owner": "compiler"
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "generator::tests::word_shapes_reach_scripts_at_the_default_rate",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.041866756,
+      "owner": "compiler"
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "harness::tests::byte_identical_stdout_still_matches",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.013865299,
+      "owner": "compiler"
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "harness::tests::error_text_comparison_is_opt_in",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.013414667,
+      "owner": "compiler"
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "harness::tests::error_text_comparison_never_fires_on_a_status_mismatch",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.01398489,
+      "owner": "compiler"
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "harness::tests::error_text_differs_but_folded_to_match_by_default",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.013283838,
+      "owner": "compiler"
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "harness::tests::identical_is_match",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.013907011,
+      "owner": "compiler"
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "harness::tests::status_divergence_flagged",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.013698426,
+      "owner": "compiler"
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "harness::tests::stdout_divergence_flagged",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.012953278,
+      "owner": "compiler"
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "harness::tests::subject_timeout_flagged_reference_timeout_skipped",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.012862962,
+      "owner": "compiler"
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "harness::tests::trailing_blank_line_divergence_is_a_finding",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.012847978,
+      "owner": "compiler"
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "harness::tests::trailing_whitespace_divergence_is_a_finding",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.013216517,
+      "owner": "compiler"
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "harness::tests::unavailable_backend_skips",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.014187637,
+      "owner": "compiler"
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "linked_wasm::tests::bootstrap_uses_the_reserved_nonoverlapping_regions",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.014000893,
+      "owner": "compiler"
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "linked_wasm::tests::fn_seeded_names_are_tcl_identifier_safe_and_distinct",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.014745881,
+      "owner": "compiler"
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "linked_wasm::tests::tn_per_case_observation_does_not_compare_runtime_patchlevels",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.014807866,
+      "owner": "compiler"
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "linked_wasm::tests::tp_generated_oracle_and_linked_program_share_a_value_query",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.013858579,
+      "owner": "compiler"
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "tests::a_campaign_pin_reaches_both_sides_of_an_emulated_pair",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.015615218,
+      "owner": "compiler"
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "tests::a_fixed_release_engine_refuses_when_its_selected_binary_cannot_honour_the_pin",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.014287497,
+      "owner": "compiler"
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "tests::an_explicit_override_resolves_that_engine_and_its_args",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.015710371,
+      "owner": "compiler"
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "tests::characterise_finding_count_excludes_agreement_and_incomplete_runs",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.014178233,
+      "owner": "compiler"
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "tests::characterise_resolution_keeps_each_backend_invocation_together",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.014626461,
+      "owner": "compiler"
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "tests::cli_definition_is_well_formed",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.014772773,
+      "owner": "compiler"
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "tests::default_pair_keeps_the_plain_findings_dir",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.014997954,
+      "owner": "compiler"
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "tests::default_summary_discovers_each_release_namespace_without_seed_collisions",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.014276881,
+      "owner": "compiler"
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "tests::every_engine_names_the_flag_that_overrides_it",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.013759198,
+      "owner": "compiler"
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "tests::explicit_release_selects_pinned_record_over_marked_unpinned_record",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.014897611,
+      "owner": "compiler"
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "tests::explicit_replay_allows_an_arbitrary_seed_absent_from_every_registry",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.014138702,
+      "owner": "compiler"
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "tests::explicit_replay_refuses_a_finding_from_a_different_release",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.015220951,
+      "owner": "compiler"
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "tests::explicit_replay_refuses_a_legacy_release_less_finding",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.015139758,
+      "owner": "compiler"
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "tests::explicit_replay_refuses_metadata_mismatched_to_its_release_namespace",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.014934497,
+      "owner": "compiler"
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "tests::explicit_replay_selects_its_release_when_the_seed_exists_at_multiple_releases",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.014757018,
+      "owner": "compiler"
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "tests::explicit_summary_selects_only_its_release_namespace",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.01470505,
+      "owner": "compiler"
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "tests::identical_backend_pairs_are_rejected",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.015505992,
+      "owner": "compiler"
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "tests::marked_unpinned_and_pinned_records_are_ambiguous_without_a_release",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.01496889,
+      "owner": "compiler"
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "tests::other_pairs_are_namespaced_so_seeds_never_collide",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.014314259,
+      "owner": "compiler"
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "tests::release_flag_accepts_owner_defined_aliases_and_rejects_unknown_values",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.016048864,
+      "owner": "compiler"
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "tests::release_namespaces_keep_same_pair_seeds_separate",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.014275409,
+      "owner": "compiler"
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "tests::replay_accepts_a_markerless_pinned_finding_from_the_release_namespace",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.014408901,
+      "owner": "compiler"
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "tests::replay_discovers_a_recorded_release_and_propagates_it_to_both_engines",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.014088086,
+      "owner": "compiler"
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "tests::replay_immediately_reuses_a_new_unpinned_campaign_finding",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.015376937,
+      "owner": "compiler"
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "tests::replay_patch_drift_warning_compares_both_recorded_backends",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.015300081,
+      "owner": "compiler"
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "tests::replay_refuses_a_seed_which_exists_at_multiple_releases",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.016172531,
+      "owner": "compiler"
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "tests::replay_refuses_an_invalid_pinned_release_even_without_the_marker",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.015653646,
+      "owner": "compiler"
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "tests::replay_refuses_an_unreadable_existing_record",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.014799723,
+      "owner": "compiler"
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "tests::replay_refuses_legacy_findings_without_release_metadata",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.014823109,
+      "owner": "compiler"
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "tests::replay_refuses_orphan_and_staged_record_companions",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.014568813,
+      "owner": "compiler"
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "tests::requested_release_must_be_reported_by_both_backends",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.013889666,
+      "owner": "compiler"
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "version::tests::patchlevels_map_to_release_lines",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.014038741,
+      "owner": "compiler"
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "version::tests::skew_needs_two_different_reported_patchlevels",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.013972241,
+      "owner": "compiler"
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "wasm::tests::control_flow_program_runs",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.014219545,
+      "owner": "compiler"
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "wasm::tests::host_stub_is_valid_wasm",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.014370804,
+      "owner": "compiler"
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "wasm::tests::simple_program_compiles_and_runs",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.015796352,
+      "owner": "compiler"
+    },
+    {
+      "binary_id": "f5-cli::registry_dump",
+      "selector": "default_section_is_all_and_serialises",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 34.806945468,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "wasm_diff::host_abi::tests::actual_missing_compiler_refusal_leaves_outputs_untouched_through_cleanup",
+      "current": "ok",
+      "baseline": null,
+      "exec_time": 2.6386091780000003,
+      "owner": "compiler"
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "wasm_diff::host_abi::tests::condition_keeps_full_owned_guest_completion_and_truth_publication_order",
+      "current": "ok",
+      "baseline": null,
+      "exec_time": 0.590612623,
+      "owner": "compiler"
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "wasm_diff::host_abi::tests::every_selected_import_has_the_actual_registry_signature",
+      "current": "ok",
+      "baseline": null,
+      "exec_time": 0.416184824,
+      "owner": "compiler"
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "wasm_diff::host_abi::tests::live_frames_are_disjoint_and_freed_storage_is_reused",
+      "current": "ok",
+      "baseline": null,
+      "exec_time": 0.326921648,
+      "owner": "compiler"
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "wasm_diff::host_abi::tests::cleanup_keeps_the_first_actual_transport_refusal_pending",
+      "current": "ok",
+      "baseline": null,
+      "exec_time": 3.460919042,
+      "owner": "compiler"
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "wasm_diff::tests::dynamic_break_exits_the_loop",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 5.929898463,
+      "owner": "compiler"
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "wasm_diff::tests::dynamic_continue_skips_the_iteration",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 6.650893815,
+      "owner": "compiler"
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "wasm_diff::tests::error_in_loop_unwinds_not_hangs",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 6.023857485,
+      "owner": "compiler"
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "wasm_diff::tests::if_branch_matches",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 5.236107329,
+      "owner": "compiler"
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "wasm_diff::tests::loop_iteration_matches",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 4.292984204,
+      "owner": "compiler"
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "wasm_diff::tests::return_in_loop_stops_the_script",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 4.041824755,
+      "owner": "compiler"
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "wasm_diff::tests::straight_line_matches",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 3.295552891,
+      "owner": "compiler"
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "embedded::tests::materialise_writes_orchestrator",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.015993283,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "embedded::tests::missing_file_guidance_names_a_real_command",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.015403566,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "embedded::tests::smoke_bundled_tcl_has_balanced_top_level_commands",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.052265213,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::original_projection_tests::original_event_enrolment_refuses_utf8_before_domain_or_later_operand",
+      "current": "ok",
+      "baseline": null,
+      "exec_time": 0.354166828,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "wasm_diff::tests::while_with_break_matches",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 4.174331801,
+      "owner": "compiler"
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "generator::tests::malformed_expressions_error_on_our_engine",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 48.17506346,
+      "owner": "compiler"
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::completion_api_keeps_missing_execution_provider_outside_guest_errors",
+      "current": "ok",
+      "baseline": null,
+      "exec_time": 2.385990326,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::completion_api_preserves_guest_bytes_before_text_projection",
+      "current": "ok",
+      "baseline": null,
+      "exec_time": 2.903779362,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::original_projection_tests::original_live_result_projection_keeps_strict_bytes_earlier_eval_cause_and_next_entry",
+      "current": "failed",
+      "baseline": null,
+      "exec_time": 79.753695414,
+      "owner": "bigip",
+      "console_sample": "test live::original_projection_tests::original_live_result_projection_keeps_strict_bytes_earlier_eval_cause_and_next_entry has b",
+      "console_sample_is_truncated": true,
+      "classification": "addedFAIL"
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::authored_functions_keep_independent_worker_random_and_precision_contexts",
+      "current": "failed",
+      "baseline": null,
+      "exec_time": 79.943601356,
+      "owner": "bigip",
+      "console_sample": "test live::tests::authored_functions_keep_independent_worker_random_and_precision_contexts has been running for over 60 seconds\\",
+      "console_sample_is_truncated": true,
+      "classification": "addedFAIL"
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::embedded_session_scenarios",
+      "current": "failed",
+      "baseline": "PASS",
+      "exec_time": 77.894475335,
+      "owner": "bigip",
+      "console_sample": "test live::tests::embedded_session_scenarios has been running for over 60 seconds\\n\\nthread 'live::tests::embedded_session_scena",
+      "console_sample_is_truncated": true,
+      "classification": "P2F"
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::event_errors_preserve_cells_and_restore_worker_rule_activation",
+      "current": "failed",
+      "baseline": null,
+      "exec_time": 78.521845743,
+      "owner": "bigip",
+      "console_sample": "test live::tests::event_errors_preserve_cells_and_restore_worker_rule_activation has been running for over 60 seconds\\n\\nthread ",
+      "console_sample_is_truncated": true,
+      "classification": "addedFAIL"
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::event_frames_preserve_cells_aliases_and_traces",
+      "current": "failed",
+      "baseline": null,
+      "exec_time": 78.02704663,
+      "owner": "bigip",
+      "console_sample": "test live::tests::event_frames_preserve_cells_aliases_and_traces has been running for over 60 seconds\\n\\nthread 'live::tests::ev",
+      "console_sample_is_truncated": true,
+      "classification": "addedFAIL"
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::harness_runs_the_tmm_84_surface",
+      "current": "failed",
+      "baseline": "PASS",
+      "exec_time": 78.016464351,
+      "owner": "bigip",
+      "console_sample": "test live::tests::harness_runs_the_tmm_84_surface has been running for over 60 seconds\\n\\nthread 'live::tests::harness_runs_the_",
+      "console_sample_is_truncated": true,
+      "classification": "P2F"
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::irule_source_rewrite_only_touches_command_positions",
+      "current": "failed",
+      "baseline": "PASS",
+      "exec_time": 77.84977991,
+      "owner": "bigip",
+      "console_sample": "test live::tests::irule_source_rewrite_only_touches_command_positions has been running for over 60 seconds\\n\\nthread 'live::test",
+      "console_sample_is_truncated": true,
+      "classification": "P2F"
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::itest_loader_event_registration_matches_rust_when_blocks",
+      "current": "failed",
+      "baseline": "PASS",
+      "exec_time": 77.724342356,
+      "owner": "bigip",
+      "console_sample": "test live::tests::itest_loader_event_registration_matches_rust_when_blocks has been running for over 60 seconds\\n\\nthread 'live:",
+      "console_sample_is_truncated": true,
+      "classification": "P2F"
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::live_session_class_match_honours_every_operator",
+      "current": "failed",
+      "baseline": "PASS",
+      "exec_time": 77.382746846,
+      "owner": "bigip",
+      "console_sample": "test live::tests::live_session_class_match_honours_every_operator has been running for over 60 seconds\\n\\nthread 'live::tests::l",
+      "console_sample_is_truncated": true,
+      "classification": "P2F"
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::live_session_drives_the_request_lifecycle",
+      "current": "failed",
+      "baseline": "PASS",
+      "exec_time": 76.669119533,
+      "owner": "bigip",
+      "console_sample": "test live::tests::live_session_drives_the_request_lifecycle has been running for over 60 seconds\\n\\nthread 'live::tests::live_se",
+      "console_sample_is_truncated": true,
+      "classification": "P2F"
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::measured_counted_lengths_keep_dynamic_bytes_and_literal_strings_separate_from_host",
+      "current": "failed",
+      "baseline": null,
+      "exec_time": 76.221692461,
+      "owner": "bigip",
+      "console_sample": "test live::tests::measured_counted_lengths_keep_dynamic_bytes_and_literal_strings_separate_from_host has been running for over 6",
+      "console_sample_is_truncated": true,
+      "classification": "addedFAIL"
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::measured_event_names_enter_the_actual_connection_frame_and_restore_policy",
+      "current": "failed",
+      "baseline": null,
+      "exec_time": 76.848923215,
+      "owner": "bigip",
+      "console_sample": "test live::tests::measured_event_names_enter_the_actual_connection_frame_and_restore_policy has been running for over 60 seconds",
+      "console_sample_is_truncated": true,
+      "classification": "addedFAIL"
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::missing_lib_dir_errors",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.015604898,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::measured_loader_checks_original_source_and_keeps_dynamic_runtime_commands",
+      "current": "failed",
+      "baseline": null,
+      "exec_time": 79.534828522,
+      "owner": "bigip",
+      "console_sample": "test live::tests::measured_loader_checks_original_source_and_keeps_dynamic_runtime_commands has been running for over 60 seconds",
+      "console_sample_is_truncated": true,
+      "classification": "addedFAIL"
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::measured_rule_lookup_uses_partition_root_and_keeps_activated_callables",
+      "current": "failed",
+      "baseline": null,
+      "exec_time": 79.398827321,
+      "owner": "bigip",
+      "console_sample": "test live::tests::measured_rule_lookup_uses_partition_root_and_keeps_activated_callables has been running for over 60 seconds\\n\\",
+      "console_sample_is_truncated": true,
+      "classification": "addedFAIL"
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::named_rules_keep_procedures_owned_and_route_call_without_extra_frames",
+      "current": "failed",
+      "baseline": null,
+      "exec_time": 79.903198957,
+      "owner": "bigip",
+      "console_sample": "test live::tests::named_rules_keep_procedures_owned_and_route_call_without_extra_frames has been running for over 60 seconds\\n\\n",
+      "console_sample_is_truncated": true,
+      "classification": "addedFAIL"
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::native_completion_capabilities_do_not_expand_the_user_grammar",
+      "current": "failed",
+      "baseline": null,
+      "exec_time": 79.011155394,
+      "owner": "bigip",
+      "console_sample": "test live::tests::native_completion_capabilities_do_not_expand_the_user_grammar has been running for over 60 seconds\\n\\nthread '",
+      "console_sample_is_truncated": true,
+      "classification": "addedFAIL"
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::retained_event_frame_preserves_native_completion_options",
+      "current": "failed",
+      "baseline": null,
+      "exec_time": 79.191760522,
+      "owner": "bigip",
+      "console_sample": "test live::tests::retained_event_frame_preserves_native_completion_options has been running for over 60 seconds\\n\\nthread 'live:",
+      "console_sample_is_truncated": true,
+      "classification": "addedFAIL"
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::rule_creation_and_recreation_initialise_only_the_owned_rule_on_four_workers",
+      "current": "failed",
+      "baseline": null,
+      "exec_time": 78.678141462,
+      "owner": "bigip",
+      "console_sample": "test live::tests::rule_creation_and_recreation_initialise_only_the_owned_rule_on_four_workers has been running for over 60 secon",
+      "console_sample_is_truncated": true,
+      "classification": "addedFAIL"
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::rule_init_uses_each_workers_global_cells_once",
+      "current": "failed",
+      "baseline": null,
+      "exec_time": 77.395512138,
+      "owner": "bigip",
+      "console_sample": "test live::tests::rule_init_uses_each_workers_global_cells_once has been running for over 60 seconds\\n\\nthread 'live::tests::rul",
+      "console_sample_is_truncated": true,
+      "classification": "addedFAIL"
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::scf_loader_stores_parsed_snatpool_members",
+      "current": "failed",
+      "baseline": "PASS",
+      "exec_time": 77.437657185,
+      "owner": "bigip",
+      "console_sample": "test live::tests::scf_loader_stores_parsed_snatpool_members has been running for over 60 seconds\\n\\nthread 'live::tests::scf_loa",
+      "console_sample_is_truncated": true,
+      "classification": "P2F"
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::scheduled_callback_retirement_and_error_reports_preserve_original_options",
+      "current": "failed",
+      "baseline": null,
+      "exec_time": 77.03209281,
+      "owner": "bigip",
+      "console_sample": "test live::tests::scheduled_callback_retirement_and_error_reports_preserve_original_options has been running for over 60 seconds",
+      "console_sample_is_truncated": true,
+      "classification": "addedFAIL"
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::scheduled_callbacks_keep_worker_root_and_connection_cells_distinct",
+      "current": "failed",
+      "baseline": null,
+      "exec_time": 76.769994423,
+      "owner": "bigip",
+      "console_sample": "test live::tests::scheduled_callbacks_keep_worker_root_and_connection_cells_distinct has been running for over 60 seconds\\n\\nthr",
+      "console_sample_is_truncated": true,
+      "classification": "addedFAIL"
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::tmm_select_mode_survives_the_per_test_reset",
+      "current": "failed",
+      "baseline": "PASS",
+      "exec_time": 76.059901575,
+      "owner": "bigip",
+      "console_sample": "test live::tests::tmm_select_mode_survives_the_per_test_reset has been running for over 60 seconds\\n\\nthread 'live::tests::tmm_s",
+      "console_sample_is_truncated": true,
+      "classification": "P2F"
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::tmm_word_boolean_operators_are_rewritten_to_their_tcl_equivalents",
+      "current": "failed",
+      "baseline": "PASS",
+      "exec_time": 76.850795084,
+      "owner": "bigip",
+      "console_sample": "test live::tests::tmm_word_boolean_operators_are_rewritten_to_their_tcl_equivalents has been running for over 60 seconds\\n\\nthre",
+      "console_sample_is_truncated": true,
+      "classification": "P2F"
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::worker_interpreters_preserve_cells_traces_and_command_tables",
+      "current": "failed",
+      "baseline": null,
+      "exec_time": 75.611617298,
+      "owner": "bigip",
+      "console_sample": "test live::tests::worker_interpreters_preserve_cells_traces_and_command_tables has been running for over 60 seconds\\n\\nthread 'l",
+      "console_sample_is_truncated": true,
+      "classification": "addedFAIL"
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::worker_array_recreation_retires_element_aliases_and_traces",
+      "current": "failed",
+      "baseline": null,
+      "exec_time": 76.336854599,
+      "owner": "bigip",
+      "console_sample": "test live::tests::worker_array_recreation_retires_element_aliases_and_traces has been running for over 60 seconds\\n\\nthread 'liv",
+      "console_sample_is_truncated": true,
+      "classification": "addedFAIL"
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "pure_functions::binary_boundary_tests::opaque_reference_input_keeps_typed_host_refusal_outside_guest_catch",
+      "current": "ok",
+      "baseline": null,
+      "exec_time": 2.494868377,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::worker_reset_reloads_independent_globals_and_initialisation",
+      "current": "failed",
+      "baseline": null,
+      "exec_time": 76.159659867,
+      "owner": "bigip",
+      "console_sample": "test live::tests::worker_reset_reloads_independent_globals_and_initialisation has been running for over 60 seconds\\n\\nthread 'li",
+      "console_sample_is_truncated": true,
+      "classification": "addedFAIL"
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "pure_functions::original_projection_tests::original_pure_callback_preserves_strict_nul_words_and_actual_argument_roles",
+      "current": "ok",
+      "baseline": null,
+      "exec_time": 0.300635756,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "pure_functions::original_projection_tests::original_pure_callback_refuses_first_utf8_word_before_later_string_getter",
+      "current": "ok",
+      "baseline": null,
+      "exec_time": 0.296323834,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "pure_functions::stub_transport_tests::optional_stub_lookup_accepts_only_actual_selected_action_members",
+      "current": "ok",
+      "baseline": null,
+      "exec_time": 2.897047262,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "pure_functions::stub_transport_tests::optional_stub_lookup_preserves_host_failure_before_any_fallback_or_dispatch",
+      "current": "ok",
+      "baseline": null,
+      "exec_time": 3.125215687,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::worker_static_broadcast_and_recreation_preserve_trace_owners",
+      "current": "failed",
+      "baseline": null,
+      "exec_time": 75.729625966,
+      "owner": "bigip",
+      "console_sample": "test live::tests::worker_static_broadcast_and_recreation_preserve_trace_owners has been running for over 60 seconds\\n\\nthread 'l",
+      "console_sample_is_truncated": true,
+      "classification": "addedFAIL"
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "session::tests::bootstrap_assembles_orchestrator_script",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.015628658,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "session::tests::named_source_bootstrap_preserves_literal_identity_and_library_attachment",
+      "current": "ok",
+      "baseline": null,
+      "exec_time": 0.013903043,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "session::tests::plan_from_topology",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.01771398,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "sim::tests::decision_list_split_handles_braces",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.013191878,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "sim::tests::empty_sources_reports_nothing_to_simulate",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.01302682,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "sim::tests::log_entry_split_follows_tcl_list_semantics",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.013147451,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "pure_functions::binary_boundary_tests::reference_binary_output_retains_counted_payload_and_authored_constructor_origin",
+      "current": "failed",
+      "baseline": null,
+      "exec_time": 75.558999021,
+      "owner": "bigip",
+      "console_sample": "test pure_functions::binary_boundary_tests::reference_binary_output_retains_counted_payload_and_authored_constructor_origin has ",
+      "console_sample_is_truncated": true,
+      "classification": "addedFAIL"
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "sim::tests::simulator_values_use_the_shared_tcl_word_encoder",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.018685986,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "topology::tests::datagroup_records_keep_arbitrary_keys_as_literal_list_elements",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.013811977,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "topology::tests::duplicate_exact_rule_rows_keep_first_source_and_refuse_short_name",
+      "current": "ok",
+      "baseline": null,
+      "exec_time": 0.018606152,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "topology::tests::full_test_script_wraps_setup",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.018962661,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "topology::tests::generates_setup_for_vs",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.02175298,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "topology::tests::infers_profile_types",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.015525597,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "topology::tests::infers_profile_types_for_custom_names",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.014207644,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "topology::tests::lists_virtual_servers",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.018839076,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "topology::tests::topology_loads_unattached_rules_as_named_libraries_and_refuses_ambiguous_names",
+      "current": "ok",
+      "baseline": null,
+      "exec_time": 0.019402835,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "topology::tests::unknown_vs_errors",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 0.020670104,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "pure_functions::tests::irules_pure_functions_match_the_simulator_and_the_oracle",
+      "current": "failed",
+      "baseline": "PASS",
+      "exec_time": 75.224868423,
+      "owner": "bigip",
+      "console_sample": "test pure_functions::tests::irules_pure_functions_match_the_simulator_and_the_oracle has been running for over 60 seconds\\n\\nthr",
+      "console_sample_is_truncated": true,
+      "classification": "P2F"
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "sim::tests::simulation_degrades_gracefully_until_vm_is_ready",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 59.170864993,
+      "owner": "bigip"
+    },
+    {
+      "binary_id": "f5-cli::irule",
+      "selector": "minify_aggressive_survives_deeply_nested_irule",
+      "current": "ok",
+      "baseline": "PASS",
+      "exec_time": 2155.09513566,
+      "owner": "bigip"
+    }
+  ]
+}

@@ -1,6 +1,6 @@
 # Outstanding work: lsp agent
 
-Current status 2026-10-23T15:54:36Z: root-only nativeContext wrapper READY /workspace/naming-proof-storage/lsp-multifolder-context-root-wrapper-v1 (plan00e31499/inputs0d293da1,52pins/tools/AST PASS, CCGefa5e6e1 STATICCLEAR); rootGO absent/noexecution atreadiness. Actuald1freshserver7f2cdbd authenticatedfromclosed17713 selectedDEV0W/allsource-provider-artifact-GOsealstrue. WrapperhasNOCargo andunchangedoriginalproj-a repro2282361d;180sworker/15ssettle/6sdiagnostics terminalContext, providers64KiB+worker128KiB+providers64KiB, total20MiBaccounting; v5fullsource/providersealouter/lifecycle retained. PriorcoldtokensPASS2692.7ms, scan30sFAIL/alllaterunreached archived. Multi-folder4Context/WASIlocaldef/browserUnknownWorld remainunfixed/unaccepted. AllshippingF/P2F/host/performanceacceptanceOPEN.
+Current status 2026-10-23T16:19:34Z: f62 TRUE-release shipping pair CLOSED baseline original checks complete/candidate firsttokens PASS549.573ms then unchanged30s scan FAIL; later navigation/warm/cancel checks UNREACHED. Candidate CPU37s/34s wall/peak256292KiB observed, no memory acceptance. Both owned groups closed and server/fixtures stable; full archive d775969b roundtripPASS. Context original initialize30s timeout CLOSED with all source/provider/artifact/GO seals true, archive9b502ae3; diagnostics/Context subgates UNREACHED. WORK-only packreload phase observer dc1a453a peer CLEAR03362659 ready root integration; shipping wire reaches externalwatchers notice but no SpecPacksReloaded/scan marker, exact later stage UNKNOWN. All F/P2F/host/performance gates OPEN.
 
 
 
@@ -63,15 +63,15 @@ Prepared separate Core1 ownership/refusal phase `/tmp/lsp-body-guard-core1/run.s
 
 Area: tcl-lsp-core, tcl-lsp-db and tcl-lsp-server (generic providers, server, WASM/WASI hosts).
 
-Last updated: 2026-10-23T15:54:36Z
+Last updated: 2026-10-23T16:19:34Z
 
 Maintained by the lsp agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## Resume
 
-Current status 2026-10-23T15:54:36Z: root-only nativeContext wrapper READY /workspace/naming-proof-storage/lsp-multifolder-context-root-wrapper-v1 (plan00e31499/inputs0d293da1,52pins/tools/AST PASS, CCGefa5e6e1 STATICCLEAR); rootGO absent/noexecution atreadiness. Actuald1freshserver7f2cdbd authenticatedfromclosed17713 selectedDEV0W/allsource-provider-artifact-GOsealstrue. WrapperhasNOCargo andunchangedoriginalproj-a repro2282361d;180sworker/15ssettle/6sdiagnostics terminalContext, providers64KiB+worker128KiB+providers64KiB, total20MiBaccounting; v5fullsource/providersealouter/lifecycle retained. PriorcoldtokensPASS2692.7ms, scan30sFAIL/alllaterunreached archived. Multi-folder4Context/WASIlocaldef/browserUnknownWorld remainunfixed/unaccepted. AllshippingF/P2F/host/performanceacceptanceOPEN.
+Current status 2026-10-23T16:19:34Z: f62 TRUE-release shipping pair CLOSED baseline original checks complete/candidate firsttokens PASS549.573ms then unchanged30s scan FAIL; later navigation/warm/cancel checks UNREACHED. Candidate CPU37s/34s wall/peak256292KiB observed, no memory acceptance. Both owned groups closed and server/fixtures stable; full archive d775969b roundtripPASS. Context original initialize30s timeout CLOSED with all source/provider/artifact/GO seals true, archive9b502ae3; diagnostics/Context subgates UNREACHED. WORK-only packreload phase observer dc1a453a peer CLEAR03362659 ready root integration; shipping wire reaches externalwatchers notice but no SpecPacksReloaded/scan marker, exact later stage UNKNOWN. All F/P2F/host/performance gates OPEN.
 
-Next: root-only explicitGO+launch wrapper/launch.py, inspectactual DIAGNOSTIC_CONTEXT firstfalse facets; never weaken owner/input/currentness. No ownCargo/source/runtime.
+Next: root integrates peer-cleared WORK-only startup phase observer and allocates fresh diagnostic build/run; inspect first actual unfinished pack stage. No speculative authority change, retries, budget increases, own Cargo/source/runtime.
 
 ## In progress
 

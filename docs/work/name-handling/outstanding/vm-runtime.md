@@ -2,16 +2,31 @@
 
 Area: tcl-vm, runtime/rust, tcl-spectcl, tcl-spec-studio: SpecTcl execution and acceptance.
 
-Last updated: 2026-10-23T15:39:20.293672+00:00 (root integrated fatal+clock; fresh34ef CI39979911286 queued; exactenv10diagnostic commandplan ready/unrun)
+Last updated: 2026-10-23T16:20:17.987783+00:00 (f62 heavy complete355:318PASS37FAIL;16P2F/21addedFAIL heavy-only; env10 unrun)
 
 Maintained by the vm-runtime agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## Resume
 
+Fresh f62 heavy120500263098 complete355selected/355unique terminal:318PASS,
+37FAIL, nextest100/capture_validtrue; no timeout/crash/missing terminal status.
+Exact fcb312 heavy join16P2F+21addedFAIL; one oldbaseline identity absent.
+All37failures routeBigIP (f5-cli7/tcl-irule-test30); compilerfuzz111PASS.
+Raw+events+exactjoin /workspace/naming-proof-storage/vm-f62-heavy120500263098/,
+classification460c7b67. Uploaded artifact12515082018 has full capturedpayload;
+console samples truncated, durations alone do not identify sharedcause.
+This is heavy-only, NOT complete all5jobs+3e2e baseline comparison. Rootnotified.
+
 Root applied fatalnamespace37650+clock17390 to canonical7830cd50/release34ef45f6.
-Fresh GitHub ordinaryCI39979911286 exactrelease34ef45f6ed34 QUEUED; no fullTom
-success/inventory yet. Priorf62 CI39978501863 alsoqueued;347completedFAIL.
-Recommend newordinaryCI for completefullsemanticinventory, preserving f62 proof.
+Fresh f62 CI39978501863 runtime120500262888 actually FAILED/SIGABRT with92
+unique namedFAIL (93rows including clockchildduplicate); still OLD fatal+clock
+fixtures, no finalsummary/current-source acceptance. New ordinaryCI after next
+root carry will replace queued34ef; root reports no current runtime result yet.
+Comparative receipt /workspace/naming-proof-storage/vm-fulltom-f62-versus347-triage.json
+retains exact added identity and unchanged env10, no sharedcause inferred.
+CCG prepares shared WASM7 (sealed+5table+abortloop) using one fresh artifact and
+original reserved-runtime prewarm; VM has commandplan only/no executable runner.
+No duplicate build/GO; root sole slot/source/Git authority.
 Exactoriginal10env failing-selector diagnostic commandtemplate be524834 ready
 `/workspace/naming-proof-storage/vm-fulltom-env10-diagnostic-command-plan-v1/`:
 freshactualCargoJSON lib/engine/fullTom0W, same10selectors/assertions/profiles,

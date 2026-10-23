@@ -1,0 +1,30 @@
+{
+  "actual_utc": "2026-10-23T16:09:45.864654+00:00",
+  "status": "PREPARED_UNRUN",
+  "archive_sha256": "41175f603eab8df2da1bebab17108b43fd17dd63bec066cf5bb5528107135a4e",
+  "payload_sha256": {
+    "protocol/input-pins.json": "1257b7cddf11bb4fc700c5b473d3803702e2f9871edae65f243e08e6e7c4fcae",
+    "protocol/root-pair-v2-delta-review.json": "5d6f0ebf8b9617abc83f1660d5ce255b2b26508ab52ccd5e3193b564cc16318b",
+    "protocol/worker.py": "a9405a7bf04bb92c0b2329eb10ed2fa8ff4ffad821b16da2afc80fd32ae090eb",
+    "protocol/prepare-rename-contract.json": "f5a612001befa8fb653bf0ece39ccfa7db231e53ab69f42470f28a5cfbd86c39",
+    "protocol/root-readiness.json": "4581d95cb5f2296a2a534e66d59b17f82f8ec07fc745a2b6dc3021701ca0ac2d",
+    "protocol/semantic_checks.py": "f299b4c8b00210e879f0089a1b654f498bbc6d47e6ca51df66ace7d0d96412ab",
+    "protocol/measure.py": "8075cee59a74381249ced0e0477431eea7d925c7e13407094d9aae97e5adf963",
+    "protocol/bounded_client.py": "c5142f04662d77d5326ab622f714af1ae3361a490547f8795e0a20eb745ce5cd",
+    "protocol/guarded-exec.py": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811",
+    "protocol/manifest.json": "f43a2c77f2c1959fcf0dfd92729360b3b8c2964a05513bb368223b5cb9ff8940",
+    "protocol/README.txt": "517a43a785a2c70942ffde7cbfd11fcce3ad7197d4951b0a9cf55a93546bedd3",
+    "provenance/producer-api-job.json": "018caa2fed616c4e6cc78e9c67069b293faf2e5aaa05d2cbf0ea2ce429b8a025",
+    "provenance/artifact-api.json": "abe471e1bbb4fd2ebe4af8de466c70d000245b9035155141ac7e4bf07ca1616a",
+    "provenance/independent-artifact-verification.json": "0a0dbabe59367e7b16458912f4edadeb3efb1fef7006851b2d7f9fcc9e118fe6",
+    "provenance/producer-log-bytecheck.json": "4e6291ac3343936ade8e90dc00b0a508631daa9c5e6f1a8e3a860dbb73ac89f4",
+    "provenance/producer-log-bytecheck-addendum.json": "fb167287126e2a5088d2835651880ad9a56e7cac17578a6f3c20cde215002d54",
+    "provenance/producer-job120500263980.connector-exact.log.txt": "20d09ae68ec811c43769d5d2f8f81231415398ec759e7e3682fbbc6bda061c22",
+    "actual-native-release-pair-f62-prepared-v2.json": "f2808f4c15807c1309b960d4f3d267f4dfc2e29e4f2dd31a851690ee2872b43d",
+    "peer/receipt.json": "521daad3dd11d6f3890ee178682a8430579ee3f1ed1f14309aaac72a6ce6b57d"
+  },
+  "roundtrip": true,
+  "binary_and_zip_remain_workspace_only": true,
+  "baseline_object_unchanged": true,
+  "no_shipping_measurement_admission": true
+}

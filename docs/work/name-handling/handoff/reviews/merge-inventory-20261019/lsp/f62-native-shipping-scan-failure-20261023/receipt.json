@@ -1,0 +1,33 @@
+{
+  "actual_utc": "2026-10-23T16:19:11.569133+00:00",
+  "archive_sha256": "d775969b7cd78976599f213396344c721f323d4cdcbad5f3f0768a2d04a3c893",
+  "payload_sha256": {
+    "run/pair0-baseline.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "run/pair0-candidate.process.json": "b85fca478c67b61c0231c7a2913dd461231fc6eb7d9e9b9283d18beade1f80c4",
+    "run/pair0-baseline.process.json": "46e52cb40bf580dc20d2e75c0c9f1c234bf6539ffb6064541e3f8a9e842005fd",
+    "run/summary.json": "e2e52cc0990fe036f50c49c886fc83e9640eb299bba3d03da119a45ead0710a0",
+    "run/pair0-baseline.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "run/pair0-candidate.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "run/pair0-candidate.stderr": "07aaf7d5e020e411925fd4fb7705fbbc978cef9a0ae779c8146c23c8a5cb4133",
+    "run/pair0-candidate/server.stdout.frames": "839dfc069077e743a119eba9f67262de8b97eeda84df9fc05e54ca3749b70229",
+    "run/pair0-candidate/server.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "run/pair0-candidate/measurement.json": "dac0a7620ff789d710c72a4ed4f7ccfd7a23cc940c001854e10d00ec1b6564b1",
+    "run/pair0-baseline/server.stdout.frames": "d5f02b0286139d676e394571847c49d89abfa3c91211ca982aa729f40423d88b",
+    "run/pair0-baseline/server.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "run/pair0-baseline/measurement.json": "4d8ac09a09fbe589e8d75ba78042cf693b6c783457f43c6e77b0b47e3842de48",
+    "run/pair0-candidate/workspace/main.tcl": "162614181eefa1fe279d150097eb490e25255a67438bc548410147466b85d37b",
+    "run/pair0-baseline/workspace/main.tcl": "162614181eefa1fe279d150097eb490e25255a67438bc548410147466b85d37b",
+    "run/pair0-baseline/workspace/__latency_protocol_probe.tcl": "bd30375983c9358c80a5b1767f706e88b4205c3bcd3542235d33d7ec56dd2c90",
+    "root-go-and-launch.json": "bed38e0c15d2e82672f808234f158e4dd8a92eb329b4d65f1224a83cde6b5545",
+    "protocol-manifest.json": "f43a2c77f2c1959fcf0dfd92729360b3b8c2964a05513bb368223b5cb9ff8940",
+    "artifact-pair.json": "f2808f4c15807c1309b960d4f3d267f4dfc2e29e4f2dd31a851690ee2872b43d"
+  },
+  "roundtrip": true,
+  "tool_session_id": 19594,
+  "baseline_status": "MEASURED_NOT_ADMITTED",
+  "candidate_status": "INCOMPLETE",
+  "candidate_first_tokens_ms": 549.573462,
+  "first_terminal": "unchanged30s workspace scan barrier",
+  "later_semantic_navigation_warm_cancel_assertions_unreached": true,
+  "shipping_acceptance": false
+}
