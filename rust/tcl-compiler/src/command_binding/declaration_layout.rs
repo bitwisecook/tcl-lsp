@@ -213,11 +213,6 @@ impl OriginalDiagnosticFrameEntry {
                 == Some(source.text.bytes())
     }
 
-    #[cfg(test)]
-    pub(super) fn owns_invocation(&self, binding: &super::SourceInvocationBinding) -> bool {
-        binding.variable_frame == *self.frame()
-    }
-
     pub(super) fn owns_frame(
         &self,
         bindings: &SourceCommandBindings,

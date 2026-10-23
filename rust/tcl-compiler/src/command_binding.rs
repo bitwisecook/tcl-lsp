@@ -9617,8 +9617,7 @@ impl SourceCommandBindings {
         let namespace = context.namespace_identity();
         let head = original_name_value::original_command_head_input(words, offset, state, *context);
         let head = head?;
-        let binding = source_binding_from_original_input_boxed(state, &head, &namespace);
-        binding
+        source_binding_from_original_input_boxed(state, &head, &namespace)
     }
 
     fn walk_document_target(

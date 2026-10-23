@@ -518,7 +518,7 @@ impl OriginalNamespaceBinding {
         state: &ModuleCommandBindings,
         context: super::SourceExecutionContext<'_>,
     ) -> bool {
-        let completed = quiet(state)
+        quiet(state)
             && context.config == self.config
             && native.words == self.words
             && *native.target == self.handler
@@ -535,8 +535,7 @@ impl OriginalNamespaceBinding {
             && state.namespace_exports == self.expected.namespace_exports
             && state.namespaces == self.expected.namespaces
             && state.unknown_lookup_namespaces == self.expected.unknown_lookup_namespaces
-            && state.unknown_export_namespaces == self.expected.unknown_export_namespaces;
-        completed
+            && state.unknown_export_namespaces == self.expected.unknown_export_namespaces
     }
 }
 

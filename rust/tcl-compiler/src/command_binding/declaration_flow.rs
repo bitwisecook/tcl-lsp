@@ -466,19 +466,6 @@ impl DeclarationFlowReport {
             && !self.has_authored_use(name)
             && !self.aliases.contains(name)
     }
-
-    #[cfg(test)]
-    pub(crate) fn unread_gate_summary(&self, site: &CommandAllocationSite, name: &str) -> String {
-        format!(
-            "unknown_paths={} unknown_reads={} entry={:?} store={} read={} alias={}",
-            self.unavailable,
-            self.unknown_reads,
-            self.invocation_may_be_reached(site),
-            self.stores.contains(&(site.offset, name.to_owned())),
-            self.all_reads.contains(name),
-            self.aliases.contains(name)
-        )
-    }
 }
 
 impl SourceInvocationBinding {

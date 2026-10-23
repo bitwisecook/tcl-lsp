@@ -70,22 +70,14 @@ struct TableIndexEntry {
     index: OnceLock<Arc<DeferredNamespaceIndex>>,
 }
 
+#[derive(Default)]
 pub(super) struct DeferredNamespaceIndexCache {
     entries: Mutex<HashMap<usize, Arc<TableIndexEntry>>>,
 
     #[cfg(test)]
     builds: std::sync::atomic::AtomicUsize,
 }
-impl Default for DeferredNamespaceIndexCache {
-    fn default() -> Self {
-        Self {
-            entries: Mutex::default(),
 
-            #[cfg(test)]
-            builds: std::sync::atomic::AtomicUsize::default(),
-        }
-    }
-}
 // A forked collector starts with an empty derived cache. Warmth contributes
 // neither to retained semantic equality nor to diagnostic Debug output.
 impl Clone for DeferredNamespaceIndexCache {

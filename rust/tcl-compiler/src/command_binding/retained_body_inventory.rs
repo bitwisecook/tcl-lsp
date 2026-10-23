@@ -22,6 +22,7 @@ use std::sync::{Arc, Mutex, OnceLock};
 type ProjectionKey = (Arc<SourceOriginId>, SourceNamespaceKey);
 type ProjectionEntry = Arc<OnceLock<Option<RetainedSourceBodyInventory>>>;
 
+#[derive(Default)]
 struct BodyProjectionMemo {
     entries: Mutex<HashMap<ProjectionKey, ProjectionEntry>>,
 
@@ -29,19 +30,6 @@ struct BodyProjectionMemo {
     requests: std::sync::atomic::AtomicUsize,
     #[cfg(test)]
     captures: std::sync::atomic::AtomicUsize,
-}
-
-impl Default for BodyProjectionMemo {
-    fn default() -> Self {
-        Self {
-            entries: Mutex::default(),
-
-            #[cfg(test)]
-            requests: std::sync::atomic::AtomicUsize::default(),
-            #[cfg(test)]
-            captures: std::sync::atomic::AtomicUsize::default(),
-        }
-    }
 }
 
 /// Exact-offset original invocation projections of one completed inventory
@@ -172,7 +160,7 @@ impl RetainedSourceBodyInventory {
                     .or_default(),
             )
         };
-        let selected = entry
+        entry
             .get_or_init(|| {
                 #[cfg(test)]
                 {
@@ -184,8 +172,7 @@ impl RetainedSourceBodyInventory {
                     .selected_source_in_context(script, namespace)
                     .map(Self::from)
             })
-            .clone();
-        selected
+            .clone()
     }
 }
 

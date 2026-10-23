@@ -203,14 +203,7 @@ impl SourceCommandBindings {
         {
             return Some(value);
         }
-        let value = self.original_direct_formal_value(
-            origin,
-            source,
-            spelling,
-            parameters,
-            (registry, owner),
-        );
-        value
+        self.original_direct_formal_value(origin, source, spelling, parameters, (registry, owner))
     }
 
     fn original_direct_formal_value(

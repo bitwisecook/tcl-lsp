@@ -314,7 +314,7 @@ impl OriginalNamespaceBody {
             return false;
         };
         let delegation = &self.delegation;
-        let completed = quiet(normal)
+        quiet(normal)
             && delegation.site.offset == native.segment.span.start()
             && normal.current_source_origin.as_ref() == Some(&delegation.site.source)
             && delegation.words == native.words
@@ -337,8 +337,7 @@ impl OriginalNamespaceBody {
                 context.config,
             )
             .as_ref()
-                == Some(&delegation.body);
-        completed
+                == Some(&delegation.body)
     }
 }
 

@@ -282,12 +282,7 @@ impl OriginalSourcePointEntry {
         {
             return None;
         }
-        if self
-            .source_advice_graph(input.borrowed_context_registry())
-            .is_none()
-        {
-            return None;
-        }
+        self.source_advice_graph(input.borrowed_context_registry())?;
         Some(self.minted_entry(registry, input))
     }
 

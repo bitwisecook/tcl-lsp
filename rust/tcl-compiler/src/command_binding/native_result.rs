@@ -107,10 +107,9 @@ pub(super) fn capture_original_read_completion(
         tcl_registry::TraceOperation::Read,
         false,
     );
-    let receipt = state
+    state
         .source_variables
-        .original_normal_value_read(&receiver, registry);
-    receipt
+        .original_normal_value_read(&receiver, registry)
 }
 
 /// Exact Set receiver and stored operand coordinate, independently of whether

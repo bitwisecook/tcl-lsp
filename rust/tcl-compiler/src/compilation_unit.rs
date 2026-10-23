@@ -310,8 +310,6 @@ pub struct UnitBuildOptions<'a> {
     pub declared_commands: Option<&'a tcl_registry::model::DeclaredSurface>,
 }
 
-/// The qualified-name prefix of an iRules `when` handler's procedure.
-
 /// Where a consumer reads a place's existence fact
 /// ([`FunctionUnit::existence`]).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -1251,9 +1251,7 @@ fn registered_compiler_selection(
         invocation,
         context.realm,
     );
-    let Some(facts) = facts.as_ref() else {
-        return None;
-    };
+    let facts = facts.as_ref()?;
     let descriptor = original_registration_descriptor(
         selected.words,
         selected.head,

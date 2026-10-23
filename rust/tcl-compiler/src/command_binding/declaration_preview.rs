@@ -1695,11 +1695,9 @@ impl SourceCommandBindings {
         visit: impl FnMut(&ExecutedScriptSource, &[DeclarationLayoutObservation]) -> bool,
     ) -> usize {
         let mut syntax = NestedLayoutSyntax::default();
-        let visits =
-            self.retain_nested_declared_layouts_using(registry, visit, |source, config| {
-                syntax.commands(source, config)
-            });
-        visits
+        self.retain_nested_declared_layouts_using(registry, visit, |source, config| {
+            syntax.commands(source, config)
+        })
     }
 
     fn retain_nested_declared_layouts_using(

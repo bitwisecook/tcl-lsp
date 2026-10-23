@@ -542,20 +542,15 @@ pub(crate) fn logical_structured_invocation_with_metadata_context(
     let selected =
         resolved_handler_invocation_with_metadata_context(registry, Some(context), tokens);
     let selected = selected.or_else(|| {
-        let selected = bindings.and_then(|bindings| {
+        bindings.and_then(|bindings| {
             owned_body_layout_invocation(registry, context, tokens, bindings)
                 .map(|owned| owned.invocation)
-        });
-        selected
+        })
     });
-    let selected = selected.or_else(|| {
-        let selected = original_declared_structured_invocation(registry, context, tokens);
-        selected
-    });
-    let selected = selected.or_else(|| {
-        let selected = original_inline_control_structured_invocation(registry, context, tokens);
-        selected
-    })?;
+    let selected =
+        selected.or_else(|| original_declared_structured_invocation(registry, context, tokens));
+    let selected = selected
+        .or_else(|| original_inline_control_structured_invocation(registry, context, tokens))?;
     let source_roles = if logical_source {
         let binding = tokens.source_binding.as_ref()?;
         let realm = binding.original_source_realm_for_input(
@@ -810,8 +805,7 @@ fn original_declared_structured_invocation<'a>(
     if !closed {
         return None;
     }
-    let selected = resolve_original_declared_layout(registry, context, tokens, &advice);
-    selected
+    resolve_original_declared_layout(registry, context, tokens, &advice)
 }
 
 /// Conditional source structure retained by a genuine Inline Control compiler.
@@ -7581,7 +7575,6 @@ pub(crate) fn logical_parameter_body_assistance(
 /// Logical lambda. The separate role facet never enters ordinary invocation
 /// advice or establishes lambda entry.
 // naming.compiler.logical-lambda-parameter-trait-source-roles
-
 pub(crate) fn logical_lambda_parameter_body_assistance(
     surface: &tcl_registry::model::DocumentCommandSurface<'_>,
     realm: &crate::realm::CommandBindingRealm,

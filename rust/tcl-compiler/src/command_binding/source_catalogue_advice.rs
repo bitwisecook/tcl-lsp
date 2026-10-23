@@ -176,9 +176,7 @@ impl SourceInvocationBinding {
             policy,
         )?;
         let head = SourceOriginalNameOccurrence::new(site, key)?;
-        let candidate =
-            self.original_catalogue_source_candidate(tokens, &head, Some(&namespace), registry);
-        candidate
+        self.original_catalogue_source_candidate(tokens, &head, Some(&namespace), registry)
     }
 
     pub(crate) fn original_catalogue_source_candidate(

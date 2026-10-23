@@ -34,21 +34,17 @@ pub(crate) fn original_symbol_declaration_advice<'a>(
         let selected = for_shape(registry, context, &catalogue.shape);
         return selected;
     }
-    let Some(assistance) = super::original_registry_invocation_assistance_with_metadata_context(
+    let assistance = super::original_registry_invocation_assistance_with_metadata_context(
         registry,
         Some(context),
         tokens,
-    ) else {
-        return None;
-    };
+    )?;
     if assistance.unknown_residual || assistance.may_be_absent {
         return None;
     }
     let mut agreed = None;
     for candidate in &assistance.candidates {
-        let Some(selected) = for_shape(registry, context, candidate) else {
-            return None;
-        };
+        let selected = for_shape(registry, context, candidate)?;
         if agreed.as_ref().is_some_and(|prior| prior != &selected) {
             return None;
         }

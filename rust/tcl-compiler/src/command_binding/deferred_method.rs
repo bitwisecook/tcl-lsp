@@ -1187,10 +1187,9 @@ fn closed_bounded_method_segments(
     state: &ModuleCommandBindings,
     context: SourceExecutionContext<'_>,
 ) -> bool {
-    segments.iter().all(|segment| {
-        let closed = closed_definition_member(grammar, definition, map, segment, state, context);
-        closed
-    })
+    segments
+        .iter()
+        .all(|segment| closed_definition_member(grammar, definition, map, segment, state, context))
 }
 
 fn select_bounded_method_definition(

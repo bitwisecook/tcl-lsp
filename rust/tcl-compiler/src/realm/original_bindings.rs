@@ -61,10 +61,8 @@ impl CommandBindingRealm {
     pub(super) fn retained_original_invocation(&self, offset: u32) -> Arc<SourceInvocationBinding> {
         // Implementation contract: naming.source.original-invocation-projection-memo
 
-        self.original_bindings.get_or_prepare(offset, || {
-            let binding = self.bindings.invocation_at_source("", offset);
-            binding
-        })
+        self.original_bindings
+            .get_or_prepare(offset, || self.bindings.invocation_at_source("", offset))
     }
 
     /// Reuse this immutable realm's exact invocation for a readonly original

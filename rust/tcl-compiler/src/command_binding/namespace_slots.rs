@@ -246,7 +246,6 @@ impl ModuleCommandBindings {
     /// operand. Allocated keys retain the real source site and bounded lifetime;
     /// this conditional source transfer creates no native namespace token.
     // Implementation contract: naming.namespace.original-counted-namespace-allocation
-
     pub(super) fn ensure_original_namespace_key_at(
         &mut self,
         current: &SourceNamespaceKey,

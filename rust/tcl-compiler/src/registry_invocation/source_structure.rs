@@ -2662,7 +2662,6 @@ pub fn source_configured_class_at(
 /// schema attached to the original words; a report label cannot select it.
 #[must_use]
 // naming.source.original-configured-class-transition-roles
-
 pub fn source_configured_class_words_at(
     source: &str,
     analysis: &AnalysisResult,
@@ -4057,8 +4056,7 @@ fn source_transition_registry_words(
     );
     realm.stamp_original_tokens(&mut tokens);
     let advice = realm.original_source_transition_advice(context, &tokens);
-    let result = source_transition_words_with_segment(source, config, context, segment, advice?);
-    result
+    source_transition_words_with_segment(source, config, context, segment, advice?)
 }
 
 /// Project a sealed original source receipt through the same role/body owner.

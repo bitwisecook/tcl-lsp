@@ -128,8 +128,7 @@ impl OriginalSourceLexicalCompilation {
         registry: &CommandRegistry,
         operation: TraceOperation,
     ) -> Place {
-        let result = self.resolve_root_inner(root, element, context, registry, operation);
-        result
+        self.resolve_root_inner(root, element, context, registry, operation)
     }
 
     fn resolve_root_inner(

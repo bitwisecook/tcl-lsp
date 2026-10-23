@@ -22,6 +22,7 @@ struct ProjectionEntry {
 /// The actual immutable source-kind allocation owns image and source channel.
 /// The weak-owner sidecar table retains this derived memo outside source keys.
 /// A bucket key never substitutes for exact complete vector correspondence.
+#[derive(Default)]
 pub(super) struct OriginalSourceProjectionMemo {
     entries: Mutex<ProjectionEntries>,
     /// Clean nested command-body parse verdicts of this origin's whole image,
@@ -30,18 +31,6 @@ pub(super) struct OriginalSourceProjectionMemo {
 
     #[cfg(test)]
     captures: std::sync::atomic::AtomicUsize,
-}
-
-impl Default for OriginalSourceProjectionMemo {
-    fn default() -> Self {
-        Self {
-            entries: Mutex::default(),
-            nested_cuts: tcl_lexer::NestedBodyCutMemo::default(),
-
-            #[cfg(test)]
-            captures: std::sync::atomic::AtomicUsize::default(),
-        }
-    }
 }
 
 // Derived cache warmth is neither semantic identity nor diagnostic output.
@@ -93,15 +82,14 @@ impl OriginalSourceProjectionMemo {
                     self.captures
                         .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
                 }
-                let original = OriginalSourceCommandProjection::capture_with_nested_cuts(
+                OriginalSourceCommandProjection::capture_with_nested_cuts(
                     image,
                     &entry.words,
                     offset,
                     config,
                     Some(&self.nested_cuts),
                 )
-                .map(Arc::new);
-                original
+                .map(Arc::new)
             })
             .clone()
     }
