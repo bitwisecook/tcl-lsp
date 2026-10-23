@@ -1854,7 +1854,7 @@ impl OriginalDeclarationRegistry {
         identity: RetainedDeclaration,
         schema: u8,
     ) -> Option<OriginalDeclarationHandle> {
-        let session = if matches!(schema, 3 | 4 | 5) {
+        let session = if matches!(schema, 3..=5) {
             Some(self.session?)
         } else {
             None

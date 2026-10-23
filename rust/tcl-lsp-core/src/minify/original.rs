@@ -700,10 +700,10 @@ fn syntax_compaction(source: &str, analysis: &AnalysisResult) -> Result<String, 
                 else {
                     continue;
                 };
-                let Ok(content) = word.content_span() else {
+                let Ok(inner_span) = word.content_span() else {
                     continue;
                 };
-                let Some(inner) = source.get(content.as_range()) else {
+                let Some(inner) = source.get(inner_span.as_range()) else {
                     continue;
                 };
                 if let Some(edit) =
