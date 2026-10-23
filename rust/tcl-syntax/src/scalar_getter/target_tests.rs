@@ -585,9 +585,47 @@ fn primitive_failure_string_obligation_refuses_operand_free_rendering_for_quoted
     );
 }
 
+fn original_c84_boolean_case(
+    protocol: &NativeScalarGetterProtocol,
+    original_strings: &[&[u8]; 20],
+    case: usize,
+) -> (Vec<u8>, Option<NativeScalarCache>) {
+    if case < 20 {
+        (original_strings[case].to_vec(), None)
+    } else {
+        match case {
+            20 | 21 => (b"17".to_vec(), Some(NativeScalarCache::Tcl84Long(17))),
+            22 => (
+                b"17".to_vec(),
+                Some(NativeScalarCache::Number(Number::Int(17))),
+            ),
+            23 => (
+                b"17.0".to_vec(),
+                Some(NativeScalarCache::Number(Number::Double(17.0))),
+            ),
+            24 => (
+                b"nan".to_vec(),
+                Some(NativeScalarCache::Number(Number::Double(f64::NAN))),
+            ),
+            25 => (b"1".to_vec(), Some(NativeScalarCache::WordBoolean(true))),
+            26 => (
+                b"4294967296".to_vec(),
+                Some(NativeScalarCache::Number(Number::Int(4_294_967_296))),
+            ),
+            27 => (
+                protocol
+                    .materialize(NativeScalarStringStorage::ByteArray, b"1\0X")
+                    .unwrap()
+                    .into_owned(),
+                None,
+            ),
+            28 => ([b'a'; 50].into_iter().chain("😀Z".bytes()).collect(), None),
+            _ => unreachable!(),
+        }
+    }
+}
+
 #[test]
-#[allow(clippy::too_many_lines)]
-#[allow(clippy::needless_range_loop)] // `case` also selects the cache shape
 fn original_c84_fresh_boolean_narrows_signed_long_before_truth_and_cached_wide_does_not() {
     // naming.numeric.original-capi-scalar-publication-width
     // docs/design/analysis/name-resolution-proofs/numeric-original-capi-scalar-publication-width.md
@@ -629,39 +667,7 @@ fn original_c84_fresh_boolean_narrows_signed_long_before_truth_and_cached_wide_d
     for fixture in [C_LIVE[0], C_NULL[0]] {
         let target = target(fixture);
         for case in 0..29 {
-            let (bytes, cache) = if case < 20 {
-                (original_strings[case].to_vec(), None)
-            } else {
-                match case {
-                    20 | 21 => (b"17".to_vec(), Some(NativeScalarCache::Tcl84Long(17))),
-                    22 => (
-                        b"17".to_vec(),
-                        Some(NativeScalarCache::Number(Number::Int(17))),
-                    ),
-                    23 => (
-                        b"17.0".to_vec(),
-                        Some(NativeScalarCache::Number(Number::Double(17.0))),
-                    ),
-                    24 => (
-                        b"nan".to_vec(),
-                        Some(NativeScalarCache::Number(Number::Double(f64::NAN))),
-                    ),
-                    25 => (b"1".to_vec(), Some(NativeScalarCache::WordBoolean(true))),
-                    26 => (
-                        b"4294967296".to_vec(),
-                        Some(NativeScalarCache::Number(Number::Int(4_294_967_296))),
-                    ),
-                    27 => (
-                        protocol
-                            .materialize(NativeScalarStringStorage::ByteArray, b"1\0X")
-                            .unwrap()
-                            .into_owned(),
-                        None,
-                    ),
-                    28 => ([b'a'; 50].into_iter().chain("😀Z".bytes()).collect(), None),
-                    _ => unreachable!(),
-                }
-            };
+            let (bytes, cache) = original_c84_boolean_case(&protocol, &original_strings, case);
             let actual = cache
                 .as_ref()
                 .and_then(|cache| {

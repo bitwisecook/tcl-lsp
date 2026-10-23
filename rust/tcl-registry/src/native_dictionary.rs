@@ -838,11 +838,11 @@ mod compiler_tests {
                         NativeStringProtocol::Jim084,
                     )
                     .unwrap();
-                    #[allow(clippy::format_collect)]
-                    let hex = elements[ordinal.expect("native successful member")]
-                        .iter()
-                        .map(|byte| format!("{byte:02x}"))
-                        .collect::<String>();
+                    use std::fmt::Write;
+                    let mut hex = String::new();
+                    for byte in elements[ordinal.expect("native successful member")].iter() {
+                        write!(hex, "{byte:02x}").expect("writing to a string succeeds");
+                    }
                     assert_eq!(hex, fields[3], "{}", fields[1]);
                 } else {
                     assert_eq!(ordinal, None, "{}", fields[1]);

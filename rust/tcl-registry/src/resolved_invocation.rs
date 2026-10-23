@@ -7586,7 +7586,6 @@ mod tests {
     }
 
     #[test]
-    #[allow(clippy::single_range_in_vec_init)] // vectors of argument ranges
     fn original_frame_script_advice_keeps_selected_and_logical_layouts_separate() {
         // naming.diagnostic.registry-source-ownership
         // docs/design/analysis/name-resolution-proofs/diagnostic-registry-source-ownership.md
@@ -7594,7 +7593,10 @@ mod tests {
         let registry = CommandRegistry::build_default();
         let dialect = crate::InvocationDialect::for_version(tcl_dialect::TclVersion::V8_6);
         for (arguments, expected) in [
-            (vec![Literal("1"), Dynamic], Some(vec![1..2])),
+            (
+                vec![Literal("1"), Dynamic],
+                Some(std::iter::once(1..2).collect()),
+            ),
             (vec![Dynamic, Dynamic], Some(vec![0..2, 1..2])),
             (vec![Literal("1")], Some(Vec::new())),
             (vec![Literal("1"), Expanded], None),
@@ -7629,7 +7631,7 @@ mod tests {
             .unwrap();
         assert_eq!(
             selected.authored_logical_source_frame_script_arguments(),
-            Some(vec![1..2])
+            Some(std::iter::once(1..2).collect())
         );
     }
 
@@ -7919,40 +7921,56 @@ mod tests {
         assert!(!selected.facts().arg_roles_complete);
     }
 
-    #[test]
-    #[allow(clippy::too_many_lines)]
-    fn authored_proc_hook_declaration_requires_exact_source_roles_and_transition() {
-        const ROLES: &[(u8, ArgRole)] = &[
-            (0, ArgRole::Name),
-            (1, ArgRole::ParamList),
-            (2, ArgRole::Body),
-        ];
-        const CONFLICTING_ROLES: &[(u8, ArgRole)] = &[
-            (0, ArgRole::Name),
-            (1, ArgRole::Body),
-            (2, ArgRole::ParamList),
-        ];
-        for (hook, transition, roles, expected) in [
+    const PROC_SOURCE_ROLES: &[(u8, ArgRole)] = &[
+        (0, ArgRole::Name),
+        (1, ArgRole::ParamList),
+        (2, ArgRole::Body),
+    ];
+    const PROC_CONFLICTING_SOURCE_ROLES: &[(u8, ArgRole)] = &[
+        (0, ArgRole::Name),
+        (1, ArgRole::Body),
+        (2, ArgRole::ParamList),
+    ];
+
+    type ProcSourceCase = (
+        Option<crate::hooks::AnalyserHookId>,
+        Option<CommandTableEffect>,
+        &'static [(u8, ArgRole)],
+        bool,
+    );
+
+    fn authored_proc_source_cases() -> [ProcSourceCase; 4] {
+        [
             (
                 Some(crate::hooks::AnalyserHookId::Proc),
                 Some(CommandTableEffect::DefinesProcedure),
-                ROLES,
+                PROC_SOURCE_ROLES,
                 true,
             ),
             (
                 None,
                 Some(CommandTableEffect::DefinesProcedure),
-                ROLES,
+                PROC_SOURCE_ROLES,
                 false,
             ),
-            (Some(crate::hooks::AnalyserHookId::Proc), None, ROLES, false),
+            (
+                Some(crate::hooks::AnalyserHookId::Proc),
+                None,
+                PROC_SOURCE_ROLES,
+                false,
+            ),
             (
                 Some(crate::hooks::AnalyserHookId::Proc),
                 Some(CommandTableEffect::DefinesProcedure),
-                CONFLICTING_ROLES,
+                PROC_CONFLICTING_SOURCE_ROLES,
                 false,
             ),
-        ] {
+        ]
+    }
+
+    #[test]
+    fn authored_proc_hook_declaration_requires_exact_source_roles_and_transition() {
+        for (hook, transition, roles, expected) in authored_proc_source_cases() {
             let mut registry = CommandRegistry::build_default();
             registry.insert(CommandSpec {
                 name: "source-definer",
@@ -8013,7 +8031,7 @@ mod tests {
             registry.insert(CommandSpec {
                 name: "conflicting-source-definer",
                 arity: Arity::exact(3),
-                arg_roles: ROLES,
+                arg_roles: PROC_SOURCE_ROLES,
                 analyser_hook: Some(crate::hooks::AnalyserHookId::Proc),
                 command_table_effect: Some(CommandTableEffect::DefinesProcedure),
                 script_timing_resolver: Some(immediate),
@@ -8976,14 +8994,8 @@ mod tests {
         );
     }
 
-    #[test]
-    #[allow(clippy::too_many_lines)]
-    fn structured_option_boundary_shares_alias_abbreviation_and_value_span_rules() {
-        // Implementation contract: naming.studio.source-word-role-projection
-        // docs/design/analysis/name-resolution-proofs/studio-source-word-role-projection.md
-
-        use crate::InvocationWord::{Dynamic, Literal};
-        let options = [
+    fn structured_boundary_options() -> [OptionSpec; 2] {
+        [
             OptionSpec {
                 name: "-offset",
                 aliases: &["-begin"],
@@ -8995,7 +9007,26 @@ mod tests {
                 name: "--",
                 ..OptionSpec::DEFAULT
             },
-        ];
+        ]
+    }
+
+    fn structured_boundary_unknown_value() -> [crate::InvocationWord<'static>; 4] {
+        use crate::InvocationWord::{Dynamic, Literal};
+        [
+            Literal("-offset"),
+            Dynamic,
+            Literal("2"),
+            Literal("position"),
+        ]
+    }
+
+    #[test]
+    fn structured_option_boundary_shares_alias_abbreviation_and_value_span_rules() {
+        // Implementation contract: naming.studio.source-word-role-projection
+        // docs/design/analysis/name-resolution-proofs/studio-source-word-role-projection.md
+
+        use crate::InvocationWord::{Dynamic, Literal};
+        let options = structured_boundary_options();
         let available = options.iter().collect::<Vec<_>>();
         let selected = InvocationOptions {
             availability: InvocationAvailability::default(),
@@ -9052,12 +9083,7 @@ mod tests {
             )
             .is_none()
         );
-        let unknown_value = [
-            Literal("-offset"),
-            Dynamic,
-            Literal("2"),
-            Literal("position"),
-        ];
+        let unknown_value = structured_boundary_unknown_value();
         assert_eq!(
             selected
                 .prefix_occurrences(InvocationArguments::structured(&unknown_value))
@@ -11244,10 +11270,60 @@ fn authored_receiver_form_does_not_require_native_procedure_acceptance() {
     );
 }
 
+fn assert_original_trace_computed_receivers(
+    registry: &crate::CommandRegistry,
+    dialect: crate::InvocationDialect,
+) {
+    use VariableReceiverOperandForm::TraceSubject;
+    for (subject, expected) in [
+        (crate::InvocationWord::Dynamic, Some(TraceSubject)),
+        (
+            crate::InvocationWord::KnownBytes(b"v\xff"),
+            Some(TraceSubject),
+        ),
+        (crate::InvocationWord::Expanded, None),
+    ] {
+        let words = [
+            crate::InvocationWord::Literal("info"),
+            crate::InvocationWord::Literal("variable"),
+            subject,
+        ];
+        let invocation = registry
+            .resolve_structured_invocation(
+                crate::InvocationWords::structured(crate::InvocationWord::Literal("trace"), &words),
+                dialect.authoring_query(),
+            )
+            .resolved()
+            .unwrap();
+        assert_eq!(
+            invocation.authored_source_variable_receiver_operand_form(2),
+            expected
+        );
+    }
+    let dynamic = registry
+        .resolve_structured_invocation(
+            crate::InvocationWords::structured(
+                crate::InvocationWord::Literal("trace"),
+                &[
+                    crate::InvocationWord::Literal("info"),
+                    crate::InvocationWord::Dynamic,
+                    crate::InvocationWord::Literal("::v"),
+                ],
+            ),
+            dialect.authoring_query(),
+        )
+        .resolved()
+        .unwrap();
+    assert!(
+        dynamic
+            .authored_source_variable_receiver_operand_form(2)
+            .is_none()
+    );
+}
+
 #[test]
 // Implementation contract: naming.variable.trace-source-receiver-purpose
 // docs/design/analysis/name-resolution-proofs/trace-source-receiver-purpose.md
-#[allow(clippy::too_many_lines)]
 fn original_trace_receiver_forms_select_variable_grammar_ordinals_and_release() {
     use VariableReceiverOperandForm::TraceSubject;
     let registry = crate::CommandRegistry::build_default();
@@ -11322,53 +11398,7 @@ fn original_trace_receiver_forms_select_variable_grammar_ordinals_and_release() 
                     .is_none()
             );
         }
-        for (subject, expected) in [
-            (crate::InvocationWord::Dynamic, Some(TraceSubject)),
-            (
-                crate::InvocationWord::KnownBytes(b"v\xff"),
-                Some(TraceSubject),
-            ),
-            (crate::InvocationWord::Expanded, None),
-        ] {
-            let words = [
-                crate::InvocationWord::Literal("info"),
-                crate::InvocationWord::Literal("variable"),
-                subject,
-            ];
-            let invocation = registry
-                .resolve_structured_invocation(
-                    crate::InvocationWords::structured(
-                        crate::InvocationWord::Literal("trace"),
-                        &words,
-                    ),
-                    dialect.authoring_query(),
-                )
-                .resolved()
-                .unwrap();
-            assert_eq!(
-                invocation.authored_source_variable_receiver_operand_form(2),
-                expected
-            );
-        }
-        let dynamic = registry
-            .resolve_structured_invocation(
-                crate::InvocationWords::structured(
-                    crate::InvocationWord::Literal("trace"),
-                    &[
-                        crate::InvocationWord::Literal("info"),
-                        crate::InvocationWord::Dynamic,
-                        crate::InvocationWord::Literal("::v"),
-                    ],
-                ),
-                dialect.authoring_query(),
-            )
-            .resolved()
-            .unwrap();
-        assert!(
-            dynamic
-                .authored_source_variable_receiver_operand_form(2)
-                .is_none()
-        );
+        assert_original_trace_computed_receivers(&registry, dialect);
     }
 }
 

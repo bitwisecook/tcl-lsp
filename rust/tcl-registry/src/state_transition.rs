@@ -3199,6 +3199,33 @@ mod tests {
         );
     }
 
+    fn derived_alias_transition(
+        local: &str,
+        frame: CallerFrameSelection,
+        variable: &str,
+        target: usize,
+    ) -> StateTransition {
+        StateTransition::VariableCellAlias(VariableCellAliasTransition {
+            destination: VariableAliasDestination::CurrentNamespaceOrLocal,
+            local: TransitionSubject::LocatedLiteral {
+                value: local.to_owned(),
+                argument_index: target + 1,
+            },
+            target: VariableAliasTarget::CallerSelectedFrame {
+                frame,
+                variable: TransitionSubject::LocatedLiteral {
+                    value: variable.to_owned(),
+                    argument_index: target,
+                },
+            },
+            writes_value: false,
+            words: AliasWords {
+                local: target + 1,
+                target,
+            },
+        })
+    }
+
     /// The alias facts a `from-frame-effect` resolver derives, and its two
     /// abstentions (`docs/design/spec-dsl-examples/README.md`, "Derivations,
     /// exactly"): a computed level word aborts the whole call, and a
@@ -3206,34 +3233,12 @@ mod tests {
     /// each widening the variable-cell domains for the word it could not
     /// read.
     #[test]
-    #[allow(clippy::too_many_lines)]
     fn derived_alias_pairs_abstain_on_computed_words_and_widen() {
         use crate::frame_effect::FrameLevelWord;
         let resolve = |level_word, words: &[InvocationWord<'_>]| {
             alias_pairs_resolver(level_word)(InvocationArguments::structured(words))
         };
         // Each pair's `otherVar` word at `target`, its local one word later.
-        let alias = |local: &str, frame: CallerFrameSelection, variable: &str, target: usize| {
-            StateTransition::VariableCellAlias(VariableCellAliasTransition {
-                destination: VariableAliasDestination::CurrentNamespaceOrLocal,
-                local: TransitionSubject::LocatedLiteral {
-                    value: local.to_owned(),
-                    argument_index: target + 1,
-                },
-                target: VariableAliasTarget::CallerSelectedFrame {
-                    frame,
-                    variable: TransitionSubject::LocatedLiteral {
-                        value: variable.to_owned(),
-                        argument_index: target,
-                    },
-                },
-                writes_value: false,
-                words: AliasWords {
-                    local: target + 1,
-                    target,
-                },
-            })
-        };
         let widen = |argument_index| {
             StateTransition::Widen(StateTransitionWidening {
                 domains: VARIABLE_ALIAS_DOMAINS.to_vec(),
@@ -3272,9 +3277,9 @@ mod tests {
                 ]
             )),
             [
-                alias("b", level("1"), "a", 1),
+                derived_alias_transition("b", level("1"), "a", 1),
                 widen(3),
-                alias("f", level("1"), "e", 5)
+                derived_alias_transition("f", level("1"), "e", 5)
             ]
         );
         assert_eq!(
@@ -3282,7 +3287,12 @@ mod tests {
                 FrameLevelWord::ArityParity,
                 &[InvocationWord::Literal("a"), InvocationWord::Literal("b")]
             )),
-            [alias("b", CallerFrameSelection::DefaultCaller, "a", 0)]
+            [derived_alias_transition(
+                "b",
+                CallerFrameSelection::DefaultCaller,
+                "a",
+                0
+            )]
         );
         // A computed level word: no alias for the call, not the default frame.
         assert_eq!(
@@ -3306,7 +3316,7 @@ mod tests {
                     InvocationWord::Literal("b"),
                 ]
             )),
-            [alias("b", level("#0"), "a", 1)]
+            [derived_alias_transition("b", level("#0"), "a", 1)]
         );
         // An expansion hides the pairs: nothing is stated.
         assert_eq!(
@@ -3441,25 +3451,15 @@ mod tests {
         }
     }
 
-    /// The witness the analyser's isolated per-item pass needs before it
-    /// consumes transitions (`registry-consumer-contracts.md` § *The
-    /// analyser*): no shipped alias or command-binding resolver states a name
-    /// the source does not spell. A computed word reaches a fact only as a
-    /// typed unknown subject at its own index — the shipped `upvar` states
-    /// its alias with unknown frame/name operands, a derived resolver states
-    /// none. Unknown identities remain in positioned alias operands or widen
-    /// their declared domain; a consumer never binds a name it cannot read.
-    #[test]
-    #[allow(clippy::too_many_lines)]
-    fn alias_and_binding_resolvers_abstain_on_a_dynamic_word() {
-        // Implementation contract: naming.invocation.effective-transition-operands
-        // docs/design/analysis/name-resolution-proofs/effective-transition-operands.md
+    fn dynamic_alias_cases() -> &'static [(
+        &'static str,
+        &'static [InvocationWord<'static>],
+        usize,
+        StateTransitionDomain,
+    )] {
         use crate::InvocationWord::{Dynamic, Literal};
         use StateTransitionDomain::{CommandBindings, VariableCells};
-        let context = crate::model::ingress::static_context_for("tcl9.0");
-        let registry = context.commands();
-        let dialect = crate::InvocationDialect::of_profile(registry.profile().unwrap());
-        let cases: &[(&str, &[InvocationWord<'_>], usize, StateTransitionDomain)] = &[
+        &[
             ("global", &[Dynamic, Literal("g")], 0, VariableCells),
             ("variable", &[Dynamic, Literal("1")], 0, VariableCells),
             (
@@ -3494,7 +3494,27 @@ mod tests {
                 2,
                 CommandBindings,
             ),
-        ];
+        ]
+    }
+
+    /// The witness the analyser's isolated per-item pass needs before it
+    /// consumes transitions (`registry-consumer-contracts.md` § *The
+    /// analyser*): no shipped alias or command-binding resolver states a name
+    /// the source does not spell. A computed word reaches a fact only as a
+    /// typed unknown subject at its own index — the shipped `upvar` states
+    /// its alias with unknown frame/name operands, a derived resolver states
+    /// none. Unknown identities remain in positioned alias operands or widen
+    /// their declared domain; a consumer never binds a name it cannot read.
+    #[test]
+    fn alias_and_binding_resolvers_abstain_on_a_dynamic_word() {
+        // Implementation contract: naming.invocation.effective-transition-operands
+        // docs/design/analysis/name-resolution-proofs/effective-transition-operands.md
+        use crate::InvocationWord::{Dynamic, Literal};
+        use StateTransitionDomain::VariableCells;
+        let context = crate::model::ingress::static_context_for("tcl9.0");
+        let registry = context.commands();
+        let dialect = crate::InvocationDialect::of_profile(registry.profile().unwrap());
+        let cases = dynamic_alias_cases();
         for &(command, words, computed, domain) in cases {
             let invocation = registry
                 .resolve_structured_invocation(

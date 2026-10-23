@@ -955,8 +955,17 @@ mod tests {
         );
     }
 
+    fn decode_original_info_hex(encoded: &str) -> Vec<u8> {
+        encoded
+            .as_bytes()
+            .as_chunks::<2>()
+            .0
+            .iter()
+            .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
+            .collect()
+    }
+
     #[test]
-    #[allow(clippy::too_many_lines)]
     fn original_jim_info_inventory_and_arities_match_native_rows() {
         // Native proof: naming.info.jim-original-selector-table
         // docs/design/analysis/name-resolution-proofs/info-jim-original-selector-table.md
@@ -971,13 +980,7 @@ mod tests {
             .find(|line| line.starts_with("INFO|0|"))
             .unwrap();
         let encoded = row.split('|').nth(3).unwrap();
-        let bytes: Vec<_> = encoded
-            .as_bytes()
-            .as_chunks::<2>()
-            .0
-            .iter()
-            .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
-            .collect();
+        let bytes = decode_original_info_hex(encoded);
         let names: Vec<_> = selected
             .subcommands
             .iter()
@@ -1006,13 +1009,7 @@ mod tests {
                 .find(|line| line.starts_with("INFO|1|"))
                 .unwrap();
             let encoded = row.split('|').nth(3).unwrap();
-            let bytes: Vec<_> = encoded
-                .as_bytes()
-                .as_chunks::<2>()
-                .0
-                .iter()
-                .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
-                .collect();
+            let bytes = decode_original_info_hex(encoded);
             assert_eq!(
                 bytes,
                 format!("wrong # args: should be \"{}\"", subcommand.synopsis).as_bytes()
