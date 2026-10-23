@@ -1,0 +1,83 @@
+{
+  "prepared_utc": "2026-10-23T02:38:40.211012+00:00",
+  "status": "INPUT INVENTORY ONLY, NOT composed/finalsource manifest; active49 must finish first",
+  "base22_manifest_sha256": "5c6f6f0924bcc31c4c088190019dbd9161c871192dcc3e6c0913085be037428c",
+  "base22_combined_sha256": "716a5028eecafcee753a040d910a6a77c5678dcad68f46355f36c1496e29a643",
+  "additional": [
+    {
+      "directory": "/tmp/compiler-n13-completion-diagnostic-v1",
+      "proposal_sha256": "6398e7374f0a24301207b5c8f0a1e0359b03568a26780b3032323220235daea6",
+      "peer_sha256": "4c5bade2be891fcc09dece00679c47d519ff5e94695a3503b4a2418d916b9661",
+      "peer_path": "/tmp/compiler-n13-completion-diagnostic-v1/names-peer-review.json",
+      "paths": [
+        {
+          "path": "rust/tcl-compiler/src/command_binding/source_transition_advice/source_point.rs",
+          "before_sha256": "d7e56a61d651005d569897cc50c9cf4c11ddddab9fb00b47cde52b0992b2e311",
+          "after_sha256": "eb9a506e8603626f31ae9d986773f3db693db2fb232c4490cd85e1395b337038"
+        },
+        {
+          "path": "rust/tcl-compiler/src/command_binding/conditional_source/region.rs",
+          "before_sha256": "4a56bb32352489f9e4f4ccb826a5cc47eefe8f73fe1633e4aa5e519ddaec5b82",
+          "after_sha256": "8328fc25d901545b2980b2c7ee55078e82046ae1c325f0399d02bf56408a3b4b"
+        }
+      ]
+    },
+    {
+      "directory": "/tmp/compiler-names-g4-normal-frame-diagnostic-v1",
+      "proposal_sha256": "d1d26cc86e131a44e88a2045dfd5b41f5852c2c2ef5afa90cc6260e18c828d1c",
+      "peer_sha256": "94f4424cec592ede1203b50e391af1475bb77eee0b4c7cd0707e896f5af4828f",
+      "peer_path": "/tmp/compiler-names-g4-normal-frame-diagnostic-v1/compiler-peer-review.json",
+      "paths": [
+        {
+          "path": "rust/tcl-compiler/src/command_binding/normal_result.rs",
+          "before_sha256": "46150e31b108a34f35409ebc736dc50bc3565b570babd4df3310029da3e51bd5",
+          "after_sha256": "5fc951fb35eea2b1645cceb8a96ac4853c32cac7947fee26f5e7cfe5fd35b2e5"
+        },
+        {
+          "path": "rust/tcl-compiler/src/command_binding/conditional_expression_tests.rs",
+          "before_sha256": "a85552c1471e3e633a35c17b58e241ad8a4f7f705f05c938bcd1d9ca3e749ef6",
+          "after_sha256": "174bc87e5f83e5f6df91324f6a5bab587388920f0f57d6520cbc6f98cde91922"
+        },
+        {
+          "path": "rust/tcl-compiler/src/command_binding/expression_preparation.rs",
+          "before_sha256": "da3def4f99236343a61f772b9429df6275cb815b383460be90c7c4893ef4030b",
+          "after_sha256": "9af9413cb57bd80bb87651dbecac52324fac4aa86018862b8c8b5b13e2085f3b"
+        }
+      ]
+    },
+    {
+      "directory": "/tmp/compiler-names-recursive-minify-diagnostic-v1",
+      "proposal_sha256": "30004055f1693ab04fb9f12ef6f5f2041bd5a36ad8b2747c4b0234234a7de1d1",
+      "peer_sha256": "08975a455c403ccccb953f8f007dcfd001bce0ed4923b81ba7ebc12c96cea1b8",
+      "peer_path": "/tmp/compiler-names-recursive-minify-diagnostic-v1/compiler-peer-review.json",
+      "paths": [
+        {
+          "path": "rust/tcl-compiler/src/command_binding/compiler_inventory.rs",
+          "before_sha256": "1f407335d340099efe7fcbe7e12962e052f7d63ff6e565604331711754ed7525",
+          "after_sha256": "27becd3cfa2f2c196a3207f7c5a3c638e12d6e3d545fb98872413a6756b68bb2"
+        },
+        {
+          "path": "rust/tcl-compiler/src/registry_invocation/source_structure/original_body_syntax.rs",
+          "before_sha256": "08f0379f96395df2cf4139b092100a320f7881a045c8895eca64c27056cf56e6",
+          "after_sha256": "910905255be7a3cc3d64ce19b03bb3fd60e9e95b3a75f1bfcab63be0638efe8d"
+        }
+      ]
+    },
+    {
+      "directory": "/tmp/compiler-names-nested-normalisation-binding-v1",
+      "proposal_sha256": "08f24d0948751a1e3fe5d910cb4dc310d82c15b0595e969cb9a107c2d8818f49",
+      "peer_sha256": "8e859a539fb4d1f4dc531d86c2baf7d635f9841806bc9ed61196a58b54c4d142",
+      "peer_path": "/tmp/compiler-names-nested-normalisation-binding-v1/compiler-peer-review.json",
+      "paths": [
+        {
+          "path": "rust/tcl-compiler/src/command_binding/expression_preparation.rs",
+          "before_sha256": "da3def4f99236343a61f772b9429df6275cb815b383460be90c7c4893ef4030b",
+          "after_sha256": "85253f03f22f6bf3b297fb744a02ccb3380571b4ccae334bdf6f09d49bc57980"
+        }
+      ]
+    }
+  ],
+  "overlap": "Only08f and G4d1 share expression_preparation.rs; exact current beforehash same, production guard and test diagnostic hunks distinct. Actual mergedfinal hash must be explicitly composed after49.",
+  "scope": "Three pure diagnostic patches plus fail-closed08f receiver/token ownership join, all source assertions unchanged. No new source/runtime authority.",
+  "next": "Wait49actualdata and all final guards; root/Luna final fullbatch compose then one explicit report14 successor. Do not amend existing14v5-source22."
+}

@@ -1,0 +1,74 @@
+{
+  "README.md": {
+    "bytes": 1120,
+    "sha256": "aa8d53cd246751a1d4ca6ab996a0b4c18132fdf5db46eb8d6ef30c2c2aa98d64"
+  },
+  "ci5206-job-120175507888.connector-content-exact.log.gz": {
+    "bytes": 21686,
+    "sha256": "781cca226c95d1c72ad6cebe279f6aa94c0918c6ef727c1e755a0eda2a161f47"
+  },
+  "ci5206-job-120175507991.connector-content-exact.log.gz": {
+    "bytes": 153626,
+    "sha256": "d500aa575776816756edf9090ebe03899fe1dfdd9a06f556b0fa70dab665a223"
+  },
+  "ci5206-job-120175508112.connector-content-exact.log.gz": {
+    "bytes": 48020,
+    "sha256": "355a0d9b1b3dcf899fdb2f639e823b68b50b30f1c424c4caa702f4d2ee6fc4e6"
+  },
+  "ci5206-job-120175508114.connector-content-exact.log.gz": {
+    "bytes": 18975,
+    "sha256": "be6dcb9e84fbc24268cadf79e776c733651a43af0623e8186d394f8f492efe05"
+  },
+  "ci5206-job-120175508284.connector-content-exact.log.gz": {
+    "bytes": 24017,
+    "sha256": "b0c7f87e89101993216c100401480dc4c256106cf003f712181b896a133e03ef"
+  },
+  "ci5206-job-120175508339.connector-content-exact.log.gz": {
+    "bytes": 47833,
+    "sha256": "4e8ea416b44c581d947298d7f28900fb8b0dc0db0d98b169109468ae6b662069"
+  },
+  "ci5206-job-120175508422.connector-content-exact.log.gz": {
+    "bytes": 14598,
+    "sha256": "e86984b1eef88e87c14db2c14f4bbbf0b540c36df046f7822a74d28fe8af22db"
+  },
+  "ci5206-job-120175508425.connector-content-exact.log.gz": {
+    "bytes": 18237,
+    "sha256": "138a86344b655919abf7ca47d43b32c7e843996199673e0be05380931b754154"
+  },
+  "ci5206-job-120175508573.connector-content-exact.log.gz": {
+    "bytes": 49921,
+    "sha256": "97127010bf955aca8ee1910e0156e51663b9c04124ff74f9596a97d1a7278268"
+  },
+  "ci5206-job-120175508634.connector-content-exact.log.gz": {
+    "bytes": 31924,
+    "sha256": "87a8494a349001518635b1b14a4211312075f07788246610c6dc82981a46cb09"
+  },
+  "ci5206-job-120178740920.connector-content-exact.log.gz": {
+    "bytes": 204100,
+    "sha256": "9cd46647d7e2de687158f73c449de0dec6290f14d17062cb9686079b81c6e504"
+  },
+  "ci5206-job-120178741001.connector-content-exact.log.gz": {
+    "bytes": 193496,
+    "sha256": "aacaf13694d5a4f72da9bcdda35a6359f88c661db0d1853c8b74afd922071bb9"
+  },
+  "ci5206-job-120186673586.connector-content-exact.log.gz": {
+    "bytes": 5236,
+    "sha256": "8adb6cef4345bfb90ec90c9691cea1557cfcd339d565c3cea4dfa2c2824ab8b5"
+  },
+  "historical-preservation-check.json": {
+    "bytes": 13222,
+    "sha256": "6aa60791ae967b9e71aaadfd0cde1e63fbbb74fa6fe43eacd9c6ef762425c9b8"
+  },
+  "independent-prior-eight-bytecheck.json": {
+    "bytes": 3543,
+    "sha256": "acbb1e8a80a8353dbed2f57a6fd301de732eec4bf7379206925faadb989dc5aa"
+  },
+  "mapping-addendum.json": {
+    "bytes": 19055,
+    "sha256": "8f20f720ab9bb04edd76edc2797774611e65b30c36f2fefc1dfba291ca4c1ce4"
+  },
+  "root-original-five-bytecheck.json": {
+    "bytes": 1575,
+    "sha256": "120f13687589f263d4b3e4b6f026a4b631a2cf2210e16a7637592019093c86cb"
+  }
+}

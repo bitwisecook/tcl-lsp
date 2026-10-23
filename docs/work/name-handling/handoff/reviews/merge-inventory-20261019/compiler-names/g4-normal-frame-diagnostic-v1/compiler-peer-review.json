@@ -1,0 +1,23 @@
+{
+  "utc": "2026-10-23T02:32:27.029272+00:00",
+  "reviewer": "compiler",
+  "patch_sha256": "d1d26cc86e131a44e88a2045dfd5b41f5852c2c2ef5afa90cc6260e18c828d1c",
+  "verdict": "BOUNDED STATIC CLEAR diagnostic-only; typing/runtime UNRUN",
+  "examined": [
+    "Test-only helper resides normal_result module with legal access to private NormalOutcome/InvocationResultBasis fields and ancestor SourceInvocationBinding state",
+    "Option original_normal_result borrows SourceNormalResult; text method returns retained reference, no temporary-owned result lifetime leak",
+    "InvocationMetadataContext Copy value allows sourcepurpose lookup after map; no metadata fallback",
+    "Wrongframe callsite diagnostics remain inside existing test module with legal private normalization proof/frame access",
+    "All original production predicates/branches and original assertions/fixtures unchanged; each extra query pure and diagnostic",
+    "4exact existing selectors only, no source grant/Native/Normal inference from reported result; this is separate from unintegrated ownerjoin08f fix"
+  ],
+  "checks": [
+    "Exact3current beforepins/proposalhash and read-only applycheck0",
+    "Names pinned1.99.1fmt parse reported; no Cargo executed"
+  ],
+  "limits": [
+    "Extra queries/output may affect timings; diagnosticonly",
+    "No actual Normal/receiver equality classification until guarded traces run",
+    "No source integration during active49; not part22 composition"
+  ]
+}

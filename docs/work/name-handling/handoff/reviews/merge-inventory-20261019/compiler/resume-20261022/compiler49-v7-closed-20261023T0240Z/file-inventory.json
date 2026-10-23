@@ -1,0 +1,1170 @@
+{
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015856.543048Z/launcher.json": {
+    "bytes": 2445,
+    "sha256": "1e2a4d350574fda3bb953bd3be90a8f24db63d423ec66bf40bd30a3297b54d22"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015856.543048Z/launcher.transcript": {
+    "bytes": 8773,
+    "sha256": "dab1f2eb067fb7a60d0e7feadee7ab70f81fd2c75fc294d0e094b6dcdf8dec22"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/01-g4-regress-conditional_expression_template_retains_grammar_without_actual_entry.command": {
+    "bytes": 244,
+    "sha256": "cf8f0b132b4bf43d32c8e5c9378289b220df9938577ffcfaf382501675bf7c55"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/01-g4-regress-conditional_expression_template_retains_grammar_without_actual_entry.env.json": {
+    "bytes": 3,
+    "sha256": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/01-g4-regress-conditional_expression_template_retains_grammar_without_actual_entry.process.json": {
+    "bytes": 2537,
+    "sha256": "f0c0dcbe5c8e4378de01219c0777058c180e373e6a3267d86901a3de0469d4ce"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/01-g4-regress-conditional_expression_template_retains_grammar_without_actual_entry.result.json": {
+    "bytes": 5731,
+    "sha256": "430deeb37ca5631014d8fb2761569291903694cdfe1f7e6ce92408361aaac56e"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/01-g4-regress-conditional_expression_template_retains_grammar_without_actual_entry.sha256.json": {
+    "bytes": 1469,
+    "sha256": "b2fd71d410355ed85f300ed4cf13b24087e2b6bd6715692c8031cfb7a2a4008f"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/01-g4-regress-conditional_expression_template_retains_grammar_without_actual_entry.stderr": {
+    "bytes": 891,
+    "sha256": "31d8f6684f7be43d532d2037637ea1f5574d0a734240e51fb9ffecad31465c4a"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/01-g4-regress-conditional_expression_template_retains_grammar_without_actual_entry.stdout": {
+    "bytes": 394,
+    "sha256": "8d59241e0907862f0c554b8ec772d3877676974e3c1ac5f85535ce22767ddc6a"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/02-g4-regress-declaration_layout_keeps_its_original_table_without_a_compiler_visit.command": {
+    "bytes": 241,
+    "sha256": "8fccadc66159663838c261cba28db37780cdf23ad5a657ccceda8fe18a3921c3"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/02-g4-regress-declaration_layout_keeps_its_original_table_without_a_compiler_visit.env.json": {
+    "bytes": 3,
+    "sha256": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/02-g4-regress-declaration_layout_keeps_its_original_table_without_a_compiler_visit.process.json": {
+    "bytes": 2529,
+    "sha256": "e1fc54d9a4354b63d9310f724575f608682ba61c3338616c5a7cabd4566c75d2"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/02-g4-regress-declaration_layout_keeps_its_original_table_without_a_compiler_visit.result.json": {
+    "bytes": 5711,
+    "sha256": "48bddfd9de55c47d64ad8735b8ce52bcb1808cffbaa9a9defea01291416f2c6a"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/02-g4-regress-declaration_layout_keeps_its_original_table_without_a_compiler_visit.sha256.json": {
+    "bytes": 1469,
+    "sha256": "892f46133daac61c09b7a5cdf35987807b250d0cea9292194a637245253f2a52"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/02-g4-regress-declaration_layout_keeps_its_original_table_without_a_compiler_visit.stderr": {
+    "bytes": 482,
+    "sha256": "a801eee14cabcdb0a9073f2425b2e03e5b01384fb7c61f9364dcd93f23065741"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/02-g4-regress-declaration_layout_keeps_its_original_table_without_a_compiler_visit.stdout": {
+    "bytes": 241,
+    "sha256": "210e1e9e754aa37d524ff799e5e98c8320f0e6c68b0a938ff7a93a7033ee34b2"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/03-g4-regress-scoped_nested_normalisation_keeps_original_world_frame_and_source.command": {
+    "bytes": 242,
+    "sha256": "52e85ed14636f82e134eb96470ab69326a9f178ff41262d28d90bcfd009442be"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/03-g4-regress-scoped_nested_normalisation_keeps_original_world_frame_and_source.env.json": {
+    "bytes": 3,
+    "sha256": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/03-g4-regress-scoped_nested_normalisation_keeps_original_world_frame_and_source.process.json": {
+    "bytes": 2529,
+    "sha256": "fc27be268421304ed76f5919fc1d6c3e5303b74fc1455a6030ae1d779e12760b"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/03-g4-regress-scoped_nested_normalisation_keeps_original_world_frame_and_source.result.json": {
+    "bytes": 5716,
+    "sha256": "b70f486f5117a29a53bf9a8c0c3ddf1ca33a7839c2d45cb7128ce501c4288e34"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/03-g4-regress-scoped_nested_normalisation_keeps_original_world_frame_and_source.sha256.json": {
+    "bytes": 1451,
+    "sha256": "9eae1e493e1c6da8135afa564d82cd0ce2163b489ae74fa9164f8a85a1b8a309"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/03-g4-regress-scoped_nested_normalisation_keeps_original_world_frame_and_source.stderr": {
+    "bytes": 887,
+    "sha256": "c2a28728065ba7e4b2148447f63994347bd3354405be4478f346ceb30b289032"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/03-g4-regress-scoped_nested_normalisation_keeps_original_world_frame_and_source.stdout": {
+    "bytes": 390,
+    "sha256": "87e1d18198dcc21cbb89033cde2075b3f8dbed1adeb3e24adca209dec51078cc"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/04-g4-regress-selected_nested_normalisation_projects_actual_operand_and_command_source.command": {
+    "bytes": 249,
+    "sha256": "53c9f1b7dd161a0dd8a4d3872df8fffe232c6ebca99c398733afb79b35d26e87"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/04-g4-regress-selected_nested_normalisation_projects_actual_operand_and_command_source.env.json": {
+    "bytes": 3,
+    "sha256": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/04-g4-regress-selected_nested_normalisation_projects_actual_operand_and_command_source.process.json": {
+    "bytes": 2550,
+    "sha256": "c29ab16da745a454628cf1a2f1f3fab7a3b71d05d5f23c4483a0325a1b6c25de"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/04-g4-regress-selected_nested_normalisation_projects_actual_operand_and_command_source.result.json": {
+    "bytes": 5758,
+    "sha256": "7d59ce7114d40761c4a5de7210189095a6eb4c8452575ca7b0bf0396964eda49"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/04-g4-regress-selected_nested_normalisation_projects_actual_operand_and_command_source.sha256.json": {
+    "bytes": 1493,
+    "sha256": "a9800c3808fb34d973dd2e695f5a062e28c18d80cdddc30ed3d06761cb8101e5"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/04-g4-regress-selected_nested_normalisation_projects_actual_operand_and_command_source.stderr": {
+    "bytes": 898,
+    "sha256": "df6aa2bd066e203a122d4c03efd2d371a05f77b20eb65b43fe7ef8d757d03326"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/04-g4-regress-selected_nested_normalisation_projects_actual_operand_and_command_source.stdout": {
+    "bytes": 404,
+    "sha256": "7d6eab91851f38ecac500bca3dace6dd4f144ae9e4fe4b8bcdda6ee34522e92b"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/05-g4-regress-scoped_lifecycle_coverage_keeps_declared_issuer_frame_and_original_source.command": {
+    "bytes": 244,
+    "sha256": "cd030618afb98b6d9bf419efa7cddb692512376a919c269e79b3294fa52af62f"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/05-g4-regress-scoped_lifecycle_coverage_keeps_declared_issuer_frame_and_original_source.env.json": {
+    "bytes": 3,
+    "sha256": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/05-g4-regress-scoped_lifecycle_coverage_keeps_declared_issuer_frame_and_original_source.process.json": {
+    "bytes": 2547,
+    "sha256": "2b1cb854d84db9b1f37e9cbc956cb29745c2179364c81b0dbc90b5092ab17ac1"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/05-g4-regress-scoped_lifecycle_coverage_keeps_declared_issuer_frame_and_original_source.result.json": {
+    "bytes": 5746,
+    "sha256": "53a3e3b3a8e1db6fe8b8e2317e4a47f5298754915d00fc6e182d823eb826b1e7"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/05-g4-regress-scoped_lifecycle_coverage_keeps_declared_issuer_frame_and_original_source.sha256.json": {
+    "bytes": 1499,
+    "sha256": "540ebe014321d19df8c63c3b5736d931c57bb49190f122712b9effc78e79db6a"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/05-g4-regress-scoped_lifecycle_coverage_keeps_declared_issuer_frame_and_original_source.stderr": {
+    "bytes": 712,
+    "sha256": "fd6b9157c7bbcb8bc287fe74df6d8c0404bf4f2c1f7e7e2cd32af7b3f5b779d4"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/05-g4-regress-scoped_lifecycle_coverage_keeps_declared_issuer_frame_and_original_source.stdout": {
+    "bytes": 394,
+    "sha256": "dbd047733e894e891d9f6fc92539a09a69a916d14f673d2b18a38dbc7e282376"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/06-g4-regress-scoped_procedure_equivalence_keeps_independent_world_and_completion_obligations.command": {
+    "bytes": 247,
+    "sha256": "2591940fbb7ece5d4afd0edcbb609494309a9161d63b4853faacea09bd0b140c"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/06-g4-regress-scoped_procedure_equivalence_keeps_independent_world_and_completion_obligations.env.json": {
+    "bytes": 3,
+    "sha256": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/06-g4-regress-scoped_procedure_equivalence_keeps_independent_world_and_completion_obligations.process.json": {
+    "bytes": 2562,
+    "sha256": "70f1128e9e7bda12c4e468f2a01e5809630f648d59723f23a23baebe9beb223f"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/06-g4-regress-scoped_procedure_equivalence_keeps_independent_world_and_completion_obligations.result.json": {
+    "bytes": 5773,
+    "sha256": "eed796846b0e600d1b28182ac854efc84c81a5a094cc88e56d916cc027af07b6"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/06-g4-regress-scoped_procedure_equivalence_keeps_independent_world_and_completion_obligations.sha256.json": {
+    "bytes": 1535,
+    "sha256": "cc07495ff2852f648e724fd67dd32a88c37c96ba5ed940885a1cf9027f926272"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/06-g4-regress-scoped_procedure_equivalence_keeps_independent_world_and_completion_obligations.stderr": {
+    "bytes": 780,
+    "sha256": "2020021186bcdf182a8ec7be09f689b4bd727dc0063ea490ae83a946fcc2d744"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/06-g4-regress-scoped_procedure_equivalence_keeps_independent_world_and_completion_obligations.stdout": {
+    "bytes": 400,
+    "sha256": "53e1aecfba3d9d220ee10297ce20617bab02df806e38c0571eb33d07516f4df6"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/07-g4-regress-original_immediate_body_namespace_keeps_actual_native_conditional_and_error_prefix.command": {
+    "bytes": 260,
+    "sha256": "0d2da1c89545b60dc251bb4a93e7e637ce1c6473a1b54a5bf3259b37ff300d6f"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/07-g4-regress-original_immediate_body_namespace_keeps_actual_native_conditional_and_error_prefix.env.json": {
+    "bytes": 76,
+    "sha256": "4a1a04a054f0035a081a40da2dbd9f2574b1567b4d0272a7da608b8d11fdbf37"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/07-g4-regress-original_immediate_body_namespace_keeps_actual_native_conditional_and_error_prefix.process.json": {
+    "bytes": 2584,
+    "sha256": "0107478aae587ca918fcc9dca1d74b5db8ebf2c1da380b4fb71e54cea0b81688"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/07-g4-regress-original_immediate_body_namespace_keeps_actual_native_conditional_and_error_prefix.result.json": {
+    "bytes": 5824,
+    "sha256": "5e31b1d4ac84ad6ffd2dd741b47984be07bb72598d000a91d019d87ed10e2134"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/07-g4-regress-original_immediate_body_namespace_keeps_actual_native_conditional_and_error_prefix.sha256.json": {
+    "bytes": 1553,
+    "sha256": "3e9652e9e354154d6ce01ebeae74ca22f2d7e896cf4e9aba2bf1cf15b424d93d"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/07-g4-regress-original_immediate_body_namespace_keeps_actual_native_conditional_and_error_prefix.stderr": {
+    "bytes": 27387,
+    "sha256": "5090bd20133cc2d308b4cc25a2d7049c102757029ff4cbe7d9ecbd482235e7fb"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/07-g4-regress-original_immediate_body_namespace_keeps_actual_native_conditional_and_error_prefix.stdout": {
+    "bytes": 426,
+    "sha256": "0686f6e09fda9f73d4822b2d2d61c4a1bcbd6096bbe77b3958033a315d0cdf77"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/08-g4-regress-original_namespace_import_keeps_the_source_declaration_allocation.command": {
+    "bytes": 240,
+    "sha256": "cbdea74ea4041b7dfa85d81f6a52b0a3464bbb6b8f1c31498c43e2249aad6dad"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/08-g4-regress-original_namespace_import_keeps_the_source_declaration_allocation.env.json": {
+    "bytes": 76,
+    "sha256": "4a1a04a054f0035a081a40da2dbd9f2574b1567b4d0272a7da608b8d11fdbf37"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/08-g4-regress-original_namespace_import_keeps_the_source_declaration_allocation.process.json": {
+    "bytes": 2532,
+    "sha256": "2c9a081049066403e60f6471c1f7b0fd73c086339603faa8738a89e14b715ed6"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/08-g4-regress-original_namespace_import_keeps_the_source_declaration_allocation.result.json": {
+    "bytes": 5715,
+    "sha256": "c3df8c7ab8c2241f50fd4d5d92cb46b8973724a6f8d3350cb0e9d4290c2a757d"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/08-g4-regress-original_namespace_import_keeps_the_source_declaration_allocation.sha256.json": {
+    "bytes": 1451,
+    "sha256": "674bef7a827ccb4d07a4508df4d4ce6a5683fcd26d7b822067737782e7b77193"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/08-g4-regress-original_namespace_import_keeps_the_source_declaration_allocation.stderr": {
+    "bytes": 138450,
+    "sha256": "f269c35e14aaaa3c428755b310b60342a8ad7acaae07027f627d3d66713e32b8"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/08-g4-regress-original_namespace_import_keeps_the_source_declaration_allocation.stdout": {
+    "bytes": 386,
+    "sha256": "4d4060af335c666ac85fd1b801abfa8799c8488f16a5cd45badff85b52e0f2be"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/09-actual_compiler_syntax_owner.command": {
+    "bytes": 268,
+    "sha256": "4548cbf658525d51e3b0106453aa5ed94c29a90624a214d11bafc634fdc4e1f2"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/09-actual_compiler_syntax_owner.env.json": {
+    "bytes": 3,
+    "sha256": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/09-actual_compiler_syntax_owner.process.json": {
+    "bytes": 2452,
+    "sha256": "39d6f6103ed00df81ed14cd6784b7c69a833253b313a20cd2b930de3de6102f8"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/09-actual_compiler_syntax_owner.result.json": {
+    "bytes": 5637,
+    "sha256": "2d8bba7fe35fd5da0e1edc6736281e4e3a60b2639e888b56448e06aa2670b5a5"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/09-actual_compiler_syntax_owner.sha256.json": {
+    "bytes": 1163,
+    "sha256": "64418fa571400196b10dd82fe8cd2cce0a3b8ac01fbae9d35640bec8661f4ebf"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/09-actual_compiler_syntax_owner.stderr": {
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/09-actual_compiler_syntax_owner.stdout": {
+    "bytes": 268,
+    "sha256": "2fd2b628c8120167d99b761ad6dfc8ff84ac91ec9d6a280a0b85a60268bc367f"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/10-n13_region_controls.command": {
+    "bytes": 176,
+    "sha256": "e9a00ff9727a9092358fa54cdf2ae78ff9f53b38d40ce6fbfe7cf36296d9add1"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/10-n13_region_controls.env.json": {
+    "bytes": 37,
+    "sha256": "fa5fb6ff2661fa3262fd15ce7f1496797ffe26ca7c8b6daf4e1048da608d94bf"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/10-n13_region_controls.process.json": {
+    "bytes": 2344,
+    "sha256": "4c32f1409a64f8282e43d0ea22681b3d9e0911fe63b78a50e254335fddb50375"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/10-n13_region_controls.result.json": {
+    "bytes": 5342,
+    "sha256": "c48e2f4e1374bfdf45c411a678feeb717198c28ed213478b995b65e665596df7"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/10-n13_region_controls.sha256.json": {
+    "bytes": 1109,
+    "sha256": "16d429df112915a0392a6601ff480582c2af9ecf4e6eeefeb7fe49e7068cf447"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/10-n13_region_controls.stderr": {
+    "bytes": 3490,
+    "sha256": "dde006a65b5bf93b22623c2e9efde5ad68004da02c6a4285ddc2cd2548d10f13"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/10-n13_region_controls.stdout": {
+    "bytes": 859,
+    "sha256": "9f0fa9a9bc332da8f7482e3dad34edf8974b7b1e9a5051cdcf1333dbe6740acd"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/11-n13_region_sequential_controls.command": {
+    "bytes": 187,
+    "sha256": "a621bab8a73862780e643efc09ddf8e94cef540f218448c6d7e2d0582ac33d7d"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/11-n13_region_sequential_controls.env.json": {
+    "bytes": 37,
+    "sha256": "fa5fb6ff2661fa3262fd15ce7f1496797ffe26ca7c8b6daf4e1048da608d94bf"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/11-n13_region_sequential_controls.process.json": {
+    "bytes": 2377,
+    "sha256": "e90b5a1b98d1b5bb18c0b8ead7a2d5e1a07d5d9bd0e32f9c73b304610603b0a8"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/11-n13_region_sequential_controls.result.json": {
+    "bytes": 5408,
+    "sha256": "8e651b210fc82159f5e9de88026896f3a118488e06323b36cfe3b2c135bc2665"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/11-n13_region_sequential_controls.sha256.json": {
+    "bytes": 1175,
+    "sha256": "d549c414a44c2733c05ff9de2b9869e0c12b9d62077958cb06d0bd79b77e3517"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/11-n13_region_sequential_controls.stderr": {
+    "bytes": 9410,
+    "sha256": "58d18c7c713ebf8c3928121cef82a11c26c4b93b6de8f003c06b80610e9be0e8"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/11-n13_region_sequential_controls.stdout": {
+    "bytes": 587,
+    "sha256": "55855c431d715b4238d527f943a4c8260718e7b852ca2313172b8d1902c11eae"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/12-n13_failed_allocator_source_point.command": {
+    "bytes": 238,
+    "sha256": "6760fc220bcefa67a0f050f2c4e85c8be31a035cb950420a33a0496a6b42aeec"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/12-n13_failed_allocator_source_point.env.json": {
+    "bytes": 110,
+    "sha256": "c4600993b14be78b118c7f6477066e758a6d48fc0d55b5496ef5071de3af50a8"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/12-n13_failed_allocator_source_point.process.json": {
+    "bytes": 2445,
+    "sha256": "a5dbf3b156c733a11239d78592a2470979ce1679ebcaf0fe9fa2005560f18fab"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/12-n13_failed_allocator_source_point.result.json": {
+    "bytes": 5582,
+    "sha256": "65f68da11ba302edea805085a9136cf42600470e26df44ac24dcee242b72f451"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/12-n13_failed_allocator_source_point.sha256.json": {
+    "bytes": 1193,
+    "sha256": "1a1e32b1efbadaa7516a13c960b43b08db91a844d36aa64e3d801d5077faf39d"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/12-n13_failed_allocator_source_point.stderr": {
+    "bytes": 1518087,
+    "sha256": "370cf1e8f32cdde730773d5096aca4c74bcbdc6e5862b02dd662012d7e7ed3f4"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/12-n13_failed_allocator_source_point.stdout": {
+    "bytes": 382,
+    "sha256": "e301090abbe4948770ccc04298f7502daf008c0687624e99c54c9158b0442a40"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/13-n13_frontier11_v2.command": {
+    "bytes": 193,
+    "sha256": "135e793777c55f11aa1d7268304b522adb9d737e97fe1d807d14ffec95abd5b0"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/13-n13_frontier11_v2.env.json": {
+    "bytes": 37,
+    "sha256": "fa5fb6ff2661fa3262fd15ce7f1496797ffe26ca7c8b6daf4e1048da608d94bf"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/13-n13_frontier11_v2.process.json": {
+    "bytes": 2359,
+    "sha256": "d03449590c0dba5f7be27eef9b74fad2acf1154359d6ae3f663ed1b3c433302e"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/13-n13_frontier11_v2.result.json": {
+    "bytes": 5392,
+    "sha256": "6e425235951067484325b08cdede8bd7560694b1ec92295218513ae0701dc615"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/13-n13_frontier11_v2.sha256.json": {
+    "bytes": 1097,
+    "sha256": "e86bf6503d1e30f0fe9e7a77f0d356e9150162d0ead5e0ac9215617b9572d90c"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/13-n13_frontier11_v2.stderr": {
+    "bytes": 9916,
+    "sha256": "9dacdcc931987816dc00182c1fa46f9c301e7c9a67bf35a77b418977c3dabf72"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/13-n13_frontier11_v2.stdout": {
+    "bytes": 2704,
+    "sha256": "0d0a57c22093e0808f5c0ba1346045410e79362968428b0f5023b3eed25eaa1d"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/14-n13_finite_cut_withdrawal.command": {
+    "bytes": 241,
+    "sha256": "a76a1c0778e38995e8a7655440b0a22e4d759d795c9ea6e60fdfd6f973357ae4"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/14-n13_finite_cut_withdrawal.env.json": {
+    "bytes": 37,
+    "sha256": "fa5fb6ff2661fa3262fd15ce7f1496797ffe26ca7c8b6daf4e1048da608d94bf"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/14-n13_finite_cut_withdrawal.process.json": {
+    "bytes": 2421,
+    "sha256": "5abd4b07430af195ec2fd0853cda0217cd98cfe9f884812ad3e997d76ab3da60"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/14-n13_finite_cut_withdrawal.result.json": {
+    "bytes": 5550,
+    "sha256": "af72be8155d2eec6bb1d8c91fcf3e5b554fbc2cc1dc4698e4c76a6d4dc2896d1"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/14-n13_finite_cut_withdrawal.sha256.json": {
+    "bytes": 1145,
+    "sha256": "870c580235e5ba943f614c07eecef59a4ef705c2b0521e785e2f20910ee22802"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/14-n13_finite_cut_withdrawal.stderr": {
+    "bytes": 210,
+    "sha256": "23c6564cb971e51f86cba3af41cb3e570b4840764cd12e98937c9bf21699d05a"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/14-n13_finite_cut_withdrawal.stdout": {
+    "bytes": 241,
+    "sha256": "36a1e1f569ed8194848d1755ba3ece94096165135a643ac5d5580bf260569ad8"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/15-n13_source_entry_reborrow_unavailable_extra.command": {
+    "bytes": 273,
+    "sha256": "c3d1f6805b363165e0e46032bc99a410575f9767f2d746b6486255a6a2faf6e8"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/15-n13_source_entry_reborrow_unavailable_extra.env.json": {
+    "bytes": 37,
+    "sha256": "fa5fb6ff2661fa3262fd15ce7f1496797ffe26ca7c8b6daf4e1048da608d94bf"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/15-n13_source_entry_reborrow_unavailable_extra.process.json": {
+    "bytes": 2487,
+    "sha256": "b2c6ef6c490ec53bb46c03d296a3ab50e15e70a571d3e7e57ced2448aa1cdf4a"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/15-n13_source_entry_reborrow_unavailable_extra.result.json": {
+    "bytes": 5698,
+    "sha256": "bf0c2d4e5615f253db339a46a8972e181b067aa42dcff0b0a0b0bcd966ad48bd"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/15-n13_source_entry_reborrow_unavailable_extra.sha256.json": {
+    "bytes": 1253,
+    "sha256": "57ec32389193a7a7d52cf68a970f6f07ae06db4e408f9b6f83b0732134b3f2be"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/15-n13_source_entry_reborrow_unavailable_extra.stderr": {
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/15-n13_source_entry_reborrow_unavailable_extra.stdout": {
+    "bytes": 273,
+    "sha256": "ab1d68f9d8e4a193b16f4c3d975df154f5a8bb1f0f0aa6206ddca4837334df89"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/16-n13_conditional_region_purpose_refuses_a_genuine_whole_child.command": {
+    "bytes": 279,
+    "sha256": "da3a3dd74226a9ab710fc59ba7403ffea2b5e326edefc3b3c8b458fa8e00f2dc"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/16-n13_conditional_region_purpose_refuses_a_genuine_whole_child.env.json": {
+    "bytes": 37,
+    "sha256": "fa5fb6ff2661fa3262fd15ce7f1496797ffe26ca7c8b6daf4e1048da608d94bf"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/16-n13_conditional_region_purpose_refuses_a_genuine_whole_child.process.json": {
+    "bytes": 2535,
+    "sha256": "8ed52d6a5e24b5cb47b3cef5a6886efbe7b71c984252827d63805075db6c20cc"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/16-n13_conditional_region_purpose_refuses_a_genuine_whole_child.result.json": {
+    "bytes": 5781,
+    "sha256": "e2197d7e0979c0a0bb1ae7a99ffab314a8902891ac35e22666e6af9d538fc519"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/16-n13_conditional_region_purpose_refuses_a_genuine_whole_child.sha256.json": {
+    "bytes": 1355,
+    "sha256": "1c935784ea76dcf81c87917c87a8c8ce53f444aa277faead6bf991819ea1891a"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/16-n13_conditional_region_purpose_refuses_a_genuine_whole_child.stderr": {
+    "bytes": 1039,
+    "sha256": "34eb8dba375dc306298bf9e16d6360ca97b07705ca5ab475dff26f49a85f6060"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/16-n13_conditional_region_purpose_refuses_a_genuine_whole_child.stdout": {
+    "bytes": 464,
+    "sha256": "734c973f4c780db6f0f9f0ac228c03169cf27e8fa9b5ae9b853e2227ffd72bc1"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/17-n13_complete_program_purpose_refuses_a_genuine_conditional_region.command": {
+    "bytes": 284,
+    "sha256": "49cd2f91721b4fb7d039891b2247d49b9344225ca29ddb3eecb8498ae6b9edac"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/17-n13_complete_program_purpose_refuses_a_genuine_conditional_region.env.json": {
+    "bytes": 37,
+    "sha256": "fa5fb6ff2661fa3262fd15ce7f1496797ffe26ca7c8b6daf4e1048da608d94bf"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/17-n13_complete_program_purpose_refuses_a_genuine_conditional_region.process.json": {
+    "bytes": 2549,
+    "sha256": "27896f6c4a3a1f2e5af5d46fb6876580da803277a959c317bb86e96594213003"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/17-n13_complete_program_purpose_refuses_a_genuine_conditional_region.result.json": {
+    "bytes": 5810,
+    "sha256": "93b6b1ebb09615891cb3dab65b9c476554419f8b3ff7dd74ab81d1ddb9aa2ad0"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/17-n13_complete_program_purpose_refuses_a_genuine_conditional_region.sha256.json": {
+    "bytes": 1385,
+    "sha256": "6a0e9ec118877f91bc520c79b3f7f8df9d088e1259688842b77d93e3f70a155e"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/17-n13_complete_program_purpose_refuses_a_genuine_conditional_region.stderr": {
+    "bytes": 1044,
+    "sha256": "d1377ad924f1e4e8f6a22559dfc4590020027a2b28254282fbaf35c5a2774715"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/17-n13_complete_program_purpose_refuses_a_genuine_conditional_region.stdout": {
+    "bytes": 474,
+    "sha256": "fe1a1a10156292c1172a28e84c06ff9b0d7cafdf224f928306a757cf1877fc1e"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/18-n13_foreign_completed_region.command": {
+    "bytes": 275,
+    "sha256": "e33b0e72b35925ce069c084be0834cef1db2ff7e5eb36dfee65c16700d2010a0"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/18-n13_foreign_completed_region.env.json": {
+    "bytes": 37,
+    "sha256": "fa5fb6ff2661fa3262fd15ce7f1496797ffe26ca7c8b6daf4e1048da608d94bf"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/18-n13_foreign_completed_region.process.json": {
+    "bytes": 2467,
+    "sha256": "792dd512b7fda132e7b56a60352d515faefe7bfb9c23c995989a57f5772d3310"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/18-n13_foreign_completed_region.result.json": {
+    "bytes": 5673,
+    "sha256": "1231332a19d7c4b4c103af8f3c921d9192bb382183a3444a5c26156421071dc9"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/18-n13_foreign_completed_region.sha256.json": {
+    "bytes": 1163,
+    "sha256": "909eff9dc84f98bc3069c47d938e54d6c6a84cbab14f7abd215b5c2f1bc40679"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/18-n13_foreign_completed_region.stderr": {
+    "bytes": 1667,
+    "sha256": "647874a349c02afdd11e8fb66880272a2565f468e42a83a53b4617d10f3342a4"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/18-n13_foreign_completed_region.stdout": {
+    "bytes": 456,
+    "sha256": "0a1780d9df0ef691a3e3fe8c71387d47d378738eb4bcc06c501fd28c90379329"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/19-n13_region_declaration_dependency.command": {
+    "bytes": 274,
+    "sha256": "526aa445101d865c7e422b384d5511be2735167931a5de710196d3cefeccdc90"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/19-n13_region_declaration_dependency.env.json": {
+    "bytes": 37,
+    "sha256": "fa5fb6ff2661fa3262fd15ce7f1496797ffe26ca7c8b6daf4e1048da608d94bf"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/19-n13_region_declaration_dependency.process.json": {
+    "bytes": 2470,
+    "sha256": "5a230b6843bafd8986898818d99a6213d69dba8ae3aa24a9e342ea1d6922f18f"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/19-n13_region_declaration_dependency.result.json": {
+    "bytes": 5673,
+    "sha256": "94277f0a6600a4277a5837fa848d41ba79e3250528b6e888201fd56f9ceece37"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/19-n13_region_declaration_dependency.sha256.json": {
+    "bytes": 1193,
+    "sha256": "7e406d39ce9f0151802c74badf0452d004e4a92b78cba476852e7823751f4c36"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/19-n13_region_declaration_dependency.stderr": {
+    "bytes": 648,
+    "sha256": "2332aeeba1ac8c3b9064388eee5de3a2d3216bead6d16704fd9b98778b739dc2"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/19-n13_region_declaration_dependency.stdout": {
+    "bytes": 274,
+    "sha256": "39866962b665962249ca1e40a14ebd25ce7def12dc1b7342b3c5b4c0ea8eaa60"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/20-lsp-owner-guard-body_syntax_inventory_cannot_borrow_an_equal_foreign_analysis.command": {
+    "bytes": 258,
+    "sha256": "e4e8bd5e80b79317acd8571817065000cd590f2bd213992f549aeeafc9eb143c"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/20-lsp-owner-guard-body_syntax_inventory_cannot_borrow_an_equal_foreign_analysis.env.json": {
+    "bytes": 3,
+    "sha256": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/20-lsp-owner-guard-body_syntax_inventory_cannot_borrow_an_equal_foreign_analysis.process.json": {
+    "bytes": 2540,
+    "sha256": "d32fce9b6e0e1f26e14dab877b08c0cd04c53c6aa56d2a9ab7ca3a82f466da55"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/20-lsp-owner-guard-body_syntax_inventory_cannot_borrow_an_equal_foreign_analysis.result.json": {
+    "bytes": 5755,
+    "sha256": "e1c1d30fb05b58790d6aa58c95467895969cc88b1b12a51c5a9da3294d972b24"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/20-lsp-owner-guard-body_syntax_inventory_cannot_borrow_an_equal_foreign_analysis.sha256.json": {
+    "bytes": 1457,
+    "sha256": "babe1e0bb03cbc9058cbb1ba4a84503472ae9536b958bdf60d5f4ed63e8a176b"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/20-lsp-owner-guard-body_syntax_inventory_cannot_borrow_an_equal_foreign_analysis.stderr": {
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/20-lsp-owner-guard-body_syntax_inventory_cannot_borrow_an_equal_foreign_analysis.stdout": {
+    "bytes": 258,
+    "sha256": "32e77e3480484aca173db08a1a8b2ea9832fa6e25f382a6c71541df8e73e3245"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/21-lsp-owner-guard-equal_source_and_same_realm_do_not_replace_body_inventory_request.command": {
+    "bytes": 247,
+    "sha256": "742b77da2799cc6fe3815a42403251457cee274eac07f36be4eb8b1c76609675"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/21-lsp-owner-guard-equal_source_and_same_realm_do_not_replace_body_inventory_request.env.json": {
+    "bytes": 3,
+    "sha256": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/21-lsp-owner-guard-equal_source_and_same_realm_do_not_replace_body_inventory_request.process.json": {
+    "bytes": 2537,
+    "sha256": "c68a3e8319c9d473e6edc8bd149914f07e4776da14a24282a38ef6046fe16040"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/21-lsp-owner-guard-equal_source_and_same_realm_do_not_replace_body_inventory_request.result.json": {
+    "bytes": 5734,
+    "sha256": "d390035149d238e964cdd607b712d8b620789c4c116c405fbc8638a3ba1cb5fb"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/21-lsp-owner-guard-equal_source_and_same_realm_do_not_replace_body_inventory_request.sha256.json": {
+    "bytes": 1481,
+    "sha256": "5919d89bd580618f99a773150e70fb190691737f9e52e523be448bd264e44786"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/21-lsp-owner-guard-equal_source_and_same_realm_do_not_replace_body_inventory_request.stderr": {
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/21-lsp-owner-guard-equal_source_and_same_realm_do_not_replace_body_inventory_request.stdout": {
+    "bytes": 247,
+    "sha256": "1a8104da606003873d3d6e983356e34d0c2634ccadf794b86d234c90fc5015a6"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/22-lsp-owner-guard-original_boolean_inversion_retains_leaf_and_dispatch_owners.command": {
+    "bytes": 243,
+    "sha256": "02cc97af70339422c93441811bac2357ffb5c29717cd01414e1cbaac5fe516c9"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/22-lsp-owner-guard-original_boolean_inversion_retains_leaf_and_dispatch_owners.env.json": {
+    "bytes": 3,
+    "sha256": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/22-lsp-owner-guard-original_boolean_inversion_retains_leaf_and_dispatch_owners.process.json": {
+    "bytes": 2522,
+    "sha256": "e137f932beed13c03309642af1363d5c55627f329e6864108b8bae729e0792c1"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/22-lsp-owner-guard-original_boolean_inversion_retains_leaf_and_dispatch_owners.result.json": {
+    "bytes": 5705,
+    "sha256": "e6f003deb8063d8a75e01f1832a7a9c655dba41ecee7137daa78027fd8ea232b"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/22-lsp-owner-guard-original_boolean_inversion_retains_leaf_and_dispatch_owners.sha256.json": {
+    "bytes": 1445,
+    "sha256": "8d4c5439053c5c585059ce972c26c01a82aa9467e62553fbed2cddcaaf795374"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/22-lsp-owner-guard-original_boolean_inversion_retains_leaf_and_dispatch_owners.stderr": {
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/22-lsp-owner-guard-original_boolean_inversion_retains_leaf_and_dispatch_owners.stdout": {
+    "bytes": 244,
+    "sha256": "9e6da59969e587d903da697eebcecd9a057c9c9a121d741885f344a75d36084c"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/23-lsp-owner-guard-original_boolean_inversion_checks_leaf_token_coordinates.command": {
+    "bytes": 240,
+    "sha256": "2d378c0aae29de339a6e6c878b6b42b2077df8739c1866199f9bc8119c2ce174"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/23-lsp-owner-guard-original_boolean_inversion_checks_leaf_token_coordinates.env.json": {
+    "bytes": 3,
+    "sha256": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/23-lsp-owner-guard-original_boolean_inversion_checks_leaf_token_coordinates.process.json": {
+    "bytes": 2512,
+    "sha256": "c4cfd581074c2f09faa50ad1840604e0c3bc4cbfef91b7a055d8bb7d6680ed12"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/23-lsp-owner-guard-original_boolean_inversion_checks_leaf_token_coordinates.result.json": {
+    "bytes": 5686,
+    "sha256": "a0b91043d57fa421970d985e374f79c8c8e770b46e04cc6475e2806c8148e146"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/23-lsp-owner-guard-original_boolean_inversion_checks_leaf_token_coordinates.sha256.json": {
+    "bytes": 1427,
+    "sha256": "27565f99b745cc1b48e10575d9b33352969680c643dfe44d82110b8d15d5eb97"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/23-lsp-owner-guard-original_boolean_inversion_checks_leaf_token_coordinates.stderr": {
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/23-lsp-owner-guard-original_boolean_inversion_checks_leaf_token_coordinates.stdout": {
+    "bytes": 240,
+    "sha256": "af9285518aac5eae583d8c6a4e434c855ce3240709efbe77d4e1af87864370db"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/24-lsp-owner-guard-original_boolean_inversion_retains_selected_version_floor.command": {
+    "bytes": 241,
+    "sha256": "ce59b09d6b9f61de0a3446762051cd271b03c442f99a14fab0120e9484b71d88"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/24-lsp-owner-guard-original_boolean_inversion_retains_selected_version_floor.env.json": {
+    "bytes": 3,
+    "sha256": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/24-lsp-owner-guard-original_boolean_inversion_retains_selected_version_floor.process.json": {
+    "bytes": 2515,
+    "sha256": "89001f57ddf66c4930c8bc61caae8d510d7b8bb25ae70f098921fbaeb5be6709"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/24-lsp-owner-guard-original_boolean_inversion_retains_selected_version_floor.result.json": {
+    "bytes": 5692,
+    "sha256": "46c09aad83a8105cac7938c99c2a7bd6667e7cb7a25631527e8a668103124612"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/24-lsp-owner-guard-original_boolean_inversion_retains_selected_version_floor.sha256.json": {
+    "bytes": 1433,
+    "sha256": "3f623715a181c7c207ab88f4baddf6eb07fab75fad267daf798e81152a9c285e"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/24-lsp-owner-guard-original_boolean_inversion_retains_selected_version_floor.stderr": {
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/24-lsp-owner-guard-original_boolean_inversion_retains_selected_version_floor.stdout": {
+    "bytes": 241,
+    "sha256": "cd443f6f2f90bd108df3ecfdc1b1e095d00bd1f303f8495629a3d6f177c6913f"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/25-authored_simulation_structure_positive.command": {
+    "bytes": 268,
+    "sha256": "9a33b3b05e92a0aab879f6b80481ea3e781358592384a8f5fe35452b7b210ccd"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/25-authored_simulation_structure_positive.env.json": {
+    "bytes": 3,
+    "sha256": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/25-authored_simulation_structure_positive.process.json": {
+    "bytes": 2478,
+    "sha256": "720093afc15293e703da5a67bef27142d834fa5a501c250fce56f4588854583f"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/25-authored_simulation_structure_positive.result.json": {
+    "bytes": 5680,
+    "sha256": "0ba78fba0bfb8a1a2bda9ccea63dd93c65fa06ae8dd812e383c82cfc3568b785"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/25-authored_simulation_structure_positive.sha256.json": {
+    "bytes": 1223,
+    "sha256": "903c2cf3174e0548a28d17a9ab092e69b6a0bc4238dddb7133bb251cf8b8a3cd"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/25-authored_simulation_structure_positive.stderr": {
+    "bytes": 334,
+    "sha256": "cc7c0b8e40bfbf23b577aa1cd6ddd16bb661946825e867239b337edf8928ae30"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/25-authored_simulation_structure_positive.stdout": {
+    "bytes": 442,
+    "sha256": "d629d50cd8e1c065db734ec09c8f739e87e76fab2eafbb286bda8d8b59be4ab3"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/26-authored_simulation_structure_refusal.command": {
+    "bytes": 268,
+    "sha256": "1a127c991390fb972163f214197722a9d5b681b28c105a02fa997a371ac7a613"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/26-authored_simulation_structure_refusal.env.json": {
+    "bytes": 3,
+    "sha256": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/26-authored_simulation_structure_refusal.process.json": {
+    "bytes": 2476,
+    "sha256": "8b69925c139de895dca90435f50e4f0fcfd6af29994a8e1c63c303a2fa96a2da"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/26-authored_simulation_structure_refusal.result.json": {
+    "bytes": 5677,
+    "sha256": "bb4db5a120085a2cdc6f471342eacf54712eb1d4ae93e45d09b4592d5c9dc215"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/26-authored_simulation_structure_refusal.sha256.json": {
+    "bytes": 1217,
+    "sha256": "0a4dd24217d56460814346f3ce2dcfb8518204c4edc751cb989d91eea95ae791"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/26-authored_simulation_structure_refusal.stderr": {
+    "bytes": 334,
+    "sha256": "5785583285b77ed4466da35b847ef1a340b98f69f42872d2c7c8a147a44f0062"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/26-authored_simulation_structure_refusal.stdout": {
+    "bytes": 442,
+    "sha256": "1bb8370e3c109103eb170593fe8c9116283a0756d8c070e75457bb12c6bc91db"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/27-nested_source_point_positive.command": {
+    "bytes": 299,
+    "sha256": "dc8d98df340a321509c8c7f19c2c9b3f8b4a356ef51862c0b6bfdf3b225eceec"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/27-nested_source_point_positive.env.json": {
+    "bytes": 37,
+    "sha256": "fa5fb6ff2661fa3262fd15ce7f1496797ffe26ca7c8b6daf4e1048da608d94bf"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/27-nested_source_point_positive.process.json": {
+    "bytes": 2490,
+    "sha256": "b738bdc1c7aef7aa0a873f401b44a8404d1e189c33a26cd804e9c050c4f992fe"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/27-nested_source_point_positive.result.json": {
+    "bytes": 5744,
+    "sha256": "b5390518a50488c35a8c26ebeee2b0057b9836ac1b42ebd6d389f800194e49a4"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/27-nested_source_point_positive.sha256.json": {
+    "bytes": 1163,
+    "sha256": "97710bb13aa400063e9f5b4c25829f44cbe647eb7aa04166a0c15baf00f30363"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/27-nested_source_point_positive.stderr": {
+    "bytes": 897,
+    "sha256": "9c16ed945e62466ef46286c6e1e8cc35366d7f1674fd5497a4b6c91060471ad1"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/27-nested_source_point_positive.stdout": {
+    "bytes": 504,
+    "sha256": "296c1837a984ac35cff79aaaa03b150fd3cdcaaf68d0b311152e3c59a9a53ae1"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/28-inherited_source_selection_positive.command": {
+    "bytes": 247,
+    "sha256": "d916c23ef58f2a11628d8b0c89044f1d79124c172954609390cfae94b50000ad"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/28-inherited_source_selection_positive.env.json": {
+    "bytes": 37,
+    "sha256": "fa5fb6ff2661fa3262fd15ce7f1496797ffe26ca7c8b6daf4e1048da608d94bf"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/28-inherited_source_selection_positive.process.json": {
+    "bytes": 2448,
+    "sha256": "d7b1b8ff5d65f898054851f7434bd010901bb9d41131df847a5c8ac45930dcb1"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/28-inherited_source_selection_positive.result.json": {
+    "bytes": 5599,
+    "sha256": "6f7e2d181a15576490df9f690f9d5e01f29b9eaac04b6298d25b64f7b0d4bbf2"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/28-inherited_source_selection_positive.sha256.json": {
+    "bytes": 1205,
+    "sha256": "ab7816aee54eee6b4c911cadd7a56f1832efaac6ce74ead1b15d7c2d2d708ada"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/28-inherited_source_selection_positive.stderr": {
+    "bytes": 911,
+    "sha256": "33bebdb473a448b8abfbd7b845f1ad1818ab86cb896ff306500ba17d5a979e0a"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/28-inherited_source_selection_positive.stdout": {
+    "bytes": 247,
+    "sha256": "5c90a243537c026fa5fc369fb14c2f10277d8898fbcfa820312fb591e8b0985f"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/29-bpf_existing_phase_observer.command": {
+    "bytes": 220,
+    "sha256": "55fd8eb655edf34a5038bbc53d267052bcce685f0efef1ff4ccd5aba7d8da6ac"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/29-bpf_existing_phase_observer.env.json": {
+    "bytes": 37,
+    "sha256": "66a4b204dca40d45ef54466406afa26b1c057beb11eaa1ec35364dd14e8baca1"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/29-bpf_existing_phase_observer.process.json": {
+    "bytes": 2406,
+    "sha256": "61b8c4d66456aa2f941182e614ceb8599e406a026f3d022c2deb99b0b7570964"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/29-bpf_existing_phase_observer.result.json": {
+    "bytes": 5478,
+    "sha256": "58498e00fe18bb70033944a9c09d6d0fc79c0699a46b4f1e5575367d9da5101f"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/29-bpf_existing_phase_observer.sha256.json": {
+    "bytes": 1157,
+    "sha256": "09999a86bfcaedad57d989fde21521439e51ec17fe0d7782bb1504b036bbd658"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/29-bpf_existing_phase_observer.stderr": {
+    "bytes": 1160,
+    "sha256": "d283b36ffb1be6ac69cb341afbdbec47010dce40ee95f828c174c4b2af604c12"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/29-bpf_existing_phase_observer.stdout": {
+    "bytes": 347,
+    "sha256": "15457a3b04e044aa761665f43c953ace3b3f16197ebc22823b07a7ed58d45b97"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/30-fp_rbs_15_all_break_switch_not_a_proc_terminator.command": {
+    "bytes": 209,
+    "sha256": "5df7672baf796e7dedd4168758da6f772510bc3ebc28af7ff29136a18bcd9ad7"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/30-fp_rbs_15_all_break_switch_not_a_proc_terminator.env.json": {
+    "bytes": 3,
+    "sha256": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/30-fp_rbs_15_all_break_switch_not_a_proc_terminator.process.json": {
+    "bytes": 2440,
+    "sha256": "2a8e501dfbf3bfce25fa15711650c8dd8aeba8186a27d3560abe7d838408c3be"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/30-fp_rbs_15_all_break_switch_not_a_proc_terminator.result.json": {
+    "bytes": 5534,
+    "sha256": "e6e99d54bd4c26875702edad7d49793cbb038d4232a18e41f1cbcefea190daff"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/30-fp_rbs_15_all_break_switch_not_a_proc_terminator.sha256.json": {
+    "bytes": 1283,
+    "sha256": "a1765f64b706a6eba9e0c04dcdf941550eab65267cdaecff3071b069bf4bec98"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/30-fp_rbs_15_all_break_switch_not_a_proc_terminator.stderr": {
+    "bytes": 345,
+    "sha256": "ad71cb1ddc4e7b61c1d83140cc23e95f0d2a5f6e28dc559906af0d9b625eb28e"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/30-fp_rbs_15_all_break_switch_not_a_proc_terminator.stdout": {
+    "bytes": 325,
+    "sha256": "24512f2e1c75ab8167cf2567ca0386fadf8ee8994d679c6559121e0703bd6e80"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/31-fp_rbs_15_while1_break_in_opaque_switch_exits_loop.command": {
+    "bytes": 211,
+    "sha256": "5b7f47bcb25c5c15bfc38f0300c975b2f1bf00fa8189d015bd1e0e0d1d3931b9"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/31-fp_rbs_15_while1_break_in_opaque_switch_exits_loop.env.json": {
+    "bytes": 3,
+    "sha256": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/31-fp_rbs_15_while1_break_in_opaque_switch_exits_loop.process.json": {
+    "bytes": 2445,
+    "sha256": "2162d759475411135329c18c99b2af4fcb9fc23de5ff9219251f9900601392a1"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/31-fp_rbs_15_while1_break_in_opaque_switch_exits_loop.result.json": {
+    "bytes": 5545,
+    "sha256": "1c19678128faf3ff522fda271e5c661bea99e2b74fbe021fd2e30bd0fd62f5ae"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/31-fp_rbs_15_while1_break_in_opaque_switch_exits_loop.sha256.json": {
+    "bytes": 1295,
+    "sha256": "dbf703b2158b834dc7fa393a7f037831359d2caa94f2b6215e08fbcdbbdf28e5"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/31-fp_rbs_15_while1_break_in_opaque_switch_exits_loop.stderr": {
+    "bytes": 352,
+    "sha256": "6c1197706c475c2991008f5b7c32350b2f286b0ee1ba7f28d85e327cba3d1ba3"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/31-fp_rbs_15_while1_break_in_opaque_switch_exits_loop.stdout": {
+    "bytes": 328,
+    "sha256": "c4130bcb104752d7e65663ce5af90e6656128fdfb74921440646f0babec24b72"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/32-fp_rbs_15_all_exiting_opaque_switch_is_a_terminator.command": {
+    "bytes": 210,
+    "sha256": "3443f73c0ddf3f834107ed379358820d5784a0aa067d2d2d93418ddc114d694c"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/32-fp_rbs_15_all_exiting_opaque_switch_is_a_terminator.env.json": {
+    "bytes": 3,
+    "sha256": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/32-fp_rbs_15_all_exiting_opaque_switch_is_a_terminator.process.json": {
+    "bytes": 2447,
+    "sha256": "6449d98e27944f6a8134aec980f27ec372443aafbabc6b8bf3eac40129276b75"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/32-fp_rbs_15_all_exiting_opaque_switch_is_a_terminator.result.json": {
+    "bytes": 5546,
+    "sha256": "c03206533debe91e4126280530c7615eeaff88ccda1167f32daba27ab8020027"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/32-fp_rbs_15_all_exiting_opaque_switch_is_a_terminator.sha256.json": {
+    "bytes": 1301,
+    "sha256": "dbc5870d6daa79bc55d041f0e8786a8896509ba486ae5867a7f6b98224eeaf72"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/32-fp_rbs_15_all_exiting_opaque_switch_is_a_terminator.stderr": {
+    "bytes": 313,
+    "sha256": "60fd0e37fb53643faaa5a822f29c91e88dd53915d0834b0a4382eecc3aabd3dc"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/32-fp_rbs_15_all_exiting_opaque_switch_is_a_terminator.stdout": {
+    "bytes": 327,
+    "sha256": "fd15b85c486df7135a23356924db3f0325ecbc2459481db848ebea5d35bae113"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/33-ilx_intrinsic_conditional_refuses_source_effect_and_transition_overrides.command": {
+    "bytes": 254,
+    "sha256": "f4f8a457ea4231aa39fe6e246ef5ac90bc98dbcb0e57369979cbe71a879280c6"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/33-ilx_intrinsic_conditional_refuses_source_effect_and_transition_overrides.env.json": {
+    "bytes": 3,
+    "sha256": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/33-ilx_intrinsic_conditional_refuses_source_effect_and_transition_overrides.process.json": {
+    "bytes": 2526,
+    "sha256": "5e04f2c7436043fd7a211d4e89013c68e7a29c138b897f7d52bdd6464069d510"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/33-ilx_intrinsic_conditional_refuses_source_effect_and_transition_overrides.result.json": {
+    "bytes": 5728,
+    "sha256": "7ae6b5da7114c6a2d5311423c726b8a9ba025c27bd969c9d449cb6841ea3ea45"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/33-ilx_intrinsic_conditional_refuses_source_effect_and_transition_overrides.sha256.json": {
+    "bytes": 1427,
+    "sha256": "24dbc00278e35e591b439c620dc952c88f0e03d38cfe483763ad787591fad774"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/33-ilx_intrinsic_conditional_refuses_source_effect_and_transition_overrides.stderr": {
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/33-ilx_intrinsic_conditional_refuses_source_effect_and_transition_overrides.stdout": {
+    "bytes": 254,
+    "sha256": "2259088e9637ae4733b004cb6f55d3808b0879dcab5b3bcf586754b540660ab1"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/34-ilx_first_remote_operand_retains_exact_source_owners_and_stops_at_the_call.command": {
+    "bytes": 256,
+    "sha256": "ddf0d6a730ab254f5112c5853bafc70c1298385886d0976e676881da5e1c58eb"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/34-ilx_first_remote_operand_retains_exact_source_owners_and_stops_at_the_call.env.json": {
+    "bytes": 3,
+    "sha256": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/34-ilx_first_remote_operand_retains_exact_source_owners_and_stops_at_the_call.process.json": {
+    "bytes": 2538,
+    "sha256": "8509769aacf9863d876ecce517ffdb4f6f6327d7d80ca7dc19de0f7dd516fbb5"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/34-ilx_first_remote_operand_retains_exact_source_owners_and_stops_at_the_call.result.json": {
+    "bytes": 5752,
+    "sha256": "d882a5c66ffa586305b3324c9916df4fd059ec3a58697264d04f5b4e63ec2ae5"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/34-ilx_first_remote_operand_retains_exact_source_owners_and_stops_at_the_call.sha256.json": {
+    "bytes": 1439,
+    "sha256": "468fa1e4ceacc0a8eb8e302d26d65a86c1e4c8e5f05ff8b731bb70c7766d1740"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/34-ilx_first_remote_operand_retains_exact_source_owners_and_stops_at_the_call.stderr": {
+    "bytes": 370,
+    "sha256": "b2f57520367dbc0d094cecdaf58b651b2a4b1ae83cefe81be781d273333b074e"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/34-ilx_first_remote_operand_retains_exact_source_owners_and_stops_at_the_call.stdout": {
+    "bytes": 418,
+    "sha256": "bc7e84de6a73deed6c421fb70c5b6dbd5ded20a0739c1c69ea1365f8c888aef6"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/35-ilx_first_remote_operand_preserves_supported_true_same_frame_source_body.command": {
+    "bytes": 254,
+    "sha256": "118df506d667569bf9204d6085efaa73a0b06b18fe305788a23b7995f8f22736"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/35-ilx_first_remote_operand_preserves_supported_true_same_frame_source_body.env.json": {
+    "bytes": 3,
+    "sha256": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/35-ilx_first_remote_operand_preserves_supported_true_same_frame_source_body.process.json": {
+    "bytes": 2532,
+    "sha256": "0b598199b9d7bd62d0d8f63cf72972b5a30f1f4f8a9dbf34ee0c08ceb612a355"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/35-ilx_first_remote_operand_preserves_supported_true_same_frame_source_body.result.json": {
+    "bytes": 5740,
+    "sha256": "761a8beca0a767628810814f628148ed8b652edc05839502cb824b1b090f0b41"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/35-ilx_first_remote_operand_preserves_supported_true_same_frame_source_body.sha256.json": {
+    "bytes": 1427,
+    "sha256": "9920f84fd68c0388c4fe62d74c6d663733e1d8d28517fc7ceeb2c49999a9c035"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/35-ilx_first_remote_operand_preserves_supported_true_same_frame_source_body.stderr": {
+    "bytes": 369,
+    "sha256": "91091cc87f284fe4fcbc53c6c6cd7e08b2e8cff26cb9a8219fa3edb083ca5cd8"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/35-ilx_first_remote_operand_preserves_supported_true_same_frame_source_body.stdout": {
+    "bytes": 414,
+    "sha256": "b181c719478134184727c1c763bcf82a6f7a42d6a04328bf1698776a76bbc983"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/36-ilx_first_remote_operand_withdraws_opaque_observer_write_and_foreign_body_paths.command": {
+    "bytes": 261,
+    "sha256": "0f37a323e5a31e623fd4198134b1843a1014d1482f43f42326e1e20851638d93"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/36-ilx_first_remote_operand_withdraws_opaque_observer_write_and_foreign_body_paths.env.json": {
+    "bytes": 3,
+    "sha256": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/36-ilx_first_remote_operand_withdraws_opaque_observer_write_and_foreign_body_paths.process.json": {
+    "bytes": 2553,
+    "sha256": "1f0550dd4d283373adf0791e779b815ef7beb4e9f9e5c7212182404e7eb56e82"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/36-ilx_first_remote_operand_withdraws_opaque_observer_write_and_foreign_body_paths.result.json": {
+    "bytes": 5782,
+    "sha256": "8244a8f7cafaa0d70b7b741446dbbb2ae84c832186ef00580d12dfbc37ac211c"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/36-ilx_first_remote_operand_withdraws_opaque_observer_write_and_foreign_body_paths.sha256.json": {
+    "bytes": 1469,
+    "sha256": "207a5957cd0b6090bda03930cf5489e2105699bbb78e444a88ebc0e60e75ce49"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/36-ilx_first_remote_operand_withdraws_opaque_observer_write_and_foreign_body_paths.stderr": {
+    "bytes": 376,
+    "sha256": "32d563a05ab6e8fef11a8114ae489c9ee466c474b1030b4fccf511e146a24758"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/36-ilx_first_remote_operand_withdraws_opaque_observer_write_and_foreign_body_paths.stdout": {
+    "bytes": 428,
+    "sha256": "345f44c56676599054ca21dc06f14482a83e3d02eca31b9a2f44d2f015d5d307"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/build-bpf-tcl-ir.artifact.json": {
+    "bytes": 1865,
+    "sha256": "23c01a3001dd68603dfc4ac5588965e5938436d319a4f6f0e73de89c2310617c"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/build-bpf-tcl-ir.command": {
+    "bytes": 137,
+    "sha256": "1cbae6eefe4b0ca379b0dbb821dd47d896985115ff65b6307dd4a540bc4c8519"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/build-bpf-tcl-ir.process.json": {
+    "bytes": 2954,
+    "sha256": "3b245435474d0693aab8b2301a8bd7a9e35da8f13ef8ec1a38ee3c4bb804bf0a"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/build-bpf-tcl-ir.stderr": {
+    "bytes": 532,
+    "sha256": "27e522f64e8ffcb99eb47f71ebe85a66a6c9b6ab3b32d43959ba086dc45b93b3"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/build-bpf-tcl-ir.stdout": {
+    "bytes": 43942,
+    "sha256": "90cf7b5c1ec81c9754c219d45f71ac4e2ef0fa0bb16310fee9d6f082621c1665"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/build-environment.json": {
+    "bytes": 850,
+    "sha256": "f65f1d4f1881525578afca4684740168fa9e8796c2403344c288d066b47a55f6"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/build-tcl-compiler.artifact.json": {
+    "bytes": 1888,
+    "sha256": "93063f37c469cbff43804f967a84fd2f6a06cbca0fe7da8d5175997395027453"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/build-tcl-compiler.command": {
+    "bytes": 139,
+    "sha256": "164ec1e137468d89424a8667ca64f5ca3c1c4784690a7cd830e575d4f4971d5c"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/build-tcl-compiler.process.json": {
+    "bytes": 2967,
+    "sha256": "278fdd08cc2bba422100bbe260e70b8237b9f4cbfe4dc23c3149bda37121ed6b"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/build-tcl-compiler.stderr": {
+    "bytes": 1011,
+    "sha256": "4aee307d6b375d88cc1b89b1154de1a9535f010f8758de2a648e525710a0e8ee"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/build-tcl-compiler.stdout": {
+    "bytes": 144574,
+    "sha256": "b49dace790bb9a19e07a390180ae36d7e76fe42689844507ce92992099c2df68"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/current-rust-diff.patch": {
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/final.json": {
+    "bytes": 4636,
+    "sha256": "379bfb659cd6fe15ab529f4236ef512342c04b38c01302b75b191a7502cea1f0"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/head-before.txt": {
+    "bytes": 41,
+    "sha256": "07e6d89b482c7de3aea6b315ed1948372ec46f2e0f21df5e26920ddbcadc4fcd"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/head-snapshot-startup.json": {
+    "bytes": 142,
+    "sha256": "324b3bb96359ab5276e6e9725c7748baa8134a47dc53bb15158eb96af1921ad9"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/plan.json": {
+    "bytes": 26602,
+    "sha256": "0cb62fcdba2a9f24e5578ada9123e8fe9e195a1e7cd0f0cb1479ea2a19542313"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/providers-after-build.json": {
+    "bytes": 31165,
+    "sha256": "bfa3e8e7b689dadefe4417f1f953cf6cafe06bfba4c8a2ed261111baa103c246"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/providers-after.json": {
+    "bytes": 31165,
+    "sha256": "bfa3e8e7b689dadefe4417f1f953cf6cafe06bfba4c8a2ed261111baa103c246"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/providers-before.json": {
+    "bytes": 31165,
+    "sha256": "bfa3e8e7b689dadefe4417f1f953cf6cafe06bfba4c8a2ed261111baa103c246"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/providers-final.json": {
+    "bytes": 31165,
+    "sha256": "bfa3e8e7b689dadefe4417f1f953cf6cafe06bfba4c8a2ed261111baa103c246"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/results.json": {
+    "bytes": 214652,
+    "sha256": "54cce14025a9d86766259801bf768ca6750b7b097d092b55b2e92112746d6fb7"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/root-go.json": {
+    "bytes": 575,
+    "sha256": "af205325983a17dba1b51104fe0b10609fde9232eac35c238b15cbf5c7f06b6d"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/runner-inputs.json": {
+    "bytes": 1024,
+    "sha256": "de9e93070fd8776ac5b29c7d92709287f1936c179aa2ff65cab85b9d9801809a"
+  },
+  "compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/source-before.json": {
+    "bytes": 12727907,
+    "sha256": "7b53c0fd87bd54869d260c0be07267b438293f6ea1d67500ba9b7890a65b298b"
+  },
+  "compiler-n13-focused-successor-v7-integrated/guarded-cargo.py": {
+    "bytes": 1943,
+    "sha256": "b51ae1f339dbe4b1ae88603c5cf4fae608fd7234c821121b8ce0fc400b05a319"
+  },
+  "compiler-n13-focused-successor-v7-integrated/guarded-exec.py": {
+    "bytes": 13109,
+    "sha256": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811"
+  },
+  "compiler-n13-focused-successor-v7-integrated/independent-review.json": {
+    "bytes": 1984,
+    "sha256": "fbfaddbc746f6101c9cbf47f0359c76709d685739bc68e47ee95d3f6d0313865"
+  },
+  "compiler-n13-focused-successor-v7-integrated/launch-preflight-refusal.json": {
+    "bytes": 179,
+    "sha256": "75973bd5f59432e0e5b166fb9fe86eeba722b1026ed0750770d4838e6df0e41a"
+  },
+  "compiler-n13-focused-successor-v7-integrated/launch.py": {
+    "bytes": 2851,
+    "sha256": "bd9f92d2207b3b97266429e3c5725a5c2c3a2fc8317047015d094ea97f2ef9ce"
+  },
+  "compiler-n13-focused-successor-v7-integrated/metadata-successor.json": {
+    "bytes": 1809,
+    "sha256": "1ad9e256acee24fd949a9b3af79843580d9d5da90d3ca34fc3670eabea039c24"
+  },
+  "compiler-n13-focused-successor-v7-integrated/plan.json": {
+    "bytes": 26602,
+    "sha256": "0cb62fcdba2a9f24e5578ada9123e8fe9e195a1e7cd0f0cb1479ea2a19542313"
+  },
+  "compiler-n13-focused-successor-v7-integrated/protocol-readiness-v6.json": {
+    "bytes": 2213,
+    "sha256": "5b556c1be618d11dca533e8ab4dd0a338081fbbc6123cb5663e68bc2d8c98e5c"
+  },
+  "compiler-n13-focused-successor-v7-integrated/protocol-receipt.json": {
+    "bytes": 2973,
+    "sha256": "0b26a06a24b773832550f7c3b4aaee5afe3602a453fbf6b0023a90a3087113d1"
+  },
+  "compiler-n13-focused-successor-v7-integrated/readiness.json": {
+    "bytes": 826,
+    "sha256": "e8c531a661344fe8f4d143585ed61dc9bcbc2ff01cbdcf8b73d9617c258c93ed"
+  },
+  "compiler-n13-focused-successor-v7-integrated/root-go.json": {
+    "bytes": 575,
+    "sha256": "dfccc034a58f8113839424c11d3a9f0862e8109caec0d20a259b556a32cfd3f2"
+  },
+  "compiler-n13-focused-successor-v7-integrated/run.sh": {
+    "bytes": 130,
+    "sha256": "f4b3f6704516f92e586a4fa040ce44d2b572e1d300f84453f379eb4535805a67"
+  },
+  "compiler-n13-focused-successor-v7-integrated/runner-input-manifest.json": {
+    "bytes": 1074,
+    "sha256": "23b393e24a7ba9c37388bdd517d4c1d95af45e965d67ce63744ec8f6d3916b48"
+  },
+  "compiler-n13-focused-successor-v7-integrated/suite.py": {
+    "bytes": 18919,
+    "sha256": "ff4861c7d1fb2230f6cdba89161ca56210dcb9b594737ea29a60f510bbab2bbd"
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "all_rows_artifact_stable": true,
+  "all_rows_process_complete": true,
+  "all_rows_warning_false": true,
+  "archive_files": 292,
+  "archive_sha256": "0bbda8d15bc5097ba4986b165fb1edb2a804a694e594a93986899cbaf4513d12",
+  "failed": 30,
+  "filters": 36,
+  "final_sha256": "379bfb659cd6fe15ab529f4236ef512342c04b38c01302b75b191a7502cea1f0",
+  "ignored": 0,
+  "lossless_member_hash_verification": true,
+  "passed": 19,
+  "raw_go_sha256": "dfccc034a58f8113839424c11d3a9f0862e8109caec0d20a259b556a32cfd3f2",
+  "results_sha256": "54cce14025a9d86766259801bf768ca6750b7b097d092b55b2e92112746d6fb7",
+  "selected": 49,
+  "status": "completed guarded diagnostic measurement; failing tests; no release acceptance",
+  "suite_sorted_go_sha256": "af205325983a17dba1b51104fe0b10609fde9232eac35c238b15cbf5c7f06b6d"
+}

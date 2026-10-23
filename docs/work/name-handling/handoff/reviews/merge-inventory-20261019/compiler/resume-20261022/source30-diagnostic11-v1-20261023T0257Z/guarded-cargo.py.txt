@@ -1,0 +1,27 @@
+#!/usr/bin/env python3
+"""Thin adapter: direct pinned Cargo invocation through reviewed guarded executor."""
+import importlib.util, json, os, sys
+from pathlib import Path
+BASE=Path('/tmp/compiler-source30-diagnostics-v1')
+PINNED_CARGO=Path('/workspace/.rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/bin/cargo')
+if not PINNED_CARGO.is_file(): raise SystemExit('STOP: pinned absolute Cargo binary is absent')
+prefix=Path(sys.argv[1]); requested=sys.argv[2:]
+if not requested or Path(requested[0]).resolve()!=PINNED_CARGO.resolve(): raise SystemExit('STOP: build argv0 is not pinned absolute Cargo')
+target_dir=os.environ.get('CARGO_TARGET_DIR')
+if not target_dir: raise SystemExit('STOP: actual CARGO_TARGET_DIR is absent')
+spec=importlib.util.spec_from_file_location('guarded_exec',BASE/'guarded-exec.py')
+if spec is None or spec.loader is None: raise SystemExit('STOP: reviewed guarded executor unavailable')
+module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+receipt_path=Path(str(prefix)+'.process.json')
+result=module.run(requested,cwd='/workspace/naming-migration-active/tcl-lsp',env=os.environ.copy(),
+ stdout_path=str(prefix)+'.stdout',stderr_path=str(prefix)+'.stderr',receipt_path=str(receipt_path),
+ artifact_path=str(PINNED_CARGO),deadline_seconds=3600,cap_bytes=20*1024**2,
+ disk_floor_bytes=2*1024**3,disk_paths=('/workspace','/tmp',target_dir))
+receipt=json.loads(receipt_path.read_text())
+receipt['requested_argv']=requested
+receipt['actual_argv']=result['argv']
+receipt['cargo_binary_sha256']=result['artifact_sha256_before']
+receipt['build_timer_scope']='no-run compilation; excluded from per-selector 180s runtime'
+tmp=receipt_path.with_name(receipt_path.name+'.tmp')
+tmp.write_text(json.dumps(receipt,indent=2,sort_keys=True)+'\n');os.replace(tmp,receipt_path)
+sys.exit(0 if result.get('complete') is True and result.get('stop_reason') is None and result.get('exit_code')==0 else 2)

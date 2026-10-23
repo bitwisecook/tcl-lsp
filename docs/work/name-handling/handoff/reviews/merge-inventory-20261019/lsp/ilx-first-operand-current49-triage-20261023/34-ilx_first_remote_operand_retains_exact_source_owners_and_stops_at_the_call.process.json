@@ -1,0 +1,60 @@
+{
+  "argv": [
+    "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/tcl_compiler-ef22ef87d0bd65a7",
+    "registry_invocation::source_remote_first_operand::tests::first_remote_operand_retains_exact_source_owners_and_stops_at_the_call",
+    "--exact",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "artifact": "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/tcl_compiler-ef22ef87d0bd65a7",
+  "artifact_sha256_after": "2fa14af8a7beac81900e58d12502470489ca0cb935a8f14066944e44fc7d7ac5",
+  "artifact_sha256_before": "2fa14af8a7beac81900e58d12502470489ca0cb935a8f14066944e44fc7d7ac5",
+  "artifact_unchanged": true,
+  "cap_bytes": 20971520,
+  "cleanup_signals": [],
+  "complete": true,
+  "consecutive_complete_empty_group_scans": 2,
+  "cwd": "/workspace/naming-migration-active/tcl-lsp",
+  "deadline_seconds": 180,
+  "disk_floor_bytes": 2147483648,
+  "disk_paths": [
+    "/workspace",
+    "/tmp",
+    "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/tcl_compiler-ef22ef87d0bd65a7",
+    "/tmp/compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z",
+    "/tmp/compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z",
+    "/tmp/compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z"
+  ],
+  "elapsed_seconds": 4.364780256,
+  "ended_utc": "2026-10-23T02:38:33.351496+00:00",
+  "exit_code": 101,
+  "group_empty_before_parent_reap": true,
+  "group_scan_attempts": 2,
+  "last_group_scan": {
+    "complete": true,
+    "members": [],
+    "vanished_pids": []
+  },
+  "minimum_free_bytes": 4337303552,
+  "owned_live_group_members": [],
+  "parent_exit_observed_monotonic_ns": 47772036435819,
+  "parent_waitid_wnowait": {
+    "si_code": 1,
+    "si_pid": 232828,
+    "si_status": 101
+  },
+  "pid": 232828,
+  "pid_start_ticks": 4776877,
+  "process_group": 232828,
+  "retained_bytes": 788,
+  "spawn_return_monotonic_ns": 47768774910843,
+  "spawn_return_utc": "2026-10-23T02:38:28.993840+00:00",
+  "stderr": "/tmp/compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/34-ilx_first_remote_operand_retains_exact_source_owners_and_stops_at_the_call.stderr",
+  "stderr_bytes": 370,
+  "stdout": "/tmp/compiler-n13-focused-successor-v7-integrated-runs/20261023T015858.850871Z/34-ilx_first_remote_operand_retains_exact_source_owners_and_stops_at_the_call.stdout",
+  "stdout_bytes": 418,
+  "stop_reason": null,
+  "timer_armed_before_spawn": true,
+  "timer_armed_monotonic_ns": 47768767816101,
+  "timer_armed_utc": "2026-10-23T02:38:28.986749+00:00"
+}

@@ -1,0 +1,107 @@
+{
+  "status": "OFFTREE finite roster prepared only; no GO/launcher/Cargo",
+  "prepared_utc": "2026-10-23T02:56:11.601944+00:00",
+  "source30_manifest_sha256": "417688c7ba2d60771f39625ef756a05e5bc6b05a0d5e1ddf73c63ff463eefebb",
+  "integrated_head": "4d4ab9e6a7d3b141ce55f16b8ca98f462e609e57",
+  "package": "tcl-compiler",
+  "target": "--lib",
+  "expected_filters": 11,
+  "expected_selected": 11,
+  "required_filters": [
+    {
+      "selector": "command_binding::conditional_expression_tests::conditional_expression_template_retains_grammar_without_actual_entry",
+      "expected_selected": 1,
+      "exact": true,
+      "env": {}
+    },
+    {
+      "selector": "command_binding::normal_result::tests::scoped_procedure_equivalence_keeps_independent_world_and_completion_obligations",
+      "expected_selected": 1,
+      "exact": true,
+      "env": {}
+    },
+    {
+      "selector": "command_binding::expression_preparation::tests::scoped_nested_normalisation_keeps_original_world_frame_and_source",
+      "expected_selected": 1,
+      "exact": true,
+      "env": {}
+    },
+    {
+      "selector": "command_binding::expression_preparation::tests::selected_nested_normalisation_projects_actual_operand_and_command_source",
+      "expected_selected": 1,
+      "exact": true,
+      "env": {}
+    },
+    {
+      "selector": "command_binding::conditional_source::region::controls::deep_return_uses_the_completed_chain_without_renewing_the_opaque_child_prefix",
+      "exact": true,
+      "expected_selected": 1,
+      "env": {
+        "TCL_LSP_TRACE_N13_POINT": "1"
+      }
+    },
+    {
+      "selector": "command_binding::conditional_source::region::sequential_controls::sequential_tail_returns_to_the_same_original_prefix_without_reanalysis",
+      "exact": true,
+      "expected_selected": 1,
+      "env": {
+        "TCL_LSP_TRACE_N13_POINT": "1"
+      }
+    },
+    {
+      "selector": "command_binding::source_transition_advice::source_point::conditional_region_purpose_controls::conditional_region_purpose_refuses_a_genuine_whole_child",
+      "exact": true,
+      "expected_selected": 1,
+      "env": {
+        "TCL_LSP_TRACE_N13_POINT": "1"
+      }
+    },
+    {
+      "env": {
+        "TCL_LSP_TRACE_REMOTE_FIRST_OPERAND": "1"
+      },
+      "exact": true,
+      "expected_selected": 1,
+      "label": "ilx_intrinsic_conditional_refuses_source_effect_and_transition_overrides",
+      "purpose": "ILX v3 real conditional producer/refusal control; original assertion unchanged.",
+      "selector": "registry_invocation::source_remote_first_operand::tests::intrinsic_conditional_refuses_source_effect_and_transition_overrides",
+      "source": "rust/tcl-compiler/src/registry_invocation/source_remote_first_operand.rs"
+    },
+    {
+      "env": {
+        "TCL_LSP_TRACE_REMOTE_FIRST_OPERAND": "1"
+      },
+      "exact": true,
+      "expected_selected": 1,
+      "label": "ilx_first_remote_operand_retains_exact_source_owners_and_stops_at_the_call",
+      "purpose": "ILX v3 first remote operand positive and opaque-call stop control; original assertion unchanged.",
+      "selector": "registry_invocation::source_remote_first_operand::tests::first_remote_operand_retains_exact_source_owners_and_stops_at_the_call",
+      "source": "rust/tcl-compiler/src/registry_invocation/source_remote_first_operand.rs"
+    },
+    {
+      "env": {
+        "TCL_LSP_TRACE_REMOTE_FIRST_OPERAND": "1"
+      },
+      "exact": true,
+      "expected_selected": 1,
+      "label": "ilx_first_remote_operand_preserves_supported_true_same_frame_source_body",
+      "purpose": "ILX v3 same-frame source-body positive; original assertion unchanged.",
+      "selector": "registry_invocation::source_remote_first_operand::tests::first_remote_operand_preserves_supported_true_same_frame_source_body",
+      "source": "rust/tcl-compiler/src/registry_invocation/source_remote_first_operand.rs"
+    },
+    {
+      "env": {
+        "TCL_LSP_TRACE_REMOTE_FIRST_OPERAND": "1"
+      },
+      "exact": true,
+      "expected_selected": 1,
+      "label": "ilx_first_remote_operand_withdraws_opaque_observer_write_and_foreign_body_paths",
+      "purpose": "ILX v3 opaque observer/write/foreign-body refusal control; original assertion unchanged.",
+      "selector": "registry_invocation::source_remote_first_operand::tests::first_remote_operand_withdraws_opaque_observer_write_and_foreign_body_paths",
+      "source": "rust/tcl-compiler/src/registry_invocation/source_remote_first_operand.rs"
+    }
+  ],
+  "artifact_policy": "Fresh pinned1.99.1 absolute Cargo test --locked -p tcl-compiler --lib --no-run --message-format=json; exactly one actual current matching compiler artifact, no reuse of pre30 artifact",
+  "execution_policy": "Same reviewed guardedexecutor88125 parent180s/20MiB/2GiB/process reaping; exact source30/fullsource/provider/artifact/disk seals; durable launcher rootGO required; tests may fail diagnostically, no assertion changes",
+  "limits": "Roster only; runnable guarded protocol not yet prepared; G4 trace is unconditional cfg(test) at existing test sites, N13/ILX flags above."
+}

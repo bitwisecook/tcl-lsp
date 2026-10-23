@@ -1,0 +1,126 @@
+{
+  "status": "IMMUTABLE BODY DIAGNOSTIC5 PREPARATION ONLY; explicit root GO required",
+  "scope": "measure genuine original compiler body tokens and source-vs-runtime envelope refusals before any semantic repair",
+  "selectors": [
+    {
+      "package": "tcl-lsp-core",
+      "target": "--test lsp_edit_workspace",
+      "selector": "minify_strips_comments_and_collapses_whitespace_factorial",
+      "exact": true,
+      "expected_selected": 1,
+      "expected_tests": 1
+    },
+    {
+      "package": "tcl-lsp-core",
+      "target": "--test minify_residual",
+      "selector": "default_minify_compacts_expression_gaps_and_preserves_oracle_results",
+      "exact": true,
+      "expected_selected": 1,
+      "expected_tests": 1
+    },
+    {
+      "package": "tcl-lsp-core",
+      "target": "--lib",
+      "selector": "minify::original::tests::body_syntax_compaction_retains_changed_handler_and_observer_refusals",
+      "exact": true,
+      "expected_selected": 1,
+      "expected_tests": 1
+    },
+    {
+      "package": "tcl-lsp-core",
+      "target": "--lib",
+      "selector": "minify::original::tests::original_recursive_minification_uses_only_current_authenticated_script_regions",
+      "exact": true,
+      "expected_selected": 1,
+      "expected_tests": 1
+    },
+    {
+      "package": "tcl-compiler",
+      "target": "--lib",
+      "selector": "registry_invocation::source_structure::original_body_syntax::tests::body_syntax_inventory_cannot_borrow_an_equal_foreign_analysis",
+      "exact": true,
+      "expected_selected": 1,
+      "expected_tests": 1
+    }
+  ],
+  "source_pins": [
+    {
+      "path": "rust/tcl-lsp-server/src/lib.rs",
+      "sha256": "2e9cd7b7148d439c5ddbf7ee70494f418f22fd123f78e53433b6d47fbfa4ae1c"
+    },
+    {
+      "path": "rust/tcl-lsp-server/tests/e2e.rs",
+      "sha256": "5fd514f9a91a2c232538a53116a697bdf164265accd0987b9ed81492e3ecd8af"
+    },
+    {
+      "path": "rust/tcl-lsp-server/tests/e2e/commands.rs",
+      "sha256": "f7f6b1ff8db518c3bf0e9dc252fdc268f50b70537ab06f126408730419ed3ce9"
+    },
+    {
+      "path": "rust/tcl-lsp-server/tests/e2e/common/helpers.rs",
+      "sha256": "70d8006099e64c7d561468d7825dde0c9638170ac8be2bae2c48c853c4429f6f"
+    },
+    {
+      "path": "rust/tcl-lsp-server/tests/e2e/common/mod.rs",
+      "sha256": "9c8fb04893e26bc0d114500ca29c8d1d86198e823aad3d42fc40e43bd8bf343e"
+    },
+    {
+      "path": "rust/tcl-lsp-server/tests/e2e/naming_edits.rs",
+      "sha256": "cb717d85f837ea081529db612f0b83aa33ef675f1c63685d33956b9066cfec45"
+    },
+    {
+      "path": "rust/tcl-lsp-server/tests/e2e/naming_lifecycle.rs",
+      "sha256": "92e02d6eb3e696dd37a6392d3d4703741c6823b9453991ec3bef56068e4c0dec"
+    },
+    {
+      "path": "rust/tcl-lsp-server/tests/e2e/naming_packages.rs",
+      "sha256": "1a7e8189861c1e4c1eee10b09d777a45fcad6913508123d1c62e6f57f807480a"
+    },
+    {
+      "path": "rust/tcl-lsp-server/tests/e2e/naming_source_view_owners.rs",
+      "sha256": "481a96b1c8180f418f1543474a4aba00a3b0d8b6f7e2b4838667255cdf636d7b"
+    },
+    {
+      "path": "rust/tcl-lsp-server/tests/e2e/naming_source_views.rs",
+      "sha256": "ce18742de81c758d14db7c30162ce34fcd8411a8c43b943f2bea14c5fcbc2f50"
+    },
+    {
+      "path": "rust/tcl-lsp-server/tests/e2e/spec_packs.rs",
+      "sha256": "59f325e04af755060579aa9d2f74702bc06f1856f5c84fffb885086e7b99f79a"
+    },
+    {
+      "path": "rust/tcl-lsp-server/tests/e2e/spec_packs/environment_lifecycle.rs",
+      "sha256": "7dab70ebe9fe1079db22200795ba41e0216c2c68f1e6deb3ab45def318ac2174"
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/readonly_reference_reports/source_views.rs",
+      "sha256": "151c4869840da62605eac7ed1077e00293cf31ecef7e4f543dd5814e5d4802ee"
+    }
+  ],
+  "lifecycle": {
+    "executor_sha256": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811",
+    "build_deadline_seconds": 3600,
+    "selector_deadline_seconds": 180,
+    "per_process_output_cap_bytes": 20000000,
+    "actual_mount_floor_bytes": 2300000000,
+    "predecessor_plan_sha256": "fb911b29d143082a0f7ec293702a730e96e0c9ff328e3ffae5a290e09704d880",
+    "source18_manifest_sha256": "269b0b429dc137f8428d02383d1c50d1555d23744019923648893268c15f90ba",
+    "v4_parent_manifest_sha256": "d68b03a2b0b43a30f7a23efaf2ef824456daee7845bcb61920485831ba07e28c",
+    "v5_parent_plan_sha256": "c9c870a466532e431dbbd840d879c1069bda18c1f32805d63192ffbf6f25783a",
+    "v5_parent_suite_sha256": "1fd6fa9b17665043a987ce929c4eae69afafd07668aa18f1e8d53a55edb59500",
+    "v6_parent_plan_sha256": "69b5c30390734545b45de6cdff73b2cfe231418a93ba0ef33c91c6faee5b5992",
+    "v6_parent_runner_manifest_sha256": "2cbf9db5dcc54920283186799d13cfa15e290caf77243b402f07be6c4ca29408",
+    "v7_parent_plan_sha256": "0bc53266970cc8ab019055017dbf612e0f6a4312ccd250b2627fda1a1e244a86",
+    "v7_parent_runner_manifest_sha256": "2087aaaaef533614eebbfae5f39726bc135c8e17a59c71b0beeeb86a0c1b86cb",
+    "source30_manifest_sha256": "a23208aaf11cae1dd2fb6d49e33a5c873d0e4ba757f3fea9831cb38de3336648",
+    "source30_lib_sha256": "2e9cd7b7148d439c5ddbf7ee70494f418f22fd123f78e53433b6d47fbfa4ae1c",
+    "source30_integrated_head": "4d4ab9e6a7d3b141ce55f16b8ca98f462e609e57",
+    "source30_integrated_tree": "9259245b902c9dff672c5978a9ee3e5c1cddbdd6",
+    "body_finite_plan": "/tmp/compiler-names-recursive-minify-diagnostic-v1/finite-plan.json"
+  },
+  "diagnostic_env": {
+    "TCL_LSP_TRACE_BODY_SYNTAX": "1"
+  },
+  "original_finite_plan_sha256": "e2b3ffa3bc7bac9f9b4e0edf8cff31923c252c71e47cb2c7c1390db93272d55f",
+  "acceptance": "diagnostic only; expected current minify failures stay failures and all source/config/foreign/handler/observer assertions unchanged; no repair/runtime admission; absent token trace means earlier inventory refusal not zero compiler visits"
+}

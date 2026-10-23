@@ -1,0 +1,10 @@
+{
+  "status": "bounded composition static CLEAR",
+  "manifest_sha256": "a23208aaf11cae1dd2fb6d49e33a5c873d0e4ba757f3fea9831cb38de3336648",
+  "combined_patch_sha256": "f598d61229b986bceb8f7ec73a2ec9d2f8ed62b3bf067eeb08c70b8f571c5f2f",
+  "exact_paths": 30,
+  "prior22_before_final_unchanged": true,
+  "current_canonical_all30_final_hashes_match": true,
+  "reverse_to_before_then_forward_zero_fuzz_all30": true,
+  "scope": "Reviewed component union only; exact overlap46a6b694 and ILX2ed567; same report API, no new authority/assertion relaxation. No Cargo/type/runtime."
+}

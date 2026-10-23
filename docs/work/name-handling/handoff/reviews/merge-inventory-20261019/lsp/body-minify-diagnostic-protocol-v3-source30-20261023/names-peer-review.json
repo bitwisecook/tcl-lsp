@@ -1,0 +1,21 @@
+{
+  "utc": "2026-10-23T03:02:40.414573+00:00",
+  "reviewer": "compiler-names",
+  "status": "BOUNDED STATIC CLEAR; no GO/execution/Cargo",
+  "plan_sha256": "ef19316d63feedfe96a1587132e22f74a7d75531f6e1fe1a972a79490d7f3a82",
+  "suite_sha256": "b94658b9670e81478ef6165c933a5d8ecf6676bc4fa4ffd9c06f977310741a3f",
+  "runner_manifest_sha256": "8d592bc20cc7b2c927404a4469a09b7e1e0bb38fb1524bbe8406ef585224c1db",
+  "findings": [
+    "All sealed input hashes match; Python AST4 parse.",
+    "Exact5 selector objects and trace env match original finite plan e2b3ffa3. Four current CargoJSON target joins disjointly execute1+1+2+1 original tests, explicit --exact --nocapture --test-threads=1.",
+    "Anchored start requires exactly1; one terminal summary, passed+failed1/ignored0 and exit0/101 agreement enforced independently of assertions passing. Counts saved in each row; zero selected and duplicate starts fail closed.",
+    "Fresh package/target/name/kind/test-profile artifact joins, source30 final30hashes and exact approvedHEAD/tree/docs-descendant guards preserved. Provider/source/artifact seals before/after each step and rootGO input pins remain.",
+    "Executor88125 completion/stop/group-empty/before-spawn timer checks preserved;180s selector,20million-byte cap,2.3billion-byte mount floor. Full raw stderr/stdout+hashes retained for diagnostic traces.",
+    "No source/assertion/runtime-purpose eligibility changes. Changed-handler/observer and foreign-analysis controls remain exact existing tests."
+  ],
+  "limits": [
+    "Typing and actual diagnostic5 results UNRUN; no semantic repair or Native/Normal acceptance.",
+    "This review identifies v1 exact-selection gap and v2 substring-start gap as corrected in immutablev3.",
+    "Missing trace means earlier refusal, not proof of zero compiler visits."
+  ]
+}

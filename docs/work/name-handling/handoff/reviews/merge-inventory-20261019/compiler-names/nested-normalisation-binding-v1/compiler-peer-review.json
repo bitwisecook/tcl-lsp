@@ -1,0 +1,22 @@
+{
+  "utc": "2026-10-23T02:29:28.806215+00:00",
+  "reviewer": "compiler",
+  "verdict": "BOUNDED STATIC CLEAR actual49 receiver/token owner mismatch repair; runtime UNRUN",
+  "patch_sha256": "08f24d0948751a1e3fe5d910cb4dc310d82c15b0595e969cb9a107c2d8818f49",
+  "examined": [
+    "One private normalisation_expression early guard requires full receiver equal attached current tokens.source_binding; same established guard pattern exists original_compiler_argument_syntax",
+    "Current code selects target from self then conditional_expression_evaluation obtains source grammar/frame from tokens attached binding; altered wrong_frame receiver can borrow unmodified original metadata without join",
+    "Equality guard supplies no new owner/Native/Normal authority; only withdraws mixed receiver/token requests before existing conditional/native target/world/frame/observer/parser/semantic closure checks",
+    "All existing assertions/fixtures untouched, actual wrongframe failure remains meaningful negative; genuine positive same binding still reaches original path"
+  ],
+  "checks": [
+    "Exact current source/proposal pins",
+    "Read-only canonical git apply --check --whitespace=error0",
+    "Names pinnedfmt parse receipt reviewed, no compiler Cargo"
+  ],
+  "limits": [
+    "No proof actual2 original tests pass or later dialect iterations complete until guarded runtime",
+    "No claim about separate Normal-result/completion failures1/6",
+    "Not included frozen22 composition/report14v5, integration requires explicit root versioned source decision"
+  ]
+}

@@ -1,0 +1,143 @@
+{
+  "recorded_utc": "2026-10-23T02:40:07.719667+00:00",
+  "status": "Frozen peerCLEAR exact66v3; READY/unrun/NOTQUEUED; rootGOallocationonly, noGOexists",
+  "logical_files": 22,
+  "blobs": 22,
+  "roundtrip_verified": true,
+  "peer_sha256": "b47e00b646a0610561f0192aa81d5c4b0f8db7657c363e4c55699f0af85f7845",
+  "files": [
+    {
+      "source": "/tmp/vm-spectcl-c1c2-exact66-v3/preparation-receipt.txt",
+      "bytes": 1119,
+      "sha256": "4409b1aba1a056fdbeced5413976d346ae69d4e10f0c8404f00c4589e810269f",
+      "blob": "blobs/4409b1aba1a056fdbeced5413976d346ae69d4e10f0c8404f00c4589e810269f.gz"
+    },
+    {
+      "source": "/tmp/vm-spectcl-c1c2-exact66-v3/runner-input-manifest.json",
+      "bytes": 1448,
+      "sha256": "daed36181e9c079cbfd2d16e9bd06e0131777d57de8a5a63aca79710d2d471eb",
+      "blob": "blobs/daed36181e9c079cbfd2d16e9bd06e0131777d57de8a5a63aca79710d2d471eb.gz"
+    },
+    {
+      "source": "/tmp/vm-spectcl-c1c2-exact66-v3/plan.json",
+      "bytes": 10399,
+      "sha256": "97db5508c30d32f8439cda7747f44ff197b22357a5606711afe4347cab5d3ab6",
+      "blob": "blobs/97db5508c30d32f8439cda7747f44ff197b22357a5606711afe4347cab5d3ab6.gz"
+    },
+    {
+      "source": "/tmp/vm-spectcl-c1c2-exact66-v3/provider-chain.py",
+      "bytes": 2324,
+      "sha256": "a647bf8699e1eecebce0702d01d11206f4d8a1a7d09f6661afd9ef928a52a5d9",
+      "blob": "blobs/a647bf8699e1eecebce0702d01d11206f4d8a1a7d09f6661afd9ef928a52a5d9.gz"
+    },
+    {
+      "source": "/tmp/vm-spectcl-c1c2-exact66-v3/providers.py",
+      "bytes": 2286,
+      "sha256": "ba6a8be84fe9024c29c710b8fa1c7e445086c627957f5e7197efaf828e17b2ac",
+      "blob": "blobs/ba6a8be84fe9024c29c710b8fa1c7e445086c627957f5e7197efaf828e17b2ac.gz"
+    },
+    {
+      "source": "/tmp/vm-spectcl-c1c2-exact66-v3/guarded-exec.py",
+      "bytes": 13109,
+      "sha256": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811",
+      "blob": "blobs/88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811.gz"
+    },
+    {
+      "source": "/tmp/vm-spectcl-c1c2-exact66-v3/run.sh",
+      "bytes": 181,
+      "sha256": "4782e2149bb0fbc5a6b53dc56d51df4095099f35c584fb2f7f7861bdf60172bd",
+      "blob": "blobs/4782e2149bb0fbc5a6b53dc56d51df4095099f35c584fb2f7f7861bdf60172bd.gz"
+    },
+    {
+      "source": "/tmp/vm-spectcl-c1c2-exact66-v3/launch.py",
+      "bytes": 2295,
+      "sha256": "6631186d942d34701228b60cf977535a7c8d8c73b0849f6df30c262c78c61e36",
+      "blob": "blobs/6631186d942d34701228b60cf977535a7c8d8c73b0849f6df30c262c78c61e36.gz"
+    },
+    {
+      "source": "/tmp/vm-spectcl-c1c2-exact66-v3/suite.py",
+      "bytes": 11045,
+      "sha256": "d53f4642a3d6c9a1e3f5d98cdece95cd1659eafeceef3748fbb0ec1ee8f41ff4",
+      "blob": "blobs/d53f4642a3d6c9a1e3f5d98cdece95cd1659eafeceef3748fbb0ec1ee8f41ff4.gz"
+    },
+    {
+      "source": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/compiler-codegen/results/resumed-20261022/vm-spectcl-exact66-v3-peer-review.txt",
+      "bytes": 3613,
+      "sha256": "b47e00b646a0610561f0192aa81d5c4b0f8db7657c363e4c55699f0af85f7845",
+      "blob": "blobs/b47e00b646a0610561f0192aa81d5c4b0f8db7657c363e4c55699f0af85f7845.gz"
+    },
+    {
+      "source": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-spectcl/tests/jim_document.rs",
+      "bytes": 32523,
+      "sha256": "15d878edcede03f7d3aa036bb2a1ad00b469858d4aa337ea913092e9d0bad015",
+      "blob": "blobs/15d878edcede03f7d3aa036bb2a1ad00b469858d4aa337ea913092e9d0bad015.gz"
+    },
+    {
+      "source": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-spectcl/tests/jim_own_surface.rs",
+      "bytes": 17681,
+      "sha256": "a62d6bc969db115c86037645002d8db95ac2120d3cad0dba2ef374c77278cc7e",
+      "blob": "blobs/a62d6bc969db115c86037645002d8db95ac2120d3cad0dba2ef374c77278cc7e.gz"
+    },
+    {
+      "source": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-spectcl/tests/jim_surface_roster.rs",
+      "bytes": 4953,
+      "sha256": "3036edf6b49ba7fecfc27a9c18c2ccd52f1c5c5541cab17d6b1c424d17d6013e",
+      "blob": "blobs/3036edf6b49ba7fecfc27a9c18c2ccd52f1c5c5541cab17d6b1c424d17d6013e.gz"
+    },
+    {
+      "source": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-spectcl/tests/jim_generation_zero.rs",
+      "bytes": 3465,
+      "sha256": "a0c768e3c230d654fb3bea26dea355e6f828d05138d79d98dcebea96f485d5a3",
+      "blob": "blobs/a0c768e3c230d654fb3bea26dea355e6f828d05138d79d98dcebea96f485d5a3.gz"
+    },
+    {
+      "source": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-spectcl/tests/jim_seed_after_publish.rs",
+      "bytes": 2877,
+      "sha256": "a96d65c6f6b5d7343d6e1fa26e1e0c71c1bc7cdb6a85175d8da7f756c6fc94f3",
+      "blob": "blobs/a96d65c6f6b5d7343d6e1fa26e1e0c71c1bc7cdb6a85175d8da7f756c6fc94f3.gz"
+    },
+    {
+      "source": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-spectcl/tests/eda_loadables.rs",
+      "bytes": 12129,
+      "sha256": "0a885f792deafee8d26c78cea2f339809fdd0184541058367fbe40eecafb43a3",
+      "blob": "blobs/0a885f792deafee8d26c78cea2f339809fdd0184541058367fbe40eecafb43a3.gz"
+    },
+    {
+      "source": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-spectcl/tests/eda_environment_packs.rs",
+      "bytes": 13080,
+      "sha256": "0f978a1fa26ada20908d1776541a6b663c99048b4e67ca15893b5d0c362f2f9a",
+      "blob": "blobs/0f978a1fa26ada20908d1776541a6b663c99048b4e67ca15893b5d0c362f2f9a.gz"
+    },
+    {
+      "source": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-registry/src/cache.rs",
+      "bytes": 37222,
+      "sha256": "b6249777d87153f0b9b17561a1aaf6812a63e0098259b036fb75853499bbb38c",
+      "blob": "blobs/b6249777d87153f0b9b17561a1aaf6812a63e0098259b036fb75853499bbb38c.gz"
+    },
+    {
+      "source": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-registry/src/native_procedure.rs",
+      "bytes": 67488,
+      "sha256": "d809c352af7979774f3adeb26c7591db0b347ab0dec8346b04a8c3f32de7dba0",
+      "blob": "blobs/d809c352af7979774f3adeb26c7591db0b347ab0dec8346b04a8c3f32de7dba0.gz"
+    },
+    {
+      "source": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/analyser/oo.rs",
+      "bytes": 389655,
+      "sha256": "812b6b2ed0dfe48b8ed1096a43dac6bcd3e7aa2f599f220e3efb162f188f9151",
+      "blob": "blobs/812b6b2ed0dfe48b8ed1096a43dac6bcd3e7aa2f599f220e3efb162f188f9151.gz"
+    },
+    {
+      "source": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/registry_invocation/source_structure.rs",
+      "bytes": 298441,
+      "sha256": "0b86e61998e0ca5365514d79a3b9ca5894b384595c2456ff934b10679e36bc23",
+      "blob": "blobs/0b86e61998e0ca5365514d79a3b9ca5894b384595c2456ff934b10679e36bc23.gz"
+    },
+    {
+      "source": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-spectcl/src/core_surfaces.rs",
+      "bytes": 12067,
+      "sha256": "0e3c59a6f06b6e528a5e65e1f7b0f75266e08877c838e79ac2a56e4a703cb81b",
+      "blob": "blobs/0e3c59a6f06b6e528a5e65e1f7b0f75266e08877c838e79ac2a56e4a703cb81b.gz"
+    }
+  ],
+  "nonclaims": "No launcher/runner/helper/provider/lock/Cargo/test/queue; source snapshots are archived bytes only; v1/v2 historicalMUSTNOTRUN"
+}

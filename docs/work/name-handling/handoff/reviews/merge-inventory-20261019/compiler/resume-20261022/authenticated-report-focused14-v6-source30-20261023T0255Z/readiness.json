@@ -1,0 +1,12 @@
+{
+  "prepared_utc": "2026-10-23T02:55:03.138899+00:00",
+  "status": "OFFTREE report14v6-source30 ready; noGO/Cargo; peerpending",
+  "plan_sha256": "32a68999acfdb065a9abcb92b135649b1f32a02d98fd6c832d41f8ba739e4329",
+  "runner_input_manifest_sha256": "c41b42483c2206eadfa91d96065547857e4cabd20196e30fe23f7ed733b2777f",
+  "launcher_sha256": "9dca5f2b23112936de8ceff4889926bd78e1cf33cf651578fe25d81d9a978bca",
+  "source30_manifest_sha256": "417688c7ba2d60771f39625ef756a05e5bc6b05a0d5e1ddf73c63ff463eefebb",
+  "composition_peer_sha256": "a652a0510f05e37a9c242de3e3892b79ff86093e41a7666d4731f314506bdcb4",
+  "preserved": "Same14controls; valid failed49 allowed; full49v7 authentication and guardedexecutor88125 unchanged. Only version/source map/count/path changes. All previous protocols preserved.",
+  "checks": "AST PASS4; actual no-GO refusal before runner/Cargo PASS; all30current pins/reverse-forward verified",
+  "approved_integrated_head_for_root_GO": "4d4ab9e6a7d3b141ce55f16b8ca98f462e609e57"
+}

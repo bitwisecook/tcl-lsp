@@ -1,0 +1,22 @@
+{
+  "recorded_utc": "2026-10-23T02:50:10.475311+00:00",
+  "scope": "immediate bounded static v4source30 review only; no runner/launcher/Cargo/provider/Git/source invoked",
+  "pins": {
+    "plan.json": "04e0d02aeb3ef2c63e8cbc063ed3be4cb2f426c785c1624164d7b6a400ecbb0f",
+    "suite.py": "8c4e9bf007436c3509ed8af864a481202448fe8d9ee1bdee2a803f197780e4c4",
+    "launch.py": "22650900beafc444dc6f2e880121a71da96f42dbdf9189c6a187bebf7c0fdf74",
+    "run.sh": "45e018b05f64de2e242988b574bccb5a162fbe04fb27490ea921f2c2f8388834",
+    "runner-input-manifest.json": "7eeb51476bd56dc3f56d9a9e30ed81b0d853beb71a63db09f36b062b3c4105b1",
+    "guarded-exec.py": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811"
+  },
+  "source30_manifest_sha256": "42283b17fefac868402519ed3b5642378bc864f2f92505c69bad1b68c9819ade",
+  "verdict": "CLEAR bounded static; ready for rootGO allocation; no actual typecheck result",
+  "findings": [
+    "Exact30 unique manifest paths and all30 actualcanonical afterhashes match frozen source30",
+    "Root-supplied identity file records HEAD4d4ab9e6a7d3b141ce55f16b8ca98f462e609e57/tree9259245b902c9dff672c5978a9ee3e5c1cddbdd6; no Git query performed",
+    "Suite v3->v4 diff only BASE/source manifest identity22->30, sourceGOkey/count/messages; same exact7packages+Cargoargv",
+    "Allinputmanifest hashes match, executor88125 exact, allPython AST parses, rootGO absent",
+    "Prior reviewed source prelock/lockedprespawn/postprocess checks, provider/head/GO seals, warnings/buildfinished/parser/lifecycle/durableguards unchanged"
+  ],
+  "nonclaims": "No runner/Cargo/test/source operation; actual rootGO and guarded execution still required for type result"
+}

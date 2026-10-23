@@ -1,0 +1,19 @@
+SpecTcl C1/C2 exact66 v3, bounded independent static peer review
+UTC: 2026-10-23T02:40Z
+Verdict: CLEAR for immutable preparation, not runtime acceptance. No launcher, runner, provider helper, Cargo, test, lock, or canonical source action by this reviewer. V1 omitted external provider sealing and v2 omitted the capture-inputs.py transitive _paths.py pin and off-tree validation state; v1/v2 remain unrun and superseded.
+
+Frozen successor: /tmp/vm-spectcl-c1c2-exact66-v3/
+  plan.json SHA256 97db5508c30d32f8439cda7747f44ff197b22357a5606711afe4347cab5d3ab6
+  suite.py SHA256 d53f4642a3d6c9a1e3f5d98cdece95cd1659eafeceef3748fbb0ec1ee8f41ff4
+  launch.py SHA256 6631186d942d34701228b60cf977535a7c8d8c73b0849f6df30c262c78c61e36
+  run.sh SHA256 4782e2149bb0fbc5a6b53dc56d51df4095099f35c584fb2f7f7861bdf60172bd
+  runner-input-manifest.json SHA256 daed36181e9c079cbfd2d16e9bd06e0131777d57de8a5a63aca79710d2d471eb
+  guarded-exec.py SHA256 88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811
+  providers.py SHA256 ba6a8be84fe9024c29c710b8fa1c7e445086c627957f5e7197efaf828e17b2ac
+  provider-chain.py SHA256 a647bf8699e1eecebce0702d01d11206f4d8a1a7d09f6661afd9ef928a52a5d9
+
+All manifest path hashes match. Plan v2→v3 retains targets, 66 selectors, 12 source pins, Jim original26 and added8 partitions, manifest path, count, budgets and scope exactly. Seven test target counts are 34/11/4/3/1/8/5; `jim_original26` and `jim_added8` are disjoint and union to Jim34. Each current target source has the corresponding number of #[test] declarations, with no #[ignore] in the seven files. All 12 pinned test/producer source bytes currently match. Existing real libtest `--list --format terse` roster output has only `name: test` lines, supporting the runner's exact sorted-roster equality; any extra, missing or renamed selector refuses. Per-selector regex requires exactly one started test, one named result equal to selector, one summary with one nonignored test; failures retain their row and do not imply acceptance. Seven fresh locked Cargo JSON --test builds each require one exact current target test artifact (`kind=['test']`, test profile, package manifest), one successful build-finished event, no compiler/build-script/stderr warnings, and executable contained in the actual target dir. No stale fallback exists.
+
+Direct owned executor byte-identical to reviewed native15 executor88125: 3600 seconds for each build; 180 seconds for each roster and selected test; cumulative retained output cap 20 MiB across all processes; actual ROOT,/tmp,target,output mount floor 2 GiB; bounded group cleanup and durable process receipts. Full source and full external provider snapshots bracket each target and final result. The providers() AST is byte-structure identical to the existing VM full-TomMath helper; provider-chain helper is pinned. V3 also pins capture-inputs.py and its imported _paths.py; both run.sh and direct suite force NH_VALIDATION_DIR to the off-tree v3 validation-state before that import can make a directory.
+
+Root allocation GO must pin exact plan/runner manifest and approved HEAD/tree descending from baseline 3b1; only docs-only descendants/worktree changes are permitted. No report14-green prerequisite is encoded, per requested independent slot. Launcher and suite require GO before lock/Cargo. AST of suite/launcher/providers/provider-chain/executor and Bash syntax of run.sh pass. GO is absent. The static review does not prove Cargo will emit all seven events, that all66 selectors execute, zero warnings, or any SpecTcl C1/C2 closure; root owns actual slot and receipt assessment.

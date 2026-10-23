@@ -1,0 +1,17 @@
+{
+  "compiler49-v7-plan.json": "0cb62fcdba2a9f24e5578ada9123e8fe9e195a1e7cd0f0cb1479ea2a19542313",
+  "compiler49-v7-root-go.raw.json": "dfccc034a58f8113839424c11d3a9f0862e8109caec0d20a259b556a32cfd3f2",
+  "compiler49-v7-root-go.receipt.json": "af205325983a17dba1b51104fe0b10609fde9232eac35c238b15cbf5c7f06b6d",
+  "compiler49-v7-runner-input-manifest.json": "23b393e24a7ba9c37388bdd517d4c1d95af45e965d67ce63744ec8f6d3916b48",
+  "composition-peer-review.json": "a652a0510f05e37a9c242de3e3892b79ff86093e41a7666d4731f314506bdcb4",
+  "guarded-cargo.py": "d0366a95214b4cd9a5b6044028f056867bfa316ee1f9d6bf530b62d3a7fa0125",
+  "guarded-exec.py": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811",
+  "launch-preflight-refusal.json": "cfdf1e82b7dc4b4517ffea061b298e29d8b8020e5ac2c75d4d332a525bd82a61",
+  "launch.py": "9dca5f2b23112936de8ceff4889926bd78e1cf33cf651578fe25d81d9a978bca",
+  "plan.json": "32a68999acfdb065a9abcb92b135649b1f32a02d98fd6c832d41f8ba739e4329",
+  "readiness.json": "b20fc997add7d0ab7fa8371ec2bf774d42146ff1c21075a0cbe22baf18cc92d2",
+  "run.sh": "90c87f858bd4f2f5b5223f0e0a7f84abe1e6174df6e6625ac4d9cc277d3d2020",
+  "runner-input-manifest.json": "c41b42483c2206eadfa91d96065547857e4cabd20196e30fe23f7ed733b2777f",
+  "source30-manifest.json": "417688c7ba2d60771f39625ef756a05e5bc6b05a0d5e1ddf73c63ff463eefebb",
+  "suite.py": "e7e3a36b942d639c2773e4fd1e77d21d47b3a42068ce8693d5d7657c29ce80b7"
+}

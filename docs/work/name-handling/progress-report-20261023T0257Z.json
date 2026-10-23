@@ -1,0 +1,74 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-23T02:57:05.179308+00:00",
+  "scheduled_report_utc": "2026-10-23T02:55:37+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-23T03:25:37+00:00",
+  "change_since_previous_report": [
+    "Source30 APPLIED under exclusive quiescent lock with exact3b1 before/final hashes/no other product delta, actual completed49 approval/launcher/count/warning/process guards. Worksource4d4ab9e6a7d3b141ce55f16b8ca98f462e609e57 tree9259245b902c9dff672c5978a9ee3e5c1cddbdd6 committed02:48:54. Fullpatchf598d612, manifesta23208aa, all30 owner-editionformatPASS. Original22 reviewed contents unchanged; adds4 diagnostics plus strict receiver-token join with hunk-union peer clearance.",
+    "Adhoc normal push published8e36418cc3daa8713dc0b037de6d9b2735d51b4e at02:51:37 after freshdepth1workfetch/FF/rebase; exactproductequality. NoPR/merge/release. Earlieradhoc attempt had missing local snapshot metadata and did not execute Git/network; preserved log; fixed metadata then normalpush.",
+    "Compiler49v7 COMPLETE02:40:00.931161, launcher02:40:01.171568 exit1;36filters49tests19PASS30FAIL0ignored,0warnings. All exact starts/summaries/directowned180s timers/source-provider-artifact seals valid,100401 source inputs. Final379bfb659cd6fe15ab529f4236ef512342c04b38c01302b75b191a7502cea1f0/results54cce14025a9d86766259801bf768ca6750b7b097d092b55b2e92112746d6fb7. Full292-file/protocol archive0bbda8d1. This is a valid failed diagnostic measurement, not a release/zero-P2F verdict.",
+    "Sevenpackage source30v4 frozen/peerCLEAR plan04e0d02a/runner7eeb5147/source30map42283b17. RootGO current4d4ab9e6. Attempt1 Cargo101 before rustc execution because root omitted pinned environment; no compile-error claim, all evidence preserved. Attempt2 sourced and verified Rust1.99.1/jobs2/incremental0/debug0 +pinnedTcl env, fresh durable run025300.957867Z active. StrictHEAD duringcheck requires postponing snapshot commit until closure if needed; scheduled report/freshness records the actual write time.",
+    "Report14v6-source30 in preparation; original14controls/failed-valid49authentication and directexecutor unchanged. Native15v8-source30 staticCLEAR, original15/13pins/all30joined/_paths transitivepin fixed. Direct3v2 current fivepins unchanged. VMfull4/noTom16 and SpecTcl66v3 ready but unrun/noqueue. Keep buildslot singly owned, no stale binaries or dropped assertions/guards.",
+    "Byteprovenance correction ALL13currentCI decoded captures: rawapply_patch writer added exactly one LF. Canonical exactUTF8 gzip copies +old/newhash mapping added, all original archives/ledger files preserved. Eight originals independentlyrefetched; all nonemptylines/terminaloutcomes identical, counts/joins unchanged. Addendum8f20f720. No retroactive runtime guard repair.",
+    "CurrentlastCI5206 remains on olderproduct3b1/published5a418, complete31 roster at02:23 had7success18fail4running2skip. Exact separate ledgers runtime16 losses, wasm7, WASI3, main1 26 formerPASSnonpass, heavy18, native2 257/native3 272; overlapping scopes not summed. New source30 has not run hostedCI and no current fullbaseline closure is claimed.",
+    "All8reviewF boxes and auditverified0 unchanged. User2256 full authenticated perf proof still unrun/all-old mixed required, realm/interprocedural patch withheld; user2231 stop-afteropaque retained. External BIGIP/perf/completedreviewtriage headers remain over60min stale, usernotified, no duplicate/takeover.",
+    "Source/test/provider HOLD until currenttypingclosure; docs CLEAR, no executable/target cleanup. Nextcycle must rearm03:25:37 after normalpublish; scheduled02:55 report/freshness/disk records actual write time, snapshotcommit/push immediately after strictHEAD check if stillrunning.",
+    "Complete31-job CI5206 roster freshly read02:56 remains {'success': 7, 'failure': 19, 'in_progress': 3, 'skipped': 2}; source3b1 data only, no newsource30 CI dispatch. Freshdepth1workfetch/FF seespublished8e36418cc, no external product delta."
+  ],
+  "committed": [
+    "4d4ab9e6a7d3b141ce55f16b8ca98f462e609e57"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Finish source30 seven-package typecheck; fix real diagnostics without weakening guards/assertions, then actual report14 and finite G4/N13/ILX/body diagnostics.",
+    "Execute VMfull4/codegen3/native15/SpecTcl66/currentnoTom16 under root build lock, preserving original budgets/counts and actual source identity.",
+    "Close exact origin/rust baseline regressions and allsectionF shipping gates; external perf full all-old/mixed authenticated proof required before patch acceptance."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-22T18:08:00+00:00",
+    "perf": "2026-10-22T21:00:00+00:00",
+    "review-triage": "2026-10-22T19:57:30+00:00"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "Current source30 4d4ab9e6/published8e36418cc is untyped/runtime-unrun. Old3b1 guarded49 measured19PASS30FAIL with allguardsvalid/0W. Source30check attempt1 environment-setup failure only; corrected pinned attempt2 active. No validatedunits/F boxes/zero-P2F/host/perf acceptance; externalheadersstale, noPR/merge/release.",
+  "disk_free_bytes": 10565079040,
+  "baseline_ci_run": 39816429638,
+  "baseline_ci_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731"
+}

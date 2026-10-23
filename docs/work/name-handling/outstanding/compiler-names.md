@@ -2,11 +2,13 @@
 
 Area: command_binding.rs (except the C6 hunks), command_binding/compiled_invocation.rs, source name lookup, analyser scope/commands, nested lookups, W210 pkgIndex entry plumbing.
 
-Last updated: 2026-10-23T02:21:12Z
+Last updated: 2026-10-23T02:33:29Z
 
 Maintained by the compiler-names agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## In progress (resumed in /workspace/naming-migration-active/tcl-lsp; g4 first)
+
+**Actual49 G4 later failures / diagnostic ready:** rows1..8 now1PASS7FAIL with authentic Reached compiler visits; declaration layout passes, others stop at later strict assertions. Rows1/6 Normal-result/completion negatives, rows3/4 mutated-frame negatives, lifecycle Reached-vs-Conditional eligibility, module conditional observation absence and namespace import child-completion debt remain separate. No expectation inversion. Frozen test-only `g4-normal-frame-diagnostic-v1/proposal.patch.txt` SHA d1d26cc86e131a44e88a2045dfd5b41f5852c2c2ef5afa90cc6260e18c828d1c logs actual private Normal basis/source-purpose and original/mutated/attached frame equality in exactly four existing tests, all assertions unchanged. Compiler peer CLEAR SHA94f4424cec592ede1203b50e391af1475bb77eee0b4c7cd0707e896f5af4828f; untyped/unrun/not applied. Separate three-line fail-closed owner join `nested-normalisation-binding-v1` SHA08f24d0948751a1e3fe5d910cb4dc310d82c15b0595e969cb9a107c2d8818f49 also compiler peer static CLEAR, but no claim it cures actual frame negatives until facts show original and mutated differ. Current49 unchanged; root owns later probe slot.
 
 **Coarse currency + readiness finalv4 peer CLEAR statically:** exactad03b7b390ef3a1a8931a629a4c3f3425f9cc991c3390f7829ff5325d10f68dc supersedes v2/v3. Actual semantic read returns atSalsa; same held revision may advanceIndexed while pure structureworker awaits. Only privateSemanticStructure accepts that exact monotonicadvance plus unrelated globalDBrevision; every source/version/revision/input/config/URI/provider/epoch/factory/dialect/deletion guard remains, otherpurpose strictpublication/revision unchanged. Strong held prepositives, readonly strictafternegative, Pending/downgrade/sourceABA/URIgenretirement controls retained. Review caughtv3test110lines; v4test-onlyhelper preserves5setter actions/assertions/order below100. Receipt `compiler-names-coarse-source-input-currency-v4-review.json`; root/Luna/LSP notified. No typing/runtime/Cargo/apply or causalproof for actual41coarseerrors.
 

@@ -1,0 +1,12 @@
+--- a/rust/tcl-compiler/src/command_binding/expression_preparation.rs
++++ b/rust/tcl-compiler/src/command_binding/expression_preparation.rs
+@@ -1063,6 +1063,9 @@
+         registry: &tcl_registry::CommandRegistry,
+         tokens: &crate::ir::CommandTokens,
+     ) -> Option<SourceConditionalExpressionEvaluation> {
++        if tokens.source_binding.as_ref() != Some(self) {
++            return None;
++        }
+         let target = if self.runtime_reachability == super::SourceRuntimeReachability::Conditional {
+             self.scoped_unobserved_target(tokens)?
+         } else {

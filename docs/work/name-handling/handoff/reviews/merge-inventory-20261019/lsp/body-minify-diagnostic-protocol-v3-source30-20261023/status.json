@@ -1,0 +1,8 @@
+{
+  "utc": "2026-10-23T03:02:57.628304+00:00",
+  "status": "bounded static CLEAR; no GO/queue/Cargo/provider",
+  "original_assertions": "unchanged",
+  "trace": "TCL_LSP_TRACE_BODY_SYNTAX=1",
+  "scope": "diagnostic only, full stdout/stderr retained; source-purpose/runtime barriers unchanged",
+  "peer_receipt_sha256": "fb9f849c6be6705230a18e612b84e40b908d43f1a92a449a01803859d631d53a"
+}

@@ -1,0 +1,11 @@
+{
+  "utc": "2026-10-23T02:44:11.231735+00:00",
+  "status": "OFF TREE diagnostic only, no source/Cargo",
+  "path": "rust/tcl-compiler/src/registry_invocation/source_remote_first_operand.rs",
+  "before_sha256": "e0e861453d365ce5de654748a90926c846914f4803c2b69c4088e7026239b103",
+  "proposed_sha256": "bf1008a1e62393145a7eb9df2d24a96677bb8c55cd671eae6901cadfb3e1bd0f",
+  "patch_sha256": "2ed567bac1ae631b817c9085fdae26631a1c1ddf8418cbe6da97b9b370589c03",
+  "env": "TCL_LSP_TRACE_REMOTE_FIRST_OPERAND=1",
+  "scope": "cfg(test) prints actual existing inventory/gate failures/first remote barrier once. Existing Option value queried once then observed; no new lookup/carrier/observer/evaluation. No guard/assertion/config/budget or2231barrier change.",
+  "validation": "Pinnedfmt PASS; applycheck follows; compiler peer pending; typing/runtime UNRUN"
+}

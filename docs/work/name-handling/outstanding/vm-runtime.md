@@ -2,11 +2,72 @@
 
 Area: tcl-vm, runtime/rust, tcl-spectcl, tcl-spec-studio: SpecTcl execution and acceptance.
 
-Last updated: 2026-10-23T02:17:51.005895+00:00 (native15v6 peer CLEAR archived; ready/unrun/notqueued; source HOLD)
+Last updated: 2026-10-23T02:50:30.128749+00:00 (sevenpackagev4source30 peer CLEAR; no run/Cargo/queue)
 
 Maintained by the vm-runtime agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## Resume
+
+Seven-package v4source30 immediate bounded peer CLEAR: plan04e0d02a,
+suite8c4e9bf0, launcher22650900, manifest7eeb5147, executor88125.
+Receipt `vm-runtime/protocols/direct-lifecycle-20261023/seven-package-v4-source30-static-review.txt`
+SHA05e03686. Verified exact30 unique source manifest and all30 actualcanonical
+afterhashes; rootprovided identity4d4ab9e6/tree9259245b. Same7packages/
+Cargoargv and lifecycle/source/provider/head/GO/warning/buildfinished/durable
+guards, v3->v4 changes path/map/count/key22->30 only. Allinputhashes/AST/
+GOabsent checked; ready rootGO allocation, no type result. No runner, launcher,
+Git, provider, Cargo or source invoked by VM.
+
+
+Modern SpecTcl exact66 v3 peer CLEAR (`b47e00b6`), READY/unrun/NOTQUEUED:
+`/tmp/vm-spectcl-c1c2-exact66-v3/` plan97db5508, suited53f4642,
+launcher6631186d, manifestdaed3618, executor88125. Exactly7 rosters
+34/11/4/3/1/8/5 =66; originalJim26 and added8 reported separately. Fresh
+currentCargoJSON pertarget artifact + exact fullroster equality,66 isolated
+180s selectors,3600 builds,shared20MiB,actual2GiB,zeroW,full source/provider
+guards and owned lifecycle. Frozen12test/producerpins include exact assertions.
+Explicit rootallocation GO only (plan/inputmanifest/actualapprovedHEAD/tree
+and docs-only descendants), NO unrelated report14green prerequisite. Root
+priority order remains typecheck/report14/criticalVM4+CC3 then allocated66.
+No GO exists; v1/v2 preserved MUSTNOTRUN. Both wrapper/directsuite set
+offtree NH_VALIDATION_DIR; imported _paths.py is pinned. Provider extraction
+AST matches reviewed fullVM inventory, helpera647 unchanged.
+Lossless frozenprotocol+peer+12sourcebyte snapshots: owned
+`vm-runtime/protocols/spectcl-exact66-v3-20261023/manifest.txt` SHA3a8e556a,
+22files/22gzipblobs roundtrip verified, no .rs files in archive. No launcher,
+runner, helper, provider, lock, Cargo, test, queue or canonicalsource write.
+
+
+SpecTcl C.1–C.2 release priority refreshed static triage:
+`spectcl-c1-c2-current-static-triage-20261023.txt` SHA2ad7d950 under owned
+vm-runtime evidence. Original Jim9PASS17FAIL26 is old analyser/signature
+evidence, not VM guest execution. Its17 routes are procshape3 (trusted346d
+already integrated), classlists4/member5 (authored Jimclass11 already integrated),
+disabled availability3, distinct two-word unknown1, compound1 (compiler proofs,
+current exact failure unmeasured). Current class consumer is authored source
+receipt, so old retained-source-advice directcause narrative is stale. Compiler
+confirms no newer guarded Jim residual evidence; no duplicate fix proposed.
+Current Jim source has34 tests (original26+8); after8b Jim/EDA six32 still
+unrun, no completed after8b evidence found. Old pack_source fold/nativepreflight
+failures route CCG already prepared original firstdecline diagnostics.
+Next release evidence after source22/type/root allocation: exactJim34 with
+original26 distinct from8 additions, then originalafter8b32; do not blindly
+run historical seq-safe without modern direct-child/artifact/guard protocol.
+No Cargo/probe/queue/sourcewrite, no broader VM parity, original16noTom
+diagnostic readiness unchanged.
+
+
+Source22 successor protocols peer CLEAR bounded: native15v7 plan0bc53266,
+suite3eeec315, manifest2087aaaa, receipt1bb07d5c; seven-packagev3
+plandd4ab31b, suitef20eaa5c, manifestb12e10c5, receipt0d9eca2e. Receipts
+under `vm-runtime/protocols/direct-lifecycle-20261023/`. Native original15
+unchanged, sole sourcepin lib.rs advances2e9cd7b7; all22 finalhashes/GO and
+post22 gate evidencekeys required. Seven-package exactargv/packages unchanged;
+source22 afterhash22 map independently equals nativecombined22 finalhashes.
+All inputhashes/AST/GOabsent checked; executor88125/lifecycle/warnings/
+durableguards remain. READY/unrun/NOTQUEUED; static clearance only. No runner,
+launcher, provider, Git, Cargo or source invoked by VM.
+
 
 Native15 exact immutable v6 peer CLEAR bounded: plan69b5c303, suite51087f14,
 launcher45a51134, runsh6b21b64c, manifest2cbf9db5, executor88125. Receipt

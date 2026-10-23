@@ -1,0 +1,10 @@
+{
+  "prepared_utc": "2026-10-23T02:57:05.193692+00:00",
+  "status": "OFFTREE11existing diagnostic protocol ready; noGO/Cargo; peerpending",
+  "plan_sha256": "4a3f2a6ca28622df267c03e0975f67bd2234ec72c9f5a5da3d08acf41202c5d8",
+  "runner_input_manifest_sha256": "509f1863668e8f8e30b9313749167a5a9f87166446a814ddeba391cb57487f3a",
+  "launcher_sha256": "9a84d01781a2e33361b7a854833d12a96134319148ac5c6d5546d3c23f675cd7",
+  "source30_manifest_sha256": "417688c7ba2d60771f39625ef756a05e5bc6b05a0d5e1ddf73c63ff463eefebb",
+  "checks": "AST4PASS/noGO refusalPASS; same actual artifact capture and guardedexecutor88125/source/provider/process/failedvalid49 auth",
+  "trace_flags": "G4 cfg(test) at existing sites; N13 TCL_LSP_TRACE_N13_POINT=1; ILX TCL_LSP_TRACE_REMOTE_FIRST_OPERAND=1"
+}

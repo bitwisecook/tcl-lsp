@@ -1,0 +1,34 @@
+{
+  "utc": "2026-10-23T02:27:17.486644+00:00",
+  "reviewer": "lsp",
+  "verdict": "CLEAR bounded static explicit source22 successor; no GO/Cargo/runtime",
+  "plan_sha256": "0bc53266970cc8ab019055017dbf612e0f6a4312ccd250b2627fda1a1e244a86",
+  "suite_sha256": "3eeec315efc461a67fe13ccae94694a3e235e28ad3cd9e3c886cc47b17b2158d",
+  "runner_manifest_sha256": "2087aaaaef533614eebbfae5f39726bc135c8e17a59c71b0beeeb86a0c1b86cb",
+  "source22_manifest_sha256": "5c6f6f0924bcc31c4c088190019dbd9161c871192dcc3e6c0913085be037428c",
+  "executor_sha256": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811",
+  "findings": [
+    "All current runner input pins independently match manifest2087aaaa. Python AST syntax parses.",
+    "Original exact15 selector objects unchanged from peer-cleared v6 and original v3; original sourcepins change solely lib.rs explicit source22 final2e9cd7b7, with appended source_views151c unchanged.",
+    "Explicit lib successor pin equals frozen source22 actual final_hashes entry and is authenticated by GO/plan/input-manifest; no silent sourcepin refresh.",
+    "All22 source22 final canonical filehashes are checked every phase; source22 GO hash/evidence keys update18->22. Old source18 manifest remains independently pinned provenance.",
+    "No executor/artifact/event/serverbin/host/timeout/source-provider/finalgroup/finally semantics changed from cleared v6; launcher normalizes byte-identical under versioned paths.",
+    "Reviewed executor88125 retained, actual server override and strict current Cargo package/kind/profile/test/bin/target joins unchanged, durable output remains."
+  ],
+  "source_pin_delta": [
+    [
+      {
+        "path": "rust/tcl-lsp-server/src/lib.rs",
+        "sha256": "daa7e038b161fd34bd29fa26e3062ba28cffa8c07e1fe06e30d9dd1e4ee070d7"
+      },
+      {
+        "path": "rust/tcl-lsp-server/src/lib.rs",
+        "sha256": "2e9cd7b7148d439c5ddbf7ee70494f418f22fd123f78e53433b6d47fbfa4ae1c"
+      }
+    ]
+  ],
+  "limits": [
+    "Static only. No root GO/Cargo/test/provider run or protocol/backend/host admission.",
+    "Required post22 report14/typecheck and explicit root GO still mandatory; old v6 review does not prove newsource runtime."
+  ]
+}

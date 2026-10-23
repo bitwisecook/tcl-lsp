@@ -1,0 +1,26 @@
+{
+  "utc": "2026-10-23T02:30:47.631109+00:00",
+  "status": "OFFTREE TEST-ONLY pure facts; not normalization guardfix08f; no apply/Cargo",
+  "paths": [
+    {
+      "path": "rust/tcl-compiler/src/command_binding/normal_result.rs",
+      "before_sha256": "46150e31b108a34f35409ebc736dc50bc3565b570babd4df3310029da3e51bd5",
+      "after_sha256": "5fc951fb35eea2b1645cceb8a96ac4853c32cac7947fee26f5e7cfe5fd35b2e5"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/conditional_expression_tests.rs",
+      "before_sha256": "a85552c1471e3e633a35c17b58e241ad8a4f7f705f05c938bcd1d9ca3e749ef6",
+      "after_sha256": "174bc87e5f83e5f6df91324f6a5bab587388920f0f57d6520cbc6f98cde91922"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/expression_preparation.rs",
+      "before_sha256": "da3def4f99236343a61f772b9429df6275cb815b383460be90c7c4893ef4030b",
+      "after_sha256": "9af9413cb57bd80bb87651dbecac52324fac4aa86018862b8c8b5b13e2085f3b"
+    }
+  ],
+  "purpose": "actual49 rows1/6 Normal result/completion receipt and basis; rows3/4 original/mutated frame and attached receiver equality; every original assertion remains",
+  "scope": "helper cfg(test), calls only four existing tests before their current first later failure. No assertion/guard/policy/source/currentness changes. Prints bounded fields not whole source/snapshots.",
+  "patch_sha256": "d1d26cc86e131a44e88a2045dfd5b41f5852c2c2ef5afa90cc6260e18c828d1c",
+  "rustfmt": "PASS pinned1.99.1 edition2024 skip_children parse/format",
+  "peer_review": "requested compiler"
+}

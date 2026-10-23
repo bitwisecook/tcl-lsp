@@ -1,0 +1,12 @@
+{
+  "utc": "2026-10-23T03:02:10.462890+00:00",
+  "status": "prepared; no GO/Cargo/provider/source execution",
+  "pins": {
+    "plan.json": "ef19316d63feedfe96a1587132e22f74a7d75531f6e1fe1a972a79490d7f3a82",
+    "suite.py": "b94658b9670e81478ef6165c933a5d8ecf6676bc4fa4ffd9c06f977310741a3f",
+    "runner-input-manifest.json": "8d592bc20cc7b2c927404a4469a09b7e1e0bb38fb1524bbe8406ef585224c1db",
+    "guarded-exec.py": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811"
+  },
+  "validation": "AST/Bash/manifest PASS; exact anchored1 start/summary/exit count; actual selected/pass/fail recorded",
+  "peer": "pending"
+}

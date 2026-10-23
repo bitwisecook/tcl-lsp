@@ -1,0 +1,153 @@
+{
+  "all_owner_format_pass": true,
+  "archived_utc": "2026-10-23T02:47:48.002656+00:00",
+  "combined_patch_sha256": "f598d61229b986bceb8f7ec73a2ec9d2f8ed62b3bf067eeb08c70b8f571c5f2f",
+  "directory_label_note": "The /tmp directory label has 0252Z; actual composition work began 2026-10-23T02:47Z. Label is not an observation timestamp.",
+  "files": {
+    "combined-30.patch": {
+      "archive": "combined-30.patch.gz",
+      "archive_sha256": "b34ac0d8e595f0ef9f0b60c333b5f212c3a6c54cd837d97bd763af7054164eb8",
+      "bytes": 132833,
+      "sha256": "f598d61229b986bceb8f7ec73a2ec9d2f8ed62b3bf067eeb08c70b8f571c5f2f",
+      "source_path": "/tmp/next-diagnostic-batch-composition-v3-20261023T0252Z/combined-30.patch"
+    },
+    "combined-manifest.json": {
+      "archive": "combined-manifest.json.gz",
+      "archive_sha256": "916a8b553e44c899a7914731e2871bece87f4993ea846ced9169288d88f59b36",
+      "bytes": 15666,
+      "sha256": "a23208aaf11cae1dd2fb6d49e33a5c873d0e4ba757f3fea9831cb38de3336648",
+      "source_path": "/tmp/next-diagnostic-batch-composition-v3-20261023T0252Z/combined-manifest.json"
+    },
+    "compiler-n13-completion-diagnostic-v1-peer-review.json": {
+      "archive": "compiler-n13-completion-diagnostic-v1-peer-review.json.gz",
+      "archive_sha256": "496f788cee5d0d9d08f1b758ef4b0e0179b2db7d97867610e422a80a456901cc",
+      "bytes": 1001,
+      "sha256": "4c5bade2be891fcc09dece00679c47d519ff5e94695a3503b4a2418d916b9661",
+      "source_path": "/tmp/compiler-n13-completion-diagnostic-v1/names-peer-review.json"
+    },
+    "compiler-n13-completion-diagnostic-v1-proposal.patch": {
+      "archive": "compiler-n13-completion-diagnostic-v1-proposal.patch.gz",
+      "archive_sha256": "a3750107a6c5e02085e78f463ad96393aaffffaae428013f380196ce69850a4c",
+      "bytes": 4414,
+      "sha256": "6398e7374f0a24301207b5c8f0a1e0359b03568a26780b3032323220235daea6",
+      "source_path": "/tmp/compiler-n13-completion-diagnostic-v1/proposal.patch"
+    },
+    "compiler-n13-completion-diagnostic-v1-receipt.json": {
+      "archive": "compiler-n13-completion-diagnostic-v1-receipt.json.gz",
+      "archive_sha256": "2a9d2f996b1e8f8605d9a27dd3d765e97e78d358f5dd5bc32a7bf442df9b0939",
+      "bytes": 2450,
+      "sha256": "e445f998b6cd732cc158266f807ca928e3bd29b98a88bf69c6c3dcc9eeafb964",
+      "source_path": "/tmp/compiler-n13-completion-diagnostic-v1/receipt.json"
+    },
+    "compiler-names-g4-normal-frame-diagnostic-v1-peer-review.json": {
+      "archive": "compiler-names-g4-normal-frame-diagnostic-v1-peer-review.json.gz",
+      "archive_sha256": "7cda1037cca65e0c95b91d75a821f3aba87d333980555de05a56214fbe3cdec6",
+      "bytes": 1467,
+      "sha256": "94f4424cec592ede1203b50e391af1475bb77eee0b4c7cd0707e896f5af4828f",
+      "source_path": "/tmp/compiler-names-g4-normal-frame-diagnostic-v1/compiler-peer-review.json"
+    },
+    "compiler-names-g4-normal-frame-diagnostic-v1-proposal.patch": {
+      "archive": "compiler-names-g4-normal-frame-diagnostic-v1-proposal.patch.gz",
+      "archive_sha256": "0b21a21629432efebd5b2054d4a7e43e1048d81481558f055783792f3ba18e6e",
+      "bytes": 7265,
+      "sha256": "d1d26cc86e131a44e88a2045dfd5b41f5852c2c2ef5afa90cc6260e18c828d1c",
+      "source_path": "/tmp/compiler-names-g4-normal-frame-diagnostic-v1/proposal.patch"
+    },
+    "compiler-names-g4-normal-frame-diagnostic-v1-receipt.json": {
+      "archive": "compiler-names-g4-normal-frame-diagnostic-v1-receipt.json.gz",
+      "archive_sha256": "3a7f3eb2077cca73f2ae43ec035e82631aa796352df87d4080c853ccd9832aac",
+      "bytes": 1555,
+      "sha256": "975a02dac063a2e1b7ff225e1a2ead5df7ec28bc80dc690e2b30fe8ce5c5b45e",
+      "source_path": "/tmp/compiler-names-g4-normal-frame-diagnostic-v1/receipt.json"
+    },
+    "compiler-names-nested-normalisation-binding-v1-peer-review.json": {
+      "archive": "compiler-names-nested-normalisation-binding-v1-peer-review.json.gz",
+      "archive_sha256": "de0c7c2ca94d2e2f45416deb1a166087190f47a4c7b29a01d31c7f53489a6627",
+      "bytes": 1565,
+      "sha256": "8e859a539fb4d1f4dc531d86c2baf7d635f9841806bc9ed61196a58b54c4d142",
+      "source_path": "/tmp/compiler-names-nested-normalisation-binding-v1/compiler-peer-review.json"
+    },
+    "compiler-names-nested-normalisation-binding-v1-proposal.patch": {
+      "archive": "compiler-names-nested-normalisation-binding-v1-proposal.patch.gz",
+      "archive_sha256": "bb1a07eaa769785133f0b941473187ae9d25852fdc962641dff93915c78ff838",
+      "bytes": 583,
+      "sha256": "08f24d0948751a1e3fe5d910cb4dc310d82c15b0595e969cb9a107c2d8818f49",
+      "source_path": "/tmp/compiler-names-nested-normalisation-binding-v1/proposal.patch"
+    },
+    "compiler-names-nested-normalisation-binding-v1-receipt.json": {
+      "archive": "compiler-names-nested-normalisation-binding-v1-receipt.json.gz",
+      "archive_sha256": "6fcf5ea43367eb87e4ab0f5ad6d855d2725e8b6750d772d8dd1dabb25a40f85c",
+      "bytes": 1604,
+      "sha256": "9420b5bc179142111fd0f410e8d933019ecc0303738c6e6d9878b29885c352bd",
+      "source_path": "/tmp/compiler-names-nested-normalisation-binding-v1/receipt.json"
+    },
+    "compiler-names-recursive-minify-diagnostic-v1-peer-review.json": {
+      "archive": "compiler-names-recursive-minify-diagnostic-v1-peer-review.json.gz",
+      "archive_sha256": "a0c38863e6d6257a85f42452a7a827923929ab16ba4c6eaf7c70fe922f8e3cd6",
+      "bytes": 1515,
+      "sha256": "08975a455c403ccccb953f8f007dcfd001bce0ed4923b81ba7ebc12c96cea1b8",
+      "source_path": "/tmp/compiler-names-recursive-minify-diagnostic-v1/compiler-peer-review.json"
+    },
+    "compiler-names-recursive-minify-diagnostic-v1-proposal.patch": {
+      "archive": "compiler-names-recursive-minify-diagnostic-v1-proposal.patch.gz",
+      "archive_sha256": "b5280c2b2c8f39907209edb3d232e248f7ecd4167596975deb3e9c6f0f36e990",
+      "bytes": 5497,
+      "sha256": "30004055f1693ab04fb9f12ef6f5f2041bd5a36ad8b2747c4b0234234a7de1d1",
+      "source_path": "/tmp/compiler-names-recursive-minify-diagnostic-v1/proposal.patch"
+    },
+    "compiler-names-recursive-minify-diagnostic-v1-receipt.json": {
+      "archive": "compiler-names-recursive-minify-diagnostic-v1-receipt.json.gz",
+      "archive_sha256": "6018c3f6258d80a379a053c3a1c34f647a999810cf9e71a13b528a61c3b97c13",
+      "bytes": 1432,
+      "sha256": "c514906149163b5da831deca1d81e91210d23000c75c25a3ba6358d10324648c",
+      "source_path": "/tmp/compiler-names-recursive-minify-diagnostic-v1/receipt.json"
+    },
+    "composition-receipt.json": {
+      "archive": "composition-receipt.json.gz",
+      "archive_sha256": "8e4181f700fd7561172d70582e5e5761dbb3172a984b9a351e6c41f3faab1d8c",
+      "bytes": 973,
+      "sha256": "58ddb7d452ed911861654ae295604295262e163e0828b109e52e55cc6b044400",
+      "source_path": "/tmp/next-diagnostic-batch-composition-v3-20261023T0252Z/composition-receipt.json"
+    },
+    "lsp-ilx-first-operand-diagnostic-v1-peer-review.json": {
+      "archive": "lsp-ilx-first-operand-diagnostic-v1-peer-review.json.gz",
+      "archive_sha256": "1c42125376bb9179369e5b8a99ed328cfa2fb3f88694d46757aaf0f0be32b1de",
+      "bytes": 887,
+      "sha256": "93a946090f1ef6a84c3e07942ce219a0b806df03d8b62d4bab05c5500a2d0be4",
+      "source_path": "/tmp/lsp-ilx-first-operand-diagnostic-v1/compiler-peer-review.json"
+    },
+    "lsp-ilx-first-operand-diagnostic-v1-proposal.patch": {
+      "archive": "lsp-ilx-first-operand-diagnostic-v1-proposal.patch.gz",
+      "archive_sha256": "21a8eb26d0df0aa8c4d97ec25880e82ce75d5cf87bb6920ad06b265b4dd8b474",
+      "bytes": 6968,
+      "sha256": "2ed567bac1ae631b817c9085fdae26631a1c1ddf8418cbe6da97b9b370589c03",
+      "source_path": "/tmp/lsp-ilx-first-operand-diagnostic-v1/proposal.patch"
+    },
+    "lsp-ilx-first-operand-diagnostic-v1-receipt.json": {
+      "archive": "lsp-ilx-first-operand-diagnostic-v1-receipt.json.gz",
+      "archive_sha256": "a8f4fd996655412510a707248c5b76d314774a5e823d5e329396c10d2c0e4328",
+      "bytes": 847,
+      "sha256": "b71934aec05f4811e26dbfae01e2b2097284f0b622121145c941ad90870e99a3",
+      "source_path": "/tmp/lsp-ilx-first-operand-diagnostic-v1/receipt.json"
+    },
+    "overlap-peer.json": {
+      "archive": "overlap-peer.json.gz",
+      "archive_sha256": "2dd8e39b5b2483a903ef81e898858d8e63f2cb99d3d6660037fbc038e42a3b59",
+      "bytes": 531,
+      "sha256": "3182a6fa4487b03b53caf885b081dcd79900faa83ed258c3b75a999d24ee42b9",
+      "source_path": "/tmp/next-diagnostic-batch-composition-v2-20261023T0247Z/compiler-overlap-peer-review.json"
+    },
+    "owner-format-check.json": {
+      "archive": "owner-format-check.json.gz",
+      "archive_sha256": "6fa575495f3b76d94f6e1573202367a346b2c41a6aeb7bb53e2f5934701cad7e",
+      "bytes": 5318,
+      "sha256": "f763dd3b79ca1b7c8f9db9a30f6f830f9ecd18f94cd58e03d9ba4a6cf8bf8007",
+      "source_path": "/tmp/next-diagnostic-batch-composition-v3-20261023T0252Z/owner-format-check.json"
+    }
+  },
+  "manifest_sha256": "a23208aaf11cae1dd2fb6d49e33a5c873d0e4ba757f3fea9831cb38de3336648",
+  "owner_format_pass_count": 30,
+  "path_count": 30,
+  "scope": "Gzip evidence only; no .rs/.c source files; no canonical apply, Cargo, typecheck or runtime.",
+  "version": "FINAL30 peer-cleared diagnostic-only composition proof"
+}

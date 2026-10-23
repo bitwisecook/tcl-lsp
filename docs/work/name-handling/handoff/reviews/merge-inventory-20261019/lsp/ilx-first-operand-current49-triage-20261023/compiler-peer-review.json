@@ -1,0 +1,9 @@
+{
+  "status": "bounded static CLEAR",
+  "proposal_sha256": "2ed567bac1ae631b817c9085fdae26631a1c1ddf8418cbe6da97b9b370589c03",
+  "before_sha256": "e0e861453d365ce5de654748a90926c846914f4803c2b69c4088e7026239b103",
+  "final_sha256": "bf1008a1e62393145a7eb9df2d24a96677bb8c55cd671eae6901cadfb3e1bd0f",
+  "exact_current_zero_fuzz_apply": true,
+  "review": "Trace output is cfg(test) plus existing request-specific env gate; Option guard binds each original expression once and returns same value, iterator advice.next order retained. Existing remote barrier clears bindings and breaks unchanged. Pure actual metadata/count reads only; no new source queries, owner construction, assertion changes or navigation beyond opaque calls. No visibility/type blocker found statically.",
+  "limits": "Extra diagnostic output/Option is_none inspection; untyped/unrun; no Cargo or canonical writes."
+}

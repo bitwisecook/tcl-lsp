@@ -1,0 +1,20 @@
+{
+  "inputs": {
+    "/tmp/lsp-native-protocol-v3/plan.json": "fb911b29d143082a0f7ec293702a730e96e0c9ff328e3ffae5a290e09704d880",
+    "/tmp/lsp-native-protocol-v3/immutable-manifest.json": "6db184469d0ad2342f1f5cbb220c2d28d2cfe7cdd94917333aa8d87818e90fcc",
+    "/tmp/lsp-native-protocol-v3/independent-review.json": "c3c94284471d8b2948f890a86b83862019cab6707b631d329de79bc0bc8c4a6a",
+    "/tmp/tcl-lsp-naming-env.sh": "9d33ccdba049a778482244c60a8206cd62fc503db55227b7c6cf87645c932f29",
+    "/tmp/five-cleared-candidate-composition-v4-20261023T015223Z/manifest-v4.json": "269b0b429dc137f8428d02383d1c50d1555d23744019923648893268c15f90ba",
+    "/tmp/next-diagnostic-batch-composition-v3-20261023T0252Z/combined-manifest.json": "a23208aaf11cae1dd2fb6d49e33a5c873d0e4ba757f3fea9831cb38de3336648",
+    "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/validation-tools/capture-inputs.py": "2d3a1cf8aa341d5c4b829be6616a407d516163b52878ebb0cee874040e507474",
+    "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/validation-tools/_paths.py": "f82d76f6ee9434a98ede16693364988373bf68137d0e5800d8839404385b3a0c",
+    "/tmp/compiler-names-recursive-minify-diagnostic-v1/finite-plan.json": "e2b3ffa3bc7bac9f9b4e0edf8cff31923c252c71e47cb2c7c1390db93272d55f",
+    "/tmp/lsp-body-minify-diagnostic-v3-source30-direct5/run.sh": "7a659f8279357f05aedf84130a5dc25f0b9c89884bb73dd1178f44cd3171efc6",
+    "/tmp/lsp-body-minify-diagnostic-v3-source30-direct5/suite.py": "b94658b9670e81478ef6165c933a5d8ecf6676bc4fa4ffd9c06f977310741a3f",
+    "/tmp/lsp-body-minify-diagnostic-v3-source30-direct5/launch.py": "360a142654a62d71b1765b6e0c6ab456ff8c8fcc7fe8478ede19b4b71862fba6",
+    "/tmp/lsp-body-minify-diagnostic-v3-source30-direct5/guarded-exec.py": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811",
+    "/tmp/lsp-body-minify-diagnostic-v3-source30-direct5/providers.py": "5b01d95b0e919dc8aa16048c663003fbaa708d2f1e970408ef3c14fe47eeacd8",
+    "/tmp/lsp-body-minify-diagnostic-v3-source30-direct5/plan.json": "ef19316d63feedfe96a1587132e22f74a7d75531f6e1fe1a972a79490d7f3a82"
+  },
+  "root_go_contract": "exact diagnostic5 plan/manifest/source30 and approved HEAD/tree; post30 report14/typecheck evidence; root dispatch after report14+diagnostic11; no GO prepared"
+}

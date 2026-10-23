@@ -1,0 +1,139 @@
+--- a/rust/tcl-compiler/src/command_binding/normal_result.rs
++++ b/rust/tcl-compiler/src/command_binding/normal_result.rs
+@@ -149,6 +149,66 @@
+ }
+ 
+ impl SourceInvocationBinding {
++    #[cfg(test)]
++    pub(crate) fn trace_g4_normal_frame_facts(
++        &self,
++        label: &str,
++        tokens: &crate::ir::CommandTokens,
++        registry: &tcl_registry::CommandRegistry,
++    ) {
++        let metadata = self
++            .original_source_metadata_for_advice(tokens, registry)
++            .ok()
++            .flatten();
++        let purpose = metadata
++            .and_then(|metadata| self.original_source_advice_purpose(tokens, metadata, registry));
++        let snapshot = self.lookup_state.as_ref().map(|point| &point.state);
++        eprintln!(
++            "G4_NORMAL_FACT label={label} attached={} frame={:?} reached={:?} purpose={purpose:?} owner={} lookup={} compiler={} normal_value={:?} completes={} observations={} native_entry={:?} source_input={:?} opaque={:?} unclosed={:?}",
++            tokens.source_binding.as_ref() == Some(self),
++            self.variable_frame,
++            self.runtime_reachability,
++            self.original_analysis_owner.is_some(),
++            self.lookup_state.is_some(),
++            self.compiler_lookup_state.is_some(),
++            self.original_normal_result(tokens)
++                .map(SourceNormalResult::text),
++            self.original_invocation_completes_normally(tokens),
++            self.normal_result_observations
++                .as_deref()
++                .map_or(0, <[_]>::len),
++            snapshot.map(|state| state.baseline.native_entry.is_some()),
++            snapshot.map(|state| state
++                .baseline
++                .metadata_context
++                .source_analysis_input()
++                .is_some()),
++            snapshot.map(|state| state.has_opaque_domain()),
++            snapshot.map(|state| state.unclosed_command_world),
++        );
++        for (ordinal, observation) in self
++            .normal_result_observations
++            .as_deref()
++            .unwrap_or_default()
++            .iter()
++            .enumerate()
++        {
++            eprintln!(
++                "G4_NORMAL_BASIS label={label} ordinal={ordinal} matches={} normal_possible={} complete_normally={} result={:?} basis_frame={:?} basis_reached={:?}",
++                observation.basis.matches(self, tokens),
++                observation.outcome.normal_possible,
++                observation.outcome.complete_normally,
++                observation
++                    .outcome
++                    .result
++                    .as_ref()
++                    .map(SourceNormalResult::text),
++                observation.basis.binding.variable_frame,
++                observation.basis.binding.runtime_reachability,
++            );
++        }
++    }
++
+     /// Exact scoped normal result plus independent complete-evaluation proof.
+     /// All captured world, compiler, source, argv and declaration owners remain
+     /// prerequisites. This receipt cannot supply actual dispatch or native CPP.
+@@ -623,6 +683,11 @@
+             super::super::SourceRuntimeReachability::Reached
+         );
+         assert!(binding.compiler_lookup_state.is_none());
++        binding.trace_g4_normal_frame_facts(
++            "scoped-procedure",
++            &positive,
++            tcl_registry::model::ingress::static_context_for("tcl9.0").commands(),
++        );
+         assert!(!binding.original_invocation_completes_normally(&positive));
+         let proof = binding
+             .scoped_procedure_evaluation(&positive)
+--- a/rust/tcl-compiler/src/command_binding/conditional_expression_tests.rs
++++ b/rust/tcl-compiler/src/command_binding/conditional_expression_tests.rs
+@@ -64,6 +64,7 @@
+     );
+     assert!(binding.compiler_lookup_state.is_none());
+     assert!(bindings.final_state.baseline.native_entry.is_none());
++    binding.trace_g4_normal_frame_facts("conditional-expression", &tokens, registry);
+     assert!(binding.original_normal_result(&tokens).is_none());
+     assert!(!binding.original_invocation_completes_normally(&tokens));
+     assert!(binding.expression_preparation(&[]).is_none());
+--- a/rust/tcl-compiler/src/command_binding/expression_preparation.rs
++++ b/rust/tcl-compiler/src/command_binding/expression_preparation.rs
+@@ -2072,6 +2072,22 @@
+                 if allowed {
+                     let mut wrong_frame = binding.clone();
+                     wrong_frame.variable_frame = crate::var_resolve::VariableExecutionFrame::Global;
++                    eprintln!(
++                        "G4_WRONG_FRAME profile={profile_name} original={:?} mutated={:?} equal={} attached_original={} attached_mutated={} original_normalisation_frame={:?} mutated_normalisation_frame={:?}",
++                        binding.variable_frame,
++                        wrong_frame.variable_frame,
++                        binding == &wrong_frame,
++                        tokens.source_binding.as_ref() == Some(binding),
++                        tokens.source_binding.as_ref() == Some(&wrong_frame),
++                        binding
++                            .normalisation_expression(registry, &tokens)
++                            .map(|proof| proof.frame),
++                        wrong_frame
++                            .normalisation_expression(registry, &tokens)
++                            .map(|proof| proof.frame),
++                    );
++                    binding.trace_g4_normal_frame_facts("nested-original", &tokens, registry);
++                    wrong_frame.trace_g4_normal_frame_facts("nested-mutated", &tokens, registry);
+                     assert!(
+                         !wrong_frame
+                             .nested_expression_normalisation(registry, &tokens, &parser, None)
+@@ -2166,6 +2182,22 @@
+                     );
+                     let mut wrong_frame = binding.clone();
+                     wrong_frame.variable_frame = crate::var_resolve::VariableExecutionFrame::Global;
++                    eprintln!(
++                        "G4_WRONG_FRAME profile={profile_name} original={:?} mutated={:?} equal={} attached_original={} attached_mutated={} original_normalisation_frame={:?} mutated_normalisation_frame={:?}",
++                        binding.variable_frame,
++                        wrong_frame.variable_frame,
++                        binding == &wrong_frame,
++                        tokens.source_binding.as_ref() == Some(binding),
++                        tokens.source_binding.as_ref() == Some(&wrong_frame),
++                        binding
++                            .normalisation_expression(registry, &tokens)
++                            .map(|proof| proof.frame),
++                        wrong_frame
++                            .normalisation_expression(registry, &tokens)
++                            .map(|proof| proof.frame),
++                    );
++                    binding.trace_g4_normal_frame_facts("nested-original", &tokens, registry);
++                    wrong_frame.trace_g4_normal_frame_facts("nested-mutated", &tokens, registry);
+                     assert!(
+                         !wrong_frame
+                             .nested_expression_normalisation(registry, &tokens, &parser, None)

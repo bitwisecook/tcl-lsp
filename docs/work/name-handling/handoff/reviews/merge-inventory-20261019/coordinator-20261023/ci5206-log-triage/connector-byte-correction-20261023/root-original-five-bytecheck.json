@@ -1,0 +1,47 @@
+[
+  {
+    "i": 0,
+    "original_bytes": 322364,
+    "captured_bytes": 322365,
+    "exact": false,
+    "single_appended_lf": true,
+    "original_sha256": "3a8d093d82dd92acaf62ae5639af2dec3f907dce68a390fe6e0bb81f26502ae5",
+    "captured_sha256": "6937daabea9a8e127560249938493cfcfe069eac56dd2b54249d29beb2de63a1"
+  },
+  {
+    "i": 1,
+    "original_bytes": 317507,
+    "captured_bytes": 317508,
+    "exact": false,
+    "single_appended_lf": true,
+    "original_sha256": "5b412cf6ab59fbe4a4920929264adb892c92aef21b7ba4260e3917a1696a9668",
+    "captured_sha256": "125a6ece8de947a288847101ddc2e933a072a0b234fb7ff56e3b1efc32c8db3b"
+  },
+  {
+    "i": 2,
+    "original_bytes": 1750377,
+    "captured_bytes": 1750378,
+    "exact": false,
+    "single_appended_lf": true,
+    "original_sha256": "87eded37d3f6a235b8d1ae75786ba5d269733c58c1ae3e6d1d740191ecbc9f4d",
+    "captured_sha256": "da4704e5d8386fa5d657c264a7ff722d490f0bf8ffed9d4334baa1c301dbb3b9"
+  },
+  {
+    "i": 3,
+    "original_bytes": 1634172,
+    "captured_bytes": 1634173,
+    "exact": false,
+    "single_appended_lf": true,
+    "original_sha256": "d23ed327135d2c2a4892f200114f38db76e1c6ac2ef31ebebc65f37bfcef5cf3",
+    "captured_sha256": "1d19a8b63762b7d5500f3e00c6736f6296185485718c5b076247918fa0c3c463"
+  },
+  {
+    "i": 4,
+    "original_bytes": 23113,
+    "captured_bytes": 23114,
+    "exact": false,
+    "single_appended_lf": true,
+    "original_sha256": "6c1f80daa3405ffa709a8693a55721a565f6559c57d75523d0374694fc791dae",
+    "captured_sha256": "50480cf35a3d8ba0cf15a346c49c12fcd0d5772ec377bbadaf797598992d3f85"
+  }
+]

@@ -1,0 +1,11 @@
+
+running 1 test
+test registry_invocation::source_remote_first_operand::tests::first_remote_operand_retains_exact_source_owners_and_stops_at_the_call ... FAILED
+
+failures:
+
+failures:
+    registry_invocation::source_remote_first_operand::tests::first_remote_operand_retains_exact_source_owners_and_stops_at_the_call
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 10553 filtered out; finished in 3.17s
+

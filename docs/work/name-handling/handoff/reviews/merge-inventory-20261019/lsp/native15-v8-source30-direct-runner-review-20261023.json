@@ -1,0 +1,27 @@
+{
+  "utc": "2026-10-23T02:53:54.360829+00:00",
+  "reviewer": "lsp",
+  "status": "bounded static CLEAR",
+  "hashes": {
+    "plan.json": "f8d9637f14527f04ee300dce364ba6c33411f1a3ea21ff2235be795097b3b218",
+    "suite.py": "03fff9f48ae115eee6e82a75795b4663e88b5cb17239dfbef7042b20b077ab71",
+    "launch.py": "02a65dc251ab5088dafb213fbbfc2f5e163ed4001596bb13e921486252b952da",
+    "run.sh": "6d41f3c8ecd28319434c62d79117211bc22ffa3f6de9b2a50d228f3ccf09a9b8",
+    "runner-input-manifest.json": "e6953c4c19da12d14ad596e1e9d65927cbdb8e522b2a43c1f7883a094714eb1e",
+    "guarded-exec.py": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811"
+  },
+  "checks": [
+    "actual v7-to-v8 diff inspected; only source30/path/evidence/approved HEAD-tree successor plus transitive _paths pin",
+    "exact original 15 selector objects and 13 source pins unchanged",
+    "all manifest inputs match; all30 canonical source hashes match frozen source30",
+    "approved exact commit tree joins",
+    "strict Cargo-event/artifact/profile/target and lifecycle logic unchanged from reviewed v7",
+    "GO must pin exact plan/runner/source30, exact approved HEAD/tree and both post30 evidence files; no GO exists",
+    "AST and bash syntax PASS"
+  ],
+  "limits": [
+    "No runner/provider/Cargo execution",
+    "No GO or release admission",
+    "Evidence receipt contents remain root responsibility beyond file hash pinning"
+  ]
+}

@@ -1,0 +1,29 @@
+{
+  "status": "prepared only no GO/run/queue",
+  "tests": [
+    {
+      "selector": "command_binding::conditional_expression_tests::conditional_expression_template_retains_grammar_without_actual_entry",
+      "expected_selected": 1,
+      "exact": true
+    },
+    {
+      "selector": "command_binding::normal_result::tests::scoped_procedure_equivalence_keeps_independent_world_and_completion_obligations",
+      "expected_selected": 1,
+      "exact": true
+    },
+    {
+      "selector": "command_binding::expression_preparation::tests::scoped_nested_normalisation_keeps_original_world_frame_and_source",
+      "expected_selected": 1,
+      "exact": true
+    },
+    {
+      "selector": "command_binding::expression_preparation::tests::selected_nested_normalisation_projects_actual_operand_and_command_source",
+      "expected_selected": 1,
+      "exact": true
+    }
+  ],
+  "package": "tcl-compiler",
+  "target": "--lib",
+  "guards": "root active approved process/source/provider/artifact protocol; no new suppression,180sec/20MiB/2GiB; retain G4_NORMAL_FACT/G4_NORMAL_BASIS/G4_WRONG_FRAME rawstdout+stderr before unchanged assertions",
+  "not_composed_with": "08f24d09 exact binding guard candidate kept separate to measure current original/mutated facts first"
+}

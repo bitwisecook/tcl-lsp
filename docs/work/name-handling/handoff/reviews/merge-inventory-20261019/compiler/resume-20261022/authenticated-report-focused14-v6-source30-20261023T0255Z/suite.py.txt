@@ -1,0 +1,386 @@
+from pathlib import Path
+import datetime, fcntl, hashlib, importlib.util, json, os, re, shlex, shutil, subprocess, sys, time
+
+ROOT = Path('/workspace/naming-migration-active/tcl-lsp')
+BASE = Path('/tmp/compiler-authenticated-report-focused14-v6-source30')
+PROVIDER = Path('/tmp/compiler-c6-provider-manifest.py')
+GO = BASE / 'root-go.json'
+RUNNER_MANIFEST = BASE / 'runner-input-manifest.json'
+os.chdir(ROOT)
+plan_path = Path(sys.argv[1]).resolve()
+plan_bytes = plan_path.read_bytes()
+plan = json.loads(plan_bytes)
+rows = plan['required_filters']
+plan_sha = hashlib.sha256(plan_bytes).hexdigest()
+
+def utc():
+    return datetime.datetime.now(datetime.timezone.utc).isoformat()
+
+def digest(path):
+    with Path(path).open('rb') as stream:
+        return hashlib.file_digest(stream, 'sha256').hexdigest()
+
+def write_json(path, data):
+    Path(path).write_text(json.dumps(data, sort_keys=True, indent=2) + '\n')
+
+def source_view(stage, expected_go_sha):
+    head = subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()
+    base = plan['source_commit']
+    if digest(GO) != expected_go_sha:
+        raise SystemExit('STOP: root GO changed during run')
+    go = json.loads(GO.read_text())
+    if go.get('plan_sha256') != plan_sha or go.get('source_commit') != base or go.get('source30_manifest_sha256') != plan['source30_manifest_sha256']:
+        raise SystemExit('STOP: exact plan/source30 root GO mismatch')
+    if go.get('runner_input_manifest_sha256') != digest(RUNNER_MANIFEST):
+        raise SystemExit('STOP: reviewed runner input manifest mismatch')
+    for path, expected in json.loads(RUNNER_MANIFEST.read_text()).get('inputs',{}).items():
+        if digest(path) != expected:
+            raise SystemExit('STOP: reviewed runner input changed: '+path)
+    source30 = BASE / 'source30-manifest.json'
+    if digest(source30) != plan['source30_manifest_sha256'] or json.loads(source30.read_text())['paths'] != plan['integration_paths'] or len(plan['integration_paths']) != 30:
+        raise SystemExit('STOP: immutable exact22 source manifest mismatch')
+    # A launch/start record never establishes completion of the preceding suite.
+    completed = Path(go.get('compiler49_final_receipt','/nonexistent/compiler49'))
+    launch_path = Path(go.get('compiler49_launcher_receipt','/nonexistent/compiler49-launcher'))
+    if not completed.is_file() or digest(completed) != go.get('compiler49_final_sha256') or not launch_path.is_file() or digest(launch_path) != go.get('compiler49_launcher_sha256'):
+        raise SystemExit('STOP: completed valid49v7 final/launcher absent or unpinned')
+    final = json.loads(completed.read_text())
+    prior_plan = completed.parent/'plan.json'
+    prior_rows_path = completed.parent/'results.json'
+    if not prior_plan.is_file() or digest(prior_plan) != plan['compiler49_predecessor_plan_sha256'] or not prior_rows_path.is_file():
+        raise SystemExit('STOP: actual49v7 exact plan/results absent')
+    if final.get('results') != 36 or final.get('selected') != 49 or not all(final.get(k) is True for k in ['source_stable','providers_stable','artifact_stable','all36_direct_child_timers_valid']):
+        raise SystemExit('STOP: previous49 incomplete or guards invalid')
+    prior_rows = json.loads(prior_rows_path.read_text())
+    expected_rows = json.loads(prior_plan.read_text())['required_filters']
+    if len(prior_rows) != 36 or sum(r['actual_selected'] for r in prior_rows) != 49:
+        raise SystemExit('STOP: preceding49 count mismatch')
+    for actual, expected in zip(prior_rows,expected_rows,strict=True):
+        process=actual.get('process',{})
+        if actual['selector'] != expected['selector'] or actual['actual_selected'] != expected['expected_selected'] or actual['started_counts'] != [expected['expected_selected']] or len(actual['summaries']) != 1 or not all(actual.get(k) is True for k in ['source_stable','providers_stable','artifact_stable']) or actual.get('log_at_cap'):
+            raise SystemExit('STOP: preceding49 exact roster or seal mismatch')
+        if not all(process.get(k) is True for k in ['complete','timer_armed_before_spawn','group_empty_before_parent_reap']) or process.get('stop_reason') is not None:
+            raise SystemExit('STOP: preceding49 direct-child lifecycle invalid')
+    # Reconcile the actual libtest outcomes, without requiring the tests green.
+    expected_overall = 0
+    for actual, expected in zip(prior_rows, expected_rows, strict=True):
+        if actual.get('warnings') is not False:
+            raise SystemExit('STOP: preceding49 warnings are not zero')
+        summary = actual['summaries'][0]
+        if len(summary) != 4:
+            raise SystemExit('STOP: preceding49 summary shape mismatch')
+        status, passed_text, failed_text, ignored_text = summary
+        passed, failed, ignored = int(passed_text), int(failed_text), int(ignored_text)
+        if ignored != 0 or passed + failed != expected['expected_selected'] or passed + failed != actual['actual_selected']:
+            raise SystemExit('STOP: preceding49 summary counts/ignored mismatch')
+        exit_code = actual.get('exit_code')
+        if not isinstance(exit_code, int) or exit_code != actual['process'].get('exit_code') or bool(exit_code) != bool(failed) or (status == 'ok') != (failed == 0):
+            raise SystemExit('STOP: preceding49 row exit/status does not match actual outcomes')
+        if exit_code:
+            expected_overall = 1
+    if final.get('overall_exit') != expected_overall:
+        raise SystemExit('STOP: preceding49 final exit does not reflect actual rows')
+    if list(completed.parent.glob('build-*.warnings.json')):
+        raise SystemExit('STOP: preceding49 build warning receipt exists')
+    raw_go_path = BASE/'compiler49-v7-root-go.raw.json'
+    serialized_go_path = BASE/'compiler49-v7-root-go.receipt.json'
+    prior_go_path = completed.parent/'root-go.json'
+    prior_runner_path = BASE/'compiler49-v7-runner-input-manifest.json'
+    if digest(raw_go_path) != plan['compiler49_raw_go_sha256'] or digest(serialized_go_path) != plan['compiler49_receipt_go_sha256'] or not prior_go_path.is_file() or digest(prior_go_path) != plan['compiler49_receipt_go_sha256'] or digest(prior_runner_path) != plan['compiler49_runner_manifest_sha256']:
+        raise SystemExit('STOP: preceding49 exact raw/sorted approval or runner-manifest bytepin mismatch')
+    raw_go = json.loads(raw_go_path.read_text())
+    if raw_go != json.loads(serialized_go_path.read_text()) or raw_go != json.loads(prior_go_path.read_text()) or raw_go.get('plan_sha256') != plan['compiler49_predecessor_plan_sha256'] or raw_go.get('source_commit') != base or raw_go.get('approved_integrated_head') != base or raw_go.get('runner_input_manifest_sha256') != plan['compiler49_runner_manifest_sha256']:
+        raise SystemExit('STOP: preceding49 approval content/source/plan/manifest mismatch')
+    if final.get('root_go_sha256') != plan['compiler49_raw_go_sha256']:
+        raise SystemExit('STOP: preceding49 final raw approval hash mismatch')
+    launcher=json.loads(launch_path.read_text())
+    if launcher.get('exit_code') != expected_overall or launcher.get('root_go_sha256') != plan['compiler49_raw_go_sha256'] or launcher.get('root_go_sha256_after') != plan['compiler49_raw_go_sha256']:
+        raise SystemExit('STOP: preceding49 launcher exit/approval hashes disagree with actual final')
+    transcript=Path(launcher.get('transcript','/nonexistent/transcript'))
+    if launcher.get('exit_code') not in (0,1) or launcher.get('inputs_stable') is not True or launcher.get('root_go_stable') is not True or launcher.get('plan_sha256') != plan['compiler49_predecessor_plan_sha256'] or not transcript.is_file():
+        raise SystemExit('STOP: preceding49 durable launcher not validly completed')
+    transcript_text=transcript.read_text(errors='replace')
+    if 'COMPLETE receipt='+str(completed.parent)+' overall=' not in transcript_text or 'LOCK_RELEASED ' not in transcript_text:
+        raise SystemExit('STOP: preceding49 launcher does not match completed unlocked suite')
+    if not (completed.parent/'providers-final.json').is_file() or json.loads((completed.parent/'providers-final.json').read_text()) != json.loads((completed.parent/'providers-before.json').read_text()):
+        raise SystemExit('STOP: preceding49 actual final provider proof missing or changed')
+    approved=go.get('approved_integrated_head')
+    if not approved or subprocess.run(['git','merge-base','--is-ancestor',base,approved],check=False).returncode or subprocess.run(['git','merge-base','--is-ancestor',approved,head],check=False).returncode:
+        raise SystemExit('STOP: approved22 integration ancestry mismatch')
+    allowed={r['path'] for r in plan['integration_paths']}
+    for row in plan['integration_paths']:
+        path=Path(row['path'])
+        if not path.is_file() or digest(path) != row['after_sha256']:
+            raise SystemExit('STOP: exact22 final hash mismatch: '+str(path))
+        original=subprocess.run(['git','show',base+':'+row['path']],capture_output=True)
+        if (hashlib.sha256(original.stdout).hexdigest() if original.returncode == 0 else None) != row['before_sha256']:
+            raise SystemExit('STOP: exact22 original3b1 baseline mismatch')
+    exclusions=[':(exclude)docs/work/name-handling']+[':(exclude)'+p for p in sorted(allowed)]
+    if subprocess.run(['git','diff','--quiet',base,'--','.',*exclusions],check=False).returncode:
+        raise SystemExit('STOP: other product differs from3b1')
+    for anchor, allowed_paths in [(base,allowed),(approved,set())]:
+        for commit in subprocess.check_output(['git','rev-list',f'{anchor}..{head}'],text=True).splitlines():
+            paths=subprocess.check_output(['git','diff-tree','--no-commit-id','--name-only','-r','-m',commit],text=True).splitlines()
+            if any(p not in allowed_paths and not p.startswith('docs/work/name-handling/') for p in paths):
+                raise SystemExit('STOP: unreviewed source history or non-doc descendant')
+    for raw in subprocess.check_output(['git','ls-files','--others','--exclude-standard','-z']).split(b'\0'):
+        if raw and raw.decode(errors='surrogateescape') not in allowed and not raw.decode(errors='surrogateescape').startswith('docs/work/name-handling/'):
+            raise SystemExit('STOP: unreviewed untracked source')
+    return head
+
+def source_manifest():
+    records = {}
+    raw = subprocess.check_output(['git', 'ls-files', '--cached', '--others', '--exclude-standard', '-z'])
+    for item in raw.split(b'\0'):
+        if not item:
+            continue
+        path = Path(os.fsdecode(item))
+        if (path.parts[0] in {'rust', 'runtime', 'tests', 'experiments', 'spec', 'specs', 'data', 'resources', '.cargo'}
+            or path.suffix in {'.rs', '.c', '.h', '.tcl', '.tclspec'}
+            or path.name in {'Cargo.toml', 'Cargo.lock', 'rust-toolchain.toml', 'rustfmt.toml', 'clippy.toml'}):
+            records[str(path)] = digest(path) if path.is_file() else None
+    return records
+
+def disk_snapshot():
+    return {p: shutil.disk_usage(p).free for p in ['/workspace', '/tmp']}
+
+def require_disk(stage):
+    free = disk_snapshot()
+    if any(v < 2 * 1024**3 for v in free.values()):
+        raise SystemExit(f'STOP: actual mounted filesystem below 2 GiB at {stage}: {free}')
+    return free
+
+# Refuse before taking the shared lock, creating a run receipt, or starting Cargo.
+if not GO.is_file():
+    write_json(BASE / 'preflight-refusal.json', {
+        'status': 'PASS no-GO preflight; no build lock or Cargo started',
+        'actual': 'STOP: no root-go.json; no queue', 'plan_sha256': plan_sha,
+        'execution': 'startup refusal only', 'cargo_started': False,
+        'receipt_created': False, 'utc': utc()})
+    raise SystemExit('STOP: no reviewed root GO; no queue')
+if len(rows) != plan['expected_filters'] or sum(r['expected_selected'] for r in rows) != plan['expected_selected']:
+    raise SystemExit('STOP: exact filter/count inventory mismatch')
+if plan['expected_filters'] != 2 or plan['expected_selected'] != 14:
+    raise SystemExit('STOP: report14 must preserve exact2filters14controls')
+head = source_view('startup', digest(GO))
+require_disk('startup')
+lock = open('/tmp/tcl-lsp-naming-build.lock', 'w')
+try:
+    fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+except BlockingIOError:
+    raise SystemExit('STOP: compiler build lock occupied; no queue')
+tag = datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%dT%H%M%S.%fZ')
+receipt = Path('/tmp/compiler-authenticated-report-focused14-v6-source30-runs') / tag
+receipt.mkdir(parents=True)
+write_json(receipt / 'plan.json', plan)
+go_sha = digest(GO)
+write_json(receipt / 'root-go.json', json.loads(GO.read_text()))
+before = source_manifest()
+write_json(receipt / 'source-before.json', before)
+subprocess.run([sys.executable, str(PROVIDER), str(receipt / 'providers-before.json')], check=True)
+providers = json.loads((receipt / 'providers-before.json').read_text())
+(receipt / 'head-before.txt').write_text(head + '\n')
+(receipt / 'head-snapshot-startup.json').write_text(json.dumps(
+    {'stage': 'startup', 'head': head, 'source_commit': plan['source_commit']}, indent=2) + '\n')
+(receipt / 'current-rust-diff.patch').write_bytes(
+    subprocess.check_output(['git', 'diff', '--binary', 'HEAD', '--', 'rust', 'Cargo.toml', 'Cargo.lock']))
+write_json(receipt / 'build-environment.json', {
+    k: v for k, v in os.environ.items()
+    if k.startswith(('CARGO_', 'RUSTUP_', 'TCL_LSP_'))
+    or k in {'RUSTFLAGS', 'RUSTDOCFLAGS', 'RUSTC', 'RUSTDOC', 'WASI_SDK_PATH'}})
+runner_inputs = [str(Path('/tmp/tcl-lsp-naming-env.sh')), str(BASE / 'run.sh'), str(BASE / 'suite.py'),
+                 str(BASE / 'guarded-cargo.py'), str(BASE / 'guarded-exec.py'), str(PROVIDER),
+                 str(plan_path), str(BASE / 'root-go.json'), str(BASE / 'source30-manifest.json')]
+write_json(receipt / 'runner-inputs.json', {p: digest(p) for p in runner_inputs})
+source_after_startup = source_manifest()
+if source_after_startup != before:
+    raise SystemExit('STOP: source changed while creating startup evidence')
+
+# Capture the actual current test executables from this guarded no-run invocation.
+artifacts = {}
+for target in plan['package_builds']:
+    source_view('before-build-' + target['package'], go_sha)
+    free_before = require_disk('before-build-' + target['package'])
+    label = 'build-' + target['package']
+    prefix = receipt / label
+    command = target['cargo_argv']
+    (receipt / (label + '.command')).write_text(shlex.join(command) + '\n')
+    print('BUILD', target['package'], flush=True)
+    result = subprocess.run([sys.executable, str(BASE / 'guarded-cargo.py'), str(prefix), *command],
+                            cwd=ROOT, env=os.environ.copy(), check=False)
+    stdout_path = Path(str(prefix) + '.stdout')
+    stderr_path = Path(str(prefix) + '.stderr')
+    process_path = Path(str(prefix) + '.process.json')
+    if not process_path.is_file():
+        raise SystemExit('STOP: Cargo capture did not produce process receipt')
+    process = json.loads(process_path.read_text())
+    records = []
+    parse_errors = []
+    for number, line in enumerate(stdout_path.read_text(errors='replace').splitlines(), 1):
+        if not line.strip():
+            continue
+        try:
+            records.append(json.loads(line))
+        except json.JSONDecodeError as error:
+            parse_errors.append({'line': number, 'error': str(error), 'text': line[:300]})
+    if parse_errors:
+        raise SystemExit(f'STOP: non-JSON Cargo output on JSON channel for {target["package"]}')
+    finished = [x for x in records if x.get('reason') == 'build-finished']
+    if result.returncode or not process.get('complete') or process.get('stop_reason') or len(finished) != 1 or not finished[0].get('success'):
+        write_json(receipt / (label + '.result.json'), {'cargo_exit': result.returncode,
+                    'process': process, 'build_finished': finished, 'parse_errors': parse_errors,
+                    'stdout_sha256': digest(stdout_path), 'stderr_sha256': digest(stderr_path)})
+        raise SystemExit('STOP: guarded no-run Cargo build did not complete successfully')
+    diagnostics = [x for x in records if x.get('reason') == 'compiler-message'
+                   and x.get('message', {}).get('level') in {'warning', 'error'}]
+    build_warnings = []
+    for item in records:
+        if item.get('reason') == 'build-script-executed':
+            build_warnings.extend(item.get('warnings', []))
+    stderr_warnings = [line for line in stderr_path.read_text(errors='replace').splitlines()
+                       if re.match(r'^warning:', line)]
+    if diagnostics or build_warnings or stderr_warnings:
+        write_json(receipt / (label + '.warnings.json'), {
+            'compiler_messages': diagnostics, 'build_script_warnings': build_warnings,
+            'stderr_warning_lines': stderr_warnings})
+        raise SystemExit('STOP: build/compiler/build-script warning or error')
+    candidates = [x for x in records if x.get('reason') == 'compiler-artifact'
+                  and x.get('profile', {}).get('test') is True
+                  and x.get('target', {}).get('name') == target['target_name']
+                  and x.get('target', {}).get('kind') == target['target_kind']
+                  and str(Path(x.get('manifest_path', '')).resolve()) == target['manifest_path']
+                  and x.get('executable')]
+    if len(candidates) != 1:
+        write_json(receipt / (label + '.artifact-refusal.json'), {
+            'candidate_count': len(candidates), 'matching_target_events': candidates,
+            'policy': 'exactly one current artifact event; no stale executable fallback'})
+        raise SystemExit('STOP: missing or ambiguous actual Cargo test artifact; no stale fallback')
+    item = candidates[0]
+    exe = Path(item['executable']).resolve()
+    target_dir = Path(os.environ['CARGO_TARGET_DIR']).resolve()
+    if not exe.is_file() or not exe.is_relative_to(target_dir):
+        raise SystemExit('STOP: Cargo artifact not a regular file under actual CARGO_TARGET_DIR')
+    stat = exe.stat()
+    artifact = {'package': target['package'], 'target_name': target['target_name'],
+                'target_kind': target['target_kind'], 'manifest_path': target['manifest_path'],
+                'profile': item['profile'], 'package_id': item.get('package_id'),
+                'path': str(exe), 'sha256': digest(exe), 'size': stat.st_size,
+                'mtime_ns': stat.st_mtime_ns, 'captured_from_current_cargo_event': True,
+                'cargo_event': item, 'stdout_sha256': digest(stdout_path), 'stderr_sha256': digest(stderr_path)}
+    artifacts[target['package']] = artifact
+    write_json(receipt / (label + '.artifact.json'), artifact)
+    source_view('after-build-' + target['package'], go_sha)
+    if source_manifest() != before:
+        raise SystemExit('STOP: source drift during Cargo no-run build')
+    subprocess.run([sys.executable, str(PROVIDER), str(receipt / 'providers-after-build.json')], check=True)
+    if json.loads((receipt / 'providers-after-build.json').read_text()) != providers:
+        raise SystemExit('STOP: provider drift during Cargo no-run build')
+    require_disk('after-build-' + target['package'])
+    print('BUILD_ARTIFACT', target['package'], artifact['path'], artifact['sha256'], flush=True)
+
+# The exact package test binary is parent-owned for each selector; no Cargo child tree discovery.
+spec = importlib.util.spec_from_file_location('guarded_exec', BASE / 'guarded-exec.py')
+if spec is None or spec.loader is None:
+    raise SystemExit('STOP: guarded-exec module unavailable')
+guarded_exec = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(guarded_exec)
+results = []
+overall = 0
+for index, row in enumerate(rows):
+    label = row['label']
+    package = row.get('package', 'tcl-compiler')
+    artifact = artifacts.get(package)
+    if artifact is None:
+        raise SystemExit('STOP: no actual executable for selector package ' + package)
+    source_view('before-' + label, go_sha)
+    free_before = require_disk('before-' + label)
+    if digest(artifact['path']) != artifact['sha256']:
+        raise SystemExit('STOP: current test artifact changed before selector')
+    command = [artifact['path'], row['selector']]
+    if row.get('exact'):
+        command.append('--exact')
+    command.extend(['--nocapture', '--test-threads=1'])
+    env = os.environ.copy()
+    env.update(row.get('env', {}))
+    prefix = receipt / f'{index + 1:02d}-{label}'
+    (receipt / (prefix.name + '.command')).write_text(shlex.join(command) + '\n')
+    write_json(receipt / (prefix.name + '.env.json'), row.get('env', {}))
+    print('RUN', index + 1, label, flush=True)
+    process_receipt = guarded_exec.run(
+        command, cwd=ROOT, env=env,
+        stdout_path=str(prefix) + '.stdout', stderr_path=str(prefix) + '.stderr',
+        receipt_path=str(prefix) + '.process.json', artifact_path=artifact['path'],
+        deadline_seconds=180, cap_bytes=20 * 1024**2,
+        disk_floor_bytes=2 * 1024**3, disk_paths=('/workspace', '/tmp'))
+    stdout_path = Path(str(prefix) + '.stdout')
+    stderr_path = Path(str(prefix) + '.stderr')
+    text = stdout_path.read_text(errors='replace') + '\n' + stderr_path.read_text(errors='replace')
+    summaries = re.findall(r'^test result: (.+?)\. (\d+) passed; (\d+) failed; (\d+) ignored;', text, re.M)
+    started = [int(x) for x in re.findall(r'^running (\d+) tests?$', text, re.M)]
+    selected = sum(int(p) + int(f) for _, p, f, _ in summaries)
+    expected = row['expected_selected']
+    warnings = bool(re.search(r'^warning:', text, re.M))
+    before_artifact = digest(artifact['path'])
+    source_view('after-' + label, go_sha)
+    after = source_manifest()
+    subprocess.run([sys.executable, str(PROVIDER), str(receipt / 'providers-after.json')], check=True)
+    providers_stable = json.loads((receipt / 'providers-after.json').read_text()) == providers
+    artifact_stable = before_artifact == artifact['sha256'] and digest(artifact['path']) == artifact['sha256']
+    source_stable = before == after
+    row_result = {'index': index + 1, 'label': label, 'package': package, 'selector': row['selector'],
+                  'argv': command, 'expected_selected': expected, 'actual_selected': selected,
+                  'started_counts': started, 'summaries': summaries, 'exit_code': process_receipt.get('exit_code'),
+                  'process': process_receipt, 'warnings': warnings,
+                  'source_stable': source_stable, 'providers_stable': providers_stable,
+                  'artifact': artifact, 'artifact_stable': artifact_stable,
+                  'stdout_sha256': digest(stdout_path), 'stderr_sha256': digest(stderr_path),
+                  'log_at_cap': process_receipt.get('retained_bytes', 0) >= process_receipt.get('cap_bytes', 20 * 1024**2)}
+    write_json(Path(str(prefix) + '.result.json'), row_result)
+    results.append(row_result)
+    write_json(receipt / 'results.json', results)
+    print('RESULT', index + 1, label, 'exit=' + str(row_result['exit_code']),
+          'selected=' + str(selected), 'expected=' + str(expected),
+          'timer_armed_before_spawn=' + str(process_receipt.get('timer_armed_before_spawn')), flush=True)
+    if not source_stable or not providers_stable or not artifact_stable:
+        raise SystemExit('STOP: source/provider/artifact drift')
+    if row_result['log_at_cap']:
+        raise SystemExit('STOP: per-process 20MiB cap reached')
+    if selected != expected or len(summaries) != 1 or started != [expected]:
+        raise SystemExit('STOP: exact selected/start/summary count mismatch')
+    if not process_receipt.get('timer_armed_before_spawn') or process_receipt.get('stop_reason') is not None:
+        raise SystemExit('STOP: direct-child runtime timer invalid or exceeded')
+    if process_receipt.get('group_empty_before_parent_reap') is not True:
+        raise SystemExit('STOP: owned process group not proven empty before parent reap')
+    if process_receipt.get('complete') is not True or process_receipt.get('stop_reason') is not None or process_receipt.get('group_empty_before_parent_reap') is not True:
+        raise SystemExit('STOP: direct process guard lifecycle incomplete')
+    if any(v < 2 * 1024**3 for v in disk_snapshot().values()):
+        raise SystemExit('STOP: actual mount fell below 2 GiB after selector')
+    if row_result['exit_code'] or warnings:
+        overall = 1
+    if selected != expected:
+        raise SystemExit('STOP: unexpected selector count')
+    write_json(receipt / f'{index + 1:02d}-{label}.sha256.json', {
+        str(p): digest(p) for p in receipt.glob(prefix.name + '.*') if p.is_file()})
+    print('TEST_RESULT', summaries[0], flush=True)
+
+if len(results) != 2 or sum(x['actual_selected'] for x in results) != 14:
+    raise SystemExit('STOP: terminal2/14 inventory mismatch')
+source_view('final', go_sha)
+after = source_manifest()
+subprocess.run([sys.executable, str(PROVIDER), str(receipt / 'providers-final.json')], check=True)
+providers_stable = json.loads((receipt / 'providers-final.json').read_text()) == providers
+source_stable = before == after
+artifact_stable = all(digest(x['path']) == x['sha256'] for x in artifacts.values())
+write_json(receipt / 'final.json', {
+    'overall_exit': overall, 'results': len(results), 'selected': sum(x['actual_selected'] for x in results),
+    'finished_utc': utc(), 'source_count': len(before), 'source_stable': source_stable,
+    'providers_stable': providers_stable, 'artifact_stable': artifact_stable,
+    'build_artifacts': artifacts, 'all_artifacts_retained': True, 'root_go_sha256': go_sha,
+    'all2_direct_child_timers_valid': all(x['process'].get('timer_armed_before_spawn') for x in results)})
+if not source_stable or not providers_stable or not artifact_stable:
+    raise SystemExit('STOP: final source/provider/artifact seal mismatch')
+print('COMPLETE receipt=' + str(receipt) + ' overall=' + str(overall), flush=True)
+fcntl.flock(lock, fcntl.LOCK_UN)
+lock.close()
+print('LOCK_RELEASED ' + utc(), flush=True)
+sys.exit(overall)

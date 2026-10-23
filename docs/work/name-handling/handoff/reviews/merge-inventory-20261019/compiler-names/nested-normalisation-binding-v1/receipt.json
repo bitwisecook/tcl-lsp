@@ -1,0 +1,20 @@
+{
+  "utc": "2026-10-23T02:27:44.391784+00:00",
+  "status": "OFFTREE actual49 wrong-frame refusal fix candidate; no Cargo/apply",
+  "path": "rust/tcl-compiler/src/command_binding/expression_preparation.rs",
+  "before_sha256": "da3def4f99236343a61f772b9429df6275cb815b383460be90c7c4893ef4030b",
+  "after_sha256": "85253f03f22f6bf3b297fb744a02ccb3380571b4ccae334bdf6f09d49bc57980",
+  "patch_sha256": "08f24d0948751a1e3fe5d910cb4dc310d82c15b0595e969cb9a107c2d8818f49",
+  "actual_failure": "49 rows3/4 genuine positives succeed, wrong_frame.variable_frame=Global copy nevertheless accepted normalization at2075/2169",
+  "cause": "normalisation_expression selects target from self but conditional_expression_evaluation derives original grammar/frame from attached tokens binding. Without equality join a mutated receiver borrows original unchanged attachment",
+  "change": "Require exact full current self == tokens.source_binding before the existing target/frame/world/observer/grammar checks; no new authority or weakened assertion",
+  "tests": [
+    "command_binding::expression_preparation::tests::scoped_nested_normalisation_keeps_original_world_frame_and_source",
+    "command_binding::expression_preparation::tests::selected_nested_normalisation_projects_actual_operand_and_command_source"
+  ],
+  "limits": [
+    "Typing/runtime and dialect iterations after first old failure unrun",
+    "Root active49 remains fixedproduct, no apply until later authorized slot",
+    "Conditional normal result/normal completion negatives in rows1/6 remain separate unresolved grant/fixture questions, untouched"
+  ]
+}

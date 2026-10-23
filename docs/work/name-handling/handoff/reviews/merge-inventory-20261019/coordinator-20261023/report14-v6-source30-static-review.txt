@@ -1,0 +1,16 @@
+Bounded static peer review: report14 v6 source30
+UTC: 2026-10-23T02:56Z
+
+Verdict: CLEAR for static protocol scope. No launcher, runner, Cargo, build lock, provider, Git mutation, or source action was invoked. No report14 selectors were executed.
+
+Frozen pins:
+- Plan `/tmp/compiler-authenticated-report-focused14-v6-source30/plan.json`: SHA256 `32a68999acfdb065a9abcb92b135649b1f32a02d98fd6c832d41f8ba739e4329`.
+- Runner input manifest: SHA256 `c41b42483c2206eadfa91d96065547857e4cabd20196e30fe23f7ed733b2777f`.
+- Source30 map: SHA256 `417688c7ba2d60771f39625ef756a05e5bc6b05a0d5e1ddf73c63ff463eefebb`. Plan integration paths exactly equal the manifest's 30 unique path records.
+- Launcher: SHA256 `9dca5f2b23112936de8ceff4889926bd78e1cf33cf651578fe25d81d9a978bca`; reviewed guard executor remains exact `88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811`.
+
+The v6 suite preserves the two report14 selectors and 14 expected selected tests. The diff from v5 changes only its versioned base/run path, source22-to-source30 manifest key/path, and count 22-to-30. Existing completed49v7 authorization and actual-outcome reconciliation remain: 36 rows/49 selections, zero warnings, exact counts/status/exit consistency, process seals, raw/sorted GO pins, durable launcher transcript and lock release; actual failed tests are permitted when outcomes reconcile. The source30 map is pinned to FINAL30 composition peer review (`a652a051…`), which records current canonical final hashes, preserved prior22 results and zero-fuzz reverse/forward application. All runner-input hashes verified, four Python execution modules parsed, and absent-GO refusal is recorded before runner/Cargo.
+
+Minor diagnostic text mismatch: the fail-closed source-map branch checks exact30 (`len(...) != 30`) but its refusal string says `immutable exact22 source manifest mismatch`. This affects only error wording if the source map fails validation; the gate remains fail-closed.
+
+No typecheck/runtime/acceptance claim.
