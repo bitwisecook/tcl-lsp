@@ -55,6 +55,13 @@ impl OriginalNativeSourceDeclaration {
     pub(crate) fn parameters_text(&self) -> Option<&str> {
         std::str::from_utf8(self.formals.original_input().bytes()).ok()
     }
+    pub(crate) fn declaration_span(&self) -> Option<tcl_lexer::Span> {
+        let words = self.procedure.declaration.original_words();
+        Some(tcl_lexer::Span::new(
+            words.first()?.span().start(),
+            words.last()?.span().end(),
+        ))
+    }
     pub(crate) fn body_span(&self) -> tcl_lexer::Span {
         self.procedure.body.content_span()
     }

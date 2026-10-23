@@ -254,8 +254,14 @@ CI skips only what demonstrably did not change. The rules live in
   `rust-tests-shard` job is intentionally skipped and the `rust-tests`
   aggregate succeeds after confirming the channel succeeded. A normal test
   run or a non-green tag must not use this skipped path.
-- `runtime-rust-tests` runs the standalone `runtime/rust` unit suite
-  (`make runtime-rust-test`) only when `runtime_rust_changed` is true — that
+- `runtime-rust-tests` first runs the strict absence capability gate
+  (`make runtime-rust-test-no-tommath-capability`): the 17 original scalar-cache
+  tests and the missing-bignum refusal test with
+  `TCL_RUNTIME_EXPECT_NO_TOMMATH=1`. It then fetches the Tcl 9.0.4 TomMath
+  source and runs the full standalone semantic suite (`make runtime-rust-test`)
+  with that actual backend required and the absence expectation unset. Every
+  original semantic assertion remains in the full suite. These steps run only
+  when `runtime_rust_changed` is true — that
   crate plus the path-dependency closure its own lockfile resolves. It is its
   own job because `runtime/rust` is its own cargo workspace: the root
   `cargo test --workspace` never reaches it, and `wasm-real-link` builds and

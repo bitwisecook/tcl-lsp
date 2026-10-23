@@ -39,8 +39,10 @@ interpreter-fallback path, or an explicit not-required classification.
 - `have_tommath` is a `build.rs` cfg, not a Cargo feature: the bignum rung of
   the numeric tower (and therefore `expr` and the math commands) compiles only
   when a libtommath C source tree is found (`$TCL_TOMMATH_DIR`, else
-  `tmp/tcl9.0.4/libtommath`). `make runtime-rust-test-no-tommath` covers the
-  build without it. Set `TCL_RUNTIME_EXPECT_NO_TOMMATH=1` only when source
+  `tmp/tcl9.0.4/libtommath`). `make runtime-rust-test` requires that source
+  tree and runs the full semantic suite with the backend.
+  `make runtime-rust-test-no-tommath-capability` checks the original scalar
+  cache tests and missing-bignum refusal with the backend absent. Set `TCL_RUNTIME_EXPECT_NO_TOMMATH=1` only when source
   absence is intentional. This asserts the result of normal source discovery;
   it does not disable a backend that is present. A found source tree or any
   value other than `1` makes the asserted build fail. Leave the variable unset
@@ -63,10 +65,16 @@ and keeps its own lockfile and `target/`. That also keeps the LSP/compiler
 ## Build / test
 
 ```
-make runtime-rust-test              # cargo test (leak round-trip + unit/parse/eval suite)
-make runtime-rust-test-no-tommath   # the same suite with libtommath absent
-make runtime-rust-lint              # cargo fmt --check + locked clippy -D warnings
+make runtime-rust-test                         # full semantic suite; requires libtommath sources
+make runtime-rust-test-no-tommath-capability    # 17 scalar-cache tests + missing-bignum refusal
+make runtime-rust-lint                         # cargo fmt --check + locked clippy -D warnings
 ```
+
+The capability target asserts actual source absence with
+`TCL_RUNTIME_EXPECT_NO_TOMMATH=1`; leave that expectation unset for the full
+semantic target, which retains every original semantic assertion. The optional
+`make runtime-rust-test-no-tommath` command still runs the whole suite without
+the backend, but does not replace either gate.
 
 Run a script directly with the `run_script` dev-tool example:
 

@@ -2655,10 +2655,6 @@ fn record_terminator_call_sites(
     }
 }
 
-/// `None` for a statement that kept no token record — a fused `AssignExpr`,
-/// `ExprEval` or `Incr` holds a parsed expression or an amount string instead.
-/// Those are a known remaining gap rather than a claim that they run nothing.
-
 /// Collect the call sites **another** file contributes, resolved against the
 /// whole project's procedure names.
 ///

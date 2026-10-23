@@ -3292,7 +3292,7 @@ impl Module {
                     .filter_map(move |(id, card)| {
                         let procedure = self.body_units.get(id)?;
                         (procedure.declaration_site.as_ref() == Some(site)
-                            && procedure.span == span
+                            && card.source_declaration_span() == Some(span)
                             && self.procedure_ids.owns(*id)
                             && card.matches_procedure(self, procedure))
                         .then_some((id, procedure))

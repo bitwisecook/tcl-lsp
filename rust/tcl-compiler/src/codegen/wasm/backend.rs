@@ -3123,6 +3123,23 @@ mod tests {
         );
         assert!(procedure.publication.is_none());
         assert_eq!(unit.function_for_body(Some(id)).unwrap().body_id, Some(id));
+        let site = procedure.declaration_site.as_ref().unwrap();
+        let command_span =
+            tcl_lexer::Span::new(0, u32::try_from("proc p {x} {return $x}".len()).unwrap());
+        assert_ne!(procedure.span, command_span);
+        assert_eq!(
+            unit.ir_module
+                .native_source_procedure_bodies_for_compilation_at_declaration(site, command_span)
+                .map(|(id, _)| *id)
+                .collect::<Vec<_>>(),
+            vec![id]
+        );
+        assert!(
+            unit.ir_module
+                .native_source_procedure_bodies_for_compilation_at_declaration(site, procedure.span)
+                .next()
+                .is_none()
+        );
         let mut missing = unit.ir_module.clone();
         missing.original_native_declaration_body_units.clear();
         assert!(procedure_plan(&missing, None, 0).procs.is_empty());

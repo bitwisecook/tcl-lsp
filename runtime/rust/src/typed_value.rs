@@ -976,6 +976,10 @@ mod tests {
             let mut interp = crate::interp::Interp::new();
             interp.set_runtime_version(version);
             let dialect = interp.native_invocation_dialect();
+            let host = crate::interp::default_host();
+            let environment = host
+                .numeric_environment()
+                .expect("actual fixture Host numeric environment");
             for row in fixture.lines() {
                 let fields: Vec<_> = row.split('\t').collect();
                 assert_eq!(fields.len(), 8);
@@ -1006,19 +1010,37 @@ mod tests {
                     continue;
                 }
                 let result = match stage {
-                    0 => native_scalar_getter(value.as_ptr(), dialect, Kind::Wide).map(|v| {
+                    0 => native_scalar_getter_with_environment(
+                        value.as_ptr(),
+                        dialect,
+                        Kind::Wide,
+                        Some(environment),
+                    )
+                    .map(|v| {
                         let Value::Wide(n) = v else {
                             panic!("Wide getter return")
                         };
                         n
                     }),
-                    1 => native_scalar_getter(value.as_ptr(), dialect, Kind::Double).map(|v| {
+                    1 => native_scalar_getter_with_environment(
+                        value.as_ptr(),
+                        dialect,
+                        Kind::Double,
+                        Some(environment),
+                    )
+                    .map(|v| {
                         let Value::Double(n) = v else {
                             panic!("Double getter return")
                         };
                         n as i64
                     }),
-                    2 => native_scalar_getter(value.as_ptr(), dialect, Kind::Boolean).map(|v| {
+                    2 => native_scalar_getter_with_environment(
+                        value.as_ptr(),
+                        dialect,
+                        Kind::Boolean,
+                        Some(environment),
+                    )
+                    .map(|v| {
                         let Value::Boolean(n) = v else {
                             panic!("Boolean getter return")
                         };
@@ -1863,13 +1885,15 @@ mod tests {
                     ..
                 }
             ));
+            // Tcl 8.4/8.5 populate Unicode while counting multibyte input;
+            // Tcl 8.6 onward retain only the count until Unicode is requested.
             assert!(matches!(
                 obj::native_object_snapshot(value.as_ptr()).unwrap().cache,
                 Cache::String {
-                    unicode: None,
+                    unicode,
                     num_chars: Some(3),
                     ..
-                }
+                } if unicode.is_some() == (version <= TclVersion::V8_5)
             ));
             let other = if version == TclVersion::V9_0 {
                 TclVersion::V8_6
