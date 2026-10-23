@@ -32,6 +32,8 @@
 //! Shared by the BIG-IP reference graph (`tcl-bigip`) and the LSP semantic-token
 //! layer (`tcl-lsp-core`).
 
+#![recursion_limit = "256"]
+
 use std::collections::HashSet;
 use std::sync::OnceLock;
 

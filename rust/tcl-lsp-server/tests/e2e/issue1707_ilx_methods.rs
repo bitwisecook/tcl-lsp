@@ -18,7 +18,8 @@
 
 //! An iRule's `ILX::call` method word and the Node.js
 //! `ILXServer.addMethod` that implements it are one symbol, across two
-//! languages.
+//! languages. Navigation supplies readonly source candidates; an earlier opaque
+//! call withdraws a variable handle association before a later source read.
 //!
 //! Every test here runs against a **real on-disk ILX workspace**, laid out the
 //! way BIG-IP lays one out (verified against F5's tmsh `ilx workspace`
@@ -148,9 +149,9 @@ fn go_to_definition_crosses_into_the_extension_javascript() {
     // The `'my_js_function'` literal on the third line of the extension.
     assert_eq!(first_start(&result), (2, 14));
 
-    // `ILX::notify` shares the method target.
+    // The earlier opaque call withdraws the handle association before notify.
     let notify = lsp.definition(&fixture.rule_uri, NOTIFY_METHOD.0, NOTIFY_METHOD.1);
-    assert_eq!(locations(&notify)[0].uri, fixture.extension_uri);
+    assert!(locations(&notify).is_empty(), "{notify}");
 }
 
 #[test]
@@ -173,6 +174,8 @@ fn hover_names_the_extension_the_file_and_the_dispatch() {
         notify.contains("best-effort notification"),
         "ILX::notify must stay distinguishable from ILX::call: {notify}"
     );
+    assert!(notify.contains("Not resolved"), "{notify}");
+    assert!(!notify.contains("Source candidate:"), "{notify}");
 }
 
 #[test]
@@ -180,10 +183,10 @@ fn references_span_both_languages_from_either_end() {
     let fixture = Fixture::new("refs", EXTENSION);
     let mut lsp = fixture.serve();
 
-    // From the Tcl call site: the registration plus both call sites.
+    // The first call and registration are candidates; the later notify is not.
     let from_tcl =
         locations(&lsp.references(&fixture.rule_uri, CALL_METHOD.0, CALL_METHOD.1, true));
-    assert_eq!(from_tcl.len(), 3, "{from_tcl:?}");
+    assert_eq!(from_tcl.len(), 2, "{from_tcl:?}");
     assert_eq!(
         from_tcl
             .iter()
@@ -197,17 +200,24 @@ fn references_span_both_languages_from_either_end() {
             .iter()
             .filter(|l| l.uri == fixture.rule_uri)
             .count(),
-        2,
-        "the ILX::call and the ILX::notify are both sites: {from_tcl:?}"
+        1,
+        "only the first ILX::call retains its source association: {from_tcl:?}"
     );
 
     // From the JavaScript registration: the same set.
     let from_js =
         locations(&lsp.references(&fixture.extension_uri, REGISTRATION.0, REGISTRATION.1, true));
-    assert_eq!(from_js.len(), 3, "{from_js:?}");
+    assert_eq!(from_js.len(), 2, "{from_js:?}");
+    assert!(
+        from_js
+            .iter()
+            .filter(|l| l.uri == fixture.rule_uri)
+            .all(|l| l.range["start"]["line"] == CALL_METHOD.0),
+        "{from_js:?}"
+    );
     assert_eq!(
         from_js.iter().filter(|l| l.uri == fixture.rule_uri).count(),
-        2,
+        1,
         "{from_js:?}"
     );
 
@@ -218,10 +228,10 @@ fn references_span_both_languages_from_either_end() {
         (&fixture.extension_uri, REGISTRATION.0, REGISTRATION.1),
     ] {
         let uses = locations(&lsp.references(uri, line, character, false));
-        assert_eq!(uses.len(), 2, "{uses:?}");
+        assert_eq!(uses.len(), 1, "{uses:?}");
         assert!(
             uses.iter().all(|l| l.uri == fixture.rule_uri),
-            "only the iRule call sites are uses: {uses:?}"
+            "only the first iRule call site is a candidate: {uses:?}"
         );
     }
 }
@@ -249,16 +259,23 @@ fn a_closed_sibling_rule_is_scanned_under_its_own_input() {
         locations(&lsp.references(&fixture.rule_uri, CALL_METHOD.0, CALL_METHOD.1, true));
     assert_eq!(
         from_tcl.iter().filter(|l| l.uri == sibling_uri).count(),
-        2,
-        "both closed-sibling sites: {from_tcl:?}"
+        1,
+        "only the first closed-sibling site: {from_tcl:?}"
     );
-    assert_eq!(from_tcl.len(), 5, "{from_tcl:?}");
+    assert_eq!(from_tcl.len(), 3, "{from_tcl:?}");
+    assert!(
+        from_tcl
+            .iter()
+            .filter(|l| l.uri == sibling_uri)
+            .all(|l| l.range["start"]["line"] == CALL_METHOD.0 + 1),
+        "{from_tcl:?}"
+    );
 
     let from_js =
         locations(&lsp.references(&fixture.extension_uri, REGISTRATION.0, REGISTRATION.1, true));
     assert_eq!(
         from_js.iter().filter(|l| l.uri == sibling_uri).count(),
-        2,
+        1,
         "{from_js:?}"
     );
 }
@@ -561,15 +578,15 @@ fn declared_rule_directories_reach_a_caller_outside_the_workspace() {
     let mut lsp = fixture.serve(fixture.config());
 
     let found = locations(&lsp.references(&fixture.inside_uri, CALL_METHOD.0, CALL_METHOD.1, true));
-    // The registration, both sites in the open rule, and both sites in the
-    // declared directory's rule — which no scan of `rules/` would ever see.
+    // The registration and first call in each rule, including the declared
+    // directory's rule — which no scan of `rules/` would ever see.
     assert_eq!(
         found
             .iter()
             .filter(|l| l.uri == fixture.outside_uri)
             .count(),
-        2,
-        "the declared directory's caller must be found: {found:?}"
+        1,
+        "the declared directory's first caller must be found: {found:?}"
     );
     assert_eq!(
         found
@@ -603,7 +620,13 @@ fn the_javascript_end_answers_through_the_ilx_references_command() {
         }),
     );
     let found = locations(&result);
-    assert_eq!(found.len(), 4, "both rules, two sites each: {found:?}");
+    assert_eq!(found.len(), 2, "both rules, first site each: {found:?}");
+    assert!(
+        found
+            .iter()
+            .all(|l| l.range["start"]["line"] == CALL_METHOD.0),
+        "{found:?}"
+    );
     assert!(
         found
             .iter()
@@ -747,8 +770,8 @@ fn a_declaration_outside_its_folder_reaches_both_ends() {
             .iter()
             .filter(|l| l.uri == fixture.workspace_rule_uri)
             .count(),
-        2,
-        "the declared workspace's own rules/ must still be searched: {from_js:?}"
+        1,
+        "the declared workspace's first call must still be found: {from_js:?}"
     );
 
     // …and through the command the VS Code client uses for an open buffer.
@@ -771,7 +794,7 @@ fn a_declaration_outside_its_folder_reaches_both_ends() {
             .iter()
             .filter(|l| l.uri == fixture.workspace_rule_uri)
             .count(),
-        2,
+        1,
         "{found:?}"
     );
 }

@@ -1,0 +1,2 @@
+source="proc f {} { ILX::call $h m }" associations=Some(0)
+source="proc f {} {set h [ILX::init p e]; ILX::call $h m}" associations=Some(0)

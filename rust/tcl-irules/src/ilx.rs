@@ -23,6 +23,10 @@
 //! words nor control-body syntax proves an evaluated handle or current cell.
 
 use tcl_compiler::registry_invocation::source_structure::OriginalRegistryWords;
+use tcl_compiler::registry_invocation::{
+    OriginalSourceRemoteFirstOperandAssociation, RemoteResultSourceObligation,
+    source_remote_first_operand_associations,
+};
 use tcl_lexer::{ExecutablePart, Span};
 use tcl_registry::CommandRegistry;
 use tcl_registry::remote_method::{MethodWord, RemoteDispatch, RemoteFamily};
@@ -45,6 +49,10 @@ pub enum IlxSourceObligation {
     HandleResultUnavailable,
     /// Source writes do not establish the actual handle cell, read or observers.
     HandleCellUnavailable,
+    /// The lexical body does not establish an actual activation or lifetime.
+    ConditionalBodyApplicability,
+    /// The constructor's effects remain unknown.
+    ConstructorEffectsUnavailable,
 }
 
 /// A literal method word under the actual guarded remote-call source schema.
@@ -54,6 +62,7 @@ pub struct IlxMethodCall {
     config: tcl_lexer::LexerConfig,
     context: tcl_registry::model::ResolvedContext,
     registry: tcl_registry::RegistrySemanticKey,
+    source_association: Option<OriginalSourceRemoteFirstOperandAssociation>,
     /// Canonical source-schema label for presentation; no live command identity.
     pub command: String,
     /// Actual original command extent.
@@ -64,7 +73,7 @@ pub struct IlxMethodCall {
     pub method_span: Span,
     /// Independently resolved extension identity. Source syntax does not issue it.
     pub target: Option<IlxExtension>,
-    /// Possible inline constructor labels, separate from evaluated handle identity.
+    /// Possible original constructor labels, separate from evaluated handle identity.
     pub source_target: Option<IlxExtension>,
     /// Unresolved applicability and handle premises remain explicit.
     pub obligations: Vec<IlxSourceObligation>,
@@ -95,7 +104,72 @@ pub fn ilx_method_calls_from_analysis(
     else {
         return Vec::new();
     };
-    ilx_method_calls_from_source_context(source, &context)
+    let mut calls = ilx_method_calls_from_source_context(source, &context);
+    for association in source_remote_first_operand_associations(source, analysis)
+        .into_iter()
+        .flatten()
+    {
+        if !association.matches_source_analysis(source, analysis) {
+            continue;
+        }
+        let Some((span, _)) = context
+            .source_vectors()
+            .iter()
+            .find(|(_, words)| words == association.invocation())
+        else {
+            continue;
+        };
+        let Some(call) = calls.iter_mut().find(|call| call.command_span == *span) else {
+            continue;
+        };
+        let binding = association.handle_binding();
+        let layout = binding.constructor_layout();
+        if layout.family != RemoteFamily::IRulesLxNode {
+            continue;
+        }
+        let constructor = binding.constructor();
+        let Some(plugin) = literal(constructor, usize::from(layout.scope_arg)) else {
+            continue;
+        };
+        let Some(extension) = literal(constructor, usize::from(layout.extension_arg)) else {
+            continue;
+        };
+        call.source_target = Some(IlxExtension {
+            plugin: plugin.to_owned(),
+            extension: extension.to_owned(),
+        });
+        call.obligations = association
+            .obligations()
+            .iter()
+            .map(|obligation| match obligation {
+                RemoteResultSourceObligation::HandlerApplicability => {
+                    IlxSourceObligation::HandlerApplicability
+                }
+                RemoteResultSourceObligation::ConstructorResultUnavailable => {
+                    IlxSourceObligation::HandleResultUnavailable
+                }
+                RemoteResultSourceObligation::VariableCellAndObserversUnavailable => {
+                    IlxSourceObligation::HandleCellUnavailable
+                }
+                RemoteResultSourceObligation::ConditionalBodyApplicability => {
+                    IlxSourceObligation::ConditionalBodyApplicability
+                }
+                RemoteResultSourceObligation::ConstructorEffectsUnavailable => {
+                    IlxSourceObligation::ConstructorEffectsUnavailable
+                }
+            })
+            .collect();
+        call.source_association = Some(association);
+    }
+    calls
+}
+
+impl IlxMethodCall {
+    /// Retained compiler source association, never an evaluated handle identity.
+    #[must_use]
+    pub const fn source_association(&self) -> Option<&OriginalSourceRemoteFirstOperandAssociation> {
+        self.source_association.as_ref()
+    }
 }
 
 /// Select readonly ILX candidates from an independently retained source context.
@@ -159,6 +233,7 @@ pub fn ilx_method_calls_from_source_context(
             obligations.push(IlxSourceObligation::HandleCellUnavailable);
         }
         out.push(IlxMethodCall {
+            source_association: None,
             image: original_word.image().clone(),
             config: original_word.config(),
             context: context.context().clone(),
@@ -934,6 +1009,77 @@ mod tests {
             ),
             [] as [crate::ilx::IlxMethodCall; 0]
         );
+    }
+
+    #[test]
+    fn hosted_handle_candidates_retain_the_compiler_owner_and_all_obligations() {
+        let source = "when HTTP_REQUEST {set h [ILX::init p e]; ILX::call $h m; ILX::notify $h n}";
+        let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "f5-irules");
+        let calls = super::ilx_method_calls_from_analysis(source, &analysis);
+        assert_eq!(calls.len(), 2);
+        assert_eq!(
+            calls[0].source_target,
+            Some(IlxExtension {
+                plugin: "p".to_owned(),
+                extension: "e".to_owned()
+            })
+        );
+        assert_eq!(calls[0].target, None);
+        assert_eq!(
+            calls[0].obligations,
+            vec![
+                super::IlxSourceObligation::HandlerApplicability,
+                super::IlxSourceObligation::HandleResultUnavailable,
+                super::IlxSourceObligation::HandleCellUnavailable,
+                super::IlxSourceObligation::ConditionalBodyApplicability,
+                super::IlxSourceObligation::ConstructorEffectsUnavailable,
+            ]
+        );
+        let association = calls[0].source_association().unwrap();
+        assert!(association.matches_source_analysis(source, &analysis));
+        let fresh = tcl_compiler::analyser::Analyser::new().analyse(source, "f5-irules");
+        assert!(!association.matches_source_analysis(source, &fresh));
+        assert_eq!(calls[1].source_target, None);
+        assert_eq!(calls[1].source_association(), None);
+        assert_eq!(calls[1].target, None);
+        assert_eq!(
+            super::ilx_method_calls_from_analysis(&format!("{source}\n# changed"), &analysis),
+            [] as [super::IlxMethodCall; 0]
+        );
+        let mut unavailable = analysis.clone();
+        unavailable.resolved_input = None;
+        assert_eq!(
+            super::ilx_method_calls_from_analysis(source, &unavailable),
+            [] as [super::IlxMethodCall; 0]
+        );
+    }
+
+    #[test]
+    fn hosted_handle_candidates_preserve_same_frame_and_withdraw_at_barriers() {
+        for source in [
+            "when HTTP_REQUEST {set h [ILX::init p e]; if {1} {ILX::call $h m}}",
+            "when HTTP_REQUEST {if {1} {set h [ILX::init p e]; ILX::notify $h m}}",
+        ] {
+            let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "f5-irules");
+            let calls = super::ilx_method_calls_from_analysis(source, &analysis);
+            assert_eq!(calls.len(), 1, "{source}");
+            assert!(calls[0].source_target.is_some(), "{source}");
+            assert_eq!(calls[0].target, None);
+        }
+        for source in [
+            "when HTTP_REQUEST {set h [ILX::init p e]; unknown; ILX::call $h m}",
+            "when HTTP_REQUEST {set h [ILX::init p e]; set h other; ILX::call $h m}",
+            "when HTTP_REQUEST {set h [ILX::init p e]; trace add variable h read hook; ILX::call $h m}",
+            "when RULE_INIT {set h [ILX::init p e]}; when HTTP_REQUEST {ILX::call $h m}",
+            "set h [ILX::init p e]; when HTTP_REQUEST {ILX::call $h m}",
+        ] {
+            let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "f5-irules");
+            let calls = super::ilx_method_calls_from_analysis(source, &analysis);
+            assert_eq!(calls.len(), 1, "{source}");
+            assert_eq!(calls[0].source_target, None, "{source}");
+            assert_eq!(calls[0].source_association(), None);
+            assert_eq!(calls[0].target, None);
+        }
     }
 
     #[test]

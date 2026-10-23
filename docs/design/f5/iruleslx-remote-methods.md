@@ -4,8 +4,9 @@ An iRulesLX plugin has two halves in two languages. The iRule opens a handle
 onto a running Node.js extension and calls a method on it by name; the
 extension registers that name on an `ILXServer`. Nothing in either file names
 the other. The model retains readonly source cards and separate workspace
-associations; cross-language navigation requires an independently resolved
-handle, which source syntax does not currently issue.
+associations. Readonly navigation can suggest a JavaScript registration from
+authenticated original constructor/setter/read source cards. It does not
+establish an evaluated handle or a successfully dispatched RPC.
 
 ```tcl
 when HTTP_REQUEST {
@@ -32,6 +33,7 @@ model is keyed by method name alone: two extensions may both register
 |---|---|
 | Which word is the handle / the method, and whether the call awaits a reply | `tcl_registry::remote_method`, hung off `CommandSpec::remote_method` |
 | Which original iRule words supply readonly ILX method/constructor candidates | `tcl_irules::ilx`, through the shared guarded source context |
+| Whether a variable handle read has an original constructor/setter association | `tcl_compiler::registry_invocation::source_remote_first_operand_associations` |
 | Which JavaScript registrations an extension source declares | `tcl_irules::ilx` |
 | Which extension source an `ILX::init PLUGIN EXTENSION` refers to | `tcl_lsp_core::ilx_navigation` |
 | Wire-level definition / hover / references | `tcl_lsp_server` (three thin tiers) |
@@ -195,35 +197,43 @@ body syntax supplies source cards without proving event entry or a call.
 | `ILX::call $h m` | Literal method card; evaluated handle/cell unavailable |
 | `ILX::call [ILX::init p e] m` | Method card plus separate possible constructor labels; resolved handle remains unavailable |
 | `ILX::call $h -timeout 500 -- m` | Method ordinal selected by the actual shared option grammar |
-| Nearby `set h [ILX::init p e]`, reassignments or branch bodies | No handle identity inferred from source values or frame syntax |
+| `set h [ILX::init p e]; ILX::call $h m` under the document analysis | Separate source candidate when the compiler authenticates the exact constructor, setter and first handle operand |
+| A later read after an opaque operation, reassignment, observer change or foreign frame | No reused constructor association |
 | Computed method/control words, unknown expansion or missing written geometry | No method card |
 | Stock Tcl or stale complete source/context/Registry | No hosted ILX source selection |
 
-Inline source constructor labels remain `source_target`, separate from `target`.
-The actual successful constructor result, current handle cell/read/observers
-and reached handler remain independent obligations. No current source issuer
-fills `target`, so cross-language definition and cross-document call references
-remain unavailable. Hover can describe the literal method and possible source
-constructor without claiming a resolved extension or remote dispatch.
+Original constructor labels remain `source_target`, separate from `target`.
+The successful constructor result, current handle cell/read/observers,
+handler applicability, conditional body activation and constructor effects
+remain independently unresolved. The retained compiler association must match
+the same analysis owner at query time; identical text analysed afresh cannot
+reuse it. Standalone source capture does not issue a variable-handle association.
 
-Equal method labels on different unresolved handles do not identify one symbol.
-A positioned source-reference query retains only its own independently current
-method extent. Public query data is reselected against complete current source
-before navigation or reference projection; a changed label or forged target
-cannot replace the source owner. See the
+The compiler withdraws the association at opaque earlier operations. In the
+example above, the first `ILX::call` can suggest the registration, while the
+later `ILX::notify` cannot reuse the earlier handle association. Supported
+literal true condition bodies share the enclosing source frame; a sibling
+event or procedure does not inherit its local association. Inline constructors
+have their own original source labels without borrowing an earlier handle read.
+
+Equal method labels alone do not identify one symbol. Public query data is
+reselected against complete current source before navigation or reference
+projection; changed labels, forged targets, stale configuration and a foreign
+analysis owner cannot replace that source owner. Hover labels a source candidate
+and keeps the evaluated handle unresolved. See the
 [ILX source contract](../analysis/name-resolution-proofs/original-ilx-method-source-candidates.md).
 
 ## Find-references
 
-JavaScript registrations retain their independently scanned source identities.
-Cross-language queries require the same independently resolved extension before
-joining a registration to Tcl calls. Current Tcl source cards have no such
-handle receipt and cannot join by method spelling alone. Workspace discovery
-bounds remain the open document, immediate `rules/` children and explicitly
-configured caller directories.
+Core keeps identity references separate from readonly `source_candidates` and
+`source_candidates_from_registration`. The server projects the independently
+current source candidates into its readonly LSP location list, alongside any
+identity references, removing duplicates. This projection never fills a
+runtime target or authorises rename or another edit. Each sibling rule is
+analysed under its own input; the initiating rule's facts cannot describe it.
 
-`rules/` directory (the documented layout puts every rule there), and in every
-directory declared for the plugin under `[iruleslx.rules]`.
+Workspace discovery covers the open document, immediate children of its
+`rules/` directory and explicitly configured caller directories.
 
 `rules/` is deliberately not walked recursively and the workspace is never
 scanned wholesale: a deeper walk of a directory the user did not point at

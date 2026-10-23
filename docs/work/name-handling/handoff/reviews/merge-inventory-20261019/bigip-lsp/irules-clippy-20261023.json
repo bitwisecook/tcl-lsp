@@ -1,0 +1,27 @@
+{
+  "source_base": "cbfb4771",
+  "compiler": "rustc 1.99.1",
+  "command": "cargo clippy --locked -p tcl-irules --lib --tests --no-deps -- -D warnings",
+  "exit": 0,
+  "warnings": 0,
+  "raw_sha256": "661da8b8caaccac419f4800ccb28357681229cf3c42cda4aa5176b9e56497a3f",
+  "trait_control": {
+    "question": "CompilationUnit: Send + Sync",
+    "default_recursion": {
+      "rustc_exit": 1,
+      "diagnostic": "E0275 overflow evaluating ExecutionRegionDependency: Send"
+    },
+    "recursion_256": {
+      "rustc_exit": 0,
+      "run_exit": 0
+    },
+    "recursion_512": {
+      "rustc_exit": 0,
+      "run_exit": 0
+    }
+  },
+  "files": {
+    "rust/tcl-irules/src/lib.rs": "b830971531e2fa06b32b51bc7c73acbb7fa247ef48ac9bcbe81caf44802ebefd",
+    "rust/tcl-irules/src/ilx.rs": "f299145cf7fca49dc6da9dae42a60d5650e800c8a7fbc3bfe9cd2a9c5459d9bc"
+  }
+}

@@ -447,7 +447,7 @@ pub fn method_call_at(
 }
 
 /// Select a current registration location for an independently resolved handle,
-/// or a distinct readonly candidate for genuine inline constructor source labels.
+/// or a distinct readonly candidate for genuine original constructor source labels.
 #[must_use]
 pub fn definition(doc: IlxDocument<'_>, ctx: IlxContext<'_>, call: &IlxMethodCall) -> IlxTarget {
     if !current_source_call(doc, ctx, call) {
@@ -584,7 +584,7 @@ pub fn references(
     out
 }
 
-/// Readonly source candidates for an authentic current inline constructor.
+/// Readonly source candidates for an authentic current original constructor.
 /// Matching candidate labels do not select an evaluated handle or its cell.
 #[must_use]
 pub fn source_candidates(
@@ -755,6 +755,13 @@ pub fn sibling_rule_files_from_registration(path: &Path, ctx: IlxContext<'_>) ->
 }
 
 fn current_source_call(doc: IlxDocument<'_>, ctx: IlxContext<'_>, call: &IlxMethodCall) -> bool {
+    if let Some(association) = call.source_association()
+        && !ctx
+            .analysis
+            .is_some_and(|analysis| association.matches_source_analysis(doc.text, analysis))
+    {
+        return false;
+    }
     current_method_calls(doc, ctx)
         .iter()
         .any(|current| current == call)
@@ -1894,6 +1901,58 @@ mod tests {
             definition(doc, context, &forged),
             IlxTarget::Unresolved(_)
         ));
+    }
+
+    #[test]
+    fn hosted_constructor_candidates_revalidate_the_retained_analysis_owner() {
+        let source = "when HTTP_REQUEST {set h [ILX::init my_plugin my_extension]; ILX::call $h my_js_function; ILX::notify $h my_js_function}";
+        let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "f5-irules");
+        let store = workspace_store();
+        let registry = analysis.resolved_registry().unwrap();
+        let doc = IlxDocument {
+            path: Path::new("/w/my_plugin/rules/rule1.tcl"),
+            text: source,
+        };
+        let ctx = IlxContext::new(registry, &store).with_analysis(&analysis);
+        let call = method_fixture_call(doc, ctx);
+        assert_eq!(call.target, None);
+        assert!(matches!(
+            definition(doc, ctx, &call),
+            IlxTarget::SourceCandidate(_)
+        ));
+        assert_eq!(super::source_candidates(doc, ctx, &call).len(), 2);
+        assert_eq!(
+            references(doc, ctx, &call).len(),
+            1,
+            "source candidates do not establish handle identity"
+        );
+        let fresh = tcl_compiler::analyser::Analyser::new().analyse(source, "f5-irules");
+        let foreign =
+            IlxContext::new(fresh.resolved_registry().unwrap(), &store).with_analysis(&fresh);
+        assert!(matches!(
+            definition(doc, foreign, &call),
+            IlxTarget::Unresolved(IlxUnresolved::HandleNotStatic)
+        ));
+        assert_eq!(
+            super::source_candidates(doc, foreign, &call),
+            [] as [super::IlxSourceLocation; 0]
+        );
+        let mut forged = call.clone();
+        forged.source_target.as_mut().unwrap().plugin = "other".to_owned();
+        assert_eq!(
+            super::source_candidates(doc, ctx, &forged),
+            [] as [super::IlxSourceLocation; 0]
+        );
+        let calls = tcl_irules::ilx::ilx_method_calls_from_analysis(source, &analysis);
+        assert_eq!(calls.len(), 2);
+        assert_eq!(
+            definition(doc, ctx, &calls[1]),
+            IlxTarget::Unresolved(IlxUnresolved::HandleNotStatic)
+        );
+        assert_eq!(
+            super::source_candidates(doc, ctx, &calls[1]),
+            [] as [super::IlxSourceLocation; 0]
+        );
     }
 
     #[test]

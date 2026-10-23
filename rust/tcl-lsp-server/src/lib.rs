@@ -16436,13 +16436,43 @@ impl Backend {
             files: core_ilx::IlxFiles::new(store).with_open_documents(&open),
             plugins: &plugins,
         };
-        let found = match (registration, call) {
+        let mut found = match (registration, call) {
             (Some(registration), _) => {
-                core_ilx::references_from_registration(document, ctx, &registration)
+                let mut locations =
+                    core_ilx::references_from_registration(document, ctx, &registration);
+                locations.extend(
+                    core_ilx::source_candidates_from_registration(document, ctx, &registration)
+                        .into_iter()
+                        .map(|candidate| candidate.location),
+                );
+                locations
             }
-            (None, Some(call)) => core_ilx::references(document, ctx, &call),
+            (None, Some(call)) => {
+                let mut locations = core_ilx::references(document, ctx, &call);
+                locations.extend(
+                    core_ilx::source_candidates(document, ctx, &call)
+                        .into_iter()
+                        .map(|candidate| candidate.location),
+                );
+                locations
+            }
             (None, None) => return Ok(None),
         };
+        // LSP locations are readonly source navigation; candidate joins never
+        // populate an evaluated target or authorise an edit.
+        found.sort_by(|left, right| {
+            (
+                &left.path,
+                left.range.start_line,
+                left.range.start_character,
+            )
+                .cmp(&(
+                    &right.path,
+                    right.range.start_line,
+                    right.range.start_character,
+                ))
+        });
+        found.dedup();
         Ok(Some(
             found
                 .iter()
@@ -16527,7 +16557,25 @@ impl Backend {
             files: core_ilx::IlxFiles::new(self.store.as_ref()).with_open_documents(&open),
             plugins: &plugins,
         };
-        let found = core_ilx::references_from_registration(document, ctx, &registration);
+        let mut found = core_ilx::references_from_registration(document, ctx, &registration);
+        found.extend(
+            core_ilx::source_candidates_from_registration(document, ctx, &registration)
+                .into_iter()
+                .map(|candidate| candidate.location),
+        );
+        found.sort_by(|left, right| {
+            (
+                &left.path,
+                left.range.start_line,
+                left.range.start_character,
+            )
+                .cmp(&(
+                    &right.path,
+                    right.range.start_line,
+                    right.range.start_character,
+                ))
+        });
+        found.dedup();
         let locations: Vec<Location> = found
             .iter()
             .filter(|location| include_decl || location.kind != core_ilx::IlxSite::Registration)

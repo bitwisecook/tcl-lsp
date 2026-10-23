@@ -1,0 +1,30 @@
+source {"head": "cbfb4771618199e6d16c880ec78bdd3ccfff96e9", "rust_diff_sha256": "3bda69ee1fa6297f491cf726845f25b2a4c5782af7ddb8f9318d9a9800f070d8"}
+cargo test --locked -p tcl-irules --test zz_bigip_source_owner_probe --no-run --message-format=json
+build exit 0
+
+RUN {'target': 'zz_bigip_source_owner_probe', 'args': ['--nocapture', '--test-threads=1']}
+
+running 2 tests
+test original_event_source_owner_probe ... current=true vendor=true source_names=6 procedures=2 body_units=0 events=2 source_input=true
+procedure=HTTP_REQUEST span=Span { start: 0, end: 20 } event=true word=false
+procedure=CLIENT_ACCEPTED span=Span { start: 22, end: 45 } event=true word=false
+context=true readonly=true blocks=0
+source_vectors=2 event_cards=2
+vector Span { start: 0, end: 20 } when first_operand=true
+vector Span { start: 22, end: 45 } when first_operand=true
+declarations=0 unavailable=[Span { start: 0, end: 20 }, Span { start: 22, end: 45 }]
+ok
+test source_method_vector_after_opaque_constructor_probe ... source="proc f {} { ILX::call $h m }" context=true calls=0 standalone_calls=0
+source vector Span { start: 0, end: 28 } proc
+source="set h [ILX::init p e]\nproc f {} { ILX::call $h m }" context=true calls=0 standalone_calls=0
+source vector Span { start: 0, end: 21 } set
+source vector Span { start: 7, end: 20 } ILX::init
+source vector Span { start: 22, end: 50 } proc
+source="proc f {} {set h [ILX::init p e]; ILX::call $h m}" context=true calls=0 standalone_calls=0
+source vector Span { start: 0, end: 49 } proc
+ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 39.63s
+
+
+{"results": [{"run": {"target": "zz_bigip_source_owner_probe", "args": ["--nocapture", "--test-threads=1"]}, "exit": 0, "seconds": 39.65492033958435}], "seconds": 240.8090536594391, "exit": 0}

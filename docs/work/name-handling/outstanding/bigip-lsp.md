@@ -2,38 +2,59 @@
 
 Area: editors/, BIG-IP/F5 crates and LSP modules.
 
-Last updated: 2026-10-22T18:08Z
+Last updated: 2026-10-23T10:54Z
 
 Maintained by the bigip-lsp agent. Keep this snapshot and Resume current, and
 push at least every 30 minutes and after each finished item. Full unit table:
 `../handoff/reviews/merge-inventory-20261019/bigip-lsp-NOTES.md`.
 
-## Final state
+## Active state
 
-All unblocked owned work and requested checks are complete. No active build,
-test, temporary probe or F5 reversal remains. XC, F5 pull diagnostics and the
-three editor-generator comparisons pass. The existing plain-Tcl rewrite
-assertion was actually rerun without F5 and still fails at the same point.
-Scoped checks report zero owned F5/editor findings after the mechanical
-cleanups; the full release gate remains blocked below.
+Resumed on 2026-10-23 at the user's request, from published `cbfb4771`.
+The compiler first-operand source API is delivered and typed (coordinator
+receipt at `5a4182df`); the former missing-API blocker is cleared.
+The BIG-IP adapter now retains that association, joins only exact original
+invocation cards, preserves all five source obligations and revalidates the
+same analysis owner. Runtime target remains unavailable. Focused ILX unit validation: **23 PASS / 1 FAIL**, including both new hosted
+association/obligation/barrier tests PASS. The unchanged foreign-frame test
+returns no method card after an earlier opaque constructor; assertions remain.
+Fresh strict irules library+tests Clippy **PASS, zero warnings** after aligning
+its trait recursion limit with Compiler/server256. Core/server/e2e remain unrun
+on this continuation; the first build was stopped before owned packages while
+the new causes were diagnosed.
 
-`current_diagnostics.rs handed back` — its F5 behavior is confirmed; the
-counterfactual reversal is complete and the original file is restored.
-Five final lint-only lib.rs hunks were pushed in `d1ebce88` atop the newer
-shared file, preserving the coordinator's changes. Total equivalent
-empty/non-empty assertions retained: 69. No assertion or budget weakened,
-no lint allowance added, no PR opened.
+The user decision `user-decisions-20261022T2231Z.json` stops navigation after
+opaque calls. Seven e2e selectors are corrected narrowly for that later-site
+expectation, preserving first-site/JS positives and all existing refusals.
+Server reference routes project the separate readonly source candidate APIs;
+Core identity references and edit authority remain separate.
 
-## Outstanding (blocked work only)
+`current_diagnostics.rs handed back` remains in effect. The prior XC, F5 pull,
+editor comparisons and actual without-F5 rewrite comparison are complete;
+prior receipts below describe their original source, not the new integrated tip.
 
-1. Compiler owner supplies the ILX constructor/setter/read source relation;
-   BIG-IP then wires readonly source navigation and re-runs the 16 ILX e2e.
-2. Diagnostic/compiler/performance owners resolve the first-diagnostic latency
-   and applicable-rewrite fixture contracts below; re-run the original tests.
-3. Generic owners clear the indexed strict lint findings and the coordinator
-   completes integrated-tip repository/host gates under external-review F.
+## Outstanding
+
+1. Finish focused ILX consumer/Core/compiler controls and original16 e2e;
+   rerun XC/F5 pull on the new integrated source and strict owned lint.
+2. Reproduce and repair the routed CLI/iRules failures on this checkout.
+   Latest exact CI baseline join is stored as
+   `coordinator-20261023/ci5206-log-triage/new-completed-0200Z/heavy-exact-baseline-join.json.gz`.
+   It reports six F5 CLI regressions plus four baseline-absent failures; the
+   coordinator's larger16 routing count includes additional iRules selectors.
+   Distinguish current executed outcomes from the historical CI inventory.
+3. Route any remaining compiler/generic diagnostic/VM cause with a minimal
+   repro and contract; finish owned code/evidence and update final notes.
 
 ## Blocked (on whom, and what is needed)
+
+- Current compiler source owners: original event operands are absent from both
+  retained event bodies despite current complete source vectors; procedure-body
+  method cards and the promised procedure first-operand positive are absent.
+  Exact minimal repro/contracts/raw receipts:
+  `../handoff/reviews/merge-inventory-20261019/bigip-lsp/source-owner-blockers-20261023.md`.
+  No consumer bypass, local handle tracking or assertion weakening.
+
 
 - Generic LSP server owner: **35 normal-library + 193 test-target diagnostic
   messages** (includes duplicates), zero owned F5 findings. Six messages are
@@ -73,7 +94,7 @@ no lint allowance added, no PR opened.
   The selected-package `--no-deps` pass has reached core (60 errors);
   six owned findings will be fixed, while generic core findings need their owner; it cannot replace this failed full gate.
 
-- ILX: the compiler owner must supply an authenticated original source
+- ILX (prior blocker CLEARED by the published first-operand API; consumer validation active): the compiler owner supplied an authenticated original source
   constructor/setter/later-read relation for remote handles. The current
   tcl-irules producer deliberately writes `target: None`; this is not a failed
   compiler lookup. Its contract and tests explicitly forbid the former local
@@ -130,39 +151,30 @@ no lint allowance added, no PR opened.
 
 ## Resume
 
-- This agent is stopped after completing every unblocked owned item. Resume
-  consumer work only when the compiler/latency contracts above are delivered;
-  keep current ILX refusal assertions and distinguish readonly source
-  candidates from runtime handles. Never rebuild the old local HandleScope.
-- Branch `work`, active checkout `/workspace/bigip-lsp`; coordination-only
-  worktree `/workspace/bigip-coordination`. All owned code/evidence is pushed.
-  Main checkout is synchronised after preserving/confirming its committed
-  copies; the shared lib.rs uses only the five owned hunks atop newer upstream.
-- Validation source was `aeecf397` plus owned production lint fixes
-  `f26f6a06`, assertion-only edits `e4a01bbe`/`9d6804c9`, and the five final
-  shared-lib hunks in `d1ebce88`. Later coordinator compiler/provider changes
-  need integrated-tip validation. Receipts retain exact commands/source hashes.
-- Completed tool sessions: server tests 68675; generator/without-F5 comparison
-  24095; native/core/consumer lint 46036/23728/25657/26335; restored-source
-  server lint 50998 and final verification 76335; WASM 30313. All finished.
-  Every test executable was built, run and deleted within its wrapping command.
-- Comparison restored current_diagnostics.rs to
-  `7fcf6f6dc3b91a8224b6cec6dee8afd21700c6843c6690cd06cfc1217a92986a`
-  and lib.rs to `830fd78baa30f46c2baf9944c6cce51183ecd591064e085027036e2467f663f5`.
-  The later five permanent lint-only lib.rs hunks have tested SHA-256
-  `92f15c40ea163a30d62570ccb99f43de78998c67e96860c95cd219547e4a9675`.
-  `current_diagnostics.rs handed back`; no local reversal remains.
-- Rust stable 1.99.1; verified C Tcl 9.0.4/8.6.18 and pinned Jim 0.84.
-  `/tmp/bigip-env.sh` exports the requested CARGO/oracle variables and sources
-  agent-build-env.sh. Original `/workspace/tcl-lsp` tracked files are clean;
-  its ignored oracle trees remain via the active `tmp` symlink. Independent
-  baseline `/workspace/bigip-baseline` at `fcb7927f02` uses its own target.
-- 232 literal fixture inputs were materialised unchanged from HEAD. No source
-  probe remains. Rustfmt passes on all 33 owned changed files and the applied
-  shared-file hunks; git diff --check clean. No frontend source changed in
-  this continuation; earlier TS/prettier receipts remain historical.
-- Full repository/host gates are not green. Never open a PR; the PR to `rust`
-  remains gated on external-review section F and integrated-tip validation.
+- Active checkout `/workspace/bigip-lsp`, branch `work`, base `cbfb4771`.
+  Do not rebase or alter compiled inputs while a build/test is active; the
+  detached `/workspace/bigip-coordination` remains available for tracking pushes.
+- Local adapter changes: `rust/tcl-irules/src/ilx.rs`, Core `ilx_navigation.rs`,
+  minimal F5 server `lib.rs` hunks and `tests/e2e/issue1707_ilx_methods.rs`.
+  F5 design/KCS/source-consumer contract updated to describe candidate navigation.
+- Wrapper/environment/plans and live raw logs:
+  `/workspace/scratch/bigip-20261023/`. `env.sh` exports the required CARGO,
+  C Tcl9/8.6 and pinned Jim variables and sources agent-build-env.sh.
+  `run-tests.py` builds, runs and deletes each test executable in one command.
+- Sessions:23178 completed focused ILX23/1, executable deleted;95098 initial strict
+  Clippy3trait-overflow findings; the final post-fix strict pass is green.
+  89706 source-owner probe completed2/2 observations;26528 Core/server/e2e cancelled before owned packages or test artifacts
+  were built, to resolve newly observed trait limits before freezing inputs.64992 full irules was cancelled before build/artifact issuance to
+  avoid overlapping reuse/deletion of the same test executable. Temporary
+  probes were moved out of the repo to scratch; none may be committed. Source
+  probe completed2/2 observations; query probe is prepared but not launched.
+- ILX focused receipt is `/workspace/scratch/bigip-20261023/ilx-unit.log`;
+  archived as `bigip-lsp/ilx-unit-20261023.txt`; strict lint receipt
+  `bigip-lsp/irules-clippy-20261023.json` retains exact source hashes. Keep all old
+  refusal assertions, authentic source ownership and the opaque-call barrier;
+  never recreate HandleScope or issue runtime target from source candidates.
+- Finish routed CLI/iRules causes and scoped strict lint. Full repository/host
+  gates and external-review F remain coordinator release gates. Never open a PR.
 
 ### Coordinator routing — 2026-10-22T21:19Z (owner header unchanged)
 
