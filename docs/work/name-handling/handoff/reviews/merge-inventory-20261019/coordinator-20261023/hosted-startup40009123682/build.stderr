@@ -1,0 +1,95 @@
+   Compiling proc-macro2 v1.0.107
+   Compiling quote v1.0.47
+   Compiling unicode-ident v1.0.27
+   Compiling libc v0.2.190
+   Compiling cfg-if v1.0.5
+   Compiling syn v3.0.9
+   Compiling autocfg v1.5.1
+   Compiling zeroize v1.9.1
+   Compiling num-traits v0.2.19
+   Compiling subtle v2.6.1
+   Compiling rand_core v0.10.1
+   Compiling typenum v1.20.1
+   Compiling hybrid-array v0.4.15
+   Compiling getrandom v0.4.3
+   Compiling cmov v0.5.4
+   Compiling ctutils v0.4.4
+   Compiling const-oid v0.10.2
+   Compiling crypto-common v0.2.2
+   Compiling block-buffer v0.12.1
+   Compiling memchr v2.8.3
+   Compiling digest v0.11.3
+   Compiling thiserror v2.0.21
+   Compiling thiserror-impl v2.0.21
+   Compiling bitflags v2.13.2
+   Compiling num-integer v0.1.47
+   Compiling tcl-dialect v0.1.0 (/home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-dialect)
+   Compiling libm v0.2.16
+   Compiling tcl-core-types v0.1.0 (/home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-core-types)
+   Compiling bytecount v0.6.9
+   Compiling cpufeatures v0.3.1
+   Compiling num-bigint v0.5.1
+   Compiling tcl-lexer v0.1.0 (/home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-lexer)
+   Compiling sha2 v0.11.1
+   Compiling tcl-syntax v0.1.0 (/home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-syntax)
+   Compiling base64ct v1.8.3
+   Compiling smallvec v1.16.3
+   Compiling find-msvc-tools v0.1.14
+   Compiling shlex v2.0.1
+   Compiling cc v1.8.0
+   Compiling tcl-runtime-api v0.1.0 (/home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-runtime-api)
+   Compiling pem-rfc7468 v1.0.0
+   Compiling syn v2.0.119
+   Compiling cpubits v0.1.1
+   Compiling tcl-platform v0.1.0 (/home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-platform)
+   Compiling crypto-bigint v0.7.5
+   Compiling der v0.8.2
+   Compiling allocator-api2 v0.2.21
+   Compiling foldhash v0.2.0
+   Compiling equivalent v1.0.3
+   Compiling hashbrown v0.17.1
+   Compiling sha1 v0.11.0
+   Compiling md-5 v0.11.0
+   Compiling serde_core v1.0.229
+   Compiling tcl-cmd-core v0.1.0 (/home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-cmd-core)
+   Compiling spki v0.8.1
+   Compiling aho-corasick v1.1.5
+   Compiling ff v0.14.0
+   Compiling regex-syntax v0.8.11
+   Compiling zmij v1.0.23
+   Compiling rustc-hash v2.1.3
+   Compiling regex-automata v0.4.18
+   Compiling tcl-regex v0.1.0 (/home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-regex)
+   Compiling indexmap v2.14.2
+   Compiling unicode-general-category v1.1.0
+   Compiling serde_json v1.0.154
+   Compiling regex v1.13.1
+   Compiling tcl-registry v0.1.0 (/home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-registry)
+   Compiling group v0.14.0
+   Compiling pkcs8 v0.11.0
+   Compiling tcl-bytecode v0.1.0 (/home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-bytecode)
+   Compiling base16ct v1.0.0
+   Compiling serde v1.0.229
+   Compiling itoa v1.0.18
+   Compiling minimal-lexical v0.2.1
+   Compiling num-conv v0.2.2
+   Compiling time-core v0.1.9
+   Compiling time-macros v0.2.32
+   Compiling nom v7.1.3
+   Compiling sec1 v0.8.1
+   Compiling synstructure v0.13.2
+   Compiling serde_derive v1.0.229
+   Compiling deranged v0.5.9
+   Compiling powerfmt v0.2.1
+   Compiling time v0.3.55
+error: function `assert_original_trace_computed_receivers` is never used
+     --> rust/tcl-registry/src/resolved_invocation.rs:11273:4
+      |
+11273 | fn assert_original_trace_computed_receivers(
+      |    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+      |
+      = note: `-D dead-code` implied by `-D warnings`
+      = help: to override `-D warnings` add `#[expect(dead_code)]` or `#[allow(dead_code)]`
+
+error: could not compile `tcl-registry` (lib) due to 1 previous error
+warning: build failed, waiting for other jobs to finish...

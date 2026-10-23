@@ -1,0 +1,76 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-23T19:28:34.614536+00:00",
+  "scheduled_report_utc": "2026-10-23T19:25:37+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-23T19:55:37+00:00",
+  "change_since_previous_report": [
+    "Published reviewed Server84, Core hover/inlay/selection/declaration/safety and Names action/completion/outline refactors on work3720ed578. Additional workspace-index5, method/signature2 and graph3 are integrated locally. These are reviewed source changes, not measured warning discharge.",
+    "Hosted startup40009123682 on275341bc1 completed FAILURE before runtime. Verified artifact12524974537 has SHA81b7693089f3157bd0185be91eb90a8a1c2ac08205bac95b72396b5edbf2a87c. Fetch passed; strict ci-profile build101 after70.713s reported only unused assert_original_trace_computed_receivers. No selected server or worker cases. Source124959/providers2256/dependencies21500/tools7 seals compare equal.",
+    "Actual narrow repair adds cfg(test) to that assertion helper only; independent WORK and cleanup-preserving release peer completed. Names audited15 new helpers and found no second missing test scope. Fresh hosted retry will determine build success; original failed evidence remains unchanged.",
+    "Runtime capture v4 preserves full raw payload, terminal reasons and owned lifecycle with20MiB caps and a job-wide upload reserve. Two trailing-space lines were corrected before committing; the original executable mode was restored. Full diagnostic40010108061 and scoped Clippy40010113545 run on exact3720ed578, independently of startup. Focused3 mode is reviewed and integrated, not yet run.",
+    "Release carries now include DB39, Server84/currentdiag4, Core navigation7/hover2/inlay-selection3/declaration-safety3/workspace-index5/outline-tokens2 and normal-library recursion alignment, preserving existing process-comment/observer cleanup and relocated fixtures. Latest carries have no fresh type/lint/runtime proof. No diagnostics or evidence are carried to release.",
+    "Pre-push shallow fetch preserved concurrent external perf docs bbf0d565; local product commits rebased onto it. All pushes remain normal pushes to authorised branches. Active source remains the older frozen mirror; current source validation uses publisher or exact hosted commits.",
+    "Workspace free space fell below2GiB to2131587072 after artifact extraction. No builds ran. Two non-executable text maps from the closed failed Clippy run39996600299 were gzip-compressed with independent decompression/hash checks, retaining full bytes and rehydration metadata; free space then2158882816. No target or executable was deleted.",
+    "Original13 remain unrun after the earlier compiler build timeout; local selected-server attempt stopped at disk floor and final seals were not established. The separate completed endpoint reconciliation does not repair either failure. No local Cargo retry is authorised under current disk conditions.",
+    "Full baseline24312 named-PASS comparison, current Tcl corpus performance, runtime/SpecTcl correctness, native/WASM/editor hosts, strict checks and section F remain open. No audit admission or validated row is advanced. The six-hour target remains missed; no green PR claim.",
+    "External BIG-IP owner remains stale over60 minutes; review-triage is completed and not taken over. Perf has a fresh checkpoint but no accepted proof. The previously asked Instruction flag API/allowance policy choice remains unanswered; no choice is assumed.",
+    "Exact missing test-helper cfg repair published633f5d6b3 and carried to release d6b645e97. Fresh startup/focused-runtime/scoped-Clippy dispatched; old fullTomv4 completed101 with artifact upload success and is under inspection. Current-state superseded running claims replaced with recorded current failures; no row closed."
+  ],
+  "committed": [
+    "ad9977171f7623c36a7cc968b017f6c615718a3d"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Publish19:25 official progress report and WIP snapshot, rearm19:55 reminder.",
+    "Push exact test-helper cfg repair and run fresh startup/focused-runtime diagnostics.",
+    "Continue functional runtime/SpecTcl/startup fixes from actual payloads and remaining lint causes; preserve all assertions, guards and budgets.",
+    "Finish clean release carries, documentation, formatting/generated checks, complete baseline comparison and accepted Tcl performance before opening the PR."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-23T13:17Z",
+    "perf": "2026-10-23 19:18 UTC",
+    "review-triage": "2026-10-22T19:57:30Z"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "No admissions. Hosted startup failed at strict build before any runtime case; current cfg fix is not yet validated. Runtime/scoped-lint diagnostics pending. Known correctness/pass-to-fail and performance gates still block the PR.",
+  "disk_free_bytes": 2147864576,
+  "baseline_ci_run": 39816429638,
+  "baseline_ci_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731"
+}

@@ -1,0 +1,80 @@
+{
+  "updated_utc": "2026-10-23T19:21:13.163057+00:00",
+  "status": "ACTUAL_FRESH_HOSTED_BUILD_FAILED_BEFORE_SERVER_RUNTIME",
+  "run_id": 40009123682,
+  "job_id": 120604624188,
+  "artifact_id": 12524974537,
+  "head_sha": "275341bc1cf5a63aba95a80fe0feedf28d157d88",
+  "zip_sha256": "81b7693089f3157bd0185be91eb90a8a1c2ac08205bac95b72396b5edbf2a87c",
+  "zip_bytes": 10026046,
+  "zip_metadata_digest_verified": true,
+  "actual_processes": [
+    {
+      "command": [
+        "/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo",
+        "fetch",
+        "--locked",
+        "--target",
+        "x86_64-unknown-linux-gnu"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 3.286185356,
+      "closed_group_and_artifact_guards": true,
+      "minimum_free_bytes": 76078563328,
+      "retained_bytes": 14757
+    },
+    {
+      "command": [
+        "/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo",
+        "build",
+        "--locked",
+        "-p",
+        "tcl-lsp-server",
+        "--bin",
+        "tcl-lsp-server",
+        "--profile",
+        "ci",
+        "--message-format=json-render-diagnostics",
+        "-j",
+        "2"
+      ],
+      "exit_code": 101,
+      "elapsed_seconds": 70.713434178,
+      "closed_group_and_artifact_guards": true,
+      "minimum_free_bytes": 75786440704,
+      "retained_bytes": 86023
+    }
+  ],
+  "first_observed_build_cause": {
+    "file": "rust/tcl-registry/src/resolved_invocation.rs",
+    "line": 11273,
+    "column": 4,
+    "diagnostic": "function assert_original_trace_computed_receivers is never used",
+    "lint": "dead_code",
+    "policy": "-Ddead-code implied by strict -Dwarnings",
+    "raw_build_stderr_sha256": "b4058cae4d8c5b052e3b5b38c2ff7df1b21662785ea49867175ce751c059969d",
+    "compiler_type_error_codes": []
+  },
+  "independently_recompared_final_seals": {
+    "tracked_source": true,
+    "source_file_count": 124959,
+    "providers": true,
+    "provider_file_count": 2256,
+    "dependencies": true,
+    "dependency_file_count": 21500,
+    "tools": true,
+    "tool_file_count": 7
+  },
+  "runtime_reached": false,
+  "cases": [],
+  "server_bin_cargo_events": 0,
+  "selected_server_compilation_0w": false,
+  "budgets": {
+    "aggregate_log_bytes": 20971520,
+    "build_seconds": 2400,
+    "dependency_fetch_seconds": 600,
+    "disk_floor_bytes": 2147483648,
+    "each_worker_seconds": 180
+  },
+  "scope_limits": "Actual fetch0 and build101 only. No current server binary, startup/Context worker, functional result, Arc4 strict lint pass, host/performance/gate admission. No timeout/diskfloor cause; source/runtime startup cause remains unknown. No original failed evidence repaired, no rerun by LSP."
+}
