@@ -844,27 +844,19 @@ pub fn hover_with_profile(
     hover_in_program(source, line, character, analysis, registry, profile, None)
 }
 
-/// The body of [`hover_with_profile`] / [`hover_in_program`], stated once over
-/// the [`crate::definition::CallResolution`] both build.
-fn hover_impl(
+fn source_role_hover(
     source: &str,
     line: u32,
     character: u32,
     analysis: &AnalysisResult,
     ctx: crate::definition::CallResolution<'_>,
-    profile: &'static tcl_dialect::DialectProfile,
+    cursor_offset: u32,
     annotate: bool,
-) -> Option<Hover> {
-    let registry = ctx.registry;
-    // One index shared by the position conversions below.
-    let line_index = tcl_lexer::LineIndex::new_lsp(source);
-    let cursor_offset =
-        crate::original_context::CurrentSourcePosition::capture(source, analysis, line, character)?
-            .offset();
+) -> std::ops::ControlFlow<Option<Hover>> {
     if let std::ops::ControlFlow::Break(selected) =
         crate::vendor_declaration::select_at_offset(source, analysis, cursor_offset)
     {
-        return selected.and_then(|selected| {
+        return std::ops::ControlFlow::Break(selected.and_then(|selected| {
             let label =
                 crate::vendor_declaration::source_label(selected.input(), selected.purpose())?;
             let category = if selected.procedure_metadata().is_some() {
@@ -887,22 +879,22 @@ fn hover_impl(
                 );
             }
             Some(Hover::markdown(text))
-        });
+        }));
     }
     // Everything the cursor's *position* decides, before any word-based
     // resolver runs. `Some` is definitive, including `Some(None)`.
     if let std::ops::ControlFlow::Break(selected) =
         crate::namespace_symbol::select_at_offset(source, analysis, cursor_offset)
     {
-        return selected.and_then(|symbol| {
+        return std::ops::ControlFlow::Break(selected.and_then(|symbol| {
             crate::namespace_symbol::original_namespace_hover_text(analysis, &symbol)
                 .map(Hover::markdown)
-        });
+        }));
     }
     if let std::ops::ControlFlow::Break(selected) =
         crate::variable_symbol::select_navigation(source, analysis, line, character, ctx)
     {
-        return selected.and_then(|selection| {
+        return std::ops::ControlFlow::Break(selected.and_then(|selection| {
             let mut text = selection.hover_text(analysis)?;
             if matches!(
                 selection,
@@ -912,17 +904,116 @@ fn hover_impl(
                     source,
                     analysis,
                     cursor_offset,
-                    registry.filter(|_| annotate),
+                    ctx.registry.filter(|_| annotate),
                 );
                 append_var_annotations(&mut text, type_info.as_deref(), taint_info.as_deref());
             }
             Some(Hover::markdown(text))
-        });
+        }));
     }
     if let std::ops::ControlFlow::Break(selected) =
         crate::method_symbol::local_candidate(source, analysis, line, character)
     {
-        return selected.and_then(|candidate| candidate.hover());
+        return std::ops::ControlFlow::Break(selected.and_then(|candidate| candidate.hover()));
+    }
+    std::ops::ControlFlow::Continue(())
+}
+
+fn class_and_remaining_hover(
+    source: &str,
+    analysis: &AnalysisResult,
+    ctx: crate::definition::CallResolution<'_>,
+    cursor_offset: u32,
+    word: &str,
+) -> Option<Hover> {
+    if analysis.allows_retained_logical_declaration_advice() {
+        let config = analysis.body_lexer_config?;
+        let image = tcl_lexer::SourceImage::document(source);
+        if analysis.matches_original_source_image(&image, config)
+            && let Some(class) = analysis.logical_source_class_at(&image, config, cursor_offset)
+            && analysis.logical_source_class_declaration(class).is_some()
+        {
+            let declaration = analysis.logical_source_class_declaration(class)?;
+            let metadata = declaration.metadata();
+            let mut text = format!(
+                "```tcl\n{} create {}\n```",
+                metadata.metaclass, metadata.qualified_name
+            );
+            if !metadata.doc.is_empty() {
+                text.push_str("\n\n");
+                text.push_str(&metadata.doc);
+            }
+            return Some(Hover::markdown(text));
+        }
+    } else {
+        match crate::original_oo::class_at_cursor(analysis, source, cursor_offset) {
+            std::ops::ControlFlow::Break(Some(record)) => {
+                return Some(Hover::markdown(class_hover_text(
+                    analysis,
+                    record.metadata(),
+                )));
+            }
+            std::ops::ControlFlow::Break(None) => {}
+            std::ops::ControlFlow::Continue(()) => {
+                if let Some((_, class_def)) = crate::definition::resolve_class_target_at(
+                    analysis,
+                    source,
+                    ctx,
+                    cursor_offset,
+                    word,
+                ) {
+                    return Some(Hover::markdown(class_hover_text(analysis, class_def)));
+                }
+            }
+        }
+    }
+
+    // Class-member hover — same dispatch as
+    // [`crate::definition::lookup_class_member`], rendered as
+    // a one-line method / property summary.  Fires when the
+    // cursor sits inside a class body and `word` matches one
+    // of that class's members.
+    if let Some(text) = class_member_hover_text(source, analysis, word, cursor_offset) {
+        return Some(Hover::markdown(text));
+    }
+    if let Some(answer) = original_registry::hover(source, analysis, cursor_offset) {
+        return Some(answer);
+    }
+
+    if let Some(text) = ip_address_hover_text(word) {
+        return Some(Hover::markdown(text));
+    }
+
+    None
+}
+
+/// The body of [`hover_with_profile`] / [`hover_in_program`], stated once over
+/// the [`crate::definition::CallResolution`] both build.
+fn hover_impl(
+    source: &str,
+    line: u32,
+    character: u32,
+    analysis: &AnalysisResult,
+    ctx: crate::definition::CallResolution<'_>,
+    profile: &'static tcl_dialect::DialectProfile,
+    annotate: bool,
+) -> Option<Hover> {
+    let registry = ctx.registry;
+    // One index shared by the position conversions below.
+    let line_index = tcl_lexer::LineIndex::new_lsp(source);
+    let cursor_offset =
+        crate::original_context::CurrentSourcePosition::capture(source, analysis, line, character)?
+            .offset();
+    if let std::ops::ControlFlow::Break(selected) = source_role_hover(
+        source,
+        line,
+        character,
+        analysis,
+        ctx,
+        cursor_offset,
+        annotate,
+    ) {
+        return selected;
     }
     match variable_position_hover(
         source,
@@ -1052,65 +1143,7 @@ fn hover_impl(
         return Some(hover);
     }
 
-    if analysis.allows_retained_logical_declaration_advice() {
-        let config = analysis.body_lexer_config?;
-        let image = tcl_lexer::SourceImage::document(source);
-        if analysis.matches_original_source_image(&image, config)
-            && let Some(class) = analysis.logical_source_class_at(&image, config, cursor_offset)
-            && analysis.logical_source_class_declaration(class).is_some()
-        {
-            let declaration = analysis.logical_source_class_declaration(class)?;
-            let metadata = declaration.metadata();
-            let mut text = format!(
-                "```tcl\n{} create {}\n```",
-                metadata.metaclass, metadata.qualified_name
-            );
-            if !metadata.doc.is_empty() {
-                text.push_str("\n\n");
-                text.push_str(&metadata.doc);
-            }
-            return Some(Hover::markdown(text));
-        }
-    } else {
-        match crate::original_oo::class_at_cursor(analysis, source, cursor_offset) {
-            std::ops::ControlFlow::Break(Some(record)) => {
-                return Some(Hover::markdown(class_hover_text(
-                    analysis,
-                    record.metadata(),
-                )));
-            }
-            std::ops::ControlFlow::Break(None) => {}
-            std::ops::ControlFlow::Continue(()) => {
-                if let Some((_, class_def)) = crate::definition::resolve_class_target_at(
-                    analysis,
-                    source,
-                    ctx,
-                    cursor_offset,
-                    &word,
-                ) {
-                    return Some(Hover::markdown(class_hover_text(analysis, class_def)));
-                }
-            }
-        }
-    }
-
-    // Class-member hover — same dispatch as
-    // [`crate::definition::lookup_class_member`], rendered as
-    // a one-line method / property summary.  Fires when the
-    // cursor sits inside a class body and `word` matches one
-    // of that class's members.
-    if let Some(text) = class_member_hover_text(source, analysis, &word, cursor_offset) {
-        return Some(Hover::markdown(text));
-    }
-    if let Some(answer) = original_registry::hover(source, analysis, cursor_offset) {
-        return Some(answer);
-    }
-
-    if let Some(text) = ip_address_hover_text(&word) {
-        return Some(Hover::markdown(text));
-    }
-
-    None
+    class_and_remaining_hover(source, analysis, ctx, cursor_offset, &word)
 }
 
 /// Standalone fixture lookup through global imports before the cursor.
@@ -3074,72 +3107,11 @@ fn format_docstring(text: &str) -> String {
     parts.join("\n\n")
 }
 
-fn class_hover_text(analysis: &AnalysisResult, class_def: &ClassDef) -> String {
-    let original_word = class_def.source_name.as_ref().and_then(|name| {
-        let mut records = analysis.original_class_declarations().filter(|record| {
-            record.name() == name && record.metadata().name_span == class_def.name_span
-        });
-        let record = records.next()?;
-        if records.next().is_some() || record.name_input().display().is_some() {
-            return None;
-        }
-        tcl_syntax::naming::native_command_source_word(
-            name.policy().recipe(),
-            name.slot(),
-            record.name_input().source_image().channel(),
-            record.name_input().lexer_config(),
-        )
-    });
-    let mut sig = format!(
-        "{} create {}",
-        class_def.metaclass,
-        original_word
-            .as_deref()
-            .unwrap_or(&class_def.qualified_name)
-    );
-    if !class_def.superclasses.is_empty() {
-        use std::fmt::Write as _;
-        let _ = write!(sig, " (superclass: {})", class_def.superclasses.join(", "));
-    }
-    if !class_def.mixins.is_empty() {
-        use std::fmt::Write as _;
-        let _ = write!(sig, " (mixin: {})", class_def.mixins.join(", "));
-    }
-    let mut parts = vec![format!("```tcl\n{sig}\n```")];
-    let mut details: Vec<String> = Vec::new();
-    for (side, title) in [
-        (
-            tcl_compiler::analyser::types::MemberSide::Instance,
-            "Methods",
-        ),
-        (
-            tcl_compiler::analyser::types::MemberSide::ClassObject,
-            "Class methods",
-        ),
-    ] {
-        let names = if class_def.source_name.is_some() {
-            crate::original_oo::own_method_labels(class_def, side)
-        } else if analysis.allows_lexical_declaration_advice() {
-            let table = match side {
-                tcl_compiler::analyser::types::MemberSide::Instance => &class_def.methods,
-                tcl_compiler::analyser::types::MemberSide::ClassObject => &class_def.class_methods,
-            };
-            let mut names = table.keys().cloned().collect::<Vec<_>>();
-            names.sort();
-            Some(names)
-        } else {
-            None
-        };
-        if let Some(names) = names.filter(|names| !names.is_empty()) {
-            details.push(format!("**{title}**: {}", names.join(", ")));
-        }
-    }
-    if !class_def.variables.is_empty() {
-        details.push(format!(
-            "**Instance variables**: {}",
-            class_def.variables.join(", ")
-        ));
-    }
+fn append_class_hierarchy_details(
+    analysis: &AnalysisResult,
+    class_def: &ClassDef,
+    details: &mut Vec<String>,
+) {
     // MRO chain + direct subclasses from the class hierarchy — surfaces
     // the inheritance shape inline. Only shown when non-trivial.
     if let Some(source_name) = &class_def.source_name {
@@ -3208,6 +3180,75 @@ fn class_hover_text(analysis: &AnalysisResult, class_def: &ClassDef) -> String {
             details.push(format!("**Subclasses**: {}", names.join(", ")));
         }
     }
+}
+
+fn class_hover_text(analysis: &AnalysisResult, class_def: &ClassDef) -> String {
+    let original_word = class_def.source_name.as_ref().and_then(|name| {
+        let mut records = analysis.original_class_declarations().filter(|record| {
+            record.name() == name && record.metadata().name_span == class_def.name_span
+        });
+        let record = records.next()?;
+        if records.next().is_some() || record.name_input().display().is_some() {
+            return None;
+        }
+        tcl_syntax::naming::native_command_source_word(
+            name.policy().recipe(),
+            name.slot(),
+            record.name_input().source_image().channel(),
+            record.name_input().lexer_config(),
+        )
+    });
+    let mut sig = format!(
+        "{} create {}",
+        class_def.metaclass,
+        original_word
+            .as_deref()
+            .unwrap_or(&class_def.qualified_name)
+    );
+    if !class_def.superclasses.is_empty() {
+        use std::fmt::Write as _;
+        let _ = write!(sig, " (superclass: {})", class_def.superclasses.join(", "));
+    }
+    if !class_def.mixins.is_empty() {
+        use std::fmt::Write as _;
+        let _ = write!(sig, " (mixin: {})", class_def.mixins.join(", "));
+    }
+    let mut parts = vec![format!("```tcl\n{sig}\n```")];
+    let mut details: Vec<String> = Vec::new();
+    for (side, title) in [
+        (
+            tcl_compiler::analyser::types::MemberSide::Instance,
+            "Methods",
+        ),
+        (
+            tcl_compiler::analyser::types::MemberSide::ClassObject,
+            "Class methods",
+        ),
+    ] {
+        let names = if class_def.source_name.is_some() {
+            crate::original_oo::own_method_labels(class_def, side)
+        } else if analysis.allows_lexical_declaration_advice() {
+            let table = match side {
+                tcl_compiler::analyser::types::MemberSide::Instance => &class_def.methods,
+                tcl_compiler::analyser::types::MemberSide::ClassObject => &class_def.class_methods,
+            };
+            let mut names = table.keys().cloned().collect::<Vec<_>>();
+            names.sort();
+            Some(names)
+        } else {
+            None
+        };
+        if let Some(names) = names.filter(|names| !names.is_empty()) {
+            details.push(format!("**{title}**: {}", names.join(", ")));
+        }
+    }
+    if !class_def.variables.is_empty() {
+        details.push(format!(
+            "**Instance variables**: {}",
+            class_def.variables.join(", ")
+        ));
+    }
+    append_class_hierarchy_details(analysis, class_def, &mut details);
     if !details.is_empty() {
         parts.push(details.join("  \n"));
     }
