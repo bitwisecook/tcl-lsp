@@ -3436,38 +3436,7 @@ fn collect_script(
                 .is_none_or(|words| original::original_logical_head(ctx, words).is_none());
         let static_head_extent = member_head.map_or(head_tok.span, |(word, _)| word.word_span());
         if !computed_head {
-            if ctx.lexical && original.is_none() && member_head.is_none() {
-                emit_static_command_head(ctx, &seg, entries);
-            } else if let Some((_, span)) = member_head {
-                push_token(
-                    ctx.line_index,
-                    full_source,
-                    Token { span, ..head_tok },
-                    TokenKind::Keyword,
-                    0,
-                    entries,
-                );
-            } else if ctx.original_roles.is_class_head(head_tok.span.start()) {
-                push_token(
-                    ctx.line_index,
-                    full_source,
-                    head_tok,
-                    TokenKind::Class,
-                    0,
-                    entries,
-                );
-            } else if let Some(words) = &original {
-                original::registry_head(ctx, &seg, words, entries);
-            } else {
-                push_token(
-                    ctx.line_index,
-                    full_source,
-                    head_tok,
-                    TokenKind::Function,
-                    0,
-                    entries,
-                );
-            }
+            emit_selected_command_head(ctx, &seg, &original, member_head, entries);
         }
 
         // The command's argument words (head excluded), borrowed once as
@@ -3481,23 +3450,7 @@ fn collect_script(
         let original_bodies = original
             .as_ref()
             .map_or_else(Vec::new, |words| words.source_script_bodies(ctx.generation));
-        let mut overrides = original.as_ref().map_or_else(FxHashMap::default, |words| {
-            original::registry_overrides(ctx, &seg, words)
-        });
-        for body in member_bodies.iter().flatten() {
-            if let [token] = body.original_container().tokens() {
-                overrides.insert(token.span.start(), ArgOverride::BodyScript);
-            }
-        }
-        if ctx.lexical {
-            insert_lexical_user_overrides(ctx, &seg, &mut overrides);
-        } else if let Some(providers) = ctx.project_classes {
-            // Native lexical/report overlays remain guarded by has_head. This
-            // independent source-display branch requires the selected original
-            // class/instance and preserves stronger role overrides on insertion.
-            receiver_source::insert_project_method(ctx, &seg, providers, &mut overrides);
-        }
-        original::insert_definition_member_overrides(ctx, &seg, &mut overrides);
+        let mut overrides = command_role_overrides(ctx, &seg, &original, &member_bodies);
         let member_parameter_operands = original::definition_member_parameter_operands(ctx, &seg);
         let declared = ctx.analysis.and_then(|analysis| {
             tcl_compiler::registry_invocation::source_structure::source_declared_command_words(
@@ -3513,16 +3466,7 @@ fn collect_script(
         // A deferred operand may retain the exact future source words of a
         // selected original list builder. The shared receipt owns both parent
         // and builder schemas; inert data has no deferred parent purpose.
-        let produced = deferred_role
-            .then(|| {
-                let analysis = ctx.analysis?;
-                crate::original_invocation::source_produced_command_prefix_words(
-                    full_source,
-                    analysis,
-                    &seg,
-                )
-            })
-            .flatten();
+        let produced = deferred_produced_command_words(ctx, &seg, deferred_role);
         if let Some(produced) = &produced {
             merge_list_quoted_command_overrides(&seg, ctx, produced, &mut overrides);
         }
@@ -3539,167 +3483,335 @@ fn collect_script(
             mark_regex_source_words(&seg, ctx.regex_sources, &mut overrides);
         }
 
-        // Receiver advice keeps its independent grammar. Member vocabulary
-        // travels in the original body receipts below.
-        let outer_grammar = original.as_ref().and_then(|words| {
-            words
-                .with_source_schema(ctx.generation, |schema| {
-                    schema.authored_source_definition_body_grammar()
-                })
-                .flatten()
-        });
-        let next_oo = if ctx.lexical {
-            next_original_definition_grammar(ctx, head_text, &arg_texts, outer_grammar)
-        } else {
-            None
-        };
-        // The class whose body the recursion enters: a `oo::class create NAME`
-        // (and the property-/instantiation-metaclasses) names it at argv[2], an
-        // `oo::define NAME { … }` at argv[1].  Slice it from the source so it
-        // outlives the walk; otherwise inherit the enclosing class (so a
-        // `method …` body keeps its class).  Lets `my method …` in the body
-        // resolve against that class.
-        let next_class = if ctx.lexical {
-            original
-                .as_ref()
-                .and_then(|words| original::definition_class_name(ctx, &seg, words))
-                .or(ctx.enclosing_class)
-        } else {
-            None
-        };
-        // The scoped command environment the recursion into THIS command's body
-        // should carry: a command whose spec declares a `body_scope` switches it
-        // on (`report::defstyle`'s style script); otherwise it persists so the
-        // scoped commands stay resolvable inside nested control-flow bodies and
-        // `[…]` substitutions within the style script.
-        let next_scoped = ctx
-            .analysis
-            .and_then(|analysis| {
-                analysis.original_scoped_body_in_source(
-                    &tcl_lexer::SourceImage::document(full_source),
-                    ctx.config,
-                    seg.span.start(),
-                )
-            })
-            .map(tcl_compiler::registry_invocation::OriginalSourceScopedBody::environment)
-            .or(ctx.scoped_env);
-        let body_ctx = ScriptCtx {
-            oo_grammar: next_oo,
-            enclosing_class: next_class,
-            scoped_env: next_scoped,
-            ..ctx
-        };
+        let body_ctx = command_body_context(ctx, &seg, &original, head_text, &arg_texts);
 
-        let mut deferred_role_starts = deferred_role_arg_starts(original.as_ref());
-        if let Some(declared) = &declared {
-            deferred_role_starts.extend(
-                declared
-                    .supplied_argument_roles()
-                    .unwrap_or_default()
-                    .into_iter()
-                    .filter(|(_, role)| {
-                        matches!(
-                            role,
-                            tcl_registry::ArgRole::Body
-                                | tcl_registry::ArgRole::CommandPrefix
-                                | tcl_registry::ArgRole::LambdaLiteral
-                        )
-                    })
-                    .filter_map(|(ordinal, _)| {
-                        declared
-                            .argument_word(ordinal)?
-                            .tokens()
-                            .first()
-                            .map(|token| token.span.start())
-                    }),
-            );
-        }
+        let deferred_role_starts = command_deferred_role_starts(&original, &declared);
 
         let mut expanded_roles = original
             .as_ref()
             .map_or_else(Vec::new, original::expanded_role_extents);
         expanded_roles.extend(procedure_role_extents);
-        for tok in &seg.all_tokens {
-            if original::emit_expanded_role_extents(ctx, *tok, &expanded_roles, entries) {
-                continue;
-            }
-            // Skip every token that falls inside a *static* head word — not
-            // just the exact head token.  Such a head is one word that
-            // `emit_static_command_head` already emitted as a single command token;
-            // its sub-fragments (`ns::`, `cmd` for a `ns::cmd` head) also
-            // appear in `all_tokens`, and emitting those would overlap the head
-            // token (invalid — LSP clients reject overlapping semantic tokens).
-            //
-            // A *computed* head is deliberately NOT emitted by
-            // `emit_static_command_head` (see above), so its tokens must flow through
-            // the argument path here: the `[…]` head token recurses into its
-            // inner script and the `$var` head token reads as a variable.
-            if !computed_head
-                && tok.span.start() >= static_head_extent.start()
-                && tok.span.end() <= static_head_extent.end()
-            {
-                continue;
-            }
-            let token_ctx = ScriptCtx {
-                operand: produced
-                    .as_ref()
-                    .or(original.as_ref())
-                    .and_then(|words| {
-                        words
-                            .operands
-                            .iter()
-                            .filter_map(Option::as_ref)
-                            .find(|operand| operand.span == tok.span)
-                    })
-                    .or_else(|| {
-                        member_parameter_operands
-                            .iter()
-                            .find(|operand| operand.span == tok.span)
-                    })
-                    .or_else(|| ctx.original_roles.operand_at(tok.span)),
-                original_words: produced.as_ref().or(original.as_ref()),
-                declared_words: declared.as_ref(),
-                ..ctx
-            };
-            let definition_parent = if let Some(member_body) =
-                member_bodies.iter().flatten().find(|body| {
-                    body.original_container()
+        collect_command_tokens(
+            ctx,
+            body_ctx,
+            &seg,
+            CommandTokenSources {
+                original: &original,
+                produced: &produced,
+                declared: &declared,
+                member_bodies: &member_bodies,
+                original_bodies: &original_bodies,
+                member_parameter_operands: &member_parameter_operands,
+                overrides: &overrides,
+                deferred_role_starts: &deferred_role_starts,
+                expanded_roles: &expanded_roles,
+                computed_head,
+                static_head_extent,
+            },
+            entries,
+            depth,
+        );
+    }
+}
+
+struct CommandTokenSources<'a> {
+    original: &'a Option<crate::original_invocation::OriginalRegistryWords>,
+    produced: &'a Option<crate::original_invocation::OriginalRegistryWords>,
+    declared: &'a Option<tcl_compiler::command_binding::OriginalDeclaredCommandWords>,
+    member_bodies: &'a Option<
+        Vec<tcl_compiler::registry_invocation::OriginalSourceDefinitionMemberScriptBody>,
+    >,
+    original_bodies: &'a [tcl_compiler::registry_invocation::OriginalSourceScriptBody],
+    member_parameter_operands: &'a [crate::original_invocation::OriginalOperandSource],
+    overrides: &'a FxHashMap<u32, ArgOverride>,
+    deferred_role_starts: &'a FxHashSet<u32>,
+    expanded_roles: &'a [(Span, TokenKind, u32)],
+    computed_head: bool,
+    static_head_extent: Span,
+}
+
+fn emit_selected_command_head(
+    ctx: ScriptCtx<'_>,
+    seg: &tcl_compiler::segmenter::SegmentedCommand,
+    original: &Option<crate::original_invocation::OriginalRegistryWords>,
+    member_head: Option<(&tcl_lexer::NativeWord, Span)>,
+    entries: &mut Vec<Entry>,
+) {
+    let full_source = ctx.full_source;
+    let head_tok = seg.argv[0];
+    if ctx.lexical && original.is_none() && member_head.is_none() {
+        emit_static_command_head(ctx, seg, entries);
+    } else if let Some((_, span)) = member_head {
+        push_token(
+            ctx.line_index,
+            full_source,
+            Token { span, ..head_tok },
+            TokenKind::Keyword,
+            0,
+            entries,
+        );
+    } else if ctx.original_roles.is_class_head(head_tok.span.start()) {
+        push_token(
+            ctx.line_index,
+            full_source,
+            head_tok,
+            TokenKind::Class,
+            0,
+            entries,
+        );
+    } else if let Some(words) = original {
+        original::registry_head(ctx, seg, words, entries);
+    } else {
+        push_token(
+            ctx.line_index,
+            full_source,
+            head_tok,
+            TokenKind::Function,
+            0,
+            entries,
+        );
+    }
+}
+
+fn command_role_overrides(
+    ctx: ScriptCtx<'_>,
+    seg: &tcl_compiler::segmenter::SegmentedCommand,
+    original: &Option<crate::original_invocation::OriginalRegistryWords>,
+    member_bodies: &Option<
+        Vec<tcl_compiler::registry_invocation::OriginalSourceDefinitionMemberScriptBody>,
+    >,
+) -> FxHashMap<u32, ArgOverride> {
+    let mut overrides = original.as_ref().map_or_else(FxHashMap::default, |words| {
+        original::registry_overrides(ctx, seg, words)
+    });
+    for body in member_bodies.iter().flatten() {
+        if let [token] = body.original_container().tokens() {
+            overrides.insert(token.span.start(), ArgOverride::BodyScript);
+        }
+    }
+    if ctx.lexical {
+        insert_lexical_user_overrides(ctx, seg, &mut overrides);
+    } else if let Some(providers) = ctx.project_classes {
+        // Native lexical/report overlays remain guarded by has_head. This
+        // independent source-display branch requires the selected original
+        // class/instance and preserves stronger role overrides on insertion.
+        receiver_source::insert_project_method(ctx, seg, providers, &mut overrides);
+    }
+    original::insert_definition_member_overrides(ctx, seg, &mut overrides);
+    overrides
+}
+
+fn deferred_produced_command_words(
+    ctx: ScriptCtx<'_>,
+    seg: &tcl_compiler::segmenter::SegmentedCommand,
+    deferred_role: bool,
+) -> Option<crate::original_invocation::OriginalRegistryWords> {
+    let full_source = ctx.full_source;
+    deferred_role
+        .then(|| {
+            let analysis = ctx.analysis?;
+            crate::original_invocation::source_produced_command_prefix_words(
+                full_source,
+                analysis,
+                seg,
+            )
+        })
+        .flatten()
+}
+
+fn command_body_context<'a>(
+    ctx: ScriptCtx<'a>,
+    seg: &tcl_compiler::segmenter::SegmentedCommand,
+    original: &Option<crate::original_invocation::OriginalRegistryWords>,
+    head_text: &str,
+    arg_texts: &[&str],
+) -> ScriptCtx<'a> {
+    let full_source = ctx.full_source;
+    // Receiver advice keeps its independent grammar. Member vocabulary
+    // travels in the original body receipts below.
+    let outer_grammar = original.as_ref().and_then(|words| {
+        words
+            .with_source_schema(ctx.generation, |schema| {
+                schema.authored_source_definition_body_grammar()
+            })
+            .flatten()
+    });
+    let next_oo = if ctx.lexical {
+        next_original_definition_grammar(ctx, head_text, arg_texts, outer_grammar)
+    } else {
+        None
+    };
+    // The class whose body the recursion enters: a `oo::class create NAME`
+    // (and the property-/instantiation-metaclasses) names it at argv[2], an
+    // `oo::define NAME { … }` at argv[1].  Slice it from the source so it
+    // outlives the walk; otherwise inherit the enclosing class (so a
+    // `method …` body keeps its class).  Lets `my method …` in the body
+    // resolve against that class.
+    let next_class = if ctx.lexical {
+        original
+            .as_ref()
+            .and_then(|words| original::definition_class_name(ctx, seg, words))
+            .or(ctx.enclosing_class)
+    } else {
+        None
+    };
+    // The scoped command environment the recursion into THIS command's body
+    // should carry: a command whose spec declares a `body_scope` switches it
+    // on (`report::defstyle`'s style script); otherwise it persists so the
+    // scoped commands stay resolvable inside nested control-flow bodies and
+    // `[…]` substitutions within the style script.
+    let next_scoped = ctx
+        .analysis
+        .and_then(|analysis| {
+            analysis.original_scoped_body_in_source(
+                &tcl_lexer::SourceImage::document(full_source),
+                ctx.config,
+                seg.span.start(),
+            )
+        })
+        .map(tcl_compiler::registry_invocation::OriginalSourceScopedBody::environment)
+        .or(ctx.scoped_env);
+    ScriptCtx {
+        oo_grammar: next_oo,
+        enclosing_class: next_class,
+        scoped_env: next_scoped,
+        ..ctx
+    }
+}
+
+fn command_deferred_role_starts(
+    original: &Option<crate::original_invocation::OriginalRegistryWords>,
+    declared: &Option<tcl_compiler::command_binding::OriginalDeclaredCommandWords>,
+) -> FxHashSet<u32> {
+    let mut deferred_role_starts = deferred_role_arg_starts(original.as_ref());
+    if let Some(declared) = declared {
+        deferred_role_starts.extend(
+            declared
+                .supplied_argument_roles()
+                .unwrap_or_default()
+                .into_iter()
+                .filter(|(_, role)| {
+                    matches!(
+                        role,
+                        tcl_registry::ArgRole::Body
+                            | tcl_registry::ArgRole::CommandPrefix
+                            | tcl_registry::ArgRole::LambdaLiteral
+                    )
+                })
+                .filter_map(|(ordinal, _)| {
+                    declared
+                        .argument_word(ordinal)?
                         .tokens()
+                        .first()
+                        .map(|token| token.span.start())
+                }),
+        );
+    }
+
+    deferred_role_starts
+}
+
+fn collect_command_tokens(
+    ctx: ScriptCtx<'_>,
+    body_ctx: ScriptCtx<'_>,
+    seg: &tcl_compiler::segmenter::SegmentedCommand,
+    sources: CommandTokenSources<'_>,
+    entries: &mut Vec<Entry>,
+    depth: u32,
+) {
+    let CommandTokenSources {
+        original,
+        produced,
+        declared,
+        member_bodies,
+        original_bodies,
+        member_parameter_operands,
+        overrides,
+        deferred_role_starts,
+        expanded_roles,
+        computed_head,
+        static_head_extent,
+    } = sources;
+    for tok in &seg.all_tokens {
+        if original::emit_expanded_role_extents(ctx, *tok, expanded_roles, entries) {
+            continue;
+        }
+        // Skip every token that falls inside a *static* head word — not
+        // just the exact head token.  Such a head is one word that
+        // `emit_static_command_head` already emitted as a single command token;
+        // its sub-fragments (`ns::`, `cmd` for a `ns::cmd` head) also
+        // appear in `all_tokens`, and emitting those would overlap the head
+        // token (invalid — LSP clients reject overlapping semantic tokens).
+        //
+        // A *computed* head is deliberately NOT emitted by
+        // `emit_static_command_head` (see above), so its tokens must flow through
+        // the argument path here: the `[…]` head token recurses into its
+        // inner script and the `$var` head token reads as a variable.
+        if !computed_head
+            && tok.span.start() >= static_head_extent.start()
+            && tok.span.end() <= static_head_extent.end()
+        {
+            continue;
+        }
+        let token_ctx = ScriptCtx {
+            operand: produced
+                .as_ref()
+                .or(original.as_ref())
+                .and_then(|words| {
+                    words
+                        .operands
                         .iter()
-                        .any(|part| part.span == tok.span)
-                }) {
-                member_body.definition_parent().cloned()
-            } else if let Some(body) = original_bodies.iter().find(|body| {
+                        .filter_map(Option::as_ref)
+                        .find(|operand| operand.span == tok.span)
+                })
+                .or_else(|| {
+                    member_parameter_operands
+                        .iter()
+                        .find(|operand| operand.span == tok.span)
+                })
+                .or_else(|| ctx.original_roles.operand_at(tok.span)),
+            original_words: produced.as_ref().or(original.as_ref()),
+            declared_words: declared.as_ref(),
+            ..ctx
+        };
+        let definition_parent = if let Some(member_body) =
+            member_bodies.iter().flatten().find(|body| {
                 body.original_container()
                     .tokens()
                     .iter()
                     .any(|part| part.span == tok.span)
             }) {
-                body.definition_parent_for(ctx.generation, ctx.original_definition_parent)
-            } else {
-                None
-            };
-            let token_body_ctx = ScriptCtx {
-                receiver_grammar: matches!(
-                    overrides.get(&tok.span.start()),
-                    Some(ArgOverride::BodyScript)
-                )
-                .then(|| original::receiver_grammar_for_body(ctx, &seg, original.as_ref(), *tok))
-                .flatten(),
-                original_definition_parent: definition_parent.as_ref(),
-                original_definition_members: None,
-                ..body_ctx
-            };
-            emit_arg_token(
-                token_ctx,
-                token_body_ctx,
-                *tok,
+            member_body.definition_parent().cloned()
+        } else if let Some(body) = original_bodies.iter().find(|body| {
+            body.original_container()
+                .tokens()
+                .iter()
+                .any(|part| part.span == tok.span)
+        }) {
+            body.definition_parent_for(ctx.generation, ctx.original_definition_parent)
+        } else {
+            None
+        };
+        let token_body_ctx = ScriptCtx {
+            receiver_grammar: matches!(
                 overrides.get(&tok.span.start()),
-                deferred_role_starts.contains(&tok.span.start()),
-                entries,
-                depth,
-            );
-        }
+                Some(ArgOverride::BodyScript)
+            )
+            .then(|| original::receiver_grammar_for_body(ctx, seg, original.as_ref(), *tok))
+            .flatten(),
+            original_definition_parent: definition_parent.as_ref(),
+            original_definition_members: None,
+            ..body_ctx
+        };
+        emit_arg_token(
+            token_ctx,
+            token_body_ctx,
+            *tok,
+            overrides.get(&tok.span.start()),
+            deferred_role_starts.contains(&tok.span.start()),
+            entries,
+            depth,
+        );
     }
 }
 
@@ -4766,7 +4878,7 @@ fn collect_entries(
     let WorkspaceTokenFacts {
         classes,
         proc_roles,
-        named_instances,
+        named_instances: _,
         project_classes,
         analysis,
     } = facts;
@@ -4777,19 +4889,7 @@ fn collect_entries(
     let analysis = if let Some(analysis) = analysis {
         analysis
     } else {
-        let context = tcl_registry::model::context_for_profile(dialect);
-        let context =
-            std::sync::Arc::new(context.with_command_store(registry.snapshot().shared_registry()));
-        let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
-            dialect,
-            dialect,
-            context,
-            tcl_lexer::LexerConfig::for_file_grammar(dialect.grammar),
-        );
-        fresh_analysis = tcl_compiler::analyser::Analyser::new()
-            .structure_only()
-            .with_resolved_input(input)
-            .analyse(source, dialect.name);
+        fresh_analysis = standalone_token_analysis(source, dialect, registry);
         &fresh_analysis
     };
     let Some(current) = crate::original_context::CurrentSourceContext::capture(source, analysis)
@@ -4836,6 +4936,95 @@ fn collect_entries(
         FxHashSet::default()
     };
 
+    let (object_classes, _object_collections) =
+        token_object_maps(source, registry, cu, retained, lexical, facts);
+
+    // Walk every segmented command (recursing into braced bodies, braced
+    // expressions, and `[…]` command substitutions) and classify each token.
+    let original_collections = cu
+        .filter(|_| lexical || project_classes.is_some())
+        .and_then(|unit| {
+            tcl_compiler::object_types::OriginalObjectCollectionSources::capture(
+                source, analysis?, unit,
+            )
+        });
+    let original_roles = original::OriginalTokenRoles::capture(source, analysis);
+    let ctx = ScriptCtx {
+        full_source: source,
+        dialect,
+        config,
+        context: generation.context(),
+        generation: &generation,
+        operand: None,
+        original_words: None,
+        declared_words: None,
+        lexical,
+        numbers: profile.grammar.numbers,
+        registry,
+        line_index: &line_index,
+        // The root of a document is itself a definition body when the dialect
+        // says so: a `.sslictcl` document's legal top-level words are exactly
+        // its document grammar's members, painted from membership like every
+        // level below. An ordinary Tcl document has no such grammar.
+        oo_grammar: if lexical {
+            registry.document_grammar()
+        } else {
+            None
+        },
+        receiver_grammar: None,
+        original_definition_parent: None,
+        original_definition_members: None,
+        scoped_env: None,
+        regex_sources: &regex_sources,
+        object_classes: &object_classes,
+        classes,
+        project_classes,
+        analysis,
+        original_collections: original_collections.as_ref(),
+        original_roles: &original_roles,
+        proc_roles,
+        enclosing_class: None,
+        irules_top_level_declaration_heads: &irules_top_level_declaration_heads,
+    };
+    collect_context_entries(ctx, cu, document_analysis, &mut entries);
+    entries
+}
+
+fn standalone_token_analysis(
+    source: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
+    registry: &CommandRegistry,
+) -> AnalysisResult {
+    let context = tcl_registry::model::context_for_profile(dialect);
+    let context =
+        std::sync::Arc::new(context.with_command_store(registry.snapshot().shared_registry()));
+    let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+        dialect,
+        dialect,
+        context,
+        tcl_lexer::LexerConfig::for_file_grammar(dialect.grammar),
+    );
+    tcl_compiler::analyser::Analyser::new()
+        .structure_only()
+        .with_resolved_input(input)
+        .analyse(source, dialect.name)
+}
+
+fn token_object_maps(
+    source: &str,
+    registry: &CommandRegistry,
+    cu: Option<&CompilationUnit>,
+    retained: &AnalysisResult,
+    lexical: bool,
+    facts: WorkspaceTokenFacts<'_>,
+) -> (ObjectClassMap, ObjectClassMap) {
+    let WorkspaceTokenFacts {
+        classes,
+        named_instances,
+        project_classes,
+        ..
+    } = facts;
+    let analysis = Some(retained);
     // Source candidates retain the same complete analysis/Module inputs as
     // their shared producer. Native lookup retains its independent reader.
     let mut object_classes: ObjectClassMap = if lexical {
@@ -4891,58 +5080,26 @@ fn collect_entries(
         augment_snit_handles(source, retained, classes, &mut object_classes);
     }
 
-    // Walk every segmented command (recursing into braced bodies, braced
-    // expressions, and `[…]` command substitutions) and classify each token.
-    let original_collections = cu
-        .filter(|_| lexical || project_classes.is_some())
-        .and_then(|unit| {
-            tcl_compiler::object_types::OriginalObjectCollectionSources::capture(
-                source, analysis?, unit,
-            )
-        });
-    let original_roles = original::OriginalTokenRoles::capture(source, analysis);
-    let ctx = ScriptCtx {
-        full_source: source,
-        dialect,
-        config,
-        context: generation.context(),
-        generation: &generation,
-        operand: None,
-        original_words: None,
-        declared_words: None,
-        lexical,
-        numbers: profile.grammar.numbers,
-        registry,
-        line_index: &line_index,
-        // The root of a document is itself a definition body when the dialect
-        // says so: a `.sslictcl` document's legal top-level words are exactly
-        // its document grammar's members, painted from membership like every
-        // level below. An ordinary Tcl document has no such grammar.
-        oo_grammar: if lexical {
-            registry.document_grammar()
-        } else {
-            None
-        },
-        receiver_grammar: None,
-        original_definition_parent: None,
-        original_definition_members: None,
-        scoped_env: None,
-        regex_sources: &regex_sources,
-        object_classes: &object_classes,
-        classes,
-        project_classes,
-        analysis,
-        original_collections: original_collections.as_ref(),
-        original_roles: &original_roles,
-        proc_roles,
-        enclosing_class: None,
-        irules_top_level_declaration_heads: &irules_top_level_declaration_heads,
-    };
-    collect_script(ctx, source, 0, &mut entries, 0, false);
+    (object_classes, object_collections)
+}
+
+fn collect_context_entries(
+    ctx: ScriptCtx<'_>,
+    cu: Option<&CompilationUnit>,
+    document_analysis: bool,
+    entries: &mut Vec<Entry>,
+) {
+    let source = ctx.full_source;
+    let analysis = ctx.analysis;
+    let registry = ctx.registry;
+    let profile = ctx.dialect;
+    let lexical = ctx.lexical;
+    let line_index = ctx.line_index;
+    collect_script(ctx, source, 0, entries, 0, false);
 
     // The shared original source walker retains comment phase independently
     // of the semantic colours already emitted for other source roles.
-    push_comment_tokens(source, &line_index, analysis, &mut entries);
+    push_comment_tokens(source, line_index, analysis, entries);
 
     // BIG-IP object references (iRules dialect): overlay `object` tokens
     // at recognised pool / data-group / virtual / … name positions.
@@ -4958,13 +5115,12 @@ fn collect_entries(
             _ => crate::irules_object_refs::object_ref_spans(source, registry),
         };
         for span in spans {
-            push_object_token(source, &line_index, span, &mut entries);
+            push_object_token(source, line_index, span, entries);
         }
     }
 
     // Sort by (line, column) so the delta encoding works.
     entries.sort_by_key(|(line, col, _, _, _)| (*line, *col));
-    entries
 }
 
 /// The BIG-IP object-reference spans of an iRules document, read under the
