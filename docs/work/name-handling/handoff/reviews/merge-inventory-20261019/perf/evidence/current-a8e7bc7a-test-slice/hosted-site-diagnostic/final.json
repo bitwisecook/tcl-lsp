@@ -1,0 +1,116 @@
+{
+  "scope": "public realm query diagnostic only, not observation of the private Lowerer guard and not a corpus/equality acceptance result",
+  "cpu_mask": [
+    0,
+    1
+  ],
+  "results": [
+    {
+      "exit": 0,
+      "wall_s": 10.305253433005419
+    }
+  ],
+  "libraries": {
+    "tcl_compiler": {
+      "path": "/workspace/tcl-lsp-perf-latest/target/debug/deps/libtcl_compiler-69985a5938e13168.rlib",
+      "sha256": "a149dcbea2fe24c22e4b3c7fb0f905d8129713d1ceef58534f87f657bc1a19a6",
+      "cargo_artifact": {
+        "reason": "compiler-artifact",
+        "package_id": "path+file:///workspace/tcl-lsp-perf-latest/rust/tcl-compiler#0.1.0",
+        "manifest_path": "/workspace/tcl-lsp-perf-latest/rust/tcl-compiler/Cargo.toml",
+        "target": {
+          "kind": [
+            "lib"
+          ],
+          "crate_types": [
+            "lib"
+          ],
+          "name": "tcl_compiler",
+          "src_path": "/workspace/tcl-lsp-perf-latest/rust/tcl-compiler/src/lib.rs",
+          "edition": "2024",
+          "doc": true,
+          "doctest": true,
+          "test": true
+        },
+        "profile": {
+          "opt_level": "0",
+          "debuginfo": 0,
+          "debug_assertions": true,
+          "overflow_checks": true,
+          "test": false
+        },
+        "features": [],
+        "filenames": [
+          "/workspace/tcl-lsp-perf-latest/target/debug/deps/libtcl_compiler-69985a5938e13168.rlib",
+          "/workspace/tcl-lsp-perf-latest/target/debug/deps/libtcl_compiler-69985a5938e13168.rmeta"
+        ],
+        "executable": null,
+        "fresh": false
+      }
+    },
+    "tcl_lexer": {
+      "path": "/workspace/tcl-lsp-perf-latest/target/debug/deps/libtcl_lexer-ff172cc3515b8ad8.rlib",
+      "sha256": "fdf419f7809568fbcad35e5a3d776e16528432406661bb1d84f3fb276c27b102",
+      "cargo_artifact": {
+        "reason": "compiler-artifact",
+        "package_id": "path+file:///workspace/tcl-lsp-perf-latest/rust/tcl-lexer#0.1.0",
+        "manifest_path": "/workspace/tcl-lsp-perf-latest/rust/tcl-lexer/Cargo.toml",
+        "target": {
+          "kind": [
+            "lib"
+          ],
+          "crate_types": [
+            "lib"
+          ],
+          "name": "tcl_lexer",
+          "src_path": "/workspace/tcl-lsp-perf-latest/rust/tcl-lexer/src/lib.rs",
+          "edition": "2024",
+          "doc": true,
+          "doctest": true,
+          "test": true
+        },
+        "profile": {
+          "opt_level": "0",
+          "debuginfo": 0,
+          "debug_assertions": true,
+          "overflow_checks": true,
+          "test": false
+        },
+        "features": [],
+        "filenames": [
+          "/workspace/tcl-lsp-perf-latest/target/debug/deps/libtcl_lexer-ff172cc3515b8ad8.rlib",
+          "/workspace/tcl-lsp-perf-latest/target/debug/deps/libtcl_lexer-ff172cc3515b8ad8.rmeta"
+        ],
+        "executable": null,
+        "fresh": true
+      }
+    }
+  },
+  "argv": [
+    "rustc",
+    "--edition=2024",
+    "--crate-name",
+    "zz_hosted_site_perfprobe",
+    "-Copt-level=0",
+    "-Cdebuginfo=0",
+    "-Cdebug-assertions=on",
+    "-Coverflow-checks=on",
+    "-L",
+    "dependency=/workspace/tcl-lsp-perf-latest/target/debug/deps",
+    "--extern",
+    "tcl_compiler=/workspace/tcl-lsp-perf-latest/target/debug/deps/libtcl_compiler-69985a5938e13168.rlib",
+    "--extern",
+    "tcl_lexer=/workspace/tcl-lsp-perf-latest/target/debug/deps/libtcl_lexer-ff172cc3515b8ad8.rlib",
+    "-L",
+    "native=/workspace/tcl-lsp-perf-latest/target/debug/build/tcl-host-c-abi-a743493def30a82f/out",
+    "-L",
+    "native=/workspace/tcl-lsp-perf-latest/target/debug/build/ring-837e1730851bfe0c/out",
+    "/tmp/perf-hosted-site-xvfinkwb/zz_hosted_site_perfprobe.rs",
+    "-o",
+    "/tmp/perf-hosted-site-xvfinkwb/zz_hosted_site_perfprobe"
+  ],
+  "build_exit": 0,
+  "executable_sha256": "8bc1cfe3a6c6971f8c1029e4870bce9712f458440229ea26c529edbd061b246b",
+  "executable_removed": true,
+  "temporary_source_removed": true
+}

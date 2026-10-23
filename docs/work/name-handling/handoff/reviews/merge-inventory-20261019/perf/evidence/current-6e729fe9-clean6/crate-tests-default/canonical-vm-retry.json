@@ -1,0 +1,13 @@
+{
+  "previous_head": "6e729fe982fc748d3be30ec23fcc41f81a16ab09",
+  "errors": [
+    "cannot find value `recipe` in this scope",
+    "module `object_materialization` is private",
+    "missing generics for struct `JimScriptLocation`"
+  ],
+  "cause": "Upstream VM extraction typing errors; canonical owner repair0747a2a5 is already on work. Build failed before tests; preserve original receipts, then rebase unchanged six-file perf edits and retry.",
+  "old_rust_diff_sha256": "dcf5f9d59ca71096917d01fa0a17b3e8532760b35b867528efbcd05c6f5ea3ab",
+  "started_unix": 1792767168.9509573,
+  "new_head": "ccd5703365b11b00801d3c03cd54dbefce2fced9",
+  "new_rust_diff_sha256": "dcf5f9d59ca71096917d01fa0a17b3e8532760b35b867528efbcd05c6f5ea3ab"
+}

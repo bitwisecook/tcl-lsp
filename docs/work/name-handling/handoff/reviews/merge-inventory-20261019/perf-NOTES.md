@@ -1,6 +1,6 @@
 # perf agent notes: Analyser and SpecTcl
 
-Last updated: 2026-10-23 14:44 UTC
+Last updated: 2026-10-23 15:13 UTC
 
 **Latest-source retry running at a8e7bc7a plus published test fix; no perf production code landed.** The
 upstream functional repair changes procedure visitation/hosted event issuance
@@ -222,3 +222,17 @@ clean6 build reaches3 VM typing errors already repaired by owner0747a2a5.
 It preserves in-flight compiler codegen, then the checked automatic retry
 updates to canonical work with the identical six-file perf diff. Neither
 main perf patch is proven/landed; main16 controls still build.
+
+The complete6e clean6 build fails only3 known VM typing errors, zero Rust
+warnings/no tests. Checked retry is now on canonicalccd57033 with the exact
+same six-file diff. That canonical head also changes Native declaration-span
+selection, so final complete corpus acceptance requires canonical source.
+Frozen a8 results remain scoped evidence. New SpecTcl eval_loader is27/28
+passes so far, last shipped-pack case still running; no full suite verdict.
+
+A fresh-normal-library public diagnostic on the exact37-byte hosted fixture
+finds hosted input, realm image, source origin and binding site0 in BOTH modes;
+self report comparison remains CurrentOwnerUnavailable. This is the public
+realm query, not the private Lowerer guard or an equality acceptance proof.
+Exact source/library/binary receipts and output are current-a8e7bc7a-test-slice/
+hosted-site-diagnostic/. Its executable and temporary Rust source were deleted.

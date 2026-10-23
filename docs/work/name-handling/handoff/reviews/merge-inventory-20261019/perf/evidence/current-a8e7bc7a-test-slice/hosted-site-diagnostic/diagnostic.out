@@ -1,0 +1,2 @@
+HOSTED_SITE old=true hosted_input=Some(true) binding_site=Some(0) binding_origin=true realm_image=true report_self=Unavailable(CurrentOwnerUnavailable)
+HOSTED_SITE old=false hosted_input=Some(true) binding_site=Some(0) binding_origin=true realm_image=true report_self=Unavailable(CurrentOwnerUnavailable)

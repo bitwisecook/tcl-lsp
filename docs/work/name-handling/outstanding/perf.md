@@ -2,7 +2,7 @@
 
 Area: Analysis and SpecTcl pack-load performance.
 
-Last updated: 2026-10-23 14:44 UTC
+Last updated: 2026-10-23 15:13 UTC
 
 ## Resume
 
@@ -33,16 +33,19 @@ Active commands (build/run/delete executables in one command):
   was stopped before any binary/test existed; watcher-ordering.json records
   the unchanged inventory/assertions and new diagnostic-first ordering.
 - /tmp/perf-owned-typing-repair-compiler.log, session68715, Python25478:
-  clean six-file no-switch compiler-filter build at canonical6e729fe9 in
-  /workspace/tcl-lsp-owned. Receipts: evidence/current-6e729fe9-clean6/.
-  It now reaches3 upstream VM typing failures; Cargo waits for its already
-  running compiler job to finish, preserving completed dependency codegen.
-  The owner repair0747a2a5 is already on work. Automatic retry session28812,
-  /tmp/perf-clean6-after-vm-repair.log, validates that errors are exactly the
-  three known VM paths, preserves all failed receipts, fetches/checks out
-  current work with the identical six-file diff, then rebuilds/runs/cleans the
-  original filters. Unexpected errors or a changed perf diff stop that retry.
-  No current source is changed while a builder still uses it.
+  clean six-file no-switch compiler-filter retry at canonicalccd57033 in
+  /workspace/tcl-lsp-owned. The earlier6e729fe9 build is COMPLETE/FAILED:
+  exactly3 upstream VM typing errors, zero Rust warnings, no tests. It waited
+  for its active normal compiler job to finish before returning; complete
+  receipts are current-6e729fe9-clean6/. Automatic retry session28812,
+  /tmp/perf-clean6-after-vm-repair.log, validated exactly the3 known VM paths,
+  fetched and checked out canonicalccd57033, verified the six-file diff SHA
+  unchanged, then started the original filter build/run/delete command.
+  Canonical source includes the owner VM repair0747a2a5 and the new Native
+  declaration-span repairccd57033. New receipts: current-ccd57033-clean6/.
+  The Native span repair is functional; final full-corpus acceptance must use
+  canonical source, not an inferred successor verdict from frozen a8 results.
+
 - /tmp/perf-spectcl-a8e7.log, session2241: opt1 eval_loader/golden_packs
   build COMPLETE with zero warnings, debug/overflow assertions on, separate
   target-spectcl-opt1. Runtime is RUNNING on reserved CPU cores2,3; all compiler roots and the
@@ -50,7 +53,7 @@ Active commands (build/run/delete executables in one command):
   original2 test threads, assertions and budgets apply to both modes.
   /tmp/perf-partition-spec-cpus.log, session39125, records every prior mask
   and restores the exact roots after all4 SpecTcl runs and executable cleanup.
-  cpu-partition.json is the receipt. New eval_loader has21/28 passing so far,
+  cpu-partition.json is the receipt. New eval_loader has27/28 passing so far,
   no final suite comparison yet.
 
 The quiet server window is COMPLETE. Both original180s cases/modes ran with
@@ -70,6 +73,14 @@ This trace ran contended after builders resumed; it is not a quiet latency
 comparison or proof that indexing/query alone caused the original timeouts.
 Raw trace, source/binary hashes and observations: current-a8e7bc7a/
 workspace-symbol-source-phase-trace/. The original quiet comparison is retained.
+
+A separate fresh-normal-library public diagnostic confirms the genuine
+hosted event input has hosted context, a realm image, a binding source origin
+and a binding site at0 in BOTH old/new modes. report.compare(&report) still
+returns CurrentOwnerUnavailable BOTH. This observes the public realm query,
+not Lowerer::cmd_tokens or the private first-refusal guard; do not substitute
+it for the pending control trace. Sources/library/executable hashes, exact
+output and cleanup: current-a8e7bc7a-test-slice/hosted-site-diagnostic/.
 
 The current public-API hosted smokes still fail all3 comparison pairs with
 Unavailable(CurrentOwnerUnavailable), for both cookbook_http_collect.irul and
@@ -174,3 +185,8 @@ The user authorized **authenticated full-report comparison** as the new perf equ
 ### Coordinator dependency delivery — 2026-10-23T01:05:06.334470+00:00 (owner header unchanged)
 
 Compiler has frozen the user2256 report-only API proposal v7, patch `2351e4cf48adf9d66ddfaa75661e01e4ffc8bc405b4c61e6f1bac4e3dc5cbc8b`, with bounded naming peer review `b52aea24`. [Exact API and 14-control handoff](../handoff/reviews/merge-inventory-20261019/compiler/resume-20261022/authenticated-report-v7-20261023T0101Z/) and [guarded execution preparation](../handoff/reviews/merge-inventory-20261019/compiler/resume-20261022/authenticated-report-focused14-v1-20261023T0106Z/) are preparation only. Canonical product does not yet include this API; no typing or control/corpus run is claimed. Existing perf session can prepare the harness off-tree from the frozen signatures; wait for root publication and successful controls before actual full all-old/mixed proof. Equal alone passes; Different and Unavailable fail the proof. Keep strict global/runtime equality and cache cutoffs separately recorded, complete source/input/registry/body/hosted authentication and count guards unchanged. Realm/interprocedural patch remains withheld until this owner records it proven. Root has not duplicated or taken over perf. Filename times are labels; see actual receipt timestamps.
+
+If the SpecTcl driver exits early (for example P2F) before all4 summary rows
+finish, interrupt the active perf-partition-spec-cpus.py guard with SIGINT
+(after verifying its argv) to execute finally and restore the CPU masks.
+Do not leave the guard waiting on pending rows after an aborted driver.

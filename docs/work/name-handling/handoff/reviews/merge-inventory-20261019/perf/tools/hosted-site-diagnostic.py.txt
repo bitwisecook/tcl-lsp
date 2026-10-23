@@ -1,0 +1,53 @@
+from pathlib import Path
+import hashlib,json,os,subprocess,tempfile,time
+os.sched_setaffinity(0,{0,1})
+root=Path('/workspace/tcl-lsp-perf-latest');base=Path('/workspace/tcl-lsp-work/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/perf/evidence/current-a8e7bc7a-test-slice');out=base/'hosted-site-diagnostic';out.mkdir(exist_ok=True)
+rows=[]
+for line in (base/'build-controls.jsonl').read_text().splitlines():
+ try:rows.append(json.loads(line))
+ except json.JSONDecodeError:pass
+libs={};cargo={}
+for r in rows:
+ if r.get('reason')=='compiler-artifact' and not r['profile']['test']:
+  for f in r['filenames']:
+   if f.endswith('.rlib'):libs[r['target']['name']]=Path(f);cargo[r['target']['name']]=r
+source=r'''use std::sync::atomic::Ordering;
+use tcl_compiler::analyser::Analyser;
+fn main() {
+    for old in [true, false] {
+        tcl_lexer::ZZ_OLD.store(old, Ordering::Relaxed);
+        tcl_compiler::realm::ZZ_NO_MEMO.store(old, Ordering::Relaxed);
+        let report = Analyser::new().analyse_for_report("when HTTP_REQUEST { set value VALUE }", "f5-irules");
+        let analysis = report.analysis();
+        let realm = analysis.retained_command_realm().expect("genuine hosted event realm");
+        let binding = realm.invocation_at_source("when", 0);
+        println!("HOSTED_SITE old={old} hosted_input={:?} binding_site={:?} binding_origin={} realm_image={} report_self={:?}",
+            analysis.resolved_input.as_ref().map(|input| input.has_hosted_source_name_context()),
+            binding.invocation_site().map(|site| site.offset),
+            binding.source_origin().is_some(), realm.original_source_image().is_some(), report.compare(&report));
+    }
+}
+'''
+(out/'zz_hosted_site_perfprobe.rs.txt').write_text(source)
+receipt={'scope':'public realm query diagnostic only, not observation of the private Lowerer guard and not a corpus/equality acceptance result','cpu_mask':[0,1],'results':[],'libraries':{}}
+with tempfile.TemporaryDirectory(prefix='perf-hosted-site-') as td:
+ src=Path(td)/'zz_hosted_site_perfprobe.rs';exe=Path(td)/'zz_hosted_site_perfprobe';src.write_text(source)
+ argv=['rustc','--edition=2024','--crate-name','zz_hosted_site_perfprobe','-Copt-level=0','-Cdebuginfo=0','-Cdebug-assertions=on','-Coverflow-checks=on','-L',f'dependency={root}/target/debug/deps']
+ for n in ['tcl_compiler','tcl_lexer']:
+  assert libs[n].is_relative_to(root/'target') and libs[n].exists()
+  argv+=['--extern',f'{n}={libs[n]}'];receipt['libraries'][n]={'path':str(libs[n]),'sha256':hashlib.sha256(libs[n].read_bytes()).hexdigest(),'cargo_artifact':cargo[n]}
+ for r in rows:
+  if r.get('reason')=='build-script-executed':
+   for p in r.get('linked_paths',[]):argv+=['-L',p]
+ argv +=[str(src),'-o',str(exe)];receipt['argv']=argv
+ try:
+  with (out/'build.out').open('w') as f:code=subprocess.run(argv,cwd=root,stdout=f,stderr=subprocess.STDOUT).returncode
+  receipt['build_exit']=code;assert code==0,(out/'build.out').read_text()
+  receipt['executable_sha256']=hashlib.sha256(exe.read_bytes()).hexdigest();start=time.monotonic()
+  with (out/'diagnostic.out').open('w') as f:
+   try:code=subprocess.run([str(exe)],cwd=root,env={k:v for k,v in os.environ.items() if k!='ZZ_OLD_ENV'},stdout=f,stderr=subprocess.STDOUT,timeout=600).returncode
+   except subprocess.TimeoutExpired:code='timeout600'
+  receipt['results'].append({'exit':code,'wall_s':time.monotonic()-start})
+ finally:
+  exe.unlink(missing_ok=True);src.unlink(missing_ok=True);receipt['executable_removed']=not exe.exists();receipt['temporary_source_removed']=not src.exists();(out/'final.json').write_text(json.dumps(receipt,indent=2)+'\n')
+print('Hosted site diagnostic complete; executable/source deleted',flush=True)
