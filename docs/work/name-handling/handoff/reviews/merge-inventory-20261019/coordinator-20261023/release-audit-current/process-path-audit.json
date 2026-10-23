@@ -1,0 +1,21 @@
+{
+  "utc": "2026-10-23T21:34:40.196719+00:00",
+  "release": "ccf2e97b8b4bcec87c77e6f1289c61e64022cbec",
+  "tracked_paths": 11012,
+  "tracked_process_paths": [],
+  "known_work_only_references": 0,
+  "patterns": [
+    "docs/work/name-handling",
+    "merge-inventory-20261019",
+    "resume-20261017",
+    "ZZ_CCG_BASELINE",
+    "zz_ccg_",
+    "buildrun.sh",
+    "untoggle.py",
+    "scratchpad-mirror",
+    "user-decisions-2026",
+    "coordinator-202610"
+  ],
+  "scope": "ExactGittrackedpaths andgitgrepknownprocessmarkers; not fullsemanticdocumentationreview or completechaffproof",
+  "no_build": true
+}

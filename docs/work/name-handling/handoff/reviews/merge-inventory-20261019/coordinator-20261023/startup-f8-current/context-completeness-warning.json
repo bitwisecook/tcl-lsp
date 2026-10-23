@@ -1,0 +1,13 @@
+{
+  "scope": "Actual Context owned server child stderr only; no cross-stream timestamps to attribute a specific URI/round.",
+  "warning": [
+    {
+      "line": 109,
+      "text": "tcl-lsp: the workspace class-factory index did not settle in 16 rounds; publishing what has been proved so far. Classes made by a metaclass deeper than that in the chain may not resolve until the next sync."
+    }
+  ],
+  "stderr_sha256": "1f684b1d1a66ed6ed2dfd534a35c21e352ed9d0c967224d5ee065db198a4d625",
+  "original_assertions": "Two proj-a native fixture publication/W123/dialect/source/currentness checks passed, original6s report +15s config unchanged.",
+  "unclosed_completeness": "The fixed-point cap warning remains genuine unresolved evidence; no full workspace class-factory completeness or global Context/editorhost acceptance from these two assertions.",
+  "result_sha256": "ca14441856bcbb92404107b0a387bc8d87710c06efcb1dd042452d31ec845397"
+}

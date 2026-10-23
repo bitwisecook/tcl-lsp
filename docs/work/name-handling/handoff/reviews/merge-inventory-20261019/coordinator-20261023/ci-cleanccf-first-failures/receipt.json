@@ -1,0 +1,18 @@
+{
+  "utc": "2026-10-23T21:41:52.237756+00:00",
+  "run": 40027192497,
+  "head": "ccf2e97b8b4bcec87c77e6f1289c61e64022cbec",
+  "raw_capture_sha256": "3ab810c73ddf86b83a5fbf0b8c57c015cc7ddfdd0f351ac59625ee3c1e6e74d0",
+  "exact_decoded_log_sha256": {
+    "120666930494": "858cd217a7afc6938aa738578bcc95cceb7d489c378cf489132e77facbfabfcc",
+    "120666930268": "44096b5499b228250f2bb3e6d9a33f8d82c79f21964b5fc0ffb698b36c925897",
+    "120666930487": "4926aa8c3e8379433084ada4ae9be48308620fae37e33b74054bfaaefe44c5c2"
+  },
+  "observations": {
+    "120666930268": "rust-check stops on runtime/rust/tests/native_variable_array_modes.rs121 rustfmt path formatting; no Clippy reached",
+    "120666930494": "serverbuild strict Cargo warning denial: unused native_source bool in taint.rs5662; no server artifact",
+    "120666930487": "SpecTcl compat stops on same unused native_source warning before assertions"
+  },
+  "repairs": "Fixture formatworkbb1b9e0d3/cleane783d56c5; release-only Copy bool discard796ad28b0 independentlyreviewede18071b0. Static only, no fresh gateclosure.",
+  "limits": "Three exact job logs only; no wholeCI or baseline verdict."
+}

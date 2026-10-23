@@ -1,0 +1,334 @@
+{
+  "verdict": "CLEAR bounded actual guarded focused-three receipt; one pass and two failures, no gate or performance acceptance",
+  "author_receipt_sha256": "4f1dcd16627f8be33190a43ae275a90970ee58d6aa13cb8e929c1d90246bef16",
+  "source": "5177abd3bed0204a0700767ff8c5b51d3eb58f10",
+  "run": 40024823970,
+  "job": 120658259828,
+  "artifact": 12532328040,
+  "archive_sha256": "85163344112aad791bc4981b5162bf6e3871fa812088493464a7c119b2597fcb",
+  "archive_bytes": 26924584,
+  "api_job": {
+    "id": 120658259828,
+    "name": "runtime-fulltom-diagnostics",
+    "status": "completed",
+    "conclusion": "failure",
+    "run_id": 40024823970,
+    "logs_url": null,
+    "steps": [
+      {
+        "name": "Set up job",
+        "status": "completed",
+        "conclusion": "success",
+        "number": 1
+      },
+      {
+        "name": "Record diagnostic deadline",
+        "status": "completed",
+        "conclusion": "success",
+        "number": 2
+      },
+      {
+        "name": "Checkout exact work revision",
+        "status": "completed",
+        "conclusion": "success",
+        "number": 3
+      },
+      {
+        "name": "Install Rust",
+        "status": "completed",
+        "conclusion": "success",
+        "number": 4
+      },
+      {
+        "name": "Install cargo-nextest",
+        "status": "completed",
+        "conclusion": "success",
+        "number": 5
+      },
+      {
+        "name": "Validate revision and record original source",
+        "status": "completed",
+        "conclusion": "success",
+        "number": 6
+      },
+      {
+        "name": "Fetch the Tcl 9.0.4 source (libtommath)",
+        "status": "completed",
+        "conclusion": "success",
+        "number": 7
+      },
+      {
+        "name": "Capture complete isolated original runtime inventory",
+        "status": "completed",
+        "conclusion": "failure",
+        "number": 8
+      },
+      {
+        "name": "Upload full diagnostic evidence",
+        "status": "completed",
+        "conclusion": "success",
+        "number": 9
+      },
+      {
+        "name": "Post Install Rust",
+        "status": "completed",
+        "conclusion": "success",
+        "number": 17
+      },
+      {
+        "name": "Post Checkout exact work revision",
+        "status": "completed",
+        "conclusion": "success",
+        "number": 18
+      },
+      {
+        "name": "Complete job",
+        "status": "completed",
+        "conclusion": "success",
+        "number": 19
+      }
+    ]
+  },
+  "all_member_sha256_crc_size_checks": {
+    "backend-output.txt": {
+      "bytes": 1161,
+      "sha256": "056eed025c405abbc7a32c3140a81ac48d04ffde44e801a36b23b36a68efdce0"
+    },
+    "build-capture-exit.txt": {
+      "bytes": 2,
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+    },
+    "build-exit.txt": {
+      "bytes": 2,
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+    },
+    "build-incomplete.txt": {
+      "bytes": 2,
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+    },
+    "build.stderr": {
+      "bytes": 3392,
+      "sha256": "17e53682cbca5932a8ab58f9013b90005612584e8d64106658bd55e52d3f7ac9"
+    },
+    "capture-deadline-epoch.txt": {
+      "bytes": 11,
+      "sha256": "b0952021c1d4f2f9d626fd02e3e3a9787777739982e8af097e1da0b0462f3cab"
+    },
+    "capture-deadline-seconds.txt": {
+      "bytes": 5,
+      "sha256": "697a45ea52dfad8ff1dc817d42971e85d54eb5cdf1979e6a3c62d8373d8c52f3"
+    },
+    "capture-exit.txt": {
+      "bytes": 4,
+      "sha256": "eea8254c7500ba3de996aa8ad6af399183f04e17d4a8102fde539dbc93a90012"
+    },
+    "cargo-version.txt": {
+      "bytes": 36,
+      "sha256": "c35608815f43d0b8788a9b826fad2bb17384f49fb328dc4fe64da9db5f5ef4d6"
+    },
+    "coverage.txt": {
+      "bytes": 169,
+      "sha256": "8f058102e985b7b6fd20bb3e5a0f32626974b31833d7a663ad4dbd75341464ac"
+    },
+    "diagnostic-completeness.json": {
+      "bytes": 42,
+      "sha256": "c2065f30943127d08f6e1e345ee7b92ab8cff69213efddf59d5e764e30ea14ac"
+    },
+    "focus-selected-verified.json": {
+      "bytes": 530,
+      "sha256": "f01c02e0e19a96c0277c4d036ada63e80aaa8ec46073cd2bf6160a9a65e37cfa"
+    },
+    "git-after.txt": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "git-before.txt": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "job.txt": {
+      "bytes": 24,
+      "sha256": "30e6f6c9cf8992fb504ca66c484ea0853a426ccf9386739d46a1d51843b2dede"
+    },
+    "nextest-filter.txt": {
+      "bytes": 346,
+      "sha256": "c3f0f923c62e7ca9fe5fb948daf9a8ea2319f586595fdc83393632846f788a6d"
+    },
+    "nextest-version.txt": {
+      "bytes": 171,
+      "sha256": "86790eada5534e2c6ac244cc3712ba21b7fcbb07b734511d47813532c7e246e5"
+    },
+    "nextest.toml": {
+      "bytes": 232,
+      "sha256": "ce5c4b5057b5f366560c91d82d128642557b3e2f167285dec553a0de337c8c03"
+    },
+    "process-outcomes.json": {
+      "bytes": 2908,
+      "sha256": "dae148061d2c62eeefe1436fcb5fa2eefb129813e0052dcdbececf4507ffa6f5"
+    },
+    "process-outcomes.xml": {
+      "bytes": 3209,
+      "sha256": "20a8e9b0052f93b616a8ff16a80b2b2746bcd7b29580ab5c4bd02e8899231186"
+    },
+    "python-version.txt": {
+      "bytes": 14,
+      "sha256": "63990b3ee50c49ab28d70e29c0f967f0c71330e39243ffeb4d3a8d5878c8a978"
+    },
+    "raw-capture-incomplete.txt": {
+      "bytes": 2,
+      "sha256": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa"
+    },
+    "rustc-version.txt": {
+      "bytes": 196,
+      "sha256": "f22d5e4e9ced367e774ce5bc140d9e6b1235c1882fec80d011044851f3ae6369"
+    },
+    "selected.json": {
+      "bytes": 451206,
+      "sha256": "f3c3e613a8c5f204323128a5355ad1fe4fc736b8101b339cc37e0f9d9991dc2d"
+    },
+    "source-after.json": {
+      "bytes": 543,
+      "sha256": "52aeb5cc31013b65b1ff75f3a56c7fc8ad9c2b7ce99a92c12fccc1a293aaa6f3"
+    },
+    "source-commit.txt": {
+      "bytes": 41,
+      "sha256": "c16b4f9918412ca37604a135de5e40e9a90c59caf3f3c74ab54664823f6e3b25"
+    },
+    "terminal/nextest-stderr.txt": {
+      "bytes": 125393,
+      "sha256": "0a4c742675497fa69b1fc1a1c15be35776f72ee2848f7e50bca196cb61615886"
+    },
+    "terminal/reporter.raw.jsonl": {
+      "bytes": 3045,
+      "sha256": "5d33d0e0c9ea2c048ee977e206e783a5d79056ddb0116e2551279276105f1304"
+    },
+    "terminal/summary.json": {
+      "bytes": 777,
+      "sha256": "abf7a54ed4d3e2d7b5fdf2d3c4700a57686ddcc3b3acda90dc032cfae2cc874d"
+    },
+    "terminal/terminal.jsonl": {
+      "bytes": 1121,
+      "sha256": "b7f33222d7b0323ec73a662ee2c355fe195564732ec6158bd6f7c909856b82c6"
+    },
+    "tommath-after.sha256": {
+      "bytes": 26162,
+      "sha256": "6d16e9cfd9b2489f8d8425fa6babf0ae412c9b3d5b9c851d65a72933dcf3a1c1"
+    },
+    "tommath-before.sha256": {
+      "bytes": 26162,
+      "sha256": "6d16e9cfd9b2489f8d8425fa6babf0ae412c9b3d5b9c851d65a72933dcf3a1c1"
+    },
+    "tracked-source-before.json": {
+      "bytes": 26273342,
+      "sha256": "04ba363056e7332fb6603b1d61fafe820a503f4ed1fb190ef936d3d4599a1087"
+    }
+  },
+  "source_seal": {
+    "manifest_sha256": "04ba363056e7332fb6603b1d61fafe820a503f4ed1fb190ef936d3d4599a1087",
+    "all_git_membership_exact": 125188,
+    "report": {
+      "status": "PASS",
+      "manifest_sha256": "04ba363056e7332fb6603b1d61fafe820a503f4ed1fb190ef936d3d4599a1087",
+      "source_commit": "5177abd3bed0204a0700767ff8c5b51d3eb58f10",
+      "expected_source_commit": "5177abd3bed0204a0700767ff8c5b51d3eb58f10",
+      "expected_file_count": 125188,
+      "current_tracked_file_count": 125188,
+      "checked_file_count": 125188,
+      "matched_file_count": 125188,
+      "stable_membership_during_verification": true,
+      "missing_tracked_paths": [],
+      "extra_tracked_paths": [],
+      "checksum_mismatches": [],
+      "read_errors": []
+    },
+    "independently_git_blob_joined_key_files": {
+      ".github/workflows/perf.yml": "30ee6012ed9c56e9e5f91c2c87b6872cb6940b6cfde93adad812c55f5d15ac84",
+      "scripts/dev/tracked-source-snapshot.py": "e6613bbd7cef5f002fceafa950a516905ece370e9242139ad3ad3eae3d8ed300",
+      "scripts/dev/nextest-terminal-capture.py": "9fd34cbb8cbef7bf46ea967ced82ea9ae090e53eea1e85582b63c5a66e860c00",
+      ".claude/skills/fetch-tcl-source/fetch_tcl_source.sh": "54727250014eead4fae50efd8c99a1bd75f5b3a82bdd213b34180e870c454d62",
+      "runtime/rust/src/interp.rs": "3b3f3e19936a33c748cc73c366f4387bbccd2855106ffe09295746eb700699ba",
+      "runtime/rust/src/builtins.rs": "2134006a2c59d9ab69038b0ae6554d93236bef01a8f6c0dd70b50246f23e498e",
+      "runtime/rust/src/native_append_tests.rs": "56e4e1495e582149f08e91528696d629b79964cb31244bd1ad01c9a785c0be57",
+      "runtime/rust/build.rs": "4088e17e8c3f5295dfa41e044381e1394c02d223a89f7dfb8eddcd1d796c893f",
+      "runtime/rust/Cargo.toml": "a86fd0e9c18a2ceb79b349de4774034f69bc8f64d789943d9afd3af1a40aae05",
+      "runtime/rust/Cargo.lock": "50749871ad9964f2708fbaa3c2bfd9174c885b992299170b5156ac7f3f0995a1",
+      "rust/tcl-syntax/tests/data/native_object_append/8.4.20.tsv": "06b932a86dee609d474a637cf81996384a44d1e71c2c7ed0ecf9cb3cb5831958",
+      "rust/tcl-syntax/tests/data/native_object_append/8.5.19.tsv": "06b932a86dee609d474a637cf81996384a44d1e71c2c7ed0ecf9cb3cb5831958",
+      "rust/tcl-syntax/tests/data/native_object_append/8.6.18.tsv": "1154a12747e703bb61ee74992f68daba02d2849ba79ae53cd18a269253738ab0",
+      "rust/tcl-syntax/tests/data/native_object_append/9.0.4.tsv": "83b5ef137828dfe38f523be3935567ff239021c55adf097261c518f6868a80a3",
+      "rust/tcl-syntax/tests/data/native_object_append/9.1.0.tsv": "83b5ef137828dfe38f523be3935567ff239021c55adf097261c518f6868a80a3",
+      "rust/tcl-syntax/tests/data/native_object_append/jim.tsv": "577cb481aeced1fed0c2db5c75fcf963e04e166a7c70a8f647b7d1ff08735f73"
+    },
+    "scope": "All125188 reversible paths/count/membership authenticated against exact Git tree; hosted e661 helper reports all125188 content matches. Key workflow/helper/tests/build/Cargo contents independently joined. No local reexecution of hosted source verification."
+  },
+  "provider_seal": {
+    "files": 185,
+    "before_after_byte_identical": true,
+    "manifest_sha256": "6d16e9cfd9b2489f8d8425fa6babf0ae412c9b3d5b9c851d65a72933dcf3a1c1",
+    "backend": "Tcl9.0.4 libtommath static link/have_tommath recorded",
+    "limitation": "Provider tarball bytes/ELF not uploaded; no independent provider tarball or executable image digest assertion."
+  },
+  "selection": {
+    "listing_sha256": "f3c3e613a8c5f204323128a5355ad1fe4fc736b8101b339cc37e0f9d9991dc2d",
+    "entire_roster": 2343,
+    "selected": [
+      [
+        "tcl-runtime",
+        "builtins::tests::native_expression_and_increment_follow_selected_numeric_towers"
+      ],
+      [
+        "tcl-runtime",
+        "cmd_string::native_append_tests::native_append_preserves_every_measured_primary_storage_and_identity_window"
+      ],
+      [
+        "tcl-runtime",
+        "interp::tests::active_public_command_replacement_retires_client_data_before_dispatch_releases_its_handle"
+      ]
+    ],
+    "closed": 3,
+    "unknown": 0,
+    "executable_paths": {
+      "tcl-runtime": "/home/runner/work/_temp/runtime-fulltom-target/debug/deps/tcl_runtime-28759ad1b66278de"
+    },
+    "executable_sha256": null,
+    "limitation": "Listing/build paths and uncached fresh-target workflow identify execution; deps suffix is not a cryptographic executable SHA."
+  },
+  "owned_process_group": {
+    "child_spawned": true,
+    "parent_pid": 4560,
+    "parent_start_ticks": 47561,
+    "owned_pgid": 4560,
+    "group_scan_attempts": 2,
+    "group_empty_before_parent_reap": true,
+    "cleanup_signals": [],
+    "external_signals": [],
+    "last_disk_free_bytes": 73981546496,
+    "last_live_members": [],
+    "last_scan_complete": true
+  },
+  "outcomes": {
+    "public_c": "PASS6.44456498s",
+    "numeric_jim": "FAIL10117.905276085s errno34 ERANGE before/after",
+    "append": "TIMEOUT180.009856043s 521completed; last521tcl8.6pin;514remaining of1035"
+  },
+  "append_completed_by_profile": {
+    "tcl8.4": 189,
+    "tcl8.5": 189,
+    "tcl8.6": 143
+  },
+  "append_original_fixture_counts": {
+    "tcl8.4": 189,
+    "tcl8.5": 189,
+    "tcl8.6": 189,
+    "tcl9.0": 189,
+    "tcl9.1": 189,
+    "jim": 90
+  },
+  "nonclaims": [
+    "Not full shared-process runtime semantic gate",
+    "Not original1035/180 performance acceptance",
+    "No cross-run/source/host performance causality or internal hotspot inference",
+    "No source mutation, build or native probe"
+  ],
+  "protocol_review": "Exact9fd capture start_new_session + waitidWNOWAIT parent identity guard + two complete empty /proc group scans with drained streams before reap, no forwarded/cleanup signals. Exacte661 source helper strict head/membership/content/count verification; workflow final source/provider seals completed after outcomes."
+}

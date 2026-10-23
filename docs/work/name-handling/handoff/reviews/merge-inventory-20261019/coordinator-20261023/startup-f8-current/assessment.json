@@ -1,0 +1,232 @@
+{
+  "updated_utc": "2026-10-23T21:32:48.395289+00:00",
+  "status": "FRESH_STRICT_SERVER_RUNTIME_REACHED_TYPICAL_SCAN_BARRIER_FAIL_CONTEXT_ORIGINAL_PASS",
+  "run_id": 40023220375,
+  "job_id": 120652814951,
+  "artifact_id": 12533015865,
+  "head": "f8a24979d71e3e9c7227088d0f4725524fae85ed",
+  "tree": "556b43049d0a940de235a8a65d90b3dd61c74257",
+  "zip_sha256": "9ea45a5291191cf7a56b6115a4cf68d3c134bf711b89b823a8a1ed4a6fb1a36b",
+  "zip_bytes": 10988890,
+  "CRC_safe_paths_all_member_hashes": "PASS zip-members.json",
+  "largeJSON": "ZIP-only; extracted only<=1MB members",
+  "recompared_seals": {
+    "source": {
+      "before_after_equal": true,
+      "files": 125122
+    },
+    "providers": {
+      "before_after_equal": true,
+      "files": 2256
+    },
+    "dependencies": {
+      "before_after_equal": true,
+      "files": 21500
+    },
+    "tools": {
+      "before_after_equal": true,
+      "files": 7
+    }
+  },
+  "server": {
+    "cargo_event": {
+      "executable": "/home/runner/work/_temp/lsp-startup-target/ci/tcl-lsp-server",
+      "features": [],
+      "filenames": [
+        "/home/runner/work/_temp/lsp-startup-target/ci/tcl-lsp-server"
+      ],
+      "fresh": false,
+      "manifest_path": "/home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-lsp-server/Cargo.toml",
+      "package_id": "path+file:///home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-lsp-server#0.1.0",
+      "profile": {
+        "debug_assertions": false,
+        "debuginfo": 0,
+        "opt_level": "3",
+        "overflow_checks": false,
+        "test": false
+      },
+      "reason": "compiler-artifact",
+      "target": {
+        "crate_types": [
+          "bin"
+        ],
+        "doc": true,
+        "doctest": false,
+        "edition": "2024",
+        "kind": [
+          "bin"
+        ],
+        "name": "tcl-lsp-server",
+        "src_path": "/home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-lsp-server/src/main.rs",
+        "test": true
+      }
+    },
+    "path": "/home/runner/work/_temp/lsp-startup-target/ci/tcl-lsp-server",
+    "profile_scope": "ci, functional diagnosis only; not shipping release",
+    "sha256": "db04bdd3f2e91784b2a4fa926b4937f9f4d77a48960f974f6d78273e11c336ec"
+  },
+  "processes": [
+    {
+      "argv": [
+        "/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo",
+        "fetch",
+        "--locked",
+        "--target",
+        "x86_64-unknown-linux-gnu"
+      ],
+      "exit": 0,
+      "seconds": 3.22841986,
+      "complete_empty_owned_group": true,
+      "stop_reason": null,
+      "minimum_free_bytes": 76074061824
+    },
+    {
+      "argv": [
+        "/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo",
+        "build",
+        "--locked",
+        "-p",
+        "tcl-lsp-server",
+        "--bin",
+        "tcl-lsp-server",
+        "--profile",
+        "ci",
+        "--message-format=json-render-diagnostics",
+        "-j",
+        "2"
+      ],
+      "exit": 0,
+      "seconds": 922.458263604,
+      "complete_empty_owned_group": true,
+      "stop_reason": null,
+      "minimum_free_bytes": 74773770240
+    },
+    {
+      "argv": [
+        "/usr/bin/python3.14",
+        "-I",
+        "-S",
+        "-B",
+        "/home/runner/work/_temp/lsp-startup-workers/typical/worker.py",
+        "--server",
+        "/home/runner/work/_temp/lsp-startup-target/ci/tcl-lsp-server",
+        "--server-sha256",
+        "db04bdd3f2e91784b2a4fa926b4937f9f4d77a48960f974f6d78273e11c336ec",
+        "--protocol-sha256",
+        "3f00045678fc90b5091f0ecaea30b8473317cc73996a105664a1f75fd88df7f6",
+        "--case",
+        "typical",
+        "--out",
+        "/home/runner/work/_temp/lsp-startup-output/typical"
+      ],
+      "exit": 1,
+      "seconds": 34.740681432,
+      "complete_empty_owned_group": true,
+      "stop_reason": null,
+      "minimum_free_bytes": 74768809984
+    },
+    {
+      "argv": [
+        "/usr/bin/python3.14",
+        "-I",
+        "-S",
+        "-B",
+        "/home/runner/work/_temp/lsp-startup-workers/context/reproduce.py",
+        "--server",
+        "/home/runner/work/_temp/lsp-startup-target/ci/tcl-lsp-server",
+        "--server-sha256",
+        "db04bdd3f2e91784b2a4fa926b4937f9f4d77a48960f974f6d78273e11c336ec",
+        "--out",
+        "/home/runner/work/_temp/lsp-startup-output/context",
+        "--inputs-sha256",
+        "614ded118853d95958cecfac50c739b18441338e455faf1dcee4042f9110270a"
+      ],
+      "exit": 0,
+      "seconds": 4.993780196,
+      "complete_empty_owned_group": true,
+      "stop_reason": null,
+      "minimum_free_bytes": 74768719872
+    }
+  ],
+  "typical": {
+    "status": "INCOMPLETE",
+    "error": "Timed out after 30s waiting for the server's workspace scan to complete \u2014 no '[timing] workspace_folders_scan' window/logMessage was seen. Cross-file navigation/diagnostics results read here would be racy. The scan covers the whole workspace root, so scoping --server-dir to the directory holding the files under test is usually faster than raising --scan-timeout; otherwise check that the server actually reached `scan_workspace_folders` (see rust/tcl-lsp-server/src/lib.rs) \u2014 e.g. it never got past `initialized` because a server-to-client request went unanswered.",
+    "cold_first_tokens_ms": 83.018821,
+    "first_diagnostics_observed": "Version1 publish frame and deep-diagnostics209ms log present before scan deadline",
+    "fixture_main_bytes": 40,
+    "fixture_files": {
+      "main.tcl": "162614181eefa1fe279d150097eb490e25255a67438bc548410147466b85d37b"
+    },
+    "sampled_peak_rss_kib": 409600,
+    "cpu_seconds_last_sample": 30.0,
+    "private_hot_function": "UNKNOWN_FROM_CURRENT_TRACE",
+    "limits": "Original30s scan barrier failed, originalassertionsincomplete; no longerdeadline/retry/replacement result."
+  },
+  "context": {
+    "status": "COMPLETE_ORIGINAL_ASSERTIONS",
+    "complete_events": 2,
+    "pending_events": 20,
+    "original_assertions_complete": true,
+    "same_executable_and_fixtures": true,
+    "scope": "Original native proj-a foo/extra fixtures only; not editor-host or all priorContext failures acceptance."
+  },
+  "wire_observations": {
+    "typical": {
+      "raw_sha256": "7089ac8fc1993e1a53ec2436032dc894bca4c48d8d8372ab6e2887e49f9ced3c",
+      "messages": 19,
+      "window_log_messages": [
+        "tcl-lsp-server initialised",
+        "[timing] semantic_tokens.full_convergence.settled (uri=file:///home/runner/work/_temp/lsp-startup-output/typical/workspace/main.tcl, refresh=false, outcome=cancelled)",
+        "external spec-pack watchers not registered: client has no workspace.didChangeWatchedFiles.relativePatternSupport (1 root(s))",
+        "[timing] diagnostics.publish.enqueued (uri=file:///home/runner/work/_temp/lsp-startup-output/typical/workspace/main.tcl, version=1)",
+        "[timing] deep diagnostics 209ms (uri=file:///home/runner/work/_temp/lsp-startup-output/typical/workspace/main.tcl, diags=0)",
+        "[timing] workspace_state.update 209ms (uri=file:///home/runner/work/_temp/lsp-startup-output/typical/workspace/main.tcl, lines=2, diags=0)",
+        "SpecTcl: 8 pack(s), 1489 command(s), 0 notice(s), 2 shipped-command collision(s), 6 environment(s), 0 extension(s), 0 retired, 0 refused",
+        "[timing] semantic_tokens.refresh.fired (reason=pack-reload)"
+      ],
+      "publish_diagnostics": [
+        {
+          "uri": "file:///home/runner/work/_temp/lsp-startup-output/typical/workspace/main.tcl",
+          "version": 1,
+          "diagnostics": 0
+        }
+      ],
+      "workspace_scan_completion_marker_observed": false
+    },
+    "context": {
+      "raw_sha256": "9fb22c13d57032ce59d99c5e8bd38ad0f268a41c3b5f2d17e0b86094bc7d5485",
+      "messages": 42,
+      "window_log_messages": [
+        "tcl-lsp-server initialised",
+        "external spec-pack watchers not registered: client has no workspace.didChangeWatchedFiles.relativePatternSupport (1 root(s))",
+        "[timing] diagnostics.publish.enqueued (uri=file:///home/runner/work/_temp/lsp-startup-output/context/workspace/proj-a/foo.tcl, version=2)",
+        "[timing] deep diagnostics 172ms (uri=file:///home/runner/work/_temp/lsp-startup-output/context/workspace/proj-a/foo.tcl, diags=2)",
+        "[timing] workspace_state.update 172ms (uri=file:///home/runner/work/_temp/lsp-startup-output/context/workspace/proj-a/foo.tcl, lines=4, diags=2)",
+        "[timing] diagnostics.publish.enqueued (uri=file:///home/runner/work/_temp/lsp-startup-output/context/workspace/proj-a/extra.tcl, version=2)",
+        "[timing] deep diagnostics 56ms (uri=file:///home/runner/work/_temp/lsp-startup-output/context/workspace/proj-a/extra.tcl, diags=0)",
+        "[timing] workspace_state.update 56ms (uri=file:///home/runner/work/_temp/lsp-startup-output/context/workspace/proj-a/extra.tcl, lines=1, diags=0)"
+      ],
+      "publish_diagnostics": [
+        {
+          "uri": "file:///home/runner/work/_temp/lsp-startup-output/context/workspace/proj-a/foo.tcl",
+          "version": 2,
+          "diagnostics": 2
+        },
+        {
+          "uri": "file:///home/runner/work/_temp/lsp-startup-output/context/workspace/proj-a/extra.tcl",
+          "version": 2,
+          "diagnostics": 0
+        }
+      ],
+      "workspace_scan_completion_marker_observed": false
+    }
+  },
+  "budgets": {
+    "aggregate_log_bytes": 20971520,
+    "build_seconds": 2400,
+    "dependency_fetch_seconds": 600,
+    "disk_floor_bytes": 2147483648,
+    "each_worker_seconds": 180
+  },
+  "limits": "No attribution toBox/recursion/privatecompiler/provider cause from coarse CPU/logs. No complete eightpackage typing/Clippy/editorhost/releaseperformance/shipping gate. Typical failed original evidence retained. CCG/DB independent actualpeer requested."
+}

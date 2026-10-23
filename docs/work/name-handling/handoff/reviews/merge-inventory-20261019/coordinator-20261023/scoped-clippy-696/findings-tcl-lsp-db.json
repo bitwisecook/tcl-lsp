@@ -1,0 +1,125 @@
+{
+  "source_commit": "696ea5483a44d3f4dae77e04bec91a40a48a6ae5",
+  "rows": [
+    {
+      "severity": "error",
+      "message": "used `assert!` to check that a value is empty",
+      "rust_error": null,
+      "lint": "assert_is_empty",
+      "source_package": "tcl-lsp-db",
+      "file": "rust/tcl-lsp-db/tests/overlay_generations.rs",
+      "line": 152,
+      "column": 5,
+      "category": "ClippyLint",
+      "primary_for_requested_scope": true,
+      "identity_sha256": "c5e6d2fddb2c48013c1f19625cb2b8183f2c52d903e55e4a495824958acf8cdd",
+      "emission_count": 1,
+      "emissions": [
+        {
+          "scope_package": "tcl-lsp-db",
+          "severity": "error",
+          "message": "used `assert!` to check that a value is empty",
+          "rust_error": null,
+          "lint": "assert_is_empty",
+          "log_member": "tcl-lsp-db.log.txt",
+          "log_line": 86,
+          "block_sha256": "026b3ced9aeb2082260136fe9872c8ccf657e1af6146694f9ef3df51a9146efc",
+          "source_package": "tcl-lsp-db",
+          "file": "rust/tcl-lsp-db/tests/overlay_generations.rs",
+          "line": 152,
+          "column": 5,
+          "category": "ClippyLint",
+          "primary_for_requested_scope": true
+        }
+      ],
+      "source_sha256": "5f657dde46de0a61f6da7c7816ccda278f02eea4221640f505053d98ce97e20a",
+      "source_excerpt": [
+        {
+          "line": 151,
+          "text": "    assert!(document_compilation_unit_for(&db, file, config).is_none());"
+        },
+        {
+          "line": 152,
+          "text": "    assert!("
+        },
+        {
+          "line": 153,
+          "text": "        compiler_check_diagnostics(&db, file, config)"
+        }
+      ]
+    },
+    {
+      "severity": "error",
+      "message": "used `assert!` to check that a value is not empty",
+      "rust_error": null,
+      "lint": "assert_is_empty",
+      "source_package": "tcl-lsp-db",
+      "file": "rust/tcl-lsp-db/tests/overlay_generations.rs",
+      "line": 194,
+      "column": 5,
+      "category": "ClippyLint",
+      "primary_for_requested_scope": true,
+      "identity_sha256": "f40ccd740b3460b35d886dc0585e08c01d6374421e51132a46a09ee23b47f1a5",
+      "emission_count": 1,
+      "emissions": [
+        {
+          "scope_package": "tcl-lsp-db",
+          "severity": "error",
+          "message": "used `assert!` to check that a value is not empty",
+          "rust_error": null,
+          "lint": "assert_is_empty",
+          "log_member": "tcl-lsp-db.log.txt",
+          "log_line": 106,
+          "block_sha256": "bc35c25c5c16a98a9010c50bdb3599dbe1c0daad725404134994ffb7c57ac0d8",
+          "source_package": "tcl-lsp-db",
+          "file": "rust/tcl-lsp-db/tests/overlay_generations.rs",
+          "line": 194,
+          "column": 5,
+          "category": "ClippyLint",
+          "primary_for_requested_scope": true
+        }
+      ],
+      "source_sha256": "5f657dde46de0a61f6da7c7816ccda278f02eea4221640f505053d98ce97e20a",
+      "source_excerpt": [
+        {
+          "line": 193,
+          "text": "    let plain = semantic_tokens(&db, file, overlay_config(&db, 0));"
+        },
+        {
+          "line": 194,
+          "text": "    assert!(!plain.data.is_empty());"
+        },
+        {
+          "line": 195,
+          "text": "    assert_eq!("
+        }
+      ]
+    }
+  ],
+  "scope_status": [
+    {
+      "requested_package": "tcl-lsp-core",
+      "coverage": "PARTIAL_REQUESTED_PACKAGE_CHECK_OBSERVED",
+      "zero_warning_closure": false,
+      "located_primary_findings": 14,
+      "located_errors": 14,
+      "located_warnings": 0
+    },
+    {
+      "requested_package": "tcl-lsp-db",
+      "coverage": "PARTIAL_REQUESTED_PACKAGE_CHECK_OBSERVED",
+      "zero_warning_closure": false,
+      "located_primary_findings": 2,
+      "located_errors": 2,
+      "located_warnings": 0
+    },
+    {
+      "requested_package": "tcl-lsp-server",
+      "coverage": "PARTIAL_REQUESTED_PACKAGE_CHECK_OBSERVED",
+      "zero_warning_closure": false,
+      "located_primary_findings": 124,
+      "located_errors": 124,
+      "located_warnings": 0
+    }
+  ]
+}

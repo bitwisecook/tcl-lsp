@@ -1,0 +1,43 @@
+{
+  "utc": "2026-10-23T21:28:16.200104+00:00",
+  "source": "f8a24979d71e3e9c7227088d0f4725524fae85ed",
+  "run": 40023231541,
+  "ZIP_sha256": "4e26e2e08bb874dfa3494c3dc3fdc03deeae997d2e9dafcb1e850077f973a68d",
+  "identity_seals_processes_sha256": "0db2d2b9a106597d431842801d049bc7f29b592d4cb77d3ca3c2e93152f6e4aa",
+  "independent_protocol_peer_sha256": "e76617f1d29cd7a68bf3e011bb838d5a285bf8100742e5d871bc7da827479548",
+  "tested_source_pins": {
+    "rust/tcl-compiler/src/lowering/installed_bodies.rs": "f7c18039a78dbb70f6765c2662e629b21b91774f55203b450671b22871f67935",
+    "rust/tcl-compiler/src/lowering/mod.rs": "98904a449d3a67d615da6b4ff649ea80b06ce638b791066163ea4ff85fe24955",
+    "rust/tcl-compiler/src/lowering/source_body_syntax.rs": "657a7155f11d0b78cb371cd3f948b94f2023ac4cf685345a57dc6dbabcb8cca6",
+    "rust/tcl-compiler/src/ir.rs": "0d2465571bb02bc559313741a5cb8fbad1c0514e69c1d19b42fdf02fbe73ed2e",
+    "rust/tcl-compiler/src/optimiser/propagation.rs": "710bd25234ef5020655602d1f4c892841bc97872031947d99a39d74fcb84fd84",
+    "rust/tcl-compiler/src/registry_invocation/hosted_structure.rs": "1f24a7162408b4d879bf260d66578bb9741f2171bdf17f145ee746216132cdc2"
+  },
+  "first3_raw_stderr": {
+    "pack_source_e2e-02.stderr": "c241e4a31e802015de6d2a9fd55b94d84bfed2f2ca76eed5143c3c23950a3097",
+    "pack_source_e2e-01.stderr": "e762a9d3622e80730d49c708c631dbbd8e5a2f6d3b1fc0169fed2da6adba37d7",
+    "pack_source_e2e-00.stderr": "ed95279d2bc87ecb6754f6280f6827a5040ea85e68b2c85868ee8b94b67eae56"
+  },
+  "outcomes": {
+    "original_pack_ALL10": {
+      "pass": 7,
+      "fail": 3
+    },
+    "separate_original_catch1": "PASS",
+    "all_four_original_native_ASCII_controls": "PASS"
+  },
+  "actual_observations": [
+    "Optimiser function-entry reaches genuine original declaration body with authored=false, one statement; walk-script depth0 refuses before command folding.",
+    "Derived reference/derived-release fixtures retain exactly one original ::p with current owned body id and genuine analysed function rejoin; known1 Overdefined and zero SCCP explanations.",
+    "No AssignValue-known detail lines; actual original parent statement shape and first normal-store/source-schema refusal unobserved by AssignValue-only observer.",
+    "Native preflight accepts; no current source rejection attributed to preflight."
+  ],
+  "source_join": [
+    "retain_original_native_body sets ReadOnly while lowering the genuine original body, then retains canonical current source declaration card.",
+    "retain_script_source explicitly returns without attaching executed_source in ReadOnly native/logical/authored/hosted bodies.",
+    "is_authored_source requires an executed_source with Authored origin; walk_script retains this exact guard.",
+    "source_body_syntax current_receipts explicitly asserts readonly original native bodies have no executed_source and no native_compilation_admission.",
+    "Separate original_native_source_structured_invocation selects conditional source grammar, with retained full sourcewords/context/origin/schema/arity/bodylayout checks; no execution admission."
+  ],
+  "disposition": "First optimiser refusal authenticated; a semantic repair for all three failures is NOT established. Do not flip authored state, remove guards, select installed body by label, or infer Normal/Native authority from source names/schema. WORK-only first producer refusal observation prepared separately; original assertions and all budgets retained."
+}

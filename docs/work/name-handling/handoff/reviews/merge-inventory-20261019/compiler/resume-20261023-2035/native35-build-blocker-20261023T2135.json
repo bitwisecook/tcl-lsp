@@ -1,0 +1,46 @@
+{
+  "updated_utc": "2026-10-23T21:35:06.772731+00:00",
+  "status": "CURRENT_PRIVATE_CAPTURE_STAGES_UNRUN_STRICT_BUILD_REPAIR_PUSHED_RERUN_CHECKOUT",
+  "blocked_actual": {
+    "source": "5177abd3bed0204a0700767ff8c5b51d3eb58f10",
+    "run": 40024819959,
+    "job": 120658264303,
+    "artifact": 12532313610,
+    "artifact_zip_sha256": "09242f51a56c810793f8c4a9f0bc8582b110dfdedb9cc60c4753a946bec89fe9",
+    "assessment": "/tmp/compiler-original61-40024819959/assessment.json",
+    "assessment_sha256": "b87f59fc36763402cc81da0a20fe09b6e37869b2d8850ee222924632add27133",
+    "original58": "ALL58_UNRUN",
+    "separate_native35": "ALL3_UNRUN",
+    "cause": "Strict Core build unused borrowed output parameter in minify/original.rs726; no selected executable built.",
+    "recomputed_seals": {
+      "source_files": 125188,
+      "provider_entries": 10202,
+      "dependency_entries": 21500,
+      "tools": 18,
+      "all_before_after_equal": true,
+      "testartifact": false
+    }
+  },
+  "minimum_repair": {
+    "work_commit": "696ea5483",
+    "release_commit": "ccf2e97b8",
+    "both_pushed": true,
+    "patch_sha256": "e8d81f679f6df2a67f0c299744d8e4eb8c46a5bde0174812421ce10f4a9050b9",
+    "independent_lsp_peer_sha256": "83de41eb5be7198328a8594e907c9a12473cb5bc940d4eec90e6e79ffcd2bbdd",
+    "scope": "Remove only unused borrowed helper parameter and sole borrowed argument; actual caller output/image owners and all validator checks unchanged."
+  },
+  "new_root_owned_run": {
+    "source_prefix": "696ea5483",
+    "run": 40027200925,
+    "job": 120666274031,
+    "dispatch_utc": "2026-10-23T21:29:57Z",
+    "last_observation_utc": "2026-10-23T21:33:59Z",
+    "stage": "Checkout exact work revision in_progress; no provider/bootstrap/build/test claim"
+  },
+  "perf_limits": [
+    "Previous external authenticated Native35 first16 Equal/first17 and fullfixture CurrentOwnerUnavailable observations remain release blockers.",
+    "No speculative carrier patch/guard weakening/Debug equality/body admission or source-only Normal promotion.",
+    "Original1000depth and64MiB stack unchanged; incomplete229 comparison and allperformance gates remain separate.",
+    "Existing cfg(test) authenticated-report flag will expose first genuine refusal once current unit controls can execute."
+  ]
+}

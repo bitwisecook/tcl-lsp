@@ -1,0 +1,104 @@
+{
+  "role": "compiler-proof independent architecture/correctness peer",
+  "disposition": "STATIC CLEAR: exact WORK+CLEAN v6; no build/runtime acceptance",
+  "supersedes": [
+    "v3 functional HOLD (raw interprocedural owner invalidation repaired by v6 authentic producer transport)"
+  ],
+  "identities": {
+    "work": {
+      "base_commit": "eda34e35169f8cab38fd1384b03f790672c3ac18",
+      "patch_sha256": "1b66cc0465f02cd395a1ad3005e270e6d554dd9bc645d7dbdd0a0268b59ea9b1",
+      "manifest_sha256": "bda25de8ec440c02ae63a95d89925a01cf7da726050edcbb42949da2f3435b2e",
+      "files": {
+        "rust/tcl-compiler/src/optimiser/propagation.rs": {
+          "before_sha256": "710bd25234ef5020655602d1f4c892841bc97872031947d99a39d74fcb84fd84",
+          "final_sha256": "f244357761d62a343f1ab35471131eb53cfa0cad74c488ccb8f06a8cedaebf07"
+        },
+        "rust/tcl-compiler/src/optimiser/propagation/declared_body.rs": {
+          "before_sha256": null,
+          "final_sha256": "1f8861b1e55a90fec33be7ef377ad972a917d462afab9e39c7516244625f154f"
+        },
+        "rust/tcl-compiler/src/compilation_unit/optimiser_source_owner.rs": {
+          "before_sha256": "21c42d3c5a5cdb51587ab998b7764f879d232a080ed3d57314f6be8d87c0452f",
+          "final_sha256": "2a791551d3e0e35652fa25b5896ae469c860398ca1211c95c17440be0c08c45e"
+        },
+        "rust/tcl-compiler/src/optimiser/manager.rs": {
+          "before_sha256": "63531c6cdaea76c77df131e279ef4930ab4b88fa3ac038b8c55bead1b0890f10",
+          "final_sha256": "3baf3c933613640f00307d546542b839909681da0d71d7260854d552ce63927c"
+        },
+        "rust/tcl-compiler/src/command_binding/source_transition_advice/native_declared_body.rs": {
+          "before_sha256": "75d88272cb1a39190d8e3f206c8acbbf74d725047a9d4fda1e577c2c2a2c114e",
+          "final_sha256": "7ee1f4b6dc1b660d5cec5dbcef72a425877a0ce8619c3ad2084ed8dad0050acc"
+        }
+      },
+      "exact_forward_reverse": true,
+      "allow_count_unchanged": true
+    },
+    "clean": {
+      "base_commit": "796ad28b064d3f4e1af0d56cb294b82d0013530a",
+      "patch_sha256": "e9b84228b8f328e6e00246b1b9b3e4ff0b06802c55320e3e48c0044010f2cc06",
+      "manifest_sha256": "6b525de77f537a62b8e23be8da42a9e2dd867316f06cfc294f6604f735430e68",
+      "files": {
+        "rust/tcl-compiler/src/optimiser/propagation.rs": {
+          "before_sha256": "8f74e3f5a352574eb73e9b12dced000b38f1f92413613a391a8b3a38b631809f",
+          "final_sha256": "6606d3afe10e288f9ab8d2a8eb99cc50ad27ab5ed93b82d8804384e8f29ce86a"
+        },
+        "rust/tcl-compiler/src/optimiser/propagation/declared_body.rs": {
+          "before_sha256": null,
+          "final_sha256": "1f8861b1e55a90fec33be7ef377ad972a917d462afab9e39c7516244625f154f"
+        },
+        "rust/tcl-compiler/src/compilation_unit/optimiser_source_owner.rs": {
+          "before_sha256": "21c42d3c5a5cdb51587ab998b7764f879d232a080ed3d57314f6be8d87c0452f",
+          "final_sha256": "2a791551d3e0e35652fa25b5896ae469c860398ca1211c95c17440be0c08c45e"
+        },
+        "rust/tcl-compiler/src/optimiser/manager.rs": {
+          "before_sha256": "26c0ef005039c999493e9c5775f93050527a9cad5511898e39233d663ab55b3f",
+          "final_sha256": "9b76f668187e000c2ed9f91a05c8d9c09e20eb21df83608800ec42c7917424b6"
+        },
+        "rust/tcl-compiler/src/command_binding/source_transition_advice/native_declared_body.rs": {
+          "before_sha256": "a35d9d290fedd6b34669d18914968a1b132ef8e3517a022d6e5250194051082e",
+          "final_sha256": "5dca7e685d19a3a6d3b198db1f8f63b0b172b844fb768ccfe4c675fcd4b47597"
+        }
+      },
+      "exact_forward_reverse": true,
+      "allow_count_unchanged": true
+    }
+  },
+  "checks": [
+    "Independent cached-Git before pins; exact copied apply/reverse without fuzz or offsets; all final hashes; no canonical repository mutation.",
+    "All added product/test lines identical across WORK and CLEAN, including full new module; pre-existing lane differences preserved.",
+    "New whole-unit capability checks existing source worker receipt, registry, dialect, evaluator generation, whole-unit scope, exact lexer config and source text.",
+    "Per-body capability checks owned ProcedureId, canonical map entry, exact native declaration card and current same-ID FunctionUnit. Card predicate already requires ReadOnly body with no executed_source/native admission and original lowered-body equality.",
+    "Per-statement index/pointer checks and source-only token/card predicate retain complete original argv/image/input/registry and declaration allocation identity. Whole module/body validation happens separately in the held capability; helper issues no execution permission.",
+    "Only unique original whole command-substitution words with literal/braced/all-text-template child argv are offered to unchanged fold_retained_builtin. Variable/expanded/opaque/nested child arguments fail closed.",
+    "Unchanged evaluator still requires actual registry execution target, handler, complete effective original argv, current metadata/dialect, hook result and existing declared world-footprint decision. Render/read-apart guard and original child span are reused.",
+    "No parent-store, local SCCP, OO-frame, Native-admission or authored-walk permission added. Existing source/Normal guards and original immutable assertions unchanged.",
+    "Private raw interprocedural method captures only an already-current whole owner, preserves existing object-types/realm/actual IA producer sequence, attaches only its own actual analysis, and refreshes retained owner only after same registry/dialect/current evaluator check. No arbitrary IA setter and no taint rerun.",
+    "Stale/ownerless input can still compute IA as before but cannot gain a source owner. Missing realm returns false and manager retains its existing empty-result behavior.",
+    "Exact body card is held once, replacing per-statement all-body-card lookup with source-only identity predicate; broader existing helper unchanged.",
+    "New tests cover raw O129 value/original span/nonhint, missing target and variable refusal, genuine IA transport with unchanged origin, stale IA/dialect/registry/missing metadata refusal, cloned/foreign/index token refusal. These are source-reviewed, not executed.",
+    "No new allow and existing allow counts unchanged in all modified files."
+  ],
+  "functional_limits": [
+    "No Cargo/rustc/test binary/native oracle run. Strict compilation and tests remain UNRUN.",
+    "First original pack positive may still fail if its genuine retained child lacks an execution target; no schema or compiler visit is accepted as a replacement.",
+    "Derived2 reads CU SCCP without invoking optimiser, so this change cannot repair those two cases.",
+    "Corpus performance remains a release obligation; static removal of one redundant scan is not a performance measurement."
+  ],
+  "derived_guidance": {
+    "refusal": "value_transfer::evaluate_source_call -> Procedures::with_original_operation -> SourceSummaryContext::for_module accepts Logical only; Native module widens before registry route explanations.",
+    "required_repair": "An independently current authentic Native operation/child-source adapter, keeping normal_transfer_invocation, original effective argv, exact variable receiver, child registry-owned Direct/Implementation evaluation and normal ordered-store proof. Both original parent operation and module.original_substitution currently depend on Logical-only source context.",
+    "forbidden_shortcuts": [
+      "Drop module to use string-based fallback",
+      "Promote source-only or conditional metadata to execution/Normal",
+      "Seed parent SCCP stores merely because a child result is known"
+    ]
+  },
+  "policy_assessment": "This bounded O129/source-owner transport changes no locked semantic policy. Existing fresh-entry/after-load modelling decisions and declared-world-effect rule suffice; no new user choice identified.",
+  "actual_evidence_reference": {
+    "run": 40023231541,
+    "outcomes": "original ALL10 7PASS3FAIL; catch PASS; all four native ASCII controls PASS",
+    "assessment_sha256": "0db2d2b9a106597d431842801d049bc7f29b592d4cb77d3ca3c2e93152f6e4aa",
+    "meaning": "Inherited historical parent evidence only, not post-v6 validation."
+  }
+}

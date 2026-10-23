@@ -1,0 +1,105 @@
+{
+  "artifact": {
+    "id": 12534190824,
+    "name": "scoped-lsp-clippy-696ea5483a44d3f4dae77e04bec91a40a48a6ae5-1",
+    "size_in_bytes": 3980778,
+    "digest": "sha256:ffe9b946f3c9c0bfda166e0263fac308edf73916aa1d8f21ac4d42688d660550",
+    "workflow_run": {
+      "id": 40027215347,
+      "head_sha": "696ea5483a44d3f4dae77e04bec91a40a48a6ae5"
+    }
+  },
+  "zip_sha256": "ffe9b946f3c9c0bfda166e0263fac308edf73916aa1d8f21ac4d42688d660550",
+  "members": [
+    {
+      "path": "capture-exit.txt",
+      "uncompressed_bytes": 2,
+      "compressed_bytes": 4
+    },
+    {
+      "path": "capture-incomplete.txt",
+      "uncompressed_bytes": 2,
+      "compressed_bytes": 4
+    },
+    {
+      "path": "cargo-version.txt",
+      "uncompressed_bytes": 36,
+      "compressed_bytes": 38
+    },
+    {
+      "path": "clippy-version.txt",
+      "uncompressed_bytes": 38,
+      "compressed_bytes": 40
+    },
+    {
+      "path": "coverage.txt",
+      "uncompressed_bytes": 203,
+      "compressed_bytes": 154
+    },
+    {
+      "path": "git-after.txt",
+      "uncompressed_bytes": 0,
+      "compressed_bytes": 2
+    },
+    {
+      "path": "git-before.txt",
+      "uncompressed_bytes": 0,
+      "compressed_bytes": 2
+    },
+    {
+      "path": "job.txt",
+      "uncompressed_bytes": 24,
+      "compressed_bytes": 26
+    },
+    {
+      "path": "outcomes.json",
+      "uncompressed_bytes": 1968,
+      "compressed_bytes": 404
+    },
+    {
+      "path": "rustc-version.txt",
+      "uncompressed_bytes": 196,
+      "compressed_bytes": 150
+    },
+    {
+      "path": "source-after.json",
+      "uncompressed_bytes": 543,
+      "compressed_bytes": 261
+    },
+    {
+      "path": "source-commit.txt",
+      "uncompressed_bytes": 41,
+      "compressed_bytes": 41
+    },
+    {
+      "path": "tcl-lsp-core.log.txt",
+      "uncompressed_bytes": 18857,
+      "compressed_bytes": 3921
+    },
+    {
+      "path": "tcl-lsp-db.log.txt",
+      "uncompressed_bytes": 5190,
+      "compressed_bytes": 1378
+    },
+    {
+      "path": "tcl-lsp-server.log.txt",
+      "uncompressed_bytes": 87381,
+      "compressed_bytes": 10372
+    },
+    {
+      "path": "tools-after.txt",
+      "uncompressed_bytes": 242,
+      "compressed_bytes": 102
+    },
+    {
+      "path": "tools.sha256",
+      "uncompressed_bytes": 428,
+      "compressed_bytes": 219
+    },
+    {
+      "path": "tracked-source-before.json",
+      "uncompressed_bytes": 26279814,
+      "compressed_bytes": 3961390
+    }
+  ]
+}

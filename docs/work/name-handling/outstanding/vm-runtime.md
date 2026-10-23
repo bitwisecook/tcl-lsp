@@ -2,9 +2,24 @@
 
 Area: standalone runtime, tcl-vm, SpecTcl and Studio.
 
-Last updated: 2026-10-23T20:58:12.145894+00:00
+Last updated: 2026-10-23T21:40:52.831487+00:00
 
 ## Resume
+
+APPEND constructor-stage diagnostics frozen WORK-only, pending independent Names
+peer/root integration: /tmp/vm-runtime-constructor-stage-diagnostics-v1/, patch
+2c6c90f1a2d544097ba5709812cf30b5165358d0dfb8e1a220f444e50aec66ef,
+manifest9a692286b12b1dd0399208b33de85453373e6da3e184d30c91d28ea29bf9037b,
+exact bb1b9e0d Git beforepins. cfg(test) Rust Instant stages host/bootstrap/
+identity sweep/profile install; existingflag runtime-constructor-v1 onlyfocused
+and explicit originalappend-test TLS scope. Numeric/publicC do not envread/clock/
+log. First8/every32 invocation perkind;1024lines+one truncationmarker; timings
+include observeroverhead/nested overlap and are NOT performanceacceptance.
+AlloriginalInterp nonemptylines retainedinorder; oneappendactivationinverseexact;
+1035freshconstructors/default/filters/assertions180s unchanged. Copyboth0fuzz/
+nooffset/exactfinal,fmt2021/YAMLotherjobs/bash/whitespacePASS. UNCOMPILED/UNRUN;
+no localbuild/newCcallback/oracle/cache/provider/guard/assertion changes; no clean
+carry. Authorreview.json mapsstages/limits; root alone builds/dispatches.
 
 Root alone owns Git, Cargo, GO, product integration, release carry and dispatch.
 This role prepares exact-blob off-tree proposals and read-only evidence. No local
@@ -12,6 +27,39 @@ build, new C callback/timing/lifetime oracle or unilateral assertion change is
 allowed. No target/executable deletion; workspace remains below2GiB buildfloor.
 Inspect future artifacts ZIP-only, stream large maps and extract smalllogs only.
 Original NoTom17 typed-capability+1refusal split is user-decided/PASS and unchanged.
+
+LATEST actual5177 focused run40024823970/job120658259828 CLOSED FAIL; artifact
+12532328040, ZIP26924584bytes SHA85163344112aad791bc4981b5162bf6e3871fa812088493464a7c119b2597fcb,
+/tmp/vm-fulltom-focused3-40024823970/archive.zip. Complete guarded3selected/closed,
+1PASS2FAIL0unknown,nextest100,captureerrors[],sourceJSON125188/125188PASS,gitclean,
+TomMathliveunchanged,ownedgroupempty2scans. Receipt.json SHA4f1dcd16627f8be33190a43ae275a90970ee58d6aa13cb8e929c1d90246bef16;
+allmemberCRC+streamSHA checked, largeJSON ZIP-only/smalllogs only extracted.
+PublicC corrected original PASS6.44456498s (all6checks); numeric sameJim101 at
+17.905276085s, actualpre/posterrno34ERANGEtrue, policyUSERPENDING. Append exact
+timeout180.009856043s,2086phase markers:521rows0..520complete (1898.4+1898.5+1438.6),
+row5218.6construct+pin but noexercise,514rowsremain inclstartedrow. C-onlyconstructor
+37b72 integrated WORK5177/release660, but NO performanceacceptance:1035/180fails,
+fewerrows thanf10(861) and otherslowercase timings cannot prove crosshostcausality.
+Independent DB actualartifact peer CLEAR: /tmp/db-peer-fulltom-focused3-40024823970/
+review.json SHA34db2986b9209b36da9e29ac78c9e2c93ce00a609e452c8d145d2a9dfa892e6b. OriginalZIP/source/tool
+path metadata retained, no ELF/independent executableSHA supplied or inferred.
+
+Locked userdecisions verified via /tmp/naming-runtime-gate-decisions-latest.json
+→user-decisions-20261023T124104Z: FullTom semantic gate plus separateactualNoTom;
+exacttwoiRules trace cases table+runtime refusal only, no broadF5Nativegrant.
+Numericzeroerrno policy stillPENDING/noedit. BIGIPexisting startup blocker routed
+to Compiler: canonical tracked doc is handoff/reviews/merge-inventory-20261019/
+bigip-lsp/live-startup-repro-20261023.md. Its finite60/120s startup observations
+are separate from natural243.26sexplainflow3P2F native-preflight refusals.
+Exact5177 LiveSession::new builds nativeC9, retainsF5sourcegrammar+compile service
+and measuredLogicalproviders, bootstrap enters try_eval_native_host_source→
+try_eval_source with actualactivehost policy and realNativeCompilationEntry.
+Existing first-decline-v1 Rust diagnostics report exact admission predicate and
+entryprofile/physical/logical/closed/frame fields; old refusal alone doesn'tpick
+the branch. No provider/guard/Native/Logical substitution proposed. Compilerowns
+capability/preflight side, Runtime constructor/startup side. After thisboundary
+analysis priority is append Interp::new/attach_native_command_specs repeatedwork;
+sourceproof or boundedprivateRuststage timing underexistingflag, no new C oracle.
 
 The original shared-process semantic runtime gate remains FAIL/INCOMPLETE:
 CI88 run39988230252/job120535069159/source88a0e457 SIGSEGV11,1959uniqueclosed,

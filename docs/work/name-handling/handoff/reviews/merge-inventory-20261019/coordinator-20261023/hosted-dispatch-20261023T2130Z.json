@@ -1,0 +1,53 @@
+{
+  "work_sha": "696ea5483a44d3f4dae77e04bec91a40a48a6ae5",
+  "release_sha": "ccf2e97b8b4bcec87c77e6f1289c61e64022cbec",
+  "requests": [
+    {
+      "workflow": "ci.yml",
+      "ref": "release/lsp-naming",
+      "inputs": {
+        "rust_tests_runner": "hosted",
+        "native_release_build_proof": true
+      },
+      "dispatch_utc": "2026-10-23T21:29:54.962012+00:00"
+    },
+    {
+      "workflow": "perf.yml",
+      "ref": "work",
+      "inputs": {
+        "mode": "compiler-original58-diagnostics",
+        "runtime_sha": "696ea5483a44d3f4dae77e04bec91a40a48a6ae5"
+      },
+      "dispatch_utc": "2026-10-23T21:29:58.147239+00:00"
+    },
+    {
+      "workflow": "perf.yml",
+      "ref": "work",
+      "inputs": {
+        "mode": "jim-source-diagnostics",
+        "runtime_sha": "696ea5483a44d3f4dae77e04bec91a40a48a6ae5"
+      },
+      "dispatch_utc": "2026-10-23T21:30:00.257419+00:00"
+    },
+    {
+      "workflow": "perf.yml",
+      "ref": "work",
+      "inputs": {
+        "mode": "spectcl-fold-diagnostics",
+        "runtime_sha": "696ea5483a44d3f4dae77e04bec91a40a48a6ae5"
+      },
+      "dispatch_utc": "2026-10-23T21:30:02.303127+00:00"
+    },
+    {
+      "workflow": "perf.yml",
+      "ref": "work",
+      "inputs": {
+        "mode": "scoped-lsp-clippy-diagnostics",
+        "runtime_sha": "696ea5483a44d3f4dae77e04bec91a40a48a6ae5"
+      },
+      "dispatch_utc": "2026-10-23T21:30:04.528206+00:00"
+    }
+  ],
+  "previous_ordinary_ci_retained": 39996625386,
+  "no_publish_or_pr": true
+}

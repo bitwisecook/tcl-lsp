@@ -1,0 +1,32 @@
+{
+  "utc": "2026-10-23T21:40:12.713906+00:00",
+  "status": "INDEPENDENT_BOUNDED_CAPTURE_REVIEW_CLEAR_NOT_GATE_ACCEPTANCE",
+  "assessment_sha256": "0553c9ee45a456f0001daa5a99c2a37ab34b17c8fa2e147827508c4466a4f577",
+  "archive_sha256": "9ea45a5291191cf7a56b6115a4cf68d3c134bf711b89b823a8a1ed4a6fb1a36b",
+  "checks": {
+    "all_archive_members_sha256_size_CRC_and_safe_paths": 31,
+    "source_before_after_and_exact_Git_membership": 125122,
+    "independent_canonical_content_checks": [
+      "docs/work/name-handling/validation-tools/runtime-diagnostics-exec.py",
+      "rust/tcl-lsp-server/src/lib.rs",
+      "rust/tcl-lsp-db/src/lib.rs",
+      ".github/workflows/perf.yml"
+    ],
+    "provider_dependency_tool_guards": "PASS",
+    "original_process_exits": [
+      0,
+      0,
+      1,
+      0
+    ],
+    "owned_group_closure": "Four complete groups/two empty scans/no stopreason",
+    "fresh_ci_profile_server_build": "exit0/warnings0/opt3; not shipping release",
+    "functional_observations": "Context original two fixture assertions PASS; typical INCOMPLETE original30s scan barrier, scoped coldtokens83.018821ms; no hotspot attribution"
+  },
+  "limits": [
+    "Source Git membership and four selected canonical content joins independently checked; all source map before/after checks stable, not independent recomputation of every committed blob.",
+    "Server executable is not uploaded; fresh cargo event/path and before/after recorded SHA matched, no independent ELF byte rehash.",
+    "ci profile only: no shipping performance, editor-host, allContext or baseline acceptance.",
+    "Context factory fixedpoint16 warning retains unresolved completeness; no perURI attribution across streams."
+  ]
+}

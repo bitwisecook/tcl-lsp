@@ -1,0 +1,89 @@
+[
+  {
+    "package": "tcl-lsp-core",
+    "state": "CLOSED",
+    "disk_before": {
+      "/home/runner/work/tcl-lsp/tcl-lsp": 76559069184,
+      "/home/runner/work/_temp": 76559069184
+    },
+    "argv": [
+      "cargo",
+      "clippy",
+      "--locked",
+      "--no-deps",
+      "-p",
+      "tcl-lsp-core",
+      "--all-targets",
+      "--all-features",
+      "--",
+      "-Dwarnings"
+    ],
+    "started": 1792791369.0799289,
+    "pid": 2806,
+    "exit_code": 101,
+    "ended": 1792791453.3501215,
+    "log_truncated": false,
+    "disk_after": {
+      "/home/runner/work/tcl-lsp/tcl-lsp": 76119478272,
+      "/home/runner/work/_temp": 76119478272
+    }
+  },
+  {
+    "package": "tcl-lsp-db",
+    "state": "CLOSED",
+    "disk_before": {
+      "/home/runner/work/tcl-lsp/tcl-lsp": 76119478272,
+      "/home/runner/work/_temp": 76119478272
+    },
+    "argv": [
+      "cargo",
+      "clippy",
+      "--locked",
+      "--no-deps",
+      "-p",
+      "tcl-lsp-db",
+      "--all-targets",
+      "--all-features",
+      "--",
+      "-Dwarnings"
+    ],
+    "started": 1792791453.3506281,
+    "pid": 4214,
+    "exit_code": 101,
+    "ended": 1792791531.8489115,
+    "log_truncated": false,
+    "disk_after": {
+      "/home/runner/work/tcl-lsp/tcl-lsp": 75890180096,
+      "/home/runner/work/_temp": 75890180096
+    }
+  },
+  {
+    "package": "tcl-lsp-server",
+    "state": "CLOSED",
+    "disk_before": {
+      "/home/runner/work/tcl-lsp/tcl-lsp": 75890180096,
+      "/home/runner/work/_temp": 75890180096
+    },
+    "argv": [
+      "cargo",
+      "clippy",
+      "--locked",
+      "--no-deps",
+      "-p",
+      "tcl-lsp-server",
+      "--all-targets",
+      "--all-features",
+      "--",
+      "-Dwarnings"
+    ],
+    "started": 1792791531.8498175,
+    "pid": 4746,
+    "exit_code": 101,
+    "ended": 1792791611.8197834,
+    "log_truncated": false,
+    "disk_after": {
+      "/home/runner/work/tcl-lsp/tcl-lsp": 75792830464,
+      "/home/runner/work/_temp": 75792830464
+    }
+  }
+]

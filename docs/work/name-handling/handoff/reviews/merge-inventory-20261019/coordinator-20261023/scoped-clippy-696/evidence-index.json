@@ -1,0 +1,76 @@
+{
+  "run": 40027215347,
+  "job": 120666316628,
+  "source": "696ea5483a44d3f4dae77e04bec91a40a48a6ae5",
+  "artifact": 12534190824,
+  "summary": {
+    "distinct_located_findings": 139,
+    "located_emissions": 140,
+    "distinct_Rust_E_errors": 0,
+    "distinct_Clippy_lints": 139,
+    "distinct_Rust_warnings": 0,
+    "nonlocated_headers": 6,
+    "by_source_package": {
+      "tcl-lsp-core": 14,
+      "tcl-lsp-db": 2,
+      "tcl-lsp-server": 123
+    },
+    "compiler_dependency_observation": {
+      "located_errors": 0,
+      "located_warnings": 0,
+      "check_line_observed_in_scopes": [
+        "tcl-lsp-core",
+        "tcl-lsp-db",
+        "tcl-lsp-server"
+      ],
+      "scope_limit": "Compiler built as dependency under --no-deps; this is not a strict compiler Clippy/all-target gate"
+    },
+    "by_scope": [
+      {
+        "requested_package": "tcl-lsp-core",
+        "coverage": "PARTIAL_REQUESTED_PACKAGE_CHECK_OBSERVED",
+        "zero_warning_closure": false,
+        "located_primary_findings": 14,
+        "located_errors": 14,
+        "located_warnings": 0
+      },
+      {
+        "requested_package": "tcl-lsp-db",
+        "coverage": "PARTIAL_REQUESTED_PACKAGE_CHECK_OBSERVED",
+        "zero_warning_closure": false,
+        "located_primary_findings": 2,
+        "located_errors": 2,
+        "located_warnings": 0
+      },
+      {
+        "requested_package": "tcl-lsp-server",
+        "coverage": "PARTIAL_REQUESTED_PACKAGE_CHECK_OBSERVED",
+        "zero_warning_closure": false,
+        "located_primary_findings": 124,
+        "located_errors": 124,
+        "located_warnings": 0
+      }
+    ]
+  },
+  "source_process_seals_sha256": "748f40706bea6f1500221d89adfa638da07d637141592aaa2cc6b92d4f471ec9",
+  "files": {
+    "actual-primary-inventory.json": "89688a2e14d76a93f29f147e75fb3d4f9b0a3f9c44d67b30e2de3843a80649d7",
+    "source-process-completeness-seals.json": "748f40706bea6f1500221d89adfa638da07d637141592aaa2cc6b92d4f471ec9",
+    "zip-authentication.json": "0b3ac502f20f69f259a5a17148383bbb11fcb479da72dece326bb3fb3b798a91",
+    "census-summary.json": "13e13f1a712cf42b8356d4711c6520a3ccb280d67b99bce5c83c7d704c445b81",
+    "current-source-joins.json": "f4fb1c5fc941a9759ca49c301d784ba0439bb3c676ee48e7448e5d1c5611176c",
+    "exact-workflow.txt": "30ee6012ed9c56e9e5f91c2c87b6872cb6940b6cfde93adad812c55f5d15ac84",
+    "outcomes.json": "df63bc72b2bbde6d16a61d970f87c631547c1cf27aa18651a8853d0d3a8e57f8",
+    "source-after.json": "ec3443c1e275aad95bffb83df9279690f75c643f756bbf7fb77c87ebc83e5e82",
+    "capture-exit.txt": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+    "capture-incomplete.txt": "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa",
+    "coverage.txt": "d15ae224b1bfe742fc2fd057ebc3759490ee95d4d3d01e8ea94cc89183e606a9",
+    "tools-after.txt": "4c35b58a3d51fa67dd0f95c1660eb0d574152e3c179b2e9ae3f02123637dd81e",
+    "tools.sha256": "90ea056da266b2cc07f1c9066569d72dd9a474e8bfa46db3d5f0f5ec5d653a3b",
+    "github-artifact-metadata.json": "b9315cf60bed3538fb08c95580b6c014f8ab80be97b3f43887fb231324cd8f11",
+    "findings-tcl-lsp-core.json": "6fc525e37c917764516ba2d31358ac2d1b2fee0a6004ea8291516cdc02e65d9a",
+    "findings-tcl-lsp-db.json": "b3bc53b8f479a3aeaa8d7339e179dc776851d690f9cab968940f186724da1b7c",
+    "findings-tcl-lsp-server.json": "68ee3e6652973c1c5618f933c501cf34916eafa398bf99364f3d857e58f5dafa"
+  },
+  "inspection": "ZIP verified against GitHub API size and SHA-256. 125,215-file tracked-source JSON parsed and hashed inside ZIP, exact Git membership/checksums checked; not extracted. Only small records/logs were extracted. No local build."
+}

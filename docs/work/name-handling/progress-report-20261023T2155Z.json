@@ -1,0 +1,78 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-23T21:55:37.678459+00:00",
+  "scheduled_report_utc": "2026-10-23T21:55:37+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-23T22:25:37+00:00",
+  "change_since_previous_report": [
+    "Published21:25officialreport/WIPd386 andSOURCE696/cleanccf, preservingexternalperf267 thenfe309. FullcleanCI40027192497 nativebuildproof=true andfourstrictWORKdiagnostics dispatched21:30; oldordinary9cCIretained. Latestreviewedv6O129/Core10 sourcebatchandcleancarries pushed41c1f7e8b/fbb314f70 before21:55checkpoint. NoPR/merge/tag/publish.",
+    "Actual696strictClippy40027215347 source125215exactGit+afterPASS/toolsstable, all3closed101/noRustE/noemptyprocess-tree seal.139locatedunique: Core14length, DB2overlayassertlints, Server78largefuture44length1needlesspass. Raw/census/sealproofsbyLuna in/tmp/lsp-clippy40027215347, actualsourcefilesjoinHEAD. Old15futureinventorynotcompletealltargetscope; no closurebysubtraction.",
+    "FullcleanccfCI actualearlyjobs server120666930494/Spec120666930487 failonunusedCopyboolnative_source taint.rs5662 afterrelease tracecleanup. Rust-check120666930268 stopsfixturepathrustfmt. Exactdecodedrawlogs+hashreceiptcopiedci-cleanccf-first-failures. RootminimumfmtWORKbb1rebasededa/CLEANe783 andrelease-onlybooldiscard796ad reviewedCompilere18071b0, pushed. No fullCIclosure.",
+    "Actual696original61 run40027200925 source125215/provider10202/deps21500/tools18 allstable, strictfreshcompilerlib0W/hashsealed,105ownedprocessesclosed. Original58:44PASS6FAIL1aggregatecap-interrupted7UNRUN; supplemental3UNRUN. Among50closed38oldPASSremainPASS/6oldFAILnowPASS/6remainFAIL, nofull58baseline verdict. Case50verboseORIGINAL_COMMAND_INSTALLEDtableexhaustedremaining2.38MBshare, SIGINTnot testtimeout/failure. Transportonlycount+SHAfilterunderoriginal20MBcap/env/rosterinprepare; functionalILX/SH2/RBS3repairspriority.",
+    "Actual696Jim40027205279 fulloriginal7again3PASS4FAIL/0W/fullseals. First2classcallrejoin/schema/metadata/logicalargstruebutUnavailableActualLookup/UnknownEarlierMutationremain; do notstripguard. OlderLogical079classrowloss narrowedContextRegistry::project_for_profile missingexistingwith_family_core_surface; one-filefixunderindependentpeer. Nestedmissingcellseparate. Sameflagtinyissuer/bodyobserverpeerclear3459; noNativegrant.",
+    "Actual696Spec40027209858 guarded8PASS3FAIL/11/4ASCIIcontrolsPASS/builds0W/fullseals. ActualparentisCall strictnormalstoredtrue, exactchildregistrytarget/handler/argsnormaltrue; invocationnormalfalse andparentargsnormalfalse remain explicit. Compiler-proofjoinedactual1fe5d064 toLogical-onlySourceSummaryContextfirstrefusal. NativeNormalparent+childadapterbeingimplementedwithgenuineowners, noLogicalsubstitute/module-droppingfallback.",
+    "IntegratedindependentlyreviewedfunctionalO129v6 WORK8b242c1c8/CLEAN198558cce: exactcurrentretainedsourcechild/body/card/dialect/context proof, closedactualexecutiontarget+handler+argv+declaredworldfootprintfoldunchanged. PrivateauthenticrawIAproducer transportspriorwholeowner afteractualIA/postcontextcheck, noarbitrarysetter. Generalauthored/ReadOnly/Nativeadmission/Normalguardsunchanged. Addedrealrawpipelinepositive+adversarialcontrols, unrun. Heldv3wouldrefusepostIAowner andwasneverintegrated.",
+    "IntegratedCompilerCore5V6 WORK887be4a7c/CLEANaba8d119a afterNames7d6305e7 peer andNamesCore5 WORK41c1f7e8b/CLEANfbb314f70 afterCompiler0d10d80b peer. Exactwholeoriginalinlining/sourceowners/drop/query/callback/tests/cleanup/pinnedfmt retained; V5extra-borrowdraftHELD. AllstaticrefactorsawaitactualClippy, no warningcountadvanced.",
+    "Runtimefocused5177actual1P2F retainedwithindependentDB34dbboundedreview; originalELFnotuploadedso path/buildmetadata/providerstabilityscopeexplicit. Rootindependentf8startup388f891e verifiedallZIPCRC/digests/full125122Gitmembership/selectedcanonicalblobs/fourclosedownedgroups/build0W/ciopt3. Typicalcold83ms+version1diag0thenworkspace30sFAIL; Contextoriginal2fixtureassertionsPASS4.99s but16roundnonsettlewarning/globalcompletenessopen. No shippingperformance/editorhostacceptance.",
+    "WORKonlyconstructorappend-scopedRuststageobserver2c6c90f1 frozenpendingrootpeer; original1035freshconstructors/180/assertionsunchanged, no numeric/publicenvclocklog. WORKonlyscanobserverb14f5c1b frozenDBpeer, actualdiscovery/perreleasepkgIndex/candidates/rehoming/factorysettle stages; no hotfunctioninferencefrom2256providerinputcensus. Noobserverreleasecarry.",
+    "Externalperf21:34fe309preserved: all102Tclentriescovered101Equal/1Unavailable; oldtail25Equal separateoriginal77rowOOM. EmptyallocatedOriginalDeclaration body causes inventoryrefusalInstalled-specifichelper; isolatedcomplete-original-cardpurposeproofcandidatecontrolsbuilding, notaccepted orforwardedrealm patch. Bothcompiler228/229 same142P86F/deep1000OOMincomplete. DedicatediRulesperfwaivedonly; fullTclperf/baseline24312P2Fgateopen.",
+    "ReleasescopedGitpath/knownprocessreferenceaudit11012pathsfound0chaffpaths/0knownWORKmarkerrefs; nofullsemanticauditclaim. Runtimecargo fmtcheckPASS; initialrootmanifestinvocationinvalid thenrootworkspacecheck55stimeout, ownremainingreadonlyrustfmtchildterminatedandcheckINCOMPLETE/noPASS. BothFSbelow2GiB; no builds/targetdelete/youngexedelete. Transientexecdisconnectrecoveredwithheadsintact. BIGIPheaderstale>60minusernotified, reviewtriagecomplete; no takeovers. Twoexistingpolicyquestionsstillpending."
+  ],
+  "committed": [
+    "36009e564cef877b28c701311cd973ae0794b442"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Publish21:55officialreport/WIPandarm22:25reminder.",
+    "Finishrootpeer/integrateDBoverlay2 andWORKonlyconstructor/scan/Jimissuerdiagnostics, thenfocusedfreshoriginals.",
+    "ImplementlegitimateNativeNormalderived2/Jimfamilyprojection/sourceproducer fixes andsixcurrentcompilerfailurecauses.",
+    "FinishallmeasuredstrictCore/Serverlintfamilies, broadCI/builds/native/browser/WASI/editor/sectionF, fullbaselineidentityjoin andacceptedTclcorpusperformance.",
+    "Finishreleasefullformat/rust-check/prep-pr/docs/comments/chaffaudit beforecleanPR; no merge/tag/publish."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-23T13:17Z",
+    "perf": "2026-10-23 21:34 UTC",
+    "review-triage": "2026-10-22T19:57:30Z"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "RecordedactualFAILURES/partialsubsetpositivesonly; noadmissionorverifiedcountchanges. Exactoldpassjoin50closedonly, remainingunknownnotpasses. Allnewsourcefixesunrun; fullshippingbaseline/performance/sectionFstillopen.",
+  "disk_free_bytes": 1988993024,
+  "baseline_ci_run": 39816429638,
+  "baseline_ci_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731"
+}

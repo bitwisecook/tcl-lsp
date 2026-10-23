@@ -1,0 +1,84 @@
+{
+  "role": "compiler-proof",
+  "source": "696ea5483a44d3f4dae77e04bec91a40a48a6ae5",
+  "run": 40027209858,
+  "full_artifact_identity_inherited_from": "/tmp/ccg-hosted-spectcl40027209858-actual-v1/assessment/identity-seals-processes.json",
+  "assessment_sha256": "22d6fea12f284b1f802b2aef1b2212445a9c4d6e74bff706dd81a2e058c7f6ba",
+  "ZIP_sha256_inherited": "d2b305aab0015bdc2fbb9fde768c31b165164be07d20e3fe9eb8cf84d439ab16",
+  "own_scope": "Read exact small raw stderr members directly from retained ZIP; join to cached exact Git source. No duplicate full provider/process seal review or execution.",
+  "raw_members": {
+    "pack_source_e2e-01.stderr": {
+      "sha256": "ff88029c3586bb52ac7c5907ef4d01712c1f66e4cd216b86c7f28d00898e3cf0",
+      "lines": [
+        "N17G2 dialect=tcl9.0 call=\"vendor::f 21\" original-p-count=1 retained-input=true exact-metadata=true host=true",
+        "N17G2 owner-id=true analysis=true body-id-rejoin=true",
+        "N17G2 known-all-versions=[(1, Overdefined)] sccp-route-count=0",
+        "N17G2 actual-parent category=Call span=Span { start: 18, end: 42 }",
+        "N17G2 first-public-decline=child-complete-inventory-and-retained-fold-private-unobserved strict=true normal=true stored=true selected-site=Some(Span { start: 28, end: 42 }) synthetic=None",
+        "N17G2 parent admission=Inline { operation: StructuredLowering(Set), guard: BeforeArguments } structured=true execution=true handler=true args-normal=false invocation-normal=false known-normal-result=false execution-unknown=false execution-maybe-absent=false binding-phase=Some(AfterArguments) stored-argument=Some(1) places-observed-dynamic-unknown=Some([(false, false, false)])",
+        "N17G2 public-child-candidates=1 completeness=UNOBSERVABLE written-candidate=Some(Span { start: 28, end: 42 })",
+        "N17G2 child candidate-span=Span { start: 28, end: 42 } matches-written-span=true admission=Generic structured=false execution-registry=true handler-registry=true normal=true args-normal=true invocation-normal=false known-normal-result=false execution-unknown=false realm=Some(RuleLoader)",
+        "N17G2 actual-parent category=Call span=Span { start: 47, end: 60 }",
+        "N17G2 first-public-decline=parent-unobserved-bounded-store strict=true normal=true stored=false selected-site=None synthetic=None",
+        "N17G2 parent admission=Inline { operation: StructuredLowering(Return), guard: BeforeArguments } structured=true execution=true handler=true args-normal=true invocation-normal=false known-normal-result=false execution-unknown=false execution-maybe-absent=false binding-phase=Some(AfterArguments) stored-argument=None places-observed-dynamic-unknown=Some([])",
+        "N17G2 public-child-candidates=0 completeness=UNOBSERVABLE written-candidate=None"
+      ]
+    },
+    "pack_source_e2e-02.stderr": {
+      "sha256": "fa44dbf078b7b804fd0db95e69ca6a47b0c1ab4fc9a58f0c467529e82d4409c8",
+      "lines": [
+        "N17G2 dialect=tcl8.4 call=\"vendor::f x y\" original-p-count=1 retained-input=true exact-metadata=true host=true",
+        "N17G2 owner-id=true analysis=true body-id-rejoin=true",
+        "N17G2 known-all-versions=[(1, Overdefined)] sccp-route-count=0",
+        "N17G2 actual-parent category=Call span=Span { start: 18, end: 43 }",
+        "N17G2 first-public-decline=child-complete-inventory-and-retained-fold-private-unobserved strict=true normal=true stored=true selected-site=Some(Span { start: 28, end: 43 }) synthetic=None",
+        "N17G2 parent admission=Inline { operation: StructuredLowering(Set), guard: ChunkEntry } structured=true execution=true handler=true args-normal=false invocation-normal=false known-normal-result=false execution-unknown=false execution-maybe-absent=false binding-phase=Some(AfterArguments) stored-argument=Some(1) places-observed-dynamic-unknown=Some([(false, false, false)])",
+        "N17G2 public-child-candidates=1 completeness=UNOBSERVABLE written-candidate=Some(Span { start: 28, end: 43 })",
+        "N17G2 child candidate-span=Span { start: 28, end: 43 } matches-written-span=true admission=Generic structured=false execution-registry=true handler-registry=true normal=true args-normal=true invocation-normal=false known-normal-result=false execution-unknown=false realm=Some(RuleLoader)",
+        "N17G2 actual-parent category=Call span=Span { start: 48, end: 61 }",
+        "N17G2 first-public-decline=parent-unobserved-bounded-store strict=true normal=true stored=false selected-site=None synthetic=None",
+        "N17G2 parent admission=Inline { operation: StructuredLowering(Return), guard: ChunkEntry } structured=true execution=true handler=true args-normal=true invocation-normal=false known-normal-result=false execution-unknown=false execution-maybe-absent=false binding-phase=Some(AfterArguments) stored-argument=None places-observed-dynamic-unknown=Some([])",
+        "N17G2 public-child-candidates=0 completeness=UNOBSERVABLE written-candidate=None",
+        "N17G2 dialect=tcl8.5 call=\"vendor::f x y\" original-p-count=1 retained-input=true exact-metadata=true host=true",
+        "N17G2 owner-id=true analysis=true body-id-rejoin=true",
+        "N17G2 known-all-versions=[(1, Overdefined)] sccp-route-count=0",
+        "N17G2 actual-parent category=Call span=Span { start: 18, end: 43 }",
+        "N17G2 first-public-decline=child-complete-inventory-and-retained-fold-private-unobserved strict=true normal=true stored=true selected-site=Some(Span { start: 28, end: 43 }) synthetic=None",
+        "N17G2 parent admission=Inline { operation: StructuredLowering(Set), guard: BeforeArguments } structured=true execution=true handler=true args-normal=false invocation-normal=false known-normal-result=false execution-unknown=false execution-maybe-absent=false binding-phase=Some(AfterArguments) stored-argument=Some(1) places-observed-dynamic-unknown=Some([(false, false, false)])",
+        "N17G2 public-child-candidates=1 completeness=UNOBSERVABLE written-candidate=Some(Span { start: 28, end: 43 })",
+        "N17G2 child candidate-span=Span { start: 28, end: 43 } matches-written-span=true admission=Generic structured=false execution-registry=true handler-registry=true normal=true args-normal=true invocation-normal=false known-normal-result=false execution-unknown=false realm=Some(RuleLoader)",
+        "N17G2 actual-parent category=Call span=Span { start: 48, end: 61 }",
+        "N17G2 first-public-decline=parent-unobserved-bounded-store strict=true normal=true stored=false selected-site=None synthetic=None",
+        "N17G2 parent admission=Inline { operation: StructuredLowering(Return), guard: BeforeArguments } structured=true execution=true handler=true args-normal=true invocation-normal=false known-normal-result=false execution-unknown=false execution-maybe-absent=false binding-phase=Some(AfterArguments) stored-argument=None places-observed-dynamic-unknown=Some([])",
+        "N17G2 public-child-candidates=0 completeness=UNOBSERVABLE written-candidate=None",
+        "N17G2 dialect=tcl8.6 call=\"vendor::f x y\" original-p-count=1 retained-input=true exact-metadata=true host=true",
+        "N17G2 owner-id=true analysis=true body-id-rejoin=true",
+        "N17G2 known-all-versions=[(1, Overdefined)] sccp-route-count=0",
+        "N17G2 actual-parent category=Call span=Span { start: 18, end: 43 }",
+        "N17G2 first-public-decline=child-complete-inventory-and-retained-fold-private-unobserved strict=true normal=true stored=true selected-site=Some(Span { start: 28, end: 43 }) synthetic=None",
+        "N17G2 parent admission=Inline { operation: StructuredLowering(Set), guard: BeforeArguments } structured=true execution=true handler=true args-normal=false invocation-normal=false known-normal-result=false execution-unknown=false execution-maybe-absent=false binding-phase=Some(AfterArguments) stored-argument=Some(1) places-observed-dynamic-unknown=Some([(false, false, false)])",
+        "N17G2 public-child-candidates=1 completeness=UNOBSERVABLE written-candidate=Some(Span { start: 28, end: 43 })",
+        "N17G2 child candidate-span=Span { start: 28, end: 43 } matches-written-span=true admission=Generic structured=false execution-registry=true handler-registry=true normal=true args-normal=true invocation-normal=false known-normal-result=false execution-unknown=false realm=Some(RuleLoader)",
+        "N17G2 actual-parent category=Call span=Span { start: 48, end: 61 }",
+        "N17G2 first-public-decline=parent-unobserved-bounded-store strict=true normal=true stored=false selected-site=None synthetic=None",
+        "N17G2 parent admission=Inline { operation: StructuredLowering(Return), guard: BeforeArguments } structured=true execution=true handler=true args-normal=true invocation-normal=false known-normal-result=false execution-unknown=false execution-maybe-absent=false binding-phase=Some(AfterArguments) stored-argument=None places-observed-dynamic-unknown=Some([])",
+        "N17G2 public-child-candidates=0 completeness=UNOBSERVABLE written-candidate=None"
+      ]
+    }
+  },
+  "source_pins": {
+    "rust/tcl-compiler/src/interprocedural/transfer/source_context.rs": "888cf3d3d3e9f59e53870badb42770b1922fb143618010b85a343a2436907751",
+    "rust/tcl-compiler/src/interprocedural/transfer.rs": "6acdf12c059bec94111cf618e7070e2f206ecbbd7cbc1e6c795927064dc57902",
+    "rust/tcl-compiler/src/value_transfer.rs": "6b4992942f099118c6fa117d99fdaed39944bb1936109fc87877e1e858d0568b",
+    "rust/tcl-compiler/src/word_subst.rs": "e1384357041f1d408419fad8883ad316e6918a63f579fa8543504621f1effeed"
+  },
+  "findings": [
+    "Actual original parent is Call, not AssignValue. Parent strict/normal/stored are true; original receiver is unobserved, non-dynamic and known.",
+    "Child actual registry execution target, handler target and argument-normal receipt are present. Both child and parent original invocation-normal remain false; parent args-normal is false.",
+    "Production evaluate_source_call selects module.with_original_operation; its SourceSummaryContext constructor is Logical-only. Native module has no matching source context and widens before registry evaluation/explanation.",
+    "This is a concrete producer-routing failure consistent with zero routes and Overdefined, not evidence to weaken normal completion guards.",
+    "Native adapter must retain original parent/child source, current metadata and actual target, evaluate child through existing registry-owned route, and apply parent normal ordered stores only through existing semantics/place checks. No original completion bit may be forged.",
+    "Checked lexical child collection does not need braced-expression source schema when no braced word contains a command. Complete original inventory remains required."
+  ],
+  "policy": "No new policy identified; existing actual transfer premises and locked after-load model are applicable. Functional repair remains to be implemented and measured."
+}

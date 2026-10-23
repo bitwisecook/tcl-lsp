@@ -1,0 +1,14 @@
+{
+  "artifacts": [
+    {
+      "id": 12534190824,
+      "name": "scoped-lsp-clippy-696ea5483a44d3f4dae77e04bec91a40a48a6ae5-1",
+      "size_in_bytes": 3980778,
+      "digest": "sha256:ffe9b946f3c9c0bfda166e0263fac308edf73916aa1d8f21ac4d42688d660550",
+      "workflow_run": {
+        "id": 40027215347,
+        "head_sha": "696ea5483a44d3f4dae77e04bec91a40a48a6ae5"
+      }
+    }
+  ]
+}

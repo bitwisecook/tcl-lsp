@@ -1,0 +1,2327 @@
+{
+  "created_utc": "2026-10-23T21:51:32.874106+00:00",
+  "status": "ACTUAL_PARTIAL_ORIGINAL58_44PASS_6FAIL_1_CAPTURE_STOP_7UNRUN_NATIVE35_3UNRUN",
+  "run_id": 40027200925,
+  "job_id": 120666274031,
+  "source_commit": "696ea5483a44d3f4dae77e04bec91a40a48a6ae5",
+  "artifact_id": 12533408518,
+  "artifact_zip_bytes": 11668067,
+  "artifact_zip_sha256": "bb343377a28e3ee89a419f77308d3254ab4514d07b7435554a1c214f18ccb10a",
+  "independently_recomputed_seals": {
+    "source_equal": true,
+    "source_files": 125215,
+    "providers_equal": true,
+    "provider_entries": 10202,
+    "dependencies_equal": true,
+    "dependency_entries": 21500,
+    "tools_equal": true,
+    "tool_entries": 18,
+    "selected_compilerlib_artifact_sealed": true,
+    "artifact_sha256": "4bd41eef52e66c3e368793e26cba46272b9837b54e3ffaa6aef67c0c77d3e9c3",
+    "strict_Rust_0w": true,
+    "debug_assertions": true,
+    "overflow_checks": true
+  },
+  "exact_original_roster58_verified": true,
+  "closed_original_tests": 50,
+  "original58": {
+    "PASS": 44,
+    "FAIL": 6,
+    "INTERRUPTED_CAPTURE_STOP": 1,
+    "UNRUN": 7
+  },
+  "separate_supplemental_native35": {
+    "UNRUN": 3
+  },
+  "historical_comparison_closed_only": {
+    "ok->PASS": 38,
+    "FAILED->PASS": 6,
+    "FAILED->FAIL": 6
+  },
+  "failed_original_rows": [
+    {
+      "env": {
+        "TCL_LSP_TRACE_REMOTE_FIRST_OPERAND": "1"
+      },
+      "exit_code": 101,
+      "group": "original58",
+      "historical_897b_status": "FAILED",
+      "kind": [
+        "lib"
+      ],
+      "package": "tcl-compiler",
+      "receipt": "original58-tcl_compiler-23.process.json",
+      "selector": "registry_invocation::source_remote_first_operand::tests::first_remote_operand_preserves_supported_true_same_frame_source_body",
+      "state": "FAIL",
+      "stderr": "original58-tcl_compiler-23.stderr",
+      "stdout": "original58-tcl_compiler-23.stdout",
+      "target": "tcl_compiler",
+      "panic": "thread 'registry_invocation::source_remote_first_operand::tests::first_remote_operand_preserves_supported_true_same_frame_source_body' (21680) panicked at rust/tcl-compiler/src/registry_invocation/source_remote_first_operand.rs:1200:13:\nassertion `left == right` failed\n  left: 0\n right: 1",
+      "stderr_sha256": "abca43353c3c5eaff3db224e0379497e383e624ca8c77c7fe9313c88284c693c"
+    },
+    {
+      "env": {},
+      "exit_code": 101,
+      "group": "original58",
+      "historical_897b_status": "FAILED",
+      "kind": [
+        "lib"
+      ],
+      "package": "tcl-compiler",
+      "receipt": "original58-tcl_compiler-34.process.json",
+      "selector": "analyser::diagnostics::fp::sh::fp_sh_21_incr_on_non_integer_literal_still_fires",
+      "state": "FAIL",
+      "stderr": "original58-tcl_compiler-34.stderr",
+      "stdout": "original58-tcl_compiler-34.stdout",
+      "target": "tcl_compiler",
+      "panic": "thread 'analyser::diagnostics::fp::sh::fp_sh_21_incr_on_non_integer_literal_still_fires' (21732) panicked at rust/tcl-compiler/src/analyser/diagnostics/fp/sh.rs:1454:5:\nFP-SH-21 TP: incr on a non-integer literal must still fire; got []\nstack backtrace:\n   0: __rustc::rust_begin_unwind",
+      "stderr_sha256": "f7bfdc2b86b5137c9f0d4c039f9720634e95c8396c8525f1ee77b9a182fdc2c2"
+    },
+    {
+      "env": {},
+      "exit_code": 101,
+      "group": "original58",
+      "historical_897b_status": "FAILED",
+      "kind": [
+        "lib"
+      ],
+      "package": "tcl-compiler",
+      "receipt": "original58-tcl_compiler-35.process.json",
+      "selector": "analyser::diagnostics::fp::sh::fp_sh_21_scalar_literal_as_list_silent",
+      "state": "FAIL",
+      "stderr": "original58-tcl_compiler-35.stderr",
+      "stdout": "original58-tcl_compiler-35.stdout",
+      "target": "tcl_compiler",
+      "panic": "thread 'analyser::diagnostics::fp::sh::fp_sh_21_scalar_literal_as_list_silent' (21736) panicked at rust/tcl-compiler/src/analyser/diagnostics/fp/sh.rs:1415:9:\nFP-SH-21: scalar literal used as a list must not shimmer; got [\"S100\"]\nstack backtrace:\n   0: __rustc::rust_begin_unwind",
+      "stderr_sha256": "117b32f18dbb8fa66ab63d1e3ff8a6652c297ec0a0675a4b4fa730f49ccaeb3a"
+    },
+    {
+      "env": {
+        "TCL_LSP_TRACE_N13_POINT": "1",
+        "TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS": "1",
+        "ZZ_PROBE_LOWER": "1"
+      },
+      "exit_code": 101,
+      "group": "original58",
+      "historical_897b_status": "FAILED",
+      "kind": [
+        "lib"
+      ],
+      "package": "tcl-compiler",
+      "receipt": "original58-tcl_compiler-42.process.json",
+      "selector": "analyser::diagnostics::fp::rbs::fp_rbs_15_all_break_switch_not_a_proc_terminator",
+      "state": "FAIL",
+      "stderr": "original58-tcl_compiler-42.stderr",
+      "stdout": "original58-tcl_compiler-42.stdout",
+      "target": "tcl_compiler",
+      "panic": "thread 'analyser::diagnostics::fp::rbs::fp_rbs_15_all_break_switch_not_a_proc_terminator' (21757) panicked at rust/tcl-compiler/src/analyser/diagnostics/fp/rbs.rs:1137:5:\nFP-RBS-15 TP: all-break switch is a loop jump, not a proc return; W210 must fire; emitted: []\nstack backtrace:\n   0: __rustc::rust_begin_unwind",
+      "stderr_sha256": "975e978cf98824574109d61c6a1843ee734f341084d8fdcbe5ba73ac19029063"
+    },
+    {
+      "env": {
+        "TCL_LSP_TRACE_N13_POINT": "1",
+        "TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS": "1",
+        "ZZ_PROBE_LOWER": "1"
+      },
+      "exit_code": 101,
+      "group": "original58",
+      "historical_897b_status": "FAILED",
+      "kind": [
+        "lib"
+      ],
+      "package": "tcl-compiler",
+      "receipt": "original58-tcl_compiler-43.process.json",
+      "selector": "analyser::diagnostics::fp::rbs::fp_rbs_15_while1_break_in_opaque_switch_exits_loop",
+      "state": "FAIL",
+      "stderr": "original58-tcl_compiler-43.stderr",
+      "stdout": "original58-tcl_compiler-43.stdout",
+      "target": "tcl_compiler",
+      "panic": "thread 'analyser::diagnostics::fp::rbs::fp_rbs_15_while1_break_in_opaque_switch_exits_loop' (21761) panicked at rust/tcl-compiler/src/analyser/diagnostics/fp/rbs.rs:1148:5:\nFP-RBS-15 TP: break-in-opaque-switch must make while-1 exit reachable; W210 must fire; emitted: []\nstack backtrace:\n   0: __rustc::rust_begin_unwind",
+      "stderr_sha256": "84956870c31d1abb59e13800afbaad13be6ee914147089edf03b780535eff1cc"
+    },
+    {
+      "env": {
+        "TCL_LSP_TRACE_N13_POINT": "1",
+        "TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS": "1",
+        "ZZ_PROBE_LOWER": "1"
+      },
+      "exit_code": 101,
+      "group": "original58",
+      "historical_897b_status": "FAILED",
+      "kind": [
+        "lib"
+      ],
+      "package": "tcl-compiler",
+      "receipt": "original58-tcl_compiler-44.process.json",
+      "selector": "analyser::diagnostics::tests::fp_rbs_15_all_exiting_opaque_switch_is_a_terminator",
+      "state": "FAIL",
+      "stderr": "original58-tcl_compiler-44.stderr",
+      "stdout": "original58-tcl_compiler-44.stdout",
+      "target": "tcl_compiler",
+      "panic": "thread 'analyser::diagnostics::tests::fp_rbs_15_all_exiting_opaque_switch_is_a_terminator' (21764) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:6554:5:\ndefault-less opaque switch falls through (W210 expected on y)\nstack backtrace:\n   0: __rustc::rust_begin_unwind",
+      "stderr_sha256": "5eb05b8ac5000c410f38baf49d7ed3fdfe83ec4a73b99c9bfbf20aff49cc2c86"
+    }
+  ],
+  "capture_stop": {
+    "argv": [
+      "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-ec3e9e55ba9eec6c",
+      "command_binding::original_body_namespace::tests::original_immediate_body_namespace_keeps_actual_native_conditional_and_error_prefix",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "artifact": "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-ec3e9e55ba9eec6c",
+    "artifact_sha256_after": "4bd41eef52e66c3e368793e26cba46272b9837b54e3ffaa6aef67c0c77d3e9c3",
+    "artifact_sha256_before": "4bd41eef52e66c3e368793e26cba46272b9837b54e3ffaa6aef67c0c77d3e9c3",
+    "artifact_unchanged": true,
+    "cap_bytes": 2384355,
+    "cleanup_signals": [
+      {
+        "monotonic_ns": 1074461132092,
+        "signal": "SIGINT"
+      }
+    ],
+    "complete": false,
+    "consecutive_complete_empty_group_scans": 2,
+    "cwd": "/home/runner/work/tcl-lsp/tcl-lsp",
+    "deadline_seconds": 180,
+    "disk_floor_bytes": 2147483648,
+    "disk_paths": [
+      "/home/runner/work/tcl-lsp/tcl-lsp",
+      "/home/runner/work/_temp/compiler58-output",
+      "/home/runner/work/_temp/compiler58-target",
+      "/home/runner/work/_temp",
+      "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-ec3e9e55ba9eec6c",
+      "/home/runner/work/_temp/compiler58-output",
+      "/home/runner/work/_temp/compiler58-output",
+      "/home/runner/work/_temp/compiler58-output"
+    ],
+    "elapsed_seconds": 8.741913132,
+    "ended_utc": "2026-10-23T21:47:27.767240+00:00",
+    "exit_code": -2,
+    "group_empty_before_parent_reap": true,
+    "group_scan_attempts": 2,
+    "last_group_scan": {
+      "complete": true,
+      "members": [],
+      "vanished_pids": []
+    },
+    "minimum_free_bytes": 74295320576,
+    "owned_live_group_members": [],
+    "parent_exit_observed_monotonic_ns": 1074469567920,
+    "parent_waitid_wnowait": {
+      "si_code": 2,
+      "si_pid": 21784,
+      "si_status": 2
+    },
+    "pid": 21784,
+    "pid_start_ticks": 106617,
+    "process_group": 21784,
+    "retained_bytes": 2384355,
+    "spawn_return_monotonic_ns": 1066179521872,
+    "spawn_return_utc": "2026-10-23T21:47:19.026390+00:00",
+    "stderr": "/home/runner/work/_temp/compiler58-output/original58-tcl_compiler-50.stderr",
+    "stderr_bytes": 2385475,
+    "stdout": "/home/runner/work/_temp/compiler58-output/original58-tcl_compiler-50.stdout",
+    "stdout_bytes": 157,
+    "stop_reason": "aggregate_log_cap_exceeded",
+    "timer_armed_before_spawn": true,
+    "timer_armed_monotonic_ns": 1066178484197,
+    "timer_armed_utc": "2026-10-23T21:47:19.025353+00:00"
+  },
+  "unrun_rows": [
+    {
+      "env": {},
+      "group": "original58",
+      "historical_897b_status": "FAILED",
+      "kind": [
+        "test"
+      ],
+      "package": "tcl-compiler",
+      "selector": "dangerous_sinks::eval_sink",
+      "state": "UNRUN",
+      "target": "taint"
+    },
+    {
+      "env": {},
+      "group": "original58",
+      "historical_897b_status": "FAILED",
+      "kind": [
+        "test"
+      ],
+      "package": "tcl-compiler",
+      "selector": "a_braced_expr_word_with_no_nested_write_still_folds",
+      "state": "UNRUN",
+      "target": "optimiser"
+    },
+    {
+      "env": {},
+      "group": "original58",
+      "historical_897b_status": "FAILED",
+      "kind": [
+        "test"
+      ],
+      "package": "tcl-compiler",
+      "selector": "cu_catch_literal_body_threads_its_upvar",
+      "state": "UNRUN",
+      "target": "var_escape_residual2"
+    },
+    {
+      "env": {
+        "TCL_LSP_TRACE_BPF_PHASE": "1"
+      },
+      "group": "original58",
+      "historical_897b_status": "ok",
+      "kind": [
+        "lib"
+      ],
+      "package": "bpf-tcl-ir",
+      "selector": "source::phase::tests::closed_bpf_effect_phase_accepts_static_socket_program_and_refuses_substitution",
+      "state": "UNRUN",
+      "target": "bpf_tcl_ir"
+    },
+    {
+      "env": {
+        "TCL_LSP_TRACE_BPF_PHASE": "1"
+      },
+      "group": "original58",
+      "historical_897b_status": "FAILED",
+      "kind": [
+        "lib"
+      ],
+      "package": "bpf-tcl-ir",
+      "selector": "source::phase::tests::losing_a_selected_command_never_proves_an_empty_policy_or_map_inventory",
+      "state": "UNRUN",
+      "target": "bpf_tcl_ir"
+    },
+    {
+      "env": {
+        "TCL_LSP_TRACE_BPF_PHASE": "1"
+      },
+      "group": "original58",
+      "historical_897b_status": "ok",
+      "kind": [
+        "lib"
+      ],
+      "package": "bpf-tcl-ir",
+      "selector": "source::phase::tests::fixed_phase_preserves_mixed_template_origins_and_generated_operation_identity",
+      "state": "UNRUN",
+      "target": "bpf_tcl_ir"
+    },
+    {
+      "env": {
+        "TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE": "1",
+        "ZZ_PROBE_OPAQUE": "1"
+      },
+      "group": "original58",
+      "historical_897b_status": "FAILED",
+      "kind": [
+        "lib"
+      ],
+      "package": "tcl-compiler",
+      "selector": "command_binding::source_command_world::tests::original_namespace_import_keeps_the_source_declaration_allocation",
+      "state": "UNRUN",
+      "target": "tcl_compiler"
+    },
+    {
+      "env": {
+        "TCL_LSP_TRACE_AUTHENTICATED_REPORT": "1"
+      },
+      "group": "supplemental-native35",
+      "kind": [
+        "lib"
+      ],
+      "package": "tcl-compiler",
+      "selector": "analyser::authenticated_report::capture_controls::native_dispatch_first_16_declarations_keep_actual_report_owners",
+      "state": "UNRUN",
+      "target": "tcl_compiler"
+    },
+    {
+      "env": {
+        "TCL_LSP_TRACE_AUTHENTICATED_REPORT": "1"
+      },
+      "group": "supplemental-native35",
+      "kind": [
+        "lib"
+      ],
+      "package": "tcl-compiler",
+      "selector": "analyser::authenticated_report::capture_controls::native_dispatch_first_call_keeps_actual_report_owners",
+      "state": "UNRUN",
+      "target": "tcl_compiler"
+    },
+    {
+      "env": {
+        "TCL_LSP_TRACE_AUTHENTICATED_REPORT": "1"
+      },
+      "group": "supplemental-native35",
+      "kind": [
+        "lib"
+      ],
+      "package": "tcl-compiler",
+      "selector": "analyser::authenticated_report::capture_controls::native_dispatch_complete_fixture_keeps_actual_report_owners",
+      "state": "UNRUN",
+      "target": "tcl_compiler"
+    }
+  ],
+  "source_pins": {
+    "rust/tcl-compiler/src/registry_invocation/source_remote_first_operand.rs": "93f778d241f70e44f68fa374906fd01ad2e420f4929fedc0ee83f890acb47e29",
+    "rust/tcl-compiler/src/analyser/diagnostics/fp/sh.rs": "f4900d2953af9d958c6f35e4b9aee280aac8cda082a2f9b337712dee9755243f",
+    "rust/tcl-compiler/src/analyser/diagnostics/fp/rbs.rs": "4c7f89d63bf1a234dfbf3918b75c3c5b9c61c9950e465ec55fd45061f2d7a966",
+    "rust/tcl-compiler/src/analyser/diagnostics/tests.rs": "a36ebc928958e0234c119247a320e0820c2ee84efa2dc56463b2a6f3c249e2b2",
+    "rust/tcl-compiler/src/command_binding/original_body_namespace.rs": "0fbf50914918c88a764301a137b304b11588a112a2a7d0422a6d1bc71211d1a8",
+    "rust/tcl-compiler/src/analyser/authenticated_report.rs": "97f4b97c4a323b4e8aa33a55f913f050d4a3c46bf2ba9321fa64337ac9ec7bfe"
+  },
+  "processes": [
+    {
+      "argv": [
+        "/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo",
+        "fetch",
+        "--locked",
+        "--target",
+        "x86_64-unknown-linux-gnu"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "elapsed_seconds": 4.905001779,
+      "timer_armed_before_spawn": true,
+      "artifact_unchanged": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "minimum_free_bytes": 75839414272,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo",
+        "test",
+        "--locked",
+        "-p",
+        "tcl-compiler",
+        "--lib",
+        "--no-run",
+        "--message-format=json",
+        "-j",
+        "2"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "elapsed_seconds": 260.992376051,
+      "timer_armed_before_spawn": true,
+      "artifact_unchanged": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "minimum_free_bytes": 73899540480,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-ec3e9e55ba9eec6c",
+        "--list",
+        "--format",
+        "terse"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "elapsed_seconds": 0.471355964,
+      "timer_armed_before_spawn": true,
+      "artifact_unchanged": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "minimum_free_bytes": 74316730368,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-ec3e9e55ba9eec6c",
+        "analyser::authenticated_report::body_correspondence::owner_controls::actual_body_census_retains_the_complete_source_entry_domain",
+        "--exact",
+        "--list",
+        "--format",
+        "terse"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "elapsed_seconds": 0.461846654,
+      "timer_armed_before_spawn": true,
+      "artifact_unchanged": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "minimum_free_bytes": 74315739136,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-ec3e9e55ba9eec6c",
+        "analyser::authenticated_report::body_correspondence::owner_controls::actual_body_census_retains_the_complete_source_entry_domain",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "elapsed_seconds": 2.124064883,
+      "timer_armed_before_spawn": true,
+      "artifact_unchanged": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "minimum_free_bytes": 74315718656,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-ec3e9e55ba9eec6c",
+        "analyser::authenticated_report::body_correspondence::owner_controls::actual_complete_body_inventory_is_total_and_role_sensitive",
+        "--exact",
+        "--list",
+        "--format",
+        "terse"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "elapsed_seconds": 0.462355955,
+      "timer_armed_before_spawn": true,
+      "artifact_unchanged": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "minimum_free_bytes": 74315710464,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-ec3e9e55ba9eec6c",
+        "analyser::authenticated_report::body_correspondence::owner_controls::actual_complete_body_inventory_is_total_and_role_sensitive",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "elapsed_seconds": 2.121687627,
+      "timer_armed_before_spawn": true,
+      "artifact_unchanged": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "minimum_free_bytes": 74315689984,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-ec3e9e55ba9eec6c",
+        "analyser::authenticated_report::body_correspondence::owner_controls::omitted_or_duplicate_actual_body_role_is_unavailable",
+        "--exact",
+        "--list",
+        "--format",
+        "terse"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "elapsed_seconds": 0.462285265,
+      "timer_armed_before_spawn": true,
+      "artifact_unchanged": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "minimum_free_bytes": 74315681792,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-ec3e9e55ba9eec6c",
+        "analyser::authenticated_report::body_correspondence::owner_controls::omitted_or_duplicate_actual_body_role_is_unavailable",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "elapsed_seconds": 2.820054792,
+      "timer_armed_before_spawn": true,
+      "artifact_unchanged": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "minimum_free_bytes": 74315657216,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-ec3e9e55ba9eec6c",
+        "analyser::authenticated_report::body_correspondence::owner_controls::original_aliases_keep_both_actual_roles_at_the_shared_declaration",
+        "--exact",
+        "--list",
+        "--format",
+        "terse"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "elapsed_seconds": 0.462723864,
+      "timer_armed_before_spawn": true,
+      "artifact_unchanged": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "minimum_free_bytes": 74315649024,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-ec3e9e55ba9eec6c",
+        "analyser::authenticated_report::body_correspondence::owner_controls::original_aliases_keep_both_actual_roles_at_the_shared_declaration",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "elapsed_seconds": 13.217877469,
+      "timer_armed_before_spawn": true,
+      "artifact_unchanged": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "minimum_free_bytes": 74315591680,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-ec3e9e55ba9eec6c",
+        "analyser::authenticated_report::capture_controls::actual_e003_subjects_join_their_current_diagnostic_output_owners",
+        "--exact",
+        "--list",
+        "--format",
+        "terse"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "elapsed_seconds": 0.463265593,
+      "timer_armed_before_spawn": true,
+      "artifact_unchanged": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "minimum_free_bytes": 74315583488,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-ec3e9e55ba9eec6c",
+        "analyser::authenticated_report::capture_controls::actual_e003_subjects_join_their_current_diagnostic_output_owners",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "elapsed_seconds": 1.58172548,
+      "timer_armed_before_spawn": true,
+      "artifact_unchanged": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "minimum_free_bytes": 74315563008,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-ec3e9e55ba9eec6c",
+        "analyser::authenticated_report::capture_controls::changed_plain_report_value_is_a_difference_after_current_owners_join",
+        "--exact",
+        "--list",
+        "--format",
+        "terse"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "elapsed_seconds": 0.463311514,
+      "timer_armed_before_spawn": true,
+      "artifact_unchanged": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "minimum_free_bytes": 74315554816,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-ec3e9e55ba9eec6c",
+        "analyser::authenticated_report::capture_controls::changed_plain_report_value_is_a_difference_after_current_owners_join",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "elapsed_seconds": 1.325521603,
+      "timer_armed_before_spawn": true,
+      "artifact_unchanged": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "minimum_free_bytes": 74315538432,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-ec3e9e55ba9eec6c",
+        "analyser::authenticated_report::capture_controls::completed_report_request_cannot_capture_a_later_ordinary_analysis",
+        "--exact",
+        "--list",
+        "--format",
+        "terse"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "elapsed_seconds": 0.463042483,
+      "timer_armed_before_spawn": true,
+      "artifact_unchanged": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "minimum_free_bytes": 74315522048,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-ec3e9e55ba9eec6c",
+        "analyser::authenticated_report::capture_controls::completed_report_request_cannot_capture_a_later_ordinary_analysis",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "elapsed_seconds": 1.452478325,
+      "timer_armed_before_spawn": true,
+      "artifact_unchanged": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "minimum_free_bytes": 74315509760,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-ec3e9e55ba9eec6c",
+        "analyser::authenticated_report::capture_controls::e003_equal_source_foreign_diagnostic_attachment_is_unavailable",
+        "--exact",
+        "--list",
+        "--format",
+        "terse"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "elapsed_seconds": 0.463465957,
+      "timer_armed_before_spawn": true,
+      "artifact_unchanged": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "minimum_free_bytes": 74315501568,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-ec3e9e55ba9eec6c",
+        "analyser::authenticated_report::capture_controls::e003_equal_source_foreign_diagnostic_attachment_is_unavailable",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "elapsed_seconds": 2.045944226,
+      "timer_armed_before_spawn": true,
+      "artifact_unchanged": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "minimum_free_bytes": 74315476992,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-ec3e9e55ba9eec6c",
+        "analyser::authenticated_report::capture_controls::genuine_hosted_event_report_retains_a_separate_actual_domain",
+        "--exact",
+        "--list",
+        "--format",
+        "terse"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "elapsed_seconds": 0.462371013,
+      "timer_armed_before_spawn": true,
+      "artifact_unchanged": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "minimum_free_bytes": 74315468800,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-ec3e9e55ba9eec6c",
+        "analyser::authenticated_report::capture_controls::genuine_hosted_event_report_retains_a_separate_actual_domain",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "elapsed_seconds": 1.585888344,
+      "timer_armed_before_spawn": true,
+      "artifact_unchanged": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "minimum_free_bytes": 74315448320,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-ec3e9e55ba9eec6c",
+        "analyser::authenticated_report::capture_controls::report_capture_rejects_changed_producer_facts_and_unavailable_output",
+        "--exact",
+        "--list",
+        "--format",
+        "terse"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "elapsed_seconds": 0.463277666,
+      "timer_armed_before_spawn": true,
+      "artifact_unchanged": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "minimum_free_bytes": 74315440128,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-ec3e9e55ba9eec6c",
+        "analyser::authenticated_report::capture_controls::report_capture_rejects_changed_producer_facts_and_unavailable_output",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "elapsed_seconds": 1.324881896,
+      "timer_armed_before_spawn": true,
+      "artifact_unchanged": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "minimum_free_bytes": 74315423744,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-ec3e9e55ba9eec6c",
+        "analyser::authenticated_report::capture_controls::report_capture_rejects_equal_source_foreign_output_attachment",
+        "--exact",
+        "--list",
+        "--format",
+        "terse"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "elapsed_seconds": 0.461887507,
+      "timer_armed_before_spawn": true,
+      "artifact_unchanged": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "minimum_free_bytes": 74315415552,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-ec3e9e55ba9eec6c",
+        "analyser::authenticated_report::capture_controls::report_capture_rejects_equal_source_foreign_output_attachment",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "elapsed_seconds": 1.326446273,
+      "timer_armed_before_spawn": true,
+      "artifact_unchanged": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "minimum_free_bytes": 74315390976,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-ec3e9e55ba9eec6c",
+        "analyser::authenticated_report::capture_controls::report_capture_requires_its_actual_source_build_request",
+        "--exact",
+        "--list",
+        "--format",
+        "terse"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "elapsed_seconds": 0.462453895,
+      "timer_armed_before_spawn": true,
+      "artifact_unchanged": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "minimum_free_bytes": 74315382784,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-ec3e9e55ba9eec6c",
+        "analyser::authenticated_report::capture_controls::report_capture_requires_its_actual_source_build_request",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "elapsed_seconds": 1.338557342,
+      "timer_armed_before_spawn": true,
+      "artifact_unchanged": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "minimum_free_bytes": 74315366400,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-ec3e9e55ba9eec6c",
+        "analyser::authenticated_report::capture_controls::report_capture_self_comparison_requires_complete_current_owners",
+        "--exact",
+        "--list",
+        "--format",
+        "terse"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "elapsed_seconds": 0.462214363,
+      "timer_armed_before_spawn": true,
+      "artifact_unchanged": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "minimum_free_bytes": 74315358208,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-ec3e9e55ba9eec6c",
+        "analyser::authenticated_report::capture_controls::report_capture_self_comparison_requires_complete_current_owners",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "elapsed_seconds": 1.02947206,
+      "timer_armed_before_spawn": true,
+      "artifact_unchanged": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "minimum_free_bytes": 74315337728,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-ec3e9e55ba9eec6c",
+        "object_types::logical_source_candidates::tests::full_report_candidates_require_the_actual_diagnostic_output_realm",
+        "--exact",
+        "--list",
+        "--format",
+        "terse"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "elapsed_seconds": 0.463647277,
+      "timer_armed_before_spawn": true,
+      "artifact_unchanged": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "minimum_free_bytes": 74315325440,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-ec3e9e55ba9eec6c",
+        "object_types::logical_source_candidates::tests::full_report_candidates_require_the_actual_diagnostic_output_realm",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "elapsed_seconds": 2.135404797,
+      "timer_armed_before_spawn": true,
+      "artifact_unchanged": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "minimum_free_bytes": 74315317248,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-ec3e9e55ba9eec6c",
+        "command_binding::conditional_expression_tests::conditional_expression_template_retains_grammar_without_actual_entry",
+        "--exact",
+        "--list",
+        "--format",
+        "terse"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "elapsed_seconds": 0.462679476,
+      "timer_armed_before_spawn": true,
+      "artifact_unchanged": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "minimum_free_bytes": 74315309056,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-ec3e9e55ba9eec6c",
+        "command_binding::conditional_expression_tests::conditional_expression_template_retains_grammar_without_actual_entry",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "elapsed_seconds": 0.653148366,
+      "timer_armed_before_spawn": true,
+      "artifact_unchanged": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "minimum_free_bytes": 74315296768,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-ec3e9e55ba9eec6c",
+        "command_binding::normal_result::tests::scoped_procedure_equivalence_keeps_independent_world_and_completion_obligations",
+        "--exact",
+        "--list",
+        "--format",
+        "terse"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "elapsed_seconds": 0.462463532,
+      "timer_armed_before_spawn": true,
+      "artifact_unchanged": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "minimum_free_bytes": 74315288576,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-ec3e9e55ba9eec6c",
+        "command_binding::normal_result::tests::scoped_procedure_equivalence_keeps_independent_world_and_completion_obligations",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "elapsed_seconds": 0.99805856,
+      "timer_armed_before_spawn": true,
+      "artifact_unchanged": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "minimum_free_bytes": 74315276288,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-ec3e9e55ba9eec6c",
+        "command_binding::expression_preparation::tests::scoped_nested_normalisation_keeps_original_world_frame_and_source",
+        "--exact",
+        "--list",
+        "--format",
+        "terse"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "elapsed_seconds": 0.46271228,
+      "timer_armed_before_spawn": true,
+      "artifact_unchanged": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "minimum_free_bytes": 74315264000,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-ec3e9e55ba9eec6c",
+        "command_binding::expression_preparation::tests::scoped_nested_normalisation_keeps_original_world_frame_and_source",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "elapsed_seconds": 2.706021793,
+      "timer_armed_before_spawn": true,
+      "artifact_unchanged": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "minimum_free_bytes": 74315235328,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-ec3e9e55ba9eec6c",
+        "command_binding::expression_preparation::tests::selected_nested_normalisation_projects_actual_operand_and_command_source",
+        "--exact",
+        "--list",
+        "--format",
+        "terse"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "elapsed_seconds": 0.463567105,
+      "timer_armed_before_spawn": true,
+      "artifact_unchanged": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "minimum_free_bytes": 74315689984,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-ec3e9e55ba9eec6c",
+        "command_binding::expression_preparation::tests::selected_nested_normalisation_projects_actual_operand_and_command_source",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "elapsed_seconds": 2.624546149,
+      "timer_armed_before_spawn": true,
+      "artifact_unchanged": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "minimum_free_bytes": 74315665408,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-ec3e9e55ba9eec6c",
+        "command_binding::conditional_source::region::controls::deep_return_uses_the_completed_chain_without_renewing_the_opaque_child_prefix",
+        "--exact",
+        "--list",
+        "--format",
+        "terse"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "elapsed_seconds": 0.462251307,
+      "timer_armed_before_spawn": true,
+      "artifact_unchanged": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "minimum_free_bytes": 74315657216,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-ec3e9e55ba9eec6c",
+        "command_binding::conditional_source::region::controls::deep_return_uses_the_completed_chain_without_renewing_the_opaque_child_prefix",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "elapsed_seconds": 1.775841345,
+      "timer_armed_before_spawn": true,
+      "artifact_unchanged": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "minimum_free_bytes": 74315628544,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-ec3e9e55ba9eec6c",
+        "command_binding::conditional_source::region::sequential_controls::sequential_tail_returns_to_the_same_original_prefix_without_reanalysis",
+        "--exact",
+        "--list",
+        "--format",
+        "terse"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "elapsed_seconds": 0.46204652,
+      "timer_armed_before_spawn": true,
+      "artifact_unchanged": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "minimum_free_bytes": 74315620352,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-ec3e9e55ba9eec6c",
+        "command_binding::conditional_source::region::sequential_controls::sequential_tail_returns_to_the_same_original_prefix_without_reanalysis",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "elapsed_seconds": 2.035819419,
+      "timer_armed_before_spawn": true,
+      "artifact_unchanged": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "minimum_free_bytes": 74315603968,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-ec3e9e55ba9eec6c",
+        "command_binding::source_transition_advice::source_point::conditional_region_purpose_controls::conditional_region_purpose_refuses_a_genuine_whole_child",
+        "--exact",
+        "--list",
+        "--format",
+        "terse"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "elapsed_seconds": 0.462978771,
+      "timer_armed_before_spawn": true,
+      "artifact_unchanged": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "minimum_free_bytes": 74315595776,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-ec3e9e55ba9eec6c",
+        "command_binding::source_transition_advice::source_point::conditional_region_purpose_controls::conditional_region_purpose_refuses_a_genuine_whole_child",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "elapsed_seconds": 1.406533925,
+      "timer_armed_before_spawn": true,
+      "artifact_unchanged": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "minimum_free_bytes": 74315563008,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-ec3e9e55ba9eec6c",
+        "registry_invocation::source_remote_first_operand::tests::intrinsic_conditional_refuses_source_effect_and_transition_overrides",
+        "--exact",
+        "--list",
+        "--format",
+        "terse"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "elapsed_seconds": 0.461092045,
+      "timer_armed_before_spawn": true,
+      "artifact_unchanged": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "minimum_free_bytes": 74315554816,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-ec3e9e55ba9eec6c",
+        "registry_invocation::source_remote_first_operand::tests::intrinsic_conditional_refuses_source_effect_and_transition_overrides",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "elapsed_seconds": 0.462677749,
+      "timer_armed_before_spawn": true,
+      "artifact_unchanged": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "minimum_free_bytes": 74315546624,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-ec3e9e55ba9eec6c",
+        "registry_invocation::source_remote_first_operand::tests::first_remote_operand_retains_exact_source_owners_and_stops_at_the_call",
+        "--exact",
+        "--list",
+        "--format",
+        "terse"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "elapsed_seconds": 0.461720941,
+      "timer_armed_before_spawn": true,
+      "artifact_unchanged": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "minimum_free_bytes": 74315538432,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-ec3e9e55ba9eec6c",
+        "registry_invocation::source_remote_first_operand::tests::first_remote_operand_retains_exact_source_owners_and_stops_at_the_call",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "elapsed_seconds": 2.798292839,
+      "timer_armed_before_spawn": true,
+      "artifact_unchanged": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "minimum_free_bytes": 74315108352,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-ec3e9e55ba9eec6c",
+        "registry_invocation::source_remote_first_operand::tests::first_remote_operand_preserves_supported_true_same_frame_source_body",
+        "--exact",
+        "--list",
+        "--format",
+        "terse"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "elapsed_seconds": 0.462112924,
+      "timer_armed_before_spawn": true,
+      "artifact_unchanged": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "minimum_free_bytes": 74315100160,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-ec3e9e55ba9eec6c",
+        "registry_invocation::source_remote_first_operand::tests::first_remote_operand_preserves_supported_true_same_frame_source_body",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "complete": true,
+      "exit_code": 101,
+      "elapsed_seconds": 3.959602035,
+      "timer_armed_before_spawn": true,
+      "artifact_unchanged": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "minimum_free_bytes": 74314514432,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-ec3e9e55ba9eec6c",
+        "registry_invocation::source_remote_first_operand::tests::first_remote_operand_withdraws_opaque_observer_write_and_foreign_body_paths",
+        "--exact",
+        "--list",
+        "--format",
+        "terse"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "elapsed_seconds": 0.462119292,
+      "timer_armed_before_spawn": true,
+      "artifact_unchanged": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "minimum_free_bytes": 74314506240,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-ec3e9e55ba9eec6c",
+        "registry_invocation::source_remote_first_operand::tests::first_remote_operand_withdraws_opaque_observer_write_and_foreign_body_paths",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "elapsed_seconds": 29.954979833,
+      "timer_armed_before_spawn": true,
+      "artifact_unchanged": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "minimum_free_bytes": 74309177344,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-ec3e9e55ba9eec6c",
+        "command_binding::normal_result::tests::scoped_procedure_equivalence_keeps_a_genuine_conditional_body_entry",
+        "--exact",
+        "--list",
+        "--format",
+        "terse"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "elapsed_seconds": 0.461558916,
+      "timer_armed_before_spawn": true,
+      "artifact_unchanged": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "minimum_free_bytes": 74309169152,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-ec3e9e55ba9eec6c",
+        "command_binding::normal_result::tests::scoped_procedure_equivalence_keeps_a_genuine_conditional_body_entry",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "elapsed_seconds": 0.97798965,
+      "timer_armed_before_spawn": true,
+      "artifact_unchanged": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "minimum_free_bytes": 74309156864,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-ec3e9e55ba9eec6c",
+        "command_binding::source_transition_advice::source_point::quiet_variable_normal_graph_controls::normal_source_outcome_requires_actual_quiet_variable_effects",
+        "--exact",
+        "--list",
+        "--format",
+        "terse"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "elapsed_seconds": 0.46169548,
+      "timer_armed_before_spawn": true,
+      "artifact_unchanged": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "minimum_free_bytes": 74309148672,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-ec3e9e55ba9eec6c",
+        "command_binding::source_transition_advice::source_point::quiet_variable_normal_graph_controls::normal_source_outcome_requires_actual_quiet_variable_effects",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "elapsed_seconds": 20.570224443,
+      "timer_armed_before_spawn": true,
+      "artifact_unchanged": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "minimum_free_bytes": 74309132288,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-ec3e9e55ba9eec6c",
+        "command_binding::source_transition_advice::source_point::quiet_variable_normal_graph_controls::normal_source_outcome_refuses_foreign_equal_source_and_changed_config",
+        "--exact",
+        "--list",
+        "--format",
+        "terse"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "elapsed_seconds": 0.461453365,
+      "timer_armed_before_spawn": true,
+      "artifact_unchanged": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "minimum_free_bytes": 74309144576,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-ec3e9e55ba9eec6c",
+        "command_binding::source_transition_advice::source_point::quiet_variable_normal_graph_controls::normal_source_outcome_refuses_foreign_equal_source_and_changed_config",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "elapsed_seconds": 1.76342363,
+      "timer_armed_before_spawn": true,
+      "artifact_unchanged": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "minimum_free_bytes": 74309132288,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-ec3e9e55ba9eec6c",
+        "registry_invocation::source_remote_first_operand::tests::vendor_source_effect_summary_keeps_native_dialect_unavailable",
+        "--exact",
+        "--list",
+        "--format",
+        "terse"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "elapsed_seconds": 0.462735089,
+      "timer_armed_before_spawn": true,
+      "artifact_unchanged": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "minimum_free_bytes": 74309115904,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-ec3e9e55ba9eec6c",
+        "registry_invocation::source_remote_first_operand::tests::vendor_source_effect_summary_keeps_native_dialect_unavailable",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "elapsed_seconds": 3.410952889,
+      "timer_armed_before_spawn": true,
+      "artifact_unchanged": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "minimum_free_bytes": 74308677632,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-ec3e9e55ba9eec6c",
+        "analyser::diagnostics::fp::sh::fp_sh_21_braced_list_literal_in_foreach_silent",
+        "--exact",
+        "--list",
+        "--format",
+        "terse"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "elapsed_seconds": 0.463276834,
+      "timer_armed_before_spawn": true,
+      "artifact_unchanged": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "minimum_free_bytes": 74308669440,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-ec3e9e55ba9eec6c",
+        "analyser::diagnostics::fp::sh::fp_sh_21_braced_list_literal_in_foreach_silent",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "elapsed_seconds": 2.69701251,
+      "timer_armed_before_spawn": true,
+      "artifact_unchanged": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "minimum_free_bytes": 74308657152,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-ec3e9e55ba9eec6c",
+        "analyser::diagnostics::fp::sh::fp_sh_21_committed_dict_in_foreach_still_fires",
+        "--exact",
+        "--list",
+        "--format",
+        "terse"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "elapsed_seconds": 0.463068202,
+      "timer_armed_before_spawn": true,
+      "artifact_unchanged": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "minimum_free_bytes": 74308648960,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-ec3e9e55ba9eec6c",
+        "analyser::diagnostics::fp::sh::fp_sh_21_committed_dict_in_foreach_still_fires",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "elapsed_seconds": 2.291781254,
+      "timer_armed_before_spawn": true,
+      "artifact_unchanged": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "minimum_free_bytes": 74308640768,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-ec3e9e55ba9eec6c",
+        "analyser::diagnostics::fp::sh::fp_sh_21_committed_list_as_string_still_fires",
+        "--exact",
+        "--list",
+        "--format",
+        "terse"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "elapsed_seconds": 0.463397498,
+      "timer_armed_before_spawn": true,
+      "artifact_unchanged": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "minimum_free_bytes": 74308624384,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-ec3e9e55ba9eec6c",
+        "analyser::diagnostics::fp::sh::fp_sh_21_committed_list_as_string_still_fires",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "elapsed_seconds": 1.899735955,
+      "timer_armed_before_spawn": true,
+      "artifact_unchanged": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "minimum_free_bytes": 74308608000,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-ec3e9e55ba9eec6c",
+        "analyser::diagnostics::fp::sh::fp_sh_21_dict_literal_in_dict_for_silent",
+        "--exact",
+        "--list",
+        "--format",
+        "terse"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "elapsed_seconds": 0.46208585,
+      "timer_armed_before_spawn": true,
+      "artifact_unchanged": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "minimum_free_bytes": 74308599808,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-ec3e9e55ba9eec6c",
+        "analyser::diagnostics::fp::sh::fp_sh_21_dict_literal_in_dict_for_silent",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "elapsed_seconds": 2.602100177,
+      "timer_armed_before_spawn": true,
+      "artifact_unchanged": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "minimum_free_bytes": 74308591616,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-ec3e9e55ba9eec6c",
+        "analyser::diagnostics::fp::sh::fp_sh_21_empty_braces_in_foreach_silent",
+        "--exact",
+        "--list",
+        "--format",
+        "terse"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "elapsed_seconds": 0.467640092,
+      "timer_armed_before_spawn": true,
+      "artifact_unchanged": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "minimum_free_bytes": 74308583424,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-ec3e9e55ba9eec6c",
+        "analyser::diagnostics::fp::sh::fp_sh_21_empty_braces_in_foreach_silent",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "elapsed_seconds": 2.26008535,
+      "timer_armed_before_spawn": true,
+      "artifact_unchanged": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "minimum_free_bytes": 74308575232,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-ec3e9e55ba9eec6c",
+        "analyser::diagnostics::fp::sh::fp_sh_21_incr_on_non_integer_literal_still_fires",
+        "--exact",
+        "--list",
+        "--format",
+        "terse"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "elapsed_seconds": 0.462890847,
+      "timer_armed_before_spawn": true,
+      "artifact_unchanged": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "minimum_free_bytes": 74308567040,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-ec3e9e55ba9eec6c",
+        "analyser::diagnostics::fp::sh::fp_sh_21_incr_on_non_integer_literal_still_fires",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "complete": true,
+      "exit_code": 101,
+      "elapsed_seconds": 2.099070623,
+      "timer_armed_before_spawn": true,
+      "artifact_unchanged": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "minimum_free_bytes": 74308554752,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-ec3e9e55ba9eec6c",
+        "analyser::diagnostics::fp::sh::fp_sh_21_scalar_literal_as_list_silent",
+        "--exact",
+        "--list",
+        "--format",
+        "terse"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "elapsed_seconds": 0.463181369,
+      "timer_armed_before_spawn": true,
+      "artifact_unchanged": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "minimum_free_bytes": 74308546560,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-ec3e9e55ba9eec6c",
+        "analyser::diagnostics::fp::sh::fp_sh_21_scalar_literal_as_list_silent",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "complete": true,
+      "exit_code": 101,
+      "elapsed_seconds": 2.508018956,
+      "timer_armed_before_spawn": true,
+      "artifact_unchanged": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "minimum_free_bytes": 74308534272,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-ec3e9e55ba9eec6c",
+        "analyser::diagnostics::fp::tnt::fp_tnt_03_eval_list_literal_head_no_t100",
+        "--exact",
+        "--list",
+        "--format",
+        "terse"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "elapsed_seconds": 0.462716261,
+      "timer_armed_before_spawn": true,
+      "artifact_unchanged": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "minimum_free_bytes": 74308526080,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-ec3e9e55ba9eec6c",
+        "analyser::diagnostics::fp::tnt::fp_tnt_03_eval_list_literal_head_no_t100",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "elapsed_seconds": 1.825646893,
+      "timer_armed_before_spawn": true,
+      "artifact_unchanged": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "minimum_free_bytes": 74308517888,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-ec3e9e55ba9eec6c",
+        "analyser::diagnostics::fp::tnt::fp_tnt_03_eval_list_tainted_head_fires_t100",
+        "--exact",
+        "--list",
+        "--format",
+        "terse"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "elapsed_seconds": 0.463181166,
+      "timer_armed_before_spawn": true,
+      "artifact_unchanged": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "minimum_free_bytes": 74308509696,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-ec3e9e55ba9eec6c",
+        "analyser::diagnostics::fp::tnt::fp_tnt_03_eval_list_tainted_head_fires_t100",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "elapsed_seconds": 1.824254885,
+      "timer_armed_before_spawn": true,
+      "artifact_unchanged": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "minimum_free_bytes": 74308501504,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-ec3e9e55ba9eec6c",
+        "analyser::diagnostics::fp::tnt::fp_tnt_03_eval_list_via_var_still_fires",
+        "--exact",
+        "--list",
+        "--format",
+        "terse"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "elapsed_seconds": 0.462996306,
+      "timer_armed_before_spawn": true,
+      "artifact_unchanged": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "minimum_free_bytes": 74308493312,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-ec3e9e55ba9eec6c",
+        "analyser::diagnostics::fp::tnt::fp_tnt_03_eval_list_via_var_still_fires",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "elapsed_seconds": 2.227290092,
+      "timer_armed_before_spawn": true,
+      "artifact_unchanged": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "minimum_free_bytes": 74308485120,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-ec3e9e55ba9eec6c",
+        "analyser::diagnostics::fp::tnt::fp_tnt_03_interp_eval_list_literal_head_no_t105",
+        "--exact",
+        "--list",
+        "--format",
+        "terse"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "elapsed_seconds": 0.463084527,
+      "timer_armed_before_spawn": true,
+      "artifact_unchanged": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "minimum_free_bytes": 74308472832,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-ec3e9e55ba9eec6c",
+        "analyser::diagnostics::fp::tnt::fp_tnt_03_interp_eval_list_literal_head_no_t105",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "elapsed_seconds": 1.815987116,
+      "timer_armed_before_spawn": true,
+      "artifact_unchanged": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "minimum_free_bytes": 74308460544,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-ec3e9e55ba9eec6c",
+        "analyser::diagnostics::fp::tnt::fp_tnt_03_interp_eval_list_tainted_head_fires_t105",
+        "--exact",
+        "--list",
+        "--format",
+        "terse"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "elapsed_seconds": 0.463218945,
+      "timer_armed_before_spawn": true,
+      "artifact_unchanged": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "minimum_free_bytes": 74308452352,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-ec3e9e55ba9eec6c",
+        "analyser::diagnostics::fp::tnt::fp_tnt_03_interp_eval_list_tainted_head_fires_t105",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "elapsed_seconds": 1.801253343,
+      "timer_armed_before_spawn": true,
+      "artifact_unchanged": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "minimum_free_bytes": 74308444160,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-ec3e9e55ba9eec6c",
+        "analyser::diagnostics::fp::tnt::fp_tnt_03_uplevel_list_tainted_head_fires_t100",
+        "--exact",
+        "--list",
+        "--format",
+        "terse"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "elapsed_seconds": 0.464136365,
+      "timer_armed_before_spawn": true,
+      "artifact_unchanged": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "minimum_free_bytes": 74308435968,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-ec3e9e55ba9eec6c",
+        "analyser::diagnostics::fp::tnt::fp_tnt_03_uplevel_list_tainted_head_fires_t100",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "elapsed_seconds": 1.766093702,
+      "timer_armed_before_spawn": true,
+      "artifact_unchanged": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "minimum_free_bytes": 74308427776,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-ec3e9e55ba9eec6c",
+        "analyser::diagnostics::fp::rbs::fp_rbs_15_all_break_switch_not_a_proc_terminator",
+        "--exact",
+        "--list",
+        "--format",
+        "terse"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "elapsed_seconds": 0.463279529,
+      "timer_armed_before_spawn": true,
+      "artifact_unchanged": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "minimum_free_bytes": 74308419584,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-ec3e9e55ba9eec6c",
+        "analyser::diagnostics::fp::rbs::fp_rbs_15_all_break_switch_not_a_proc_terminator",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "complete": true,
+      "exit_code": 101,
+      "elapsed_seconds": 3.752299818,
+      "timer_armed_before_spawn": true,
+      "artifact_unchanged": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "minimum_free_bytes": 74305568768,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-ec3e9e55ba9eec6c",
+        "analyser::diagnostics::fp::rbs::fp_rbs_15_while1_break_in_opaque_switch_exits_loop",
+        "--exact",
+        "--list",
+        "--format",
+        "terse"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "elapsed_seconds": 0.462572429,
+      "timer_armed_before_spawn": true,
+      "artifact_unchanged": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "minimum_free_bytes": 74305556480,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-ec3e9e55ba9eec6c",
+        "analyser::diagnostics::fp::rbs::fp_rbs_15_while1_break_in_opaque_switch_exits_loop",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "complete": true,
+      "exit_code": 101,
+      "elapsed_seconds": 4.111223138,
+      "timer_armed_before_spawn": true,
+      "artifact_unchanged": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "minimum_free_bytes": 74302148608,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-ec3e9e55ba9eec6c",
+        "analyser::diagnostics::tests::fp_rbs_15_all_exiting_opaque_switch_is_a_terminator",
+        "--exact",
+        "--list",
+        "--format",
+        "terse"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "elapsed_seconds": 0.462437561,
+      "timer_armed_before_spawn": true,
+      "artifact_unchanged": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "minimum_free_bytes": 74302140416,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-ec3e9e55ba9eec6c",
+        "analyser::diagnostics::tests::fp_rbs_15_all_exiting_opaque_switch_is_a_terminator",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "complete": true,
+      "exit_code": 101,
+      "elapsed_seconds": 12.790971787,
+      "timer_armed_before_spawn": true,
+      "artifact_unchanged": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "minimum_free_bytes": 74297839616,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-ec3e9e55ba9eec6c",
+        "ir::source_bpf_command::tests::closed_bpf_effects_keep_script_module_registry_and_config_current",
+        "--exact",
+        "--list",
+        "--format",
+        "terse"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "elapsed_seconds": 0.462788418,
+      "timer_armed_before_spawn": true,
+      "artifact_unchanged": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "minimum_free_bytes": 74297823232,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-ec3e9e55ba9eec6c",
+        "ir::source_bpf_command::tests::closed_bpf_effects_keep_script_module_registry_and_config_current",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "elapsed_seconds": 0.837889484,
+      "timer_armed_before_spawn": true,
+      "artifact_unchanged": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "minimum_free_bytes": 74297815040,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-ec3e9e55ba9eec6c",
+        "ir::source_bpf_command::tests::closed_bpf_effects_refuse_missing_selection_and_effectful_conditions",
+        "--exact",
+        "--list",
+        "--format",
+        "terse"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "elapsed_seconds": 0.463435087,
+      "timer_armed_before_spawn": true,
+      "artifact_unchanged": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "minimum_free_bytes": 74297806848,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-ec3e9e55ba9eec6c",
+        "ir::source_bpf_command::tests::closed_bpf_effects_refuse_missing_selection_and_effectful_conditions",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "elapsed_seconds": 0.728966437,
+      "timer_armed_before_spawn": true,
+      "artifact_unchanged": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "minimum_free_bytes": 74297798656,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-ec3e9e55ba9eec6c",
+        "ir::source_bpf_command::tests::closed_bpf_effects_refuse_over_budget_scalar_tree",
+        "--exact",
+        "--list",
+        "--format",
+        "terse"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "elapsed_seconds": 0.462724872,
+      "timer_armed_before_spawn": true,
+      "artifact_unchanged": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "minimum_free_bytes": 74297790464,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-ec3e9e55ba9eec6c",
+        "ir::source_bpf_command::tests::closed_bpf_effects_refuse_over_budget_scalar_tree",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "elapsed_seconds": 0.463753331,
+      "timer_armed_before_spawn": true,
+      "artifact_unchanged": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "minimum_free_bytes": 74297774080,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-ec3e9e55ba9eec6c",
+        "command_binding::declaration_layout::tests::declaration_layout_keeps_its_original_table_without_a_compiler_visit",
+        "--exact",
+        "--list",
+        "--format",
+        "terse"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "elapsed_seconds": 0.462568821,
+      "timer_armed_before_spawn": true,
+      "artifact_unchanged": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "minimum_free_bytes": 74297765888,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-ec3e9e55ba9eec6c",
+        "command_binding::declaration_layout::tests::declaration_layout_keeps_its_original_table_without_a_compiler_visit",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "elapsed_seconds": 0.749571974,
+      "timer_armed_before_spawn": true,
+      "artifact_unchanged": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "minimum_free_bytes": 74297745408,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-ec3e9e55ba9eec6c",
+        "command_binding::lifecycle_advice::tests::scoped_lifecycle_coverage_keeps_declared_issuer_frame_and_original_source",
+        "--exact",
+        "--list",
+        "--format",
+        "terse"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "elapsed_seconds": 0.466023385,
+      "timer_armed_before_spawn": true,
+      "artifact_unchanged": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "minimum_free_bytes": 74297737216,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-ec3e9e55ba9eec6c",
+        "command_binding::lifecycle_advice::tests::scoped_lifecycle_coverage_keeps_declared_issuer_frame_and_original_source",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "elapsed_seconds": 3.643735371,
+      "timer_armed_before_spawn": true,
+      "artifact_unchanged": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "minimum_free_bytes": 74297724928,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-ec3e9e55ba9eec6c",
+        "command_binding::original_body_namespace::tests::original_immediate_body_namespace_keeps_actual_native_conditional_and_error_prefix",
+        "--exact",
+        "--list",
+        "--format",
+        "terse"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "elapsed_seconds": 0.462687121,
+      "timer_armed_before_spawn": true,
+      "artifact_unchanged": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "minimum_free_bytes": 74297716736,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-ec3e9e55ba9eec6c",
+        "command_binding::original_body_namespace::tests::original_immediate_body_namespace_keeps_actual_native_conditional_and_error_prefix",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "complete": false,
+      "exit_code": -2,
+      "elapsed_seconds": 8.741913132,
+      "timer_armed_before_spawn": true,
+      "artifact_unchanged": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "minimum_free_bytes": 74295320576,
+      "stop_reason": "aggregate_log_cap_exceeded"
+    }
+  ],
+  "limits": [
+    "Strict selected compiler library executable compiled with zero warning/error cargo messages; not a compiler-wide Clippy/alltargets gate.",
+    "Only50 original tests closed; raw RUNNING is a stopped capture, not a functional FAIL, timeout or accepted row. Exact original body namespace test interrupted by aggregate log cap after8.742s; final lifecycle records owned process-group cleanup, source/provider/dependency/tool/artifact seals remain equal.",
+    "No current Native35 supplemental case ran, and integration targets taint/optimiser/var_escape/BPF never built or ran. All original guards/assertions remain.",
+    "Six observed functional failures are real current assertion failures; historical40PASS18FAIL remains distinct. No full58/fullsharedprocess/runtime/performance/release acceptance."
+  ]
+}

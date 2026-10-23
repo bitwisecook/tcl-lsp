@@ -1,0 +1,119 @@
+{
+  "publisher_head": "eda34e35169f8cab38fd1384b03f790672c3ac18",
+  "run_source": "696ea5483a44d3f4dae77e04bec91a40a48a6ae5",
+  "joins": [
+    {
+      "path": "rust/tcl-lsp-core/src/namespace_rename.rs",
+      "observed_snapshot_sha256": "a0735699fa93c794f3cfe468fb32c4846795b0f16445c916e6fad45e56b47011",
+      "current_head": "eda34e35169f8cab38fd1384b03f790672c3ac18",
+      "current_blob_sha256": "a0735699fa93c794f3cfe468fb32c4846795b0f16445c916e6fad45e56b47011",
+      "same_bytes_as_observed_source": true
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/namespace_rename/original.rs",
+      "observed_snapshot_sha256": "2f3fcb4b5cab72b02a22af9b15bc9ed767558897a11e2284302cbdb71e25efb5",
+      "current_head": "eda34e35169f8cab38fd1384b03f790672c3ac18",
+      "current_blob_sha256": "2f3fcb4b5cab72b02a22af9b15bc9ed767558897a11e2284302cbdb71e25efb5",
+      "same_bytes_as_observed_source": true
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/original_command_rename.rs",
+      "observed_snapshot_sha256": "dfd2ab259695507fe6d0f282c630b1b0598571a300a7da99e33f751ee83f7bab",
+      "current_head": "eda34e35169f8cab38fd1384b03f790672c3ac18",
+      "current_blob_sha256": "dfd2ab259695507fe6d0f282c630b1b0598571a300a7da99e33f751ee83f7bab",
+      "same_bytes_as_observed_source": true
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/original_command_rename/linked_authoring.rs",
+      "observed_snapshot_sha256": "6ef6c061381291dc0f40e4ff705cbfdf5f97b80167e4752ef71dfe000eef0f96",
+      "current_head": "eda34e35169f8cab38fd1384b03f790672c3ac18",
+      "current_blob_sha256": "6ef6c061381291dc0f40e4ff705cbfdf5f97b80167e4752ef71dfe000eef0f96",
+      "same_bytes_as_observed_source": true
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/original_member_rename.rs",
+      "observed_snapshot_sha256": "f84ddb6bb56e795da09384f9aee7f2c680134505e54bf37be4ffef5eab8d88c6",
+      "current_head": "eda34e35169f8cab38fd1384b03f790672c3ac18",
+      "current_blob_sha256": "f84ddb6bb56e795da09384f9aee7f2c680134505e54bf37be4ffef5eab8d88c6",
+      "same_bytes_as_observed_source": true
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/package_resolver/reachability/original.rs",
+      "observed_snapshot_sha256": "fd7f7d0e6372c769f6bc8d2bea77a2f8727e68390677b25557dd8db7842d539a",
+      "current_head": "eda34e35169f8cab38fd1384b03f790672c3ac18",
+      "current_blob_sha256": "fd7f7d0e6372c769f6bc8d2bea77a2f8727e68390677b25557dd8db7842d539a",
+      "same_bytes_as_observed_source": true
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/refactor/inline_proc.rs",
+      "observed_snapshot_sha256": "2714c22ce4e745a93d088da385242ee07ddc394ad884dee09b6df2210aa42118",
+      "current_head": "eda34e35169f8cab38fd1384b03f790672c3ac18",
+      "current_blob_sha256": "2714c22ce4e745a93d088da385242ee07ddc394ad884dee09b6df2210aa42118",
+      "same_bytes_as_observed_source": true
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/refactor/inline_variable.rs",
+      "observed_snapshot_sha256": "3ad1baae199e7d50af383b5457010ffd4e41088996e54d2c413b130da6c18c55",
+      "current_head": "eda34e35169f8cab38fd1384b03f790672c3ac18",
+      "current_blob_sha256": "3ad1baae199e7d50af383b5457010ffd4e41088996e54d2c413b130da6c18c55",
+      "same_bytes_as_observed_source": true
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/rename.rs",
+      "observed_snapshot_sha256": "045c666b6da6d5f9e767df91f7d4d8aff195fd1902f2b064a443f175f53e42ae",
+      "current_head": "eda34e35169f8cab38fd1384b03f790672c3ac18",
+      "current_blob_sha256": "045c666b6da6d5f9e767df91f7d4d8aff195fd1902f2b064a443f175f53e42ae",
+      "same_bytes_as_observed_source": true
+    },
+    {
+      "path": "rust/tcl-lsp-db/tests/overlay_generations.rs",
+      "observed_snapshot_sha256": "5f657dde46de0a61f6da7c7816ccda278f02eea4221640f505053d98ce97e20a",
+      "current_head": "eda34e35169f8cab38fd1384b03f790672c3ac18",
+      "current_blob_sha256": "5f657dde46de0a61f6da7c7816ccda278f02eea4221640f505053d98ce97e20a",
+      "same_bytes_as_observed_source": true
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/current_diagnostics.rs",
+      "observed_snapshot_sha256": "042ad291d4a8f151be8d6e86efe0de72bab63d0e0c1c13906c3e0079578d1b5f",
+      "current_head": "eda34e35169f8cab38fd1384b03f790672c3ac18",
+      "current_blob_sha256": "042ad291d4a8f151be8d6e86efe0de72bab63d0e0c1c13906c3e0079578d1b5f",
+      "same_bytes_as_observed_source": true
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/lib.rs",
+      "observed_snapshot_sha256": "abdfb49b34b24e66ba8ece8f953c9c947f72999452e2ae5689c0a8cff7c3e9af",
+      "current_head": "eda34e35169f8cab38fd1384b03f790672c3ac18",
+      "current_blob_sha256": "abdfb49b34b24e66ba8ece8f953c9c947f72999452e2ae5689c0a8cff7c3e9af",
+      "same_bytes_as_observed_source": true
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/original_document_metadata_tests.rs",
+      "observed_snapshot_sha256": "0335349ad01f6ba770f1a8204bf7378a9f17581eb94a12ba9653ecf6f598b8c1",
+      "current_head": "eda34e35169f8cab38fd1384b03f790672c3ac18",
+      "current_blob_sha256": "0335349ad01f6ba770f1a8204bf7378a9f17581eb94a12ba9653ecf6f598b8c1",
+      "same_bytes_as_observed_source": true
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/original_document_path_admission_tests.rs",
+      "observed_snapshot_sha256": "a974296ed981e2973232f20e822482295a42a01a45d2140c208e9555f794dd6d",
+      "current_head": "eda34e35169f8cab38fd1384b03f790672c3ac18",
+      "current_blob_sha256": "a974296ed981e2973232f20e822482295a42a01a45d2140c208e9555f794dd6d",
+      "same_bytes_as_observed_source": true
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/readonly_reference_reports.rs",
+      "observed_snapshot_sha256": "8e1a56c772128a1cfba9c77323c013c7236b4aa092e2db30d92ed44f510e81b6",
+      "current_head": "eda34e35169f8cab38fd1384b03f790672c3ac18",
+      "current_blob_sha256": "8e1a56c772128a1cfba9c77323c013c7236b4aa092e2db30d92ed44f510e81b6",
+      "same_bytes_as_observed_source": true
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/readonly_reference_reports/source_views.rs",
+      "observed_snapshot_sha256": "4bb70dd893bfccc97a5c5e2414999fbe850300d55239aaa9de7e7ece782fa586",
+      "current_head": "eda34e35169f8cab38fd1384b03f790672c3ac18",
+      "current_blob_sha256": "4bb70dd893bfccc97a5c5e2414999fbe850300d55239aaa9de7e7ece782fa586",
+      "same_bytes_as_observed_source": true
+    }
+  ],
+  "limits": "File-level byte join only. Changed bytes do not prove finding resolution; same bytes do not imply all target coverage."
+}

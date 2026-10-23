@@ -1,0 +1,169 @@
+{
+  "created_utc": "2026-10-23T21:28:32.082688+00:00",
+  "status": "ACTUAL_STRICT_BUILD_BLOCKED_ORIGINAL58_AND_SUPPLEMENTAL3_ALL_UNRUN",
+  "repository": "bitwisecook/tcl-lsp",
+  "run_id": 40024819959,
+  "job_id": 120658264303,
+  "artifact_id": 12532313610,
+  "source_commit": "5177abd3bed0204a0700767ff8c5b51d3eb58f10",
+  "artifact_zip_sha256": "09242f51a56c810793f8c4a9f0bc8582b110dfdedb9cc60c4753a946bec89fe9",
+  "artifact_zip_bytes": 10793128,
+  "independently_recomputed_seals": {
+    "source_equal": true,
+    "source_files": 125188,
+    "providers_equal": true,
+    "provider_entries": 10202,
+    "dependencies_equal": true,
+    "dependency_entries": 21500,
+    "job_tools_equal_after": true,
+    "tool_entries": 18,
+    "test_artifact_seal": false,
+    "reason": "No selected test executable built; final reports artifacts false."
+  },
+  "source_attribution": {
+    "path": "rust/tcl-lsp-core/src/minify/original.rs",
+    "actual_source_sha256": "361002c3c3ea908ec5fc311a6a33ebf7819650f74d4866a935e6b1f8ec143673",
+    "raw_cargo_compiler_message": {
+      "rendered": "error: unused variable: `output`\n   --> rust/tcl-lsp-core/src/minify/original.rs:726:5\n    |\n726 |     output: &str,\n    |     ^^^^^^ help: if this is intentional, prefix it with an underscore: `_output`\n    |\n    = note: `-D unused-variables` implied by `-D warnings`\n    = help: to override `-D warnings` add `#[allow(unused_variables)]`\n\n",
+      "$message_type": "diagnostic",
+      "children": [
+        {
+          "children": [],
+          "code": null,
+          "level": "note",
+          "message": "`-D unused-variables` implied by `-D warnings`",
+          "rendered": null,
+          "spans": []
+        },
+        {
+          "children": [],
+          "code": null,
+          "level": "help",
+          "message": "to override `-D warnings` add `#[allow(unused_variables)]`",
+          "rendered": null,
+          "spans": []
+        },
+        {
+          "children": [],
+          "code": null,
+          "level": "help",
+          "message": "if this is intentional, prefix it with an underscore",
+          "rendered": null,
+          "spans": [
+            {
+              "byte_end": 29968,
+              "byte_start": 29962,
+              "column_end": 11,
+              "column_start": 5,
+              "expansion": null,
+              "file_name": "rust/tcl-lsp-core/src/minify/original.rs",
+              "is_primary": true,
+              "label": null,
+              "line_end": 726,
+              "line_start": 726,
+              "suggested_replacement": "_output",
+              "suggestion_applicability": "MachineApplicable",
+              "text": [
+                {
+                  "highlight_end": 11,
+                  "highlight_start": 5,
+                  "text": "    output: &str,"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "level": "error",
+      "message": "unused variable: `output`",
+      "spans": [
+        {
+          "byte_end": 29968,
+          "byte_start": 29962,
+          "column_end": 11,
+          "column_start": 5,
+          "expansion": null,
+          "file_name": "rust/tcl-lsp-core/src/minify/original.rs",
+          "is_primary": true,
+          "label": null,
+          "line_end": 726,
+          "line_start": 726,
+          "suggested_replacement": null,
+          "suggestion_applicability": null,
+          "text": [
+            {
+              "highlight_end": 11,
+              "highlight_start": 5,
+              "text": "    output: &str,"
+            }
+          ]
+        }
+      ],
+      "code": {
+        "code": "unused_variables",
+        "explanation": null
+      }
+    },
+    "introduced_component": "Minify3V5 borrowed validator helper output parameter unused; earlier static peer failed to notice signature-only warning."
+  },
+  "outcomes": {
+    "original58": {
+      "required": 58,
+      "closed": 0,
+      "UNRUN": 58
+    },
+    "supplemental_native35": {
+      "required": 3,
+      "closed": 0,
+      "UNRUN": 3
+    }
+  },
+  "process_lifecycle": [
+    {
+      "argv": [
+        "/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo",
+        "fetch",
+        "--locked",
+        "--target",
+        "x86_64-unknown-linux-gnu"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "elapsed_seconds": 7.764814775,
+      "timer_armed_before_spawn": true,
+      "artifact_unchanged": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "minimum_free_bytes": 75840196608
+    },
+    {
+      "argv": [
+        "/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo",
+        "test",
+        "--locked",
+        "-p",
+        "tcl-compiler",
+        "--lib",
+        "--no-run",
+        "--message-format=json",
+        "-j",
+        "2"
+      ],
+      "complete": true,
+      "exit_code": 101,
+      "elapsed_seconds": 106.766407756,
+      "timer_armed_before_spawn": true,
+      "artifact_unchanged": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "minimum_free_bytes": 74709487616
+    }
+  ],
+  "reported_final_errors": [],
+  "minimum_repair": "/workspace/naming-proof-storage/compiler-clippy/actual-minify-unused-output-repair-v1",
+  "limits": [
+    "No actual test execution, no current C6/native35 private first-refusal stage, no acceptance/gategreen.",
+    "Historical897b40PASS18FAIL and laterb6report4 scopedPASS remain distinct.",
+    "All process seals/source/providers/tools/dependencies authenticate this blocked actual only; missing testartifact is explicit."
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "status": "PASS",
+  "manifest_sha256": "9a1b84beb5fa8c4c110dfe80ca46cf7d1a4d766a3592218cf2b917ff8b098e58",
+  "source_commit": "696ea5483a44d3f4dae77e04bec91a40a48a6ae5",
+  "expected_source_commit": "696ea5483a44d3f4dae77e04bec91a40a48a6ae5",
+  "expected_file_count": 125215,
+  "current_tracked_file_count": 125215,
+  "checked_file_count": 125215,
+  "matched_file_count": 125215,
+  "stable_membership_during_verification": true,
+  "missing_tracked_paths": [],
+  "extra_tracked_paths": [],
+  "checksum_mismatches": [],
+  "read_errors": []
+}
