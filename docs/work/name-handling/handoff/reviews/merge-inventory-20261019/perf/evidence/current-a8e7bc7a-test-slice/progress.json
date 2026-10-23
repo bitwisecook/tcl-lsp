@@ -94,7 +94,66 @@
       },
       "exit": 0,
       "wall_s": 249.9238247871399
+    },
+    {
+      "label": "smoke-mixed",
+      "argv": [
+        "/workspace/tcl-lsp-perf-latest/target/debug/examples/zz_authenticated_perfprobe",
+        "files",
+        "samples/diagnostics/E003_proc_call_arity/example.tcl",
+        "rust/tcl-compiler/tests/data/name-consumers/aliases.tcl"
+      ],
+      "extra_env": {},
+      "exit": 0,
+      "wall_s": 266.5912718772888
+    },
+    {
+      "label": "hosted-old",
+      "argv": [
+        "/workspace/tcl-lsp-perf-latest/target/debug/examples/zz_authenticated_perfprobe",
+        "files",
+        "samples/irules/cookbook_http_collect.irul"
+      ],
+      "extra_env": {
+        "ZZ_OLD_ENV": "1",
+        "ZZ_DIALECT": "f5-irules"
+      },
+      "exit": 101,
+      "wall_s": 570.5315892696381
+    },
+    {
+      "label": "hosted-mixed",
+      "argv": [
+        "/workspace/tcl-lsp-perf-latest/target/debug/examples/zz_authenticated_perfprobe",
+        "files",
+        "samples/irules/cookbook_http_collect.irul"
+      ],
+      "extra_env": {
+        "ZZ_DIALECT": "f5-irules"
+      },
+      "exit": 101,
+      "wall_s": 199.2233121395111
+    },
+    {
+      "label": "synthetic-smoke",
+      "argv": [
+        "/workspace/tcl-lsp-perf-latest/target/debug/examples/zz_authenticated_perfprobe",
+        "calls",
+        "10"
+      ],
+      "extra_env": {},
+      "exit": 0,
+      "wall_s": 68.42076396942139
+    },
+    {
+      "label": "spectcl-threeway",
+      "argv": [
+        "/workspace/tcl-lsp-perf-latest/target/debug/examples/zz_spectclprobe"
+      ],
+      "extra_env": {},
+      "exit": 0,
+      "wall_s": 200.62312626838684
     }
   ],
-  "updated_unix": 1792770839.7444928
+  "updated_unix": 1792772145.3067083
 }

@@ -1,0 +1,129 @@
+from pathlib import Path
+import hashlib,json,os,re,shutil,subprocess,tempfile,time
+os.sched_setaffinity(0,{0,1})
+root=Path('/workspace/tcl-lsp-perf-latest');base=Path('/workspace/tcl-lsp-work/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/perf/evidence/current-a8e7bc7a-test-slice');out=base/'hosted-branch-diagnostic';out.mkdir(exist_ok=True)
+r=json.loads((base/'controls-binary.json').read_text());original=Path(r['path'])
+import mmap,struct
+with original.open('rb') as binary,mmap.mmap(binary.fileno(),0,access=mmap.ACCESS_READ) as image:
+ assert image[:6]==b'\x7fELF\x02\x01'
+ shoff=struct.unpack_from('<Q',image,40)[0];entsize,count=struct.unpack_from('<HH',image,58)
+ sections=[struct.unpack_from('<IIQQQQIIQQ',image,shoff+i*entsize) for i in range(count)]
+ table=next(v for v in sections if v[1]==2);strings=sections[table[6]];lo=strings[4];hi=lo+strings[5]
+ names={};at=lo
+ while True:
+  at=image.find(b'original_when_event_word',at,hi)
+  if at<0:break
+  begin=image.rfind(b'\0',lo,at)+1;end=image.find(b'\0',at,hi)
+  names[begin-lo]=bytes(image[begin:end]);at=end+1
+ assert names
+ chosen=min(names,key=lambda n:len(names[n]));symbol=names[chosen].decode()
+ found=[]
+ for at in range(table[4],table[4]+table[5],table[9]):
+  name,kind,other,section,value,length=struct.unpack_from('<IBBHQQ',image,at)
+  if name==chosen and kind&15==2:found.append((value,length))
+ assert len(found)==1,found
+ start,size=found[0];lines=[hex(start)+' '+hex(size)+' '+symbol]
+
+assembly=subprocess.check_output(['objdump','-d','--start-address='+hex(start),'--stop-address='+hex(start+size),str(original)],text=True)
+(out/'function.asm').write_text(assembly)
+branches=[]
+for line in assembly.splitlines():
+ m=re.match(r'^\s*([0-9a-f]+):\s+((?:[0-9a-f]{2}\s+)+)\s*(j[a-z]+)\s+([0-9a-f]+)',line)
+ if not m or m[3].startswith('jmp'):continue
+ raw=bytes.fromhex(m[2]);address=int(m[1],16)
+ if 0x70<=raw[0]<=0x7f and len(raw)==2:cc=raw[0]&15
+ elif raw[0]==0x0f and 0x80<=raw[1]<=0x8f and len(raw)==6:cc=raw[1]&15
+ else:raise RuntimeError('unsupported conditional instruction '+line)
+ branches.append({'offset':address,'target':int(m[4],16),'next':address+len(raw),'cc':cc,'opcode':raw[0],'assembly':line})
+assert branches
+(out/'branch-table.json').write_text(json.dumps({'function':lines[0],'branches':branches,'scope':'Conditional instruction flags/branches from an isolated test copy; instrumentation is diagnostic only, never test acceptance.'},indent=2)+'\n')
+entries='\n'.join('{UINT64_C(0x%x),UINT64_C(0x%x),UINT64_C(0x%x),%d,%d},'%(b['offset'],b['target'],b['next'],b['cc'],b['opcode']) for b in branches)
+c=r'''/* tcl-lsp temporary diagnostic; SPDX-License-Identifier: AGPL-3.0-or-later */
+#define _GNU_SOURCE
+#include <errno.h>
+#include <link.h>
+#include <signal.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/mman.h>
+#include <ucontext.h>
+#include <unistd.h>
+#if !defined(__x86_64__)
+#error This disposable diagnostic implements AMD64 conditional jumps only.
+#endif
+struct branch {uintptr_t offset,target,next; unsigned cc,opcode;};
+static const struct branch branches[]={ENTRIES};
+static uintptr_t image_base;
+static int base_callback(struct dl_phdr_info *info,size_t size,void *data){
+ (void)size;(void)data;
+ if(!info->dlpi_name || !*info->dlpi_name){image_base=info->dlpi_addr;return 1;}return 0;
+}
+static int condition(unsigned cc,uintptr_t f){
+ int c=(f&1)!=0,p=(f&4)!=0,z=(f&64)!=0,s=(f&128)!=0,o=(f&2048)!=0;
+ switch(cc){case 0:return o;case 1:return !o;case 2:return c;case 3:return !c;
+ case 4:return z;case 5:return !z;case 6:return c||z;case 7:return !c&&!z;
+ case 8:return s;case 9:return !s;case 10:return p;case 11:return !p;
+ case 12:return s!=o;case 13:return s==o;case 14:return z||s!=o;case 15:return !z&&s==o;default:_exit(134);}
+}
+static char *hex(char *p,uintptr_t n){
+ static const char digits[]="0123456789abcdef";*p++='0';*p++='x';
+ for(int i=15;i>=0;--i){*p++=digits[(n>>(i*4))&15];}
+ return p;
+}
+static void trap(int sig,siginfo_t *details,void *context){
+ (void)sig;(void)details;int saved=errno;ucontext_t *u=context;
+ uintptr_t at=(uintptr_t)u->uc_mcontext.gregs[REG_RIP]-image_base-1;
+ for(size_t i=0;i<sizeof branches/sizeof branches[0];++i){
+  const struct branch *b=&branches[i];if(b->offset!=at)continue;
+  uintptr_t flags=(uintptr_t)u->uc_mcontext.gregs[REG_EFL];int taken=condition(b->cc,flags);
+  uintptr_t dest=taken?b->target:b->next;char buffer[180];char *p=buffer;
+  const char *tag="HOSTED_BRANCH pc=";while(*tag)*p++=*tag++;p=hex(p,at);
+  tag=" next=";while(*tag)*p++=*tag++;p=hex(p,dest);
+  tag=" flags=";while(*tag)*p++=*tag++;p=hex(p,flags);
+  tag=" rax=";while(*tag)*p++=*tag++;p=hex(p,(uintptr_t)u->uc_mcontext.gregs[REG_RAX]);
+  tag=" taken=";while(*tag)*p++=*tag++;*p++=taken?'1':'0';*p++='\n';
+  (void)write(2,buffer,(size_t)(p-buffer));
+  /* Jcc changes only RIP. The kernel restores every other saved register,
+     arithmetic flag and FP/vector state on return from this signal. */
+  u->uc_mcontext.gregs[REG_RIP]=(greg_t)(image_base+dest);errno=saved;return;
+ }
+ _exit(133);
+}
+__attribute__((constructor)) static void install(void){
+ const char *target=getenv("PERF_HOSTED_BRANCH_TARGET");char self[4096];
+ ssize_t n=readlink("/proc/self/exe",self,sizeof self-1);if(n<0)return;self[n]=0;
+ if(!target || strcmp(target,self)!=0)return;
+ (void)dl_iterate_phdr(base_callback,NULL);
+ struct sigaction action;memset(&action,0,sizeof action);action.sa_sigaction=trap;
+ action.sa_flags=SA_SIGINFO;sigemptyset(&action.sa_mask);if(sigaction(SIGTRAP,&action,NULL)!=0)_exit(130);
+ long pages=sysconf(_SC_PAGESIZE);uintptr_t lo=(image_base+START)&~((uintptr_t)pages-1);
+ uintptr_t hi=(image_base+START+SIZE+(uintptr_t)pages-1)&~((uintptr_t)pages-1);
+ if(mprotect((void *)lo,hi-lo,PROT_READ|PROT_WRITE|PROT_EXEC)!=0)_exit(131);
+ for(size_t i=0;i<sizeof branches/sizeof branches[0];++i){
+  volatile unsigned char *p=(volatile unsigned char *)(image_base+branches[i].offset);
+  if(*p!=branches[i].opcode){_exit(132);}
+  *p=0xcc;
+ }
+ if(mprotect((void *)lo,hi-lo,PROT_READ|PROT_EXEC)!=0)_exit(131);
+}
+'''.replace('ENTRIES',entries).replace('START','UINT64_C(0x%x)'%start).replace('+SIZE','+UINT64_C(0x%x)'%size)
+(out/'zz_hosted_branch_probe.c.txt').write_text(c)
+with tempfile.TemporaryDirectory(prefix='perf-hosted-branches-') as td:
+ td=Path(td);exe=td/'zz_hosted_branch_perfprobe';lib=td/'zz_hosted_branch_probe.so';src=td/'zz_hosted_branch_probe.c';src.write_text(c);shutil.copy2(original,exe)
+ assert hashlib.sha256(exe.read_bytes()).hexdigest()==r['sha256']
+ receipt={'original':str(original),'copy':str(exe),'original_binary_sha256':r['sha256'],'function_start':start,'function_size':size,'conditional_count':len(branches),'scope':'Diagnostic only. Conditional jumps in a disposable process are logged/emulated from the original x86 flags; all assertions remain and run. No source or disk executable bytes are patched. The normal uninstrumented failing control is retained separately.','instrumentation_source_sha256':hashlib.sha256(c.encode()).hexdigest()}
+ try:
+  with (out/'build.out').open('w') as f:code=subprocess.run(['cc','-std=c11','-shared','-fPIC','-Wall','-Wextra','-Werror','-O2',str(src),'-ldl','-o',str(lib)],stdout=f,stderr=subprocess.STDOUT).returncode
+  receipt['build_exit']=code;assert code==0,(out/'build.out').read_text()
+  names=[l[:-6] for l in (base/'controls-list.out').read_text().splitlines() if l.endswith('::genuine_hosted_event_report_retains_a_separate_actual_domain: test')];assert len(names)==1
+  argv=[str(exe),names[0],'--exact','--nocapture','--test-threads=1'];env=os.environ.copy();env.pop('ZZ_OLD_ENV',None);env.update({'LD_PRELOAD':str(lib),'PERF_HOSTED_BRANCH_TARGET':str(exe),'TCL_LSP_TRACE_AUTHENTICATED_REPORT':'1','CARGO_MANIFEST_DIR':str(root/'rust/tcl-compiler')})
+  receipt['argv']=argv;began=time.monotonic()
+  with (out/'trace.out').open('w') as f:
+   try:code=subprocess.run(argv,cwd=root/'rust/tcl-compiler',env=env,stdout=f,stderr=subprocess.STDOUT,timeout=240).returncode
+   except subprocess.TimeoutExpired:code='timeout240'
+  receipt.update({'exit':code,'wall_s':time.monotonic()-began,'disk_binary_sha256_after':hashlib.sha256(exe.read_bytes()).hexdigest()})
+ finally:
+  for p in [exe,lib,src]:p.unlink(missing_ok=True)
+  receipt['temporary_files_removed']=all(not p.exists() for p in [exe,lib,src]);(out/'result.json').write_text(json.dumps(receipt,indent=2)+'\n')
+print('Branch diagnostic done; all temporary files deleted',flush=True)

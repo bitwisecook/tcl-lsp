@@ -441,5 +441,11 @@
       "start_ticks": 5992791
     }
   ],
-  "enabled_unix": 1792765721.8682084
+  "enabled_unix": 1792765721.8682084,
+  "restored_roots": [
+    21559,
+    26478,
+    27317
+  ],
+  "finished_unix": 1792771513.5219858
 }

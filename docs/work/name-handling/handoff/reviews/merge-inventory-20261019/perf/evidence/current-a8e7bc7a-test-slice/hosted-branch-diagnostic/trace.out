@@ -1,0 +1,74 @@
+
+running 1 test
+test analyser::authenticated_report::capture_controls::genuine_hosted_event_report_retains_a_separate_actual_domain ... REPORT_EVENT_SOURCE stage=source-bindings available=true
+HOSTED_BRANCH pc=0x00000000050e2646 next=0x00000000050e265a flags=0x0000000000000246 rax=0x0000000000000000 taken=1
+REPORT_EVENT_SOURCE stage=deferred-candidates available=true
+HOSTED_BRANCH pc=0x00000000050e26f2 next=0x00000000050e2706 flags=0x0000000000000246 rax=0x0000000000000000 taken=1
+REPORT_EVENT_SOURCE stage=event-indices available=true
+HOSTED_BRANCH pc=0x00000000050e27b8 next=0x00000000050e27cc flags=0x0000000000000246 rax=0x0000000000000000 taken=1
+REPORT_EVENT_SOURCE stage=event-index available=true
+HOSTED_BRANCH pc=0x00000000050e28e9 next=0x00000000050e28fd flags=0x0000000000000246 rax=0x0000000000000000 taken=1
+HOSTED_BRANCH pc=0x00000000050e29a5 next=0x00000000050e29a7 flags=0x0000000000000246 rax=0x00007fa538a34a00 taken=0
+REPORT_EVENT_SOURCE stage=original-words available=true
+HOSTED_BRANCH pc=0x00000000050e2b1a next=0x00000000050e2b2e flags=0x0000000000000246 rax=0x0000000000000000 taken=1
+REPORT_EVENT_SOURCE stage=original-event-word available=true
+HOSTED_BRANCH pc=0x00000000050e2c53 next=0x00000000050e2c67 flags=0x0000000000000246 rax=0x0000000000000000 taken=1
+REPORT_EVENT_SOURCE stage=metadata-context available=true
+HOSTED_BRANCH pc=0x00000000050e2cce next=0x00000000050e2cd0 flags=0x0000000000000202 rax=0x0000000000000001 taken=0
+HOSTED_BRANCH pc=0x00000000050e2d99 next=0x00000000050e2d9d flags=0x0000000000000202 rax=0x0000000000000001 taken=1
+HOSTED_BRANCH pc=0x00000000050e2e18 next=0x00000000050e2e2c flags=0x0000000000000246 rax=0x0000000000000000 taken=1
+HOSTED_BRANCH pc=0x00000000050e2eae next=0x00000000050e2ec2 flags=0x0000000000000246 rax=0x0000000000000000 taken=1
+HOSTED_BRANCH pc=0x00000000050e2f44 next=0x00000000050e2f58 flags=0x0000000000000246 rax=0x0000000000000000 taken=1
+HOSTED_BRANCH pc=0x00000000050e2fc3 next=0x00000000050e2fd7 flags=0x0000000000000246 rax=0x0000000000000000 taken=1
+HOSTED_BRANCH pc=0x00000000050e3032 next=0x00000000050e3046 flags=0x0000000000000246 rax=0x0000000000000000 taken=1
+HOSTED_BRANCH pc=0x00000000050e3075 next=0x00000000050e3077 flags=0x0000000000000246 rax=0x0000000000000000 taken=0
+HOSTED_BRANCH pc=0x00000000050e30ac next=0x00000000050e30b0 flags=0x0000000000000202 rax=0x0000000000000001 taken=1
+HOSTED_BRANCH pc=0x00000000050e313d next=0x00000000050e3143 flags=0x0000000000000246 rax=0x00007fa538828b00 taken=0
+HOSTED_BRANCH pc=0x00000000050e318d next=0x00000000050e3193 flags=0x0000000000000246 rax=0x0000000000000000 taken=0
+HOSTED_BRANCH pc=0x00000000050e31ba next=0x00000000050e31c1 flags=0x0000000000000202 rax=0x00007fa5386ff801 taken=1
+HOSTED_BRANCH pc=0x00000000050e321e next=0x00000000050e3225 flags=0x0000000000000202 rax=0x00007fa5380d2201 taken=1
+HOSTED_BRANCH pc=0x00000000050e3297 next=0x00000000050e32ab flags=0x0000000000000246 rax=0x0000000000000000 taken=1
+HOSTED_BRANCH pc=0x00000000050e3314 next=0x00000000050e331a flags=0x0000000000000246 rax=0x00007fa538627b00 taken=0
+HOSTED_BRANCH pc=0x00000000050e3365 next=0x00000000050e336b flags=0x0000000000000246 rax=0x0000000000000000 taken=0
+HOSTED_BRANCH pc=0x00000000050e33bb next=0x00000000050e33c2 flags=0x0000000000000202 rax=0x000055d7e6cd5a01 taken=1
+HOSTED_BRANCH pc=0x00000000050e3472 next=0x00000000050e3486 flags=0x0000000000000246 rax=0x0000000000000000 taken=1
+HOSTED_BRANCH pc=0x00000000050e3530 next=0x00000000050e3544 flags=0x0000000000000246 rax=0x0000000000000000 taken=1
+HOSTED_BRANCH pc=0x00000000050e3623 next=0x00000000050e3637 flags=0x0000000000000246 rax=0x0000000000000000 taken=1
+HOSTED_BRANCH pc=0x00000000050e36e5 next=0x00000000050e36f9 flags=0x0000000000000246 rax=0x0000000000000000 taken=1
+HOSTED_BRANCH pc=0x00000000050e37fd next=0x00000000050e382f flags=0x0000000000000202 rax=0x0000000000000001 taken=1
+REPORT_CAPTURE stage=capture.input available=true
+REPORT_CAPTURE stage=capture.realm available=true
+REPORT_CAPTURE stage=capture.realm-owner available=true
+REPORT_CAPTURE stage=capture.retained-module available=true
+REPORT_CAPTURE stage=capture.positioned-module available=true
+REPORT_CAPTURE stage=capture.module-owner available=true
+REPORT_CAPTURE stage=capture.image available=true
+REPORT_CAPTURE stage=capture.origin available=true
+REPORT_CAPTURE stage=capture.prepared available=true
+REPORT_CAPTURE stage=bodies.retained available=true
+REPORT_CAPTURE stage=bodies.positioned available=true
+REPORT_CAPTURE stage=bodies.source-origin available=true
+REPORT_CAPTURE stage=bodies.input available=true
+REPORT_BODY_DOMAIN hosted=true vendor_input_matches=true native_entry=false
+REPORT_BODY_INVENTORY named=1 units=0 hosted_cards=0 events=1 definitions=0 hosted_input=true
+REPORT_BODY_CANDIDATE id=ProcedureId { scope: 1, ordinal: 0 } role=named kind=Event declaration=Span { start: 0, end: 37 } site=Some(CommandAllocationSite { source: SourceOriginId { kind: Authored(SourceImage { bytes: [119, 104, 101, 110, 32, 72, 84, 84, 80, 95, 82, 69, 81, 85, 69, 83, 84, 32, 123, 32, 115, 101, 116, 32, 118, 97, 108, 117, 101, 32, 86, 65, 76, 85, 69, 32, 125], channel: Document, geometry: SourceImageGeometry { byte_hash: 2080577543581733403, line_index: Some(LineIndex { line_starts: [0] }) } }), fingerprint: 3304965892823877931, activation_key: 1 }, offset: 0 }) allocated=false native=false logical=false authored=false hosted=false
+REPORT_BODY_PUSH id=ProcedureId { scope: 1, ordinal: 0 } owns=true duplicate=false declaration_nonempty=true
+REPORT_CAPTURE stage=bodies.event-procedure available=true
+REPORT_CAPTURE stage=bodies.event-procedure-match refuses=false
+REPORT_CAPTURE stage=bodies.event-row available=true
+REPORT_CAPTURE stage=bodies.event-duplicate-word refuses=false
+REPORT_CAPTURE stage=bodies.event-word available=false
+REPORT_CAPTURE stage=capture.bodies available=false
+
+thread 'analyser::authenticated_report::capture_controls::genuine_hosted_event_report_retains_a_separate_actual_domain' (29550) panicked at rust/tcl-compiler/src/analyser/authenticated_report.rs:500:14:
+actual hosted diagnostics CU: CurrentOwnerUnavailable
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    analyser::authenticated_report::capture_controls::genuine_hosted_event_report_retains_a_separate_actual_domain
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 10585 filtered out; finished in 4.64s
+

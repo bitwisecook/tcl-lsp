@@ -1,0 +1,13 @@
+{
+  "reason": "Compiler test build had12 missing-include diagnostics for8 tracked sparse-excluded fixtures; zero warnings, zero tests. Restore exact canonical bytes without assertion or code changes.",
+  "files": {
+    "experiments/name-handling/tcltest-shared-frame/probe.tcl": "82f6602d5492c1b321f6a26186f80741e5fd4b1a3f9c4a9f09d05dae508911ef",
+    "experiments/name-handling/tcloo-linked-source/class-delegate/9.0.4/stdout.bin": "d869184a6e21b27013d4102002afdbda492d4d4f0fd2c9834efdf6389200ac22",
+    "experiments/name-handling/tcloo-linked-source/class-delegate/9.1.0/stdout.bin": "47d4093dad916470c9dc868f757a9a746c82459c866798ca486043a37891b434",
+    "experiments/name-handling/patterns/composed-callback-prefix/probes/positive.tcl": "3d3a231fc88a3d762649412c7c2b81b1182fb2cd2eb0c8b9d61f864b55b7e4fa",
+    "experiments/name-handling/patterns/composed-callback-prefix/fixtures/private-positive.tcl": "ebff652d09a1e981e90ced669dd0e181c9d66db749cf9c1681ee16c5801d1983",
+    "rust/tcl-vm/tests/data/native_formal_slots/compiled-local-names-8.6.18.jsonl": "1ef39d66055d854868789bbc5bc5638003ee36a4382cbf4f73766c76c935ab63",
+    "rust/tcl-vm/tests/data/native_formal_slots/compiled-local-names-9.0.4.jsonl": "1ef39d66055d854868789bbc5bc5638003ee36a4382cbf4f73766c76c935ab63",
+    "rust/tcl-vm/tests/data/native_formal_slots/compiled-local-names-9.1.0.jsonl": "f4659fd880cdade2333ed290148126074139963846b92a04fae6cc34355d6549"
+  }
+}

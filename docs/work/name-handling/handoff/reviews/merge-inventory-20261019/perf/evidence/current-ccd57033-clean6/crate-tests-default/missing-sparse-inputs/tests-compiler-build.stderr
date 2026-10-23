@@ -1,0 +1,27 @@
+   Compiling tcl-compiler v0.1.0 (/workspace/tcl-lsp-owned/rust/tcl-compiler)
+   Compiling tcl-vm v0.1.0 (/workspace/tcl-lsp-owned/rust/tcl-vm)
+   Compiling tcl-engine-api v0.1.0 (/workspace/tcl-lsp-owned/rust/tcl-engine-api)
+   Compiling scopeguard v1.2.0
+   Compiling ipnet v2.12.2
+   Compiling borrow-or-share v0.2.4
+   Compiling rayon-core v1.13.0
+   Compiling fluent-uri v0.4.1
+   Compiling lock_api v0.4.14
+   Compiling crossbeam-deque v0.8.8
+   Compiling parking_lot_core v0.9.12
+   Compiling parking_lot v0.12.5
+   Compiling tcl-pkg-model v0.1.0 (/workspace/tcl-lsp-owned/rust/tcl-pkg-model)
+   Compiling xxhash-rust v0.8.19
+   Compiling tcl-userdirs v0.1.0 (/workspace/tcl-lsp-owned/rust/tcl-userdirs)
+   Compiling either v1.19.0
+   Compiling rayon v1.12.0
+   Compiling temp-env v0.3.6
+   Compiling tcl-test-support v0.1.0 (/workspace/tcl-lsp-owned/rust/tcl-test-support)
+   Compiling tcl-irules v0.1.0 (/workspace/tcl-lsp-owned/rust/tcl-irules)
+   Compiling tcl-sslictcl v0.1.0 (/workspace/tcl-lsp-owned/rust/tcl-sslictcl)
+   Compiling tcl-bigip v0.1.0 (/workspace/tcl-lsp-owned/rust/tcl-bigip)
+   Compiling tcl-engine-tclvm v0.1.0 (/workspace/tcl-lsp-owned/rust/tcl-engine-tclvm)
+   Compiling tcl-spec-hooks v0.1.0 (/workspace/tcl-lsp-owned/rust/tcl-spec-hooks)
+   Compiling tcl-lsp-core v0.1.0 (/workspace/tcl-lsp-owned/rust/tcl-lsp-core)
+   Compiling tcl-spectcl v0.1.0 (/workspace/tcl-lsp-owned/rust/tcl-spectcl)
+error: could not compile `tcl-compiler` (lib test) due to 12 previous errors

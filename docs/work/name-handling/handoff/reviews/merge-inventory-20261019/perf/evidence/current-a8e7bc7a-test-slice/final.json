@@ -1,0 +1,167 @@
+{
+  "results": [
+    {
+      "label": "build-controls",
+      "argv": [
+        "cargo",
+        "test",
+        "--locked",
+        "-j2",
+        "-p",
+        "tcl-compiler",
+        "--lib",
+        "--no-run",
+        "--message-format=json"
+      ],
+      "exit": 0,
+      "wall_s": 7080.034527540207,
+      "warnings": 0,
+      "executables": {
+        "tcl_compiler": "/workspace/tcl-lsp-perf-latest/target/debug/deps/tcl_compiler-455d0126ba4b4f9f"
+      }
+    },
+    {
+      "label": "controls-list",
+      "argv": [
+        "/workspace/tcl-lsp-perf-latest/target/debug/deps/tcl_compiler-455d0126ba4b4f9f",
+        "authenticated_report",
+        "full_report_candidates_require_the_actual_diagnostic_output_realm",
+        "--list"
+      ],
+      "extra_env": {},
+      "exit": 0,
+      "wall_s": 0.28062915802001953
+    },
+    {
+      "label": "controls-new",
+      "argv": [
+        "/workspace/tcl-lsp-perf-latest/target/debug/deps/tcl_compiler-455d0126ba4b4f9f",
+        "authenticated_report",
+        "full_report_candidates_require_the_actual_diagnostic_output_realm",
+        "--test-threads=1"
+      ],
+      "extra_env": {},
+      "exit": 101,
+      "wall_s": 637.8962435722351
+    },
+    {
+      "label": "controls-old",
+      "argv": [
+        "/workspace/tcl-lsp-perf-latest/target/debug/deps/tcl_compiler-455d0126ba4b4f9f",
+        "authenticated_report",
+        "full_report_candidates_require_the_actual_diagnostic_output_realm",
+        "--test-threads=1"
+      ],
+      "extra_env": {
+        "ZZ_OLD_ENV": "1"
+      },
+      "exit": 101,
+      "wall_s": 602.3544735908508
+    },
+    {
+      "label": "build-probes",
+      "argv": [
+        "cargo",
+        "build",
+        "--locked",
+        "-j2",
+        "-p",
+        "tcl-compiler",
+        "--example",
+        "zz_authenticated_perfprobe",
+        "--example",
+        "zz_spectclprobe",
+        "--message-format=json"
+      ],
+      "exit": 0,
+      "wall_s": 39.49049711227417,
+      "warnings": 0,
+      "executables": {
+        "zz_spectclprobe": "/workspace/tcl-lsp-perf-latest/target/debug/examples/zz_spectclprobe",
+        "zz_authenticated_perfprobe": "/workspace/tcl-lsp-perf-latest/target/debug/examples/zz_authenticated_perfprobe"
+      }
+    },
+    {
+      "label": "smoke-old",
+      "argv": [
+        "/workspace/tcl-lsp-perf-latest/target/debug/examples/zz_authenticated_perfprobe",
+        "files",
+        "samples/diagnostics/E003_proc_call_arity/example.tcl",
+        "rust/tcl-compiler/tests/data/name-consumers/aliases.tcl"
+      ],
+      "extra_env": {
+        "ZZ_OLD_ENV": "1"
+      },
+      "exit": 0,
+      "wall_s": 249.9238247871399
+    },
+    {
+      "label": "smoke-mixed",
+      "argv": [
+        "/workspace/tcl-lsp-perf-latest/target/debug/examples/zz_authenticated_perfprobe",
+        "files",
+        "samples/diagnostics/E003_proc_call_arity/example.tcl",
+        "rust/tcl-compiler/tests/data/name-consumers/aliases.tcl"
+      ],
+      "extra_env": {},
+      "exit": 0,
+      "wall_s": 266.5912718772888
+    },
+    {
+      "label": "hosted-old",
+      "argv": [
+        "/workspace/tcl-lsp-perf-latest/target/debug/examples/zz_authenticated_perfprobe",
+        "files",
+        "samples/irules/cookbook_http_collect.irul"
+      ],
+      "extra_env": {
+        "ZZ_OLD_ENV": "1",
+        "ZZ_DIALECT": "f5-irules"
+      },
+      "exit": 101,
+      "wall_s": 570.5315892696381
+    },
+    {
+      "label": "hosted-mixed",
+      "argv": [
+        "/workspace/tcl-lsp-perf-latest/target/debug/examples/zz_authenticated_perfprobe",
+        "files",
+        "samples/irules/cookbook_http_collect.irul"
+      ],
+      "extra_env": {
+        "ZZ_DIALECT": "f5-irules"
+      },
+      "exit": 101,
+      "wall_s": 199.2233121395111
+    },
+    {
+      "label": "synthetic-smoke",
+      "argv": [
+        "/workspace/tcl-lsp-perf-latest/target/debug/examples/zz_authenticated_perfprobe",
+        "calls",
+        "10"
+      ],
+      "extra_env": {},
+      "exit": 0,
+      "wall_s": 68.42076396942139
+    },
+    {
+      "label": "spectcl-threeway",
+      "argv": [
+        "/workspace/tcl-lsp-perf-latest/target/debug/examples/zz_spectclprobe"
+      ],
+      "extra_env": {},
+      "exit": 0,
+      "wall_s": 200.62312626838684
+    }
+  ],
+  "source_unchanged": true,
+  "removed_executables": [
+    "/workspace/tcl-lsp-perf-latest/target/debug/deps/tcl_compiler-455d0126ba4b4f9f",
+    "/workspace/tcl-lsp-perf-latest/target/debug/examples/zz_authenticated_perfprobe",
+    "/workspace/tcl-lsp-perf-latest/target/debug/examples/zz_authenticated_perfprobe-50018ffdf499bc52",
+    "/workspace/tcl-lsp-perf-latest/target/debug/examples/zz_spectclprobe",
+    "/workspace/tcl-lsp-perf-latest/target/debug/examples/zz_spectclprobe-9bf6c1aa5b165e9a"
+  ],
+  "finished_unix": 1792772154.951144
+}

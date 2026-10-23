@@ -1,12 +1,9 @@
 {
-  "base": "94c7f61e86aa95cb4f403d2da129812026d89682",
-  "clean_ordered_apply": true,
-  "exact_generated_snapshot": true,
+  "base": "a3a4b181f6f65ab1f53f487af69a092d655f6168",
+  "ordered_apply_reconstructs_snapshot": true,
   "scoped_rustfmt": true,
-  "patch_sha256": {
-    "perf-owned.patch": "a837e74e2d25b6a4e7b6ddb0f004b453092ee0e7994409b96e4a6cbb30d4ef5a",
-    "perf-realm-interprocedural.patch": "9a7fd2f2d05896659f116830d1faeabacd8382dad3e163147810a2fab36fd1d3",
-    "perf.patch": "cc88700feb3b5a21b65d56c5dc080eb10e005686834382912a6e0e8f0dca4d7a"
-  },
-  "semantic_proof": false
+  "toggled_helper_matches_proof_tree": true,
+  "upstream_line_at_retained_both_modes": true,
+  "status": "Patch construction/formatting only; full proof pending",
+  "time": 1792773658.4315932
 }

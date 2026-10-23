@@ -1,0 +1,17 @@
+use std::sync::atomic::Ordering;
+use tcl_compiler::analyser::Analyser;
+fn main() {
+    for old in [true, false] {
+        tcl_lexer::ZZ_OLD.store(old, Ordering::Relaxed);
+        tcl_compiler::realm::ZZ_NO_MEMO.store(old, Ordering::Relaxed);
+        let report = Analyser::new().analyse_for_report("when HTTP_REQUEST { set value VALUE }", "f5-irules");
+        let analysis = report.analysis();
+        let realm = analysis.retained_command_realm().expect("genuine hosted event realm");
+        let binding = realm.invocation_at_source("when", 0);
+        println!("HOSTED_TARGETS old={old} names={:?}", binding.targets.iter().map(|target| target.command.as_str()).collect::<Vec<_>>());
+        println!("HOSTED_SITE old={old} hosted_input={:?} binding_site={:?} binding_origin={} realm_image={} report_self={:?}",
+            analysis.resolved_input.as_ref().map(|input| input.has_hosted_source_name_context()),
+            binding.invocation_site().map(|site| site.offset),
+            binding.source_origin().is_some(), realm.original_source_image().is_some(), report.compare(&report));
+    }
+}

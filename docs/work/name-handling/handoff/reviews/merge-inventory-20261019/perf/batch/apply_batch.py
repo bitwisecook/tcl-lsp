@@ -257,17 +257,33 @@ def original_word(s, p):
         s = rep(s, "absolute NativeWord or", "absolute `NativeWord` or", p)
     elif s.count("absolute `NativeWord` or") != 1:
         sys.exit(f"unknown original-word documentation anchor in {p}")
-    legacy = block("original_line_at.rs")
-    body = legacy.split("{\n", 1)[1].rsplit("\n}", 1)[0]
-    old = ""
-    if zz:
-        body = body.replace("    u32::try_from(", "    return u32::try_from(", 1)
-        old = "    if tcl_lexer::zz_old() {\n" + "\n".join("    " + line for line in body.rstrip().splitlines()) + ";\n    }\n"
-    replacement = "fn line_at(image: &SourceImage, offset: u32) -> Option<u32> {\n" + old + """    image.bytes().get(..usize::try_from(offset).ok()?)?;
-    image.source_map().line_index().line_at(offset).checked_add(1)
+    if block("original_line_at.rs") in s:
+        legacy = block("original_line_at.rs")
+        body = legacy.split("{\n", 1)[1].rsplit("\n}", 1)[0]
+        old = ""
+        if zz:
+            body = body.replace("    u32::try_from(", "    return u32::try_from(", 1)
+            old = "    if tcl_lexer::zz_old() {\n" + "\n".join("    " + line for line in body.rstrip().splitlines()) + ";\n    }\n"
+        replacement = "fn line_at(image: &SourceImage, offset: u32) -> Option<u32> {\n" + old + """    image.bytes().get(..usize::try_from(offset).ok()?)?;
+        image.source_map().line_index().line_at(offset).checked_add(1)
+    }
+    """
+        s = rep(s, legacy, replacement, p)
+    else:
+        # Canonical work already indexes lines, including the oversized-image
+        # fallback. Both experiment modes retain that exact current baseline.
+        current = """fn line_at(image: &SourceImage, offset: u32) -> Option<u32> {
+    let prefix = image.bytes().get(..usize::try_from(offset).ok()?)?;
+    let line = if u32::try_from(image.len()).is_ok() {
+        image.source_map().line_index().line_at(offset)
+    } else {
+        tcl_lexer::LineIndex::from_bytes(prefix).line_at(offset)
+    };
+    line.checked_add(1)
 }
 """
-    s = rep(s, legacy, replacement, p)
+        if s.count(current) != 1:
+            sys.exit(f"unknown original-word line geometry in {p}")
     anchor = """mod tests {
     use super::*;
     use tcl_lexer::{LeadingBom, SourceSegmentationPurpose};

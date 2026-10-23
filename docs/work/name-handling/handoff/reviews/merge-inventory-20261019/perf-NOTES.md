@@ -1,17 +1,24 @@
 # perf agent notes: Analyser and SpecTcl
 
-Last updated: 2026-10-23 15:58 UTC
+Last updated: 2026-10-23 16:38 UTC
 
-**Latest-source retry running at a8e7bc7a plus published test fix; no perf production code landed.** The
-upstream functional repair changes procedure visitation/hosted event issuance
-and exact authentic alias owner controls. All0322 workers were stopped and
-cleaned; their partial regression runs are superseded, never full comparisons.
-The finished0322 lexer/report/smoke/trace observations below remain historical.
+**Necessary hosted-name repair19936eb9 is pushed; perf code remains unlanded.**
+Source head when was compared to retained rooted target ::when. The repair
+uses the existing rooted-key helper on both sides and extends the unchanged
+genuine capture assertions to both source spellings. Runtime proof on its
+canonical successor is pending. Frozen a8 full controls are15/1 BOTH;
+Native smoke/synthetics and complete ordered PackSet pass, hosted fails.
 
-The FULL batch is rebased onto a8e7; clean6/two patches refresh and fmt/switch
-reconstruction pass. Current lexer is586/586PASS BOTH with zero warnings and executable removed.
-The16 report+actual-realm control and opt1SpecTcl builds are in progress. No latest corpus acceptance or compiler-patch
-readiness is claimed. See outstanding/perf.md for exact commands/resources.
+The frozen a8 opt1 SpecTcl eval_loader comparison has one observed P2F:
+new27/1 (3336.099s), old27/1 (2190.397s). New shipped-pack interpreted
+eda_xilinx exhausts its original30-minute wall budget; old passes. Old budget
+axis assertion fails while new passes. Golden packs BOTH UNRUN after the P2F
+abort; both executables removed. CPU masks restored after guard interruption.
+All raw outcomes stay preserved even if a quiet canonical repeat differs.
+Compiler partial filters151 new completed, old UNRUN, retired for canonical
+functional changes; never a complete regression verdict. Full a8 main runner
+finished with source unchanged, ordered PackSet all3 Equal and executable /
+probe cleanup verified. Current canonical rebase/proof state is outstanding/perf.md.
 
 ## Current0322 progress
 

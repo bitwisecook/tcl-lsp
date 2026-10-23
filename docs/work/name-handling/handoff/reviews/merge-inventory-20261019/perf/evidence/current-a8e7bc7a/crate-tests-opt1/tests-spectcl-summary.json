@@ -9,7 +9,12 @@
     "log": "tests-spectcl-eval_loader-new.out"
   },
   "spectcl/eval_loader/old": {
-    "status": "running",
+    "returncode": 101,
+    "seconds": 2190.397,
+    "passed": 27,
+    "failed": 1,
+    "ignored": 0,
+    "timed_out": [],
     "log": "tests-spectcl-eval_loader-old.out"
   },
   "spectcl/golden_packs/new": {

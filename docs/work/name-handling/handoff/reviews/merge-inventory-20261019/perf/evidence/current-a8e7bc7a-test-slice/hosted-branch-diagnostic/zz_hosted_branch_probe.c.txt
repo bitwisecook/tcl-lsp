@@ -1,3 +1,4 @@
+/* tcl-lsp temporary diagnostic; SPDX-License-Identifier: AGPL-3.0-or-later */
 #define _GNU_SOURCE
 #include <errno.h>
 #include <link.h>
@@ -59,7 +60,8 @@ static int condition(unsigned cc,uintptr_t f){
 }
 static char *hex(char *p,uintptr_t n){
  static const char digits[]="0123456789abcdef";*p++='0';*p++='x';
- for(int i=15;i>=0;--i)*p++=digits[(n>>(i*4))&15];return p;
+ for(int i=15;i>=0;--i){*p++=digits[(n>>(i*4))&15];}
+ return p;
 }
 static void trap(int sig,siginfo_t *details,void *context){
  (void)sig;(void)details;int saved=errno;ucontext_t *u=context;
@@ -87,12 +89,13 @@ __attribute__((constructor)) static void install(void){
  (void)dl_iterate_phdr(base_callback,NULL);
  struct sigaction action;memset(&action,0,sizeof action);action.sa_sigaction=trap;
  action.sa_flags=SA_SIGINFO;sigemptyset(&action.sa_mask);if(sigaction(SIGTRAP,&action,NULL)!=0)_exit(130);
- long pages=sysconf(_SC_PAGEUINT64_C(0x17bb));uintptr_t lo=(image_base+UINT64_C(0x50e25a0))&~((uintptr_t)pages-1);
+ long pages=sysconf(_SC_PAGESIZE);uintptr_t lo=(image_base+UINT64_C(0x50e25a0))&~((uintptr_t)pages-1);
  uintptr_t hi=(image_base+UINT64_C(0x50e25a0)+UINT64_C(0x17bb)+(uintptr_t)pages-1)&~((uintptr_t)pages-1);
  if(mprotect((void *)lo,hi-lo,PROT_READ|PROT_WRITE|PROT_EXEC)!=0)_exit(131);
  for(size_t i=0;i<sizeof branches/sizeof branches[0];++i){
   volatile unsigned char *p=(volatile unsigned char *)(image_base+branches[i].offset);
-  if(*p!=branches[i].opcode)_exit(132);*p=0xcc;
+  if(*p!=branches[i].opcode){_exit(132);}
+  *p=0xcc;
  }
  if(mprotect((void *)lo,hi-lo,PROT_READ|PROT_EXEC)!=0)_exit(131);
 }

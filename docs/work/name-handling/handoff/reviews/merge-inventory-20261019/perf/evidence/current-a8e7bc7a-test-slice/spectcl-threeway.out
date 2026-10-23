@@ -1,0 +1,4 @@
+PACKSET old=true packs=8 notices=0 errors=0
+PACKSET old=false packs=8 notices=0 errors=0
+PACKSET old=true packs=8 notices=0 errors=0
+PACKSET_COMPARISON old1_ms=90957 new_ms=44423 old2_ms=61493 lines=484936 deterministic=true old_new=true new_old=true

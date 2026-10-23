@@ -2,116 +2,84 @@
 
 Area: Analysis and SpecTcl pack-load performance.
 
-Last updated: 2026-10-23 15:58 UTC
+Last updated: 2026-10-23 16:38 UTC
 
 ## Resume
 
-**Necessary compiler repairs are pushed; compiler proofs are RUNNING. No perf
-production commit or full-corpus acceptance yet.** Latest publication uses
-/workspace/tcl-lsp-publish. The canonical typing repairs are6c1c9d2c and
-6e729fe9; the user expressly authorised necessary shared-file fixes and asked
-that they reach work immediately. Both preserve all admission predicates and
-assertions. They are separate from the future single six-file perf commit.
+**Hosted-head repair19936eb9 is pushed to work. No perf production commit or
+full-corpus acceptance yet.** The user authorised necessary shared-file repairs
+and immediate publication. Compiler repairs6c1c9d2c/6e729fe9/19936eb9 are
+separate from the future single six-file perf commit.
 
-The combined proof tree /workspace/tcl-lsp-perf-latest remains frozen at
- a8e7bc7a0d368bbaab5bd1676a0383ad2b837130 plus the exact published6c test-only
-byte-slice correction and the FULL switched nine-file batch. Both split
-patches were additionally refreshed against94c7f61e, unchanged byte for byte;
-ordered apply/snapshot/eight-file scoped fmt checks pass. They remain unproven.
-Before final corpus/landing, refresh/rebase the proof to latest canonical work.
-Do not commit realm.rs, interprocedural.rs or either temporary switch.
+Full switched batch in /workspace/tcl-lsp-perf-latest is rebased onto
+canonical a3a4b181. Both split patches refreshed, ordered application/scoped
+fmt and exact toggled reconstruction PASS. Fresh controls build RUNNING:
+session14484 /tmp/perf-a3-controls.log; private compiler-filter watcher80149
+waits for that exact SHA-verified binary and complete control outcomes, then
+runs both original filter inventories and deletes its copy. Rerun full report/actual-realm
+controls and the all-old/mixed102 Tcl+15 iRules+synthetic corpus. The canonical
+source has additional compiler refactors, Native declaration-span fixes and
+an already-landed SpecTcl line-index improvement. Preserve those changes and
+make the temporary old switch reflect the CURRENT baseline. Both split perf
+patches need refreshing. Do not commit realm/interprocedural or either switch.
 
-Active commands (build/run/delete executables in one command):
+The hosted refusal is now located, not speculative: source head "when" was
+compared to retained canonical target "::when". Public target diagnostics
+observe ["::when"] BOTH modes; exact private-branch logging takes the
+CandidateIterator::any refusal. Fix19936eb9 compares both through the existing
+unroot_rooted_key helper. All other guards remain. The existing genuine control
+now runs both when and ::when with every original assertion. Runtime successor
+proof is still pending. Complete source/binary/unchanged-branch diagnostics:
+evidence/current-a8e7bc7a-test-slice/hosted-{target,branch}-diagnostic/.
+The diagnostic changes no branch result and is NOT acceptance evidence.
 
-- /tmp/perf-run-a8e7-test-slice.log, session70544, Python21559: current16
-  report+actual-diagnostic-realm controls both modes, then Native/hosted smoke,
-  synthetics and complete ordered PackSet. Control build COMPLETE/zero warnings. All16 controls complete BOTH:
- 15 PASS/1 FAIL each, identical inventory, zero P2F. The sole failure is the
- unchanged genuine hosted event. Native/Logical alias roles and all adversarial
- checks plus actual diagnostic-realm control pass. Full corpus remains blocked.
- Main command now builds/runs Native/hosted/synthetic/PackSet probes before
- cleanup; no main final source-after receipt yet. Receipts: evidence/current-a8e7bc7a-test-slice/.
-- /tmp/perf-watch-compiler-trace-first.log, session90719, Python26478: waits for
-  that exact control binary, SHA-verifies a private copy, runs the existing report trace FIRST, then every original
-  compiler filter both modes, and deletes it. The earlier waiting watcher
-  was stopped before any binary/test existed; watcher-ordering.json records
-  the unchanged inventory/assertions and new diagnostic-first ordering.
-- /tmp/perf-owned-typing-repair-compiler.log, session68715, Python25478:
-  clean six-file no-switch compiler-filter retry at canonicalccd57033 in
-  /workspace/tcl-lsp-owned. The earlier6e729fe9 build is COMPLETE/FAILED:
-  exactly3 upstream VM typing errors, zero Rust warnings, no tests. It waited
-  for its active normal compiler job to finish before returning; complete
-  receipts are current-6e729fe9-clean6/. Automatic retry session28812,
-  /tmp/perf-clean6-after-vm-repair.log, validated exactly the3 known VM paths,
-  fetched and checked out canonicalccd57033, verified the six-file diff SHA
-  unchanged, then started the original filter build/run/delete command.
-  Canonical source includes the owner VM repair0747a2a5 and the new Native
-  declaration-span repairccd57033. New receipts: current-ccd57033-clean6/.
-  The Native span repair is functional; final full-corpus acceptance must use
-  canonical source, not an inferred successor verdict from frozen a8 results.
+Completed frozen a8+published test-slice proof:
+- All16 report/actual-realm controls:15 PASS/1 FAIL BOTH, zero P2F/warnings.
+  Sole genuine hosted failure is what19936 addresses; successor proof required.
+- Native E003/aliases complete Equal triples BOTH forced-old/mixed; hosted
+  cookbook all3 Unavailable BOTH; synthetic calls10 Equal. Complete ordered
+  PackSet all3 comparisons and deterministic endpoints PASS. Main final.json
+  verifies source unchanged and5 executable/alias removals; probes removed.
+- Compiler private-copy filters were retired when canonical functional fixes
+  arrived:151 new-mode cases completed; old mode UNRUN. This is NOT a full
+  comparison. Exact partial logs and superseded-canonical-source.json retained;
+  private executable deleted. The original report traces remain complete.
 
-- /tmp/perf-spectcl-a8e7.log, session2241: opt1 eval_loader/golden_packs
-  build COMPLETE with zero warnings, debug/overflow assertions on, separate
-  target-spectcl-opt1. Runtime is RUNNING on reserved CPU cores2,3; all compiler roots and the
-  pending canonical retry use cores0,1 (quota4, allowed5). The same masks,
-  original2 test threads, assertions and budgets apply to both modes.
-  /tmp/perf-partition-spec-cpus.log, session39125, records every prior mask
-  and restores the exact roots after all4 SpecTcl runs and executable cleanup.
-  cpu-partition.json is the receipt. New eval_loader COMPLETE:27 PASS/1 FAIL,3336.099s; unchanged interpreted
- eda_xilinx exhausts its30-minute per-pack wall budget. Old eval_loader is
- RUNNING on the same cores. No complete old/new comparison yet; preserve
- this actual failed run even if a later controlled repeat differs.
+SpecTcl frozen a8 opt1 comparison is COMPLETE/FAILED: eval_loader new27/1 in
+3336.099s; old27/1 in2190.397s, zero build warnings. New every_shipped_pack fails
+its unchanged30-minute interpreted eda_xilinx wall budget while old PASSES:
+**one observed pass-to-fail**. Old a_budget_blowing_loop fails its command-step
+axis assertion with wall-clock exhaustion while new PASSES. Do not erase this
+comparison. The driver aborts on P2F, so golden_packs BOTH UNRUN; both test
+executables were deleted in finally. The CPU partition guard was interrupted
+after driver exit and restored surviving roots' original masks. Full raw logs,
+summary and partition receipt: evidence/current-a8e7bc7a/crate-tests-opt1/.
+A fresh canonical repeat must preserve all assertions and original budgets.
 
-The quiet server window is COMPLETE. Both original180s cases/modes ran with
-compiler builders/watcher stopped; all8 exact owned processes were resumed
-in finally and the server executable deleted. Startup fails its FIRST retained
-read assertion0 versus1 BOTH: new10.412s, old21.355s; factory reindex remains
-UNREACHED. workspace_symbol times out180 BOTH: measured wall181.069/180.329s.
-Zero pass-to-fail, both gates FAILED. Raw timeout states are not assertion
-outcomes. evidence/current-a8e7bc7a/crate-tests-default/ contains full outputs,
-source/build receipts and server-quiet-window.json pause/resume/cleanup proof.
+Quiet server window a8 is COMPLETE: startup fails its FIRST retained-read count
+0 versus1 BOTH (10.412/21.355s), factory reindex assertions UNREACHED. workspace
+symbol times out180 BOTH (181.069/180.329s), original180s limits unchanged.
+Zero P2F/warnings, gates FAILED. All8 stopped compiler processes resumed and
+server executable deleted. Separate contended existing-phase trace completes
+analysis at171.372s (walk79.839/diagnostics91.531 inclusive), then times out180;
+not quiet latency attribution. Raw source/binary/cleanup receipts in current-a8.
 
-A separate SHA-identical private server copy ran the existing source-phase
-trace for the unchanged workspace fixture, then was deleted. The diagnostic
-run times out180 after analysis completes at171.372s: walk79.839s and
- diagnostics91.531s (nested/inclusive phase totals, not additive with children).
-This trace ran contended after builders resumed; it is not a quiet latency
-comparison or proof that indexing/query alone caused the original timeouts.
-Raw trace, source/binary hashes and observations: current-a8e7bc7a/
-workspace-symbol-source-phase-trace/. The original quiet comparison is retained.
-
-A separate fresh-normal-library public diagnostic confirms the genuine
-hosted event input has hosted context, a realm image, a binding source origin
-and a binding site at0 in BOTH old/new modes. report.compare(&report) still
-returns CurrentOwnerUnavailable BOTH. This observes the public realm query,
-not Lowerer::cmd_tokens or the private first-refusal guard; do not substitute
-it for the pending control trace. Sources/library/executable hashes, exact
-output and cleanup: current-a8e7bc7a-test-slice/hosted-site-diagnostic/.
-
-The current public-API hosted smokes still fail all3 comparison pairs with
-Unavailable(CurrentOwnerUnavailable), for both cookbook_http_collect.irul and
-exact37-byte genuine event source. Strict runtime Eq is separately false.
-Fresh normal-library hashes/fresh:false receipts rule out stale artifact reuse.
-The exact cfg(test) hosted trace is COMPLETE/FAILED: named Event body
- retained, complete current hosted domain, event card owns its procedure,
- source row retained and no duplicate word, then bodies.event-word=None.
- Lowering retains original words/event operand and metadata context but has
- no hosted-event-units trace. The intervening branch/guards are not yet
- distinguished; do not claim a particular boolean is false. Full raw trace
- and SHA-identical-copy/cleanup receipts: single-hosted-control-trace-exact/.
- The earlier single trace used a wrong module selector and ran0 tests; its
- result is explicitly INVALID, never a pass or acceptance. The corrected
- selector is verified against the declared inventory and runs exactly1 test. The a8 upstream repair changed procedure
-visitation/hosted event issuance and authentic alias role/purpose/extent
-controls. The current expected16 controls must all pass before full corpus.
+Clean6 no-switch compiler retry at ccd57033 is still building in
+/workspace/tcl-lsp-owned: session35495, /tmp/perf-clean6-complete-inputs.log.
+Earlier6e build failed only3 owner VM typing errors, fixed upstream0747a2a5.
+Canonicalccd build then failed12 includes across8 sparse-excluded tracked
+fixtures; exact8 files were restored and verified against HEAD, then this retry
+started. Failed build/recovery receipts retained in current-ccd57033-clean6/.
+This tree does not yet include19936; update only after retiring/completing its
+active builder and preserve source-scoped outcomes. Six dirty owned files only.
 
 Use tools/run_authenticated_corpus.py ROOT --controls CURRENT_CONTROLS
 --opt-level1 --target-dir ROOT/target-spectcl-opt1 --evidence NEW_DIRECTORY.
-Preflight requires exact HEAD/Rust diff, successful complete report AND actual
-realm controls, zero build warnings and all117 fixture hashes. Every old1/old2,
-old1/new AND new/old2 report comparison must Equal; Different and Unavailable
-fail. Strict runtime/cache/global equality remains unchanged and separately
-recorded. No normalization, omitted field/subject or weakened assertion/budget.
+Preflight requires exact HEAD/Rust diff, complete report AND actual realm
+controls, zero build warnings and all117 fixture hashes. All three old1/old2,
+old1/new AND new/old2 comparisons must Equal; Different/Unavailable fail.
+Strict runtime/cache/global equality stays untouched and separately recorded.
+No normalization, omitted field/subject, weakened assertion or budget.
 
 ## Completed evidence and current failures
 

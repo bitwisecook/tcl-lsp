@@ -1,0 +1,36 @@
+from pathlib import Path
+import subprocess,json,hashlib,time
+r=Path('/workspace/tcl-lsp-perf-latest'); save=Path('/tmp/perf-a8-batch-before-canonical');save.mkdir(exist_ok=True)
+def git(*a):return subprocess.check_output(['git',*a],cwd=r)
+old=git('rev-parse','HEAD').decode().strip();new=git('rev-parse','origin/work').decode().strip()
+paths=git('diff','--name-only').decode().splitlines();assert len(paths)==10
+records={};merged={}
+for p in paths:
+ target=save/p;target.parent.mkdir(parents=True,exist_ok=True);target.write_bytes((r/p).read_bytes())
+ base=git('show',old+':'+p);canonical=git('show',new+':'+p);experimental=(r/p).read_bytes()
+ if p.endswith('/source_graph.rs'):
+  assert experimental==canonical
+  continue
+ for name,content in [('base',base),('canonical',canonical),('experimental',experimental)]: (save/name).write_bytes(content)
+ m=subprocess.run(['git','merge-file','-p',str(save/'canonical'),str(save/'base'),str(save/'experimental')],capture_output=True)
+ (save/(Path(p).name+'.merged')).write_bytes(m.stdout)
+ if m.returncode and p.endswith('/original_word.rs'):
+  text=m.stdout.decode(); start=text.index('<<<<<<< '); mid=text.index('=======\n',start); end=text.index('>>>>>>> ',mid); end=text.index('\n',end)+1
+  canonical_section=text[text.index('\n',start)+1:mid]
+  assert canonical_section in canonical.decode()
+  text=text[:start]+canonical_section+text[end:]
+  assert all(mark not in text for mark in ['<<<<<<<','=======','>>>>>>>'])
+  merged[p]=text.encode()
+ else:
+  assert m.returncode==0,(p,m.returncode)
+  merged[p]=m.stdout
+ records[p]={'old':hashlib.sha256(base).hexdigest(),'canonical':hashlib.sha256(canonical).hexdigest(),'experimental':hashlib.sha256(experimental).hexdigest(),'merged':hashlib.sha256(merged[p]).hexdigest()}
+(save/'receipt.json').write_text(json.dumps({'old':old,'new':new,'paths':records,'time':time.time()},indent=2)+'\n')
+subprocess.run(['git','restore','--',*paths],cwd=r,check=True)
+subprocess.run(['git','switch','--detach',new],cwd=r,check=True)
+for p,content in merged.items():
+ if (r/p).read_bytes()!=content:(r/p).write_bytes(content)
+assert not git('diff','--cached')
+e=Path('/workspace/tcl-lsp-work/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/perf/evidence')/('current-'+new[:8]);e.mkdir(exist_ok=True)
+(e/'rebase-inputs.json').write_bytes((save/'receipt.json').read_bytes())
+print(new,git('diff','--stat').decode(),flush=True)

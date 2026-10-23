@@ -128,30 +128,7 @@
      }
      /// Reparse only this exact selected original container path under another
      /// independently supplied full config. No recursive brace search or line/name
-@@ -331,16 +351,12 @@
-     }
- }
- fn line_at(image: &SourceImage, offset: u32) -> Option<u32> {
--    u32::try_from(
--        image
--            .bytes()
--            .get(..usize::try_from(offset).ok()?)?
--            .iter()
--            .filter(|&&b| b == b'\n')
--            .count(),
--    )
--    .ok()?
--    .checked_add(1)
-+    image.bytes().get(..usize::try_from(offset).ok()?)?;
-+    image
-+        .source_map()
-+        .line_index()
-+        .line_at(offset)
-+        .checked_add(1)
- }
- /// The existing loader CST parser, with original complete row/word geometry.
- /// Recovered rows stay readable but cannot lend checked word provenance beyond
-@@ -397,6 +413,101 @@
+@@ -394,6 +414,101 @@
      use tcl_lexer::{LeadingBom, SourceSegmentationPurpose};
 
      #[test]
