@@ -429,7 +429,7 @@ impl Vm {
     #[must_use]
     pub fn retain_original_operand_failure(
         &mut self,
-        original: &OriginalOperandProjection,
+        _original: &OriginalOperandProjection,
         failure: crate::TclHostFailure,
     ) -> TclError {
         let first = self.retain_tcl_host_failure(failure);

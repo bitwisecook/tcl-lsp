@@ -493,7 +493,7 @@ fn resume(
 }
 
 struct ResumeSetup {
-    stale_message: Option<String>,
+    stale_message: Option<&'static str>,
     acts: Vec<Frame>,
     parked: ParkedFlow,
     was_fresh: bool,
@@ -613,7 +613,7 @@ fn fail_resume_delivery(
 
 fn finish_resume_exit(
     vm: &mut Vm,
-    key: &CommandSidecarKey,
+    _key: &CommandSidecarKey,
     active_key: &CommandSidecarHandle,
     mut acts: Vec<Frame>,
     mut parked: ParkedFlow,

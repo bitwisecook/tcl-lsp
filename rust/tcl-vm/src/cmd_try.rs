@@ -903,7 +903,11 @@ fn run_try_body(
     }
 }
 
-fn advance_try_parse_error(vm: &mut Vm, plan: &Rc<TryPlan>, error: TclError) -> Completion<Value> {
+fn advance_try_parse_error(
+    vm: &mut Vm,
+    plan: &Rc<TryPlan>,
+    error: crate::TclError,
+) -> Completion<Value> {
     // Parse failures follow the normal body-error path so registered handlers
     // and `finally` still run before the completion is delivered.
     let completion = crate::command::completion_from_tcl_error(vm, error);
