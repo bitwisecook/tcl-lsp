@@ -1,0 +1,75 @@
+{
+  "utc": "2026-10-23T08:29:35.096771+00:00",
+  "status": "CLEAR bounded static builder/template only; actual identity verification/materialization/typing UNRUN",
+  "archive_sha256": "4016d085c85ee27c8193d398a09dff25d58a6f141576a8632cc008d10b54fc10",
+  "file_count": 12,
+  "all_payloads_roundtrip_match": true,
+  "files": [
+    {
+      "path": "README.md",
+      "size": 3580,
+      "sha256": "b194cbdbb6075a69868e50892b8cf68b91a905888c2c18810799937f7ebfc10b"
+    },
+    {
+      "path": "actual-identity-required-schema.json",
+      "size": 668,
+      "sha256": "11173c4708bd818c3efb0b44f2d056c3928c39d33162e9c780829872ba400f37"
+    },
+    {
+      "path": "builder.py",
+      "size": 21922,
+      "sha256": "5cfeb693bb140623b61da85ff0533f81e14df7d80967269f86893a446c082cd3"
+    },
+    {
+      "path": "ccg-static-peer-v3.json",
+      "size": 1512,
+      "sha256": "67c23dc36511f4750f538d35a612c740f8aadf6ef0a4d85095dca76c83146cd2"
+    },
+    {
+      "path": "guarded-exec.py.template.txt",
+      "size": 13109,
+      "sha256": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811"
+    },
+    {
+      "path": "launch.py.template.txt",
+      "size": 3371,
+      "sha256": "879b4c65b573effa93973cf804167d2081b178a466efcdf43f14b1a88897c9b6"
+    },
+    {
+      "path": "plan.template.json",
+      "size": 4310,
+      "sha256": "e96db3f9ae9069d1fe83c58dfe30f6ae6558cf96acd4b197b50b324a4388b46e"
+    },
+    {
+      "path": "policy.json",
+      "size": 2271,
+      "sha256": "df3b46946e991de956f0c6429e098fb5705d9c8b7f5d7672abec45a3b0a7b4d3"
+    },
+    {
+      "path": "preparation-manifest.json",
+      "size": 1190,
+      "sha256": "37f9a672ea5f33ed06984aec950bcecab9f73aa04f87c384ab69be2507159883"
+    },
+    {
+      "path": "run.sh.template.txt",
+      "size": 47,
+      "sha256": "ad51c19824a1755520fedb71d5cc45ceb8463854f233a5d8dab75b138d2a5110"
+    },
+    {
+      "path": "static-checks.json",
+      "size": 1166,
+      "sha256": "19ac1dd4aebe9fb4439e0bd4a7f5b06b78342007aa50e201d7874f58970b72b9"
+    },
+    {
+      "path": "suite.py.template.txt",
+      "size": 15821,
+      "sha256": "455d9c800e9bc39d118a7b8eccf1ad8c3220c858e0c28c7b4df9919d06440b8f"
+    }
+  ],
+  "preparation_manifest_sha256": "37f9a672ea5f33ed06984aec950bcecab9f73aa04f87c384ab69be2507159883",
+  "ccg_peer_sha256": "67c23dc36511f4750f538d35a612c740f8aadf6ef0a4d85095dca76c83146cd2",
+  "schema": "Future root supplies actual-integrated-product-identity-v1 plus explicit reviewed candidate manifest path/SHA and this builder manifestSHA. Default validate-only; --materialize only after all actual Git/commit/tree/baseline/final/worktree/patch/history/source membership proofs twice. No root-go creation.",
+  "late_binding": "Reviewed core19-v5 currently proposes66, not actual source identity. Builder generic exact count from reviewed candidate+actual map; no fixed64/latest fallback. Actual source46 v9PASS0W remains predecessor compilation-only.",
+  "checks": "V3 sole code delta rejects duplicate JSON object keys at every depth; six v2 policy/templates unchanged; v9 normalized eight-package/env/88125/process/source/provider/GO/0W guards preserved. AST/noargs-refusal only by Names; CCG independently AST/noargs/read_json-only synthetic.",
+  "limits": "No actual Git/product/source collector/provider verification, materialization, future plan/inputmanifest/GO, Cargo/lock/queue/launcher or runtime executed."
+}

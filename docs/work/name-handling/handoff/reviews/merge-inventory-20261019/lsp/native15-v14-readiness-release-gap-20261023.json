@@ -1,0 +1,157 @@
+{
+  "actual_utc": "2026-10-23T08:30:21.947304+00:00",
+  "scope": "Read-only preparation and release-gap audit; no GO/Cargo/listing/test execution or acceptance",
+  "approved_product_head": "897b4f9bfd27ffe9cf5e5dc67d14476a90ee26e6",
+  "approved_product_tree": "0b11e3a05ee26ca70bbe001244d05c5ab9004f30",
+  "native15_go_exists": false,
+  "plan_sha256": "7495afcfbda18ae1f355e8ac2d14a56983437d07a6cc89c433a6bf1b08ba1e98",
+  "original15_objects_equal_source30_v8": true,
+  "all13_current_sourcepins_match": true,
+  "all16_runner_inputs_match": true,
+  "finite_scope": {
+    "D1": {
+      "selected": 2,
+      "covers": "one-backend mixed package releases/order/current path retirement"
+    },
+    "D2": {
+      "selected": 6,
+      "covers": "retained source views/parents/retirement, pending/rootless independent answers, path authority guards and deep12 inventory"
+    },
+    "D3": {
+      "selected": 1,
+      "covers": "warm/fresh open and closed provider changes"
+    },
+    "D4": {
+      "selected": 1,
+      "covers": "unchanged-document folder pack/stub generation"
+    },
+    "D5": {
+      "selected": 4,
+      "covers": "captured protocol edits+references+execution; class/method collisions; imports/aliases atomic refusal; shadowed builtin transforms"
+    },
+    "additional_enabled_transform": {
+      "selected": 1,
+      "covers": "compact command structured refusal/result"
+    }
+  },
+  "baseline_inventory_path": "docs/work/name-handling/handoff/reviews/merge-inventory-20261019/coordinator-20261022/origin-rust-ci-5203-named-log-outcomes-20261022.json",
+  "baseline_sha256": "8f0640329c7c60180099d61fe5c2d58ff13b76230b6046ef169f610b3ffa7a58",
+  "baseline_product": "fcb7927f02b5395753247b322fdd7be87ae5c731",
+  "baseline_joins": [
+    {
+      "package": "tcl-lsp-server",
+      "selector": "naming_source_view_owners::retained_child_views_keep_distinct_parent_inputs_and_refuse_retired_owner",
+      "section": "D2 native ownership",
+      "matches_in_exact_baseline_named_inventory": [],
+      "classification": "absent from this named baseline inventory; no regression or PASS inference"
+    },
+    {
+      "package": "tcl-lsp-server",
+      "selector": "naming_source_view_owners::pending_source_scopes_and_rootless_cycles_keep_independent_first_answers",
+      "section": "D2 native ownership",
+      "matches_in_exact_baseline_named_inventory": [],
+      "classification": "absent from this named baseline inventory; no regression or PASS inference"
+    },
+    {
+      "package": "tcl-lsp-server",
+      "selector": "naming_source_view_owners::path_advice_controls::source_path_handles_require_current_complete_same_session_parent",
+      "section": "D2 native path authority",
+      "matches_in_exact_baseline_named_inventory": [],
+      "classification": "absent from this named baseline inventory; no regression or PASS inference"
+    },
+    {
+      "package": "tcl-lsp-server",
+      "selector": "naming_source_view_owners::path_advice_controls::qualified_source_path_uses_current_cut_and_variable_free_own_writes",
+      "section": "D2 native path authority",
+      "matches_in_exact_baseline_named_inventory": [],
+      "classification": "absent from this named baseline inventory; no regression or PASS inference"
+    },
+    {
+      "package": "tcl-lsp-server",
+      "selector": "naming_source_view_owners::path_advice_controls::source_path_shadows_intermediate_writes_and_effects_cannot_enable_wrong_good",
+      "section": "D2 native path authority",
+      "matches_in_exact_baseline_named_inventory": [],
+      "classification": "absent from this named baseline inventory; no regression or PASS inference"
+    },
+    {
+      "package": "tcl-lsp-server",
+      "selector": "naming_packages::package_release_queries_are_order_independent_and_retire_old_library_paths",
+      "section": "D1",
+      "matches_in_exact_baseline_named_inventory": [],
+      "classification": "absent from this named baseline inventory; no regression or PASS inference"
+    },
+    {
+      "package": "tcl-lsp-server",
+      "selector": "naming_source_views::first_source_inventory_carries_twelve_composed_views_and_retires_removed_edge",
+      "section": "D2",
+      "matches_in_exact_baseline_named_inventory": [],
+      "classification": "absent from this named baseline inventory; no regression or PASS inference"
+    },
+    {
+      "package": "tcl-lsp-server",
+      "selector": "naming_lifecycle::warm_lifecycle_answers_match_fresh_after_open_and_closed_provider_changes",
+      "section": "D3",
+      "matches_in_exact_baseline_named_inventory": [],
+      "classification": "absent from this named baseline inventory; no regression or PASS inference"
+    },
+    {
+      "package": "tcl-lsp-server",
+      "selector": "spec_packs::environment_lifecycle::unchanged_documents_follow_folder_pack_and_stub_generations",
+      "section": "D4",
+      "matches_in_exact_baseline_named_inventory": [],
+      "classification": "absent from this named baseline inventory; no regression or PASS inference"
+    },
+    {
+      "package": "tcl-lsp-server",
+      "selector": "naming_edits::declaration_and_call_origin_edits_agree_with_references_and_execute_across_open_closed_files",
+      "section": "D5",
+      "matches_in_exact_baseline_named_inventory": [],
+      "classification": "absent from this named baseline inventory; no regression or PASS inference"
+    },
+    {
+      "package": "tcl-lsp-server",
+      "selector": "naming_edits::class_and_method_collisions_are_atomic_typed_protocol_refusals",
+      "section": "D5",
+      "matches_in_exact_baseline_named_inventory": [],
+      "classification": "absent from this named baseline inventory; no regression or PASS inference"
+    },
+    {
+      "package": "tcl-lsp-server",
+      "selector": "naming_edits::import_and_alias_rename_is_complete_or_returns_an_atomic_typed_refusal",
+      "section": "D5",
+      "matches_in_exact_baseline_named_inventory": [],
+      "classification": "absent from this named baseline inventory; no regression or PASS inference"
+    },
+    {
+      "package": "tcl-lsp-server",
+      "selector": "naming_edits::shadowed_builtin_identity_agrees_with_diagnostics_and_enabled_transforms",
+      "section": "D5",
+      "matches_in_exact_baseline_named_inventory": [],
+      "classification": "absent from this named baseline inventory; no regression or PASS inference"
+    },
+    {
+      "package": "tcl-lsp-server",
+      "selector": "commands::minify_compact_reports_naming_refusal_and_preserves_result",
+      "section": "enabled transform",
+      "matches_in_exact_baseline_named_inventory": [],
+      "classification": "absent from this named baseline inventory; no regression or PASS inference"
+    },
+    {
+      "package": "tcl-lsp-server",
+      "selector": "tests::package_definition_keeps_each_callers_release_in_one_backend",
+      "section": "D1 backend",
+      "matches_in_exact_baseline_named_inventory": [],
+      "classification": "absent from this named baseline inventory; no regression or PASS inference"
+    }
+  ],
+  "remaining_release_obligations": [
+    "Native15 still unrun; fifteen selected passes would establish only these exact scenarios/subcases reached, not whole D1-D5 or D6",
+    "D6 current native transport full e2e/lifecycle/editor runtime and exact shipping suites remain required",
+    "WASM/browser actual current compile and browser behavior unrun after integrated Unpin fix; old CI compile/runtime failures stay old-source scope",
+    "WASI actual current host diagnostic delivery/navigation/shutdown/cache requires rerun; old5206 has6PASS3baselineP2F,12shutdown repetitions unknown",
+    "SupportedNode26 OFFTREE exact twoJSON layout tscPASS and nameGeneration formatPASS do not establish canonical generated packaging/desktop/web host acceptance",
+    "Current LSP23 actual17PASS6FAIL remains unresolved and blocks broad enabled-transform/sourcepurpose claims",
+    "Exact shipping binary_id+selector comparison to fcb7927 baseline24312PASS remains incomplete; keep oldCI529nativeP2F,856main3P2F as separate old-source ledgers, never sum or transfer outcomes",
+    "SectionF authoritative static identities/uncertainty, SpecTcl families/hooks/generation, transforms, prescribedtoolchain repository gates and restrictions documentation remain open; release perf/externalBIGIP owned elsewhere"
+  ]
+}

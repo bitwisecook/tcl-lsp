@@ -1,0 +1,52 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Generic LSP and necessary Compiler/DB/Registry/Syntax owners; Runtime/VM and dedicated BIG-IP/iRules/ILX/XC/APL/tmsh semantics deferred. AI3 generic source-diagnostic boundaries now admitted; dedicated meanings remain deferred.",
+  "stage_order": {
+    "current": "Finish and VERIFY LSP itself first.",
+    "next": "Resume necessary compiler-only dependency packets after LSP verification.",
+    "paused": "VM/runtime naming work remains paused; compiler-only source packets are parked.",
+    "authority": "User reaffirmation relayed by Root; no count or verification change."
+  },
+  "utc": "2026-10-23T08:36:20.443580+00:00",
+  "scheduled_report_utc": "2026-10-23T08:36:20.331522+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "changes": [
+    "Hook2 closed1PASS1FAIL/2 with zero warnings/allguards. Raw audit5790acab and complete131payload archive independentlyrootverified. Hostless refusal passes; DSL1 livefold[]vs[5] fails before DSL2.",
+    "Core19v5 static union peerCLEAR, actual source unchanged. Native15 readiness15selectors/13sourcepins/16inputs matches; sole remaining frozen group.",
+    "08:25 cyclepublished db6e86317 at08:27:16; next08:55:37UTC reminder53105. ExternalBIGIP/perfstale usernotified; no takeover."
+  ],
+  "in_progress": [
+    "Complete Native15 on frozen currentproduct46, then review/apply core19 against real new committed identity and run fresh8package alltarget typing.",
+    "Resolve focusedfailures/authenticatedperfproof, full shippinghosts/repositorygates and exactorigin/rustzeroP2F. AllF/audit0."
+  ],
+  "green_PR": false,
+  "merge_or_issue_closure": false
+}

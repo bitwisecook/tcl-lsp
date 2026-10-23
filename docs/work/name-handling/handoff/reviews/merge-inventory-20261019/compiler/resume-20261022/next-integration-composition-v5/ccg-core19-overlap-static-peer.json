@@ -1,0 +1,37 @@
+{
+  "combined_patch_sha256": "402fbd345325d6f4da17231b0266be92c0700b01a6a70c4eb83df55d21a144c2",
+  "component_count": 19,
+  "independent_checks": [
+    "all 31 exact final file hashes match an independently copied shadow after zero-fuzz/no-offset combined patch apply",
+    "the two overlap files passed pinned owner-edition rustfmt --check in shadow",
+    "single original preflight_image call remains before both whole debug logs and original timing drop",
+    "require_provider retains original possible_error=true then locals=None after both whole debug logs",
+    "one cfg_attr(debug_assertions, track_caller) remains; logging is cfg(debug_assertions) only",
+    "original source_structure readonly/ILX union is unchanged by the added two components"
+  ],
+  "independent_shadow": "/tmp/ccg-core19-overlap-independent-shadow-v2",
+  "limitations": [
+    "Source HOLD; no canonical apply, Cargo, provider, GO, Git, Rust typing, or runtime execution",
+    "No claim that either diagnostic establishes functional cause or production correctness"
+  ],
+  "manifest_path": "/tmp/compiler-next-integration-composition-v5/manifest.json",
+  "manifest_sha256": "9e8c047703fb3df93d34f6ba4cac8398d45d81c509d157c89c6c14fb3a7b9ba0",
+  "overlap_files": [
+    {
+      "after_sha256": "bf1d57676ffc38e30a061724acb2f23fe81de0de86f573e07de72facdc93fc01",
+      "before_sha256": "8207fff06e00e6a11434372505672b447a644bfe8b49df1667367f82fbaa9baf",
+      "path": "rust/tcl-compiler/src/command_binding.rs",
+      "union_patch_sha256": "57cc791b4c8020162ff421a4e75f0b124fcd7b35ca39376b24c5442374c1fe39"
+    },
+    {
+      "after_sha256": "6b521cc3a79734cba48e2c5d0b32f17d7c04f08387d5a72c5e6ffe24406c260f",
+      "before_sha256": "a6f3d97e7707bd87ae77771bf5417cd0002ce24e8061a65d77db6436ba630acf",
+      "path": "rust/tcl-compiler/src/command_binding/compiled_preflight.rs",
+      "union_patch_sha256": "5d957e9687dc11c92862f42461778b9f95cab4aaead40dfdbf86c59c6655c20d"
+    }
+  ],
+  "path_count": 31,
+  "reviewed_at_utc": "2026-10-23T08:25:11.223073+00:00",
+  "schema": "ccg-core19-two-overlap-bounded-static-peer-v1",
+  "status": "CLEAR for two explicit debug-only overlap unions; no Rust typing or runtime claim"
+}

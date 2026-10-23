@@ -2,11 +2,35 @@
 
 Area: tcl-vm, runtime/rust, tcl-spectcl, tcl-spec-studio: SpecTcl execution and acceptance.
 
-Last updated: 2026-10-23T08:23:49.176457+00:00 (original hook2 active under root20770; runtime rows pending, readonly monitor)
+Last updated: 2026-10-23T08:29:11.221313+00:00 (hook2 complete1PASS/1FAIL0W; full131-file archive done; N17cleanup held)
 
 Maintained by the vm-runtime agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## Resume
+
+Original hook2 actual COMPLETE/LOCK_RELEASED08:26:52.326908Z; root observed
+parent20770 closedexit1, finishedlauncher stable. Exact2=1PASS/1FAIL,0warnings,
+full source/provider/artifact/process guards stable. Full lossless archive
+131logical/119gzipblobs, every payload roundtrip verified:
+`vm-runtime/runs/ccg-hook2-complete-20261023T082153Z/manifest.txt`
+SHAc6bf5bb43e84023f1ea0034571c8b535c26e3db9268b28711b36c987c927a119.
+Rawrun/protocol/finishedlauncher/GO/rootparent/transitiveinputs/prerequisites/
+source/provider/artifact/process and original51source-test payloads preserved;
+no rawRUN writes by VM. Root independently verifies allpayloads beforeNative15.
+Positive DSL1 folds[] vs[5] at188; DSL2.0/final equality unreached. Hostless
+negativePASS separately. Direct3 and positivehook bothfail, so N17cleanupheld;
+no livehook or wholeSpecTcl acceptance. CCG owns functional fix. Root sole
+Cargo/Git/GO/integration, source/providerHOLD; no duplicateVM launch.
+
+Original hook2 actual rows closed1PASS/1FAIL, exact1 each, stable source/
+provider/artifact0W. Positive live fold fails original pack_source_e2e188 DSL1
+folds[] versus expected[5], after cleanload/DSLmetadata/nonemptyplan/slotidentity
+checks. Actual DSL2.0 and final equality unreached; prior installation checks
+do not establish hookbody execution. Hostless original negative separatelyPASS.
+Final receipt exists; full archive still waits for stablefinishedlauncher and
+root actualparent20770 observation/LOCK_RELEASED. Prepared helpera85890fe only.
+CCG owns functional diagnosis; no VM source/Rust/GO/Git. Direct3 also failed,
+so N17observer cleanup remains held. No wholeSpecTcl/livehook acceptance.
 
 Original pack hook2 actual root20770 launch active with GO3551bc42;
 launcher082133.820810Z, suite082153.905914Z under

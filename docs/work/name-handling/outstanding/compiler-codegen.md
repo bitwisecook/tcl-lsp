@@ -2,11 +2,13 @@
 
 Area: compile_service, codegen, compiled_preflight, tcl-spectcl install.rs, review N17.
 
-Last updated: 2026-10-23T08:17:04+00:00 (ACTIVE; direct3 source issuer traces peer clear)
+Last updated: 2026-10-23T08:26:32+00:00 (ACTIVE; core19 and builder peers clear, hook2 runtime partial)
 
 Maintained by the compiler-codegen agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## Resume
+
+**Current bounded peers and live hook, 08:26Z:** core19 next-composition exact two debug-only unions are static CLEAR at `/tmp/compiler-next-integration-composition-v5/ccg-core19-overlap-static-peer.json` SHA `696310f6` (manifest `9e8c0477`, combined `402fbd34`, 31 exact shadow final hashes, original preflight query/writes/order retained). Names eight-package future v10 builder v3 static delta is CLEAR at `/tmp/name-handling-eight-package-check-v10-builder-v3/ccg-static-peer-v3.json` SHA `67c23dc3`: duplicate JSON keys now refuse at every depth, six runtime/policy templates byte-identical v2, but actual new HEAD/GO/typing is not materialized or run. Nextest capture v2 coordination-audit peer receipt is `/tmp/ccg-nextest-capture-v2/peer-review-v2.json` SHA `749f29c5`; proposal only. The separate original pack-hook2 run has row1 closed FAIL at DSL1 `folds=[]` versus `[5]` after clean-load/plan/slot checks; DSL2 and final equality are unreached, and hostless row2 is pending. This does not prove the hook body ran or locate the N17 issuer. Preserve N17 observers, `ZZ_CCG_BASELINE` probes and cleanup inverse until exact current evidence supports removal. No source integration, Cargo, Git or GO by this role.
 
 **Nextest 0.9.148 capture proposal v2, 08:02Z:** immutable off-tree `/tmp/ccg-nextest-capture-v2/manifest.json` SHA `f4ab122e`, combined patch SHA `a6e307d5` and wrapper SHA `3824ed63` have coordination-audit bounded static CLEAR. V1 SHA `d6eb09b1` is **HELD**: malformed but valid roster JSON could abort before the original child ran, duplicate keys could collapse identities, and `read_bytes()` allocated before the cap. V2 uses stat plus bounded read, duplicate-key and schema checks, and proves six malformed/duplicate/oversize listings still run the original synthetic child. Parser split/huge-output/unknown/duplicate/partial controls, fake reporter pass/fail and owned group lifecycle synthetics pass; CI shadow is byte-identical to V1, parses 39 jobs, and zero-fuzz applies off-tree. It preserves six-hour budget, original test selection and exit behavior, and caps console at 20,000,000 bytes. **Actual nextest 0.9.148 reporter compatibility, Cargo and CI are UNRUN; no canonical change.** External hard kill still cannot guarantee a final remote artifact; console markers are best effort.
 

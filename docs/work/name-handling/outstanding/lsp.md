@@ -1,6 +1,6 @@
 # Outstanding work: lsp agent
 
-Current status 2026-10-23T07:35:29Z: actual LSP23v5 CLOSED07:33:39 on897b source46:23selected17PASS6FAIL, source/provider/artifact finalguards TRUE; actual root-observed toolsession10730 exit1, suitePID307040 lockreleased07:33:39, no protocol launcher used. Complete lossless archive `lsp/quote-body23-v5-closed-20261023/archive-summary.json` includes every raw run/protocol/transitive byte with verified gzip roundtrips/currentpins. Failures: original factorial; default nested-expression oracle; authentic Core body-source minifier output; quoteBOM boundary fixture; head-replacement Readonly negative; compiler every-alternative/fullinput initial positive. Unreached subcases remain unvalidated. BOM test-only Skip correction off-tree peerCLEAR; nested compiler census and head-replacement diagnosis open. No canonical source/Cargo/Git/GO byLSP, no release/host claim.
+Current status 2026-10-23T08:30:36Z: Native15v14 READY/PENDING ROOT ALLOCATION, GO ABSENT and runtime UNRUN. Read-only exact original15 equality,13current sourcepins,16runner inputs allPASS on897b/tree0b11/mapf756; no Rust/listing/runner execution. Finite scope D1two/D2six/D3one/D4one/D5four plus enabledtransformone; no D6/wholehost claim. All15 are absent from exact24312 named baseline inventory, so no baselinePASS/regression inferred. Actual LSP23 remains17PASS6FAIL/0W/allguards with preserved unreached subcases; BOM fixture test-only peerCLEAR futurecore19, readonly/nestedExpr/allalternatives diagnostic follow-ups await sourcewindow. Current native/WASM/WASI/browser/editor shipping gates and exact shipping baselinejoin remain open; external/perf owners untouched.
 
 
 
@@ -63,13 +63,13 @@ Prepared separate Core1 ownership/refusal phase `/tmp/lsp-body-guard-core1/run.s
 
 Area: tcl-lsp-core, tcl-lsp-db and tcl-lsp-server (generic providers, server, WASM/WASI hosts).
 
-Last updated: 2026-10-23T07:35:29Z
+Last updated: 2026-10-23T08:30:36Z
 
 Maintained by the lsp agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## Resume
 
-Latest resume pointer 2026-10-23T07:35:29Z: read `lsp/quote-body23-v5-closed-20261023/archive-summary.json` then outcome-caveats.json (exact6selectors and unreached subcases). Actual23 closure17/6 has stable source/provider/artifact seals; root observed direct toolsession10730/suitePID307040, no launcher fiction. Off-tree BOM fixture c00a8a7d peer38cdCLEAR preserves all original assertions with genuine Skip input; Names owns nested-body census; head-replacement producer firstissuer still unmeasured. Retain user1317 whitespace expectations/2231 opaque stop/allguards. Root alone allocates next runtime/source slots; no LSP Cargo/Git/GO.
+Latest resume pointer 2026-10-23T08:30:36Z: read `lsp/native15-v14-readiness-release-gap-20261023.json` (currentpins/roster exactPASS, original15 UNRUN/GOabsent, D1–D5 finite map and D6/baseline gaps). Root will notify actual Native15 allocation; monitor read-only after actualrun pointer, never mint/queue/restart. Existing `lsp/quote-body23-v5-closed-20261023/archive-summary.json` and outcome-caveats retain17/6 actualseals. No sectionF/zeroP2F/fullhost admission from typing/offtreeTS/finitecases; no LSP source/Cargo/Git/GO.
 
 
 

@@ -1,0 +1,1060 @@
+{
+  "utc": "2026-10-23T08:28:49.016697+00:00",
+  "status": "full completed original pack hook2 lossless archive; finite original2 only",
+  "run": "/tmp/ccg-pack-hook-exact2-v1-runs/20261023T082153.905914Z",
+  "launcher": "/tmp/ccg-pack-hook-exact2-v1-runs/20261023T082133.820810Z",
+  "PASS": 1,
+  "FAIL": 1,
+  "counts": 2,
+  "final": {
+    "all2_direct_child_timers_valid": true,
+    "all_artifacts_retained": true,
+    "artifact_stable": true,
+    "build_artifacts": {
+      "tcl-spectcl": {
+        "captured_from_current_cargo_event": true,
+        "cargo_event": {
+          "executable": "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/pack_source_e2e-626cf81c5174631c",
+          "features": [],
+          "filenames": [
+            "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/pack_source_e2e-626cf81c5174631c"
+          ],
+          "fresh": true,
+          "manifest_path": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-spectcl/Cargo.toml",
+          "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-spectcl#0.1.0",
+          "profile": {
+            "debug_assertions": true,
+            "debuginfo": 0,
+            "opt_level": "0",
+            "overflow_checks": true,
+            "test": true
+          },
+          "reason": "compiler-artifact",
+          "target": {
+            "crate_types": [
+              "bin"
+            ],
+            "doc": false,
+            "doctest": false,
+            "edition": "2024",
+            "kind": [
+              "test"
+            ],
+            "name": "pack_source_e2e",
+            "src_path": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-spectcl/tests/pack_source_e2e.rs",
+            "test": true
+          }
+        },
+        "manifest_path": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-spectcl/Cargo.toml",
+        "mtime_ns": 1792742413811453942,
+        "package": "tcl-spectcl",
+        "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-spectcl#0.1.0",
+        "path": "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/pack_source_e2e-626cf81c5174631c",
+        "profile": {
+          "debug_assertions": true,
+          "debuginfo": 0,
+          "opt_level": "0",
+          "overflow_checks": true,
+          "test": true
+        },
+        "sha256": "90099afe756cb906ffdccb2ae2d6c7390bd9b5d6c78ce96b03302f0585b3b009",
+        "size": 155520472,
+        "stderr_sha256": "be343b7d253900edb0d264ca48b5dfd79a9431abfdf0f1eae32f2b33416381b5",
+        "stdout_sha256": "b59bb60b19bc1daceddc405245a37e1ad4a7ed5a6ca92293c395064abe525cfb",
+        "target_kind": [
+          "test"
+        ],
+        "target_name": "pack_source_e2e"
+      },
+      "tcl-vm": {
+        "captured_from_current_cargo_event": true,
+        "cargo_event": {
+          "executable": "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/cmd_control_e2e-98c1b67654ce4554",
+          "features": [
+            "default",
+            "js-clock",
+            "test-support"
+          ],
+          "filenames": [
+            "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/cmd_control_e2e-98c1b67654ce4554"
+          ],
+          "fresh": true,
+          "manifest_path": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-vm/Cargo.toml",
+          "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-vm#0.1.0",
+          "profile": {
+            "debug_assertions": true,
+            "debuginfo": 0,
+            "opt_level": "0",
+            "overflow_checks": true,
+            "test": true
+          },
+          "reason": "compiler-artifact",
+          "target": {
+            "crate_types": [
+              "bin"
+            ],
+            "doc": false,
+            "doctest": false,
+            "edition": "2024",
+            "kind": [
+              "test"
+            ],
+            "name": "cmd_control_e2e",
+            "src_path": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-vm/tests/cmd_control_e2e.rs",
+            "test": true
+          }
+        },
+        "manifest_path": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-vm/Cargo.toml",
+        "mtime_ns": 1792742347725854049,
+        "package": "tcl-vm",
+        "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-vm#0.1.0",
+        "path": "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/cmd_control_e2e-98c1b67654ce4554",
+        "profile": {
+          "debug_assertions": true,
+          "debuginfo": 0,
+          "opt_level": "0",
+          "overflow_checks": true,
+          "test": true
+        },
+        "sha256": "e1d01c583bce7165436a2ab5033c242283d9ec4d8977f24c46617ecf28826671",
+        "size": 121669416,
+        "stderr_sha256": "80cf22191e85d31b858cf52b888e8387d55f157c8331f80efb4b006a7a368bb7",
+        "stdout_sha256": "d3b318b7e052f4cbe266801bb563c1772db288e64f53072357a8b6d377d31254",
+        "target_kind": [
+          "test"
+        ],
+        "target_name": "cmd_control_e2e"
+      }
+    },
+    "finished_utc": "2026-10-23T08:26:52.323756+00:00",
+    "overall_exit": 1,
+    "providers_stable": true,
+    "results": 2,
+    "root_go_sha256": "3551bc42a409b235edb304d4c08e488d8afb08dd13a1debc11eddc1e61cb9e17",
+    "selected": 2,
+    "source_count": 100405,
+    "source_stable": true
+  },
+  "files": [
+    {
+      "path": "run/01-pack_file_live_const_fold.command",
+      "original": "/tmp/ccg-pack-hook-exact2-v1-runs/20261023T082153.905914Z/01-pack_file_live_const_fold.command",
+      "sha256": "36977a42655c226c315fa9c8ad9d2d62b404aa89d5fec7aac1c33353e56fbfd9",
+      "bytes": 178,
+      "blob": "blobs/36977a42655c226c315fa9c8ad9d2d62b404aa89d5fec7aac1c33353e56fbfd9.gz"
+    },
+    {
+      "path": "run/01-pack_file_live_const_fold.env.json",
+      "original": "/tmp/ccg-pack-hook-exact2-v1-runs/20261023T082153.905914Z/01-pack_file_live_const_fold.env.json",
+      "sha256": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356",
+      "bytes": 3,
+      "blob": "blobs/ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356.gz"
+    },
+    {
+      "path": "run/01-pack_file_live_const_fold.process.json",
+      "original": "/tmp/ccg-pack-hook-exact2-v1-runs/20261023T082153.905914Z/01-pack_file_live_const_fold.process.json",
+      "sha256": "9145cfad86759193f847adf90546d18fc390f257c6719dd4ee88a5a9748e454a",
+      "bytes": 2264,
+      "blob": "blobs/9145cfad86759193f847adf90546d18fc390f257c6719dd4ee88a5a9748e454a.gz"
+    },
+    {
+      "path": "run/01-pack_file_live_const_fold.result.json",
+      "original": "/tmp/ccg-pack-hook-exact2-v1-runs/20261023T082153.905914Z/01-pack_file_live_const_fold.result.json",
+      "sha256": "0b67de7ceb4a44e310ff5df74008c38b7ce89df33e09775281fd4ec863104822",
+      "bytes": 5454,
+      "blob": "blobs/0b67de7ceb4a44e310ff5df74008c38b7ce89df33e09775281fd4ec863104822.gz"
+    },
+    {
+      "path": "run/01-pack_file_live_const_fold.sha256.json",
+      "original": "/tmp/ccg-pack-hook-exact2-v1-runs/20261023T082153.905914Z/01-pack_file_live_const_fold.sha256.json",
+      "sha256": "4aa5018b7e60e71e0e2852bcea2d05727e8cdbced348e43db197e121fa986f58",
+      "bytes": 1019,
+      "blob": "blobs/4aa5018b7e60e71e0e2852bcea2d05727e8cdbced348e43db197e121fa986f58.gz"
+    },
+    {
+      "path": "run/01-pack_file_live_const_fold.stderr",
+      "original": "/tmp/ccg-pack-hook-exact2-v1-runs/20261023T082153.905914Z/01-pack_file_live_const_fold.stderr",
+      "sha256": "202562448bae6548dd82ce9442d4980a741728c549ac37c0ccdd24c92f545ba6",
+      "bytes": 270,
+      "blob": "blobs/202562448bae6548dd82ce9442d4980a741728c549ac37c0ccdd24c92f545ba6.gz"
+    },
+    {
+      "path": "run/01-pack_file_live_const_fold.stdout",
+      "original": "/tmp/ccg-pack-hook-exact2-v1-runs/20261023T082153.905914Z/01-pack_file_live_const_fold.stdout",
+      "sha256": "2586dce8605693a68b38c0d2ced6770511d052598d5e13d5e6b648c1340e7d53",
+      "bytes": 253,
+      "blob": "blobs/2586dce8605693a68b38c0d2ced6770511d052598d5e13d5e6b648c1340e7d53.gz"
+    },
+    {
+      "path": "run/02-pack_file_without_host_abstains.command",
+      "original": "/tmp/ccg-pack-hook-exact2-v1-runs/20261023T082153.905914Z/02-pack_file_without_host_abstains.command",
+      "sha256": "e70d7c588ed447c24bb1642012ca19abc6be243436747a85ceab9db5feb516b7",
+      "bytes": 186,
+      "blob": "blobs/e70d7c588ed447c24bb1642012ca19abc6be243436747a85ceab9db5feb516b7.gz"
+    },
+    {
+      "path": "run/02-pack_file_without_host_abstains.env.json",
+      "original": "/tmp/ccg-pack-hook-exact2-v1-runs/20261023T082153.905914Z/02-pack_file_without_host_abstains.env.json",
+      "sha256": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356",
+      "bytes": 3,
+      "blob": "blobs/ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356.gz"
+    },
+    {
+      "path": "run/02-pack_file_without_host_abstains.process.json",
+      "original": "/tmp/ccg-pack-hook-exact2-v1-runs/20261023T082153.905914Z/02-pack_file_without_host_abstains.process.json",
+      "sha256": "d4a66b1dfeb1491c9e188fab957f0aec9dc75ed464cd46ba5048f8e2a2820d7e",
+      "bytes": 2277,
+      "blob": "blobs/d4a66b1dfeb1491c9e188fab957f0aec9dc75ed464cd46ba5048f8e2a2820d7e.gz"
+    },
+    {
+      "path": "run/02-pack_file_without_host_abstains.result.json",
+      "original": "/tmp/ccg-pack-hook-exact2-v1-runs/20261023T082153.905914Z/02-pack_file_without_host_abstains.result.json",
+      "sha256": "2ef8ba021352c74d769d954d9b47d795b45c23082fffd7a34f4cbbfc0c81bc69",
+      "bytes": 5499,
+      "blob": "blobs/2ef8ba021352c74d769d954d9b47d795b45c23082fffd7a34f4cbbfc0c81bc69.gz"
+    },
+    {
+      "path": "run/02-pack_file_without_host_abstains.sha256.json",
+      "original": "/tmp/ccg-pack-hook-exact2-v1-runs/20261023T082153.905914Z/02-pack_file_without_host_abstains.sha256.json",
+      "sha256": "805b3194379cd1bcd71e92ab3f01a5cabb1a28b630e295cb768031999e3b5f13",
+      "bytes": 1055,
+      "blob": "blobs/805b3194379cd1bcd71e92ab3f01a5cabb1a28b630e295cb768031999e3b5f13.gz"
+    },
+    {
+      "path": "run/02-pack_file_without_host_abstains.stderr",
+      "original": "/tmp/ccg-pack-hook-exact2-v1-runs/20261023T082153.905914Z/02-pack_file_without_host_abstains.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "blob": "blobs/e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855.gz"
+    },
+    {
+      "path": "run/02-pack_file_without_host_abstains.stdout",
+      "original": "/tmp/ccg-pack-hook-exact2-v1-runs/20261023T082153.905914Z/02-pack_file_without_host_abstains.stdout",
+      "sha256": "224f40dd83bb1228f74b33a0f3bf093b604a3bf4928bc73240ddd150d5ff69cc",
+      "bytes": 179,
+      "blob": "blobs/224f40dd83bb1228f74b33a0f3bf093b604a3bf4928bc73240ddd150d5ff69cc.gz"
+    },
+    {
+      "path": "run/build-environment.json",
+      "original": "/tmp/ccg-pack-hook-exact2-v1-runs/20261023T082153.905914Z/build-environment.json",
+      "sha256": "64e509ae3d82242e5d1115462348b6b9c913508d3b7392a2ca3f65c63cb4d139",
+      "bytes": 936,
+      "blob": "blobs/64e509ae3d82242e5d1115462348b6b9c913508d3b7392a2ca3f65c63cb4d139.gz"
+    },
+    {
+      "path": "run/build-tcl-spectcl.artifact.json",
+      "original": "/tmp/ccg-pack-hook-exact2-v1-runs/20261023T082153.905914Z/build-tcl-spectcl.artifact.json",
+      "sha256": "2118b92bc226c7375b7d9050c51745cbf85706f30d2e6508c8ca73925f948148",
+      "bytes": 1914,
+      "blob": "blobs/2118b92bc226c7375b7d9050c51745cbf85706f30d2e6508c8ca73925f948148.gz"
+    },
+    {
+      "path": "run/build-tcl-spectcl.command",
+      "original": "/tmp/ccg-pack-hook-exact2-v1-runs/20261023T082153.905914Z/build-tcl-spectcl.command",
+      "sha256": "06e4d60a871804da48c06c7c12ef494b0cb7bddc5d72cb3d16d2098649ed3dc4",
+      "bytes": 155,
+      "blob": "blobs/06e4d60a871804da48c06c7c12ef494b0cb7bddc5d72cb3d16d2098649ed3dc4.gz"
+    },
+    {
+      "path": "run/build-tcl-spectcl.process.json",
+      "original": "/tmp/ccg-pack-hook-exact2-v1-runs/20261023T082153.905914Z/build-tcl-spectcl.process.json",
+      "sha256": "34b030a84a91668c5c5ef52b9e49a48058d177cd322fb0811e9e7dd5e6db058c",
+      "bytes": 2925,
+      "blob": "blobs/34b030a84a91668c5c5ef52b9e49a48058d177cd322fb0811e9e7dd5e6db058c.gz"
+    },
+    {
+      "path": "run/build-tcl-spectcl.stderr",
+      "original": "/tmp/ccg-pack-hook-exact2-v1-runs/20261023T082153.905914Z/build-tcl-spectcl.stderr",
+      "sha256": "be343b7d253900edb0d264ca48b5dfd79a9431abfdf0f1eae32f2b33416381b5",
+      "bytes": 61,
+      "blob": "blobs/be343b7d253900edb0d264ca48b5dfd79a9431abfdf0f1eae32f2b33416381b5.gz"
+    },
+    {
+      "path": "run/build-tcl-spectcl.stdout",
+      "original": "/tmp/ccg-pack-hook-exact2-v1-runs/20261023T082153.905914Z/build-tcl-spectcl.stdout",
+      "sha256": "b59bb60b19bc1daceddc405245a37e1ad4a7ed5a6ca92293c395064abe525cfb",
+      "bytes": 130158,
+      "blob": "blobs/b59bb60b19bc1daceddc405245a37e1ad4a7ed5a6ca92293c395064abe525cfb.gz"
+    },
+    {
+      "path": "run/build-tcl-vm.artifact.json",
+      "original": "/tmp/ccg-pack-hook-exact2-v1-runs/20261023T082153.905914Z/build-tcl-vm.artifact.json",
+      "sha256": "ee6b564f4b48d5551c5ff9f6bfd147820fee131f2b45760244df72b10c165e0f",
+      "bytes": 1945,
+      "blob": "blobs/ee6b564f4b48d5551c5ff9f6bfd147820fee131f2b45760244df72b10c165e0f.gz"
+    },
+    {
+      "path": "run/build-tcl-vm.command",
+      "original": "/tmp/ccg-pack-hook-exact2-v1-runs/20261023T082153.905914Z/build-tcl-vm.command",
+      "sha256": "9cb05ec47705c8ad3536924cafe39cbcf271ccfec370c29656cf2b830633ef3d",
+      "bytes": 150,
+      "blob": "blobs/9cb05ec47705c8ad3536924cafe39cbcf271ccfec370c29656cf2b830633ef3d.gz"
+    },
+    {
+      "path": "run/build-tcl-vm.process.json",
+      "original": "/tmp/ccg-pack-hook-exact2-v1-runs/20261023T082153.905914Z/build-tcl-vm.process.json",
+      "sha256": "b4f9bac537f2766ece3c190f734b973d44caf197733521ed762c206e6eb9cc55",
+      "bytes": 2898,
+      "blob": "blobs/b4f9bac537f2766ece3c190f734b973d44caf197733521ed762c206e6eb9cc55.gz"
+    },
+    {
+      "path": "run/build-tcl-vm.stderr",
+      "original": "/tmp/ccg-pack-hook-exact2-v1-runs/20261023T082153.905914Z/build-tcl-vm.stderr",
+      "sha256": "80cf22191e85d31b858cf52b888e8387d55f157c8331f80efb4b006a7a368bb7",
+      "bytes": 61,
+      "blob": "blobs/80cf22191e85d31b858cf52b888e8387d55f157c8331f80efb4b006a7a368bb7.gz"
+    },
+    {
+      "path": "run/build-tcl-vm.stdout",
+      "original": "/tmp/ccg-pack-hook-exact2-v1-runs/20261023T082153.905914Z/build-tcl-vm.stdout",
+      "sha256": "d3b318b7e052f4cbe266801bb563c1772db288e64f53072357a8b6d377d31254",
+      "bytes": 64946,
+      "blob": "blobs/d3b318b7e052f4cbe266801bb563c1772db288e64f53072357a8b6d377d31254.gz"
+    },
+    {
+      "path": "run/current-rust-diff.patch",
+      "original": "/tmp/ccg-pack-hook-exact2-v1-runs/20261023T082153.905914Z/current-rust-diff.patch",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "blob": "blobs/e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855.gz"
+    },
+    {
+      "path": "run/final.json",
+      "original": "/tmp/ccg-pack-hook-exact2-v1-runs/20261023T082153.905914Z/final.json",
+      "sha256": "93f3a44053cdbc959e6e2cf6f9943fdceb28f41f12540ffac7bb2ef23bbb6109",
+      "bytes": 4750,
+      "blob": "blobs/93f3a44053cdbc959e6e2cf6f9943fdceb28f41f12540ffac7bb2ef23bbb6109.gz"
+    },
+    {
+      "path": "run/head-before.txt",
+      "original": "/tmp/ccg-pack-hook-exact2-v1-runs/20261023T082153.905914Z/head-before.txt",
+      "sha256": "c511507282a05f9811bd63ae1be211fce1ee41a270e10106e13b176a87a9fa41",
+      "bytes": 41,
+      "blob": "blobs/c511507282a05f9811bd63ae1be211fce1ee41a270e10106e13b176a87a9fa41.gz"
+    },
+    {
+      "path": "run/head-snapshot-startup.json",
+      "original": "/tmp/ccg-pack-hook-exact2-v1-runs/20261023T082153.905914Z/head-snapshot-startup.json",
+      "sha256": "a2c4dfa55738df0e2006287d81e5011808dea9635ad00079d4c1f00d518babf2",
+      "bytes": 142,
+      "blob": "blobs/a2c4dfa55738df0e2006287d81e5011808dea9635ad00079d4c1f00d518babf2.gz"
+    },
+    {
+      "path": "run/plan.json",
+      "original": "/tmp/ccg-pack-hook-exact2-v1-runs/20261023T082153.905914Z/plan.json",
+      "sha256": "81e279e98cffe1558cd93e6269c0a14799dc8b8ce10c41e2bfd1fb0ddde10511",
+      "bytes": 16370,
+      "blob": "blobs/81e279e98cffe1558cd93e6269c0a14799dc8b8ce10c41e2bfd1fb0ddde10511.gz"
+    },
+    {
+      "path": "run/providers-after-build.json",
+      "original": "/tmp/ccg-pack-hook-exact2-v1-runs/20261023T082153.905914Z/providers-after-build.json",
+      "sha256": "bfa3e8e7b689dadefe4417f1f953cf6cafe06bfba4c8a2ed261111baa103c246",
+      "bytes": 31165,
+      "blob": "blobs/bfa3e8e7b689dadefe4417f1f953cf6cafe06bfba4c8a2ed261111baa103c246.gz"
+    },
+    {
+      "path": "run/providers-after.json",
+      "original": "/tmp/ccg-pack-hook-exact2-v1-runs/20261023T082153.905914Z/providers-after.json",
+      "sha256": "bfa3e8e7b689dadefe4417f1f953cf6cafe06bfba4c8a2ed261111baa103c246",
+      "bytes": 31165,
+      "blob": "blobs/bfa3e8e7b689dadefe4417f1f953cf6cafe06bfba4c8a2ed261111baa103c246.gz"
+    },
+    {
+      "path": "run/providers-before.json",
+      "original": "/tmp/ccg-pack-hook-exact2-v1-runs/20261023T082153.905914Z/providers-before.json",
+      "sha256": "bfa3e8e7b689dadefe4417f1f953cf6cafe06bfba4c8a2ed261111baa103c246",
+      "bytes": 31165,
+      "blob": "blobs/bfa3e8e7b689dadefe4417f1f953cf6cafe06bfba4c8a2ed261111baa103c246.gz"
+    },
+    {
+      "path": "run/providers-final.json",
+      "original": "/tmp/ccg-pack-hook-exact2-v1-runs/20261023T082153.905914Z/providers-final.json",
+      "sha256": "bfa3e8e7b689dadefe4417f1f953cf6cafe06bfba4c8a2ed261111baa103c246",
+      "bytes": 31165,
+      "blob": "blobs/bfa3e8e7b689dadefe4417f1f953cf6cafe06bfba4c8a2ed261111baa103c246.gz"
+    },
+    {
+      "path": "run/results.json",
+      "original": "/tmp/ccg-pack-hook-exact2-v1-runs/20261023T082153.905914Z/results.json",
+      "sha256": "3bdab44059999a6da9b52df89516afc3c3be7258fe05e3bcb86d998f20104b6d",
+      "bytes": 11578,
+      "blob": "blobs/3bdab44059999a6da9b52df89516afc3c3be7258fe05e3bcb86d998f20104b6d.gz"
+    },
+    {
+      "path": "run/root-go.json",
+      "original": "/tmp/ccg-pack-hook-exact2-v1-runs/20261023T082153.905914Z/root-go.json",
+      "sha256": "3551bc42a409b235edb304d4c08e488d8afb08dd13a1debc11eddc1e61cb9e17",
+      "bytes": 1991,
+      "blob": "blobs/3551bc42a409b235edb304d4c08e488d8afb08dd13a1debc11eddc1e61cb9e17.gz"
+    },
+    {
+      "path": "run/root-observed-parent-closure.json",
+      "original": "/tmp/ccg-pack-hook-exact2-v1-runs/20261023T082153.905914Z/root-observed-parent-closure.json",
+      "sha256": "91cb2d4d72d7480cbab2cf495e9e2142f8b625fa3631f841befd12a595dc485c",
+      "bytes": 544,
+      "blob": "blobs/91cb2d4d72d7480cbab2cf495e9e2142f8b625fa3631f841befd12a595dc485c.gz"
+    },
+    {
+      "path": "run/runner-inputs.json",
+      "original": "/tmp/ccg-pack-hook-exact2-v1-runs/20261023T082153.905914Z/runner-inputs.json",
+      "sha256": "1f72b80005286900e519305e2bdcaf5aa5e5777883c7bc5cfda00e9d16d9e821",
+      "bytes": 898,
+      "blob": "blobs/1f72b80005286900e519305e2bdcaf5aa5e5777883c7bc5cfda00e9d16d9e821.gz"
+    },
+    {
+      "path": "run/source-before.json",
+      "original": "/tmp/ccg-pack-hook-exact2-v1-runs/20261023T082153.905914Z/source-before.json",
+      "sha256": "0948d9cb33101e3f9eab1032d914d15967960abdbd205874f7c1acf9bce962db",
+      "bytes": 12728460,
+      "blob": "blobs/0948d9cb33101e3f9eab1032d914d15967960abdbd205874f7c1acf9bce962db.gz"
+    },
+    {
+      "path": "protocol/__pycache__/guarded-cargo.cpython-312.pyc",
+      "original": "/tmp/ccg-pack-hook-exact2-v1/__pycache__/guarded-cargo.cpython-312.pyc",
+      "sha256": "06406b80f0b9e95efaf35305a51dba2bade0d9f63476b756998e173af6f0641b",
+      "bytes": 3270,
+      "blob": "blobs/06406b80f0b9e95efaf35305a51dba2bade0d9f63476b756998e173af6f0641b.gz"
+    },
+    {
+      "path": "protocol/__pycache__/guarded-exec.cpython-312.pyc",
+      "original": "/tmp/ccg-pack-hook-exact2-v1/__pycache__/guarded-exec.cpython-312.pyc",
+      "sha256": "97b51a6b30285d190555ae4f8cbd1ecdc83722f3b11b48f9affca484f96c887d",
+      "bytes": 16498,
+      "blob": "blobs/97b51a6b30285d190555ae4f8cbd1ecdc83722f3b11b48f9affca484f96c887d.gz"
+    },
+    {
+      "path": "protocol/__pycache__/launch.cpython-312.pyc",
+      "original": "/tmp/ccg-pack-hook-exact2-v1/__pycache__/launch.cpython-312.pyc",
+      "sha256": "52f89c8032ce9391938f20ca95ada4e149e32f7a39a9c8c014af4dbba860558f",
+      "bytes": 6765,
+      "blob": "blobs/52f89c8032ce9391938f20ca95ada4e149e32f7a39a9c8c014af4dbba860558f.gz"
+    },
+    {
+      "path": "protocol/__pycache__/suite.cpython-312.pyc",
+      "original": "/tmp/ccg-pack-hook-exact2-v1/__pycache__/suite.cpython-312.pyc",
+      "sha256": "12bde1d39a8f893bec92b238570cc44be80654d4035a726795b69f7c2c39c2e6",
+      "bytes": 40352,
+      "blob": "blobs/12bde1d39a8f893bec92b238570cc44be80654d4035a726795b69f7c2c39c2e6.gz"
+    },
+    {
+      "path": "protocol/guarded-cargo.py",
+      "original": "/tmp/ccg-pack-hook-exact2-v1/guarded-cargo.py",
+      "sha256": "c1e57563c36041d630b83ac831cb3b12ce727c56ba086365f13994deb5d4757c",
+      "bytes": 1922,
+      "blob": "blobs/c1e57563c36041d630b83ac831cb3b12ce727c56ba086365f13994deb5d4757c.gz"
+    },
+    {
+      "path": "protocol/guarded-exec.py",
+      "original": "/tmp/ccg-pack-hook-exact2-v1/guarded-exec.py",
+      "sha256": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811",
+      "bytes": 13109,
+      "blob": "blobs/88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811.gz"
+    },
+    {
+      "path": "protocol/launch-preflight-refusal.json",
+      "original": "/tmp/ccg-pack-hook-exact2-v1/launch-preflight-refusal.json",
+      "sha256": "7e866716a38c8c11adc2665e75868b4ea681b7eae76721524c0e9367472a01a9",
+      "bytes": 179,
+      "blob": "blobs/7e866716a38c8c11adc2665e75868b4ea681b7eae76721524c0e9367472a01a9.gz"
+    },
+    {
+      "path": "protocol/launch.py",
+      "original": "/tmp/ccg-pack-hook-exact2-v1/launch.py",
+      "sha256": "4a8b0a6d709dd4267e2ce54a85c0400d6ccab2d8d3e30b3da7c36375e2f31670",
+      "bytes": 3687,
+      "blob": "blobs/4a8b0a6d709dd4267e2ce54a85c0400d6ccab2d8d3e30b3da7c36375e2f31670.gz"
+    },
+    {
+      "path": "protocol/plan.json",
+      "original": "/tmp/ccg-pack-hook-exact2-v1/plan.json",
+      "sha256": "81e279e98cffe1558cd93e6269c0a14799dc8b8ce10c41e2bfd1fb0ddde10511",
+      "bytes": 16370,
+      "blob": "blobs/81e279e98cffe1558cd93e6269c0a14799dc8b8ce10c41e2bfd1fb0ddde10511.gz"
+    },
+    {
+      "path": "protocol/preflight-refusal.json",
+      "original": "/tmp/ccg-pack-hook-exact2-v1/preflight-refusal.json",
+      "sha256": "2aa72ab97bb7373be0f622c8426d334a6155d4c01f8dcf97132868017a07e02e",
+      "bytes": 341,
+      "blob": "blobs/2aa72ab97bb7373be0f622c8426d334a6155d4c01f8dcf97132868017a07e02e.gz"
+    },
+    {
+      "path": "protocol/preparation-receipt.json",
+      "original": "/tmp/ccg-pack-hook-exact2-v1/preparation-receipt.json",
+      "sha256": "1671601af89ad79187cb746ff7346f576490d8022006eac67d3986629981d3fc",
+      "bytes": 1573,
+      "blob": "blobs/1671601af89ad79187cb746ff7346f576490d8022006eac67d3986629981d3fc.gz"
+    },
+    {
+      "path": "protocol/root-go.json",
+      "original": "/tmp/ccg-pack-hook-exact2-v1/root-go.json",
+      "sha256": "3551bc42a409b235edb304d4c08e488d8afb08dd13a1debc11eddc1e61cb9e17",
+      "bytes": 1991,
+      "blob": "blobs/3551bc42a409b235edb304d4c08e488d8afb08dd13a1debc11eddc1e61cb9e17.gz"
+    },
+    {
+      "path": "protocol/run.sh",
+      "original": "/tmp/ccg-pack-hook-exact2-v1/run.sh",
+      "sha256": "029f3b9f41cb8fb9a495f4559b124aa977bd45d0b8f349ab31473021eedb91cc",
+      "bytes": 109,
+      "blob": "blobs/029f3b9f41cb8fb9a495f4559b124aa977bd45d0b8f349ab31473021eedb91cc.gz"
+    },
+    {
+      "path": "protocol/runner-input-manifest.json",
+      "original": "/tmp/ccg-pack-hook-exact2-v1/runner-input-manifest.json",
+      "sha256": "6bd13c2969be758f195c6b50b91ac7b5856ad3b98172723e5133836a5b0bfdc2",
+      "bytes": 2343,
+      "blob": "blobs/6bd13c2969be758f195c6b50b91ac7b5856ad3b98172723e5133836a5b0bfdc2.gz"
+    },
+    {
+      "path": "protocol/source46-manifest.json",
+      "original": "/tmp/ccg-pack-hook-exact2-v1/source46-manifest.json",
+      "sha256": "f7568b8400f5f3c0b9af0e2181e0539a81e6a42c8a19ab8a0f677a667beca9b7",
+      "bytes": 12539,
+      "blob": "blobs/f7568b8400f5f3c0b9af0e2181e0539a81e6a42c8a19ab8a0f677a667beca9b7.gz"
+    },
+    {
+      "path": "protocol/suite.py",
+      "original": "/tmp/ccg-pack-hook-exact2-v1/suite.py",
+      "sha256": "13e57dec85af9108b726b02d39343768e2510ac9b0f37122c601672f22031405",
+      "bytes": 28114,
+      "blob": "blobs/13e57dec85af9108b726b02d39343768e2510ac9b0f37122c601672f22031405.gz"
+    },
+    {
+      "path": "launcher/launcher.json",
+      "original": "/tmp/ccg-pack-hook-exact2-v1-runs/20261023T082133.820810Z/launcher.json",
+      "sha256": "2ce363fdcbbebad6c0478f08e03ab50916175324b788baaa080357fc3591f54e",
+      "bytes": 2468,
+      "blob": "blobs/2ce363fdcbbebad6c0478f08e03ab50916175324b788baaa080357fc3591f54e.gz"
+    },
+    {
+      "path": "launcher/launcher.transcript",
+      "original": "/tmp/ccg-pack-hook-exact2-v1-runs/20261023T082133.820810Z/launcher.transcript",
+      "sha256": "61ba08c3ed12d5d96b27d9ae0f7bf03a48ee0d01bc264330b7408440cd3e2317",
+      "bytes": 868,
+      "blob": "blobs/61ba08c3ed12d5d96b27d9ae0f7bf03a48ee0d01bc264330b7408440cd3e2317.gz"
+    },
+    {
+      "path": "root-parent-closure-observation.json",
+      "original": "/tmp/ccg-pack-hook-exact2-v1-runs/20261023T082153.905914Z/root-observed-parent-closure.json",
+      "sha256": "91cb2d4d72d7480cbab2cf495e9e2142f8b625fa3631f841befd12a595dc485c",
+      "bytes": 544,
+      "blob": "blobs/91cb2d4d72d7480cbab2cf495e9e2142f8b625fa3631f841befd12a595dc485c.gz"
+    },
+    {
+      "path": "evidence/tmp/compiler-authenticated-report-focused14-v6-source30-runs/20261023T031436.856477Z/final.json",
+      "original": "/tmp/compiler-authenticated-report-focused14-v6-source30-runs/20261023T031436.856477Z/final.json",
+      "sha256": "e4ccee9d320bc44b982f9c609b780e38b6fef21aec32c80d574fc2f69ed1ec00",
+      "bytes": 2534,
+      "blob": "blobs/e4ccee9d320bc44b982f9c609b780e38b6fef21aec32c80d574fc2f69ed1ec00.gz"
+    },
+    {
+      "path": "evidence/tmp/name-handling-eight-package-check-v9-source46/runs/20261023T052332.886291Z/final.json",
+      "original": "/tmp/name-handling-eight-package-check-v9-source46/runs/20261023T052332.886291Z/final.json",
+      "sha256": "603412312538794b380dcfc1c457df70449f7a2febdafbdf5c503ea98b7deb24",
+      "bytes": 1395,
+      "blob": "blobs/603412312538794b380dcfc1c457df70449f7a2febdafbdf5c503ea98b7deb24.gz"
+    },
+    {
+      "path": "evidence/tmp/name-handling-eight-package-check-v9-source46/launcher-runs/20261023T052327.120208Z/launcher.json",
+      "original": "/tmp/name-handling-eight-package-check-v9-source46/launcher-runs/20261023T052327.120208Z/launcher.json",
+      "sha256": "22360c89167fe221186b9a964c22bc1bdddb3344232e492873868d8ab046eadf",
+      "bytes": 4004,
+      "blob": "blobs/22360c89167fe221186b9a964c22bc1bdddb3344232e492873868d8ab046eadf.gz"
+    },
+    {
+      "path": "transitive/tmp/ccg-derived-first-decline-v4/proposal.patch",
+      "original": "/tmp/ccg-derived-first-decline-v4/proposal.patch",
+      "sha256": "041eb0e44d22a7f1274143ef3e9ee236c32d90b3ccfc9332d8bbc02275d39911",
+      "bytes": 10257,
+      "blob": "blobs/041eb0e44d22a7f1274143ef3e9ee236c32d90b3ccfc9332d8bbc02275d39911.gz"
+    },
+    {
+      "path": "transitive/tmp/ccg-derived-first-decline-v4/receipt.json",
+      "original": "/tmp/ccg-derived-first-decline-v4/receipt.json",
+      "sha256": "38dca8db7f3cb17be8c05f9ebee689bec8500a93052007d0b5608ce97c50566e",
+      "bytes": 3467,
+      "blob": "blobs/38dca8db7f3cb17be8c05f9ebee689bec8500a93052007d0b5608ce97c50566e.gz"
+    },
+    {
+      "path": "transitive/tmp/ccg-diagnostic-three-v2/n17two-plan.json",
+      "original": "/tmp/ccg-diagnostic-three-v2/n17two-plan.json",
+      "sha256": "a39d53d200d49e78d30a8b2b5c40897081cb4529e4d0647a01a6897517824a70",
+      "bytes": 19440,
+      "blob": "blobs/a39d53d200d49e78d30a8b2b5c40897081cb4529e4d0647a01a6897517824a70.gz"
+    },
+    {
+      "path": "transitive/tmp/ccg-diagnostic-three-v2/native1-plan.json",
+      "original": "/tmp/ccg-diagnostic-three-v2/native1-plan.json",
+      "sha256": "19efc866e31d8ea28fc2218b29ac0b41f618e7bead2d871307476836db75daed",
+      "bytes": 12568,
+      "blob": "blobs/19efc866e31d8ea28fc2218b29ac0b41f618e7bead2d871307476836db75daed.gz"
+    },
+    {
+      "path": "transitive/tmp/ccg-native-first-decline-v1/proposal.patch",
+      "original": "/tmp/ccg-native-first-decline-v1/proposal.patch",
+      "sha256": "084648afdbdecd99533f2e33106ff44140d53af6c58140b3405a80ccc1b45137",
+      "bytes": 5635,
+      "blob": "blobs/084648afdbdecd99533f2e33106ff44140d53af6c58140b3405a80ccc1b45137.gz"
+    },
+    {
+      "path": "transitive/tmp/ccg-post46-direct3-v6/plan.json",
+      "original": "/tmp/ccg-post46-direct3-v6/plan.json",
+      "sha256": "8dba2a61cd5451854387298f146583780fab69067f18ff3d85e397cdf074ba34",
+      "bytes": 16595,
+      "blob": "blobs/8dba2a61cd5451854387298f146583780fab69067f18ff3d85e397cdf074ba34.gz"
+    },
+    {
+      "path": "transitive/tmp/compiler-c6-provider-manifest.py",
+      "original": "/tmp/compiler-c6-provider-manifest.py",
+      "sha256": "5eff9d653c4f464a48fe1a4633656a97512b817ae03a0d29de9f0c33f6f8340e",
+      "bytes": 1861,
+      "blob": "blobs/5eff9d653c4f464a48fe1a4633656a97512b817ae03a0d29de9f0c33f6f8340e.gz"
+    },
+    {
+      "path": "transitive/tmp/name-handling-eight-package-check-v9-source46/plan.json",
+      "original": "/tmp/name-handling-eight-package-check-v9-source46/plan.json",
+      "sha256": "983d34189ebdc92cedc5fa3cfc73b613426f60dba8e78535a7c75e9b95005a9e",
+      "bytes": 4534,
+      "blob": "blobs/983d34189ebdc92cedc5fa3cfc73b613426f60dba8e78535a7c75e9b95005a9e.gz"
+    },
+    {
+      "path": "transitive/tmp/name-handling-eight-package-check-v9-source46/runner-input-manifest.json",
+      "original": "/tmp/name-handling-eight-package-check-v9-source46/runner-input-manifest.json",
+      "sha256": "1b16beb729f0a90b03d11770b6397770da5397228d511fd7cc531a12e02c9f40",
+      "bytes": 1415,
+      "blob": "blobs/1b16beb729f0a90b03d11770b6397770da5397228d511fd7cc531a12e02c9f40.gz"
+    },
+    {
+      "path": "transitive/tmp/naming-source46-repaired-identity.json",
+      "original": "/tmp/naming-source46-repaired-identity.json",
+      "sha256": "e4349c8ae1a475b0b0339db80079adf5872e2c9972feb2b64c5a8e61b25f5594",
+      "bytes": 435,
+      "blob": "blobs/e4349c8ae1a475b0b0339db80079adf5872e2c9972feb2b64c5a8e61b25f5594.gz"
+    },
+    {
+      "path": "transitive/tmp/naming-source46-repaired-manifest.json",
+      "original": "/tmp/naming-source46-repaired-manifest.json",
+      "sha256": "f7568b8400f5f3c0b9af0e2181e0539a81e6a42c8a19ab8a0f677a667beca9b7",
+      "bytes": 12539,
+      "blob": "blobs/f7568b8400f5f3c0b9af0e2181e0539a81e6a42c8a19ab8a0f677a667beca9b7.gz"
+    },
+    {
+      "path": "transitive/tmp/tcl-lsp-naming-env.sh",
+      "original": "/tmp/tcl-lsp-naming-env.sh",
+      "sha256": "9d33ccdba049a778482244c60a8206cd62fc503db55227b7c6cf87645c932f29",
+      "bytes": 1042,
+      "blob": "blobs/9d33ccdba049a778482244c60a8206cd62fc503db55227b7c6cf87645c932f29.gz"
+    },
+    {
+      "path": "transitive/tmp/name-handling-eight-package-check-v9-source46/README.md",
+      "original": "/tmp/name-handling-eight-package-check-v9-source46/README.md",
+      "sha256": "6d5ec7390ebd343f3b571c8c50771c221d671ab8e15cd43cc7f4ae8bfc189d30",
+      "bytes": 3554,
+      "blob": "blobs/6d5ec7390ebd343f3b571c8c50771c221d671ab8e15cd43cc7f4ae8bfc189d30.gz"
+    },
+    {
+      "path": "transitive/tmp/name-handling-eight-package-check-v9-source46/guarded-exec.py",
+      "original": "/tmp/name-handling-eight-package-check-v9-source46/guarded-exec.py",
+      "sha256": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811",
+      "bytes": 13109,
+      "blob": "blobs/88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811.gz"
+    },
+    {
+      "path": "transitive/tmp/name-handling-eight-package-check-v9-source46/launch.py",
+      "original": "/tmp/name-handling-eight-package-check-v9-source46/launch.py",
+      "sha256": "f70232f4f300bc31efab18aa37bad0dce95942f48f55c154dfb97371944aab9b",
+      "bytes": 3403,
+      "blob": "blobs/f70232f4f300bc31efab18aa37bad0dce95942f48f55c154dfb97371944aab9b.gz"
+    },
+    {
+      "path": "transitive/tmp/name-handling-eight-package-check-v9-source46/repaired-identity.json",
+      "original": "/tmp/name-handling-eight-package-check-v9-source46/repaired-identity.json",
+      "sha256": "e4349c8ae1a475b0b0339db80079adf5872e2c9972feb2b64c5a8e61b25f5594",
+      "bytes": 435,
+      "blob": "blobs/e4349c8ae1a475b0b0339db80079adf5872e2c9972feb2b64c5a8e61b25f5594.gz"
+    },
+    {
+      "path": "transitive/tmp/name-handling-eight-package-check-v9-source46/run.sh",
+      "original": "/tmp/name-handling-eight-package-check-v9-source46/run.sh",
+      "sha256": "7fb4cdd26e7362f5c58e5d9862dcafc83ac093f68aec0c783ac514489a2a9c84",
+      "bytes": 89,
+      "blob": "blobs/7fb4cdd26e7362f5c58e5d9862dcafc83ac093f68aec0c783ac514489a2a9c84.gz"
+    },
+    {
+      "path": "transitive/tmp/name-handling-eight-package-check-v9-source46/source46-manifest.json",
+      "original": "/tmp/name-handling-eight-package-check-v9-source46/source46-manifest.json",
+      "sha256": "f7568b8400f5f3c0b9af0e2181e0539a81e6a42c8a19ab8a0f677a667beca9b7",
+      "bytes": 12539,
+      "blob": "blobs/f7568b8400f5f3c0b9af0e2181e0539a81e6a42c8a19ab8a0f677a667beca9b7.gz"
+    },
+    {
+      "path": "transitive/tmp/name-handling-eight-package-check-v9-source46/suite.py",
+      "original": "/tmp/name-handling-eight-package-check-v9-source46/suite.py",
+      "sha256": "9cf64782f71de93bf736773ddd14ef4ac0e55c60a00e467ed03f35ada8cab365",
+      "bytes": 15756,
+      "blob": "blobs/9cf64782f71de93bf736773ddd14ef4ac0e55c60a00e467ed03f35ada8cab365.gz"
+    },
+    {
+      "path": "frozen-source/runtime/rust/src/interp.rs.txt",
+      "original": "/workspace/naming-migration-active/tcl-lsp/runtime/rust/src/interp.rs",
+      "sha256": "580d73c054dab8c309ef977572f74c6ba0f6c7febbc206d3dc3f3ff52f8ec398",
+      "bytes": 1115916,
+      "blob": "blobs/580d73c054dab8c309ef977572f74c6ba0f6c7febbc206d3dc3f3ff52f8ec398.gz"
+    },
+    {
+      "path": "frozen-source/rust/bpf-tcl-ir/src/source/phase.rs.txt",
+      "original": "/workspace/naming-migration-active/tcl-lsp/rust/bpf-tcl-ir/src/source/phase.rs",
+      "sha256": "c3882a6a6e3cf2d2dac487fe0692f329fd0d9a45ff9e8864fbabe3745b240f27",
+      "bytes": 23292,
+      "blob": "blobs/c3882a6a6e3cf2d2dac487fe0692f329fd0d9a45ff9e8864fbabe3745b240f27.gz"
+    },
+    {
+      "path": "frozen-source/rust/tcl-compiler/src/analyser/authenticated_report.rs.txt",
+      "original": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/analyser/authenticated_report.rs",
+      "sha256": "fd345cd909c113bc0df44da01672fe71b63d6c5261e68bf4d8bc2f9a862a804e",
+      "bytes": 22079,
+      "blob": "blobs/fd345cd909c113bc0df44da01672fe71b63d6c5261e68bf4d8bc2f9a862a804e.gz"
+    },
+    {
+      "path": "frozen-source/rust/tcl-compiler/src/analyser/authenticated_report/body_correspondence.rs.txt",
+      "original": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/analyser/authenticated_report/body_correspondence.rs",
+      "sha256": "20c93448f12ead53845dbc18596552190bc814a67c27bf23bdea1f3b262ec9ef",
+      "bytes": 26683,
+      "blob": "blobs/20c93448f12ead53845dbc18596552190bc814a67c27bf23bdea1f3b262ec9ef.gz"
+    },
+    {
+      "path": "frozen-source/rust/tcl-compiler/src/analyser/authenticated_report/field_comparison.rs.txt",
+      "original": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/analyser/authenticated_report/field_comparison.rs",
+      "sha256": "a2469d752fdde34d9af37470f97b5d1614678ae043b2fae7befaec5589ef3eb0",
+      "bytes": 12880,
+      "blob": "blobs/a2469d752fdde34d9af37470f97b5d1614678ae043b2fae7befaec5589ef3eb0.gz"
+    },
+    {
+      "path": "frozen-source/rust/tcl-compiler/src/analyser/class_hierarchy.rs.txt",
+      "original": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/analyser/class_hierarchy.rs",
+      "sha256": "ce8f7d9b3ffd4df4ab6d4713a313028f1305caf659f77cf521a23d647e7aaa31",
+      "bytes": 84926,
+      "blob": "blobs/ce8f7d9b3ffd4df4ab6d4713a313028f1305caf659f77cf521a23d647e7aaa31.gz"
+    },
+    {
+      "path": "frozen-source/rust/tcl-compiler/src/analyser/commands.rs.txt",
+      "original": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/analyser/commands.rs",
+      "sha256": "819c5f23f771e058582f955e315a8ce8cf7af41abb1a25347446e9e21f07e3f0",
+      "bytes": 385896,
+      "blob": "blobs/819c5f23f771e058582f955e315a8ce8cf7af41abb1a25347446e9e21f07e3f0.gz"
+    },
+    {
+      "path": "frozen-source/rust/tcl-compiler/src/analyser/diagnostic_subject.rs.txt",
+      "original": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/analyser/diagnostic_subject.rs",
+      "sha256": "607f13c3a49db923b82026f99e1992fa24d3d016426cba2aa3795c719f1a9eb3",
+      "bytes": 26852,
+      "blob": "blobs/607f13c3a49db923b82026f99e1992fa24d3d016426cba2aa3795c719f1a9eb3.gz"
+    },
+    {
+      "path": "frozen-source/rust/tcl-compiler/src/analyser/diagnostics.rs.txt",
+      "original": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/analyser/diagnostics.rs",
+      "sha256": "f9881885a30575ad2a5cbfe10ac867b72ca6e16f2402a1ae852652eeb19ee086",
+      "bytes": 74120,
+      "blob": "blobs/f9881885a30575ad2a5cbfe10ac867b72ca6e16f2402a1ae852652eeb19ee086.gz"
+    },
+    {
+      "path": "frozen-source/rust/tcl-compiler/src/analyser/mod.rs.txt",
+      "original": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/analyser/mod.rs",
+      "sha256": "01624f36d846c6a3a980ebc57121d27c7fd8a37bfa28904040698b9ea0cfdf43",
+      "bytes": 5975,
+      "blob": "blobs/01624f36d846c6a3a980ebc57121d27c7fd8a37bfa28904040698b9ea0cfdf43.gz"
+    },
+    {
+      "path": "frozen-source/rust/tcl-compiler/src/analyser/oo.rs.txt",
+      "original": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/analyser/oo.rs",
+      "sha256": "88dd3cb2a2e0cf9d30b10f8bbd2aee5acbfcfad78dad9bd991a53384f2f86f0e",
+      "bytes": 389879,
+      "blob": "blobs/88dd3cb2a2e0cf9d30b10f8bbd2aee5acbfcfad78dad9bd991a53384f2f86f0e.gz"
+    },
+    {
+      "path": "frozen-source/rust/tcl-compiler/src/analyser/original_definer.rs.txt",
+      "original": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/analyser/original_definer.rs",
+      "sha256": "e2878283866c3657c5692b5057c96edb5436e25cd1592a045c5b105f4c41fbed",
+      "bytes": 26054,
+      "blob": "blobs/e2878283866c3657c5692b5057c96edb5436e25cd1592a045c5b105f4c41fbed.gz"
+    },
+    {
+      "path": "frozen-source/rust/tcl-compiler/src/analyser/state.rs.txt",
+      "original": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/analyser/state.rs",
+      "sha256": "ecba537a5e51ee375f34587e0bd82a0ce2f14fa60b7fb1c9dea86ed9f1dc0ce6",
+      "bytes": 356563,
+      "blob": "blobs/ecba537a5e51ee375f34587e0bd82a0ce2f14fa60b7fb1c9dea86ed9f1dc0ce6.gz"
+    },
+    {
+      "path": "frozen-source/rust/tcl-compiler/src/cfg_builder/mod.rs.txt",
+      "original": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/cfg_builder/mod.rs",
+      "sha256": "223477a7dc7845efc42c047979a8d6540848d1bb7beeb3eff53c669c9de9d696",
+      "bytes": 349622,
+      "blob": "blobs/223477a7dc7845efc42c047979a8d6540848d1bb7beeb3eff53c669c9de9d696.gz"
+    },
+    {
+      "path": "frozen-source/rust/tcl-compiler/src/command_binding.rs.txt",
+      "original": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/command_binding.rs",
+      "sha256": "8207fff06e00e6a11434372505672b447a644bfe8b49df1667367f82fbaa9baf",
+      "bytes": 1060142,
+      "blob": "blobs/8207fff06e00e6a11434372505672b447a644bfe8b49df1667367f82fbaa9baf.gz"
+    },
+    {
+      "path": "frozen-source/rust/tcl-compiler/src/command_binding/compiler_inventory.rs.txt",
+      "original": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/command_binding/compiler_inventory.rs",
+      "sha256": "f7f002827b34344f097811d18f15b632aded31795246ed0a3a8cb935a6af216a",
+      "bytes": 100672,
+      "blob": "blobs/f7f002827b34344f097811d18f15b632aded31795246ed0a3a8cb935a6af216a.gz"
+    },
+    {
+      "path": "frozen-source/rust/tcl-compiler/src/command_binding/conditional_expression_tests.rs.txt",
+      "original": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/command_binding/conditional_expression_tests.rs",
+      "sha256": "27d8a330514570981f3b28f493e3b8d1a8e6461d38fbfab9df40d7fc833a7120",
+      "bytes": 4547,
+      "blob": "blobs/27d8a330514570981f3b28f493e3b8d1a8e6461d38fbfab9df40d7fc833a7120.gz"
+    },
+    {
+      "path": "frozen-source/rust/tcl-compiler/src/command_binding/conditional_source.rs.txt",
+      "original": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/command_binding/conditional_source.rs",
+      "sha256": "1dd08818ebcceb83eb518c8d819c1a66375c08c7bc9182e538f48ae74320aaae",
+      "bytes": 26466,
+      "blob": "blobs/1dd08818ebcceb83eb518c8d819c1a66375c08c7bc9182e538f48ae74320aaae.gz"
+    },
+    {
+      "path": "frozen-source/rust/tcl-compiler/src/command_binding/conditional_source/region.rs.txt",
+      "original": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/command_binding/conditional_source/region.rs",
+      "sha256": "775dc2a7f70e436592b3d36bc6baad7baa815a0fe87c5f3140107a520df4d6b3",
+      "bytes": 59337,
+      "blob": "blobs/775dc2a7f70e436592b3d36bc6baad7baa815a0fe87c5f3140107a520df4d6b3.gz"
+    },
+    {
+      "path": "frozen-source/rust/tcl-compiler/src/command_binding/expression_preparation.rs.txt",
+      "original": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/command_binding/expression_preparation.rs",
+      "sha256": "58db7cef50cb2aaf2ac6d8669bd3e53b53c62b71fc9f5a2144a86b8d1ef3bcf8",
+      "bytes": 105091,
+      "blob": "blobs/58db7cef50cb2aaf2ac6d8669bd3e53b53c62b71fc9f5a2144a86b8d1ef3bcf8.gz"
+    },
+    {
+      "path": "frozen-source/rust/tcl-compiler/src/command_binding/normal_result.rs.txt",
+      "original": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/command_binding/normal_result.rs",
+      "sha256": "3fdd6e0135de31ca97d078a1ee5665c8df714c0608f68c444d1bcc09f535dd16",
+      "bytes": 46940,
+      "blob": "blobs/3fdd6e0135de31ca97d078a1ee5665c8df714c0608f68c444d1bcc09f535dd16.gz"
+    },
+    {
+      "path": "frozen-source/rust/tcl-compiler/src/command_binding/original_literal_argv_rewrite.rs.txt",
+      "original": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/command_binding/original_literal_argv_rewrite.rs",
+      "sha256": "5cd17e416dcdf0f1f32353af900a024d44ee9ac9cc0f59f365c18cf37f9be725",
+      "bytes": 55436,
+      "blob": "blobs/5cd17e416dcdf0f1f32353af900a024d44ee9ac9cc0f59f365c18cf37f9be725.gz"
+    },
+    {
+      "path": "frozen-source/rust/tcl-compiler/src/command_binding/retained_source.rs.txt",
+      "original": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/command_binding/retained_source.rs",
+      "sha256": "6def128ba1ca8481473ec7e1679911cabe7b153130199e814e11d50b1891ebd0",
+      "bytes": 54197,
+      "blob": "blobs/6def128ba1ca8481473ec7e1679911cabe7b153130199e814e11d50b1891ebd0.gz"
+    },
+    {
+      "path": "frozen-source/rust/tcl-compiler/src/command_binding/source_transition_advice.rs.txt",
+      "original": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/command_binding/source_transition_advice.rs",
+      "sha256": "5279406d35d53ae4a8ce8747fddc5ed62e436d975ccc1dda1c5d6dcfc183b2ca",
+      "bytes": 187568,
+      "blob": "blobs/5279406d35d53ae4a8ce8747fddc5ed62e436d975ccc1dda1c5d6dcfc183b2ca.gz"
+    },
+    {
+      "path": "frozen-source/rust/tcl-compiler/src/command_binding/source_transition_advice/source_point.rs.txt",
+      "original": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/command_binding/source_transition_advice/source_point.rs",
+      "sha256": "99e5c752d1f0ab16db787a40f0acb5f81113db0b8ea645b01afc501bf6277718",
+      "bytes": 27436,
+      "blob": "blobs/99e5c752d1f0ab16db787a40f0acb5f81113db0b8ea645b01afc501bf6277718.gz"
+    },
+    {
+      "path": "frozen-source/rust/tcl-compiler/src/command_binding/source_transition_advice/source_procedure.rs.txt",
+      "original": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/command_binding/source_transition_advice/source_procedure.rs",
+      "sha256": "05815c97d867964a1c10aef183a6449d5eb5f3df5251c3868edc1ddde23d4ef2",
+      "bytes": 37379,
+      "blob": "blobs/05815c97d867964a1c10aef183a6449d5eb5f3df5251c3868edc1ddde23d4ef2.gz"
+    },
+    {
+      "path": "frozen-source/rust/tcl-compiler/src/compilation_unit/optimiser_source_owner.rs.txt",
+      "original": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/compilation_unit/optimiser_source_owner.rs",
+      "sha256": "ec86b02ea0504c7d812adbe6ebf3c563512dad7b83b4f7b0652f27b73d962500",
+      "bytes": 15251,
+      "blob": "blobs/ec86b02ea0504c7d812adbe6ebf3c563512dad7b83b4f7b0652f27b73d962500.gz"
+    },
+    {
+      "path": "frozen-source/rust/tcl-compiler/src/ir.rs.txt",
+      "original": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/ir.rs",
+      "sha256": "c9fba4d08958525626105393cbcf80300da2618682edf041df37e162b3c640c5",
+      "bytes": 200625,
+      "blob": "blobs/c9fba4d08958525626105393cbcf80300da2618682edf041df37e162b3c640c5.gz"
+    },
+    {
+      "path": "frozen-source/rust/tcl-compiler/src/ir/source_bpf_command.rs.txt",
+      "original": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/ir/source_bpf_command.rs",
+      "sha256": "15ee53b35fe9f4e5d65a866f90f5911692c781381dcc7ef322337eec793b5cca",
+      "bytes": 35031,
+      "blob": "blobs/15ee53b35fe9f4e5d65a866f90f5911692c781381dcc7ef322337eec793b5cca.gz"
+    },
+    {
+      "path": "frozen-source/rust/tcl-compiler/src/object_types.rs.txt",
+      "original": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/object_types.rs",
+      "sha256": "42bd4ed50b0f5cbef2b67eec0904efa016470c789d2d2273e8db8d7430abe3d2",
+      "bytes": 153969,
+      "blob": "blobs/42bd4ed50b0f5cbef2b67eec0904efa016470c789d2d2273e8db8d7430abe3d2.gz"
+    },
+    {
+      "path": "frozen-source/rust/tcl-compiler/src/object_types/authenticated_report.rs.txt",
+      "original": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/object_types/authenticated_report.rs",
+      "sha256": "7bf19fe591eff32db05840557feee8b9b9d5d523b3070cb46177f493a266a248",
+      "bytes": 10380,
+      "blob": "blobs/7bf19fe591eff32db05840557feee8b9b9d5d523b3070cb46177f493a266a248.gz"
+    },
+    {
+      "path": "frozen-source/rust/tcl-compiler/src/object_types/logical_source_candidates.rs.txt",
+      "original": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/object_types/logical_source_candidates.rs",
+      "sha256": "955ca4821e509d0d27be51484e21d58878df22a1bf437dd015aba023d41c1c68",
+      "bytes": 27385,
+      "blob": "blobs/955ca4821e509d0d27be51484e21d58878df22a1bf437dd015aba023d41c1c68.gz"
+    },
+    {
+      "path": "frozen-source/rust/tcl-compiler/src/optimiser/chain_fold.rs.txt",
+      "original": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/optimiser/chain_fold.rs",
+      "sha256": "b6fd1433b4c9612ad16b4cc6ea1dbb9fcc457b9c7f2eabe6d785fe2bda0de839",
+      "bytes": 58694,
+      "blob": "blobs/b6fd1433b4c9612ad16b4cc6ea1dbb9fcc457b9c7f2eabe6d785fe2bda0de839.gz"
+    },
+    {
+      "path": "frozen-source/rust/tcl-compiler/src/optimiser/elimination.rs.txt",
+      "original": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/optimiser/elimination.rs",
+      "sha256": "bfd12ca5418e074ca1b5e0cfe8c84fae9b4dd7b7c517fbb311db8f3c399c7ca7",
+      "bytes": 130113,
+      "blob": "blobs/bfd12ca5418e074ca1b5e0cfe8c84fae9b4dd7b7c517fbb311db8f3c399c7ca7.gz"
+    },
+    {
+      "path": "frozen-source/rust/tcl-compiler/src/optimiser/propagation.rs.txt",
+      "original": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/optimiser/propagation.rs",
+      "sha256": "b623c6273111c4ad176a2528bf7b6fd41c4a6c13f02f5a30711a86fb62ae7bab",
+      "bytes": 252819,
+      "blob": "blobs/b623c6273111c4ad176a2528bf7b6fd41c4a6c13f02f5a30711a86fb62ae7bab.gz"
+    },
+    {
+      "path": "frozen-source/rust/tcl-compiler/src/realm/source_transition_advice.rs.txt",
+      "original": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/realm/source_transition_advice.rs",
+      "sha256": "34f43bb092c963355b2906e117dde14e77f180b2f13c954b89e46169d9904de8",
+      "bytes": 75736,
+      "blob": "blobs/34f43bb092c963355b2906e117dde14e77f180b2f13c954b89e46169d9904de8.gz"
+    },
+    {
+      "path": "frozen-source/rust/tcl-compiler/src/registry_invocation/source_remote_first_operand.rs.txt",
+      "original": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/registry_invocation/source_remote_first_operand.rs",
+      "sha256": "41e813430c6080b32d3c89e27f685397417b4266a3c367bb88fd8916501b4be1",
+      "bytes": 46718,
+      "blob": "blobs/41e813430c6080b32d3c89e27f685397417b4266a3c367bb88fd8916501b4be1.gz"
+    },
+    {
+      "path": "frozen-source/rust/tcl-compiler/src/registry_invocation/source_structure.rs.txt",
+      "original": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/registry_invocation/source_structure.rs",
+      "sha256": "449d7cc65b838ac5890cc96a9f011e4d577448721966e3b7789842c7d3db6875",
+      "bytes": 299174,
+      "blob": "blobs/449d7cc65b838ac5890cc96a9f011e4d577448721966e3b7789842c7d3db6875.gz"
+    },
+    {
+      "path": "frozen-source/rust/tcl-compiler/src/registry_invocation/source_structure/original_body_syntax.rs.txt",
+      "original": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/registry_invocation/source_structure/original_body_syntax.rs",
+      "sha256": "9987de839106c8d77f1435668f73e2dfa041e5fab2ee70ea49754cbc9584e6b6",
+      "bytes": 25040,
+      "blob": "blobs/9987de839106c8d77f1435668f73e2dfa041e5fab2ee70ea49754cbc9584e6b6.gz"
+    },
+    {
+      "path": "frozen-source/rust/tcl-compiler/tests/wasm_real_link.rs.txt",
+      "original": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/tests/wasm_real_link.rs",
+      "sha256": "4d487875d8ed7bfd8bf5ebb1ace19db064db3a471e6884e44e891dae2bdcec15",
+      "bytes": 78379,
+      "blob": "blobs/4d487875d8ed7bfd8bf5ebb1ace19db064db3a471e6884e44e891dae2bdcec15.gz"
+    },
+    {
+      "path": "frozen-source/rust/tcl-lsp-core/src/minify/original.rs.txt",
+      "original": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-lsp-core/src/minify/original.rs",
+      "sha256": "b1c96a8ea640b46e36142e74d696c1efb497bb37f8c3ebecd26821732988a88e",
+      "bytes": 101603,
+      "blob": "blobs/b1c96a8ea640b46e36142e74d696c1efb497bb37f8c3ebecd26821732988a88e.gz"
+    },
+    {
+      "path": "frozen-source/rust/tcl-lsp-core/src/source_structure.rs.txt",
+      "original": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-lsp-core/src/source_structure.rs",
+      "sha256": "b1598fddc0797d2da5c769caeb007c97de4d6027bc2bad91b1ddc3aa52698b20",
+      "bytes": 120364,
+      "blob": "blobs/b1598fddc0797d2da5c769caeb007c97de4d6027bc2bad91b1ddc3aa52698b20.gz"
+    },
+    {
+      "path": "frozen-source/rust/tcl-lsp-server/src/lib.rs.txt",
+      "original": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-lsp-server/src/lib.rs",
+      "sha256": "2e9cd7b7148d439c5ddbf7ee70494f418f22fd123f78e53433b6d47fbfa4ae1c",
+      "bytes": 2922005,
+      "blob": "blobs/2e9cd7b7148d439c5ddbf7ee70494f418f22fd123f78e53433b6d47fbfa4ae1c.gz"
+    },
+    {
+      "path": "frozen-source/rust/tcl-lsp-server/src/readonly_reference_reports.rs.txt",
+      "original": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-lsp-server/src/readonly_reference_reports.rs",
+      "sha256": "44a04816e405d9f0a6a61fb711a543c935411f110d4d08edaa7cfc08b4b757a3",
+      "bytes": 172928,
+      "blob": "blobs/44a04816e405d9f0a6a61fb711a543c935411f110d4d08edaa7cfc08b4b757a3.gz"
+    },
+    {
+      "path": "frozen-source/rust/tcl-lsp-server/src/readonly_reference_reports/source_views.rs.txt",
+      "original": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-lsp-server/src/readonly_reference_reports/source_views.rs",
+      "sha256": "151c4869840da62605eac7ed1077e00293cf31ecef7e4f543dd5814e5d4802ee",
+      "bytes": 123803,
+      "blob": "blobs/151c4869840da62605eac7ed1077e00293cf31ecef7e4f543dd5814e5d4802ee.gz"
+    },
+    {
+      "path": "frozen-source/rust/tcl-spectcl/tests/spec_corpus.rs.txt",
+      "original": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-spectcl/tests/spec_corpus.rs",
+      "sha256": "68ceb946570a53f4dd1cf1e037c67ffc76db0da2ac9c1b70c8d2128a3c453db5",
+      "bytes": 68487,
+      "blob": "blobs/68ceb946570a53f4dd1cf1e037c67ffc76db0da2ac9c1b70c8d2128a3c453db5.gz"
+    },
+    {
+      "path": "frozen-source/rust/tcl-vm/tests/cmd_control_e2e.rs.txt",
+      "original": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-vm/tests/cmd_control_e2e.rs",
+      "sha256": "a89c3a8e1fde338f4e485adeed59054c2fad3dfe7a16548084e37e37a7e37db1",
+      "bytes": 90891,
+      "blob": "blobs/a89c3a8e1fde338f4e485adeed59054c2fad3dfe7a16548084e37e37a7e37db1.gz"
+    },
+    {
+      "path": "frozen-source/rust/tcl-bytecode/src/lib.rs.txt",
+      "original": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-bytecode/src/lib.rs",
+      "sha256": "20dae111eda5c9620b0bbb1fa691db9ce296e14e5f6d3f1157a48d01fd53aa6e",
+      "bytes": 170117,
+      "blob": "blobs/20dae111eda5c9620b0bbb1fa691db9ce296e14e5f6d3f1157a48d01fd53aa6e.gz"
+    },
+    {
+      "path": "frozen-source/rust/tcl-compiler/src/compile_service.rs.txt",
+      "original": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/compile_service.rs",
+      "sha256": "41f76c717a37f9be2ccafbdda0daf1c23c44641cc190acd3e849e5faee356e66",
+      "bytes": 154820,
+      "blob": "blobs/41f76c717a37f9be2ccafbdda0daf1c23c44641cc190acd3e849e5faee356e66.gz"
+    },
+    {
+      "path": "frozen-source/rust/tcl-spectcl/tests/pack_source_e2e.rs.txt",
+      "original": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-spectcl/tests/pack_source_e2e.rs",
+      "sha256": "e1ed4fb25d4aeba91df7e0185dec4b029d11bd7dda8d7093750bdc22f76307b7",
+      "bytes": 20407,
+      "blob": "blobs/e1ed4fb25d4aeba91df7e0185dec4b029d11bd7dda8d7093750bdc22f76307b7.gz"
+    },
+    {
+      "path": "frozen-source/rust/tcl-spectcl/tests/support/derived_first_decline.rs.txt",
+      "original": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-spectcl/tests/support/derived_first_decline.rs",
+      "sha256": "6f430e9f4ef863ba559714749f5eddec5f09f07abe549dbb654c7a33d5f07bc1",
+      "bytes": 9099,
+      "blob": "blobs/6f430e9f4ef863ba559714749f5eddec5f09f07abe549dbb654c7a33d5f07bc1.gz"
+    }
+  ],
+  "unique_blobs": 119,
+  "archive_roundtrip_verified": true,
+  "limits": "Exact selector PASS does not imply every script/subcase executed after an early assertion FAIL. Original positive fold and no-host negative are separate assertions; failures can stop later segments. No wholeSpecTcl acceptance or N17 observer cleanup admission; direct3 actual failed."
+}

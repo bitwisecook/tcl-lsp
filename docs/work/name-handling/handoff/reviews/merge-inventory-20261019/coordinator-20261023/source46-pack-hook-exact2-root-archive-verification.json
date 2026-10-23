@@ -1,0 +1,9 @@
+{
+  "utc": "2026-10-23T08:35:28.007168+00:00",
+  "logical_payloads_verified": 131,
+  "unique_gzip_blobs": 119,
+  "manifest_sha256": "c6bf5bb43e84023f1ea0034571c8b535c26e3db9268b28711b36c987c927a119",
+  "archive_and_current_originals_match": true,
+  "runtime_result": "1PASS1FAIL",
+  "release_admission": false
+}

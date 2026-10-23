@@ -1,0 +1,46 @@
+{
+  "utc": "2026-10-23T08:28:41.832764+00:00",
+  "status": "CLEAR bounded exact core19 union preservation; OFFTREE and untyped/unrun",
+  "manifest_sha256": "9e8c047703fb3df93d34f6ba4cac8398d45d81c509d157c89c6c14fb3a7b9ba0",
+  "combined_patch_sha256": "402fbd345325d6f4da17231b0266be92c0700b01a6a70c4eb83df55d21a144c2",
+  "source46_manifest_sha256": "f7568b8400f5f3c0b9af0e2181e0539a81e6a42c8a19ab8a0f677a667beca9b7",
+  "counts": {
+    "components": 19,
+    "batch_paths": 31,
+    "proposed_cumulative_paths": 66,
+    "preserved_predecessor_component_pins": 17
+  },
+  "checks": {
+    "all46_actual_current_files_match": true,
+    "all19_original_component_patches_independently_reapplied_zero_fuzz_zero_offset": true,
+    "all31_combined_files_independently_reapplied_zero_fuzz_zero_offset": true,
+    "all_original_changed_fragments_reconstructed_exactly": true,
+    "no_missing_or_extra_component_edits": true,
+    "all_current_before_and_candidate_final_hashes": true,
+    "whole_combined_patch_regenerated_byte_identically": true,
+    "all17_predecessor_components_byte_identical": true,
+    "only_four_changed_or_new_finals_vs_v4": [
+      "rust/tcl-compiler/src/codegen/emitter/generate.rs",
+      "rust/tcl-compiler/src/command_binding.rs",
+      "rust/tcl-compiler/src/command_binding/compiled_preflight.rs",
+      "rust/tcl-spectcl/tests/support/derived_first_decline.rs"
+    ],
+    "source_structure_ILX_readonly_union_byte_identical_v4": true,
+    "actual_source46_map_preserved_and_candidate66_derived_exactly": true,
+    "format_receipt_all31_bound_to_manifest": true
+  },
+  "same_site_unions": [
+    "Assessment query remains once; whole importchild log then whole Native log then original timing drop/publication/refusal, both cfg(debug_assertions).",
+    "require_provider whole importchild log then whole Native log then original possible_error=true and locals=None; identical debug-only track_caller inserted once.",
+    "Both original component fragment hashes checked separately and exact concatenation checked; all other original fragments preserved without synthesis."
+  ],
+  "authority_review": [
+    "Normal-only analysis-owner ptr gate and exact old-four-field seed Eq retained from unchanged normal-v3 component; test append remains after every old assertion.",
+    "Installed empty-body exact typed owner/card/allocation/span/root/namespace proof retained from unchanged ede9 component; no ordinary empty-body grant.",
+    "G4 purpose fixtures, genuine held-CU var helper, body correspondence Installed+hosted trace, BOM fixture and all existing assertions preserved from unchanged components.",
+    "Native puretrace and N17 test observer retain their peer-reviewed bytes. Neither admits body/source/Normal/Native authority, changes assertion outcomes, or repairs a measured runtime cause."
+  ],
+  "format_receipt_sha256": "bb6de98d7fa3364c69630003aee0dec5d854af34618a296af6afaf05e63bbbd4",
+  "candidate_map_sha256": "dc604fa00ffcfe3ba070f1b181a93101e8437e236275c1934ca9d67549d86e7e",
+  "limits": "No canonical edits/Git/Cargo/GO/integration/typecheck/runtime. Actual product remains repaired source46 897b/0b11 with v9 compilation PASS0W only. Proposed66 is not actual identity. Alias excluded. Component semantic reviews retained; this peer proves exact union and narrow trace-order preservation."
+}

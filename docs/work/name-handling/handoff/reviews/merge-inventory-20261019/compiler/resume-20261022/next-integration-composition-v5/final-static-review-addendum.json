@@ -1,0 +1,26 @@
+{
+  "schema": "core19-v5-final-static-readiness",
+  "utc": "2026-10-23T08:29:34.092604+00:00",
+  "status": "BOUNDED STATIC CLEAR exact19components/31paths/proposed66, actualsource46 unchanged",
+  "manifest_sha256": "9e8c047703fb3df93d34f6ba4cac8398d45d81c509d157c89c6c14fb3a7b9ba0",
+  "combined_patch_sha256": "402fbd345325d6f4da17231b0266be92c0700b01a6a70c4eb83df55d21a144c2",
+  "candidate66_map_sha256": "dc604fa00ffcfe3ba070f1b181a93101e8437e236275c1934ca9d67549d86e7e",
+  "owner31_edition_fmt_sha256": "bb6de98d7fa3364c69630003aee0dec5d854af34618a296af6afaf05e63bbbd4",
+  "scope_delta_sha256": "2cf94f60b4b18ab97e3cee51b555465151ddc1eb796b877960fbc0730a22508c",
+  "Names_all19_components_and_exact_fragment_union_peer_sha256": "987f5b5d8cec763153effa081f73de2b3de406d7d9c40582e7578a0c507f6014",
+  "CCG_twofile_overlap_peer_sha256": "696310f6dd2b8562f0182e8da5c72cb160ba05d7a47d050ab030343a80d2a9ac",
+  "scope": "All17 v4 pins EXACT; only2 approved additions Native-v2 and N17census. Wholeimportlog then wholeNativelog at assessment/provider, attrdedup once. Originalqueries/guards/assignments/assertions retained. Alias excluded; v1 held.",
+  "proposed_counts": {
+    "component_count": 19,
+    "changed_batch_paths": 31,
+    "cumulative_vs_3b1_paths": 66
+  },
+  "actual_product": "897b4f9bfd27ffe9cf5e5dc67d14476a90ee26e6/tree0b11e3a05ee26ca70bbe001244d05c5ab9004f30/mapf7568b84/source46",
+  "late_binding": "Names builder must require explicit reviewed v5candidate-map path+SHAdc604fa0 and actual integratedHEAD/tree after rootqueueclosure+integration; no defaultlatest/fictionPASS or reusingactual46 typingreceipt",
+  "limits": [
+    "CombinedRusttyping/runtime/finite original+newcontrols/lifetime/perf UNRUN",
+    "No Cargo/Git/source/provider/GO edits bycompiler",
+    "Cleanupalltemporarydebugobservations before release inclN17 testobserver; exact versionedinverse only afteractualmeasurement, no staleundo",
+    "All oldmanifest/patch/archive receipts remain immutable; this addendum closes pendingpeer status only"
+  ]
+}

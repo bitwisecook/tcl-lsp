@@ -1,0 +1,9 @@
+{
+  "utc": "2026-10-23T08:29:35.096771+00:00",
+  "status": "HELD immutable builder v2; superseded by static-CLEAR v3 before any positive use",
+  "reason": "Plain json.loads accepted duplicate JSON object keys with last-value semantics. Root-supplied SHA binds bytes but does not establish unique JSON interpretation. V3 rejects duplicates at every object depth via object_pairs_hook. No v2 positive verification/materialization/protocol/GO executed.",
+  "held_v2_preparation_manifest_sha256": "1dbd29cbb77789a647f50b212015c774c5aa229b461aa9eb4d3dab986df2cf84",
+  "successor_v3_preparation_manifest_sha256": "37f9a672ea5f33ed06984aec950bcecab9f73aa04f87c384ab69be2507159883",
+  "successor_ccg_peer_sha256": "67c23dc36511f4750f538d35a612c740f8aadf6ef0a4d85095dca76c83146cd2",
+  "old_archive_immutable": true
+}
