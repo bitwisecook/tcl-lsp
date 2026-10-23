@@ -1,0 +1,74 @@
+#!/usr/bin/env python3
+# tcl-lsp — a language server and toolchain for Tcl
+# Copyright (C) 2026 James Deucker (bitwisecook)
+# SPDX-License-Identifier: AGPL-3.0-or-later
+"""Run repaired-source controls and corpus, retaining exact unit ELF for filters."""
+from pathlib import Path
+import hashlib,json,os,re,shutil,subprocess,tempfile,time
+root=Path('/workspace/tcl-lsp-diagnostic')
+perf=Path('/workspace/tcl-lsp-publish/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/perf')
+base=Path('/workspace/tcl-lsp-work/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/perf/evidence')
+head=subprocess.check_output(['git','rev-parse','HEAD'],cwd=root,text=True).strip()
+out=base/('current-'+head[:8]+'-repaired-workflow');out.mkdir(exist_ok=False)
+controls=out/'report-controls';corpus=out/'corpus';filters=out/'compiler';filters.mkdir()
+record={'head':head,'started_unix':time.time(),'pid':os.getpid(),'rust_diff_sha256':hashlib.sha256(subprocess.check_output(['git','diff','--','rust'],cwd=root)).hexdigest(),'policy':'After original server cleanup, latest builds/controls/corpus use CPUs2,3; both SpecTcl modes inherit reserved CPUs0,1. Compiler filters run only after corpus and SpecTcl cleanup. No shared targets, changed inputs/assertions/budgets or paused tests.','runs':[]}
+def save(): (out/'progress.json').write_text(json.dumps(record,indent=2)+'\n')
+def alive(pid):
+ try:
+  s=(Path('/proc')/str(pid)/'stat').read_text();return s[s.rfind(')')+2:].split()[0]!='Z'
+ except OSError:return False
+def sha(p):
+ h=hashlib.sha256()
+ with p.open('rb') as f:
+  while data:=f.read(1024*1024):h.update(data)
+ return h.hexdigest()
+def run(label,argv):
+ start=time.monotonic()
+ with (out/(label+'.log')).open('w') as f:code=subprocess.run(argv,cwd=root,stdout=f,stderr=subprocess.STDOUT).returncode
+ record['runs'].append({'label':label,'argv':list(map(str,argv)),'exit':code,'wall_s':time.monotonic()-start});save();return code
+save()
+while not (base/'current-b6ea6dc5/server-memory-retry-final.json').exists():time.sleep(3)
+os.sched_setaffinity(0,{2,3});record['affinity']=sorted(os.sched_getaffinity(0));save()
+with tempfile.TemporaryDirectory(prefix='perf-latest-filter-elf-') as td:
+ backup=None
+ try:
+  argv=['python3',str(perf/'tools/run_report_controls.py'),str(root),'--opt-level','0','--target-dir',str(root/'target'),'--evidence',str(controls)]
+  start=time.monotonic()
+  with (out/'report-controls.log').open('w') as f:
+   child=subprocess.Popen(argv,cwd=root,stdout=f,stderr=subprocess.STDOUT)
+   while child.poll() is None:
+    receipt=controls/'controls-binary.json'
+    if backup is None and receipt.exists():
+     binary=json.loads(receipt.read_text());original=Path(binary['path']);backup=Path(td)/original.name;shutil.copy2(original,backup);assert sha(backup)==binary['sha256'];record['compiler_binary']=binary;save()
+    time.sleep(.2)
+   code=child.wait()
+  record['runs'].append({'label':'report-controls','exit':code,'wall_s':time.monotonic()-start});save();assert code==0 and backup,'report controls failed'
+  assert run('corpus',['python3',str(perf/'tools/run_authenticated_corpus.py'),str(root),'--controls',str(controls),'--opt-level','1','--target-dir',str(root/'target'),'--isolate-inputs','--evidence',str(corpus)])==0,'full corpus failed'
+  while alive(42380) or not (out/'spectcl-run-final.json').exists():time.sleep(3)
+  env=dict(os.environ,CARGO_MANIFEST_DIR=str(root/'rust/tcl-compiler'));env.pop('ZZ_OLD_ENV',None)
+  deep='interprocedural::tests::deeply_nested_if_survives_interprocedural_scan'
+  requested=['spectcl_source','original_name_value','formal_call_advice','realm','interprocedural','w216','w143','incomplete_body','native_array_indices_emit_iteratively_from_the_full_original_arena']
+  outcomes={};record['compiler_runs']=[]
+  for suite,selected in [('nondeep',[*requested,'--skip',deep]),('deep',[deep,'--exact'])]:
+   listed=subprocess.check_output([str(backup),*selected,'--list'],cwd=root/'rust/tcl-compiler',env=env,text=True);expected=set(re.findall(r'^(.+): test$',listed,re.M));assert expected
+   if suite=='deep':assert expected=={deep}
+   (filters/(suite+'-list.out')).write_text(listed)
+   for mode in ['new','old']:
+    start=time.monotonic();peak=0;path=filters/(suite+'-'+mode+'.out')
+    with path.open('w') as f:
+     child=subprocess.Popen([str(backup),*selected,'--test-threads=2'],cwd=root/'rust/tcl-compiler',env=env|({'ZZ_OLD_ENV':'1'} if mode=='old' else {}),stdout=f,stderr=subprocess.STDOUT)
+     while child.poll() is None:
+      try:
+       s=(Path('/proc')/str(child.pid)/'status').read_text()
+       if 'VmRSS:' in s:peak=max(peak,int(s.split('VmRSS:')[1].split()[0]))
+      except OSError:pass
+      time.sleep(.5)
+     code=child.wait()
+    found=dict(re.findall(r'^test (.+?) \.\.\. (ok|FAILED|ignored)$',path.read_text(),re.M));assert set(found)<=expected;outcomes[suite+'/'+mode]=found
+    record['compiler_runs'].append({'suite':suite,'mode':mode,'exit':code,'wall_s':time.monotonic()-start,'peak_rss_kib':peak,'declared':len(expected),'completed':len(found),'missing':sorted(expected-set(found)),'outcomes':found});save()
+  record['pass_to_fail']=[suite+'/'+name for suite in ['nondeep','deep'] for name,value in outcomes[suite+'/old'].items() if value=='ok' and outcomes[suite+'/new'].get(name)!='ok'];record['compiler_inventory_complete']=all(r['completed']==r['declared'] for r in record['compiler_runs']);save()
+  assert not record['pass_to_fail'],'compiler pass-to-fail'
+  assert record['compiler_inventory_complete'],'incomplete compiler inventory remains a failed gate'
+ finally:
+  if backup:backup.unlink(missing_ok=True)
+  record.update(finished_unix=time.time(),private_elf_removed=backup is None or not backup.exists());(out/'final.json').write_text(json.dumps(record,indent=2)+'\n')

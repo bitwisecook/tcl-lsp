@@ -1,0 +1,23 @@
+{
+  "results": [
+    {
+      "label": "build-controls",
+      "argv": [
+        "cargo",
+        "test",
+        "--locked",
+        "-j2",
+        "-p",
+        "tcl-compiler",
+        "--lib",
+        "--no-run",
+        "--message-format=json"
+      ],
+      "exit": 101,
+      "wall_s": 203.65180706977844,
+      "warnings": 0,
+      "executables": {}
+    }
+  ],
+  "updated_unix": 1792795347.8724482
+}

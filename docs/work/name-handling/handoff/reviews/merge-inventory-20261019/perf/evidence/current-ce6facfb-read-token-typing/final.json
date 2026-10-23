@@ -1,0 +1,7 @@
+{
+  "exit": 101,
+  "tests": 0,
+  "warnings": 0,
+  "error": "E0599 draft used span() on WordExpr; original upstream E0609 retained in prior control build. Draft uncommitted.",
+  "finished_unix": 1792795639.8521657
+}

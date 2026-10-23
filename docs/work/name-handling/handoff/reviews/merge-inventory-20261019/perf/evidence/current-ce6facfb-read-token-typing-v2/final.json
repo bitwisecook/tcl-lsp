@@ -1,0 +1,9 @@
+{
+  "exit": 0,
+  "warnings": 0,
+  "tests": 0,
+  "scope": "Necessary upstream E0609 correction: original.words().first()?.source().span is the actual retained CommandTokens WordExpr head; original vector equality and every other predicate retained. Compile-only; the existing ReadFlow card positive/negative control is added to next complete report/control invocation.",
+  "base": "ce6facfb",
+  "patch_sha256": "6550eb844838a5974c68ead5aed05dad4bfa53ef4000c39a175de4eb7533ffed",
+  "finished_unix": 1792795853.72208
+}

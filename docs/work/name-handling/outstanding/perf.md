@@ -2,137 +2,119 @@
 
 Area: Analysis and SpecTcl pack-load performance.
 
-Last updated: 2026-10-23 22:34 UTC
+Last updated: 2026-10-23 22:50 UTC
 
 ## Resume
 
-**No perf production commit or full acceptance. Full/clean6 roots remain frozen
-b6ea6dc5ebaa9589f6e1c1747875127fecdbb573. Do not commit realm/interprocedural,
-switches or temporary zz_*probe*.rs. Existing failures must remain visible.**
+**No six-file perf production commit or complete batch acceptance yet. Never
+commit realm/interprocedural, temporary switches or zz_*probe*.rs. Preserve
+all failed, incomplete and superseded runs.**
 
-Completed full-batch proof at b6:
-- Original16 report/actual-realm controls PASS BOTH, source unchanged,0warnings.
-- Switched and clean6 lexer586/586 PASS BOTH,0warnings, removed. Clean6 ignores
-  old variable; it has six production files only, no realm/interprocedural.
-- Mixed Tcl102 COMPLETE:101Equal/1 native35Unavailable. Old main process killed
-  after77 reports; exact-ELF tail25/25 Equal restores102 original input coverage
-  with the same one refusal. Original interrupted suite remains failed.
-- Both15 iRules and all7 synthetic sizes have all3 authenticated Equal pairs.
-- Full ordered PackSet Debug all3 Equal/deterministic,484936lines,8packs,
-  0notices/errors. Main Rust diff unchanged, all probes/executables removed.
-- Full selected229:228 actual outcomes identical142pass86fail BOTH; same1000-depth
-  scan missing/resource-killed both. No complete229-case proof.
+Published necessary report repair: ce6facfb. Exactly2 API files; complete current
+empty ALLOCATED declaration card/site/root/source/namespace/geometry/purpose
+checks. Installed admission, all old assertions, ordinary AnalysisResult and
+strict global/runtime/cache equality are unchanged. Candidate b6 controls19/19
+PASS BOTH,0Rust warnings, complete source seal unchanged, unit ELF removed.
+Original complete Native35 AND compact reproduction give all3 Equal pairs in
+BOTH forced-old/mixed, strict runtime equality independently false; examples
+removed. Evidence current-b6ea6dc5-empty-allocated-controls-quiet/ and
+current-b6ea6dc5-allocated-acceptance/. Failed earlier builds remain recorded.
 
-Native35 report defect is diagnosed, not normalized away:
-Exact original-unit cfg(test) trace fails ReportBodyInventory::push for an
-empty ALLOCATED OriginalDeclaration span. Existing empty-span admission accepts
-only INSTALLED purpose. Public retained-request rebuild independently shows the
-same allocated shape. Source-entry currentness still true for failing report.
-Small genuine input: recursive fib + unused empty {} + fib20 refuses; fib0,
-no call, return-only body pass. Declaration order does not fix it. Original
-full fixture and all102+15 inputs remain byte-exact.
-Evidence: current-b6ea6dc5-native35-unit-trace/, -capture-empty-order/,
--capture-owner/, -capture-ir/, -no-comment-repro/; strict reproduction-test
-patch perf-report-empty-recursive-call-repro.patch is a draft, not a fix.
+Necessary upstream typing repair is published in this update, separately from
+perf code. generated_procedures.rs used nonexistent SegmentedCommand.words.
+The genuine retained CommandTokens head is original.words().first()?.source().span.
+Full original vector equality, source-head offset and all other predicates
+remain. Initial E0609 source build failed0tests/0warnings; my first uncommitted
+draft then failed E0599 (wrong WordExpr accessor). Corrected cargo check PASS
+0warnings; no runtime acceptance yet. All receipts/draft retained under
+current-ce6facfb-read-token-typing{,-v2}/. The existing actual ReadFlow card
+positive/negative control is added to complete report/control runs.
 
-The report-only empty ALLOCATED repair is published separately from perf code
-in the commit containing this update. Exactly2 API source files, no ordinary
-AnalysisResult/global/runtime/cache equality changes. Complete current original
-allocation/card/site/root/source/namespace/span/mapping and role/purpose guards
-are retained; Installed helper and every old assertion are unchanged. Three
-controls added. Initial2 E0277 and subsequent resource-failed builds remain
-recorded, not overwritten by the successful quiet retry.
+Latest-source ce6 workflows FAILED before tests at that upstream E0609;
+current-ce6facfb-repaired-workflow/ and -clean6-workflow/. Do not resume those
+failed evidence directories. Both root sources are quiescent except the finished
+typing check. Full normal0 retry and all unit/corpus/client runs remain required.
 
-Candidate b6 quiet19 report/actual-realm controls PASS BOTH,154.727s new /
-78.810s old, opt0/assertions-on,0Rust warnings, complete source seal unchanged,
-unit executable removed. Exact original Native35 AND compact reproduction
-then pass all3 report pairs in BOTH forced-old and mixed (205.740/173.558s
-whole2-input runs),0warnings, probe/executable removed. Strict runtime Eq
-remains false and separately recorded. No full corrected102-input acceptance
-yet. perf-report-empty-allocated.patch contains ONLY the API repair;
-evidence/empty-allocated-repair-publication.json pins its precommit context.
-Latest canonical source compile/22 controls (including3 existing full Native35
-controls) and full corpus remain pending; this is authorised development
-publication, not a workspace-green or complete batch acceptance claim.
+Next, after this push: fetch canonical work into /workspace/tcl-lsp-diagnostic
+and /workspace/tcl-lsp-owned, save/discard ONLY our known diffs, reset both to
+the same new canonical proof base. Apply full9 --zz in diagnostic and exactly
+six no-switch files in owned; scoped fmt. Freeze both roots throughout proofs.
+Prepared scripts (also saved as tools/*.py.txt):
+- /tmp/perf-latest-repaired-workflow.py: complete current controls opt0
+  (expected23 including original19,3 existing Native35 controls and actual
+  ReadFlow card), source seal; preserve SHA-checked unit ELF privately; then
+  FULL102 Tcl+15iRules+7 synthetics old-only/mixed and ordered PackSet opt1.
+  --isolate-inputs keeps ALL3 analyses/comparisons inside each original input's
+  process, retaining every byte/hash/assertion and all child receipts. Only
+  Equal passes. After corpus AND fresh SpecTcl cleanup, original compiler
+  filters/nonUTF8 control BOTH and unchanged1000-depth case ALONE BOTH.
+- /tmp/perf-latest-clean6-workflow.py: update its full-workflow prefix to the
+  NEW proof-base hash before launch. Wait successful current report controls,
+  run no-switch lexer BOTH, build clean6 compiler0, preserve exact private ELF,
+  then wait full/compiler/client cleanup before unchanged filters/deep BOTH.
+  Old ENV is ignored in this six-file no-switch source. Strict inventory
+  assertions remain; missing outcomes stay FAILED, not fabricated tests.
+- /tmp/perf-latest-client-proofs.py spectcl: wait latest normal1 corpus build
+  and original b6 SpecTcl cleanup, then build/run/delete fresh eval_loader28
+  and golden_packs3 BOTH at the SAME source base, original budgets/threads.
+- /tmp/perf-latest-client-proofs.py server: wait both latest compiler drivers'
+  artifact cleanup, then fresh current-source server2 BOTH,180s unchanged.
+Both new main scripts and both client helpers must launch after reset. Source
+has changed in56 core/server files and3 SpecTcl files since b6; prior client
+results are interim evidence, not current-source substitutes.
 
-Active memory ordering (no runtime paused):
-1. Original clean6 both compiler modes are COMPLETE/FAILED, both exit-9.
-   NEW208/228 (126pass82fail),20missing; OLD227/228 (141pass86fail),1missing.
-   Original strict comparison retains15 positive-OLD/missing-NEW resource P2Fs.
-2. Exact-ELF isolation recovery is FINISHED. Original227 NONDEEP cases COMPLETE
-   BOTH, exact141pass86fail, zero P2F, peak351180/352356KiB. Unchanged1000-depth
-   case ALONE was OOM-killed BOTH, peak16423836/16368268KiB. Zero completed
-   assertions for that case; full inventory gate remains incomplete. Private
-   executable removed. current-b6ea6dc5-clean6-isolated-recovery/final.json.
-3. Server build has finished0Rust warnings and waits for quiet resources:
-   /tmp/perf-b6-server-after-memory.log, current-b6ea6dc5/
-   crate-tests-default-after-memory. Original2 tests/BOTH,180s unchanged.
-4. Candidate19 report/realm controls QUIET retry FINISHED/PASS BOTH:
-   /tmp/perf-b6-retry-controls-after-isolation.py/.log; evidence
-   current-b6ea6dc5-empty-allocated-controls-quiet/. All19 pass BOTH; source unchanged and executable removed.
-5. /tmp/perf-b6-capture-allocated-acceptance.py FINISHED successfully; it built/ran/deleted the real triple probe for exact original Native35
-   AND the compact reproduction, forced-old and mixed. Failed initial mini
-   preparation remains recorded separately. No source mutation during controls; all3 pairs Equal BOTH.
-6. Both SpecTcl executables built0warnings, queued for server thenSpec quiet
-   window. Original28 eval_loader +3 golden_packs each mode; budgets unchanged.
-7. Waiting-only guard was restarted to include the ENTIRE report-control helper
-   and acceptance-probe lifetime before releasing server. Original guard56929
-   replaced; receipt current-b6ea6dc5/quiet-guard-control-ordering.json.
-   Current guard /tmp/perf-b6-quiet-tests-all-workers.py, session89176;
-   /tmp/perf-b6-quiet-tests-all-workers-retry.log. Server may now run; SpecTcl follows server cleanup.
+Resource policy: SpecTcl BOTH modes inherit CPUs0,1; latest builders/controls/
+corpus CPUs2,3. Cgroup quota4CPU/16GiB. Latest deep cases run alone only after
+all corpus/SpecTcl/build cleanup. No runtime paused. Separate target directories
+per root; never copied/shared. /tmp/perf-env.sh plus agent-build-env.sh; pinned
+Tcl9.0.4/8.6.18/Jim0.84 via tmp links; assertions/overflow enabled. No ENOSPC.
+memory.events last oom9/oom_kill8. Temporary probes/executables removed by their
+one-command drivers. Check file receipts/PIDs before restarting healthy jobs.
 
-memory.events: oom9/oom_kill8. No Rust compiler is deliberately held. Normal
-and diagnostic targets never copied/shared. Tcl9.0.4/8.6.18/Jim0.84 remain
-pinned via tmp symlinks. Preserve all failed/resource outcomes.
+Frozen b6 interim results, retained separately:
+- Switched and clean6 lexer586/586 BOTH,0warnings, removed.
+- Full selected229:228 outcomes identical142pass86fail BOTH; original1000-depth
+  case OOM BOTH. Clean6 isolated227 identical141pass86fail BOTH; same deep case
+  OOM ALONE BOTH, peak16423836/16368268KiB. Incomplete inventories stay failed.
+  Original clean6 incomplete15 resource P2Fs are retained, with exact-ELF
+  recovery proving those completed positive cases survive. Private ELFs removed.
+- Mixed Tcl102 complete101Equal/1Native35Unavailable before API repair. Original
+  old process killed after77; exact-ELF tail25 Equal restores all original input
+  coverage without erasing failed suite. Both15iRules and all7 synthetic sizes
+  pass all3 pairs. Full ordered PackSet Debug484936lines,8packs,0notices/errors
+  is deterministic/equal. Full corrected corpus has NOT run yet.
+- Both named server checks complete0Rust warnings/zeroP2F, but gates FAIL:
+  startup same first role-count assertion0vs1 (8.596/5.314s), later reindex
+  unreached; workspace_symbol timeout180 BOTH (180.024/180.048s). Artifacts
+  removed; current-b6ea6dc5/crate-tests-default-after-memory/.
+- b6 SpecTcl driver42380 STILL RUNNING, /tmp/perf-b6-spectcl.log. NEW eval_loader
+  28/28 PASS263.054s; OLD currently running; golden_packs next. CPUs0,1 reserved.
+  Do not mutate full root /workspace/tcl-lsp-perf-latest or restart this worker.
+  Main normal1 corpus/library builder can overlap on other CPUs; fresh SpecTcl
+  helper waits for its actual final cleanup before using CPUs0,1.
 
-The corpus runner now supports --isolate-inputs: each original file gets a
-process containing ALL three analyses/comparisons, with complete child receipts.
-Every original input/hash, assertion and Equal-only requirement is retained;
-this prevents cross-input memory accumulation. Python syntax/diff checks pass;
-the new mode has not yet run. The latest fetched work0a8b8da6 contains the same
-six owned files and realm; interprocedural has a separate helper refactor.
-The report repair applies cleanly and is published separately in this update.
-The switch-only query_memo constructor spelling now matches the clean patch,
-removing its new Clippy Default lint without changing runtime behaviour.
+After genuine current-source proofs, assess all original baseline passes and
+preserve every timeout/resource/assertion outcome. Run scoped fmt and latest
+Clippy with no new diagnostics (b6 baseline failed62; six owned0; switch-only
+Default lint is now fixed by using the clean constructor spelling). Never
+suppress lints, weaken assertions/budgets or global equality, drop report fields
+or normalize away Unavailable. Land EXACTLY six owned clean files as ONE perf
+code commit, rebased latest. Refresh compiler-owned2-file patch and write exact
+requested proven-at-commit readiness only after true proof. No realm.rs or
+interprocedural.rs production hunk in our commit.
 
-Next: advance ONLY diagnostic tree to latest canonical work plus full9 switched
-perf files. /tmp/perf-latest-repaired-workflow.py is prepared but NOT started.
-It waits original server cleanup, runs latest complete controls opt0, preserves
-the exact unit ELF privately, then runs FULL102+15+synthetics/PackSet opt1 using
---isolate-inputs. After corpus and SpecTcl cleanup it runs original compiler
-filters/nonUTF8 control both modes, unchanged1000-depth case alone BOTH; strict
-inventory failures stay failed and all private artifacts are removed. Latest
-builds use CPUs2,3; BOTH SpecTcl modes inherit reserved CPUs0,1 (receipt
-current-b6ea6dc5/spec-cpu-reservation.json). No shared targets/assertion/budget
-changes or paused runtime. Then assess the genuine latest-source full proof: Equal only;
-Unavailable/Different fail. No report substitution, source/owner guard waiver,
-field dropping, assertion/budget weakening or global equality change. API repair
-is not a six-file perf commit. Complete requested crate checks and all inputs.
+Residual image/segment/LSP currentness/empty-region drafts are Blocked/routed,
+uncompiled/unproven. They do not fix all review4.1 shapes or deep OOM. Full
+source/context limits and required owner proofs are in residual-routing.md.
+Current b6 contended opt1 wall (capture included, comparison excluded): calls80
+old26815/new2721/old15968ms; upvar30 old73450/new15071/old46401ms;
+load_embedded old14514/new2964/old16003ms, ordered full PackSet equal. Origin
+same load API4665ms is separate; no cross-API/release claim. Final current
+before/after timings in perf-NOTES.md remain required before stopping.
 
-Only after genuine complete proof, land EXACTLY six owned no-switch files as
-ONE perf code commit, rebased latest. Refresh compiler-owned2-file patch and
-write exact requested proven-at-commit readiness only then. Six clean files
-were byte-identical on29c2f89e off-tree refresh; public patches pin own base.
-Clippy b6 failed62, six owned0; the new Default lint was SWITCH-ONLY and clean
-patch already qualifies constructor. Two unrelated doc-spacing lints fixed
-0f1d32b8; no workspace-green claim/suppression.
-
-Residual image/segment/LSP inventory drafts remain Blocked/routed, uncompiled,
-semantically unproven. Additional perf-body-empty-regions.patch avoids cloning
-AdviceGraph for existing checked empty coverage (zero old loop iterations),
-parser/fmt only, no production edit or proof; routes compiler/compiler-names.
-It does NOT fix the1000-depth memory failure. See residual-routing.md.
-
-Current b6 wall timings are recorded in evidence/timings.md (contended opt1,
-report capture included, comparisons excluded): calls80 old26815/new2721/
-old15968ms; upvar30 old73450/new15071/old46401ms. Ordinary load_embedded
-old14514/new2964/old16003ms, complete ordered PackSet equal. Origin same
-load API4665ms, separate observation. No release claim/cross-API timing ratio.
-Final NOTES with all final timings/limits remains required before stopping.
-
-Publish own evidence, NOTES and this file from /workspace/tcl-lsp-publish at
-most30min apart, date-u Last updated and Resume current. Fetch origin work and
-rebase before every push, retry rejection; no force/PR. Footer:
+Publish own evidence/NOTES/this file at most30min apart from publisher root.
+Last own push ce6facfb at22:34UTC, superseded by this update. Fetch origin work
+and rebase before every normal push, retry rejection; no force/PR. Footer:
 Co-Authored-By: Codex <noreply@openai.com>.
 
 ## Completed evidence and current failures

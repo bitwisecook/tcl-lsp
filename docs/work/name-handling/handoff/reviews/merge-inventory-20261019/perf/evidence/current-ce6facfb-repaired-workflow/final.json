@@ -1,0 +1,20 @@
+{
+  "head": "ce6facfb1ce00ab325924cb567c1ffdd4cff1168",
+  "started_unix": 1792794906.1263525,
+  "pid": 82141,
+  "rust_diff_sha256": "8d34b06306190679c0de73d223bc3c33accec4f428a3e56d5e17d21c1e57949e",
+  "policy": "After original server cleanup, latest builds/controls/corpus use CPUs2,3; both SpecTcl modes inherit reserved CPUs0,1. Compiler filters run only after corpus and SpecTcl cleanup. No shared targets, changed inputs/assertions/budgets or paused tests.",
+  "runs": [
+    {
+      "label": "report-controls",
+      "exit": 1,
+      "wall_s": 209.69751648500096
+    }
+  ],
+  "affinity": [
+    2,
+    3
+  ],
+  "finished_unix": 1792795350.638188,
+  "private_elf_removed": true
+}

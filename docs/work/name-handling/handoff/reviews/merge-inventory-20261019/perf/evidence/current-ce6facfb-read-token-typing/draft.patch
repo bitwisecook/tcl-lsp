@@ -1,0 +1,13 @@
+diff --git a/rust/tcl-compiler/src/command_binding/generated_procedures.rs b/rust/tcl-compiler/src/command_binding/generated_procedures.rs
+index c3b62ec9..dd6b52dd 100644
+--- a/rust/tcl-compiler/src/command_binding/generated_procedures.rs
++++ b/rust/tcl-compiler/src/command_binding/generated_procedures.rs
+@@ -404,7 +404,7 @@ impl OriginalNativeProcedureBody {
+         let snapshot_input = snapshot.baseline.metadata_context.source_analysis_input()?;
+         (tokens.synthetic.is_none()
+             && original.words() == tokens.words()
+-            && command.words.first()?.span().start() == site.offset
++            && original.words().first()?.span().start() == site.offset
+             && command.span.start() == site.offset
+             && !command.is_partial
+             && std::sync::Arc::ptr_eq(&site.source, &flow.read_flow.header.declaration.source)

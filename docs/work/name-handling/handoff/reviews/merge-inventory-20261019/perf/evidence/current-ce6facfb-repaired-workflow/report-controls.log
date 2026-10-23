@@ -1,0 +1,10 @@
+build-controls exit 101 warnings 0
+FINISHED source_unchanged True
+Traceback (most recent call last):
+  File "/workspace/tcl-lsp-publish/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/perf/tools/run_report_controls.py", line 62, in <module>
+    exes=build('build-controls',['cargo','test','--locked','-j2','-p','tcl-compiler','--lib','--no-run','--message-format=json'])
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/tcl-lsp-publish/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/perf/tools/run_report_controls.py", line 59, in build
+    if code or warnings: raise RuntimeError(f'{label}: exit={code}, warnings={len(warnings)}')
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+RuntimeError: build-controls: exit=101, warnings=0

@@ -1,0 +1,39 @@
+#!/usr/bin/env python3
+# tcl-lsp — a language server and toolchain for Tcl
+# Copyright (C) 2026 James Deucker (bitwisecook)
+# SPDX-License-Identifier: AGPL-3.0-or-later
+from pathlib import Path
+import json,os,subprocess,sys,time
+root=Path('/workspace/tcl-lsp-diagnostic');stage=sys.argv[1];assert stage in ['spectcl','server'];head=subprocess.check_output(['git','rev-parse','HEAD'],cwd=root,text=True).strip();base=Path('/workspace/tcl-lsp-work/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/perf/evidence');full=base/('current-'+head[:8]+'-repaired-workflow');clean=base/('current-'+head[:8]+'-clean6-workflow');tool=Path('/workspace/tcl-lsp-publish/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/perf/tools/run_crate_proofs.py')
+def alive(pid):
+ try:
+  s=(Path('/proc')/str(pid)/'stat').read_text();return s[s.rfind(')')+2:].split()[0]!='Z'
+ except OSError:return False
+record={'head':head,'stage':stage,'pid':os.getpid(),'started_unix':time.time(),'policy':'Actual latest-source client test build/run/delete. Original inputs/assertions/thread limits/budgets. SpecTcl uses CPUs0,1 after original b6 SpecTcl cleanup and latest normal1 build. Server runs after all corpus/compiler/SpecTcl cleanup.'}
+while not full.exists():time.sleep(2)
+receipt=full/(stage+'-run-final.json');progress=full/(stage+'-run-progress.json');progress.write_text(json.dumps(record,indent=2)+'\n')
+if stage=='spectcl':
+ build=full/'corpus/build.jsonl'
+ while True:
+  success=False
+  if build.exists():
+   for line in build.read_text().splitlines():
+    try:r=json.loads(line)
+    except ValueError:continue
+    if r.get('reason')=='build-finished':success=r['success']
+  if success and not alive(42380):break
+  if (full/'final.json').exists():
+   record.update(exit='failed corpus build dependency; zero tests',finished_unix=time.time());receipt.write_text(json.dumps(record,indent=2)+'\n');raise SystemExit(1)
+  time.sleep(3)
+ os.sched_setaffinity(0,{0,1});profile='1'
+else:
+ while not (full/'final.json').exists() or not (clean/'final.json').exists():time.sleep(3)
+ os.sched_setaffinity(0,{0,1,2,3});profile='0'
+record.update(build_started_unix=time.time(),affinity=sorted(os.sched_getaffinity(0)));progress.write_text(json.dumps(record,indent=2)+'\n')
+try:
+ argv=['python3',str(tool),str(root),'--stage',stage,'--opt-level',profile,'--target-dir',str(root/'target'),'--evidence-dir',str(full/('client-'+stage))]
+ with (full/('client-'+stage+'.log')).open('w') as f:code=subprocess.run(argv,cwd=root,stdout=f,stderr=subprocess.STDOUT).returncode
+ record.update(exit=code,argv=argv)
+finally:
+ record['finished_unix']=time.time();receipt.write_text(json.dumps(record,indent=2)+'\n')
+raise SystemExit(record['exit'])

@@ -61,9 +61,9 @@ def build(label,argv):
 try:
  exes=build('build-controls',['cargo','test','--locked','-j2','-p','tcl-compiler','--lib','--no-run','--message-format=json'])
  exe=exes['tcl_compiler'];(evidence/'controls-binary.json').write_text(json.dumps({'path':str(exe),'sha256':sha(exe)},indent=2)+'\n')
- command('controls-list',[str(exe),'authenticated_report','full_report_candidates_require_the_actual_diagnostic_output_realm','--list'])
- command('controls-new',[str(exe),'authenticated_report','full_report_candidates_require_the_actual_diagnostic_output_realm','--test-threads=2'],timeout=2400)
- command('controls-old',[str(exe),'authenticated_report','full_report_candidates_require_the_actual_diagnostic_output_realm','--test-threads=2'],{'ZZ_OLD_ENV':'1'},timeout=2400)
+ command('controls-list',[str(exe),'authenticated_report','full_report_candidates_require_the_actual_diagnostic_output_realm','original_read_card_requires_its_actual_vector_origin_and_snapshot','--list'])
+ command('controls-new',[str(exe),'authenticated_report','full_report_candidates_require_the_actual_diagnostic_output_realm','original_read_card_requires_its_actual_vector_origin_and_snapshot','--test-threads=2'],timeout=2400)
+ command('controls-old',[str(exe),'authenticated_report','full_report_candidates_require_the_actual_diagnostic_output_realm','original_read_card_requires_its_actual_vector_origin_and_snapshot','--test-threads=2'],{'ZZ_OLD_ENV':'1'},timeout=2400)
  listed=set(re.findall(r'^(.+): test$',(evidence/'controls-list.out').read_text(),re.M))
  assert listed,'empty control inventory'
  for mode in ['new','old']:

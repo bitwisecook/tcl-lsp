@@ -1,0 +1,7 @@
+{
+  "head": "ce6facfb1ce00ab325924cb567c1ffdd4cff1168",
+  "pid": 82306,
+  "started_unix": 1792795058.6313913,
+  "scope": "Exactly six owned files, no switch or realm/interprocedural. Old ENV is ignored. Complete source diff recorded. Original filters/inputs/assertions/threads unchanged; both runs keep original resource failures.",
+  "runs": []
+}

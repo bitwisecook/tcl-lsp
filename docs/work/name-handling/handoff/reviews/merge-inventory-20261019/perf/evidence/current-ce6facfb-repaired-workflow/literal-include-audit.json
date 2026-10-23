@@ -1,0 +1,6 @@
+{
+  "checked_unix": 1792795249.2628026,
+  "scope": "Literal include_str/include_bytes paths in7 relevant crate source trees only; no claim for concat/env macros or every workspace crate.",
+  "checked": 543,
+  "missing": []
+}

@@ -1,0 +1,7 @@
+{
+  "exit": 1,
+  "tests": 0,
+  "builds": 0,
+  "reason": "Upstream full report-control dependency failed E0609 before clean6 build. Original helper KeyError traceback retained in tool log; no test artifact created.",
+  "finished_unix": 1792795853.7229903
+}

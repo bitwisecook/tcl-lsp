@@ -1,39 +1,34 @@
 # perf agent notes: Analyser and SpecTcl
 
-Last updated: 2026-10-23 22:34 UTC
+Last updated: 2026-10-23 22:50 UTC
 
-**Frozen b6 proof progressed; perf code remains unlanded.** Switched and clean6
-lexer586/586 pass BOTH with0Rust warnings. Full selected compiler228 completed
-outcomes match BOTH (142pass86fail); the remaining original1000-depth case
-is resource-killed. Clean6 isolated227 outcomes match BOTH (141pass86fail);
-the unchanged1000-depth case OOMs even alone BOTH at roughly15.7/15.6GiB RSS.
-This is not a complete passing compiler inventory; original incomplete runs
-and their15 resource P2Fs remain recorded alongside the recovery.
+**API report blocker repaired; current full perf acceptance remains pending.**
+ce6facfb admits genuine current empty ALLOCATED declaration bodies through the
+complete actual card; all source/registry/role/purpose/geometry guards and old
+assertions stay intact. Candidate19 controls PASS BOTH with0warnings; exact
+original Native35 and compact reproduction have all3 Equal pairs BOTH. Strict
+runtime/global/cache equality is unchanged and separately false.
 
-Full-batch b6 mixed Tcl is101Equal/1Unavailable; old main run was interrupted,
-then its exact-ELF remaining25 inputs all pass. The sole refusal is original
-Native35, caused by a current empty ALLOCATED declaration being admitted only
-for Installed bodies. A report-only candidate preserves strict current cards,
-source/namespace/geometry/role/purpose checks and adds positive/negative controls.
-Its quiet19-control retry now PASSES BOTH with0warnings and unchanged source.
-Exact full Native35 plus compact reproduction subsequently give all3 Equal
-pairs BOTH forced-old/mixed, with strict runtime Eq separately false. The
-necessary API-only repair is published separately in this update. Full
-corrected latest-source corpus acceptance is still pending.
-Both15 iRules and all7 synthetic sizes give all3 Equal pairs; complete ordered
-PackSet Debug is deterministic/equal (484936 lines,8packs,0notices/errors).
+Latest-source build then failed an upstream SegmentedCommand.words typo before
+any tests,0warnings. The one-line WordExpr source-span typing correction is
+published separately in this update; corrected cargo check passes0warnings.
+The failed first accessor draft remains uncommitted evidence. Fresh current
+controls/full corpus/crates/client suites are queued; see outstanding/perf.md.
 
-Current contended opt1 b6 wall timings (report capture included; comparison
-excluded): calls80 old26815/new2721/old15968ms; upvar30 old73450/new15071/
-old46401ms. Ordinary load_embedded old14514/new2964/old16003ms with full
-PackSet equality. Origin same load API4665ms is a separate observation. Full
-provenance and limits: perf/evidence/timings.md. No latest-source/release claim.
+Frozen b6 interim: lexer586/586 BOTH switched and clean6; completed compiler
+outcomes match but original1000-depth test OOMs BOTH even alone. Named server
+startup fails same first role assertion BOTH; workspace symbol times out180
+BOTH, zeroP2F but failed gates. SpecTcl NEW eval_loader28/28 PASS263.054s;
+OLD and goldens continue on reserved CPUs. Do not substitute these frozen
+results for the queued corrected latest-source run.
 
-Server and SpecTcl binaries built0warnings and await original-budget quiet
-runtime. Shared residual drafts remain Blocked/routed and unproven. The next
-steps and exact active commands are in outstanding/perf.md. Six-file perf
-commit and compiler-owned patch readiness remain withheld. The following
-historical results retain their original source/profile scope.
+b6 contended opt1 wall: calls80 old26815/new2721/old15968ms; upvar30
+old73450/new15071/old46401ms; ordinary load_embedded old14514/new2964/
+old16003ms with complete ordered PackSet equality (484936lines). Origin same
+load API4665ms is a separate observation. Full exact-source/profile limits are
+in perf/evidence/timings.md. Six-file perf commit and compiler patch readiness
+remain withheld; shared residual drafts are Blocked/routed and unproven.
+Historical evidence below keeps its original source/profile scope.
 
 ## Current0322 progress
 

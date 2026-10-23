@@ -1,0 +1,5 @@
+every_shipped_pack_still_loads_to_its_golden_snapshot: test
+every_shipped_pack_upgrades_to_2_0_and_loads_identically: test
+no_golden_snapshot_is_orphaned: test
+
+3 tests, 0 benchmarks

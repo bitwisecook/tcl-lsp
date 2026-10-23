@@ -10,6 +10,75 @@
       "state": "S",
       "start": "8027850",
       "argv": "python3 /tmp/perf-b6-server-after-memory.py "
+    },
+    "summary": {
+      "server/startup/new": {
+        "returncode": 101,
+        "seconds": 8.596,
+        "passed": 0,
+        "failed": 1,
+        "ignored": 0,
+        "timed_out": [],
+        "declared_count": 1,
+        "missing_tests": [],
+        "inventory_complete": true,
+        "log": "tests-server-startup-new.out",
+        "pass_to_fail": [],
+        "comparison_complete": true
+      },
+      "server/startup/old": {
+        "returncode": 101,
+        "seconds": 5.314,
+        "passed": 0,
+        "failed": 1,
+        "ignored": 0,
+        "timed_out": [],
+        "declared_count": 1,
+        "missing_tests": [],
+        "inventory_complete": true,
+        "log": "tests-server-startup-old.out"
+      },
+      "server/workspace_symbol/new": {
+        "returncode": "timeout180",
+        "seconds": 180.024,
+        "passed": 0,
+        "failed": 0,
+        "ignored": 0,
+        "timed_out": [
+          "tests::workspace_symbol_caps_its_answer"
+        ],
+        "declared_count": 1,
+        "missing_tests": [],
+        "inventory_complete": true,
+        "log": "tests-server-workspace_symbol-new.out",
+        "pass_to_fail": [],
+        "comparison_complete": true
+      },
+      "server/workspace_symbol/old": {
+        "returncode": "timeout180",
+        "seconds": 180.048,
+        "passed": 0,
+        "failed": 0,
+        "ignored": 0,
+        "timed_out": [
+          "tests::workspace_symbol_caps_its_answer"
+        ],
+        "declared_count": 1,
+        "missing_tests": [],
+        "inventory_complete": true,
+        "log": "tests-server-workspace_symbol-old.out"
+      }
+    },
+    "executables_removed": true,
+    "finished_unix": 1792795140.9128087
+  },
+  "spectcl": {
+    "released_unix": 1792795140.9168837,
+    "driver": {
+      "pid": 42380,
+      "state": "S",
+      "start": "7858808",
+      "argv": "python3 /workspace/tcl-lsp-publish/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/perf/tools/run_crate_proofs.py /workspace/tcl-lsp-perf-latest --stage spectcl --opt-level 1 --target-dir /workspace/tcl-lsp-perf-latest/target-spectcl-opt1 --evidence-dir /workspace/tcl-lsp-work/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/perf/evidence/current-b6ea6dc5/crate-tests-opt1 --wait-before-tests /tmp/perf-b6-spec-quiet-ready "
     }
   }
 }

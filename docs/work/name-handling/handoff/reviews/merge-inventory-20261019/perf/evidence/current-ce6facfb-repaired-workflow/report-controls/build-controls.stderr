@@ -1,0 +1,12 @@
+   Compiling tcl-lexer v0.1.0 (/workspace/tcl-lsp-diagnostic/rust/tcl-lexer)
+   Compiling tcl-syntax v0.1.0 (/workspace/tcl-lsp-diagnostic/rust/tcl-syntax)
+   Compiling tcl-runtime-api v0.1.0 (/workspace/tcl-lsp-diagnostic/rust/tcl-runtime-api)
+   Compiling tcl-cmd-core v0.1.0 (/workspace/tcl-lsp-diagnostic/rust/tcl-cmd-core)
+   Compiling tcl-bytecode v0.1.0 (/workspace/tcl-lsp-diagnostic/rust/tcl-bytecode)
+   Compiling tcl-engine-api v0.1.0 (/workspace/tcl-lsp-diagnostic/rust/tcl-engine-api)
+   Compiling tcl-pkg-model v0.1.0 (/workspace/tcl-lsp-diagnostic/rust/tcl-pkg-model)
+   Compiling tcl-regex v0.1.0 (/workspace/tcl-lsp-diagnostic/rust/tcl-regex)
+   Compiling tcl-registry v0.1.0 (/workspace/tcl-lsp-diagnostic/rust/tcl-registry)
+   Compiling tcl-compiler v0.1.0 (/workspace/tcl-lsp-diagnostic/rust/tcl-compiler)
+   Compiling tcl-vm v0.1.0 (/workspace/tcl-lsp-diagnostic/rust/tcl-vm)
+error: could not compile `tcl-compiler` (lib) due to 1 previous error
