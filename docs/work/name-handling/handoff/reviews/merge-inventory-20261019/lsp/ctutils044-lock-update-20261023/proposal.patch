@@ -1,0 +1,120 @@
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -1062,9 +1062,9 @@
+ 
+ [[package]]
+ name = "ctutils"
+-version = "0.4.3"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "03bb0e1cc970d482d121d9a1744999169b69a07470b3d644a7894e53fcaf4574"
++version = "0.4.4"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "12218662ccac37d9714f2191252553d67585b97df8c839cbe49e0bde278dc865"
+ dependencies = [
+  "cmov",
+  "subtle",
+--- a/rust/tcl-spec-studio-wasm/Cargo.lock
++++ b/rust/tcl-spec-studio-wasm/Cargo.lock
+@@ -215,9 +215,9 @@
+ 
+ [[package]]
+ name = "ctutils"
+-version = "0.4.3"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "03bb0e1cc970d482d121d9a1744999169b69a07470b3d644a7894e53fcaf4574"
++version = "0.4.4"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "12218662ccac37d9714f2191252553d67585b97df8c839cbe49e0bde278dc865"
+ dependencies = [
+  "cmov",
+  "subtle",
+--- a/rust/tcl-lsp-server-wasm/Cargo.lock
++++ b/rust/tcl-lsp-server-wasm/Cargo.lock
+@@ -317,9 +317,9 @@
+ 
+ [[package]]
+ name = "ctutils"
+-version = "0.4.3"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "03bb0e1cc970d482d121d9a1744999169b69a07470b3d644a7894e53fcaf4574"
++version = "0.4.4"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "12218662ccac37d9714f2191252553d67585b97df8c839cbe49e0bde278dc865"
+ dependencies = [
+  "cmov",
+  "subtle",
+--- a/rust/bigip-report-gen/wasm/Cargo.lock
++++ b/rust/bigip-report-gen/wasm/Cargo.lock
+@@ -287,9 +287,9 @@
+ 
+ [[package]]
+ name = "ctutils"
+-version = "0.4.3"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "03bb0e1cc970d482d121d9a1744999169b69a07470b3d644a7894e53fcaf4574"
++version = "0.4.4"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "12218662ccac37d9714f2191252553d67585b97df8c839cbe49e0bde278dc865"
+ dependencies = [
+  "cmov",
+  "subtle",
+--- a/rust/bigip-report-gen/python/Cargo.lock
++++ b/rust/bigip-report-gen/python/Cargo.lock
+@@ -340,9 +340,9 @@
+ 
+ [[package]]
+ name = "ctutils"
+-version = "0.4.3"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "03bb0e1cc970d482d121d9a1744999169b69a07470b3d644a7894e53fcaf4574"
++version = "0.4.4"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "12218662ccac37d9714f2191252553d67585b97df8c839cbe49e0bde278dc865"
+ dependencies = [
+  "cmov",
+  "subtle",
+--- a/rust/tcl-explorer-wasm/Cargo.lock
++++ b/rust/tcl-explorer-wasm/Cargo.lock
+@@ -206,9 +206,9 @@
+ 
+ [[package]]
+ name = "ctutils"
+-version = "0.4.3"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "03bb0e1cc970d482d121d9a1744999169b69a07470b3d644a7894e53fcaf4574"
++version = "0.4.4"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "12218662ccac37d9714f2191252553d67585b97df8c839cbe49e0bde278dc865"
+ dependencies = [
+  "cmov",
+  "subtle",
+--- a/rust/bigip-query-wasm/Cargo.lock
++++ b/rust/bigip-query-wasm/Cargo.lock
+@@ -235,9 +235,9 @@
+ 
+ [[package]]
+ name = "ctutils"
+-version = "0.4.3"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "03bb0e1cc970d482d121d9a1744999169b69a07470b3d644a7894e53fcaf4574"
++version = "0.4.4"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "12218662ccac37d9714f2191252553d67585b97df8c839cbe49e0bde278dc865"
+ dependencies = [
+  "cmov",
+  "subtle",
+--- a/rust/tcl-lsp-server-wasi/Cargo.lock
++++ b/rust/tcl-lsp-server-wasi/Cargo.lock
+@@ -307,9 +307,9 @@
+ 
+ [[package]]
+ name = "ctutils"
+-version = "0.4.3"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "03bb0e1cc970d482d121d9a1744999169b69a07470b3d644a7894e53fcaf4574"
++version = "0.4.4"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "12218662ccac37d9714f2191252553d67585b97df8c839cbe49e0bde278dc865"
+ dependencies = [
+  "cmov",
+  "subtle",

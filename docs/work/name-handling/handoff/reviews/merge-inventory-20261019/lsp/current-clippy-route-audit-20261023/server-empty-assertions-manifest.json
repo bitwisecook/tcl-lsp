@@ -1,0 +1,475 @@
+{
+  "actual_utc": "2026-10-23T11:03:48.035936+00:00",
+  "scope": "Only functions with original routed assert_is_empty diagnostics; len()==0 changed to is_empty with original expression once and optional messages preserved; no unreported std::fs::Metadata len conversion",
+  "files": [
+    {
+      "path": "rust/tcl-lsp-server/src/current_diagnostics.rs",
+      "before_sha256": "bdbc4a50e606fe4d507498a93276496a37e55bc8f9b7ed3eb3d86c1b584e2545",
+      "after_sha256": "3e270dea135b18b9f18156b2a1cf7d812aeeb06a669f766895d2dfda3076eb08",
+      "changes": 2
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/original_document_metadata_tests.rs",
+      "before_sha256": "3b230a91b7f848a82e80d348b6a076fef0b3cec4aa77a2b2dd47deec60827df2",
+      "after_sha256": "043982b1d866fe2c74d181903e0188e31a5ada8484d7441df10ca8beb43d5fbc",
+      "changes": 9
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/original_workspace_diagnostics_tests.rs",
+      "before_sha256": "c0d253bf6c5d6ef128f30846b1f44fb00a5febbb4c972f5ae0ce40514b3e3355",
+      "after_sha256": "8936a241985e529efee310bc47a97e042895ebcfd5a192487dee4ffd9d8024da",
+      "changes": 2
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/readonly_reference_reports.rs",
+      "before_sha256": "44a04816e405d9f0a6a61fb711a543c935411f110d4d08edaa7cfc08b4b757a3",
+      "after_sha256": "c593666a1c6c0445827a3972ff1190d76662f30d7876ea8fae716a33c2e5d764",
+      "changes": 7
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/lib.rs",
+      "before_sha256": "2e9cd7b7148d439c5ddbf7ee70494f418f22fd123f78e53433b6d47fbfa4ae1c",
+      "after_sha256": "4d4db278f2e92692f9ece6e45345515f69c6f78fb0171c6d5a0c00eeae4a6e39",
+      "changes": 42
+    }
+  ],
+  "assertions": [
+    {
+      "path": "rust/tcl-lsp-server/src/current_diagnostics.rs",
+      "function": "legacy_cache_withdraws_config_only_changes_before_unchanged",
+      "original_line": 2951,
+      "before_expression": "assert_eq!(cleared.items.len(), 0)",
+      "after_expression": "assert!(cleared.items.is_empty())"
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/current_diagnostics.rs",
+      "function": "workspace_cache_preserves_actual_report_version_and_whole_source",
+      "original_line": 3016,
+      "before_expression": "assert_eq!(report.full_document_diagnostic_report.items.len(), 0)",
+      "after_expression": "assert!(report.full_document_diagnostic_report.items.is_empty())"
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/original_document_metadata_tests.rs",
+      "function": "unindexed_tokens_refuse_withdrawn_source_metadata_and_availability",
+      "original_line": 229,
+      "before_expression": "assert_eq!(unindexed_semantic_tokens(source, refused).data.len(), 0)",
+      "after_expression": "assert!(unindexed_semantic_tokens(source, refused).data.is_empty())"
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/original_document_metadata_tests.rs",
+      "function": "unindexed_tokens_refuse_withdrawn_source_metadata_and_availability",
+      "original_line": 230,
+      "before_expression": "assert_eq!(\n            unindexed_semantic_tokens_for_range(source, refused, Some(whole_source_range(source)))\n                .data\n                .len(),\n            0\n        )",
+      "after_expression": "assert!(unindexed_semantic_tokens_for_range(source, refused, Some(whole_source_range(source)))\n                .data.is_empty())"
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/original_document_metadata_tests.rs",
+      "function": "unindexed_tokens_refuse_withdrawn_source_metadata_and_availability",
+      "original_line": 237,
+      "before_expression": "assert_eq!(\n        unindexed_semantic_tokens(\"metadata_read changed\", &analysis)\n            .data\n            .len(),\n        0\n    )",
+      "after_expression": "assert!(unindexed_semantic_tokens(\"metadata_read changed\", &analysis)\n            .data.is_empty())"
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/original_document_metadata_tests.rs",
+      "function": "closed_disk_index_keeps_workspace_roles_and_withdraws_changed_pack",
+      "original_line": 609,
+      "before_expression": "assert_eq!(index_reads(&backend, \"::retained\", &uri).await.len(), 0)",
+      "after_expression": "assert!(index_reads(&backend, \"::retained\", &uri).await.is_empty())"
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/original_document_metadata_tests.rs",
+      "function": "startup_index_and_factory_reindex_keep_checked_document_roles",
+      "original_line": 642,
+      "before_expression": "assert_eq!(index_reads(&backend, \"::retained\", &uri).await.len(), 0)",
+      "after_expression": "assert!(index_reads(&backend, \"::retained\", &uri).await.is_empty())"
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/original_document_metadata_tests.rs",
+      "function": "workspace_index_seed_refuses_stale_and_withdrawn_source_owners",
+      "original_line": 755,
+      "before_expression": "assert_eq!(unavailable.analysis.command_invocations.len(), 0)",
+      "after_expression": "assert!(unavailable.analysis.command_invocations.is_empty())"
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/original_document_metadata_tests.rs",
+      "function": "optimise_document_keeps_workspace_roles_and_refuses_unavailable_input",
+      "original_line": 932,
+      "before_expression": "assert_eq!(refused[\"optimisations\"].as_array().unwrap().len(), 0)",
+      "after_expression": "assert!(refused[\"optimisations\"].as_array().unwrap().is_empty())"
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/original_document_metadata_tests.rs",
+      "function": "document_symbols_keep_the_resource_input_and_withdraw_unavailable_overlays",
+      "original_line": 992,
+      "before_expression": "assert_eq!(\n        backend.db_document_symbols(&sibling).await.unwrap().len(),\n        0\n    )",
+      "after_expression": "assert!(backend.db_document_symbols(&sibling).await.unwrap().is_empty())"
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/original_document_metadata_tests.rs",
+      "function": "document_symbols_keep_the_resource_input_and_withdraw_unavailable_overlays",
+      "original_line": 1016,
+      "before_expression": "assert_eq!(backend.db_document_symbols(&uri).await.unwrap().len(), 0)",
+      "after_expression": "assert!(backend.db_document_symbols(&uri).await.unwrap().is_empty())"
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/original_workspace_diagnostics_tests.rs",
+      "function": "original_workspace_diagnostics_keep_current_source_advice_after_foreign_reports",
+      "original_line": 195,
+      "before_expression": "assert_eq!(\n        cross_file_arity_diagnostics(&changed, &reporting, |_| false).len(),\n        0\n    )",
+      "after_expression": "assert!(cross_file_arity_diagnostics(&changed, &reporting, |_| false).is_empty())"
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/original_workspace_diagnostics_tests.rs",
+      "function": "explicit_lexical_workspace_diagnostics_retain_their_compatibility_behaviour",
+      "original_line": 246,
+      "before_expression": "assert_eq!(\n        refine_workspace_index_w123(vec![diagnostic], &analysis, None, &calls, false).len(),\n        0\n    )",
+      "after_expression": "assert!(refine_workspace_index_w123(vec![diagnostic], &analysis, None, &calls, false).is_empty())"
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/readonly_reference_reports.rs",
+      "function": "readonly_member_wire_retains_owner_and_partial_coverage",
+      "original_line": 2262,
+      "before_expression": "assert_eq!(\n            backend\n                .original_declaration_reference_locations(&identity, &uri, false)\n                .await\n                .unwrap()\n                .len(),\n            0\n        )",
+      "after_expression": "assert!(backend\n                .original_declaration_reference_locations(&identity, &uri, false)\n                .await\n                .unwrap().is_empty())"
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/readonly_reference_reports.rs",
+      "function": "unavailable_member_wire_has_no_clickable_empty_census",
+      "original_line": 2465,
+      "before_expression": "assert_eq!(command.command.len(), 0)",
+      "after_expression": "assert!(command.command.is_empty())"
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/readonly_reference_reports.rs",
+      "function": "logical_hierarchy_wire_uses_issued_class_and_real_cross_document_owners",
+      "original_line": 2547,
+      "before_expression": "assert_eq!(\n            backend\n                .type_hierarchy_walk(unissued, false)\n                .await\n                .unwrap()\n                .unwrap()\n                .len(),\n            0\n        )",
+      "after_expression": "assert!(backend\n                .type_hierarchy_walk(unissued, false)\n                .await\n                .unwrap()\n                .unwrap().is_empty())"
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/readonly_reference_reports.rs",
+      "function": "logical_hierarchy_wire_uses_issued_class_and_real_cross_document_owners",
+      "original_line": 2558,
+      "before_expression": "assert_eq!(\n            backend\n                .type_hierarchy_walk(foreign, false)\n                .await\n                .unwrap()\n                .unwrap()\n                .len(),\n            0\n        )",
+      "after_expression": "assert!(backend\n                .type_hierarchy_walk(foreign, false)\n                .await\n                .unwrap()\n                .unwrap().is_empty())"
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/readonly_reference_reports.rs",
+      "function": "logical_hierarchy_wire_uses_issued_class_and_real_cross_document_owners",
+      "original_line": 2568,
+      "before_expression": "assert_eq!(\n            backend\n                .type_hierarchy_walk(item, false)\n                .await\n                .unwrap()\n                .unwrap()\n                .len(),\n            0\n        )",
+      "after_expression": "assert!(backend\n                .type_hierarchy_walk(item, false)\n                .await\n                .unwrap()\n                .unwrap().is_empty())"
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/readonly_reference_reports.rs",
+      "function": "logical_hierarchy_final_snapshot_rejects_changed_relation_parent_with_current_target",
+      "original_line": 2634,
+      "before_expression": "assert_eq!(\n            backend\n                .finish_logical_hierarchy_items(&documents, &items, epoch, generation)\n                .await\n                .unwrap()\n                .len(),\n            0\n        )",
+      "after_expression": "assert!(backend\n                .finish_logical_hierarchy_items(&documents, &items, epoch, generation)\n                .await\n                .unwrap().is_empty())"
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/readonly_reference_reports.rs",
+      "function": "typed_hierarchy_debt_survives_wire_publication_and_parent_currentness",
+      "original_line": 2711,
+      "before_expression": "assert_eq!(\n            backend\n                .finish_logical_hierarchy_advice(&[document], &advice, epoch, generation)\n                .await\n                .unwrap()\n                .len(),\n            0\n        )",
+      "after_expression": "assert!(backend\n                .finish_logical_hierarchy_advice(&[document], &advice, epoch, generation)\n                .await\n                .unwrap().is_empty())"
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/lib.rs",
+      "function": "original_declaration_inventory_excludes_foreign_buffers_and_keeps_unknown_tcl_terminal",
+      "original_line": 39399,
+      "before_expression": "assert_eq!(\n            backend\n                .original_declaration_documents(&base)\n                .await\n                .unwrap()\n                .len(),\n            0\n        )",
+      "after_expression": "assert!(backend\n                .original_declaration_documents(&base)\n                .await\n                .unwrap().is_empty())"
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/lib.rs",
+      "function": "original_workspace_references_and_lenses_share_owned_byte_declarations",
+      "original_line": 39576,
+      "before_expression": "assert_eq!(\n            Box::pin(backend.reference_locations(&consumer, &document, &analysis, position, false))\n                .await\n                .unwrap()\n                .len(),\n            0\n        )",
+      "after_expression": "assert!(Box::pin(backend.reference_locations(&consumer, &document, &analysis, position, false))\n                .await\n                .unwrap().is_empty())"
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/lib.rs",
+      "function": "original_workspace_reference_misses_never_reparse_reporting_names",
+      "original_line": 39615,
+      "before_expression": "assert_eq!(\n            Box::pin(backend.reference_locations(&consumer, &document, &analysis, position, true))\n                .await\n                .unwrap()\n                .len(),\n            0\n        )",
+      "after_expression": "assert!(Box::pin(backend.reference_locations(&consumer, &document, &analysis, position, true))\n                .await\n                .unwrap().is_empty())"
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/lib.rs",
+      "function": "original_workspace_reference_misses_never_reparse_reporting_names",
+      "original_line": 39622,
+      "before_expression": "assert_eq!(\n            backend\n                .resolve_workspace_symbols(&consumer, &document.text, &analysis, position)\n                .await\n                .unwrap()\n                .len(),\n            0\n        )",
+      "after_expression": "assert!(backend\n                .resolve_workspace_symbols(&consumer, &document.text, &analysis, position)\n                .await\n                .unwrap().is_empty())"
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/lib.rs",
+      "function": "original_workspace_reference_misses_never_reparse_reporting_names",
+      "original_line": 39630,
+      "before_expression": "assert_eq!(\n            backend\n                .cross_document_definition(&consumer, &document.text, position, &analysis)\n                .await\n                .unwrap()\n                .len(),\n            0\n        )",
+      "after_expression": "assert!(backend\n                .cross_document_definition(&consumer, &document.text, position, &analysis)\n                .await\n                .unwrap().is_empty())"
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/lib.rs",
+      "function": "original_type_hierarchy_wire_preserves_owner_and_rejects_labels_and_stale_source",
+      "original_line": 39693,
+      "before_expression": "assert_eq!(\n            backend\n                .type_hierarchy_walk(unissued, false)\n                .await\n                .unwrap()\n                .unwrap()\n                .len(),\n            0\n        )",
+      "after_expression": "assert!(backend\n                .type_hierarchy_walk(unissued, false)\n                .await\n                .unwrap()\n                .unwrap().is_empty())"
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/lib.rs",
+      "function": "original_type_hierarchy_wire_preserves_owner_and_rejects_labels_and_stale_source",
+      "original_line": 39704,
+      "before_expression": "assert_eq!(\n            backend\n                .type_hierarchy_walk(foreign, false)\n                .await\n                .unwrap()\n                .unwrap()\n                .len(),\n            0\n        )",
+      "after_expression": "assert!(backend\n                .type_hierarchy_walk(foreign, false)\n                .await\n                .unwrap()\n                .unwrap().is_empty())"
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/lib.rs",
+      "function": "original_type_hierarchy_wire_preserves_owner_and_rejects_labels_and_stale_source",
+      "original_line": 39714,
+      "before_expression": "assert_eq!(\n            backend\n                .type_hierarchy_walk(item, false)\n                .await\n                .unwrap()\n                .unwrap()\n                .len(),\n            0\n        )",
+      "after_expression": "assert!(backend\n                .type_hierarchy_walk(item, false)\n                .await\n                .unwrap()\n                .unwrap().is_empty())"
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/lib.rs",
+      "function": "original_indexed_variable_and_namespace_queries_withdraw_stale_foreign_owners",
+      "original_line": 40097,
+      "before_expression": "assert_eq!(\n            backend\n                .cross_document_variable_definition(&first, source, position, &analysis,)\n                .await\n                .unwrap()\n                .len(),\n            0\n        )",
+      "after_expression": "assert!(backend\n                .cross_document_variable_definition(&first, source, position, &analysis,)\n                .await\n                .unwrap().is_empty())"
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/lib.rs",
+      "function": "original_indexed_variable_and_namespace_queries_withdraw_stale_foreign_owners",
+      "original_line": 40119,
+      "before_expression": "assert_eq!(\n            backend\n                .resolve_original_indexed_locations(vec![retained.clone()])\n                .await\n                .unwrap()\n                .len(),\n            0\n        )",
+      "after_expression": "assert!(backend\n                .resolve_original_indexed_locations(vec![retained.clone()])\n                .await\n                .unwrap().is_empty())"
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/lib.rs",
+      "function": "original_indexed_variable_and_namespace_queries_withdraw_stale_foreign_owners",
+      "original_line": 40133,
+      "before_expression": "assert_eq!(\n            backend\n                .resolve_original_indexed_locations(vec![retained])\n                .await\n                .unwrap()\n                .len(),\n            0\n        )",
+      "after_expression": "assert!(backend\n                .resolve_original_indexed_locations(vec![retained])\n                .await\n                .unwrap().is_empty())"
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/lib.rs",
+      "function": "original_indexed_variable_and_namespace_queries_withdraw_stale_foreign_owners",
+      "original_line": 40141,
+      "before_expression": "assert_eq!(\n            backend\n                .cross_document_variable_definition(&first, source, position, &analysis,)\n                .await\n                .unwrap()\n                .len(),\n            0\n        )",
+      "after_expression": "assert!(backend\n                .cross_document_variable_definition(&first, source, position, &analysis,)\n                .await\n                .unwrap().is_empty())"
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/lib.rs",
+      "function": "original_method_queries_keep_opaque_routes_owners_and_terminal_ambiguity",
+      "original_line": 40369,
+      "before_expression": "assert_eq!(\n            Box::pin(backend.compute_definition(&consumer, position))\n                .await\n                .unwrap()\n                .len(),\n            0\n        )",
+      "after_expression": "assert!(Box::pin(backend.compute_definition(&consumer, position))\n                .await\n                .unwrap().is_empty())"
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/lib.rs",
+      "function": "original_package_classes_use_shared_current_factory_slots",
+      "original_line": 40658,
+      "before_expression": "assert_eq!(\n            defined_original_commands(\n                \"oo::class create Old {}\",\n                tcl_lsp_core::profile_for_dialect(\"tcl8.4\"),\n            )\n            .len(),\n            0\n        )",
+      "after_expression": "assert!(defined_original_commands(\n                \"oo::class create Old {}\",\n                tcl_lsp_core::profile_for_dialect(\"tcl8.4\"),\n            ).is_empty())"
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/lib.rs",
+      "function": "auto_source_graph_inherits_entry_requires",
+      "original_line": 41456,
+      "before_expression": "assert_eq!(compute_inherited_requires(&index, &app, &[], None).len(), 0)",
+      "after_expression": "assert!(compute_inherited_requires(&index, &app, &[], None).is_empty())"
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/lib.rs",
+      "function": "explicit_entry_points_override_source_graph",
+      "original_line": 41469,
+      "before_expression": "assert_eq!(\n            compute_inherited_requires(&index, &other, &[], Some(&root)).len(),\n            0\n        )",
+      "after_expression": "assert!(compute_inherited_requires(&index, &other, &[], Some(&root)).is_empty())"
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/lib.rs",
+      "function": "cross_file_call_with_a_fitting_count_is_silent",
+      "original_line": 41631,
+      "before_expression": "assert_eq!(arity_codes(&analysis, &settled).len(), 0)",
+      "after_expression": "assert!(arity_codes(&analysis, &settled).is_empty())"
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/lib.rs",
+      "function": "a_namespaced_proc_does_not_settle_a_bare_global_call",
+      "original_line": 41730,
+      "before_expression": "assert_eq!(arity_codes(&analysis, &settled).len(), 0)",
+      "after_expression": "assert!(arity_codes(&analysis, &settled).is_empty())"
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/lib.rs",
+      "function": "nothing_settles_when_the_document_has_dynamic_providers",
+      "original_line": 41842,
+      "before_expression": "assert_eq!(arity_codes(&analysis, &settled).len(), 0)",
+      "after_expression": "assert!(arity_codes(&analysis, &settled).is_empty())"
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/lib.rs",
+      "function": "a_document_that_sources_nothing_inherits_nothing_and_does_not_abstain",
+      "original_line": 42307,
+      "before_expression": "assert_eq!(got.placed.len(), 0)",
+      "after_expression": "assert!(got.placed.is_empty())"
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/lib.rs",
+      "function": "report_publication_retains_unavailable_generation_status",
+      "original_line": 42568,
+      "before_expression": "assert_eq!(\n            lift_report(\"\", &core_policy::apply(Vec::new(), &open_policy())).len(),\n            0\n        )",
+      "after_expression": "assert!(lift_report(\"\", &core_policy::apply(Vec::new(), &open_policy())).is_empty())"
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/lib.rs",
+      "function": "original_callback_pull_uses_current_source_and_external_headers",
+      "original_line": 45335,
+      "before_expression": "assert_eq!(\n            callback_pull_report(&backend, &caller, source)\n                .await\n                .unwrap()\n                .len(),\n            0\n        )",
+      "after_expression": "assert!(callback_pull_report(&backend, &caller, source)\n                .await\n                .unwrap().is_empty())"
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/lib.rs",
+      "function": "original_callback_pull_uses_current_source_and_external_headers",
+      "original_line": 45370,
+      "before_expression": "assert_eq!(\n            callback_pull_report(&backend, &caller, current_source)\n                .await\n                .unwrap()\n                .len(),\n            0\n        )",
+      "after_expression": "assert!(callback_pull_report(&backend, &caller, current_source)\n                .await\n                .unwrap().is_empty())"
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/lib.rs",
+      "function": "original_callback_push_and_pull_keep_known_source_barriers",
+      "original_line": 45420,
+      "before_expression": "assert_eq!(pushed.len(), 0)",
+      "after_expression": "assert!(pushed.is_empty())"
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/lib.rs",
+      "function": "original_callback_push_and_pull_keep_known_source_barriers",
+      "original_line": 45421,
+      "before_expression": "assert_eq!(\n            callback_pull_report(&backend, &caller, source)\n                .await\n                .unwrap()\n                .len(),\n            0\n        )",
+      "after_expression": "assert!(callback_pull_report(&backend, &caller, source)\n                .await\n                .unwrap().is_empty())"
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/lib.rs",
+      "function": "retained_source_and_package_paths_consume_actual_plans",
+      "original_line": 46411,
+      "before_expression": "assert_eq!(document_auto_path_dirs(&uri, &analysis).len(), 0)",
+      "after_expression": "assert!(document_auto_path_dirs(&uri, &analysis).is_empty())"
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/lib.rs",
+      "function": "dropping_one_factory_reindexes_its_consumers_while_retaining_others",
+      "original_line": 53056,
+      "before_expression": "assert_eq!(index.classes_named(\"::IconList\").len(), 0)",
+      "after_expression": "assert!(index.classes_named(\"::IconList\").is_empty())"
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/lib.rs",
+      "function": "original_autoload_navigation_joins_current_source_declaration_identity",
+      "original_line": 58499,
+      "before_expression": "assert_eq!(\n            backend\n                .autoload_definition(&app, &format!(\"{source} \"), position, &analysis)\n                .await\n                .unwrap()\n                .len(),\n            0\n        )",
+      "after_expression": "assert!(backend\n                .autoload_definition(&app, &format!(\"{source} \"), position, &analysis)\n                .await\n                .unwrap().is_empty())"
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/lib.rs",
+      "function": "original_autoload_navigation_joins_current_source_declaration_identity",
+      "original_line": 58509,
+      "before_expression": "assert_eq!(\n            backend\n                .autoload_definition(&app, source, position, &missing)\n                .await\n                .unwrap()\n                .len(),\n            0\n        )",
+      "after_expression": "assert!(backend\n                .autoload_definition(&app, source, position, &missing)\n                .await\n                .unwrap().is_empty())"
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/lib.rs",
+      "function": "original_autoload_navigation_joins_current_source_declaration_identity",
+      "original_line": 58524,
+      "before_expression": "assert_eq!(\n            backend\n                .autoload_definition(&app, source, Position::new(0, 17), &analysis)\n                .await\n                .unwrap()\n                .len(),\n            0\n        )",
+      "after_expression": "assert!(backend\n                .autoload_definition(&app, source, Position::new(0, 17), &analysis)\n                .await\n                .unwrap().is_empty())"
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/lib.rs",
+      "function": "workspace_symbols_skip_closed_reads_after_fallback_limit_1854",
+      "original_line": 62653,
+      "before_expression": "assert_eq!(candidates.indexed_hits.len(), 0)",
+      "after_expression": "assert!(candidates.indexed_hits.is_empty())"
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/lib.rs",
+      "function": "actual_cross_document_classmethod_receivers_require_known_non_itcl_metadata",
+      "original_line": 67316,
+      "before_expression": "assert_eq!(\n            Backend::classmethod_dispatch_names(&itcl_classes, &[], \"make\", true, nominal).len(),\n            0\n        )",
+      "after_expression": "assert!(Backend::classmethod_dispatch_names(&itcl_classes, &[], \"make\", true, nominal).is_empty())"
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/lib.rs",
+      "function": "actual_cross_document_classmethod_receivers_require_known_non_itcl_metadata",
+      "original_line": 67324,
+      "before_expression": "assert_eq!(\n            Backend::classmethod_dispatch_names(&other_classes, &[], \"make\", false, nominal).len(),\n            0\n        )",
+      "after_expression": "assert!(Backend::classmethod_dispatch_names(&other_classes, &[], \"make\", false, nominal).is_empty())"
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/lib.rs",
+      "function": "actual_cross_document_classmethod_receivers_require_known_non_itcl_metadata",
+      "original_line": 67336,
+      "before_expression": "assert_eq!(\n            Backend::classmethod_dispatch_names(&unknown, &[], \"make\", true, nominal).len(),\n            0\n        )",
+      "after_expression": "assert!(Backend::classmethod_dispatch_names(&unknown, &[], \"make\", true, nominal).is_empty())"
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/lib.rs",
+      "function": "configured_receipt_requires_real_selected_sources_and_same_installed_generation",
+      "original_line": 67592,
+      "before_expression": "assert_eq!(packs.load_errors.len(), 0)",
+      "after_expression": "assert!(packs.load_errors.is_empty())"
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/lib.rs",
+      "function": "pack_notice_union_requires_matching_source_and_publication_owners",
+      "original_line": 67754,
+      "before_expression": "assert_eq!(\n            backend\n                .diagnostic_publisher\n                .with_pack_notices(\n                    PackNoticeContext {\n                        uri: &uri,\n                        source: \"speclib changed 1.0 {}\\n\",\n                        pack_seq: 7,\n                        packs: &packs,\n                        registry: &registry,\n                        store: backend.store.as_ref()\n                    },\n                    Vec::new()\n                )\n                .len(),\n            0\n        )",
+      "after_expression": "assert!(backend\n                .diagnostic_publisher\n                .with_pack_notices(\n                    PackNoticeContext {\n                        uri: &uri,\n                        source: \"speclib changed 1.0 {}\\n\",\n                        pack_seq: 7,\n                        packs: &packs,\n                        registry: &registry,\n                        store: backend.store.as_ref()\n                    },\n                    Vec::new()\n                ).is_empty())"
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/lib.rs",
+      "function": "pack_notice_union_requires_matching_source_and_publication_owners",
+      "original_line": 67771,
+      "before_expression": "assert_eq!(\n            backend\n                .diagnostic_publisher\n                .with_pack_notices(\n                    PackNoticeContext {\n                        uri: &uri,\n                        source,\n                        pack_seq: 8,\n                        packs: &packs,\n                        registry: &registry,\n                        store: backend.store.as_ref()\n                    },\n                    Vec::new()\n                )\n                .len(),\n            0\n        )",
+      "after_expression": "assert!(backend\n                .diagnostic_publisher\n                .with_pack_notices(\n                    PackNoticeContext {\n                        uri: &uri,\n                        source,\n                        pack_seq: 8,\n                        packs: &packs,\n                        registry: &registry,\n                        store: backend.store.as_ref()\n                    },\n                    Vec::new()\n                ).is_empty())"
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/lib.rs",
+      "function": "pack_notice_union_requires_matching_source_and_publication_owners",
+      "original_line": 67789,
+      "before_expression": "assert_eq!(\n            backend\n                .diagnostic_publisher\n                .with_pack_notices(\n                    PackNoticeContext {\n                        uri: &uri,\n                        source,\n                        pack_seq: 7,\n                        packs: &replacement,\n                        registry: &registry,\n                        store: backend.store.as_ref()\n                    },\n                    Vec::new()\n                )\n                .len(),\n            0\n        )",
+      "after_expression": "assert!(backend\n                .diagnostic_publisher\n                .with_pack_notices(\n                    PackNoticeContext {\n                        uri: &uri,\n                        source,\n                        pack_seq: 7,\n                        packs: &replacement,\n                        registry: &registry,\n                        store: backend.store.as_ref()\n                    },\n                    Vec::new()\n                ).is_empty())"
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/lib.rs",
+      "function": "pack_notice_union_requires_matching_source_and_publication_owners",
+      "original_line": 67807,
+      "before_expression": "assert_eq!(\n            backend\n                .diagnostic_publisher\n                .with_pack_notices(\n                    PackNoticeContext {\n                        uri: &uri,\n                        source,\n                        pack_seq: 7,\n                        packs: &packs,\n                        registry: &other_registry,\n                        store: backend.store.as_ref()\n                    },\n                    Vec::new()\n                )\n                .len(),\n            0\n        )",
+      "after_expression": "assert!(backend\n                .diagnostic_publisher\n                .with_pack_notices(\n                    PackNoticeContext {\n                        uri: &uri,\n                        source,\n                        pack_seq: 7,\n                        packs: &packs,\n                        registry: &other_registry,\n                        store: backend.store.as_ref()\n                    },\n                    Vec::new()\n                ).is_empty())"
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/lib.rs",
+      "function": "pack_notice_union_requires_matching_source_and_publication_owners",
+      "original_line": 67826,
+      "before_expression": "assert_eq!(\n            backend\n                .diagnostic_publisher\n                .with_pack_notices(\n                    PackNoticeContext {\n                        uri: &uri,\n                        source,\n                        pack_seq: 7,\n                        packs: &packs,\n                        registry: &registry,\n                        store: backend.store.as_ref()\n                    },\n                    Vec::new()\n                )\n                .len(),\n            0\n        )",
+      "after_expression": "assert!(backend\n                .diagnostic_publisher\n                .with_pack_notices(\n                    PackNoticeContext {\n                        uri: &uri,\n                        source,\n                        pack_seq: 7,\n                        packs: &packs,\n                        registry: &registry,\n                        store: backend.store.as_ref()\n                    },\n                    Vec::new()\n                ).is_empty())"
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/lib.rs",
+      "function": "original_cross_document_declaration_keeps_caller_revision_after_remote_analysis",
+      "original_line": 67951,
+      "before_expression": "assert_eq!(\n            backend\n                .original_definition_locations_for_snapshot(\n                    (caller, document, generation),\n                    &analysis,\n                    Position::new(0, 0),\n                    epoch,\n                )\n                .await\n                .unwrap()\n                .len(),\n            0\n        )",
+      "after_expression": "assert!(backend\n                .original_definition_locations_for_snapshot(\n                    (caller, document, generation),\n                    &analysis,\n                    Position::new(0, 0),\n                    epoch,\n                )\n                .await\n                .unwrap().is_empty())"
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/lib.rs",
+      "function": "actual_native_member_candidate_cannot_renew_a_dependency_revision",
+      "original_line": 68142,
+      "before_expression": "assert_eq!(stale.len(), 0)",
+      "after_expression": "assert!(stale.is_empty())"
+    }
+  ],
+  "proposal_sha256": "e59d5fb1e5783b38226d12e5ee492704d8e1e944e8cfc2b9a80af61937d1500b",
+  "build_or_canonical_write": false,
+  "pinned_rustfmt_exit": 0
+}

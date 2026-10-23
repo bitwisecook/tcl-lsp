@@ -1,0 +1,14 @@
+[
+  {
+    "optimized": false,
+    "exit": 1,
+    "output_absent": true,
+    "reason": "RuntimeError: STOP: actual typecheck not completed PASS0"
+  },
+  {
+    "optimized": true,
+    "exit": 1,
+    "output_absent": true,
+    "reason": "RuntimeError: STOP: actual typecheck not completed PASS0"
+  }
+]

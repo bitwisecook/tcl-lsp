@@ -1,0 +1,73 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-23T11:29:09.604619+00:00",
+  "scheduled_report_utc": "2026-10-23T11:25:37+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-23T11:55:37+00:00",
+  "change_since_previous_report": [
+    "1055cycle snapshot9cf03cb normalpublishedce8e44ec99 at11:03:41 afterfreshdepth1fetch/rebase. Productdifference8paths is independentlyreviewedexternalBIGIPc695, explicitlyrecorded; frozenactivesource135still1dd/9cfdocdesc. Activeexternalintegrationhelduntilruntimeguardcloses, no falseproductdiff0/currenttiptypingclaim.",
+    "Actualv13eightpackagealltargets typingPASS0W finished11:13:33 finald72c992c/launcher45f2b775, rootparent62473CLOSED0/LOCK_RELEASED, fullsource/providers/inputs/GO stable, rawJSON0warnings0errors. Rootproofhelperindependentlyvalidated; scopedtypingonly, no runtime/sectionFadmission.",
+    "Candidateprobe/doc/evidencecleanupfinished; fullfmtv2+v3PASS, required3292stagedinputsPASS/10973tracked,3ignoredrequiredfixturesforcedstaged, byteexactoracletranscriptsunchanged. Removed8historicalunusedexperimentfiles+22danglingcapturepaths+staleattrs/helpercounts, preservedactualcontracts/fixtures/oracles. Currentcandidate76c7d2e basefcb.",
+    "Freshfilteredworkfetch andnarrowrustfetchbeforecandidatepush; baselinefcbunchanged. Authorisedintermediatebranchrelease/lsp-naming pushed11:19, noPR/tag/publication. CanonicalfullCI39945314600+existingperf.yml pairedmode39945321647 dispatched exact76c7/fcb; Linux/macOS small/medium/full3alternatingpairs noresultsaccepted.",
+    "ActualcurrentCIcargo-denyFAIL ctutils0.4.3 RUSTSEC2026-0385 patched0.4.4; LSPpreparingminimal8affectedlockupdateofftree, noignore/allowance. Existingpriorwasmtime/rustlsfixespresent; remainingCIrunning. Ruffformat/checkstepPASS currentCI; notfullPythonacceptance.",
+    "OriginalfocusedCCG5source135 launched37487 at11:15 rootGO73772e21, actualbuildinprogress nofirstassertionyet. Compiler61,VM26,NoTom16,StartupUPF4 materialized fromactualcompletedtyping withstrictbindings noGOs/execution; originalassertions/budgets/floors preserved.",
+    "ExternalBIGIPandperfheadersfresh10:54/10:43, no duplicates/takeover. BIGIPeventoperand\u2192compiler/procedurefirstoperand\u2192compiler-names routed. PerfauthenticatedproofRUNNING notproven; realm/interproceduralpatchnotaccepted. ReviewtriageCOMPLETE headerold; implementation/releasegatesrootowned.",
+    "Diskreclaimed2,970,115,639B fromOWNpublisherduplicateGitpack onlyafter49420sameOID/typesactiveavailability+all4fileSHA/noopenFDchecks. Noactiveobjects/target/executablefilesdeleted; workspacefree7.58GB, /tmp2.4GB; currentbuildoriginal2GiBfloor.",
+    "11:26candidateCI nowallcorejobsFAILED: primarybuildroots cleanuporphancfg source_arguments +misrenamedoffset, exactworksemanticsrepairspeerreadycandidateonly. Clippy2emptylinesafterouterattr fromstaleNativeproofcomment; commentonlyrepairassignedcompiler. Pythonblockedby samecompilercompile, Ruffpassed. RuntimeNoTomactualfailuresseparatelyVMtriage; mainRustlistingsneverbuilt/noselectedterminalPASSclaim. Firstcandidatebenchmarkbuildsimilarlynotadmitted."
+  ],
+  "committed": [
+    "9cf03cb78d16bfe2a2b1eacb84e5a336bcf04420"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "FinishactualCCGfocused5firstcauses, thencompiler61 andVM26/startupUPF4/NoTom16 controls onfrozen135; holdfunctionalworkuntilsource/providergroupclosures.",
+    "MonitorcandidatefullCI+pairedTclbench; repairactualfailuresonlyonwork andcarryreviewedfixesintermediate. Integrateexternal8 plusheldserver62/ctutils8/whenproposalafterguardclose, exactsourceidentity/appropriatechecks required.",
+    "CompleteF/zero24,312baselinePASS-to-FAIL/greenaffectedhosts+corpusperformance beforeauthorisedPR; noPRyet."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-23T10:54:00+00:00",
+    "perf": "2026-10-23T10:43:00+00:00",
+    "review-triage": "2026-10-22T19:57:30+00:00"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "Actualsource135v13eightpkg/alltargetsPASS0W onlyfrozen1dd, independentlyverifiedandcomplete. CCG5runtimeRUNNINGbuild noassertionoutcomes. Clean76c7candidateCI/perfrunning, cargo-denyactualFAILnewctutilsadvisory. No currentfullruntime/equivalence/performance/zeroP2Facceptance; Fboxesremainopen.",
+  "disk_free_bytes": 6764728320,
+  "baseline_ci_run": 39816429638,
+  "baseline_ci_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731"
+}

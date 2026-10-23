@@ -2,8 +2,8 @@
   "created_utc": "2026-10-22T15:17:08.060204+00:00",
   "active_root": "/workspace/naming-migration-active/tcl-lsp",
   "publisher_root": "/workspace/naming-migration-publish/tcl-lsp",
-  "last_source_snapshot": "391e543c6ccd2baba6ae16f48791eed99f7f8989",
-  "last_published_snapshot": "f89bd6f6c108cf4e33b25c4829a8037d816b2ca2",
+  "last_source_snapshot": "9cf03cb78d16bfe2a2b1eacb84e5a336bcf04420",
+  "last_published_snapshot": "ce8e44ec9923c77bb27002def5694c80f7997fd7",
   "source_branch": "work",
   "publisher_branch": "work",
   "rules": [
@@ -16,13 +16,25 @@
     "After a stable build window, checkpoint all active work and rebase active work onto latest work, allowing Git to skip previously cherry-picked equivalents. Notify owners/rebuild if product inputs changed.",
     "Keep active logs under /tmp; preserve all target/executable disk rules."
   ],
-  "last_published_utc": "2026-10-23T10:40:19.935787+00:00",
-  "product_tree_diff": [],
+  "last_published_utc": "2026-10-23T11:03:41.488763+00:00",
+  "product_tree_diff": [
+    "docs/design/analysis/name-resolution-proofs/original-ilx-method-source-candidates.md",
+    "docs/design/f5/iruleslx-remote-methods.md",
+    "docs/kcs/kcs-qa-what-config-sections-are-valid.md",
+    "rust/tcl-irules/src/ilx.rs",
+    "rust/tcl-irules/src/lib.rs",
+    "rust/tcl-lsp-core/src/ilx_navigation.rs",
+    "rust/tcl-lsp-server/src/lib.rs",
+    "rust/tcl-lsp-server/tests/e2e/issue1707_ilx_methods.rs"
+  ],
   "source_lineage_rebased_utc": "2026-10-22T20:32:04.450664+00:00",
   "source_lineage_note": "20:55 cycle published active420/def9/fe802/ab1 checkpoints onto external27c2d and normal-pushedf5d78f. Product equality verified. Active source lineage stays in place during runtime6; next publication selects ab1..HEAD until next mapped active rebase.",
-  "unpublished_active_base": "391e543c6ccd2baba6ae16f48791eed99f7f8989",
-  "active_current_head": "391e543c6ccd2baba6ae16f48791eed99f7f8989",
+  "unpublished_active_base": "9cf03cb78d16bfe2a2b1eacb84e5a336bcf04420",
+  "active_current_head": "9cf03cb78d16bfe2a2b1eacb84e5a336bcf04420",
   "product_tree_diff_at_integration": [],
-  "updated_utc": "2026-10-23T10:40:19.935787+00:00",
-  "push_authentication": "Command-local git -c credential.helper= -c credential.helper=!gh auth git-credential push origin HEAD:work; never print/store credential payloads. GH auth status endpoint reported invalid but standard repo-scoped credential helper normal push succeeded, so endpoint status alone is not Git readiness."
+  "updated_utc": "2026-10-23T11:03:41.488763+00:00",
+  "push_authentication": "Command-local git -c credential.helper= -c credential.helper=!gh auth git-credential push origin HEAD:work; never print/store credential payloads. GH auth status endpoint reported invalid but standard repo-scoped credential helper normal push succeeded, so endpoint status alone is not Git readiness.",
+  "external_product_commit": "c695061e132bb6cbd22b5bb0566fb740369aabd0",
+  "external_product_static_peer_sha256": "0c040b3c115cae98ad205a91b01f194eb0222332be7f30a542967e2390a85a8f",
+  "active_source_integration_pending": true
 }

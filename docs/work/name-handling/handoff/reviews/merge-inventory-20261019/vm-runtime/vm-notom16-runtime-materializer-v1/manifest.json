@@ -1,0 +1,16 @@
+{
+  "status": "DRAFT runtime successor for peer only; no GO/Cargo",
+  "files": {
+    "materialize.py": "bcf062bac2a7acae42f931b64f0fb52cac36c0cee5b1f8f13e233277444d42de",
+    "typing-proof.py": "1681443a96a69a121a7c6bcd81bf0ee22ce0c52a7e02c9236b6e41a2b75654d2"
+  },
+  "template_inputs": {
+    "plan.json": "9785f6466c6797d520b215e676e1aa75cd0a3b660adc5439104f190622fc6413",
+    "suite.py": "6c5e0bf514cf1ed0ae3df678765d5b5759d401c21ce9e57d5ae2e1b18a54bf2c",
+    "launch.py": "4c83e409d8ac16928ae429fb79a03d76f76b8b27b7ec816615faa70ae91abb30",
+    "run.sh": "199b4277ceba5d25b173b8ec982e309e28d9879bd4aae5a16ee8e7fb1dafef43",
+    "providers.py": "30649f292e79550cffa30b711cb2654b667f0d007d8012689577b64e2780f4a5",
+    "provider-chain.py": "a647bf8699e1eecebce0702d01d11206f4d8a1a7d09f6661afd9ef928a52a5d9",
+    "guarded-exec.py": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811"
+  }
+}

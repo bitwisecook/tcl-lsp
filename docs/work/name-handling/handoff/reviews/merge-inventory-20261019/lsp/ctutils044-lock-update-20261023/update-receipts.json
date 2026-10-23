@@ -1,0 +1,154 @@
+[
+  {
+    "lockfile": "Cargo.lock",
+    "argv": [
+      "/workspace/.rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/bin/cargo",
+      "update",
+      "--manifest-path",
+      "/tmp/lsp-ctutils044-lock-update-v1/tree/Cargo.toml",
+      "-p",
+      "ctutils",
+      "--precise",
+      "0.4.4"
+    ],
+    "started_utc": "2026-10-23T11:23:50.911853+00:00",
+    "finished_utc": "2026-10-23T11:24:07.880820+00:00",
+    "exit_code": 0,
+    "stop_reason": null,
+    "log": "/tmp/lsp-ctutils044-lock-update-v1/Cargo.lock.update.log",
+    "log_bytes": 137
+  },
+  {
+    "lockfile": "rust/tcl-spec-studio-wasm/Cargo.lock",
+    "argv": [
+      "/workspace/.rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/bin/cargo",
+      "update",
+      "--manifest-path",
+      "/tmp/lsp-ctutils044-lock-update-v1/tree/rust/tcl-spec-studio-wasm/Cargo.toml",
+      "-p",
+      "ctutils",
+      "--precise",
+      "0.4.4"
+    ],
+    "started_utc": "2026-10-23T11:24:07.881581+00:00",
+    "finished_utc": "2026-10-23T11:24:13.184798+00:00",
+    "exit_code": 0,
+    "stop_reason": null,
+    "log": "/tmp/lsp-ctutils044-lock-update-v1/rust_tcl-spec-studio-wasm_Cargo.lock.update.log",
+    "log_bytes": 136
+  },
+  {
+    "lockfile": "rust/tcl-lsp-server-wasm/Cargo.lock",
+    "argv": [
+      "/workspace/.rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/bin/cargo",
+      "update",
+      "--manifest-path",
+      "/tmp/lsp-ctutils044-lock-update-v1/tree/rust/tcl-lsp-server-wasm/Cargo.toml",
+      "-p",
+      "ctutils",
+      "--precise",
+      "0.4.4"
+    ],
+    "started_utc": "2026-10-23T11:24:13.192901+00:00",
+    "finished_utc": "2026-10-23T11:24:31.507880+00:00",
+    "exit_code": 0,
+    "stop_reason": null,
+    "log": "/tmp/lsp-ctutils044-lock-update-v1/rust_tcl-lsp-server-wasm_Cargo.lock.update.log",
+    "log_bytes": 136
+  },
+  {
+    "lockfile": "rust/bigip-report-gen/wasm/Cargo.lock",
+    "argv": [
+      "/workspace/.rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/bin/cargo",
+      "update",
+      "--manifest-path",
+      "/tmp/lsp-ctutils044-lock-update-v1/tree/rust/bigip-report-gen/wasm/Cargo.toml",
+      "-p",
+      "ctutils",
+      "--precise",
+      "0.4.4"
+    ],
+    "started_utc": "2026-10-23T11:24:31.518252+00:00",
+    "finished_utc": "2026-10-23T11:24:38.346553+00:00",
+    "exit_code": 0,
+    "stop_reason": null,
+    "log": "/tmp/lsp-ctutils044-lock-update-v1/rust_bigip-report-gen_wasm_Cargo.lock.update.log",
+    "log_bytes": 136
+  },
+  {
+    "lockfile": "rust/bigip-report-gen/python/Cargo.lock",
+    "argv": [
+      "/workspace/.rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/bin/cargo",
+      "update",
+      "--manifest-path",
+      "/tmp/lsp-ctutils044-lock-update-v1/tree/rust/bigip-report-gen/python/Cargo.toml",
+      "-p",
+      "ctutils",
+      "--precise",
+      "0.4.4"
+    ],
+    "started_utc": "2026-10-23T11:24:38.350048+00:00",
+    "finished_utc": "2026-10-23T11:24:49.236033+00:00",
+    "exit_code": 0,
+    "stop_reason": null,
+    "log": "/tmp/lsp-ctutils044-lock-update-v1/rust_bigip-report-gen_python_Cargo.lock.update.log",
+    "log_bytes": 137
+  },
+  {
+    "lockfile": "rust/tcl-explorer-wasm/Cargo.lock",
+    "argv": [
+      "/workspace/.rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/bin/cargo",
+      "update",
+      "--manifest-path",
+      "/tmp/lsp-ctutils044-lock-update-v1/tree/rust/tcl-explorer-wasm/Cargo.toml",
+      "-p",
+      "ctutils",
+      "--precise",
+      "0.4.4"
+    ],
+    "started_utc": "2026-10-23T11:24:49.238791+00:00",
+    "finished_utc": "2026-10-23T11:24:54.941354+00:00",
+    "exit_code": 0,
+    "stop_reason": null,
+    "log": "/tmp/lsp-ctutils044-lock-update-v1/rust_tcl-explorer-wasm_Cargo.lock.update.log",
+    "log_bytes": 136
+  },
+  {
+    "lockfile": "rust/bigip-query-wasm/Cargo.lock",
+    "argv": [
+      "/workspace/.rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/bin/cargo",
+      "update",
+      "--manifest-path",
+      "/tmp/lsp-ctutils044-lock-update-v1/tree/rust/bigip-query-wasm/Cargo.toml",
+      "-p",
+      "ctutils",
+      "--precise",
+      "0.4.4"
+    ],
+    "started_utc": "2026-10-23T11:24:54.942072+00:00",
+    "finished_utc": "2026-10-23T11:24:59.384027+00:00",
+    "exit_code": 0,
+    "stop_reason": null,
+    "log": "/tmp/lsp-ctutils044-lock-update-v1/rust_bigip-query-wasm_Cargo.lock.update.log",
+    "log_bytes": 136
+  },
+  {
+    "lockfile": "rust/tcl-lsp-server-wasi/Cargo.lock",
+    "argv": [
+      "/workspace/.rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/bin/cargo",
+      "update",
+      "--manifest-path",
+      "/tmp/lsp-ctutils044-lock-update-v1/tree/rust/tcl-lsp-server-wasi/Cargo.toml",
+      "-p",
+      "ctutils",
+      "--precise",
+      "0.4.4"
+    ],
+    "started_utc": "2026-10-23T11:24:59.400914+00:00",
+    "finished_utc": "2026-10-23T11:25:08.573213+00:00",
+    "exit_code": 0,
+    "stop_reason": null,
+    "log": "/tmp/lsp-ctutils044-lock-update-v1/rust_tcl-lsp-server-wasi_Cargo.lock.update.log",
+    "log_bytes": 136
+  }
+]

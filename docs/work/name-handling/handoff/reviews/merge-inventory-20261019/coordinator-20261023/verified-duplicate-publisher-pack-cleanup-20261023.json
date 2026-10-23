@@ -1,0 +1,32 @@
+{
+  "utc": "2026-10-23T11:24:01.731019+00:00",
+  "review_proof_sha256": "a54b6b346d1c3eaa21bf164749cc4272dedb683ef8fb3dafb6ac7128671eb205",
+  "deleted_only_duplicate_publisher_pack_files": [
+    {
+      "suffix": "pack",
+      "bytes": 2968192811,
+      "sha256": "76dc29bb3de590266a3fe654e0d354172730dee3d99563027cf28f47bbe865a2"
+    },
+    {
+      "suffix": "idx",
+      "bytes": 1725096,
+      "sha256": "283ec19d511632c2ba9a395addfe4a8cdb0dd56ae0c9aa03bbfe1d59390c8d2d"
+    },
+    {
+      "suffix": "rev",
+      "bytes": 197732,
+      "sha256": "628e00f76b7543b4f8716530fd43693dad543f8deb03fce6340cd0c03e42084d"
+    },
+    {
+      "suffix": "promisor",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "all49420_objects_available_active_without_lazy_fetch": true,
+  "active_or_target_files_deleted": false,
+  "before_free_bytes": 4616409088,
+  "after_free_bytes": 7586537472,
+  "reclaimed_bytes": 2970115639,
+  "publisher_head_readable_after": true
+}

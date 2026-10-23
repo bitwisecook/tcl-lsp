@@ -2,11 +2,38 @@
 
 Area: tcl-vm, runtime/rust, tcl-spectcl, tcl-spec-studio: SpecTcl execution and acceptance.
 
-Last updated: 2026-10-23T10:53:53.819453+00:00 (VM26 frozen staticCLEAR; NoTom runtime successor peer pending; actual v13 typing RUNNING)
+Last updated: 2026-10-23T11:17:25.780139+00:00 (actual v13/source135 PASS0W; VM26 and NoTom16 materialized/noGO/runtimeUNRUN)
 
 Maintained by the vm-runtime agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## Resume
+
+Actual v13/source135 genuinely PASS0W, parent62473 closed0/lockreleased;
+finald72c992c, launcher45f2b775, identityv17d9a49f09, typeplanf238ec1f.
+Frozen strict materializers both succeeded with those exact receipts:
+`/tmp/vm26-source135-typed-v13` plan da4be63b/inputsbfde32c7;
+`/tmp/vm-notom16-source135-typed-v13` plan c02928d8/inputscd772aa5.
+All generated transitivepins independently rehashed and AST PASS. Both
+root-go-required-schema.json describe exact root-only GO constants, no GO
+created; source122/post122 remain legacy labels but actual135map b3d8f347
+is bound. No Cargo/runtime launch/queue. Root CCG5 owns active slot first.
+Exact future rootCLI python <VM26>/launch.py; NoTom env -u TCL_TOMMATH_DIR
+python <NoTom>/launch.py, dedicated workspace target/approvedintentflag1.
+Both runtime/control results remain UNRUN; typing PASS is no runtime claim.
+Generated protocols/schema/readiness archived owned docs-only.
+
+NoTom executable runtime/control successor now FROZEN staticCLEAR:
+`/tmp/vm-notom16-runtime-materializer-v1/materialize.py` manifest1fec8902,
+Codegen supportedprotocolpeer eddf6735; sharedhelperv5 Names54385b62.
+Root has exact same explicit identity/typeplan/final/launcher path+SHA CLI
+as VM26; no new versions required. Actual successful typing/launcher closure
+mandatory before protocol output; rootGO separate. Four rearmed sameOUT_DIR
+transitions and final fresh0W noTomartifact/roster/original16 preserve baseline
+args/defaultfeatures/assertions. Mirror source/links/priorarchive, explicit
+absence cfg+metadata/failclosedunexpected/mismatch controls,88125 and full
+start/final group seals retained. Negative diagnostic warning/failure never
+zero-warning admission. All current runtime/control outcomes UNRUN.
+Owned frozen materializer/template payloads archived docs-only.
 
 Actual v13 source135 typing root session62473 remains RUNNING (no closure
 or PASS inferred). VM26 frozen materializer-v2 manifest3d25edfc is ready for

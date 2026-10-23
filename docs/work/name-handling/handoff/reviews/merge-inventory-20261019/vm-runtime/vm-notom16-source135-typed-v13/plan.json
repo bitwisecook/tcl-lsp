@@ -1,0 +1,434 @@
+{
+  "actual_utc": "2026-10-23T11:16:35.668084+00:00",
+  "status": "Explicit actual PASS typing bound; root GO absent/runtime UNRUN",
+  "scope": "Original baseline noTom16; separate sameOUT_DIR diagnostic transitions not zero-warning release admission",
+  "selectors": [
+    {
+      "package": "tcl-runtime",
+      "target": "tcl_runtime",
+      "kind": "rlib",
+      "selector": "cmd_error::tests::eight_four_catch_takes_no_options_variable",
+      "classification": "CI5206-baseline-PASS-current-FAIL-exact-noTommath",
+      "baseline_status": "PASS-job119956196088-noTommath",
+      "exact": true,
+      "expected_selected": 1,
+      "source_path": "runtime/rust/src/cmd_error.rs",
+      "source_sha256": "ac849810947a15d1ad789459151bab2b034c60bcdf4f4f52f9fcbca9d7e58c0e",
+      "assertions": "original unchanged; current Rust function statically present, exact actual roster still required"
+    },
+    {
+      "package": "tcl-runtime",
+      "target": "tcl_runtime",
+      "kind": "rlib",
+      "selector": "cmd_oo::tests::object_command_role_walk_does_not_revisit_earlier_roles",
+      "classification": "CI5206-baseline-PASS-current-FAIL-exact-noTommath",
+      "baseline_status": "PASS-job119956196088-noTommath",
+      "exact": true,
+      "expected_selected": 1,
+      "source_path": "runtime/rust/src/cmd_oo.rs",
+      "source_sha256": "394b6406adb0a631a24df983dc4087bdc66f1c5363aab14d9eb0059a64b24861",
+      "assertions": "original unchanged; current Rust function statically present, exact actual roster still required"
+    },
+    {
+      "package": "tcl-runtime",
+      "target": "tcl_runtime",
+      "kind": "rlib",
+      "selector": "cmd_regex::tests::regsub_literal_empty_pattern_walks_the_releases_characters",
+      "classification": "CI5206-baseline-PASS-current-FAIL-exact-noTommath",
+      "baseline_status": "PASS-job119956196088-noTommath",
+      "exact": true,
+      "expected_selected": 1,
+      "source_path": "runtime/rust/src/cmd_regex.rs",
+      "source_sha256": "bc9c8534f2e78afb9595270ae797b8b84bec996ba304b0c450bf97fbce8a92f7",
+      "assertions": "original unchanged; current Rust function statically present, exact actual roster still required"
+    },
+    {
+      "package": "tcl-runtime",
+      "target": "tcl_runtime",
+      "kind": "rlib",
+      "selector": "cmd_trace::tests::the_trace_gate_reads_the_pinned_profile_not_the_release_name",
+      "classification": "CI5206-baseline-PASS-current-FAIL-exact-noTommath",
+      "baseline_status": "PASS-job119956196088-noTommath",
+      "exact": true,
+      "expected_selected": 1,
+      "source_path": "runtime/rust/src/cmd_trace.rs",
+      "source_sha256": "cc32b4b3683a1774ab20b9ff39212b34404cb8ac4f797b397e1d4b299ee43d44",
+      "assertions": "original unchanged; current Rust function statically present, exact actual roster still required"
+    },
+    {
+      "package": "tcl-runtime",
+      "target": "tcl_runtime",
+      "kind": "rlib",
+      "selector": "codegen_abi::tests::guarded_intrinsic_string_length_identity_and_count_follow_runtime_version",
+      "classification": "CI5206-baseline-PASS-current-FAIL-exact-noTommath",
+      "baseline_status": "PASS-job119956196088-noTommath",
+      "exact": true,
+      "expected_selected": 1,
+      "source_path": "runtime/rust/src/codegen_abi.rs",
+      "source_sha256": "1ad55fe3dad90e3540117b060982bb3738402e7b98e1059ffbf648392a475e46",
+      "assertions": "original unchanged; current Rust function statically present, exact actual roster still required"
+    },
+    {
+      "package": "tcl-runtime",
+      "target": "tcl_runtime",
+      "kind": "rlib",
+      "selector": "codegen_abi::tests::typed_value_reads_report_overflow_and_non_numbers_like_c",
+      "classification": "CI5206-baseline-PASS-current-FAIL-exact-noTommath",
+      "baseline_status": "PASS-job119956196088-noTommath",
+      "exact": true,
+      "expected_selected": 1,
+      "source_path": "runtime/rust/src/codegen_abi.rs",
+      "source_sha256": "1ad55fe3dad90e3540117b060982bb3738402e7b98e1059ffbf648392a475e46",
+      "assertions": "original unchanged; current Rust function statically present, exact actual roster still required"
+    },
+    {
+      "package": "tcl-runtime",
+      "target": "tcl_runtime",
+      "kind": "rlib",
+      "selector": "env_trace::tests::a_nul_cuts_the_name_and_value_the_host_keeps",
+      "classification": "CI5206-baseline-PASS-current-FAIL-exact-noTommath",
+      "baseline_status": "PASS-job119956196088-noTommath",
+      "exact": true,
+      "expected_selected": 1,
+      "source_path": "runtime/rust/src/env_trace.rs",
+      "source_sha256": "329b46aa694ebaf8330fa503492bb2ff8632dd7e3b118e4a38094a87b7fefe6a",
+      "assertions": "original unchanged; current Rust function statically present, exact actual roster still required"
+    },
+    {
+      "package": "tcl-runtime",
+      "target": "tcl_runtime",
+      "kind": "rlib",
+      "selector": "env_trace::tests::an_element_alias_reaches_the_host_only_from_9_0",
+      "classification": "CI5206-baseline-PASS-current-FAIL-exact-noTommath",
+      "baseline_status": "PASS-job119956196088-noTommath",
+      "exact": true,
+      "expected_selected": 1,
+      "source_path": "runtime/rust/src/env_trace.rs",
+      "source_sha256": "329b46aa694ebaf8330fa503492bb2ff8632dd7e3b118e4a38094a87b7fefe6a",
+      "assertions": "original unchanged; current Rust function statically present, exact actual roster still required"
+    },
+    {
+      "package": "tcl-runtime",
+      "target": "tcl_runtime",
+      "kind": "rlib",
+      "selector": "env_trace::tests::child_interpreters_share_the_host_and_safe_ones_have_no_env",
+      "classification": "CI5206-baseline-PASS-current-FAIL-exact-noTommath",
+      "baseline_status": "PASS-job119956196088-noTommath",
+      "exact": true,
+      "expected_selected": 1,
+      "source_path": "runtime/rust/src/env_trace.rs",
+      "source_sha256": "329b46aa694ebaf8330fa503492bb2ff8632dd7e3b118e4a38094a87b7fefe6a",
+      "assertions": "original unchanged; current Rust function statically present, exact actual roster still required"
+    },
+    {
+      "package": "tcl-runtime",
+      "target": "tcl_runtime",
+      "kind": "rlib",
+      "selector": "env_trace::tests::every_kind_of_element_write_and_unset_reaches_the_host",
+      "classification": "CI5206-baseline-PASS-current-FAIL-exact-noTommath",
+      "baseline_status": "PASS-job119956196088-noTommath",
+      "exact": true,
+      "expected_selected": 1,
+      "source_path": "runtime/rust/src/env_trace.rs",
+      "source_sha256": "329b46aa694ebaf8330fa503492bb2ff8632dd7e3b118e4a38094a87b7fefe6a",
+      "assertions": "original unchanged; current Rust function statically present, exact actual roster still required"
+    },
+    {
+      "package": "tcl-runtime",
+      "target": "tcl_runtime",
+      "kind": "rlib",
+      "selector": "env_trace::tests::reads_refresh_from_the_host_and_fail_when_it_has_no_such_variable",
+      "classification": "CI5206-baseline-PASS-current-FAIL-exact-noTommath",
+      "baseline_status": "PASS-job119956196088-noTommath",
+      "exact": true,
+      "expected_selected": 1,
+      "source_path": "runtime/rust/src/env_trace.rs",
+      "source_sha256": "329b46aa694ebaf8330fa503492bb2ff8632dd7e3b118e4a38094a87b7fefe6a",
+      "assertions": "original unchanged; current Rust function statically present, exact actual roster still required"
+    },
+    {
+      "package": "tcl-runtime",
+      "target": "tcl_runtime",
+      "kind": "rlib",
+      "selector": "env_trace::tests::rebinding_the_host_moves_the_trace_to_the_new_host",
+      "classification": "CI5206-baseline-PASS-current-FAIL-exact-noTommath",
+      "baseline_status": "PASS-job119956196088-noTommath",
+      "exact": true,
+      "expected_selected": 1,
+      "source_path": "runtime/rust/src/env_trace.rs",
+      "source_sha256": "329b46aa694ebaf8330fa503492bb2ff8632dd7e3b118e4a38094a87b7fefe6a",
+      "assertions": "original unchanged; current Rust function statically present, exact actual roster still required"
+    },
+    {
+      "package": "tcl-runtime",
+      "target": "tcl_runtime",
+      "kind": "rlib",
+      "selector": "env_trace::tests::the_home_directory_follows_env_home",
+      "classification": "CI5206-baseline-PASS-current-FAIL-exact-noTommath",
+      "baseline_status": "PASS-job119956196088-noTommath",
+      "exact": true,
+      "expected_selected": 1,
+      "source_path": "runtime/rust/src/env_trace.rs",
+      "source_sha256": "329b46aa694ebaf8330fa503492bb2ff8632dd7e3b118e4a38094a87b7fefe6a",
+      "assertions": "original unchanged; current Rust function statically present, exact actual roster still required"
+    },
+    {
+      "package": "tcl-runtime",
+      "target": "tcl_runtime",
+      "kind": "rlib",
+      "selector": "env_trace::tests::the_trace_is_invisible_and_runs_after_the_arrays_script_traces",
+      "classification": "CI5206-baseline-PASS-current-FAIL-exact-noTommath",
+      "baseline_status": "PASS-job119956196088-noTommath",
+      "exact": true,
+      "expected_selected": 1,
+      "source_path": "runtime/rust/src/env_trace.rs",
+      "source_sha256": "329b46aa694ebaf8330fa503492bb2ff8632dd7e3b118e4a38094a87b7fefe6a",
+      "assertions": "original unchanged; current Rust function statically present, exact actual roster still required"
+    },
+    {
+      "package": "tcl-runtime",
+      "target": "tcl_runtime",
+      "kind": "rlib",
+      "selector": "env_trace::tests::variables_that_cannot_reach_env_keep_the_untraced_fast_path",
+      "classification": "CI5206-baseline-PASS-current-FAIL-exact-noTommath",
+      "baseline_status": "PASS-job119956196088-noTommath",
+      "exact": true,
+      "expected_selected": 1,
+      "source_path": "runtime/rust/src/env_trace.rs",
+      "source_sha256": "329b46aa694ebaf8330fa503492bb2ff8632dd7e3b118e4a38094a87b7fefe6a",
+      "assertions": "original unchanged; current Rust function statically present, exact actual roster still required"
+    },
+    {
+      "package": "tcl-runtime",
+      "target": "tcl_runtime",
+      "kind": "rlib",
+      "selector": "env_trace::tests::unsetting_the_whole_array_leaves_the_host_alone_and_detaches_it",
+      "classification": "CI5206-baseline-PASS-current-FAIL-exact-noTommath",
+      "baseline_status": "PASS-job119956196088-noTommath",
+      "exact": true,
+      "expected_selected": 1,
+      "source_path": "runtime/rust/src/env_trace.rs",
+      "source_sha256": "329b46aa694ebaf8330fa503492bb2ff8632dd7e3b118e4a38094a87b7fefe6a",
+      "assertions": "original unchanged; current Rust function statically present, exact actual roster still required"
+    }
+  ],
+  "source_pins": [
+    {
+      "path": "runtime/rust/src/cmd_error.rs",
+      "sha256": "ac849810947a15d1ad789459151bab2b034c60bcdf4f4f52f9fcbca9d7e58c0e"
+    },
+    {
+      "path": "runtime/rust/src/cmd_oo.rs",
+      "sha256": "394b6406adb0a631a24df983dc4087bdc66f1c5363aab14d9eb0059a64b24861"
+    },
+    {
+      "path": "runtime/rust/src/cmd_regex.rs",
+      "sha256": "bc9c8534f2e78afb9595270ae797b8b84bec996ba304b0c450bf97fbce8a92f7"
+    },
+    {
+      "path": "runtime/rust/src/cmd_trace.rs",
+      "sha256": "cc32b4b3683a1774ab20b9ff39212b34404cb8ac4f797b397e1d4b299ee43d44"
+    },
+    {
+      "path": "runtime/rust/src/codegen_abi.rs",
+      "sha256": "1ad55fe3dad90e3540117b060982bb3738402e7b98e1059ffbf648392a475e46"
+    },
+    {
+      "path": "runtime/rust/src/env_trace.rs",
+      "sha256": "329b46aa694ebaf8330fa503492bb2ff8632dd7e3b118e4a38094a87b7fefe6a"
+    },
+    {
+      "path": "runtime/rust/build.rs",
+      "sha256": "4088e17e8c3f5295dfa41e044381e1394c02d223a89f7dfb8eddcd1d796c893f",
+      "approved_B_semantics": "exact ownedJSON withdrawal early; env1 asserts actualabsence, unexpectedabsencewarning, invalid/presentfail"
+    }
+  ],
+  "approved_product_head": "1dd5e095e4b62e6f4b6c4f6fea357d874972876f",
+  "approved_product_tree": "93fb1634ce791c302d3c23aefa711c8108722518",
+  "actual_identity": {
+    "path": "/tmp/naming-reviewed-product-actual-identity-v17/actual-identity.json",
+    "sha256": "d9a49f0998adc11cf44a6e882ee17d76bd0430398bb265f2c006d4ba7d751afd"
+  },
+  "required_typecheck_packages": [
+    "tcl-compiler",
+    "tcl-lsp-core",
+    "tcl-lsp-db",
+    "tcl-lsp-server",
+    "tcl-vm",
+    "tcl-fuzz",
+    "tcl-spectcl",
+    "bpf-tcl-ir"
+  ],
+  "typecheck_plan": {
+    "path": "/tmp/name-handling-eight-package-check-v13-source135/plan.json",
+    "sha256": "f238ec1f8c04d0033f6910a7681464a2758b3b7a7806c10ae94cda5a4916d52b",
+    "runner_inputs_path": "/tmp/name-handling-eight-package-check-v13-source135/runner-input-manifest.json",
+    "runner_inputs_sha256": "2d30736a908b96674c9cdfa6bad63f9438e8b46ad7a83163e0b94df72f35702e"
+  },
+  "required_environment": {
+    "CARGO_BUILD_JOBS": "2",
+    "CARGO_HOME": "/workspace/.cargo",
+    "CARGO_INCREMENTAL": "0",
+    "CARGO_PROFILE_DEV_DEBUG": "0",
+    "CARGO_PROFILE_TEST_DEBUG": "0",
+    "CARGO_TARGET_DIR": "/workspace/naming-runtime-notommath-vm-notom16-source135-typed-v13-target",
+    "RUSTC": "/workspace/.rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/bin/rustc",
+    "RUSTUP_HOME": "/workspace/.rustup",
+    "RUSTUP_TOOLCHAIN": "1.99.1",
+    "TCL_LSP_JIMSH": "/workspace/naming-toolchains/tmp/jimtcl-oracle/jimsh",
+    "TCL_LSP_REQUIRE_TCLSH": "9.0,8.6",
+    "TMPDIR": "/workspace/naming-build-tmp",
+    "WASI_SDK_PATH": "/workspace/.toolchains/wasi-sdk-34.0",
+    "TCL_LSP_TCLSH84": "/workspace/naming-toolchains/bin/tclsh8.4",
+    "TCL_LSP_TCLSH85": "/workspace/naming-toolchains/bin/tclsh8.5",
+    "TCL_LSP_TCLSH86": "/workspace/naming-toolchains/bin/tclsh8.6",
+    "TCL_LSP_TCLSH90": "/workspace/naming-toolchains/bin/tclsh9.0",
+    "TCL_LSP_TCLSH91": "/workspace/naming-toolchains/bin/tclsh9.1",
+    "TCL_RUNTIME_EXPECT_NO_TOMMATH": "1"
+  },
+  "path_prefix": "/workspace/.cargo/bin:/workspace/naming-toolchains/node26/bin:/workspace/naming-toolchains/bin",
+  "refused_environment_exact": [
+    "RUSTFLAGS",
+    "CARGO_ENCODED_RUSTFLAGS",
+    "RUSTC_WRAPPER",
+    "RUSTC_WORKSPACE_WRAPPER",
+    "CARGO_BUILD_RUSTFLAGS",
+    "CARGO_BUILD_RUSTC",
+    "CARGO_BUILD_RUSTC_WRAPPER",
+    "CARGO_BUILD_RUSTC_WORKSPACE_WRAPPER",
+    "CARGO_BUILD_TARGET",
+    "RUSTC_BOOTSTRAP",
+    "TCL_TOMMATH_DIR"
+  ],
+  "refused_environment_patterns": [
+    {
+      "prefix": "CARGO_TARGET_",
+      "suffix": "_RUSTFLAGS"
+    }
+  ],
+  "cargo_path": "/workspace/.rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/bin/cargo",
+  "cargo_sha256": "a670e02cfa39ac2e53f77a2d911ca1fc9e2c479b0603ec956625be1daf24e3af",
+  "rustc_path": "/workspace/.rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/bin/rustc",
+  "rustc_sha256": "b53b780f77f952062f8ca8a3b70aef2390b1e45ad91939be94afdc9543026853",
+  "lifecycle": {
+    "executor_sha256": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811",
+    "source122_manifest_sha256": "b3d8f347b91141bf3c592ecc4007dbd2a95079a928d602573032ab92525b9688",
+    "post122_eight_package_typecheck_plan_sha256": "f238ec1f8c04d0033f6910a7681464a2758b3b7a7806c10ae94cda5a4916d52b",
+    "selector_deadline_seconds": 180,
+    "build_deadline_seconds": 3600,
+    "per_process_output_cap_bytes": 20000000,
+    "actual_mount_floor_bytes": 2300000000
+  },
+  "template_go_schema": "Root alone supplies future actual completed source122 PASS0W final evidence {path,sha256}; no fictional PASS/path/hash now.",
+  "package_builds": [
+    {
+      "package": "tcl-runtime",
+      "target": "tcl_runtime",
+      "kind": "rlib",
+      "manifest_path": "/tmp/vm-runtime-ci5205-no-tommath/runtime/rust/Cargo.toml",
+      "cargo_build_argv": [
+        "cargo",
+        "test",
+        "--locked",
+        "--manifest-path",
+        "/tmp/vm-runtime-ci5205-no-tommath/runtime/rust/Cargo.toml",
+        "--lib",
+        "--no-run",
+        "--message-format=json",
+        "-j",
+        "2"
+      ],
+      "target_kinds": [
+        "rlib",
+        "cdylib",
+        "staticlib"
+      ]
+    }
+  ],
+  "counts": {
+    "original_selectors": 16,
+    "artifacts": 1,
+    "diagnostic_transitions": 4
+  },
+  "strict_limits": {
+    "aggregate_log_bytes": 20971520,
+    "disk_floor_bytes": 2147483648,
+    "selector_seconds": 180,
+    "build_seconds": 3600
+  },
+  "source_path_count": 135,
+  "group_seal_authorization": {
+    "authority": "root explicit 2026-10-23 current instruction",
+    "full_source_provider_snapshots": "start and final only under continuous root source/provider HOLD",
+    "per_phase": "actual map+HEAD docs descendants+runner inputs+GO+typed proof+88125+artifact hashes+same20MiB180s2GiB",
+    "provisional": "all16 outcomes provisional until final full seals; control outcomes separate"
+  },
+  "feature_limits": "Original seven targets retain their existing default-feature argv. Added four VM targets retain CI/main-workspace all-features, including existing stack3 original plan. Different invocation feature unification is not standalone runtime/backend equivalence; no family closure.",
+  "original_build_argv": [
+    "cargo",
+    "test",
+    "--locked",
+    "--manifest-path",
+    "/tmp/vm-runtime-ci5205-no-tommath/runtime/rust/Cargo.toml",
+    "--lib",
+    "--no-run",
+    "--message-format=json",
+    "-j",
+    "2"
+  ],
+  "normal_tommath_source": "/workspace/naming-toolchains/tmp/tcl9.0.4/libtommath",
+  "controls": [
+    {
+      "case": "unexpected-absence-after-intentional",
+      "env": {
+        "TCL_RUNTIME_EXPECT_NO_TOMMATH": null,
+        "TCL_TOMMATH_DIR": null
+      },
+      "expect": "successful build if original supportedmode; exact original source-not-found warning retained; ownedJSON absent; actual have_tommath absent; not0W admitted"
+    },
+    {
+      "case": "full-source-after-intentional",
+      "env": {
+        "TCL_RUNTIME_EXPECT_NO_TOMMATH": null,
+        "TCL_TOMMATH_DIR": "/workspace/naming-toolchains/tmp/tcl9.0.4/libtommath"
+      },
+      "expect": "successful actualfullbackend build if all providersvalid; ownedJSON absent; actual have_tommath present; no backenddisabledclaim"
+    },
+    {
+      "case": "invalid-expectation-after-intentional",
+      "env": {
+        "TCL_RUNTIME_EXPECT_NO_TOMMATH": "invalid",
+        "TCL_TOMMATH_DIR": null
+      },
+      "expect": "terminal buildfail with exactinvalidflag cause; oldownedJSON absent; no runtime"
+    },
+    {
+      "case": "found-source-mismatch-after-intentional",
+      "env": {
+        "TCL_RUNTIME_EXPECT_NO_TOMMATH": "1",
+        "TCL_TOMMATH_DIR": "/workspace/naming-toolchains/tmp/tcl9.0.4/libtommath"
+      },
+      "expect": "terminal buildfail explicitmismatch before have_tommath; oldownedJSON absent; no runtime"
+    }
+  ],
+  "mirror": "/tmp/vm-runtime-ci5205-no-tommath",
+  "typing_binding": {
+    "identity": {
+      "path": "/tmp/naming-reviewed-product-actual-identity-v17/actual-identity.json",
+      "sha256": "d9a49f0998adc11cf44a6e882ee17d76bd0430398bb265f2c006d4ba7d751afd"
+    },
+    "plan": {
+      "path": "/tmp/name-handling-eight-package-check-v13-source135/plan.json",
+      "sha256": "f238ec1f8c04d0033f6910a7681464a2758b3b7a7806c10ae94cda5a4916d52b"
+    },
+    "final": {
+      "path": "/tmp/name-handling-eight-package-check-v13-source135/runs/20261023T103738.151297Z/final.json",
+      "sha256": "d72c992cb7d833b633f09d8df6bdfb9438a6a217d1794d0080dea69f261be118"
+    },
+    "launcher": {
+      "path": "/tmp/name-handling-eight-package-check-v13-source135/launcher-runs/20261023T103720.158536Z/launcher.json",
+      "sha256": "45f2b77566c877885bd8155b6681e7c4c5ae7ec2049ed59b72b0628779e1e2b2"
+    }
+  },
+  "typing_proof_sha256": "1681443a96a69a121a7c6bcd81bf0ee22ce0c52a7e02c9236b6e41a2b75654d2"
+}

@@ -2,11 +2,15 @@
 
 Area: compile_service, codegen, compiled_preflight, tcl-spectcl install.rs, review N17.
 
-Last updated: 2026-10-23T10:54:02.316810+00:00 (ACTIVE; candidate cleanup14+37+4 applied/CLEAR; Work instrumented; typingv13 RUNNING)
+Last updated: 2026-10-23T11:17:21.066906+00:00 (ACTIVE; actualv13 PASS0W; focused5 root37487 RUNNING freshbuild)
 
 Maintained by the compiler-codegen agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## Resume
+
+**Actual current typing/runtime handoff, 2026-10-23T11:17:21.066906+00:00:** Work source135 at1dd5e095/tree93fb1634 has genuine actualeight-package v13 **PASS0W**, parent62473 CLOSED0/LOCK_RELEASED; finald72c992c/launcher45f2b775 independentlyvalidated/root rawwarnings/errors0. This is typing, not Clippy/runtime validation. Focused5actual materialised `/tmp/ccg-focused5-source135-typed-v13` plan6ccc2556/input78e558ae/GO73772e21, root37487 **RUNNING**, start11:15Z. Actualreceipt `/tmp/ccg-focused5-source135-typed-v13-runs/20261023T111540.435450Z` passed initial fullsource/providerbaseline and started firstfresh CargoJSON tcl-vm/cmd_control_e2e build, registrycompiling. Originalnative1+N17derived2+livehookpositive+hostlessnegative exact5, originalassertions and timers/budgets intact. No firstrow/firstcause/runtimePASS claim yet; this role monitors native/N17gate/census markers and willdraft narrowofftreefix only fromactualevidence. Work sourceHOLD; no candidatefunctionalfixes.
+
+Candidate clean tracked tree root76c7d2e reported10973tracked/3292requiredPASS/fmtPASS and rootpush/CI/pairedbench underway. Owncandidatecleanup14+37+4 alreadyapplied/CLEAR, finalselectedobserverdanglingrefsZERO, Workallownedpins unchanged/instrumented. No further CCGcandidatewrites planned. Candidatevalidation/perf results remain separate from actualWorktypev13 result.
 
 **Current actual execution status, 2026-10-23T10:54:02.316810+00:00:** Work committed capturetypingfix+exact run-docrelocation at root1dd; actualtypev13 GO4eed/root62473 **RUNNING**, no PASS/0W/runtime-green claim. Focused5 builderv2 remains ready/count-dynamic, no newmandatoryprotocolversion; rootlaunch waits actualPASS0W and explicitactualidentity/final/launcher/process/fullsource/provider evidence review. No firstcause5 result yet.
 

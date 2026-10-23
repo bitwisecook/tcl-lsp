@@ -1,0 +1,41 @@
+{
+  "scope": "Representative retained fixes, not fresh Clippy verdict or exhaustive current normalgate",
+  "controls": {
+    "original_declaration_session_field_renamed_with_wire_serde": {
+      "path": "rust/tcl-lsp-core/src/original_declaration.rs",
+      "present": true
+    },
+    "source_structure_script_bodies_borrowed_slice": {
+      "path": "rust/tcl-lsp-core/src/source_structure.rs",
+      "present": true
+    },
+    "workspace_exportquery_groups_actual_inputs": {
+      "path": "rust/tcl-lsp-core/src/workspace_index.rs",
+      "present": true
+    },
+    "minify_report_label_borrowed": {
+      "path": "rust/tcl-lsp-core/src/minify.rs",
+      "present": true
+    },
+    "minify_compacted_candidate_name": {
+      "path": "rust/tcl-lsp-core/src/minify/original.rs",
+      "present": true
+    },
+    "server_large_disk_variant_boxed": {
+      "path": "rust/tcl-lsp-server/src/lib.rs",
+      "present": true
+    },
+    "server_manual_async_shutdown_replaced": {
+      "path": "rust/tcl-lsp-server/src/lib.rs",
+      "present": true
+    },
+    "server_optional_arc_refs_replaced": {
+      "path": "rust/tcl-lsp-server/src/current_diagnostics.rs",
+      "present": true
+    },
+    "server_lens_command_consumes_actual_locations": {
+      "path": "rust/tcl-lsp-server/src/readonly_reference_reports.rs",
+      "present": true
+    }
+  }
+}

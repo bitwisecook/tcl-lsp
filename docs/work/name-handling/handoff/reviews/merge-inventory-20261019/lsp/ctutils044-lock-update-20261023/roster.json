@@ -1,0 +1,179 @@
+{
+  "actual_utc": "2026-10-23T11:22:59.534294+00:00",
+  "manifest_count": 65,
+  "locked_workspaces": [
+    {
+      "path": "Cargo.lock",
+      "manifest": "Cargo.toml",
+      "ctutils": [
+        {
+          "name": "ctutils",
+          "version": "0.4.3",
+          "source": "registry+https://github.com/rust-lang/crates.io-index",
+          "checksum": "03bb0e1cc970d482d121d9a1744999169b69a07470b3d644a7894e53fcaf4574",
+          "dependencies": [
+            "cmov",
+            "subtle"
+          ]
+        }
+      ],
+      "before_sha256": "663cab65a142df1755b96c14f02933f028835ab72dacafdafdecab5162101ed9",
+      "applicable": true
+    },
+    {
+      "path": "runtime/rust/Cargo.lock",
+      "manifest": "runtime/rust/Cargo.toml",
+      "ctutils": [],
+      "before_sha256": "50749871ad9964f2708fbaa3c2bfd9174c885b992299170b5156ac7f3f0995a1",
+      "applicable": false
+    },
+    {
+      "path": "editors/zed/Cargo.lock",
+      "manifest": "editors/zed/Cargo.toml",
+      "ctutils": [],
+      "before_sha256": "d358c3ac5534ffab56f5481b636c000cf21a8c2bcd47eb8c5287af36aa21c638",
+      "applicable": false
+    },
+    {
+      "path": "rust/tcl-spec-studio-wasm/Cargo.lock",
+      "manifest": "rust/tcl-spec-studio-wasm/Cargo.toml",
+      "ctutils": [
+        {
+          "name": "ctutils",
+          "version": "0.4.3",
+          "source": "registry+https://github.com/rust-lang/crates.io-index",
+          "checksum": "03bb0e1cc970d482d121d9a1744999169b69a07470b3d644a7894e53fcaf4574",
+          "dependencies": [
+            "cmov",
+            "subtle"
+          ]
+        }
+      ],
+      "before_sha256": "8ae16366470d90fb45d702c818f32447f99f612378122dbf7e1cd1e9fa4764eb",
+      "applicable": true
+    },
+    {
+      "path": "rust/tcl-lsp-server-wasm/Cargo.lock",
+      "manifest": "rust/tcl-lsp-server-wasm/Cargo.toml",
+      "ctutils": [
+        {
+          "name": "ctutils",
+          "version": "0.4.3",
+          "source": "registry+https://github.com/rust-lang/crates.io-index",
+          "checksum": "03bb0e1cc970d482d121d9a1744999169b69a07470b3d644a7894e53fcaf4574",
+          "dependencies": [
+            "cmov",
+            "subtle"
+          ]
+        }
+      ],
+      "before_sha256": "edabb77dba4eb5514d39b42e6d8028480ddb7b4b2645c866b4dacc4aacd205c5",
+      "applicable": true
+    },
+    {
+      "path": "rust/bigip-report-gen/wasm/Cargo.lock",
+      "manifest": "rust/bigip-report-gen/wasm/Cargo.toml",
+      "ctutils": [
+        {
+          "name": "ctutils",
+          "version": "0.4.3",
+          "source": "registry+https://github.com/rust-lang/crates.io-index",
+          "checksum": "03bb0e1cc970d482d121d9a1744999169b69a07470b3d644a7894e53fcaf4574",
+          "dependencies": [
+            "cmov",
+            "subtle"
+          ]
+        }
+      ],
+      "before_sha256": "bf4aaaab9b1b22a8e0dd25d42fcd200b1dc065d055edcf65c656a9be0be585ad",
+      "applicable": true
+    },
+    {
+      "path": "rust/bigip-report-gen/python/Cargo.lock",
+      "manifest": "rust/bigip-report-gen/python/Cargo.toml",
+      "ctutils": [
+        {
+          "name": "ctutils",
+          "version": "0.4.3",
+          "source": "registry+https://github.com/rust-lang/crates.io-index",
+          "checksum": "03bb0e1cc970d482d121d9a1744999169b69a07470b3d644a7894e53fcaf4574",
+          "dependencies": [
+            "cmov",
+            "subtle"
+          ]
+        }
+      ],
+      "before_sha256": "a2346c1b9b0cf8fee4603088a0e1339cd3b299e61e5bc8e23ae2e22a44323766",
+      "applicable": true
+    },
+    {
+      "path": "rust/tcl-vm-wasm/Cargo.lock",
+      "manifest": "rust/tcl-vm-wasm/Cargo.toml",
+      "ctutils": [],
+      "before_sha256": "a6272c10ec7ca1771a990a4ff5e6d4579510dd2544cebe8337233e98db64960b",
+      "applicable": false
+    },
+    {
+      "path": "rust/tcl-explorer-wasm/Cargo.lock",
+      "manifest": "rust/tcl-explorer-wasm/Cargo.toml",
+      "ctutils": [
+        {
+          "name": "ctutils",
+          "version": "0.4.3",
+          "source": "registry+https://github.com/rust-lang/crates.io-index",
+          "checksum": "03bb0e1cc970d482d121d9a1744999169b69a07470b3d644a7894e53fcaf4574",
+          "dependencies": [
+            "cmov",
+            "subtle"
+          ]
+        }
+      ],
+      "before_sha256": "264da77a5721a8300f9f40c00301afa18cc133c7ebf56ee4135d0caba80a2842",
+      "applicable": true
+    },
+    {
+      "path": "rust/zed-query-check/Cargo.lock",
+      "manifest": "rust/zed-query-check/Cargo.toml",
+      "ctutils": [],
+      "before_sha256": "8af54c0dddc414eb68683e08dddad9f8a7034353fb935e9f1be7d910e5835b3f",
+      "applicable": false
+    },
+    {
+      "path": "rust/bigip-query-wasm/Cargo.lock",
+      "manifest": "rust/bigip-query-wasm/Cargo.toml",
+      "ctutils": [
+        {
+          "name": "ctutils",
+          "version": "0.4.3",
+          "source": "registry+https://github.com/rust-lang/crates.io-index",
+          "checksum": "03bb0e1cc970d482d121d9a1744999169b69a07470b3d644a7894e53fcaf4574",
+          "dependencies": [
+            "cmov",
+            "subtle"
+          ]
+        }
+      ],
+      "before_sha256": "a341489b422b8b9b4a019b099251ffada32104ffb4930a469e8532dff64a477a",
+      "applicable": true
+    },
+    {
+      "path": "rust/tcl-lsp-server-wasi/Cargo.lock",
+      "manifest": "rust/tcl-lsp-server-wasi/Cargo.toml",
+      "ctutils": [
+        {
+          "name": "ctutils",
+          "version": "0.4.3",
+          "source": "registry+https://github.com/rust-lang/crates.io-index",
+          "checksum": "03bb0e1cc970d482d121d9a1744999169b69a07470b3d644a7894e53fcaf4574",
+          "dependencies": [
+            "cmov",
+            "subtle"
+          ]
+        }
+      ],
+      "before_sha256": "a64762f27b86981db5772f2d2183568705d0220fd69cf62e7ec1f160a90559fe",
+      "applicable": true
+    }
+  ],
+  "scope": "Copied manifests/locks with source symlinks; private copied registry index/Cargo home, no shared cache lock or WORK writes"
+}

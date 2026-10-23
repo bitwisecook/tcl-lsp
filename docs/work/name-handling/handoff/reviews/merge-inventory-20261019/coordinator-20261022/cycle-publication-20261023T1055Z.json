@@ -1,0 +1,24 @@
+{
+  "utc": "2026-10-23T11:03:41.488763+00:00",
+  "scheduled": "2026-10-23T10:55:37+00:00",
+  "source_snapshot": "9cf03cb78d16bfe2a2b1eacb84e5a336bcf04420",
+  "published_snapshot": "ce8e44ec9923c77bb27002def5694c80f7997fd7",
+  "remote_confirmed": "ce8e44ec9923c77bb27002def5694c80f7997fd7",
+  "external_product_commit": "c695061e132bb6cbd22b5bb0566fb740369aabd0",
+  "external_product_paths": [
+    "docs/design/analysis/name-resolution-proofs/original-ilx-method-source-candidates.md",
+    "docs/design/f5/iruleslx-remote-methods.md",
+    "docs/kcs/kcs-qa-what-config-sections-are-valid.md",
+    "rust/tcl-irules/src/ilx.rs",
+    "rust/tcl-irules/src/lib.rs",
+    "rust/tcl-lsp-core/src/ilx_navigation.rs",
+    "rust/tcl-lsp-server/src/lib.rs",
+    "rust/tcl-lsp-server/tests/e2e/issue1707_ilx_methods.rs"
+  ],
+  "active_source_integration_pending": true,
+  "validation_applies_only_to_frozen_active_source": true,
+  "peer_sha256": "0c040b3c115cae98ad205a91b01f194eb0222332be7f30a542967e2390a85a8f",
+  "fresh_depth1fetch_before_push": true,
+  "normal_push_only": true,
+  "gate_admissions": []
+}

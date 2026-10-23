@@ -1,0 +1,23 @@
+{
+  "inputs": {
+    "/tmp/vm-notom16-source135-typed-v13/suite.py": "b6402b1649d23fdde54e5d142fc19c4edc72f7a64138040689aff4983d28f9f8",
+    "/tmp/vm-notom16-source135-typed-v13/launch.py": "874adf003a7d2d168329edd9327ad9f1a27fe0b88f17084f2699b0a0eecae99b",
+    "/tmp/vm-notom16-source135-typed-v13/run.sh": "f54a788d9bee87def0994d2b98dc139cf9bee1918d0a53538374d06f8a24a4c1",
+    "/tmp/vm-notom16-source135-typed-v13/providers.py": "30649f292e79550cffa30b711cb2654b667f0d007d8012689577b64e2780f4a5",
+    "/tmp/vm-notom16-source135-typed-v13/provider-chain.py": "a647bf8699e1eecebce0702d01d11206f4d8a1a7d09f6661afd9ef928a52a5d9",
+    "/tmp/vm-notom16-source135-typed-v13/guarded-exec.py": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811",
+    "/tmp/vm-notom16-source135-typed-v13/typing-proof.py": "1681443a96a69a121a7c6bcd81bf0ee22ce0c52a7e02c9236b6e41a2b75654d2",
+    "/tmp/vm-notom16-source135-typed-v13/plan.json": "c02928d8cc565709c8cfb47cd2e843b206ac74299a9d3b27ccd14befbc636918",
+    "/tmp/naming-reviewed-product-actual-identity-v17/actual-identity.json": "d9a49f0998adc11cf44a6e882ee17d76bd0430398bb265f2c006d4ba7d751afd",
+    "/tmp/name-handling-eight-package-check-v13-source135/plan.json": "f238ec1f8c04d0033f6910a7681464a2758b3b7a7806c10ae94cda5a4916d52b",
+    "/tmp/name-handling-eight-package-check-v13-source135/runs/20261023T103738.151297Z/final.json": "d72c992cb7d833b633f09d8df6bdfb9438a6a217d1794d0080dea69f261be118",
+    "/tmp/name-handling-eight-package-check-v13-source135/launcher-runs/20261023T103720.158536Z/launcher.json": "45f2b77566c877885bd8155b6681e7c4c5ae7ec2049ed59b72b0628779e1e2b2",
+    "/tmp/naming-reviewed-product-actual-identity-v17/actual-source135-manifest.json": "b3d8f347b91141bf3c592ecc4007dbd2a95079a928d602573032ab92525b9688",
+    "/tmp/name-handling-eight-package-check-v13-source135/runner-input-manifest.json": "2d30736a908b96674c9cdfa6bad63f9438e8b46ad7a83163e0b94df72f35702e",
+    "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/validation-tools/capture-inputs.py": "2d3a1cf8aa341d5c4b829be6616a407d516163b52878ebb0cee874040e507474",
+    "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/validation-tools/_paths.py": "f82d76f6ee9434a98ede16693364988373bf68137d0e5800d8839404385b3a0c",
+    "/tmp/naming-oracle-setup.json": "40cdc417fd9aa05661047b5cf501f9b2a57a5c03f08f984b784e109213a00f99",
+    "/tmp/tcl-lsp-naming-env.sh": "9d33ccdba049a778482244c60a8206cd62fc503db55227b7c6cf87645c932f29"
+  },
+  "root_go_contract": "Exact identity+source122+same successful typing final AND launcher; no GO generated"
+}

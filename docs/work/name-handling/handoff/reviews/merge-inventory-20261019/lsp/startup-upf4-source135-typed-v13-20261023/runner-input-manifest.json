@@ -1,0 +1,21 @@
+{
+  "inputs": {
+    "/tmp/lsp-startup-upf4-source135-typed-v13/suite.py": "79a570aa235580343f3b3b9607474cab5f442e5006ea10ab1df889a04f467548",
+    "/tmp/lsp-startup-upf4-source135-typed-v13/launch.py": "310a948c8c27248562668d66dc4de3a9b7b6fc3d8b76aeb844d4a1fd6f9aaf14",
+    "/tmp/lsp-startup-upf4-source135-typed-v13/run.sh": "577a6a5ec1fe36d385b2d03ddbdefca97a6d07f92c19728ff4c7cae6653af885",
+    "/tmp/lsp-startup-upf4-source135-typed-v13/providers.py": "5b01d95b0e919dc8aa16048c663003fbaa708d2f1e970408ef3c14fe47eeacd8",
+    "/tmp/lsp-startup-upf4-source135-typed-v13/guarded-exec.py": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811",
+    "/tmp/lsp-startup-upf4-source135-typed-v13/typing-proof.py": "1681443a96a69a121a7c6bcd81bf0ee22ce0c52a7e02c9236b6e41a2b75654d2",
+    "/tmp/lsp-startup-upf4-source135-typed-v13/plan.json": "54c16a18315a7f0488bee52b53217b28a596bdb226d4d2308788a21f69c4a4ed",
+    "/tmp/naming-reviewed-product-actual-identity-v17/actual-identity.json": "d9a49f0998adc11cf44a6e882ee17d76bd0430398bb265f2c006d4ba7d751afd",
+    "/tmp/name-handling-eight-package-check-v13-source135/plan.json": "f238ec1f8c04d0033f6910a7681464a2758b3b7a7806c10ae94cda5a4916d52b",
+    "/tmp/name-handling-eight-package-check-v13-source135/runs/20261023T103738.151297Z/final.json": "d72c992cb7d833b633f09d8df6bdfb9438a6a217d1794d0080dea69f261be118",
+    "/tmp/name-handling-eight-package-check-v13-source135/launcher-runs/20261023T103720.158536Z/launcher.json": "45f2b77566c877885bd8155b6681e7c4c5ae7ec2049ed59b72b0628779e1e2b2",
+    "/tmp/naming-reviewed-product-actual-identity-v17/actual-source135-manifest.json": "b3d8f347b91141bf3c592ecc4007dbd2a95079a928d602573032ab92525b9688",
+    "/tmp/name-handling-eight-package-check-v13-source135/runner-input-manifest.json": "2d30736a908b96674c9cdfa6bad63f9438e8b46ad7a83163e0b94df72f35702e",
+    "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/validation-tools/capture-inputs.py": "2d3a1cf8aa341d5c4b829be6616a407d516163b52878ebb0cee874040e507474",
+    "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/validation-tools/_paths.py": "f82d76f6ee9434a98ede16693364988373bf68137d0e5800d8839404385b3a0c",
+    "/tmp/lsp-native-protocol-v14-source46-repaired-direct15/plan.json": "7495afcfbda18ae1f355e8ac2d14a56983437d07a6cc89c433a6bf1b08ba1e98"
+  },
+  "root_go_contract": "Exact actual identity+source122+successful type final AND launcher evidence; no GO generated"
+}

@@ -1,0 +1,208 @@
+{
+  "counts": {
+    "exact_old_proposal_present": 34,
+    "changed_since_old_proposal_requires_semantic_review": 6
+  },
+  "files": [
+    {
+      "path": "rust/tcl-lsp-core/src/caller_frame.rs",
+      "state": "exact_old_proposal_present",
+      "current": "ed69c5848bab52cb65cf999d936cb0e2871af3e15c9cb16b587fd1823200479f"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/code_actions/diagnostic_context.rs",
+      "state": "exact_old_proposal_present",
+      "current": "dd022f281550bdd9ee6e57163fc0b6d70e35767e35e50bbf3e135d64938c3353"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/code_actions/spec_notice.rs",
+      "state": "exact_old_proposal_present",
+      "current": "ff86902af57d20d715d860f0dce08de713544799fcc9c544b0bb8c0315d640a1"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/code_lens/logical_source.rs",
+      "state": "exact_old_proposal_present",
+      "current": "5f0f2cc9715ee0190800f95a82ab33f9e1ba10cadabbaf0c7ffe38c34e67e907"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/completion.rs",
+      "state": "exact_old_proposal_present",
+      "current": "1298590edddad505b45b1954ac3f93bf555366f8e81d636326f12698f5be8780"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/document_links.rs",
+      "state": "exact_old_proposal_present",
+      "current": "07c32180a0d103608fc589abb7449c1df4c396314e7390c8b5cc00135a957e68"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/document_symbols/original.rs",
+      "state": "exact_old_proposal_present",
+      "current": "516533bde3444434272f9c2838d549ca485675f78bb6b56fff14361c1043a786"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/formatting/analysis_layout.rs",
+      "state": "exact_old_proposal_present",
+      "current": "5c7c1993e8c92d83a8da2b4c0a6bbeba1a8346525915547b334fd07bb7f6f191"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/formatting/engine.rs",
+      "state": "exact_old_proposal_present",
+      "current": "15681e97583a16b693b879e5afd7fa10579dc49fddfc629ab23e1c37496f4135"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/formatting/mod.rs",
+      "state": "exact_old_proposal_present",
+      "current": "6c380328736de703e6a550e4522db65bdeb51710fdee13603e07abeee808fab1"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/graphs/original.rs",
+      "state": "exact_old_proposal_present",
+      "current": "c44072217ac0d9a6ec7df5da7f414123ca85eadf60ac072a68b5a89eb23f2c14"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/graphs.rs",
+      "state": "exact_old_proposal_present",
+      "current": "bcaa485570ff9fce4150e5fbb53941964192f0d3ac8a93a0358d811441cd3721"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/hover/original_registry.rs",
+      "state": "exact_old_proposal_present",
+      "current": "d5f3b71df118100d7ba72713303c6cbea896b8bd6781344fd2d04e4db3e61067"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/hover.rs",
+      "state": "exact_old_proposal_present",
+      "current": "745857ff2a71179d4ec2fcf1319346a161ff8e8586604704b8adb7ef046ee2ec"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/implementation.rs",
+      "state": "exact_old_proposal_present",
+      "current": "d3ceacb74c72038a4f96bf2ab6d556e0f579152341a22f4e3b00600a896cdb19"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/inlay_hints.rs",
+      "state": "exact_old_proposal_present",
+      "current": "06349b035412ef76659481233245cbb8631b5616042f97cc9102ee85980ceef1"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/method_symbol.rs",
+      "state": "exact_old_proposal_present",
+      "current": "75066fe713836cca75236006b23f0164addee9052029540eff5ccc8f62d59fc7"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/minify/original.rs",
+      "state": "changed_since_old_proposal_requires_semantic_review",
+      "current": "c6618f019d845f61afad591ec33d821f90a877ebfb8f315d45455d02ae9d6469"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/minify.rs",
+      "state": "changed_since_old_proposal_requires_semantic_review",
+      "current": "0cc2fca3b02ad57997d5d175dbdf94600979ba62f5305e9f8384bbce93dbe392"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/namespace_import.rs",
+      "state": "exact_old_proposal_present",
+      "current": "8efd39c9ab5c93c4051b1d42f6618d49fcaf7bdc6e407e2d7c60773bdbba245d"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/namespace_rename/original.rs",
+      "state": "exact_old_proposal_present",
+      "current": "3deb774c175f310aa1e5231577876259074b27051e842421d4f73cb8a1241a03"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/original_declaration.rs",
+      "state": "changed_since_old_proposal_requires_semantic_review",
+      "current": "e36dfffac247dd777ec23a7e3c194da0400522259a6c25363974938b33614d09"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/original_oo.rs",
+      "state": "exact_old_proposal_present",
+      "current": "7e693248094335b2df5602b787165fa7ed88ef6899240cadd853ff1d5d6f7b29"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/package_resolver/original_names.rs",
+      "state": "exact_old_proposal_present",
+      "current": "4ac0ce5f1d71803567df184b3b69a98ae85b726ded13f1365dea671f7679ac17"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/package_resolver/reachability/original.rs",
+      "state": "exact_old_proposal_present",
+      "current": "a5882b43a9adb4884deb3edbab393804cf5cb9c85ee7b80dce9ff64da572a2a9"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/package_resolver/registration.rs",
+      "state": "exact_old_proposal_present",
+      "current": "c35680d4bbdc5c953a4e234169c79b2eb62e39b08ab86899803ff44478093722"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/package_resolver.rs",
+      "state": "exact_old_proposal_present",
+      "current": "4fe693335020efdaacf538f3483fb0a585613fa17b165035cfab594fccf089ff"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/refactor/datagroup/source_subject.rs",
+      "state": "exact_old_proposal_present",
+      "current": "74606d39130e0721454ba6627e9c11c3e25cfd2b94ebab58a19e42acf48a0e3f"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/refactor/inline_proc.rs",
+      "state": "exact_old_proposal_present",
+      "current": "2714c22ce4e745a93d088da385242ee07ddc394ad884dee09b6df2210aa42118"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/refactor/mod.rs",
+      "state": "exact_old_proposal_present",
+      "current": "878547ee02e7e2ae484d93dd56493863463132bfd65754e37f75962d9294aa94"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/rename.rs",
+      "state": "exact_old_proposal_present",
+      "current": "4ca7ca6ae9eda3f714862790e5abd4cd04f50e037deb9d903debe5b8a4ba371a"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/semantic_tokens/original.rs",
+      "state": "changed_since_old_proposal_requires_semantic_review",
+      "current": "59eda72e9f646c2d526b865de47e7df18cb62327e2ae8eb2348f6370e594199e"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/semantic_tokens.rs",
+      "state": "exact_old_proposal_present",
+      "current": "d577319048fbf4d48cf24ef93d5c4dd8bc97389c1bb371a24730cc6133439b31"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/source_graph.rs",
+      "state": "exact_old_proposal_present",
+      "current": "66d8a73e939dedffb18c44589a37627e83cba350f942371e20ef773d2f5ae0d4"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/source_structure.rs",
+      "state": "changed_since_old_proposal_requires_semantic_review",
+      "current": "b1598fddc0797d2da5c769caeb007c97de4d6027bc2bad91b1ddc3aa52698b20"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/tk_preview.rs",
+      "state": "exact_old_proposal_present",
+      "current": "e5f32538d665e559a0eece4680504d314b35db04ae8651c7799b8334f40b59c0"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/variable_symbol/rename.rs",
+      "state": "exact_old_proposal_present",
+      "current": "3cb719850d429cb772769970726f9ddf25c35374c8397cbcb5077e31dfe04a39"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/variable_symbol.rs",
+      "state": "exact_old_proposal_present",
+      "current": "dd38af1fc2baebd0675eb7b79f439cb9a6b9b91db46c3f2163504aedcf8d974d"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/vendor_declaration.rs",
+      "state": "exact_old_proposal_present",
+      "current": "573d652ffec01e1109a567bb8de140a8d628984a388ea3b0102b784ac42a51ff"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/workspace_index.rs",
+      "state": "changed_since_old_proposal_requires_semantic_review",
+      "current": "97be797b76cf30e1b2d887f50f21e801fa13d8f658d7cc47bac82304d7f73b20"
+    }
+  ]
+}

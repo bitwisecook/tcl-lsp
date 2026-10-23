@@ -1,0 +1,8 @@
+{
+  "actual_utc": "2026-10-23T11:17:11.013430+00:00",
+  "all_runner_pins_match": true,
+  "python_ast_and_bash_syntax_pass": true,
+  "root_go_absent": true,
+  "cargo_or_runtime_started": false,
+  "scope": "Actual typing proof authenticated and protocol materialized only; finite runtime unrun"
+}

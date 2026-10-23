@@ -1,0 +1,27 @@
+{
+  "utc": "2026-10-23T11:16:35.696815+00:00",
+  "materializer_manifest_sha256": "1fec8902de0649d0a660ecb27e9c26b82da75df428d021c1638e58314766209a",
+  "binding": {
+    "identity": {
+      "path": "/tmp/naming-reviewed-product-actual-identity-v17/actual-identity.json",
+      "sha256": "d9a49f0998adc11cf44a6e882ee17d76bd0430398bb265f2c006d4ba7d751afd"
+    },
+    "plan": {
+      "path": "/tmp/name-handling-eight-package-check-v13-source135/plan.json",
+      "sha256": "f238ec1f8c04d0033f6910a7681464a2758b3b7a7806c10ae94cda5a4916d52b"
+    },
+    "final": {
+      "path": "/tmp/name-handling-eight-package-check-v13-source135/runs/20261023T103738.151297Z/final.json",
+      "sha256": "d72c992cb7d833b633f09d8df6bdfb9438a6a217d1794d0080dea69f261be118"
+    },
+    "launcher": {
+      "path": "/tmp/name-handling-eight-package-check-v13-source135/launcher-runs/20261023T103720.158536Z/launcher.json",
+      "sha256": "45f2b77566c877885bd8155b6681e7c4c5ae7ec2049ed59b72b0628779e1e2b2"
+    }
+  },
+  "plan_sha256": "c02928d8cc565709c8cfb47cd2e843b206ac74299a9d3b27ccd14befbc636918",
+  "runner_input_manifest_sha256": "cd772aa5b0c10d8a463bc5eda0f74a9cfd6946a3689653000a7da44514199f1a",
+  "root_go_created": false,
+  "cargo_or_runtime_started": false,
+  "raw_run_root": "/workspace/naming-validation-runs/notom16/vm-notom16-source135-typed-v13"
+}

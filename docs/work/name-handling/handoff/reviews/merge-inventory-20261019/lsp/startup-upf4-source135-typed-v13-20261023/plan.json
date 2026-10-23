@@ -1,0 +1,211 @@
+{
+  "actual_utc": "2026-10-23T11:16:35.832342+00:00",
+  "status": "Actual successful typing explicitly bound; root GO absent, runtime UNRUN",
+  "scope": "One fresh e2e+server Cargo event pair, first original startup case +original classcollision PASScontrol +two actualUPF selectors; no retries/assertion changes/fullhost claim",
+  "selectors": [
+    {
+      "package": "tcl-lsp-server",
+      "target": "--test e2e",
+      "selector": "naming_source_view_owners::retained_child_views_keep_distinct_parent_inputs_and_refuse_retired_owner",
+      "expected_tests": 1,
+      "section": "D2 native ownership",
+      "source_path": "rust/tcl-lsp-server/tests/e2e/naming_source_view_owners.rs"
+    },
+    {
+      "package": "tcl-lsp-server",
+      "target": "--test e2e",
+      "selector": "naming_edits::class_and_method_collisions_are_atomic_typed_protocol_refusals",
+      "expected_tests": 1,
+      "section": "D5",
+      "source_path": "rust/tcl-lsp-server/tests/e2e/naming_edits.rs"
+    },
+    {
+      "package": "tcl-lsp-server",
+      "target": "--test e2e",
+      "selector": "spec_packs::every_bundled_upf_optional_value_hook_reaches_editor_option_scanning",
+      "expected_tests": 1,
+      "section": "UPF editor hook/body provider",
+      "source_path": "rust/tcl-lsp-server/tests/e2e/spec_packs.rs"
+    },
+    {
+      "package": "tcl-lsp-server",
+      "target": "--test e2e",
+      "selector": "spec_packs::the_bundled_upf_body_resolver_reaches_editor_diagnostics_and_tokens",
+      "expected_tests": 1,
+      "section": "UPF editor hook/body provider",
+      "source_path": "rust/tcl-lsp-server/tests/e2e/spec_packs.rs"
+    }
+  ],
+  "source_pins": [
+    {
+      "path": "rust/tcl-lsp-server/src/lib.rs",
+      "sha256": "2e9cd7b7148d439c5ddbf7ee70494f418f22fd123f78e53433b6d47fbfa4ae1c"
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/readonly_reference_reports/source_views.rs",
+      "sha256": "151c4869840da62605eac7ed1077e00293cf31ecef7e4f543dd5814e5d4802ee"
+    },
+    {
+      "path": "rust/tcl-lsp-server/tests/e2e.rs",
+      "sha256": "5fd514f9a91a2c232538a53116a697bdf164265accd0987b9ed81492e3ecd8af"
+    },
+    {
+      "path": "rust/tcl-lsp-server/tests/e2e/commands.rs",
+      "sha256": "f7f6b1ff8db518c3bf0e9dc252fdc268f50b70537ab06f126408730419ed3ce9"
+    },
+    {
+      "path": "rust/tcl-lsp-server/tests/e2e/common/helpers.rs",
+      "sha256": "70d8006099e64c7d561468d7825dde0c9638170ac8be2bae2c48c853c4429f6f"
+    },
+    {
+      "path": "rust/tcl-lsp-server/tests/e2e/common/mod.rs",
+      "sha256": "a03dedc976a0c19f9b67158f666281da0575ca02179ef00650745a9c5c538613"
+    },
+    {
+      "path": "rust/tcl-lsp-server/tests/e2e/naming_edits.rs",
+      "sha256": "cb717d85f837ea081529db612f0b83aa33ef675f1c63685d33956b9066cfec45"
+    },
+    {
+      "path": "rust/tcl-lsp-server/tests/e2e/naming_lifecycle.rs",
+      "sha256": "92e02d6eb3e696dd37a6392d3d4703741c6823b9453991ec3bef56068e4c0dec"
+    },
+    {
+      "path": "rust/tcl-lsp-server/tests/e2e/naming_packages.rs",
+      "sha256": "1a7e8189861c1e4c1eee10b09d777a45fcad6913508123d1c62e6f57f807480a"
+    },
+    {
+      "path": "rust/tcl-lsp-server/tests/e2e/naming_source_view_owners.rs",
+      "sha256": "481a96b1c8180f418f1543474a4aba00a3b0d8b6f7e2b4838667255cdf636d7b"
+    },
+    {
+      "path": "rust/tcl-lsp-server/tests/e2e/naming_source_views.rs",
+      "sha256": "ce18742de81c758d14db7c30162ce34fcd8411a8c43b943f2bea14c5fcbc2f50"
+    },
+    {
+      "path": "rust/tcl-lsp-server/tests/e2e/spec_packs.rs",
+      "sha256": "c099df37991ae0d2462eac5061440c9060429bde1dfe0a8bd91d2f150ed41c44"
+    },
+    {
+      "path": "rust/tcl-lsp-server/tests/e2e/spec_packs/environment_lifecycle.rs",
+      "sha256": "7dab70ebe9fe1079db22200795ba41e0216c2c68f1e6deb3ab45def318ac2174"
+    }
+  ],
+  "original_native15_plan": {
+    "path": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15/plan.json",
+    "sha256": "7495afcfbda18ae1f355e8ac2d14a56983437d07a6cc89c433a6bf1b08ba1e98",
+    "original_subset": [
+      {
+        "package": "tcl-lsp-server",
+        "target": "--test e2e",
+        "selector": "naming_source_view_owners::retained_child_views_keep_distinct_parent_inputs_and_refuse_retired_owner",
+        "expected_tests": 1,
+        "section": "D2 native ownership",
+        "source_path": "rust/tcl-lsp-server/tests/e2e/naming_source_view_owners.rs"
+      },
+      {
+        "package": "tcl-lsp-server",
+        "target": "--test e2e",
+        "selector": "naming_edits::class_and_method_collisions_are_atomic_typed_protocol_refusals",
+        "expected_tests": 1,
+        "section": "D5",
+        "source_path": "rust/tcl-lsp-server/tests/e2e/naming_edits.rs"
+      }
+    ]
+  },
+  "approved_product_head": "1dd5e095e4b62e6f4b6c4f6fea357d874972876f",
+  "approved_product_tree": "93fb1634ce791c302d3c23aefa711c8108722518",
+  "actual_identity": {
+    "path": "/tmp/naming-reviewed-product-actual-identity-v17/actual-identity.json",
+    "sha256": "d9a49f0998adc11cf44a6e882ee17d76bd0430398bb265f2c006d4ba7d751afd"
+  },
+  "required_typecheck_packages": [
+    "tcl-compiler",
+    "tcl-lsp-core",
+    "tcl-lsp-db",
+    "tcl-lsp-server",
+    "tcl-vm",
+    "tcl-fuzz",
+    "tcl-spectcl",
+    "bpf-tcl-ir"
+  ],
+  "typecheck_plan": {
+    "path": "/tmp/name-handling-eight-package-check-v13-source135/plan.json",
+    "sha256": "f238ec1f8c04d0033f6910a7681464a2758b3b7a7806c10ae94cda5a4916d52b",
+    "runner_inputs_path": "/tmp/name-handling-eight-package-check-v13-source135/runner-input-manifest.json",
+    "runner_inputs_sha256": "2d30736a908b96674c9cdfa6bad63f9438e8b46ad7a83163e0b94df72f35702e"
+  },
+  "required_environment": {
+    "CARGO_BUILD_JOBS": "2",
+    "CARGO_HOME": "/workspace/.cargo",
+    "CARGO_INCREMENTAL": "0",
+    "CARGO_PROFILE_DEV_DEBUG": "0",
+    "CARGO_PROFILE_TEST_DEBUG": "0",
+    "CARGO_TARGET_DIR": "/workspace/naming-migration-active/tcl-lsp/target",
+    "RUSTC": "/workspace/.rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/bin/rustc",
+    "RUSTUP_HOME": "/workspace/.rustup",
+    "RUSTUP_TOOLCHAIN": "1.99.1",
+    "TCL_LSP_JIMSH": "/workspace/naming-toolchains/tmp/jimtcl-oracle/jimsh",
+    "TCL_LSP_REQUIRE_TCLSH": "9.0,8.6",
+    "TMPDIR": "/workspace/naming-build-tmp",
+    "WASI_SDK_PATH": "/workspace/.toolchains/wasi-sdk-34.0",
+    "TCL_LSP_TCLSH84": "/workspace/naming-toolchains/bin/tclsh8.4",
+    "TCL_LSP_TCLSH85": "/workspace/naming-toolchains/bin/tclsh8.5",
+    "TCL_LSP_TCLSH86": "/workspace/naming-toolchains/bin/tclsh8.6",
+    "TCL_LSP_TCLSH90": "/workspace/naming-toolchains/bin/tclsh9.0",
+    "TCL_LSP_TCLSH91": "/workspace/naming-toolchains/bin/tclsh9.1"
+  },
+  "path_prefix": "/workspace/.cargo/bin:/workspace/naming-toolchains/node26/bin:/workspace/naming-toolchains/bin",
+  "refused_environment_exact": [
+    "RUSTFLAGS",
+    "CARGO_ENCODED_RUSTFLAGS",
+    "RUSTC_WRAPPER",
+    "RUSTC_WORKSPACE_WRAPPER",
+    "CARGO_BUILD_RUSTFLAGS",
+    "CARGO_BUILD_RUSTC",
+    "CARGO_BUILD_RUSTC_WRAPPER",
+    "CARGO_BUILD_RUSTC_WORKSPACE_WRAPPER",
+    "CARGO_BUILD_TARGET",
+    "RUSTC_BOOTSTRAP",
+    "TCL_RUNTIME_EXPECT_NO_TOMMATH"
+  ],
+  "refused_environment_patterns": [
+    {
+      "prefix": "CARGO_TARGET_",
+      "suffix": "_RUSTFLAGS"
+    }
+  ],
+  "cargo_path": "/workspace/.rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/bin/cargo",
+  "cargo_sha256": "a670e02cfa39ac2e53f77a2d911ca1fc9e2c479b0603ec956625be1daf24e3af",
+  "rustc_path": "/workspace/.rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/bin/rustc",
+  "rustc_sha256": "b53b780f77f952062f8ca8a3b70aef2390b1e45ad91939be94afdc9543026853",
+  "lifecycle": {
+    "executor_sha256": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811",
+    "source122_manifest_sha256": "b3d8f347b91141bf3c592ecc4007dbd2a95079a928d602573032ab92525b9688",
+    "post122_eight_package_typecheck_plan_sha256": "f238ec1f8c04d0033f6910a7681464a2758b3b7a7806c10ae94cda5a4916d52b",
+    "selector_deadline_seconds": 180,
+    "build_deadline_seconds": 3600,
+    "per_process_output_cap_bytes": 20000000,
+    "actual_mount_floor_bytes": 2300000000
+  },
+  "template_go_schema": "Root alone supplies future actual completed source122 PASS0W final evidence {path,sha256}; no fictional PASS/path/hash now.",
+  "source_path_count": 135,
+  "typing_binding": {
+    "identity": {
+      "path": "/tmp/naming-reviewed-product-actual-identity-v17/actual-identity.json",
+      "sha256": "d9a49f0998adc11cf44a6e882ee17d76bd0430398bb265f2c006d4ba7d751afd"
+    },
+    "plan": {
+      "path": "/tmp/name-handling-eight-package-check-v13-source135/plan.json",
+      "sha256": "f238ec1f8c04d0033f6910a7681464a2758b3b7a7806c10ae94cda5a4916d52b"
+    },
+    "final": {
+      "path": "/tmp/name-handling-eight-package-check-v13-source135/runs/20261023T103738.151297Z/final.json",
+      "sha256": "d72c992cb7d833b633f09d8df6bdfb9438a6a217d1794d0080dea69f261be118"
+    },
+    "launcher": {
+      "path": "/tmp/name-handling-eight-package-check-v13-source135/launcher-runs/20261023T103720.158536Z/launcher.json",
+      "sha256": "45f2b77566c877885bd8155b6681e7c4c5ae7ec2049ed59b72b0628779e1e2b2"
+    }
+  },
+  "typing_proof_sha256": "1681443a96a69a121a7c6bcd81bf0ee22ce0c52a7e02c9236b6e41a2b75654d2"
+}

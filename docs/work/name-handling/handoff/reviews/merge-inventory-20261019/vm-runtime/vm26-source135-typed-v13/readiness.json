@@ -1,0 +1,11 @@
+{
+  "utc": "2026-10-23T11:16:58.532754+00:00",
+  "plan_sha256": "da4be63b0a11bd21fa87b4ffcdbf4e7bf4335fd403808ea5ca062c4c716e0703",
+  "inputs_sha256": "bfde32c799569c22b7a3b1976d8c16dbe0c8f002e1b0cd5e14b512a931314168",
+  "go_schema_sha256": "d21b79139cf47e90abf34a33ce314a0d3346a77ae2f5ddec81ecfcbbd565e0fc",
+  "materialization_sha256": "38a95e46343ac7b01319761879304b6fc589659a3a62bfc35fe3eedac0da95ff",
+  "source_path_count": 135,
+  "pins_all_verified": true,
+  "root_go_created": false,
+  "cargo_started": false
+}

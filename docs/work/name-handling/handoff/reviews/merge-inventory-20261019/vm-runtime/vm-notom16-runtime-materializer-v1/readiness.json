@@ -1,0 +1,10 @@
+{
+  "utc": "2026-10-23T10:56:45.785126+00:00",
+  "status": "FROZEN supported NoTom runtime/control staticCLEAR; actual typing PASS/root GO required",
+  "manifest_sha256": "1fec8902de0649d0a660ecb27e9c26b82da75df428d021c1638e58314766209a",
+  "supported_protocol_peer_sha256": "eddf67358f822cebde4257e43d1bf713a7a377560c7cc8454cae706d92bad762",
+  "shared_typing_peer_path": "/tmp/lsp-startup-upf-latebound-materializer-v5/names-static-peer.json",
+  "shared_typing_peer_sha256": "54385b625a34a537744add6baa1d9a9b24c2b9f43eaebb96489525935abb021a",
+  "runtime_started": false,
+  "root_go_created": false
+}

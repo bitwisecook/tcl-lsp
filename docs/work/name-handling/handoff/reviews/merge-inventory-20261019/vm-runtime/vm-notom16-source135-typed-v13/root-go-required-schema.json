@@ -1,0 +1,20 @@
+{
+  "status": "required-values schema only; root alone issues root-go.json",
+  "legacy_labels": "source122/post122 are retained schema labels; actual count135 and exact source135 manifest authenticated",
+  "required_const_values": {
+    "plan_sha256": "c02928d8cc565709c8cfb47cd2e843b206ac74299a9d3b27ccd14befbc636918",
+    "runner_input_manifest_sha256": "cd772aa5b0c10d8a463bc5eda0f74a9cfd6946a3689653000a7da44514199f1a",
+    "source122_manifest_sha256": "b3d8f347b91141bf3c592ecc4007dbd2a95079a928d602573032ab92525b9688",
+    "approved_integrated_head": "1dd5e095e4b62e6f4b6c4f6fea357d874972876f",
+    "approved_integrated_tree": "93fb1634ce791c302d3c23aefa711c8108722518",
+    "post122_eight_package_typecheck_evidence": {
+      "path": "/tmp/name-handling-eight-package-check-v13-source135/runs/20261023T103738.151297Z/final.json",
+      "sha256": "d72c992cb7d833b633f09d8df6bdfb9438a6a217d1794d0080dea69f261be118"
+    },
+    "post122_eight_package_typecheck_launcher_evidence": {
+      "path": "/tmp/name-handling-eight-package-check-v13-source135/launcher-runs/20261023T103720.158536Z/launcher.json",
+      "sha256": "45f2b77566c877885bd8155b6681e7c4c5ae7ec2049ed59b72b0628779e1e2b2"
+    }
+  },
+  "root_go_created": false
+}

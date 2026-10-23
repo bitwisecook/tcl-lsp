@@ -2,7 +2,7 @@
 
 Area: routing, shared build allocation, snapshots and release readiness.
 
-Last updated: 2026-10-23T10:56:18.692922+00:00
+Last updated: 2026-10-23T11:29:09.482687+00:00
 
 ## In progress
 
@@ -47,13 +47,14 @@ Last updated: 2026-10-23T10:56:18.692922+00:00
 4. At08:55:37UTC run normal30minute cycle using draft0855/checkpoint and publisher freshdepth1fetch/rebase/normalpush/productdiff0, update actual outcomes and role freshness, checkdisk, then rearm exactly one timer for09:25:37. Existing reminder53105, no duplicate.
 5. Finish functional failures, authenticated fullreport perf proof, strict/repository/generated checks, SpecTcl C1C2/UPF17/noTom16, shipped native/WASM/WASI/browser/editor hosts and full exact origin/rustzeroP2F. User must ask before PR; no merge/tag/release authorised.
 
-### Current cycle and routing (10:55 UTC)
+### Current cycle and routing (11:25 UTC)
 
-- 10:25checkpointon time activeaa8519 publishedf149597 at10:27:40; adhoc source1dd5+docs391e normalpublishedf89b10:40:19 freshdepth1fetch/rebase/productdiff0. Next1055cycle, no PR.
-- Actualv12type failed one missingdoc0observedwarnings; narrow8linedoc relocation plus reviewedcapturePython typingfix committedactual1dd5. Frozencompositionv17 a63a72e9 39components102batchpaths cumulative135. Actualidentityd9a49f/mapb3d8f verified; executableGitmodes100755 independentlychecked.
-- Actualv13 eightpackage/alltargets started10:38:53 GO4eed/planf238/inputs2d307; current10:49 no emittederrorswarnings and compiler/core/server progress. Finalpending; noPASS/runtimeadmission claimed. Originalguards/floors/normalNoTomflagrefusal unchanged.
-- Allcandidateobservercleanup nowapplied afterpeerreview: Compiler24+12+final10, Names21+store1, CCG14+37+final4, VM3. Wholecompiler temporaryenv/helper/printcensusZERO exceptsupportedwasmtime-unavailabletestmessage. Allrealassertions/productionguards retained, workunchanged. Candidatewritefreeze andfullcargo fmt started.
-- Candidate fullfmtcheck found112formattingdifferences no parseerrors; fullfmt queuedafterownerwritefreeze. Staticclosure779Markdown4342links0missingpaths, 301requiredscriptinputs/3359Rustincludeinputs present, fourpairedharnesspinsmatch. Contractdocs statecurrentuncertainty/ILXopaquestop/scope, noallgreenclaim.
-- CIcapturev5 isolatedty0.0.88/Pyright1.1.414STANDARD/RuffPASS. Frozenpairedperfv4 samehostthreealternatingpairs Linux/macOS small/medium/full ready. Actualbench/fullcandidateCI/zeroPASS-to-FAIL comparison UNRUN; candidatecommit/push/dispatch nextcriticalpath.
-- ExternalBIGIP/perf stale beyond60min; no duplicates/takeover. Reviewtriage markedCOMPLETE, no unfinishedtriageclaim. AllFboxes remainopen, validatedagentrows unchanged.
-- Freshdepth1origin/work0322d9cd externalperfdocs-onlypush found; no productionchanges. PublisherFF integrationinprogress (lazyblobfetch requiresnetworkenabled). Perfnewupdate toread/route; no unprovenpatchaccepted.
+- 1055cycle snapshot9cf03cb normalpublishedce8e44ec99 at11:03:41 afterfreshdepth1fetch/rebase. Productdifference8paths is independentlyreviewedexternalBIGIPc695, explicitlyrecorded; frozenactivesource135still1dd/9cfdocdesc. Activeexternalintegrationhelduntilruntimeguardcloses, no falseproductdiff0/currenttiptypingclaim.
+- Actualv13eightpackagealltargets typingPASS0W finished11:13:33 finald72c992c/launcher45f2b775, rootparent62473CLOSED0/LOCK_RELEASED, fullsource/providers/inputs/GO stable, rawJSON0warnings0errors. Rootproofhelperindependentlyvalidated; scopedtypingonly, no runtime/sectionFadmission.
+- Candidateprobe/doc/evidencecleanupfinished; fullfmtv2+v3PASS, required3292stagedinputsPASS/10973tracked,3ignoredrequiredfixturesforcedstaged, byteexactoracletranscriptsunchanged. Removed8historicalunusedexperimentfiles+22danglingcapturepaths+staleattrs/helpercounts, preservedactualcontracts/fixtures/oracles. Currentcandidate76c7d2e basefcb.
+- Freshfilteredworkfetch andnarrowrustfetchbeforecandidatepush; baselinefcbunchanged. Authorisedintermediatebranchrelease/lsp-naming pushed11:19, noPR/tag/publication. CanonicalfullCI39945314600+existingperf.yml pairedmode39945321647 dispatched exact76c7/fcb; Linux/macOS small/medium/full3alternatingpairs noresultsaccepted.
+- ActualcurrentCIcargo-denyFAIL ctutils0.4.3 RUSTSEC2026-0385 patched0.4.4; LSPpreparingminimal8affectedlockupdateofftree, noignore/allowance. Existingpriorwasmtime/rustlsfixespresent; remainingCIrunning. Ruffformat/checkstepPASS currentCI; notfullPythonacceptance.
+- OriginalfocusedCCG5source135 launched37487 at11:15 rootGO73772e21, actualbuildinprogress nofirstassertionyet. Compiler61,VM26,NoTom16,StartupUPF4 materialized fromactualcompletedtyping withstrictbindings noGOs/execution; originalassertions/budgets/floors preserved.
+- ExternalBIGIPandperfheadersfresh10:54/10:43, no duplicates/takeover. BIGIPeventoperand→compiler/procedurefirstoperand→compiler-names routed. PerfauthenticatedproofRUNNING notproven; realm/interproceduralpatchnotaccepted. ReviewtriageCOMPLETE headerold; implementation/releasegatesrootowned.
+- Diskreclaimed2,970,115,639B fromOWNpublisherduplicateGitpack onlyafter49420sameOID/typesactiveavailability+all4fileSHA/noopenFDchecks. Noactiveobjects/target/executablefilesdeleted; workspacefree7.58GB, /tmp2.4GB; currentbuildoriginal2GiBfloor.
+- 11:26candidateCI nowallcorejobsFAILED: primarybuildroots cleanuporphancfg source_arguments +misrenamedoffset, exactworksemanticsrepairspeerreadycandidateonly. Clippy2emptylinesafterouterattr fromstaleNativeproofcomment; commentonlyrepairassignedcompiler. Pythonblockedby samecompilercompile, Ruffpassed. RuntimeNoTomactualfailuresseparatelyVMtriage; mainRustlistingsneverbuilt/noselectedterminalPASSclaim. Firstcandidatebenchmarkbuildsimilarlynotadmitted.
