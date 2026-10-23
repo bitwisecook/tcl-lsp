@@ -16,7 +16,7 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""WORK-only original native58 and separate Native35 supplemental3 diagnosis."""
+"""WORK-only original58, separate Native35three and SH21two diagnostic duplicates."""
 
 import argparse
 import datetime
@@ -128,12 +128,21 @@ def execute(argv, prefix, artifact, seconds, environment, budget):
     require(budget > 0, "aggregate log budget exhausted")
     available = deadline - time.time()
     require(available > 0, "absolute diagnostic deadline reached")
-    if prefix.startswith(("original58-", "supplemental-native35-", "list-", "select-")):
+    if prefix.startswith(("original58-", "supplemental-native35-", "supplemental-sh21-", "list-", "select-")):
         require(
             available >= seconds,
             "insufficient overall time for original full test/list budget",
         )
     seconds = min(seconds, available)
+    if prefix.startswith(("original58-", "supplemental-native35-", "supplemental-sh21-")):
+        argv = [
+            str(tools["python"]),
+            str(tools["table_filter"]),
+            "--summary-path",
+            str(out / (prefix + ".transport.json")),
+            "--",
+            *argv,
+        ]
     return owner.run(
         argv,
         cwd=root,
@@ -254,7 +263,43 @@ require(
     ),
     "supplemental roster overlaps original58",
 )
-rows = original_rows + supplemental_rows
+require(
+    sha(BASE / "compiler-sh21-supplemental2.json") == "6b741fbdecbfea711bdff0e4d4457cc095bd5f8fff8a063aa194e0535cdcce8d",
+    "exact separate SH21 diagnostic duplicate input pin",
+)
+sh21_diagnostic = json.loads((BASE / "compiler-sh21-supplemental2.json").read_text())
+require(
+    sh21_diagnostic["package"] == "tcl-compiler"
+    and sh21_diagnostic["kind"] == ["lib"]
+    and sh21_diagnostic["target"] == "tcl_compiler"
+    and sh21_diagnostic["expected_selected"] == 2
+    and sh21_diagnostic["env"] == {"TCL_LSP_TRACE_SH21_PRODUCER": "1"}
+    and sh21_diagnostic["selectors"] == ['analyser::diagnostics::fp::sh::fp_sh_21_scalar_literal_as_list_silent', 'analyser::diagnostics::fp::sh::fp_sh_21_incr_on_non_integer_literal_still_fires'],
+    "separate SH21 diagnostic duplicate roster or flags differ",
+)
+sh21_rows = [
+    {
+        "group": "supplemental-sh21",
+        "package": sh21_diagnostic["package"],
+        "kind": sh21_diagnostic["kind"],
+        "target": sh21_diagnostic["target"],
+        "selector": selector,
+        "env": sh21_diagnostic["env"],
+        "state": "UNRUN",
+    }
+    for selector in sh21_diagnostic["selectors"]
+]
+require(
+    all(sum(row["selector"] == duplicate["selector"] for row in original_rows) == 1
+        for duplicate in sh21_rows),
+    "diagnostic SH21 rows must duplicate exactly the existing original58 identities",
+)
+rows = original_rows + supplemental_rows + sh21_rows
+require(
+    len({(row["group"], row["package"], tuple(row["kind"]), row["target"], row["selector"])
+         for row in rows}) == 63,
+    "separate original58/native35three/SH21two group identity conflict",
+)
 expected_targets = [
     ("tcl-compiler", ["lib"], "tcl_compiler", 52),
     ("tcl-compiler", ["test"], "taint", 1),
@@ -299,6 +344,9 @@ try:
     if rustup is None:
         raise RuntimeError("rustup absent")
     tools = {"python": Path(sys.executable).resolve(), "executor": executor}
+    table_filter = BASE / "compiler-original58-table-filter.py"
+    require(sha(table_filter) == "44f950671a170b963c5375a3841a03fea5b46e23db54805c84cacd2b0e552844", "exact bounded table transport pin")
+    tools["table_filter"] = table_filter
     for name in ["cargo", "rustc"]:
         tools[name] = Path(
             subprocess.check_output([rustup, "which", name], text=True).strip()
@@ -347,7 +395,7 @@ try:
     versions = {
         name: subprocess.check_output([str(path), "--version"], text=True)
         for name, path in tools.items()
-        if name not in ["executor", "jimsh"] and not name.startswith("tclsh")
+        if name not in ["executor", "jimsh", "table_filter"] and not name.startswith("tclsh")
     }
     versions["rustc_verbose"] = subprocess.check_output(
         [str(tools["rustc"]), "-vV"], text=True
@@ -393,11 +441,15 @@ try:
     )
     require(
         not any(
-            env.get(name)
+            name in env
             for flags in roster["row_environments"].values()
             for name in flags
         ),
         "original diagnostic flags must remain per-selector only",
+    )
+    require(
+        "TCL_LSP_TRACE_SH21_PRODUCER" not in env,
+        "separate SH21 diagnostic flag must remain per-selector only",
     )
     jim_root = Path(env["TCL_LSP_JIM_ROOT"]).resolve()
     jim_reference = dict(
@@ -463,6 +515,7 @@ try:
             for name, pin in {
                 **roster["source_pins"],
                 **supplemental["source_pins"],
+                **sh21_diagnostic["source_pins"],
             }.items()
         ),
         "original test/observer input changed",
@@ -513,6 +566,8 @@ try:
                 "each_original_test_seconds": 180,
                 "dependency_fetch_seconds": 600,
                 "aggregate_log_bytes": CAP,
+                "transport_filter": "Only exact ORIGINAL_COMMAND_INSTALLED SourceCommandTable observer lines become counted SHA256 summaries; every other stderr byte and all stdout remain verbatim.",
+                "execution_order": "Separate Native35three then SH21two diagnostic duplicates first in compilerlib; original58 relative ordering, selectors and semantic flags unchanged.",
                 "disk_floor_bytes": FLOOR,
                 "absolute_deadline_epoch": deadline,
             },
@@ -520,6 +575,7 @@ try:
             "original_roster": original,
             "original_inputs_and_environment": roster,
             "separate_supplemental3": supplemental,
+            "separate_sh21_diagnostic2": sh21_diagnostic,
         },
     )
     print("FETCH locked native dependency inputs before build", flush=True)
@@ -556,17 +612,19 @@ try:
     require(bool(dependency_roots), "resolved Cargo dependency inputs absent")
     dependencies_before = files(dependency_roots)
     save(out / "dependencies-before-build.json", dependencies_before)
+    execution_rows = supplemental_rows + sh21_rows + original_rows
     for target_spec in roster["targets"]:
         package = target_spec["package"]
         target_name = target_spec["name"]
         target_kind = target_spec["kind"]
-        selectors = [
-            row["selector"]
-            for row in rows
+        selected_rows = [
+            row
+            for row in execution_rows
             if row["package"] == package
             and row["kind"] == target_kind
             and row["target"] == target_name
         ]
+        selectors = [row["selector"] for row in selected_rows]
         require(remaining > 512 * 1024, "insufficient log budget before selected build")
         print("BUILD original target " + target_name, flush=True)
         argv = [
@@ -683,7 +741,7 @@ try:
                 row["target"] == target_name
                 and row["package"] == package
                 and row["kind"] == target_kind
-                for row in supplemental_rows
+                for row in supplemental_rows + sh21_rows
             ),
             "original actual roster mismatch: " + target_name,
         )
@@ -696,14 +754,10 @@ try:
                 "executable_sha256": artifact["sha256"],
             },
         )
-        for index, selector in enumerate(selectors):
+        for index, row in enumerate(selected_rows):
+            selector = row["selector"]
             require(
                 remaining > 512 * 1024, "insufficient log budget before original test"
-            )
-            row = next(
-                row
-                for row in rows
-                if row["target"] == target_name and row["selector"] == selector
             )
             prefix = row["group"] + "-" + target_name + "-" + str(index).zfill(2)
             print("SELECT original " + selector, flush=True)
@@ -769,6 +823,17 @@ try:
             )
             processes.append(receipt)
             remaining -= receipt["retained_bytes"]
+            transport_path = out / (prefix + ".transport.json")
+            if lifecycle(receipt):
+                require(transport_path.is_file(), "completed test transport summary missing")
+                transport = json.loads(transport_path.read_text())
+                require(
+                    transport["child_exit_code"] == receipt["exit_code"]
+                    and transport["ordinary_stderr_verbatim"] is True
+                    and transport["stdout_verbatim"] is True
+                    and transport["retained_stderr_bytes"] == (out / (prefix + ".stderr")).stat().st_size,
+                    "transport child status or byte census mismatch",
+                )
             row.update(
                 exit_code=receipt["exit_code"],
                 receipt=prefix + ".process.json",
@@ -794,7 +859,8 @@ try:
     require(
         len(original_rows) == 58
         and len(supplemental_rows) == 3
-        and len(rows) == 61
+        and len(sh21_rows) == 2
+        and len(rows) == 63
         and all(row["state"] in ["PASS", "FAIL"] for row in rows),
         "original test inventory incomplete",
     )
@@ -868,6 +934,11 @@ finally:
             ),
             "original58_outcomes": original_rows,
             "supplemental3_outcomes": supplemental_rows,
+            "required_separate_sh21_diagnostic_tests": 2,
+            "sh21_diagnostic_tests_closed": sum(
+                row["state"] in ["PASS", "FAIL"] for row in sh21_rows
+            ),
+            "sh21_diagnostic2_outcomes": sh21_rows,
             "diagnostic_only": True,
             "full_shared_process_gate_admission": False,
             "eight_package_typing_admission": False,

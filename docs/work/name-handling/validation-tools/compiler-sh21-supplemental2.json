@@ -1,0 +1,20 @@
+{
+  "env": {
+    "TCL_LSP_TRACE_SH21_PRODUCER": "1"
+  },
+  "expected_selected": 2,
+  "kind": [
+    "lib"
+  ],
+  "package": "tcl-compiler",
+  "scope": "Separate two diagnostic duplicates of exact existing SH21 originals with the existing opt-in producer observer; neither expands nor changes the original58 baseline or its frozen35environment records.",
+  "selectors": [
+    "analyser::diagnostics::fp::sh::fp_sh_21_scalar_literal_as_list_silent",
+    "analyser::diagnostics::fp::sh::fp_sh_21_incr_on_non_integer_literal_still_fires"
+  ],
+  "source_pins": {
+    "rust/tcl-compiler/src/analyser/diagnostics/fp/sh.rs": "f4900d2953af9d958c6f35e4b9aee280aac8cda082a2f9b337712dee9755243f",
+    "rust/tcl-compiler/src/shimmer/use_site.rs": "91d84d164afa915660ec7fdf048ddc95bd83f41dd1f561bc23fdaf5334cd0c70"
+  },
+  "target": "tcl_compiler"
+}
