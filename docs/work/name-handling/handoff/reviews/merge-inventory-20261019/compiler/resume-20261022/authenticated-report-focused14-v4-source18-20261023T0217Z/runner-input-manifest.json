@@ -1,0 +1,18 @@
+{
+  "version": "report14v4-source18-49v7",
+  "inputs": {
+    "/tmp/compiler-authenticated-report-focused14-v4-source18/run.sh": "20e2792ca08cbacd0e598f5db13ff0cccb2a9fb8599375182e91f62329db491b",
+    "/tmp/compiler-authenticated-report-focused14-v4-source18/suite.py": "bfd2275f9522ff3a3edecc8577bf4b98afa127c3af23ce80ce28b695553e4006",
+    "/tmp/compiler-authenticated-report-focused14-v4-source18/guarded-cargo.py": "b056f055037047db1ae5e179503c088549ac91db81237481a8510a17a020cf71",
+    "/tmp/compiler-authenticated-report-focused14-v4-source18/guarded-exec.py": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811",
+    "/tmp/compiler-authenticated-report-focused14-v4-source18/launch.py": "47fedba8c25251b54fbace3cd141a492fc1fe57fe1c6d158c06ab9503ca37d57",
+    "/tmp/compiler-authenticated-report-focused14-v4-source18/plan.json": "8c129ae5ef1ac68e9321b860c0d40a0de17641b4b6c093ca125e61420cfeb414",
+    "/tmp/compiler-authenticated-report-focused14-v4-source18/source18-manifest.json": "7d68ce5bc058f1fcaa8c5bac3c9f0926c7c9f0bad8a674262f9591e7eadde09b",
+    "/tmp/compiler-authenticated-report-focused14-v4-source18/compiler49-v7-plan.json": "0cb62fcdba2a9f24e5578ada9123e8fe9e195a1e7cd0f0cb1479ea2a19542313",
+    "/tmp/compiler-authenticated-report-focused14-v4-source18/compiler49-v7-root-go.raw.json": "dfccc034a58f8113839424c11d3a9f0862e8109caec0d20a259b556a32cfd3f2",
+    "/tmp/compiler-authenticated-report-focused14-v4-source18/compiler49-v7-root-go.receipt.json": "af205325983a17dba1b51104fe0b10609fde9232eac35c238b15cbf5c7f06b6d",
+    "/tmp/compiler-authenticated-report-focused14-v4-source18/compiler49-v7-runner-input-manifest.json": "23b393e24a7ba9c37388bdd517d4c1d95af45e965d67ce63744ec8f6d3916b48",
+    "/tmp/compiler-c6-provider-manifest.py": "5eff9d653c4f464a48fe1a4633656a97512b817ae03a0d29de9f0c33f6f8340e",
+    "/tmp/tcl-lsp-naming-env.sh": "9d33ccdba049a778482244c60a8206cd62fc503db55227b7c6cf87645c932f29"
+  }
+}

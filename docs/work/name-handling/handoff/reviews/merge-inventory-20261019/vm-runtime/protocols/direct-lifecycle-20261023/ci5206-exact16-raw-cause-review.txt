@@ -1,0 +1,215 @@
+{
+  "recorded_utc": "2026-10-23T02:09:49.061208+00:00",
+  "source_log": "/tmp/ci5206-job-120175508339-connector.log",
+  "log_sha256": "6538ace18ce720aabb808ab5a2c02cbff2b44bc08f4f5ec6d36689a84f3ecd7d",
+  "exact16_terminal_failures": 16,
+  "exact16_named_panics": 0,
+  "harness_failure_sections": [],
+  "actual_panic_sites": [
+    {
+      "line": 1793,
+      "text": "2026-10-23T00:59:23.4109403Z thread 'frame::member_materialisation_tests::original_c_alias_selection_cannot_adopt_a_rebound_or_restored_alias_after_retirement' (5093) panicked at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/core/src/panicking.rs:225:5:"
+    },
+    {
+      "line": 1845,
+      "text": "2026-10-23T00:59:23.4157241Z thread 'frame::member_materialisation_tests::original_c_alias_selection_cannot_adopt_a_rebound_or_restored_alias_after_retirement' (5093) panicked at src/frame/member_materialisation_tests.rs:107:5:"
+    }
+  ],
+  "conclusion": "No actual per-failure assertion/refusal section for any16 exists before unrelated baseline-absent alias abort. Beyond separately known catch diagnosis, no common actual producer/refusal can be attributed from this log. Adjacent PASS controls do not establish equivalent path or repair.",
+  "source_hypothesis_only": "env10 shares with_host/ok, several command tests Interp::new then runtime/profile selection, ABI typed getter test asserts directstatuses. Native admission/bootstrap/projection may be relevant but is not an actual demonstrated common cause.",
+  "next": "reviewed exact16 noTommath/default/noengine isolated-original selectors capture first actual assertions/refusals after root integration/typecheck/GO; no fallback eligibility design or family expansion",
+  "contexts": [
+    {
+      "selector": "cmd_error::tests::eight_four_catch_takes_no_options_variable",
+      "terminal_line": 902,
+      "context": [
+        "2026-10-23T00:55:04.0060933Z test cmd_error::tests::catch_success_and_error_codes ... ok",
+        "2026-10-23T00:55:04.0530796Z test cmd_error::tests::catch_preserves_custom_return_options_on_legacy_releases ... ok",
+        "2026-10-23T00:55:04.4118156Z test cmd_error::tests::eight_four_catch_takes_no_options_variable ... FAILED",
+        "2026-10-23T00:55:04.6990499Z test cmd_error::tests::error_info_stack_traces ... ok",
+        "2026-10-23T00:55:04.9680560Z test cmd_error::tests::dynamic_catch_resets_error_state_in_all_six_native_engines ... ok"
+      ],
+      "matching_named_panic": false
+    },
+    {
+      "selector": "cmd_oo::tests::object_command_role_walk_does_not_revisit_earlier_roles",
+      "terminal_line": 1380,
+      "context": [
+        "2026-10-23T00:57:21.1940251Z test cmd_oo::tests::nextto_resumes_chain_at_class ... ok",
+        "2026-10-23T00:57:21.3200681Z test cmd_oo::tests::method_definition_retains_original_default_objects_without_rendering ... ok",
+        "2026-10-23T00:57:21.4510577Z test cmd_oo::tests::object_command_role_walk_does_not_revisit_earlier_roles ... FAILED",
+        "2026-10-23T00:57:21.4941688Z test cmd_oo::tests::object_command_roles_precede_variables_after_asymmetric_move ... ok",
+        "2026-10-23T00:57:21.6111214Z test cmd_oo::tests::object_command_roles_retire_public_myclass_my ... ok"
+      ],
+      "matching_named_panic": false
+    },
+    {
+      "selector": "cmd_regex::tests::regsub_literal_empty_pattern_walks_the_releases_characters",
+      "terminal_line": 1483,
+      "context": [
+        "2026-10-23T00:58:08.4324890Z test cmd_regex::tests::regsub_command_evaluates_the_prefix ... ok",
+        "2026-10-23T00:58:08.7034454Z test cmd_regex::tests::regsub_command_non_error_code_propagates_untouched ... ok",
+        "2026-10-23T00:58:09.0750622Z test cmd_regex::tests::regsub_literal_empty_pattern_walks_the_releases_characters ... FAILED",
+        "2026-10-23T00:58:09.1030919Z test cmd_proc::tests::jim_static_cells_match_native_definition_and_retirement ... ok",
+        "2026-10-23T00:58:09.3494163Z test cmd_regex::tests::start_option ... ok"
+      ],
+      "matching_named_panic": false
+    },
+    {
+      "selector": "cmd_trace::tests::the_trace_gate_reads_the_pinned_profile_not_the_release_name",
+      "terminal_line": 1560,
+      "context": [
+        "2026-10-23T00:58:38.1140830Z test cmd_trace::tests::retained_namespace_handle_remains_dead_after_deletion_returns ... ok",
+        "2026-10-23T00:58:38.2020832Z test cmd_trace::tests::step_trace_fires_for_body_commands ... ok",
+        "2026-10-23T00:58:38.4630645Z test cmd_trace::tests::the_trace_gate_reads_the_pinned_profile_not_the_release_name ... FAILED",
+        "2026-10-23T00:58:38.6537041Z test cmd_trace::tests::teardown_op_word_is_the_full_word_at_9x ... ok",
+        "2026-10-23T00:58:38.9220726Z test cmd_trace::tests::trace_errors_match_c ... ok"
+      ],
+      "matching_named_panic": false
+    },
+    {
+      "selector": "codegen_abi::tests::guarded_intrinsic_string_length_identity_and_count_follow_runtime_version",
+      "terminal_line": 1671,
+      "context": [
+        "2026-10-23T00:59:02.1860815Z test codegen_abi::tests::guarded_intrinsic_unsupported_form_declines_without_completion_or_source_replay ... ok",
+        "2026-10-23T00:59:02.2860384Z test codegen_abi::tests::invoke_argv_catch_reads_the_raised_errorcode_at_compiled_top_level ... ok",
+        "2026-10-23T00:59:02.4090630Z test codegen_abi::tests::guarded_intrinsic_string_length_identity_and_count_follow_runtime_version ... FAILED",
+        "2026-10-23T00:59:02.4460196Z test codegen_abi::tests::invoke_argv_dispatches_builtin_without_adopting_words ... ok",
+        "2026-10-23T00:59:02.5430163Z test codegen_abi::tests::invoke_argv_follows_interp_alias ... ok"
+      ],
+      "matching_named_panic": false
+    },
+    {
+      "selector": "codegen_abi::tests::typed_value_reads_report_overflow_and_non_numbers_like_c",
+      "terminal_line": 1703,
+      "context": [
+        "2026-10-23T00:59:05.1311052Z test codegen_abi::tests::typed_value_reads_cache_the_parsed_rep_and_keep_the_spelling ... ok",
+        "2026-10-23T00:59:05.1900118Z test codegen_abi::tests::scalar_abi_query_change_and_restore_cannot_issue_or_refresh_a_receipt ... ok",
+        "2026-10-23T00:59:05.2740418Z test codegen_abi::tests::typed_value_reads_report_overflow_and_non_numbers_like_c ... FAILED",
+        "2026-10-23T00:59:05.3890318Z test codegen_abi::tests::var_get_element_reads_an_array_element ... ok",
+        "2026-10-23T00:59:05.4510167Z test codegen_abi::tests::var_get_named_preserves_a_literal_element_key ... ok"
+      ],
+      "matching_named_panic": false
+    },
+    {
+      "selector": "env_trace::tests::a_nul_cuts_the_name_and_value_the_host_keeps",
+      "terminal_line": 1761,
+      "context": [
+        "2026-10-23T00:59:18.6819644Z test engine_abi::value_carriers::tests::scalar_issuer_keeps_recorded_resident_spelling_and_refuses_foreign_origin ... ok",
+        "2026-10-23T00:59:18.7534162Z test env_trace::tests::a_confined_interpreter_neither_reads_nor_writes_the_host ... ok",
+        "2026-10-23T00:59:18.8280243Z test env_trace::tests::a_nul_cuts_the_name_and_value_the_host_keeps ... FAILED",
+        "2026-10-23T00:59:19.2287912Z test env_trace::tests::an_element_alias_reaches_the_host_only_from_9_0 ... FAILED",
+        "2026-10-23T00:59:19.5466304Z test env_trace::tests::child_interpreters_share_the_host_and_safe_ones_have_no_env ... FAILED"
+      ],
+      "matching_named_panic": false
+    },
+    {
+      "selector": "env_trace::tests::an_element_alias_reaches_the_host_only_from_9_0",
+      "terminal_line": 1762,
+      "context": [
+        "2026-10-23T00:59:18.7534162Z test env_trace::tests::a_confined_interpreter_neither_reads_nor_writes_the_host ... ok",
+        "2026-10-23T00:59:18.8280243Z test env_trace::tests::a_nul_cuts_the_name_and_value_the_host_keeps ... FAILED",
+        "2026-10-23T00:59:19.2287912Z test env_trace::tests::an_element_alias_reaches_the_host_only_from_9_0 ... FAILED",
+        "2026-10-23T00:59:19.5466304Z test env_trace::tests::child_interpreters_share_the_host_and_safe_ones_have_no_env ... FAILED",
+        "2026-10-23T00:59:19.6770690Z test env_trace::tests::a_resync_fires_and_drops_a_removed_elements_unset_traces ... ok"
+      ],
+      "matching_named_panic": false
+    },
+    {
+      "selector": "env_trace::tests::child_interpreters_share_the_host_and_safe_ones_have_no_env",
+      "terminal_line": 1763,
+      "context": [
+        "2026-10-23T00:59:18.8280243Z test env_trace::tests::a_nul_cuts_the_name_and_value_the_host_keeps ... FAILED",
+        "2026-10-23T00:59:19.2287912Z test env_trace::tests::an_element_alias_reaches_the_host_only_from_9_0 ... FAILED",
+        "2026-10-23T00:59:19.5466304Z test env_trace::tests::child_interpreters_share_the_host_and_safe_ones_have_no_env ... FAILED",
+        "2026-10-23T00:59:19.6770690Z test env_trace::tests::a_resync_fires_and_drops_a_removed_elements_unset_traces ... ok",
+        "2026-10-23T00:59:19.6772320Z test env_trace::tests::only_a_spelling_whose_tail_is_env_can_name_the_array_directly ... ok"
+      ],
+      "matching_named_panic": false
+    },
+    {
+      "selector": "env_trace::tests::every_kind_of_element_write_and_unset_reaches_the_host",
+      "terminal_line": 1766,
+      "context": [
+        "2026-10-23T00:59:19.6770690Z test env_trace::tests::a_resync_fires_and_drops_a_removed_elements_unset_traces ... ok",
+        "2026-10-23T00:59:19.6772320Z test env_trace::tests::only_a_spelling_whose_tail_is_env_can_name_the_array_directly ... ok",
+        "2026-10-23T00:59:19.7480634Z test env_trace::tests::every_kind_of_element_write_and_unset_reaches_the_host ... FAILED",
+        "2026-10-23T00:59:20.0552133Z test env_trace::tests::info_exists_runs_script_read_traces_and_swallows_their_errors ... ok",
+        "2026-10-23T00:59:20.1830403Z test env_trace::tests::reads_refresh_from_the_host_and_fail_when_it_has_no_such_variable ... FAILED"
+      ],
+      "matching_named_panic": false
+    },
+    {
+      "selector": "env_trace::tests::reads_refresh_from_the_host_and_fail_when_it_has_no_such_variable",
+      "terminal_line": 1768,
+      "context": [
+        "2026-10-23T00:59:19.7480634Z test env_trace::tests::every_kind_of_element_write_and_unset_reaches_the_host ... FAILED",
+        "2026-10-23T00:59:20.0552133Z test env_trace::tests::info_exists_runs_script_read_traces_and_swallows_their_errors ... ok",
+        "2026-10-23T00:59:20.1830403Z test env_trace::tests::reads_refresh_from_the_host_and_fail_when_it_has_no_such_variable ... FAILED",
+        "2026-10-23T00:59:20.2520567Z test env_trace::tests::rebinding_the_host_moves_the_trace_to_the_new_host ... FAILED",
+        "2026-10-23T00:59:20.5530568Z test env_trace::tests::the_home_directory_follows_env_home ... FAILED"
+      ],
+      "matching_named_panic": false
+    },
+    {
+      "selector": "env_trace::tests::rebinding_the_host_moves_the_trace_to_the_new_host",
+      "terminal_line": 1769,
+      "context": [
+        "2026-10-23T00:59:20.0552133Z test env_trace::tests::info_exists_runs_script_read_traces_and_swallows_their_errors ... ok",
+        "2026-10-23T00:59:20.1830403Z test env_trace::tests::reads_refresh_from_the_host_and_fail_when_it_has_no_such_variable ... FAILED",
+        "2026-10-23T00:59:20.2520567Z test env_trace::tests::rebinding_the_host_moves_the_trace_to_the_new_host ... FAILED",
+        "2026-10-23T00:59:20.5530568Z test env_trace::tests::the_home_directory_follows_env_home ... FAILED",
+        "2026-10-23T00:59:20.9183770Z test env_trace::tests::the_trace_is_invisible_and_runs_after_the_arrays_script_traces ... FAILED"
+      ],
+      "matching_named_panic": false
+    },
+    {
+      "selector": "env_trace::tests::the_home_directory_follows_env_home",
+      "terminal_line": 1770,
+      "context": [
+        "2026-10-23T00:59:20.1830403Z test env_trace::tests::reads_refresh_from_the_host_and_fail_when_it_has_no_such_variable ... FAILED",
+        "2026-10-23T00:59:20.2520567Z test env_trace::tests::rebinding_the_host_moves_the_trace_to_the_new_host ... FAILED",
+        "2026-10-23T00:59:20.5530568Z test env_trace::tests::the_home_directory_follows_env_home ... FAILED",
+        "2026-10-23T00:59:20.9183770Z test env_trace::tests::the_trace_is_invisible_and_runs_after_the_arrays_script_traces ... FAILED",
+        "2026-10-23T00:59:20.9192181Z test frame::destruction::tests::namespace_retirement_discards_only_the_selected_actual_root ... ok"
+      ],
+      "matching_named_panic": false
+    },
+    {
+      "selector": "env_trace::tests::the_trace_is_invisible_and_runs_after_the_arrays_script_traces",
+      "terminal_line": 1771,
+      "context": [
+        "2026-10-23T00:59:20.2520567Z test env_trace::tests::rebinding_the_host_moves_the_trace_to_the_new_host ... FAILED",
+        "2026-10-23T00:59:20.5530568Z test env_trace::tests::the_home_directory_follows_env_home ... FAILED",
+        "2026-10-23T00:59:20.9183770Z test env_trace::tests::the_trace_is_invisible_and_runs_after_the_arrays_script_traces ... FAILED",
+        "2026-10-23T00:59:20.9192181Z test frame::destruction::tests::namespace_retirement_discards_only_the_selected_actual_root ... ok",
+        "2026-10-23T00:59:20.9200689Z test frame::destruction::tests::search_keys_keep_undefined_members_and_selected_incarnation ... ok"
+      ],
+      "matching_named_panic": false
+    },
+    {
+      "selector": "env_trace::tests::variables_that_cannot_reach_env_keep_the_untraced_fast_path",
+      "terminal_line": 1775,
+      "context": [
+        "2026-10-23T00:59:20.9200689Z test frame::destruction::tests::search_keys_keep_undefined_members_and_selected_incarnation ... ok",
+        "2026-10-23T00:59:20.9208503Z test frame::destruction::tests::weak_search_tracks_native_invalidation_without_retaining_the_array ... ok",
+        "2026-10-23T00:59:21.0518871Z test env_trace::tests::variables_that_cannot_reach_env_keep_the_untraced_fast_path ... FAILED",
+        "2026-10-23T00:59:21.0863003Z test frame::jim_alias_publication::scalar_store_tests::original_jim_cached_scalar_store_retires_visible_old_role_before_assignment_and_checks_original_cell ... FAILED",
+        "2026-10-23T00:59:21.1100383Z test frame::jim_alias_publication::scalar_store_tests::original_jim_cached_static_scalar_store_and_link_recursion_keep_original_shared_cell_roles ... ok"
+      ],
+      "matching_named_panic": false
+    },
+    {
+      "selector": "env_trace::tests::unsetting_the_whole_array_leaves_the_host_alone_and_detaches_it",
+      "terminal_line": 1788,
+      "context": [
+        "2026-10-23T00:59:21.6390444Z test frame::jim_link_store::tests::captured_compatibility_root_retirement_stops_list_adoption_on_recreated_cell ... ok",
+        "2026-10-23T00:59:21.7130390Z test frame::jim_link_store::tests::captured_compatibility_link_publishes_before_retirement_outside_owner_borrows ... ok",
+        "2026-10-23T00:59:21.7700477Z test env_trace::tests::unsetting_the_whole_array_leaves_the_host_alone_and_detaches_it ... FAILED",
+        "2026-10-23T00:59:22.1280756Z test frame::materialisation_tests::original_array_search_requires_the_actual_captured_operation_receipt ... ok",
+        "2026-10-23T00:59:22.1750698Z test frame::materialisation_tests::original_search_chain_and_formal_availability_keep_their_selected_physical_roles ... FAILED"
+      ],
+      "matching_named_panic": false
+    }
+  ]
+}

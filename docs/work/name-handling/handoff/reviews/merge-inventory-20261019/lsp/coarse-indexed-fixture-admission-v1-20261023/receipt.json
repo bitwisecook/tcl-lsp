@@ -1,0 +1,11 @@
+{
+  "status": "OFF TREE, no Cargo/apply",
+  "scope": "One existing indexed coarse semantic token test fixture only; assertions unchanged",
+  "path": "rust/tcl-lsp-server/src/lib.rs",
+  "before_sha256": "daa7e038b161fd34bd29fa26e3062ba28cffa8c07e1fe06e30d9dd1e4ee070d7",
+  "proposed_sha256": "2e9cd7b7148d439c5ddbf7ee70494f418f22fd123f78e53433b6d47fbfa4ae1c",
+  "patch_sha256": "10c7bce0d6922d48fc1d586fb2b85b6d50f0c62ff2af640281228478ed4891b2",
+  "cause": "Fixture inserts DocumentState::new with path_admission None. read_document_at returns cloned document with authentic Some admission. Strict open_snapshot_matches then rejects Some vs liveNone. Production didOpen already stores actual admission. Repair stores genuine backend.document_path_admission on original fixture publication.",
+  "non_claim": "Independent from forty protocol coarse failures. No production guard change, no fake issuer/publication, no budget/assertion changes.",
+  "validation": "Pinnedfmt parent parse PASS; read-only applycheck follows; peer pending; Rust typing/runtime UNRUN"
+}

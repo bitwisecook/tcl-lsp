@@ -1,0 +1,24 @@
+{
+  "utc": "2026-10-23T02:01:52.244303+00:00",
+  "status": "OFFTREE DIAGNOSTIC ONLY; no repair, typecheck, Cargo, apply or authority change",
+  "paths": [
+    {
+      "path": "rust/tcl-compiler/src/command_binding/compiler_inventory.rs",
+      "before_sha256": "1f407335d340099efe7fcbe7e12962e052f7d63ff6e565604331711754ed7525",
+      "after_sha256": "27becd3cfa2f2c196a3207f7c5a3c638e12d6e3d545fb98872413a6756b68bb2"
+    },
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation/source_structure/original_body_syntax.rs",
+      "before_sha256": "08f0379f96395df2cf4139b092100a320f7881a045c8895eca64c27056cf56e6",
+      "after_sha256": "910905255be7a3cc3d64ce19b03bb3fd60e9e95b3a75f1bfcab63be0638efe8d"
+    }
+  ],
+  "env": {
+    "TCL_LSP_TRACE_BODY_SYNTAX": "1"
+  },
+  "scope": "existing pure getter/refusal states from actual body/compiler tokens; metadata only from authentic compiler syntax view, no fallback",
+  "patch_sha256": "30004055f1693ab04fb9f12ef6f5f2041bd5a36ad8b2747c4b0234234a7de1d1",
+  "rustfmt": "PASS pinned1.99.1 edition2024 skip_children parse/format only",
+  "peer_review": "compiler bounded static CLEAR 08975a455c403ccccb953f8f007dcfd001bce0ed4923b81ba7ebc12c96cea1b8; exact2pins/apply0, metadataCopy/ancestorprivatefields checked, diagnostic extra allocations/output not timing evidence",
+  "source_hold": "root fixedproduct compiler49v7 active; no apply until independently authorized later slot"
+}

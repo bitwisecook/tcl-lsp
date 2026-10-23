@@ -1,0 +1,32 @@
+[
+  {
+    "selector": "process_set_defines_variable",
+    "original_source": "set x 1\n",
+    "script": "set code [catch {set x 1\n} result]\nputs [list code $code result $result]\nputs [list x [set x]]\n",
+    "executable": "/workspace/naming-toolchains/bin/tclsh8.6",
+    "executable_sha256": "510e4222983400330693f2db9095ab69e05a1e2cc0e8c21efb8107e1d7b3b447",
+    "exit": 0,
+    "stdout": "code 0 result 1\nx 1\n",
+    "stderr": ""
+  },
+  {
+    "selector": "process_foreach_defines_loop_var",
+    "original_source": "foreach i {1 2 3} {puts $i}\n",
+    "script": "set code [catch {foreach i {1 2 3} {puts $i}\n} result]\nputs [list code $code result $result]\nputs [list i [set i]]\n",
+    "executable": "/workspace/naming-toolchains/bin/tclsh8.6",
+    "executable_sha256": "510e4222983400330693f2db9095ab69e05a1e2cc0e8c21efb8107e1d7b3b447",
+    "exit": 0,
+    "stdout": "1\n2\n3\ncode 0 result {}\ni 3\n",
+    "stderr": ""
+  },
+  {
+    "selector": "process_global_defines_each_name",
+    "original_source": "global x y\n",
+    "script": "set code [catch {global x y\n} result]\nputs [list code $code result $result]\nputs [list x_exists [info exists x] y_exists [info exists y]]\n",
+    "executable": "/workspace/naming-toolchains/bin/tclsh8.6",
+    "executable_sha256": "510e4222983400330693f2db9095ab69e05a1e2cc0e8c21efb8107e1d7b3b447",
+    "exit": 0,
+    "stdout": "code 0 result {}\nx_exists 0 y_exists 0\n",
+    "stderr": ""
+  }
+]

@@ -1,0 +1,20 @@
+{
+  "utc": "2026-10-23T02:06:40.917829+00:00",
+  "status": "OFFTREE fixture correction only; no source apply/Cargo/typecheck/run",
+  "path": "rust/tcl-compiler/src/analyser/commands.rs",
+  "before_sha256": "70b1be3eaa68e8d09dbf72f89e6b199573e7c8360cc8b6547ad6391e9bde9080",
+  "after_sha256": "819c5f23f771e058582f955e315a8ce8cf7af41abb1a25347446e9e21f07e3f0",
+  "patch_sha256": "0dc91208391721856022c72cc3fab238a6754cc89c5d2acaa64f5b644fe207fa",
+  "root_authorization": "correct raw process_command fixture only if authoritative original source missing, preserve every original assertion",
+  "cause": "raw Analyser::new/process_command fabricated tokens has no self.source/resolved_input/retained command attachment; handle_var_binding_command intentionally refuses absent original_diagnostic_call_at. process_command is segmented-command internal hook called from owning analysis, not standalone source parser",
+  "change": "same three original command cases through normal analyse; returned actual result restored to a.result so all4 original assert expressions remain byte-identical",
+  "preserved": [
+    "Test names and every original assertion byte-identical",
+    "No runtime/currentness/unknown/source/Native handler guard changed",
+    "global x/y source declarations are metadata, not claims of allocated Tcl variable cells: C8.6 shows no values created"
+  ],
+  "decision": "user-decisions-20261022T1317Z existing original loaded source/actual compiler visit decision; no new policy",
+  "peer_review": "compiler bounded static CLEAR a416298adeafaa44caee4e7ba181eb206de07be63d50ce9fc7245b003336c7b5; exactpins/apply0; runtime unrun",
+  "native_oracles": "native-oracles.json C8.6: setx1 and foreachi3 values; global success/no variable values; no analyser admission claim",
+  "rustfmt": "PASS pinned1.99.1 edition2024 skip_children=true --check"
+}

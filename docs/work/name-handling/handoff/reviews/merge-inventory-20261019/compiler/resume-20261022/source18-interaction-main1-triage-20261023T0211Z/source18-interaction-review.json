@@ -1,0 +1,37 @@
+{
+  "utc": "2026-10-23T02:10:28.369228+00:00",
+  "verdict": "BOUNDED STATIC CLEAR interaction scope only; full source18 typing/runtime UNRUN",
+  "combined_sha256": "9fdee598250abfa9f46b5972a76cab05d1efae93e5f65c8efbf8ee46146e84a1",
+  "composite_manifest_sha256": "269b0b429dc137f8428d02383d1c50d1555d23744019923648893268c15f90ba",
+  "examined": [
+    {
+      "components": "report13 vs numericEqNe1",
+      "finding": "Distinct compiler files. Numeric sameoperand/source/parser/handler guards unchanged, only equality complement arms. Report captures same production diagnostics after facts retained; no rewrite call added. Numeric source transformation does not donate owner pairs or change strict Eq."
+    },
+    {
+      "components": "report13 vs VMinterp1",
+      "finding": "VM change is C8.4 compilation-error publication through entered native operation currency/global error-info setters and counted append; no report/context/name-resolution file touched. Report equality remains advisory with no runtime failure publication authority."
+    },
+    {
+      "components": "report13 vs WASM ABI test1",
+      "finding": "WASM change confined test host/link ABI adapters and layout formatting. Report does not change codegen ABI/native symbols; no backend/host eligibility repaired by comparison."
+    },
+    {
+      "components": "report13 vs server Unpin1",
+      "finding": "Generic worker result adds explicit Unpin compile-time bound only, no completed-source inventory/readonly currentness/rendering join change. New report API not wired to worker/cache/server by composite."
+    },
+    {
+      "components": "report13 vs SpecTcl test1",
+      "finding": "Separate consumer recursion_limit256 controls compile auto-trait budget; no source body census, report policy, runtime stack or fixtures changed."
+    },
+    {
+      "components": "whole18",
+      "finding": "All13 report finalhashes exactly immutablev7. Six reviewed components occupy18 distinct paths; global AnalysisResult Eq/oldcountguard/cache/Native/Normal/quiet remain unchanged. Ordinary Analyser request defaultsNone, capture activates only explicit reportrequest."
+    }
+  ],
+  "limits": [
+    "No Rust typing proof of combined18",
+    "No full90field/12subject usability/oldmixed/hosted/performance proof",
+    "No zero regression or shipping gate clearance"
+  ]
+}

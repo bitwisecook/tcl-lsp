@@ -2,11 +2,94 @@
 
 Area: tcl-vm, runtime/rust, tcl-spectcl, tcl-spec-studio: SpecTcl execution and acceptance.
 
-Last updated: 2026-10-23T01:36:02.806087+00:00 (compositionv3 interp580d confirmed; existing reviewed plans exact; no Cargo)
+Last updated: 2026-10-23T02:17:51.005895+00:00 (native15v6 peer CLEAR archived; ready/unrun/notqueued; source HOLD)
 
 Maintained by the vm-runtime agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## Resume
+
+Native15 exact immutable v6 peer CLEAR bounded: plan69b5c303, suite51087f14,
+launcher45a51134, runsh6b21b64c, manifest2cbf9db5, executor88125. Receipt
+`vm-runtime/protocols/direct-lifecycle-20261023/native15-v6-static-review.txt`
+SHA31ee0451. V5 had been mutated after reportedpins; old51c reviewed bytes
+were losslessly restored and verified. V6 only changes directory identities
+and BaseException/finally explicitexit flow versus those restored bytes.
+Original15/12pins, added151c/all18 hashes, strict warning/exactartifact/
+percommit/durableguards and20,000,000B/2.3GB/180s+inner30 retained.
+Frozen v6 protocols+restored51c+peerreceipt archived lossless under same
+owned directory: native15-v6-manifest.txt SHA1f4a3a02, roundtrip verified.
+READY/unrun/NOTQUEUED, noGO. No SectionD/runtime acceptance. No runner,
+launcher, provider, Git, Cargo or source invoked by VM.
+
+
+Native15 v4 bounded static review NOT CLEAR; CCG preparing immutable v5.
+Four concrete gaps: no Cargo/compiler/buildscript/stderr warning admission,
+incomplete Cargo artifact kind/manifest/profile filters for test/server, no
+durable failure/finalguard/unlock record, docs-only descendant check uses
+netdiff rather than percommit. Original15 and original12+source_views151c
+pins remain exact (13 total), executor88125 unchanged. NoGO/no run. Review
+receipt `vm-runtime/protocols/direct-lifecycle-20261023/native15-v4-static-review.txt`
+SHA48918bd4. v4 is historical unapproved draft, not accepted execution plan.
+V5 must retain original20,000,000B/2.3GB/180s+inner30 and exactpost18 gates.
+
+
+Seven-package typecheck immutable v2 peer CLEAR bounded: plan427f4587,
+suite7c70a767, launcher21393272, manifest7b2f2ffa, executor88125. Review
+receipt `vm-runtime/protocols/direct-lifecycle-20261023/seven-package-v2-static-review.txt`
+SHA0f08675d. Exact18/input checks now repeat beforelock, lockedprespawn and
+postprocess; providers repeat prespawn/final; recursive warnings and exactly
+one successful buildfinished required; durable failure/unlock flow reviewed.
+All manifest hashes/AST/exact7 packages checked, GO absent. v1 was mutated
+during prep after initial review and is superseded, exactoldbytes unavailable
+per owner; v2 review covers fresh exactbytes only. No runner/launcher/provider/
+Cargo/lock invoked. VM full4/noTom16 protocols remain READY/unrun/NOTQUEUED
+under source HOLD; no actual shared16-cause attribution beyond scopedcatch.
+
+
+VM full4v2/noTom16v3 lifecycle protocols independently peer CLEAR, READY but
+UNRUN and NOT QUEUED, source HOLD. Frozen exact protocols+peer receipts archived
+losslessly under `vm-runtime/protocols/direct-lifecycle-20261023/`: manifest.txt
+abd1cd8b,29 logical files/23 gzip blobs, roundtrip verified; no .rs source files.
+Raw CI exact16 cause inspection there (`09605d9d`) confirms16 terminalFAIL,
+zero harness failure sections/zero named16 panics; only2 panic sites belong to
+baseline-absent alias abort. No shared actual cause beyond separately scoped
+catch is available from this log; no fallback or parity expansion.
+
+Seven-package typecheck runner v1 static peer NOT CLEAR: source_view only
+prelock, no exact18/runner/plan revalidation before direct spawn/final; parser
+omits build-script warning arrays and explicit build-finished success; provider
+exception paths lack durable final failure/unlock markers. Concrete immutable
+successor corrections sent to Luna; review receipt in same protocol archive.
+No runner/launcher/provider/Cargo/lock/test invoked by VM.
+
+
+VM independently reviewed CCG direct3 post18 v2 clear bounded: receipt
+`/tmp/vm-review-ccg-post18-direct3-v2.json` SHA4ca28d7f. v1's fixed3b1
+source boundary could not admit actual post18 product integration; v2 root GO
+pins exact approved integrated HEAD/tree descended from baseline3b1, then
+permits only docs descendants/worktree deltas, plus report14/typecheck evidence
+path+SHA. Original3/fivepins/36legacyinputs and executor88125 retained.
+No runner/launcher/provider/Cargo invoked. Reciprocal independent review of
+VM full4v2/noTom16v3 lifecycle wrappers is pending; no GO or build queue.
+
+
+Lifecycle audit found predecessor Capture.run reaps parent through poll(),
+misses silent descendants after EOF and has unbounded cleanup after SIGKILL.
+Old full4v1/noTom16v2 are preserved but MUST NOT RUN for future execution.
+Immutable successors use unchanged root-reviewed direct executor88125bd5:
+full4 `/tmp/vm-runtime-c84-catch4-postfix-v2-lifecycle/` plan a2c5f455,
+runner94f68b03, manifestd82d4452; noTom16
+`/tmp/vm-runtime-ci5206-notommath16-v3-lifecycle/` plan3cb1decb,
+runner9910987b, manifest4e8a30b9. Absolute pinned Cargo build3600 is separate
+from each180s exact selector; shared20MiB remaining budget, actual mount2GiB,
+all stops/incomplete cleanup fail closed. Executor retains parent WNOWAIT/start
+ticks, requires2 complete empty group scans, bounds cleanup20s. Durable
+filebacked launcher and runner both require GO-pinned immutable manifests;
+no GO prepared. Same exact4/16, engine/full vs default/noengine/noTommath
+contracts, source pins, original assertions and fullguards remain. NoTommath
+zero_warning_claim remainsFalse. CCG independent wrapper/launcher review
+pending; no launch/runner/lock/provider/Cargo/test/sourcewrite/queue occurred.
+
 
 Corrected composition v3 independently confirmed: runtime interp bytes are
 EXACTLY original semantic candidate580d73c0, actual edition2021 format no-op.

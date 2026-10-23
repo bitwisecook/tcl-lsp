@@ -1,0 +1,7 @@
+{
+  "status": "PASS no-GO launcher refusal",
+  "utc": "2026-10-23T02:05:45.262085+00:00",
+  "cargo_started": false,
+  "runner_started": false,
+  "reason": "root-go.json absent"
+}

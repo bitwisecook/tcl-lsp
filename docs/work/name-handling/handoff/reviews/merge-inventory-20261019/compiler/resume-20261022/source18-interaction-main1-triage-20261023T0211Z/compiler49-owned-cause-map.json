@@ -1,0 +1,301 @@
+{
+  "utc": "2026-10-23T02:10:28.369228+00:00",
+  "plan_sha256": "0cb62fcdba2a9f24e5578ada9123e8fe9e195a1e7cd0f0cb1479ea2a19542313",
+  "filters": 36,
+  "selected": 49,
+  "rows": [
+    {
+      "ordinal": 1,
+      "selector": "command_binding::conditional_expression_tests::conditional_expression_template_retains_grammar_without_actual_entry",
+      "expected_selected": 1,
+      "family": "C6/G4",
+      "expected_cause_scope": "Integrated narrow13:17 first6 reached/target expectation correction; actual owner/visit unchanged, later independent Native/Normal guards must still run.",
+      "status": "UNRUN snapshot; active49 build no results.json observed"
+    },
+    {
+      "ordinal": 2,
+      "selector": "command_binding::declaration_layout::tests::declaration_layout_keeps_its_original_table_without_a_compiler_visit",
+      "expected_selected": 1,
+      "family": "C6/G4",
+      "expected_cause_scope": "Integrated narrow13:17 first6 reached/target expectation correction; actual owner/visit unchanged, later independent Native/Normal guards must still run.",
+      "status": "UNRUN snapshot; active49 build no results.json observed"
+    },
+    {
+      "ordinal": 3,
+      "selector": "command_binding::expression_preparation::tests::scoped_nested_normalisation_keeps_original_world_frame_and_source",
+      "expected_selected": 1,
+      "family": "C6/G4",
+      "expected_cause_scope": "Integrated narrow13:17 first6 reached/target expectation correction; actual owner/visit unchanged, later independent Native/Normal guards must still run.",
+      "status": "UNRUN snapshot; active49 build no results.json observed"
+    },
+    {
+      "ordinal": 4,
+      "selector": "command_binding::expression_preparation::tests::selected_nested_normalisation_projects_actual_operand_and_command_source",
+      "expected_selected": 1,
+      "family": "C6/G4",
+      "expected_cause_scope": "Integrated narrow13:17 first6 reached/target expectation correction; actual owner/visit unchanged, later independent Native/Normal guards must still run.",
+      "status": "UNRUN snapshot; active49 build no results.json observed"
+    },
+    {
+      "ordinal": 5,
+      "selector": "command_binding::lifecycle_advice::tests::scoped_lifecycle_coverage_keeps_declared_issuer_frame_and_original_source",
+      "expected_selected": 1,
+      "family": "C6/G4",
+      "expected_cause_scope": "Integrated narrow13:17 first6 reached/target expectation correction; actual owner/visit unchanged, later independent Native/Normal guards must still run.",
+      "status": "UNRUN snapshot; active49 build no results.json observed"
+    },
+    {
+      "ordinal": 6,
+      "selector": "command_binding::normal_result::tests::scoped_procedure_equivalence_keeps_independent_world_and_completion_obligations",
+      "expected_selected": 1,
+      "family": "C6/G4",
+      "expected_cause_scope": "Integrated narrow13:17 first6 reached/target expectation correction; actual owner/visit unchanged, later independent Native/Normal guards must still run.",
+      "status": "UNRUN snapshot; active49 build no results.json observed"
+    },
+    {
+      "ordinal": 7,
+      "selector": "command_binding::original_body_namespace::tests::original_immediate_body_namespace_keeps_actual_native_conditional_and_error_prefix",
+      "expected_selected": 1,
+      "family": "source namespace/import",
+      "expected_cause_scope": "Prior failure at broad executed namespace/closed original namespace allocation; readonly source selection must not fabricate Native/error context.",
+      "status": "UNRUN snapshot; active49 build no results.json observed"
+    },
+    {
+      "ordinal": 8,
+      "selector": "command_binding::source_command_world::tests::original_namespace_import_keeps_the_source_declaration_allocation",
+      "expected_selected": 1,
+      "family": "source namespace/import",
+      "expected_cause_scope": "Prior failure at broad executed namespace/closed original namespace allocation; readonly source selection must not fabricate Native/error context.",
+      "status": "UNRUN snapshot; active49 build no results.json observed"
+    },
+    {
+      "ordinal": 9,
+      "selector": "command_binding::compiler_inventory::original_inline_control_source_tests::original_compiler_syntax_keeps_the_actual_input_and_vector_owner",
+      "expected_selected": 1,
+      "family": "C6 syntax owner",
+      "expected_cause_scope": "Actual compiler whole-input/analysis owner and changed BOM refusal; no source-Arc-only ownership shortcut.",
+      "status": "UNRUN snapshot; active49 build no results.json observed"
+    },
+    {
+      "ordinal": 10,
+      "selector": "command_binding::conditional_source::region::controls::",
+      "expected_selected": 3,
+      "family": "N13",
+      "expected_cause_scope": "Prior actual chain/point/region/frontier producer None/Unknown; integrated authentic inherited/current point/full input/body selection repairs await actual results; foreign/purpose/withdrawal guards stay strict.",
+      "status": "UNRUN snapshot; active49 build no results.json observed"
+    },
+    {
+      "ordinal": 11,
+      "selector": "command_binding::conditional_source::region::sequential_controls::",
+      "expected_selected": 2,
+      "family": "N13",
+      "expected_cause_scope": "Prior actual chain/point/region/frontier producer None/Unknown; integrated authentic inherited/current point/full input/body selection repairs await actual results; foreign/purpose/withdrawal guards stay strict.",
+      "status": "UNRUN snapshot; active49 build no results.json observed"
+    },
+    {
+      "ordinal": 12,
+      "selector": "command_binding::source_point_entry::tests::source_point_allocator_compares_same_owner_actual_point_snapshots",
+      "expected_selected": 1,
+      "family": "N13",
+      "expected_cause_scope": "Prior actual chain/point/region/frontier producer None/Unknown; integrated authentic inherited/current point/full input/body selection repairs await actual results; foreign/purpose/withdrawal guards stay strict.",
+      "status": "UNRUN snapshot; active49 build no results.json observed"
+    },
+    {
+      "ordinal": 13,
+      "selector": "registry_invocation::source_structure::source_load::frontier::controls::",
+      "expected_selected": 11,
+      "family": "N13",
+      "expected_cause_scope": "Prior actual chain/point/region/frontier producer None/Unknown; integrated authentic inherited/current point/full input/body selection repairs await actual results; foreign/purpose/withdrawal guards stay strict.",
+      "status": "UNRUN snapshot; active49 build no results.json observed"
+    },
+    {
+      "ordinal": 14,
+      "selector": "command_binding::conditional_source::finite_cut_controls::a_genuine_point_cannot_replace_a_withdrawn_finite_plan",
+      "expected_selected": 1,
+      "family": "N13",
+      "expected_cause_scope": "Prior actual chain/point/region/frontier producer None/Unknown; integrated authentic inherited/current point/full input/body selection repairs await actual results; foreign/purpose/withdrawal guards stay strict.",
+      "status": "UNRUN snapshot; active49 build no results.json observed"
+    },
+    {
+      "ordinal": 15,
+      "selector": "command_binding::source_point_entry::unavailable_entry_reborrow_controls::source_entry_reborrow_refuses_unavailable_ordinary_and_unknown_history",
+      "expected_selected": 1,
+      "family": "N13",
+      "expected_cause_scope": "Prior actual chain/point/region/frontier producer None/Unknown; integrated authentic inherited/current point/full input/body selection repairs await actual results; foreign/purpose/withdrawal guards stay strict.",
+      "status": "UNRUN snapshot; active49 build no results.json observed"
+    },
+    {
+      "ordinal": 16,
+      "selector": "command_binding::source_transition_advice::source_point::conditional_region_purpose_controls::conditional_region_purpose_refuses_a_genuine_whole_child",
+      "expected_selected": 1,
+      "family": "N13",
+      "expected_cause_scope": "Prior actual chain/point/region/frontier producer None/Unknown; integrated authentic inherited/current point/full input/body selection repairs await actual results; foreign/purpose/withdrawal guards stay strict.",
+      "status": "UNRUN snapshot; active49 build no results.json observed"
+    },
+    {
+      "ordinal": 17,
+      "selector": "command_binding::source_transition_advice::source_point::conditional_region_purpose_controls::complete_program_purpose_refuses_a_genuine_conditional_region",
+      "expected_selected": 1,
+      "family": "N13",
+      "expected_cause_scope": "Prior actual chain/point/region/frontier producer None/Unknown; integrated authentic inherited/current point/full input/body selection repairs await actual results; foreign/purpose/withdrawal guards stay strict.",
+      "status": "UNRUN snapshot; active49 build no results.json observed"
+    },
+    {
+      "ordinal": 18,
+      "selector": "command_binding::conditional_source::region::foreign_completed_region_controls::return_outcome_refuses_a_byte_equal_foreign_completed_region_owner",
+      "expected_selected": 1,
+      "family": "N13",
+      "expected_cause_scope": "Prior actual chain/point/region/frontier producer None/Unknown; integrated authentic inherited/current point/full input/body selection repairs await actual results; foreign/purpose/withdrawal guards stay strict.",
+      "status": "UNRUN snapshot; active49 build no results.json observed"
+    },
+    {
+      "ordinal": 19,
+      "selector": "command_binding::conditional_source::region::declaration_dependency_controls::region_call_joins_only_the_actual_completed_child_declaration_owner",
+      "expected_selected": 1,
+      "family": "N13",
+      "expected_cause_scope": "Prior actual chain/point/region/frontier producer None/Unknown; integrated authentic inherited/current point/full input/body selection repairs await actual results; foreign/purpose/withdrawal guards stay strict.",
+      "status": "UNRUN snapshot; active49 build no results.json observed"
+    },
+    {
+      "ordinal": 20,
+      "selector": "registry_invocation::source_structure::original_body_syntax::tests::body_syntax_inventory_cannot_borrow_an_equal_foreign_analysis",
+      "expected_selected": 1,
+      "family": "LSP compiler source-owner guards",
+      "expected_cause_scope": "Owner/request/leaf/token/dialect refusal controls; no shared-report equality or new source authority.",
+      "status": "UNRUN snapshot; active49 build no results.json observed"
+    },
+    {
+      "ordinal": 21,
+      "selector": "analyser::types::original_body_syntax_request_tests::equal_source_and_same_realm_do_not_replace_body_inventory_request",
+      "expected_selected": 1,
+      "family": "LSP compiler source-owner guards",
+      "expected_cause_scope": "Owner/request/leaf/token/dialect refusal controls; no shared-report equality or new source authority.",
+      "status": "UNRUN snapshot; active49 build no results.json observed"
+    },
+    {
+      "ordinal": 22,
+      "selector": "command_binding::original_literal_argv_rewrite::tests::original_boolean_inversion_retains_leaf_and_dispatch_owners",
+      "expected_selected": 1,
+      "family": "LSP compiler source-owner guards",
+      "expected_cause_scope": "Owner/request/leaf/token/dialect refusal controls; no shared-report equality or new source authority.",
+      "status": "UNRUN snapshot; active49 build no results.json observed"
+    },
+    {
+      "ordinal": 23,
+      "selector": "command_binding::original_literal_argv_rewrite::tests::original_boolean_inversion_checks_leaf_token_coordinates",
+      "expected_selected": 1,
+      "family": "LSP compiler source-owner guards",
+      "expected_cause_scope": "Owner/request/leaf/token/dialect refusal controls; no shared-report equality or new source authority.",
+      "status": "UNRUN snapshot; active49 build no results.json observed"
+    },
+    {
+      "ordinal": 24,
+      "selector": "command_binding::original_literal_argv_rewrite::tests::original_boolean_inversion_retains_selected_version_floor",
+      "expected_selected": 1,
+      "family": "LSP compiler source-owner guards",
+      "expected_cause_scope": "Owner/request/leaf/token/dialect refusal controls; no shared-report equality or new source authority.",
+      "status": "UNRUN snapshot; active49 build no results.json observed"
+    },
+    {
+      "ordinal": 25,
+      "selector": "registry_invocation::authored_simulation_structure_controls::authored_simulation_case_structure_retains_source_purpose_without_native_frame",
+      "expected_selected": 1,
+      "family": "RBS authored source structure",
+      "expected_cause_scope": "Prior opaque-switch source AuthoredSimulation missing structured handler/owned declaration/inline selection before Native branch. New distinct authored source-purpose selection should preserve generic visitation and refuse Native frame.",
+      "status": "UNRUN snapshot; active49 build no results.json observed"
+    },
+    {
+      "ordinal": 26,
+      "selector": "registry_invocation::authored_simulation_structure_controls::authored_simulation_case_structure_refuses_unknown_shadowed_and_dynamic_source",
+      "expected_selected": 1,
+      "family": "RBS authored source structure",
+      "expected_cause_scope": "Prior opaque-switch source AuthoredSimulation missing structured handler/owned declaration/inline selection before Native branch. New distinct authored source-purpose selection should preserve generic visitation and refuse Native frame.",
+      "status": "UNRUN snapshot; active49 build no results.json observed"
+    },
+    {
+      "ordinal": 27,
+      "selector": "command_binding::source_transition_advice::source_point::nested_source_point_controls::nested_namespace_point_uses_the_selected_body_graph_without_normal_or_native_grants",
+      "expected_selected": 1,
+      "family": "N13",
+      "expected_cause_scope": "Prior actual chain/point/region/frontier producer None/Unknown; integrated authentic inherited/current point/full input/body selection repairs await actual results; foreign/purpose/withdrawal guards stay strict.",
+      "status": "UNRUN snapshot; active49 build no results.json observed"
+    },
+    {
+      "ordinal": 28,
+      "selector": "command_binding::source_point_entry::tests::inherited_source_selection_retains_names_without_native_compiler_admission",
+      "expected_selected": 1,
+      "family": "N13",
+      "expected_cause_scope": "Prior actual chain/point/region/frontier producer None/Unknown; integrated authentic inherited/current point/full input/body selection repairs await actual results; foreign/purpose/withdrawal guards stay strict.",
+      "status": "UNRUN snapshot; active49 build no results.json observed"
+    },
+    {
+      "ordinal": 29,
+      "selector": "source::phase::tests::losing_a_selected_command_never_proves_an_empty_policy_or_map_inventory",
+      "expected_selected": 1,
+      "family": "BPF source-purpose observer",
+      "expected_cause_scope": "Exact existing losing-selected-command inventory control; actual BPF001 frontend missing retained selection is compiler/CCG owner, not VM.",
+      "status": "UNRUN snapshot; active49 build no results.json observed"
+    },
+    {
+      "ordinal": 30,
+      "selector": "analyser::diagnostics::fp::rbs::fp_rbs_15_all_break_switch_not_a_proc_terminator",
+      "expected_selected": 1,
+      "family": "RBS authored source structure",
+      "expected_cause_scope": "Prior opaque-switch source AuthoredSimulation missing structured handler/owned declaration/inline selection before Native branch. New distinct authored source-purpose selection should preserve generic visitation and refuse Native frame.",
+      "status": "UNRUN snapshot; active49 build no results.json observed"
+    },
+    {
+      "ordinal": 31,
+      "selector": "analyser::diagnostics::fp::rbs::fp_rbs_15_while1_break_in_opaque_switch_exits_loop",
+      "expected_selected": 1,
+      "family": "RBS authored source structure",
+      "expected_cause_scope": "Prior opaque-switch source AuthoredSimulation missing structured handler/owned declaration/inline selection before Native branch. New distinct authored source-purpose selection should preserve generic visitation and refuse Native frame.",
+      "status": "UNRUN snapshot; active49 build no results.json observed"
+    },
+    {
+      "ordinal": 32,
+      "selector": "analyser::diagnostics::tests::fp_rbs_15_all_exiting_opaque_switch_is_a_terminator",
+      "expected_selected": 1,
+      "family": "RBS authored source structure",
+      "expected_cause_scope": "Prior opaque-switch source AuthoredSimulation missing structured handler/owned declaration/inline selection before Native branch. New distinct authored source-purpose selection should preserve generic visitation and refuse Native frame.",
+      "status": "UNRUN snapshot; active49 build no results.json observed"
+    },
+    {
+      "ordinal": 33,
+      "selector": "registry_invocation::source_remote_first_operand::tests::intrinsic_conditional_refuses_source_effect_and_transition_overrides",
+      "expected_selected": 1,
+      "family": "ILX firstoperand",
+      "expected_cause_scope": "Current fac707 issuer stops at first remote call, refuses prior opaque/observer/write/control/source-effect changes; no later association resurrection.",
+      "status": "UNRUN snapshot; active49 build no results.json observed"
+    },
+    {
+      "ordinal": 34,
+      "selector": "registry_invocation::source_remote_first_operand::tests::first_remote_operand_retains_exact_source_owners_and_stops_at_the_call",
+      "expected_selected": 1,
+      "family": "ILX firstoperand",
+      "expected_cause_scope": "Current fac707 issuer stops at first remote call, refuses prior opaque/observer/write/control/source-effect changes; no later association resurrection.",
+      "status": "UNRUN snapshot; active49 build no results.json observed"
+    },
+    {
+      "ordinal": 35,
+      "selector": "registry_invocation::source_remote_first_operand::tests::first_remote_operand_preserves_supported_true_same_frame_source_body",
+      "expected_selected": 1,
+      "family": "ILX firstoperand",
+      "expected_cause_scope": "Current fac707 issuer stops at first remote call, refuses prior opaque/observer/write/control/source-effect changes; no later association resurrection.",
+      "status": "UNRUN snapshot; active49 build no results.json observed"
+    },
+    {
+      "ordinal": 36,
+      "selector": "registry_invocation::source_remote_first_operand::tests::first_remote_operand_withdraws_opaque_observer_write_and_foreign_body_paths",
+      "expected_selected": 1,
+      "family": "ILX firstoperand",
+      "expected_cause_scope": "Current fac707 issuer stops at first remote call, refuses prior opaque/observer/write/control/source-effect changes; no later association resurrection.",
+      "status": "UNRUN snapshot; active49 build no results.json observed"
+    }
+  ],
+  "not_selected": [
+    "Original FP-SH family selectors are not present in this exact49 roster; no SH acceptance implied",
+    "Original FP-TNT-03 direct interp taint selector not present; prior result/provenance separate, no TNT acceptance implied"
+  ],
+  "policy": "Expected causes are attribution hypotheses only. Actual guarded results override. No assertion/count/unknown relaxation."
+}

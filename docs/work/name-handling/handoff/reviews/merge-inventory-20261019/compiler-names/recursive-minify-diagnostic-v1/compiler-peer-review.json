@@ -1,0 +1,21 @@
+{
+  "utc": "2026-10-23T02:04:05.717687+00:00",
+  "reviewer": "compiler",
+  "verdict": "BOUNDED STATIC CLEAR diagnostic-only; typing/runtime UNRUN",
+  "patch_sha256": "30004055f1693ab04fb9f12ef6f5f2041bd5a36ad8b2747c4b0234234a7de1d1",
+  "checks": [
+    "Exact2current beforepins and canonical read-only applycheck0",
+    "Metadata comes only from actual original_compiler_argument_syntax; no declaration/runtime fallback",
+    "InvocationMetadataContext returns Copy value; repeated Option metadata map/zip calls preserve lifetime/borrows",
+    "New method in child command_binding module may access ancestor binding/advice fields; called pure queries already crate-visible",
+    "Trace guarded debug_assertions and env; no original branch/guard/assertion changed; candidates logged before existing duplicate/summary refusal without dropping refusal",
+    "Source-vs-runtime facts recorded independently; missing syntax means preexisting refusal, never zero compiler visitation",
+    "Exact5 existing selectors5tests; source/provider/artifact180s/disk/log/ownedchild guards must still be supplied by later root-reviewed launcher"
+  ],
+  "limits": [
+    "Pure-query extra allocations and output can affect timings; diagnostic only, no performance acceptance",
+    "No Rust typing/access proof beyond bounded static inspection and names pinnedfmt parse",
+    "No source integration/Cargo while49active, later probe only root slot",
+    "No Native/compiler entry/Normal/handler/quiet grant or speculative repair"
+  ]
+}

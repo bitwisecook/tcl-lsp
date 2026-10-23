@@ -1,0 +1,863 @@
+{
+  "job_id": 120175508112,
+  "input_bytes": 322365,
+  "input_sha256": "6937daabea9a8e127560249938493cfcfe069eac56dd2b54249d29beb2de63a1",
+  "gzip_path": "heavy-120175508112.decoded-content.log.gz",
+  "gzip_sha256": "2a9baa14fec3ea2192f4c66d8cc74480922bf1c56cdddb001d29a0d2f732a1a6",
+  "gzip_byte_exact_verified": true,
+  "phase": "RUNTIME EXECUTED; not build/list failure",
+  "compile_errors_observed": [],
+  "starting_lines": [
+    "2026-10-23T00:56:19.6793147Z     Starting 354 tests across 21 binaries"
+  ],
+  "summary_lines": [
+    "2026-10-23T01:45:23.7655208Z      Summary [2944.087s] 354 tests run: 312 passed (4 slow), 42 failed, 0 skipped"
+  ],
+  "unique_outcome_counts": {
+    "PASS": 312,
+    "FAIL": 42
+  },
+  "unique_terminal_records": 354,
+  "duplicate_terminal_lines_deduplicated": 42,
+  "duplicate_status_conflicts": [],
+  "reporter_ordinals": {
+    "unique": 354,
+    "min": 1,
+    "max": 354
+  },
+  "baseline_join_counts": {
+    "matched_passes": 293,
+    "regressions": 18,
+    "extra_current_passes": 19,
+    "unmatched_current_nonpass": 24,
+    "duplicates": 0
+  },
+  "failed_selectors": [
+    {
+      "binary_id": "f5-cli::cli",
+      "selector": "mutating_queries_require_faithful_named_and_structured_donors",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 35,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.064s",
+      "source_line": 819
+    },
+    {
+      "binary_id": "f5-cli::cli",
+      "selector": "query_archive_file_donors_keep_original_bytes_before_mutation",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 36,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.070s",
+      "source_line": 851
+    },
+    {
+      "binary_id": "f5-cli::cli",
+      "selector": "source_transforms_refuse_invalid_name_bytes_before_artifacts",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 37,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.227s",
+      "source_line": 883
+    },
+    {
+      "binary_id": "f5-cli",
+      "selector": "commands::explain::source_event_tests::source_event_report_separates_owned_empty_and_unavailable",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 39,
+      "reporter_total": 354,
+      "seconds_as_rendered": "1.744s",
+      "source_line": 918
+    },
+    {
+      "binary_id": "f5-cli::cli",
+      "selector": "explain_virtual_text",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 45,
+      "reporter_total": 354,
+      "seconds_as_rendered": "14.297s",
+      "source_line": 961
+    },
+    {
+      "binary_id": "f5-cli::cli",
+      "selector": "explain_virtual_json",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 49,
+      "reporter_total": 354,
+      "seconds_as_rendered": "14.673s",
+      "source_line": 1004
+    },
+    {
+      "binary_id": "f5-cli::explain_flow",
+      "selector": "simulate_runs_irule_and_selects_pool",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 64,
+      "reporter_total": 354,
+      "seconds_as_rendered": "120.362s",
+      "source_line": 1062
+    },
+    {
+      "binary_id": "f5-cli::explain_flow",
+      "selector": "simulate_json_populates_simulated_fields",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 67,
+      "reporter_total": 354,
+      "seconds_as_rendered": "120.978s",
+      "source_line": 1141
+    },
+    {
+      "binary_id": "f5-cli::irule",
+      "selector": "trace_keeps_data_group_from_braced_expression_command",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 71,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.236s",
+      "source_line": 1423
+    },
+    {
+      "binary_id": "f5-cli::irule",
+      "selector": "trace_uses_the_event_closure_not_the_first_handler_body",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 72,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.242s",
+      "source_line": 1461
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "bpf_diff::tests::tn_zero_selected_byte_is_the_socket_filter_drop_verdict",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 184,
+      "reporter_total": 354,
+      "seconds_as_rendered": "1.733s",
+      "source_line": 1613
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "bpf_diff::tests::tp_real_ebpf_program_returns_the_selected_packet_byte",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 185,
+      "reporter_total": 354,
+      "seconds_as_rendered": "1.735s",
+      "source_line": 1649
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::original_projection_tests::original_live_result_projection_keeps_strict_bytes_earlier_eval_cause_and_next_entry",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 301,
+      "reporter_total": 354,
+      "seconds_as_rendered": "116.256s",
+      "source_line": 1806
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::authored_functions_keep_independent_worker_random_and_precision_contexts",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 302,
+      "reporter_total": 354,
+      "seconds_as_rendered": "112.957s",
+      "source_line": 1844
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::embedded_session_scenarios",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 303,
+      "reporter_total": 354,
+      "seconds_as_rendered": "112.870s",
+      "source_line": 1881
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::event_errors_preserve_cells_and_restore_worker_rule_activation",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 304,
+      "reporter_total": 354,
+      "seconds_as_rendered": "113.761s",
+      "source_line": 1922
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::event_frames_preserve_cells_aliases_and_traces",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 305,
+      "reporter_total": 354,
+      "seconds_as_rendered": "113.450s",
+      "source_line": 1959
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::harness_runs_the_tmm_84_surface",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 306,
+      "reporter_total": 354,
+      "seconds_as_rendered": "117.620s",
+      "source_line": 1997
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::irule_source_rewrite_only_touches_command_positions",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 307,
+      "reporter_total": 354,
+      "seconds_as_rendered": "115.557s",
+      "source_line": 2038
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::itest_loader_event_registration_matches_rust_when_blocks",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 308,
+      "reporter_total": 354,
+      "seconds_as_rendered": "118.622s",
+      "source_line": 2075
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::live_session_class_match_honours_every_operator",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 309,
+      "reporter_total": 354,
+      "seconds_as_rendered": "114.856s",
+      "source_line": 2113
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::live_session_drives_the_request_lifecycle",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 310,
+      "reporter_total": 354,
+      "seconds_as_rendered": "118.757s",
+      "source_line": 2154
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::measured_counted_lengths_keep_dynamic_bytes_and_literal_strings_separate_from_host",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 311,
+      "reporter_total": 354,
+      "seconds_as_rendered": "118.700s",
+      "source_line": 2191
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::measured_event_names_enter_the_actual_connection_frame_and_restore_policy",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 312,
+      "reporter_total": 354,
+      "seconds_as_rendered": "115.317s",
+      "source_line": 2229
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::measured_rule_lookup_uses_partition_root_and_keeps_activated_callables",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 314,
+      "reporter_total": 354,
+      "seconds_as_rendered": "110.709s",
+      "source_line": 2271
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::measured_loader_checks_original_source_and_keeps_dynamic_runtime_commands",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 315,
+      "reporter_total": 354,
+      "seconds_as_rendered": "114.007s",
+      "source_line": 2308
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::named_rules_keep_procedures_owned_and_route_call_without_extra_frames",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 316,
+      "reporter_total": 354,
+      "seconds_as_rendered": "113.519s",
+      "source_line": 2346
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::retained_event_frame_preserves_native_completion_options",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 317,
+      "reporter_total": 354,
+      "seconds_as_rendered": "116.566s",
+      "source_line": 2387
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::native_completion_capabilities_do_not_expand_the_user_grammar",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 318,
+      "reporter_total": 354,
+      "seconds_as_rendered": "117.195s",
+      "source_line": 2424
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::rule_creation_and_recreation_initialise_only_the_owned_rule_on_four_workers",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 319,
+      "reporter_total": 354,
+      "seconds_as_rendered": "116.797s",
+      "source_line": 2462
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::scf_loader_stores_parsed_snatpool_members",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 320,
+      "reporter_total": 354,
+      "seconds_as_rendered": "113.101s",
+      "source_line": 2503
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::rule_init_uses_each_workers_global_cells_once",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 321,
+      "reporter_total": 354,
+      "seconds_as_rendered": "115.710s",
+      "source_line": 2540
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::scheduled_callback_retirement_and_error_reports_preserve_original_options",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 322,
+      "reporter_total": 354,
+      "seconds_as_rendered": "115.038s",
+      "source_line": 2578
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::scheduled_callbacks_keep_worker_root_and_connection_cells_distinct",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 323,
+      "reporter_total": 354,
+      "seconds_as_rendered": "112.906s",
+      "source_line": 2619
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::tmm_select_mode_survives_the_per_test_reset",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 324,
+      "reporter_total": 354,
+      "seconds_as_rendered": "113.385s",
+      "source_line": 2656
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::tmm_word_boolean_operators_are_rewritten_to_their_tcl_equivalents",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 325,
+      "reporter_total": 354,
+      "seconds_as_rendered": "115.165s",
+      "source_line": 2694
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::worker_array_recreation_retires_element_aliases_and_traces",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 326,
+      "reporter_total": 354,
+      "seconds_as_rendered": "112.670s",
+      "source_line": 2735
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::worker_interpreters_preserve_cells_traces_and_command_tables",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 327,
+      "reporter_total": 354,
+      "seconds_as_rendered": "116.013s",
+      "source_line": 2772
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::worker_reset_reloads_independent_globals_and_initialisation",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 329,
+      "reporter_total": 354,
+      "seconds_as_rendered": "112.858s",
+      "source_line": 2811
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::worker_static_broadcast_and_recreation_preserve_trace_owners",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 334,
+      "reporter_total": 354,
+      "seconds_as_rendered": "113.883s",
+      "source_line": 2855
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "pure_functions::binary_boundary_tests::reference_binary_output_retains_counted_payload_and_authored_constructor_origin",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 341,
+      "reporter_total": 354,
+      "seconds_as_rendered": "110.259s",
+      "source_line": 2899
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "pure_functions::tests::irules_pure_functions_match_the_simulator_and_the_oracle",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 352,
+      "reporter_total": 354,
+      "seconds_as_rendered": "97.336s",
+      "source_line": 2946
+    }
+  ],
+  "limits": [
+    "Exact observed console binary_id+selector join only. New/absent baseline identities remain unknown.",
+    "No skipped/unreached selector can be inferred PASS/FAIL; exact previous ledgers remain separate."
+  ],
+  "duplicate_lines": [
+    {
+      "binary_id": "f5-cli::cli",
+      "selector": "mutating_queries_require_faithful_named_and_structured_donors",
+      "first_line": 819,
+      "duplicate_line": 3014,
+      "same_status": true
+    },
+    {
+      "binary_id": "f5-cli::cli",
+      "selector": "query_archive_file_donors_keep_original_bytes_before_mutation",
+      "first_line": 851,
+      "duplicate_line": 3015,
+      "same_status": true
+    },
+    {
+      "binary_id": "f5-cli::cli",
+      "selector": "source_transforms_refuse_invalid_name_bytes_before_artifacts",
+      "first_line": 883,
+      "duplicate_line": 3016,
+      "same_status": true
+    },
+    {
+      "binary_id": "f5-cli",
+      "selector": "commands::explain::source_event_tests::source_event_report_separates_owned_empty_and_unavailable",
+      "first_line": 918,
+      "duplicate_line": 3017,
+      "same_status": true
+    },
+    {
+      "binary_id": "f5-cli::cli",
+      "selector": "explain_virtual_text",
+      "first_line": 961,
+      "duplicate_line": 3018,
+      "same_status": true
+    },
+    {
+      "binary_id": "f5-cli::cli",
+      "selector": "explain_virtual_json",
+      "first_line": 1004,
+      "duplicate_line": 3019,
+      "same_status": true
+    },
+    {
+      "binary_id": "f5-cli::explain_flow",
+      "selector": "simulate_runs_irule_and_selects_pool",
+      "first_line": 1062,
+      "duplicate_line": 3020,
+      "same_status": true
+    },
+    {
+      "binary_id": "f5-cli::explain_flow",
+      "selector": "simulate_json_populates_simulated_fields",
+      "first_line": 1141,
+      "duplicate_line": 3021,
+      "same_status": true
+    },
+    {
+      "binary_id": "f5-cli::irule",
+      "selector": "trace_keeps_data_group_from_braced_expression_command",
+      "first_line": 1423,
+      "duplicate_line": 3022,
+      "same_status": true
+    },
+    {
+      "binary_id": "f5-cli::irule",
+      "selector": "trace_uses_the_event_closure_not_the_first_handler_body",
+      "first_line": 1461,
+      "duplicate_line": 3023,
+      "same_status": true
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "bpf_diff::tests::tn_zero_selected_byte_is_the_socket_filter_drop_verdict",
+      "first_line": 1613,
+      "duplicate_line": 3024,
+      "same_status": true
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "bpf_diff::tests::tp_real_ebpf_program_returns_the_selected_packet_byte",
+      "first_line": 1649,
+      "duplicate_line": 3025,
+      "same_status": true
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::original_projection_tests::original_live_result_projection_keeps_strict_bytes_earlier_eval_cause_and_next_entry",
+      "first_line": 1806,
+      "duplicate_line": 3026,
+      "same_status": true
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::authored_functions_keep_independent_worker_random_and_precision_contexts",
+      "first_line": 1844,
+      "duplicate_line": 3027,
+      "same_status": true
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::embedded_session_scenarios",
+      "first_line": 1881,
+      "duplicate_line": 3028,
+      "same_status": true
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::event_errors_preserve_cells_and_restore_worker_rule_activation",
+      "first_line": 1922,
+      "duplicate_line": 3029,
+      "same_status": true
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::event_frames_preserve_cells_aliases_and_traces",
+      "first_line": 1959,
+      "duplicate_line": 3030,
+      "same_status": true
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::harness_runs_the_tmm_84_surface",
+      "first_line": 1997,
+      "duplicate_line": 3031,
+      "same_status": true
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::irule_source_rewrite_only_touches_command_positions",
+      "first_line": 2038,
+      "duplicate_line": 3032,
+      "same_status": true
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::itest_loader_event_registration_matches_rust_when_blocks",
+      "first_line": 2075,
+      "duplicate_line": 3033,
+      "same_status": true
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::live_session_class_match_honours_every_operator",
+      "first_line": 2113,
+      "duplicate_line": 3034,
+      "same_status": true
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::live_session_drives_the_request_lifecycle",
+      "first_line": 2154,
+      "duplicate_line": 3035,
+      "same_status": true
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::measured_counted_lengths_keep_dynamic_bytes_and_literal_strings_separate_from_host",
+      "first_line": 2191,
+      "duplicate_line": 3036,
+      "same_status": true
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::measured_event_names_enter_the_actual_connection_frame_and_restore_policy",
+      "first_line": 2229,
+      "duplicate_line": 3037,
+      "same_status": true
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::measured_rule_lookup_uses_partition_root_and_keeps_activated_callables",
+      "first_line": 2271,
+      "duplicate_line": 3038,
+      "same_status": true
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::measured_loader_checks_original_source_and_keeps_dynamic_runtime_commands",
+      "first_line": 2308,
+      "duplicate_line": 3039,
+      "same_status": true
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::named_rules_keep_procedures_owned_and_route_call_without_extra_frames",
+      "first_line": 2346,
+      "duplicate_line": 3040,
+      "same_status": true
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::retained_event_frame_preserves_native_completion_options",
+      "first_line": 2387,
+      "duplicate_line": 3041,
+      "same_status": true
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::native_completion_capabilities_do_not_expand_the_user_grammar",
+      "first_line": 2424,
+      "duplicate_line": 3042,
+      "same_status": true
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::rule_creation_and_recreation_initialise_only_the_owned_rule_on_four_workers",
+      "first_line": 2462,
+      "duplicate_line": 3043,
+      "same_status": true
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::scf_loader_stores_parsed_snatpool_members",
+      "first_line": 2503,
+      "duplicate_line": 3044,
+      "same_status": true
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::rule_init_uses_each_workers_global_cells_once",
+      "first_line": 2540,
+      "duplicate_line": 3045,
+      "same_status": true
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::scheduled_callback_retirement_and_error_reports_preserve_original_options",
+      "first_line": 2578,
+      "duplicate_line": 3046,
+      "same_status": true
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::scheduled_callbacks_keep_worker_root_and_connection_cells_distinct",
+      "first_line": 2619,
+      "duplicate_line": 3047,
+      "same_status": true
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::tmm_select_mode_survives_the_per_test_reset",
+      "first_line": 2656,
+      "duplicate_line": 3048,
+      "same_status": true
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::tmm_word_boolean_operators_are_rewritten_to_their_tcl_equivalents",
+      "first_line": 2694,
+      "duplicate_line": 3049,
+      "same_status": true
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::worker_array_recreation_retires_element_aliases_and_traces",
+      "first_line": 2735,
+      "duplicate_line": 3050,
+      "same_status": true
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::worker_interpreters_preserve_cells_traces_and_command_tables",
+      "first_line": 2772,
+      "duplicate_line": 3051,
+      "same_status": true
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::worker_reset_reloads_independent_globals_and_initialisation",
+      "first_line": 2811,
+      "duplicate_line": 3052,
+      "same_status": true
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::worker_static_broadcast_and_recreation_preserve_trace_owners",
+      "first_line": 2855,
+      "duplicate_line": 3053,
+      "same_status": true
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "pure_functions::binary_boundary_tests::reference_binary_output_retains_counted_payload_and_authored_constructor_origin",
+      "first_line": 2899,
+      "duplicate_line": 3054,
+      "same_status": true
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "pure_functions::tests::irules_pure_functions_match_the_simulator_and_the_oracle",
+      "first_line": 2946,
+      "duplicate_line": 3055,
+      "same_status": true
+    }
+  ],
+  "baseline_join_regression_original_status_counts": {
+    "FAIL": 18
+  },
+  "missing_baseline_record_count": 1,
+  "baseline_join_detail": "heavy-exact-baseline-join.json.gz",
+  "exact_observed_nonpass_to_baseline": [
+    {
+      "binary_id": "f5-cli::cli",
+      "selector": "explain_virtual_json",
+      "current_status": "FAIL"
+    },
+    {
+      "binary_id": "f5-cli::cli",
+      "selector": "explain_virtual_text",
+      "current_status": "FAIL"
+    },
+    {
+      "binary_id": "f5-cli::explain_flow",
+      "selector": "simulate_json_populates_simulated_fields",
+      "current_status": "FAIL"
+    },
+    {
+      "binary_id": "f5-cli::explain_flow",
+      "selector": "simulate_runs_irule_and_selects_pool",
+      "current_status": "FAIL"
+    },
+    {
+      "binary_id": "f5-cli::irule",
+      "selector": "trace_keeps_data_group_from_braced_expression_command",
+      "current_status": "FAIL"
+    },
+    {
+      "binary_id": "f5-cli::irule",
+      "selector": "trace_uses_the_event_closure_not_the_first_handler_body",
+      "current_status": "FAIL"
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "bpf_diff::tests::tn_zero_selected_byte_is_the_socket_filter_drop_verdict",
+      "current_status": "FAIL"
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "bpf_diff::tests::tp_real_ebpf_program_returns_the_selected_packet_byte",
+      "current_status": "FAIL"
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::embedded_session_scenarios",
+      "current_status": "FAIL"
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::harness_runs_the_tmm_84_surface",
+      "current_status": "FAIL"
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::irule_source_rewrite_only_touches_command_positions",
+      "current_status": "FAIL"
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::itest_loader_event_registration_matches_rust_when_blocks",
+      "current_status": "FAIL"
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::live_session_class_match_honours_every_operator",
+      "current_status": "FAIL"
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::live_session_drives_the_request_lifecycle",
+      "current_status": "FAIL"
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::scf_loader_stores_parsed_snatpool_members",
+      "current_status": "FAIL"
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::tmm_select_mode_survives_the_per_test_reset",
+      "current_status": "FAIL"
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::tmm_word_boolean_operators_are_rewritten_to_their_tcl_equivalents",
+      "current_status": "FAIL"
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "pure_functions::tests::irules_pure_functions_match_the_simulator_and_the_oracle",
+      "current_status": "FAIL"
+    }
+  ],
+  "coverage": {
+    "planned_tests": 354,
+    "reached_tests": 354,
+    "unreached_planned_tests_unknown": 0,
+    "skipped_tests": 0,
+    "baseline_heavy_tests": 312,
+    "baseline_source_sha256": "dbf7f506e5b59a364f22579d4dda98a2653a217ff6c708b62554bcf26fd1fd3e",
+    "baseline_authentication": "Exact existing compiler-codegen/results/resumed-20261022/heavy-ci5205/receipt.json matched raw log hash and actual origin/rust fcb run5203 job119956195910"
+  }
+}

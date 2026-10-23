@@ -1,0 +1,64 @@
+{
+  "frozen_utc": "2026-10-23T02:01:52.198722+00:00",
+  "status": "OFFTREE prepared14v3-source18, independent review pending, prerequisite49v7 ACTIVE; no reportGO/Cargo/integration",
+  "immutable_policy": "Later review/enrichment via separate route; no frozen-member overwrite",
+  "members": [
+    {
+      "path": "compiler49-v7-plan.json",
+      "bytes": 26602,
+      "sha256": "0cb62fcdba2a9f24e5578ada9123e8fe9e195a1e7cd0f0cb1479ea2a19542313"
+    },
+    {
+      "path": "guarded-cargo.py.txt",
+      "bytes": 1950,
+      "sha256": "2b8167799a2d1e044a510b5249005225c23555960fa3e9c9b0a772b17f646da2"
+    },
+    {
+      "path": "guarded-exec.py.txt",
+      "bytes": 13109,
+      "sha256": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811"
+    },
+    {
+      "path": "launch-preflight-refusal.json",
+      "bytes": 179,
+      "sha256": "5f710e5c961a6a1e79f76ed04fd2ceb538a3c78932d4716e1835d5bb5e2d17c3"
+    },
+    {
+      "path": "launch.py.txt",
+      "bytes": 2926,
+      "sha256": "38494e610d60f8a08d44bba409670e46563fd99b8629a0027d50ea50603fd3b2"
+    },
+    {
+      "path": "plan.json",
+      "bytes": 8722,
+      "sha256": "8eec203b2e719ca3252f0bd5bd9955218c2c366ba51ec946e3ad568d126fc276"
+    },
+    {
+      "path": "readiness.json",
+      "bytes": 1564,
+      "sha256": "30ab3409da513806a5876d0caf6159ff8522b6020646f41fa99bbe9989effccb"
+    },
+    {
+      "path": "run.sh.txt",
+      "bytes": 137,
+      "sha256": "b01202df9ad08c0ec663f9effbeb87722f7263de808d7e43c973723e2a0adab3"
+    },
+    {
+      "path": "runner-input-manifest.json",
+      "bytes": 1449,
+      "sha256": "0324b997a088c107ce52c0165b5626f40077f0b3ee2583ca58226f8bdccbe318"
+    },
+    {
+      "path": "source18-manifest.json",
+      "bytes": 5001,
+      "sha256": "7d68ce5bc058f1fcaa8c5bac3c9f0926c7c9f0bad8a674262f9591e7eadde09b"
+    },
+    {
+      "path": "suite.py.txt",
+      "bytes": 23086,
+      "sha256": "09e4b36980749959c46d781d3a6fa3cc9feb03d1e020099330e3e3e06af3e877"
+    }
+  ],
+  "raw_rust_c_sources": false,
+  "no_go_refusal": "Actually exercised launcher only, refused before runner/Cargo"
+}

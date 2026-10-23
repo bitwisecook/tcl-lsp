@@ -1,0 +1,12 @@
+Bounded static review: authenticated report14 v4 source18
+
+Reviewed artifact: /tmp/compiler-authenticated-report-focused14-v4-source18
+Plan SHA-256: 8c129ae5ef1ac68e9321b860c0d40a0de17641b4b6c093ca125e61420cfeb414
+Runner input manifest SHA-256: e035a1625430410fc95a4e91efcb1811436e1c615730ecba1e6e0314b33a7476
+Launcher SHA-256: 47fedba8c25251b54fbace3cd141a492fc1fe57fe1c6d158c06ab9503ca37d57
+Source18 manifest SHA-256: 7d68ce5bc058f1fcaa8c5bac3c9f0926c7c9f0bad8a674262f9591e7eadde09b
+Guarded executor SHA-256: 88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811
+
+Disposition: bounded static review CLEAR. Exact18 pins, runner inputs, 14-control/two-selector plan, and guarded executor match the frozen manifests. The predecessor49 validation requires 36 results/49 selected, exact starts and selectors, stable source/provider/artifact seals, valid direct-process lifecycle, warnings=false, ignored=0, pass+fail totals, row exit/status agreement, and a final overall exit derived from row exits. Final and durable launcher exits must match; raw and sorted receipt GO byte pins are separately checked while parsed GO content must be equal. Failing tests remain allowed as diagnostic outcomes. The no-GO preflight receipt records refusal before runner/Cargo.
+
+Limit: this review validates the protocol only. It does not run report14 or Cargo and does not constitute a test, runtime, typing, performance, or release result. Actual completed guard-valid predecessor49 and matching root GO remain required.

@@ -1,0 +1,247 @@
+--- rust/tcl-lsp-server/src/readonly_reference_reports.rs
++++ rust/tcl-lsp-server/src/readonly_reference_reports.rs
+@@ -2044,7 +2044,9 @@
+                 };
+                 open_matches
+                     && document.uri_generation_matches(state)
+-                    && tcl_lsp_db::database_revision(state.db) == document.database_revision
++                    // A fresh syntax worker retains no Salsa query result.
++                    && (matches!(document.purpose, FreshSourceAnalysisPurpose::SemanticStructure)
++                        || tcl_lsp_db::database_revision(state.db) == document.database_revision)
+                     && document.matches_input_state(state, inputs_epoch, factory_generation)
+             }
+         }
+@@ -2100,7 +2102,10 @@
+             && current.version == self.snapshot.version
+             && current.raw() == self.snapshot.raw()
+             && current.dialect == self.snapshot.dialect
+-            && current.publication == self.snapshot.publication
++            && (current.publication == self.snapshot.publication
++                || (matches!(self.purpose, FreshSourceAnalysisPurpose::SemanticStructure)
++                    && self.snapshot.publication == super::DocumentPublication::Salsa
++                    && current.publication == super::DocumentPublication::Indexed))
+             && current.path_admission == self.snapshot.path_admission
+             && current.dialect_resolution_generation == self.snapshot.dialect_resolution_generation
+             && current.resolved_dialect_generation == self.snapshot.resolved_dialect_generation
+@@ -4110,6 +4115,221 @@
+     }
+ 
+     #[tokio::test]
++    async fn coarse_source_keeps_its_inputs_across_an_unrelated_database_write() {
++        let backend = crate::tests::test_backend();
++        let uri: Uri = "file:///coarse-independent-input.tcl".parse().unwrap();
++        let snapshot = actual_open_source(&backend, &uri).await;
++        let unrelated = {
++            let db = backend.db.lock().await;
++            tcl_lsp_db::SourceFile::new(
++                &*db,
++                "set unrelated 1".to_owned(),
++                "tcl8.4".to_owned(),
++                Some("/unrelated.tcl".to_owned()),
++            )
++        };
++        let coarse = backend
++            .capture_coarse_semantic_source(&uri, &snapshot)
++            .await
++            .unwrap()
++            .unwrap();
++        let complete = backend
++            .capture_fresh_source_analysis(
++                &uri,
++                snapshot.clone(),
++                FreshSourceAnalysisPurpose::ReadonlyComplete,
++            )
++            .await
++            .unwrap()
++            .unwrap();
++        let inputs_epoch = backend.diag_inputs_epoch();
++        let factory_generation = *backend.class_factory_generation.read().await;
++        let admissions = [complete.admission()];
++        assert!(
++            backend
++                .with_current_readonly_source_state(
++                    inputs_epoch,
++                    factory_generation,
++                    &admissions,
++                    None,
++                    |state| complete
++                        .matches_current_state(state, inputs_epoch, factory_generation)
++                        .then_some(()),
++                    |_, _| Some(()),
++                )
++                .await
++                .unwrap()
++                .is_some()
++        );
++        let before = tcl_lsp_db::database_revision(&*backend.db.lock().await);
++        unrelated
++            .set_text(&mut *backend.db.lock().await)
++            .to("set unrelated 2".to_owned());
++        assert_ne!(
++            tcl_lsp_db::database_revision(&*backend.db.lock().await),
++            before
++        );
++        assert!(
++            backend
++                .with_current_coarse_semantic_source(&coarse, || Some(()))
++                .await
++                .unwrap()
++                .is_some()
++        );
++        assert!(
++            backend
++                .with_current_readonly_source_state(
++                    inputs_epoch,
++                    factory_generation,
++                    &admissions,
++                    None,
++                    |state| complete
++                        .matches_current_state(state, inputs_epoch, factory_generation)
++                        .then_some(()),
++                    |_, _| Some(()),
++                )
++                .await
++                .unwrap()
++                .is_none()
++        );
++    }
++
++    async fn set_open_publication(
++        backend: &Backend,
++        uri: &Uri,
++        publication: super::super::DocumentPublication,
++    ) {
++        backend
++            .documents
++            .lock("advance coarse fixture publication")
++            .await
++            .get_mut(uri)
++            .unwrap()
++            .publication = publication;
++    }
++
++    async fn coarse_source_is_current(
++        backend: &Backend,
++        source: &CoarseSemanticTokenSource,
++    ) -> bool {
++        backend
++            .with_current_coarse_semantic_source(source, || Some(()))
++            .await
++            .unwrap()
++            .is_some()
++    }
++
++    async fn complete_source_is_current(
++        backend: &Backend,
++        source: &WorkspaceSymbolSourceAnalysis,
++        inputs_epoch: u64,
++        factory_generation: u64,
++    ) -> bool {
++        let admissions = [source.admission()];
++        backend
++            .with_current_readonly_source_state(
++                inputs_epoch,
++                factory_generation,
++                &admissions,
++                None,
++                |state| {
++                    source
++                        .matches_current_state(state, inputs_epoch, factory_generation)
++                        .then_some(())
++                },
++                |_, _| Some(()),
++            )
++            .await
++            .unwrap()
++            .is_some()
++    }
++
++    #[tokio::test]
++    async fn coarse_source_keeps_its_own_revision_when_the_index_finishes() {
++        let backend = crate::tests::test_backend();
++        let uri: Uri = "file:///coarse-index-progress.tcl".parse().unwrap();
++        actual_open_source(&backend, &uri).await;
++        let snapshot = {
++            let mut docs = backend.documents.lock("initial Salsa source").await;
++            let live = docs.get_mut(&uri).unwrap();
++            live.publication = super::super::DocumentPublication::Salsa;
++            live.clone()
++        };
++        let coarse = backend
++            .capture_coarse_semantic_source(&uri, &snapshot)
++            .await
++            .unwrap()
++            .unwrap();
++        let complete = backend
++            .capture_fresh_source_analysis(
++                &uri,
++                snapshot.clone(),
++                FreshSourceAnalysisPurpose::ReadonlyComplete,
++            )
++            .await
++            .unwrap()
++            .unwrap();
++        let inputs_epoch = backend.diag_inputs_epoch();
++        let factory_generation = *backend.class_factory_generation.read().await;
++        assert!(coarse_source_is_current(&backend, &coarse).await);
++        assert!(
++            complete_source_is_current(&backend, &complete, inputs_epoch, factory_generation).await
++        );
++        set_open_publication(&backend, &uri, super::super::DocumentPublication::Indexed).await;
++        assert!(coarse_source_is_current(&backend, &coarse).await);
++        assert!(
++            !complete_source_is_current(&backend, &complete, inputs_epoch, factory_generation)
++                .await
++        );
++        assert_eq!(
++            snapshot.publication,
++            super::super::DocumentPublication::Salsa
++        );
++        set_open_publication(&backend, &uri, super::super::DocumentPublication::Pending).await;
++        assert!(!coarse_source_is_current(&backend, &coarse).await);
++        set_open_publication(&backend, &uri, super::super::DocumentPublication::Indexed).await;
++        // Capture the actual indexed publication for the downgrade control.
++        let indexed_snapshot = backend
++            .documents
++            .lock("indexed source snapshot")
++            .await
++            .get(&uri)
++            .unwrap()
++            .clone();
++        let indexed = backend
++            .capture_coarse_semantic_source(&uri, &indexed_snapshot)
++            .await
++            .unwrap()
++            .unwrap();
++        assert!(coarse_source_is_current(&backend, &indexed).await);
++        set_open_publication(&backend, &uri, super::super::DocumentPublication::Salsa).await;
++        assert!(!coarse_source_is_current(&backend, &indexed).await);
++        set_open_publication(&backend, &uri, super::super::DocumentPublication::Indexed).await;
++        assert!(coarse_source_is_current(&backend, &indexed).await);
++        let replacement_snapshot = {
++            let mut docs = backend
++                .documents
++                .lock("equal-byte new source revision")
++                .await;
++            let live = docs.get_mut(&uri).unwrap();
++            live.revision += 1;
++            live.clone()
++        };
++        assert_eq!(replacement_snapshot.text, indexed_snapshot.text);
++        assert!(!coarse_source_is_current(&backend, &indexed).await);
++        let replacement = backend
++            .capture_coarse_semantic_source(&uri, &replacement_snapshot)
++            .await
++            .unwrap()
++            .unwrap();
++        assert!(coarse_source_is_current(&backend, &replacement).await);
++        let generation = backend.live_publication_uri_generation(&uri);
++        backend.invalidate_live_publication(std::iter::once(&uri));
++        assert_ne!(backend.live_publication_uri_generation(&uri), generation);
++        assert!(!coarse_source_is_current(&backend, &replacement).await);
++    }
++
++    #[tokio::test]
+     async fn coarse_tokens_refuse_changed_actual_resource_config_without_epoch_donation() {
+         let backend = crate::tests::test_backend();
+         let uri: Uri = "file:///coarse-config-change.tcl".parse().unwrap();

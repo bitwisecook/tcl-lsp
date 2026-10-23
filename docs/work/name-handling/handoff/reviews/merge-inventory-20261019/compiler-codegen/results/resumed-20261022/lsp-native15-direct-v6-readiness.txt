@@ -1,0 +1,20 @@
+LSP native15 direct lifecycle successor, compiler-codegen bounded preparation
+UTC: 2026-10-23T02:18Z
+Status: IMMUTABLE OFF-TREE PREPARATION; VM exact-v6 static CLEAR, LSP peer review pending; root GO absent, no Cargo, selector, provider scan, or source application.
+
+Historical /tmp/lsp-native-protocol-v3/plan.json SHA256 fb911b29d143082a0f7ec293702a730e96e0c9ff328e3ffae5a290e09704d880. Its selector runner could mark EOF+exited parent complete while a silent owned descendant survived, then reap the parent; timeout sent only SIGKILL and entered unbounded p.wait(). Its Cargo shell pipeline lacked direct owned-process lifecycle, and its source pins omitted the final post18 source_views producer hash. V3 MUST NOT RUN. Intermediate v4/v5 are unapproved drafts; the independently reviewed old v5 suite SHA51c226b0 is reconstructed byte-for-byte at /tmp/lsp-native-protocol-v5-peer-reviewed-old51c.txt for audit, not execution.
+
+Frozen successor: /tmp/lsp-native-protocol-v6-direct15/
+  plan.json SHA256 69b5c30390734545b45de6cdff73b2cfe231418a93ba0ef33c91c6faee5b5992
+  suite.py SHA256 51087f14566cc2740f813f809c40726e608786e08630531fdbdd8cbab3342823
+  launch.py SHA256 45a51134ef51bf3e069a2cb3abdf2e2a5e01d94c25464b07c4987c04223e5cff
+  run.sh SHA256 6b21b64c3e2e2be43feb22b7abf39fc8a813a3989f4903130f71e464f2331702
+  runner-input-manifest.json SHA256 2cbf9db5dcc54920283186799d13cfa15e290caf77243b402f07be6c4ca29408
+  guarded-exec.py SHA256 88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811
+  providers.py SHA256 5b01d95b0e919dc8aa16048c663003fbaa708d2f1e970408ef3c14fe47eeacd8
+
+All 15 selector objects and original 12 source pins equal v3. The thirteenth pin is rust/tcl-lsp-server/src/readonly_reference_reports/source_views.rs SHA256 151c4869840da62605eac7ed1077e00293cf31ecef7e4f543dd5814e5d4802ee, from final source18 manifest SHA256 269b0b429dc137f8428d02383d1c50d1555d23744019923648893268c15f90ba. The runner checks every one of that manifest's 18 final canonical hashes before and throughout execution. Current source still has d8aeeba1 for the producer and therefore must refuse until integration.
+
+Root GO must pin plan/runner manifest, exact approved post18 HEAD/tree descended from baseline 3b1, source18 manifest, and report14/typecheck evidence hashes. Each later commit must touch only docs/work/name-handling; staged, unstaged and untracked product deltas refuse. Cargo uses the pinned absolute Rust 1.99.1 binary through reviewed direct executor, 3600-second build deadline, fresh current JSON test+server artifact events with exact manifest/kind/profile matching and target containment. Each exact selector has 180 seconds, 20,000,000-byte per-process output cap and actual-mount 2.3GB floor; source/provider/artifact checks bracket build/tests. Original NEXTEST_BIN_EXE_tcl-lsp-server and NH_VALIDATION_DIR host setup are retained. Compiler/build-script/stderr/test warnings fail strict acceptance. Failed individual assertions are retained and remaining selectors continue; process/source/provider guard failures stop. A durable file-backed launcher, process receipts, final/failure source-provider-artifact disposition, and lock-release marker are written.
+
+Own AST, Bash syntax, exact selector/source-pin equality, runner-manifest hash verification, and both launcher/direct no-GO refusal checks pass. VM exact-v6 bounded static CLEAR is `vm-runtime/protocols/direct-lifecycle-20261023/native15-v6-static-review.txt` SHA256 31ee0451 (lossless archive manifest SHA 1f4a3a02). LSP exact-v6 bounded static CLEAR is `/tmp/lsp-native-protocol-v6-direct15/lsp-peer-review.json` SHA256 835b9592ec0820276d78c8a19b3045032071728b41151d985442fca65ff414f2. These are static/startup checks only; no root GO or runtime verdict.

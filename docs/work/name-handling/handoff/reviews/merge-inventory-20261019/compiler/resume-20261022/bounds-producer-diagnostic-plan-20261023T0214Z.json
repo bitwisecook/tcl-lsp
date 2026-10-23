@@ -1,0 +1,47 @@
+{
+  "prepared_utc": "2026-10-23T02:14:26.339206+00:00",
+  "status": "DIAGNOSTIC PLAN ONLY; no trace code authored/applied; no Cargo/queue",
+  "evidence_gap": "CI main1 actual13missing W240/W241/W242 first assertions do not distinguish absent candidate from missing actual held-loop/header/settle evidence. Existing49 C6/RBS controls first; plan used only if those results do not explain this gap.",
+  "first_selectors": [
+    {
+      "selector": "analyser::bounds_checks::tests::w240_and_w241_read_the_branch_fact",
+      "package": "tcl-compiler",
+      "exact": true,
+      "expected_selected": 1
+    },
+    {
+      "selector": "analyser::bounds_checks::tests::w242_counter_not_modified",
+      "package": "tcl-compiler",
+      "exact": true,
+      "expected_selected": 1
+    },
+    {
+      "selector": "analyser::bounds_checks::tests::w242_silent_when_counter_modified",
+      "package": "tcl-compiler",
+      "exact": true,
+      "expected_selected": 1
+    }
+  ],
+  "proposed_observations": [
+    {
+      "site": "analyser/commands.rs emit_bounds_family_diagnostics actual existing candidate query",
+      "data": "Original site offset, candidate available/condition span/lexical class, actual retained context available, actual schema loop trait and positions; no spelling guessed fallback"
+    },
+    {
+      "site": "analyser/diagnostics/dataflow.rs resolve_loop_terminations over actual FunctionUnit",
+      "data": "Existing candidate span, actual unit-held loop existence, header_fact present/outcome, whether settle receives actual loop writes/start; identify actual unit owner using existing retained fields only"
+    },
+    {
+      "site": "analyser/diagnostics/dataflow.rs flush_loop_terminations",
+      "data": "Original retained candidate count and lexical-only diagnostic choice; missing owner is explicit refusal not zero visits"
+    }
+  ],
+  "constraints": [
+    "Only cfg(debug_assertions)+explicit env puregetter traces, no predicate/branch/effect/authority mutation",
+    "No synthetic compilation unit, reanalysis, lexical reconstructed branch fact, new source-kind grant, Native/Normal/quiet authority",
+    "All original sources/assertions/counts unchanged; no broad13rerun initially",
+    "Fresh root-reviewed exactsource/provider/currentCargoartifact/directpre-spawn180s lifecycle/20MiB/2GiB guards; all warning/errors retained",
+    "No source integration or launch until separate root slot after current49 completion; no trace implementation accepted by this plan"
+  ],
+  "next": "Use actual49 C6/RBS outcome and existing logs first; draft only minimum trace needed to distinguish first unavailable stage, if root still needs it"
+}

@@ -1,0 +1,28 @@
+{
+  "utc": "2026-10-23T02:09:19.319157+00:00",
+  "script": "namespace eval ::SpiceGenTcl {\n namespace export Device\n oo::class create Device {method genSPICEString {} {return OK}}\n}\nset missing [catch {oo::class create ::Core {superclass Device}} message]\nputs [list missing-import $missing $message]\ncatch {::Core destroy}\nnamespace import ::SpiceGenTcl::Device\nset imported [catch {oo::class create ::Core {superclass Device}} message]\nputs [list actual-import $imported $message]\nif {!$imported} {set object [::Core new];puts [list inherited-call [$object genSPICEString]]}\n",
+  "rows": [
+    {
+      "provider": "/workspace/naming-toolchains/tmp/tcl8.6.18/unix/tclsh",
+      "sha256": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+      "exit": 0,
+      "stdout": "missing-import 1 {Device does not refer to an object}\nactual-import 0 ::Core\ninherited-call OK\n",
+      "stderr": ""
+    },
+    {
+      "provider": "/workspace/naming-toolchains/tmp/tcl9.0.4/unix/tclsh",
+      "sha256": "80667c5d2784438d3e1bd195ac0a76875bf973aa480253041d2d2715b0143c6b",
+      "exit": 0,
+      "stdout": "missing-import 1 {Device does not refer to an object}\nactual-import 0 ::Core\ninherited-call OK\n",
+      "stderr": ""
+    },
+    {
+      "provider": "/workspace/naming-toolchains/tmp/tcl9.1.0/unix/tclsh",
+      "sha256": "509c977b93f8976239a0a0b2e5cdda9364735031cec292e1fcac5c696e06ff60",
+      "exit": 0,
+      "stdout": "missing-import 1 {Device does not refer to an object}\nactual-import 0 ::Core\ninherited-call OK\n",
+      "stderr": ""
+    }
+  ],
+  "scope": "Actual C Tcl missing-import vs real-import inheritance only; no Rust admission or classgraph assertion rewrite"
+}

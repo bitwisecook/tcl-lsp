@@ -1,0 +1,47 @@
+#!/usr/bin/env python3
+"""File-backed, fail-closed launcher; terminal/UI disconnect cannot lose runner logs."""
+import datetime, hashlib, json, os, subprocess, sys
+from pathlib import Path
+
+BASE=Path('/tmp/compiler-authenticated-report-focused14-v3-source18')
+PLAN=BASE/'plan.json'
+GO=BASE/'root-go.json'
+MANIFEST=BASE/'runner-input-manifest.json'
+RUNS=Path('/tmp/compiler-authenticated-report-focused14-v3-source18-runs')
+INPUTS=[BASE/'run.sh',BASE/'suite.py',BASE/'guarded-cargo.py',BASE/'guarded-exec.py',PLAN,Path('/tmp/compiler-c6-provider-manifest.py'),Path('/tmp/tcl-lsp-naming-env.sh'),BASE/'source18-manifest.json',BASE/'compiler49-v7-plan.json']
+def utc(): return datetime.datetime.now(datetime.timezone.utc).isoformat()
+def sha(p): return hashlib.sha256(Path(p).read_bytes()).hexdigest()
+if not GO.is_file():
+    refusal={'status':'PASS no-GO launcher refusal','utc':utc(),'cargo_started':False,'runner_started':False,'reason':'root-go.json absent'}
+    path=BASE/'launch-preflight-refusal.json'; path.write_text(json.dumps(refusal,indent=2)+'\n')
+    print('STOP: no root GO; no runner or Cargo started')
+    raise SystemExit(2)
+# Fail closed unless GO pins the immutable suite input manifest.
+manifest=json.loads(MANIFEST.read_text())
+if json.loads(GO.read_text()).get('runner_input_manifest_sha256') != sha(MANIFEST):
+    print('STOP: root GO does not pin runner input manifest')
+    raise SystemExit(2)
+for path, expected in manifest.get('inputs', {}).items():
+    if sha(path) != expected:
+        print('STOP: runner input differs from reviewed manifest: '+path)
+        raise SystemExit(2)
+# Freeze the exact launcher inputs before delegating authorization checks to suite.py.
+pins={str(p):sha(p) for p in INPUTS}
+RUNS.mkdir(exist_ok=True)
+tag=datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%dT%H%M%S.%fZ')
+receipt=RUNS/tag; receipt.mkdir()
+transcript=receipt/'launcher.transcript'
+meta={'started_utc':utc(),'pins_before':pins,'plan_sha256':sha(PLAN),'root_go_sha256':sha(GO),'transcript':str(transcript),'durable_file_backed_output':True}
+(receipt/'launcher.json').write_text(json.dumps(meta,indent=2)+'\n')
+with transcript.open('xb') as out:
+    child=subprocess.run(['bash',str(BASE/'run.sh'),str(PLAN)],stdout=out,stderr=subprocess.STDOUT,check=False)
+meta.update({'finished_utc':utc(),'exit_code':child.returncode,'pins_after':{str(p):sha(p) for p in INPUTS},'root_go_sha256_after':sha(GO)})
+meta['inputs_stable']=meta['pins_after']==pins
+meta['root_go_stable']=meta['root_go_sha256_after']==meta['root_go_sha256']
+(receipt/'launcher.json').write_text(json.dumps(meta,indent=2)+'\n')
+# Only display after complete durable capture; transcript remains authoritative if caller closes.
+try:
+    print(transcript.read_text(errors='replace')[-20000:],end='')
+except (BrokenPipeError, OSError):
+    pass
+raise SystemExit(child.returncode if meta['inputs_stable'] and meta['root_go_stable'] else 2)

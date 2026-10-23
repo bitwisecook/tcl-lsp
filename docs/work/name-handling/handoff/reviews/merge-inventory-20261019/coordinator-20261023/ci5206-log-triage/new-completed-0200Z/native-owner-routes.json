@@ -1,0 +1,46 @@
+{
+  "scope": "Bounded native2/3 actual failure evidence; current exact529P2F gate blockers; no product acceptance",
+  "routes": [
+    {
+      "bucket": "coarse source currentness",
+      "all_failures": 41,
+      "owner": "LSP with Names peer",
+      "concrete_candidates": [
+        "coarse-source-input-currency-v2 0642510b (unrelated globalrevision dependency, source-purpose-only)",
+        "coarse-indexed-fixture-admission-v1 10c7bce0 (one exact oldunit missing genuine path receipt)"
+      ],
+      "limits": "Oneunit staticcause proven. Other40protocol precise failedgates unknown; production snapshotpublication/trylock/config/source remain independent."
+    },
+    {
+      "bucket": "direct diagnostic report unavailable Pending",
+      "all_failures": 20,
+      "owner": "LSP current_diagnostics publisher/directreport transaction",
+      "evidence": "Exact ContentModified error carries reason pending; can arise from unindexed publication, unavailable produced report, lock/currentness or missing completion. No stage-specific log establishes which. Keep authentic currentness; never convert Pending to empty valid report."
+    },
+    {
+      "bucket": "ConditionalAdvice",
+      "all_failures": 15,
+      "owner": "LSP source-view settlement + compiler-names source-point/actual source advice",
+      "evidence": "Exact rehomed_index_guard refuses absent/unindexed source-view settlement; no force indexed/root promotion allowed."
+    },
+    {
+      "bucket": "typed rename refusal",
+      "all_failures": 25,
+      "owner": "LSP transactional rename + compiler-names actual command world/member family coverage",
+      "evidence": "Unknown completed command world/incomplete original command coverage/unclosed member family explicitly reported; safer refusal still fails claimed feature support. Preserve all guards."
+    },
+    {
+      "bucket": "assertions/missing output",
+      "all_failures": 443,
+      "owner": "Route by exact module/selector; LSP consumers plus actual compiler owner. Main1 independently has39assertionFAIL and4signal aborts.",
+      "evidence": "No one shared Unavailable producer cause proven. Concrete distinct examples: pkgIndex W123 wrongly retained, cross-document wildcard imports empty, OO rename exactcoverage refusal/missing edit, code action rewrite empty, source transformations unchanged. Codegen/Names/registry/project availability are separate axes."
+    },
+    {
+      "bucket": "wait/settlement timeouts",
+      "all_failures": 20,
+      "owner": "LSP publication/lifecycle + existing external perf role when actual cost evidence establishes it",
+      "evidence": "Do not raise budgets or call flake. Exact timers and sourceowner waits preserved."
+    }
+  ],
+  "no_source_or_cargo_changes": true
+}

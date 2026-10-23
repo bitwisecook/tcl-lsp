@@ -1,0 +1,28 @@
+{
+  "job_id": 120186673586,
+  "utc": "2026-10-23T02:04:13.176175+00:00",
+  "input_bytes": 23114,
+  "input_sha256": "50480cf35a3d8ba0cf15a346c49c12fcd0d5772ec377bbadaf797598992d3f85",
+  "gzip_path": "test-ext-aggregate-120186673586.decoded-content.log.gz",
+  "gzip_sha256": "e1786cee27163ac4e4d5fc4dd66a09714a4ed3d7f085c6c6f8b83c8f7ba9fec5",
+  "gzip_byte_exact_verified": true,
+  "phase": "AGGREGATE DEPENDENCY STATUS GATE ONLY; no test execution",
+  "starting_lines": [],
+  "summary_lines": [],
+  "unique_outcome_counts": {},
+  "unique_terminal_records": 0,
+  "duplicate_terminal_lines_deduplicated": 0,
+  "duplicate_status_conflicts": [],
+  "compile_errors_observed": [],
+  "aggregate_observation": {
+    "channel": "success",
+    "partitions": "failure",
+    "multi": "failure",
+    "exit_code": 1,
+    "interpretation": "Dependency aggregate mirrors existing partition/multi-folder outcomes; zero additional test failures counted"
+  },
+  "limits": [
+    "Exact observed binary_id+selector baseline join only; absent baseline identities are unknown, not inferred regressions.",
+    "Skipped/unreached selectors remain unknown; no host/shipping acceptance follows."
+  ]
+}

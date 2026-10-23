@@ -1,0 +1,100 @@
+--- rust/tcl-lsp-server/src/readonly_reference_reports.rs
++++ rust/tcl-lsp-server/src/readonly_reference_reports.rs
+@@ -2044,7 +2044,9 @@
+                 };
+                 open_matches
+                     && document.uri_generation_matches(state)
+-                    && tcl_lsp_db::database_revision(state.db) == document.database_revision
++                    // A fresh syntax worker retains no Salsa query result.
++                    && (matches!(document.purpose, FreshSourceAnalysisPurpose::SemanticStructure)
++                        || tcl_lsp_db::database_revision(state.db) == document.database_revision)
+                     && document.matches_input_state(state, inputs_epoch, factory_generation)
+             }
+         }
+@@ -4110,6 +4112,86 @@
+     }
+ 
+     #[tokio::test]
++    async fn coarse_source_keeps_its_inputs_across_an_unrelated_database_write() {
++        let backend = crate::tests::test_backend();
++        let uri: Uri = "file:///coarse-independent-input.tcl".parse().unwrap();
++        let snapshot = actual_open_source(&backend, &uri).await;
++        let unrelated = {
++            let db = backend.db.lock().await;
++            tcl_lsp_db::SourceFile::new(
++                &*db,
++                "set unrelated 1".to_owned(),
++                "tcl8.4".to_owned(),
++                Some("/unrelated.tcl".to_owned()),
++            )
++        };
++        let coarse = backend
++            .capture_coarse_semantic_source(&uri, &snapshot)
++            .await
++            .unwrap()
++            .unwrap();
++        let complete = backend
++            .capture_fresh_source_analysis(
++                &uri,
++                snapshot.clone(),
++                FreshSourceAnalysisPurpose::ReadonlyComplete,
++            )
++            .await
++            .unwrap()
++            .unwrap();
++        let inputs_epoch = backend.diag_inputs_epoch();
++        let factory_generation = *backend.class_factory_generation.read().await;
++        let admissions = [complete.admission()];
++        assert!(
++            backend
++                .with_current_readonly_source_state(
++                    inputs_epoch,
++                    factory_generation,
++                    &admissions,
++                    None,
++                    |state| complete
++                        .matches_current_state(state, inputs_epoch, factory_generation)
++                        .then_some(()),
++                    |_, _| Some(()),
++                )
++                .await
++                .unwrap()
++                .is_some()
++        );
++        let before = tcl_lsp_db::database_revision(&*backend.db.lock().await);
++        unrelated
++            .set_text(&mut *backend.db.lock().await)
++            .to("set unrelated 2".to_owned());
++        assert_ne!(
++            tcl_lsp_db::database_revision(&*backend.db.lock().await),
++            before
++        );
++        assert!(
++            backend
++                .with_current_coarse_semantic_source(&coarse, || Some(()))
++                .await
++                .unwrap()
++                .is_some()
++        );
++        assert!(
++            backend
++                .with_current_readonly_source_state(
++                    inputs_epoch,
++                    factory_generation,
++                    &admissions,
++                    None,
++                    |state| complete
++                        .matches_current_state(state, inputs_epoch, factory_generation)
++                        .then_some(()),
++                    |_, _| Some(()),
++                )
++                .await
++                .unwrap()
++                .is_none()
++        );
++    }
++
++    #[tokio::test]
+     async fn coarse_tokens_refuse_changed_actual_resource_config_without_epoch_donation() {
+         let backend = crate::tests::test_backend();
+         let uri: Uri = "file:///coarse-config-change.tcl".parse().unwrap();

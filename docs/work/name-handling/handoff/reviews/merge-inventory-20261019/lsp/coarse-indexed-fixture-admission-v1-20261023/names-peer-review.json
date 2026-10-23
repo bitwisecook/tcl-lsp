@@ -1,0 +1,16 @@
+{
+  "utc": "2026-10-23T02:14:08Z",
+  "verdict": "CLEAR bounded static fixture correction only",
+  "patch_sha256": "10c7bce0d6922d48fc1d586fb2b85b6d50f0c62ff2af640281228478ed4891b2",
+  "findings": [
+    "Exact existing indexed coarse fixture alone gains backend.document_path_admission captured after db_set_source; original assertions unchanged",
+    "Actual read_document_at supplies a checked Some admission on returned snapshot clone; live fixture previously retained None, violating strict open_snapshot_matches path-admission equality",
+    "backend.document_path_admission genuinely validates/reborrows existing live or published provider receipt for exact URI; no fabricated issuer",
+    "Production publication path retains authentic admission; correction aligns fixture with its source contract without modifying eligibility/matcher/provider guards",
+    "No budget, tier assertion, database/global cutoff or runtime/native semantic grant changed"
+  ],
+  "limits": [
+    "Rust typing/test execution unrun; no Cargo/application",
+    "Distinct from coarse currency0642510b and unmeasured protocol41 errors"
+  ]
+}

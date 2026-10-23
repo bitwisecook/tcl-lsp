@@ -1,0 +1,79 @@
+{
+  "utc": "2026-10-23T02:12:36.739825+00:00",
+  "rows": [
+    {
+      "version": "8.6.18",
+      "provider": "/workspace/naming-toolchains/tmp/tcl8.6.18/unix/tclsh",
+      "provider_sha256": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+      "kind": "actual-export-import",
+      "source": "namespace eval ::SpiceGenTcl {\n    namespace export Device\n    oo::class create Device {\n        method genSPICEString {} {return OK}\n    }\n}\nrename auto_import savedPrelude\nnamespace import ::SpiceGenTcl::Device\noo::class create ::Core {superclass Device}\n",
+      "source_sha256": "644762a53f9b1f6dd7f0e808adda7b0c879651487c55aed2e6436da14f2d544e",
+      "exit": 0,
+      "stdout": "code 0 message ::Core\ninherited OK\n",
+      "stderr": "",
+      "matches": true
+    },
+    {
+      "version": "8.6.18",
+      "provider": "/workspace/naming-toolchains/tmp/tcl8.6.18/unix/tclsh",
+      "provider_sha256": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+      "kind": "same-source-no-import",
+      "source": "namespace eval ::SpiceGenTcl {\n    namespace export Device\n    oo::class create Device {\n        method genSPICEString {} {return OK}\n    }\n}\nrename auto_import savedPrelude\noo::class create ::Core {superclass Device}\n",
+      "source_sha256": "4feaffc779407101b89ed1a2fae8b99126a45f0377cc029bd9d774bbc89467f1",
+      "exit": 0,
+      "stdout": "code 1 message {Device does not refer to an object}\n",
+      "stderr": "",
+      "matches": true
+    },
+    {
+      "version": "9.0.4",
+      "provider": "/workspace/naming-toolchains/tmp/tcl9.0.4/unix/tclsh",
+      "provider_sha256": "80667c5d2784438d3e1bd195ac0a76875bf973aa480253041d2d2715b0143c6b",
+      "kind": "actual-export-import",
+      "source": "namespace eval ::SpiceGenTcl {\n    namespace export Device\n    oo::class create Device {\n        method genSPICEString {} {return OK}\n    }\n}\nrename auto_import savedPrelude\nnamespace import ::SpiceGenTcl::Device\noo::class create ::Core {superclass Device}\n",
+      "source_sha256": "644762a53f9b1f6dd7f0e808adda7b0c879651487c55aed2e6436da14f2d544e",
+      "exit": 0,
+      "stdout": "code 0 message ::Core\ninherited OK\n",
+      "stderr": "",
+      "matches": true
+    },
+    {
+      "version": "9.0.4",
+      "provider": "/workspace/naming-toolchains/tmp/tcl9.0.4/unix/tclsh",
+      "provider_sha256": "80667c5d2784438d3e1bd195ac0a76875bf973aa480253041d2d2715b0143c6b",
+      "kind": "same-source-no-import",
+      "source": "namespace eval ::SpiceGenTcl {\n    namespace export Device\n    oo::class create Device {\n        method genSPICEString {} {return OK}\n    }\n}\nrename auto_import savedPrelude\noo::class create ::Core {superclass Device}\n",
+      "source_sha256": "4feaffc779407101b89ed1a2fae8b99126a45f0377cc029bd9d774bbc89467f1",
+      "exit": 0,
+      "stdout": "code 1 message {Device does not refer to an object}\n",
+      "stderr": "",
+      "matches": true
+    },
+    {
+      "version": "9.1.0",
+      "provider": "/workspace/naming-toolchains/tmp/tcl9.1.0/unix/tclsh",
+      "provider_sha256": "509c977b93f8976239a0a0b2e5cdda9364735031cec292e1fcac5c696e06ff60",
+      "kind": "actual-export-import",
+      "source": "namespace eval ::SpiceGenTcl {\n    namespace export Device\n    oo::class create Device {\n        method genSPICEString {} {return OK}\n    }\n}\nrename auto_import savedPrelude\nnamespace import ::SpiceGenTcl::Device\noo::class create ::Core {superclass Device}\n",
+      "source_sha256": "644762a53f9b1f6dd7f0e808adda7b0c879651487c55aed2e6436da14f2d544e",
+      "exit": 0,
+      "stdout": "code 0 message ::Core\ninherited OK\n",
+      "stderr": "",
+      "matches": true
+    },
+    {
+      "version": "9.1.0",
+      "provider": "/workspace/naming-toolchains/tmp/tcl9.1.0/unix/tclsh",
+      "provider_sha256": "509c977b93f8976239a0a0b2e5cdda9364735031cec292e1fcac5c696e06ff60",
+      "kind": "same-source-no-import",
+      "source": "namespace eval ::SpiceGenTcl {\n    namespace export Device\n    oo::class create Device {\n        method genSPICEString {} {return OK}\n    }\n}\nrename auto_import savedPrelude\noo::class create ::Core {superclass Device}\n",
+      "source_sha256": "4feaffc779407101b89ed1a2fae8b99126a45f0377cc029bd9d774bbc89467f1",
+      "exit": 0,
+      "stdout": "code 1 message {Device does not refer to an object}\n",
+      "stderr": "",
+      "matches": true
+    }
+  ],
+  "unsupported": "TclOO absent in default C8.4/8.5; no OO behavior claim there",
+  "scope": "C Tcl source inheritance behavior only; Rust test unrun"
+}

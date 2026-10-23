@@ -1,0 +1,1 @@
+Frozen full22 composition proof. Original patch and format receipt are gzip-preserved byte-for-byte; decompress to verify hashes in archive-manifest.json. The combined patch was zero-fuzz applied in a fresh shadow and all 22 final hashes matched. Owner-edition rustfmt passed all 22. This is preparation evidence only.

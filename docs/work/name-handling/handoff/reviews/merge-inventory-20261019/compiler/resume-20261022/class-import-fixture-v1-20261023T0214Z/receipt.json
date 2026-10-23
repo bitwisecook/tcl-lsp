@@ -1,0 +1,39 @@
+{
+  "utc": "2026-10-23T02:12:36.740284+00:00",
+  "status": "OFFTREE narrow fixture correction; Rust typing/runtime UNRUN; no source apply/build",
+  "path": "rust/tcl-compiler/src/analyser/class_hierarchy.rs",
+  "before_sha256": "a71d1628cd000a14580ee13304b725241fc4a1ab70f3968bf61541863aeea26a",
+  "after_sha256": "ce8f7d9b3ffd4df4ab6d4713a313028f1305caf659f77cf521a23d647e7aaa31",
+  "patch_sha256": "c323fe5901ff33b66bf2efa01893ec9e313b7ad7dc4cf11fefae91b1db5407e7",
+  "source_sha256": "644762a53f9b1f6dd7f0e808adda7b0c879651487c55aed2e6436da14f2d544e",
+  "positive": "Original named test and exact positive assert h.method_target(Core,genSPICEString)==Some(::SpiceGenTcl::Device) unchanged; fixture now normalanalyse original export/import source, with user-authorized auto_import prelude",
+  "negative": "Original constructed no-import graph retained as separate refusal test expecting unresolved, supported native oracle; no unique-tail product fallback restored",
+  "doc": "Correct stale resolve_super_name comment that claimed ancestor/globaltail fallback contrary to implementation; no production body changed",
+  "decisions": [
+    "Standing follow C Tcl 20261018T1155",
+    "Auto-import fixture prelude20261018T0915",
+    "Root explicit narrow fixture-source correction20261023"
+  ],
+  "controls": [
+    {
+      "selector": "analyser::class_hierarchy::tests::bare_superclass_links_via_unique_tail_across_namespaces",
+      "exact": true,
+      "expected_selected": 1
+    },
+    {
+      "selector": "analyser::class_hierarchy::tests::bare_superclass_unique_tail_without_import_remains_unresolved",
+      "exact": true,
+      "expected_selected": 1
+    }
+  ],
+  "checks": [
+    "Pinned1.99.1 rustfmt parse/format0",
+    "Current beforepin/read-only applycheck0",
+    "Actual C8.6/9.0/9.1 both original source variants6/6 match; fullsourcebytes/providerhashes retained"
+  ],
+  "limits": [
+    "Normalanalyse authentic import/class relation producer may still be unavailable in current Rust; positive unchanged and must be measured, never fabricated to pass",
+    "No assertion/count/globalEq/unknown/Native/Normal/currentness change",
+    "No Cargo or canonical source writes under49HOLD"
+  ]
+}

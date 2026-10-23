@@ -1,0 +1,12 @@
+{
+  "status": "OFF TREE; source/test/provider HOLD; no Cargo/apply",
+  "path": "rust/tcl-lsp-server/src/readonly_reference_reports.rs",
+  "before_sha256": "b3330e27a594229ad424d4c4108497242720bcfc97ef3cbe989e6131e1ac8ba5",
+  "proposed_sha256": "8fedab72a8453b3d2148762aa1004517d3a4e853ebe9382d3ce801d48e25aa9e",
+  "patch_sha256": "0642510bffc61b3ca2fb9b6af2dcad1b60996388d53e4e68005b152fc0f7acd5",
+  "change": "Only fresh SemanticStructure purpose stops depending on unrelated global Salsa revision. Exact open snapshot/URI generation/provider admission/full config/actual resolved input retained source realm/diag epoch/factory generation remain. Database/ReadonlyComplete/ConditionalSourceRegion revision guard unchanged.",
+  "evidence": "Actual native2/3 have41 coarse ContentModified requests (40full+1delta); no actual gate-state log proves which of the independent guards failed. Static overbroad dependency reproduced by new deterministic actual unrelated SourceFile setter control, unrun. Not a claim to fix all41 or all566 failures.",
+  "test": "New actual unrelated Salsa SourceFile write positive for coarse and negative for genuine ReadonlyComplete; original actual config/source/version/providerABA/factory/dialect/close negatives unchanged.",
+  "validation": "Pinnedfmt skip_children/applycheck PASS; Names bounded static CLEAR650f8d92; Rust typing/runtime UNRUN; actual40protocolfailedgates not observed",
+  "successor": "v1 immutable; v2 adds genuine ReadonlyComplete actual-current positive before unrelated write, preserving same heldcarrier and exact finaltransaction; after remains rejected"
+}

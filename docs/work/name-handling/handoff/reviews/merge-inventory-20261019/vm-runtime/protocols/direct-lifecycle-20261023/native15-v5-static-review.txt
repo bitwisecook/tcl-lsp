@@ -1,0 +1,22 @@
+{
+  "recorded_utc": "2026-10-23T02:16:17.814698+00:00",
+  "scope": "independent bounded static review of exact immutable v5; no runner/launcher/Cargo/provider/Git/source invocation",
+  "pins": {
+    "plan.json": "c9c870a466532e431dbbd840d879c1069bda18c1f32805d63192ffbf6f25783a",
+    "suite.py": "1fd6fa9b17665043a987ce929c4eae69afafd07668aa18f1e8d53a55edb59500",
+    "launch.py": "5a128ce0f3c99c5bbe55ff5ed80c05452df71501fac4c78e67ba2635392976e4",
+    "run.sh": "13a46e1bb24fc673358e5a9cd1b66b367f0c16611658f9b28188dbc1b5d14464",
+    "runner-input-manifest.json": "96726309abc23a7dfcf51976a9c4e496ff47e6eae419452f02c8fe9516d2a0b7",
+    "guarded-exec.py": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811"
+  },
+  "verdict": "No remaining bounded static protocol blocker identified; READY/unrun/notqueued",
+  "findings": [
+    "Exact15 selector objects and original12 sourcepins equal frozenv3; thirteenth pin is post18 source_views151c; all18 final composition hashes now checked",
+    "All runner input hashes match; absentGO; AST parses allPython; explicitGO HEAD/tree, ancestry and eachcommit docs-only descendants, worktree productdelta checks retained",
+    "Cargo compiler warning/error, buildscript warning field, stderr warnings and test warning gates added; successful buildfinished required",
+    "Test artifact exact manifest/name/kind(test or lib)/testprofile=true; server exact manifest/name/bin/testprofile=false. Server executable condition is ordinary nonharness serverbuild expectation and remains failclosed if not emitted; no actualCargoartifact result measured here",
+    "Exact88125 executor direct parentownership/runtime;3600 build/180 selected; originalperprocess20,000,000B cap and2,300,000,000B actualmountfloor retained; original inner30 tests unchanged via sourcepins",
+    "Source/provider/GO/artifact validation before and after phases; durable failureafter guard disposition and explicit finally lockrelease marker added; launcher filebacked output with pinsbeforeafter"
+  ],
+  "limits": "Static only; no Cargo/test/source/SectionD acceptance. Actual rootGO post18report14/typecheck evidence required. Actual server/test Cargo events must satisfy these exact predicates; no fallback allowed. V4 remains historicalunapproveddraft."
+}

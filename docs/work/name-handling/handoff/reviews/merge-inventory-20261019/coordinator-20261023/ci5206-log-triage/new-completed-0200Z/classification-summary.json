@@ -1,0 +1,94 @@
+{
+  "utc": "2026-10-23T02:02:57.373189+00:00",
+  "scope": "Only newly supplied CI5206 heavy job120175508112 and main1 job120175508573; no previous ledger replacement",
+  "baseline_path": "coordinator-20261022/origin-rust-ci-5203-named-log-outcomes-20261022.json",
+  "baseline_sha256": "8f0640329c7c60180099d61fe5c2d58ff13b76230b6046ef169f610b3ffa7a58",
+  "baseline_run": {
+    "id": 39816429638,
+    "number": 5203,
+    "ref": "rust",
+    "head_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731"
+  },
+  "jobs": {
+    "heavy": {
+      "job_id": 120175508112,
+      "input_bytes": 322365,
+      "input_sha256": "6937daabea9a8e127560249938493cfcfe069eac56dd2b54249d29beb2de63a1",
+      "gzip_path": "heavy-120175508112.decoded-content.log.gz",
+      "gzip_sha256": "2a9baa14fec3ea2192f4c66d8cc74480922bf1c56cdddb001d29a0d2f732a1a6",
+      "gzip_byte_exact_verified": true,
+      "phase": "RUNTIME EXECUTED; not build/list failure",
+      "compile_errors_observed": [],
+      "starting_lines": [
+        "2026-10-23T00:56:19.6793147Z     Starting 354 tests across 21 binaries"
+      ],
+      "summary_lines": [
+        "2026-10-23T01:45:23.7655208Z      Summary [2944.087s] 354 tests run: 312 passed (4 slow), 42 failed, 0 skipped"
+      ],
+      "unique_outcome_counts": {
+        "PASS": 312,
+        "FAIL": 42
+      },
+      "unique_terminal_records": 354,
+      "duplicate_terminal_lines_deduplicated": 42,
+      "duplicate_status_conflicts": [],
+      "reporter_ordinals": {
+        "unique": 354,
+        "min": 1,
+        "max": 354
+      },
+      "baseline_join_counts": {
+        "matched_passes": 293,
+        "regressions": 18,
+        "extra_current_passes": 19,
+        "unmatched_current_nonpass": 24,
+        "duplicates": 0
+      },
+      "limits": [
+        "Exact observed console binary_id+selector join only. New/absent baseline identities remain unknown.",
+        "No skipped/unreached selector can be inferred PASS/FAIL; exact previous ledgers remain separate."
+      ]
+    },
+    "main1": {
+      "job_id": 120175508573,
+      "input_bytes": 317508,
+      "input_sha256": "125a6ece8de947a288847101ddc2e933a072a0b234fb7ff56e3b1efc32c8db3b",
+      "gzip_path": "main1-120175508573.decoded-content.log.gz",
+      "gzip_sha256": "be1f2bf34fd23f1b2f65ea00608d309a6e4a45c95eb427a1cb8e1915a6fae745",
+      "gzip_byte_exact_verified": true,
+      "phase": "RUNTIME EXECUTED; not build/list failure",
+      "compile_errors_observed": [],
+      "starting_lines": [
+        "2026-10-23T01:00:35.2426277Z     Starting 10552 tests across 1 binary (2 tests and 51 binaries skipped)"
+      ],
+      "summary_lines": [
+        "2026-10-23T01:08:54.6272403Z      Summary [ 499.385s] 281/10552 tests run: 238 passed, 43 failed, 2 skipped"
+      ],
+      "unique_outcome_counts": {
+        "PASS": 238,
+        "FAIL": 39,
+        "SIGTERM": 3,
+        "SIGKILL": 1
+      },
+      "unique_terminal_records": 281,
+      "duplicate_terminal_lines_deduplicated": 43,
+      "duplicate_status_conflicts": [],
+      "reporter_ordinals": {
+        "unique": 281,
+        "min": 1,
+        "max": 281
+      },
+      "baseline_join_counts": {
+        "matched_passes": 158,
+        "regressions": 26,
+        "extra_current_passes": 80,
+        "unmatched_current_nonpass": 17,
+        "duplicates": 0
+      },
+      "limits": [
+        "Exact observed console binary_id+selector join only. New/absent baseline identities remain unknown.",
+        "No skipped/unreached selector can be inferred PASS/FAIL; exact previous ledgers remain separate."
+      ]
+    }
+  }
+}

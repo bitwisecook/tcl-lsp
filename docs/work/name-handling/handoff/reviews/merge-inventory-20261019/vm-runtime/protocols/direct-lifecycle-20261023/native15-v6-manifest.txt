@@ -1,0 +1,67 @@
+{
+  "recorded_utc": "2026-10-23T02:17:28.753936+00:00",
+  "status": "FROZEN exactv6 protocol+peerreceipt; READY/unrun/notqueued; noGO",
+  "roundtrip_verified": true,
+  "files": [
+    {
+      "source": "/tmp/lsp-native-protocol-v6-direct15/launch-preflight-refusal.json",
+      "sha256": "2c7125092aeb4cea94f61e89f8cf85dd220ef6b3fbeb975423d597f5a98711cd",
+      "bytes": 144,
+      "blob": "blobs/2c7125092aeb4cea94f61e89f8cf85dd220ef6b3fbeb975423d597f5a98711cd.gz"
+    },
+    {
+      "source": "/tmp/lsp-native-protocol-v6-direct15/runner-input-manifest.json",
+      "sha256": "2cbf9db5dcc54920283186799d13cfa15e290caf77243b402f07be6c4ca29408",
+      "bytes": 1700,
+      "blob": "blobs/2cbf9db5dcc54920283186799d13cfa15e290caf77243b402f07be6c4ca29408.gz"
+    },
+    {
+      "source": "/tmp/lsp-native-protocol-v6-direct15/providers.py",
+      "sha256": "5b01d95b0e919dc8aa16048c663003fbaa708d2f1e970408ef3c14fe47eeacd8",
+      "bytes": 676,
+      "blob": "blobs/5b01d95b0e919dc8aa16048c663003fbaa708d2f1e970408ef3c14fe47eeacd8.gz"
+    },
+    {
+      "source": "/tmp/lsp-native-protocol-v6-direct15/guarded-exec.py",
+      "sha256": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811",
+      "bytes": 13109,
+      "blob": "blobs/88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811.gz"
+    },
+    {
+      "source": "/tmp/lsp-native-protocol-v6-direct15/run.sh",
+      "sha256": "6b21b64c3e2e2be43feb22b7abf39fc8a813a3989f4903130f71e464f2331702",
+      "bytes": 204,
+      "blob": "blobs/6b21b64c3e2e2be43feb22b7abf39fc8a813a3989f4903130f71e464f2331702.gz"
+    },
+    {
+      "source": "/tmp/lsp-native-protocol-v6-direct15/launch.py",
+      "sha256": "45a51134ef51bf3e069a2cb3abdf2e2a5e01d94c25464b07c4987c04223e5cff",
+      "bytes": 2305,
+      "blob": "blobs/45a51134ef51bf3e069a2cb3abdf2e2a5e01d94c25464b07c4987c04223e5cff.gz"
+    },
+    {
+      "source": "/tmp/lsp-native-protocol-v6-direct15/suite.py",
+      "sha256": "51087f14566cc2740f813f809c40726e608786e08630531fdbdd8cbab3342823",
+      "bytes": 14443,
+      "blob": "blobs/51087f14566cc2740f813f809c40726e608786e08630531fdbdd8cbab3342823.gz"
+    },
+    {
+      "source": "/tmp/lsp-native-protocol-v6-direct15/plan.json",
+      "sha256": "69b5c30390734545b45de6cdff73b2cfe231418a93ba0ef33c91c6faee5b5992",
+      "bytes": 8066,
+      "blob": "blobs/69b5c30390734545b45de6cdff73b2cfe231418a93ba0ef33c91c6faee5b5992.gz"
+    },
+    {
+      "source": "/tmp/lsp-native-protocol-v5-peer-reviewed-old51c.txt",
+      "sha256": "51c226b00451443855d13321b03e3784a14822eedbe519b113d6a8a56c6126c3",
+      "bytes": 14422,
+      "blob": "blobs/51c226b00451443855d13321b03e3784a14822eedbe519b113d6a8a56c6126c3.gz"
+    },
+    {
+      "source": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/vm-runtime/protocols/direct-lifecycle-20261023/native15-v6-static-review.txt",
+      "sha256": "31ee045131e59d2234405aaaaed9d1a0032bca3b303b13c1fc1278dddb6afea3",
+      "bytes": 1876,
+      "blob": "blobs/31ee045131e59d2234405aaaaed9d1a0032bca3b303b13c1fc1278dddb6afea3.gz"
+    }
+  ]
+}

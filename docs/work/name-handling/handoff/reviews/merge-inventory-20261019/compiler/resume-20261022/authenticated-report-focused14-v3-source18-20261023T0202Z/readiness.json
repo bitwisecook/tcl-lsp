@@ -1,0 +1,25 @@
+{
+  "prepared_utc": "2026-10-23T02:00:56.951339+00:00",
+  "status": "OFFTREE PREPARED, prerequisite49v7 RUNNING not complete; no reportGO/Cargo/integration",
+  "plan_sha256": "8eec203b2e719ca3252f0bd5bd9955218c2c366ba51ec946e3ad568d126fc276",
+  "runner_input_manifest_sha256": "0324b997a088c107ce52c0165b5626f40077f0b3ee2583ca58226f8bdccbe318",
+  "launch_sha256": "38494e610d60f8a08d44bba409670e46563fd99b8629a0027d50ea50603fd3b2",
+  "source18_manifest_sha256": "7d68ce5bc058f1fcaa8c5bac3c9f0926c7c9f0bad8a674262f9591e7eadde09b",
+  "guarded_exec_unchanged_from49v7_sha256": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811",
+  "controls": 14,
+  "filters": 2,
+  "prerequisite_actual49_plan_sha256": "0cb62fcdba2a9f24e5578ada9123e8fe9e195a1e7cd0f0cb1479ea2a19542313",
+  "root_go_schema": {
+    "source_commit": "3b1a750be337993a85ec533d84546e1d827dd9a8",
+    "plan_sha256": "exact this plan SHA",
+    "source18_manifest_sha256": "exact source18 manifest SHA",
+    "runner_input_manifest_sha256": "exact immutable input manifest SHA",
+    "approved_integrated_head": "actual exact18 integrationHEAD; only docs descendants",
+    "compiler49_final_receipt": "actual completed49v7 final.json",
+    "compiler49_final_sha256": "exact valid final SHA",
+    "compiler49_launcher_receipt": "actual completed49v7 durable launcher.json",
+    "compiler49_launcher_sha256": "exact completed launcher SHA"
+  },
+  "preserved": "14v1/v2 and49v7 untouched; no style/float/BPF/newobserver",
+  "typing_runtime": "UNRUN; no Native/quiet/Normal/cache/globalEq grants"
+}

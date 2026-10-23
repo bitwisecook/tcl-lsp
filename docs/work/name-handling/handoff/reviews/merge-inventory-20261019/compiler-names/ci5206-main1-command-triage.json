@@ -1,0 +1,193 @@
+{
+  "utc": "2026-10-23T02:09:51Z",
+  "status": "actual CI5206 main1 command12 exactbaseline nonpass cause triage; no local run",
+  "source": "coordinator-20261023/ci5206-log-triage/new-completed-0200Z/main1-120175508573.decoded-content.log.gz",
+  "counts": {
+    "commands": 12,
+    "assertion_fail": 9,
+    "depth_signaled_assertion_unknown": 3
+  },
+  "rows": [
+    {
+      "selector": "analyser::commands::tests::bareword_widget_constructor_binds_instance_class",
+      "failure": [
+        "2026-10-23T01:03:05.5551286Z     thread 'analyser::commands::tests::bareword_widget_constructor_binds_instance_class' (15126) panicked at rust/tcl-compiler/src/analyser/commands.rs:6941:9:",
+        "2026-10-23T01:03:05.5553016Z     assertion `left == right` failed: instance_classes: {}",
+        "2026-10-23T01:03:05.5553810Z       left: None",
+        "2026-10-23T01:03:05.5554653Z      right: Some(\"ttk::treeview\")",
+        "2026-10-23T01:03:05.5555278Z     stack backtrace:",
+        "2026-10-23T01:03:05.5555844Z        0: __rustc::rust_begin_unwind"
+      ],
+      "category": "genuine analyse missing conditional source-class report label",
+      "certainty": "empty instance_classes measured; exact earlier publication/handle source guard unmeasured",
+      "next": "inspect source_command_publication_at/source_handle_class_advice_at/schema availability under actual input; retain created_instance_commands empty and source provenance guards",
+      "owner": "compiler-names"
+    },
+    {
+      "selector": "analyser::commands::tests::depth_exactly_at_cap_emits_no_e207",
+      "failure": [
+        "2026-10-23T01:07:05.3646372Z         SLOW [>240.000s] (\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500) tcl-compiler analyser::commands::tests::depth_exactly_at_cap_emits_no_e207",
+        "2026-10-23T01:08:05.4296985Z         SLOW [>300.000s] (\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500) tcl-compiler analyser::commands::tests::depth_exactly_at_cap_emits_no_e207",
+        "2026-10-23T01:08:54.6237004Z      SIGKILL [ 349.266s] (  281/10552) tcl-compiler analyser::commands::tests::depth_exactly_at_cap_emits_no_e207",
+        "2026-10-23T01:08:54.6502275Z      SIGKILL [ 349.266s] (  281/10552) tcl-compiler analyser::commands::tests::depth_exactly_at_cap_emits_no_e207"
+      ],
+      "category": "348\u2013349second runtime resource noncompletion with SIGTERM/SIGKILL",
+      "certainty": "assertion outcome unknown; no E207 assertion result or stackoverflow verdict emitted",
+      "next": "bounded performance/cause diagnosis preserving depth constants and frame budget; no semanticFAIL or stack expansion inferred",
+      "owner": "compiler-names with compiler/perf coordination only when assigned"
+    },
+    {
+      "selector": "analyser::commands::tests::depth_far_past_cap_still_emits_e207_exactly_once",
+      "failure": [
+        "2026-10-23T01:07:05.5466379Z         SLOW [>240.000s] (\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500) tcl-compiler analyser::commands::tests::depth_far_past_cap_still_emits_e207_exactly_once",
+        "2026-10-23T01:08:05.5506434Z         SLOW [>300.000s] (\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500) tcl-compiler analyser::commands::tests::depth_far_past_cap_still_emits_e207_exactly_once",
+        "2026-10-23T01:08:53.9852655Z      SIGTERM [ 348.447s] (  279/10552) tcl-compiler analyser::commands::tests::depth_far_past_cap_still_emits_e207_exactly_once",
+        "2026-10-23T01:08:54.6489887Z      SIGTERM [ 348.447s] (  279/10552) tcl-compiler analyser::commands::tests::depth_far_past_cap_still_emits_e207_exactly_once"
+      ],
+      "category": "348\u2013349second runtime resource noncompletion with SIGTERM/SIGKILL",
+      "certainty": "assertion outcome unknown; no E207 assertion result or stackoverflow verdict emitted",
+      "next": "bounded performance/cause diagnosis preserving depth constants and frame budget; no semanticFAIL or stack expansion inferred",
+      "owner": "compiler-names with compiler/perf coordination only when assigned"
+    },
+    {
+      "selector": "analyser::commands::tests::depth_one_past_cap_emits_e207_exactly_once",
+      "failure": [
+        "2026-10-23T01:07:06.6454711Z         SLOW [>240.000s] (\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500) tcl-compiler analyser::commands::tests::depth_one_past_cap_emits_e207_exactly_once",
+        "2026-10-23T01:08:06.6524295Z         SLOW [>300.000s] (\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500) tcl-compiler analyser::commands::tests::depth_one_past_cap_emits_e207_exactly_once",
+        "2026-10-23T01:08:54.5438454Z      SIGTERM [ 347.906s] (  280/10552) tcl-compiler analyser::commands::tests::depth_one_past_cap_emits_e207_exactly_once",
+        "2026-10-23T01:08:54.6496754Z      SIGTERM [ 347.906s] (  280/10552) tcl-compiler analyser::commands::tests::depth_one_past_cap_emits_e207_exactly_once"
+      ],
+      "category": "348\u2013349second runtime resource noncompletion with SIGTERM/SIGKILL",
+      "certainty": "assertion outcome unknown; no E207 assertion result or stackoverflow verdict emitted",
+      "next": "bounded performance/cause diagnosis preserving depth constants and frame budget; no semanticFAIL or stack expansion inferred",
+      "owner": "compiler-names with compiler/perf coordination only when assigned"
+    },
+    {
+      "selector": "analyser::commands::tests::expr_function_call_honours_namespace_path",
+      "failure": [
+        "2026-10-23T01:03:17.2571600Z     thread 'analyser::commands::tests::expr_function_call_honours_namespace_path' (15144) panicked at rust/tcl-compiler/src/analyser/commands.rs:7967:14:",
+        "2026-10-23T01:03:17.2573017Z     mathfunc invocation recorded",
+        "2026-10-23T01:03:17.2573593Z     stack backtrace:",
+        "2026-10-23T01:03:17.2574310Z        0: __rustc::rust_begin_unwind",
+        "2026-10-23T01:03:17.2575184Z                  at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/std/src/panicking.rs:679:5",
+        "2026-10-23T01:03:17.2576089Z        1: core::panicking::panic_fmt"
+      ],
+      "category": "genuine analyse missing original math-function source inventory in declared namespace-path body",
+      "certainty": "no triple command invocation measured; exact original_math_functions_in_source producer refusal unmeasured",
+      "next": "inspect actual caller-body expression source/compiler owner and mathfunc inventory; preserve namespace path expectedtarget and strict current proof; no runtime reach claim",
+      "owner": "compiler-names / compiler expression owner"
+    },
+    {
+      "selector": "analyser::commands::tests::interp_create_safe_with_literal_name_suppresses_w123_on_later_call",
+      "failure": [
+        "2026-10-23T01:03:34.2551488Z     thread 'analyser::commands::tests::interp_create_safe_with_literal_name_suppresses_w123_on_later_call' (15159) panicked at rust/tcl-compiler/src/analyser/commands.rs:7023:9:",
+        "2026-10-23T01:03:34.2556954Z     a literal call to a `interp create -safe`-created name must not raise W123: [(\"W123\", \"Unresolved command 'sandbox' at this source point. The call widens the variables held at it, in a procedure's own frame its locals; a `# tcl-lsp: stub sandbox {\u2026} -frame own` (or `-frame none`) declaration keeps them when every argument is a value, name, pattern or channel and no flag but `-pure` or `-unsafe` is set.\")]",
+        "2026-10-23T01:03:34.2560936Z     stack backtrace:",
+        "2026-10-23T01:03:34.2561577Z        0: __rustc::rust_begin_unwind",
+        "2026-10-23T01:03:34.2562680Z                  at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/std/src/panicking.rs:679:5",
+        "2026-10-23T01:03:34.2563809Z        1: core::panicking::panic_fmt"
+      ],
+      "category": "genuine analyse named interpreter command unresolved at later call",
+      "certainty": "W123 sandbox measured; source publication vs actual target settlement missing field unmeasured",
+      "next": "inspect actual original interp-create literal naming publication and same-input later command lookup with original debts; do not infer successful creation from conditional source record",
+      "owner": "compiler-names / compiler binding owner"
+    },
+    {
+      "selector": "analyser::commands::tests::process_foreach_defines_loop_var",
+      "failure": [
+        "2026-10-23T01:04:18.8097167Z     thread 'analyser::commands::tests::process_foreach_defines_loop_var' (15201) panicked at rust/tcl-compiler/src/analyser/commands.rs:7243:9:",
+        "2026-10-23T01:04:18.8098849Z     assertion failed: a.result.global_scope.variables.contains_key(\"i\")",
+        "2026-10-23T01:04:18.8099626Z     stack backtrace:",
+        "2026-10-23T01:04:18.8100068Z        0: __rustc::rust_begin_unwind",
+        "2026-10-23T01:04:18.8100935Z                  at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/std/src/panicking.rs:679:5",
+        "2026-10-23T01:04:18.8101825Z        1: core::panicking::panic_fmt"
+      ],
+      "category": "raw fixture lacks actual original source/input/command owner",
+      "certainty": "source contract demonstrated; correction untyped/unrun",
+      "next": "reviewed fixture-only0dc91208 preserves every original assertion; later root slot",
+      "owner": "compiler-names"
+    },
+    {
+      "selector": "analyser::commands::tests::process_global_defines_each_name",
+      "failure": [
+        "2026-10-23T01:04:19.1551094Z     thread 'analyser::commands::tests::process_global_defines_each_name' (15203) panicked at rust/tcl-compiler/src/analyser/commands.rs:7260:9:",
+        "2026-10-23T01:04:19.1552706Z     assertion failed: a.result.global_scope.variables.contains_key(\"x\")",
+        "2026-10-23T01:04:19.1584602Z     stack backtrace:",
+        "2026-10-23T01:04:19.1614635Z        0: __rustc::rust_begin_unwind",
+        "2026-10-23T01:04:19.1645005Z                  at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/std/src/panicking.rs:679:5",
+        "2026-10-23T01:04:19.1674642Z        1: core::panicking::panic_fmt"
+      ],
+      "category": "raw fixture lacks actual original source/input/command owner",
+      "certainty": "source contract demonstrated; correction untyped/unrun",
+      "next": "reviewed fixture-only0dc91208 preserves every original assertion; later root slot",
+      "owner": "compiler-names"
+    },
+    {
+      "selector": "analyser::commands::tests::process_set_defines_variable",
+      "failure": [
+        "2026-10-23T01:04:20.0370793Z     thread 'analyser::commands::tests::process_set_defines_variable' (15211) panicked at rust/tcl-compiler/src/analyser/commands.rs:7173:9:",
+        "2026-10-23T01:04:20.0372647Z     assertion failed: a.result.global_scope.variables.contains_key(\"x\")",
+        "2026-10-23T01:04:20.0373530Z     stack backtrace:",
+        "2026-10-23T01:04:20.0374339Z        0: __rustc::rust_begin_unwind",
+        "2026-10-23T01:04:20.0375380Z                  at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/std/src/panicking.rs:679:5",
+        "2026-10-23T01:04:20.0376380Z        1: core::panicking::panic_fmt"
+      ],
+      "category": "raw fixture lacks actual original source/input/command owner",
+      "certainty": "source contract demonstrated; correction untyped/unrun",
+      "next": "reviewed fixture-only0dc91208 preserves every original assertion; later root slot",
+      "owner": "compiler-names"
+    },
+    {
+      "selector": "analyser::commands::tests::simple_widget_without_subcommands_still_binds_instance_class",
+      "failure": [
+        "2026-10-23T01:04:28.3490251Z     thread 'analyser::commands::tests::simple_widget_without_subcommands_still_binds_instance_class' (15551) panicked at rust/tcl-compiler/src/analyser/commands.rs:6980:9:",
+        "2026-10-23T01:04:28.3492019Z     assertion `left == right` failed: instance_classes: {}",
+        "2026-10-23T01:04:28.3492642Z       left: None",
+        "2026-10-23T01:04:28.3493023Z      right: Some(\"button\")",
+        "2026-10-23T01:04:28.3493441Z     stack backtrace:",
+        "2026-10-23T01:04:28.3493856Z        0: __rustc::rust_begin_unwind"
+      ],
+      "category": "genuine analyse missing conditional source-class report label",
+      "certainty": "empty instance_classes measured; exact earlier publication/handle source guard unmeasured",
+      "next": "inspect source_command_publication_at/source_handle_class_advice_at/schema availability under actual input; retain created_instance_commands empty and source provenance guards",
+      "owner": "compiler-names"
+    },
+    {
+      "selector": "analyser::commands::tests::var_captured_widget_constructor_binds_instance_class",
+      "failure": [
+        "2026-10-23T01:04:30.0919730Z     thread 'analyser::commands::tests::var_captured_widget_constructor_binds_instance_class' (15553) panicked at rust/tcl-compiler/src/analyser/commands.rs:6964:9:",
+        "2026-10-23T01:04:30.0921384Z     assertion `left == right` failed: instance_classes: {}",
+        "2026-10-23T01:04:30.0922043Z       left: None",
+        "2026-10-23T01:04:30.0922451Z      right: Some(\"listbox\")",
+        "2026-10-23T01:04:30.0922906Z     stack backtrace:",
+        "2026-10-23T01:04:30.0923348Z        0: __rustc::rust_begin_unwind"
+      ],
+      "category": "genuine analyse missing conditional source-class report label",
+      "certainty": "empty instance_classes measured; exact earlier publication/handle source guard unmeasured",
+      "next": "inspect source_command_publication_at/source_handle_class_advice_at/schema availability under actual input; retain created_instance_commands empty and source provenance guards",
+      "owner": "compiler-names"
+    },
+    {
+      "selector": "analyser::commands::tests::w125_fires_for_orphaned_else",
+      "failure": [
+        "2026-10-23T01:04:31.6079183Z     thread 'analyser::commands::tests::w125_fires_for_orphaned_else' (15555) panicked at rust/tcl-compiler/src/analyser/commands.rs:7557:9:",
+        "2026-10-23T01:04:31.6080914Z     assertion failed: has_code(\"if {$x} {\\n  puts hi\\n}\\nelse {\\n  puts bye\\n}\", \"tcl\", \"W125\")",
+        "2026-10-23T01:04:31.6081761Z     stack backtrace:",
+        "2026-10-23T01:04:31.6082212Z        0: __rustc::rust_begin_unwind",
+        "2026-10-23T01:04:31.6083080Z                  at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/std/src/panicking.rs:679:5",
+        "2026-10-23T01:04:31.6083977Z        1: core::panicking::panic_fmt"
+      ],
+      "category": "W125 positive original keyword slot absence unavailable after preceding conditional",
+      "certainty": "no W125 measured; exact diagnostic_slot_presence/geometry refusal unmeasured",
+      "next": "inspect original word/current input and original slot absence at else; preserve unknown/occupant negatives and original positive assertion; no report-map fallback",
+      "owner": "compiler-names"
+    }
+  ],
+  "routed": "13bounds_checks +1class_hierarchy tocompiler_resume",
+  "limits": [
+    "No assertion weakening/inversion or identity-only semantic conclusion",
+    "Existing13:17afterloadcompilerReached grants no Native/frame/completion authority",
+    "No Cargo/canonical/source repair; sourcefixed49 active"
+  ],
+  "fixture_candidate": "0dc91208391721856022c72cc3fab238a6754cc89c5d2acaa64f5b644fe207fa"
+}

@@ -1,0 +1,27 @@
+{
+  "utc": "2026-10-23T02:21:12Z",
+  "verdict": "CLEAR bounded static exact successor; typing/runtime unrun",
+  "patch_sha256": "ad03b7b390ef3a1a8931a629a4c3f3425f9cc991c3390f7829ff5325d10f68dc",
+  "supersedes": [
+    "v2 0642510b review650f8d92",
+    "v3 da21845e held new test body~110lines; production accepted"
+  ],
+  "production_findings": [
+    "Actual semantic request uses DocumentReadiness::Salsa, index publisher advances same live source revision Salsa->Indexed under provider lease; pure fresh coarse structure worker consumes no workspace index/Salsa query result",
+    "Only actual private fresh SemanticStructure purpose ignores unrelated global database revision and accepts exact held Salsa->currentIndexed readiness advance",
+    "Every other open snapshot field remains exact: source/raw bytes, version/revision, dialect, backing deletion state, path admission and dialect generations; URIgen/fullinput/current realm/config/epoch/factory/provider lease still joined",
+    "Database and Fresh ReadonlyComplete/ConditionalSourceRegion revision and publication guards remain strict; no Native/runtime/Normal or enriched semantic eligibility grant"
+  ],
+  "tests": [
+    "Unrelated actual SourceFile write changes real DBrevision; coarsecurrent accepted, same held real ReadonlyComplete currentSome BEFORE and None AFTER",
+    "Actual configured heldcoarse/source-currency carriers positive before monotonic publication transition; coarseSome after exact same-source Salsa->Indexed, same real ReadonlyComplete None",
+    "Pending withdrawal and Indexed->Salsa downgrade refuse; equalbytes newer source revision refuses oldcarrier, freshly captured replacement accepts; actualURIgeneration retirement refuses replacement",
+    "All original source/config/providerABA/epoch/factory/close/dialect negatives unchanged",
+    "v4 changes only test helper versus v3: exact5publication set actions retain all assertions/order; phase test below100lines; no allow"
+  ],
+  "limits": [
+    "No Rust typing/Cargo/runtime/source application",
+    "Actual41 coarse ContentModified requests lack guard-state trace; this is scoped source-contract repair, not a causal proof for all41/native failures",
+    "Root owns composition, integration and rerun after active49"
+  ]
+}

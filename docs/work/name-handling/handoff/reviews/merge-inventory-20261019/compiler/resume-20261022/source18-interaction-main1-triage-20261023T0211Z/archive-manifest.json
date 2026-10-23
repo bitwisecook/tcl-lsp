@@ -1,0 +1,21 @@
+{
+  "members": [
+    {
+      "path": "class-import-oracle.json",
+      "sha256": "695c82fd769e4e103877ba072badc3d243ac78b6e82c7f858d5ce7a514d9e6f6"
+    },
+    {
+      "path": "compiler49-owned-cause-map.json",
+      "sha256": "7952fc7e11601d898e0bf473c4951fce365e7e30e5902dd879de37d1d3c9b5a1"
+    },
+    {
+      "path": "main1-bounds-class-triage.json",
+      "sha256": "35beb6fc5d5767891eebaf0f1222fe7580d288379d4f0a64410478fb13041212"
+    },
+    {
+      "path": "source18-interaction-review.json",
+      "sha256": "5ef4ef85fc1bf7ba364266e6c84ee49c227b56bff69cc6c8470a2353a0eccba4"
+    }
+  ],
+  "scope": "immutable read-only review/actual finite oracle evidence, no product source"
+}

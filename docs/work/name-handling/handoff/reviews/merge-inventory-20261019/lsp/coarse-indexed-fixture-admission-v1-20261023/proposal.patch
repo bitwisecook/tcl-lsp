@@ -1,0 +1,14 @@
+--- rust/tcl-lsp-server/src/lib.rs
++++ rust/tcl-lsp-server/src/lib.rs
+@@ -65056,9 +65056,10 @@
+             .db_set_source(&uri, src, "tcl9.0".to_owned())
+             .await
+             .unwrap();
++        let admission = backend.document_path_admission(&uri).await.unwrap();
+         backend.documents.lock("test").await.insert(
+             uri.clone(),
+-            DocumentState::new(src.to_owned(), "tcl9.0".to_owned()),
++            DocumentState::new(src.to_owned(), "tcl9.0".to_owned()).with_path_admission(admission),
+         );
+ 
+         let served = backend

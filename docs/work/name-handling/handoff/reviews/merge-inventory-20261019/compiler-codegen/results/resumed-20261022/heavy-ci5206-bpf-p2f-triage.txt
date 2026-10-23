@@ -1,0 +1,11 @@
+Heavy CI5206 two BPF pass-to-fail tests: bounded read-only first-refusal triage, 2026-10-23.
+
+Current raw log /tmp/ci5206-newjob-0.log SHA-256 6937daabea9a8e127560249938493cfcfe069eac56dd2b54249d29beb2de63a1. Exact baseline join coordinator-20261023/ci5206-log-triage/new-completed-0200Z/heavy-exact-baseline-join.json identifies both as baseline PASS/current FAIL by binary and selector; 312 baseline, 354 current.
+
+Selectors:
+- bpf_diff::tests::tn_zero_selected_byte_is_the_socket_filter_drop_verdict: raw lines 1613-1644, panic at rust/tcl-fuzz/src/bpf_diff.rs:162.
+- bpf_diff::tests::tp_real_ebpf_program_returns_the_selected_packet_byte: raw lines 1649-1665, panic at rust/tcl-fuzz/src/bpf_diff.rs:151.
+
+Both test panics are `.expect("compiled BPF program")` on `check(case)`. Their actual error is `BPF-Tcl lowering: [BPF001] DSL command requires its retained original or typed generated selection`. `bpf_diff::check` calls `compile_module(&source)` first, before the later eBPF `emit_program` and `run_socket_filter` calls. The quoted message is `missing_selection` in rust/bpf-tcl-ir/src/source.rs:423, returned by absent selected CommandTokens or invalid source_bpf_command descriptor/head/words authentication. The actual log gives no source span/command, so it does not identify which generated `when`/bind/load/verdict statement first lost selection.
+
+Classification: compiler front-end/source-selection admission refusal, before eBPF emission and userspace execution. Neither packet result (0 or 91), socket-filter verdict nor runtime is measured. Preserve original fixture and fail-closed source-binding guard. An exact first-binding producer receipt is needed before a bounded fix; no speculative fallback or test expectation edit is supported by this log. No Cargo/source edit by this role.

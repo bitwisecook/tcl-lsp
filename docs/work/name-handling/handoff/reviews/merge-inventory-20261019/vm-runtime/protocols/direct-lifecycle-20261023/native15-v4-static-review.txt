@@ -1,0 +1,15 @@
+{
+  "recorded_utc": "2026-10-23T02:14:07.704894+00:00",
+  "scope": "bounded static only; no runner/launcher/Cargo/provider/Git/source invoked",
+  "plan_sha256": "92509aa77cfeeb78e65ad459bb633531b4176e5aeabaebdeb944bf576428d19f",
+  "suite_sha256": "f983f19cb5b0d3312ffff063c30b66087e9215d49b95fe7f6db631832ef70a93",
+  "runner_manifest_sha256": "d68b03a2b0b43a30f7a23efaf2ef824456daee7845bcb61920485831ba07e28c",
+  "verdict": "NOT CLEAR; CCG agreed immutable v5 required",
+  "findings": [
+    "No compiler-message/buildscript/stderr warning admission gate in Cargo build path; runtimewarnings similarly unchecked",
+    "Cargo testartifact matching lacks exact targetkind; serverartifact candidates match name+executable only, omit manifest/kind/profile constraints",
+    "Outer except only emits stderr; no durable failure summary/final guard disposition and explicit lockreleased marker",
+    "Docs-only descendants checked with net gitdiff approved->current; transient productcommit+revert not excluded"
+  ],
+  "limits": "Original15 and sourcepins kept; unchangedexecutor88125 reviewed separately. v4 historicalunapproveddraft; noGO. Updatedrunsh env restoration observed, no CLEAR granted."
+}

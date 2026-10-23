@@ -1,0 +1,42 @@
+{
+  "captured_utc": "2026-10-23T02:00:00.596108+00:00",
+  "policy": "docs-only protocol and patch evidence; no Rust/C/Tcl sources or Cargo artifacts archived.",
+  "reviews": {
+    "cargo_wrapper": "cargo-wrapper-v7-independent-review.txt",
+    "cargo_wrapper_sha256": "7a2b0d5e1bac40679b1dbc92e74fd3975b72cda4cdcc5d4da74024f573939b13",
+    "executor_synthetic": "executor-v6-synthetic-review.json",
+    "executor_synthetic_sha256": "2c965faa388794682578fa564f9f1ef5147fb0dc58c2f8d5658322fee1e8a8cc"
+  },
+  "v4": {
+    "combined_patch_gzip": "composition-v4-combined.patch.gz",
+    "combined_patch_gzip_sha256": "465ddcc853123fd3e759a2b50e5b65f2f90c16cb03914c605ce2cd6cdc61b6c7",
+    "combined_patch_sha256": "9fdee598250abfa9f46b5972a76cab05d1efae93e5f65c8efbf8ee46146e84a1",
+    "format_check_receipt": "composition-v4-owner-edition-format-check.json",
+    "format_check_sha256": "b81caaea0cd7f287d7bbd4cf7a2841c8851628fa5c61f88b0c8f62c0b558d9bd",
+    "manifest": "composition-v4-manifest.json",
+    "manifest_sha256": "269b0b429dc137f8428d02383d1c50d1555d23744019923648893268c15f90ba",
+    "source_directory": "/tmp/five-cleared-candidate-composition-v4-20261023T015223Z",
+    "zero_fuzz_log_sha256": "6755a5057cf3b11e36ce414abf4d573c7127067ee7073bc28310cdbed86390fb"
+  },
+  "v7": {
+    "bundle": "compiler49-v7-protocol-go-inputs.tar.gz",
+    "bundle_bytes": 17381,
+    "bundle_sha256": "87a086e0d240d8ff1082c8b64e544bcfdb9d3c00cc743bc56a6283425a0accd9",
+    "inputs": {
+      "guarded-cargo.py": "b51ae1f339dbe4b1ae88603c5cf4fae608fd7234c821121b8ce0fc400b05a319",
+      "guarded-exec.py": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811",
+      "launch.py": "bd9f92d2207b3b97266429e3c5725a5c2c3a2fc8317047015d094ea97f2ef9ce",
+      "plan.json": "0cb62fcdba2a9f24e5578ada9123e8fe9e195a1e7cd0f0cb1479ea2a19542313",
+      "root-go.json": "dfccc034a58f8113839424c11d3a9f0862e8109caec0d20a259b556a32cfd3f2",
+      "run.sh": "f4b3f6704516f92e586a4fa040ce44d2b572e1d300f84453f379eb4535805a67",
+      "runner-input-manifest.json": "23b393e24a7ba9c37388bdd517d4c1d95af45e965d67ce63744ec8f6d3916b48",
+      "suite.py": "ff4861c7d1fb2230f6cdba89161ca56210dcb9b594737ea29a60f510bbab2bbd"
+    },
+    "plan_sha256": "0cb62fcdba2a9f24e5578ada9123e8fe9e195a1e7cd0f0cb1479ea2a19542313",
+    "root_go_sha256": "dfccc034a58f8113839424c11d3a9f0862e8109caec0d20a259b556a32cfd3f2",
+    "runner_input_manifest_sha256": "23b393e24a7ba9c37388bdd517d4c1d95af45e965d67ce63744ec8f6d3916b48",
+    "source_directory": "/tmp/compiler-n13-focused-successor-v7-integrated"
+  },
+  "verification_command": "composition-v4-apply-verification.txt",
+  "verification_command_sha256": "9789809bc3c4688d93d7758d948b87e03f6452d997bd089ebe8dcb3fb7cfaf74"
+}

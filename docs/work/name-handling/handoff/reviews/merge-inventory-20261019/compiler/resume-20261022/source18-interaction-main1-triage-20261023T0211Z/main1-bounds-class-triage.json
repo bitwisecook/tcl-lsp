@@ -1,0 +1,136 @@
+{
+  "utc": "2026-10-23T02:10:28.369228+00:00",
+  "source": "Current CI5206 main1 exactbaseline join; named actual assertions extracted",
+  "bounds_count": 13,
+  "class_count": 1,
+  "rows": [
+    {
+      "selector": "analyser::bounds_checks::tests::a_call_the_module_cannot_see_keeps_a_loop_silent",
+      "baseline": "PASS",
+      "current": "FAIL",
+      "actual_assertion": "2026-10-23T01:00:55.9655457Z     thread 'analyser::bounds_checks::tests::a_call_the_module_cannot_see_keeps_a_loop_silent' (14767) panicked at rust/tcl-compiler/src/analyser/bounds_checks.rs:2881:9:\n2026-10-23T01:00:55.9665110Z     assertion `left == right` failed: whole file: proc foo {} { puts hi }\n2026-10-23T01:00:55.9674597Z     set go 1\n2026-10-23T01:00:55.9684620Z     while {$go} { foo }\n2026-10-23T01:00:55.9684908Z \n2026-10-23T01:00:55.9694442Z       left: []\n2026-10-23T01:00:55.9704325Z      right: [\"W241\"]",
+      "family": "bounds",
+      "classification": "Missing W240/W241/W242 result on first observed assertion, not permissive unknown success"
+    },
+    {
+      "selector": "analyser::bounds_checks::tests::a_callback_the_scan_cannot_read_keeps_w241_silent",
+      "baseline": "PASS",
+      "current": "FAIL",
+      "actual_assertion": "2026-10-23T01:01:13.9724531Z     thread 'analyser::bounds_checks::tests::a_callback_the_scan_cannot_read_keeps_w241_silent' (14772) panicked at rust/tcl-compiler/src/analyser/bounds_checks.rs:2881:9:\n2026-10-23T01:01:13.9734414Z     assertion `left == right` failed: whole file: set done 0\n2026-10-23T01:01:13.9744406Z     after cancel {set done 1}\n2026-10-23T01:01:13.9754371Z     while {!$done} { update }\n2026-10-23T01:01:13.9754762Z \n2026-10-23T01:01:13.9755009Z       left: []\n2026-10-23T01:01:13.9764739Z      right: [\"W241\"]",
+      "family": "bounds",
+      "classification": "Missing W240/W241/W242 result on first observed assertion, not permissive unknown success"
+    },
+    {
+      "selector": "analyser::bounds_checks::tests::a_catch_body_or_a_computed_head_the_module_cannot_see_keeps_a_loop_silent",
+      "baseline": "PASS",
+      "current": "FAIL",
+      "actual_assertion": "2026-10-23T01:02:00.5344311Z     thread 'analyser::bounds_checks::tests::a_catch_body_or_a_computed_head_the_module_cannot_see_keeps_a_loop_silent' (14776) panicked at rust/tcl-compiler/src/analyser/bounds_checks.rs:2881:9:\n2026-10-23T01:02:00.5346425Z     assertion `left == right` failed: whole file: proc foo {} { puts hi }\n2026-10-23T01:02:00.5354691Z     set go 1\n2026-10-23T01:02:00.5364608Z     catch { if {1} { foo } }\n2026-10-23T01:02:00.5374459Z     while {$go} {puts x}\n2026-10-23T01:02:00.5374801Z \n2026-10-23T01:02:00.5384338Z       left: []\n2026-10-23T01:02:00.5394579Z      right: [\"W241\"]",
+      "family": "bounds",
+      "classification": "Missing W240/W241/W242 result on first observed assertion, not permissive unknown success"
+    },
+    {
+      "selector": "analyser::bounds_checks::tests::a_command_an_arm_runs_that_ends_the_loop_keeps_w241_silent",
+      "baseline": "PASS",
+      "current": "FAIL",
+      "actual_assertion": "2026-10-23T01:01:21.5904441Z     thread 'analyser::bounds_checks::tests::a_command_an_arm_runs_that_ends_the_loop_keeps_w241_silent' (14778) panicked at rust/tcl-compiler/src/analyser/bounds_checks.rs:2881:9:\n2026-10-23T01:01:21.5906572Z     assertion `left == right` failed: whole file: proc hit {} {global hits; incr hits}\n2026-10-23T01:01:21.5924398Z     proc p {} {\n2026-10-23T01:01:21.5944486Z      set go 1\n2026-10-23T01:01:21.5954538Z      while {$go} {\n2026-10-23T01:01:21.5964402Z       switch -glob -- [gets stdin] { q* { hit } }\n2026-10-23T01:01:21.5965133Z      }\n2026-10-23T01:01:21.5974840Z     }\n2026-10-23T01:01:21.5984425Z \n2026-10-23T01:01:21.5984714Z       left: []\n2026-10-23T01:01:21.5994620Z      right: [\"W241\"]",
+      "family": "bounds",
+      "classification": "Missing W240/W241/W242 result on first observed assertion, not permissive unknown success"
+    },
+    {
+      "selector": "analyser::bounds_checks::tests::a_loop_test_decided_false_names_the_loop",
+      "baseline": "PASS",
+      "current": "FAIL",
+      "actual_assertion": "2026-10-23T01:01:12.7027471Z     thread 'analyser::bounds_checks::tests::a_loop_test_decided_false_names_the_loop' (14785) panicked at rust/tcl-compiler/src/analyser/bounds_checks.rs:1789:9:\n2026-10-23T01:01:12.7038584Z     assertion `left == right` failed\n2026-10-23T01:01:12.7056065Z       left: []\n2026-10-23T01:01:12.7061933Z      right: [\"Loop condition '$n' is never true; the loop leaves at this test\"]",
+      "family": "bounds",
+      "classification": "Missing W240/W241/W242 result on first observed assertion, not permissive unknown success"
+    },
+    {
+      "selector": "analyser::bounds_checks::tests::a_switch_arm_that_starts_the_loop_keeps_w240_silent",
+      "baseline": "PASS",
+      "current": "FAIL",
+      "actual_assertion": "2026-10-23T01:01:25.7414364Z     thread 'analyser::bounds_checks::tests::a_switch_arm_that_starts_the_loop_keeps_w240_silent' (14791) panicked at rust/tcl-compiler/src/analyser/bounds_checks.rs:2881:9:\n2026-10-23T01:01:25.7444428Z     assertion `left == right` failed: whole file: set n 0\n2026-10-23T01:01:25.7454778Z     switch -glob -- [gets stdin] { q* { set other 1 } }\n2026-10-23T01:01:25.7484423Z     while {$n} {puts x}\n2026-10-23T01:01:25.7494424Z \n2026-10-23T01:01:25.7494695Z       left: []\n2026-10-23T01:01:25.7504513Z      right: [\"W240\"]",
+      "family": "bounds",
+      "classification": "Missing W240/W241/W242 result on first observed assertion, not permissive unknown success"
+    },
+    {
+      "selector": "analyser::bounds_checks::tests::a_switch_arm_that_writes_another_name_leaves_the_verdict",
+      "baseline": "PASS",
+      "current": "FAIL",
+      "actual_assertion": "2026-10-23T01:01:24.6338325Z     thread 'analyser::bounds_checks::tests::a_switch_arm_that_writes_another_name_leaves_the_verdict' (14793) panicked at rust/tcl-compiler/src/analyser/bounds_checks.rs:2881:9:\n2026-10-23T01:01:24.6394404Z     assertion `left == right` failed: whole file: set go 1\n2026-10-23T01:01:24.6395275Z     while {$go} {\n2026-10-23T01:01:24.6400477Z      switch -glob -- [gets stdin] { q* { set other 0 } }\n2026-10-23T01:01:24.6444396Z     }\n2026-10-23T01:01:24.6454481Z \n2026-10-23T01:01:24.6474393Z       left: []\n2026-10-23T01:01:24.6494639Z      right: [\"W241\"]",
+      "family": "bounds",
+      "classification": "Missing W240/W241/W242 result on first observed assertion, not permissive unknown success"
+    },
+    {
+      "selector": "analyser::bounds_checks::tests::loop_verdicts_agree_across_the_whole_file_and_per_item_walks",
+      "baseline": "PASS",
+      "current": "FAIL",
+      "actual_assertion": "2026-10-23T01:01:41.9943489Z     thread 'analyser::bounds_checks::tests::loop_verdicts_agree_across_the_whole_file_and_per_item_walks' (14816) panicked at rust/tcl-compiler/src/analyser/bounds_checks.rs:1830:9:\n2026-10-23T01:01:41.9945539Z     assertion `left == right` failed: []\n2026-10-23T01:01:41.9948385Z       left: []\n2026-10-23T01:01:41.9950443Z      right: [\"W240\", \"W241\", \"W242\", \"W240\"]",
+      "family": "bounds",
+      "classification": "Missing W240/W241/W242 result on first observed assertion, not permissive unknown success"
+    },
+    {
+      "selector": "analyser::bounds_checks::tests::w240_and_w241_read_the_branch_fact",
+      "baseline": "PASS",
+      "current": "FAIL",
+      "actual_assertion": "2026-10-23T01:02:09.9792590Z     thread 'analyser::bounds_checks::tests::w240_and_w241_read_the_branch_fact' (14881) panicked at rust/tcl-compiler/src/analyser/bounds_checks.rs:1727:9:\n2026-10-23T01:02:09.9827920Z     assertion `left == right` failed\n2026-10-23T01:02:09.9828589Z       left: []\n2026-10-23T01:02:09.9833640Z      right: [\"W240\"]",
+      "family": "bounds",
+      "classification": "Missing W240/W241/W242 result on first observed assertion, not permissive unknown success"
+    },
+    {
+      "selector": "analyser::bounds_checks::tests::w240_seeds_from_the_iteration_plan",
+      "baseline": "PASS",
+      "current": "FAIL",
+      "actual_assertion": "2026-10-23T01:02:13.0971817Z     thread 'analyser::bounds_checks::tests::w240_seeds_from_the_iteration_plan' (14885) panicked at rust/tcl-compiler/src/analyser/bounds_checks.rs:2881:9:\n2026-10-23T01:02:13.1000300Z     assertion `left == right` failed: whole file: set start 5\n2026-10-23T01:02:13.1004700Z     for {set i $start} {$i < 10} {incr i -1} {}\n2026-10-23T01:02:13.1007615Z \n2026-10-23T01:02:13.1007865Z       left: []\n2026-10-23T01:02:13.1011029Z      right: [\"W241\"]",
+      "family": "bounds",
+      "classification": "Missing W240/W241/W242 result on first observed assertion, not permissive unknown success"
+    },
+    {
+      "selector": "analyser::bounds_checks::tests::w241_for_step_provably_infinite",
+      "baseline": "PASS",
+      "current": "FAIL",
+      "actual_assertion": "2026-10-23T01:02:14.7794392Z     thread 'analyser::bounds_checks::tests::w241_for_step_provably_infinite' (14891) panicked at rust/tcl-compiler/src/analyser/bounds_checks.rs:1974:9:\n2026-10-23T01:02:14.7796204Z     assertion `left == right` failed\n2026-10-23T01:02:14.7844657Z       left: []\n2026-10-23T01:02:14.7904409Z      right: [\"W241\"]",
+      "family": "bounds",
+      "classification": "Missing W240/W241/W242 result on first observed assertion, not permissive unknown success"
+    },
+    {
+      "selector": "analyser::bounds_checks::tests::w242_counter_not_modified",
+      "baseline": "PASS",
+      "current": "FAIL",
+      "actual_assertion": "2026-10-23T01:02:15.5476860Z     thread 'analyser::bounds_checks::tests::w242_counter_not_modified' (14897) panicked at rust/tcl-compiler/src/analyser/bounds_checks.rs:2619:9:\n2026-10-23T01:02:15.5484556Z     assertion `left == right` failed\n2026-10-23T01:02:15.5494631Z       left: 0\n2026-10-23T01:02:15.5504574Z      right: 1",
+      "family": "bounds",
+      "classification": "Missing W240/W241/W242 result on first observed assertion, not permissive unknown success"
+    },
+    {
+      "selector": "analyser::bounds_checks::tests::w242_severity_is_hint",
+      "baseline": "PASS",
+      "current": "FAIL",
+      "actual_assertion": "2026-10-23T01:02:15.9808584Z     thread 'analyser::bounds_checks::tests::w242_severity_is_hint' (14899) panicked at rust/tcl-compiler/src/analyser/bounds_checks.rs:2695:14:\n2026-10-23T01:02:15.9810190Z     called `Option::unwrap()` on a `None` value",
+      "family": "bounds",
+      "classification": "Missing W240/W241/W242 result on first observed assertion, not permissive unknown success"
+    },
+    {
+      "selector": "analyser::class_hierarchy::tests::bare_superclass_links_via_unique_tail_across_namespaces",
+      "baseline": "PASS",
+      "current": "FAIL",
+      "actual_assertion": "2026-10-23T01:02:34.9148850Z     thread 'analyser::class_hierarchy::tests::bare_superclass_links_via_unique_tail_across_namespaces' (14959) panicked at rust/tcl-compiler/src/analyser/class_hierarchy.rs:1742:9:\n2026-10-23T01:02:34.9150360Z     assertion `left == right` failed\n2026-10-23T01:02:34.9151043Z       left: None\n2026-10-23T01:02:34.9151619Z      right: Some(\"::SpiceGenTcl::Device\")",
+      "family": "class-import",
+      "classification": "Constructed class graph lacks actual import ownership; unique-tail heuristic intentionally refused"
+    }
+  ],
+  "bounds_static_attribution": [
+    "All13 actual first failures are absent W240/W241/W242 or missing hint, not opposite unsafe warning; several test names say keeps_silent but first positive controls expected W241/W240 and fail before later negative assertions.",
+    "Tests analyse original sources through normal route (not raw synthetic tokens), unlike separate names fixture correction.",
+    "Emission pipeline commands.rs2159 loop_termination_candidate -> stored loop_candidates; diagnostics/dataflow.rs3295 uses actual held-loop/header facts and settle, then flush preserves lexical-only result. Variable-conditioned cases require actual solver/loop ownership; missing Native/authored structure may withhold that evidence.",
+    "No concrete first refusal among loop-shape/candidate/IR-held-loop/branch-fact stages is proven by this untraced CI. Do not assert a fix or add lexical guessed branch facts. Existing active49 C6/source/RBS controls should first localize shared source-selection cause."
+  ],
+  "bounds_next": "After active49 actual outcomes, inspect existing retained IR/branch/source-purpose receipts on exact first positive loop; only propose narrow actual-owner/role join if concrete missing stage proven. Preserve unknown/write/callback/exit guards; no assertion rewrite.",
+  "class_static_attribution": [
+    "class_hierarchy.rs759 resolve_class_name only authentic known/currentnamespace/global constructedkey candidates; tail_index explicitly unused because no source import/context receipt.",
+    "Actual failed fixture builds ::SpiceGenTcl::Device and ::Core(super Device) with cls() metadata only; comment claims namespace import but no actual import source/receipt provided.",
+    "C8.6/9.0/9.1 actual oracle: absent import errors Device does not refer to an object; explicit namespace export/import makes superclass succeed and inherited call OK. Unique tail alone is insufficient.",
+    "Existing function resolve_super_name doc still claims globallyunique-tail fallback although implementation refuses; stale documentation must be corrected at later source slot."
+  ],
+  "class_next": "Do not restore global-tail guess. If root authorizes fixture-source correction, use actual import owner/source class-context to exercise supported original imported class; preserve original expected inherited method and add genuine no-import refusal coverage through existing tests. No changes authored now.",
+  "oracle": "class-import-oracle.json",
+  "no_source_patch": "Triage only; no Cargo/canonical/source writes, no original assertion changes, no invented Native/Normal/quiet/source owner"
+}

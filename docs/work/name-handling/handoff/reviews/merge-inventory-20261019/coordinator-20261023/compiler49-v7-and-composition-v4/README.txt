@@ -1,0 +1,16 @@
+Compiler 49 v7 protocol and composition v4 archive
+
+v7 plan SHA-256: 0cb62fcdba2a9f24e5578ada9123e8fe9e195a1e7cd0f0cb1479ea2a19542313
+v7 runner manifest SHA-256: 23b393e24a7ba9c37388bdd517d4c1d95af45e965d67ce63744ec8f6d3916b48
+root GO SHA-256: dfccc034a58f8113839424c11d3a9f0862e8109caec0d20a259b556a32cfd3f2
+protocol bundle SHA-256: 87a086e0d240d8ff1082c8b64e544bcfdb9d3c00cc743bc56a6283425a0accd9
+v7 executor independent review SHA-256: 2c965faa388794682578fa564f9f1ef5147fb0dc58c2f8d5658322fee1e8a8cc
+v7 Cargo-wrapper independent review SHA-256: 7a2b0d5e1bac40679b1dbc92e74fd3975b72cda4cdcc5d4da74024f573939b13
+
+composition v4 manifest SHA-256: 269b0b429dc137f8428d02383d1c50d1555d23744019923648893268c15f90ba
+combined patch SHA-256: 9fdee598250abfa9f46b5972a76cab05d1efae93e5f65c8efbf8ee46146e84a1
+combined patch gzip SHA-256: 465ddcc853123fd3e759a2b50e5b65f2f90c16cb03914c605ce2cd6cdc61b6c7
+18-file owner-edition rustfmt --check: PASS (receipt b81caaea0cd7f287d7bbd4cf7a2841c8851628fa5c61f88b0c8f62c0b558d9bd)
+zero-fuzz apply verification instructions: composition-v4-apply-verification.txt (9789809bc3c4688d93d7758d948b87e03f6452d997bd089ebe8dcb3fb7cfaf74)
+
+Archive contains no .rs/.c source files and no build artifacts.

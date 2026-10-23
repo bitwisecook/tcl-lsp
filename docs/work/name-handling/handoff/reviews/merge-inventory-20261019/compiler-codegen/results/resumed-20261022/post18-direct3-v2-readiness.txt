@@ -1,0 +1,16 @@
+Post18 codegen native1/N17two direct diagnostic successor, static readiness
+UTC: 2026-10-23T02:09Z
+Status: immutable off-tree preparation; independent VM static peer CLEAR, no GO or Cargo, no selected tests run.
+
+Frozen successor: /tmp/ccg-post18-direct3-v2/
+  plan.json SHA256 fe94be02574418970590861d70fa90d46bc9d01bc70c300108a355aa62d65e36
+  suite.py SHA256 011e639e8b6896cd29fd632cfdb74236c9006bf281634076abebb87b25a6f6a7
+  launch.py SHA256 909e5872fdfedd03cdb6ff6709f8c449c06353057ff8c0114adce56f748c7582
+  runner-input-manifest.json SHA256 32a6f5ecf2b82bcf764fb862c7a06209768905c2e7fbcc9b27cc942505ce2a28
+  guarded-cargo.py SHA256 a119af9595614c2d06de3d2fb2e71e45ece3ba0e270be69b8a50a205f0b086ee
+  guarded-exec.py SHA256 88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811
+  VM independent peer receipt /tmp/vm-review-ccg-post18-direct3-v2.json SHA256 4ca28d7f621c510643f5503a0ce0a84b62a064d0996adfce96309af6494e633b
+
+The successor retains original native1 plan 19efc866 and N17two plan a39d53d2 as historical selector/authentication inputs: exactly one catch-write test in tcl-vm and two original public derived/host tests in tcl-spectcl. It carries all five original source hashes and 36 original runner/tool pins. Two fresh locked Cargo JSON builds, one per test target, must each yield exactly one current executable; no stale fallback. Reviewed direct owned-process lifecycle supplies separate 3600-second build and 180-second test/roster limits, aggregate 20 MiB cap, actual-mount 2 GiB floor, PID/start/group/empty proof, and durable output. Source, provider, GO, and artifact hashes are checked across phases.
+
+Root GO is absent. It must identify exact reviewed plan and manifest, approved post18 integrated HEAD and tree descending from baseline 3b1a750, and actual report14/typecheck evidence path plus SHA. The suite permits only docs-only commits/worktree changes after approved HEAD; any altered original five source hashes refuse. Both launcher and direct suite no-GO preflights stopped before lock/Cargo. VM v1 peer receipt c87e101a identified old exact-3b1 boundary as post18 blocker; v1 is superseded and MUST NOT RUN after product integration. V2 peer verdict is static protocol only; root owns GO, source integration, actual run, and outcome assessment.

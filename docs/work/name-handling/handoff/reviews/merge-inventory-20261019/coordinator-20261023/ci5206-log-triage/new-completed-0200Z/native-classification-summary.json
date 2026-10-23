@@ -1,0 +1,105 @@
+{
+  "native-partition3": {
+    "job_id": 120178740920,
+    "utc": "2026-10-23T02:04:06.359465+00:00",
+    "input_bytes": 1750378,
+    "input_sha256": "da4704e5d8386fa5d657c264a7ff722d490f0bf8ffed9d4334baa1c301dbb3b9",
+    "gzip_path": "native-partition3-120178740920.decoded-content.log.gz",
+    "gzip_sha256": "b08d56f9c7e89e4e4450f4fd4454cbfe774fd1c34f73c39928055932349a1b7f",
+    "gzip_byte_exact_verified": true,
+    "phase": "RUNTIME EXECUTED",
+    "starting_lines": [
+      "2026-10-23T01:02:16.7549362Z     Starting 828 tests across 6 binaries (1709 tests skipped)"
+    ],
+    "summary_lines": [
+      "2026-10-23T01:50:36.0574897Z      Summary [2899.303s] 828 tests run: 536 passed (5 slow), 292 failed, 1709 skipped"
+    ],
+    "unique_outcome_counts": {
+      "PASS": 536,
+      "FAIL": 292
+    },
+    "unique_terminal_records": 828,
+    "duplicate_terminal_lines_deduplicated": 292,
+    "duplicate_status_conflicts": [],
+    "compile_errors_observed": [],
+    "baseline_join_counts": {
+      "matched_passes": 467,
+      "regressions": 272,
+      "extra_current_passes": 69,
+      "unmatched_current_nonpass": 20,
+      "duplicates": 0
+    },
+    "missing_planned_current_count": 0,
+    "reporter_ordinals_contiguous": true,
+    "limits": [
+      "Exact observed binary_id+selector baseline join only; absent baseline identities are unknown, not inferred regressions.",
+      "Skipped/unreached selectors remain unknown; no host/shipping acceptance follows."
+    ]
+  },
+  "native-partition2": {
+    "job_id": 120178741001,
+    "utc": "2026-10-23T02:04:09.870313+00:00",
+    "input_bytes": 1634173,
+    "input_sha256": "1d19a8b63762b7d5500f3e00c6736f6296185485718c5b076247918fa0c3c463",
+    "gzip_path": "native-partition2-120178741001.decoded-content.log.gz",
+    "gzip_sha256": "d1089c8f37f3aadbc7a6be6291143f6e73743800e7e85be465b57c7e20ab13c4",
+    "gzip_byte_exact_verified": true,
+    "phase": "RUNTIME EXECUTED",
+    "starting_lines": [
+      "2026-10-23T01:02:41.5916911Z     Starting 834 tests across 6 binaries (1703 tests skipped)"
+    ],
+    "summary_lines": [
+      "2026-10-23T01:45:07.2830587Z      Summary [2545.695s] 834 tests run: 560 passed (9 slow), 274 failed, 1703 skipped"
+    ],
+    "unique_outcome_counts": {
+      "PASS": 560,
+      "FAIL": 274
+    },
+    "unique_terminal_records": 834,
+    "duplicate_terminal_lines_deduplicated": 274,
+    "duplicate_status_conflicts": [],
+    "compile_errors_observed": [],
+    "baseline_join_counts": {
+      "matched_passes": 495,
+      "regressions": 257,
+      "extra_current_passes": 65,
+      "unmatched_current_nonpass": 17,
+      "duplicates": 0
+    },
+    "missing_planned_current_count": 0,
+    "reporter_ordinals_contiguous": true,
+    "limits": [
+      "Exact observed binary_id+selector baseline join only; absent baseline identities are unknown, not inferred regressions.",
+      "Skipped/unreached selectors remain unknown; no host/shipping acceptance follows."
+    ]
+  },
+  "test-ext-aggregate": {
+    "job_id": 120186673586,
+    "utc": "2026-10-23T02:04:13.176175+00:00",
+    "input_bytes": 23114,
+    "input_sha256": "50480cf35a3d8ba0cf15a346c49c12fcd0d5772ec377bbadaf797598992d3f85",
+    "gzip_path": "test-ext-aggregate-120186673586.decoded-content.log.gz",
+    "gzip_sha256": "e1786cee27163ac4e4d5fc4dd66a09714a4ed3d7f085c6c6f8b83c8f7ba9fec5",
+    "gzip_byte_exact_verified": true,
+    "phase": "AGGREGATE DEPENDENCY STATUS GATE ONLY; no test execution",
+    "starting_lines": [],
+    "summary_lines": [],
+    "unique_outcome_counts": {},
+    "unique_terminal_records": 0,
+    "duplicate_terminal_lines_deduplicated": 0,
+    "duplicate_status_conflicts": [],
+    "compile_errors_observed": [],
+    "aggregate_observation": {
+      "channel": "success",
+      "partitions": "failure",
+      "multi": "failure",
+      "exit_code": 1,
+      "interpretation": "Dependency aggregate mirrors existing partition/multi-folder outcomes; zero additional test failures counted"
+    },
+    "limits": [
+      "Exact observed binary_id+selector baseline join only; absent baseline identities are unknown, not inferred regressions.",
+      "Skipped/unreached selectors remain unknown; no host/shipping acceptance follows."
+    ]
+  },
+  "native_partition2_3_duplicate_identity_count": 0
+}

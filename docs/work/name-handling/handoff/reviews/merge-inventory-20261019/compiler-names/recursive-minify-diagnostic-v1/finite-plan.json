@@ -1,0 +1,47 @@
+{
+  "status": "prepared only; no launch/queue/GO",
+  "purpose": "measure genuine original compiler body tokens and source-vs-runtime envelope refusals before any semantic repair",
+  "patch_sha256": "30004055f1693ab04fb9f12ef6f5f2041bd5a36ad8b2747c4b0234234a7de1d1",
+  "env": {
+    "TCL_LSP_TRACE_BODY_SYNTAX": "1"
+  },
+  "filters": [
+    {
+      "package": "tcl-lsp-core",
+      "target": "--test lsp_edit_workspace",
+      "selector": "minify_strips_comments_and_collapses_whitespace_factorial",
+      "exact": true,
+      "expected_selected": 1
+    },
+    {
+      "package": "tcl-lsp-core",
+      "target": "--test minify_residual",
+      "selector": "default_minify_compacts_expression_gaps_and_preserves_oracle_results",
+      "exact": true,
+      "expected_selected": 1
+    },
+    {
+      "package": "tcl-lsp-core",
+      "target": "--lib",
+      "selector": "minify::original::tests::body_syntax_compaction_retains_changed_handler_and_observer_refusals",
+      "exact": true,
+      "expected_selected": 1
+    },
+    {
+      "package": "tcl-lsp-core",
+      "target": "--lib",
+      "selector": "minify::original::tests::original_recursive_minification_uses_only_current_authenticated_script_regions",
+      "exact": true,
+      "expected_selected": 1
+    },
+    {
+      "package": "tcl-compiler",
+      "target": "--lib",
+      "selector": "registry_invocation::source_structure::original_body_syntax::tests::body_syntax_inventory_cannot_borrow_an_equal_foreign_analysis",
+      "exact": true,
+      "expected_selected": 1
+    }
+  ],
+  "guards": "root-owned current protocol: whole nonqueued lock; actual source/provider/artifact hashes beforeafter; per-test180s/aggregate20MiB/actualdisk2GiB; own artifact child PID/start/PG WNOWAIT through bothEOF+emptygroup; exact start/summary/count; logs include all ORIGINAL_BODY_SYNTAX lines (no old stdout-only filtering)",
+  "acceptance": "diagnostic only; expected current minify failures stay failures and all source/config/foreign/handler/observer assertions unchanged; no repair/runtime admission; absent token trace means earlier inventory refusal not zero compiler visits"
+}

@@ -1,0 +1,3552 @@
+{
+  "schema": "nextest-human-reporter-observed-identities-v1",
+  "run": {
+    "number": 5206,
+    "job_id": 120175508112,
+    "scope": "heavy"
+  },
+  "source_path": "/tmp/ci5206-newjob-0.log",
+  "raw_sha256": "6937daabea9a8e127560249938493cfcfe069eac56dd2b54249d29beb2de63a1",
+  "records": [
+    {
+      "binary_id": "f5-cli",
+      "selector": "commands::fetch::tests::fetch_artefact_name_is_stable_for_the_same_instant",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 1,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.020s",
+      "source_line": 785
+    },
+    {
+      "binary_id": "f5-cli",
+      "selector": "commands::fetch::tests::fetch_artefact_name_differs_within_the_same_second",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 2,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.020s",
+      "source_line": 786
+    },
+    {
+      "binary_id": "f5-cli",
+      "selector": "commands::fetch::tests::fetch_artefact_name_embeds_the_process_id",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 3,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.020s",
+      "source_line": 787
+    },
+    {
+      "binary_id": "f5-cli",
+      "selector": "commands::query::ucs_cert_tests::ucs_cert_reaches_cert_through_the_dsl",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 4,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.385s",
+      "source_line": 788
+    },
+    {
+      "binary_id": "f5-cli",
+      "selector": "commands::query::ucs_cert_tests::reader_errors_on_missing_member",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 5,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.389s",
+      "source_line": 789
+    },
+    {
+      "binary_id": "f5-cli",
+      "selector": "commands::query::ucs_cert_tests::uri_and_percent_decode",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 6,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.017s",
+      "source_line": 790
+    },
+    {
+      "binary_id": "f5-cli",
+      "selector": "commands::remote::auth::tests::opaque_environment_child",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 7,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.017s",
+      "source_line": 791
+    },
+    {
+      "binary_id": "f5-cli",
+      "selector": "commands::remote::object_io::tests::every_offered_kind_resolves_to_an_endpoint",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 8,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.019s",
+      "source_line": 792
+    },
+    {
+      "binary_id": "f5-cli",
+      "selector": "commands::query::ucs_cert_tests::reader_reads_and_parses_real_cert",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 9,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.432s",
+      "source_line": 793
+    },
+    {
+      "binary_id": "f5-cli",
+      "selector": "commands::remote::auth::tests::opaque_environment_is_present_but_explicit_user_wins",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 10,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.043s",
+      "source_line": 794
+    },
+    {
+      "binary_id": "f5-cli",
+      "selector": "commands::remote::object_io::tests::the_kind_set_is_sorted_and_its_error_lists_all_of_it",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 11,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.019s",
+      "source_line": 795
+    },
+    {
+      "binary_id": "f5-cli",
+      "selector": "commands::remote::ssh::tests::accept_host_key_accepts_a_matching_known_host",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 12,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.018s",
+      "source_line": 796
+    },
+    {
+      "binary_id": "f5-cli",
+      "selector": "commands::remote::ssh::tests::accept_host_key_accepts_and_persists_a_new_host",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 13,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.016s",
+      "source_line": 797
+    },
+    {
+      "binary_id": "f5-cli",
+      "selector": "commands::remote::ssh::tests::accept_host_key_fails_closed_when_the_store_cannot_be_written",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 14,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.017s",
+      "source_line": 798
+    },
+    {
+      "binary_id": "f5-cli",
+      "selector": "commands::remote::ssh::tests::accept_host_key_rejects_a_changed_key",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 15,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.016s",
+      "source_line": 799
+    },
+    {
+      "binary_id": "f5-cli",
+      "selector": "commands::remote::ssh::tests::ucs_save_builds_tmsh_command_and_path",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 16,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.018s",
+      "source_line": 800
+    },
+    {
+      "binary_id": "f5-cli",
+      "selector": "commands::remote::ssh::tests::scf_save_builds_tmsh_command_and_path",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 17,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.019s",
+      "source_line": 801
+    },
+    {
+      "binary_id": "f5-cli",
+      "selector": "commands::remote::ssh::tests::verify_host_key_distinguishes_non_standard_ports",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 18,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.016s",
+      "source_line": 802
+    },
+    {
+      "binary_id": "f5-cli",
+      "selector": "commands::remote::ssh::tests::verify_host_key_reports_changed_for_a_different_key",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 19,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.018s",
+      "source_line": 803
+    },
+    {
+      "binary_id": "f5-cli",
+      "selector": "commands::remote::ssh::tests::verify_host_key_reports_known_after_learning",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 20,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.016s",
+      "source_line": 804
+    },
+    {
+      "binary_id": "f5-cli",
+      "selector": "commands::remote::ssh::tests::verify_host_key_is_new_for_a_different_host_in_the_same_store",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 21,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.019s",
+      "source_line": 805
+    },
+    {
+      "binary_id": "f5-cli",
+      "selector": "commands::remote::ssh::tests::verify_host_key_reports_new_for_unknown_host",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 22,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.016s",
+      "source_line": 806
+    },
+    {
+      "binary_id": "f5-cli",
+      "selector": "commands::remote::ssh::tests::verify_host_key_reports_new_when_store_does_not_exist",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 23,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.017s",
+      "source_line": 807
+    },
+    {
+      "binary_id": "f5-cli::cli",
+      "selector": "diff_add_remove_json",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 24,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.033s",
+      "source_line": 808
+    },
+    {
+      "binary_id": "f5-cli::cli",
+      "selector": "diff_add_remove_text",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 25,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.035s",
+      "source_line": 809
+    },
+    {
+      "binary_id": "f5-cli::cli",
+      "selector": "diff_reads_ucs",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 26,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.041s",
+      "source_line": 810
+    },
+    {
+      "binary_id": "f5-cli::cli",
+      "selector": "diff_scalar_modify",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 27,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.034s",
+      "source_line": 811
+    },
+    {
+      "binary_id": "f5-cli::cli",
+      "selector": "diff_tmsh_input",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 28,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.037s",
+      "source_line": 812
+    },
+    {
+      "binary_id": "f5-cli::cli",
+      "selector": "explain_reads_ucs",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 29,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.034s",
+      "source_line": 813
+    },
+    {
+      "binary_id": "f5-cli::cli",
+      "selector": "extract_encrypted_ucs",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 30,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.554s",
+      "source_line": 814
+    },
+    {
+      "binary_id": "f5-cli::cli",
+      "selector": "extract_plain_ucs",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 31,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.027s",
+      "source_line": 815
+    },
+    {
+      "binary_id": "f5-cli::cli",
+      "selector": "extract_plain_ucs_include_extras",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 32,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.027s",
+      "source_line": 816
+    },
+    {
+      "binary_id": "f5-cli::cli",
+      "selector": "merge",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 33,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.026s",
+      "source_line": 817
+    },
+    {
+      "binary_id": "f5-cli::cli",
+      "selector": "merge_refuses_opaque_path_without_opening_replacement_sibling",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 34,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.045s",
+      "source_line": 818
+    },
+    {
+      "binary_id": "f5-cli::cli",
+      "selector": "mutating_queries_require_faithful_named_and_structured_donors",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 35,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.064s",
+      "source_line": 819
+    },
+    {
+      "binary_id": "f5-cli::cli",
+      "selector": "query_archive_file_donors_keep_original_bytes_before_mutation",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 36,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.070s",
+      "source_line": 851
+    },
+    {
+      "binary_id": "f5-cli::cli",
+      "selector": "source_transforms_refuse_invalid_name_bytes_before_artifacts",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 37,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.227s",
+      "source_line": 883
+    },
+    {
+      "binary_id": "f5-cli::cli",
+      "selector": "split_then_merge",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 38,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.050s",
+      "source_line": 917
+    },
+    {
+      "binary_id": "f5-cli",
+      "selector": "commands::explain::source_event_tests::source_event_report_separates_owned_empty_and_unavailable",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 39,
+      "reporter_total": 354,
+      "seconds_as_rendered": "1.744s",
+      "source_line": 918
+    },
+    {
+      "binary_id": "f5-cli::enrich",
+      "selector": "pcapng_dry_run_name_index_matches",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 40,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.040s",
+      "source_line": 956
+    },
+    {
+      "binary_id": "f5-cli::enrich",
+      "selector": "wireshark_refuses_non_directory_output",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 41,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.040s",
+      "source_line": 957
+    },
+    {
+      "binary_id": "f5-cli::enrich",
+      "selector": "pcapng_refuses_missing_input_file",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 42,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.046s",
+      "source_line": 958
+    },
+    {
+      "binary_id": "f5-cli::enrich",
+      "selector": "wireshark_refuses_nonempty_dir_without_force",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 43,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.042s",
+      "source_line": 959
+    },
+    {
+      "binary_id": "f5-cli::enrich",
+      "selector": "wireshark_summary_stderr_matches",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 44,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.044s",
+      "source_line": 960
+    },
+    {
+      "binary_id": "f5-cli::cli",
+      "selector": "explain_virtual_text",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 45,
+      "reporter_total": 354,
+      "seconds_as_rendered": "14.297s",
+      "source_line": 961
+    },
+    {
+      "binary_id": "f5-cli::explain_flow",
+      "selector": "tshark_enrichment_marks_used_tshark",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 46,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.009s",
+      "source_line": 1001
+    },
+    {
+      "binary_id": "f5-cli::explain_flow",
+      "selector": "tshark_filter_is_reported_repr_style",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 47,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.011s",
+      "source_line": 1002
+    },
+    {
+      "binary_id": "f5-cli::explain_flow",
+      "selector": "without_tshark_used_tshark_is_false",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 48,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.043s",
+      "source_line": 1003
+    },
+    {
+      "binary_id": "f5-cli::cli",
+      "selector": "explain_virtual_json",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 49,
+      "reporter_total": 354,
+      "seconds_as_rendered": "14.673s",
+      "source_line": 1004
+    },
+    {
+      "binary_id": "f5-cli::grep",
+      "selector": "grep_both",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 50,
+      "reporter_total": 354,
+      "seconds_as_rendered": "13.035s",
+      "source_line": 1044
+    },
+    {
+      "binary_id": "f5-cli::grep",
+      "selector": "grep_cidr",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 51,
+      "reporter_total": 354,
+      "seconds_as_rendered": "12.867s",
+      "source_line": 1045
+    },
+    {
+      "binary_id": "f5-cli::grep",
+      "selector": "grep_forward",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 52,
+      "reporter_total": 354,
+      "seconds_as_rendered": "11.012s",
+      "source_line": 1046
+    },
+    {
+      "binary_id": "f5-cli::grep",
+      "selector": "grep_include_body",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 53,
+      "reporter_total": 354,
+      "seconds_as_rendered": "12.389s",
+      "source_line": 1047
+    },
+    {
+      "binary_id": "f5-cli::grep",
+      "selector": "grep_json",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 54,
+      "reporter_total": 354,
+      "seconds_as_rendered": "10.765s",
+      "source_line": 1048
+    },
+    {
+      "binary_id": "f5-cli::grep",
+      "selector": "grep_literal",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 55,
+      "reporter_total": 354,
+      "seconds_as_rendered": "11.065s",
+      "source_line": 1049
+    },
+    {
+      "binary_id": "f5-cli::grep",
+      "selector": "grep_max_depth",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 56,
+      "reporter_total": 354,
+      "seconds_as_rendered": "11.296s",
+      "source_line": 1050
+    },
+    {
+      "binary_id": "f5-cli::grep",
+      "selector": "grep_no_match",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 57,
+      "reporter_total": 354,
+      "seconds_as_rendered": "11.055s",
+      "source_line": 1053
+    },
+    {
+      "binary_id": "f5-cli::grep",
+      "selector": "grep_regex",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 58,
+      "reporter_total": 354,
+      "seconds_as_rendered": "10.784s",
+      "source_line": 1054
+    },
+    {
+      "binary_id": "f5-cli::irule",
+      "selector": "context_no_irules_found_exits_1",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 59,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.149s",
+      "source_line": 1055
+    },
+    {
+      "binary_id": "f5-cli::irule",
+      "selector": "extract_rejects_standalone_irule",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 60,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.027s",
+      "source_line": 1056
+    },
+    {
+      "binary_id": "f5-cli::irule",
+      "selector": "extract_rejects_the_long_irules_spelling_too",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 61,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.027s",
+      "source_line": 1057
+    },
+    {
+      "binary_id": "f5-cli::grep",
+      "selector": "grep_reverse",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 62,
+      "reporter_total": 354,
+      "seconds_as_rendered": "10.737s",
+      "source_line": 1058
+    },
+    {
+      "binary_id": "f5-cli::irule",
+      "selector": "format_resolves_the_irules_profile_for_its_dialect",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 63,
+      "reporter_total": 354,
+      "seconds_as_rendered": "44.216s",
+      "source_line": 1059
+    },
+    {
+      "binary_id": "f5-cli::explain_flow",
+      "selector": "simulate_runs_irule_and_selects_pool",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 64,
+      "reporter_total": 354,
+      "seconds_as_rendered": "120.362s",
+      "source_line": 1062
+    },
+    {
+      "binary_id": "f5-cli::irule",
+      "selector": "help_works_for_all_subs",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 65,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.180s",
+      "source_line": 1139
+    },
+    {
+      "binary_id": "f5-cli::irule",
+      "selector": "lint_clean_input_no_findings",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 66,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.224s",
+      "source_line": 1140
+    },
+    {
+      "binary_id": "f5-cli::explain_flow",
+      "selector": "simulate_json_populates_simulated_fields",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 67,
+      "reporter_total": 354,
+      "seconds_as_rendered": "120.978s",
+      "source_line": 1141
+    },
+    {
+      "binary_id": "f5-cli::irule",
+      "selector": "no_input_errors_exit_2",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 68,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.038s",
+      "source_line": 1420
+    },
+    {
+      "binary_id": "f5-cli::irule",
+      "selector": "pgo_is_not_a_known_subcommand",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 69,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.024s",
+      "source_line": 1421
+    },
+    {
+      "binary_id": "f5-cli::irule",
+      "selector": "pgo_not_listed_in_irule_help",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 70,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.024s",
+      "source_line": 1422
+    },
+    {
+      "binary_id": "f5-cli::irule",
+      "selector": "trace_keeps_data_group_from_braced_expression_command",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 71,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.236s",
+      "source_line": 1423
+    },
+    {
+      "binary_id": "f5-cli::irule",
+      "selector": "trace_uses_the_event_closure_not_the_first_handler_body",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 72,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.242s",
+      "source_line": 1461
+    },
+    {
+      "binary_id": "f5-cli::pcap_remap",
+      "selector": "libpcap_forward_byte_identical",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 73,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.030s",
+      "source_line": 1499
+    },
+    {
+      "binary_id": "f5-cli::pcap_remap",
+      "selector": "libpcap_round_trip_identity",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 74,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.048s",
+      "source_line": 1500
+    },
+    {
+      "binary_id": "f5-cli::pcap_remap",
+      "selector": "list_schemas",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 75,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.028s",
+      "source_line": 1501
+    },
+    {
+      "binary_id": "f5-cli::pcap_remap",
+      "selector": "list_schemas_with_overlay_byte_identical",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 76,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.028s",
+      "source_line": 1502
+    },
+    {
+      "binary_id": "f5-cli::pcap_remap",
+      "selector": "overlay_makes_unknown_trailer_known",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 77,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.030s",
+      "source_line": 1503
+    },
+    {
+      "binary_id": "f5-cli::pcap_remap",
+      "selector": "pcapng_forward_byte_identical",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 78,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.033s",
+      "source_line": 1504
+    },
+    {
+      "binary_id": "f5-cli::pcap_remap",
+      "selector": "unknown_trailer_error_exits_2_and_writes_nothing",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 79,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.029s",
+      "source_line": 1505
+    },
+    {
+      "binary_id": "f5-cli::pcap_remap",
+      "selector": "unknown_trailer_preserve_byte_identical",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 80,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.028s",
+      "source_line": 1506
+    },
+    {
+      "binary_id": "f5-cli::pcap_remap",
+      "selector": "unknown_trailer_sweep_byte_identical",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 81,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.028s",
+      "source_line": 1507
+    },
+    {
+      "binary_id": "f5-cli::query",
+      "selector": "ex14_group_by",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 82,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.055s",
+      "source_line": 1508
+    },
+    {
+      "binary_id": "f5-cli::query",
+      "selector": "ex19_named_source",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 83,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.053s",
+      "source_line": 1509
+    },
+    {
+      "binary_id": "f5-cli::query",
+      "selector": "ex1_vs_pool",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 84,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.049s",
+      "source_line": 1510
+    },
+    {
+      "binary_id": "f5-cli::query",
+      "selector": "ex20_dupes",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 85,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.050s",
+      "source_line": 1511
+    },
+    {
+      "binary_id": "f5-cli::query",
+      "selector": "ex21_sort_by",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 86,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.050s",
+      "source_line": 1512
+    },
+    {
+      "binary_id": "f5-cli::query",
+      "selector": "ex22_max_by",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 87,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.049s",
+      "source_line": 1513
+    },
+    {
+      "binary_id": "f5-cli::query",
+      "selector": "ex24_index",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 88,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.050s",
+      "source_line": 1514
+    },
+    {
+      "binary_id": "f5-cli::query",
+      "selector": "ex2_regex_name",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 89,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.050s",
+      "source_line": 1515
+    },
+    {
+      "binary_id": "f5-cli::query",
+      "selector": "ex3_select_irule",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 90,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.051s",
+      "source_line": 1516
+    },
+    {
+      "binary_id": "f5-cli::query",
+      "selector": "ex4_cidr_member",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 91,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.050s",
+      "source_line": 1517
+    },
+    {
+      "binary_id": "f5-cli::query",
+      "selector": "mode_json",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 92,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.051s",
+      "source_line": 1518
+    },
+    {
+      "binary_id": "f5-cli::query",
+      "selector": "mode_paths",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 93,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.056s",
+      "source_line": 1519
+    },
+    {
+      "binary_id": "f5-cli::query",
+      "selector": "mode_raw",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 94,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.055s",
+      "source_line": 1520
+    },
+    {
+      "binary_id": "f5-cli::query",
+      "selector": "mode_scf",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 95,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.057s",
+      "source_line": 1521
+    },
+    {
+      "binary_id": "f5-cli::query",
+      "selector": "mode_table",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 96,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.055s",
+      "source_line": 1522
+    },
+    {
+      "binary_id": "f5-cli::query",
+      "selector": "multi_file_banner",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 97,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.048s",
+      "source_line": 1523
+    },
+    {
+      "binary_id": "f5-cli::query",
+      "selector": "multi_file_json",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 98,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.048s",
+      "source_line": 1524
+    },
+    {
+      "binary_id": "f5-cli::query",
+      "selector": "pool_member_addrs",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 99,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.057s",
+      "source_line": 1525
+    },
+    {
+      "binary_id": "f5-cli::query",
+      "selector": "pool_names",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 100,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.055s",
+      "source_line": 1526
+    },
+    {
+      "binary_id": "f5-cli::query",
+      "selector": "select_pool",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 101,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.056s",
+      "source_line": 1527
+    },
+    {
+      "binary_id": "f5-cli::query",
+      "selector": "vs_dest",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 102,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.055s",
+      "source_line": 1528
+    },
+    {
+      "binary_id": "f5-cli::query",
+      "selector": "vs_length",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 103,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.060s",
+      "source_line": 1529
+    },
+    {
+      "binary_id": "f5-cli::query",
+      "selector": "vs_name_pool_obj",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 104,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.051s",
+      "source_line": 1530
+    },
+    {
+      "binary_id": "f5-cli::query",
+      "selector": "vs_names",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 105,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.051s",
+      "source_line": 1531
+    },
+    {
+      "binary_id": "f5-cli::query",
+      "selector": "vs_pool",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 106,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.072s",
+      "source_line": 1532
+    },
+    {
+      "binary_id": "f5-cli::query",
+      "selector": "vs_regex_name",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 107,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.060s",
+      "source_line": 1533
+    },
+    {
+      "binary_id": "f5-cli::query_help",
+      "selector": "help_dsl",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 108,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.030s",
+      "source_line": 1534
+    },
+    {
+      "binary_id": "f5-cli::query_help",
+      "selector": "help_dsl_short_circuits_without_inputs",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 109,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.030s",
+      "source_line": 1535
+    },
+    {
+      "binary_id": "f5-cli::query_help",
+      "selector": "help_examples",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 110,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.030s",
+      "source_line": 1536
+    },
+    {
+      "binary_id": "f5-cli::query_input",
+      "selector": "err_bad_binding_identifier",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 111,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.029s",
+      "source_line": 1537
+    },
+    {
+      "binary_id": "f5-cli::query_input",
+      "selector": "err_duplicate_name",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 112,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.031s",
+      "source_line": 1538
+    },
+    {
+      "binary_id": "f5-cli::query_input",
+      "selector": "err_load_missing_file",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 113,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.057s",
+      "source_line": 1539
+    },
+    {
+      "binary_id": "f5-cli::query_input",
+      "selector": "err_missing_file",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 114,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.030s",
+      "source_line": 1540
+    },
+    {
+      "binary_id": "f5-cli::query_input",
+      "selector": "err_unknown_kind",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 115,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.027s",
+      "source_line": 1541
+    },
+    {
+      "binary_id": "f5-cli::query_input",
+      "selector": "help_inputs",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 116,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.029s",
+      "source_line": 1542
+    },
+    {
+      "binary_id": "f5-cli::query_input",
+      "selector": "input_csv_col",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 117,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.062s",
+      "source_line": 1543
+    },
+    {
+      "binary_id": "f5-cli::query_input",
+      "selector": "input_csv_headers",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 118,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.066s",
+      "source_line": 1544
+    },
+    {
+      "binary_id": "f5-cli::query_input",
+      "selector": "input_csv_json",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 119,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.063s",
+      "source_line": 1545
+    },
+    {
+      "binary_id": "f5-cli::query_input",
+      "selector": "input_f5log_json",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 120,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.058s",
+      "source_line": 1546
+    },
+    {
+      "binary_id": "f5-cli::query_input",
+      "selector": "input_f5log_select",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 121,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.060s",
+      "source_line": 1547
+    },
+    {
+      "binary_id": "f5-cli::query_input",
+      "selector": "input_generic_json",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 122,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.057s",
+      "source_line": 1548
+    },
+    {
+      "binary_id": "f5-cli::query_input",
+      "selector": "input_json_field",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 123,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.062s",
+      "source_line": 1549
+    },
+    {
+      "binary_id": "f5-cli::query_input",
+      "selector": "input_json_iter",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 124,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.059s",
+      "source_line": 1550
+    },
+    {
+      "binary_id": "f5-cli::query_input",
+      "selector": "input_json_obj",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 125,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.058s",
+      "source_line": 1551
+    },
+    {
+      "binary_id": "f5-cli::query_input",
+      "selector": "input_json_select",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 126,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.063s",
+      "source_line": 1552
+    },
+    {
+      "binary_id": "f5-cli::query_input",
+      "selector": "input_jsonl_iter",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 127,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.059s",
+      "source_line": 1553
+    },
+    {
+      "binary_id": "f5-cli::query_input",
+      "selector": "input_jsonl_select",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 128,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.060s",
+      "source_line": 1554
+    },
+    {
+      "binary_id": "f5-cli::query_input",
+      "selector": "load_csv",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 129,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.058s",
+      "source_line": 1555
+    },
+    {
+      "binary_id": "f5-cli::query_input",
+      "selector": "load_f5log",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 130,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.057s",
+      "source_line": 1556
+    },
+    {
+      "binary_id": "f5-cli::query_input",
+      "selector": "load_json",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 131,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.057s",
+      "source_line": 1557
+    },
+    {
+      "binary_id": "f5-cli::query_input",
+      "selector": "load_json_iter",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 132,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.060s",
+      "source_line": 1558
+    },
+    {
+      "binary_id": "f5-cli::query_input",
+      "selector": "load_jsonl",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 133,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.057s",
+      "source_line": 1559
+    },
+    {
+      "binary_id": "f5-cli::query_merge",
+      "selector": "merge_collision_refused",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 134,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.041s",
+      "source_line": 1560
+    },
+    {
+      "binary_id": "f5-cli::query_merge",
+      "selector": "merge_json_envelope",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 135,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.055s",
+      "source_line": 1561
+    },
+    {
+      "binary_id": "f5-cli::query_merge",
+      "selector": "merge_pool_length",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 136,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.051s",
+      "source_line": 1562
+    },
+    {
+      "binary_id": "f5-cli::query_merge",
+      "selector": "merge_referenced_by_cross_file",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 137,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.166s",
+      "source_line": 1563
+    },
+    {
+      "binary_id": "f5-cli::query_merge",
+      "selector": "merge_refs_cross_file",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 138,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.166s",
+      "source_line": 1564
+    },
+    {
+      "binary_id": "f5-cli::query_merge",
+      "selector": "merge_virtual_names",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 139,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.052s",
+      "source_line": 1565
+    },
+    {
+      "binary_id": "f5-cli::query_mutation",
+      "selector": "noop_matches_object_but_same_text_exits_1",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 140,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.056s",
+      "source_line": 1566
+    },
+    {
+      "binary_id": "f5-cli::query_mutation",
+      "selector": "noop_strict_exits_2",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 141,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.056s",
+      "source_line": 1567
+    },
+    {
+      "binary_id": "f5-cli::query_mutation",
+      "selector": "select_nothing_queues_no_edit_exits_0",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 142,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.059s",
+      "source_line": 1568
+    },
+    {
+      "binary_id": "f5-cli::query_render",
+      "selector": "ascii_blocks_bad_style",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 143,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.056s",
+      "source_line": 1569
+    },
+    {
+      "binary_id": "f5-cli::query_render",
+      "selector": "ascii_blocks_flat",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 144,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.055s",
+      "source_line": 1570
+    },
+    {
+      "binary_id": "f5-cli::query_render",
+      "selector": "ascii_blocks_nested",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 145,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.054s",
+      "source_line": 1571
+    },
+    {
+      "binary_id": "f5-cli::query_render",
+      "selector": "ascii_blocks_square_min_width",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 146,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.057s",
+      "source_line": 1572
+    },
+    {
+      "binary_id": "f5-cli::query_render",
+      "selector": "empty_key_render_opt",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 147,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.029s",
+      "source_line": 1573
+    },
+    {
+      "binary_id": "f5-cli::query_render",
+      "selector": "gantt_default",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 148,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.057s",
+      "source_line": 1574
+    },
+    {
+      "binary_id": "f5-cli::query_render",
+      "selector": "gantt_objectref_rows_rejected",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 149,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.056s",
+      "source_line": 1575
+    },
+    {
+      "binary_id": "f5-cli::query_render",
+      "selector": "gantt_unit_minutes_10",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 150,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.054s",
+      "source_line": 1576
+    },
+    {
+      "binary_id": "f5-cli::query_render",
+      "selector": "malformed_render_opt",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 151,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.028s",
+      "source_line": 1577
+    },
+    {
+      "binary_id": "f5-cli::query_render",
+      "selector": "mermaid_bad_direction",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 152,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.052s",
+      "source_line": 1578
+    },
+    {
+      "binary_id": "f5-cli::query_render",
+      "selector": "mermaid_chain",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 153,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.053s",
+      "source_line": 1579
+    },
+    {
+      "binary_id": "f5-cli::query_render",
+      "selector": "mermaid_direction_tb",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 154,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.053s",
+      "source_line": 1580
+    },
+    {
+      "binary_id": "f5-cli::query_render",
+      "selector": "unknown_renderer",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 155,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.053s",
+      "source_line": 1581
+    },
+    {
+      "binary_id": "f5-cli::irule",
+      "selector": "format_under_a_core_tcl_dialect_leaves_the_ghost_separator_alone",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 156,
+      "reporter_total": 354,
+      "seconds_as_rendered": "45.084s",
+      "source_line": 1583
+    },
+    {
+      "binary_id": "f5-cli::registry_dump",
+      "selector": "all_section_bundles_every_subsection",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 157,
+      "reporter_total": 354,
+      "seconds_as_rendered": "44.561s",
+      "source_line": 1584
+    },
+    {
+      "binary_id": "f5-cli::irule",
+      "selector": "format_accepts_both_irules_dialect_spellings",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 158,
+      "reporter_total": 354,
+      "seconds_as_rendered": "133.160s",
+      "source_line": 1587
+    },
+    {
+      "binary_id": "f5-cli::registry_dump",
+      "selector": "unknown_section_fails_cleanly",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 159,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.026s",
+      "source_line": 1588
+    },
+    {
+      "binary_id": "f5-cli::remote",
+      "selector": "invalid_json_position",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 160,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.079s",
+      "source_line": 1589
+    },
+    {
+      "binary_id": "f5-cli::remote",
+      "selector": "missing_host_errors_for_all_verbs",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 161,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.063s",
+      "source_line": 1590
+    },
+    {
+      "binary_id": "f5-cli::remote",
+      "selector": "missing_password_after_env_host_and_user",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 162,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.027s",
+      "source_line": 1591
+    },
+    {
+      "binary_id": "f5-cli::remote",
+      "selector": "missing_payload_file_errno_message",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 163,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.026s",
+      "source_line": 1592
+    },
+    {
+      "binary_id": "f5-cli::remote",
+      "selector": "missing_user_after_env_host",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 164,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.027s",
+      "source_line": 1593
+    },
+    {
+      "binary_id": "f5-cli::remote",
+      "selector": "push_dry_run_name_only_target",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 165,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.027s",
+      "source_line": 1594
+    },
+    {
+      "binary_id": "f5-cli::remote",
+      "selector": "ssh_transport_connection_refused",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 166,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.028s",
+      "source_line": 1595
+    },
+    {
+      "binary_id": "f5-cli::remote",
+      "selector": "unknown_kind_rejected_by_clap",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 167,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.026s",
+      "source_line": 1596
+    },
+    {
+      "binary_id": "f5-cli::remote",
+      "selector": "unknown_transport_rejected_by_clap",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 168,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.026s",
+      "source_line": 1597
+    },
+    {
+      "binary_id": "f5-cli::secrets",
+      "selector": "alias_encrypt_decrypt",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 169,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.038s",
+      "source_line": 1598
+    },
+    {
+      "binary_id": "f5-cli::secrets",
+      "selector": "bad_key_errors",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 170,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.027s",
+      "source_line": 1599
+    },
+    {
+      "binary_id": "f5-cli::secrets",
+      "selector": "encrypt_is_idempotent",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 171,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.068s",
+      "source_line": 1600
+    },
+    {
+      "binary_id": "f5-cli::secrets",
+      "selector": "encrypt_skips_existing_crypt_hash",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 172,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.039s",
+      "source_line": 1601
+    },
+    {
+      "binary_id": "f5-cli::secrets",
+      "selector": "key_from_env",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 173,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.044s",
+      "source_line": 1602
+    },
+    {
+      "binary_id": "f5-cli::secrets",
+      "selector": "key_from_file",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 174,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.043s",
+      "source_line": 1603
+    },
+    {
+      "binary_id": "f5-cli::secrets",
+      "selector": "missing_key_errors",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 175,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.024s",
+      "source_line": 1604
+    },
+    {
+      "binary_id": "f5-cli::secrets",
+      "selector": "round_trip",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 176,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.063s",
+      "source_line": 1605
+    },
+    {
+      "binary_id": "f5-cli::secrets",
+      "selector": "tmsh_delta_does_not_recreate_existing_objects",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 177,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.047s",
+      "source_line": 1606
+    },
+    {
+      "binary_id": "f5-cli::tmsh",
+      "selector": "unknown_include_kind_errors",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 178,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.026s",
+      "source_line": 1607
+    },
+    {
+      "binary_id": "f5-cli::registry_dump",
+      "selector": "commands_section_produces_snapshot",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 179,
+      "reporter_total": 354,
+      "seconds_as_rendered": "45.033s",
+      "source_line": 1608
+    },
+    {
+      "binary_id": "f5-cli::validate",
+      "selector": "json_category_field_is_config_or_irule",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 180,
+      "reporter_total": 354,
+      "seconds_as_rendered": "3.584s",
+      "source_line": 1609
+    },
+    {
+      "binary_id": "f5-cli::validate",
+      "selector": "missing_file_errors",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 181,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.024s",
+      "source_line": 1610
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "bpf_diff::tests::fn_registry_spelling_changes_are_not_hidden_in_the_generator",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 182,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.031s",
+      "source_line": 1611
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "bpf_diff::tests::seed_mapping_selects_exactly_the_second_byte",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 183,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.015s",
+      "source_line": 1612
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "bpf_diff::tests::tn_zero_selected_byte_is_the_socket_filter_drop_verdict",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 184,
+      "reporter_total": 354,
+      "seconds_as_rendered": "1.733s",
+      "source_line": 1613
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "bpf_diff::tests::tp_real_ebpf_program_returns_the_selected_packet_byte",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 185,
+      "reporter_total": 354,
+      "seconds_as_rendered": "1.735s",
+      "source_line": 1649
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "characterize::tests::classifies_each_oracle_relationship",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 186,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.016s",
+      "source_line": 1685
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "characterize::tests::unavailable_or_timed_out_backend_is_incomplete_not_agreement",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 187,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.016s",
+      "source_line": 1686
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "engine::tests::emulated_engines_accept_a_release_flag_but_tclsh_uses_its_selected_binary",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 188,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.017s",
+      "source_line": 1687
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "engine::tests::explicit_override_wins_regardless_of_convention",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 189,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.017s",
+      "source_line": 1688
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "engine::tests::labels_are_distinct_for_findings_namespacing",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 190,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.015s",
+      "source_line": 1689
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "engine::tests::runtime_rust_carries_the_quiet_flag",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 191,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.015s",
+      "source_line": 1690
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "engine::tests::tclvm_and_tclsh_carry_no_extra_args",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 192,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.015s",
+      "source_line": 1691
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "findings::rate_replay_tests::a_changed_rate_regenerates_a_different_script",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 193,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.023s",
+      "source_line": 1692
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "findings::rate_replay_tests::restore_leaves_the_shape_bounds_alone",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 194,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.015s",
+      "source_line": 1693
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "findings::rate_replay_tests::restoring_the_recorded_rates_reproduces_the_recorded_script",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 195,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.022s",
+      "source_line": 1694
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "findings::tests::a_finding_persists_the_canonical_campaign_release_for_replay",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 196,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.016s",
+      "source_line": 1695
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "findings::tests::a_finding_records_both_engines_versions_and_the_skew_flag",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 197,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.016s",
+      "source_line": 1696
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "findings::tests::load_checked_rejects_a_json_only_orphan",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 198,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.015s",
+      "source_line": 1697
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "findings::tests::load_checked_rejects_a_tcl_only_orphan",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 199,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.015s",
+      "source_line": 1698
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "findings::tests::load_checked_rejects_an_interrupted_staged_record",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 200,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.015s",
+      "source_line": 1699
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "findings::tests::promotion_never_overwrites_an_interleaved_final_and_keeps_damage_visible",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 201,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.016s",
+      "source_line": 1700
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "findings::tests::record_dedups_and_summarises",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 202,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.016s",
+      "source_line": 1701
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "findings::tests::record_promotes_a_complete_pair_without_leaving_stages",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 203,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.016s",
+      "source_line": 1702
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "findings::tests::reproducer_store_creates_its_directory_and_persists_a_script",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 204,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.016s",
+      "source_line": 1703
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "findings::tests::reproducer_store_surfaces_directory_and_write_failures",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 205,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.015s",
+      "source_line": 1704
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "findings::tests::summary_rejects_a_staged_companion",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 206,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.015s",
+      "source_line": 1705
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "generator::tests::balanced_delimiters",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 207,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.020s",
+      "source_line": 1706
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "generator::tests::brace_balanced_matches_a_real_walk",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 208,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.015s",
+      "source_line": 1707
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "generator::tests::broadened_grammar_is_exercised",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 209,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.035s",
+      "source_line": 1708
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "generator::tests::caller_frame_shapes_are_exercised",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 210,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.052s",
+      "source_line": 1709
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "generator::tests::deterministic_for_seed",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 211,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.016s",
+      "source_line": 1710
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "generator::tests::dynamic_name_shapes_are_exercised",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 212,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.052s",
+      "source_line": 1711
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "generator::tests::every_word_shape_and_context_is_reachable",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 213,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.024s",
+      "source_line": 1712
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "generator::tests::expr_and_mathfunc_additions_are_exercised",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 214,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.083s",
+      "source_line": 1713
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "generator::tests::malformed_expr_is_top_level_only",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 215,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.017s",
+      "source_line": 1714
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "generator::tests::malformed_expr_rate_zero_opts_out",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 216,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.022s",
+      "source_line": 1715
+    },
+    {
+      "binary_id": "f5-cli::validate",
+      "selector": "lint_alias_matches_validate",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 217,
+      "reporter_total": 354,
+      "seconds_as_rendered": "7.784s",
+      "source_line": 1716
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "generator::tests::malformed_expressions_reach_scripts_at_the_default_rate",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 218,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.038s",
+      "source_line": 1717
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "generator::tests::malformed_expressions_stay_inside_the_expr_grammar",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 219,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.020s",
+      "source_line": 1718
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "generator::tests::malformed_modes_each_render_their_documented_shape",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 220,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.022s",
+      "source_line": 1719
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "generator::tests::namespace_inscope_list_args_are_exercised",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 221,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.048s",
+      "source_line": 1720
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "generator::tests::nonempty_and_prints",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 222,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.019s",
+      "source_line": 1721
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "generator::tests::power_and_shift_operands_are_magnitude_bounded",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 223,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.029s",
+      "source_line": 1722
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "generator::tests::unbalanced_shapes_never_reach_a_bracing_context",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 224,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.020s",
+      "source_line": 1723
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "generator::tests::while_and_for_counters_are_depth_qualified",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 225,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.040s",
+      "source_line": 1724
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "generator::tests::word_shape_rate_zero_opts_out_and_leaves_the_stream_alone",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 226,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.035s",
+      "source_line": 1725
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "generator::tests::word_shapes_each_render_their_documented_spelling",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 227,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.016s",
+      "source_line": 1726
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "generator::tests::word_shapes_reach_scripts_at_the_default_rate",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 228,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.055s",
+      "source_line": 1727
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "harness::tests::byte_identical_stdout_still_matches",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 229,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.016s",
+      "source_line": 1728
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "harness::tests::error_text_comparison_is_opt_in",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 230,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.016s",
+      "source_line": 1729
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "harness::tests::error_text_comparison_never_fires_on_a_status_mismatch",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 231,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.016s",
+      "source_line": 1730
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "harness::tests::error_text_differs_but_folded_to_match_by_default",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 232,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.017s",
+      "source_line": 1731
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "harness::tests::identical_is_match",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 233,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.016s",
+      "source_line": 1732
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "harness::tests::status_divergence_flagged",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 234,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.017s",
+      "source_line": 1733
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "harness::tests::stdout_divergence_flagged",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 235,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.016s",
+      "source_line": 1734
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "harness::tests::subject_timeout_flagged_reference_timeout_skipped",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 236,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.016s",
+      "source_line": 1735
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "harness::tests::trailing_blank_line_divergence_is_a_finding",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 237,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.016s",
+      "source_line": 1736
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "harness::tests::trailing_whitespace_divergence_is_a_finding",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 238,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.017s",
+      "source_line": 1737
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "harness::tests::unavailable_backend_skips",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 239,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.017s",
+      "source_line": 1738
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "linked_wasm::tests::bootstrap_uses_the_reserved_nonoverlapping_regions",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 240,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.016s",
+      "source_line": 1739
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "linked_wasm::tests::fn_seeded_names_are_tcl_identifier_safe_and_distinct",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 241,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.016s",
+      "source_line": 1740
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "linked_wasm::tests::tn_per_case_observation_does_not_compare_runtime_patchlevels",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 242,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.016s",
+      "source_line": 1741
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "linked_wasm::tests::tp_generated_oracle_and_linked_program_share_a_value_query",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 243,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.016s",
+      "source_line": 1742
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "tests::a_campaign_pin_reaches_both_sides_of_an_emulated_pair",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 244,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.016s",
+      "source_line": 1743
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "tests::a_fixed_release_engine_refuses_when_its_selected_binary_cannot_honour_the_pin",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 245,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.016s",
+      "source_line": 1744
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "tests::an_explicit_override_resolves_that_engine_and_its_args",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 246,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.017s",
+      "source_line": 1745
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "tests::characterise_finding_count_excludes_agreement_and_incomplete_runs",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 247,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.016s",
+      "source_line": 1746
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "tests::characterise_resolution_keeps_each_backend_invocation_together",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 248,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.018s",
+      "source_line": 1747
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "tests::cli_definition_is_well_formed",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 249,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.018s",
+      "source_line": 1748
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "tests::default_pair_keeps_the_plain_findings_dir",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 250,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.016s",
+      "source_line": 1749
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "tests::default_summary_discovers_each_release_namespace_without_seed_collisions",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 251,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.017s",
+      "source_line": 1750
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "tests::every_engine_names_the_flag_that_overrides_it",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 252,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.016s",
+      "source_line": 1751
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "tests::explicit_release_selects_pinned_record_over_marked_unpinned_record",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 253,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.017s",
+      "source_line": 1752
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "tests::explicit_replay_allows_an_arbitrary_seed_absent_from_every_registry",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 254,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.017s",
+      "source_line": 1753
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "tests::explicit_replay_refuses_a_finding_from_a_different_release",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 255,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.017s",
+      "source_line": 1754
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "tests::explicit_replay_refuses_a_legacy_release_less_finding",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 256,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.017s",
+      "source_line": 1755
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "tests::explicit_replay_refuses_metadata_mismatched_to_its_release_namespace",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 257,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.017s",
+      "source_line": 1756
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "tests::explicit_replay_selects_its_release_when_the_seed_exists_at_multiple_releases",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 258,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.018s",
+      "source_line": 1757
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "tests::explicit_summary_selects_only_its_release_namespace",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 259,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.017s",
+      "source_line": 1758
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "tests::identical_backend_pairs_are_rejected",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 260,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.017s",
+      "source_line": 1759
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "tests::marked_unpinned_and_pinned_records_are_ambiguous_without_a_release",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 261,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.017s",
+      "source_line": 1760
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "tests::other_pairs_are_namespaced_so_seeds_never_collide",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 262,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.016s",
+      "source_line": 1761
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "tests::release_flag_accepts_owner_defined_aliases_and_rejects_unknown_values",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 263,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.019s",
+      "source_line": 1762
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "tests::release_namespaces_keep_same_pair_seeds_separate",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 264,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.016s",
+      "source_line": 1763
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "tests::replay_accepts_a_markerless_pinned_finding_from_the_release_namespace",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 265,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.016s",
+      "source_line": 1764
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "tests::replay_discovers_a_recorded_release_and_propagates_it_to_both_engines",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 266,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.016s",
+      "source_line": 1765
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "tests::replay_immediately_reuses_a_new_unpinned_campaign_finding",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 267,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.017s",
+      "source_line": 1766
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "tests::replay_patch_drift_warning_compares_both_recorded_backends",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 268,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.016s",
+      "source_line": 1767
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "tests::replay_refuses_a_seed_which_exists_at_multiple_releases",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 269,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.016s",
+      "source_line": 1768
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "tests::replay_refuses_an_invalid_pinned_release_even_without_the_marker",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 270,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.016s",
+      "source_line": 1769
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "tests::replay_refuses_an_unreadable_existing_record",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 271,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.015s",
+      "source_line": 1770
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "tests::replay_refuses_legacy_findings_without_release_metadata",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 272,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.016s",
+      "source_line": 1771
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "tests::replay_refuses_orphan_and_staged_record_companions",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 273,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.016s",
+      "source_line": 1772
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "tests::requested_release_must_be_reported_by_both_backends",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 274,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.016s",
+      "source_line": 1773
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "version::tests::patchlevels_map_to_release_lines",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 275,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.016s",
+      "source_line": 1774
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "version::tests::skew_needs_two_different_reported_patchlevels",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 276,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.016s",
+      "source_line": 1775
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "wasm::tests::control_flow_program_runs",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 277,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.016s",
+      "source_line": 1776
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "wasm::tests::host_stub_is_valid_wasm",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 278,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.016s",
+      "source_line": 1777
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "wasm::tests::simple_program_compiles_and_runs",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 279,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.016s",
+      "source_line": 1778
+    },
+    {
+      "binary_id": "f5-cli::registry_dump",
+      "selector": "default_section_is_all_and_serialises",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 280,
+      "reporter_total": 354,
+      "seconds_as_rendered": "45.204s",
+      "source_line": 1779
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "wasm_diff::host_abi::tests::actual_missing_compiler_refusal_leaves_outputs_untouched_through_cleanup",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 281,
+      "reporter_total": 354,
+      "seconds_as_rendered": "3.365s",
+      "source_line": 1780
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "wasm_diff::host_abi::tests::condition_keeps_full_owned_guest_completion_and_truth_publication_order",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 282,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.449s",
+      "source_line": 1781
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "wasm_diff::host_abi::tests::every_selected_import_has_the_actual_registry_signature",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 283,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.488s",
+      "source_line": 1782
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "wasm_diff::host_abi::tests::cleanup_keeps_the_first_actual_transport_refusal_pending",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 284,
+      "reporter_total": 354,
+      "seconds_as_rendered": "3.551s",
+      "source_line": 1783
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "wasm_diff::host_abi::tests::live_frames_are_disjoint_and_freed_storage_is_reused",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 285,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.478s",
+      "source_line": 1784
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "wasm_diff::tests::dynamic_break_exits_the_loop",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 286,
+      "reporter_total": 354,
+      "seconds_as_rendered": "5.993s",
+      "source_line": 1785
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "wasm_diff::tests::dynamic_continue_skips_the_iteration",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 287,
+      "reporter_total": 354,
+      "seconds_as_rendered": "8.659s",
+      "source_line": 1786
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "wasm_diff::tests::error_in_loop_unwinds_not_hangs",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 288,
+      "reporter_total": 354,
+      "seconds_as_rendered": "7.222s",
+      "source_line": 1787
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "wasm_diff::tests::if_branch_matches",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 289,
+      "reporter_total": 354,
+      "seconds_as_rendered": "7.017s",
+      "source_line": 1788
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "wasm_diff::tests::loop_iteration_matches",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 290,
+      "reporter_total": 354,
+      "seconds_as_rendered": "6.108s",
+      "source_line": 1789
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "wasm_diff::tests::return_in_loop_stops_the_script",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 291,
+      "reporter_total": 354,
+      "seconds_as_rendered": "6.997s",
+      "source_line": 1791
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "wasm_diff::tests::straight_line_matches",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 292,
+      "reporter_total": 354,
+      "seconds_as_rendered": "5.022s",
+      "source_line": 1792
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "embedded::tests::materialise_writes_orchestrator",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 293,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.020s",
+      "source_line": 1793
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "embedded::tests::missing_file_guidance_names_a_real_command",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 294,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.020s",
+      "source_line": 1794
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "embedded::tests::smoke_bundled_tcl_has_balanced_top_level_commands",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 295,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.071s",
+      "source_line": 1795
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::original_projection_tests::original_event_enrolment_refuses_utf8_before_domain_or_later_operand",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 296,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.518s",
+      "source_line": 1796
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "wasm_diff::tests::while_with_break_matches",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 297,
+      "reporter_total": 354,
+      "seconds_as_rendered": "5.767s",
+      "source_line": 1797
+    },
+    {
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "generator::tests::malformed_expressions_error_on_our_engine",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 298,
+      "reporter_total": 354,
+      "seconds_as_rendered": "72.347s",
+      "source_line": 1799
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::completion_api_keeps_missing_execution_provider_outside_guest_errors",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 299,
+      "reporter_total": 354,
+      "seconds_as_rendered": "3.601s",
+      "source_line": 1800
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::completion_api_preserves_guest_bytes_before_text_projection",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 300,
+      "reporter_total": 354,
+      "seconds_as_rendered": "4.287s",
+      "source_line": 1801
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::original_projection_tests::original_live_result_projection_keeps_strict_bytes_earlier_eval_cause_and_next_entry",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 301,
+      "reporter_total": 354,
+      "seconds_as_rendered": "116.256s",
+      "source_line": 1806
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::authored_functions_keep_independent_worker_random_and_precision_contexts",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 302,
+      "reporter_total": 354,
+      "seconds_as_rendered": "112.957s",
+      "source_line": 1844
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::embedded_session_scenarios",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 303,
+      "reporter_total": 354,
+      "seconds_as_rendered": "112.870s",
+      "source_line": 1881
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::event_errors_preserve_cells_and_restore_worker_rule_activation",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 304,
+      "reporter_total": 354,
+      "seconds_as_rendered": "113.761s",
+      "source_line": 1922
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::event_frames_preserve_cells_aliases_and_traces",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 305,
+      "reporter_total": 354,
+      "seconds_as_rendered": "113.450s",
+      "source_line": 1959
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::harness_runs_the_tmm_84_surface",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 306,
+      "reporter_total": 354,
+      "seconds_as_rendered": "117.620s",
+      "source_line": 1997
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::irule_source_rewrite_only_touches_command_positions",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 307,
+      "reporter_total": 354,
+      "seconds_as_rendered": "115.557s",
+      "source_line": 2038
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::itest_loader_event_registration_matches_rust_when_blocks",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 308,
+      "reporter_total": 354,
+      "seconds_as_rendered": "118.622s",
+      "source_line": 2075
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::live_session_class_match_honours_every_operator",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 309,
+      "reporter_total": 354,
+      "seconds_as_rendered": "114.856s",
+      "source_line": 2113
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::live_session_drives_the_request_lifecycle",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 310,
+      "reporter_total": 354,
+      "seconds_as_rendered": "118.757s",
+      "source_line": 2154
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::measured_counted_lengths_keep_dynamic_bytes_and_literal_strings_separate_from_host",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 311,
+      "reporter_total": 354,
+      "seconds_as_rendered": "118.700s",
+      "source_line": 2191
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::measured_event_names_enter_the_actual_connection_frame_and_restore_policy",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 312,
+      "reporter_total": 354,
+      "seconds_as_rendered": "115.317s",
+      "source_line": 2229
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::missing_lib_dir_errors",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 313,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.017s",
+      "source_line": 2266
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::measured_rule_lookup_uses_partition_root_and_keeps_activated_callables",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 314,
+      "reporter_total": 354,
+      "seconds_as_rendered": "110.709s",
+      "source_line": 2271
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::measured_loader_checks_original_source_and_keeps_dynamic_runtime_commands",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 315,
+      "reporter_total": 354,
+      "seconds_as_rendered": "114.007s",
+      "source_line": 2308
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::named_rules_keep_procedures_owned_and_route_call_without_extra_frames",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 316,
+      "reporter_total": 354,
+      "seconds_as_rendered": "113.519s",
+      "source_line": 2346
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::retained_event_frame_preserves_native_completion_options",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 317,
+      "reporter_total": 354,
+      "seconds_as_rendered": "116.566s",
+      "source_line": 2387
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::native_completion_capabilities_do_not_expand_the_user_grammar",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 318,
+      "reporter_total": 354,
+      "seconds_as_rendered": "117.195s",
+      "source_line": 2424
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::rule_creation_and_recreation_initialise_only_the_owned_rule_on_four_workers",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 319,
+      "reporter_total": 354,
+      "seconds_as_rendered": "116.797s",
+      "source_line": 2462
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::scf_loader_stores_parsed_snatpool_members",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 320,
+      "reporter_total": 354,
+      "seconds_as_rendered": "113.101s",
+      "source_line": 2503
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::rule_init_uses_each_workers_global_cells_once",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 321,
+      "reporter_total": 354,
+      "seconds_as_rendered": "115.710s",
+      "source_line": 2540
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::scheduled_callback_retirement_and_error_reports_preserve_original_options",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 322,
+      "reporter_total": 354,
+      "seconds_as_rendered": "115.038s",
+      "source_line": 2578
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::scheduled_callbacks_keep_worker_root_and_connection_cells_distinct",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 323,
+      "reporter_total": 354,
+      "seconds_as_rendered": "112.906s",
+      "source_line": 2619
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::tmm_select_mode_survives_the_per_test_reset",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 324,
+      "reporter_total": 354,
+      "seconds_as_rendered": "113.385s",
+      "source_line": 2656
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::tmm_word_boolean_operators_are_rewritten_to_their_tcl_equivalents",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 325,
+      "reporter_total": 354,
+      "seconds_as_rendered": "115.165s",
+      "source_line": 2694
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::worker_array_recreation_retires_element_aliases_and_traces",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 326,
+      "reporter_total": 354,
+      "seconds_as_rendered": "112.670s",
+      "source_line": 2735
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::worker_interpreters_preserve_cells_traces_and_command_tables",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 327,
+      "reporter_total": 354,
+      "seconds_as_rendered": "116.013s",
+      "source_line": 2772
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "pure_functions::binary_boundary_tests::opaque_reference_input_keeps_typed_host_refusal_outside_guest_catch",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 328,
+      "reporter_total": 354,
+      "seconds_as_rendered": "3.433s",
+      "source_line": 2809
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::worker_reset_reloads_independent_globals_and_initialisation",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 329,
+      "reporter_total": 354,
+      "seconds_as_rendered": "112.858s",
+      "source_line": 2811
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "pure_functions::original_projection_tests::original_pure_callback_preserves_strict_nul_words_and_actual_argument_roles",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 330,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.427s",
+      "source_line": 2848
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "pure_functions::original_projection_tests::original_pure_callback_refuses_first_utf8_word_before_later_string_getter",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 331,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.443s",
+      "source_line": 2849
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "pure_functions::stub_transport_tests::optional_stub_lookup_accepts_only_actual_selected_action_members",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 332,
+      "reporter_total": 354,
+      "seconds_as_rendered": "4.188s",
+      "source_line": 2850
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "pure_functions::stub_transport_tests::optional_stub_lookup_preserves_host_failure_before_any_fallback_or_dispatch",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 333,
+      "reporter_total": 354,
+      "seconds_as_rendered": "4.478s",
+      "source_line": 2851
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::worker_static_broadcast_and_recreation_preserve_trace_owners",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 334,
+      "reporter_total": 354,
+      "seconds_as_rendered": "113.883s",
+      "source_line": 2855
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "session::tests::bootstrap_assembles_orchestrator_script",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 335,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.022s",
+      "source_line": 2892
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "session::tests::named_source_bootstrap_preserves_literal_identity_and_library_attachment",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 336,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.019s",
+      "source_line": 2893
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "session::tests::plan_from_topology",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 337,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.023s",
+      "source_line": 2894
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "sim::tests::decision_list_split_handles_braces",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 338,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.017s",
+      "source_line": 2895
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "sim::tests::empty_sources_reports_nothing_to_simulate",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 339,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.017s",
+      "source_line": 2896
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "sim::tests::log_entry_split_follows_tcl_list_semantics",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 340,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.017s",
+      "source_line": 2897
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "pure_functions::binary_boundary_tests::reference_binary_output_retains_counted_payload_and_authored_constructor_origin",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 341,
+      "reporter_total": 354,
+      "seconds_as_rendered": "110.259s",
+      "source_line": 2899
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "sim::tests::simulator_values_use_the_shared_tcl_word_encoder",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 342,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.018s",
+      "source_line": 2936
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "topology::tests::datagroup_records_keep_arbitrary_keys_as_literal_list_elements",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 343,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.018s",
+      "source_line": 2937
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "topology::tests::duplicate_exact_rule_rows_keep_first_source_and_refuse_short_name",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 344,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.023s",
+      "source_line": 2938
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "topology::tests::full_test_script_wraps_setup",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 345,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.024s",
+      "source_line": 2939
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "topology::tests::generates_setup_for_vs",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 346,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.024s",
+      "source_line": 2940
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "topology::tests::infers_profile_types",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 347,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.018s",
+      "source_line": 2941
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "topology::tests::infers_profile_types_for_custom_names",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 348,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.018s",
+      "source_line": 2942
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "topology::tests::lists_virtual_servers",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 349,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.024s",
+      "source_line": 2943
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "topology::tests::topology_loads_unattached_rules_as_named_libraries_and_refuses_ambiguous_names",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 350,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.024s",
+      "source_line": 2944
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "topology::tests::unknown_vs_errors",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 351,
+      "reporter_total": 354,
+      "seconds_as_rendered": "0.024s",
+      "source_line": 2945
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "pure_functions::tests::irules_pure_functions_match_the_simulator_and_the_oracle",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 352,
+      "reporter_total": 354,
+      "seconds_as_rendered": "97.336s",
+      "source_line": 2946
+    },
+    {
+      "binary_id": "tcl-irule-test",
+      "selector": "sim::tests::simulation_degrades_gracefully_until_vm_is_ready",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 353,
+      "reporter_total": 354,
+      "seconds_as_rendered": "79.528s",
+      "source_line": 2985
+    },
+    {
+      "binary_id": "f5-cli::irule",
+      "selector": "minify_aggressive_survives_deeply_nested_irule",
+      "status": "PASS",
+      "original_status": "PASS",
+      "reporter_ordinal": 354,
+      "reporter_total": 354,
+      "seconds_as_rendered": "2821.483s",
+      "source_line": 3011
+    }
+  ]
+}

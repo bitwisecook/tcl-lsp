@@ -1,0 +1,22 @@
+{
+  "recorded_utc": "2026-10-23T02:17:28.753936+00:00",
+  "scope": "independent exactv6 bounded static review; no runner/launcher/provider/Git/Cargo/source invocation",
+  "pins": {
+    "plan.json": "69b5c30390734545b45de6cdff73b2cfe231418a93ba0ef33c91c6faee5b5992",
+    "suite.py": "51087f14566cc2740f813f809c40726e608786e08630531fdbdd8cbab3342823",
+    "launch.py": "45a51134ef51bf3e069a2cb3abdf2e2a5e01d94c25464b07c4987c04223e5cff",
+    "run.sh": "6b21b64c3e2e2be43feb22b7abf39fc8a813a3989f4903130f71e464f2331702",
+    "runner-input-manifest.json": "2cbf9db5dcc54920283186799d13cfa15e290caf77243b402f07be6c4ca29408",
+    "guarded-exec.py": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811"
+  },
+  "verdict": "No remaining bounded static protocol blocker identified; READY/unrun/notqueued",
+  "findings": [
+    "Original15 selector objects and original12 sourcepins unchanged; added151c sourcepin and all18 finalhash checks remain",
+    "Allmanifest hashes match, AST parses, rootGO absent; exact88125 executor retained",
+    "Oldpeerreviewedv5suite losslessly reconstructed SHA51c226b0 matches originalreview; v6diff only directory identity + BaseException/finally explicitexit flow",
+    "Explicitexitcode handles normal15 verdict without treating SystemExit as failure, BaseException failure receipt+final snapshot retained, finally unlock marker and failclosedexit on release failure",
+    "Four priorblocking warning/artifact/percommit/durableguard corrections retained; exact20,000,000B perprocess/2.3GB/180s inner30 unchanged"
+  ],
+  "provenance": "v5 was changed after initialreportedpins; currentv5 notcleared. Restored old51c bytes verified, v6 is newfrozen directory.",
+  "limits": "Static only; no actualCargo event/test/SectionD acceptance; servernonharnessbin profilefalse exactevent must be observed by future guardedexecution, nofallback."
+}

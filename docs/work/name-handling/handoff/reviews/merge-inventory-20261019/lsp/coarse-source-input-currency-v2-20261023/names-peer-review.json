@@ -1,0 +1,18 @@
+{
+  "utc": "2026-10-23T02:12:32Z",
+  "verdict": "CLEAR bounded static purpose-specific currency repair; no runtime result",
+  "patch_sha256": "0642510bffc61b3ca2fb9b6af2dcad1b60996388d53e4e68005b152fc0f7acd5",
+  "findings": [
+    "Only sealed fresh SemanticStructure purpose stops depending on global Salsa revision; Database, ReadonlyComplete and ConditionalSourceRegion strict revision guards unchanged",
+    "Actual private SemanticStructure capture builds fresh configured analyser outside Salsa then structure_only; no cached Salsa semantic result/index export/native/runtime proof consumed by this purpose",
+    "Fresh driver captures folder disabled/NA/extra/pack/resource inputs under stable diag_inputs_epoch and independently retains factory generation; full resolved input/registry realm/source/config are retained and final-rejoined",
+    "Current matcher still checks exact same open source revision/version/raw text/dialect/publication/path admission/dialect generations/backing-file state and URI generation; final source-state transaction checks provider lease/epoch/factory/config/input/current realm",
+    "New test changes actual unrelated SourceFile text and asserts actual DBrevision change, coarse source acceptance, same genuine ReadonlyComplete finaltransaction positive BEFOREwrite and negative AFTERwrite under same held epoch/factory/admission",
+    "All existing source/config/observer/provider ABA/factory/dialect/close negatives unchanged; no new fallback, Native/frame/normal or semantic eligibility grant"
+  ],
+  "limits": [
+    "No Rust typing/runtime/Cargo/application",
+    "Actual41 coarse ContentModified errors lack guard-specific trace; this candidate fixes a demonstrated static unnecessarydependency, not proven cause of all41 or native suite failures",
+    "Pending->Indexed/publication/revision changes remain independent strict open-state refusals; representative native rerun still required"
+  ]
+}

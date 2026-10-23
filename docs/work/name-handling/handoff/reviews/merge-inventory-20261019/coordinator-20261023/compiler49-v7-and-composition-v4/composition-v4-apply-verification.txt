@@ -1,0 +1,16 @@
+Off-tree composition v4 verification command (run after the compiler 49 gate; this command does not edit the canonical worktree)
+
+1. Set ROOT to the repository and ARCHIVE to this directory. Set SHADOW to a new, unique path under /tmp; do not reuse or clean an existing path.
+2. Copy only the files listed in composition-v4-manifest.json canonical_before_hashes from ROOT into SHADOW, preserving their relative paths. For entries with null, ensure the path is absent. Stop if any existing file SHA-256 differs from its recorded value.
+3. Apply the exact archived patch to SHADOW:
+
+   gzip -dc "$ARCHIVE/composition-v4-combined.patch.gz" | patch --directory="$SHADOW" -p1 --fuzz=0 --batch
+
+   Require exit status 0 and exactly 18 patched paths. Do not apply this verification command to ROOT.
+4. Verify SHA-256 for all 18 files in SHADOW against composition-v4-manifest.json final_hashes. Require the 17 inherited v3 hashes to match exactly and numeric-inversion-v2 file hash to equal acc8dbfce9bf18dcc1165f722f6ab47d5a00b37cdaabeb5b2c2035282d6037b6.
+
+Equivalent one-line patch operation after constructing the fresh baseline shadow:
+
+   gzip -dc "$ARCHIVE/composition-v4-combined.patch.gz" | patch --directory="$SHADOW" -p1 --fuzz=0 --batch
+
+Expected patch identity: original numeric component cfef16f65175dd4abe609bfaf507653bca7f857cb6b3cc7a5448a4cd11007574; combined patch decompressed SHA-256 9fdee598250abfa9f46b5972a76cab05d1efae93e5f65c8efbf8ee46146e84a1.

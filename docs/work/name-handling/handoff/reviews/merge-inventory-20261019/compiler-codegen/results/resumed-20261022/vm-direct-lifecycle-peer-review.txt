@@ -1,0 +1,17 @@
+VM finite diagnostic lifecycle successor, bounded static peer review
+UTC: 2026-10-23T02:08Z
+Status: CLEAR for guarded process lifecycle preparation only; no GO, launcher, runner, lock, provider scan, Cargo, or test execution by this reviewer.
+
+Full TomMath finite4 successor: /tmp/vm-runtime-c84-catch4-postfix-v2-lifecycle/
+  plan SHA256 a2c5f45550ec77a9983e89052c16fa323c188fdba88e7c72d31534d1a0cdae24
+  runner SHA256 94f68b03ffed84063fdec1c97ae821c7c050e882de793ee564c13ccf736c4b09
+  runner manifest SHA256 d82d4452a82f3f13fb93e5bc321d05fe59e54c4e3470f1776f909fada11cbf41
+No TomMath CI exact16 successor: /tmp/vm-runtime-ci5206-notommath16-v3-lifecycle/
+  plan SHA256 3cb1decbfd88acfa79516b7dd327467ab19aa5a2c77a0d0f82b4f97ef5f4638e
+  runner SHA256 9910987b8718cbd4cccdd3fcc9f04269194c9de93de445783c6a2b6db9fb6d4a
+  runner manifest SHA256 4e8a30b937843ce95f4d460065c2702a67b190909c41068a744c0b646c03207d
+Both include byte-identical guarded-exec.py SHA256 88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811, separately reviewed with owned-child synthetics. AST parsed each run.py, launch.py, and guarded-exec.py; all manifest input path hashes matched; root-go.json is absent.
+
+Compared to their immediate frozen predecessors, each retains targets, cases, expected selection count, feature contract, and diagnostic unchanged (4 and 16 respectively). Only plan lifecycle identity/metadata is new. Capture.run now calls the pinned direct owned-process executor, translates only the initial cargo argv element to the absolute pinned Rust 1.99.1 Cargo path, and supplies the actual executable as artifact_path. Cargo build receives 3600 seconds, separate roster and selectors 180 seconds each. It passes ROOT, /tmp, mirror, target and output to actual-mount disk guarding, allocates the remaining aggregate 20 MiB to each child, and records the direct receipt. Incomplete or stopped process receipts raise before artifact or selector acceptance. Exact fresh Cargo JSON artifact capture and no stale artifact fallback remain. Full backend requires actual have_tommath cfg; no-TomMath requires actual absence, Cargo features [], and retains the single intentional notice with zero_warning_claim=false.
+
+Root GO must pin the manifest SHA and both launcher and runner check it before runner startup/lock. The runner independently checks every manifest path, the plan hash, source prerequisite and provider snapshots before and after. No GO is present and neither successor is authorized or functional acceptance. The required semantic-only interp source pin still needs coordinated integration; the optional producer observer remains separate and unapplied. Old lifecycle runners using proc.poll/unbounded cleanup must not run.

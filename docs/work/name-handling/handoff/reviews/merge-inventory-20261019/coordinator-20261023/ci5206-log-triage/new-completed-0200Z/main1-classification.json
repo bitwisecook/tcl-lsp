@@ -1,0 +1,923 @@
+{
+  "job_id": 120175508573,
+  "input_bytes": 317508,
+  "input_sha256": "125a6ece8de947a288847101ddc2e933a072a0b234fb7ff56e3b1efc32c8db3b",
+  "gzip_path": "main1-120175508573.decoded-content.log.gz",
+  "gzip_sha256": "be1f2bf34fd23f1b2f65ea00608d309a6e4a45c95eb427a1cb8e1915a6fae745",
+  "gzip_byte_exact_verified": true,
+  "phase": "RUNTIME EXECUTED; not build/list failure",
+  "compile_errors_observed": [],
+  "starting_lines": [
+    "2026-10-23T01:00:35.2426277Z     Starting 10552 tests across 1 binary (2 tests and 51 binaries skipped)"
+  ],
+  "summary_lines": [
+    "2026-10-23T01:08:54.6272403Z      Summary [ 499.385s] 281/10552 tests run: 238 passed, 43 failed, 2 skipped"
+  ],
+  "unique_outcome_counts": {
+    "PASS": 238,
+    "FAIL": 39,
+    "SIGTERM": 3,
+    "SIGKILL": 1
+  },
+  "unique_terminal_records": 281,
+  "duplicate_terminal_lines_deduplicated": 43,
+  "duplicate_status_conflicts": [],
+  "reporter_ordinals": {
+    "unique": 281,
+    "min": 1,
+    "max": 281
+  },
+  "baseline_join_counts": {
+    "matched_passes": 158,
+    "regressions": 26,
+    "extra_current_passes": 80,
+    "unmatched_current_nonpass": 17,
+    "duplicates": 0
+  },
+  "failed_selectors": [
+    {
+      "binary_id": "tcl-compiler",
+      "selector": "analyser::bounds_checks::tests::a_call_the_module_cannot_see_keeps_a_loop_silent",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 31,
+      "reporter_total": 10552,
+      "seconds_as_rendered": "17.830s",
+      "source_line": 1358
+    },
+    {
+      "binary_id": "tcl-compiler",
+      "selector": "analyser::bounds_checks::tests::a_loop_test_decided_false_names_the_loop",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 36,
+      "reporter_total": 10552,
+      "seconds_as_rendered": "1.507s",
+      "source_line": 1405
+    },
+    {
+      "binary_id": "tcl-compiler",
+      "selector": "analyser::bounds_checks::tests::a_callback_the_scan_cannot_read_keeps_w241_silent",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 37,
+      "reporter_total": 10552,
+      "seconds_as_rendered": "33.008s",
+      "source_line": 1443
+    },
+    {
+      "binary_id": "tcl-compiler",
+      "selector": "analyser::bounds_checks::tests::a_command_an_arm_runs_that_ends_the_loop_keeps_w241_silent",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 38,
+      "reporter_total": 10552,
+      "seconds_as_rendered": "25.432s",
+      "source_line": 1486
+    },
+    {
+      "binary_id": "tcl-compiler",
+      "selector": "analyser::bounds_checks::tests::a_switch_arm_that_writes_another_name_leaves_the_verdict",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 39,
+      "reporter_total": 10552,
+      "seconds_as_rendered": "3.038s",
+      "source_line": 1533
+    },
+    {
+      "binary_id": "tcl-compiler",
+      "selector": "analyser::bounds_checks::tests::a_switch_arm_that_starts_the_loop_keeps_w240_silent",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 41,
+      "reporter_total": 10552,
+      "seconds_as_rendered": "11.761s",
+      "source_line": 1578
+    },
+    {
+      "binary_id": "tcl-compiler",
+      "selector": "analyser::bounds_checks::tests::loop_verdicts_agree_across_the_whole_file_and_per_item_walks",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 53,
+      "reporter_total": 10552,
+      "seconds_as_rendered": "4.789s",
+      "source_line": 1632
+    },
+    {
+      "binary_id": "tcl-compiler",
+      "selector": "analyser::bounds_checks::tests::a_catch_body_or_a_computed_head_the_module_cannot_see_keeps_a_loop_silent",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 64,
+      "reporter_total": 10552,
+      "seconds_as_rendered": "64.566s",
+      "source_line": 1681
+    },
+    {
+      "binary_id": "tcl-compiler",
+      "selector": "analyser::bounds_checks::tests::w240_and_w241_read_the_branch_fact",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 76,
+      "reporter_total": 10552,
+      "seconds_as_rendered": "1.473s",
+      "source_line": 1737
+    },
+    {
+      "binary_id": "tcl-compiler",
+      "selector": "analyser::bounds_checks::tests::w240_seeds_from_the_iteration_plan",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 79,
+      "reporter_total": 10552,
+      "seconds_as_rendered": "3.114s",
+      "source_line": 1777
+    },
+    {
+      "binary_id": "tcl-compiler",
+      "selector": "analyser::bounds_checks::tests::w241_for_step_provably_infinite",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 83,
+      "reporter_total": 10552,
+      "seconds_as_rendered": "1.668s",
+      "source_line": 1822
+    },
+    {
+      "binary_id": "tcl-compiler",
+      "selector": "analyser::bounds_checks::tests::w242_counter_not_modified",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 84,
+      "reporter_total": 10552,
+      "seconds_as_rendered": "1.190s",
+      "source_line": 1860
+    },
+    {
+      "binary_id": "tcl-compiler",
+      "selector": "analyser::bounds_checks::tests::w242_severity_is_hint",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 85,
+      "reporter_total": 10552,
+      "seconds_as_rendered": "1.222s",
+      "source_line": 1898
+    },
+    {
+      "binary_id": "tcl-compiler",
+      "selector": "analyser::class_hierarchy::constructed_projection_tests::constructed_class_graph_lookup_preserves_literal_colon_holder",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 89,
+      "reporter_total": 10552,
+      "seconds_as_rendered": "0.248s",
+      "source_line": 1939
+    },
+    {
+      "binary_id": "tcl-compiler",
+      "selector": "analyser::class_hierarchy::original_metadata::registry_provider_tests::original_factory_members_require_their_actual_class_body_parent",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 94,
+      "reporter_total": 10552,
+      "seconds_as_rendered": "1.264s",
+      "source_line": 1981
+    },
+    {
+      "binary_id": "tcl-compiler",
+      "selector": "analyser::class_hierarchy::original_metadata::registry_provider_tests::original_registry_metaclass_uses_current_relation_and_definition_owners",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 95,
+      "reporter_total": 10552,
+      "seconds_as_rendered": "1.104s",
+      "source_line": 2019
+    },
+    {
+      "binary_id": "tcl-compiler",
+      "selector": "analyser::class_hierarchy::original_metadata::source_method_reference::tests::readonly_self_selectors_join_original_property_candidates_without_closing_the_census",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 99,
+      "reporter_total": 10552,
+      "seconds_as_rendered": "2.056s",
+      "source_line": 2060
+    },
+    {
+      "binary_id": "tcl-compiler",
+      "selector": "analyser::class_hierarchy::original_metadata::tests::original_metadata_order_joins_opaque_parents_after_ui_maps_are_cleared",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 102,
+      "reporter_total": 10552,
+      "seconds_as_rendered": "1.535s",
+      "source_line": 2096
+    },
+    {
+      "binary_id": "tcl-compiler",
+      "selector": "analyser::class_hierarchy::tests::bare_superclass_links_via_unique_tail_across_namespaces",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 112,
+      "reporter_total": 10552,
+      "seconds_as_rendered": "0.213s",
+      "source_line": 2143
+    },
+    {
+      "binary_id": "tcl-compiler",
+      "selector": "analyser::class_hierarchy::source_native_counted_member_name_controls::native_method_input_reaches_target_without_unicode_redecoding",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 149,
+      "reporter_total": 10552,
+      "seconds_as_rendered": "1.390s",
+      "source_line": 2217
+    },
+    {
+      "binary_id": "tcl-compiler",
+      "selector": "analyser::class_lattice::tests::assignment_kind_metadata_keeps_effective_alias_words_and_supplied_availability",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 172,
+      "reporter_total": 10552,
+      "seconds_as_rendered": "1.479s",
+      "source_line": 2277
+    },
+    {
+      "binary_id": "tcl-compiler",
+      "selector": "analyser::class_lattice::tests::per_object_receiver_uses_original_written_scalar_word",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 174,
+      "reporter_total": 10552,
+      "seconds_as_rendered": "3.799s",
+      "source_line": 2318
+    },
+    {
+      "binary_id": "tcl-compiler",
+      "selector": "analyser::commands::original_lexical_source_inventory_tests::original_lexical_inventory_retains_brackets_without_parent_execution",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 176,
+      "reporter_total": 10552,
+      "seconds_as_rendered": "1.529s",
+      "source_line": 2357
+    },
+    {
+      "binary_id": "tcl-compiler",
+      "selector": "analyser::commands::original_conditional_variable_read_tests::original_conditional_variable_reads_keep_distinct_absolute_opaque_operands",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 179,
+      "reporter_total": 10552,
+      "seconds_as_rendered": "9.399s",
+      "source_line": 2391
+    },
+    {
+      "binary_id": "tcl-compiler",
+      "selector": "analyser::commands::original_script_body_inventory_tests::original_script_inventory_uses_whole_authored_body_and_case_regions",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 192,
+      "reporter_total": 10552,
+      "seconds_as_rendered": "1.481s",
+      "source_line": 2439
+    },
+    {
+      "binary_id": "tcl-compiler",
+      "selector": "analyser::commands::tests::bareword_widget_constructor_binds_instance_class",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 196,
+      "reporter_total": 10552,
+      "seconds_as_rendered": "1.333s",
+      "source_line": 2478
+    },
+    {
+      "binary_id": "tcl-compiler",
+      "selector": "analyser::commands::tests::expr_function_call_honours_namespace_path",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 201,
+      "reporter_total": 10552,
+      "seconds_as_rendered": "3.341s",
+      "source_line": 2520
+    },
+    {
+      "binary_id": "tcl-compiler",
+      "selector": "analyser::commands::tests::interp_create_safe_with_literal_name_suppresses_w123_on_later_call",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 208,
+      "reporter_total": 10552,
+      "seconds_as_rendered": "2.344s",
+      "source_line": 2564
+    },
+    {
+      "binary_id": "tcl-compiler",
+      "selector": "analyser::commands::tests::process_foreach_defines_loop_var",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 226,
+      "reporter_total": 10552,
+      "seconds_as_rendered": "0.359s",
+      "source_line": 2616
+    },
+    {
+      "binary_id": "tcl-compiler",
+      "selector": "analyser::commands::tests::process_global_defines_each_name",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 227,
+      "reporter_total": 10552,
+      "seconds_as_rendered": "0.366s",
+      "source_line": 2650
+    },
+    {
+      "binary_id": "tcl-compiler",
+      "selector": "analyser::commands::tests::process_set_defines_variable",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 231,
+      "reporter_total": 10552,
+      "seconds_as_rendered": "0.347s",
+      "source_line": 2687
+    },
+    {
+      "binary_id": "tcl-compiler",
+      "selector": "analyser::commands::tests::simple_widget_without_subcommands_still_binds_instance_class",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 243,
+      "reporter_total": 10552,
+      "seconds_as_rendered": "1.263s",
+      "source_line": 2732
+    },
+    {
+      "binary_id": "tcl-compiler",
+      "selector": "analyser::commands::tests::var_captured_widget_constructor_binds_instance_class",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 244,
+      "reporter_total": 10552,
+      "seconds_as_rendered": "1.727s",
+      "source_line": 2770
+    },
+    {
+      "binary_id": "tcl-compiler",
+      "selector": "analyser::commands::tests::w125_fires_for_orphaned_else",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 245,
+      "reporter_total": 10552,
+      "seconds_as_rendered": "1.521s",
+      "source_line": 2808
+    },
+    {
+      "binary_id": "tcl-compiler",
+      "selector": "analyser::diagnostics::complete_cu_input_tests::actual_diagnostic_cu_construction_retains_the_complete_source_input",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 265,
+      "reporter_total": 10552,
+      "seconds_as_rendered": "6.026s",
+      "source_line": 2867
+    },
+    {
+      "binary_id": "tcl-compiler",
+      "selector": "analyser::diagnostics::dataflow::original_condition_extent_tests::original_condition_matcher_retains_multibyte_inclusive_extent_and_refuses_overflow",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 274,
+      "reporter_total": 10552,
+      "seconds_as_rendered": "3.175s",
+      "source_line": 2907
+    },
+    {
+      "binary_id": "tcl-compiler",
+      "selector": "analyser::diagnostics::dataflow::original_formal_diagnostic_source_tests::w214_uses_original_tight_name_spans_and_quoted_markers",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 275,
+      "reporter_total": 10552,
+      "seconds_as_rendered": "2.532s",
+      "source_line": 2945
+    },
+    {
+      "binary_id": "tcl-compiler",
+      "selector": "analyser::diagnostics::dataflow::original_matcher_admission_tests::logical_no_match_diagnostics_keep_prior_and_intervening_values_and_literal_names",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 276,
+      "reporter_total": 10552,
+      "seconds_as_rendered": "4.859s",
+      "source_line": 2983
+    },
+    {
+      "binary_id": "tcl-compiler",
+      "selector": "analyser::diagnostics::dataflow::original_matcher_admission_tests::original_matcher_query_refuses_missing_foreign_and_stale_source_inputs",
+      "status": "FAIL",
+      "original_status": "FAIL",
+      "reporter_ordinal": 277,
+      "reporter_total": 10552,
+      "seconds_as_rendered": "1.404s",
+      "source_line": 3023
+    },
+    {
+      "binary_id": "tcl-compiler",
+      "selector": "analyser::diagnostics::dataflow::original_matcher_admission_tests::selected_original_matcher_advice_keeps_alias_arguments_and_known_provider_barriers",
+      "status": "ABORT",
+      "original_status": "SIGTERM",
+      "reporter_ordinal": 278,
+      "reporter_total": 10552,
+      "seconds_as_rendered": "107.617s",
+      "source_line": 3067
+    },
+    {
+      "binary_id": "tcl-compiler",
+      "selector": "analyser::commands::tests::depth_far_past_cap_still_emits_e207_exactly_once",
+      "status": "ABORT",
+      "original_status": "SIGTERM",
+      "reporter_ordinal": 279,
+      "reporter_total": 10552,
+      "seconds_as_rendered": "348.447s",
+      "source_line": 3076
+    },
+    {
+      "binary_id": "tcl-compiler",
+      "selector": "analyser::commands::tests::depth_one_past_cap_emits_e207_exactly_once",
+      "status": "ABORT",
+      "original_status": "SIGTERM",
+      "reporter_ordinal": 280,
+      "reporter_total": 10552,
+      "seconds_as_rendered": "347.906s",
+      "source_line": 3084
+    },
+    {
+      "binary_id": "tcl-compiler",
+      "selector": "analyser::commands::tests::depth_exactly_at_cap_emits_no_e207",
+      "status": "ABORT",
+      "original_status": "SIGKILL",
+      "reporter_ordinal": 281,
+      "reporter_total": 10552,
+      "seconds_as_rendered": "349.266s",
+      "source_line": 3092
+    }
+  ],
+  "limits": [
+    "Exact observed console binary_id+selector join only. New/absent baseline identities remain unknown.",
+    "No skipped/unreached selector can be inferred PASS/FAIL; exact previous ledgers remain separate."
+  ],
+  "duplicate_lines": [
+    {
+      "binary_id": "tcl-compiler",
+      "selector": "analyser::bounds_checks::tests::a_call_the_module_cannot_see_keeps_a_loop_silent",
+      "first_line": 1358,
+      "duplicate_line": 3102,
+      "same_status": true
+    },
+    {
+      "binary_id": "tcl-compiler",
+      "selector": "analyser::bounds_checks::tests::a_loop_test_decided_false_names_the_loop",
+      "first_line": 1405,
+      "duplicate_line": 3103,
+      "same_status": true
+    },
+    {
+      "binary_id": "tcl-compiler",
+      "selector": "analyser::bounds_checks::tests::a_callback_the_scan_cannot_read_keeps_w241_silent",
+      "first_line": 1443,
+      "duplicate_line": 3104,
+      "same_status": true
+    },
+    {
+      "binary_id": "tcl-compiler",
+      "selector": "analyser::bounds_checks::tests::a_command_an_arm_runs_that_ends_the_loop_keeps_w241_silent",
+      "first_line": 1486,
+      "duplicate_line": 3105,
+      "same_status": true
+    },
+    {
+      "binary_id": "tcl-compiler",
+      "selector": "analyser::bounds_checks::tests::a_switch_arm_that_writes_another_name_leaves_the_verdict",
+      "first_line": 1533,
+      "duplicate_line": 3106,
+      "same_status": true
+    },
+    {
+      "binary_id": "tcl-compiler",
+      "selector": "analyser::bounds_checks::tests::a_switch_arm_that_starts_the_loop_keeps_w240_silent",
+      "first_line": 1578,
+      "duplicate_line": 3107,
+      "same_status": true
+    },
+    {
+      "binary_id": "tcl-compiler",
+      "selector": "analyser::bounds_checks::tests::loop_verdicts_agree_across_the_whole_file_and_per_item_walks",
+      "first_line": 1632,
+      "duplicate_line": 3108,
+      "same_status": true
+    },
+    {
+      "binary_id": "tcl-compiler",
+      "selector": "analyser::bounds_checks::tests::a_catch_body_or_a_computed_head_the_module_cannot_see_keeps_a_loop_silent",
+      "first_line": 1681,
+      "duplicate_line": 3109,
+      "same_status": true
+    },
+    {
+      "binary_id": "tcl-compiler",
+      "selector": "analyser::bounds_checks::tests::w240_and_w241_read_the_branch_fact",
+      "first_line": 1737,
+      "duplicate_line": 3110,
+      "same_status": true
+    },
+    {
+      "binary_id": "tcl-compiler",
+      "selector": "analyser::bounds_checks::tests::w240_seeds_from_the_iteration_plan",
+      "first_line": 1777,
+      "duplicate_line": 3111,
+      "same_status": true
+    },
+    {
+      "binary_id": "tcl-compiler",
+      "selector": "analyser::bounds_checks::tests::w241_for_step_provably_infinite",
+      "first_line": 1822,
+      "duplicate_line": 3112,
+      "same_status": true
+    },
+    {
+      "binary_id": "tcl-compiler",
+      "selector": "analyser::bounds_checks::tests::w242_counter_not_modified",
+      "first_line": 1860,
+      "duplicate_line": 3113,
+      "same_status": true
+    },
+    {
+      "binary_id": "tcl-compiler",
+      "selector": "analyser::bounds_checks::tests::w242_severity_is_hint",
+      "first_line": 1898,
+      "duplicate_line": 3114,
+      "same_status": true
+    },
+    {
+      "binary_id": "tcl-compiler",
+      "selector": "analyser::class_hierarchy::constructed_projection_tests::constructed_class_graph_lookup_preserves_literal_colon_holder",
+      "first_line": 1939,
+      "duplicate_line": 3115,
+      "same_status": true
+    },
+    {
+      "binary_id": "tcl-compiler",
+      "selector": "analyser::class_hierarchy::original_metadata::registry_provider_tests::original_factory_members_require_their_actual_class_body_parent",
+      "first_line": 1981,
+      "duplicate_line": 3116,
+      "same_status": true
+    },
+    {
+      "binary_id": "tcl-compiler",
+      "selector": "analyser::class_hierarchy::original_metadata::registry_provider_tests::original_registry_metaclass_uses_current_relation_and_definition_owners",
+      "first_line": 2019,
+      "duplicate_line": 3117,
+      "same_status": true
+    },
+    {
+      "binary_id": "tcl-compiler",
+      "selector": "analyser::class_hierarchy::original_metadata::source_method_reference::tests::readonly_self_selectors_join_original_property_candidates_without_closing_the_census",
+      "first_line": 2060,
+      "duplicate_line": 3118,
+      "same_status": true
+    },
+    {
+      "binary_id": "tcl-compiler",
+      "selector": "analyser::class_hierarchy::original_metadata::tests::original_metadata_order_joins_opaque_parents_after_ui_maps_are_cleared",
+      "first_line": 2096,
+      "duplicate_line": 3119,
+      "same_status": true
+    },
+    {
+      "binary_id": "tcl-compiler",
+      "selector": "analyser::class_hierarchy::tests::bare_superclass_links_via_unique_tail_across_namespaces",
+      "first_line": 2143,
+      "duplicate_line": 3120,
+      "same_status": true
+    },
+    {
+      "binary_id": "tcl-compiler",
+      "selector": "analyser::class_hierarchy::source_native_counted_member_name_controls::native_method_input_reaches_target_without_unicode_redecoding",
+      "first_line": 2217,
+      "duplicate_line": 3121,
+      "same_status": true
+    },
+    {
+      "binary_id": "tcl-compiler",
+      "selector": "analyser::class_lattice::tests::assignment_kind_metadata_keeps_effective_alias_words_and_supplied_availability",
+      "first_line": 2277,
+      "duplicate_line": 3122,
+      "same_status": true
+    },
+    {
+      "binary_id": "tcl-compiler",
+      "selector": "analyser::class_lattice::tests::per_object_receiver_uses_original_written_scalar_word",
+      "first_line": 2318,
+      "duplicate_line": 3123,
+      "same_status": true
+    },
+    {
+      "binary_id": "tcl-compiler",
+      "selector": "analyser::commands::original_lexical_source_inventory_tests::original_lexical_inventory_retains_brackets_without_parent_execution",
+      "first_line": 2357,
+      "duplicate_line": 3124,
+      "same_status": true
+    },
+    {
+      "binary_id": "tcl-compiler",
+      "selector": "analyser::commands::original_conditional_variable_read_tests::original_conditional_variable_reads_keep_distinct_absolute_opaque_operands",
+      "first_line": 2391,
+      "duplicate_line": 3125,
+      "same_status": true
+    },
+    {
+      "binary_id": "tcl-compiler",
+      "selector": "analyser::commands::original_script_body_inventory_tests::original_script_inventory_uses_whole_authored_body_and_case_regions",
+      "first_line": 2439,
+      "duplicate_line": 3126,
+      "same_status": true
+    },
+    {
+      "binary_id": "tcl-compiler",
+      "selector": "analyser::commands::tests::bareword_widget_constructor_binds_instance_class",
+      "first_line": 2478,
+      "duplicate_line": 3127,
+      "same_status": true
+    },
+    {
+      "binary_id": "tcl-compiler",
+      "selector": "analyser::commands::tests::expr_function_call_honours_namespace_path",
+      "first_line": 2520,
+      "duplicate_line": 3128,
+      "same_status": true
+    },
+    {
+      "binary_id": "tcl-compiler",
+      "selector": "analyser::commands::tests::interp_create_safe_with_literal_name_suppresses_w123_on_later_call",
+      "first_line": 2564,
+      "duplicate_line": 3129,
+      "same_status": true
+    },
+    {
+      "binary_id": "tcl-compiler",
+      "selector": "analyser::commands::tests::process_foreach_defines_loop_var",
+      "first_line": 2616,
+      "duplicate_line": 3130,
+      "same_status": true
+    },
+    {
+      "binary_id": "tcl-compiler",
+      "selector": "analyser::commands::tests::process_global_defines_each_name",
+      "first_line": 2650,
+      "duplicate_line": 3131,
+      "same_status": true
+    },
+    {
+      "binary_id": "tcl-compiler",
+      "selector": "analyser::commands::tests::process_set_defines_variable",
+      "first_line": 2687,
+      "duplicate_line": 3132,
+      "same_status": true
+    },
+    {
+      "binary_id": "tcl-compiler",
+      "selector": "analyser::commands::tests::simple_widget_without_subcommands_still_binds_instance_class",
+      "first_line": 2732,
+      "duplicate_line": 3133,
+      "same_status": true
+    },
+    {
+      "binary_id": "tcl-compiler",
+      "selector": "analyser::commands::tests::var_captured_widget_constructor_binds_instance_class",
+      "first_line": 2770,
+      "duplicate_line": 3134,
+      "same_status": true
+    },
+    {
+      "binary_id": "tcl-compiler",
+      "selector": "analyser::commands::tests::w125_fires_for_orphaned_else",
+      "first_line": 2808,
+      "duplicate_line": 3135,
+      "same_status": true
+    },
+    {
+      "binary_id": "tcl-compiler",
+      "selector": "analyser::diagnostics::complete_cu_input_tests::actual_diagnostic_cu_construction_retains_the_complete_source_input",
+      "first_line": 2867,
+      "duplicate_line": 3136,
+      "same_status": true
+    },
+    {
+      "binary_id": "tcl-compiler",
+      "selector": "analyser::diagnostics::dataflow::original_condition_extent_tests::original_condition_matcher_retains_multibyte_inclusive_extent_and_refuses_overflow",
+      "first_line": 2907,
+      "duplicate_line": 3137,
+      "same_status": true
+    },
+    {
+      "binary_id": "tcl-compiler",
+      "selector": "analyser::diagnostics::dataflow::original_formal_diagnostic_source_tests::w214_uses_original_tight_name_spans_and_quoted_markers",
+      "first_line": 2945,
+      "duplicate_line": 3138,
+      "same_status": true
+    },
+    {
+      "binary_id": "tcl-compiler",
+      "selector": "analyser::diagnostics::dataflow::original_matcher_admission_tests::logical_no_match_diagnostics_keep_prior_and_intervening_values_and_literal_names",
+      "first_line": 2983,
+      "duplicate_line": 3139,
+      "same_status": true
+    },
+    {
+      "binary_id": "tcl-compiler",
+      "selector": "analyser::diagnostics::dataflow::original_matcher_admission_tests::original_matcher_query_refuses_missing_foreign_and_stale_source_inputs",
+      "first_line": 3023,
+      "duplicate_line": 3140,
+      "same_status": true
+    },
+    {
+      "binary_id": "tcl-compiler",
+      "selector": "analyser::diagnostics::dataflow::original_matcher_admission_tests::selected_original_matcher_advice_keeps_alias_arguments_and_known_provider_barriers",
+      "first_line": 3067,
+      "duplicate_line": 3141,
+      "same_status": true
+    },
+    {
+      "binary_id": "tcl-compiler",
+      "selector": "analyser::commands::tests::depth_far_past_cap_still_emits_e207_exactly_once",
+      "first_line": 3076,
+      "duplicate_line": 3142,
+      "same_status": true
+    },
+    {
+      "binary_id": "tcl-compiler",
+      "selector": "analyser::commands::tests::depth_one_past_cap_emits_e207_exactly_once",
+      "first_line": 3084,
+      "duplicate_line": 3143,
+      "same_status": true
+    },
+    {
+      "binary_id": "tcl-compiler",
+      "selector": "analyser::commands::tests::depth_exactly_at_cap_emits_no_e207",
+      "first_line": 3092,
+      "duplicate_line": 3144,
+      "same_status": true
+    }
+  ],
+  "baseline_join_regression_original_status_counts": {
+    "FAIL": 23,
+    "SIGKILL": 1,
+    "SIGTERM": 2
+  },
+  "missing_baseline_record_count": 24128,
+  "baseline_join_detail": "main1-exact-baseline-join.json.gz",
+  "exact_observed_nonpass_to_baseline": [
+    {
+      "binary_id": "tcl-compiler",
+      "selector": "analyser::bounds_checks::tests::a_call_the_module_cannot_see_keeps_a_loop_silent",
+      "current_status": "FAIL"
+    },
+    {
+      "binary_id": "tcl-compiler",
+      "selector": "analyser::bounds_checks::tests::a_callback_the_scan_cannot_read_keeps_w241_silent",
+      "current_status": "FAIL"
+    },
+    {
+      "binary_id": "tcl-compiler",
+      "selector": "analyser::bounds_checks::tests::a_catch_body_or_a_computed_head_the_module_cannot_see_keeps_a_loop_silent",
+      "current_status": "FAIL"
+    },
+    {
+      "binary_id": "tcl-compiler",
+      "selector": "analyser::bounds_checks::tests::a_command_an_arm_runs_that_ends_the_loop_keeps_w241_silent",
+      "current_status": "FAIL"
+    },
+    {
+      "binary_id": "tcl-compiler",
+      "selector": "analyser::bounds_checks::tests::a_loop_test_decided_false_names_the_loop",
+      "current_status": "FAIL"
+    },
+    {
+      "binary_id": "tcl-compiler",
+      "selector": "analyser::bounds_checks::tests::a_switch_arm_that_starts_the_loop_keeps_w240_silent",
+      "current_status": "FAIL"
+    },
+    {
+      "binary_id": "tcl-compiler",
+      "selector": "analyser::bounds_checks::tests::a_switch_arm_that_writes_another_name_leaves_the_verdict",
+      "current_status": "FAIL"
+    },
+    {
+      "binary_id": "tcl-compiler",
+      "selector": "analyser::bounds_checks::tests::loop_verdicts_agree_across_the_whole_file_and_per_item_walks",
+      "current_status": "FAIL"
+    },
+    {
+      "binary_id": "tcl-compiler",
+      "selector": "analyser::bounds_checks::tests::w240_and_w241_read_the_branch_fact",
+      "current_status": "FAIL"
+    },
+    {
+      "binary_id": "tcl-compiler",
+      "selector": "analyser::bounds_checks::tests::w240_seeds_from_the_iteration_plan",
+      "current_status": "FAIL"
+    },
+    {
+      "binary_id": "tcl-compiler",
+      "selector": "analyser::bounds_checks::tests::w241_for_step_provably_infinite",
+      "current_status": "FAIL"
+    },
+    {
+      "binary_id": "tcl-compiler",
+      "selector": "analyser::bounds_checks::tests::w242_counter_not_modified",
+      "current_status": "FAIL"
+    },
+    {
+      "binary_id": "tcl-compiler",
+      "selector": "analyser::bounds_checks::tests::w242_severity_is_hint",
+      "current_status": "FAIL"
+    },
+    {
+      "binary_id": "tcl-compiler",
+      "selector": "analyser::class_hierarchy::tests::bare_superclass_links_via_unique_tail_across_namespaces",
+      "current_status": "FAIL"
+    },
+    {
+      "binary_id": "tcl-compiler",
+      "selector": "analyser::commands::tests::bareword_widget_constructor_binds_instance_class",
+      "current_status": "FAIL"
+    },
+    {
+      "binary_id": "tcl-compiler",
+      "selector": "analyser::commands::tests::depth_exactly_at_cap_emits_no_e207",
+      "current_status": "SIGKILL"
+    },
+    {
+      "binary_id": "tcl-compiler",
+      "selector": "analyser::commands::tests::depth_far_past_cap_still_emits_e207_exactly_once",
+      "current_status": "SIGTERM"
+    },
+    {
+      "binary_id": "tcl-compiler",
+      "selector": "analyser::commands::tests::depth_one_past_cap_emits_e207_exactly_once",
+      "current_status": "SIGTERM"
+    },
+    {
+      "binary_id": "tcl-compiler",
+      "selector": "analyser::commands::tests::expr_function_call_honours_namespace_path",
+      "current_status": "FAIL"
+    },
+    {
+      "binary_id": "tcl-compiler",
+      "selector": "analyser::commands::tests::interp_create_safe_with_literal_name_suppresses_w123_on_later_call",
+      "current_status": "FAIL"
+    },
+    {
+      "binary_id": "tcl-compiler",
+      "selector": "analyser::commands::tests::process_foreach_defines_loop_var",
+      "current_status": "FAIL"
+    },
+    {
+      "binary_id": "tcl-compiler",
+      "selector": "analyser::commands::tests::process_global_defines_each_name",
+      "current_status": "FAIL"
+    },
+    {
+      "binary_id": "tcl-compiler",
+      "selector": "analyser::commands::tests::process_set_defines_variable",
+      "current_status": "FAIL"
+    },
+    {
+      "binary_id": "tcl-compiler",
+      "selector": "analyser::commands::tests::simple_widget_without_subcommands_still_binds_instance_class",
+      "current_status": "FAIL"
+    },
+    {
+      "binary_id": "tcl-compiler",
+      "selector": "analyser::commands::tests::var_captured_widget_constructor_binds_instance_class",
+      "current_status": "FAIL"
+    },
+    {
+      "binary_id": "tcl-compiler",
+      "selector": "analyser::commands::tests::w125_fires_for_orphaned_else",
+      "current_status": "FAIL"
+    }
+  ],
+  "coverage": {
+    "planned_tests": 10552,
+    "reached_tests": 281,
+    "unreached_planned_tests_unknown": 10271,
+    "unnamed_skipped_tests": 2,
+    "skipped_binaries": 51,
+    "signal_cause": "UNKNOWN; SIGTERM and SIGKILL are original terminal statuses, not assumed assertion failures or timeout causes"
+  }
+}

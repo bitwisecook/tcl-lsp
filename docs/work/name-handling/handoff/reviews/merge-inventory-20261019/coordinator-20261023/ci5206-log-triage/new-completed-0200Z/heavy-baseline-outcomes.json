@@ -1,0 +1,3135 @@
+{
+  "schema": "nextest-human-reporter-observed-identities-v1",
+  "run": {
+    "number": 5203,
+    "id": 39816429638,
+    "ref": "rust",
+    "head_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731",
+    "job_id": 119956195910
+  },
+  "source_path": "/tmp/work-ci5205/baseline-heavy.log",
+  "source_sha256": "dbf7f506e5b59a364f22579d4dda98a2653a217ff6c708b62554bcf26fd1fd3e",
+  "provenance": "Exact existing compiler-codegen heavy-ci5205 receipt hash matches; actual raw heavy baseline independent of main24312 ledger",
+  "records": [
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": null,
+      "binary_id": "f5-cli",
+      "selector": "commands::fetch::tests::fetch_artefact_name_is_stable_for_the_same_instant",
+      "status": "PASS",
+      "reporter_ordinal": 1,
+      "reporter_total": 312,
+      "source_line": 1390
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": null,
+      "binary_id": "f5-cli",
+      "selector": "commands::fetch::tests::fetch_artefact_name_embeds_the_process_id",
+      "status": "PASS",
+      "reporter_ordinal": 2,
+      "reporter_total": 312,
+      "source_line": 1391
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": null,
+      "binary_id": "f5-cli",
+      "selector": "commands::fetch::tests::fetch_artefact_name_differs_within_the_same_second",
+      "status": "PASS",
+      "reporter_ordinal": 3,
+      "reporter_total": 312,
+      "source_line": 1392
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": null,
+      "binary_id": "f5-cli",
+      "selector": "commands::query::ucs_cert_tests::reader_errors_on_missing_member",
+      "status": "PASS",
+      "reporter_ordinal": 4,
+      "reporter_total": 312,
+      "source_line": 1393
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": null,
+      "binary_id": "f5-cli",
+      "selector": "commands::query::ucs_cert_tests::uri_and_percent_decode",
+      "status": "PASS",
+      "reporter_ordinal": 5,
+      "reporter_total": 312,
+      "source_line": 1394
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": null,
+      "binary_id": "f5-cli",
+      "selector": "commands::remote::object_io::tests::every_offered_kind_resolves_to_an_endpoint",
+      "status": "PASS",
+      "reporter_ordinal": 6,
+      "reporter_total": 312,
+      "source_line": 1395
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": null,
+      "binary_id": "f5-cli",
+      "selector": "commands::query::ucs_cert_tests::reader_reads_and_parses_real_cert",
+      "status": "PASS",
+      "reporter_ordinal": 7,
+      "reporter_total": 312,
+      "source_line": 1396
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": null,
+      "binary_id": "f5-cli",
+      "selector": "commands::query::ucs_cert_tests::ucs_cert_reaches_cert_through_the_dsl",
+      "status": "PASS",
+      "reporter_ordinal": 8,
+      "reporter_total": 312,
+      "source_line": 1397
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": null,
+      "binary_id": "f5-cli",
+      "selector": "commands::remote::ssh::tests::accept_host_key_accepts_a_matching_known_host",
+      "status": "PASS",
+      "reporter_ordinal": 9,
+      "reporter_total": 312,
+      "source_line": 1398
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": null,
+      "binary_id": "f5-cli",
+      "selector": "commands::remote::object_io::tests::the_kind_set_is_sorted_and_its_error_lists_all_of_it",
+      "status": "PASS",
+      "reporter_ordinal": 10,
+      "reporter_total": 312,
+      "source_line": 1399
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": null,
+      "binary_id": "f5-cli",
+      "selector": "commands::remote::ssh::tests::accept_host_key_accepts_and_persists_a_new_host",
+      "status": "PASS",
+      "reporter_ordinal": 11,
+      "reporter_total": 312,
+      "source_line": 1400
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": null,
+      "binary_id": "f5-cli",
+      "selector": "commands::remote::ssh::tests::accept_host_key_fails_closed_when_the_store_cannot_be_written",
+      "status": "PASS",
+      "reporter_ordinal": 12,
+      "reporter_total": 312,
+      "source_line": 1401
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": null,
+      "binary_id": "f5-cli",
+      "selector": "commands::remote::ssh::tests::scf_save_builds_tmsh_command_and_path",
+      "status": "PASS",
+      "reporter_ordinal": 13,
+      "reporter_total": 312,
+      "source_line": 1402
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": null,
+      "binary_id": "f5-cli",
+      "selector": "commands::remote::ssh::tests::accept_host_key_rejects_a_changed_key",
+      "status": "PASS",
+      "reporter_ordinal": 14,
+      "reporter_total": 312,
+      "source_line": 1403
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": null,
+      "binary_id": "f5-cli",
+      "selector": "commands::remote::ssh::tests::ucs_save_builds_tmsh_command_and_path",
+      "status": "PASS",
+      "reporter_ordinal": 15,
+      "reporter_total": 312,
+      "source_line": 1404
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": null,
+      "binary_id": "f5-cli",
+      "selector": "commands::remote::ssh::tests::verify_host_key_distinguishes_non_standard_ports",
+      "status": "PASS",
+      "reporter_ordinal": 16,
+      "reporter_total": 312,
+      "source_line": 1405
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": null,
+      "binary_id": "f5-cli",
+      "selector": "commands::remote::ssh::tests::verify_host_key_reports_changed_for_a_different_key",
+      "status": "PASS",
+      "reporter_ordinal": 17,
+      "reporter_total": 312,
+      "source_line": 1406
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": null,
+      "binary_id": "f5-cli",
+      "selector": "commands::remote::ssh::tests::verify_host_key_is_new_for_a_different_host_in_the_same_store",
+      "status": "PASS",
+      "reporter_ordinal": 18,
+      "reporter_total": 312,
+      "source_line": 1407
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": null,
+      "binary_id": "f5-cli",
+      "selector": "commands::remote::ssh::tests::verify_host_key_reports_known_after_learning",
+      "status": "PASS",
+      "reporter_ordinal": 19,
+      "reporter_total": 312,
+      "source_line": 1408
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": null,
+      "binary_id": "f5-cli",
+      "selector": "commands::remote::ssh::tests::verify_host_key_reports_new_for_unknown_host",
+      "status": "PASS",
+      "reporter_ordinal": 20,
+      "reporter_total": 312,
+      "source_line": 1409
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": null,
+      "binary_id": "f5-cli",
+      "selector": "commands::remote::ssh::tests::verify_host_key_reports_new_when_store_does_not_exist",
+      "status": "PASS",
+      "reporter_ordinal": 21,
+      "reporter_total": 312,
+      "source_line": 1410
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "cli",
+      "binary_id": "f5-cli::cli",
+      "selector": "diff_add_remove_json",
+      "status": "PASS",
+      "reporter_ordinal": 22,
+      "reporter_total": 312,
+      "source_line": 1411
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "cli",
+      "binary_id": "f5-cli::cli",
+      "selector": "diff_add_remove_text",
+      "status": "PASS",
+      "reporter_ordinal": 23,
+      "reporter_total": 312,
+      "source_line": 1412
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "cli",
+      "binary_id": "f5-cli::cli",
+      "selector": "diff_scalar_modify",
+      "status": "PASS",
+      "reporter_ordinal": 24,
+      "reporter_total": 312,
+      "source_line": 1413
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "cli",
+      "binary_id": "f5-cli::cli",
+      "selector": "diff_reads_ucs",
+      "status": "PASS",
+      "reporter_ordinal": 25,
+      "reporter_total": 312,
+      "source_line": 1414
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "cli",
+      "binary_id": "f5-cli::cli",
+      "selector": "diff_tmsh_input",
+      "status": "PASS",
+      "reporter_ordinal": 26,
+      "reporter_total": 312,
+      "source_line": 1415
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "cli",
+      "binary_id": "f5-cli::cli",
+      "selector": "explain_reads_ucs",
+      "status": "PASS",
+      "reporter_ordinal": 27,
+      "reporter_total": 312,
+      "source_line": 1416
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "cli",
+      "binary_id": "f5-cli::cli",
+      "selector": "extract_plain_ucs",
+      "status": "PASS",
+      "reporter_ordinal": 28,
+      "reporter_total": 312,
+      "source_line": 1417
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "cli",
+      "binary_id": "f5-cli::cli",
+      "selector": "extract_plain_ucs_include_extras",
+      "status": "PASS",
+      "reporter_ordinal": 29,
+      "reporter_total": 312,
+      "source_line": 1418
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "cli",
+      "binary_id": "f5-cli::cli",
+      "selector": "merge",
+      "status": "PASS",
+      "reporter_ordinal": 30,
+      "reporter_total": 312,
+      "source_line": 1419
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "cli",
+      "binary_id": "f5-cli::cli",
+      "selector": "split_then_merge",
+      "status": "PASS",
+      "reporter_ordinal": 31,
+      "reporter_total": 312,
+      "source_line": 1420
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "cli",
+      "binary_id": "f5-cli::cli",
+      "selector": "explain_virtual_json",
+      "status": "PASS",
+      "reporter_ordinal": 32,
+      "reporter_total": 312,
+      "source_line": 1421
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "cli",
+      "binary_id": "f5-cli::cli",
+      "selector": "explain_virtual_text",
+      "status": "PASS",
+      "reporter_ordinal": 33,
+      "reporter_total": 312,
+      "source_line": 1422
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "enrich",
+      "binary_id": "f5-cli::enrich",
+      "selector": "pcapng_dry_run_name_index_matches",
+      "status": "PASS",
+      "reporter_ordinal": 34,
+      "reporter_total": 312,
+      "source_line": 1423
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "enrich",
+      "binary_id": "f5-cli::enrich",
+      "selector": "pcapng_refuses_missing_input_file",
+      "status": "PASS",
+      "reporter_ordinal": 35,
+      "reporter_total": 312,
+      "source_line": 1424
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "enrich",
+      "binary_id": "f5-cli::enrich",
+      "selector": "wireshark_refuses_non_directory_output",
+      "status": "PASS",
+      "reporter_ordinal": 36,
+      "reporter_total": 312,
+      "source_line": 1425
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "enrich",
+      "binary_id": "f5-cli::enrich",
+      "selector": "wireshark_refuses_nonempty_dir_without_force",
+      "status": "PASS",
+      "reporter_ordinal": 37,
+      "reporter_total": 312,
+      "source_line": 1426
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "enrich",
+      "binary_id": "f5-cli::enrich",
+      "selector": "wireshark_summary_stderr_matches",
+      "status": "PASS",
+      "reporter_ordinal": 38,
+      "reporter_total": 312,
+      "source_line": 1427
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "explain_flow",
+      "binary_id": "f5-cli::explain_flow",
+      "selector": "tshark_enrichment_marks_used_tshark",
+      "status": "PASS",
+      "reporter_ordinal": 39,
+      "reporter_total": 312,
+      "source_line": 1428
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "explain_flow",
+      "binary_id": "f5-cli::explain_flow",
+      "selector": "tshark_filter_is_reported_repr_style",
+      "status": "PASS",
+      "reporter_ordinal": 40,
+      "reporter_total": 312,
+      "source_line": 1429
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "explain_flow",
+      "binary_id": "f5-cli::explain_flow",
+      "selector": "without_tshark_used_tshark_is_false",
+      "status": "PASS",
+      "reporter_ordinal": 41,
+      "reporter_total": 312,
+      "source_line": 1430
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "grep",
+      "binary_id": "f5-cli::grep",
+      "selector": "grep_both",
+      "status": "PASS",
+      "reporter_ordinal": 42,
+      "reporter_total": 312,
+      "source_line": 1431
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "grep",
+      "binary_id": "f5-cli::grep",
+      "selector": "grep_cidr",
+      "status": "PASS",
+      "reporter_ordinal": 43,
+      "reporter_total": 312,
+      "source_line": 1432
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "cli",
+      "binary_id": "f5-cli::cli",
+      "selector": "extract_encrypted_ucs",
+      "status": "PASS",
+      "reporter_ordinal": 44,
+      "reporter_total": 312,
+      "source_line": 1433
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "grep",
+      "binary_id": "f5-cli::grep",
+      "selector": "grep_forward",
+      "status": "PASS",
+      "reporter_ordinal": 45,
+      "reporter_total": 312,
+      "source_line": 1434
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "grep",
+      "binary_id": "f5-cli::grep",
+      "selector": "grep_include_body",
+      "status": "PASS",
+      "reporter_ordinal": 46,
+      "reporter_total": 312,
+      "source_line": 1435
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "grep",
+      "binary_id": "f5-cli::grep",
+      "selector": "grep_json",
+      "status": "PASS",
+      "reporter_ordinal": 47,
+      "reporter_total": 312,
+      "source_line": 1436
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "grep",
+      "binary_id": "f5-cli::grep",
+      "selector": "grep_literal",
+      "status": "PASS",
+      "reporter_ordinal": 48,
+      "reporter_total": 312,
+      "source_line": 1437
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "grep",
+      "binary_id": "f5-cli::grep",
+      "selector": "grep_max_depth",
+      "status": "PASS",
+      "reporter_ordinal": 49,
+      "reporter_total": 312,
+      "source_line": 1438
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "grep",
+      "binary_id": "f5-cli::grep",
+      "selector": "grep_no_match",
+      "status": "PASS",
+      "reporter_ordinal": 50,
+      "reporter_total": 312,
+      "source_line": 1439
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "grep",
+      "binary_id": "f5-cli::grep",
+      "selector": "grep_regex",
+      "status": "PASS",
+      "reporter_ordinal": 51,
+      "reporter_total": 312,
+      "source_line": 1440
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "grep",
+      "binary_id": "f5-cli::grep",
+      "selector": "grep_reverse",
+      "status": "PASS",
+      "reporter_ordinal": 52,
+      "reporter_total": 312,
+      "source_line": 1441
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "irule",
+      "binary_id": "f5-cli::irule",
+      "selector": "extract_rejects_standalone_irule",
+      "status": "PASS",
+      "reporter_ordinal": 53,
+      "reporter_total": 312,
+      "source_line": 1442
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "irule",
+      "binary_id": "f5-cli::irule",
+      "selector": "extract_rejects_the_long_irules_spelling_too",
+      "status": "PASS",
+      "reporter_ordinal": 54,
+      "reporter_total": 312,
+      "source_line": 1443
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "irule",
+      "binary_id": "f5-cli::irule",
+      "selector": "context_no_irules_found_exits_1",
+      "status": "PASS",
+      "reporter_ordinal": 55,
+      "reporter_total": 312,
+      "source_line": 1444
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "irule",
+      "binary_id": "f5-cli::irule",
+      "selector": "format_resolves_the_irules_profile_for_its_dialect",
+      "status": "PASS",
+      "reporter_ordinal": 56,
+      "reporter_total": 312,
+      "source_line": 1445
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "irule",
+      "binary_id": "f5-cli::irule",
+      "selector": "format_under_a_core_tcl_dialect_leaves_the_ghost_separator_alone",
+      "status": "PASS",
+      "reporter_ordinal": 57,
+      "reporter_total": 312,
+      "source_line": 1446
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "irule",
+      "binary_id": "f5-cli::irule",
+      "selector": "help_works_for_all_subs",
+      "status": "PASS",
+      "reporter_ordinal": 58,
+      "reporter_total": 312,
+      "source_line": 1447
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "irule",
+      "binary_id": "f5-cli::irule",
+      "selector": "lint_clean_input_no_findings",
+      "status": "PASS",
+      "reporter_ordinal": 59,
+      "reporter_total": 312,
+      "source_line": 1448
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "irule",
+      "binary_id": "f5-cli::irule",
+      "selector": "format_accepts_both_irules_dialect_spellings",
+      "status": "PASS",
+      "reporter_ordinal": 60,
+      "reporter_total": 312,
+      "source_line": 1449
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "irule",
+      "binary_id": "f5-cli::irule",
+      "selector": "no_input_errors_exit_2",
+      "status": "PASS",
+      "reporter_ordinal": 61,
+      "reporter_total": 312,
+      "source_line": 1450
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "irule",
+      "binary_id": "f5-cli::irule",
+      "selector": "pgo_is_not_a_known_subcommand",
+      "status": "PASS",
+      "reporter_ordinal": 62,
+      "reporter_total": 312,
+      "source_line": 1451
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "irule",
+      "binary_id": "f5-cli::irule",
+      "selector": "pgo_not_listed_in_irule_help",
+      "status": "PASS",
+      "reporter_ordinal": 63,
+      "reporter_total": 312,
+      "source_line": 1452
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "irule",
+      "binary_id": "f5-cli::irule",
+      "selector": "trace_keeps_data_group_from_braced_expression_command",
+      "status": "PASS",
+      "reporter_ordinal": 64,
+      "reporter_total": 312,
+      "source_line": 1453
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "irule",
+      "binary_id": "f5-cli::irule",
+      "selector": "trace_uses_the_event_closure_not_the_first_handler_body",
+      "status": "PASS",
+      "reporter_ordinal": 65,
+      "reporter_total": 312,
+      "source_line": 1454
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "pcap_remap",
+      "binary_id": "f5-cli::pcap_remap",
+      "selector": "libpcap_forward_byte_identical",
+      "status": "PASS",
+      "reporter_ordinal": 66,
+      "reporter_total": 312,
+      "source_line": 1455
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "pcap_remap",
+      "binary_id": "f5-cli::pcap_remap",
+      "selector": "libpcap_round_trip_identity",
+      "status": "PASS",
+      "reporter_ordinal": 67,
+      "reporter_total": 312,
+      "source_line": 1456
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "pcap_remap",
+      "binary_id": "f5-cli::pcap_remap",
+      "selector": "list_schemas",
+      "status": "PASS",
+      "reporter_ordinal": 68,
+      "reporter_total": 312,
+      "source_line": 1457
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "pcap_remap",
+      "binary_id": "f5-cli::pcap_remap",
+      "selector": "list_schemas_with_overlay_byte_identical",
+      "status": "PASS",
+      "reporter_ordinal": 69,
+      "reporter_total": 312,
+      "source_line": 1458
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "pcap_remap",
+      "binary_id": "f5-cli::pcap_remap",
+      "selector": "overlay_makes_unknown_trailer_known",
+      "status": "PASS",
+      "reporter_ordinal": 70,
+      "reporter_total": 312,
+      "source_line": 1459
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "pcap_remap",
+      "binary_id": "f5-cli::pcap_remap",
+      "selector": "pcapng_forward_byte_identical",
+      "status": "PASS",
+      "reporter_ordinal": 71,
+      "reporter_total": 312,
+      "source_line": 1460
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "pcap_remap",
+      "binary_id": "f5-cli::pcap_remap",
+      "selector": "unknown_trailer_error_exits_2_and_writes_nothing",
+      "status": "PASS",
+      "reporter_ordinal": 72,
+      "reporter_total": 312,
+      "source_line": 1461
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "pcap_remap",
+      "binary_id": "f5-cli::pcap_remap",
+      "selector": "unknown_trailer_preserve_byte_identical",
+      "status": "PASS",
+      "reporter_ordinal": 73,
+      "reporter_total": 312,
+      "source_line": 1462
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "pcap_remap",
+      "binary_id": "f5-cli::pcap_remap",
+      "selector": "unknown_trailer_sweep_byte_identical",
+      "status": "PASS",
+      "reporter_ordinal": 74,
+      "reporter_total": 312,
+      "source_line": 1463
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "query",
+      "binary_id": "f5-cli::query",
+      "selector": "ex14_group_by",
+      "status": "PASS",
+      "reporter_ordinal": 75,
+      "reporter_total": 312,
+      "source_line": 1464
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "query",
+      "binary_id": "f5-cli::query",
+      "selector": "ex19_named_source",
+      "status": "PASS",
+      "reporter_ordinal": 76,
+      "reporter_total": 312,
+      "source_line": 1465
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "query",
+      "binary_id": "f5-cli::query",
+      "selector": "ex1_vs_pool",
+      "status": "PASS",
+      "reporter_ordinal": 77,
+      "reporter_total": 312,
+      "source_line": 1466
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "query",
+      "binary_id": "f5-cli::query",
+      "selector": "ex20_dupes",
+      "status": "PASS",
+      "reporter_ordinal": 78,
+      "reporter_total": 312,
+      "source_line": 1467
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "query",
+      "binary_id": "f5-cli::query",
+      "selector": "ex21_sort_by",
+      "status": "PASS",
+      "reporter_ordinal": 79,
+      "reporter_total": 312,
+      "source_line": 1468
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "query",
+      "binary_id": "f5-cli::query",
+      "selector": "ex22_max_by",
+      "status": "PASS",
+      "reporter_ordinal": 80,
+      "reporter_total": 312,
+      "source_line": 1469
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "query",
+      "binary_id": "f5-cli::query",
+      "selector": "ex24_index",
+      "status": "PASS",
+      "reporter_ordinal": 81,
+      "reporter_total": 312,
+      "source_line": 1470
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "query",
+      "binary_id": "f5-cli::query",
+      "selector": "ex2_regex_name",
+      "status": "PASS",
+      "reporter_ordinal": 82,
+      "reporter_total": 312,
+      "source_line": 1471
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "query",
+      "binary_id": "f5-cli::query",
+      "selector": "ex3_select_irule",
+      "status": "PASS",
+      "reporter_ordinal": 83,
+      "reporter_total": 312,
+      "source_line": 1472
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "query",
+      "binary_id": "f5-cli::query",
+      "selector": "ex4_cidr_member",
+      "status": "PASS",
+      "reporter_ordinal": 84,
+      "reporter_total": 312,
+      "source_line": 1473
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "query",
+      "binary_id": "f5-cli::query",
+      "selector": "mode_json",
+      "status": "PASS",
+      "reporter_ordinal": 85,
+      "reporter_total": 312,
+      "source_line": 1474
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "query",
+      "binary_id": "f5-cli::query",
+      "selector": "mode_paths",
+      "status": "PASS",
+      "reporter_ordinal": 86,
+      "reporter_total": 312,
+      "source_line": 1475
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "query",
+      "binary_id": "f5-cli::query",
+      "selector": "mode_raw",
+      "status": "PASS",
+      "reporter_ordinal": 87,
+      "reporter_total": 312,
+      "source_line": 1476
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "query",
+      "binary_id": "f5-cli::query",
+      "selector": "mode_scf",
+      "status": "PASS",
+      "reporter_ordinal": 88,
+      "reporter_total": 312,
+      "source_line": 1477
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "query",
+      "binary_id": "f5-cli::query",
+      "selector": "mode_table",
+      "status": "PASS",
+      "reporter_ordinal": 89,
+      "reporter_total": 312,
+      "source_line": 1478
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "query",
+      "binary_id": "f5-cli::query",
+      "selector": "multi_file_banner",
+      "status": "PASS",
+      "reporter_ordinal": 90,
+      "reporter_total": 312,
+      "source_line": 1479
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "query",
+      "binary_id": "f5-cli::query",
+      "selector": "multi_file_json",
+      "status": "PASS",
+      "reporter_ordinal": 91,
+      "reporter_total": 312,
+      "source_line": 1480
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "query",
+      "binary_id": "f5-cli::query",
+      "selector": "pool_member_addrs",
+      "status": "PASS",
+      "reporter_ordinal": 92,
+      "reporter_total": 312,
+      "source_line": 1481
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "query",
+      "binary_id": "f5-cli::query",
+      "selector": "pool_names",
+      "status": "PASS",
+      "reporter_ordinal": 93,
+      "reporter_total": 312,
+      "source_line": 1482
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "query",
+      "binary_id": "f5-cli::query",
+      "selector": "select_pool",
+      "status": "PASS",
+      "reporter_ordinal": 94,
+      "reporter_total": 312,
+      "source_line": 1483
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "query",
+      "binary_id": "f5-cli::query",
+      "selector": "vs_dest",
+      "status": "PASS",
+      "reporter_ordinal": 95,
+      "reporter_total": 312,
+      "source_line": 1484
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "query",
+      "binary_id": "f5-cli::query",
+      "selector": "vs_length",
+      "status": "PASS",
+      "reporter_ordinal": 96,
+      "reporter_total": 312,
+      "source_line": 1485
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "query",
+      "binary_id": "f5-cli::query",
+      "selector": "vs_name_pool_obj",
+      "status": "PASS",
+      "reporter_ordinal": 97,
+      "reporter_total": 312,
+      "source_line": 1486
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "query",
+      "binary_id": "f5-cli::query",
+      "selector": "vs_names",
+      "status": "PASS",
+      "reporter_ordinal": 98,
+      "reporter_total": 312,
+      "source_line": 1487
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "query",
+      "binary_id": "f5-cli::query",
+      "selector": "vs_pool",
+      "status": "PASS",
+      "reporter_ordinal": 99,
+      "reporter_total": 312,
+      "source_line": 1488
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "query",
+      "binary_id": "f5-cli::query",
+      "selector": "vs_regex_name",
+      "status": "PASS",
+      "reporter_ordinal": 100,
+      "reporter_total": 312,
+      "source_line": 1489
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "query_help",
+      "binary_id": "f5-cli::query_help",
+      "selector": "help_dsl",
+      "status": "PASS",
+      "reporter_ordinal": 101,
+      "reporter_total": 312,
+      "source_line": 1490
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "query_help",
+      "binary_id": "f5-cli::query_help",
+      "selector": "help_dsl_short_circuits_without_inputs",
+      "status": "PASS",
+      "reporter_ordinal": 102,
+      "reporter_total": 312,
+      "source_line": 1491
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "query_help",
+      "binary_id": "f5-cli::query_help",
+      "selector": "help_examples",
+      "status": "PASS",
+      "reporter_ordinal": 103,
+      "reporter_total": 312,
+      "source_line": 1492
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "query_input",
+      "binary_id": "f5-cli::query_input",
+      "selector": "err_bad_binding_identifier",
+      "status": "PASS",
+      "reporter_ordinal": 104,
+      "reporter_total": 312,
+      "source_line": 1493
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "query_input",
+      "binary_id": "f5-cli::query_input",
+      "selector": "err_duplicate_name",
+      "status": "PASS",
+      "reporter_ordinal": 105,
+      "reporter_total": 312,
+      "source_line": 1494
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "query_input",
+      "binary_id": "f5-cli::query_input",
+      "selector": "err_load_missing_file",
+      "status": "PASS",
+      "reporter_ordinal": 106,
+      "reporter_total": 312,
+      "source_line": 1495
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "query_input",
+      "binary_id": "f5-cli::query_input",
+      "selector": "err_missing_file",
+      "status": "PASS",
+      "reporter_ordinal": 107,
+      "reporter_total": 312,
+      "source_line": 1496
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "query_input",
+      "binary_id": "f5-cli::query_input",
+      "selector": "err_unknown_kind",
+      "status": "PASS",
+      "reporter_ordinal": 108,
+      "reporter_total": 312,
+      "source_line": 1497
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "query_input",
+      "binary_id": "f5-cli::query_input",
+      "selector": "help_inputs",
+      "status": "PASS",
+      "reporter_ordinal": 109,
+      "reporter_total": 312,
+      "source_line": 1498
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "query_input",
+      "binary_id": "f5-cli::query_input",
+      "selector": "input_csv_col",
+      "status": "PASS",
+      "reporter_ordinal": 110,
+      "reporter_total": 312,
+      "source_line": 1499
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "query_input",
+      "binary_id": "f5-cli::query_input",
+      "selector": "input_csv_headers",
+      "status": "PASS",
+      "reporter_ordinal": 111,
+      "reporter_total": 312,
+      "source_line": 1500
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "query_input",
+      "binary_id": "f5-cli::query_input",
+      "selector": "input_csv_json",
+      "status": "PASS",
+      "reporter_ordinal": 112,
+      "reporter_total": 312,
+      "source_line": 1501
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "query_input",
+      "binary_id": "f5-cli::query_input",
+      "selector": "input_f5log_json",
+      "status": "PASS",
+      "reporter_ordinal": 113,
+      "reporter_total": 312,
+      "source_line": 1502
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "query_input",
+      "binary_id": "f5-cli::query_input",
+      "selector": "input_f5log_select",
+      "status": "PASS",
+      "reporter_ordinal": 114,
+      "reporter_total": 312,
+      "source_line": 1503
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "query_input",
+      "binary_id": "f5-cli::query_input",
+      "selector": "input_generic_json",
+      "status": "PASS",
+      "reporter_ordinal": 115,
+      "reporter_total": 312,
+      "source_line": 1504
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "irule",
+      "binary_id": "f5-cli::irule",
+      "selector": "minify_aggressive_survives_deeply_nested_irule",
+      "status": "PASS",
+      "reporter_ordinal": 116,
+      "reporter_total": 312,
+      "source_line": 1505
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "query_input",
+      "binary_id": "f5-cli::query_input",
+      "selector": "input_json_field",
+      "status": "PASS",
+      "reporter_ordinal": 117,
+      "reporter_total": 312,
+      "source_line": 1506
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "query_input",
+      "binary_id": "f5-cli::query_input",
+      "selector": "input_json_iter",
+      "status": "PASS",
+      "reporter_ordinal": 118,
+      "reporter_total": 312,
+      "source_line": 1507
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "query_input",
+      "binary_id": "f5-cli::query_input",
+      "selector": "input_json_select",
+      "status": "PASS",
+      "reporter_ordinal": 119,
+      "reporter_total": 312,
+      "source_line": 1508
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "query_input",
+      "binary_id": "f5-cli::query_input",
+      "selector": "input_json_obj",
+      "status": "PASS",
+      "reporter_ordinal": 120,
+      "reporter_total": 312,
+      "source_line": 1509
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "query_input",
+      "binary_id": "f5-cli::query_input",
+      "selector": "input_jsonl_iter",
+      "status": "PASS",
+      "reporter_ordinal": 121,
+      "reporter_total": 312,
+      "source_line": 1510
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "query_input",
+      "binary_id": "f5-cli::query_input",
+      "selector": "load_csv",
+      "status": "PASS",
+      "reporter_ordinal": 122,
+      "reporter_total": 312,
+      "source_line": 1511
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "query_input",
+      "binary_id": "f5-cli::query_input",
+      "selector": "input_jsonl_select",
+      "status": "PASS",
+      "reporter_ordinal": 123,
+      "reporter_total": 312,
+      "source_line": 1512
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "query_input",
+      "binary_id": "f5-cli::query_input",
+      "selector": "load_f5log",
+      "status": "PASS",
+      "reporter_ordinal": 124,
+      "reporter_total": 312,
+      "source_line": 1513
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "query_input",
+      "binary_id": "f5-cli::query_input",
+      "selector": "load_json",
+      "status": "PASS",
+      "reporter_ordinal": 125,
+      "reporter_total": 312,
+      "source_line": 1514
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "query_input",
+      "binary_id": "f5-cli::query_input",
+      "selector": "load_jsonl",
+      "status": "PASS",
+      "reporter_ordinal": 126,
+      "reporter_total": 312,
+      "source_line": 1515
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "query_input",
+      "binary_id": "f5-cli::query_input",
+      "selector": "load_json_iter",
+      "status": "PASS",
+      "reporter_ordinal": 127,
+      "reporter_total": 312,
+      "source_line": 1516
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "query_merge",
+      "binary_id": "f5-cli::query_merge",
+      "selector": "merge_collision_refused",
+      "status": "PASS",
+      "reporter_ordinal": 128,
+      "reporter_total": 312,
+      "source_line": 1517
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "query_merge",
+      "binary_id": "f5-cli::query_merge",
+      "selector": "merge_json_envelope",
+      "status": "PASS",
+      "reporter_ordinal": 129,
+      "reporter_total": 312,
+      "source_line": 1518
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "query_merge",
+      "binary_id": "f5-cli::query_merge",
+      "selector": "merge_pool_length",
+      "status": "PASS",
+      "reporter_ordinal": 130,
+      "reporter_total": 312,
+      "source_line": 1519
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "query_merge",
+      "binary_id": "f5-cli::query_merge",
+      "selector": "merge_referenced_by_cross_file",
+      "status": "PASS",
+      "reporter_ordinal": 131,
+      "reporter_total": 312,
+      "source_line": 1520
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "query_merge",
+      "binary_id": "f5-cli::query_merge",
+      "selector": "merge_refs_cross_file",
+      "status": "PASS",
+      "reporter_ordinal": 132,
+      "reporter_total": 312,
+      "source_line": 1521
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "query_merge",
+      "binary_id": "f5-cli::query_merge",
+      "selector": "merge_virtual_names",
+      "status": "PASS",
+      "reporter_ordinal": 133,
+      "reporter_total": 312,
+      "source_line": 1522
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "query_mutation",
+      "binary_id": "f5-cli::query_mutation",
+      "selector": "noop_strict_exits_2",
+      "status": "PASS",
+      "reporter_ordinal": 134,
+      "reporter_total": 312,
+      "source_line": 1523
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "query_mutation",
+      "binary_id": "f5-cli::query_mutation",
+      "selector": "noop_matches_object_but_same_text_exits_1",
+      "status": "PASS",
+      "reporter_ordinal": 135,
+      "reporter_total": 312,
+      "source_line": 1524
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "query_mutation",
+      "binary_id": "f5-cli::query_mutation",
+      "selector": "select_nothing_queues_no_edit_exits_0",
+      "status": "PASS",
+      "reporter_ordinal": 136,
+      "reporter_total": 312,
+      "source_line": 1525
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "query_render",
+      "binary_id": "f5-cli::query_render",
+      "selector": "ascii_blocks_bad_style",
+      "status": "PASS",
+      "reporter_ordinal": 137,
+      "reporter_total": 312,
+      "source_line": 1526
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "query_render",
+      "binary_id": "f5-cli::query_render",
+      "selector": "ascii_blocks_flat",
+      "status": "PASS",
+      "reporter_ordinal": 138,
+      "reporter_total": 312,
+      "source_line": 1527
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "query_render",
+      "binary_id": "f5-cli::query_render",
+      "selector": "ascii_blocks_square_min_width",
+      "status": "PASS",
+      "reporter_ordinal": 139,
+      "reporter_total": 312,
+      "source_line": 1528
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "query_render",
+      "binary_id": "f5-cli::query_render",
+      "selector": "empty_key_render_opt",
+      "status": "PASS",
+      "reporter_ordinal": 140,
+      "reporter_total": 312,
+      "source_line": 1529
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "query_render",
+      "binary_id": "f5-cli::query_render",
+      "selector": "ascii_blocks_nested",
+      "status": "PASS",
+      "reporter_ordinal": 141,
+      "reporter_total": 312,
+      "source_line": 1530
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "query_render",
+      "binary_id": "f5-cli::query_render",
+      "selector": "gantt_objectref_rows_rejected",
+      "status": "PASS",
+      "reporter_ordinal": 142,
+      "reporter_total": 312,
+      "source_line": 1531
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "query_render",
+      "binary_id": "f5-cli::query_render",
+      "selector": "gantt_default",
+      "status": "PASS",
+      "reporter_ordinal": 143,
+      "reporter_total": 312,
+      "source_line": 1532
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "query_render",
+      "binary_id": "f5-cli::query_render",
+      "selector": "gantt_unit_minutes_10",
+      "status": "PASS",
+      "reporter_ordinal": 144,
+      "reporter_total": 312,
+      "source_line": 1533
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "query_render",
+      "binary_id": "f5-cli::query_render",
+      "selector": "malformed_render_opt",
+      "status": "PASS",
+      "reporter_ordinal": 145,
+      "reporter_total": 312,
+      "source_line": 1534
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "query_render",
+      "binary_id": "f5-cli::query_render",
+      "selector": "mermaid_chain",
+      "status": "PASS",
+      "reporter_ordinal": 146,
+      "reporter_total": 312,
+      "source_line": 1535
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "query_render",
+      "binary_id": "f5-cli::query_render",
+      "selector": "mermaid_bad_direction",
+      "status": "PASS",
+      "reporter_ordinal": 147,
+      "reporter_total": 312,
+      "source_line": 1536
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "query_render",
+      "binary_id": "f5-cli::query_render",
+      "selector": "mermaid_direction_tb",
+      "status": "PASS",
+      "reporter_ordinal": 148,
+      "reporter_total": 312,
+      "source_line": 1537
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "query_render",
+      "binary_id": "f5-cli::query_render",
+      "selector": "unknown_renderer",
+      "status": "PASS",
+      "reporter_ordinal": 149,
+      "reporter_total": 312,
+      "source_line": 1538
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "registry_dump",
+      "binary_id": "f5-cli::registry_dump",
+      "selector": "commands_section_produces_snapshot",
+      "status": "PASS",
+      "reporter_ordinal": 150,
+      "reporter_total": 312,
+      "source_line": 1539
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "registry_dump",
+      "binary_id": "f5-cli::registry_dump",
+      "selector": "all_section_bundles_every_subsection",
+      "status": "PASS",
+      "reporter_ordinal": 151,
+      "reporter_total": 312,
+      "source_line": 1540
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "registry_dump",
+      "binary_id": "f5-cli::registry_dump",
+      "selector": "unknown_section_fails_cleanly",
+      "status": "PASS",
+      "reporter_ordinal": 152,
+      "reporter_total": 312,
+      "source_line": 1541
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "remote",
+      "binary_id": "f5-cli::remote",
+      "selector": "invalid_json_position",
+      "status": "PASS",
+      "reporter_ordinal": 153,
+      "reporter_total": 312,
+      "source_line": 1542
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "remote",
+      "binary_id": "f5-cli::remote",
+      "selector": "missing_host_errors_for_all_verbs",
+      "status": "PASS",
+      "reporter_ordinal": 154,
+      "reporter_total": 312,
+      "source_line": 1543
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "remote",
+      "binary_id": "f5-cli::remote",
+      "selector": "missing_password_after_env_host_and_user",
+      "status": "PASS",
+      "reporter_ordinal": 155,
+      "reporter_total": 312,
+      "source_line": 1544
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "remote",
+      "binary_id": "f5-cli::remote",
+      "selector": "missing_payload_file_errno_message",
+      "status": "PASS",
+      "reporter_ordinal": 156,
+      "reporter_total": 312,
+      "source_line": 1545
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "remote",
+      "binary_id": "f5-cli::remote",
+      "selector": "missing_user_after_env_host",
+      "status": "PASS",
+      "reporter_ordinal": 157,
+      "reporter_total": 312,
+      "source_line": 1546
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "remote",
+      "binary_id": "f5-cli::remote",
+      "selector": "push_dry_run_name_only_target",
+      "status": "PASS",
+      "reporter_ordinal": 158,
+      "reporter_total": 312,
+      "source_line": 1547
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "remote",
+      "binary_id": "f5-cli::remote",
+      "selector": "ssh_transport_connection_refused",
+      "status": "PASS",
+      "reporter_ordinal": 159,
+      "reporter_total": 312,
+      "source_line": 1548
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "remote",
+      "binary_id": "f5-cli::remote",
+      "selector": "unknown_kind_rejected_by_clap",
+      "status": "PASS",
+      "reporter_ordinal": 160,
+      "reporter_total": 312,
+      "source_line": 1549
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "remote",
+      "binary_id": "f5-cli::remote",
+      "selector": "unknown_transport_rejected_by_clap",
+      "status": "PASS",
+      "reporter_ordinal": 161,
+      "reporter_total": 312,
+      "source_line": 1550
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "secrets",
+      "binary_id": "f5-cli::secrets",
+      "selector": "alias_encrypt_decrypt",
+      "status": "PASS",
+      "reporter_ordinal": 162,
+      "reporter_total": 312,
+      "source_line": 1551
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "secrets",
+      "binary_id": "f5-cli::secrets",
+      "selector": "bad_key_errors",
+      "status": "PASS",
+      "reporter_ordinal": 163,
+      "reporter_total": 312,
+      "source_line": 1552
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "secrets",
+      "binary_id": "f5-cli::secrets",
+      "selector": "encrypt_is_idempotent",
+      "status": "PASS",
+      "reporter_ordinal": 164,
+      "reporter_total": 312,
+      "source_line": 1553
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "secrets",
+      "binary_id": "f5-cli::secrets",
+      "selector": "encrypt_skips_existing_crypt_hash",
+      "status": "PASS",
+      "reporter_ordinal": 165,
+      "reporter_total": 312,
+      "source_line": 1554
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "secrets",
+      "binary_id": "f5-cli::secrets",
+      "selector": "key_from_env",
+      "status": "PASS",
+      "reporter_ordinal": 166,
+      "reporter_total": 312,
+      "source_line": 1555
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "secrets",
+      "binary_id": "f5-cli::secrets",
+      "selector": "key_from_file",
+      "status": "PASS",
+      "reporter_ordinal": 167,
+      "reporter_total": 312,
+      "source_line": 1556
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "secrets",
+      "binary_id": "f5-cli::secrets",
+      "selector": "missing_key_errors",
+      "status": "PASS",
+      "reporter_ordinal": 168,
+      "reporter_total": 312,
+      "source_line": 1557
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "secrets",
+      "binary_id": "f5-cli::secrets",
+      "selector": "round_trip",
+      "status": "PASS",
+      "reporter_ordinal": 169,
+      "reporter_total": 312,
+      "source_line": 1558
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "secrets",
+      "binary_id": "f5-cli::secrets",
+      "selector": "tmsh_delta_does_not_recreate_existing_objects",
+      "status": "PASS",
+      "reporter_ordinal": 170,
+      "reporter_total": 312,
+      "source_line": 1559
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "tmsh",
+      "binary_id": "f5-cli::tmsh",
+      "selector": "unknown_include_kind_errors",
+      "status": "PASS",
+      "reporter_ordinal": 171,
+      "reporter_total": 312,
+      "source_line": 1560
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "validate",
+      "binary_id": "f5-cli::validate",
+      "selector": "json_category_field_is_config_or_irule",
+      "status": "PASS",
+      "reporter_ordinal": 172,
+      "reporter_total": 312,
+      "source_line": 1561
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "validate",
+      "binary_id": "f5-cli::validate",
+      "selector": "lint_alias_matches_validate",
+      "status": "PASS",
+      "reporter_ordinal": 173,
+      "reporter_total": 312,
+      "source_line": 1562
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "validate",
+      "binary_id": "f5-cli::validate",
+      "selector": "missing_file_errors",
+      "status": "PASS",
+      "reporter_ordinal": 174,
+      "reporter_total": 312,
+      "source_line": 1563
+    },
+    {
+      "package": "tcl-fuzz",
+      "binary_label_as_rendered": "bin/tcl-fuzz",
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "bpf_diff::tests::fn_registry_spelling_changes_are_not_hidden_in_the_generator",
+      "status": "PASS",
+      "reporter_ordinal": 175,
+      "reporter_total": 312,
+      "source_line": 1564
+    },
+    {
+      "package": "tcl-fuzz",
+      "binary_label_as_rendered": "bin/tcl-fuzz",
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "bpf_diff::tests::seed_mapping_selects_exactly_the_second_byte",
+      "status": "PASS",
+      "reporter_ordinal": 176,
+      "reporter_total": 312,
+      "source_line": 1565
+    },
+    {
+      "package": "tcl-fuzz",
+      "binary_label_as_rendered": "bin/tcl-fuzz",
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "bpf_diff::tests::tn_zero_selected_byte_is_the_socket_filter_drop_verdict",
+      "status": "PASS",
+      "reporter_ordinal": 177,
+      "reporter_total": 312,
+      "source_line": 1566
+    },
+    {
+      "package": "tcl-fuzz",
+      "binary_label_as_rendered": "bin/tcl-fuzz",
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "bpf_diff::tests::tp_real_ebpf_program_returns_the_selected_packet_byte",
+      "status": "PASS",
+      "reporter_ordinal": 178,
+      "reporter_total": 312,
+      "source_line": 1567
+    },
+    {
+      "package": "tcl-fuzz",
+      "binary_label_as_rendered": "bin/tcl-fuzz",
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "characterize::tests::classifies_each_oracle_relationship",
+      "status": "PASS",
+      "reporter_ordinal": 179,
+      "reporter_total": 312,
+      "source_line": 1568
+    },
+    {
+      "package": "tcl-fuzz",
+      "binary_label_as_rendered": "bin/tcl-fuzz",
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "characterize::tests::unavailable_or_timed_out_backend_is_incomplete_not_agreement",
+      "status": "PASS",
+      "reporter_ordinal": 180,
+      "reporter_total": 312,
+      "source_line": 1569
+    },
+    {
+      "package": "tcl-fuzz",
+      "binary_label_as_rendered": "bin/tcl-fuzz",
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "engine::tests::emulated_engines_accept_a_release_flag_but_tclsh_uses_its_selected_binary",
+      "status": "PASS",
+      "reporter_ordinal": 181,
+      "reporter_total": 312,
+      "source_line": 1570
+    },
+    {
+      "package": "tcl-fuzz",
+      "binary_label_as_rendered": "bin/tcl-fuzz",
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "engine::tests::explicit_override_wins_regardless_of_convention",
+      "status": "PASS",
+      "reporter_ordinal": 182,
+      "reporter_total": 312,
+      "source_line": 1571
+    },
+    {
+      "package": "tcl-fuzz",
+      "binary_label_as_rendered": "bin/tcl-fuzz",
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "engine::tests::labels_are_distinct_for_findings_namespacing",
+      "status": "PASS",
+      "reporter_ordinal": 183,
+      "reporter_total": 312,
+      "source_line": 1572
+    },
+    {
+      "package": "tcl-fuzz",
+      "binary_label_as_rendered": "bin/tcl-fuzz",
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "engine::tests::runtime_rust_carries_the_quiet_flag",
+      "status": "PASS",
+      "reporter_ordinal": 184,
+      "reporter_total": 312,
+      "source_line": 1573
+    },
+    {
+      "package": "tcl-fuzz",
+      "binary_label_as_rendered": "bin/tcl-fuzz",
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "engine::tests::tclvm_and_tclsh_carry_no_extra_args",
+      "status": "PASS",
+      "reporter_ordinal": 185,
+      "reporter_total": 312,
+      "source_line": 1574
+    },
+    {
+      "package": "tcl-fuzz",
+      "binary_label_as_rendered": "bin/tcl-fuzz",
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "findings::rate_replay_tests::a_changed_rate_regenerates_a_different_script",
+      "status": "PASS",
+      "reporter_ordinal": 186,
+      "reporter_total": 312,
+      "source_line": 1575
+    },
+    {
+      "package": "tcl-fuzz",
+      "binary_label_as_rendered": "bin/tcl-fuzz",
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "findings::rate_replay_tests::restore_leaves_the_shape_bounds_alone",
+      "status": "PASS",
+      "reporter_ordinal": 187,
+      "reporter_total": 312,
+      "source_line": 1576
+    },
+    {
+      "package": "tcl-fuzz",
+      "binary_label_as_rendered": "bin/tcl-fuzz",
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "findings::rate_replay_tests::restoring_the_recorded_rates_reproduces_the_recorded_script",
+      "status": "PASS",
+      "reporter_ordinal": 188,
+      "reporter_total": 312,
+      "source_line": 1577
+    },
+    {
+      "package": "tcl-fuzz",
+      "binary_label_as_rendered": "bin/tcl-fuzz",
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "findings::tests::a_finding_persists_the_canonical_campaign_release_for_replay",
+      "status": "PASS",
+      "reporter_ordinal": 189,
+      "reporter_total": 312,
+      "source_line": 1578
+    },
+    {
+      "package": "tcl-fuzz",
+      "binary_label_as_rendered": "bin/tcl-fuzz",
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "findings::tests::a_finding_records_both_engines_versions_and_the_skew_flag",
+      "status": "PASS",
+      "reporter_ordinal": 190,
+      "reporter_total": 312,
+      "source_line": 1579
+    },
+    {
+      "package": "tcl-fuzz",
+      "binary_label_as_rendered": "bin/tcl-fuzz",
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "findings::tests::load_checked_rejects_a_json_only_orphan",
+      "status": "PASS",
+      "reporter_ordinal": 191,
+      "reporter_total": 312,
+      "source_line": 1580
+    },
+    {
+      "package": "tcl-fuzz",
+      "binary_label_as_rendered": "bin/tcl-fuzz",
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "findings::tests::load_checked_rejects_a_tcl_only_orphan",
+      "status": "PASS",
+      "reporter_ordinal": 192,
+      "reporter_total": 312,
+      "source_line": 1581
+    },
+    {
+      "package": "tcl-fuzz",
+      "binary_label_as_rendered": "bin/tcl-fuzz",
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "findings::tests::load_checked_rejects_an_interrupted_staged_record",
+      "status": "PASS",
+      "reporter_ordinal": 193,
+      "reporter_total": 312,
+      "source_line": 1582
+    },
+    {
+      "package": "tcl-fuzz",
+      "binary_label_as_rendered": "bin/tcl-fuzz",
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "findings::tests::promotion_never_overwrites_an_interleaved_final_and_keeps_damage_visible",
+      "status": "PASS",
+      "reporter_ordinal": 194,
+      "reporter_total": 312,
+      "source_line": 1583
+    },
+    {
+      "package": "tcl-fuzz",
+      "binary_label_as_rendered": "bin/tcl-fuzz",
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "findings::tests::record_dedups_and_summarises",
+      "status": "PASS",
+      "reporter_ordinal": 195,
+      "reporter_total": 312,
+      "source_line": 1584
+    },
+    {
+      "package": "tcl-fuzz",
+      "binary_label_as_rendered": "bin/tcl-fuzz",
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "findings::tests::record_promotes_a_complete_pair_without_leaving_stages",
+      "status": "PASS",
+      "reporter_ordinal": 196,
+      "reporter_total": 312,
+      "source_line": 1585
+    },
+    {
+      "package": "tcl-fuzz",
+      "binary_label_as_rendered": "bin/tcl-fuzz",
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "findings::tests::reproducer_store_creates_its_directory_and_persists_a_script",
+      "status": "PASS",
+      "reporter_ordinal": 197,
+      "reporter_total": 312,
+      "source_line": 1586
+    },
+    {
+      "package": "tcl-fuzz",
+      "binary_label_as_rendered": "bin/tcl-fuzz",
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "findings::tests::reproducer_store_surfaces_directory_and_write_failures",
+      "status": "PASS",
+      "reporter_ordinal": 198,
+      "reporter_total": 312,
+      "source_line": 1587
+    },
+    {
+      "package": "tcl-fuzz",
+      "binary_label_as_rendered": "bin/tcl-fuzz",
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "findings::tests::summary_rejects_a_staged_companion",
+      "status": "PASS",
+      "reporter_ordinal": 199,
+      "reporter_total": 312,
+      "source_line": 1588
+    },
+    {
+      "package": "tcl-fuzz",
+      "binary_label_as_rendered": "bin/tcl-fuzz",
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "generator::tests::balanced_delimiters",
+      "status": "PASS",
+      "reporter_ordinal": 200,
+      "reporter_total": 312,
+      "source_line": 1589
+    },
+    {
+      "package": "tcl-fuzz",
+      "binary_label_as_rendered": "bin/tcl-fuzz",
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "generator::tests::brace_balanced_matches_a_real_walk",
+      "status": "PASS",
+      "reporter_ordinal": 201,
+      "reporter_total": 312,
+      "source_line": 1590
+    },
+    {
+      "package": "tcl-fuzz",
+      "binary_label_as_rendered": "bin/tcl-fuzz",
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "generator::tests::broadened_grammar_is_exercised",
+      "status": "PASS",
+      "reporter_ordinal": 202,
+      "reporter_total": 312,
+      "source_line": 1591
+    },
+    {
+      "package": "tcl-fuzz",
+      "binary_label_as_rendered": "bin/tcl-fuzz",
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "generator::tests::caller_frame_shapes_are_exercised",
+      "status": "PASS",
+      "reporter_ordinal": 203,
+      "reporter_total": 312,
+      "source_line": 1592
+    },
+    {
+      "package": "tcl-fuzz",
+      "binary_label_as_rendered": "bin/tcl-fuzz",
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "generator::tests::deterministic_for_seed",
+      "status": "PASS",
+      "reporter_ordinal": 204,
+      "reporter_total": 312,
+      "source_line": 1593
+    },
+    {
+      "package": "tcl-fuzz",
+      "binary_label_as_rendered": "bin/tcl-fuzz",
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "generator::tests::dynamic_name_shapes_are_exercised",
+      "status": "PASS",
+      "reporter_ordinal": 205,
+      "reporter_total": 312,
+      "source_line": 1594
+    },
+    {
+      "package": "tcl-fuzz",
+      "binary_label_as_rendered": "bin/tcl-fuzz",
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "generator::tests::every_word_shape_and_context_is_reachable",
+      "status": "PASS",
+      "reporter_ordinal": 206,
+      "reporter_total": 312,
+      "source_line": 1595
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "explain_flow",
+      "binary_id": "f5-cli::explain_flow",
+      "selector": "simulate_runs_irule_and_selects_pool",
+      "status": "PASS",
+      "reporter_ordinal": 207,
+      "reporter_total": 312,
+      "source_line": 1596
+    },
+    {
+      "package": "tcl-fuzz",
+      "binary_label_as_rendered": "bin/tcl-fuzz",
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "generator::tests::malformed_expr_is_top_level_only",
+      "status": "PASS",
+      "reporter_ordinal": 208,
+      "reporter_total": 312,
+      "source_line": 1597
+    },
+    {
+      "package": "tcl-fuzz",
+      "binary_label_as_rendered": "bin/tcl-fuzz",
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "generator::tests::expr_and_mathfunc_additions_are_exercised",
+      "status": "PASS",
+      "reporter_ordinal": 209,
+      "reporter_total": 312,
+      "source_line": 1598
+    },
+    {
+      "package": "tcl-fuzz",
+      "binary_label_as_rendered": "bin/tcl-fuzz",
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "generator::tests::malformed_expr_rate_zero_opts_out",
+      "status": "PASS",
+      "reporter_ordinal": 210,
+      "reporter_total": 312,
+      "source_line": 1599
+    },
+    {
+      "package": "tcl-fuzz",
+      "binary_label_as_rendered": "bin/tcl-fuzz",
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "generator::tests::malformed_expressions_reach_scripts_at_the_default_rate",
+      "status": "PASS",
+      "reporter_ordinal": 211,
+      "reporter_total": 312,
+      "source_line": 1600
+    },
+    {
+      "package": "tcl-fuzz",
+      "binary_label_as_rendered": "bin/tcl-fuzz",
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "generator::tests::malformed_expressions_stay_inside_the_expr_grammar",
+      "status": "PASS",
+      "reporter_ordinal": 212,
+      "reporter_total": 312,
+      "source_line": 1601
+    },
+    {
+      "package": "tcl-fuzz",
+      "binary_label_as_rendered": "bin/tcl-fuzz",
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "generator::tests::malformed_modes_each_render_their_documented_shape",
+      "status": "PASS",
+      "reporter_ordinal": 213,
+      "reporter_total": 312,
+      "source_line": 1602
+    },
+    {
+      "package": "tcl-fuzz",
+      "binary_label_as_rendered": "bin/tcl-fuzz",
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "generator::tests::namespace_inscope_list_args_are_exercised",
+      "status": "PASS",
+      "reporter_ordinal": 214,
+      "reporter_total": 312,
+      "source_line": 1603
+    },
+    {
+      "package": "tcl-fuzz",
+      "binary_label_as_rendered": "bin/tcl-fuzz",
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "generator::tests::nonempty_and_prints",
+      "status": "PASS",
+      "reporter_ordinal": 215,
+      "reporter_total": 312,
+      "source_line": 1604
+    },
+    {
+      "package": "tcl-fuzz",
+      "binary_label_as_rendered": "bin/tcl-fuzz",
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "generator::tests::power_and_shift_operands_are_magnitude_bounded",
+      "status": "PASS",
+      "reporter_ordinal": 216,
+      "reporter_total": 312,
+      "source_line": 1605
+    },
+    {
+      "package": "tcl-fuzz",
+      "binary_label_as_rendered": "bin/tcl-fuzz",
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "generator::tests::unbalanced_shapes_never_reach_a_bracing_context",
+      "status": "PASS",
+      "reporter_ordinal": 217,
+      "reporter_total": 312,
+      "source_line": 1606
+    },
+    {
+      "package": "tcl-fuzz",
+      "binary_label_as_rendered": "bin/tcl-fuzz",
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "generator::tests::while_and_for_counters_are_depth_qualified",
+      "status": "PASS",
+      "reporter_ordinal": 218,
+      "reporter_total": 312,
+      "source_line": 1607
+    },
+    {
+      "package": "tcl-fuzz",
+      "binary_label_as_rendered": "bin/tcl-fuzz",
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "generator::tests::word_shape_rate_zero_opts_out_and_leaves_the_stream_alone",
+      "status": "PASS",
+      "reporter_ordinal": 219,
+      "reporter_total": 312,
+      "source_line": 1608
+    },
+    {
+      "package": "tcl-fuzz",
+      "binary_label_as_rendered": "bin/tcl-fuzz",
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "generator::tests::word_shapes_each_render_their_documented_spelling",
+      "status": "PASS",
+      "reporter_ordinal": 220,
+      "reporter_total": 312,
+      "source_line": 1609
+    },
+    {
+      "package": "tcl-fuzz",
+      "binary_label_as_rendered": "bin/tcl-fuzz",
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "generator::tests::word_shapes_reach_scripts_at_the_default_rate",
+      "status": "PASS",
+      "reporter_ordinal": 221,
+      "reporter_total": 312,
+      "source_line": 1610
+    },
+    {
+      "package": "tcl-fuzz",
+      "binary_label_as_rendered": "bin/tcl-fuzz",
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "harness::tests::byte_identical_stdout_still_matches",
+      "status": "PASS",
+      "reporter_ordinal": 222,
+      "reporter_total": 312,
+      "source_line": 1611
+    },
+    {
+      "package": "tcl-fuzz",
+      "binary_label_as_rendered": "bin/tcl-fuzz",
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "harness::tests::error_text_comparison_is_opt_in",
+      "status": "PASS",
+      "reporter_ordinal": 223,
+      "reporter_total": 312,
+      "source_line": 1612
+    },
+    {
+      "package": "tcl-fuzz",
+      "binary_label_as_rendered": "bin/tcl-fuzz",
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "harness::tests::error_text_comparison_never_fires_on_a_status_mismatch",
+      "status": "PASS",
+      "reporter_ordinal": 224,
+      "reporter_total": 312,
+      "source_line": 1613
+    },
+    {
+      "package": "tcl-fuzz",
+      "binary_label_as_rendered": "bin/tcl-fuzz",
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "harness::tests::error_text_differs_but_folded_to_match_by_default",
+      "status": "PASS",
+      "reporter_ordinal": 225,
+      "reporter_total": 312,
+      "source_line": 1614
+    },
+    {
+      "package": "tcl-fuzz",
+      "binary_label_as_rendered": "bin/tcl-fuzz",
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "harness::tests::identical_is_match",
+      "status": "PASS",
+      "reporter_ordinal": 226,
+      "reporter_total": 312,
+      "source_line": 1615
+    },
+    {
+      "package": "tcl-fuzz",
+      "binary_label_as_rendered": "bin/tcl-fuzz",
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "harness::tests::status_divergence_flagged",
+      "status": "PASS",
+      "reporter_ordinal": 227,
+      "reporter_total": 312,
+      "source_line": 1616
+    },
+    {
+      "package": "tcl-fuzz",
+      "binary_label_as_rendered": "bin/tcl-fuzz",
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "harness::tests::stdout_divergence_flagged",
+      "status": "PASS",
+      "reporter_ordinal": 228,
+      "reporter_total": 312,
+      "source_line": 1617
+    },
+    {
+      "package": "tcl-fuzz",
+      "binary_label_as_rendered": "bin/tcl-fuzz",
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "harness::tests::subject_timeout_flagged_reference_timeout_skipped",
+      "status": "PASS",
+      "reporter_ordinal": 229,
+      "reporter_total": 312,
+      "source_line": 1618
+    },
+    {
+      "package": "tcl-fuzz",
+      "binary_label_as_rendered": "bin/tcl-fuzz",
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "harness::tests::trailing_blank_line_divergence_is_a_finding",
+      "status": "PASS",
+      "reporter_ordinal": 230,
+      "reporter_total": 312,
+      "source_line": 1619
+    },
+    {
+      "package": "tcl-fuzz",
+      "binary_label_as_rendered": "bin/tcl-fuzz",
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "harness::tests::trailing_whitespace_divergence_is_a_finding",
+      "status": "PASS",
+      "reporter_ordinal": 231,
+      "reporter_total": 312,
+      "source_line": 1620
+    },
+    {
+      "package": "tcl-fuzz",
+      "binary_label_as_rendered": "bin/tcl-fuzz",
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "harness::tests::unavailable_backend_skips",
+      "status": "PASS",
+      "reporter_ordinal": 232,
+      "reporter_total": 312,
+      "source_line": 1621
+    },
+    {
+      "package": "tcl-fuzz",
+      "binary_label_as_rendered": "bin/tcl-fuzz",
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "linked_wasm::tests::bootstrap_uses_the_reserved_nonoverlapping_regions",
+      "status": "PASS",
+      "reporter_ordinal": 233,
+      "reporter_total": 312,
+      "source_line": 1622
+    },
+    {
+      "package": "tcl-fuzz",
+      "binary_label_as_rendered": "bin/tcl-fuzz",
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "linked_wasm::tests::fn_seeded_names_are_tcl_identifier_safe_and_distinct",
+      "status": "PASS",
+      "reporter_ordinal": 234,
+      "reporter_total": 312,
+      "source_line": 1623
+    },
+    {
+      "package": "tcl-fuzz",
+      "binary_label_as_rendered": "bin/tcl-fuzz",
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "linked_wasm::tests::tn_per_case_observation_does_not_compare_runtime_patchlevels",
+      "status": "PASS",
+      "reporter_ordinal": 235,
+      "reporter_total": 312,
+      "source_line": 1624
+    },
+    {
+      "package": "tcl-fuzz",
+      "binary_label_as_rendered": "bin/tcl-fuzz",
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "linked_wasm::tests::tp_generated_oracle_and_linked_program_share_a_value_query",
+      "status": "PASS",
+      "reporter_ordinal": 236,
+      "reporter_total": 312,
+      "source_line": 1625
+    },
+    {
+      "package": "tcl-fuzz",
+      "binary_label_as_rendered": "bin/tcl-fuzz",
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "tests::a_campaign_pin_reaches_both_sides_of_an_emulated_pair",
+      "status": "PASS",
+      "reporter_ordinal": 237,
+      "reporter_total": 312,
+      "source_line": 1626
+    },
+    {
+      "package": "tcl-fuzz",
+      "binary_label_as_rendered": "bin/tcl-fuzz",
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "tests::a_fixed_release_engine_refuses_when_its_selected_binary_cannot_honour_the_pin",
+      "status": "PASS",
+      "reporter_ordinal": 238,
+      "reporter_total": 312,
+      "source_line": 1627
+    },
+    {
+      "package": "tcl-fuzz",
+      "binary_label_as_rendered": "bin/tcl-fuzz",
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "tests::an_explicit_override_resolves_that_engine_and_its_args",
+      "status": "PASS",
+      "reporter_ordinal": 239,
+      "reporter_total": 312,
+      "source_line": 1628
+    },
+    {
+      "package": "tcl-fuzz",
+      "binary_label_as_rendered": "bin/tcl-fuzz",
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "tests::characterise_finding_count_excludes_agreement_and_incomplete_runs",
+      "status": "PASS",
+      "reporter_ordinal": 240,
+      "reporter_total": 312,
+      "source_line": 1629
+    },
+    {
+      "package": "tcl-fuzz",
+      "binary_label_as_rendered": "bin/tcl-fuzz",
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "tests::characterise_resolution_keeps_each_backend_invocation_together",
+      "status": "PASS",
+      "reporter_ordinal": 241,
+      "reporter_total": 312,
+      "source_line": 1630
+    },
+    {
+      "package": "tcl-fuzz",
+      "binary_label_as_rendered": "bin/tcl-fuzz",
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "tests::cli_definition_is_well_formed",
+      "status": "PASS",
+      "reporter_ordinal": 242,
+      "reporter_total": 312,
+      "source_line": 1631
+    },
+    {
+      "package": "tcl-fuzz",
+      "binary_label_as_rendered": "bin/tcl-fuzz",
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "tests::default_pair_keeps_the_plain_findings_dir",
+      "status": "PASS",
+      "reporter_ordinal": 243,
+      "reporter_total": 312,
+      "source_line": 1632
+    },
+    {
+      "package": "tcl-fuzz",
+      "binary_label_as_rendered": "bin/tcl-fuzz",
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "tests::default_summary_discovers_each_release_namespace_without_seed_collisions",
+      "status": "PASS",
+      "reporter_ordinal": 244,
+      "reporter_total": 312,
+      "source_line": 1633
+    },
+    {
+      "package": "tcl-fuzz",
+      "binary_label_as_rendered": "bin/tcl-fuzz",
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "tests::every_engine_names_the_flag_that_overrides_it",
+      "status": "PASS",
+      "reporter_ordinal": 245,
+      "reporter_total": 312,
+      "source_line": 1634
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "explain_flow",
+      "binary_id": "f5-cli::explain_flow",
+      "selector": "simulate_json_populates_simulated_fields",
+      "status": "PASS",
+      "reporter_ordinal": 246,
+      "reporter_total": 312,
+      "source_line": 1635
+    },
+    {
+      "package": "tcl-fuzz",
+      "binary_label_as_rendered": "bin/tcl-fuzz",
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "tests::explicit_release_selects_pinned_record_over_marked_unpinned_record",
+      "status": "PASS",
+      "reporter_ordinal": 247,
+      "reporter_total": 312,
+      "source_line": 1636
+    },
+    {
+      "package": "tcl-fuzz",
+      "binary_label_as_rendered": "bin/tcl-fuzz",
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "tests::explicit_replay_allows_an_arbitrary_seed_absent_from_every_registry",
+      "status": "PASS",
+      "reporter_ordinal": 248,
+      "reporter_total": 312,
+      "source_line": 1637
+    },
+    {
+      "package": "tcl-fuzz",
+      "binary_label_as_rendered": "bin/tcl-fuzz",
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "tests::explicit_replay_refuses_a_finding_from_a_different_release",
+      "status": "PASS",
+      "reporter_ordinal": 249,
+      "reporter_total": 312,
+      "source_line": 1638
+    },
+    {
+      "package": "tcl-fuzz",
+      "binary_label_as_rendered": "bin/tcl-fuzz",
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "tests::explicit_replay_refuses_a_legacy_release_less_finding",
+      "status": "PASS",
+      "reporter_ordinal": 250,
+      "reporter_total": 312,
+      "source_line": 1639
+    },
+    {
+      "package": "tcl-fuzz",
+      "binary_label_as_rendered": "bin/tcl-fuzz",
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "tests::explicit_replay_selects_its_release_when_the_seed_exists_at_multiple_releases",
+      "status": "PASS",
+      "reporter_ordinal": 251,
+      "reporter_total": 312,
+      "source_line": 1640
+    },
+    {
+      "package": "tcl-fuzz",
+      "binary_label_as_rendered": "bin/tcl-fuzz",
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "tests::explicit_replay_refuses_metadata_mismatched_to_its_release_namespace",
+      "status": "PASS",
+      "reporter_ordinal": 252,
+      "reporter_total": 312,
+      "source_line": 1641
+    },
+    {
+      "package": "tcl-fuzz",
+      "binary_label_as_rendered": "bin/tcl-fuzz",
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "tests::explicit_summary_selects_only_its_release_namespace",
+      "status": "PASS",
+      "reporter_ordinal": 253,
+      "reporter_total": 312,
+      "source_line": 1642
+    },
+    {
+      "package": "tcl-fuzz",
+      "binary_label_as_rendered": "bin/tcl-fuzz",
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "tests::marked_unpinned_and_pinned_records_are_ambiguous_without_a_release",
+      "status": "PASS",
+      "reporter_ordinal": 254,
+      "reporter_total": 312,
+      "source_line": 1643
+    },
+    {
+      "package": "tcl-fuzz",
+      "binary_label_as_rendered": "bin/tcl-fuzz",
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "tests::identical_backend_pairs_are_rejected",
+      "status": "PASS",
+      "reporter_ordinal": 255,
+      "reporter_total": 312,
+      "source_line": 1644
+    },
+    {
+      "package": "tcl-fuzz",
+      "binary_label_as_rendered": "bin/tcl-fuzz",
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "tests::release_flag_accepts_owner_defined_aliases_and_rejects_unknown_values",
+      "status": "PASS",
+      "reporter_ordinal": 256,
+      "reporter_total": 312,
+      "source_line": 1645
+    },
+    {
+      "package": "tcl-fuzz",
+      "binary_label_as_rendered": "bin/tcl-fuzz",
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "tests::other_pairs_are_namespaced_so_seeds_never_collide",
+      "status": "PASS",
+      "reporter_ordinal": 257,
+      "reporter_total": 312,
+      "source_line": 1646
+    },
+    {
+      "package": "tcl-fuzz",
+      "binary_label_as_rendered": "bin/tcl-fuzz",
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "tests::release_namespaces_keep_same_pair_seeds_separate",
+      "status": "PASS",
+      "reporter_ordinal": 258,
+      "reporter_total": 312,
+      "source_line": 1647
+    },
+    {
+      "package": "tcl-fuzz",
+      "binary_label_as_rendered": "bin/tcl-fuzz",
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "tests::replay_accepts_a_markerless_pinned_finding_from_the_release_namespace",
+      "status": "PASS",
+      "reporter_ordinal": 259,
+      "reporter_total": 312,
+      "source_line": 1648
+    },
+    {
+      "package": "tcl-fuzz",
+      "binary_label_as_rendered": "bin/tcl-fuzz",
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "tests::replay_discovers_a_recorded_release_and_propagates_it_to_both_engines",
+      "status": "PASS",
+      "reporter_ordinal": 260,
+      "reporter_total": 312,
+      "source_line": 1649
+    },
+    {
+      "package": "tcl-fuzz",
+      "binary_label_as_rendered": "bin/tcl-fuzz",
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "tests::replay_immediately_reuses_a_new_unpinned_campaign_finding",
+      "status": "PASS",
+      "reporter_ordinal": 261,
+      "reporter_total": 312,
+      "source_line": 1650
+    },
+    {
+      "package": "tcl-fuzz",
+      "binary_label_as_rendered": "bin/tcl-fuzz",
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "tests::replay_patch_drift_warning_compares_both_recorded_backends",
+      "status": "PASS",
+      "reporter_ordinal": 262,
+      "reporter_total": 312,
+      "source_line": 1651
+    },
+    {
+      "package": "tcl-fuzz",
+      "binary_label_as_rendered": "bin/tcl-fuzz",
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "tests::replay_refuses_an_invalid_pinned_release_even_without_the_marker",
+      "status": "PASS",
+      "reporter_ordinal": 263,
+      "reporter_total": 312,
+      "source_line": 1652
+    },
+    {
+      "package": "tcl-fuzz",
+      "binary_label_as_rendered": "bin/tcl-fuzz",
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "tests::replay_refuses_a_seed_which_exists_at_multiple_releases",
+      "status": "PASS",
+      "reporter_ordinal": 264,
+      "reporter_total": 312,
+      "source_line": 1653
+    },
+    {
+      "package": "tcl-fuzz",
+      "binary_label_as_rendered": "bin/tcl-fuzz",
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "tests::replay_refuses_legacy_findings_without_release_metadata",
+      "status": "PASS",
+      "reporter_ordinal": 265,
+      "reporter_total": 312,
+      "source_line": 1654
+    },
+    {
+      "package": "tcl-fuzz",
+      "binary_label_as_rendered": "bin/tcl-fuzz",
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "tests::replay_refuses_an_unreadable_existing_record",
+      "status": "PASS",
+      "reporter_ordinal": 266,
+      "reporter_total": 312,
+      "source_line": 1655
+    },
+    {
+      "package": "tcl-fuzz",
+      "binary_label_as_rendered": "bin/tcl-fuzz",
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "tests::replay_refuses_orphan_and_staged_record_companions",
+      "status": "PASS",
+      "reporter_ordinal": 267,
+      "reporter_total": 312,
+      "source_line": 1656
+    },
+    {
+      "package": "tcl-fuzz",
+      "binary_label_as_rendered": "bin/tcl-fuzz",
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "tests::requested_release_must_be_reported_by_both_backends",
+      "status": "PASS",
+      "reporter_ordinal": 268,
+      "reporter_total": 312,
+      "source_line": 1657
+    },
+    {
+      "package": "tcl-fuzz",
+      "binary_label_as_rendered": "bin/tcl-fuzz",
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "version::tests::patchlevels_map_to_release_lines",
+      "status": "PASS",
+      "reporter_ordinal": 269,
+      "reporter_total": 312,
+      "source_line": 1658
+    },
+    {
+      "package": "tcl-fuzz",
+      "binary_label_as_rendered": "bin/tcl-fuzz",
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "version::tests::skew_needs_two_different_reported_patchlevels",
+      "status": "PASS",
+      "reporter_ordinal": 270,
+      "reporter_total": 312,
+      "source_line": 1659
+    },
+    {
+      "package": "tcl-fuzz",
+      "binary_label_as_rendered": "bin/tcl-fuzz",
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "wasm::tests::control_flow_program_runs",
+      "status": "PASS",
+      "reporter_ordinal": 271,
+      "reporter_total": 312,
+      "source_line": 1660
+    },
+    {
+      "package": "tcl-fuzz",
+      "binary_label_as_rendered": "bin/tcl-fuzz",
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "wasm::tests::host_stub_is_valid_wasm",
+      "status": "PASS",
+      "reporter_ordinal": 272,
+      "reporter_total": 312,
+      "source_line": 1661
+    },
+    {
+      "package": "tcl-fuzz",
+      "binary_label_as_rendered": "bin/tcl-fuzz",
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "wasm::tests::simple_program_compiles_and_runs",
+      "status": "PASS",
+      "reporter_ordinal": 273,
+      "reporter_total": 312,
+      "source_line": 1662
+    },
+    {
+      "package": "tcl-fuzz",
+      "binary_label_as_rendered": "bin/tcl-fuzz",
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "wasm_diff::tests::dynamic_break_exits_the_loop",
+      "status": "PASS",
+      "reporter_ordinal": 274,
+      "reporter_total": 312,
+      "source_line": 1663
+    },
+    {
+      "package": "tcl-fuzz",
+      "binary_label_as_rendered": "bin/tcl-fuzz",
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "wasm_diff::tests::dynamic_continue_skips_the_iteration",
+      "status": "PASS",
+      "reporter_ordinal": 275,
+      "reporter_total": 312,
+      "source_line": 1664
+    },
+    {
+      "package": "tcl-fuzz",
+      "binary_label_as_rendered": "bin/tcl-fuzz",
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "wasm_diff::tests::if_branch_matches",
+      "status": "PASS",
+      "reporter_ordinal": 276,
+      "reporter_total": 312,
+      "source_line": 1665
+    },
+    {
+      "package": "tcl-fuzz",
+      "binary_label_as_rendered": "bin/tcl-fuzz",
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "wasm_diff::tests::error_in_loop_unwinds_not_hangs",
+      "status": "PASS",
+      "reporter_ordinal": 277,
+      "reporter_total": 312,
+      "source_line": 1666
+    },
+    {
+      "package": "tcl-fuzz",
+      "binary_label_as_rendered": "bin/tcl-fuzz",
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "wasm_diff::tests::loop_iteration_matches",
+      "status": "PASS",
+      "reporter_ordinal": 278,
+      "reporter_total": 312,
+      "source_line": 1667
+    },
+    {
+      "package": "tcl-fuzz",
+      "binary_label_as_rendered": "bin/tcl-fuzz",
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "wasm_diff::tests::return_in_loop_stops_the_script",
+      "status": "PASS",
+      "reporter_ordinal": 279,
+      "reporter_total": 312,
+      "source_line": 1668
+    },
+    {
+      "package": "f5-cli",
+      "binary_label_as_rendered": "registry_dump",
+      "binary_id": "f5-cli::registry_dump",
+      "selector": "default_section_is_all_and_serialises",
+      "status": "PASS",
+      "reporter_ordinal": 280,
+      "reporter_total": 312,
+      "source_line": 1669
+    },
+    {
+      "package": "tcl-irule-test",
+      "binary_label_as_rendered": null,
+      "binary_id": "tcl-irule-test",
+      "selector": "embedded::tests::itest_core_when_loader_contract",
+      "status": "PASS",
+      "reporter_ordinal": 281,
+      "reporter_total": 312,
+      "source_line": 1670
+    },
+    {
+      "package": "tcl-irule-test",
+      "binary_label_as_rendered": null,
+      "binary_id": "tcl-irule-test",
+      "selector": "embedded::tests::materialise_writes_orchestrator",
+      "status": "PASS",
+      "reporter_ordinal": 282,
+      "reporter_total": 312,
+      "source_line": 1671
+    },
+    {
+      "package": "tcl-irule-test",
+      "binary_label_as_rendered": null,
+      "binary_id": "tcl-irule-test",
+      "selector": "embedded::tests::missing_file_guidance_names_a_real_command",
+      "status": "PASS",
+      "reporter_ordinal": 283,
+      "reporter_total": 312,
+      "source_line": 1672
+    },
+    {
+      "package": "tcl-fuzz",
+      "binary_label_as_rendered": "bin/tcl-fuzz",
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "wasm_diff::tests::straight_line_matches",
+      "status": "PASS",
+      "reporter_ordinal": 284,
+      "reporter_total": 312,
+      "source_line": 1673
+    },
+    {
+      "package": "tcl-irule-test",
+      "binary_label_as_rendered": null,
+      "binary_id": "tcl-irule-test",
+      "selector": "embedded::tests::smoke_bundled_tcl_has_balanced_top_level_commands",
+      "status": "PASS",
+      "reporter_ordinal": 285,
+      "reporter_total": 312,
+      "source_line": 1674
+    },
+    {
+      "package": "tcl-fuzz",
+      "binary_label_as_rendered": "bin/tcl-fuzz",
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "wasm_diff::tests::while_with_break_matches",
+      "status": "PASS",
+      "reporter_ordinal": 286,
+      "reporter_total": 312,
+      "source_line": 1675
+    },
+    {
+      "package": "tcl-fuzz",
+      "binary_label_as_rendered": "bin/tcl-fuzz",
+      "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+      "selector": "generator::tests::malformed_expressions_error_on_our_engine",
+      "status": "PASS",
+      "reporter_ordinal": 287,
+      "reporter_total": 312,
+      "source_line": 1676
+    },
+    {
+      "package": "tcl-irule-test",
+      "binary_label_as_rendered": null,
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::harness_runs_the_tmm_84_surface",
+      "status": "PASS",
+      "reporter_ordinal": 288,
+      "reporter_total": 312,
+      "source_line": 1677
+    },
+    {
+      "package": "tcl-irule-test",
+      "binary_label_as_rendered": null,
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::irule_source_rewrite_only_touches_command_positions",
+      "status": "PASS",
+      "reporter_ordinal": 289,
+      "reporter_total": 312,
+      "source_line": 1678
+    },
+    {
+      "package": "tcl-irule-test",
+      "binary_label_as_rendered": null,
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::embedded_session_scenarios",
+      "status": "PASS",
+      "reporter_ordinal": 290,
+      "reporter_total": 312,
+      "source_line": 1679
+    },
+    {
+      "package": "tcl-irule-test",
+      "binary_label_as_rendered": null,
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::missing_lib_dir_errors",
+      "status": "PASS",
+      "reporter_ordinal": 291,
+      "reporter_total": 312,
+      "source_line": 1680
+    },
+    {
+      "package": "tcl-irule-test",
+      "binary_label_as_rendered": null,
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::itest_loader_event_registration_matches_rust_when_blocks",
+      "status": "PASS",
+      "reporter_ordinal": 292,
+      "reporter_total": 312,
+      "source_line": 1681
+    },
+    {
+      "package": "tcl-irule-test",
+      "binary_label_as_rendered": null,
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::scf_loader_stores_parsed_snatpool_members",
+      "status": "PASS",
+      "reporter_ordinal": 293,
+      "reporter_total": 312,
+      "source_line": 1682
+    },
+    {
+      "package": "tcl-irule-test",
+      "binary_label_as_rendered": null,
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::live_session_drives_the_request_lifecycle",
+      "status": "PASS",
+      "reporter_ordinal": 294,
+      "reporter_total": 312,
+      "source_line": 1683
+    },
+    {
+      "package": "tcl-irule-test",
+      "binary_label_as_rendered": null,
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::live_session_class_match_honours_every_operator",
+      "status": "PASS",
+      "reporter_ordinal": 295,
+      "reporter_total": 312,
+      "source_line": 1684
+    },
+    {
+      "package": "tcl-irule-test",
+      "binary_label_as_rendered": null,
+      "binary_id": "tcl-irule-test",
+      "selector": "session::tests::bootstrap_assembles_orchestrator_script",
+      "status": "PASS",
+      "reporter_ordinal": 296,
+      "reporter_total": 312,
+      "source_line": 1685
+    },
+    {
+      "package": "tcl-irule-test",
+      "binary_label_as_rendered": null,
+      "binary_id": "tcl-irule-test",
+      "selector": "session::tests::plan_from_topology",
+      "status": "PASS",
+      "reporter_ordinal": 297,
+      "reporter_total": 312,
+      "source_line": 1686
+    },
+    {
+      "package": "tcl-irule-test",
+      "binary_label_as_rendered": null,
+      "binary_id": "tcl-irule-test",
+      "selector": "sim::tests::decision_list_split_handles_braces",
+      "status": "PASS",
+      "reporter_ordinal": 298,
+      "reporter_total": 312,
+      "source_line": 1687
+    },
+    {
+      "package": "tcl-irule-test",
+      "binary_label_as_rendered": null,
+      "binary_id": "tcl-irule-test",
+      "selector": "sim::tests::empty_sources_reports_nothing_to_simulate",
+      "status": "PASS",
+      "reporter_ordinal": 299,
+      "reporter_total": 312,
+      "source_line": 1688
+    },
+    {
+      "package": "tcl-irule-test",
+      "binary_label_as_rendered": null,
+      "binary_id": "tcl-irule-test",
+      "selector": "sim::tests::log_entry_split_follows_tcl_list_semantics",
+      "status": "PASS",
+      "reporter_ordinal": 300,
+      "reporter_total": 312,
+      "source_line": 1689
+    },
+    {
+      "package": "tcl-irule-test",
+      "binary_label_as_rendered": null,
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::tmm_select_mode_survives_the_per_test_reset",
+      "status": "PASS",
+      "reporter_ordinal": 301,
+      "reporter_total": 312,
+      "source_line": 1690
+    },
+    {
+      "package": "tcl-irule-test",
+      "binary_label_as_rendered": null,
+      "binary_id": "tcl-irule-test",
+      "selector": "sim::tests::simulator_values_use_the_shared_tcl_word_encoder",
+      "status": "PASS",
+      "reporter_ordinal": 302,
+      "reporter_total": 312,
+      "source_line": 1691
+    },
+    {
+      "package": "tcl-irule-test",
+      "binary_label_as_rendered": null,
+      "binary_id": "tcl-irule-test",
+      "selector": "topology::tests::datagroup_records_keep_arbitrary_keys_as_literal_list_elements",
+      "status": "PASS",
+      "reporter_ordinal": 303,
+      "reporter_total": 312,
+      "source_line": 1692
+    },
+    {
+      "package": "tcl-irule-test",
+      "binary_label_as_rendered": null,
+      "binary_id": "tcl-irule-test",
+      "selector": "topology::tests::full_test_script_wraps_setup",
+      "status": "PASS",
+      "reporter_ordinal": 304,
+      "reporter_total": 312,
+      "source_line": 1693
+    },
+    {
+      "package": "tcl-irule-test",
+      "binary_label_as_rendered": null,
+      "binary_id": "tcl-irule-test",
+      "selector": "topology::tests::generates_setup_for_vs",
+      "status": "PASS",
+      "reporter_ordinal": 305,
+      "reporter_total": 312,
+      "source_line": 1694
+    },
+    {
+      "package": "tcl-irule-test",
+      "binary_label_as_rendered": null,
+      "binary_id": "tcl-irule-test",
+      "selector": "topology::tests::infers_profile_types",
+      "status": "PASS",
+      "reporter_ordinal": 306,
+      "reporter_total": 312,
+      "source_line": 1695
+    },
+    {
+      "package": "tcl-irule-test",
+      "binary_label_as_rendered": null,
+      "binary_id": "tcl-irule-test",
+      "selector": "topology::tests::infers_profile_types_for_custom_names",
+      "status": "PASS",
+      "reporter_ordinal": 307,
+      "reporter_total": 312,
+      "source_line": 1696
+    },
+    {
+      "package": "tcl-irule-test",
+      "binary_label_as_rendered": null,
+      "binary_id": "tcl-irule-test",
+      "selector": "topology::tests::lists_virtual_servers",
+      "status": "PASS",
+      "reporter_ordinal": 308,
+      "reporter_total": 312,
+      "source_line": 1697
+    },
+    {
+      "package": "tcl-irule-test",
+      "binary_label_as_rendered": null,
+      "binary_id": "tcl-irule-test",
+      "selector": "topology::tests::unknown_vs_errors",
+      "status": "PASS",
+      "reporter_ordinal": 309,
+      "reporter_total": 312,
+      "source_line": 1698
+    },
+    {
+      "package": "tcl-irule-test",
+      "binary_label_as_rendered": null,
+      "binary_id": "tcl-irule-test",
+      "selector": "pure_functions::tests::irules_pure_functions_match_the_simulator_and_the_oracle",
+      "status": "PASS",
+      "reporter_ordinal": 310,
+      "reporter_total": 312,
+      "source_line": 1699
+    },
+    {
+      "package": "tcl-irule-test",
+      "binary_label_as_rendered": null,
+      "binary_id": "tcl-irule-test",
+      "selector": "sim::tests::simulation_degrades_gracefully_until_vm_is_ready",
+      "status": "PASS",
+      "reporter_ordinal": 311,
+      "reporter_total": 312,
+      "source_line": 1700
+    },
+    {
+      "package": "tcl-irule-test",
+      "binary_label_as_rendered": null,
+      "binary_id": "tcl-irule-test",
+      "selector": "live::tests::tmm_word_boolean_operators_are_rewritten_to_their_tcl_equivalents",
+      "status": "PASS",
+      "reporter_ordinal": 312,
+      "reporter_total": 312,
+      "source_line": 1701
+    }
+  ]
+}

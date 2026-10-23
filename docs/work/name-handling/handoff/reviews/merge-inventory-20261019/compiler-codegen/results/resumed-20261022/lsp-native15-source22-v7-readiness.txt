@@ -1,0 +1,18 @@
+LSP native15 source22 successor and codegen exact3 compatibility, bounded static review
+UTC: 2026-10-23T02:25Z
+Status: immutable off-tree preparation; VM/LSP exact-v7 peer review pending, no root GO/Cargo/selector/provider/source action.
+
+Frozen 22-path composition manifest: /tmp/four-cleared-candidate-composition-v5-20261023T0221Z/combined-manifest.json SHA256 5c6f6f0924bcc31c4c088190019dbd9161c871192dcc3e6c0913085be037428c. Its 18 prior final hashes are byte-equal to the earlier source18 manifest and four additional final paths are class_hierarchy.rs ce8f7d9b, analyser/commands.rs 819c5f23, tcl-lsp-server/src/lib.rs 2e9cd7b7148d439c5ddbf7ee70494f418f22fd123f78e53433b6d47fbfa4ae1c, and readonly_reference_reports.rs 44a04816.
+
+Frozen LSP v7 successor: /tmp/lsp-native-protocol-v7-source22-direct15/
+  plan.json SHA256 0bc53266970cc8ab019055017dbf612e0f6a4312ccd250b2627fda1a1e244a86
+  suite.py SHA256 3eeec315efc461a67fe13ccae94694a3e235e28ad3cd9e3c886cc47b17b2158d
+  launch.py SHA256 838719e5ec4feb715f2eecca25b5b5974a46e8c0b7bcbde0905a5fa46212f94a
+  run.sh SHA256 38d37c2f75329f70f185070c8f0d9b6d47b46d11fea4d54bc8929b17032a0839
+  runner-input-manifest.json SHA256 2087aaaaef533614eebbfae5f39726bc135c8e17a59c71b0beeeb86a0c1b86cb
+  guarded-exec.py SHA256 88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811
+  providers.py SHA256 5b01d95b0e919dc8aa16048c663003fbaa708d2f1e970408ef3c14fe47eeacd8
+
+V7 preserves all 15 v6 selector objects and every test assertion, build/test deadline, output/disk guard, host setup, fresh test/server Cargo artifact join, owned child lifecycle and durable receipt path. Its sole original-source-pin change is tcl-lsp-server/src/lib.rs daa7e038 to 2e9cd7b7; the appended final source_views.rs pin 151c4869 remains. It now binds the exact 22-path manifest and checks all 22 actual canonical final hashes during every source view. Root GO must pin the approved post22 HEAD/tree and post22 report14/typecheck evidence SHA; absent GO direct/launcher startup refuse before lock/Cargo. Current source remains preintegration, so no execution readiness is inferred. Own AST, Bash syntax, exact15/equality, manifest input hashes and no-GO checks pass. Prior v6 is preserved unrun.
+
+The codegen native1/N17two exact3 v2 five source inventory paths do not occur among source22's 22 final paths. Current canonical hashes still match all five original diagnostic pins; the source22 patch does not include those files. V2's GO contract already requires the exact approved integrated HEAD and tree descending from baseline 3b1, and permits only docs-only descendants. Root can bind that existing v2 protocol to an approved source22 HEAD without changing its plan, provided its evidence-path fields pin the actual current post22 report14/typecheck receipts. This is static compatibility, not authorization or measured diagnosis; no automatic source-pin refresh.

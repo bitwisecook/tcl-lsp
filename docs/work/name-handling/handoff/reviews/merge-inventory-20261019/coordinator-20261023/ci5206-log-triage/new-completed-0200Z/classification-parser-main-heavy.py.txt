@@ -1,0 +1,37 @@
+from pathlib import Path
+import re,json,gzip,hashlib,datetime,collections,importlib.util
+base=Path('/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/handoff/reviews/merge-inventory-20261019');out=base/'coordinator-20261023/ci5206-log-triage/new-completed-0200Z';out.mkdir(exist_ok=True)
+baseline_path=base/'coordinator-20261022/origin-rust-ci-5203-named-log-outcomes-20261022.json';baseline=json.loads(baseline_path.read_text());spec=importlib.util.spec_from_file_location('compare',base/'coordinator-20261022/baseline-exact-comparator-20261022/ci5203_exact_selector_compare.py');module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+pattern=re.compile(r'^\S+Z\s+(PASS|FAIL|SIGKILL|SIGTERM|TIMEOUT|SKIP|ABORT|ABORTED)\s+\[\s*([^]]+)\]\s+\(\s*(\d+)/(\d+)\)\s+(\S+)\s+(\S+)\s*$')
+summary={'utc':datetime.datetime.now(datetime.timezone.utc).isoformat(),'scope':'Only newly supplied CI5206 heavy job120175508112 and main1 job120175508573; no previous ledger replacement','baseline_path':str(baseline_path.relative_to(base)),'baseline_sha256':hashlib.sha256(baseline_path.read_bytes()).hexdigest(),'baseline_run':baseline['run'],'jobs':{}}
+heavy_path=Path('/tmp/work-ci5205/baseline-heavy.log');heavy_raw=heavy_path.read_bytes()
+assert hashlib.sha256(heavy_raw).hexdigest()=='dbf7f506e5b59a364f22579d4dda98a2653a217ff6c708b62554bcf26fd1fd3e'
+heavy_rows=[]
+for line_number,line in enumerate(re.sub(r'\x1b\[[0-9;]*m','',heavy_raw.decode('utf-8-sig')).splitlines(),1):
+ m=pattern.match(line)
+ if not m:continue
+ status,seconds,ordinal,total,binary,selector=m.groups();assert status=='PASS'
+ package,sep,label=binary.partition('::')
+ heavy_rows.append({'package':package,'binary_label_as_rendered':label if sep else None,'binary_id':binary,'selector':selector,'status':status,'reporter_ordinal':int(ordinal),'reporter_total':int(total),'source_line':line_number})
+assert len(heavy_rows)==312 and len({(r['binary_id'],r['selector']) for r in heavy_rows})==312
+heavy_baseline={'schema':'nextest-human-reporter-observed-identities-v1','run':{'number':5203,'id':39816429638,'ref':'rust','head_sha':'fcb7927f02b5395753247b322fdd7be87ae5c731','job_id':119956195910},'source_path':str(heavy_path),'source_sha256':hashlib.sha256(heavy_raw).hexdigest(),'provenance':'Exact existing compiler-codegen heavy-ci5205 receipt hash matches; actual raw heavy baseline independent of main24312 ledger','records':heavy_rows}
+(out/'heavy-baseline-outcomes.json').write_text(json.dumps(heavy_baseline,indent=2)+'\n');(out/'baseline-heavy-119956195910.decoded-content.log.gz').write_bytes(gzip.compress(heavy_raw,mtime=0))
+for num,jobid,label in [(0,120175508112,'heavy'),(1,120175508573,'main1')]:
+ source=Path(f'/tmp/ci5206-newjob-{num}.log');raw=source.read_bytes();archive=out/f'{label}-{jobid}.decoded-content.log.gz';archive.write_bytes(gzip.compress(raw,mtime=0));assert gzip.decompress(archive.read_bytes())==raw
+ text=re.sub(r'\x1b\[[0-9;]*m','',raw.decode('utf-8-sig'));records={};duplicates=[];conflicts=[]
+ for line_number,line in enumerate(text.splitlines(),1):
+  m=pattern.match(line)
+  if not m:continue
+  status,seconds,ordinal,total,binary,selector=m.groups();key=(binary,selector)
+  row={'binary_id':binary,'selector':selector,'status':'ABORT' if status in {'SIGKILL','SIGTERM'} else status,'original_status':status,'reporter_ordinal':int(ordinal),'reporter_total':int(total),'seconds_as_rendered':seconds.strip(),'source_line':line_number}
+  if key in records:
+   duplicates.append({'binary_id':binary,'selector':selector,'first_line':records[key]['source_line'],'duplicate_line':line_number,'same_status':records[key]['status']==row['status']})
+   if records[key]['status']!=row['status']:conflicts.append([records[key],row])
+  else:records[key]=row
+ rows=list(records.values());receipt={'schema':'nextest-human-reporter-observed-identities-v1','run':{'number':5206,'job_id':jobid,'scope':label},'source_path':str(source),'raw_sha256':hashlib.sha256(raw).hexdigest(),'records':rows};(out/f'{label}-outcomes.json').write_text(json.dumps(receipt,indent=2)+'\n');comparison=module.compare(baseline if label=='main1' else heavy_baseline,receipt);(out/f'{label}-exact-baseline-join.json').write_text(json.dumps(comparison,indent=2)+'\n')
+ counts=collections.Counter(row['original_status'] for row in rows);summary_lines=[l for l in text.splitlines() if 'Summary [' in l];starting=[l for l in text.splitlines() if 'Starting ' in l and 'tests across' in l];compile_errors=[l for l in text.splitlines() if re.search(r'error\[E\d+\]|could not compile',l)]
+ job={'job_id':jobid,'input_bytes':len(raw),'input_sha256':hashlib.sha256(raw).hexdigest(),'gzip_path':archive.name,'gzip_sha256':hashlib.sha256(archive.read_bytes()).hexdigest(),'gzip_byte_exact_verified':True,'phase':'RUNTIME EXECUTED; not build/list failure','compile_errors_observed':compile_errors,'starting_lines':starting,'summary_lines':summary_lines,'unique_outcome_counts':dict(counts),'unique_terminal_records':len(rows),'duplicate_terminal_lines_deduplicated':len(duplicates),'duplicate_status_conflicts':conflicts,'reporter_ordinals':{'unique':len({r['reporter_ordinal'] for r in rows}),'min':min(r['reporter_ordinal'] for r in rows),'max':max(r['reporter_ordinal'] for r in rows)},'baseline_join_counts':{k:len(comparison[k]) for k in ['matched_passes','regressions','extra_current_passes','unmatched_current_nonpass','duplicates']},'failed_selectors':[r for r in rows if r['status'] in {'FAIL','ABORT','TIMEOUT'}],'limits':['Exact observed console binary_id+selector join only. New/absent baseline identities remain unknown.','No skipped/unreached selector can be inferred PASS/FAIL; exact previous ledgers remain separate.'],'duplicate_lines':duplicates}
+ (out/f'{label}-classification.json').write_text(json.dumps(job,indent=2)+'\n');summary['jobs'][label]={k:v for k,v in job.items() if k not in ['failed_selectors','duplicate_lines']}
+ for status in ['PASS','FAIL','SIGKILL','SIGTERM']:
+  (out/f'{label}-{status.lower()}-selectors.txt').write_text(''.join(f"{r['binary_id']}\t{r['selector']}\n" for r in rows if r['original_status']==status))
+(out/'classification-summary.json').write_text(json.dumps(summary,indent=2)+'\n');print(json.dumps(summary,indent=2))

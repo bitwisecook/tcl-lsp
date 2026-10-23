@@ -1,0 +1,14 @@
+{
+  "recorded_utc": "2026-10-23T02:10:48.722425+00:00",
+  "scope": "independent static review only; no launcher/runner/Cargo/provider/lock",
+  "plan_sha256": "d13c1782b30d3573b8407a23cc0cd63d6cf7c2c9e18535481b3cd13d1c3b6e14",
+  "suite_sha256": "540459f0e0b3746af556f096df1f721c1007a518daba93497294f6a2cb85b196",
+  "verdict": "NOT CLEAR pending immutable successor",
+  "findings": [
+    "source_view only before lock; exact18+runner+plan identity not revalidated under lock immediately before executor or final. Preflight-to-initial-snapshot gap can become new baseline; runner input drift after startup unverified",
+    "JSON parser collects compiler-message warnings/errors but not build-script-executed warnings; no explicit successful build-finished event requirement",
+    "No try/finally durable failure receipt/unlock marker when initial/final provider or parsing throws; OS lock eventually releases but requested durable failure flow incomplete"
+  ],
+  "positive": "Direct reviewed88125 executor, explicit absolute Cargo command exact7 packages/alltargets/locked/keepgoing, actualmount2GiB,3600s20MiB, source18 baseline/ancestry checks and noGO-beforelock present",
+  "nonclaims": "No current source/type/runtime acceptance; all findings static. Luna requested immutable v2."
+}

@@ -1,0 +1,26 @@
+{
+  "prepared_utc": "2026-10-23T02:05:45.273354+00:00",
+  "status": "OFFTREE prepared explicit receipt-consistency successor only; failed49 test measurement allowed; no GO/build/queue",
+  "plan_sha256": "8c129ae5ef1ac68e9321b860c0d40a0de17641b4b6c093ca125e61420cfeb414",
+  "runner_input_manifest_sha256": "e035a1625430410fc95a4e91efcb1811436e1c615730ecba1e6e0314b33a7476",
+  "launcher_sha256": "47fedba8c25251b54fbace3cd141a492fc1fe57fe1c6d158c06ab9503ca37d57",
+  "source18_manifest_sha256": "7d68ce5bc058f1fcaa8c5bac3c9f0926c7c9f0bad8a674262f9591e7eadde09b",
+  "preserved": "Exact14controls2filters and18sourcefinals unchanged; guardedexec byte-identical; historical14v1/v2/v3 untouched",
+  "checks": "Python AST all4 PASS; actual no-GO launcher refusal before runner/Cargo PASS; actual49 completion still required",
+  "root_go_schema": {
+    "source_commit": "3b1a750be337993a85ec533d84546e1d827dd9a8",
+    "plan_sha256": "exact this plan SHA",
+    "source18_manifest_sha256": "exact source18 manifest SHA",
+    "runner_input_manifest_sha256": "exact immutable input manifest SHA",
+    "approved_integrated_head": "actual exact18 integrationHEAD; only docs descendants",
+    "compiler49_final_receipt": "actual completed49v7 final.json",
+    "compiler49_final_sha256": "exact valid final SHA",
+    "compiler49_launcher_receipt": "actual completed49v7 durable launcher.json",
+    "compiler49_launcher_sha256": "exact completed launcher SHA"
+  },
+  "raw_vs_sorted_approval": {
+    "raw_sha256": "dfccc034a58f8113839424c11d3a9f0862e8109caec0d20a259b556a32cfd3f2",
+    "sorted_receipt_sha256": "af205325983a17dba1b51104fe0b10609fde9232eac35c238b15cbf5c7f06b6d",
+    "content_equal": true
+  }
+}

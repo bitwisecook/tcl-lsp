@@ -1,0 +1,184 @@
+{
+  "recorded_utc": "2026-10-23T02:09:29.497999+00:00",
+  "status": "FROZEN reviewed static protocol archive; READY/unrun/NOT QUEUED; source HOLD; no root GO exists",
+  "logical_files": 29,
+  "blobs": 23,
+  "roundtrip_verified": true,
+  "files": [
+    {
+      "source": "/tmp/vm-runtime-c84-catch4-postfix-v2-lifecycle/full_tommath4-plan.json",
+      "bytes": 9445,
+      "sha256": "a2c5f45550ec77a9983e89052c16fa323c188fdba88e7c72d31534d1a0cdae24",
+      "blob": "blobs/a2c5f45550ec77a9983e89052c16fa323c188fdba88e7c72d31534d1a0cdae24.gz"
+    },
+    {
+      "source": "/tmp/vm-runtime-c84-catch4-postfix-v2-lifecycle/guarded-exec.py",
+      "bytes": 13109,
+      "sha256": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811",
+      "blob": "blobs/88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811.gz"
+    },
+    {
+      "source": "/tmp/vm-runtime-c84-catch4-postfix-v2-lifecycle/launch.py",
+      "bytes": 2906,
+      "sha256": "f858fdec5dfc028fc6d16df3a9e89ddf64a6c54941bb4911dec260f5534b1fa2",
+      "blob": "blobs/f858fdec5dfc028fc6d16df3a9e89ddf64a6c54941bb4911dec260f5534b1fa2.gz"
+    },
+    {
+      "source": "/tmp/vm-runtime-c84-catch4-postfix-v2-lifecycle/observer-proposal.patch",
+      "bytes": 9159,
+      "sha256": "c0c5ad46b1ccd296f57f08bd579718b019842bf6b25cf29c0381497018b94b16",
+      "blob": "blobs/c0c5ad46b1ccd296f57f08bd579718b019842bf6b25cf29c0381497018b94b16.gz"
+    },
+    {
+      "source": "/tmp/vm-runtime-c84-catch4-postfix-v2-lifecycle/preparation-receipt.json",
+      "bytes": 968,
+      "sha256": "4207fe108924f86dd0e19082a65ee31161d5ef954131f95cbd8912c0f5e4e0a0",
+      "blob": "blobs/4207fe108924f86dd0e19082a65ee31161d5ef954131f95cbd8912c0f5e4e0a0.gz"
+    },
+    {
+      "source": "/tmp/vm-runtime-c84-catch4-postfix-v2-lifecycle/provider-chain.py",
+      "bytes": 2324,
+      "sha256": "a647bf8699e1eecebce0702d01d11206f4d8a1a7d09f6661afd9ef928a52a5d9",
+      "blob": "blobs/a647bf8699e1eecebce0702d01d11206f4d8a1a7d09f6661afd9ef928a52a5d9.gz"
+    },
+    {
+      "source": "/tmp/vm-runtime-c84-catch4-postfix-v2-lifecycle/reference-provenance/guarded-cargo.py",
+      "bytes": 1943,
+      "sha256": "b51ae1f339dbe4b1ae88603c5cf4fae608fd7234c821121b8ce0fc400b05a319",
+      "blob": "blobs/b51ae1f339dbe4b1ae88603c5cf4fae608fd7234c821121b8ce0fc400b05a319.gz"
+    },
+    {
+      "source": "/tmp/vm-runtime-c84-catch4-postfix-v2-lifecycle/reference-provenance/launch.py",
+      "bytes": 2851,
+      "sha256": "bd9f92d2207b3b97266429e3c5725a5c2c3a2fc8317047015d094ea97f2ef9ce",
+      "blob": "blobs/bd9f92d2207b3b97266429e3c5725a5c2c3a2fc8317047015d094ea97f2ef9ce.gz"
+    },
+    {
+      "source": "/tmp/vm-runtime-c84-catch4-postfix-v2-lifecycle/run.py",
+      "bytes": 20649,
+      "sha256": "94f68b03ffed84063fdec1c97ae821c7c050e882de793ee564c13ccf736c4b09",
+      "blob": "blobs/94f68b03ffed84063fdec1c97ae821c7c050e882de793ee564c13ccf736c4b09.gz"
+    },
+    {
+      "source": "/tmp/vm-runtime-c84-catch4-postfix-v2-lifecycle/run.sh",
+      "bytes": 167,
+      "sha256": "d63a1f93bf659c4aefdb6dae4fea47f0534fbd7b32f0b98d760d6717ac0cad54",
+      "blob": "blobs/d63a1f93bf659c4aefdb6dae4fea47f0534fbd7b32f0b98d760d6717ac0cad54.gz"
+    },
+    {
+      "source": "/tmp/vm-runtime-c84-catch4-postfix-v2-lifecycle/runner-input-manifest.json",
+      "bytes": 1476,
+      "sha256": "d82d4452a82f3f13fb93e5bc321d05fe59e54c4e3470f1776f909fada11cbf41",
+      "blob": "blobs/d82d4452a82f3f13fb93e5bc321d05fe59e54c4e3470f1776f909fada11cbf41.gz"
+    },
+    {
+      "source": "/tmp/vm-runtime-c84-catch4-postfix-v2-lifecycle/semantic-fix.patch",
+      "bytes": 1619,
+      "sha256": "c12f266ecb683b2029513163c13dfa10ff12312c946210c51070f59d404edde8",
+      "blob": "blobs/c12f266ecb683b2029513163c13dfa10ff12312c946210c51070f59d404edde8.gz"
+    },
+    {
+      "source": "/tmp/vm-runtime-c84-catch4-postfix-v2-lifecycle/successor.patch",
+      "bytes": 8048,
+      "sha256": "83d9c1a73da4ff7ada8431c576e3dd85a52ca276d874746282dd6c249d7585e4",
+      "blob": "blobs/83d9c1a73da4ff7ada8431c576e3dd85a52ca276d874746282dd6c249d7585e4.gz"
+    },
+    {
+      "source": "/tmp/vm-runtime-ci5206-notommath16-v3-lifecycle/guarded-exec.py",
+      "bytes": 13109,
+      "sha256": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811",
+      "blob": "blobs/88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811.gz"
+    },
+    {
+      "source": "/tmp/vm-runtime-ci5206-notommath16-v3-lifecycle/launch.py",
+      "bytes": 2905,
+      "sha256": "589baca478685ff9fd98c47b963158d19cb06573ca54d51e00f2f2f367b61fbc",
+      "blob": "blobs/589baca478685ff9fd98c47b963158d19cb06573ca54d51e00f2f2f367b61fbc.gz"
+    },
+    {
+      "source": "/tmp/vm-runtime-ci5206-notommath16-v3-lifecycle/no_tommath16-plan.json",
+      "bytes": 14811,
+      "sha256": "3cb1decbfd88acfa79516b7dd327467ab19aa5a2c77a0d0f82b4f97ef5f4638e",
+      "blob": "blobs/3cb1decbfd88acfa79516b7dd327467ab19aa5a2c77a0d0f82b4f97ef5f4638e.gz"
+    },
+    {
+      "source": "/tmp/vm-runtime-ci5206-notommath16-v3-lifecycle/observer-proposal.patch",
+      "bytes": 9159,
+      "sha256": "c0c5ad46b1ccd296f57f08bd579718b019842bf6b25cf29c0381497018b94b16",
+      "blob": "blobs/c0c5ad46b1ccd296f57f08bd579718b019842bf6b25cf29c0381497018b94b16.gz"
+    },
+    {
+      "source": "/tmp/vm-runtime-ci5206-notommath16-v3-lifecycle/preparation-receipt.json",
+      "bytes": 970,
+      "sha256": "490ee0139333fbbcc64fbc56e23336acac15ba31073d483cbf2feea45fd71c62",
+      "blob": "blobs/490ee0139333fbbcc64fbc56e23336acac15ba31073d483cbf2feea45fd71c62.gz"
+    },
+    {
+      "source": "/tmp/vm-runtime-ci5206-notommath16-v3-lifecycle/provider-chain.py",
+      "bytes": 2324,
+      "sha256": "a647bf8699e1eecebce0702d01d11206f4d8a1a7d09f6661afd9ef928a52a5d9",
+      "blob": "blobs/a647bf8699e1eecebce0702d01d11206f4d8a1a7d09f6661afd9ef928a52a5d9.gz"
+    },
+    {
+      "source": "/tmp/vm-runtime-ci5206-notommath16-v3-lifecycle/reference-provenance/guarded-cargo.py",
+      "bytes": 1943,
+      "sha256": "b51ae1f339dbe4b1ae88603c5cf4fae608fd7234c821121b8ce0fc400b05a319",
+      "blob": "blobs/b51ae1f339dbe4b1ae88603c5cf4fae608fd7234c821121b8ce0fc400b05a319.gz"
+    },
+    {
+      "source": "/tmp/vm-runtime-ci5206-notommath16-v3-lifecycle/reference-provenance/launch.py",
+      "bytes": 2851,
+      "sha256": "bd9f92d2207b3b97266429e3c5725a5c2c3a2fc8317047015d094ea97f2ef9ce",
+      "blob": "blobs/bd9f92d2207b3b97266429e3c5725a5c2c3a2fc8317047015d094ea97f2ef9ce.gz"
+    },
+    {
+      "source": "/tmp/vm-runtime-ci5206-notommath16-v3-lifecycle/run.py",
+      "bytes": 20849,
+      "sha256": "9910987b8718cbd4cccdd3fcc9f04269194c9de93de445783c6a2b6db9fb6d4a",
+      "blob": "blobs/9910987b8718cbd4cccdd3fcc9f04269194c9de93de445783c6a2b6db9fb6d4a.gz"
+    },
+    {
+      "source": "/tmp/vm-runtime-ci5206-notommath16-v3-lifecycle/run.sh",
+      "bytes": 166,
+      "sha256": "18f6c450149d5acabe325ad55ea7e2bf39499794565a54545cb27c26202a4b03",
+      "blob": "blobs/18f6c450149d5acabe325ad55ea7e2bf39499794565a54545cb27c26202a4b03.gz"
+    },
+    {
+      "source": "/tmp/vm-runtime-ci5206-notommath16-v3-lifecycle/runner-input-manifest.json",
+      "bytes": 1475,
+      "sha256": "4e8a30b937843ce95f4d460065c2702a67b190909c41068a744c0b646c03207d",
+      "blob": "blobs/4e8a30b937843ce95f4d460065c2702a67b190909c41068a744c0b646c03207d.gz"
+    },
+    {
+      "source": "/tmp/vm-runtime-ci5206-notommath16-v3-lifecycle/semantic-fix.patch",
+      "bytes": 1619,
+      "sha256": "c12f266ecb683b2029513163c13dfa10ff12312c946210c51070f59d404edde8",
+      "blob": "blobs/c12f266ecb683b2029513163c13dfa10ff12312c946210c51070f59d404edde8.gz"
+    },
+    {
+      "source": "/tmp/vm-runtime-ci5206-notommath16-v3-lifecycle/successor.patch",
+      "bytes": 8045,
+      "sha256": "7b19226e105ad75534e4f1b9a72828cf1b4e90f2264650d67af075c6a167ea43",
+      "blob": "blobs/7b19226e105ad75534e4f1b9a72828cf1b4e90f2264650d67af075c6a167ea43.gz"
+    },
+    {
+      "source": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/compiler-codegen/results/resumed-20261022/vm-direct-lifecycle-peer-review.txt",
+      "bytes": 2736,
+      "sha256": "b7e7a34f6c2eadc75abd5ef2b1d25de0634573a54be4a3e27639cb6bfcbfaab2",
+      "blob": "blobs/b7e7a34f6c2eadc75abd5ef2b1d25de0634573a54be4a3e27639cb6bfcbfaab2.gz"
+    },
+    {
+      "source": "/tmp/ccg-review-vm-c84-compile-publication-v3-20261023T0103Z.json",
+      "bytes": 1993,
+      "sha256": "b31f344b3a90098fb4d0b4513d02bf070ecc6a21798a33a5b94f4e1558f5fa7c",
+      "blob": "blobs/b31f344b3a90098fb4d0b4513d02bf070ecc6a21798a33a5b94f4e1558f5fa7c.gz"
+    },
+    {
+      "source": "/tmp/vm-runtime-composition-v3-pin-confirmation.json",
+      "bytes": 702,
+      "sha256": "2752db0d682093d00e9e01551ea67bebf3fc5f79369c30a3bf4461cdf1d2fc1b",
+      "blob": "blobs/2752db0d682093d00e9e01551ea67bebf3fc5f79369c30a3bf4461cdf1d2fc1b.gz"
+    }
+  ],
+  "nonclaims": "No launcher, runner, Cargo, provider capture, lock or test executed; historical executor peer review does not establish runtime acceptance"
+}

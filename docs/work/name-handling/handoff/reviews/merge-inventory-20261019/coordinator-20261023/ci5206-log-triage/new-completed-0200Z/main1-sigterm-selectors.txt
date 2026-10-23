@@ -1,0 +1,3 @@
+tcl-compiler	analyser::diagnostics::dataflow::original_matcher_admission_tests::selected_original_matcher_advice_keeps_alias_arguments_and_known_provider_barriers
+tcl-compiler	analyser::commands::tests::depth_far_past_cap_still_emits_e207_exactly_once
+tcl-compiler	analyser::commands::tests::depth_one_past_cap_emits_e207_exactly_once

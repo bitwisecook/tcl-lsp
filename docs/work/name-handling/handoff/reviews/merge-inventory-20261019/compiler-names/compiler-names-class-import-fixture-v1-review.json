@@ -1,0 +1,17 @@
+{
+  "utc": "2026-10-23T02:13:23Z",
+  "verdict": "CLEAR bounded static fixture/source correction; Rust unrun",
+  "patch_sha256": "c323fe5901ff33b66bf2efa01893ec9e313b7ad7dc4cf11fefae91b1db5407e7",
+  "findings": [
+    "Original test selector and exact positive method_target Some(::SpiceGenTcl::Device) assertion retained",
+    "Positive now authentic exported/imported Tcl source through normal analyse, original class relation lookup owns caller/import rather than unique tail",
+    "Original manually constructed graph lacking import remains byte-equivalent as separate negative with unresolved None supported by C no-import controls; no product unique-tail fallback restored",
+    "Actual oracle receipt inspected: samepositive source C8.6/9.0/9.1 gives Core and inheritedOK; removing import gives Device not object each version;6of6 source controls scoped only nativeTcl",
+    "Auto_import rename prelude retains existing guard under recorded fixture decision; creates no runtime/publication permission",
+    "Only stale resolve_super_name documentation plus test fixture/control changes; no production body/authority/currentness/unknown/assertion weakening"
+  ],
+  "limits": [
+    "Normal analyser authentic class/import producer may still fail; original positive stays required",
+    "No Cargo/Rust typing/runtime/local test acceptance or source apply"
+  ]
+}

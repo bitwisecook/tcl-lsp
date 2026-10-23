@@ -1,0 +1,23 @@
+{
+  "utc": "2026-10-23T02:20:43.923987+00:00",
+  "verdict": "CLEAR bounded static runner review; no GO/Cargo/runtime",
+  "reviewer": "lsp",
+  "plan_sha256": "69b5c30390734545b45de6cdff73b2cfe231418a93ba0ef33c91c6faee5b5992",
+  "suite_sha256": "51087f14566cc2740f813f809c40726e608786e08630531fdbdd8cbab3342823",
+  "manifest_sha256": "2cbf9db5dcc54920283186799d13cfa15e290caf77243b402f07be6c4ca29408",
+  "executor_sha256": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811",
+  "findings": [
+    "Exact original15 selector objects and12 original source pins retained; extra source_views pin151c4869 matches source18 final manifest. No test assertion/config/budget changes.",
+    "GO/head/tree/docs-descendant/clean-product/runner pins plus actual all18 final canonical source hashes checked every phase; previous v4 manifest-only join issue corrected.",
+    "Current Cargo emitted e2e/lib test artifact requires exact manifest/name/kind/profile.test=true; real e2e server requires exact server Cargo.toml/name/bin kind/profile.test=false, unique emitted event and actual target containment.",
+    "NEXTEST_BIN_EXE_tcl-lsp-server override is consumed by real e2e harness common/mod.rs604; test and realserver hashes rechecked before/after/final.",
+    "Reviewed directexecutor88125 retained with pre-spawn timer, process ownership/group-empty-before-reap,180s selectors, bounded20MB output and actualmount diskfloor.",
+    "Durable file-backed launcher precedes runtime output; complete source/provider snapshots before/after phases, no target/executable cleanup, exceptions record failed/incomplete finalguards; finally explicitly releases lock.",
+    "v6 versus preserved old51c v5 changes finally/BaseException failure handling and version/path identities only; no silent acceptance of interrupted run.",
+    "All manifest input hashes independently match; Python AST syntax parses; no root GO present, no runner/Cargo launched by this review."
+  ],
+  "limits": [
+    "Independent bounded static only; no test/backend/protocol/host/D2/sectionF admission.",
+    "Actual server/build/test runtime still unrun; required post18 report14/typecheck evidence and explicit root GO remain mandatory."
+  ]
+}

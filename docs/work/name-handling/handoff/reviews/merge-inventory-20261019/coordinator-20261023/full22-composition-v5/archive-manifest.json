@@ -1,0 +1,25 @@
+{
+  "files": {
+    "combined-22.patch": {
+      "archive": "combined-22.patch.gz",
+      "archive_sha256": "961d0bb3355c972d0f3352d3093597d9d1e2fc9860688b41b6bf775916a1ac0b",
+      "bytes": 108242,
+      "sha256": "716a5028eecafcee753a040d910a6a77c5678dcad68f46355f36c1496e29a643"
+    },
+    "combined-manifest.json": {
+      "archive": "combined-manifest.json.gz",
+      "archive_sha256": "251aa26b3b1bb4073c4a1b0e3fd540a36ba82b442f94a43d85dac8162145da5c",
+      "bytes": 7911,
+      "sha256": "5c6f6f0924bcc31c4c088190019dbd9161c871192dcc3e6c0913085be037428c"
+    },
+    "owner-format-check.json": {
+      "archive": "owner-format-check.json.gz",
+      "archive_sha256": "8949d644099c47c9dfe8ac8e992c58d920e3593f060b0adf4d054a0f53bd014d",
+      "bytes": 5795,
+      "sha256": "3051063514deb6e62aaff9ef6711c01988dd27b40b91f302f3cba52283e0beac"
+    }
+  },
+  "scope": "Off-tree proof only; no canonical apply, Cargo, runtime, or acceptance claim.",
+  "source_directory": "/tmp/four-cleared-candidate-composition-v5-20261023T0221Z",
+  "version": "full22-composition-v5 evidence archive"
+}

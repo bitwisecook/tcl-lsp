@@ -1,0 +1,85 @@
+{
+  "frozen_utc": "2026-10-23T02:15:21.414500+00:00",
+  "status": "OFFTREE BOUNDED STATIC CLEAR report14v4-source18; current49v7 ACTIVE, no reportGO/Cargo/typing/runtime",
+  "immutable_policy": "Published members frozen; later enrichment separate route",
+  "members": [
+    {
+      "path": "compiler49-v7-plan.json",
+      "bytes": 26602,
+      "sha256": "0cb62fcdba2a9f24e5578ada9123e8fe9e195a1e7cd0f0cb1479ea2a19542313"
+    },
+    {
+      "path": "compiler49-v7-root-go.raw.json",
+      "bytes": 575,
+      "sha256": "dfccc034a58f8113839424c11d3a9f0862e8109caec0d20a259b556a32cfd3f2"
+    },
+    {
+      "path": "compiler49-v7-root-go.receipt.json",
+      "bytes": 575,
+      "sha256": "af205325983a17dba1b51104fe0b10609fde9232eac35c238b15cbf5c7f06b6d"
+    },
+    {
+      "path": "compiler49-v7-runner-input-manifest.json",
+      "bytes": 1074,
+      "sha256": "23b393e24a7ba9c37388bdd517d4c1d95af45e965d67ce63744ec8f6d3916b48"
+    },
+    {
+      "path": "guarded-cargo.py.txt",
+      "bytes": 1950,
+      "sha256": "b056f055037047db1ae5e179503c088549ac91db81237481a8510a17a020cf71"
+    },
+    {
+      "path": "guarded-exec.py.txt",
+      "bytes": 13109,
+      "sha256": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811"
+    },
+    {
+      "path": "independent-review.txt",
+      "bytes": 1515,
+      "sha256": "fab03a2c251b93f66e7b9df0f6fffcac05e97e705659612511724e01642a0c38"
+    },
+    {
+      "path": "launch-preflight-refusal.json",
+      "bytes": 179,
+      "sha256": "eeeb666d1fecb20ce8064097b4ad3a5c5a6dfb847261a7a357b13394291f5a04"
+    },
+    {
+      "path": "launch.py.txt",
+      "bytes": 3054,
+      "sha256": "47fedba8c25251b54fbace3cd141a492fc1fe57fe1c6d158c06ab9503ca37d57"
+    },
+    {
+      "path": "plan.json",
+      "bytes": 9481,
+      "sha256": "8c129ae5ef1ac68e9321b860c0d40a0de17641b4b6c093ca125e61420cfeb414"
+    },
+    {
+      "path": "readiness.json",
+      "bytes": 1692,
+      "sha256": "6e6e78e834fbfcbcbe9d6aaf2096bd4ec573faca8e296c6c88e3328bf50721a6"
+    },
+    {
+      "path": "run.sh.txt",
+      "bytes": 137,
+      "sha256": "20e2792ca08cbacd0e598f5db13ff0cccb2a9fb8599375182e91f62329db491b"
+    },
+    {
+      "path": "runner-input-manifest.json",
+      "bytes": 1952,
+      "sha256": "e035a1625430410fc95a4e91efcb1811436e1c615730ecba1e6e0314b33a7476"
+    },
+    {
+      "path": "source18-manifest.json",
+      "bytes": 5001,
+      "sha256": "7d68ce5bc058f1fcaa8c5bac3c9f0926c7c9f0bad8a674262f9591e7eadde09b"
+    },
+    {
+      "path": "suite.py.txt",
+      "bytes": 26148,
+      "sha256": "bfd2275f9522ff3a3edecc8577bf4b98afa127c3af23ce80ce28b695553e4006"
+    }
+  ],
+  "raw_rust_c_sources": false,
+  "no_go_refusal": "Actual launch refusal before runner/Cargo; no source/queue change",
+  "failed49_policy": "Guarded completed diagnostic FAIL test outcomes permitted; zero warnings and real consistent sealed completion required"
+}

@@ -1,0 +1,12 @@
+{
+  "status": "OFF TREE; source/test/provider HOLD; no Cargo/apply",
+  "path": "rust/tcl-lsp-server/src/readonly_reference_reports.rs",
+  "before_sha256": "b3330e27a594229ad424d4c4108497242720bcfc97ef3cbe989e6131e1ac8ba5",
+  "proposed_sha256": "44a04816e405d9f0a6a61fb711a543c935411f110d4d08edaa7cfc08b4b757a3",
+  "patch_sha256": "ad03b7b390ef3a1a8931a629a4c3f3425f9cc991c3390f7829ff5325d10f68dc",
+  "change": "Only fresh SemanticStructure purpose stops depending on unrelated global Salsa revision. Exact open snapshot/URI generation/provider admission/full config/actual resolved input retained source realm/diag epoch/factory generation remain. Database/ReadonlyComplete/ConditionalSourceRegion revision guard unchanged.",
+  "evidence": "Concrete source-path contradiction: semantic token reader accepts Salsa readiness while existing current open matcher required identical publication. Actual same-revision index completion advances Salsa->Indexed without changing source/URIgeneration; former matcher denied that source-only output. New deterministic held before/after controls are unrun. Separate nativeunit oldfixture liveadmissionNone vs returnedSome staticcause is repaired independently.",
+  "test": "Retains v2 unrelatedDBwrite coarseSome / genuineReadonlyComplete Some-before None-after. New phase control heldcoarse Some-before/Some-after genuine Salsa->Indexed; sameReadonlyComplete Some-before/None-after; Pending and Indexed->Salsa downgrade refuse; equal-byte new source revision refuses oldcarrier, authenticreplacement accepts then sameURIgeneration invalidation refuses it.",
+  "validation": "Pinnedfmt skip_children and read-only applycheck PASS; Names independent bounded static CLEAR; Rust typing/runtime UNRUN. Actual per-request failedgates not logged, so no claim all40protocolcoarse failures fixed.",
+  "successor": "v4 production unchanged from v3; test-only publication setter helper shortens phase-control test below lint threshold, all original controls/assertions retained. v1-v3 immutable."
+}

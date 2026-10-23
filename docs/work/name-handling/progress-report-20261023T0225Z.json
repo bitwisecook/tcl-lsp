@@ -1,0 +1,77 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-23T02:25:37.334686+00:00",
+  "scheduled_report_utc": "2026-10-23T02:25:37+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-23T02:55:37+00:00",
+  "change_since_previous_report": [
+    "CurrentCI complete31-job API roster02:03 establishes18failure7success4running2skip (main2/3/5+e2e1 running). Newexactledgers main1 281reached238PASS39FAIL3SIGTERM1SIGKILL/26formerPASSnonpass with10271unreachedunknown; heavy354312PASS42FAIL/18P2F; e2e2 834560PASS274FAIL/257P2F; e2e3 828536PASS292FAIL/272P2F. Scopes separate, duplicate summaries dedup, no assertion outcomes fromsignaleddepthtests.",
+    "Actualnative566FAIL causesgrouped:41coarsecurrentness,20diagnosticUnavailable,15ConditionalAdvice,25typedrename,20settlementtimeouts,2otherRPC,443unloggedassertioncauses;529of566baselineP2F. NarrowSemanticStructure-only unrelated-globalDBwrite fixofftree withactualdependencies preserved awaitingstrengthenednegativepeer; no claimsharedcauseallhundreds.",
+    "Compiler main1 normalanalyse13bounds positives missW240/241/242; no producerrefusal logged, no guessedguarddrop. One classfixture lacksrealimport despitecomment; C8.6/9.0/9.1 absentimportnotobject vsrealexportimportinherits; narrowownerfixturecorrectionofftree pending. Names3rawvariablefixtures nowrealnormalanalyse0dc91208, all4originalasserts unchanged andnativeC8.6controls, peerCLEAR/unapplied;6genuinecommandcasesrequireactualproducerfacts.",
+    "Compiler49v7 remainsbuilding asof02:12, no selectorsstarted/no runtimeverdict. Fixed exact18 post49compositionallownereditionsfmtPASS/unapplied; rootmechanicalintegration script preparedwith completedallguarded49/priorGO/artifact/source checks, no override/launch.",
+    "Report14 v4 explicit18/actual49v7authenticated prerequisite peerCLEAR; permitsactualFAILdiagnostic49 while requiringzeroW/counts/ignored0/outcomeexitconsistency/fullseals/rawsortedGOprovenance. Sevenpackagecheck runnablev2 pendingpeer; v1editedduringpreparationexplicitlysuperseded, nopreservedoldbytesclaim. AllnoGOrefusals,noCargoqueue.",
+    "VMfull4v2/noTom16v3 direct-ownedlifecycle successors peerCLEAR; durableimmutableprotocolsgziparchived29logical/23blobs. Existing16CIassertionsectionslostafterabort, no sharedcause beyondseparatecatch. CCGdirect3v2 peerCLEAR exactapprovedHEAD/tree post18; native15v4 lifecycle successor inprep oldv3unsafeparentreap/silentdescendants. No controls/counts/assertions/budgetsrelaxed.",
+    "Currentheavy2BPF exactP2F BPF001 missing retainedoriginal/typedgeneratedselection beforeemitter/VM, packetexpected0/91unreached; actualfirstcommandunknown. CLI/iRulesremaining16heavyP2F routedexternalBIGIP withoutownerheaderchange/takeover.",
+    "Release notes/contracts lastbox gap hasofftree2docproposal48f8c79c topUnreleased minifierrestrictions+supportededitor/SpecTclscope/generalVMmigrationdeferred; nocompletionclaim. Defercanonicalnotesuntilafterfixed18sourceproofruns. AllFboxes/verified0unchanged.",
+    "01:55 scheduled cycle normal-pushed947397d31 at02:00:28; active snapshot7d673033; product tree identical3b1. Fresh depth1 work fetch and publisher fast-forward at02:23 still947397d31. Scheduled02:25 cycle must snapshot all authorized WIP docs with probe exclusion and rearm02:55:37.",
+    "Root batching decision: four newly peer-cleared fixes join unchanged original18 before next expensive compiler test rebuild. Exact22 manifest5c6f6f0924bcc31c4c088190019dbd9161c871192dcc3e6c0913085be037428c, combined716a5028eecafcee753a040d910a6a77c5678dcad68f46355f36c1496e29a643;22/22 owner-edition rustfmt PASS. Added coarse currency/phase ad03, indexed admission10c7, variable0dc, classc323. No canonical apply before actual49 closure; no unreviewed probes/lints.",
+    "LSP final coarse v4 ad03 bounds only freshSemanticStructure unrelated globalDBrevision and exact Salsa-to-Indexed continuation; all real source/input/config/provider/URI/version/epoch/factory checks and other-purpose strict guards preserved. Positive/negative held real database controls peerCLEAR; no claim all41 coarse failures fixed without runtime. Fixture patches preserve original positive assertions and cite real source/oracles.",
+    "Source22 successor protocols being explicitly versioned: report14v5/check7v3/native15v7; old18 protocols immutable historical unrun. Same original controls/counts/guards/budgets. Full22 canonical typecheck/runtime still UNRUN. Root integrator v3-source22 prepared, requires actual completed guard-valid49, zero warnings, all row/seal/artifact/GO/launcher provenance; diagnostic FAILs permitted.",
+    "Compiler49 v7 both package no-run builds0warnings completed; compiler artifact2fa14af8/BPF737c2714 actualCargoJSON captured. At2026-10-23T02:25:34.853859+00:00 4/36 filters produce1PASS/3FAIL, original assertions unchanged, all reached direct-owned timers armed and guards/counts valid. Final49/36 inventory and final seals still pending; no complete or green claim."
+  ],
+  "committed": [
+    "7d67303318feabaa9183da5831467610cf4aa26f"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Finish guarded compiler49 build and36 filters/49 selected tests, record original failures, then integrate exact22 reviewed source batch.",
+    "Run seven-package typing then report14, VMfull4, codegen3 and original native15/current noTom16 finite scenarios under one build lock; fix actual producer failures without relaxing guards/assertions.",
+    "Complete current origin/rust exact regression closure, sectionF host/SpecTcl/transformation/strict gates and external authenticated performance full old/mixed proof before any user-requested PR."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-22T18:08:00+00:00",
+    "perf": "2026-10-22T21:00:00+00:00",
+    "review-triage": "2026-10-22T19:57:30+00:00"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "Compiler49 actual partial4/36 filters 1PASS/3FAIL; both current builds0W, finalseals pending. Productstill3b1; full22 off-tree/formatchecked only, no canonicaltype/runtime. All8F/auditverified0open; externalheadersstale/no takeover, noPR/merge/release.",
+  "disk_free_bytes": 10574102528,
+  "baseline_ci_run": 39816429638,
+  "baseline_ci_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731"
+}

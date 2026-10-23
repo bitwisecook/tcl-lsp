@@ -1,0 +1,19 @@
+{
+  "utc": "2026-10-23T02:08:36.435798+00:00",
+  "reviewer": "compiler",
+  "patch_sha256": "0dc91208391721856022c72cc3fab238a6754cc89c5d2acaa64f5b644fe207fa",
+  "verdict": "BOUNDED STATIC CLEAR fixture-source ownership correction; actual Rust results UNRUN",
+  "examined": [
+    "Three raw process_command fixture invocations use fabricated tokens without owning source/resolved_input/retained attachment; the handler intentionally requires original_diagnostic_call_at",
+    "Normalanalyse of original same Tcl commands creates authoritative source/input/current command owners and reaches process_command internally",
+    "Returning analysis is assigned back only for existing result assertion view; no production handler/path/authority predicate changed",
+    "All original assertions (including four targeted assertions), names preserved byte-identically; only actual complete source fixture construction changed",
+    "Global declarations assert readonly source metadata, not runtime variable-value allocation; C8.6 oracle distinction explicit",
+    "Exact before/final/proposal pins and read-only applycheck0"
+  ],
+  "limits": [
+    "Test typing/runtime and zero-regression remain UNRUN",
+    "No blanket inversion/unknown relaxation or Native/Normal grant",
+    "No apply/build while49 source HOLD"
+  ]
+}

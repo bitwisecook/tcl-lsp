@@ -1,0 +1,6 @@
+{
+  "recorded_utc": "2026-10-23T02:16:45.042581+00:00",
+  "old_review_sha256": "91fd77f8415a4b0bb06b825940187e1fbb5e7aa409ffbac070d0739515e686ca",
+  "review_scope": "old reported plan c9c870a4/suite51c226b0/manifest96726309 only",
+  "status": "Currentv5 directory NOT CLEARED: owner reported changing BaseException/finally after sending pins. NoGO/execution. Owner preparing immutablev6; waitfreshreview. Originalreviewreceipt retained unchanged."
+}

@@ -1,0 +1,22 @@
+{
+  "frozen_utc": "2026-10-23T02:14:26.325649+00:00",
+  "members": [
+    {
+      "path": "names-peer-review.json",
+      "sha256": "6acc3c2c577fbe3a4960987680d2bca85928fd9f31911f12b0339c022454e5d9"
+    },
+    {
+      "path": "oracle.json",
+      "sha256": "98d816f32758395417958c08b14b544fed122914c2066333cdc29cf9742ad4a4"
+    },
+    {
+      "path": "proposal.patch",
+      "sha256": "c323fe5901ff33b66bf2efa01893ec9e313b7ad7dc4cf11fefae91b1db5407e7"
+    },
+    {
+      "path": "receipt.json",
+      "sha256": "261d1e55edc18d0f6b94ae438345431c81f8736a55adafcd7b948cafae42d0cb"
+    }
+  ],
+  "status": "bounded static CLEAR; Rust typing/runtime UNRUN, source HOLD"
+}
