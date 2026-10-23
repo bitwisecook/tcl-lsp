@@ -227,7 +227,7 @@ original_rows = [
 ]
 require(
     sha(BASE / "compiler-native35-supplemental3.json")
-    == "cbb87217b6da6b7e51cad867b792113899d1f7f8d7128b0e8d31323b391b32a1",
+    == "8fc382cfe187b718bfbbb2401549bf7fdc897526428ca98ef0ec5905c30aa310",
     "exact separate Native35 supplemental3 input pin",
 )
 supplemental = json.loads((BASE / "compiler-native35-supplemental3.json").read_text())
@@ -886,6 +886,10 @@ finally:
         ("tools", lambda: files(list(tools.values())), tool_pins),
         ("dependencies", lambda: files(dependency_roots), dependencies_before),
     ]:
+        if name == "dependencies" and original is None:
+            seals[name] = False
+            final_errors.append("dependencies: initial capture not reached")
+            continue
         try:
             current = capture()
             save(out / (name + "-after.json"), current)

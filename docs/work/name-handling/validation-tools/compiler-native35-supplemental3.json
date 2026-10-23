@@ -16,10 +16,22 @@
   ],
   "source_head_at_preparation": "9c034861e58e8d1245cd52e2174d95e6843f4f3e",
   "source_pins": {
-    "rust/tcl-compiler/src/analyser/authenticated_report.rs": "97f4b97c4a323b4e8aa33a55f913f050d4a3c46bf2ba9321fa64337ac9ec7bfe",
-    "samples/wasm/t3-procs/35_native_dispatch_matrix.tcl": "a1258aec59cf97c5b255ceb4516b5bdec48b6f026974230e2f98556ddd4dd2e8"
+    "rust/tcl-compiler/src/analyser/authenticated_report.rs": "a6376ba49f26d519bdd5ec9cd9e55bdb7230f944dd110fee8d5f8c0653364597",
+    "samples/wasm/t3-procs/35_native_dispatch_matrix.tcl": "a1258aec59cf97c5b255ceb4516b5bdec48b6f026974230e2f98556ddd4dd2e8",
+    "rust/tcl-compiler/src/analyser/authenticated_report/body_correspondence.rs": "6c00dd167c0f28a1edfb2c89c86875241ba537b3c9030405a71e62d231df09ae"
   },
   "source_proposal_manifest_sha256": "d2457e9dae28bc1343ab5ceba6ec92fb48e166f5865cc14efb8b8d7ba11c345a",
   "source_semantic_peer_reference": "0607937a",
-  "target": "tcl_compiler"
+  "target": "tcl_compiler",
+  "approved_source_pin_refresh": {
+    "source_commit": "ce6facfb1ce00ab325924cb567c1ffdd4cff1168",
+    "independent_semantic_and_clean_carry_receipt_sha256": "56d4d71c82a869e37826f520c072ee0967545a6721a8d387e4c54b581a562108",
+    "previous_authenticated_report_sha256": "97f4b97c4a323b4e8aa33a55f913f050d4a3c46bf2ba9321fa64337ac9ec7bfe",
+    "scope": "Only approved report-only empty Allocated declaration admission and three additive controls. Original Native35 three selectors, original58 selectors, SH2 duplicate selectors, assertions and environment values unchanged.",
+    "added_report_controls_not_added_to_execution_roster": [
+      "analyser::authenticated_report::capture_controls::recursive_call_keeps_the_unused_empty_procedures_actual_report_owner",
+      "analyser::authenticated_report::body_correspondence::owner_controls::empty_allocated_body_requires_the_current_complete_source_card",
+      "analyser::authenticated_report::body_correspondence::owner_controls::empty_allocated_body_rejects_wrong_roles_geometry_and_duplicates"
+    ]
+  }
 }
