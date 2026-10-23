@@ -646,9 +646,11 @@ The local Logical semantic receiver presentation reborrows
 command and its original static method operand before member highlighting.
 The independent same-class hierarchy check remains required. A constructor
 child receipt alone cannot classify a compound, dynamic or expanded selector.
-This is partial adoption for `lsp-semantic-logical-receiver-selector`: legacy
-object-collection map occurrence/frame identity remains open. No allocation,
-dispatch, Native name, Normal completion or edit authority is supplied.
+Collection-element candidates come only from retained original insertion and
+extraction associations at the receiver occurrence; those associations do not
+establish an executed object-collection map occurrence or actual receiver-frame
+identity. No allocation, dispatch, Native name, Normal completion or edit
+authority is supplied.
 
 ### JetBrains explorer source transport
 

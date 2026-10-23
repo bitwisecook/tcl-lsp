@@ -2508,10 +2508,10 @@ as the target's exact patchlevel or manufacture actual provision. Compiler
 history/source/realm/entry proofs and authoritative traversal coverage remain
 separate prerequisites.
 
-The source_package_query field is deliberately builtin-only: the genuine
-Studio renderer GAPS register, exhaustive SubCommand coverage and draft
-unrecovered tracking document its exclusion for subcommands and forms. No DSL
-spelling or custom-pack provider/subject authority is silently introduced.
+`source_package_query` remains native descriptor metadata. The Studio renderer
+excludes it from DSL through `GAPS` for subcommand/refine rows; draft conversion
+marks a populated field unrecoverable on subcommands and forms. No DSL spelling
+or custom-pack provider/subject authority is silently introduced.
 
 
 ### Original sink subjects in source diagnostic actions
