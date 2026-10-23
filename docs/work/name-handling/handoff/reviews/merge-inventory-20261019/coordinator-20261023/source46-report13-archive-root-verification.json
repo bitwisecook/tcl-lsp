@@ -1,0 +1,17 @@
+{
+  "utc": "2026-10-23T06:21:39.417747+00:00",
+  "scope": "Only report13 first completed row9PASS4FAIL; whole58 still running",
+  "archive_sha256": "ec1ae790bd159cb6683bfdbd91af1670368e50c1e6aecfb4933a435176112c95",
+  "receipt_sha256": "826137140948a1f7491efdc1716c8f1f1292a91dd3f34a446d5d8ddb45666384",
+  "archive_members_verified_against_live_completed_files": {
+    "01-01-report14-.command": "a045f4f98e949816495fe7e120023df283bca3e6fd478be3dbf34ca0d1b856f6",
+    "01-01-report14-.env.json": "667423c5cbb1512a7de21f727143502b92edb84dd641a373c3086caf6767b72d",
+    "01-01-report14-.process.json": "35469bf2fcdcbf7100d91727af426f8b7f8d695b32b5bea54d4187c20d1f0b23",
+    "01-01-report14-.result.json": "d54266a3890719a3b0623f838eb605bd69f63ccd858f5f097aa0b308953477cd",
+    "01-01-report14-.sha256.json": "6d9221984025272aee080842e95c2a821ed825025c65ac213babcacd567ed4a6",
+    "01-01-report14-.stderr": "770cabb4d08ddee5a7e2b5049c5287d56d7fc0658238deae92163f77b66f8e65",
+    "01-01-report14-.stdout": "e929aed22f5f2d5a89ec3a4c553a103b2cd2845d77d8fd4550946efea0db26b1"
+  },
+  "verified": true,
+  "release_admissions": []
+}

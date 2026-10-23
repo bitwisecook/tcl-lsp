@@ -2,11 +2,17 @@
 
 Area: command_binding.rs (except the C6 hunks), command_binding/compiled_invocation.rs, source name lookup, analyser scope/commands, nested lookups, W210 pkgIndex entry plumbing.
 
-Last updated: 2026-10-23T05:42:58.002113Z
+Last updated: 2026-10-23T06:24:42.038459Z
 
 Maintained by the compiler-names agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## In progress (resumed in /workspace/naming-migration-active/tcl-lsp; g4 first)
+
+**ACTUAL original G4 source46 PASS4/4:** compiler58 rows3–6 each exact1 PASS/exit0, complete process and artifact/source/provider/no-warning guards valid, actual artifactdf72eea9. Existing actual source46 assertions preserved; no postrun expectation edits. Lossless28file archive+rows/current pins `source46-g4-actual4/` (receiptf329a20e/archive1c0e2e6c). Separate new genuineConditional scoped positive still pending; diagnostic11/N13/ILX and whole58 remain open. Names Installed E003 ede9ac69 remains off-tree staticpeerCLEAR ef7db97f, untyped/unrun; full candidate/source before+after/peer lossless archive d1eae4cc/receiptf2f1306f under `source46-report13-e003-first-gate/`.
+
+**ACTUAL source46 report13 first gates / Installed candidate:** current compiler58 row1 closed9PASS4FAIL/13, exact artifactdf72eea9, complete process/selector/source/provider/no-warning guards valid; whole58 remains running. E003 positive+foreign-fixture premises each reject UnitInstalled span18..18 at PUSH (owns=true/duplicate=false/nonempty=false, all original-purpose flags false), then capture.bodies unavailable. OriginalDeclaration-only a9c4 is inapplicable, no ordinary empty admission justified. New off-tree `/tmp/compiler-names-report-empty-installed-v1` ede9ac69 current20c93448→72d1f6fa authenticates exact UnitInstalled/no purpose through current positioned Module/input/registry/root+held Arc/span/site/body_offset=extentstart/namespace, stored installed allocation and genuine unique installed source card. Existing tests unchanged; new genuine E003/fullcomparison+missing/stale/foreign/role/purpose/span/outofrange/duplicate controls untyped/unrun; compiler bounded static authority/type/access peer CLEAR ef7db97f, archived with candidate. Independent zero-fuzz/no-offset apply/finalpin/pinnedfmt PASS. Report13 raw7file lossless archive+receipt `source46-report13-e003-first-gate/`; alias+hosted failures compiler-owned. Rows2 fullrealm and3 firstG4 each PASS1/1, row4 running at sampling; no aggregate runtime acceptance. V9 eight-package PASS0W remains compilation-only. No canonical source/Cargo/Git/GO.
+
+**Empty allocated-body report transport static review CLEAR only:** exact off-tree a9c4b935 before20c93448/final86c30212; independent zero-fuzz/no-offset shadow apply and pinned1.99.1 fmt PASS. Empty in-range admission requires Unit OriginalDeclaration+AllocatedSource, current positioned full Module/registry/input, exact issued ID/held Arc/span/site/offset/namespace, authentic root allocation and contiguous empty source plus parser-issued original-declaration card. Producer deduplicates exact (allocation, namespace_key, source), so matching that same triple is unique. General out-of-range/duplicate/ordinary-empty/Installed refusals and four existing test bodies unchanged. New genuine positive/controls untyped/unrun; installed-first dedup may yield UnitInstalled and must still refuse. Actual compiler58 role/PUSH trace decides applicability; no E003 first-cause/fix claim, no Native/runtime/transform grant. Receipt `report-empty-allocated-body-v1-static-peer.json`; no canonical source/Cargo/Git/GO.
 
 **ACTUAL repaired-source v9 eight-package alltarget PASS0W:** closed05:41:37.402572Z, Cargo0/overall0, all6 source/provider/GO/docsHEAD/process/diagnostic guards true, exact897b4f9b/tree0b11e3a0 and8packages; actualHEAD advanced through docs-only descendants. Launcher closedexit0/input+GOstable/LOCK_RELEASED. Full immutable protocol+run+actualGO+launcher lossless archive `source46-typecheck-v9-pass/complete-evidence.tar.gz` with every-fileSHA/roundtrip receipt. Compilation-only; no runtime/acceptance claimed. Oldv8FAIL1E0716/0actualwarnings preserved. Root started reviewed allocatorv2 compiler58 mint+separateactualrun.sh parentcommand05:42:12/session77511, deepallocation initiallyrunning; Names mustnotduplicate/touchGO. Runtimebodyissuer facts remainprimaryfollowup; no Cargo/Git/source byNames.
 
@@ -232,6 +238,9 @@ Perf aliases evidence reviewed read-only after staged GO: all-old control proves
 - g3: `crlf_class…` and `substituted_heads…` ok. `completed_world…` failed on positive cases, caused by the strict `::unknown` kind check, which is now relaxed.
 
 ## Resume
+
+Current 2026-10-23T06:21:30.392575Z: report13 actual9PASS4FAIL; Names E003 first refusal UnitInstalled empty18..18 proven, candidate ede9ac69 off-tree peer CLEAR ef7db97f; old a9c4 inapplicable. Alias+hosted compiler-owned. Compiler58 still running, rows2+3 PASS; monitor G4/N13/ILX as they close. Compilation v9 PASS0W only, source/provider HOLD.
+
 
 Current: actualv9 eight-package compilation PASS0W05:41:37 on repaired897b/0b11; full closure archive source46-typecheck-v9-pass. Root alone owns compiler58first allocation/session77511; do not duplicate GO/build. Await actualruntimebodyissuer/Conditional first-refusal facts. V8FAIL remains preserved; laterstyle13/caseissuer remain separate.
 

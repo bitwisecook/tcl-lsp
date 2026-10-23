@@ -1,0 +1,9 @@
+{
+  "utc": "2026-10-23T06:21:20.577831+00:00",
+  "verdict": "BOUNDED STATIC authority/type/access CLEAR",
+  "patch_sha256": "ede9ac69462f5f30f1068b866c14276aabc9db57aff7f7ada3ee0c5491d5c308",
+  "checks": "Independent exactcurrentbefore/final; zero-fuzzapply; pinnedfmtPASS. Actualtrace Installed empty18..18 tagsallfalse matches intended role, original14 unchanged.",
+  "authority": "No relabel or ordinaryempty admission. Only UnitInstalled+body.id exactid+purposeNone; current retained positionedmodule validates source/input/registry/frozenbody snapshot. Actual installedallocation+held sourceArc/span/site/bodyoffset=emptyextentstart/namespace; rootArc+contiguous emptybody; independently reissued actualinstalled sourcecard exactallocation/source/namespace. Issuer sorts and dedups allocation; no ambiguousfirstmatch. Foreign/missing/stale/unsupported/duplicate controls and typedE003 foreignsubject originals retained.",
+  "types": "Existing crate-accessible methods/fields, Copy role tags, borrowed source/root/namespace/card joins valid statically; closure returns owned ReportBodyOwner so no temporary reference escape. Rust typing stillUNRUN.",
+  "limits": "Actual firstrefusal established, but postpatch original13/realm/fullcomparison controls unrun; sourcecard availability may refuse and later gates may still fail. No GO/Cargo/source/Git, no fullreport/perf or release acceptance."
+}

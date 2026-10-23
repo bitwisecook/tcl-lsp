@@ -1,0 +1,12 @@
+{
+  "utc": "2026-10-23T06:20:22.008367+00:00",
+  "status": "OFFTREE exact actual Installed empty extent producer repair candidate; untyped/unrun",
+  "path": "rust/tcl-compiler/src/analyser/authenticated_report/body_correspondence.rs",
+  "before_sha256": "20c93448f12ead53845dbc18596552190bc814a67c27bf23bdea1f3b262ec9ef",
+  "final_sha256": "72d1f6faae6a119e28a0b4dad761a9bb494dbabe4a3ba3fc508cf17a16394f13",
+  "patch_sha256": "ede9ac69462f5f30f1068b866c14276aabc9db57aff7f7ada3ee0c5491d5c308",
+  "actual_first_refusal": "source46 compiler58 report13 stderr525-527/543-545 and711-749 Unit Installed empty18..18; owns true, duplicate false, all original purpose flags false; capture.bodies unavailable",
+  "scope": "Only UnitInstalled/no declarationpurpose/current installed allocation and independently issued installed card, exact positioned Module/registry/input/root Arc/held source Arc/span/site/bodyoffset/namespace/contiguous emptyvalue. No role relabel. Existing OriginalDeclaration-only a9c4 stays separate/not applied. Existing tests unchanged; one genuine positive/fullcompare and missingcard/changedactualoffset/missingowner/foreign/unsupportedrole/purpose/span/outofrange/duplicate controls unrun.",
+  "uniqueness": "Owner installed_procedure_body_units sorts+dedup_by exact allocation; matcher requires allocation plus source/namespace/root identity, hence at most one emitted match.",
+  "checks": "Pinnedfmt2024 PASS; no canonical source/Cargo/Git/GO. Peer and fresh Rust type/runtime required."
+}

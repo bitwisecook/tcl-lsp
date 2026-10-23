@@ -2,11 +2,29 @@
 
 Area: tcl-vm, runtime/rust, tcl-spectcl, tcl-spec-studio: SpecTcl execution and acceptance.
 
-Last updated: 2026-10-23T05:50:20.712290+00:00 (ownsurfacev4 eca80f8b staticpeerCLEAR6824c3f4/semantic59d686ba; purefirstcall/sharedrecipe, original11unchanged; untyped/unrun)
+Last updated: 2026-10-23T06:23:59.712874+00:00 (UPF17 existing2 execute97fixedhostcalls staticallyverified; currentguardedmeasurementmissing; reusedschedulingplan only/no duplicate runner)
 
 Maintained by the vm-runtime agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## Resume
+
+UPF17 release-gap audit completed read-only. Existing tcl-spectcl::upf_hooks
+exact2 selectors really execute17 productionplanned bodies on TclVmEngine:
+16optionarity94fixedcalls plus1resolver3calls=97, with nodeclined/real slots
+and exact typedanswers. This is not metadata-only. Current Spec66 and frozen
+originalSpec3v1/v2 select no UPF target; original3 remains unrun. Existing
+`/tmp/vm-runtime-c1-c2-acceptance-map.json` already maps exact2, so no duplicate
+runner created. Concise next schedulingplan `/tmp/vm-upf17-executable-next-plan-v1/plan.json`
+records sourcepins/2selectors/88125-rootGO/freshartifact/strictcounts/180s/
+0W/fullseals/defaultinternalbudgets, no authorizedrun. Owned audit:
+`vm-runtime/upf17-existing-test-audit-next-plan-20261023.txt`.
+Actionable gap is currentproduct guarded exact2 runtime measurement. These
+tests invoke productionhostslots directly, not automaticregistry/threadworker/
+LSP option-role consumption; reload/context/generation/multiworker coverage
+remains separate. Historical2/2 and EDAmetadataPASS are not current17 proof.
+Source/providerHOLD; rootcompiler58run77511 remains active, Jim7 afterLSP23
+unrun; v4ownsurface staticCLEAR only. No Cargo/Git/source/GO or budget changes.
+
 
 Ownsurface canonicalidentity v4 final off-tree candidate staticpeerCLEAR:
 `/tmp/vm-jim-core-canonical-identity-v4/proposal.patch` SHAeca80f8b,

@@ -1,0 +1,24 @@
+{
+  "utc": "2026-10-23T06:08:42.622283+00:00",
+  "archive_sha256": "27cac71af579a38e96d43417cb07799f23c1b926f8a69e52c4e999f743431ea2",
+  "files": [
+    {
+      "path": "input.tcl",
+      "bytes": 146,
+      "sha256": "7edf0c05899ab241c4c1c7e51814ff1c803623b2e4b69e04284395c434a299b8"
+    },
+    {
+      "path": "raw-outputs.json",
+      "bytes": 1195,
+      "sha256": "3e29fa8b4db256bb5c210010f27b08b7ba87137e0a85851dcf78857d3dbae412"
+    },
+    {
+      "path": "receipt.json",
+      "bytes": 2652,
+      "sha256": "3cb07ad334354e4526b28e66396ec9c674ed3f8dbaa030f9f94ae3c1f29e6395"
+    }
+  ],
+  "observed_required_releases": 5,
+  "all_exit_zero_empty_stderr_expected_result": true,
+  "scope": "One fixed C Tcl source observation: empty proc is valid and returns empty string. Wrapper hashes stable. No compiler ownership, complete report equivalence, Native/currentness, E003 cause or release acceptance."
+}

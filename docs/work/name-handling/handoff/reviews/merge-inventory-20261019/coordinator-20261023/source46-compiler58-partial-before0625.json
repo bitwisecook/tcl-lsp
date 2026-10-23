@@ -1,0 +1,98 @@
+{
+  "utc": "2026-10-23T06:23:22.560745+00:00",
+  "source_product": "897b4f9bfd27ffe9cf5e5dc67d14476a90ee26e6",
+  "run": "/tmp/compiler-source46-focused58-v3-runs/20261023T054355.025306Z",
+  "results_json_sha256_at_capture": "1a9cd603baf5af43bebb9232683d88690586450a52e7b4db3c7301f661c324e1",
+  "source46_map_sha256": "f7568b8400f5f3c0b9af0e2181e0539a81e6a42c8a19ab8a0f677a667beca9b7",
+  "scope": "As of2026-10-23T06:23:22.560745+00:00, compiler58 completed5filters/17tests: 13PASS/4FAIL, allcompleted counts/source/provider/artifact/process guards valid and zero warnings; whole58 still running.",
+  "rows": [
+    {
+      "label": "01-report14-",
+      "selector": "analyser::authenticated_report::",
+      "selected": 13,
+      "summaries": [
+        [
+          "FAILED",
+          "9",
+          "4",
+          "0"
+        ]
+      ],
+      "exit_code": 101,
+      "stdout_sha256": "e929aed22f5f2d5a89ec3a4c553a103b2cd2845d77d8fd4550946efea0db26b1",
+      "stderr_sha256": "770cabb4d08ddee5a7e2b5049c5287d56d7fc0658238deae92163f77b66f8e65",
+      "completed_row_sha256": "c518bfca08c581c589b1571c2e49db14a3a486eeccb8b63917c826cb540c5fa7"
+    },
+    {
+      "label": "02-report14-full_report_candidates_require_the_actual_diagnostic_output_realm",
+      "selector": "object_types::logical_source_candidates::tests::full_report_candidates_require_the_actual_diagnostic_output_realm",
+      "selected": 1,
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0",
+          "0"
+        ]
+      ],
+      "exit_code": 0,
+      "stdout_sha256": "724c3e109c2a3e92fd06e70add654e57bec88e0be5da40547a882de16a6997e0",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "completed_row_sha256": "62f3cc6f8cb146b3d38e7ef225ed03ce32e92e683c1450227b7f37044c3513c5"
+    },
+    {
+      "label": "03-diagnostic11-original-conditional_expression_template_retains_grammar_without_actual_entry",
+      "selector": "command_binding::conditional_expression_tests::conditional_expression_template_retains_grammar_without_actual_entry",
+      "selected": 1,
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0",
+          "0"
+        ]
+      ],
+      "exit_code": 0,
+      "stdout_sha256": "67cb2acbb49725f06f4848c15db1d6c692eb8c6366caba300fef2997d6ccb355",
+      "stderr_sha256": "08b0b7f996c223de46d414fdd968c3b3bbed7a737c7a2d3e9432116704617d70",
+      "completed_row_sha256": "bb712af47f40132df77aabbecfe90944f01563d9f730cd4815f0cef806636a2a"
+    },
+    {
+      "label": "04-diagnostic11-original-scoped_procedure_equivalence_keeps_independent_world_and_completion_obligations",
+      "selector": "command_binding::normal_result::tests::scoped_procedure_equivalence_keeps_independent_world_and_completion_obligations",
+      "selected": 1,
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0",
+          "0"
+        ]
+      ],
+      "exit_code": 0,
+      "stdout_sha256": "f47c2bc21df646472c3fac11f5d8114b60cc37f8945f9d05646283ff5e580917",
+      "stderr_sha256": "88138ae2e9957d5c81adc599a9d6737c1e211af4f5c14bc70683fc227cf36164",
+      "completed_row_sha256": "f632b857b3094950c59d50890513370703754c81e8e263d7c8e0254d3db369e8"
+    },
+    {
+      "label": "05-diagnostic11-original-scoped_nested_normalisation_keeps_original_world_frame_and_source",
+      "selector": "command_binding::expression_preparation::tests::scoped_nested_normalisation_keeps_original_world_frame_and_source",
+      "selected": 1,
+      "summaries": [
+        [
+          "ok",
+          "1",
+          "0",
+          "0"
+        ]
+      ],
+      "exit_code": 0,
+      "stdout_sha256": "d44d4def353f4fc3772cee951a2714991d40b654d9ba3f4f98410e9cd6f59cde",
+      "stderr_sha256": "bba5cb87ff3187d37acf487fffd5d532068c4df103c18b63486abab59f76f603",
+      "completed_row_sha256": "4b94e4355ec209cfe59665116abacfc7eb11773f15b0fbf9f95bd140fd7116d2"
+    }
+  ],
+  "guards_observed_valid": true,
+  "whole_suite_closed": false,
+  "release_admissions": []
+}

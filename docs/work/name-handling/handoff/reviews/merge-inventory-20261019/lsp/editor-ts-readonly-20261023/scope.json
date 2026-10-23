@@ -1,0 +1,32 @@
+{
+  "actual_utc": "2026-10-23T06:15:29.705113+00:00",
+  "verdict": "Historical TS6133 not reproduced; single-file historical Prettier blocker PASS. Full local tsc FAIL on absent generated canonical JSON inputs; no full compilation or host claim.",
+  "current_pins": {
+    "editors/vscode/src/extension.ts": "14a0f9ee64e45c6aa01d8830654c8a950481ba6f7ac52c108c997984ba5cfd80",
+    "editors/vscode/src/test/currentDiagnostics.test.ts": "b16de4c3e83dad8e4d63798ddd19ad24c7a4fb546838525f6afaa14f5da75fe1",
+    "editors/vscode/src/nameGeneration.ts": "1ae2477fd11baebfff2a504a6c424e30c0a388a9da67fa427c4b40ecbb0fecff",
+    "editors/vscode/package.json": "c6b6f5fb7707d2d8b73fa07c00dde0705230f1c83ddc2e072390c95ea646e5a8",
+    "editors/vscode/tsconfig.json": "dfe9c1c2820ba605d673f2c66fb5aa3c1a0bd6f07d2deaf1720b83ab489830b7",
+    "Makefile": "1877adba05ceec01c4ace7c3ac05e6d83638aafcaa4c1e37057df21904f0c38f",
+    "ai/shared/diagnostics.json": "17168a9ce3c8f9b58fc1a93db78e543e34e265d36aca8a219e90f4dd0b12121b",
+    "ai/prompts/manifest.json": "12447e3bc7664bfe06ca9e705f29d207d48a906665e232ed1b87eddb08a465e8"
+  },
+  "missing_inputs": [
+    "editors/vscode/src/chat/canonical/diagnostics.json",
+    "editors/vscode/src/chat/canonical/manifest.json"
+  ],
+  "unrun_requirement": "Repository precompile make copy-canonical copies JSON and may generate absent prompt markdown through cargo xtask; not executed under source/Cargo HOLD. Rerun tsc only after root-authorized assets provisioning.",
+  "input_count": 12800,
+  "inputs_unchanged": true,
+  "assertions_changed": false,
+  "product_writes": false,
+  "cargo_or_npm_scripts_run": false,
+  "archive_files": {
+    "receipt.json": "b4aeec8a4fa045fe95fa80ed741b4bcc0cc620affe47e3ef6c644617e1fe0884",
+    "typescript.log": "33b7c7b34222254e693a2309cb4ebeff139fd4bdf98ff558dffe2ba6ddd5f630",
+    "check.py": "7c895a7d280fb71c3bc71f29c7fa4aba262892d8d2ee48204d2e7d5048ff1368",
+    "inputs-before.json.gz": "8bbc3e7ed9406416aa362a5cd5bce980a91ffd8b81bbcad6a9d3f5e316cfb57d",
+    "inputs-after.json.gz": "8bbc3e7ed9406416aa362a5cd5bce980a91ffd8b81bbcad6a9d3f5e316cfb57d",
+    "prettier.log": "17aa973d3f004560237d9a95171210b0671deff23d61628eecf7322ff5938f20"
+  }
+}

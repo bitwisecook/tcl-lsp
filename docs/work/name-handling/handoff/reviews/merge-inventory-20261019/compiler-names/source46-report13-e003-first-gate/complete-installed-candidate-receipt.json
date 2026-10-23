@@ -1,0 +1,44 @@
+{
+  "utc": "2026-10-23T06:22:09.177905+00:00",
+  "status": "Complete immutable OFFTREE Installed emptybody candidate + independent peer + exact current before/after, lossless roundtripPASS; typing/runtime unrun",
+  "archive_sha256": "d1eae4cc7c7ccd308fecb499b2a6160e27622c07a916889f5c82002cfc448a2c",
+  "file_count": 7,
+  "files": [
+    {
+      "path": "candidate/compiler-independent-shadow/rust/tcl-compiler/src/analyser/authenticated_report/body_correspondence.rs",
+      "sha256": "72d1f6faae6a119e28a0b4dad761a9bb494dbabe4a3ba3fc508cf17a16394f13",
+      "bytes": 33047
+    },
+    {
+      "path": "candidate/compiler-peer-review.json",
+      "sha256": "ef7db97f04cdf9df67be8863bda8fb04b359e9c03fe13354946e15934e3f7a55",
+      "bytes": 1399
+    },
+    {
+      "path": "candidate/manifest.json",
+      "sha256": "4e974622f625f4b3d7fb96db9ca2d62f680792174a389a2db30e732b4bd7034e",
+      "bytes": 1511
+    },
+    {
+      "path": "candidate/proposal.patch",
+      "sha256": "ede9ac69462f5f30f1068b866c14276aabc9db57aff7f7ada3ee0c5491d5c308",
+      "bytes": 8225
+    },
+    {
+      "path": "candidate/shadow/rust/tcl-compiler/src/analyser/authenticated_report/body_correspondence.rs",
+      "sha256": "72d1f6faae6a119e28a0b4dad761a9bb494dbabe4a3ba3fc508cf17a16394f13",
+      "bytes": 33047
+    },
+    {
+      "path": "current-before/rust/tcl-compiler/src/analyser/authenticated_report/body_correspondence.rs",
+      "sha256": "20c93448f12ead53845dbc18596552190bc814a67c27bf23bdea1f3b262ec9ef",
+      "bytes": 26683
+    },
+    {
+      "path": "preparer.py",
+      "sha256": "074a4ee4aba39fab153aaf8f34de61a74c3308d4552b769b725d65b73a9bfe3e",
+      "bytes": 8604
+    }
+  ],
+  "scope": "Source HOLD; no canonical edit/build/GO. E003 actual firstrefusal repaired in proposed typed join only; fullcomparison acceptance unrun."
+}

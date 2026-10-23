@@ -1,0 +1,189 @@
+{
+  "utc": "2026-10-23T06:20:58.379381+00:00",
+  "scope": "Only completed first report13 row: 9PASS4FAIL; whole58 ongoing, no aggregate runtime acceptance",
+  "row": {
+    "actual_selected": 13,
+    "argv": [
+      "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/tcl_compiler-ef22ef87d0bd65a7",
+      "analyser::authenticated_report::",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "artifact": {
+      "captured_from_current_cargo_event": true,
+      "cargo_event": {
+        "executable": "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/tcl_compiler-ef22ef87d0bd65a7",
+        "features": [],
+        "filenames": [
+          "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/tcl_compiler-ef22ef87d0bd65a7"
+        ],
+        "fresh": false,
+        "manifest_path": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/Cargo.toml",
+        "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler#0.1.0",
+        "profile": {
+          "debug_assertions": true,
+          "debuginfo": 0,
+          "opt_level": "0",
+          "overflow_checks": true,
+          "test": true
+        },
+        "reason": "compiler-artifact",
+        "target": {
+          "crate_types": [
+            "lib"
+          ],
+          "doc": true,
+          "doctest": true,
+          "edition": "2024",
+          "kind": [
+            "lib"
+          ],
+          "name": "tcl_compiler",
+          "src_path": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/lib.rs",
+          "test": true
+        }
+      },
+      "manifest_path": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/Cargo.toml",
+      "mtime_ns": 1792735417040703725,
+      "package": "tcl-compiler",
+      "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler#0.1.0",
+      "path": "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/tcl_compiler-ef22ef87d0bd65a7",
+      "profile": {
+        "debug_assertions": true,
+        "debuginfo": 0,
+        "opt_level": "0",
+        "overflow_checks": true,
+        "test": true
+      },
+      "sha256": "df72eea9d34179d46e190faf4fa62edcd7ca1317c0f5222f79410899b6d21084",
+      "size": 263431912,
+      "stderr_sha256": "fc0ec9f7a82c4fd769d6a426dedbe952130d4140bd3aa216e8de51810ee51802",
+      "stdout_sha256": "ddf30c006dfa2ed763bbc11c17394667840c2440426fae0791acdaff7cbb42ec",
+      "target_kind": [
+        "lib"
+      ],
+      "target_name": "tcl_compiler"
+    },
+    "artifact_stable": true,
+    "exit_code": 101,
+    "expected_selected": 13,
+    "index": 1,
+    "label": "01-report14-",
+    "log_at_cap": false,
+    "package": "tcl-compiler",
+    "process": {
+      "argv": [
+        "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/tcl_compiler-ef22ef87d0bd65a7",
+        "analyser::authenticated_report::",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "artifact": "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/tcl_compiler-ef22ef87d0bd65a7",
+      "artifact_sha256_after": "df72eea9d34179d46e190faf4fa62edcd7ca1317c0f5222f79410899b6d21084",
+      "artifact_sha256_before": "df72eea9d34179d46e190faf4fa62edcd7ca1317c0f5222f79410899b6d21084",
+      "artifact_unchanged": true,
+      "cap_bytes": 20971520,
+      "cleanup_signals": [],
+      "complete": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "cwd": "/workspace/naming-migration-active/tcl-lsp",
+      "deadline_seconds": 180,
+      "disk_floor_bytes": 2147483648,
+      "disk_paths": [
+        "/workspace",
+        "/tmp",
+        "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/tcl_compiler-ef22ef87d0bd65a7",
+        "/tmp/compiler-source46-focused58-v3-runs/20261023T054355.025306Z",
+        "/tmp/compiler-source46-focused58-v3-runs/20261023T054355.025306Z",
+        "/tmp/compiler-source46-focused58-v3-runs/20261023T054355.025306Z"
+      ],
+      "elapsed_seconds": 70.433034338,
+      "ended_utc": "2026-10-23T06:17:33.035650+00:00",
+      "exit_code": 101,
+      "group_empty_before_parent_reap": true,
+      "group_scan_attempts": 2,
+      "last_group_scan": {
+        "complete": true,
+        "members": [],
+        "vanished_pids": []
+      },
+      "minimum_free_bytes": 3750993920,
+      "owned_live_group_members": [],
+      "parent_exit_observed_monotonic_ns": 60911547208833,
+      "parent_waitid_wnowait": {
+        "si_code": 1,
+        "si_pid": 286535,
+        "si_status": 101
+      },
+      "pid": 286535,
+      "pid_start_ticks": 6084238,
+      "process_group": 286535,
+      "retained_bytes": 100532,
+      "spawn_return_monotonic_ns": 60842388500150,
+      "spawn_return_utc": "2026-10-23T06:16:22.607430+00:00",
+      "stderr": "/tmp/compiler-source46-focused58-v3-runs/20261023T054355.025306Z/01-01-report14-.stderr",
+      "stderr_bytes": 98186,
+      "stdout": "/tmp/compiler-source46-focused58-v3-runs/20261023T054355.025306Z/01-01-report14-.stdout",
+      "stdout_bytes": 2346,
+      "stop_reason": null,
+      "timer_armed_before_spawn": true,
+      "timer_armed_monotonic_ns": 60842383726898,
+      "timer_armed_utc": "2026-10-23T06:16:22.602718+00:00"
+    },
+    "providers_stable": true,
+    "selector": "analyser::authenticated_report::",
+    "source_stable": true,
+    "started_counts": [
+      13
+    ],
+    "stderr_sha256": "770cabb4d08ddee5a7e2b5049c5287d56d7fc0658238deae92163f77b66f8e65",
+    "stdout_sha256": "e929aed22f5f2d5a89ec3a4c553a103b2cd2845d77d8fd4550946efea0db26b1",
+    "summaries": [
+      [
+        "FAILED",
+        "9",
+        "4",
+        "0"
+      ]
+    ],
+    "warnings": false
+  },
+  "evidence_files": {
+    "01-01-report14-.sha256.json": "6d9221984025272aee080842e95c2a821ed825025c65ac213babcacd567ed4a6",
+    "01-01-report14-.result.json": "d54266a3890719a3b0623f838eb605bd69f63ccd858f5f097aa0b308953477cd",
+    "01-01-report14-.process.json": "35469bf2fcdcbf7100d91727af426f8b7f8d695b32b5bea54d4187c20d1f0b23",
+    "01-01-report14-.stderr": "770cabb4d08ddee5a7e2b5049c5287d56d7fc0658238deae92163f77b66f8e65",
+    "01-01-report14-.stdout": "e929aed22f5f2d5a89ec3a4c553a103b2cd2845d77d8fd4550946efea0db26b1",
+    "01-01-report14-.env.json": "667423c5cbb1512a7de21f727143502b92edb84dd641a373c3086caf6767b72d",
+    "01-01-report14-.command": "a045f4f98e949816495fe7e120023df283bca3e6fd478be3dbf34ca0d1b856f6"
+  },
+  "archive_sha256": "ec1ae790bd159cb6683bfdbd91af1670368e50c1e6aecfb4933a435176112c95",
+  "first_gate": {
+    "stderr_lines": [
+      525,
+      526,
+      527,
+      543,
+      544,
+      545,
+      711,
+      712,
+      713,
+      729,
+      730,
+      731,
+      747,
+      748,
+      749
+    ],
+    "role": "UnitInstalled",
+    "span": "18..18",
+    "owns": true,
+    "duplicate": false,
+    "declaration_nonempty": false,
+    "all_original_purpose_flags": false,
+    "capture_bodies_available": false
+  },
+  "conclusion": "OriginalDeclaration-only a9c4 inapplicable. Installed map/card owner needed without relabelling. New candidate ede9ac69 off-tree, untyped/unrun, peer pending.",
+  "candidate_checks": "exactcurrentbefore/final; zero-fuzz/no-offset apply PASS; pinnedfmt check PASS; original tests unchanged"
+}

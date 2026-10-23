@@ -1,6 +1,6 @@
 # Outstanding work: lsp agent
 
-Current status 2026-10-23T05:25:59Z: actual eight-package v8 CLOSED FAIL cargo101/one E0716/zero warnings with stable source/provider/GO seals. Test-only repair actual897b4f9b/tree0b11e3a0/mapf7568b84 retains46paths; eight-package v9 plan983d3418 actually RUNNING since05:23:27, verdict PENDING. Frozen repaired LSP23v5 plan96b709ba and Native15v14 plan7495afcf independently bounded static CLEAR (Names schema and VM identity delta); exact original rosters/assertions/env/tools/Tcl5/lifecycle/fullseals/finalHEAD preserved. Actual PASS0W receipt path/SHA remains future root GO prerequisite. No LSP Cargo/GO/source/provider/Git action or runtime/release claim.
+Current status 2026-10-23T06:19:50Z: repaired897b source46 eight-package v9 actual PASS0errors/0warnings/allguards remains compilation only; LSP23v5/Native15v14 are frozen and prerequisites satisfied, own GOs absent in last observed state. Root owns compiler58/current allocation. Read-only editor check historical TS6133 not reproduced, nameGeneration.ts Prettier PASS; full tsc FAIL only missing canonical JSON+dependent implicit-any. Both JSON sources already exist; exact two Makefile destination targets are mkdir/cp only, no xtask needed. Nonexecuting pinned plan prepared; no copy/generation/Cargo/source/Git byLSP. All editor/runtime/host claims remain open.
 
 
 
@@ -63,13 +63,13 @@ Prepared separate Core1 ownership/refusal phase `/tmp/lsp-body-guard-core1/run.s
 
 Area: tcl-lsp-core, tcl-lsp-db and tcl-lsp-server (generic providers, server, WASM/WASI hosts).
 
-Last updated: 2026-10-23T05:25:59Z
+Last updated: 2026-10-23T06:19:50Z
 
 Maintained by the lsp agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## Resume
 
-Latest resume pointer 2026-10-23T05:25:59Z: read `lsp/source46-repaired-identity-typing-v8-failure-20261023/scope.json`, then frozen `lsp/quote-body23-v5-source46-repaired-runnable-20261023/archive-scope.json` and `lsp/native15-v14-source46-repaired-runnable-20261023/archive-scope.json`. Actual v8 FAIL1E0716/0W remains history; repaired actual897b/tree0b11/mapf756 has retry eightv9 RUNNING, no verdict. Both runnable successors static CLEAR; bind actual v9 PASS0W receipt path/SHA only at root allocation. No GO/execution; keep original assertions, source-purpose boundaries and user2231 opaque stop. External plain-Tcl applicable-rewrite failure remains later follow-up, not taken over.
+Latest resume pointer 2026-10-23T06:19:50Z: read `lsp/editor-ts-readonly-20261023/canonical-json-prerequisite-plan.json` for the two exact existing copy-only Makefile targets and pinned noEmit retry; DO NOT execute during root HOLD. Actual v9 compilation PASS remains scoped. Frozen repaired LSP23v5/Native15v14 own allocation remains root-only; remain available for actual first-gate results, preserve assertions/source-purpose and user2231 opaque stop. No new protocol or full host green claim.
 
 
 
@@ -198,3 +198,5 @@ Files touched by me (all already in snapshots up to `ddb21ae4db` except docs): t
 The Default-tier minify question is decided (`user-decisions-20261022T1317Z.json`): minify removes all whitespace it can, including inside braced expressions. `minify_preserves_string_and_expr_results` and `minify_strips_comments_and_collapses_whitespace_factorial` are correct as written; fix the native minify path to strip expression whitespace. No origin/rust check is needed for that decision.
 - hover_residual (from compiler, 13:30Z): for `regexp {plainword} $line` the compiler still returns the pattern schema; the hover is lost in tcl-lsp-core (`hover.rs` or `original_invocation.rs`). This is yours.
 - `Widget new` (from compiler-names, 13:40Z): the compiler facts are good (completed world available, lookup to `::a::Widget`), so the remaining failure is probably on the LSP side. This is yours.
+
+Read-only editor follow-up 2026-10-23T06:15:39Z: direct local TypeScript `--noEmit --incremental false` closed with3 diagnostics from absent canonical diagnostics/manifest JSON and dependent implicit-any; old three TS6133 diagnostics were not reproduced. Single-file Prettier `src/nameGeneration.ts` PASS. Exact12800 editor source/config/dependency inputs unchanged; no npm scripts/install/build/generation/Cargo/product writes. Full TS build and editor/browser assertions remain unvalidated; existing precompile copy-canonical can invoke Cargo for absent prompt generation and was not run. Evidence `lsp/editor-ts-readonly-20261023/scope.json`.

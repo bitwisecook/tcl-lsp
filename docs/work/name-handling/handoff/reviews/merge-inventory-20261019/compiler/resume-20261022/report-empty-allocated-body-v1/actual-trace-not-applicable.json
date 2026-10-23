@@ -1,0 +1,8 @@
+{
+  "utc": "2026-10-23T06:23:05.757229+00:00",
+  "patch_sha256": "a9c4b93572a5cae245252d34ff6b30512362dd8236fa7a8edc4e8ff270197128",
+  "status": "NOT APPLICABLE TO ACTUAL E003 FIRSTREFUSAL",
+  "actual_role": "Unit Installed, purposeNone, span18..18",
+  "next_owner": "Names Installed-specific ede9ac69 candidate; compiler peer ef7db97f; actualpostpatchunrun",
+  "actual_row_manifest_sha256": "938cd2f57291e45927dc05c2e1c5f9e46efb2f1a491f05bb1c697e4901bd8c8c"
+}

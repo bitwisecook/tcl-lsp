@@ -1,0 +1,97 @@
+{
+  "utc": "2026-10-23T06:23:59.712874+00:00",
+  "status": "STATIC finite next-validation scheduling plan only; no newrunner/GO/Cargo/queue",
+  "package": "tcl-spectcl",
+  "target": "upf_hooks",
+  "manifest_path": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-spectcl/Cargo.toml",
+  "exact_existing_selectors": [
+    "every_upf_option_arity_hook_consumes_exactly_its_optional_value",
+    "the_define_power_model_resolver_marks_the_trailing_body"
+  ],
+  "expected_test_roster_count": 2,
+  "expected_executable_hook_slots": {
+    "OptionArity": 16,
+    "ArgRoleResolver": 1,
+    "total": 17
+  },
+  "fixed_hook_invocations": {
+    "optionalBoolean15_times6": 90,
+    "optionalName1_times4": 4,
+    "bodyResolver1_times3": 3,
+    "total": 97
+  },
+  "source_pins": [
+    {
+      "path": "rust/tcl-spectcl/tests/upf_hooks.rs",
+      "sha256": "129d69ce0c48c613f8caea5b86b33548a8eb62d9d16bf167c9985cdf9b718b39"
+    },
+    {
+      "path": "specs/upf.tclspec",
+      "sha256": "5be5e52274df9023ac509b3af7167230236d31510451b05cffc6b798ebf3deb8"
+    },
+    {
+      "path": "rust/tcl-spectcl/src/hooks.rs",
+      "sha256": "567670ac5180161b4f6677eb29b900ef74ee7a30c161b7573942b8808e9f7471"
+    },
+    {
+      "path": "rust/tcl-spec-hooks/src/host.rs",
+      "sha256": "b6cb8f70a9bf5c769d1d44f372a37207629180987190d282ceb5640258da3120"
+    },
+    {
+      "path": "rust/tcl-spec-hooks/src/lib.rs",
+      "sha256": "edb07a2567f9b65d97f10c299e68a4fac6eec2479184bb5a506576ddf18c217f"
+    }
+  ],
+  "actual_execution_path": [
+    "bundled::load_from(specs)\u2192hooks::plan_for\u2192upf PackPrograms",
+    "tclvm_host()\u2192HookHost::new(TclVmEngine::new)",
+    "host.install_pack_hooks compiles17 and requires no declined slots",
+    "host.invoke(slot,HookCall)\u2192HookHost::run\u2192engine.invoke(handle,arguments)\u2192typed HookAnswer asserted per invocation"
+  ],
+  "assertions_preserved": [
+    "16optionarity count and1resolver count/17total",
+    "every installation musthave nodeclined andactualslot",
+    "consume exact0/1 forpositive/negative/end/nextoption cases",
+    "resolver exactBodyword1/3 andshortcallAbstain",
+    "hostdefault and HookCall ImplementationBudget::default unchanged; actualtcl8.6 context as authored"
+  ],
+  "existing_plans_checked": [
+    {
+      "directory": "/tmp/vm-spectcl-original3-v1",
+      "plan_sha256": "9ec3e617adb7bc03a76dbdc1c784c8ff9b5112a0cc953a6a8e0337b8b2c666c8",
+      "targets": [
+        "workspace_packs",
+        "spectcl_ports"
+      ],
+      "selects_upf_hooks": false,
+      "root_go_present": false
+    },
+    {
+      "directory": "/tmp/vm-spectcl-original3-v2",
+      "plan_sha256": "9ec3e617adb7bc03a76dbdc1c784c8ff9b5112a0cc953a6a8e0337b8b2c666c8",
+      "targets": [
+        "workspace_packs",
+        "spectcl_ports"
+      ],
+      "selects_upf_hooks": false,
+      "root_go_present": false
+    }
+  ],
+  "existing_schedule": "/tmp/vm-runtime-c1-c2-acceptance-map.json alreadycontains upf_hooks exact2; maponly/historical no lifecycleGO",
+  "no_duplicate_runner_reason": "Existing tests and exact2 scheduling row sufficient; only allocate via current reviewed88125 source46/v9/env+5Tcl/fullsourceprovider/artifact/directlifecycle protocol when root schedules, rather than clone oldSource30 originalSpec3",
+  "future_admission": [
+    "explicitrootGO only; no unrelatedreport14green gate",
+    "actualapprovedHEAD/tree/currentproduct/fullsource before-after, pinned5Tcl+Jim/tools/env, wholeexclusive lock",
+    "freshlockedCargoJSON exact tcl-spectcl manifest/upf_hooks kindtest/profiletest oneexecutable; full2roster equality",
+    "two isolated exactselectors each180s/zeroignored/statuscountnameexit consistency, build3600s/aggregate20MiB/actual2GiB",
+    "zero typed/buildscript/stderr warnings; full final source/provider/artifact/currentGO/HEAD/lifecycle seals",
+    "retain rawalloutcomes; no assertion/budget/source changes or stale executable fallback"
+  ],
+  "C1_C2_gaps": [
+    "current guarded source46 upf_hooks2 runtime result absent; historical2/2 doesnotprove currentproduct",
+    "direct productionhostslot execution is strong bodyproof but bypasses automaticregistry/threadevaluatorhost installation and actualLSP option/role consumption",
+    "reload/generation/changeconfiguredtarget/trust andmultipleworkers/openclosed/source/class contexts remain separate existingowner validation",
+    "only tcl8.6 authoredcontext exercised here; no allEDA/Jim/release/currentness claim"
+  ],
+  "limits": "Not make test-spectcl-compat/wholeC1C2/zeroP2F acceptance. Metadata/EDAloadable PASS alone cannot substitute for17 execution. No Native/Logical/name fallback introduced."
+}

@@ -1,0 +1,107 @@
+{
+  "actual_utc": "2026-10-23T06:19:50.931364+00:00",
+  "status": "NONEXECUTING prerequisite plan only; root source/Cargo HOLD remains",
+  "finding": "Both missing JSON source files already exist. Their two exact Makefile targets only mkdir/cp and have no xtask dependency. No generation is needed for these TypeScript imports.",
+  "minimal_future_commands": [
+    {
+      "cwd": "/workspace/naming-migration-active/tcl-lsp",
+      "argv": [
+        "make",
+        "/workspace/naming-migration-active/tcl-lsp/editors/vscode/src/chat/canonical/diagnostics.json",
+        "/workspace/naming-migration-active/tcl-lsp/editors/vscode/src/chat/canonical/manifest.json"
+      ]
+    },
+    {
+      "cwd": "/workspace/naming-migration-active/tcl-lsp/editors/vscode",
+      "argv": [
+        "/opt/codex/runtimes/codex-primary-runtime/dependencies/node/bin/node",
+        "node_modules/typescript/bin/tsc",
+        "--noEmit",
+        "--incremental",
+        "false",
+        "--pretty",
+        "false",
+        "--project",
+        "tsconfig.json"
+      ]
+    }
+  ],
+  "expected_writes_only": [
+    "editors/vscode/src/chat/canonical/diagnostics.json",
+    "editors/vscode/src/chat/canonical/manifest.json"
+  ],
+  "expected_destination_hashes": {
+    "editors/vscode/src/chat/canonical/diagnostics.json": "17168a9ce3c8f9b58fc1a93db78e543e34e265d36aca8a219e90f4dd0b12121b",
+    "editors/vscode/src/chat/canonical/manifest.json": "12447e3bc7664bfe06ca9e705f29d207d48a906665e232ed1b87eddb08a465e8"
+  },
+  "broad_target_note": "Do not use npm precompile/compile or broad make copy-canonical for this narrow retry. copy-canonical also handles three Markdown prompts. All three sources currently exist; tcl_system.md mtime equals its JSON/template prerequisites so the current Make rule would not need xtask; irules_system.md is slightly older and its rule would touch it. Future mtime changes can cause xtask in the broad target. Two explicit JSON targets avoid those branches.",
+  "typescript_md_note": "canonical.d.ts declares *.md, so absence of physical prompt Markdown did not produce the current tsc errors; bundling/runtime still requires actual prompts.",
+  "validation_after_root_allocation": [
+    "Recheck exact source/dependency pins and destination absence/current content",
+    "Bound explicit copy target and noEmit retry to180s/20MiB",
+    "Capture before/after input maps; admit only two authorized exact copies",
+    "Keep full desktop/web extension-host runtime and shipping evidence open"
+  ],
+  "pins": {
+    "Makefile": {
+      "sha256": "1877adba05ceec01c4ace7c3ac05e6d83638aafcaa4c1e37057df21904f0c38f",
+      "mtime_ns": 1792678188975593024
+    },
+    "ai/shared/diagnostics.json": {
+      "sha256": "17168a9ce3c8f9b58fc1a93db78e543e34e265d36aca8a219e90f4dd0b12121b",
+      "mtime_ns": 1792678189008485188
+    },
+    "ai/prompts/manifest.json": {
+      "sha256": "12447e3bc7664bfe06ca9e705f29d207d48a906665e232ed1b87eddb08a465e8",
+      "mtime_ns": 1792678189008485188
+    },
+    "ai/prompts/tcl_system.md": {
+      "sha256": "97d7da6f22beecbc61b55e98961e37da4ee3c99f79805135a4bcd8bc7e79c6d9",
+      "mtime_ns": 1792678189008485188
+    },
+    "ai/prompts/irules_system.md": {
+      "sha256": "dbdb04edf40ccf8fa5e1dd04c8726b7c7403eb9bc09c0632f56bda94197898b5",
+      "mtime_ns": 1792678189007852943
+    },
+    "ai/prompts/tcl_system.md.j2": {
+      "sha256": "3aad5ac052eda6265115179f9e05bf5bab8e3ae1ed520da9485e2fb13ce669a5",
+      "mtime_ns": 1792678189008485188
+    },
+    "ai/prompts/irules_system.md.j2": {
+      "sha256": "9db5a86d48874173277561e8b33566f262c059057c2ded5d31d4b15e902d93f7",
+      "mtime_ns": 1792678189008485188
+    },
+    "ai/claude/skills/_prompts/tk_system.md": {
+      "sha256": "c7d13f6682bd1cd57abd1725fc70264a04c69bd8f3c044e78be113ad91ce8910",
+      "mtime_ns": 1792678188991592468
+    },
+    "editors/vscode/src/chat/canonical.d.ts": {
+      "sha256": "c738998215fd098bbc3dab30a9d5d1fb110b9a9ecd0ea1160a8b9b155db59208",
+      "mtime_ns": 1792678192820004856
+    },
+    "editors/vscode/tsconfig.json": {
+      "sha256": "dfe9c1c2820ba605d673f2c66fb5aa3c1a0bd6f07d2deaf1720b83ab489830b7",
+      "mtime_ns": 1792678204798915514
+    },
+    "editors/vscode/src/chat/canonicalDiagnostics.ts": {
+      "sha256": "97302eb4ac61ab709eb288c040722c7568afcad15f6f9292ddbd98f6e75607a5",
+      "mtime_ns": 1792678192820004856
+    },
+    "editors/vscode/src/chat/promptLoader.ts": {
+      "sha256": "644854be16f4e9c1fcfad7952e4e55d510fc136ac382eaa4cb3e2442684c96a5",
+      "mtime_ns": 1792678198615177719
+    },
+    "editors/vscode/node_modules/typescript/bin/tsc": {
+      "sha256": "2219f428a7e55aaf1f7ad85b9b0f0cf5078aeb76ccc9a7c6036c92d48f492ffd",
+      "mtime_ns": 1792683219208970553
+    },
+    "editors/vscode/node_modules/typescript/lib/tsc.js": {
+      "sha256": "cbdfbf11c26ed00dfc073155e316a42d6d6d8a387be61006b82fa9aa93ac572e",
+      "mtime_ns": 1792683223600747677
+    },
+    "/opt/codex/runtimes/codex-primary-runtime/dependencies/node/bin/node": {
+      "sha256": "bc17c508ffeed0ec622934f9b7fa72f8e78da65350e63c3eceb56fa688aa5e12"
+    }
+  },
+  "executed": false
+}

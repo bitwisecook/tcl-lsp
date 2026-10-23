@@ -2,13 +2,15 @@
 
 Area: Lowering, C6 fresh builders, iRules RuleLoader realm, itcl/snit, OO.
 
-Last updated: 2026-10-23T05:49:32.910296+00:00 (VMv3 puremetadata staticCLEAR59d686ba; docv4 pending; active source46 runtime unchanged)
+Last updated: 2026-10-23T06:05:14.599285+00:00 (typed-empty originaldeclaration candidatea9c4 prepared; actual58 role/firstcause pending; source/provider HOLD)
 
 Maintained by the compiler agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 Full change notes: `docs/work/name-handling/handoff/reviews/merge-inventory-20261019/sol-49-NOTES.md`.
 
 ## Resume
+
+**Report empty original-declaration candidate, no measured fix claim:** Off-tree `/tmp/compiler-report-empty-allocated-body-v1/proposal.patch` SHAa9c4b93572a5cae245252d34ff6b30512362dd8236fa7a8edc4e8ff270197128, body_correspondence before20c93448→86c30212. Existing push rejects any empty source extent; lowerer original allocated bodies legitimately record value extent, which may be empty. Narrow exception preserves generalempty/outofrange/duplicate guards and requires exact Unit OriginalDeclaration/AllocatedSource, current positioned module, original actual held sourceArc/span/site/offset/namespace, same actual root allocation/source, contiguous emptybody value and matching genuine parser-issued original-declaration sourcecard. Original14/90fields12subjects/Eq/cache/globaltype semantics unchanged. New genuine E003/fullcompare positive and missingcard/changedoffset/foreignmodule/unsupportedrole/wrongspan/duplicate negatives UNRUN; fmt/apply0 PASS, Namesauthority-only peer pending. IMPORTANT precision: installed-first retention/dedup can produce Unit Installed for emptyproc; this candidate intentionally refuses Installed, so newpositive may fail its authentic premise. Actual58 kind/tag/PUSH trace required before E003 attribution or any further scoped issuer repair. Alias Named/NamespaceScript policy remains independent; no owner-by-name/ID/Debug, source-role rewrite or perf acceptance. Matching archive includes separate precision route; no source/Cargo/Git.
 
 **VM canonical metadata v3 bounded static CLEAR:** Frozen6a42e039c3cfaa649e313314ae1cd53209fc3f2e3086b41446f6ae8e351c01ac, peer59d686baae48c5a3b730c4b845f7b6966efb14bcb8de36a3508ad30f724a8a48 under owned vm-jim-core-canonical-v3-static-peer.json. Independent3 exactbefore/finalpins, zero-fuzz/fmt and original11a62dSHA PASS. Shared immutable registry recipe DATA preserves exact old helper predicate/Some identity/memo; only private static CORE_SURFACES PACKS initialization clones compiled row metadata once. builtin_commands retains pure accessor, no ensure/active registration/currentness/reset; foreign ordinary samebytesloader remains raw None. First-call custom state, replacement/idempotence/concurrency controls prepared in isolated integration target, all Rust typing/runtime UNRUN. V1/v2 hold receipts preserved. Root/VM will freeze precise module-doc-onlyv4; no product integration or acceptance. Active source46 compiler58/runtime108 schedule source/provider HOLD unchanged; no source/Cargo/Git.
 

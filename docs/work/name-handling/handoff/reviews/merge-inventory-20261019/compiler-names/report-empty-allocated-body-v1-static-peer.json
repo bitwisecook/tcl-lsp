@@ -1,0 +1,33 @@
+{
+  "utc": "2026-10-23T06:04:57.319610+00:00",
+  "verdict": "CLEAR bounded static authority/type/access review; untyped/unrun, no cause or integration acceptance",
+  "patch_sha256": "a9c4b93572a5cae245252d34ff6b30512362dd8236fa7a8edc4e8ff270197128",
+  "path": "rust/tcl-compiler/src/analyser/authenticated_report/body_correspondence.rs",
+  "before_sha256": "20c93448f12ead53845dbc18596552190bc814a67c27bf23bdea1f3b262ec9ef",
+  "final_sha256": "86c30212ee3bd77c1c970d72e8fc07294bc15c43b2fdbab6088ad46ec9ca6b4f",
+  "independent_checks": {
+    "current_before_pin": "PASS",
+    "zero_fuzz_no_offset_shadow_apply": "PASS /tmp/names-report-empty-peer-ph04jqzv",
+    "final_pin": "PASS",
+    "pinned_rustfmt_1_99_1_edition2024_check": "PASS",
+    "all_existing_test_function_bodies_byte_equal": 4,
+    "new_test_functions": [
+      "empty_allocated_body_requires_the_current_complete_parser_card"
+    ]
+  },
+  "authority_review": [
+    "Only the empty in-range branch invokes the helper: ownership and duplicate OR guards retain original order; out-of-range remains None/refusal and nonempty paths do not query the helper.",
+    "Admission requires Unit(OriginalDeclaration) and AllocatedSource, zero width, exact retained positioned Module/source input/entry/grammar/namespace/registry snapshot join, current issued ID and held body kind/span/site/body_offset/source Arc/namespace.",
+    "Full root allocation source image/incarnation, root Arc identity, contiguous exact empty value mapped to extent start, and independently queried genuine parser original-declaration card allocation/source/namespace must all match.",
+    "No ordinary empty, Named/Carried/Installed/Method/Definition/other-purpose admission; no Native/runtime/body-entry/completion or transformation permission introduced.",
+    "All four push callsites provide existing capture registry; crate visibility and owned/borrowed types examined. current_capture returns borrowed &ActualReportCapture and resolved_registry borrowed &CommandRegistry; no new temporary-owner lifetime issue found.",
+    "Existing complete inventory/count/correspondence/full comparison and original test assertions retained.",
+    "Uniqueness: SourceCommandBindings::original_declaration_body_units generated_procedures.rs171\u2013191 deduplicates using a fresh HashSet of exact (allocation, namespace_key, source) before mapping. The candidate matches exactly that Eq triple (plus root Arc identity), therefore at most one emitted card can satisfy the predicate; .any cannot admit an ambiguous surviving match."
+  ],
+  "limits": [
+    "No Cargo/typecheck/runtime executed; new positive and negative Rust controls unrun.",
+    "Installed bodies are collected before original declarations and deduplication may yield Unit(Installed); helper deliberately refuses it. Actual compiler58 role/purpose/PUSH trace must establish the failing case and whether the new positive premise is available. No speculative role widening requested.",
+    "C Tcl empty procedure language observations do not certify this compiler-owned receipt. Actual report14 first cause remains unmeasured."
+  ],
+  "actions": "No canonical source, Git, Cargo, allocator or GO touched."
+}

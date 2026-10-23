@@ -1,0 +1,45 @@
+{
+  "actual_utc": "2026-10-23T06:14:39.369704+00:00",
+  "scope": "Non-writing local TypeScript and single-file formatting checks only; no editor/native/browser runtime or shipping claim",
+  "cwd": "/workspace/naming-migration-active/tcl-lsp/editors/vscode",
+  "input_count": 12800,
+  "inputs_unchanged": true,
+  "changed_inputs": [],
+  "results": [
+    {
+      "label": "typescript",
+      "argv": [
+        "node",
+        "node_modules/typescript/bin/tsc",
+        "--noEmit",
+        "--incremental",
+        "false",
+        "--pretty",
+        "false",
+        "--project",
+        "tsconfig.json"
+      ],
+      "started_utc": "2026-10-23T06:14:25.709178+00:00",
+      "finished_utc": "2026-10-23T06:14:32.761802+00:00",
+      "exit_code": 1,
+      "budget_exceeded": false,
+      "log_bytes": 378,
+      "log_sha256": "33b7c7b34222254e693a2309cb4ebeff139fd4bdf98ff558dffe2ba6ddd5f630"
+    },
+    {
+      "label": "prettier",
+      "argv": [
+        "node",
+        "node_modules/prettier/bin/prettier.cjs",
+        "--check",
+        "src/nameGeneration.ts"
+      ],
+      "started_utc": "2026-10-23T06:14:32.762236+00:00",
+      "finished_utc": "2026-10-23T06:14:34.674500+00:00",
+      "exit_code": 0,
+      "budget_exceeded": false,
+      "log_bytes": 66,
+      "log_sha256": "17aa973d3f004560237d9a95171210b0671deff23d61628eecf7322ff5938f20"
+    }
+  ]
+}

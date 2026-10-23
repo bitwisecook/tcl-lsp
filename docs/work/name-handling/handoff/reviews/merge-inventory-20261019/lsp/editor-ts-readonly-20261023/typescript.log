@@ -1,0 +1,3 @@
+src/chat/canonicalDiagnostics.ts(26,25): error TS2307: Cannot find module './canonical/diagnostics.json' or its corresponding type declarations.
+src/chat/canonicalDiagnostics.ts(48,31): error TS7006: Parameter 'c' implicitly has an 'any' type.
+src/chat/promptLoader.ts(31,22): error TS2307: Cannot find module './canonical/manifest.json' or its corresponding type declarations.

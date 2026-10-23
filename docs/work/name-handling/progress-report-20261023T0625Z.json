@@ -1,0 +1,74 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-23T06:25:37.298453+00:00",
+  "scheduled_report_utc": "2026-10-23T06:25:37+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-23T06:55:37+00:00",
+  "change_since_previous_report": [
+    "05:55 report/push confirmed e78946375002 at05:56:21 after fresh depth1 fetch/rebase; source product897b/tree0b11/mapf756 unchanged. Bounded workfetch06:20 confirms no external change, clone remains shallow.",
+    "All five compiler58 target builds completed exit0/zero warnings. First report13 group closed06:17:33 with9PASS4FAIL and full source/provider/artifact/process guards; exact realmcontrol thenPASS1/1 at06:18:22. Whole58 remains in progress, no overall green result.",
+    "Actual E003 first refusal is UnitInstalled emptyextent18..18, authenticated ownership/uniqueness valid but bodyinventory rejects empty. Earlier OriginalDeclaration-only candidatea9c4 cannot repair this fixture; new Installed-specific candidateede9ac69 is off-tree/untyped/unrun pending peer. Compiler owns independent alias/hosted first-refusal investigation; no assertion weakened.",
+    "Read-only VS Code checks: nameGeneration PrettierPASS, tsc fails missing canonical diagnostics/manifest JSON and dependent implicit-any; historical unusedlocals not reproduced. All12800 captured inputs unchanged. Two pinned copy-only Makefile prerequisites suffice; defer writes until source HOLD ends, full host gate open.",
+    "Compiler-names/ compiler/LSP own current functional blockers. External BIGIP still owns original16 consumer/e2e: compiler firstoperand API already published5a418/typed, current source46 projection runtime pending; generic rewrite/server/core strictlint routedLSP, compiler/VM/registry lint causes retained, firstdiagnostic30s attribution remains diagnostic/compiler/perf. No duplicate external session or budget increase.",
+    "CI5206 complete31-job poll06:20 unchanged7success20failure2running2skip on historical3b1/5a418. Shard5 exact namedlog still unavailable; no outcomes inferred and activeCI untouched. External BIGIP18:08/perf21:00 and COMPLETEreviewtriage19:57:30 remain over60minutes old; user informed, no takeover.",
+    "Original five suites106 plus separate existing livehook2 total108, all frozen assertions/counts/budgets. Current compiler58 only has partial runtime evidence; LSP23/Jim7/CCGdirect3/livehook2/Native15 remain unrun with noGOs. Off-tree Jimcanonicalv4 staticCLEAR only. AllF/audit counts stay0, full exactzeroP2F open.",
+    "Installed-specific E003 candidate ede9ac69 received compiler staticCLEAR ef7db97f; complete7filearchive d1eae4cc preserves before/after/patch/peer. Earlier OriginalDeclaration candidate remains inapplicable; newcandidate untyped/unrun. Root independently verified all7 completed report13 raw archivepayloads ec1ae790.",
+    "As of2026-10-23T06:23:22.560745+00:00, compiler58 completed5filters/17tests: 13PASS/4FAIL, allcompleted counts/source/provider/artifact/process guards valid and zero warnings; whole58 still running.",
+    "Current diagnostic11 all4 original G4 controls now PASS4/4; exact scoped/nested normalisation/source obligations retained. This is finite current evidence only, not diagnostic11 or wholecompiler completion."
+  ],
+  "committed": [
+    "8afba2c545fd5ce9cbe34f68fd4c32bf20d57767"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Close actual compiler58 with original assertions/counts/180-second budgets and full guards; route report-owner/alias/G4/N13/ILX/C6/RBS/BPF first refusals from actual evidence.",
+    "After the occupied slot closes, allocate LSP23, Jim7, CCGdirect3, separate live-hook2 and Native15 sequentially on the same repaired product. Keep source/provider HOLD; no source mutation before closed measurements.",
+    "Integrate reviewed functional fixes only with new actual product identity/revalidation. Complete full authenticated all-old/mixed perf proof, current strict Clippy/repository/generated/owner gates, SpecTcl/UPF17/N17/shipped hosts and exact zero-P2F. AllF/audit0; explicit PR request still required."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-22T18:08:00+00:00",
+    "perf": "2026-10-22T21:00:00+00:00",
+    "review-triage": "2026-10-22T19:57:30+00:00"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "Actual current897b v9eight-package typecheck PASS0E/0W/allguards. Compiler58 runtime PARTIAL report13=9PASS4FAIL plus realmcontrol1PASS, no warnings/observed guards valid; whole58 still running. Historical source30 report14=10/4 separate. No current full-runtime/strictlint/host/perf/C1C2/zeroP2F/sectionF acceptance.",
+  "disk_free_bytes": 9052844032,
+  "baseline_ci_run": 39816429638,
+  "baseline_ci_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731"
+}

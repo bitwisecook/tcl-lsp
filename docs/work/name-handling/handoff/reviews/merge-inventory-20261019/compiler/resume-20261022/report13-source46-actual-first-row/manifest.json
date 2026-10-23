@@ -1,0 +1,39 @@
+{
+  "utc": "2026-10-23T06:23:05.757229+00:00",
+  "scope": "ACTUAL FIRST ROW ONLY; compiler58 remainder active, no whole-suite result",
+  "run": "/tmp/compiler-source46-focused58-v3-runs/20261023T054355.025306Z",
+  "row": 1,
+  "selected": 13,
+  "passed": 9,
+  "failed": 4,
+  "ignored": 0,
+  "warnings": false,
+  "all_row_seals_valid": true,
+  "archive_sha256": "eb6b1e88d90529d9eb687734389d2c8a807afa667df43e2fb0f0bd2116d6078f",
+  "files": {
+    "01-01-report14-.command": "a045f4f98e949816495fe7e120023df283bca3e6fd478be3dbf34ca0d1b856f6",
+    "01-01-report14-.env.json": "667423c5cbb1512a7de21f727143502b92edb84dd641a373c3086caf6767b72d",
+    "01-01-report14-.process.json": "35469bf2fcdcbf7100d91727af426f8b7f8d695b32b5bea54d4187c20d1f0b23",
+    "01-01-report14-.result.json": "d54266a3890719a3b0623f838eb605bd69f63ccd858f5f097aa0b308953477cd",
+    "01-01-report14-.sha256.json": "6d9221984025272aee080842e95c2a821ed825025c65ac213babcacd567ed4a6",
+    "01-01-report14-.stderr": "770cabb4d08ddee5a7e2b5049c5287d56d7fc0658238deae92163f77b66f8e65",
+    "01-01-report14-.stdout": "e929aed22f5f2d5a89ec3a4c553a103b2cd2845d77d8fd4550946efea0db26b1",
+    "plan.json": "e9be638e0de5f4d3fca91c3f5e87ff49c5bd560bae9d00dd3eded279dcf22359",
+    "root-go.json": "7a28e3951846507344f265598d5a06cd5eaaaab2b169a4f528ae91919845b79c",
+    "source-before.json": "0948d9cb33101e3f9eab1032d914d15967960abdbd205874f7c1acf9bce962db",
+    "providers-before.json": "bfa3e8e7b689dadefe4417f1f953cf6cafe06bfba4c8a2ed261111baa103c246",
+    "head-before.txt": "314c1333446cda122eda0bba452aaa98c073e6503dc731ce60b77595835da6e5",
+    "runner-inputs.json": "47132518f99532dc66b58c7628318dd2c604af7cf3d7406413d534c578517d3c",
+    "build-tcl-compiler-lib-tcl_compiler.artifact.json": "d592d449a65e2ed51b898b7f7311e4d368997baf7356e4c85e6dda2e7be8ab58",
+    "build-tcl-compiler-lib-tcl_compiler.process.json": "53098b3270cc23e98501fc26e82f42f748420b6a2fe7df38e6b602354d37be1b",
+    "build-tcl-compiler-lib-tcl_compiler.stdout": "ddf30c006dfa2ed763bbc11c17394667840c2440426fae0791acdaff7cbb42ec",
+    "build-tcl-compiler-lib-tcl_compiler.stderr": "fc0ec9f7a82c4fd769d6a426dedbe952130d4140bd3aa216e8de51810ee51802",
+    "build-tcl-compiler-lib-tcl_compiler.command": "164ec1e137468d89424a8667ca64f5ca3c1c4784690a7cd830e575d4f4971d5c"
+  },
+  "actual_findings": {
+    "alias": "Both captures full current-output Ok; named0/units3, roles actual UnitInstalled241..256, UnitOriginalDeclaration AllocatedSource546..566, UnitOriginalDeclaration NativeSource227..256. Asserted Named+NamespaceScript pair absent. Production reason/expected-role semantics unresolved; original assertion preserved.",
+    "E003": "First refusal empty UnitInstalled18..18, owned unique currentbody/allfive originalpurposeflagsfalse; push.declaration_nonemptyfalse then capture.bodiesfalse. a9c4 allocatedOriginalDeclaration candidate notapplicable; Names owns installed-specific ede9 repair.",
+    "hosted": "Authentic hosted/vendor source domain and native_entryfalse; named1 Event/events1; body owns/unique/nonempty pass. capture.bodiesfalse after event loop. First unresolved predicate is card.owns_procedure, then event original-word lookup; current trace cannot distinguish them. No guessed repair."
+  },
+  "limits": "No runtime firstcause conclusion from static paths beyond observed gates, no assertedroles relabeling, no full90/12 corpus/perf acceptance."
+}

@@ -1,0 +1,11 @@
+{
+  "utc": "2026-10-23T06:02:30.755184+00:00",
+  "status": "OFFTREE narrow typed empty allocated-body coverage; actual firstcause unmeasured; untyped/unrun",
+  "patch_sha256": "a9c4b93572a5cae245252d34ff6b30512362dd8236fa7a8edc4e8ff270197128",
+  "path": "rust/tcl-compiler/src/analyser/authenticated_report/body_correspondence.rs",
+  "before_sha256": "20c93448f12ead53845dbc18596552190bc814a67c27bf23bdea1f3b262ec9ef",
+  "final_sha256": "86c30212ee3bd77c1c970d72e8fc07294bc15c43b2fdbab6088ad46ec9ca6b4f",
+  "scope": "General empty/out-of-range/duplicate guards retained. Sole exception requires exact Unit OriginalDeclaration/AllocatedSource, current positioned fullmodule, root allocation+contiguous actual emptybody source, same actual held source Arc/span/site/offset/namespace, and exact genuine parser-issued original-declaration card. No other role/purpose widened. All original14 assertions unchanged.",
+  "controls": "One new meaningful genuine empty E003/fullcomparison positive plus missingcard/changedbodyoffset/foreign equal-source module/unsupportedrole/wrongspan/duplicate negatives; original foreign-subject/fulltyped-output tests unchanged. All Rust unrun.",
+  "checks": "Pinnedfmt syntax PASS; exactcurrentbefore; zero-fuzzdryrunPASS; no source/Cargo/Git. Current58 puretrace will decide E003 firstcause."
+}
