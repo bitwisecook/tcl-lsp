@@ -2,7 +2,7 @@
 
 Area: editors/, BIG-IP/F5 crates and LSP modules.
 
-Last updated: 2026-10-23T11:35Z
+Last updated: 2026-10-23T11:50Z
 
 Maintained by the bigip-lsp agent. Keep this snapshot and Resume current, and
 push at least every 30 minutes and after each finished item. Full unit table:
@@ -46,6 +46,13 @@ prior receipts below describe their original source, not the new integrated tip.
    repro and contract; finish owned code/evidence and update final notes.
 
 ## Blocked (on whom, and what is needed)
+
+- Fresh scoped lint: ten generic Core errors are indexed in
+  `bigip-lsp/clippy-core-blockers-20261023.json`. Non-editor xtask
+  `fp_sweep.rs:524` also needs the compiler trait-evaluation recursion depth
+  aligned (the direct CompilationUnit Send+Sync assertion passes at256 and
+  fails with E0275 at128). No allowance or non-editor edit. These current
+  results supersede the older snapshots below only for their tested scope.
 
 - Current compiler source owners: original event operands are absent from both
   retained event bodies despite current complete source vectors; procedure-body
@@ -167,7 +174,12 @@ prior receipts below describe their original source, not the new integrated tip.
   dot-names instead of aliasing `.hidden` to `hidden`. Source-name/query
   alias controls pass; all executables deleted. Sessions92295 initial run
   (new assertion JSON rendering mismatch only),62986 corrected8/8 final run.
-  Combined native build65063 is active; strict F5/editor lint52191 is active. `/workspace/scratch/bigip-20261023/`
+  Combined native build65063 is active. Strict F5/editor lint52191 finished101
+  with only XC and non-editor xtask trait-recursion errors (four messages,
+  including lib/test duplicates); owned XC correction awaits the frozen build.
+  Raw/index: `bigip-lsp/clippy-f5-editor-initial-20261023.{json,jsonl.gz}`.
+  Server lint28044 is active. Standalone WASM lint39088 PASS0warnings
+  on the new query API; `bigip-lsp/wasm-clippy-20261023.json`. `/workspace/scratch/bigip-20261023/`
   holds `env.sh`, build/run/delete helper and all plans/logs. This helper now
   runs any available selected artifact even after a sibling build failure,
   labels missing targets not-built, and always deletes every issued test exe.

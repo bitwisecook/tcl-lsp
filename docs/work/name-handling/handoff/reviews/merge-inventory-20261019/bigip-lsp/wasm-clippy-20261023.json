@@ -1,0 +1,28 @@
+{
+  "date_utc": "2026-10-23T11:50:19Z",
+  "source_base": "d392eb63",
+  "command": "cargo clippy --locked --manifest-path rust/bigip-query-wasm/Cargo.toml --target wasm32-unknown-unknown --lib --no-deps --message-format=json -- -D warnings",
+  "environment": {
+    "CARGO_INCREMENTAL": "0",
+    "CARGO_PROFILE_DEV_DEBUG": "0",
+    "CARGO_PROFILE_TEST_DEBUG": "0",
+    "CARGO_BUILD_JOBS": "1",
+    "CARGO_TARGET_DIR": "/workspace/bigip-wasm-clippy-target",
+    "CC_wasm32_unknown_unknown": "/workspace/clang-local/usr/bin/clang-19",
+    "AR_wasm32_unknown_unknown": "/usr/bin/ar",
+    "LD_LIBRARY_PATH": "/workspace/clang-local/usr/lib/x86_64-linux-gnu"
+  },
+  "rust": "1.99.1",
+  "exit": 0,
+  "messages": [],
+  "scope": "Standalone WASM primary crate, including current query FileOp::Exact API. No native/browser protocol or full dependency-inclusive strict gate claim.",
+  "raw_sha256": {
+    "wasm-clippy.jsonl": "c5d234ffa39e2f34366f6bcdf14e19ebc7290c93fe50556f58dfae8ab0fbd915",
+    "wasm-clippy.stderr": "c33e05d77da2a42a355a4f2650574abd8e403f8ae819153f80a56b323c547d6a"
+  },
+  "sources": {
+    "rust/tcl-bigip-query/src/eval.rs": "0af1dba7bcfe3b00ede56ff13b5381571116cce9ceca025d4d163afc34a996fc",
+    "rust/tcl-bigip-query/src/builtins/files.rs": "e3e483bbc63203feae8620b5ae1a7d9ddf7c6616f37fc2a1e05f8de88702fb34",
+    "rust/bigip-query-wasm/src/lib.rs": "f393c1d8fca5ec738984dab6fc9bb0d71e8fe044323e193d3dec3b6531592bc4"
+  }
+}

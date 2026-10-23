@@ -1,0 +1,397 @@
+{
+  "source": "ed680fd2 plus committed exact-prefix/JSON assertion corrections in d392eb63",
+  "command": "cargo clippy --locked --keep-going -p tcl-bigip -p tcl-bigip-io -p tcl-bigip-query -p tcl-irules -p f5-xc -p f5-cli -p tcl-f5mku -p bigip-report-gen-rust -p xtask --lib --bins --tests --no-deps --message-format=json -- -D warnings",
+  "exit": 101,
+  "messages": [
+    {
+      "package": "path+file:///workspace/bigip-lsp/rust/f5-xc#0.1.0",
+      "level": "error",
+      "code": {
+        "code": "clippy::arc_with_non_send_sync",
+        "explanation": null
+      },
+      "message": "usage of an `Arc` that is not `Send` and `Sync`",
+      "primary_spans": [
+        {
+          "byte_end": 68116,
+          "byte_start": 67764,
+          "column_end": 7,
+          "column_start": 16,
+          "expansion": null,
+          "file_name": "rust/f5-xc/src/translator.rs",
+          "is_primary": true,
+          "label": null,
+          "line_end": 1884,
+          "line_start": 1872,
+          "suggested_replacement": null,
+          "suggestion_applicability": null,
+          "text": [
+            {
+              "highlight_end": 68,
+              "highlight_start": 16,
+              "text": "    let unit = Arc::new(CompilationUnit::build_with_analysis_input("
+            },
+            {
+              "highlight_end": 16,
+              "highlight_start": 1,
+              "text": "        source,"
+            },
+            {
+              "highlight_end": 27,
+              "highlight_start": 1,
+              "text": "        UnitBuildOptions {"
+            },
+            {
+              "highlight_end": 22,
+              "highlight_start": 1,
+              "text": "            registry,"
+            },
+            {
+              "highlight_end": 36,
+              "highlight_start": 1,
+              "text": "            defer_top_level: false,"
+            },
+            {
+              "highlight_end": 20,
+              "highlight_start": 1,
+              "text": "            config,"
+            },
+            {
+              "highlight_end": 55,
+              "highlight_start": 1,
+              "text": "            dialect: Some(environment.unit_profile()),"
+            },
+            {
+              "highlight_end": 39,
+              "highlight_start": 1,
+              "text": "            external_call_sites: None,"
+            },
+            {
+              "highlight_end": 37,
+              "highlight_start": 1,
+              "text": "            declared_commands: None,"
+            },
+            {
+              "highlight_end": 11,
+              "highlight_start": 1,
+              "text": "        },"
+            },
+            {
+              "highlight_end": 14,
+              "highlight_start": 1,
+              "text": "        None,"
+            },
+            {
+              "highlight_end": 16,
+              "highlight_start": 1,
+              "text": "        &input,"
+            },
+            {
+              "highlight_end": 7,
+              "highlight_start": 1,
+              "text": "    ));"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "package": "path+file:///workspace/bigip-lsp/rust/xtask#0.1.0",
+      "level": "error",
+      "code": {
+        "code": "clippy::arc_with_non_send_sync",
+        "explanation": null
+      },
+      "message": "usage of an `Arc` that is not `Send` and `Sync`",
+      "primary_spans": [
+        {
+          "byte_end": 20129,
+          "byte_start": 19594,
+          "column_end": 7,
+          "column_start": 23,
+          "expansion": null,
+          "file_name": "rust/xtask/src/fp_sweep.rs",
+          "is_primary": true,
+          "label": null,
+          "line_end": 538,
+          "line_start": 524,
+          "suggested_replacement": null,
+          "suggestion_applicability": null,
+          "text": [
+            {
+              "highlight_end": 75,
+              "highlight_start": 23,
+              "text": "    let analysis_cu = Arc::new(CompilationUnit::build_with_analysis_input("
+            },
+            {
+              "highlight_end": 27,
+              "highlight_start": 1,
+              "text": "        &doc.input.source,"
+            },
+            {
+              "highlight_end": 27,
+              "highlight_start": 1,
+              "text": "        UnitBuildOptions {"
+            },
+            {
+              "highlight_end": 22,
+              "highlight_start": 1,
+              "text": "            registry,"
+            },
+            {
+              "highlight_end": 36,
+              "highlight_start": 1,
+              "text": "            defer_top_level: false,"
+            },
+            {
+              "highlight_end": 62,
+              "highlight_start": 1,
+              "text": "            config: tcl_lexer::LexerConfig::for_file_grammar("
+            },
+            {
+              "highlight_end": 77,
+              "highlight_start": 1,
+              "text": "                tcl_registry::model::resolve_environment(dialect).grammar(),"
+            },
+            {
+              "highlight_end": 15,
+              "highlight_start": 1,
+              "text": "            ),"
+            },
+            {
+              "highlight_end": 74,
+              "highlight_start": 1,
+              "text": "            dialect: tcl_lsp_core::optional_profile_for_dialect(dialect),"
+            },
+            {
+              "highlight_end": 39,
+              "highlight_start": 1,
+              "text": "            external_call_sites: None,"
+            },
+            {
+              "highlight_end": 48,
+              "highlight_start": 1,
+              "text": "            declared_commands: Some(&declared),"
+            },
+            {
+              "highlight_end": 11,
+              "highlight_start": 1,
+              "text": "        },"
+            },
+            {
+              "highlight_end": 22,
+              "highlight_start": 1,
+              "text": "        Some(&entry),"
+            },
+            {
+              "highlight_end": 16,
+              "highlight_start": 1,
+              "text": "        &input,"
+            },
+            {
+              "highlight_end": 7,
+              "highlight_start": 1,
+              "text": "    ));"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "package": "path+file:///workspace/bigip-lsp/rust/xtask#0.1.0",
+      "level": "error",
+      "code": {
+        "code": "clippy::arc_with_non_send_sync",
+        "explanation": null
+      },
+      "message": "usage of an `Arc` that is not `Send` and `Sync`",
+      "primary_spans": [
+        {
+          "byte_end": 20129,
+          "byte_start": 19594,
+          "column_end": 7,
+          "column_start": 23,
+          "expansion": null,
+          "file_name": "rust/xtask/src/fp_sweep.rs",
+          "is_primary": true,
+          "label": null,
+          "line_end": 538,
+          "line_start": 524,
+          "suggested_replacement": null,
+          "suggestion_applicability": null,
+          "text": [
+            {
+              "highlight_end": 75,
+              "highlight_start": 23,
+              "text": "    let analysis_cu = Arc::new(CompilationUnit::build_with_analysis_input("
+            },
+            {
+              "highlight_end": 27,
+              "highlight_start": 1,
+              "text": "        &doc.input.source,"
+            },
+            {
+              "highlight_end": 27,
+              "highlight_start": 1,
+              "text": "        UnitBuildOptions {"
+            },
+            {
+              "highlight_end": 22,
+              "highlight_start": 1,
+              "text": "            registry,"
+            },
+            {
+              "highlight_end": 36,
+              "highlight_start": 1,
+              "text": "            defer_top_level: false,"
+            },
+            {
+              "highlight_end": 62,
+              "highlight_start": 1,
+              "text": "            config: tcl_lexer::LexerConfig::for_file_grammar("
+            },
+            {
+              "highlight_end": 77,
+              "highlight_start": 1,
+              "text": "                tcl_registry::model::resolve_environment(dialect).grammar(),"
+            },
+            {
+              "highlight_end": 15,
+              "highlight_start": 1,
+              "text": "            ),"
+            },
+            {
+              "highlight_end": 74,
+              "highlight_start": 1,
+              "text": "            dialect: tcl_lsp_core::optional_profile_for_dialect(dialect),"
+            },
+            {
+              "highlight_end": 39,
+              "highlight_start": 1,
+              "text": "            external_call_sites: None,"
+            },
+            {
+              "highlight_end": 48,
+              "highlight_start": 1,
+              "text": "            declared_commands: Some(&declared),"
+            },
+            {
+              "highlight_end": 11,
+              "highlight_start": 1,
+              "text": "        },"
+            },
+            {
+              "highlight_end": 22,
+              "highlight_start": 1,
+              "text": "        Some(&entry),"
+            },
+            {
+              "highlight_end": 16,
+              "highlight_start": 1,
+              "text": "        &input,"
+            },
+            {
+              "highlight_end": 7,
+              "highlight_start": 1,
+              "text": "    ));"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "package": "path+file:///workspace/bigip-lsp/rust/f5-xc#0.1.0",
+      "level": "error",
+      "code": {
+        "code": "clippy::arc_with_non_send_sync",
+        "explanation": null
+      },
+      "message": "usage of an `Arc` that is not `Send` and `Sync`",
+      "primary_spans": [
+        {
+          "byte_end": 68116,
+          "byte_start": 67764,
+          "column_end": 7,
+          "column_start": 16,
+          "expansion": null,
+          "file_name": "rust/f5-xc/src/translator.rs",
+          "is_primary": true,
+          "label": null,
+          "line_end": 1884,
+          "line_start": 1872,
+          "suggested_replacement": null,
+          "suggestion_applicability": null,
+          "text": [
+            {
+              "highlight_end": 68,
+              "highlight_start": 16,
+              "text": "    let unit = Arc::new(CompilationUnit::build_with_analysis_input("
+            },
+            {
+              "highlight_end": 16,
+              "highlight_start": 1,
+              "text": "        source,"
+            },
+            {
+              "highlight_end": 27,
+              "highlight_start": 1,
+              "text": "        UnitBuildOptions {"
+            },
+            {
+              "highlight_end": 22,
+              "highlight_start": 1,
+              "text": "            registry,"
+            },
+            {
+              "highlight_end": 36,
+              "highlight_start": 1,
+              "text": "            defer_top_level: false,"
+            },
+            {
+              "highlight_end": 20,
+              "highlight_start": 1,
+              "text": "            config,"
+            },
+            {
+              "highlight_end": 55,
+              "highlight_start": 1,
+              "text": "            dialect: Some(environment.unit_profile()),"
+            },
+            {
+              "highlight_end": 39,
+              "highlight_start": 1,
+              "text": "            external_call_sites: None,"
+            },
+            {
+              "highlight_end": 37,
+              "highlight_start": 1,
+              "text": "            declared_commands: None,"
+            },
+            {
+              "highlight_end": 11,
+              "highlight_start": 1,
+              "text": "        },"
+            },
+            {
+              "highlight_end": 14,
+              "highlight_start": 1,
+              "text": "        None,"
+            },
+            {
+              "highlight_end": 16,
+              "highlight_start": 1,
+              "text": "        &input,"
+            },
+            {
+              "highlight_end": 7,
+              "highlight_start": 1,
+              "text": "    ));"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "raw_sha256": "816d2ff7b3f6c768f91c7ffe5918bb76f7eb8390c4f1f676c2f268828efff4a4",
+  "scope": "Four messages, duplicates across lib/test: XC trait recursion and non-editor xtask fp_sweep trait recursion. Other selected roots have no warnings/errors. XC correction and final scoped verification pending. Non-editor xtask remains outside owned editor-generator scope."
+}

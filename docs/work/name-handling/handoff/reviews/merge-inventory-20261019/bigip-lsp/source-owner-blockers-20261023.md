@@ -22,6 +22,12 @@ Compiler must retain/issue each genuine original event operand against its
 own current source/Registry without claiming event installation or activation.
 `lowering::original_when_event_word` / `SourceIrulesEventBody` is the producer
 boundary. BIG-IP must not fabricate that private receipt or weaken its match.
+A second production-library probe passes the complete input through
+`CompilationUnit::build_with_analysis_input` instead of the context builder.
+Both genuine event bodies still return no event word: zero declarations and
+two unavailable sites. Changing the consumer ingress does not repair this;
+raw `source-input-owner-probe-20261023.txt.gz`.
+
 This blocks the CLI explain event inventory and contributes to static trace
 selection. The exact original CLI golden/trace assertions remain required.
 
