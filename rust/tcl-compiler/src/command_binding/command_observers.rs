@@ -20,6 +20,10 @@ pub(super) struct SourceCommandObserver {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]
 pub(super) struct SourceCommandObservers {
+    pub(super) fresh_procedures: std::collections::BTreeMap<
+        super::CommandAllocation,
+        super::command_publication::SourceFreshProcedureTraceAbsence,
+    >,
     pub(super) registrations: Vec<SourceCommandObserver>,
     pub(super) pending_mutations: Vec<Arc<super::command_mutations::SourceCommandMutationReceipt>>,
     firing: Vec<SourceCommandObserver>,
@@ -45,6 +49,8 @@ impl SourceCommandObservers {
 
     pub(super) fn join(&mut self, other: &Self) -> bool {
         let previous = self.clone();
+        self.fresh_procedures
+            .retain(|allocation, receipt| other.fresh_procedures.get(allocation) == Some(receipt));
         let mut registrations = Vec::new();
         for registration in self.registrations.iter().chain(&other.registrations) {
             if registrations

@@ -118,6 +118,176 @@ impl PreservingCommandPublication {
     }
 }
 
+/// Conditional absence for a future fresh source allocation. This is never a
+/// physical command token, object receipt or permission to execute a handler.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub(super) struct SourceFreshProcedureTraceAbsence {
+    entry: Arc<tcl_runtime_api::NativeCompilationEntry>,
+    factory: SourceCommandTarget,
+    allocation: CommandAllocation,
+    slot: super::SourceCommandKey,
+}
+
+impl SourceFreshProcedureTraceAbsence {
+    pub(super) fn capture(
+        publication: &PreservingCommandPublication,
+        native: SourceNativeInvocation<'_>,
+        facts: &tcl_registry::InvocationFacts,
+        state: &ModuleCommandBindings,
+        context: SourceExecutionContext<'_>,
+    ) -> Option<Self> {
+        let entry = state.baseline.native_entry.as_ref()?;
+        let profile = context.registry.profile()?;
+        if publication.kind != tcl_registry::CommandBindingDefinitionKind::Procedure
+            || publication.allocation.incarnation != super::AllocationIncarnation::First
+            || !entry.closed
+            || entry.profile != profile.cache_key()
+            || entry.invocation_policy.as_ref() != Some(&entry.profile)
+            || entry.execution_point != profile.core_point
+            || state.baseline.dialect != Some(tcl_registry::InvocationDialect::of_profile(profile))
+            || state.baseline.source_point_entry.is_some()
+            || state.baseline.unknown_entry
+            || !state.command_observers.is_quiet()
+            || !matches!(
+                entry.source_string_protocol,
+                Some(tcl_syntax::native_string::NativeStringProtocol::C(_))
+            )
+            || super::original_procedure_publication_key(native, state, context, facts).as_ref()
+                != Some(&publication.slot)
+            || state.original_initial_bindings_for_key(&publication.slot)?
+                != std::collections::BTreeSet::from([super::MayBinding::Missing])
+        {
+            return None;
+        }
+        entry
+            .empty_literal_world
+            .as_ref()?
+            .is_current_for(entry.interpreter, entry.epoch)
+            .then_some(())?;
+        let receipt = Self {
+            entry: Arc::clone(entry),
+            factory: native.target.clone(),
+            allocation: publication.allocation.clone(),
+            slot: publication.slot.clone(),
+        };
+        receipt.factory_is_current(state).then_some(receipt)
+    }
+
+    fn factory_is_current(&self, state: &ModuleCommandBindings) -> bool {
+        let Some(runtime) = self.factory.identity.as_ref().and_then(|id| id.runtime) else {
+            return false;
+        };
+        if runtime.interpreter != self.entry.interpreter
+            || !state.retained_target_is_current(&self.factory)
+            || state.source_execution_observed(self.factory.identity.as_ref())
+        {
+            return false;
+        }
+        let mut rows = self
+            .entry
+            .commands
+            .iter()
+            .filter(|row| row.token == runtime.token);
+        let Some(row) = rows.next() else {
+            return false;
+        };
+        rows.next().is_none()
+            && !row.has_execution_trace
+            && self.factory.runtime_implementation_generation == Some(row.implementation_generation)
+            && matches!(&row.implementation,
+                tcl_runtime_api::native_compilation::NativeCommandImplementation::Registry {
+                    identity, ..
+                } if tcl_registry::command_descriptor_labels_match(identity, &self.factory.command))
+    }
+
+    pub(super) fn retain_after_definition(
+        self,
+        native: SourceNativeInvocation<'_>,
+        facts: &tcl_registry::InvocationFacts,
+        state: &mut ModuleCommandBindings,
+        context: SourceExecutionContext<'_>,
+    ) {
+        if !super::closed_procedure_definition(native, facts, state, context)
+            || !self.current_entry(state)
+        {
+            return;
+        }
+        let Some(bindings) = state.bindings.get(&self.slot) else {
+            return;
+        };
+        if bindings.len() != 1 {
+            return;
+        }
+        let Some(super::MayBinding::Target(target)) = bindings.first() else {
+            return;
+        };
+        if !target.terminal
+            || target.registry_backed
+            || target.kind != super::BindingKind::Proc
+            || !target.prepended.is_empty()
+            || target.implementation_generation != self.allocation.site.offset
+            || target.implementation_allocation.as_ref() != Some(&self.allocation)
+            || target.token.as_ref().is_none_or(|token| {
+                token.runtime.is_some() || token.allocation.as_ref() != Some(&self.allocation)
+            })
+        {
+            return;
+        }
+        Arc::make_mut(&mut state.command_observers)
+            .fresh_procedures
+            .insert(self.allocation.clone(), self);
+    }
+
+    fn current_entry(&self, state: &ModuleCommandBindings) -> bool {
+        state.baseline.native_entry.as_deref() == Some(self.entry.as_ref())
+            && !state.has_opaque_domain()
+            && state.baseline.source_point_entry.is_none()
+            && state.command_observers.is_quiet()
+            && state
+                .ordinary_literal_pool
+                .as_ref()
+                .is_some_and(|pool| pool.effects_current())
+            && self
+                .entry
+                .empty_literal_world
+                .as_ref()
+                .is_some_and(|world| world.is_current_for(self.entry.interpreter, self.entry.epoch))
+            && self.factory_is_current(state)
+    }
+
+    pub(super) fn admits(
+        &self,
+        state: &ModuleCommandBindings,
+        target: &SourceCommandTarget,
+    ) -> bool {
+        if !self.current_entry(state)
+            || target.registry_backed
+            || target.kind != super::BindingKind::Proc
+            || !target.prepended.is_empty()
+            || target.implementation_generation != self.allocation.site.offset
+            || target.implementation_allocation.as_ref() != Some(&self.allocation)
+            || target.identity.as_ref().is_none_or(|token| {
+                token.runtime.is_some() || token.allocation.as_ref() != Some(&self.allocation)
+            })
+            || state.source_execution_observed(target.identity.as_ref())
+        {
+            return false;
+        }
+        let Some(bindings) = state.bindings.get(&self.slot) else {
+            return false;
+        };
+        bindings.len() == 1
+            && bindings.iter().any(|binding| {
+                matches!(binding,
+            super::MayBinding::Target(current) if current.terminal
+                && current.token == target.identity
+                && current.command == target.command
+                && current.implementation_generation == target.implementation_generation
+                && current.implementation_allocation == target.implementation_allocation)
+            })
+    }
+}
+
 fn selected_publication(
     native: SourceNativeInvocation<'_>,
     facts: &tcl_registry::InvocationFacts,

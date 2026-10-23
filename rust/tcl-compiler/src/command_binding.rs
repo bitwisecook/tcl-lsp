@@ -5858,6 +5858,15 @@ fn transfer_native_invocation(
     }
     let publication =
         command_publication::PreservingCommandPublication::capture(native, facts, state, context);
+    let fresh_procedure = publication.as_ref().and_then(|publication| {
+        command_publication::SourceFreshProcedureTraceAbsence::capture(
+            publication,
+            native,
+            facts,
+            state,
+            context,
+        )
+    });
     let original_transfer = source_command_world::capture(native, facts, state, context);
     let namespace_ensures = original_namespace_ensure::OriginalNamespaceEnsureTransfer::capture(
         native, facts, state, context,
@@ -5894,6 +5903,9 @@ fn transfer_native_invocation(
             deletions: namespace_deletions.as_ref(),
         },
     );
+    if let Some(receipt) = fresh_procedure {
+        receipt.retain_after_definition(native, facts, state, context);
+    }
     procedure
 }
 
@@ -15287,6 +15299,9 @@ impl ModuleCommandBindings {
     /// Widen both command resolution and the optimiser's command-trust
     /// projection because an unbounded command-binding effect may occur.
     fn mark_opaque_binding_mutation(&mut self) {
+        Arc::make_mut(&mut self.command_observers)
+            .fresh_procedures
+            .clear();
         Arc::make_mut(&mut self.original_command_world).withdraw();
         self.ordinary_literal_pool = None;
         Arc::make_mut(&mut self.object_instances).invalidate_dispatch(true);
@@ -18776,8 +18791,28 @@ fn apply_declared_binding_transitions(
     original_operands: Option<&original_command_table::OriginalCommandOperands>,
 ) {
     let Some(transitions) = facts.state_transitions.declared() else {
+        Arc::make_mut(&mut bindings.command_observers)
+            .fresh_procedures
+            .clear();
         return;
     };
+    if transitions.command_bindings().next().is_some()
+        || transitions.facts().iter().any(|fact| {
+            matches!(
+                &fact.transition,
+                StateTransition::Trace(_)
+                    | StateTransition::Namespace(_)
+                    | StateTransition::Interpreter(_)
+                    | StateTransition::Package(_)
+                    | StateTransition::ObjectDispatch(_)
+                    | StateTransition::Widen(_)
+            )
+        })
+    {
+        Arc::make_mut(&mut bindings.command_observers)
+            .fresh_procedures
+            .clear();
+    }
     let interpreted_execution =
         facts.body_execution.is_some() || invocation_selects_evaluated_body(facts);
     if !interpreted_execution && transitions.facts().iter().any(|fact| matches!(&fact.transition, StateTransition::Widen(widening) if widening.domains.contains(&StateTransitionDomain::CommandResolution))) {

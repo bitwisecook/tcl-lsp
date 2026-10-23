@@ -171,8 +171,8 @@ pub(crate) fn original_invocation_has_execution_trace(
 }
 
 /// The direct procedure consumer retains its actual original call receiver.
-/// A source-published procedure without a matching Native entry token row does
-/// not acquire absence from its constructed key or an empty spelling inventory.
+/// A future fresh source allocation requires its separate sealed absence proof;
+/// constructed keys and empty spelling inventories never provide that proof.
 pub(crate) fn original_procedure_has_execution_trace(
     registry: &CommandRegistry,
     metadata: Option<InvocationMetadataContext<'_>>,
@@ -207,7 +207,8 @@ pub(crate) fn original_procedure_has_execution_trace(
         return true;
     };
     target.command != callee
-        || !binding.original_unobserved_native_dispatch_for_tokens(tokens, target)
+        || !(binding.original_unobserved_native_dispatch_for_tokens(tokens, target)
+            || binding.original_fresh_procedure_unobserved_for_tokens(tokens, target))
 }
 
 #[cfg(test)]
@@ -323,6 +324,183 @@ mod tests {
                 _ => None,
             })
             .expect("actual located execution subject")
+    }
+
+    #[test]
+    fn fresh_native_source_procedure_has_separate_trace_absence() {
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
+        let registry = context.commands();
+        let source = "proc p {} {return READY}; p";
+        let unit = native_unit(source, std::sync::Arc::clone(&context));
+        let metadata = InvocationMetadataContext::for_module(registry, &unit.ir_module).unwrap();
+        let tokens = tokens_at(&unit, source.rfind('p').unwrap());
+        let binding = tokens.source_binding.as_ref().unwrap();
+        let target = binding.direct_procedure_target("::p").unwrap();
+        assert!(target.identity.as_ref().unwrap().runtime.is_none());
+        assert!(!binding.original_unobserved_native_dispatch_for_tokens(tokens, target));
+        assert!(binding.original_fresh_procedure_unobserved_for_tokens(tokens, target));
+        assert!(!original_procedure_has_execution_trace(
+            registry,
+            Some(metadata),
+            Some(tokens),
+            "::p",
+            &std::collections::BTreeSet::new()
+        ));
+
+        let mut changed = tokens.clone();
+        changed.argv_texts[0] = "OTHER".to_owned();
+        assert!(!binding.original_fresh_procedure_unobserved_for_tokens(&changed, target));
+        let mut generation = target.clone();
+        generation.implementation_generation = generation.implementation_generation.wrapping_add(1);
+        assert!(!binding.original_fresh_procedure_unobserved_for_tokens(tokens, &generation));
+        let mut wrong_frame = tokens.clone();
+        wrong_frame.source_binding.as_mut().unwrap().variable_frame =
+            crate::var_resolve::VariableExecutionFrame::Unknown;
+        assert!(
+            !wrong_frame
+                .source_binding
+                .as_ref()
+                .unwrap()
+                .original_fresh_procedure_unobserved_for_tokens(&wrong_frame, target)
+        );
+        let other = native_unit(source, std::sync::Arc::clone(&context));
+        assert!(!binding.original_fresh_procedure_unobserved_for_tokens(
+            tokens_at(&other, source.rfind('p').unwrap()),
+            target
+        ));
+        let foreign = tcl_registry::model::ingress::static_context_for("tcl8.4");
+        assert!(original_procedure_has_execution_trace(
+            registry,
+            Some(foreign.into()),
+            Some(tokens),
+            "::p",
+            &std::collections::BTreeSet::new()
+        ));
+
+        let retained = (*unit).clone();
+        drop(unit);
+        let tokens = tokens_at(&retained, source.rfind('p').unwrap());
+        let metadata =
+            InvocationMetadataContext::for_module(registry, &retained.ir_module).unwrap();
+        assert!(original_procedure_has_execution_trace(
+            registry,
+            Some(metadata),
+            Some(tokens),
+            "::p",
+            &std::collections::BTreeSet::new()
+        ));
+    }
+
+    #[test]
+    fn fresh_native_source_procedure_refuses_observers_and_intervening_mutations() {
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
+        let registry = context.commands();
+        for source in [
+            "proc p {} {return READY}; trace add execution p enter list; p",
+            "proc p {} {return READY}; trace add execution p leave list; p",
+            "trace add execution proc enter list; proc p {} {return READY}; p",
+            "trace add execution proc leave list; proc p {} {return READY}; p",
+            "proc p {} {return READY}; rename p q; rename q p; p",
+            "proc p {} {return READY}; interp alias {} a {} p; p",
+            "proc p {} {return FIRST}; proc p {} {return READY}; p",
+            "set body {return READY}; proc p {} $body; p",
+            "proc p {} {return READY}; unknownOperation; p",
+        ] {
+            let unit = native_unit(source, std::sync::Arc::clone(&context));
+            let tokens = tokens_at(&unit, source.rfind('p').unwrap());
+            let metadata =
+                InvocationMetadataContext::for_module(registry, &unit.ir_module).unwrap();
+            assert!(
+                original_procedure_has_execution_trace(
+                    registry,
+                    Some(metadata),
+                    Some(tokens),
+                    "::p",
+                    &std::collections::BTreeSet::new()
+                ),
+                "{source}"
+            );
+        }
+    }
+
+    #[test]
+    fn fresh_native_source_procedure_refuses_existing_native_destination() {
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
+        let source = "proc p {} {return READY}; p";
+        let unit = native_unit_with_setup(source, std::sync::Arc::clone(&context), |owner| {
+            invoke_setup(owner, "proc", &["p", "", "return EXISTING"]);
+        });
+        let tokens = tokens_at(&unit, source.rfind('p').unwrap());
+        let binding = tokens.source_binding.as_ref().unwrap();
+        let target = binding.direct_procedure_target("::p").unwrap();
+        assert!(!binding.original_fresh_procedure_unobserved_for_tokens(tokens, target));
+    }
+
+    #[test]
+    fn fresh_native_source_procedure_requires_unobserved_native_factory() {
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
+        let registry = context.commands();
+        let source = "proc p {} {return READY}; p";
+        for operation in ["enter", "leave", "enterstep", "leavestep"] {
+            let unit = native_unit_with_setup(source, std::sync::Arc::clone(&context), |owner| {
+                invoke_setup(
+                    owner,
+                    "trace",
+                    &["add", "execution", "proc", operation, "list"],
+                );
+            });
+            let tokens = tokens_at(&unit, source.rfind('p').unwrap());
+            let metadata =
+                InvocationMetadataContext::for_module(registry, &unit.ir_module).unwrap();
+            assert!(
+                original_procedure_has_execution_trace(
+                    registry,
+                    Some(metadata),
+                    Some(tokens),
+                    "::p",
+                    &std::collections::BTreeSet::new()
+                ),
+                "{operation}"
+            );
+        }
+    }
+
+    #[test]
+    fn fresh_native_source_procedure_requires_same_live_entry_capture() {
+        let context =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").default_context_registry();
+        let registry = context.commands();
+        let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
+        let source = "proc p {} {return READY}; p";
+        for defect in 0..4 {
+            let (owner, mut entry) =
+                crate::environment_ingress::captured_native_entry_with_owner(profile);
+            match defect {
+                0 => entry.epoch = entry.epoch.wrapping_add(1),
+                1 => entry.empty_literal_world = None,
+                2 => entry.invocation_policy = None,
+                _ => entry.closed = false,
+            }
+            let unit =
+                native_unit_from_entry(source, std::sync::Arc::clone(&context), owner, entry);
+            let tokens = tokens_at(&unit, source.rfind('p').unwrap());
+            let metadata =
+                InvocationMetadataContext::for_module(registry, &unit.ir_module).unwrap();
+            assert!(
+                original_procedure_has_execution_trace(
+                    registry,
+                    Some(metadata),
+                    Some(tokens),
+                    "::p",
+                    &std::collections::BTreeSet::new()
+                ),
+                "{defect}"
+            );
+        }
     }
 
     #[test]
