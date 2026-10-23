@@ -2,11 +2,11 @@
 
 Area: Analysis and SpecTcl pack-load performance.
 
-Last updated: 2026-10-23 12:38 UTC
+Last updated: 2026-10-23 13:03 UTC
 
 ## Resume
 
-**Latest-source retry RUNNING; no production commit.** All obsolete0322
+**Compiler lib-test build BLOCKED; independent SpecTcl build RUNNING. No production commit.** All obsolete0322
 workers have been stopped and executables/probe sources cleaned after the
 functional upstream a8e7bc7a repair landed. Their partial compiler/server/
 SpecTcl runs are superseded, NOT completed pass-to-fail comparisons. Exact
@@ -26,9 +26,17 @@ assertion was weakened. Fresh current controls include authenticated_report
 AND the exact actual diagnostic-output realm control, expected16 total in
 both modes. Different and Unavailable still fail the full corpus gate.
 
+Current a8e7 default control build FAILED before tests: E0277 at
+source_graph.rs560, SourceImage::from_bytes(b"changed source", channel)
+passes &[u8;14] where Into<Arc<[u8]>> is required. Zero warnings, no tests,
+source unchanged and cleanup complete. Origin/work1dd84381 still has the
+call. perf-source-graph-test-slice.patch is a one-line OFF-TREE compiler-owned
+type correction: identical literal bytes as a slice, same channel and every
+assertion preserved. Route to compiler/coordinator; no owner source edited.
+
 Current jobs:
-- /tmp/perf-run-a8e7.log, session51915: default0 control build, both control
-  modes, native/hosted smoke and complete PackSet three-way; owns cleanup.
+- /tmp/perf-run-a8e7.log, session51915 COMPLETE/FAILED: upstream test literal type blocks the
+  control build; zero tests, source unchanged and cleanup complete.
 - /tmp/perf-lexer-a8e7.log, session39041 COMPLETE: default0 lexer586/586 both modes,
   zero warnings; isolated target-lexer-controls, executable removed.
 - /tmp/perf-spectcl-a8e7.log, session2241: isolated target-spectcl-opt1,

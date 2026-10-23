@@ -1,0 +1,45 @@
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+   Compiling ctutils v0.4.4
+   Compiling tcl-lexer v0.1.0 (/workspace/tcl-lsp-perf-latest/rust/tcl-lexer)
+   Compiling digest v0.11.3
+   Compiling sha2 v0.11.1
+   Compiling tcl-syntax v0.1.0 (/workspace/tcl-lsp-perf-latest/rust/tcl-syntax)
+   Compiling crypto-bigint v0.7.5
+   Compiling tcl-runtime-api v0.1.0 (/workspace/tcl-lsp-perf-latest/rust/tcl-runtime-api)
+   Compiling md-5 v0.11.0
+   Compiling sha1 v0.11.0
+   Compiling sec1 v0.8.1
+   Compiling elliptic-curve v0.14.1
+   Compiling primefield v0.14.0
+   Compiling hmac v0.13.0
+   Compiling signature v3.0.0
+   Compiling rfc6979 v0.6.0
+   Compiling wnaf v0.14.1
+   Compiling primeorder v0.14.0
+   Compiling tcl-host-c-abi v0.1.0 (/workspace/tcl-lsp-perf-latest/rust/tcl-host-c-abi)
+   Compiling tcl-cmd-core v0.1.0 (/workspace/tcl-lsp-perf-latest/rust/tcl-cmd-core)
+   Compiling tcl-bytecode v0.1.0 (/workspace/tcl-lsp-perf-latest/rust/tcl-bytecode)
+   Compiling ecdsa v0.17.0
+   Compiling crypto-primes v0.7.2
+   Compiling rsa v0.10.0-rc.18
+   Compiling tcl-host-native v0.1.0 (/workspace/tcl-lsp-perf-latest/rust/tcl-host-native)
+   Compiling p256 v0.14.0
+   Compiling tcl-regex v0.1.0 (/workspace/tcl-lsp-perf-latest/rust/tcl-regex)
+   Compiling p384 v0.14.0
+   Compiling tcl-registry v0.1.0 (/workspace/tcl-lsp-perf-latest/rust/tcl-registry)
+   Compiling tcl-engine-api v0.1.0 (/workspace/tcl-lsp-perf-latest/rust/tcl-engine-api)
+   Compiling tcl-pkg-model v0.1.0 (/workspace/tcl-lsp-perf-latest/rust/tcl-pkg-model)
+   Compiling tcl-test-support v0.1.0 (/workspace/tcl-lsp-perf-latest/rust/tcl-test-support)
+   Compiling tcl-compiler v0.1.0 (/workspace/tcl-lsp-perf-latest/rust/tcl-compiler)
+   Compiling tcl-vm v0.1.0 (/workspace/tcl-lsp-perf-latest/rust/tcl-vm)
+   Compiling tcl-irules v0.1.0 (/workspace/tcl-lsp-perf-latest/rust/tcl-irules)
+   Compiling tcl-sslictcl v0.1.0 (/workspace/tcl-lsp-perf-latest/rust/tcl-sslictcl)
+   Compiling tcl-bigip v0.1.0 (/workspace/tcl-lsp-perf-latest/rust/tcl-bigip)
+   Compiling tcl-engine-tclvm v0.1.0 (/workspace/tcl-lsp-perf-latest/rust/tcl-engine-tclvm)
+   Compiling tcl-spec-hooks v0.1.0 (/workspace/tcl-lsp-perf-latest/rust/tcl-spec-hooks)
+   Compiling tcl-lsp-core v0.1.0 (/workspace/tcl-lsp-perf-latest/rust/tcl-lsp-core)
+   Compiling tcl-spectcl v0.1.0 (/workspace/tcl-lsp-perf-latest/rust/tcl-spectcl)
+error: could not compile `tcl-compiler` (lib test) due to 1 previous error

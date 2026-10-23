@@ -1,6 +1,6 @@
 # perf agent notes: Analyser and SpecTcl
 
-Last updated: 2026-10-23 12:38 UTC
+Last updated: 2026-10-23 13:03 UTC
 
 **Latest-source retry running at a8e7bc7a; no production code landed.** The
 upstream functional repair changes procedure visitation/hosted event issuance
@@ -163,3 +163,10 @@ the unlogged word-vector/selected-command guard in original_when_event_word;
 which comparison fails is not observed. The routed pure diagnostic draft is
 uncompiled/unrun, outside the batch. See analysis-equality-routing.md and
 current-0322d9cd/report-refusal-trace/; current regression suites continue.
+
+Current a8e7 compiler control build stops before tests at upstream source_graph.rs560
+E0277: the byte-array reference does not implement Into<Arc<[u8]>>. Zero
+warnings, no tests, source unchanged and cleanup complete. The routed
+perf-source-graph-test-slice.patch borrows the same literal bytes as &[u8],
+retaining the channel and every assertion. It is off-tree, with no owner source
+edited. Independent opt1 SpecTcl compilation continues; full proof pending.
