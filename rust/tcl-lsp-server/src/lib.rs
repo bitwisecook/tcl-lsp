@@ -27837,10 +27837,21 @@ impl Backend {
     }
 
     async fn reload_spec_packs(&self, trigger: ReloadTrigger) -> DocumentSourceResult<bool> {
+        macro_rules! pack_reload_phase {
+            ($($arg:tt)*) => {
+                if cfg!(debug_assertions)
+                    && std::env::var_os("TCL_LSP_TRACE_COARSE_SOURCE").is_some()
+                {
+                    eprintln!("[pack_reload_phase] {}", format_args!($($arg)*));
+                }
+            };
+        }
+        pack_reload_phase!("enter");
         // One reload at a time — see `spec_pack_reload`. The guard spans
         // discovery *and* the publish below, because it is the gap between
         // them that lets a slower reload overwrite a newer one's result.
         let mut reload = self.spec_pack_reload.lock().await;
+        pack_reload_phase!("reload-lock");
         *reload = None;
         // Taken here, under the guard and *before* discovery: the number has
         // to order reloads by when they read the disk. See
@@ -27853,6 +27864,7 @@ impl Backend {
         // Before loading: the watch set follows the *configuration*, so it has
         // to be refreshed even when the discovered files turn out unchanged.
         self.refresh_external_pack_watchers(&options).await;
+        pack_reload_phase!("watchers-complete");
         // Discovery and loading are blocking filesystem + parse work; keeping
         // them off the LSP event loop is the same courtesy every other scan
         // here extends.
@@ -27869,6 +27881,7 @@ impl Backend {
         let pack_store = Arc::clone(&self.store);
         let mut studio_snapshot = self.studio_sources.lock().await.snapshot();
         let load = crate::rt::spawn_blocking(move || {
+            pack_reload_phase!("loader-enter");
             let studio =
                 studio_snapshot.retained_sources(pack_store.as_ref(), &options.workspace_roots);
             let active_paths = studio
@@ -27886,6 +27899,7 @@ impl Backend {
             // and the shipped EDA loadables have to come from the embedded
             // copy. A plain load would leave every EDA command unknown in
             // exactly those clients.
+            pack_reload_phase!("discovery-complete");
             let (loaded, loader_inputs) =
                 tcl_spectcl::bundled::load_discovered_configuration_with_studio_sources_and_inputs_in(
                     Arc::clone(&pack_store),
@@ -27893,6 +27907,7 @@ impl Backend {
                     &studio,
                     options.workspace_trust,
                 );
+            pack_reload_phase!("load-complete");
             // The test seam, and the only place it can go: the snapshot is
             // taken, the publish has not happened, so the world is free to
             // change underneath a view that is already stale. The signal goes
@@ -27925,10 +27940,12 @@ impl Backend {
             return Ok(false);
         };
 
+        pack_reload_phase!("loader-joined");
         // Keep the pack registry and its Salsa key one analyser-input
         // generation. A standalone index seed either commits before this
         // writer or observes the bumped epoch after the complete transition.
         let analyser_inputs_guard = self.analyser_inputs_gate.write().await;
+        pack_reload_phase!("input-write-lock");
         let mut studio_sources = self.studio_sources.lock().await;
         if !studio_sources.matches_snapshot(&studio_snapshot) {
             return Ok(false);
@@ -27988,12 +28005,14 @@ impl Backend {
             })?
         };
 
+        pack_reload_phase!("publication-complete changed={}", changed);
         let packs = self.spec_packs().await;
         let overlays = if packs.is_empty() {
             // Loader-only notices still need the actual default registry owner
             // used by ordinary analysis when there are no pack commands.
             let installed = tcl_registry::model::store_profiles()
                 .map(|profile| {
+                    pack_reload_phase!("default-profile {}", profile.name);
                     let registry = tcl_lsp_core::environment_for_dialect(profile.name)
                         .default_context_registry();
                     Some((profile, Arc::clone(registry.commands())))
@@ -28022,9 +28041,12 @@ impl Backend {
             // free.
             let for_worker = Arc::clone(&packs);
             let installed = crate::rt::spawn_blocking(move || {
+                pack_reload_phase!("install-overlays-enter");
                 install_pack_overlays(&for_worker);
+                pack_reload_phase!("install-overlays-complete");
                 tcl_registry::model::store_profiles()
                     .map(|profile| {
+                        pack_reload_phase!("overlay-profile {}", profile.name);
                         let context =
                             tcl_registry::model::ingress::resolve_environment(profile.name)
                                 .context_registry(
@@ -28048,6 +28070,7 @@ impl Backend {
             installed
         };
 
+        pack_reload_phase!("all-profiles-complete");
         if changed {
             // The publish above moved the process's evaluator epoch, whether
             // or not the new set is empty: take it before anything
@@ -28061,6 +28084,7 @@ impl Backend {
         }
         drop(studio_sources);
         drop(analyser_inputs_guard);
+        pack_reload_phase!("report-enter");
         self.report_pack_reload(
             &packs,
             registration.as_ref(),
@@ -28073,7 +28097,9 @@ impl Backend {
             },
         )
         .await?;
+        pack_reload_phase!("report-complete");
         self.settle_pack_reload(changed, trigger).await?;
+        pack_reload_phase!("settle-complete");
         *reload = Some(PackConfigurationPublication {
             options,
             configured_sources,
