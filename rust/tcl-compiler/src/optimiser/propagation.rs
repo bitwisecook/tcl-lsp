@@ -88,14 +88,6 @@ macro_rules! ccg_row24_trace {
     };
 }
 
-/// Run the propagation pass across every function.
-///
-/// Emits one `O100` per single-token `$var` argument that SCCP
-/// proved to be a safe literal value. "Safe" means the value
-/// parses as a decimal integer or as a bare identifier-shaped
-/// word; string literals with Tcl metacharacters (`$`, `[`, `\`,
-/// …) are skipped because substituting them as a bare word
-/// would change the command's interpretation.
 macro_rules! n17_live_trace {
     ($($arg:tt)*) => {
         #[cfg(debug_assertions)]
@@ -113,6 +105,14 @@ macro_rules! n17_live_some {
     }};
 }
 
+/// Run the propagation pass across every function.
+///
+/// Emits one `O100` per single-token `$var` argument that SCCP
+/// proved to be a safe literal value. "Safe" means the value
+/// parses as a decimal integer or as a bare identifier-shaped
+/// word; string literals with Tcl metacharacters (`$`, `[`, `\`,
+/// …) are skipped because substituting them as a bare word
+/// would change the command's interpretation.
 pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
     ccg_row24_trace!(ctx, "CCG24 stage=pass-enter");
     n17_live_trace!("propagation-entry procedures={}", cu.procedures.len());

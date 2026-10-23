@@ -34,6 +34,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
+from typing import BinaryIO, cast
 
 LOGGER = logging.getLogger(__name__)
 
@@ -656,9 +657,10 @@ def run(argv):
     old_int = signal.signal(signal.SIGINT, forward)
     old_term = signal.signal(signal.SIGTERM, forward)
     selector = selectors.DefaultSelector()
-    selector.register(proc.stdout, selectors.EVENT_READ, "stdout")
-    selector.register(proc.stderr, selectors.EVENT_READ, "stderr")
+    selector.register(cast(BinaryIO, proc.stdout), selectors.EVENT_READ, "stdout")
+    selector.register(cast(BinaryIO, proc.stderr), selectors.EVENT_READ, "stderr")
     error = None
+    stdout_invalid = False
     parent_exited_at = None
     pipes_closed_at = None
     cleanup_started_at = None
@@ -718,18 +720,18 @@ def run(argv):
                     error = "owned group cleanup deadline exceeded"
                     break
             for key, _ in selector.select(0.25):
-                data = os.read(key.fileobj.fileno(), 65536)
+                data = os.read(key.fd, 65536)
                 if not data:
                     selector.unregister(key.fileobj)
-                elif key.data == "stdout":
+                elif key.data == "stdout" and not stdout_invalid:
                     try:
                         rec.stdout_bytes(data)
                     except CaptureError as exc:
                         if error is None:
                             error = str(exc)
                         # Continue draining even after capture invalidation.
-                        rec.stdout_bytes = lambda _data: None
-                else:
+                        stdout_invalid = True
+                elif key.data == "stderr":
                     rec.stderr_bytes(data)
         exit_code = proc.wait(timeout=1)
     except subprocess.TimeoutExpired:
