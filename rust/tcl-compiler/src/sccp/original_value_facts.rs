@@ -613,12 +613,53 @@ fn solve_value_facts(
         finalizing = true;
     }
 
+    finish_value_facts(
+        (cfg, ssa),
+        (inputs, purpose, grammar),
+        (&order, &escaping),
+        required_math_invocations,
+        SettledValueFactState {
+            values,
+            executable_blocks,
+            executable_edges,
+        },
+    )
+}
+
+struct SettledValueFactState {
+    values: HashMap<ValueKey, LatticeValue>,
+    executable_blocks: HashSet<BlockId>,
+    executable_edges: HashSet<(BlockId, BlockId)>,
+}
+
+fn finish_value_facts(
+    (cfg, ssa): (&CfgFunction, &SsaFunction),
+    (inputs, purpose, grammar): (
+        &ValueFactInputs<'_>,
+        SolverPurpose,
+        tcl_dialect::LexerGrammar,
+    ),
+    (order, escaping): (&[BlockId], &HashSet<String>),
+    required_math_invocations: MathDependencies,
+    state: SettledValueFactState,
+) -> SolvedValueFacts {
+    let ValueFactInputs {
+        policy,
+        trace,
+        folds,
+        ..
+    } = *inputs;
+    let SettledValueFactState {
+        values,
+        executable_blocks,
+        executable_edges,
+    } = state;
     let constant_branches = collect_constant_branches(
         cfg,
         ssa,
         &values,
         &executable_blocks,
-        &order,
+        order,
         BranchFold {
             math_dependencies: Some(&required_math_invocations),
             policy,
@@ -630,10 +671,10 @@ fn solve_value_facts(
     // Advisory plans read this purpose's settled values and original source
     // metadata. They never borrow execution-SCCP's option values or results.
     let template_plans = if purpose == SolverPurpose::SemanticAnalysis {
-        let driver = crate::value_transfer::LatticeDriver::new(trace, folds, policy, &escaping)
+        let driver = crate::value_transfer::LatticeDriver::new(trace, folds, policy, escaping)
             .with_cfg_metadata(&cfg.metadata_context);
         let mut plans = Vec::new();
-        for block in &order {
+        for block in order {
             if executable_blocks.contains(block)
                 && let Some(block) = ssa.blocks.get(block)
             {
@@ -1362,8 +1403,6 @@ fn scan_defined_and_unset(
     crate::dynamic_names::DynamicNameBarrier,
 ) {
     use crate::dynamic_names::DynamicNameBarrier;
-    use crate::registry_invocation::EffectiveInvocationWord;
-    use tcl_registry::{ArgRole, Traits};
     let mut defined = FxHashSet::default();
     let mut unset = FxHashSet::default();
     let mut unknown = DynamicNameBarrier::default();
@@ -1402,118 +1441,158 @@ fn scan_defined_and_unset(
                     defs,
                     ..
                 } => {
-                    defined.extend(defs.iter().cloned());
-                    if let Some(tokens) = stmt.tokens() {
-                        let Some(names) = crate::registry_invocation::possible_variable_name_operands_with_metadata_context(metadata.registry, Some(context), tokens) else {
-                            unknown = unknown.union(DynamicNameBarrier::OPAQUE_SCRIPT);
-                            retain_source_call_name_coverage(metadata.registry, tokens, &mut defined, &mut unset);
-                            continue;
-                        };
-                        if names.unknown_residual() {
-                            unknown = unknown.union(DynamicNameBarrier::OPAQUE_SCRIPT);
-                            retain_source_call_name_coverage(
-                                metadata.registry,
-                                tokens,
-                                &mut defined,
-                                &mut unset,
-                            );
-                        }
-                        for (role, word, _, destroys) in names.phased_operands() {
-                            if role != ArgRole::VarWrite {
-                                continue;
-                            }
-                            let destination = if destroys { &mut unset } else { &mut defined };
-                            match word {
-                                EffectiveInvocationWord::Literal(name) => {
-                                    destination.insert(name.clone());
-                                    if let Some((root, _)) =
-                                        tcl_syntax::naming::split_element_ref(name)
-                                    {
-                                        destination.insert(root.to_owned());
-                                    }
-                                    if name.contains('\0') {
-                                        if destroys {
-                                            unknown.destroys = true;
-                                        } else {
-                                            unknown.writes = true;
-                                        }
-                                    }
-                                }
-                                EffectiveInvocationWord::ArrayElementName { root } => {
-                                    destination.insert(root.clone());
-                                }
-                                _ => {
-                                    if destroys {
-                                        unknown.destroys = true;
-                                    } else {
-                                        unknown.writes = true;
-                                    }
-                                }
-                            }
-                        }
-                        for (role, destroys) in names.phased_unresolved_roles() {
-                            if role == ArgRole::VarWrite {
-                                if destroys {
-                                    unknown.destroys = true;
-                                } else {
-                                    unknown.writes = true;
-                                }
-                            }
-                        }
-                    } else if cfg.metadata_context.is_standalone()
-                        && context.source_analysis_input().is_none()
-                    {
-                        // Explicit nominal argv has no original invocation or Native permission.
-                        let arguments: Vec<_> = args.iter().map(String::as_str).collect();
-                        let Some(schema) = metadata.registry.resolve_invocation(
-                            command,
-                            &arguments,
-                            Some(context.context().authoring_query()),
-                        ) else {
-                            unknown = unknown.union(DynamicNameBarrier::OPAQUE_SCRIPT);
-                            continue;
-                        };
-                        let facts = schema.facts();
-                        if !facts.arg_roles_complete {
-                            unknown = unknown.union(DynamicNameBarrier::OPAQUE_SCRIPT);
-                        }
-                        let destroys = facts.traits.contains(Traits::DESTROYS_VARIABLE);
-                        let argument_offset = facts.argument_offset;
-                        for (ordinal, role) in facts.arg_roles {
-                            if role != ArgRole::VarWrite {
-                                continue;
-                            }
-                            let Some(name) = args.get(argument_offset + usize::from(ordinal))
-                            else {
-                                unknown = unknown.union(DynamicNameBarrier::OPAQUE_SCRIPT);
-                                continue;
-                            };
-                            if crate::dynamic_names::names_a_dynamic_variable(name)
-                                || name.contains('\0')
-                            {
-                                if destroys {
-                                    unknown.destroys = true;
-                                } else {
-                                    unknown.writes = true;
-                                }
-                            } else {
-                                let destination = if destroys { &mut unset } else { &mut defined };
-                                destination.insert(name.clone());
-                                if let Some((root, _)) = tcl_syntax::naming::split_element_ref(name)
-                                {
-                                    destination.insert(root.to_owned());
-                                }
-                            }
-                        }
-                    } else {
-                        unknown = unknown.union(DynamicNameBarrier::OPAQUE_SCRIPT);
-                    }
+                    retain_call_name_writes(
+                        (command, args, defs),
+                        stmt,
+                        cfg,
+                        metadata,
+                        context,
+                        (&mut defined, &mut unset, &mut unknown),
+                    );
                 }
                 _ => {}
             }
         }
     }
     (defined, unset, unknown)
+}
+
+fn retain_nominal_call_name_writes(
+    command: &str,
+    args: &[String],
+    metadata: ExistenceMetadataInputs<'_>,
+    context: crate::registry_invocation::InvocationMetadataContext<'_>,
+    (defined, unset, unknown): (
+        &mut FxHashSet<String>,
+        &mut FxHashSet<String>,
+        &mut crate::dynamic_names::DynamicNameBarrier,
+    ),
+) {
+    use crate::dynamic_names::DynamicNameBarrier;
+    use tcl_registry::{ArgRole, Traits};
+    // Explicit nominal argv has no original invocation or Native permission.
+    let arguments: Vec<_> = args.iter().map(String::as_str).collect();
+    let Some(schema) = metadata.registry.resolve_invocation(
+        command,
+        &arguments,
+        Some(context.context().authoring_query()),
+    ) else {
+        *unknown = (*unknown).union(DynamicNameBarrier::OPAQUE_SCRIPT);
+        return;
+    };
+    let facts = schema.facts();
+    if !facts.arg_roles_complete {
+        *unknown = (*unknown).union(DynamicNameBarrier::OPAQUE_SCRIPT);
+    }
+    let destroys = facts.traits.contains(Traits::DESTROYS_VARIABLE);
+    let argument_offset = facts.argument_offset;
+    for (ordinal, role) in facts.arg_roles {
+        if role != ArgRole::VarWrite {
+            continue;
+        }
+        let Some(name) = args.get(argument_offset + usize::from(ordinal)) else {
+            *unknown = (*unknown).union(DynamicNameBarrier::OPAQUE_SCRIPT);
+            continue;
+        };
+        if crate::dynamic_names::names_a_dynamic_variable(name) || name.contains('\0') {
+            if destroys {
+                unknown.destroys = true;
+            } else {
+                unknown.writes = true;
+            }
+        } else {
+            let destination = if destroys { &mut *unset } else { &mut *defined };
+            destination.insert(name.clone());
+            if let Some((root, _)) = tcl_syntax::naming::split_element_ref(name) {
+                destination.insert(root.to_owned());
+            }
+        }
+    }
+}
+
+fn retain_call_name_writes(
+    (command, args, defs): (&str, &[String], &[String]),
+    stmt: &Statement,
+    cfg: &CfgFunction,
+    metadata: ExistenceMetadataInputs<'_>,
+    context: crate::registry_invocation::InvocationMetadataContext<'_>,
+    (defined, unset, unknown): (
+        &mut FxHashSet<String>,
+        &mut FxHashSet<String>,
+        &mut crate::dynamic_names::DynamicNameBarrier,
+    ),
+) {
+    use crate::dynamic_names::DynamicNameBarrier;
+    use crate::registry_invocation::EffectiveInvocationWord;
+    use tcl_registry::ArgRole;
+    defined.extend(defs.iter().cloned());
+    if let Some(tokens) = stmt.tokens() {
+        let Some(names) =
+            crate::registry_invocation::possible_variable_name_operands_with_metadata_context(
+                metadata.registry,
+                Some(context),
+                tokens,
+            )
+        else {
+            *unknown = (*unknown).union(DynamicNameBarrier::OPAQUE_SCRIPT);
+            retain_source_call_name_coverage(metadata.registry, tokens, defined, unset);
+            return;
+        };
+        if names.unknown_residual() {
+            *unknown = (*unknown).union(DynamicNameBarrier::OPAQUE_SCRIPT);
+            retain_source_call_name_coverage(metadata.registry, tokens, &mut *defined, &mut *unset);
+        }
+        for (role, word, _, destroys) in names.phased_operands() {
+            if role != ArgRole::VarWrite {
+                continue;
+            }
+            let destination = if destroys { &mut *unset } else { &mut *defined };
+            match word {
+                EffectiveInvocationWord::Literal(name) => {
+                    destination.insert(name.clone());
+                    if let Some((root, _)) = tcl_syntax::naming::split_element_ref(name) {
+                        destination.insert(root.to_owned());
+                    }
+                    if name.contains('\0') {
+                        if destroys {
+                            unknown.destroys = true;
+                        } else {
+                            unknown.writes = true;
+                        }
+                    }
+                }
+                EffectiveInvocationWord::ArrayElementName { root } => {
+                    destination.insert(root.clone());
+                }
+                _ => {
+                    if destroys {
+                        unknown.destroys = true;
+                    } else {
+                        unknown.writes = true;
+                    }
+                }
+            }
+        }
+        for (role, destroys) in names.phased_unresolved_roles() {
+            if role == ArgRole::VarWrite {
+                if destroys {
+                    unknown.destroys = true;
+                } else {
+                    unknown.writes = true;
+                }
+            }
+        }
+    } else if cfg.metadata_context.is_standalone() && context.source_analysis_input().is_none() {
+        retain_nominal_call_name_writes(
+            command,
+            args,
+            metadata,
+            context,
+            (defined, unset, unknown),
+        );
+    } else {
+        *unknown = (*unknown).union(DynamicNameBarrier::OPAQUE_SCRIPT);
+    }
 }
 
 /// The entry facts one function frame contributes to the existence fold
@@ -1571,6 +1650,87 @@ pub fn existence_constant_branches_with_ssa(
             .map(Into::into),
     };
     existence_constant_branches_with_ssa_with_metadata_context(cfg, frame, metadata, config, ssa)
+}
+
+fn known_existence_query(
+    var: &str,
+    kind: crate::existence_query::ExistenceKind,
+    frame: ExistenceFrame<'_>,
+    (defined, unset): (&FxHashSet<String>, &FxHashSet<String>),
+    aliased: &HashSet<String>,
+    dynamic_names: crate::dynamic_names::DynamicNameBarrier,
+) -> Option<bool> {
+    let unknown_writes = dynamic_names.writes;
+    Some(if let Some(base) = array_element_base(var) {
+        // An array-element guard on a never-touched array is provably
+        // false: no element of `a` can exist when nothing
+        // in this barrier-free body ever created `a` — tclsh 9.0.4 /
+        // 8.6.16: `proc f {} { info exists Params(key) }` → 0.  The
+        // decision is about the *array* name alone, so a dynamic element
+        // key (`Params($k)`) folds just as well, and the base takes the
+        // same abstentions as a simple name: scope-alias / instance-state
+        // (`aliased`), a dynamic write that may have created any name,
+        // and any touch of the base — a `set a(x) …` element write, an
+        // `array set` / `upvar`-style whole-array def, either spelling.
+        // A parameter base abstains outright: the parameter itself is a
+        // scalar, and the fold stays strictly one-sided here rather than
+        // reason about unset-and-remake shapes.
+        if aliased.contains(base)
+            || frame.params.iter().any(|p| p == base)
+            || unknown_writes
+            || defined
+                .iter()
+                .any(|d| d == base || d.strip_prefix(base).is_some_and(|r| r.starts_with('(')))
+        {
+            return None;
+        }
+        false
+    } else {
+        // Namespaced globals may be populated outside the function's
+        // view — only fold simple local names.
+        if var.is_empty() || !var.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_') {
+            return None;
+        }
+        // A scope-alias local's existence tracks the linked variable —
+        // never fold it (see the `aliased` collection above).
+        if aliased.contains(var) {
+            return None;
+        }
+        if frame.params.iter().any(|p| p.as_str() == var) {
+            // A literal `unset x` already blocks this; a computed
+            // `unset $n` can name the parameter just as well
+            // (tclsh 9.0.4 / 8.6.14: `proc f {p n} {unset $n; info exists p}`
+            // → `0` for `f hello p`), so the barrier blocks it too.
+            if unset.contains(var) || dynamic_names.destroys {
+                return None;
+            }
+            // Which constant depends on the spelling.  A
+            // parameter is bound as a *scalar* on entry — Tcl has no
+            // pass-an-array-by-value — so `array exists PARAM` is
+            // provably **false** where `info exists PARAM` is true.
+            // Nothing in a barrier-free body can turn the parameter into
+            // an array without first removing the scalar binding, and a
+            // literal `unset` / a dynamic destroy already abstained above
+            // (`set p(k) …` and `array set p …` on a live scalar are
+            // runtime errors, not conversions).
+            //
+            // tclsh-proof (8.6.16 / 9.0.4):
+            //   proc f {a} { if {[array exists a]} { puts yes } else { puts no } }
+            //   f 1                                        ;# → no
+            //   proc g {a} { array set a {x 1} }
+            //   g 1  ;# → can't set "a(x)": variable isn't array
+            matches!(kind, crate::existence_query::ExistenceKind::AnyVariable)
+        } else if !defined.contains(var) {
+            // `set $switch {}` may have defined exactly this name — the
+            // argparse idiom.
+            if unknown_writes {
+                return None;
+            }
+            false
+        } else {
+            return None;
+        }
+    })
 }
 
 /// Existence query under the supplied actual availability generation.
@@ -1809,7 +1969,6 @@ pub fn existence_constant_branches_with_metadata_context(
     }
     let (defined, unset, call_names) = scan_defined_and_unset(cfg, metadata);
     let dynamic_names = dynamic_names.union(call_names);
-    let unknown_writes = dynamic_names.writes;
     // Locals bound to out-of-frame storage (`global` / `variable` / `upvar` /
     // `namespace upvar`): whether such a name exists depends on the *linked*
     // variable, which this function cannot see, so its existence query must
@@ -1906,75 +2065,15 @@ pub fn existence_constant_branches_with_metadata_context(
         else {
             continue;
         };
-        let exists = if let Some(base) = array_element_base(&var) {
-            // An array-element guard on a never-touched array is provably
-            // false: no element of `a` can exist when nothing
-            // in this barrier-free body ever created `a` — tclsh 9.0.4 /
-            // 8.6.16: `proc f {} { info exists Params(key) }` → 0.  The
-            // decision is about the *array* name alone, so a dynamic element
-            // key (`Params($k)`) folds just as well, and the base takes the
-            // same abstentions as a simple name: scope-alias / instance-state
-            // (`aliased`), a dynamic write that may have created any name,
-            // and any touch of the base — a `set a(x) …` element write, an
-            // `array set` / `upvar`-style whole-array def, either spelling.
-            // A parameter base abstains outright: the parameter itself is a
-            // scalar, and the fold stays strictly one-sided here rather than
-            // reason about unset-and-remake shapes.
-            if aliased.contains(base)
-                || frame.params.iter().any(|p| p == base)
-                || unknown_writes
-                || defined
-                    .iter()
-                    .any(|d| d == base || d.strip_prefix(base).is_some_and(|r| r.starts_with('(')))
-            {
-                continue;
-            }
-            false
-        } else {
-            // Namespaced globals may be populated outside the function's
-            // view — only fold simple local names.
-            if var.is_empty() || !var.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_') {
-                continue;
-            }
-            // A scope-alias local's existence tracks the linked variable —
-            // never fold it (see the `aliased` collection above).
-            if aliased.contains(var.as_str()) {
-                continue;
-            }
-            if frame.params.iter().any(|p| p == &var) {
-                // A literal `unset x` already blocks this; a computed
-                // `unset $n` can name the parameter just as well
-                // (tclsh 9.0.4 / 8.6.14: `proc f {p n} {unset $n; info exists p}`
-                // → `0` for `f hello p`), so the barrier blocks it too.
-                if unset.contains(var.as_str()) || dynamic_names.destroys {
-                    continue;
-                }
-                // Which constant depends on the spelling.  A
-                // parameter is bound as a *scalar* on entry — Tcl has no
-                // pass-an-array-by-value — so `array exists PARAM` is
-                // provably **false** where `info exists PARAM` is true.
-                // Nothing in a barrier-free body can turn the parameter into
-                // an array without first removing the scalar binding, and a
-                // literal `unset` / a dynamic destroy already abstained above
-                // (`set p(k) …` and `array set p …` on a live scalar are
-                // runtime errors, not conversions).
-                //
-                // tclsh-proof (8.6.16 / 9.0.4):
-                //   proc f {a} { if {[array exists a]} { puts yes } else { puts no } }
-                //   f 1                                        ;# → no
-                //   proc g {a} { array set a {x 1} }
-                //   g 1  ;# → can't set "a(x)": variable isn't array
-                matches!(kind, crate::existence_query::ExistenceKind::AnyVariable)
-            } else if !defined.contains(&var) {
-                // `set $switch {}` may have defined exactly this name — the
-                // argparse idiom.
-                if unknown_writes {
-                    continue;
-                }
-                false
-            } else {
-                continue;
-            }
+        let Some(exists) = known_existence_query(
+            &var,
+            kind,
+            frame,
+            (&defined, &unset),
+            &aliased,
+            dynamic_names,
+        ) else {
+            continue;
         };
         let value = exists ^ negated;
         let (true_name, false_name) = (

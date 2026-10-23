@@ -306,6 +306,15 @@ pub enum BodyFrame<'a> {
     Method(&'a crate::ir::MethodDef),
 }
 
+struct FunctionDiagnosticSetup<'a> {
+    defined: HashSet<String>,
+    scope_aliases: HashSet<String>,
+    global_aliases: HashSet<String>,
+    textually_referenced: HashSet<String>,
+    ir_proc: Option<&'a crate::ir::Procedure>,
+    initial_global: bool,
+}
+
 /// Source protection sets selected by this exact retained event body.
 fn when_proc_cross_event_names(
     cu: &crate::compilation_unit::CompilationUnit,
@@ -1060,79 +1069,23 @@ impl Analyser {
         cell_facts: &helpers::DiagnosticCellFacts,
         module: Option<&crate::interprocedural::ModuleProcedures<'_>>,
     ) {
-        let defined = collect_defined_vars(&function_unit.cfg);
-        // Alias recognition is registry-driven; fall back to the cached
-        // default registry when the analyser has none loaded.
-        let generation = self.analysis_context();
-        let scan_registry = self.registry.as_deref().unwrap_or(generation.commands());
-        let metadata = match module {
-            Some(module) => {
-                module.invocation_metadata_context_for_function(function_unit, scan_registry)
-            }
-            None => function_unit.invocation_metadata_context(scan_registry),
-        };
-        let Some(metadata) = metadata else {
-            return;
-        };
-        let scope_aliases = crate::optimiser::elimination::scan_scope_aliases_with_metadata_context(
-            &function_unit.cfg,
-            scan_registry,
-            Some(metadata),
-        );
-        let global_aliases =
-            crate::optimiser::elimination::scan_global_scope_aliases_with_metadata_context(
-                &function_unit.cfg,
-                scan_registry,
-                Some(metadata),
-            );
-        let mut textually_referenced =
-            crate::optimiser::elimination::collect_textual_var_references(
-                &self.source,
-                function_unit,
-                scan_registry,
-            );
-        // A var read in another iRule event, or consumed *by name* via a
-        // call-by-name upvar callee, is "used" — suppress
-        // the unused-variable (W211) hint too, not just the dead store
-        // (W220).
-        textually_referenced.extend(cross_event_vars.iter().cloned());
-        // A read-modify-write command's target buried in a substitution
-        // (`lappend r [incr i $j]` reads `i`) keeps a feeding `set i 0` alive —
-        // recover those name-level reads so they suppress the dead-store /
-        // unused-variable hints.
-        self.extend_hidden_rmw_reads(function_unit, &mut textually_referenced);
-        // Frame identity comes from the caller, which knows which of the
-        // compilation unit's body maps it is iterating.  It must not be
-        // re-derived by probing those maps for `function_unit.name`: a
-        // `TclOO` method and a namespace procedure may legitimately share a
-        // qualified name, so the name alone cannot tell them apart (see
-        // [`BodyFrame`]).
-        let ir_proc = frame.procedure();
-        let initial_global = frame.is_initial_global();
-        self.emit_dead_store_diagnostics(
+        let Some(setup) = self.prepare_function_diagnostic_setup(
             function_unit,
-            &defined,
-            &scope_aliases,
+            frame,
             cross_event_vars,
             cell_facts,
             module,
-        );
-        if let Some(procedure) = ir_proc {
-            self.emit_conditional_declared_store_diagnostics(
-                function_unit,
-                procedure,
-                &scope_aliases,
-                cross_event_vars,
-            );
-        }
-        self.emit_unused_variable_diagnostics(
-            function_unit,
-            &defined,
-            &scope_aliases,
-            &textually_referenced,
-            cell_facts,
-        );
-        self.emit_possible_paste_error_diagnostics(function_unit);
+        ) else {
+            return;
+        };
+        let FunctionDiagnosticSetup {
+            defined,
+            scope_aliases,
+            global_aliases,
+            textually_referenced: _textually_referenced,
+            ir_proc,
+            initial_global,
+        } = setup;
         // Shared read-before-set context: semantic normal reachability and
         // the name-level suppression (`dict with` keys, qualified-`variable`
         // alias tails, dict vars), threaded through both the version-0
@@ -1206,6 +1159,83 @@ impl Analyser {
                 module.map(super::super::interprocedural::ModuleProcedures::original_source_module),
             );
         }
+    }
+
+    fn prepare_function_diagnostic_setup<'a>(
+        &mut self,
+        function_unit: &crate::compilation_unit::FunctionUnit,
+        frame: BodyFrame<'a>,
+        cross_event_vars: &HashSet<String>,
+        cell_facts: &helpers::DiagnosticCellFacts,
+        module: Option<&crate::interprocedural::ModuleProcedures<'_>>,
+    ) -> Option<FunctionDiagnosticSetup<'a>> {
+        let defined = collect_defined_vars(&function_unit.cfg);
+        // Alias recognition is registry-driven; use the cached default
+        // registry when the analyser has none loaded.
+        let generation = self.analysis_context();
+        let scan_registry = self.registry.as_deref().unwrap_or(generation.commands());
+        let metadata = match module {
+            Some(module) => {
+                module.invocation_metadata_context_for_function(function_unit, scan_registry)
+            }
+            None => function_unit.invocation_metadata_context(scan_registry),
+        }?;
+        let scope_aliases = crate::optimiser::elimination::scan_scope_aliases_with_metadata_context(
+            &function_unit.cfg,
+            scan_registry,
+            Some(metadata),
+        );
+        let global_aliases =
+            crate::optimiser::elimination::scan_global_scope_aliases_with_metadata_context(
+                &function_unit.cfg,
+                scan_registry,
+                Some(metadata),
+            );
+        let mut textually_referenced =
+            crate::optimiser::elimination::collect_textual_var_references(
+                &self.source,
+                function_unit,
+                scan_registry,
+            );
+        textually_referenced.extend(cross_event_vars.iter().cloned());
+        self.extend_hidden_rmw_reads(function_unit, &mut textually_referenced);
+
+        // The caller owns frame identity; a method and a namespace procedure
+        // with one qualified name can have different initial bindings.
+        let ir_proc = frame.procedure();
+        let initial_global = frame.is_initial_global();
+        self.emit_dead_store_diagnostics(
+            function_unit,
+            &defined,
+            &scope_aliases,
+            cross_event_vars,
+            cell_facts,
+            module,
+        );
+        if let Some(procedure) = ir_proc {
+            self.emit_conditional_declared_store_diagnostics(
+                function_unit,
+                procedure,
+                &scope_aliases,
+                cross_event_vars,
+            );
+        }
+        self.emit_unused_variable_diagnostics(
+            function_unit,
+            &defined,
+            &scope_aliases,
+            &textually_referenced,
+            cell_facts,
+        );
+        self.emit_possible_paste_error_diagnostics(function_unit);
+        Some(FunctionDiagnosticSetup {
+            defined,
+            scope_aliases,
+            global_aliases,
+            textually_referenced,
+            ir_proc,
+            initial_global,
+        })
     }
 
     /// Drop exact-duplicate diagnostics + line-based suppression

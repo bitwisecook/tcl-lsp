@@ -3620,6 +3620,77 @@ struct CatchBodies<'a> {
     external: &'a dyn Fn(&str) -> bool,
 }
 
+fn process_early_statement(
+    values: &mut HashMap<ValueKey, LatticeValue>,
+    (ssa_block, index): (&crate::ssa::SsaBlock, usize),
+    stmt_ssa: &crate::ssa::SsaStatement,
+    inputs: StatementInputs<'_>,
+    completes: bool,
+    (driver, existence): (&LatticeDriver<'_>, Option<&mut ExistenceAt<'_>>),
+) -> Option<bool> {
+    let clobbers = inputs.clobbers;
+    if crate::ssa::is_unseen_call_marker(&stmt_ssa.statement) {
+        return Some(clobber_at_unseen_call(
+            values,
+            (index, clobbers, completes),
+            (driver, existence),
+        ));
+    }
+    // A statement after one that certainly raises never runs: its
+    // definitions keep what their places held.
+    if !completes {
+        return Some(keep_prior(
+            values,
+            (ssa_block, index),
+            stmt_ssa,
+            (driver, existence),
+        ));
+    }
+    None
+}
+
+fn widen_source_may_statement(
+    (values, stmt_ssa): (
+        &mut HashMap<ValueKey, LatticeValue>,
+        &crate::ssa::SsaStatement,
+    ),
+    (block, index): (BlockId, usize),
+    (ssa, driver, mut existence): (
+        &SsaFunction,
+        &LatticeDriver<'_>,
+        Option<&mut ExistenceAt<'_>>,
+    ),
+) -> bool {
+    let mut changed = false;
+    driver.record_raised((block, index), false);
+    for (&symbol, &version) in &stmt_ssa.defs {
+        changed |= set_value(values, (symbol, version), &LatticeValue::Overdefined);
+        driver.record_folded((symbol, version), None);
+        driver.record_preserved((symbol, version), None);
+        if let Some(at) = existence.as_deref_mut() {
+            changed |= at.advance(
+                (symbol, version),
+                crate::value_transfer::ExistenceStep::UNKNOWN,
+                driver,
+            );
+        }
+    }
+    if !ssa.source_may_clobber_is_current_at(block, index) {
+        // A changed CFG cannot retain a partial source footprint as
+        // permission to preserve the rest of the frame.
+        let keys: Vec<_> = values.keys().copied().collect();
+        for key in keys {
+            changed |= set_value(values, key, &LatticeValue::Overdefined);
+        }
+        driver.forget_folded();
+        driver.existence_clobber(|_| Existence::MayBound);
+    }
+    if let Some(at) = existence {
+        at.finish_statement(index, driver);
+    }
+    changed
+}
+
 /// Evaluate each statement's defs for one block, widening across barriers.
 /// Returns `true` if any lattice value changed. Extracted from [`sccp`].
 ///
@@ -3638,8 +3709,8 @@ fn sccp_process_statements(
         block,
         escaping,
         has_dynamic_variable_trace,
-        clobbers,
         catches,
+        ..
     } = inputs;
     let (mut changed, mut prepared) = (false, None);
     let mut exit = BlockExit::NORMAL;
@@ -3651,23 +3722,15 @@ fn sccp_process_statements(
         // The fresh versions a call to code the module cannot see leaves take
         // effect after the inputs and the barrier of the call they stand
         // beside.
-        if crate::ssa::is_unseen_call_marker(&stmt_ssa.statement) {
-            changed |= clobber_at_unseen_call(
-                values,
-                (index, clobbers, exit.completes),
-                (driver, existence.as_deref_mut()),
-            );
-            continue;
-        }
-        // A statement after one that certainly raises never runs: its
-        // definitions keep what their places held.
-        if !exit.completes {
-            changed |= keep_prior(
-                values,
-                (ssa_block, index),
-                stmt_ssa,
-                (driver, existence.as_deref_mut()),
-            );
+        if let Some(progress) = process_early_statement(
+            values,
+            (ssa_block, index),
+            stmt_ssa,
+            inputs,
+            exit.completes,
+            (driver, existence.as_deref_mut()),
+        ) {
+            changed |= progress;
             continue;
         }
         if let Some(at) = existence.as_deref_mut() {
@@ -3695,32 +3758,11 @@ fn sccp_process_statements(
         }
         if ssa.source_may_requires_unknown_at(block, index) {
             prepared = None;
-            driver.record_raised((block, index), false);
-            for (&symbol, &version) in &stmt_ssa.defs {
-                changed |= set_value(values, (symbol, version), &LatticeValue::Overdefined);
-                driver.record_folded((symbol, version), None);
-                driver.record_preserved((symbol, version), None);
-                if let Some(at) = existence.as_deref_mut() {
-                    changed |= at.advance(
-                        (symbol, version),
-                        crate::value_transfer::ExistenceStep::UNKNOWN,
-                        driver,
-                    );
-                }
-            }
-            if !ssa.source_may_clobber_is_current_at(block, index) {
-                // A changed CFG cannot retain a partial source footprint as
-                // permission to preserve the rest of the frame.
-                let keys: Vec<_> = values.keys().copied().collect();
-                for key in keys {
-                    changed |= set_value(values, key, &LatticeValue::Overdefined);
-                }
-                driver.forget_folded();
-                driver.existence_clobber(|_| Existence::MayBound);
-            }
-            if let Some(at) = existence.as_deref_mut() {
-                at.finish_statement(index, driver);
-            }
+            changed |= widen_source_may_statement(
+                (values, stmt_ssa),
+                (block, index),
+                (ssa, driver, existence.as_deref_mut()),
+            );
             continue;
         }
         // An opaque `catch` body the enumeration runs gives the names it

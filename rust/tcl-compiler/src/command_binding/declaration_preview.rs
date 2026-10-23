@@ -80,17 +80,17 @@ impl OriginalAuthoredProcedureSourceGeometry {
     pub(crate) fn namespace(&self) -> &super::SourceNamespaceKey {
         &self.namespace
     }
-    pub(crate) fn name(&self) -> Option<&str> {
-        Some(self.name.as_str())
+    pub(crate) fn name(&self) -> &str {
+        self.name.as_str()
     }
-    pub(crate) fn parameters_text(&self) -> Option<&str> {
-        Some(self.parameters_text.as_str())
+    pub(crate) fn parameters_text(&self) -> &str {
+        self.parameters_text.as_str()
     }
     pub(crate) fn parameters(&self) -> &[tcl_syntax::formal_params::FormalParameter] {
         &self.parameters
     }
-    pub(crate) fn reporting_label(&self) -> Option<String> {
-        Some(self.declaration.label.clone())
+    pub(crate) fn reporting_label(&self) -> String {
+        self.declaration.label.clone()
     }
     pub(crate) fn config(&self) -> tcl_lexer::LexerConfig {
         self.config
@@ -2420,22 +2420,7 @@ fn standalone_procedure_body_recipe(
     {
         return None;
     }
-    let original = crate::registry_invocation::original_native_compiler_words(
-        site.source.source_image(),
-        tokens.words(),
-        site.offset,
-        observation.config,
-    )?;
-    if original.iter().any(|word| word.group().expand) {
-        return None;
-    }
-    let values = original
-        .iter()
-        .map(|word| {
-            let value = tcl_syntax::word_rules::original_static_word_unicode_value(word)?;
-            Some(std::str::from_utf8(&value).ok()?.to_owned())
-        })
-        .collect::<Option<Vec<_>>>()?;
+    let (original, values) = standalone_procedure_words(site, tokens, observation.config)?;
     let arguments = values
         .get(1..)?
         .iter()
@@ -2529,67 +2514,15 @@ fn logical_procedure_body_recipe(
     {
         return None;
     }
-    let state = &observation.snapshot.state;
-    let mut options = super::SourceAnalysisOptions::for_logical_source(input)?;
-    options.invocation_realm = advice.realm();
-    let mut context = super::root_source_execution_context(
-        &state.variable_frame,
-        &state.source_variables.namespace,
-        &observation.namespace,
-        observation.config,
-        registry,
-        options,
-        tcl_lexer::SourceSegmentationPurpose::NestedScript,
-    );
-    context.invocation_offset = site.offset;
-    let original = super::logical_word_values::LogicalOriginalWordValue::capture_invocation(
-        tokens.words(),
-        site.offset,
-        state,
-        context,
-    )?;
+    let original =
+        capture_logical_procedure_words(site, tokens, observation, registry, input, advice)?;
     let dialect = advice.dialect();
     let actual_context = input.context_registry();
     let mut agreed = None;
     for target in advice.targets() {
         let effective = effective_words_for_target(tokens, target)?;
-        let prefix = if target.prepended.is_empty() {
-            Vec::new()
-        } else {
-            target
-                .logical_original_prefix
-                .as_ref()?
-                .matches_state(state)
-                .then_some(())?;
-            target
-                .original_logical_prepended_name_inputs(
-                    input,
-                    site.source.source_image(),
-                    observation.config,
-                )?
-                .iter()
-                .map(|value| std::str::from_utf8(value.bytes()).ok().map(str::to_owned))
-                .collect::<Option<Vec<_>>>()?
-        };
-        let values = effective
-            .origins
-            .iter()
-            .enumerate()
-            .map(|(ordinal, origin)| {
-                if ordinal == 0 {
-                    return Some(target.command.clone());
-                }
-                match origin {
-                    crate::registry_invocation::InvocationWordOrigin::Written(written) => {
-                        Some(original.get(*written)?.value().to_owned())
-                    }
-                    crate::registry_invocation::InvocationWordOrigin::BindingPrefix(captured) => {
-                        prefix.get(*captured).cloned()
-                    }
-                    _ => None,
-                }
-            })
-            .collect::<Option<Vec<_>>>()?;
+        let values =
+            logical_procedure_values(target, &effective, &original, input, site, observation)?;
         let words = values
             .iter()
             .map(|value| tcl_registry::InvocationWord::Literal(value))
@@ -3020,41 +2953,150 @@ fn native_procedure_read_recipe(
         else {
             return None;
         };
-        let original = producer.original_word();
-        if original.group().kind != tcl_lexer::WordKind::Braced
-            || original.image() != site.source.source_image()
-        {
-            return None;
-        }
-        let correspondence = tcl_syntax::backslash::native_source_braced_word_map(
-            original
-                .image()
-                .bytes()
-                .get(original.content_span().ok()?.as_range())?,
-            original.image().channel(),
-            original.config().brace_backslash_newline,
-            producer.policy().string_protocol(),
-        )
-        .ok()?;
-        let evaluated = tcl_syntax::backslash::native_source_literal_bytes(
-            words.get(body_at)?.literal()?.as_bytes(),
-            original.image().channel(),
-            producer.policy().string_protocol(),
-        )
-        .ok()?;
-        if correspondence.bytes() != producer.bytes()
-            || correspondence.bytes() != evaluated.as_ref()
-        {
-            return None;
-        }
-        ProcedureReadSource::OriginalBraced {
-            producer,
-            correspondence,
-        }
+        original_braced_procedure_read_source(producer, &words, body_at, site)?
     };
     Some(OriginalProcedureReadDeclaration {
         source,
         formals: ProcedureReadFormals::Native(topology),
+    })
+}
+
+fn standalone_procedure_words(
+    site: &CommandAllocationSite,
+    tokens: &crate::ir::CommandTokens,
+    config: tcl_lexer::LexerConfig,
+) -> Option<(Vec<tcl_lexer::NativeWord>, Vec<String>)> {
+    let original = crate::registry_invocation::original_native_compiler_words(
+        site.source.source_image(),
+        tokens.words(),
+        site.offset,
+        config,
+    )?;
+    if original.iter().any(|word| word.group().expand) {
+        return None;
+    }
+    let values = original
+        .iter()
+        .map(|word| {
+            let value = tcl_syntax::word_rules::original_static_word_unicode_value(word)?;
+            Some(std::str::from_utf8(&value).ok()?.to_owned())
+        })
+        .collect::<Option<Vec<_>>>()?;
+    Some((original, values))
+}
+
+fn logical_procedure_values(
+    target: &super::SourceCommandTarget,
+    effective: &crate::registry_invocation::EffectiveCommandWords,
+    original: &[super::logical_word_values::LogicalOriginalWordValue],
+    input: &crate::analyser::ResolvedAnalysisInput,
+    site: &CommandAllocationSite,
+    observation: &DeclarationLayoutObservation,
+) -> Option<Vec<String>> {
+    let prefix = if target.prepended.is_empty() {
+        Vec::new()
+    } else {
+        target
+            .logical_original_prefix
+            .as_ref()?
+            .matches_state(&observation.snapshot.state)
+            .then_some(())?;
+        target
+            .original_logical_prepended_name_inputs(
+                input,
+                site.source.source_image(),
+                observation.config,
+            )?
+            .iter()
+            .map(|value| std::str::from_utf8(value.bytes()).ok().map(str::to_owned))
+            .collect::<Option<Vec<_>>>()?
+    };
+    let values = effective
+        .origins
+        .iter()
+        .enumerate()
+        .map(|(ordinal, origin)| {
+            if ordinal == 0 {
+                return Some(target.command.clone());
+            }
+            match origin {
+                crate::registry_invocation::InvocationWordOrigin::Written(written) => {
+                    Some(original.get(*written)?.value().to_owned())
+                }
+                crate::registry_invocation::InvocationWordOrigin::BindingPrefix(captured) => {
+                    prefix.get(*captured).cloned()
+                }
+                _ => None,
+            }
+        })
+        .collect::<Option<Vec<_>>>()?;
+    Some(values)
+}
+
+fn capture_logical_procedure_words(
+    site: &CommandAllocationSite,
+    tokens: &crate::ir::CommandTokens,
+    observation: &DeclarationLayoutObservation,
+    registry: &tcl_registry::CommandRegistry,
+    input: &crate::analyser::ResolvedAnalysisInput,
+    advice: &super::OriginalCompilationLookupAdvice,
+) -> Option<Vec<super::logical_word_values::LogicalOriginalWordValue>> {
+    let state = &observation.snapshot.state;
+    let mut options = super::SourceAnalysisOptions::for_logical_source(input)?;
+    options.invocation_realm = advice.realm();
+    let mut context = super::root_source_execution_context(
+        &state.variable_frame,
+        &state.source_variables.namespace,
+        &observation.namespace,
+        observation.config,
+        registry,
+        options,
+        tcl_lexer::SourceSegmentationPurpose::NestedScript,
+    );
+    context.invocation_offset = site.offset;
+    let original = super::logical_word_values::LogicalOriginalWordValue::capture_invocation(
+        tokens.words(),
+        site.offset,
+        state,
+        context,
+    )?;
+    Some(original)
+}
+
+fn original_braced_procedure_read_source(
+    producer: crate::signature_scan::scope::SignatureSourceNameKey,
+    words: &[tcl_registry::InvocationWord<'_>],
+    body_at: usize,
+    site: &CommandAllocationSite,
+) -> Option<ProcedureReadSource> {
+    let original = producer.original_word();
+    if original.group().kind != tcl_lexer::WordKind::Braced
+        || original.image() != site.source.source_image()
+    {
+        return None;
+    }
+    let correspondence = tcl_syntax::backslash::native_source_braced_word_map(
+        original
+            .image()
+            .bytes()
+            .get(original.content_span().ok()?.as_range())?,
+        original.image().channel(),
+        original.config().brace_backslash_newline,
+        producer.policy().string_protocol(),
+    )
+    .ok()?;
+    let evaluated = tcl_syntax::backslash::native_source_literal_bytes(
+        words.get(body_at)?.literal()?.as_bytes(),
+        original.image().channel(),
+        producer.policy().string_protocol(),
+    )
+    .ok()?;
+    if correspondence.bytes() != producer.bytes() || correspondence.bytes() != evaluated.as_ref() {
+        return None;
+    }
+    Some(ProcedureReadSource::OriginalBraced {
+        producer,
+        correspondence,
     })
 }
 
