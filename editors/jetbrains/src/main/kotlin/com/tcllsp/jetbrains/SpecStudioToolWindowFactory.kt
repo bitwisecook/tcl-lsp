@@ -65,16 +65,8 @@ internal class SpecStudioPanel(private val project: Project) : Disposable {
     private var disposed = false
 
     /**
-     * Which sample-dialect pin is the studio's current intent.
-     *
-     * Each pin now waits for the lazily-started LSP server, so two can be in
-     * flight at once — the one sent when the studio mounts, and one from a
-     * picker change made while that is still waiting.  They are independent
-     * pooled tasks with no ordering between them, so without this the initial
-     * dialect could be applied *after* the newer selection and leave the sample
-     * disagreeing with the UI until the user changed it again.  A pin claims
-     * a generation before it is dispatched and rechecks
-     * it before sending, so only the newest intent reaches the server.
+     * Generation of the current sample-dialect selection. Pooled tasks check
+     * this before sending so only the newest selection reaches the server.
      */
     private val dialectPinGeneration = AtomicLong()
 

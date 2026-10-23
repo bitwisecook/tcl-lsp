@@ -145,11 +145,8 @@ private val SEMANTIC_TOKEN_MODIFIER_COLORS: Map<Pair<String, String>, TextAttrib
 /**
  * The plugin's LSP customisation.
  *
- * Only semantic tokens is customised; every other feature keeps the
- * platform's default. This is the shape that superseded the flat
- * `LspServerDescriptor.lsp*Support` properties in 2025.2 — the old ones still
- * work through `DeprecatedLspCustomization`, but only while the descriptor
- * does not supply a customisation of its own, so the two cannot be mixed.
+ * Semantic tokens and diagnostic presentation use the plugin's customisers.
+ * Every other feature uses the platform's default.
  */
 class TclLspCustomization : LspCustomization() {
     override val semanticTokensCustomizer: LspSemanticTokensCustomizer = TclSemanticTokens()

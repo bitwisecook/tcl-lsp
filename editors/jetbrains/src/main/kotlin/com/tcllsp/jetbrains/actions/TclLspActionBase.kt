@@ -110,16 +110,8 @@ abstract class TclLspActionBase : AnAction() {
                 return
             }
 
-            // Pass the timeout explicitly. Omitting it makes Kotlin emit a call
-            // to the synthetic `LspServer.sendRequestSync$default` bridge, bound
-            // to the class that declared the method when we compiled (2025.3).
-            // In 2026.1+ `sendRequestSync` moved up to the `LspClient`
-            // super-interface, so that bridge no longer resolves as
-            // `LspServer.sendRequestSync$default` and the plugin fails
-            // verification / throws NoSuchMethodError at runtime. The default is
-            // a compile-time const (10_000 ms) that inlines, so behaviour is
-            // unchanged. Do not "simplify" this back to the no-timeout form.
-            // See the jetbrains-plugin-compat skill.
+            // An explicit timeout uses the interface method rather than a synthetic
+            // $default bridge whose declaring owner varies between supported IDEs.
             val result = server.sendRequestSync(LspServer.DEFAULT_REQUEST_TIMEOUT_MS) { lsp4j ->
                 lsp4j.workspaceService.executeCommand(
                     ExecuteCommandParams(commandId, args)

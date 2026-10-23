@@ -1,3 +1,5 @@
+import org.jetbrains.kotlin.gradle.dsl.JvmDefaultMode
+
 plugins {
     id("org.jetbrains.intellij.platform") version "2.19.0"
     kotlin("jvm") version "2.4.21"
@@ -22,38 +24,21 @@ repositories {
 
 kotlin {
     jvmToolchain(17)
+    compilerOptions {
+        // The supported IDEs provide JVM default methods; inherit them directly.
+        jvmDefault.set(JvmDefaultMode.NO_COMPATIBILITY)
+    }
 }
 
 dependencies {
     testImplementation(kotlin("test"))
-    // The platform test runner loads through IntelliJ's own PathClassLoader
-    // and touches JUnit 4's `TestRule` while starting, even for a JUnit 5
-    // suite; from the 2024.3 SDK it is no longer on the platform classpath.
+    // IntelliJ's test runner needs JUnit 4's TestRule even for JUnit 5 suites.
     testRuntimeOnly("junit:junit:4.13.2")
     intellijPlatform {
-        // Compile at the 2025.3 support floor.
-        //
-        // `sinceBuild` bounds the oldest IDE whose API this plugin may
-        // *reference*, not the feature set a user gets: the LSP client
-        // capabilities are built by `LspServerDescriptor.getClientCapabilities`
-        // in the running IDE, which the plugin does not override, so folding,
-        // document symbols, inlay hints and the rest arrive with the user's
-        // IDE whatever we compile against.
-        //
-        // What does need a floor is anything the plugin *overrides*, because
-        // the symbol has to resolve when the class loads. Semantic tokens is
-        // the only such capability — `getClientCapabilities` has exactly one
-        // branch, `if (getLspSemanticTokensSupport() == null) skip` — and its
-        // member first exists at 2024.3. 2025.3 is chosen over that floor so
-        // the plugin can move to the `LspCustomization` shape that superseded
-        // the flat descriptor getters at 2025.2, and reach the per-feature
-        // customisers (`LspDocumentSymbolSupport` and friends) that let it
-        // honour its own feature toggles host-side.
-        //
-        // JCEF is part of the platform at this version, so the 2025.3.1+
-        // `intellij.platform.ui.jcef` bundled plugin cannot be added to this
-        // compile classpath. plugin.xml carries the optional compatibility
-        // dependency used by newer IDEs instead.
+        // Compile against the 2025.3 support floor. The running IDE supplies
+        // its LSP capabilities; this plugin supplies the customisers.
+        // JCEF is part of this SDK's platform. plugin.xml declares the optional
+        // JCEF dependency used by IDEs that package it as a bundled plugin.
         intellijIdeaUltimate("2025.3")
         bundledPlugin("org.jetbrains.plugins.textmate")
 
@@ -84,7 +69,7 @@ intellijPlatform {
               <li>Compiler Explorer tool window (IR, CFG, SSA, optimiser, shimmer analysis)</li>
               <li>iRule actions for Mermaid diagrams, Tk previews, F5 XC translation, and BIG-IP cleanup script generation</li>
               <li>Catalogue lookups: list iRule events, known packages, ensemble subcommands; describe a command or event by name</li>
-              <li>Supports Tcl 8.4&ndash;9.0, F5 BIG-IP iRules, F5 iApps, and EDA tooling dialects</li>
+              <li>Supports Tcl 8.4&ndash;9.1, F5 BIG-IP iRules, F5 iApps, and EDA tooling dialects</li>
             </ul>
         """.trimIndent()
 
@@ -109,20 +94,13 @@ intellijPlatform {
     pluginVerification {
         freeArgs = listOf("-offline")
         ides {
-            // Verify against the sinceBuild floor and a spread of newer
-            // majors. The 2026.1 entry is load-bearing: 2026.1 is where the
-            // deprecated LspServer/LspServerManager/LspServerDescriptor API was
-            // superseded by LspClient*, and where `sendRequestSync` moved up to
-            // the LspClient super-interface. Without a >=2026.1 target the
-            // verifier cannot catch the `LspServer.sendRequestSync$default`
-            // class of binary incompatibility (see the jetbrains-plugin-compat
-            // skill). Keep the newest verified stable major here as JetBrains
-            // ships it.
-            // The floor. Also the first release whose core plugin advertises
-            // the JCEF dependency alias bridging the pre- and post-extraction
-            // layouts, so the floor and that bridge now coincide.
+            // Cover the support floor, current stable and EAP APIs, and CLion's
+            // bundled Web Browser dependency. Keep a >=2026.1 target for the
+            // LspClient API and a 263 target for LSP4J 1.0 diagnostic messages.
             create(org.jetbrains.intellij.platform.gradle.IntelliJPlatformType.IntellijIdeaUltimate, "2025.3.6.1")
             create(org.jetbrains.intellij.platform.gradle.IntelliJPlatformType.IntellijIdeaUltimate, "2026.2.3")
+            // LSP4J 1.0 changes Diagnostic.getMessage's return type in 2026.3.
+            create(org.jetbrains.intellij.platform.gradle.IntelliJPlatformType.IntellijIdeaUltimate, "263.7031.23")
             // This exact product/version is where JCEF is isolated behind
             // the bundled Web Browser plugin.
             create(org.jetbrains.intellij.platform.gradle.IntelliJPlatformType.CLion, "2026.2.3.1")
