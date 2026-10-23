@@ -2,12 +2,14 @@
 
 Area: routing, shared build allocation, snapshots and release readiness.
 
-Last updated: 2026-10-23T08:36:20.331522+00:00
+Last updated: 2026-10-23T08:50:37.117590+00:00
 
 ## In progress
 
+- New release plan: ../lsp-release-pr-plan.md. ALL functional fixes onwork; intermediatebranch cleanup/extraction/validationONLY. No evidence or development-processchaff inrelease; mayremainonwork. Userexempts dedicatediRules PERFORMANCE thisrelease; iRulescorrectness/safety/repositorygates unchanged. No PR unlessexplicitlyasked.
+
 - Livehook2 root20770 CLOSEDexit1/LOCK_RELEASED08:26:52, actual1PASS1FAIL/2, no warnings. Raw independent audit5790acab validates source/provider/input/build/artifact/process/count/GO guards. Post-closure source/HEAD recomputations are labelled; no persisted after source/HEAD exists. Full131logical119gzip archive c6bf5bb4 independently root-verified including current originals. Positive DSL1 folds[]vs[5]; DSL2/final comparison unreached, hostless refusal passes. Observercleanup remains HELD.
-- Native15 is the sole remaining frozen-source group. Readiness receiptcfb3ecfd confirms original15 selectors, all13sourcepins and16inputs; no GO yet. Reviewed Python launch.py inspected; never call run.sh with assumed shell/arguments.
+- Native15 is RUNNING root78490, GO13ddd06e, launcher083852.251523Z andrun083855.013383Z under /tmp/lsp-native-protocol-v14-source46-repaired-direct15-{launches,runs}. Readinessreceiptcfb3ecfd/allpins checked; allocator deepv9PASS. Firstbuild underway; no runtimeoutcomesyet. Independentpreparedverifieraa34378f remainsunrununtilactualclosure. NeverduplicateGO/runner.
 - Proposed core19v5 manifest9e8c0477/combined402fbd34 static peerCLEAR:19components31changedfiles/proposed66 cumulative; aliasEXCLUDED. Product897b/tree0b11/mapf756 unchanged. Builderv3 manifest37f9a672 staticCLEAR and archived, requires actualnew committed identity, no fabricated future typing or GO.
 - Last regular cycle08:25:37 on time: active5fcf1b7b normalpublished db6e86317 at08:27:16 freshdepth1fetch/rebase/productdiff0. Next08:55:37UTC, single reminder53105/draft0855. Disk8.63GBworkspace/3.09GBtmp, no cleanup.
 - External BIGIP/perf stale, user notified, no takeover. CI downloads remain blocked by connectorTransportclosed/proxyCONNECT403. Real Nextest capture pilot unrun. AllF/audit0, exactzeroP2Fopen, noPRunlessasked.

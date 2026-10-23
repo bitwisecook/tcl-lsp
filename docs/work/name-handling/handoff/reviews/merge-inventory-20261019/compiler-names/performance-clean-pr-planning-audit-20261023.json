@@ -1,0 +1,43 @@
+{
+  "utc": "2026-10-23T08:47:14.958609+00:00",
+  "scope": "Read-only planning audit; existing perf role retains implementation/benchmark ownership. No bench/Cargo/Git/GO/source changes.",
+  "agreed_contract": {
+    "first_tokens": "Typical didOpen to first semanticTokens/full response targets single-digit ms; regression beyond run noise blocks.",
+    "fast_tier": "40 ms races are delivery mechanisms, not universal request SLA.",
+    "release_work": "Actual release builds, representative small/large workspaces and targeted scaling fixtures, cold/warm; user-scale stalls or memory failures must be resolved even if baseline also stalls.",
+    "not_agreed_numeric_limits": [
+      "fixed percentage slowdown threshold",
+      "workspace-size ceiling",
+      "peak/retained-memory cap",
+      "long-request maximum"
+    ],
+    "sources": [
+      "docs/design/rust/engineering-guide.md:43",
+      "docs/work/name-handling/reviews/naming-migration-review-20261022.md:144"
+    ]
+  },
+  "existing_workloads": {
+    "release_corpus": "scripts/perf/MANIFEST.toml revision1 exact repo commit pins. small=georgtree; medium=georgtree+nico-robert+aplsimple; full=those+tcltk+other. Anchor georgtree/tcl_tools/mathutil.tcl; SpiceGenTcl source/package forest retained. iRules scope is explicitly not comparable release timing scope.",
+    "release_harness": "15 fixed ordered checks: scan, open4,400 constant-length unique edits,100 token edits, hover/definition/references/completion/symbols+folding,lens resolve,code action12positions,workspace rename,file rename,after-rename refs,close. Seed20260807; samples RSS/CPU250ms; per-check wall/CPU/RSS-before-after/ops/items/ok, full timeline and peakRSS. Current timeout30s/request,scan120s,whole-run240s are harness budgets, not latency acceptance limits.",
+    "analysis_equivalence": "102 UTF8 Tcl roster +15 iRules; original nonUTF8 native fixture separately preserved as actual native-codegen control; classes.tcl supplies added text case. Exact roster hashes retained in corpus-roster-audit.json. Default plainTcl profiletcl8.6; hosted iRules must retain genuine hosted domain/full input.",
+    "targeted_scaling": "calls10/20/40/80;procs41;upvar10/30;tclIndex prefixes10/40/100/253;full ordered load_embedded PackSet;positive ordinary editing/index/lens10/20/40/80;sourcechain250/500/1000/2000. Review additionally records index/existence250/500/1000/2000,lenses125/250/500,deep naming400/800/1600; ordinary sizes separate from stress."
+  },
+  "authenticated_equality": "User2256 requires separate complete authenticated report Equal with every report field/typed subject and actual unique current source/input/registry/body/hosted correspondence; Different/Unavailable fail. Record strict global/runtime Eq and cache cutoffs unchanged; no Debug/ID/pointer/name normalization or dropped subjects. Re-run complete all-old and mixed corpora before accepting/forwarding any perf patch.",
+  "missing": [
+    "Perf Resume header is stale21:00 on old39b/e4 source; historical synthetic/equality/PackSet/opt1 runs are not current final-product or release-latency evidence.",
+    "Current source46 report13 still9PASS4FAIL; owner repairs remain off-tree; full authenticated corpus remains blocked. Latest eight-package PASS0W is compilation only.",
+    "No final shipping commit baseline/candidate release binaries, same-host repeated complete release corpus results, targeted cold/warm request/memory results or final no-switch green gates.",
+    "Missing explicit supported workspace sizes and memory/long-request bounds; new numeric acceptance choices require user decision, not invented agreed thresholds.",
+    "Linux results cannot certify macOS regression behavior per README issue1297; browser memory needed where shipped.",
+    "Historical default-profile SpecTcl one pass-to-fail retained even though isolated quiet repeat/optimized profiles passed."
+  ],
+  "proposed_workflow": [
+    "Root fixes semantic/report controls and all required test/style/generation/host gates on frozen candidate first; preserve existing tests/assertions/budgets and original failures.",
+    "Root pins actual rust PR target baseline and candidate commits/trees, corpus pins+hashes, same harnessrevision, toolchain/buildprofile/features/flags/providers/environment and exact binary hashes in isolated checkouts/targets. Historic fcb7927f is reviewed reference only, not automatically current target.",
+    "Run two distinct comparisons: finalcandidate vs actualrustbaseline release server latency/resource regression; separately same-current-source old/mixed perfoptimization equivalence through user2256 API. Intentional semantic changes versus historical rustbaseline are documented, not force-normalized equal.",
+    "After authentic full-corpus Equal/allcounts and controls, benchmark both release binaries on same quiet host in interleaved baseline/candidate order with independent cold processes and documented warmup/caches. Repeat to estimate run noise; record all trials, medians/spread, hostload and failures, never best-of retries. Proposed sampling/statistical policy must be declared before execution.",
+    "Use unchanged15check small/medium/full scopes; validate exact ops/items/results and convergence to same semantic revision, no zero-request or withdrawal-as-speedup. Add supplemental open-firsttokens/edit/convergence/cancellation/overlap/environmentreload/memory cycles missing from coarsechecks. Run focused scaling shapes above and real tclIndex/SpiceGenTcl; preserve separate browser/macOS measurements where shipping.",
+    "Report per-workload absolute+relative wall/CPU/peak+retainedRSS, correctness/counts, cold/warm, scaling curve and noise. Existing rule blocks beyond-noise regression and demonstrated stalls; any additional numeric threshold requires user decision. No aggregation may hide a bad workload. Archive complete raw evidence and exact source/binary provenance.",
+    "Finalize cleanup/comments/docs against actual shipped behavior, remove temporary probes/switches and rerun applicable final gates/performance after relevant code changes. An intermediate branch or remaining future migration does not waive clean PR acceptance."
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "utc": "2026-10-23T08:50:37.117590+00:00",
+  "source": "User follow-up in this coordinator chat",
+  "instruction": "make sure development process chaff is cleaned up in the release, but it can stay in the work branch",
+  "decisions": {
+    "development_process_cleanup": {
+      "choice": "Remove development process chaff from release; retain it on work",
+      "meaning": "Audit repository-wide docs, comments, tests, scripts, templates and generated copies in the release candidate. Remove temporary process narratives, ledgers, continuation prompts, probes, switches, stale references and generated copies. Preserve durable product semantics, necessary licensing/provenance and meaningful test fixtures. No deletion from work required."
+    }
+  }
+}

@@ -1,6 +1,6 @@
 # Outstanding work: lsp agent
 
-Current status 2026-10-23T08:30:36Z: Native15v14 READY/PENDING ROOT ALLOCATION, GO ABSENT and runtime UNRUN. Read-only exact original15 equality,13current sourcepins,16runner inputs allPASS on897b/tree0b11/mapf756; no Rust/listing/runner execution. Finite scope D1two/D2six/D3one/D4one/D5four plus enabledtransformone; no D6/wholehost claim. All15 are absent from exact24312 named baseline inventory, so no baselinePASS/regression inferred. Actual LSP23 remains17PASS6FAIL/0W/allguards with preserved unreached subcases; BOM fixture test-only peerCLEAR futurecore19, readonly/nestedExpr/allalternatives diagnostic follow-ups await sourcewindow. Current native/WASM/WASI/browser/editor shipping gates and exact shipping baselinejoin remain open; external/perf owners untouched.
+Current status 2026-10-23T08:37:24Z: root toolsession78490 RUNNING Native15v14 allocator deep validation, then reviewed durable launch.py in same root command. Last read-only observation: actual GO absent, no launcher/run receipt yet; do not call tests/build started. Product897b/tree0b11/mapf756 unchanged. Exact original15/13sourcepins/16runnerinputs verified; finiteD1–D5 only, D6/fullhost/exactshippingbaseline open. Root hook2 actual1PASS1FAIL independently audited/131payloads archived; LSP23 actual17PASS6FAIL/allguards retained. No LSP Cargo/GO/source/Git or restart.
 
 
 
@@ -63,13 +63,13 @@ Prepared separate Core1 ownership/refusal phase `/tmp/lsp-body-guard-core1/run.s
 
 Area: tcl-lsp-core, tcl-lsp-db and tcl-lsp-server (generic providers, server, WASM/WASI hosts).
 
-Last updated: 2026-10-23T08:30:36Z
+Last updated: 2026-10-23T08:37:24Z
 
 Maintained by the lsp agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## Resume
 
-Latest resume pointer 2026-10-23T08:30:36Z: read `lsp/native15-v14-readiness-release-gap-20261023.json` (currentpins/roster exactPASS, original15 UNRUN/GOabsent, D1–D5 finite map and D6/baseline gaps). Root will notify actual Native15 allocation; monitor read-only after actualrun pointer, never mint/queue/restart. Existing `lsp/quote-body23-v5-closed-20261023/archive-summary.json` and outcome-caveats retain17/6 actualseals. No sectionF/zeroP2F/fullhost admission from typing/offtreeTS/finitecases; no LSP source/Cargo/Git/GO.
+Latest resume pointer 2026-10-23T08:37:24Z: roottoolsession78490 owns allocator→launch for `/tmp/lsp-native-protocol-v14-source46-repaired-direct15`; observe actual root-go.json then `...-launches/*/launcher.json` and `...-runs/*` before reporting start. Current last observation noGO/noactualstart. Monitor completed rows/firstrefusal read-only, preserve all assertions/180s/lifecycle/source/provider guards and user2231. Native15 not D6/fullshipping/zeroP2F proof; keep independent oldCI baseline scopes separate.
 
 
 

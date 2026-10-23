@@ -1,0 +1,19 @@
+{
+  "utc": "2026-10-23T08:49:54.706542+00:00",
+  "source": "Two follow-up user instructions in this coordinator chat",
+  "instructions": [
+    "do all the actual fixing of the LSP in work with the cleanup happening in an intermediate branch for LSP release",
+    "irules performance we can ignore for this release, if tcl is working well enough irules is highly likely to be good"
+  ],
+  "decisions": {
+    "functional_fix_location": {
+      "choice": "All functional LSP fixes on work",
+      "meaning": "Use the intermediate release branch for cleanup/extraction/validation only. If validation finds a functional defect, fix it on work, validate it there and carry the reviewed fix to the candidate."
+    },
+    "irules_performance_release_gate": {
+      "choice": "No dedicated iRules performance requirement for this LSP release",
+      "meaning": "Focus release performance acceptance on Tcl corpus and relevant supported Tcl/SpecTcl workloads. iRules correctness, safety and applicable BIGIP/LSP repository checks remain required; this is no measured claim of iRules performance equivalence."
+    }
+  },
+  "PR_merge_release_authorisation_unchanged": true
+}

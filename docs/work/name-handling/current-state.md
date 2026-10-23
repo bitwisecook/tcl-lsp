@@ -37,6 +37,9 @@ External review: [reviews/naming-migration-review-20261022.md](reviews/naming-mi
 
 Per-finding status on the current tree: [reviews/naming-migration-review-20261022-triage.md](reviews/naming-migration-review-20261022-triage.md) (triage role reports scoped replay complete; implementation and release validations remain open).
 
+
+Release preparation plan: [clean LSP PR plan](lsp-release-pr-plan.md). All functional fixes stay on `work`; an intermediate branch handles cleanup/extraction/validation only. Development evidence and process chaff stay out of the release and may remain on `work`. The user exempts dedicated iRules performance benchmarking for this release; iRules correctness and safety gates remain. No PR is authorised yet.
+
 ## Agent work in progress (agent-reported, not validated)
 
 Measurements below are the implementation agents' own runs on the shared working tree at the time stated (22 Oct unless noted). They are not guarded validations, admit no audit unit, and do not change the rows under "Outstanding validations". Agent notes: [handoff/reviews/merge-inventory-20261019/](handoff/reviews/merge-inventory-20261019/).

@@ -1,0 +1,17 @@
+{
+  "utc": "2026-10-23T08:46:59.008132+00:00",
+  "source": "User instruction in this coordinator chat on 2026-10-23",
+  "instruction": "Plan out everything needed to get to a PR into rust that's clean, with all documentation and comments updated, no evidence in it (that'll come later) ready to squash merge at high quality. Make sure performance hasn't degraded significantly across the corpus and that everything is green, all formatted and clean ready to go. You can use an intermediate branch to do this as we'll be continuing work in work to finish up the migration after the LSP has shipped",
+  "decisions": {
+    "release_candidate_branch": {
+      "choice": "An intermediate branch is authorised for clean LSP release preparation",
+      "meaning": "Keep continuing migration development on work; isolate the reduced rust-target candidate in a separate checkout/branch. This supersedes work-only development solely for this release preparation scope."
+    },
+    "candidate_contents": {
+      "choice": "Clean shipping source, current documentation/comments and needed tests/fixtures; no development evidence",
+      "meaning": "Retain development evidence and this plan on work. Candidate readiness requires all applicable gates green, corpus performance acceptance, and squash-merge quality."
+    }
+  },
+  "existing_PR_authorisation_unchanged": "This requests a plan and permits an intermediate preparation branch. Do not open a PR, merge, tag or publish a release without the user asking.",
+  "new_numeric_performance_threshold_authorised": false
+}
