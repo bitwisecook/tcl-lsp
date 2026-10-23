@@ -2297,7 +2297,7 @@ mod tests {
         ));
     }
 
-    fn assert_diagnostics_unavailable(report: CurrentDiagnostics) {
+    fn assert_diagnostics_unavailable(report: &CurrentDiagnostics) {
         assert!(matches!(report, CurrentDiagnostics::Unavailable { .. }));
     }
 
@@ -2357,14 +2357,14 @@ mod tests {
             );
         }
         assert_eq!(prior_epoch, backend.diag_inputs_epoch());
-        assert_diagnostics_unavailable(backend.current_diagnostics(&expected).await.unwrap());
+        assert_diagnostics_unavailable(&backend.current_diagnostics(&expected).await.unwrap());
         run_provider(&backend, &expected.uri).await;
         assert!(matches!(
             backend.current_diagnostics(&expected).await.unwrap(),
             CurrentDiagnostics::Complete { .. }
         ));
         *backend.class_factory_generation.write().await += 1;
-        assert_diagnostics_unavailable(backend.current_diagnostics(&expected).await.unwrap());
+        assert_diagnostics_unavailable(&backend.current_diagnostics(&expected).await.unwrap());
         run_provider(&backend, &expected.uri).await;
         backend
             .feature_toggles
@@ -2373,7 +2373,7 @@ mod tests {
             .set
             .insert("diagnostics".into(), false);
         backend.invalidate_diag_inputs();
-        assert_diagnostics_unavailable(backend.current_diagnostics(&expected).await.unwrap());
+        assert_diagnostics_unavailable(&backend.current_diagnostics(&expected).await.unwrap());
         run_provider(&backend, &expected.uri).await;
         assert!(matches!(
             backend.current_diagnostics(&expected).await.unwrap(),
@@ -2404,7 +2404,7 @@ mod tests {
                 .get(&expected.uri)
                 .is_none()
         );
-        assert_diagnostics_unavailable(backend.current_diagnostics(&expected).await.unwrap());
+        assert_diagnostics_unavailable(&backend.current_diagnostics(&expected).await.unwrap());
     }
 
     #[tokio::test]
