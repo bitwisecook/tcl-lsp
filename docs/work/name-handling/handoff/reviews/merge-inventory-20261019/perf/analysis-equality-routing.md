@@ -155,3 +155,11 @@ are superseded source evidence. Fresh16 report/realm controls are building;
 availability is not inferred from source review. The old logging draft must
 not be applied to the successor. Full corpus and compiler-patch acceptance
 remain pending actual new-source gates, with every field/assertion retained.
+
+Actual production smoke at a8e7 still refuses complete cookbook_http_collect
+report comparison: all3 old1/new/old2 pairs return CurrentOwnerUnavailable.
+The example links the exact completed normal Cargo libraries with source and
+binary hashes; executable removed. This is actual corpus-source evidence,
+independent of the source_graph.rs lib-test type error. No new private
+refusal stage is attributed without tracing. A tiny genuine hosted public
+control is being measured separately; full proof remains unavailable.

@@ -2,7 +2,7 @@
 
 Area: Analysis and SpecTcl pack-load performance.
 
-Last updated: 2026-10-23 13:03 UTC
+Last updated: 2026-10-23 13:16 UTC
 
 ## Resume
 
@@ -33,6 +33,14 @@ source unchanged and cleanup complete. Origin/work1dd84381 still has the
 call. perf-source-graph-test-slice.patch is a one-line OFF-TREE compiler-owned
 type correction: identical literal bytes as a slice, same channel and every
 assertion preserved. Route to compiler/coordinator; no owner source edited.
+
+Actual a8e7 public-API hosted smoke is also COMPLETE/FAILED: all3
+old1/new/old2 pairs for cookbook_http_collect.irul are still
+Unavailable(CurrentOwnerUnavailable), strict Eq false separately. Exact
+normal Cargo libraries/source/executable hashes are retained in direct-smoke/;
+build exit0, executable removed. This is distinct from the lib-test typing
+blocker. A production smoke of the tiny genuine hosted control is running to
+separate basic issuance from this actual corpus fixture; no outcome yet.
 
 Current jobs:
 - /tmp/perf-run-a8e7.log, session51915 COMPLETE/FAILED: upstream test literal type blocks the
