@@ -1742,7 +1742,7 @@ pub fn find_conditional_collection_source_pairing_advice<'unit>(
     Some(ConditionalCollectionSourcePairingAdvice {
         owner: ConditionalIruleSourceOwner {
             unit: cu,
-            registry: registry,
+            registry,
             _handlers: advice.handlers,
             _schemas: advice.schemas,
             obligations,
