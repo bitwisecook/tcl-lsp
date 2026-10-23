@@ -125,6 +125,8 @@ impl ResourceLimiter for MemoryCap {
     }
 }
 
+type ReplayCreateCommand = TypedFunc<(i32, i32, i32, i32, i32, i32, i32, i32), i32>;
+
 /// The runtime's exports an engine calls.
 pub(crate) struct Exports {
     pub(crate) memory: Memory,
@@ -141,8 +143,7 @@ pub(crate) struct Exports {
     pub(crate) create_command: TypedFunc<(i32, i32, i32, i32, i32, i32), i32>,
     pub(crate) delete_command: TypedFunc<(i32, i32, i32, i32), i32>,
     pub(crate) replay_context: TypedFunc<(i32, i32), i32>,
-    #[allow(clippy::type_complexity)] // the export's own eight-argument signature
-    pub(crate) replay_create_command: TypedFunc<(i32, i32, i32, i32, i32, i32, i32, i32), i32>,
+    pub(crate) replay_create_command: ReplayCreateCommand,
     pub(crate) replay_delete_command: TypedFunc<(i32, i32, i32, i32, i32, i32), i32>,
     set_limits: TypedFunc<(i32, i64, i64), ()>,
     begin: TypedFunc<i32, ()>,
@@ -931,8 +932,7 @@ pub(crate) enum Failure {
         options: Option<Vec<u8>>,
     },
     ExecutionRefusal(String),
-    #[allow(clippy::enum_variant_names)] // mirrors `EngineError::ExecutionFailure`
-    ExecutionFailure(tcl_engine_api::NativeExecutionError),
+    NativeExecution(tcl_engine_api::NativeExecutionError),
 }
 
 impl Failure {
@@ -951,7 +951,7 @@ impl Failure {
                 options,
             },
             Self::ExecutionRefusal(reason) => EngineError::ExecutionRefusal(reason),
-            Self::ExecutionFailure(cause) => EngineError::execution_failure(cause),
+            Self::NativeExecution(cause) => EngineError::execution_failure(cause),
         }
     }
 }
