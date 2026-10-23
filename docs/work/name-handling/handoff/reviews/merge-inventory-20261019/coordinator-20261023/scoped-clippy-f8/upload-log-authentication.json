@@ -1,0 +1,10 @@
+{
+  "API_ZIP_and_job_upload_full_sha_size_id_agreement": "PASS",
+  "run": 40023224304,
+  "job": 120652825387,
+  "source": "f8a24979d71e3e9c7227088d0f4725524fae85ed",
+  "artifact": 12531413986,
+  "zip_sha256": "2711060e2f9af8c064ef10fc4bb87dd9c1c83c098fd976ab643684cad5ff7b96",
+  "size": 3971215,
+  "decoded_log_sha256": "6e79b06be94d6df0da27809c7b0b7b7d92d74f3b81815f8a0a8b115b676c5659"
+}

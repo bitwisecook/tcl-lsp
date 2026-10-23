@@ -1,0 +1,33 @@
+{
+  "run_job_os_arch": [
+    "40023224304",
+    "1",
+    "Linux",
+    "X64"
+  ],
+  "exact_workflow_sha256": "b9fd4a65f364efd55b2b6f8fd7b7412b19190bc3a73301630e2aa2f6bb89c87b",
+  "job_declared_environment": {
+    "CARGO_INCREMENTAL": "0",
+    "CARGO_PROFILE_DEV_DEBUG": "0",
+    "CARGO_BUILD_JOBS": "2",
+    "CARGO_TERM_COLOR": "never",
+    "RUST_BACKTRACE": "short"
+  },
+  "versions": {
+    "cargo-version.txt": "cargo 1.99.1 (5f94df478 2026-08-27)\n",
+    "rustc-version.txt": "rustc 1.99.1 (58cf8f9c3 2026-10-13)\nbinary: rustc\ncommit-hash: 58cf8f9c35b355199727627d07ae34a4e2846d67\ncommit-date: 2026-10-13\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.1\nLLVM version: 23.1.1\n",
+    "clippy-version.txt": "clippy 0.1.99 (58cf8f9c35 2026-10-13)\n"
+  },
+  "tools_hash_manifest_sha256": "90ea056da266b2cc07f1c9066569d72dd9a474e8bfa46db3d5f0f5ec5d653a3b",
+  "tools_after": [
+    "/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo: OK",
+    "/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/rustc: OK",
+    "/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/clippy-driver: OK"
+  ],
+  "argv_scope_locked_no_deps_all_targets_all_features_Dwarnings": "EXACT assert in analyse-zip.py",
+  "fresh_target_directory_check": "Declared before capture in exact workflow; capture start proves test passed; no local Cargo target touched",
+  "owned_processes": "Direct Cargo wait+EOF CLOSED flags only; no process-tree-empty admission",
+  "capture_exit": 1,
+  "capture_incomplete": 0,
+  "all_logs_untruncated": true
+}

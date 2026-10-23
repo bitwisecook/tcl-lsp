@@ -1,0 +1,165 @@
+{
+  "rows": [
+    {
+      "path": "rust/tcl-lsp-core/src/minify.rs",
+      "observed_source_commit": "f8a24979d71e3e9c7227088d0f4725524fae85ed",
+      "observed_snapshot_sha256": "0cc2fca3b02ad57997d5d175dbdf94600979ba62f5305e9f8384bbce93dbe392",
+      "publisher_head_checked": "5177abd3bed0204a0700767ff8c5b51d3eb58f10",
+      "publisher_blob_sha256": "aaaf0c9bacb127e6d5931495e34591b42daff9b267843bdb9ffb1fde45ed75b3",
+      "publisher_bytes_identical_to_observed": false
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/minify/original.rs",
+      "observed_source_commit": "f8a24979d71e3e9c7227088d0f4725524fae85ed",
+      "observed_snapshot_sha256": "9f8c73110f43975d6680dd2606ec1481bd11554f9c3900b917dea69803e584e6",
+      "publisher_head_checked": "5177abd3bed0204a0700767ff8c5b51d3eb58f10",
+      "publisher_blob_sha256": "361002c3c3ea908ec5fc311a6a33ebf7819650f74d4866a935e6b1f8ec143673",
+      "publisher_bytes_identical_to_observed": false
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/namespace_rename.rs",
+      "observed_source_commit": "f8a24979d71e3e9c7227088d0f4725524fae85ed",
+      "observed_snapshot_sha256": "a0735699fa93c794f3cfe468fb32c4846795b0f16445c916e6fad45e56b47011",
+      "publisher_head_checked": "5177abd3bed0204a0700767ff8c5b51d3eb58f10",
+      "publisher_blob_sha256": "a0735699fa93c794f3cfe468fb32c4846795b0f16445c916e6fad45e56b47011",
+      "publisher_bytes_identical_to_observed": true
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/namespace_rename/original.rs",
+      "observed_source_commit": "f8a24979d71e3e9c7227088d0f4725524fae85ed",
+      "observed_snapshot_sha256": "2f3fcb4b5cab72b02a22af9b15bc9ed767558897a11e2284302cbdb71e25efb5",
+      "publisher_head_checked": "5177abd3bed0204a0700767ff8c5b51d3eb58f10",
+      "publisher_blob_sha256": "2f3fcb4b5cab72b02a22af9b15bc9ed767558897a11e2284302cbdb71e25efb5",
+      "publisher_bytes_identical_to_observed": true
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/original_command_rename.rs",
+      "observed_source_commit": "f8a24979d71e3e9c7227088d0f4725524fae85ed",
+      "observed_snapshot_sha256": "dfd2ab259695507fe6d0f282c630b1b0598571a300a7da99e33f751ee83f7bab",
+      "publisher_head_checked": "5177abd3bed0204a0700767ff8c5b51d3eb58f10",
+      "publisher_blob_sha256": "dfd2ab259695507fe6d0f282c630b1b0598571a300a7da99e33f751ee83f7bab",
+      "publisher_bytes_identical_to_observed": true
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/original_command_rename/linked_authoring.rs",
+      "observed_source_commit": "f8a24979d71e3e9c7227088d0f4725524fae85ed",
+      "observed_snapshot_sha256": "6ef6c061381291dc0f40e4ff705cbfdf5f97b80167e4752ef71dfe000eef0f96",
+      "publisher_head_checked": "5177abd3bed0204a0700767ff8c5b51d3eb58f10",
+      "publisher_blob_sha256": "6ef6c061381291dc0f40e4ff705cbfdf5f97b80167e4752ef71dfe000eef0f96",
+      "publisher_bytes_identical_to_observed": true
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/original_member_rename.rs",
+      "observed_source_commit": "f8a24979d71e3e9c7227088d0f4725524fae85ed",
+      "observed_snapshot_sha256": "f84ddb6bb56e795da09384f9aee7f2c680134505e54bf37be4ffef5eab8d88c6",
+      "publisher_head_checked": "5177abd3bed0204a0700767ff8c5b51d3eb58f10",
+      "publisher_blob_sha256": "f84ddb6bb56e795da09384f9aee7f2c680134505e54bf37be4ffef5eab8d88c6",
+      "publisher_bytes_identical_to_observed": true
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/package_resolver/original_names.rs",
+      "observed_source_commit": "f8a24979d71e3e9c7227088d0f4725524fae85ed",
+      "observed_snapshot_sha256": "4ac0ce5f1d71803567df184b3b69a98ae85b726ded13f1365dea671f7679ac17",
+      "publisher_head_checked": "5177abd3bed0204a0700767ff8c5b51d3eb58f10",
+      "publisher_blob_sha256": "aa23f26a8898a4d0a600a6edd5ff736e414674e632893239758eed442a07ec9e",
+      "publisher_bytes_identical_to_observed": false
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/package_resolver/original_names/file_candidates.rs",
+      "observed_source_commit": "f8a24979d71e3e9c7227088d0f4725524fae85ed",
+      "observed_snapshot_sha256": "feefd386b1fced231af579c1a50139fec1622204bb8ba759f554ca97f3728119",
+      "publisher_head_checked": "5177abd3bed0204a0700767ff8c5b51d3eb58f10",
+      "publisher_blob_sha256": "3e7df4246aaffd546b7aa4140acc3871b45073bd1616b9318f6a306bfd715bf8",
+      "publisher_bytes_identical_to_observed": false
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/package_resolver/reachability/original.rs",
+      "observed_source_commit": "f8a24979d71e3e9c7227088d0f4725524fae85ed",
+      "observed_snapshot_sha256": "fd7f7d0e6372c769f6bc8d2bea77a2f8727e68390677b25557dd8db7842d539a",
+      "publisher_head_checked": "5177abd3bed0204a0700767ff8c5b51d3eb58f10",
+      "publisher_blob_sha256": "fd7f7d0e6372c769f6bc8d2bea77a2f8727e68390677b25557dd8db7842d539a",
+      "publisher_bytes_identical_to_observed": true
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/refactor/inline_proc.rs",
+      "observed_source_commit": "f8a24979d71e3e9c7227088d0f4725524fae85ed",
+      "observed_snapshot_sha256": "2714c22ce4e745a93d088da385242ee07ddc394ad884dee09b6df2210aa42118",
+      "publisher_head_checked": "5177abd3bed0204a0700767ff8c5b51d3eb58f10",
+      "publisher_blob_sha256": "2714c22ce4e745a93d088da385242ee07ddc394ad884dee09b6df2210aa42118",
+      "publisher_bytes_identical_to_observed": true
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/refactor/inline_variable.rs",
+      "observed_source_commit": "f8a24979d71e3e9c7227088d0f4725524fae85ed",
+      "observed_snapshot_sha256": "3ad1baae199e7d50af383b5457010ffd4e41088996e54d2c413b130da6c18c55",
+      "publisher_head_checked": "5177abd3bed0204a0700767ff8c5b51d3eb58f10",
+      "publisher_blob_sha256": "3ad1baae199e7d50af383b5457010ffd4e41088996e54d2c413b130da6c18c55",
+      "publisher_bytes_identical_to_observed": true
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/rename.rs",
+      "observed_source_commit": "f8a24979d71e3e9c7227088d0f4725524fae85ed",
+      "observed_snapshot_sha256": "045c666b6da6d5f9e767df91f7d4d8aff195fd1902f2b064a443f175f53e42ae",
+      "publisher_head_checked": "5177abd3bed0204a0700767ff8c5b51d3eb58f10",
+      "publisher_blob_sha256": "045c666b6da6d5f9e767df91f7d4d8aff195fd1902f2b064a443f175f53e42ae",
+      "publisher_bytes_identical_to_observed": true
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/variable_symbol/rename.rs",
+      "observed_source_commit": "f8a24979d71e3e9c7227088d0f4725524fae85ed",
+      "observed_snapshot_sha256": "3cb719850d429cb772769970726f9ddf25c35374c8397cbcb5077e31dfe04a39",
+      "publisher_head_checked": "5177abd3bed0204a0700767ff8c5b51d3eb58f10",
+      "publisher_blob_sha256": "3cb719850d429cb772769970726f9ddf25c35374c8397cbcb5077e31dfe04a39",
+      "publisher_bytes_identical_to_observed": true
+    },
+    {
+      "path": "rust/tcl-lsp-db/src/lib.rs",
+      "observed_source_commit": "f8a24979d71e3e9c7227088d0f4725524fae85ed",
+      "observed_snapshot_sha256": "0719dd7828e9b1d43109814ebbd9c3b2ffa531c728653c6b0b402ffd60aa2362",
+      "publisher_head_checked": "5177abd3bed0204a0700767ff8c5b51d3eb58f10",
+      "publisher_blob_sha256": "0719dd7828e9b1d43109814ebbd9c3b2ffa531c728653c6b0b402ffd60aa2362",
+      "publisher_bytes_identical_to_observed": true
+    },
+    {
+      "path": "rust/tcl-lsp-db/tests/memory_alias_graph.rs",
+      "observed_source_commit": "f8a24979d71e3e9c7227088d0f4725524fae85ed",
+      "observed_snapshot_sha256": "23a583f3edb60aa9294028f1367e1ee4c44e48c327f68fad850e5bf92be3eb38",
+      "publisher_head_checked": "5177abd3bed0204a0700767ff8c5b51d3eb58f10",
+      "publisher_blob_sha256": "23a583f3edb60aa9294028f1367e1ee4c44e48c327f68fad850e5bf92be3eb38",
+      "publisher_bytes_identical_to_observed": true
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/current_diagnostics.rs",
+      "observed_source_commit": "f8a24979d71e3e9c7227088d0f4725524fae85ed",
+      "observed_snapshot_sha256": "042ad291d4a8f151be8d6e86efe0de72bab63d0e0c1c13906c3e0079578d1b5f",
+      "publisher_head_checked": "5177abd3bed0204a0700767ff8c5b51d3eb58f10",
+      "publisher_blob_sha256": "042ad291d4a8f151be8d6e86efe0de72bab63d0e0c1c13906c3e0079578d1b5f",
+      "publisher_bytes_identical_to_observed": true
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/lib.rs",
+      "observed_source_commit": "f8a24979d71e3e9c7227088d0f4725524fae85ed",
+      "observed_snapshot_sha256": "abdfb49b34b24e66ba8ece8f953c9c947f72999452e2ae5689c0a8cff7c3e9af",
+      "publisher_head_checked": "5177abd3bed0204a0700767ff8c5b51d3eb58f10",
+      "publisher_blob_sha256": "abdfb49b34b24e66ba8ece8f953c9c947f72999452e2ae5689c0a8cff7c3e9af",
+      "publisher_bytes_identical_to_observed": true
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/original_document_metadata_tests.rs",
+      "observed_source_commit": "f8a24979d71e3e9c7227088d0f4725524fae85ed",
+      "observed_snapshot_sha256": "9dc192c9367c590935298a03b33cf32c56ca256bf98f32c5ffca1aca6f37bf6f",
+      "publisher_head_checked": "5177abd3bed0204a0700767ff8c5b51d3eb58f10",
+      "publisher_blob_sha256": "9dc192c9367c590935298a03b33cf32c56ca256bf98f32c5ffca1aca6f37bf6f",
+      "publisher_bytes_identical_to_observed": true
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/readonly_reference_reports/source_views.rs",
+      "observed_source_commit": "f8a24979d71e3e9c7227088d0f4725524fae85ed",
+      "observed_snapshot_sha256": "4bb70dd893bfccc97a5c5e2414999fbe850300d55239aaa9de7e7ece782fa586",
+      "publisher_head_checked": "5177abd3bed0204a0700767ff8c5b51d3eb58f10",
+      "publisher_blob_sha256": "4bb70dd893bfccc97a5c5e2414999fbe850300d55239aaa9de7e7ece782fa586",
+      "publisher_bytes_identical_to_observed": true
+    }
+  ],
+  "limits": "File-level byte joins only. Changed current bytes do not prove finding resolved; unchanged bytes do not imply every target covered. Do not duplicate already-authored current fixes for old run findings."
+}

@@ -1,0 +1,172 @@
+{
+  "source_commit": "f8a24979d71e3e9c7227088d0f4725524fae85ed",
+  "rows": [
+    {
+      "severity": "error",
+      "message": "used `assert!` to check that a value is empty",
+      "rust_error": null,
+      "lint": "assert_is_empty",
+      "source_package": "tcl-lsp-db",
+      "file": "rust/tcl-lsp-db/tests/memory_alias_graph.rs",
+      "line": 151,
+      "column": 9,
+      "category": "ClippyLint",
+      "primary_for_requested_scope": true,
+      "identity_sha256": "4a0c45f997e72147d287a0ab60ed2e378977ae2a370ceca56f3aa9ef13d24b96",
+      "emission_count": 1,
+      "emissions": [
+        {
+          "scope_package": "tcl-lsp-db",
+          "severity": "error",
+          "message": "used `assert!` to check that a value is empty",
+          "rust_error": null,
+          "lint": "assert_is_empty",
+          "log_member": "tcl-lsp-db.log.txt",
+          "log_line": 86,
+          "block_sha256": "798b9df3caaa7f5971c89f14443278d6328377169ae9fae8ca1dc5eadbdd0b15",
+          "source_package": "tcl-lsp-db",
+          "file": "rust/tcl-lsp-db/tests/memory_alias_graph.rs",
+          "line": 151,
+          "column": 9,
+          "category": "ClippyLint",
+          "primary_for_requested_scope": true
+        }
+      ],
+      "source_sha256": "23a583f3edb60aa9294028f1367e1ee4c44e48c327f68fad850e5bf92be3eb38",
+      "source_excerpt": [
+        {
+          "line": 150,
+          "text": "        assert_eq!(card[\"has_wildcard_aliasing\"], true);"
+        },
+        {
+          "line": 151,
+          "text": "        assert!(card[\"alias_sets\"].as_array().unwrap().is_empty());"
+        },
+        {
+          "line": 152,
+          "text": "        let definitions ="
+        }
+      ]
+    },
+    {
+      "severity": "error",
+      "message": "used `assert!` to check that a value is empty",
+      "rust_error": null,
+      "lint": "assert_is_empty",
+      "source_package": "tcl-lsp-db",
+      "file": "rust/tcl-lsp-db/tests/memory_alias_graph.rs",
+      "line": 159,
+      "column": 9,
+      "category": "ClippyLint",
+      "primary_for_requested_scope": true,
+      "identity_sha256": "08b1a689a3baa27a2c291450296b27dbc005869ab3cf6d7434e0a214e861934f",
+      "emission_count": 1,
+      "emissions": [
+        {
+          "scope_package": "tcl-lsp-db",
+          "severity": "error",
+          "message": "used `assert!` to check that a value is empty",
+          "rust_error": null,
+          "lint": "assert_is_empty",
+          "log_member": "tcl-lsp-db.log.txt",
+          "log_line": 101,
+          "block_sha256": "f0302815792755da8c7a1dbc015fa26f18e49ab3e58c75f14081cf59160a0661",
+          "source_package": "tcl-lsp-db",
+          "file": "rust/tcl-lsp-db/tests/memory_alias_graph.rs",
+          "line": 159,
+          "column": 9,
+          "category": "ClippyLint",
+          "primary_for_requested_scope": true
+        }
+      ],
+      "source_sha256": "23a583f3edb60aa9294028f1367e1ee4c44e48c327f68fad850e5bf92be3eb38",
+      "source_excerpt": [
+        {
+          "line": 158,
+          "text": "        assert!(card[\"summary\"].is_null());"
+        },
+        {
+          "line": 159,
+          "text": "        assert!(card[\"nodes\"].as_array().unwrap().is_empty());"
+        },
+        {
+          "line": 160,
+          "text": "        let effects ="
+        }
+      ]
+    },
+    {
+      "severity": "error",
+      "message": "the following explicit lifetimes could be elided: 'db",
+      "rust_error": null,
+      "lint": "elidable_lifetime_names",
+      "source_package": "tcl-lsp-db",
+      "file": "rust/tcl-lsp-db/src/lib.rs",
+      "line": 6147,
+      "column": 45,
+      "category": "ClippyLint",
+      "primary_for_requested_scope": true,
+      "identity_sha256": "4fea524481b13e92f3a8337f898b7cd9be2d2fa2614be5271fed206a9401251f",
+      "emission_count": 1,
+      "emissions": [
+        {
+          "scope_package": "tcl-lsp-db",
+          "severity": "error",
+          "message": "the following explicit lifetimes could be elided: 'db",
+          "rust_error": null,
+          "lint": "elidable_lifetime_names",
+          "log_member": "tcl-lsp-db.log.txt",
+          "log_line": 116,
+          "block_sha256": "ada434ca47ab6ef0478f1f4abe7339af25dd9e09be5ed0d9f8335c1c26917a11",
+          "source_package": "tcl-lsp-db",
+          "file": "rust/tcl-lsp-db/src/lib.rs",
+          "line": 6147,
+          "column": 45,
+          "category": "ClippyLint",
+          "primary_for_requested_scope": true
+        }
+      ],
+      "source_sha256": "0719dd7828e9b1d43109814ebbd9c3b2ffa531c728653c6b0b402ffd60aa2362",
+      "source_excerpt": [
+        {
+          "line": 6146,
+          "text": ""
+        },
+        {
+          "line": 6147,
+          "text": "    fn original_event_test_context_snapshot<'db>("
+        },
+        {
+          "line": 6148,
+          "text": "        db: &'db dyn TclDb,"
+        }
+      ]
+    }
+  ],
+  "scope_status": [
+    {
+      "requested_package": "tcl-lsp-core",
+      "coverage": "PARTIAL_REQUESTED_PACKAGE_CHECK_OBSERVED",
+      "zero_warning_closure": false,
+      "located_primary_findings": 22,
+      "located_errors": 22,
+      "located_warnings": 0
+    },
+    {
+      "requested_package": "tcl-lsp-db",
+      "coverage": "PARTIAL_REQUESTED_PACKAGE_CHECK_OBSERVED",
+      "zero_warning_closure": false,
+      "located_primary_findings": 3,
+      "located_errors": 3,
+      "located_warnings": 0
+    },
+    {
+      "requested_package": "tcl-lsp-server",
+      "coverage": "PARTIAL_REQUESTED_PACKAGE_CHECK_OBSERVED",
+      "zero_warning_closure": false,
+      "located_primary_findings": 52,
+      "located_errors": 52,
+      "located_warnings": 0
+    }
+  ]
+}

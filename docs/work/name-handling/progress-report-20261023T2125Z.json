@@ -1,0 +1,77 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-23T21:25:40.107489+00:00",
+  "scheduled_report_utc": "2026-10-23T21:25:37+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-23T21:55:37+00:00",
+  "change_since_previous_report": [
+    "Published20:55 officialreport/WIPb749 and reviewedsource5177, preserving externalperf267a8011. Latest staticreviewed Server2/DB3V2/packageentries1 commits work6d18/b3d36/c0deb and clean2fe99/018cf/5acafb integrated; freshfetch/rebase/normalpush inprogress before cycle. No PR/merge/tag/publish.",
+    "Actualf8 scoped40023224304 completeJSON125122/125122 all3commands101; Core22length, DB3lints, Server35length15largefuture2RustE. Actualinventory/sealscopiedscoped-clippy-f8 androw5updatedFAIL. No process-treeemptyseal; no compilerownstrictgate or closurebysubtraction.",
+    "Actualf8Spec40023231541 complete8PASS3FAIL/11,4ASCIIcontrolsPASS, allsource/providers/tools/artifacts/finalseals andemptyownedgroups, bothbuild0W. Actualparent::f readonlybody deliberatelynoexecuted_source; authoredguardcorrectlyrefuses. No guardloosening; source/schema producerdiagnosiscontinues. Receipts/peer copiedspec-f8-current.",
+    "Actualf8Jim40023228174 firstcompletecurrent7=3PASS4FAIL; bothcanonicalidentitytestspluslistcontrolPASS; fourclass/body/sourcefailuresremain. Complete125122source/21checks/12ownedlifecycles/build0W. New authoredingresspresentso absentgenericconstructornotcause; sameflag existingpredicate observer underpeer, nofunctionalfixclaimed. Triagecopiedjim-f8-current.",
+    "Server2 metadata testfix preserves typedfullValue emptycomparison and authentic borrowedResolvedAnalysisInput (noArc fabrication); DB3V2 typedemptyValue comparisons/lifetimeelision independentlyreviewed. OriginalV1untypedDBproposalheld. Packageentries extraction pureprojections preservingcallerownedkeys/words/input/drop/guards; staticreviewnotgateclosure.",
+    "Actualwork5177 dispatch21:10 original58plusseparate3native35 controls run40024819959 running; focusedfullTom40024823970 closedFAIL andRuntimeisfetchingartifact. Original58selectors/perrow35envvalues preserved, fivefreshartifacts/fullstrictseals. C-onlybuiltinoptimisationandC-backedpublicassertcorrection present; numericfixturepreconditionunchangedpendinganswer.",
+    "Releasecanonicalarray-modefixtures restoredexact37actuallyreadoriginalTclinputs fromall6TSVs inWORKfirstthenrelease; assertions/versionchecks/data/sourcebytesunchanged. Five staleexperimentcomment/config/unsupportedmetric references cleanedreleaseonly. Finalrepoaudits/fullformat/rust-check/prep-pr stillopen; chaffandevidencestayonWORK.",
+    "BIGIP13:17headerstillstale>60min butownerreportsownedworkcomplete; usernotified. CurrentBlockedcompiler event12combos2bodies0words/ILXrelations routedCompiler; nativehoststartuprealprovider routedRuntime+Compiler; diagnostics30s/rewritewithoutF5 routedLSP. DedicatediRulesperformancewaivedonly; correctnesskept.",
+    "Externalperf21:03 head267a preserved:16controlsand586lexerBOTHpass0W; compiler228/229bothsame142P86F butoriginal1000levelOOM/incomplete. CorpusoldOOM77/102,missingtailseparate/native35Unavailable remain. No realm/perfpatchaccepted; fullTclcorpusperformanceandzero24312baselineP2F remainopen.",
+    "Next cleanreleaseCI dispatch native_release_build_proof=true usesexistingseparateproofconcurrencygroup, runsallordinarychecksplus28nativeartifactbuilds withoutcancelingordinary9cCI; sourcepushmustfinishfirst. No publishing/tag/merge. Localbothfilesystemsbelow2GiB, no localbuilds/targetdeletions. Instructionfourbools and numericfixture userchoicesstillpending.",
+    "Fresh5177focusedruntime40024823970 complete3selected/3closed/1PASS2FAIL0unknown, fullJSON125188/125188/TomMath/processseals. Source-backedpublicCtestPASS6.44s; numericactualJimERANGErefusalfails17.9s; append521completed/514remainingat180s, nooptacceptance. Original58+supp3run40024819959 alsoclosedFAIL; artifacttriagepending, no inventedtestoutcomes."
+  ],
+  "committed": [
+    "7b08c0fbddf2f3dde8cedc8cedd808fc713c29d4"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Publish21:25 officialreport/WIP and rearm21:55 reminder.",
+    "Finishcurrentcleanreleasepush anddispatch fullCI withnativebuildproof; retainoldordinaryrun.",
+    "Monitororiginal58+3/runtime3 actualartifacts; diagnoseJim4/Spec3/native35/compiler58failures usingexistingstrictcontracts.",
+    "ContinuemeasuredCore/Serverlintrepairs withindependentcarryreviews; rerunallstrictgates onnamedtip.",
+    "CompleteallsectionF/native/browser/WASI/editor, fullbaselinezero-P2F andacceptedTclperformance; cleanreleaseaudit beforePR."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-23T13:17Z",
+    "perf": "2026-10-23 21:03 UTC",
+    "review-triage": "2026-10-22T19:57:30Z"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "Rows5/9 updatedonlyrecordedfreshf8failures; staticrepairsnotclosures. No admissions/verifiedcountchanges. Originalpartialcapturesremainpartial, fullbaseline/performanceandallshippinggatesopen.",
+  "disk_free_bytes": 2038865920,
+  "baseline_ci_run": 39816429638,
+  "baseline_ci_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731"
+}

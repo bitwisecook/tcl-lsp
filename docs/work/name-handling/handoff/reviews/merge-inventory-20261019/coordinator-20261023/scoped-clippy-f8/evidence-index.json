@@ -1,0 +1,72 @@
+{
+  "run": 40023224304,
+  "job": 120652825387,
+  "source": "f8a24979d71e3e9c7227088d0f4725524fae85ed",
+  "artifact": 12531413986,
+  "summary": {
+    "distinct_located_findings": 77,
+    "located_emissions": 77,
+    "distinct_Rust_E_errors": 2,
+    "distinct_Clippy_lints": 75,
+    "distinct_Rust_warnings": 0,
+    "nonlocated_headers": 7,
+    "by_source_package": {
+      "tcl-lsp-core": 22,
+      "tcl-lsp-db": 3,
+      "tcl-lsp-server": 52
+    },
+    "compiler_dependency_observation": {
+      "located_errors": 0,
+      "located_warnings": 0,
+      "check_line_observed_in_scopes": [
+        "tcl-lsp-core",
+        "tcl-lsp-db",
+        "tcl-lsp-server"
+      ],
+      "scope_limit": "Compiler built as dependency under --no-deps; this is not a strict compiler Clippy/all-target gate"
+    },
+    "by_scope": [
+      {
+        "requested_package": "tcl-lsp-core",
+        "coverage": "PARTIAL_REQUESTED_PACKAGE_CHECK_OBSERVED",
+        "zero_warning_closure": false,
+        "located_primary_findings": 22,
+        "located_errors": 22,
+        "located_warnings": 0
+      },
+      {
+        "requested_package": "tcl-lsp-db",
+        "coverage": "PARTIAL_REQUESTED_PACKAGE_CHECK_OBSERVED",
+        "zero_warning_closure": false,
+        "located_primary_findings": 3,
+        "located_errors": 3,
+        "located_warnings": 0
+      },
+      {
+        "requested_package": "tcl-lsp-server",
+        "coverage": "PARTIAL_REQUESTED_PACKAGE_CHECK_OBSERVED",
+        "zero_warning_closure": false,
+        "located_primary_findings": 52,
+        "located_errors": 52,
+        "located_warnings": 0
+      }
+    ]
+  },
+  "source_JSON_guard": "PASS",
+  "source_count": 125122,
+  "proof_files": {
+    "actual-primary-inventory.json": "ef1f32925453656671d7bc6bb7d9e9529374f9fddde12b006fff503535e3d4c0",
+    "source-process-completeness-seals.json": "fd2de14c15e0e6813a41c350e127f49ba732ce0eae442ed004faf3e9962f01a1",
+    "zip-authentication.json": "8df276003d24a1f56f28fea5b0c692ecda8b63c06fb0acc69e35f1825c2da92e",
+    "upload-log-authentication.json": "edbf85b02199340e19d881be4b0050a405d8082b9990fd814aac6a81925238c1",
+    "prior402-identity-comparison.json": "fd565e2e32ba272f339f227513fde25a9908e2eb3349e94dcc4968dc0149c8d3",
+    "previous-f10-identity-comparison.json": "88700fc405d5011e940f975288d87f629b636e2473313b82e5fd5de8bb400610",
+    "compiler-source-attribution.json": "c738a2a460eaaf0fdbd49b3253cbe335418a6634ba4dfa2152498509bb50d85a",
+    "protocol-seal.json": "e568c061cd23781633a365aec93d8af327d006246f74fa3c2f7e1473138a8f78",
+    "current-source-joins.json": "f3260ea8b5888b8adc6e2fee42f464441c17d7c2791872310f0b2675a2234d56",
+    "findings-tcl-lsp-server.json": "ec8262860356703363de526c46e8931806e99e6a4de9ab33b25005e26768a647",
+    "findings-tcl-lsp-db.json": "dcd2e068536eab45d2f3504c822814de5f992018fee54906e04540657116377c",
+    "findings-tcl-lsp-core.json": "a358deb31212daebbe04a19f4d314c694c542e39aabe555e6a5f1b1a2400d602"
+  },
+  "inspection": "Large JSON parsed/hashed inside ZIP; only small diagnostics/reports extracted. No builds/canonical/Git/target writes. Original633 remains PARTIAL, priorf10 remains complete independent observation."
+}

@@ -1,0 +1,1065 @@
+{
+  "source_commit": "f8a24979d71e3e9c7227088d0f4725524fae85ed",
+  "rows": [
+    {
+      "severity": "error",
+      "message": "this function has too many lines (107/100)",
+      "rust_error": null,
+      "lint": "too_many_lines",
+      "source_package": "tcl-lsp-core",
+      "file": "rust/tcl-lsp-core/src/minify/original.rs",
+      "line": 288,
+      "column": 1,
+      "category": "ClippyLint",
+      "primary_for_requested_scope": true,
+      "identity_sha256": "37c54954068b46bdcebc85f6d40602500018050f4df775776be86df32e401f81",
+      "emission_count": 1,
+      "emissions": [
+        {
+          "scope_package": "tcl-lsp-core",
+          "severity": "error",
+          "message": "this function has too many lines (107/100)",
+          "rust_error": null,
+          "lint": "too_many_lines",
+          "log_member": "tcl-lsp-core.log.txt",
+          "log_line": 313,
+          "block_sha256": "3a7eaa2f8b334231034600560a892730853dc61db7e98b1998d8dca4a4271838",
+          "source_package": "tcl-lsp-core",
+          "file": "rust/tcl-lsp-core/src/minify/original.rs",
+          "line": 288,
+          "column": 1,
+          "category": "ClippyLint",
+          "primary_for_requested_scope": true
+        }
+      ],
+      "source_sha256": "9f8c73110f43975d6680dd2606ec1481bd11554f9c3900b917dea69803e584e6",
+      "source_excerpt": [
+        {
+          "line": 287,
+          "text": ""
+        },
+        {
+          "line": 288,
+          "text": "fn scalar_alpha_compaction("
+        },
+        {
+          "line": 289,
+          "text": "    source: &str,"
+        }
+      ]
+    },
+    {
+      "severity": "error",
+      "message": "this function has too many lines (202/100)",
+      "rust_error": null,
+      "lint": "too_many_lines",
+      "source_package": "tcl-lsp-core",
+      "file": "rust/tcl-lsp-core/src/minify/original.rs",
+      "line": 599,
+      "column": 1,
+      "category": "ClippyLint",
+      "primary_for_requested_scope": true,
+      "identity_sha256": "8413d3c250fdf5f2441979850b60cbfeee74a93957097ff1cc1faf6f0a4b3e8a",
+      "emission_count": 1,
+      "emissions": [
+        {
+          "scope_package": "tcl-lsp-core",
+          "severity": "error",
+          "message": "this function has too many lines (202/100)",
+          "rust_error": null,
+          "lint": "too_many_lines",
+          "log_member": "tcl-lsp-core.log.txt",
+          "log_line": 327,
+          "block_sha256": "de68542ef5df5c64f91077884168109665fc4c3c5e5b0475566513daabb030f6",
+          "source_package": "tcl-lsp-core",
+          "file": "rust/tcl-lsp-core/src/minify/original.rs",
+          "line": 599,
+          "column": 1,
+          "category": "ClippyLint",
+          "primary_for_requested_scope": true
+        }
+      ],
+      "source_sha256": "9f8c73110f43975d6680dd2606ec1481bd11554f9c3900b917dea69803e584e6",
+      "source_excerpt": [
+        {
+          "line": 598,
+          "text": ""
+        },
+        {
+          "line": 599,
+          "text": "fn syntax_compaction(source: &str, analysis: &AnalysisResult) -> Result<String, MinifyRefusal> {"
+        },
+        {
+          "line": 600,
+          "text": "    // Implementation contract: naming.minifier.original-syntax-correspondence"
+        }
+      ]
+    },
+    {
+      "severity": "error",
+      "message": "this function has too many lines (114/100)",
+      "rust_error": null,
+      "lint": "too_many_lines",
+      "source_package": "tcl-lsp-core",
+      "file": "rust/tcl-lsp-core/src/minify.rs",
+      "line": 1264,
+      "column": 1,
+      "category": "ClippyLint",
+      "primary_for_requested_scope": true,
+      "identity_sha256": "1bb8addabfc997dd0cc984eb8504d88631d7eed5469b70881d4dc376ef02ed04",
+      "emission_count": 1,
+      "emissions": [
+        {
+          "scope_package": "tcl-lsp-core",
+          "severity": "error",
+          "message": "this function has too many lines (114/100)",
+          "rust_error": null,
+          "lint": "too_many_lines",
+          "log_member": "tcl-lsp-core.log.txt",
+          "log_line": 335,
+          "block_sha256": "bb765f08641855739e934962fa44e9e6865df9d723a5294c86601166de36646f",
+          "source_package": "tcl-lsp-core",
+          "file": "rust/tcl-lsp-core/src/minify.rs",
+          "line": 1264,
+          "column": 1,
+          "category": "ClippyLint",
+          "primary_for_requested_scope": true
+        }
+      ],
+      "source_sha256": "0cc2fca3b02ad57997d5d175dbdf94600979ba62f5305e9f8384bbce93dbe392",
+      "source_excerpt": [
+        {
+          "line": 1263,
+          "text": "/// serialisation, not a private compiler symbol."
+        },
+        {
+          "line": 1264,
+          "text": "fn compact_names("
+        },
+        {
+          "line": 1265,
+          "text": "    source: &str,"
+        }
+      ]
+    },
+    {
+      "severity": "error",
+      "message": "this function has too many lines (382/100)",
+      "rust_error": null,
+      "lint": "too_many_lines",
+      "source_package": "tcl-lsp-core",
+      "file": "rust/tcl-lsp-core/src/namespace_rename/original.rs",
+      "line": 322,
+      "column": 1,
+      "category": "ClippyLint",
+      "primary_for_requested_scope": true,
+      "identity_sha256": "553f3c94801d53d20e6f5e83c6547f5cbceb9a1cfefbddecfa99466c0c3838e2",
+      "emission_count": 1,
+      "emissions": [
+        {
+          "scope_package": "tcl-lsp-core",
+          "severity": "error",
+          "message": "this function has too many lines (382/100)",
+          "rust_error": null,
+          "lint": "too_many_lines",
+          "log_member": "tcl-lsp-core.log.txt",
+          "log_line": 347,
+          "block_sha256": "e1f334436b591a30811e1a411d73770f88819d1318c35ec63d3ccfa90136b343",
+          "source_package": "tcl-lsp-core",
+          "file": "rust/tcl-lsp-core/src/namespace_rename/original.rs",
+          "line": 322,
+          "column": 1,
+          "category": "ClippyLint",
+          "primary_for_requested_scope": true
+        }
+      ],
+      "source_sha256": "2f3fcb4b5cab72b02a22af9b15bc9ed767558897a11e2284302cbdb71e25efb5",
+      "source_excerpt": [
+        {
+          "line": 321,
+          "text": "/// obligation cannot be independently established."
+        },
+        {
+          "line": 322,
+          "text": "pub fn original_namespace_rename_edits("
+        },
+        {
+          "line": 323,
+          "text": "    source: &str,"
+        }
+      ]
+    },
+    {
+      "severity": "error",
+      "message": "this function has too many lines (136/100)",
+      "rust_error": null,
+      "lint": "too_many_lines",
+      "source_package": "tcl-lsp-core",
+      "file": "rust/tcl-lsp-core/src/namespace_rename.rs",
+      "line": 141,
+      "column": 1,
+      "category": "ClippyLint",
+      "primary_for_requested_scope": true,
+      "identity_sha256": "7739a6f65fcdf8c842b2b843839625038720482b7fdad61fe145504215600553",
+      "emission_count": 1,
+      "emissions": [
+        {
+          "scope_package": "tcl-lsp-core",
+          "severity": "error",
+          "message": "this function has too many lines (136/100)",
+          "rust_error": null,
+          "lint": "too_many_lines",
+          "log_member": "tcl-lsp-core.log.txt",
+          "log_line": 361,
+          "block_sha256": "d3b1f1d61d1e2b566cc2e51e54379917e3eaeb7161d4077f114d48335cd8eb0c",
+          "source_package": "tcl-lsp-core",
+          "file": "rust/tcl-lsp-core/src/namespace_rename.rs",
+          "line": 141,
+          "column": 1,
+          "category": "ClippyLint",
+          "primary_for_requested_scope": true
+        }
+      ],
+      "source_sha256": "a0735699fa93c794f3cfe468fb32c4846795b0f16445c916e6fad45e56b47011",
+      "source_excerpt": [
+        {
+          "line": 140,
+          "text": ""
+        },
+        {
+          "line": 141,
+          "text": "fn lexical_namespace_rename_edits("
+        },
+        {
+          "line": 142,
+          "text": "    source: &str,"
+        }
+      ]
+    },
+    {
+      "severity": "error",
+      "message": "this function has too many lines (152/100)",
+      "rust_error": null,
+      "lint": "too_many_lines",
+      "source_package": "tcl-lsp-core",
+      "file": "rust/tcl-lsp-core/src/namespace_rename.rs",
+      "line": 433,
+      "column": 1,
+      "category": "ClippyLint",
+      "primary_for_requested_scope": true,
+      "identity_sha256": "0f55f699a5eee6e4cff1673671fb19db111f2e3b03a1c556baa47592732304c0",
+      "emission_count": 1,
+      "emissions": [
+        {
+          "scope_package": "tcl-lsp-core",
+          "severity": "error",
+          "message": "this function has too many lines (152/100)",
+          "rust_error": null,
+          "lint": "too_many_lines",
+          "log_member": "tcl-lsp-core.log.txt",
+          "log_line": 375,
+          "block_sha256": "778513247917371172288879837965245238560d53363ae285acb35dfd41d03b",
+          "source_package": "tcl-lsp-core",
+          "file": "rust/tcl-lsp-core/src/namespace_rename.rs",
+          "line": 433,
+          "column": 1,
+          "category": "ClippyLint",
+          "primary_for_requested_scope": true
+        }
+      ],
+      "source_sha256": "a0735699fa93c794f3cfe468fb32c4846795b0f16445c916e6fad45e56b47011",
+      "source_excerpt": [
+        {
+          "line": 432,
+          "text": "/// discipline the member tier applies, applied here."
+        },
+        {
+          "line": 433,
+          "text": "fn namespace_rename_hazard("
+        },
+        {
+          "line": 434,
+          "text": "    source: &str,"
+        }
+      ]
+    },
+    {
+      "severity": "error",
+      "message": "this function has too many lines (122/100)",
+      "rust_error": null,
+      "lint": "too_many_lines",
+      "source_package": "tcl-lsp-core",
+      "file": "rust/tcl-lsp-core/src/original_command_rename/linked_authoring.rs",
+      "line": 21,
+      "column": 5,
+      "category": "ClippyLint",
+      "primary_for_requested_scope": true,
+      "identity_sha256": "7cff734c7ee1e31d66e8ac03fe25bb4c85fd5ff8fb0aefdfeb72801ce13f1672",
+      "emission_count": 1,
+      "emissions": [
+        {
+          "scope_package": "tcl-lsp-core",
+          "severity": "error",
+          "message": "this function has too many lines (122/100)",
+          "rust_error": null,
+          "lint": "too_many_lines",
+          "log_member": "tcl-lsp-core.log.txt",
+          "log_line": 389,
+          "block_sha256": "295bd501b0b3758a2a55486f2db0bd5be3ada97d51ed0a2a20d4ed63ae071214",
+          "source_package": "tcl-lsp-core",
+          "file": "rust/tcl-lsp-core/src/original_command_rename/linked_authoring.rs",
+          "line": 21,
+          "column": 5,
+          "category": "ClippyLint",
+          "primary_for_requested_scope": true
+        }
+      ],
+      "source_sha256": "6ef6c061381291dc0f40e4ff705cbfdf5f97b80167e4752ef71dfe000eef0f96",
+      "source_excerpt": [
+        {
+          "line": 20,
+          "text": "impl<'a> OriginalLinkedSourceSpelling<'a> {"
+        },
+        {
+          "line": 21,
+          "text": "    pub(crate) fn capture("
+        },
+        {
+          "line": 22,
+          "text": "        source: &'a str,"
+        }
+      ]
+    },
+    {
+      "severity": "error",
+      "message": "this function has too many lines (129/100)",
+      "rust_error": null,
+      "lint": "too_many_lines",
+      "source_package": "tcl-lsp-core",
+      "file": "rust/tcl-lsp-core/src/original_command_rename.rs",
+      "line": 301,
+      "column": 1,
+      "category": "ClippyLint",
+      "primary_for_requested_scope": true,
+      "identity_sha256": "6d5c551b15e19e4f3b5d17a96d3728194d9139612ea737a6c42d50a011e0931b",
+      "emission_count": 1,
+      "emissions": [
+        {
+          "scope_package": "tcl-lsp-core",
+          "severity": "error",
+          "message": "this function has too many lines (129/100)",
+          "rust_error": null,
+          "lint": "too_many_lines",
+          "log_member": "tcl-lsp-core.log.txt",
+          "log_line": 402,
+          "block_sha256": "05acf7621d864a4129bc2eb3f5fad17f8e347d61e7e2b59148208a126e43192d",
+          "source_package": "tcl-lsp-core",
+          "file": "rust/tcl-lsp-core/src/original_command_rename.rs",
+          "line": 301,
+          "column": 1,
+          "category": "ClippyLint",
+          "primary_for_requested_scope": true
+        }
+      ],
+      "source_sha256": "dfd2ab259695507fe6d0f282c630b1b0598571a300a7da99e33f751ee83f7bab",
+      "source_excerpt": [
+        {
+          "line": 300,
+          "text": ""
+        },
+        {
+          "line": 301,
+          "text": "fn document_requests("
+        },
+        {
+          "line": 302,
+          "text": "    document: OriginalDeclarationDocument<'_>,"
+        }
+      ]
+    },
+    {
+      "severity": "error",
+      "message": "this function has too many lines (154/100)",
+      "rust_error": null,
+      "lint": "too_many_lines",
+      "source_package": "tcl-lsp-core",
+      "file": "rust/tcl-lsp-core/src/original_command_rename.rs",
+      "line": 474,
+      "column": 1,
+      "category": "ClippyLint",
+      "primary_for_requested_scope": true,
+      "identity_sha256": "c6823236f07aa197d540e2c154d3bd4caf30e371b027036760645186e3a2487b",
+      "emission_count": 1,
+      "emissions": [
+        {
+          "scope_package": "tcl-lsp-core",
+          "severity": "error",
+          "message": "this function has too many lines (154/100)",
+          "rust_error": null,
+          "lint": "too_many_lines",
+          "log_member": "tcl-lsp-core.log.txt",
+          "log_line": 416,
+          "block_sha256": "cfec1ee01e280302baec292d71090b154ee56f58b27882f53c5df46035af3c73",
+          "source_package": "tcl-lsp-core",
+          "file": "rust/tcl-lsp-core/src/original_command_rename.rs",
+          "line": 474,
+          "column": 1,
+          "category": "ClippyLint",
+          "primary_for_requested_scope": true
+        }
+      ],
+      "source_sha256": "dfd2ab259695507fe6d0f282c630b1b0598571a300a7da99e33f751ee83f7bab",
+      "source_excerpt": [
+        {
+          "line": 473,
+          "text": ""
+        },
+        {
+          "line": 474,
+          "text": "fn original_command_rename_units("
+        },
+        {
+          "line": 475,
+          "text": "    documents: &[OriginalDeclarationDocument<'_>],"
+        }
+      ]
+    },
+    {
+      "severity": "error",
+      "message": "this function has too many lines (150/100)",
+      "rust_error": null,
+      "lint": "too_many_lines",
+      "source_package": "tcl-lsp-core",
+      "file": "rust/tcl-lsp-core/src/original_member_rename.rs",
+      "line": 158,
+      "column": 1,
+      "category": "ClippyLint",
+      "primary_for_requested_scope": true,
+      "identity_sha256": "8f6bcf0549d4ff991257e10f16c5b3462958a5bc5a57e756ff147955555fcc66",
+      "emission_count": 1,
+      "emissions": [
+        {
+          "scope_package": "tcl-lsp-core",
+          "severity": "error",
+          "message": "this function has too many lines (150/100)",
+          "rust_error": null,
+          "lint": "too_many_lines",
+          "log_member": "tcl-lsp-core.log.txt",
+          "log_line": 428,
+          "block_sha256": "62743b8a19d0aa9bda35f1cb7f5ce4551b51cd866810d80edbfaa81b938eee97",
+          "source_package": "tcl-lsp-core",
+          "file": "rust/tcl-lsp-core/src/original_member_rename.rs",
+          "line": 158,
+          "column": 1,
+          "category": "ClippyLint",
+          "primary_for_requested_scope": true
+        }
+      ],
+      "source_sha256": "f84ddb6bb56e795da09384f9aee7f2c680134505e54bf37be4ffef5eab8d88c6",
+      "source_excerpt": [
+        {
+          "line": 157,
+          "text": ""
+        },
+        {
+          "line": 158,
+          "text": "fn requests("
+        },
+        {
+          "line": 159,
+          "text": "    document: OriginalDeclarationDocument<'_>,"
+        }
+      ]
+    },
+    {
+      "severity": "error",
+      "message": "this function has too many lines (165/100)",
+      "rust_error": null,
+      "lint": "too_many_lines",
+      "source_package": "tcl-lsp-core",
+      "file": "rust/tcl-lsp-core/src/original_member_rename.rs",
+      "line": 354,
+      "column": 1,
+      "category": "ClippyLint",
+      "primary_for_requested_scope": true,
+      "identity_sha256": "7ee8ee1aed72265ab026c016ea94eff08aa6bf96440540e9949472b68867d742",
+      "emission_count": 1,
+      "emissions": [
+        {
+          "scope_package": "tcl-lsp-core",
+          "severity": "error",
+          "message": "this function has too many lines (165/100)",
+          "rust_error": null,
+          "lint": "too_many_lines",
+          "log_member": "tcl-lsp-core.log.txt",
+          "log_line": 442,
+          "block_sha256": "3f1741a40715d4d558e4e0c0fe5d61743159ed81b1378e70bd0f65fd6659b6a5",
+          "source_package": "tcl-lsp-core",
+          "file": "rust/tcl-lsp-core/src/original_member_rename.rs",
+          "line": 354,
+          "column": 1,
+          "category": "ClippyLint",
+          "primary_for_requested_scope": true
+        }
+      ],
+      "source_sha256": "f84ddb6bb56e795da09384f9aee7f2c680134505e54bf37be4ffef5eab8d88c6",
+      "source_excerpt": [
+        {
+          "line": 353,
+          "text": ""
+        },
+        {
+          "line": 354,
+          "text": "fn original_member_rename_units("
+        },
+        {
+          "line": 355,
+          "text": "    documents: &[OriginalDeclarationDocument<'_>],"
+        }
+      ]
+    },
+    {
+      "severity": "error",
+      "message": "this function has too many lines (153/100)",
+      "rust_error": null,
+      "lint": "too_many_lines",
+      "source_package": "tcl-lsp-core",
+      "file": "rust/tcl-lsp-core/src/package_resolver/original_names/file_candidates.rs",
+      "line": 122,
+      "column": 5,
+      "category": "ClippyLint",
+      "primary_for_requested_scope": true,
+      "identity_sha256": "626a4f2d522c12db774ec43fefd867b80dc5494e3e778f8bd7a7f59d2cda06e0",
+      "emission_count": 1,
+      "emissions": [
+        {
+          "scope_package": "tcl-lsp-core",
+          "severity": "error",
+          "message": "this function has too many lines (153/100)",
+          "rust_error": null,
+          "lint": "too_many_lines",
+          "log_member": "tcl-lsp-core.log.txt",
+          "log_line": 454,
+          "block_sha256": "e6e47aad2a9d7fc4cb4fec3313dfe824ec7b173e5192c852ccca78f8ecd7c23b",
+          "source_package": "tcl-lsp-core",
+          "file": "rust/tcl-lsp-core/src/package_resolver/original_names/file_candidates.rs",
+          "line": 122,
+          "column": 5,
+          "category": "ClippyLint",
+          "primary_for_requested_scope": true
+        }
+      ],
+      "source_sha256": "feefd386b1fced231af579c1a50139fec1622204bb8ba759f554ca97f3728119",
+      "source_excerpt": [
+        {
+          "line": 121,
+          "text": ""
+        },
+        {
+          "line": 122,
+          "text": "    pub(super) fn collect("
+        },
+        {
+          "line": 123,
+          "text": "        &self,"
+        }
+      ]
+    },
+    {
+      "severity": "error",
+      "message": "this function has too many lines (129/100)",
+      "rust_error": null,
+      "lint": "too_many_lines",
+      "source_package": "tcl-lsp-core",
+      "file": "rust/tcl-lsp-core/src/package_resolver/original_names.rs",
+      "line": 615,
+      "column": 1,
+      "category": "ClippyLint",
+      "primary_for_requested_scope": true,
+      "identity_sha256": "2217ef1b6fd39356c9cb2094efdf3e3d150f970ae1b162a35e907b43d1660cb3",
+      "emission_count": 1,
+      "emissions": [
+        {
+          "scope_package": "tcl-lsp-core",
+          "severity": "error",
+          "message": "this function has too many lines (129/100)",
+          "rust_error": null,
+          "lint": "too_many_lines",
+          "log_member": "tcl-lsp-core.log.txt",
+          "log_line": 468,
+          "block_sha256": "7db819cc0f4d9eb4a311cebc6eedf1e23497c75ec7a17df166b26abfe5e68999",
+          "source_package": "tcl-lsp-core",
+          "file": "rust/tcl-lsp-core/src/package_resolver/original_names.rs",
+          "line": 615,
+          "column": 1,
+          "category": "ClippyLint",
+          "primary_for_requested_scope": true
+        }
+      ],
+      "source_sha256": "4ac0ce5f1d71803567df184b3b69a98ae85b726ded13f1365dea671f7679ac17",
+      "source_excerpt": [
+        {
+          "line": 614,
+          "text": ""
+        },
+        {
+          "line": 615,
+          "text": "fn original_package_entries("
+        },
+        {
+          "line": 616,
+          "text": "    content: &str,"
+        }
+      ]
+    },
+    {
+      "severity": "error",
+      "message": "this function has too many lines (101/100)",
+      "rust_error": null,
+      "lint": "too_many_lines",
+      "source_package": "tcl-lsp-core",
+      "file": "rust/tcl-lsp-core/src/package_resolver/original_names.rs",
+      "line": 824,
+      "column": 1,
+      "category": "ClippyLint",
+      "primary_for_requested_scope": true,
+      "identity_sha256": "98914494b0f89890e2de81372120f78a1cae5d524ef7eb51ad27abde1fc95e6a",
+      "emission_count": 1,
+      "emissions": [
+        {
+          "scope_package": "tcl-lsp-core",
+          "severity": "error",
+          "message": "this function has too many lines (101/100)",
+          "rust_error": null,
+          "lint": "too_many_lines",
+          "log_member": "tcl-lsp-core.log.txt",
+          "log_line": 482,
+          "block_sha256": "8a78c74cd5aa99bb1a7a54e52d3ec6a97d9e2389662706e97bb46e4432aec2e5",
+          "source_package": "tcl-lsp-core",
+          "file": "rust/tcl-lsp-core/src/package_resolver/original_names.rs",
+          "line": 824,
+          "column": 1,
+          "category": "ClippyLint",
+          "primary_for_requested_scope": true
+        }
+      ],
+      "source_sha256": "4ac0ce5f1d71803567df184b3b69a98ae85b726ded13f1365dea671f7679ac17",
+      "source_excerpt": [
+        {
+          "line": 823,
+          "text": ""
+        },
+        {
+          "line": 824,
+          "text": "fn survey_index_entries("
+        },
+        {
+          "line": 825,
+          "text": "    content: &str,"
+        }
+      ]
+    },
+    {
+      "severity": "error",
+      "message": "this function has too many lines (142/100)",
+      "rust_error": null,
+      "lint": "too_many_lines",
+      "source_package": "tcl-lsp-core",
+      "file": "rust/tcl-lsp-core/src/package_resolver/reachability/original.rs",
+      "line": 215,
+      "column": 5,
+      "category": "ClippyLint",
+      "primary_for_requested_scope": true,
+      "identity_sha256": "034ef91252683f2a62a67e0dcef1c4b46852646603045ab17f3c1521db73ffef",
+      "emission_count": 1,
+      "emissions": [
+        {
+          "scope_package": "tcl-lsp-core",
+          "severity": "error",
+          "message": "this function has too many lines (142/100)",
+          "rust_error": null,
+          "lint": "too_many_lines",
+          "log_member": "tcl-lsp-core.log.txt",
+          "log_line": 495,
+          "block_sha256": "7f632ad86705a2a2d88e5a07e7343e82896760fe480413139c663cd034654714",
+          "source_package": "tcl-lsp-core",
+          "file": "rust/tcl-lsp-core/src/package_resolver/reachability/original.rs",
+          "line": 215,
+          "column": 5,
+          "category": "ClippyLint",
+          "primary_for_requested_scope": true
+        }
+      ],
+      "source_sha256": "fd7f7d0e6372c769f6bc8d2bea77a2f8727e68390677b25557dd8db7842d539a",
+      "source_excerpt": [
+        {
+          "line": 214,
+          "text": ""
+        },
+        {
+          "line": 215,
+          "text": "    fn script(&mut self, region: Span, reached: &Conditions, depth: u32) -> Option<Conditions> {"
+        },
+        {
+          "line": 216,
+          "text": "        if super::MAX_GUARD_NESTING_DEPTH.exceeded(depth) {"
+        }
+      ]
+    },
+    {
+      "severity": "error",
+      "message": "this function has too many lines (109/100)",
+      "rust_error": null,
+      "lint": "too_many_lines",
+      "source_package": "tcl-lsp-core",
+      "file": "rust/tcl-lsp-core/src/package_resolver/reachability/original.rs",
+      "line": 496,
+      "column": 5,
+      "category": "ClippyLint",
+      "primary_for_requested_scope": true,
+      "identity_sha256": "48804605a5efac0283fb6f9ed6d745d6f3b07f138f1f74924097f60c897e1f81",
+      "emission_count": 1,
+      "emissions": [
+        {
+          "scope_package": "tcl-lsp-core",
+          "severity": "error",
+          "message": "this function has too many lines (109/100)",
+          "rust_error": null,
+          "lint": "too_many_lines",
+          "log_member": "tcl-lsp-core.log.txt",
+          "log_line": 503,
+          "block_sha256": "476660a2563f24982f27040e835ad85c69e7cba493641068b0052cfc4883131e",
+          "source_package": "tcl-lsp-core",
+          "file": "rust/tcl-lsp-core/src/package_resolver/reachability/original.rs",
+          "line": 496,
+          "column": 5,
+          "category": "ClippyLint",
+          "primary_for_requested_scope": true
+        }
+      ],
+      "source_sha256": "fd7f7d0e6372c769f6bc8d2bea77a2f8727e68390677b25557dd8db7842d539a",
+      "source_excerpt": [
+        {
+          "line": 495,
+          "text": ""
+        },
+        {
+          "line": 496,
+          "text": "    fn chain(&mut self, control: &Control, reached: &Conditions, depth: u32) -> AfterIf {"
+        },
+        {
+          "line": 497,
+          "text": "        let Some(roles) = control.words.roles() else {"
+        }
+      ]
+    },
+    {
+      "severity": "error",
+      "message": "this function has too many lines (245/100)",
+      "rust_error": null,
+      "lint": "too_many_lines",
+      "source_package": "tcl-lsp-core",
+      "file": "rust/tcl-lsp-core/src/refactor/inline_proc.rs",
+      "line": 256,
+      "column": 1,
+      "category": "ClippyLint",
+      "primary_for_requested_scope": true,
+      "identity_sha256": "3ce929a9e4fb9c0bc4b9192485d45121dcdeb6324730b029618928f8c3d2b958",
+      "emission_count": 1,
+      "emissions": [
+        {
+          "scope_package": "tcl-lsp-core",
+          "severity": "error",
+          "message": "this function has too many lines (245/100)",
+          "rust_error": null,
+          "lint": "too_many_lines",
+          "log_member": "tcl-lsp-core.log.txt",
+          "log_line": 511,
+          "block_sha256": "14ae404cbed4394dc5d6f485c4cc4ca2742ab0c92f46476646fcafd8d6155808",
+          "source_package": "tcl-lsp-core",
+          "file": "rust/tcl-lsp-core/src/refactor/inline_proc.rs",
+          "line": 256,
+          "column": 1,
+          "category": "ClippyLint",
+          "primary_for_requested_scope": true
+        }
+      ],
+      "source_sha256": "2714c22ce4e745a93d088da385242ee07ddc394ad884dee09b6df2210aa42118",
+      "source_excerpt": [
+        {
+          "line": 255,
+          "text": "/// topology. Frozen values never erase a written variable or command read."
+        },
+        {
+          "line": 256,
+          "text": "fn original_inline_body("
+        },
+        {
+          "line": 257,
+          "text": "    source: &str,"
+        }
+      ]
+    },
+    {
+      "severity": "error",
+      "message": "this function has too many lines (149/100)",
+      "rust_error": null,
+      "lint": "too_many_lines",
+      "source_package": "tcl-lsp-core",
+      "file": "rust/tcl-lsp-core/src/refactor/inline_variable.rs",
+      "line": 182,
+      "column": 5,
+      "category": "ClippyLint",
+      "primary_for_requested_scope": true,
+      "identity_sha256": "dfede24836aec0712bfce70e12880672fb6a9416f53e31386a0dca600b1d7382",
+      "emission_count": 1,
+      "emissions": [
+        {
+          "scope_package": "tcl-lsp-core",
+          "severity": "error",
+          "message": "this function has too many lines (149/100)",
+          "rust_error": null,
+          "lint": "too_many_lines",
+          "log_member": "tcl-lsp-core.log.txt",
+          "log_line": 525,
+          "block_sha256": "08dd1181d526c29f5098c2af7aedb69896a9ce7150945670f07b4be5d8009893",
+          "source_package": "tcl-lsp-core",
+          "file": "rust/tcl-lsp-core/src/refactor/inline_variable.rs",
+          "line": 182,
+          "column": 5,
+          "category": "ClippyLint",
+          "primary_for_requested_scope": true
+        }
+      ],
+      "source_sha256": "3ad1baae199e7d50af383b5457010ffd4e41088996e54d2c413b130da6c18c55",
+      "source_excerpt": [
+        {
+          "line": 181,
+          "text": "impl LogicalVariableInliningRecipe {"
+        },
+        {
+          "line": 182,
+          "text": "    fn capture("
+        },
+        {
+          "line": 183,
+          "text": "        source: &str,"
+        }
+      ]
+    },
+    {
+      "severity": "error",
+      "message": "this function has too many lines (140/100)",
+      "rust_error": null,
+      "lint": "too_many_lines",
+      "source_package": "tcl-lsp-core",
+      "file": "rust/tcl-lsp-core/src/rename.rs",
+      "line": 138,
+      "column": 1,
+      "category": "ClippyLint",
+      "primary_for_requested_scope": true,
+      "identity_sha256": "b7c445b283a592ecafb9a8df7b08d2c2fc9ca7d2a7794864ef3478c60bc96547",
+      "emission_count": 1,
+      "emissions": [
+        {
+          "scope_package": "tcl-lsp-core",
+          "severity": "error",
+          "message": "this function has too many lines (140/100)",
+          "rust_error": null,
+          "lint": "too_many_lines",
+          "log_member": "tcl-lsp-core.log.txt",
+          "log_line": 539,
+          "block_sha256": "a39e0dfa46c2ecb7e5d0111f242e32d5f6b9e6aac17e82ada4d2809b1e303d3c",
+          "source_package": "tcl-lsp-core",
+          "file": "rust/tcl-lsp-core/src/rename.rs",
+          "line": 138,
+          "column": 1,
+          "category": "ClippyLint",
+          "primary_for_requested_scope": true
+        }
+      ],
+      "source_sha256": "045c666b6da6d5f9e767df91f7d4d8aff195fd1902f2b064a443f175f53e42ae",
+      "source_excerpt": [
+        {
+          "line": 137,
+          "text": "#[must_use]"
+        },
+        {
+          "line": 138,
+          "text": "pub fn prepare_rename_in_program("
+        },
+        {
+          "line": 139,
+          "text": "    source: &str,"
+        }
+      ]
+    },
+    {
+      "severity": "error",
+      "message": "this function has too many lines (198/100)",
+      "rust_error": null,
+      "lint": "too_many_lines",
+      "source_package": "tcl-lsp-core",
+      "file": "rust/tcl-lsp-core/src/rename.rs",
+      "line": 535,
+      "column": 1,
+      "category": "ClippyLint",
+      "primary_for_requested_scope": true,
+      "identity_sha256": "52a148493f77107aa8b6143d6dd9056cedc63d3ca00eeb7762d47840983a6f0e",
+      "emission_count": 1,
+      "emissions": [
+        {
+          "scope_package": "tcl-lsp-core",
+          "severity": "error",
+          "message": "this function has too many lines (198/100)",
+          "rust_error": null,
+          "lint": "too_many_lines",
+          "log_member": "tcl-lsp-core.log.txt",
+          "log_line": 553,
+          "block_sha256": "293caede9c6a61972cc3fb2ea6b105ce317536b30ab6c1778d8d503238c9c3af",
+          "source_package": "tcl-lsp-core",
+          "file": "rust/tcl-lsp-core/src/rename.rs",
+          "line": 535,
+          "column": 1,
+          "category": "ClippyLint",
+          "primary_for_requested_scope": true
+        }
+      ],
+      "source_sha256": "045c666b6da6d5f9e767df91f7d4d8aff195fd1902f2b064a443f175f53e42ae",
+      "source_excerpt": [
+        {
+          "line": 534,
+          "text": ""
+        },
+        {
+          "line": 535,
+          "text": "fn rename_in_program_unchecked("
+        },
+        {
+          "line": 536,
+          "text": "    source: &str,"
+        }
+      ]
+    },
+    {
+      "severity": "error",
+      "message": "this function has too many lines (167/100)",
+      "rust_error": null,
+      "lint": "too_many_lines",
+      "source_package": "tcl-lsp-core",
+      "file": "rust/tcl-lsp-core/src/variable_symbol/rename.rs",
+      "line": 24,
+      "column": 1,
+      "category": "ClippyLint",
+      "primary_for_requested_scope": true,
+      "identity_sha256": "d50906acfa829399f5cf68e1d2f8811c103f5b9bf79ae05ccf4b4492177bcaec",
+      "emission_count": 1,
+      "emissions": [
+        {
+          "scope_package": "tcl-lsp-core",
+          "severity": "error",
+          "message": "this function has too many lines (167/100)",
+          "rust_error": null,
+          "lint": "too_many_lines",
+          "log_member": "tcl-lsp-core.log.txt",
+          "log_line": 567,
+          "block_sha256": "bc49f72242c2deb6104231655577421411fb03604bbbbe0a4452e822548a76a3",
+          "source_package": "tcl-lsp-core",
+          "file": "rust/tcl-lsp-core/src/variable_symbol/rename.rs",
+          "line": 24,
+          "column": 1,
+          "category": "ClippyLint",
+          "primary_for_requested_scope": true
+        }
+      ],
+      "source_sha256": "3cb719850d429cb772769970726f9ddf25c35374c8397cbcb5077e31dfe04a39",
+      "source_excerpt": [
+        {
+          "line": 23,
+          "text": "/// that change lexical delimiters, selected indices or unrelated list children."
+        },
+        {
+          "line": 24,
+          "text": "pub fn original_variable_rename_edits("
+        },
+        {
+          "line": 25,
+          "text": "    source: &str,"
+        }
+      ]
+    },
+    {
+      "severity": "error",
+      "message": "this function has too many lines (106/100)",
+      "rust_error": null,
+      "lint": "too_many_lines",
+      "source_package": "tcl-lsp-core",
+      "file": "rust/tcl-lsp-core/src/variable_symbol/rename.rs",
+      "line": 216,
+      "column": 5,
+      "category": "ClippyLint",
+      "primary_for_requested_scope": true,
+      "identity_sha256": "9662e9d53172533011177ce2bebfc9541d8c78850df795b9c8fb761aa950a74f",
+      "emission_count": 1,
+      "emissions": [
+        {
+          "scope_package": "tcl-lsp-core",
+          "severity": "error",
+          "message": "this function has too many lines (106/100)",
+          "rust_error": null,
+          "lint": "too_many_lines",
+          "log_member": "tcl-lsp-core.log.txt",
+          "log_line": 580,
+          "block_sha256": "5d3505ea59e251dff9d58eae8fee2607d79aa8de3f153a8cd7cf6fbc47d32f0a",
+          "source_package": "tcl-lsp-core",
+          "file": "rust/tcl-lsp-core/src/variable_symbol/rename.rs",
+          "line": 216,
+          "column": 5,
+          "category": "ClippyLint",
+          "primary_for_requested_scope": true
+        }
+      ],
+      "source_sha256": "3cb719850d429cb772769970726f9ddf25c35374c8397cbcb5077e31dfe04a39",
+      "source_excerpt": [
+        {
+          "line": 215,
+          "text": "impl LogicalVariableSourceRenameIntent {"
+        },
+        {
+          "line": 216,
+          "text": "    fn capture("
+        },
+        {
+          "line": 217,
+          "text": "        source: &str,"
+        }
+      ]
+    }
+  ],
+  "scope_status": [
+    {
+      "requested_package": "tcl-lsp-core",
+      "coverage": "PARTIAL_REQUESTED_PACKAGE_CHECK_OBSERVED",
+      "zero_warning_closure": false,
+      "located_primary_findings": 22,
+      "located_errors": 22,
+      "located_warnings": 0
+    },
+    {
+      "requested_package": "tcl-lsp-db",
+      "coverage": "PARTIAL_REQUESTED_PACKAGE_CHECK_OBSERVED",
+      "zero_warning_closure": false,
+      "located_primary_findings": 3,
+      "located_errors": 3,
+      "located_warnings": 0
+    },
+    {
+      "requested_package": "tcl-lsp-server",
+      "coverage": "PARTIAL_REQUESTED_PACKAGE_CHECK_OBSERVED",
+      "zero_warning_closure": false,
+      "located_primary_findings": 52,
+      "located_errors": 52,
+      "located_warnings": 0
+    }
+  ]
+}

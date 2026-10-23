@@ -1,0 +1,111 @@
+{
+  "updated_utc": "2026-10-23T21:15:55.921883+00:00",
+  "verdict": "INDEPENDENT_ACTUAL_ZIP_ONLY_SEALS_LIFECYCLE_ORIGINAL_TEST_PROTOCOL_CONFIRMED",
+  "source": "f8a24979d71e3e9c7227088d0f4725524fae85ed",
+  "run_id": 40023231541,
+  "job_id": 120652848483,
+  "artifact_id": 12531923078,
+  "zip_sha256": "4e26e2e08bb874dfa3494c3dc3fdc03deeae997d2e9dafcb1e850077f973a68d",
+  "zip_crc_safe_paths": "PASS",
+  "source_tree_git_join": "EXACT",
+  "stable_full_seals": {
+    "source": 125122,
+    "providers": 2466,
+    "dependencies": 21500,
+    "tools": 8
+  },
+  "selected_builds": "Both fresh=false selected0warning test artifacts, debugassertions true; exact Cargo events and terminalsuccess verified",
+  "all_processes": "Complete owned-empty groups/no stops/no cap/floor intervention",
+  "original_outcomes": [
+    {
+      "selector": "a_pack_file_folds_a_call_site_in_the_optimiser",
+      "exit": 101,
+      "state": "FAIL",
+      "receipt_sha256": "2dd7ae2809fdab1c978bed38d36eae1af6dfd103b255cf5f46811b1f459eb2bd",
+      "stdout_sha256": "8acf2a29e0d0a650d9e0b1bf4fd076f3a49c4d77af4612213ec2901641bd70a7",
+      "stderr_sha256": "ed95279d2bc87ecb6754f6280f6827a5040ea85e68b2c85868ee8b94b67eae56"
+    },
+    {
+      "selector": "a_reference_body_answers_through_the_host_as_the_procedure_does",
+      "exit": 101,
+      "state": "FAIL",
+      "receipt_sha256": "69ebaaeb07ee24fe0f4405dbc15a75b97be9708b6e18fbf69318c3737cde1b7c",
+      "stdout_sha256": "be05cb2164ff2672ad47ae59b0b68f58a07566256d7e25331ab19b6ca088f815",
+      "stderr_sha256": "e762a9d3622e80730d49c708c631dbbd8e5a2f6d3b1fc0169fed2da6adba37d7"
+    },
+    {
+      "selector": "a_derived_body_runs_under_the_release_the_call_is_analysed_under",
+      "exit": 101,
+      "state": "FAIL",
+      "receipt_sha256": "821df9cba64387e3a177415398ed8d9bea97c88bada3148b308d0750f5dec918",
+      "stdout_sha256": "58ad256f51b7a7fe89109502a9131bdc91e6e177066539b1be355a66db891192",
+      "stderr_sha256": "c241e4a31e802015de6d2a9fd55b94d84bfed2f2ca76eed5143c3c23950a3097"
+    },
+    {
+      "selector": "a_pack_timing_hook_controls_a_live_command_prefix_position",
+      "exit": 0,
+      "state": "PASS",
+      "receipt_sha256": "ae53613c4611944803b5213abe257d6e3034c7f2c9802ed85dc77fb5a7d1acd6",
+      "stdout_sha256": "4104a8d6a8b6d14f757c896b5dbbe335716ea1f74618924d0aad028c0ea6f661",
+      "stderr_sha256": "454e81a6cd8849ea06397aee85e3f2d9a2c640275e855016455ccaee228db096"
+    },
+    {
+      "selector": "native_string_is_ascii::original_ascii_guarded_hook_body_answers_without_host_errors",
+      "exit": 0,
+      "state": "PASS",
+      "receipt_sha256": "6645a7ea5c9a503356bcd04d0323d841b29d22fbc9a087b4676a51f45c7d2e74",
+      "stdout_sha256": "538e5f5067e51790b5177d0a01eb11cd72b1a519d838728743a9fccd666d3bce",
+      "stderr_sha256": "4996816e246b2b15eb6a4b3ca762051b38c0bfc79316840e566dafc8ea82463a"
+    },
+    {
+      "selector": "native_string_is_ascii::public_engine_reaches_original_unicode_and_reuses_boolean_owner",
+      "exit": 0,
+      "state": "PASS",
+      "receipt_sha256": "f713784bc5daa46c798f20c89fa187a23d4506e675445930f2714d72a2f0caa6",
+      "stdout_sha256": "8ad08b6b6729339f1e0033b17bc359ba7e61fe46db48372a22d6bc4476893e88",
+      "stderr_sha256": "45328cadf030844ae3e5c773bc1b39140195733b008b78437eab4a778067652a"
+    },
+    {
+      "selector": "native_string_is_ascii::replacing_the_actual_private_worker_never_bypasses_it_as_stock_ascii",
+      "exit": 0,
+      "state": "PASS",
+      "receipt_sha256": "8c9eae4ff549dcd9bead5885bc4a5bf614c272900263a8ca9cb95ea338d82bf0",
+      "stdout_sha256": "801e3299b70ee03a2b43c6d801822467b55673d1b83bb5e02fa0ba0eda17632e",
+      "stderr_sha256": "f7f3088fded075b773911895f815a25782cce9c558ac102f2d801fe492ce73ea"
+    },
+    {
+      "selector": "the_loader_carries_the_declared_inputs",
+      "exit": 0,
+      "state": "PASS",
+      "receipt_sha256": "d6b48202a053224e9812a66a89705f33a6d07ed1ebebf5dcf62ce133b2124732",
+      "stdout_sha256": "1d1903ed5dd58856917ce0c200e31b9130e68be1cf9893e66035ce489cd0a1aa",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "selector": "native_string_is_ascii::retiring_the_actual_private_worker_cannot_reuse_the_cached_ascii_recipe",
+      "exit": 0,
+      "state": "PASS",
+      "receipt_sha256": "6c06553b943923103ad2b5675dd6d6af1cdfda71287784c21d3e7a0085a1298a",
+      "stdout_sha256": "412d810c39db020133d43eda3a59f2cfa7b6a3889b240568277092a54b65986b",
+      "stderr_sha256": "ed322027ef0c1eec18bb854339b2e09a77ce2fb2530b281504f0214588fea4de"
+    },
+    {
+      "selector": "without_a_host_the_installed_pack_simply_does_not_fold",
+      "exit": 0,
+      "state": "PASS",
+      "receipt_sha256": "f180eef840efa0936c5efc7f12339d5e8e60008cf5a32d87aa2485b8413a369f",
+      "stdout_sha256": "1954d85c9f160dc32a46979f3449276932f53ea89a91c4fb0552b4c65ab71a1f",
+      "stderr_sha256": "217134c78d79755b95258317c59cbb7fbcfc4eff87ed6d1c9cfb186193fbb09b"
+    },
+    {
+      "selector": "a_catch_body_write_is_visible_after_the_catch",
+      "exit": 0,
+      "state": "PASS",
+      "receipt_sha256": "763b8d54f669ca7876b1f4e14e4912d8f3c5ce43f8f62662c979242073fa7aef",
+      "stdout_sha256": "c235512b20c0f22a0e96ce76724bf50f0fc7e45781cda79ab6297633464dbc54",
+      "stderr_sha256": "59f55422e4e0f8af724b7f31be85559d1ebaca00c9cab801dffedfe7f712f56b"
+    }
+  ],
+  "result": "Original ALL10 7PASS3FAIL; separate originalcatch1 PASS; all four ASCII controls PASS. Failed originals preserved, no semantic resolution or shipping/eightpackage gate admission. New original-declaration parent tracing is present; no private first cause independently classified in this bounded protocol receipt. CCG owns source producer triage.",
+  "limits": "Full tracked-file map Git-byte reconstruction inherited from author 0db2d2b9; independently checked exact Git tree and full before/after map equality. No duplicate source fix or run."
+}

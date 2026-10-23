@@ -1,0 +1,2475 @@
+{
+  "source_commit": "f8a24979d71e3e9c7227088d0f4725524fae85ed",
+  "rows": [
+    {
+      "severity": "error",
+      "message": "this function has too many lines (437/100)",
+      "rust_error": null,
+      "lint": "too_many_lines",
+      "source_package": "tcl-lsp-server",
+      "file": "rust/tcl-lsp-server/src/current_diagnostics.rs",
+      "line": 594,
+      "column": 5,
+      "category": "ClippyLint",
+      "primary_for_requested_scope": true,
+      "identity_sha256": "e057ce057ad34a5a907a0dace68306354f14285b03c86ea3c679a62fbfbd4f9e",
+      "emission_count": 1,
+      "emissions": [
+        {
+          "scope_package": "tcl-lsp-server",
+          "severity": "error",
+          "message": "this function has too many lines (437/100)",
+          "rust_error": null,
+          "lint": "too_many_lines",
+          "log_member": "tcl-lsp-server.log.txt",
+          "log_line": 42,
+          "block_sha256": "67baf2a23283383e38d78e5153ce0baceca81b85e2418fabe548dac6d7789695",
+          "source_package": "tcl-lsp-server",
+          "file": "rust/tcl-lsp-server/src/current_diagnostics.rs",
+          "line": 594,
+          "column": 5,
+          "category": "ClippyLint",
+          "primary_for_requested_scope": true
+        }
+      ],
+      "source_sha256": "042ad291d4a8f151be8d6e86efe0de72bab63d0e0c1c13906c3e0079578d1b5f",
+      "source_excerpt": [
+        {
+          "line": 593,
+          "text": ""
+        },
+        {
+          "line": 594,
+          "text": "    async fn produce_proposal_diagnostics("
+        },
+        {
+          "line": 595,
+          "text": "        &self,"
+        }
+      ]
+    },
+    {
+      "severity": "error",
+      "message": "this function has too many lines (199/100)",
+      "rust_error": null,
+      "lint": "too_many_lines",
+      "source_package": "tcl-lsp-server",
+      "file": "rust/tcl-lsp-server/src/current_diagnostics.rs",
+      "line": 1312,
+      "column": 5,
+      "category": "ClippyLint",
+      "primary_for_requested_scope": true,
+      "identity_sha256": "5908ebd1614f2a6969d42d55dddae79ca44b282b14f134dbcb495d0531513e8e",
+      "emission_count": 1,
+      "emissions": [
+        {
+          "scope_package": "tcl-lsp-server",
+          "severity": "error",
+          "message": "this function has too many lines (199/100)",
+          "rust_error": null,
+          "lint": "too_many_lines",
+          "log_member": "tcl-lsp-server.log.txt",
+          "log_line": 55,
+          "block_sha256": "2cf7c7654f9125c986d9f27b4a0460339200100880453449bea64fd9073ba4fe",
+          "source_package": "tcl-lsp-server",
+          "file": "rust/tcl-lsp-server/src/current_diagnostics.rs",
+          "line": 1312,
+          "column": 5,
+          "category": "ClippyLint",
+          "primary_for_requested_scope": true
+        }
+      ],
+      "source_sha256": "042ad291d4a8f151be8d6e86efe0de72bab63d0e0c1c13906c3e0079578d1b5f",
+      "source_excerpt": [
+        {
+          "line": 1311,
+          "text": ""
+        },
+        {
+          "line": 1312,
+          "text": "    async fn current_published_diagnostic_reports("
+        },
+        {
+          "line": 1313,
+          "text": "        &self,"
+        }
+      ]
+    },
+    {
+      "severity": "error",
+      "message": "this function has too many lines (172/100)",
+      "rust_error": null,
+      "lint": "too_many_lines",
+      "source_package": "tcl-lsp-server",
+      "file": "rust/tcl-lsp-server/src/current_diagnostics.rs",
+      "line": 1705,
+      "column": 5,
+      "category": "ClippyLint",
+      "primary_for_requested_scope": true,
+      "identity_sha256": "1368c25b7f079f4d930097bd6b8fcfc2c75d96bb4f523e88e9a7a24b70543992",
+      "emission_count": 1,
+      "emissions": [
+        {
+          "scope_package": "tcl-lsp-server",
+          "severity": "error",
+          "message": "this function has too many lines (172/100)",
+          "rust_error": null,
+          "lint": "too_many_lines",
+          "log_member": "tcl-lsp-server.log.txt",
+          "log_line": 67,
+          "block_sha256": "21c646ab3dda2512dfbe80798beb4bc3dd2bc8ba62c54aa468aea80173e8e0cd",
+          "source_package": "tcl-lsp-server",
+          "file": "rust/tcl-lsp-server/src/current_diagnostics.rs",
+          "line": 1705,
+          "column": 5,
+          "category": "ClippyLint",
+          "primary_for_requested_scope": true
+        }
+      ],
+      "source_sha256": "042ad291d4a8f151be8d6e86efe0de72bab63d0e0c1c13906c3e0079578d1b5f",
+      "source_excerpt": [
+        {
+          "line": 1704,
+          "text": "    /// purpose. This never enqueues a push or issues a Delivered receipt."
+        },
+        {
+          "line": 1705,
+          "text": "    async fn produce_direct_diagnostic_report("
+        },
+        {
+          "line": 1706,
+          "text": "        &self,"
+        }
+      ]
+    },
+    {
+      "severity": "error",
+      "message": "this function has too many lines (130/100)",
+      "rust_error": null,
+      "lint": "too_many_lines",
+      "source_package": "tcl-lsp-server",
+      "file": "rust/tcl-lsp-server/src/readonly_reference_reports/source_views.rs",
+      "line": 600,
+      "column": 5,
+      "category": "ClippyLint",
+      "primary_for_requested_scope": true,
+      "identity_sha256": "8e382fc75341da6da416557a7bcbb2233c952ba656f668dbfe333706aa150246",
+      "emission_count": 1,
+      "emissions": [
+        {
+          "scope_package": "tcl-lsp-server",
+          "severity": "error",
+          "message": "this function has too many lines (130/100)",
+          "rust_error": null,
+          "lint": "too_many_lines",
+          "log_member": "tcl-lsp-server.log.txt",
+          "log_line": 78,
+          "block_sha256": "3959bc4718d845c929ac2f677795c042dc7ad7ee1ea05663b11aa1b01952579d",
+          "source_package": "tcl-lsp-server",
+          "file": "rust/tcl-lsp-server/src/readonly_reference_reports/source_views.rs",
+          "line": 600,
+          "column": 5,
+          "category": "ClippyLint",
+          "primary_for_requested_scope": true
+        }
+      ],
+      "source_sha256": "4bb70dd893bfccc97a5c5e2414999fbe850300d55239aaa9de7e7ece782fa586",
+      "source_excerpt": [
+        {
+          "line": 599,
+          "text": ""
+        },
+        {
+          "line": 600,
+          "text": "    async fn publish_original_source_view_batch("
+        },
+        {
+          "line": 601,
+          "text": "        &self,"
+        }
+      ]
+    },
+    {
+      "severity": "error",
+      "message": "this function has too many lines (138/100)",
+      "rust_error": null,
+      "lint": "too_many_lines",
+      "source_package": "tcl-lsp-server",
+      "file": "rust/tcl-lsp-server/src/readonly_reference_reports/source_views.rs",
+      "line": 2736,
+      "column": 5,
+      "category": "ClippyLint",
+      "primary_for_requested_scope": true,
+      "identity_sha256": "79ef678022c0371b65be0b4d6444ffe37a139619fced18de60fb2fbfbc9ca9f2",
+      "emission_count": 1,
+      "emissions": [
+        {
+          "scope_package": "tcl-lsp-server",
+          "severity": "error",
+          "message": "this function has too many lines (138/100)",
+          "rust_error": null,
+          "lint": "too_many_lines",
+          "log_member": "tcl-lsp-server.log.txt",
+          "log_line": 91,
+          "block_sha256": "0bf71008206bc503d236fc1c54ebdafef5f1e79fe8cd242df7f786a6cea770ed",
+          "source_package": "tcl-lsp-server",
+          "file": "rust/tcl-lsp-server/src/readonly_reference_reports/source_views.rs",
+          "line": 2736,
+          "column": 5,
+          "category": "ClippyLint",
+          "primary_for_requested_scope": true
+        }
+      ],
+      "source_sha256": "4bb70dd893bfccc97a5c5e2414999fbe850300d55239aaa9de7e7ece782fa586",
+      "source_excerpt": [
+        {
+          "line": 2735,
+          "text": "    /// retired A cannot be renewed by opening or materialising byte-equal B."
+        },
+        {
+          "line": 2736,
+          "text": "    pub(crate) async fn walk_original_source_view_calls("
+        },
+        {
+          "line": 2737,
+          "text": "        &self,"
+        }
+      ]
+    },
+    {
+      "severity": "error",
+      "message": "this function has too many lines (112/100)",
+      "rust_error": null,
+      "lint": "too_many_lines",
+      "source_package": "tcl-lsp-server",
+      "file": "rust/tcl-lsp-server/src/lib.rs",
+      "line": 6883,
+      "column": 1,
+      "category": "ClippyLint",
+      "primary_for_requested_scope": true,
+      "identity_sha256": "3bb6df97fd93d5a8cb34c320bbd0ed7f6e62108c28c2eb1c7be2d30ac92d98b0",
+      "emission_count": 1,
+      "emissions": [
+        {
+          "scope_package": "tcl-lsp-server",
+          "severity": "error",
+          "message": "this function has too many lines (112/100)",
+          "rust_error": null,
+          "lint": "too_many_lines",
+          "log_member": "tcl-lsp-server.log.txt",
+          "log_line": 105,
+          "block_sha256": "51c8c9a8bbee5ac65397c5fc932e1d3d8ad3da9ad150e9a6c38c7913f810a2ee",
+          "source_package": "tcl-lsp-server",
+          "file": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 6883,
+          "column": 1,
+          "category": "ClippyLint",
+          "primary_for_requested_scope": true
+        }
+      ],
+      "source_sha256": "abdfb49b34b24e66ba8ece8f953c9c947f72999452e2ae5689c0a8cff7c3e9af",
+      "source_excerpt": [
+        {
+          "line": 6882,
+          "text": "/// state."
+        },
+        {
+          "line": 6883,
+          "text": "async fn run_diagnostics_core(inputs: DiagInputs, uri: &Uri, job: DiagJob) -> bool {"
+        },
+        {
+          "line": 6884,
+          "text": "    // Read through `inputs` rather than destructuring it: the two context"
+        }
+      ]
+    },
+    {
+      "severity": "error",
+      "message": "this function has too many lines (174/100)",
+      "rust_error": null,
+      "lint": "too_many_lines",
+      "source_package": "tcl-lsp-server",
+      "file": "rust/tcl-lsp-server/src/lib.rs",
+      "line": 7246,
+      "column": 1,
+      "category": "ClippyLint",
+      "primary_for_requested_scope": true,
+      "identity_sha256": "77d508f89dba83a7fa0df0da632c2200681c059b5e8efdc2e96f888d5fddc7ed",
+      "emission_count": 1,
+      "emissions": [
+        {
+          "scope_package": "tcl-lsp-server",
+          "severity": "error",
+          "message": "this function has too many lines (174/100)",
+          "rust_error": null,
+          "lint": "too_many_lines",
+          "log_member": "tcl-lsp-server.log.txt",
+          "log_line": 113,
+          "block_sha256": "02ecc9d39147dc9d0fb4e8f00dba83bcb3d607a9677e848b3f1862c4b2ba92f1",
+          "source_package": "tcl-lsp-server",
+          "file": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 7246,
+          "column": 1,
+          "category": "ClippyLint",
+          "primary_for_requested_scope": true
+        }
+      ],
+      "source_sha256": "abdfb49b34b24e66ba8ece8f953c9c947f72999452e2ae5689c0a8cff7c3e9af",
+      "source_excerpt": [
+        {
+          "line": 7245,
+          "text": ""
+        },
+        {
+          "line": 7246,
+          "text": "async fn compute_deep_diagnostic_report("
+        },
+        {
+          "line": 7247,
+          "text": "    uri: &Uri,"
+        }
+      ]
+    },
+    {
+      "severity": "error",
+      "message": "this function has too many lines (178/100)",
+      "rust_error": null,
+      "lint": "too_many_lines",
+      "source_package": "tcl-lsp-server",
+      "file": "rust/tcl-lsp-server/src/lib.rs",
+      "line": 8758,
+      "column": 1,
+      "category": "ClippyLint",
+      "primary_for_requested_scope": true,
+      "identity_sha256": "fb23659952eca446543b7e3650ee33dff17af384cf715d8069a127ae49aba5ba",
+      "emission_count": 1,
+      "emissions": [
+        {
+          "scope_package": "tcl-lsp-server",
+          "severity": "error",
+          "message": "this function has too many lines (178/100)",
+          "rust_error": null,
+          "lint": "too_many_lines",
+          "log_member": "tcl-lsp-server.log.txt",
+          "log_line": 127,
+          "block_sha256": "f974abf3ea25128b6c13940ebfe18b6389a32faa0da75b2bc645ebbac569e793",
+          "source_package": "tcl-lsp-server",
+          "file": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 8758,
+          "column": 1,
+          "category": "ClippyLint",
+          "primary_for_requested_scope": true
+        }
+      ],
+      "source_sha256": "abdfb49b34b24e66ba8ece8f953c9c947f72999452e2ae5689c0a8cff7c3e9af",
+      "source_excerpt": [
+        {
+          "line": 8757,
+          "text": ""
+        },
+        {
+          "line": 8758,
+          "text": "async fn publish_diagnostics_result_with_sources("
+        },
+        {
+          "line": 8759,
+          "text": "    delivery: &DeliveryCtx<'_>,"
+        }
+      ]
+    },
+    {
+      "severity": "error",
+      "message": "this function has too many lines (156/100)",
+      "rust_error": null,
+      "lint": "too_many_lines",
+      "source_package": "tcl-lsp-server",
+      "file": "rust/tcl-lsp-server/src/lib.rs",
+      "line": 12111,
+      "column": 5,
+      "category": "ClippyLint",
+      "primary_for_requested_scope": true,
+      "identity_sha256": "63de3b9f45c101d61753ead1f8bc257e79996df9fc1713f5529a813ee06e1257",
+      "emission_count": 1,
+      "emissions": [
+        {
+          "scope_package": "tcl-lsp-server",
+          "severity": "error",
+          "message": "this function has too many lines (156/100)",
+          "rust_error": null,
+          "lint": "too_many_lines",
+          "log_member": "tcl-lsp-server.log.txt",
+          "log_line": 141,
+          "block_sha256": "62fc0192ee74098761609312956b96124d234e183136935cb9c6246f0c8cb4ea",
+          "source_package": "tcl-lsp-server",
+          "file": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 12111,
+          "column": 5,
+          "category": "ClippyLint",
+          "primary_for_requested_scope": true
+        }
+      ],
+      "source_sha256": "abdfb49b34b24e66ba8ece8f953c9c947f72999452e2ae5689c0a8cff7c3e9af",
+      "source_excerpt": [
+        {
+          "line": 12110,
+          "text": ""
+        },
+        {
+          "line": 12111,
+          "text": "    async fn publish_admitted_disk_results_while_rehoming_locked<'a>("
+        },
+        {
+          "line": 12112,
+          "text": "        &'a self,"
+        }
+      ]
+    },
+    {
+      "severity": "error",
+      "message": "this function has too many lines (118/100)",
+      "rust_error": null,
+      "lint": "too_many_lines",
+      "source_package": "tcl-lsp-server",
+      "file": "rust/tcl-lsp-server/src/lib.rs",
+      "line": 12881,
+      "column": 5,
+      "category": "ClippyLint",
+      "primary_for_requested_scope": true,
+      "identity_sha256": "976fe81ee4eb03fae074334f3c53b40facf94a7c75c968cf79f3ce59549d8cfc",
+      "emission_count": 1,
+      "emissions": [
+        {
+          "scope_package": "tcl-lsp-server",
+          "severity": "error",
+          "message": "this function has too many lines (118/100)",
+          "rust_error": null,
+          "lint": "too_many_lines",
+          "log_member": "tcl-lsp-server.log.txt",
+          "log_line": 155,
+          "block_sha256": "78e8e980dc2e0301d84e05170a9c990154b2578fdf24babcd26a0a60e1e6bc44",
+          "source_package": "tcl-lsp-server",
+          "file": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 12881,
+          "column": 5,
+          "category": "ClippyLint",
+          "primary_for_requested_scope": true
+        }
+      ],
+      "source_sha256": "abdfb49b34b24e66ba8ece8f953c9c947f72999452e2ae5689c0a8cff7c3e9af",
+      "source_excerpt": [
+        {
+          "line": 12880,
+          "text": "    /// rebuilt before ordinary workspace-aware readers are released."
+        },
+        {
+          "line": 12881,
+          "text": "    async fn commit_live_dialect("
+        },
+        {
+          "line": 12882,
+          "text": "        &self,"
+        }
+      ]
+    },
+    {
+      "severity": "error",
+      "message": "this function has too many lines (114/100)",
+      "rust_error": null,
+      "lint": "too_many_lines",
+      "source_package": "tcl-lsp-server",
+      "file": "rust/tcl-lsp-server/src/lib.rs",
+      "line": 16396,
+      "column": 5,
+      "category": "ClippyLint",
+      "primary_for_requested_scope": true,
+      "identity_sha256": "9df9f3b9ad71749f2918ff4bdb1d5bb9ce81c8bb92c61772eb74ebeb1ff958cd",
+      "emission_count": 1,
+      "emissions": [
+        {
+          "scope_package": "tcl-lsp-server",
+          "severity": "error",
+          "message": "this function has too many lines (114/100)",
+          "rust_error": null,
+          "lint": "too_many_lines",
+          "log_member": "tcl-lsp-server.log.txt",
+          "log_line": 169,
+          "block_sha256": "d01aca54e6a9a7a46d4d56b6b705162578d52309f9ef0c77c5fd1f431da4d2f6",
+          "source_package": "tcl-lsp-server",
+          "file": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 16396,
+          "column": 5,
+          "category": "ClippyLint",
+          "primary_for_requested_scope": true
+        }
+      ],
+      "source_sha256": "abdfb49b34b24e66ba8ece8f953c9c947f72999452e2ae5689c0a8cff7c3e9af",
+      "source_excerpt": [
+        {
+          "line": 16395,
+          "text": "    /// *from* the registration."
+        },
+        {
+          "line": 16396,
+          "text": "    async fn ilx_references("
+        },
+        {
+          "line": 16397,
+          "text": "        &self,"
+        }
+      ]
+    },
+    {
+      "severity": "error",
+      "message": "this function has too many lines (176/100)",
+      "rust_error": null,
+      "lint": "too_many_lines",
+      "source_package": "tcl-lsp-server",
+      "file": "rust/tcl-lsp-server/src/lib.rs",
+      "line": 16766,
+      "column": 5,
+      "category": "ClippyLint",
+      "primary_for_requested_scope": true,
+      "identity_sha256": "c2c2cb554a7fc8f300987a5db4aa88d5691e5ae739febc8821217f4dcb78e8bf",
+      "emission_count": 1,
+      "emissions": [
+        {
+          "scope_package": "tcl-lsp-server",
+          "severity": "error",
+          "message": "this function has too many lines (176/100)",
+          "rust_error": null,
+          "lint": "too_many_lines",
+          "log_member": "tcl-lsp-server.log.txt",
+          "log_line": 183,
+          "block_sha256": "be9bacdf28e889db83341fa75ac00265ecda6fd663aff0b4d4234ae950812ccf",
+          "source_package": "tcl-lsp-server",
+          "file": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 16766,
+          "column": 5,
+          "category": "ClippyLint",
+          "primary_for_requested_scope": true
+        }
+      ],
+      "source_sha256": "abdfb49b34b24e66ba8ece8f953c9c947f72999452e2ae5689c0a8cff7c3e9af",
+      "source_excerpt": [
+        {
+          "line": 16765,
+          "text": "    /// off the LSP event loop and returns the matched ranges."
+        },
+        {
+          "line": 16766,
+          "text": "    async fn compute_definition(&self, uri: &Uri, pos: Position) -> jsonrpc::Result<Vec<Location>> {"
+        },
+        {
+          "line": 16767,
+          "text": "        let source_epoch = self.diag_inputs_epoch();"
+        }
+      ]
+    },
+    {
+      "severity": "error",
+      "message": "large future with a size of 16640 bytes",
+      "rust_error": null,
+      "lint": "large_futures",
+      "source_package": "tcl-lsp-server",
+      "file": "rust/tcl-lsp-server/src/lib.rs",
+      "line": 16963,
+      "column": 23,
+      "category": "ClippyLint",
+      "primary_for_requested_scope": true,
+      "identity_sha256": "789ce133d3ee4a0992ef6c7dd6dc669827bddec379531942188c30fb634fca0e",
+      "emission_count": 1,
+      "emissions": [
+        {
+          "scope_package": "tcl-lsp-server",
+          "severity": "error",
+          "message": "large future with a size of 16640 bytes",
+          "rust_error": null,
+          "lint": "large_futures",
+          "log_member": "tcl-lsp-server.log.txt",
+          "log_line": 191,
+          "block_sha256": "aec7bdb940f4c6c2a005734617e4ec27a65dd16c5596b8045a4f5f346119f15b",
+          "source_package": "tcl-lsp-server",
+          "file": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 16963,
+          "column": 23,
+          "category": "ClippyLint",
+          "primary_for_requested_scope": true
+        }
+      ],
+      "source_sha256": "abdfb49b34b24e66ba8ece8f953c9c947f72999452e2ae5689c0a8cff7c3e9af",
+      "source_excerpt": [
+        {
+          "line": 16962,
+          "text": "        if !analysis.allows_lexical_declaration_advice() {"
+        },
+        {
+          "line": 16963,
+          "text": "            return Ok(self"
+        },
+        {
+          "line": 16964,
+          "text": "                .original_definition_locations_for_snapshot("
+        }
+      ]
+    },
+    {
+      "severity": "error",
+      "message": "large future with a size of 16568 bytes",
+      "rust_error": null,
+      "lint": "large_futures",
+      "source_package": "tcl-lsp-server",
+      "file": "rust/tcl-lsp-server/src/lib.rs",
+      "line": 16984,
+      "column": 21,
+      "category": "ClippyLint",
+      "primary_for_requested_scope": true,
+      "identity_sha256": "c26cb044b3869d86ae39b7c9a4f1c40ae85c21f63251bc03cbfcc488554629b9",
+      "emission_count": 1,
+      "emissions": [
+        {
+          "scope_package": "tcl-lsp-server",
+          "severity": "error",
+          "message": "large future with a size of 16568 bytes",
+          "rust_error": null,
+          "lint": "large_futures",
+          "log_member": "tcl-lsp-server.log.txt",
+          "log_line": 218,
+          "block_sha256": "9e91a6946168a5f5718efd6462299a95dbffb6d9ac63dd1a26fe6dd94a94d917",
+          "source_package": "tcl-lsp-server",
+          "file": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 16984,
+          "column": 21,
+          "category": "ClippyLint",
+          "primary_for_requested_scope": true
+        }
+      ],
+      "source_sha256": "abdfb49b34b24e66ba8ece8f953c9c947f72999452e2ae5689c0a8cff7c3e9af",
+      "source_excerpt": [
+        {
+          "line": 16983,
+          "text": "        }"
+        },
+        {
+          "line": 16984,
+          "text": "        let cross = self"
+        },
+        {
+          "line": 16985,
+          "text": "            .cross_document_definition(uri, &doc.text, pos, &analysis)"
+        }
+      ]
+    },
+    {
+      "severity": "error",
+      "message": "large future with a size of 16688 bytes",
+      "rust_error": null,
+      "lint": "large_futures",
+      "source_package": "tcl-lsp-server",
+      "file": "rust/tcl-lsp-server/src/lib.rs",
+      "line": 16995,
+      "column": 9,
+      "category": "ClippyLint",
+      "primary_for_requested_scope": true,
+      "identity_sha256": "fe82c526ad1894d89e7eae83958f597ec8e594ff1bca983614d69130270f3644",
+      "emission_count": 1,
+      "emissions": [
+        {
+          "scope_package": "tcl-lsp-server",
+          "severity": "error",
+          "message": "large future with a size of 16688 bytes",
+          "rust_error": null,
+          "lint": "large_futures",
+          "log_member": "tcl-lsp-server.log.txt",
+          "log_line": 233,
+          "block_sha256": "2f6334548eb9eaf14df3556e4ebd44cd6d5e0535d171a777c66e730ff18c6d0d",
+          "source_package": "tcl-lsp-server",
+          "file": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 16995,
+          "column": 9,
+          "category": "ClippyLint",
+          "primary_for_requested_scope": true
+        }
+      ],
+      "source_sha256": "abdfb49b34b24e66ba8ece8f953c9c947f72999452e2ae5689c0a8cff7c3e9af",
+      "source_excerpt": [
+        {
+          "line": 16994,
+          "text": "        // it on demand (memoised by `analysis_for`), and jump to the proc."
+        },
+        {
+          "line": 16995,
+          "text": "        self.autoload_definition(uri, &doc.text, pos, &analysis)"
+        },
+        {
+          "line": 16996,
+          "text": "            .await"
+        }
+      ]
+    },
+    {
+      "severity": "error",
+      "message": "large future with a size of 19088 bytes",
+      "rust_error": null,
+      "lint": "large_futures",
+      "source_package": "tcl-lsp-server",
+      "file": "rust/tcl-lsp-server/src/lib.rs",
+      "line": 17121,
+      "column": 28,
+      "category": "ClippyLint",
+      "primary_for_requested_scope": true,
+      "identity_sha256": "79c34cb4e5a5b27622352ff55aaf1e19f781a8c7077acac00031a9b73cab70c4",
+      "emission_count": 1,
+      "emissions": [
+        {
+          "scope_package": "tcl-lsp-server",
+          "severity": "error",
+          "message": "large future with a size of 19088 bytes",
+          "rust_error": null,
+          "lint": "large_futures",
+          "log_member": "tcl-lsp-server.log.txt",
+          "log_line": 241,
+          "block_sha256": "7a9c36a3e2f9f67d1cff27780cc3d2073c3f5e036f240255a07ae719d18c375c",
+          "source_package": "tcl-lsp-server",
+          "file": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 17121,
+          "column": 28,
+          "category": "ClippyLint",
+          "primary_for_requested_scope": true
+        }
+      ],
+      "source_sha256": "abdfb49b34b24e66ba8ece8f953c9c947f72999452e2ae5689c0a8cff7c3e9af",
+      "source_excerpt": [
+        {
+          "line": 17120,
+          "text": "        use std::ops::ControlFlow;"
+        },
+        {
+          "line": 17121,
+          "text": "        let target = match self"
+        },
+        {
+          "line": 17122,
+          "text": "            .original_method_source_target(&caller, analysis, position)"
+        }
+      ]
+    },
+    {
+      "severity": "error",
+      "message": "large future with a size of 19088 bytes",
+      "rust_error": null,
+      "lint": "large_futures",
+      "source_package": "tcl-lsp-server",
+      "file": "rust/tcl-lsp-server/src/lib.rs",
+      "line": 17143,
+      "column": 28,
+      "category": "ClippyLint",
+      "primary_for_requested_scope": true,
+      "identity_sha256": "12ed392585543ece47d132fbcd95c391889403289117e624814f461c8393b9ac",
+      "emission_count": 1,
+      "emissions": [
+        {
+          "scope_package": "tcl-lsp-server",
+          "severity": "error",
+          "message": "large future with a size of 19088 bytes",
+          "rust_error": null,
+          "lint": "large_futures",
+          "log_member": "tcl-lsp-server.log.txt",
+          "log_line": 256,
+          "block_sha256": "a6e59cac58cbf1b7abbad116b463bbc987fff8a4f5cd07d6846954be2ef89932",
+          "source_package": "tcl-lsp-server",
+          "file": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 17143,
+          "column": 28,
+          "category": "ClippyLint",
+          "primary_for_requested_scope": true
+        }
+      ],
+      "source_sha256": "abdfb49b34b24e66ba8ece8f953c9c947f72999452e2ae5689c0a8cff7c3e9af",
+      "source_excerpt": [
+        {
+          "line": 17142,
+          "text": "        use std::ops::ControlFlow;"
+        },
+        {
+          "line": 17143,
+          "text": "        let target = match self"
+        },
+        {
+          "line": 17144,
+          "text": "            .original_method_source_target(&caller, analysis, position)"
+        }
+      ]
+    },
+    {
+      "severity": "error",
+      "message": "large future with a size of 16568 bytes",
+      "rust_error": null,
+      "lint": "large_futures",
+      "source_package": "tcl-lsp-server",
+      "file": "rust/tcl-lsp-server/src/lib.rs",
+      "line": 17778,
+      "column": 20,
+      "category": "ClippyLint",
+      "primary_for_requested_scope": true,
+      "identity_sha256": "23f9c7770ec3eca0f6f6cf953f585b35475b9cb0e5c5be4e2130e44d1299d9f8",
+      "emission_count": 1,
+      "emissions": [
+        {
+          "scope_package": "tcl-lsp-server",
+          "severity": "error",
+          "message": "large future with a size of 16568 bytes",
+          "rust_error": null,
+          "lint": "large_futures",
+          "log_member": "tcl-lsp-server.log.txt",
+          "log_line": 271,
+          "block_sha256": "68152710238b5532622a0f948261516e5800434a14764158a94bb0f03a1b9fba",
+          "source_package": "tcl-lsp-server",
+          "file": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 17778,
+          "column": 20,
+          "category": "ClippyLint",
+          "primary_for_requested_scope": true
+        }
+      ],
+      "source_sha256": "abdfb49b34b24e66ba8ece8f953c9c947f72999452e2ae5689c0a8cff7c3e9af",
+      "source_excerpt": [
+        {
+          "line": 17777,
+          "text": "            }"
+        },
+        {
+          "line": 17778,
+          "text": "            return self"
+        },
+        {
+          "line": 17779,
+          "text": "                .cross_document_definition(uri, source, pos, analysis)"
+        }
+      ]
+    },
+    {
+      "severity": "error",
+      "message": "this function has too many lines (107/100)",
+      "rust_error": null,
+      "lint": "too_many_lines",
+      "source_package": "tcl-lsp-server",
+      "file": "rust/tcl-lsp-server/src/lib.rs",
+      "line": 17804,
+      "column": 5,
+      "category": "ClippyLint",
+      "primary_for_requested_scope": true,
+      "identity_sha256": "b94b73d108e2667d3dc787ee07c65e72db65c0d98c5c9e6ec49a2dd8023c5202",
+      "emission_count": 1,
+      "emissions": [
+        {
+          "scope_package": "tcl-lsp-server",
+          "severity": "error",
+          "message": "this function has too many lines (107/100)",
+          "rust_error": null,
+          "lint": "too_many_lines",
+          "log_member": "tcl-lsp-server.log.txt",
+          "log_line": 286,
+          "block_sha256": "2105080f96adb0c488145246a62d61b7a72525dac4931a2056e6e9de46477b80",
+          "source_package": "tcl-lsp-server",
+          "file": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 17804,
+          "column": 5,
+          "category": "ClippyLint",
+          "primary_for_requested_scope": true
+        }
+      ],
+      "source_sha256": "abdfb49b34b24e66ba8ece8f953c9c947f72999452e2ae5689c0a8cff7c3e9af",
+      "source_excerpt": [
+        {
+          "line": 17803,
+          "text": "    /// current source declaration has been selected from the index."
+        },
+        {
+          "line": 17804,
+          "text": "    async fn ensure_logical_library_candidates("
+        },
+        {
+          "line": 17805,
+          "text": "        &self,"
+        }
+      ]
+    },
+    {
+      "severity": "error",
+      "message": "this function has too many lines (105/100)",
+      "rust_error": null,
+      "lint": "too_many_lines",
+      "source_package": "tcl-lsp-server",
+      "file": "rust/tcl-lsp-server/src/lib.rs",
+      "line": 19537,
+      "column": 5,
+      "category": "ClippyLint",
+      "primary_for_requested_scope": true,
+      "identity_sha256": "8c84e50869e92160a00778a1212886136c8600d5bd162ef3538ad13f92ab0a02",
+      "emission_count": 1,
+      "emissions": [
+        {
+          "scope_package": "tcl-lsp-server",
+          "severity": "error",
+          "message": "this function has too many lines (105/100)",
+          "rust_error": null,
+          "lint": "too_many_lines",
+          "log_member": "tcl-lsp-server.log.txt",
+          "log_line": 300,
+          "block_sha256": "5d239a0918dca07ae3be69d517bde95619059e927a08b44a89c7a1ee9bd66861",
+          "source_package": "tcl-lsp-server",
+          "file": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 19537,
+          "column": 5,
+          "category": "ClippyLint",
+          "primary_for_requested_scope": true
+        }
+      ],
+      "source_sha256": "abdfb49b34b24e66ba8ece8f953c9c947f72999452e2ae5689c0a8cff7c3e9af",
+      "source_excerpt": [
+        {
+          "line": 19536,
+          "text": "    /// symbol."
+        },
+        {
+          "line": 19537,
+          "text": "    async fn resolve_workspace_symbols_indexed_for_purpose("
+        },
+        {
+          "line": 19538,
+          "text": "        &self,"
+        }
+      ]
+    },
+    {
+      "severity": "error",
+      "message": "this function has too many lines (152/100)",
+      "rust_error": null,
+      "lint": "too_many_lines",
+      "source_package": "tcl-lsp-server",
+      "file": "rust/tcl-lsp-server/src/lib.rs",
+      "line": 19968,
+      "column": 5,
+      "category": "ClippyLint",
+      "primary_for_requested_scope": true,
+      "identity_sha256": "ee3f86f24e51d59800326fbcb59014bcca72aea144d2a74b707d0fa3bfc7fcff",
+      "emission_count": 1,
+      "emissions": [
+        {
+          "scope_package": "tcl-lsp-server",
+          "severity": "error",
+          "message": "this function has too many lines (152/100)",
+          "rust_error": null,
+          "lint": "too_many_lines",
+          "log_member": "tcl-lsp-server.log.txt",
+          "log_line": 314,
+          "block_sha256": "eb116b1223beacb3ddbe811e435ba3ec8e4234f62e565fd55ecf1a42c036961c",
+          "source_package": "tcl-lsp-server",
+          "file": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 19968,
+          "column": 5,
+          "category": "ClippyLint",
+          "primary_for_requested_scope": true
+        }
+      ],
+      "source_sha256": "abdfb49b34b24e66ba8ece8f953c9c947f72999452e2ae5689c0a8cff7c3e9af",
+      "source_excerpt": [
+        {
+          "line": 19967,
+          "text": "    /// listing fewer sites than the peek on the same symbol is a defect."
+        },
+        {
+          "line": 19968,
+          "text": "    async fn reference_locations("
+        },
+        {
+          "line": 19969,
+          "text": "        &self,"
+        }
+      ]
+    },
+    {
+      "severity": "error",
+      "message": "this function has too many lines (106/100)",
+      "rust_error": null,
+      "lint": "too_many_lines",
+      "source_package": "tcl-lsp-server",
+      "file": "rust/tcl-lsp-server/src/lib.rs",
+      "line": 22079,
+      "column": 5,
+      "category": "ClippyLint",
+      "primary_for_requested_scope": true,
+      "identity_sha256": "6b9716431b9d8c9019048635cb039462538697c8b804f691db2b3119f6f3d363",
+      "emission_count": 1,
+      "emissions": [
+        {
+          "scope_package": "tcl-lsp-server",
+          "severity": "error",
+          "message": "this function has too many lines (106/100)",
+          "rust_error": null,
+          "lint": "too_many_lines",
+          "log_member": "tcl-lsp-server.log.txt",
+          "log_line": 328,
+          "block_sha256": "cf23115210daf2bbbf490d479b4e4a25c7eb0ab102febbff620b6abefe7bb0b0",
+          "source_package": "tcl-lsp-server",
+          "file": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 22079,
+          "column": 5,
+          "category": "ClippyLint",
+          "primary_for_requested_scope": true
+        }
+      ],
+      "source_sha256": "abdfb49b34b24e66ba8ece8f953c9c947f72999452e2ae5689c0a8cff7c3e9af",
+      "source_excerpt": [
+        {
+          "line": 22078,
+          "text": ""
+        },
+        {
+          "line": 22079,
+          "text": "    async fn original_command_rename_tier("
+        },
+        {
+          "line": 22080,
+          "text": "        &self,"
+        }
+      ]
+    },
+    {
+      "severity": "error",
+      "message": "large future with a size of 16424 bytes",
+      "rust_error": null,
+      "lint": "large_futures",
+      "source_package": "tcl-lsp-server",
+      "file": "rust/tcl-lsp-server/src/lib.rs",
+      "line": 25140,
+      "column": 9,
+      "category": "ClippyLint",
+      "primary_for_requested_scope": true,
+      "identity_sha256": "8d38871983eb19ef3d2d9ab6ddb2a9df25316508c5cd2b9df4cf1a110418c81e",
+      "emission_count": 1,
+      "emissions": [
+        {
+          "scope_package": "tcl-lsp-server",
+          "severity": "error",
+          "message": "large future with a size of 16424 bytes",
+          "rust_error": null,
+          "lint": "large_futures",
+          "log_member": "tcl-lsp-server.log.txt",
+          "log_line": 342,
+          "block_sha256": "3c7bbe6552269471d297be4aa71de74e8896360bc17ca404edf16faac789fa3b",
+          "source_package": "tcl-lsp-server",
+          "file": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 25140,
+          "column": 9,
+          "category": "ClippyLint",
+          "primary_for_requested_scope": true
+        }
+      ],
+      "source_sha256": "abdfb49b34b24e66ba8ece8f953c9c947f72999452e2ae5689c0a8cff7c3e9af",
+      "source_excerpt": [
+        {
+          "line": 25139,
+          "text": "    async fn pull_and_apply_config(&self) -> DocumentSourceResult<()> {"
+        },
+        {
+          "line": 25140,
+          "text": "        self.pull_and_apply_config_values().await?;"
+        },
+        {
+          "line": 25141,
+          "text": "        // Whatever the client answered, the setting that decides whether a"
+        }
+      ]
+    },
+    {
+      "severity": "error",
+      "message": "large future with a size of 16472 bytes",
+      "rust_error": null,
+      "lint": "large_futures",
+      "source_package": "tcl-lsp-server",
+      "file": "rust/tcl-lsp-server/src/lib.rs",
+      "line": 25421,
+      "column": 13,
+      "category": "ClippyLint",
+      "primary_for_requested_scope": true,
+      "identity_sha256": "a5bb19af09b35dd1aea57485e4663ee2d5b14eedb161d0ad52e980d64c46f75c",
+      "emission_count": 1,
+      "emissions": [
+        {
+          "scope_package": "tcl-lsp-server",
+          "severity": "error",
+          "message": "large future with a size of 16472 bytes",
+          "rust_error": null,
+          "lint": "large_futures",
+          "log_member": "tcl-lsp-server.log.txt",
+          "log_line": 350,
+          "block_sha256": "f960a6ad68ff8888e86555a995fb8f6fe13d86f1568a849bbc43dccd3aff8d11",
+          "source_package": "tcl-lsp-server",
+          "file": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 25421,
+          "column": 13,
+          "category": "ClippyLint",
+          "primary_for_requested_scope": true
+        }
+      ],
+      "source_sha256": "abdfb49b34b24e66ba8ece8f953c9c947f72999452e2ae5689c0a8cff7c3e9af",
+      "source_excerpt": [
+        {
+          "line": 25420,
+          "text": "            }"
+        },
+        {
+          "line": 25421,
+          "text": "            self.run_config_reload().await?;"
+        },
+        {
+          "line": 25422,
+          "text": "        }"
+        }
+      ]
+    },
+    {
+      "severity": "error",
+      "message": "large future with a size of 16448 bytes",
+      "rust_error": null,
+      "lint": "large_futures",
+      "source_package": "tcl-lsp-server",
+      "file": "rust/tcl-lsp-server/src/lib.rs",
+      "line": 25429,
+      "column": 9,
+      "category": "ClippyLint",
+      "primary_for_requested_scope": true,
+      "identity_sha256": "f5fa3ea41d7dc63cfd5255f404d0ad135e8fa30bf972392c07f4ff313ca601e8",
+      "emission_count": 1,
+      "emissions": [
+        {
+          "scope_package": "tcl-lsp-server",
+          "severity": "error",
+          "message": "large future with a size of 16448 bytes",
+          "rust_error": null,
+          "lint": "large_futures",
+          "log_member": "tcl-lsp-server.log.txt",
+          "log_line": 358,
+          "block_sha256": "d3564ae2b483bb03f860286cc7dca967904c8f78c013e039ec910f33e5107845",
+          "source_package": "tcl-lsp-server",
+          "file": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 25429,
+          "column": 9,
+          "category": "ClippyLint",
+          "primary_for_requested_scope": true
+        }
+      ],
+      "source_sha256": "abdfb49b34b24e66ba8ece8f953c9c947f72999452e2ae5689c0a8cff7c3e9af",
+      "source_excerpt": [
+        {
+          "line": 25428,
+          "text": "    async fn run_config_reload(&self) -> DocumentSourceResult<()> {"
+        },
+        {
+          "line": 25429,
+          "text": "        self.pull_and_apply_config().await?;"
+        },
+        {
+          "line": 25430,
+          "text": "        // `tclLsp.specPacks` is part of what was just applied: if it moved, the"
+        }
+      ]
+    },
+    {
+      "severity": "error",
+      "message": "this function has too many lines (111/100)",
+      "rust_error": null,
+      "lint": "too_many_lines",
+      "source_package": "tcl-lsp-server",
+      "file": "rust/tcl-lsp-server/src/lib.rs",
+      "line": 25877,
+      "column": 5,
+      "category": "ClippyLint",
+      "primary_for_requested_scope": true,
+      "identity_sha256": "aa88ff8b1a9004aac293e260a0e62cdb7e035f37bf64869f419fe049958064da",
+      "emission_count": 1,
+      "emissions": [
+        {
+          "scope_package": "tcl-lsp-server",
+          "severity": "error",
+          "message": "this function has too many lines (111/100)",
+          "rust_error": null,
+          "lint": "too_many_lines",
+          "log_member": "tcl-lsp-server.log.txt",
+          "log_line": 366,
+          "block_sha256": "61437cf3d83ee3218926076f2ec5261917569a44804aae650328c20f696594ba",
+          "source_package": "tcl-lsp-server",
+          "file": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 25877,
+          "column": 5,
+          "category": "ClippyLint",
+          "primary_for_requested_scope": true
+        }
+      ],
+      "source_sha256": "abdfb49b34b24e66ba8ece8f953c9c947f72999452e2ae5689c0a8cff7c3e9af",
+      "source_excerpt": [
+        {
+          "line": 25876,
+          "text": "    /// save for a folder toggling an override."
+        },
+        {
+          "line": 25877,
+          "text": "    async fn apply_folder_configs(&self, parsed: Vec<(Uri, FolderConfig)>) {"
+        },
+        {
+          "line": 25878,
+          "text": "        use salsa::Setter as _;"
+        }
+      ]
+    },
+    {
+      "severity": "error",
+      "message": "this function has too many lines (185/100)",
+      "rust_error": null,
+      "lint": "too_many_lines",
+      "source_package": "tcl-lsp-server",
+      "file": "rust/tcl-lsp-server/src/lib.rs",
+      "line": 27867,
+      "column": 5,
+      "category": "ClippyLint",
+      "primary_for_requested_scope": true,
+      "identity_sha256": "cf978a9011051263671852b084d27628dc20e956358832a0f8c333670f6fde9a",
+      "emission_count": 1,
+      "emissions": [
+        {
+          "scope_package": "tcl-lsp-server",
+          "severity": "error",
+          "message": "this function has too many lines (185/100)",
+          "rust_error": null,
+          "lint": "too_many_lines",
+          "log_member": "tcl-lsp-server.log.txt",
+          "log_line": 374,
+          "block_sha256": "1e5842a4aeb8c3a224377a6bb2a2575371871b23ba8a675ea7590c4e34dd1cff",
+          "source_package": "tcl-lsp-server",
+          "file": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 27867,
+          "column": 5,
+          "category": "ClippyLint",
+          "primary_for_requested_scope": true
+        }
+      ],
+      "source_sha256": "abdfb49b34b24e66ba8ece8f953c9c947f72999452e2ae5689c0a8cff7c3e9af",
+      "source_excerpt": [
+        {
+          "line": 27866,
+          "text": ""
+        },
+        {
+          "line": 27867,
+          "text": "    async fn reload_spec_packs_inner(&self, trigger: ReloadTrigger) -> DocumentSourceResult<bool> {"
+        },
+        {
+          "line": 27868,
+          "text": "        macro_rules! pack_reload_phase {"
+        }
+      ]
+    },
+    {
+      "severity": "error",
+      "message": "this function has too many lines (169/100)",
+      "rust_error": null,
+      "lint": "too_many_lines",
+      "source_package": "tcl-lsp-server",
+      "file": "rust/tcl-lsp-server/src/lib.rs",
+      "line": 28672,
+      "column": 5,
+      "category": "ClippyLint",
+      "primary_for_requested_scope": true,
+      "identity_sha256": "ccf9017799ff1efe1f575b9032fee5f38397c9d72ce0c9c95a86d71bf0fc760b",
+      "emission_count": 1,
+      "emissions": [
+        {
+          "scope_package": "tcl-lsp-server",
+          "severity": "error",
+          "message": "this function has too many lines (169/100)",
+          "rust_error": null,
+          "lint": "too_many_lines",
+          "log_member": "tcl-lsp-server.log.txt",
+          "log_line": 382,
+          "block_sha256": "e14e4f02a696464acddc93cb340b1301caf310eb4fcbe740337e8ac6ec1a0a0a",
+          "source_package": "tcl-lsp-server",
+          "file": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 28672,
+          "column": 5,
+          "category": "ClippyLint",
+          "primary_for_requested_scope": true
+        }
+      ],
+      "source_sha256": "abdfb49b34b24e66ba8ece8f953c9c947f72999452e2ae5689c0a8cff7c3e9af",
+      "source_excerpt": [
+        {
+          "line": 28671,
+          "text": "    /// whichever producer ran last."
+        },
+        {
+          "line": 28672,
+          "text": "    async fn publish_spec_pack_notices("
+        },
+        {
+          "line": 28673,
+          "text": "        &self,"
+        }
+      ]
+    },
+    {
+      "severity": "error",
+      "message": "this function has too many lines (120/100)",
+      "rust_error": null,
+      "lint": "too_many_lines",
+      "source_package": "tcl-lsp-server",
+      "file": "rust/tcl-lsp-server/src/lib.rs",
+      "line": 29092,
+      "column": 5,
+      "category": "ClippyLint",
+      "primary_for_requested_scope": true,
+      "identity_sha256": "b7d460ffcd1e6dd0495f515180a376ac3bd8efc7bd0dbd74e661a12064d4c29b",
+      "emission_count": 1,
+      "emissions": [
+        {
+          "scope_package": "tcl-lsp-server",
+          "severity": "error",
+          "message": "this function has too many lines (120/100)",
+          "rust_error": null,
+          "lint": "too_many_lines",
+          "log_member": "tcl-lsp-server.log.txt",
+          "log_line": 396,
+          "block_sha256": "5d26a05192932a067ca3b59fd6fbbf6d0b823c9da5dc0f1421b7436655d95cb7",
+          "source_package": "tcl-lsp-server",
+          "file": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 29092,
+          "column": 5,
+          "category": "ClippyLint",
+          "primary_for_requested_scope": true
+        }
+      ],
+      "source_sha256": "abdfb49b34b24e66ba8ece8f953c9c947f72999452e2ae5689c0a8cff7c3e9af",
+      "source_excerpt": [
+        {
+          "line": 29091,
+          "text": "    /// captured live text remains authoritative even without an input handle."
+        },
+        {
+          "line": 29092,
+          "text": "    async fn open_but_unindexed_symbols("
+        },
+        {
+          "line": 29093,
+          "text": "        &self,"
+        }
+      ]
+    },
+    {
+      "severity": "error",
+      "message": "this function has too many lines (140/100)",
+      "rust_error": null,
+      "lint": "too_many_lines",
+      "source_package": "tcl-lsp-server",
+      "file": "rust/tcl-lsp-server/src/lib.rs",
+      "line": 29331,
+      "column": 5,
+      "category": "ClippyLint",
+      "primary_for_requested_scope": true,
+      "identity_sha256": "3a5b15f64d6a9cc97c87322af7dbd97ce211cbb2361f25159fe47303522bdd25",
+      "emission_count": 1,
+      "emissions": [
+        {
+          "scope_package": "tcl-lsp-server",
+          "severity": "error",
+          "message": "this function has too many lines (140/100)",
+          "rust_error": null,
+          "lint": "too_many_lines",
+          "log_member": "tcl-lsp-server.log.txt",
+          "log_line": 408,
+          "block_sha256": "9306a8f74dbbc952936cf3f1204ec3f69b06dfb92cb969fbe3f10e76d8fea8a3",
+          "source_package": "tcl-lsp-server",
+          "file": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 29331,
+          "column": 5,
+          "category": "ClippyLint",
+          "primary_for_requested_scope": true
+        }
+      ],
+      "source_sha256": "abdfb49b34b24e66ba8ece8f953c9c947f72999452e2ae5689c0a8cff7c3e9af",
+      "source_excerpt": [
+        {
+          "line": 29330,
+          "text": ""
+        },
+        {
+          "line": 29331,
+          "text": "    async fn scan_workspace_folders(&self) -> DocumentSourceResult<()> {"
+        },
+        {
+          "line": 29332,
+          "text": "        // Held for the whole scan so `ensure_autoload_indexed` can wait out"
+        }
+      ]
+    },
+    {
+      "severity": "error",
+      "message": "this function has too many lines (206/100)",
+      "rust_error": null,
+      "lint": "too_many_lines",
+      "source_package": "tcl-lsp-server",
+      "file": "rust/tcl-lsp-server/src/lib.rs",
+      "line": 29674,
+      "column": 5,
+      "category": "ClippyLint",
+      "primary_for_requested_scope": true,
+      "identity_sha256": "0253249cfc044b4a46c10a0f18f9b5ae864f42388c752c7785a78471966a69ec",
+      "emission_count": 1,
+      "emissions": [
+        {
+          "scope_package": "tcl-lsp-server",
+          "severity": "error",
+          "message": "this function has too many lines (206/100)",
+          "rust_error": null,
+          "lint": "too_many_lines",
+          "log_member": "tcl-lsp-server.log.txt",
+          "log_line": 416,
+          "block_sha256": "e4a4b4bf710e6b4be4ddd32af3b006a2935ad9e60f4d0799aab1c9b188bd2b32",
+          "source_package": "tcl-lsp-server",
+          "file": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 29674,
+          "column": 5,
+          "category": "ClippyLint",
+          "primary_for_requested_scope": true
+        }
+      ],
+      "source_sha256": "abdfb49b34b24e66ba8ece8f953c9c947f72999452e2ae5689c0a8cff7c3e9af",
+      "source_excerpt": [
+        {
+          "line": 29673,
+          "text": "    /// contribution, plus the number of files actually analysed."
+        },
+        {
+          "line": 29674,
+          "text": "    async fn analyse_and_merge_scanned_files("
+        },
+        {
+          "line": 29675,
+          "text": "        &self,"
+        }
+      ]
+    },
+    {
+      "severity": "error",
+      "message": "type annotations needed",
+      "rust_error": "E0282",
+      "lint": null,
+      "source_package": "tcl-lsp-server",
+      "file": "rust/tcl-lsp-server/src/original_document_metadata_tests.rs",
+      "line": 990,
+      "column": 5,
+      "category": "RustEError",
+      "primary_for_requested_scope": true,
+      "identity_sha256": "b8101233a216a649f5c0ba274f9aef3dee0f8814726ffd315ee1309561d278c7",
+      "emission_count": 1,
+      "emissions": [
+        {
+          "scope_package": "tcl-lsp-server",
+          "severity": "error",
+          "message": "type annotations needed",
+          "rust_error": "E0282",
+          "lint": null,
+          "log_member": "tcl-lsp-server.log.txt",
+          "log_line": 430,
+          "block_sha256": "32bc16c689564517fd3d4b3e40dfad55aa0fd5a77e859daa9c5d5e65ab2a141d",
+          "source_package": "tcl-lsp-server",
+          "file": "rust/tcl-lsp-server/src/original_document_metadata_tests.rs",
+          "line": 990,
+          "column": 5,
+          "category": "RustEError",
+          "primary_for_requested_scope": true
+        }
+      ],
+      "source_sha256": "9dc192c9367c590935298a03b33cf32c56ca256bf98f32c5ffca1aca6f37bf6f",
+      "source_excerpt": [
+        {
+          "line": 989,
+          "text": "    assert_eq!(refused[\"source\"], source);"
+        },
+        {
+          "line": 990,
+          "text": "    assert_eq!(refused[\"optimisations\"].as_array().unwrap().as_slice(), []);"
+        },
+        {
+          "line": 991,
+          "text": "}"
+        }
+      ]
+    },
+    {
+      "severity": "error",
+      "message": "large future with a size of 16448 bytes",
+      "rust_error": null,
+      "lint": "large_futures",
+      "source_package": "tcl-lsp-server",
+      "file": "rust/tcl-lsp-server/src/lib.rs",
+      "line": 30787,
+      "column": 15,
+      "category": "ClippyLint",
+      "primary_for_requested_scope": true,
+      "identity_sha256": "f1e82faca473989b3b1b06f9119a2d7b66dd5a5553a4656bf499d65ee25f9257",
+      "emission_count": 1,
+      "emissions": [
+        {
+          "scope_package": "tcl-lsp-server",
+          "severity": "error",
+          "message": "large future with a size of 16448 bytes",
+          "rust_error": null,
+          "lint": "large_futures",
+          "log_member": "tcl-lsp-server.log.txt",
+          "log_line": 436,
+          "block_sha256": "a4ca1894add8ed9d29577510e3ed4c1cce37677a4ef556db6fc320270d187790",
+          "source_package": "tcl-lsp-server",
+          "file": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 30787,
+          "column": 15,
+          "category": "ClippyLint",
+          "primary_for_requested_scope": true
+        }
+      ],
+      "source_sha256": "abdfb49b34b24e66ba8ece8f953c9c947f72999452e2ae5689c0a8cff7c3e9af",
+      "source_excerpt": [
+        {
+          "line": 30786,
+          "text": "        // before the first request."
+        },
+        {
+          "line": 30787,
+          "text": "        match self.pull_and_apply_config().await {"
+        },
+        {
+          "line": 30788,
+          "text": "            Ok(value) => value,"
+        }
+      ]
+    },
+    {
+      "severity": "error",
+      "message": "this function has too many lines (105/100)",
+      "rust_error": null,
+      "lint": "too_many_lines",
+      "source_package": "tcl-lsp-server",
+      "file": "rust/tcl-lsp-server/src/lib.rs",
+      "line": 30880,
+      "column": 5,
+      "category": "ClippyLint",
+      "primary_for_requested_scope": true,
+      "identity_sha256": "4a80d7bfb6316b2ec90bf4e188514d4fc1d23ce35b1e319b67ea104ea918e87e",
+      "emission_count": 1,
+      "emissions": [
+        {
+          "scope_package": "tcl-lsp-server",
+          "severity": "error",
+          "message": "this function has too many lines (105/100)",
+          "rust_error": null,
+          "lint": "too_many_lines",
+          "log_member": "tcl-lsp-server.log.txt",
+          "log_line": 444,
+          "block_sha256": "880389fd01d7375b972407d3304c10dd7832839d66d624b914b22d4bc947214a",
+          "source_package": "tcl-lsp-server",
+          "file": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 30880,
+          "column": 5,
+          "category": "ClippyLint",
+          "primary_for_requested_scope": true
+        }
+      ],
+      "source_sha256": "abdfb49b34b24e66ba8ece8f953c9c947f72999452e2ae5689c0a8cff7c3e9af",
+      "source_excerpt": [
+        {
+          "line": 30879,
+          "text": ""
+        },
+        {
+          "line": 30880,
+          "text": "    async fn did_open(&self, params: DidOpenTextDocumentParams) {"
+        },
+        {
+          "line": 30881,
+          "text": "        // Apply document-sync mutations in arrival order (see `EditOrder`). The"
+        }
+      ]
+    },
+    {
+      "severity": "error",
+      "message": "this function has too many lines (127/100)",
+      "rust_error": null,
+      "lint": "too_many_lines",
+      "source_package": "tcl-lsp-server",
+      "file": "rust/tcl-lsp-server/src/lib.rs",
+      "line": 31028,
+      "column": 5,
+      "category": "ClippyLint",
+      "primary_for_requested_scope": true,
+      "identity_sha256": "b838be4faf0846dfdb4ec522a24de069cea93c9bed3815453eeb6f296437ff30",
+      "emission_count": 1,
+      "emissions": [
+        {
+          "scope_package": "tcl-lsp-server",
+          "severity": "error",
+          "message": "this function has too many lines (127/100)",
+          "rust_error": null,
+          "lint": "too_many_lines",
+          "log_member": "tcl-lsp-server.log.txt",
+          "log_line": 452,
+          "block_sha256": "68e50f4a152ef397a78d1984fca6937a5d4093baa5e2eb6148ab57bac1ce023a",
+          "source_package": "tcl-lsp-server",
+          "file": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 31028,
+          "column": 5,
+          "category": "ClippyLint",
+          "primary_for_requested_scope": true
+        }
+      ],
+      "source_sha256": "abdfb49b34b24e66ba8ece8f953c9c947f72999452e2ae5689c0a8cff7c3e9af",
+      "source_excerpt": [
+        {
+          "line": 31027,
+          "text": ""
+        },
+        {
+          "line": 31028,
+          "text": "    async fn did_change(&self, params: DidChangeTextDocumentParams) {"
+        },
+        {
+          "line": 31029,
+          "text": "        // Incremental sync: each content change is either a full-document"
+        }
+      ]
+    },
+    {
+      "severity": "error",
+      "message": "large future with a size of 16496 bytes",
+      "rust_error": null,
+      "lint": "large_futures",
+      "source_package": "tcl-lsp-server",
+      "file": "rust/tcl-lsp-server/src/lib.rs",
+      "line": 31302,
+      "column": 15,
+      "category": "ClippyLint",
+      "primary_for_requested_scope": true,
+      "identity_sha256": "593c6b2230b24f0b84cbbe807e564b217845b37d94d9b5631aa9a329624a7e57",
+      "emission_count": 1,
+      "emissions": [
+        {
+          "scope_package": "tcl-lsp-server",
+          "severity": "error",
+          "message": "large future with a size of 16496 bytes",
+          "rust_error": null,
+          "lint": "large_futures",
+          "log_member": "tcl-lsp-server.log.txt",
+          "log_line": 460,
+          "block_sha256": "1603583821fade9f6eb7294956b52d42034fd5b15dea1bbdff28d6304c4d5844",
+          "source_package": "tcl-lsp-server",
+          "file": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 31302,
+          "column": 15,
+          "category": "ClippyLint",
+          "primary_for_requested_scope": true
+        }
+      ],
+      "source_sha256": "abdfb49b34b24e66ba8ece8f953c9c947f72999452e2ae5689c0a8cff7c3e9af",
+      "source_excerpt": [
+        {
+          "line": 31301,
+          "text": "        // notification."
+        },
+        {
+          "line": 31302,
+          "text": "        match self.coalesced_config_reload().await {"
+        },
+        {
+          "line": 31303,
+          "text": "            Ok(value) => value,"
+        }
+      ]
+    },
+    {
+      "severity": "error",
+      "message": "large future with a size of 16448 bytes",
+      "rust_error": null,
+      "lint": "large_futures",
+      "source_package": "tcl-lsp-server",
+      "file": "rust/tcl-lsp-server/src/lib.rs",
+      "line": 31510,
+      "column": 15,
+      "category": "ClippyLint",
+      "primary_for_requested_scope": true,
+      "identity_sha256": "5acfe8a162e9f7f7e23853b6a27948f64b92b2e070012e8aac8d609cbe03d58c",
+      "emission_count": 1,
+      "emissions": [
+        {
+          "scope_package": "tcl-lsp-server",
+          "severity": "error",
+          "message": "large future with a size of 16448 bytes",
+          "rust_error": null,
+          "lint": "large_futures",
+          "log_member": "tcl-lsp-server.log.txt",
+          "log_line": 468,
+          "block_sha256": "c878105e82ad126cabb8f4ac9b21309065dda2534f327c5adb69e0b1e525f112",
+          "source_package": "tcl-lsp-server",
+          "file": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 31510,
+          "column": 15,
+          "category": "ClippyLint",
+          "primary_for_requested_scope": true
+        }
+      ],
+      "source_sha256": "abdfb49b34b24e66ba8ece8f953c9c947f72999452e2ae5689c0a8cff7c3e9af",
+      "source_excerpt": [
+        {
+          "line": 31509,
+          "text": "        // settings reflect the new folder set."
+        },
+        {
+          "line": 31510,
+          "text": "        match self.pull_and_apply_config().await {"
+        },
+        {
+          "line": 31511,
+          "text": "            Ok(value) => value,"
+        }
+      ]
+    },
+    {
+      "severity": "error",
+      "message": "this function has too many lines (190/100)",
+      "rust_error": null,
+      "lint": "too_many_lines",
+      "source_package": "tcl-lsp-server",
+      "file": "rust/tcl-lsp-server/src/lib.rs",
+      "line": 31520,
+      "column": 5,
+      "category": "ClippyLint",
+      "primary_for_requested_scope": true,
+      "identity_sha256": "019fc7247b02d278bc310dec58e0a5c20fc25dee4d021b7b739b002b891e14ad",
+      "emission_count": 1,
+      "emissions": [
+        {
+          "scope_package": "tcl-lsp-server",
+          "severity": "error",
+          "message": "this function has too many lines (190/100)",
+          "rust_error": null,
+          "lint": "too_many_lines",
+          "log_member": "tcl-lsp-server.log.txt",
+          "log_line": 476,
+          "block_sha256": "79afabcfb211cb18f4305eb99991a7e36a2c6f54cb95972a74bd385c274583a7",
+          "source_package": "tcl-lsp-server",
+          "file": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 31520,
+          "column": 5,
+          "category": "ClippyLint",
+          "primary_for_requested_scope": true
+        }
+      ],
+      "source_sha256": "abdfb49b34b24e66ba8ece8f953c9c947f72999452e2ae5689c0a8cff7c3e9af",
+      "source_excerpt": [
+        {
+          "line": 31519,
+          "text": ""
+        },
+        {
+          "line": 31520,
+          "text": "    async fn did_change_watched_files(&self, params: DidChangeWatchedFilesParams) {"
+        },
+        {
+          "line": 31521,
+          "text": "        let mut event_admissions = HashMap::new();"
+        }
+      ]
+    },
+    {
+      "severity": "error",
+      "message": "large future with a size of 16448 bytes",
+      "rust_error": null,
+      "lint": "large_futures",
+      "source_package": "tcl-lsp-server",
+      "file": "rust/tcl-lsp-server/src/lib.rs",
+      "line": 31760,
+      "column": 19,
+      "category": "ClippyLint",
+      "primary_for_requested_scope": true,
+      "identity_sha256": "9f1249ec8e857f720579d0d45a68055ba61cfe311847b701c84a85a0abaa21ba",
+      "emission_count": 1,
+      "emissions": [
+        {
+          "scope_package": "tcl-lsp-server",
+          "severity": "error",
+          "message": "large future with a size of 16448 bytes",
+          "rust_error": null,
+          "lint": "large_futures",
+          "log_member": "tcl-lsp-server.log.txt",
+          "log_line": 484,
+          "block_sha256": "e5c24ba7c65cf32cc3a028e925651e2ddc8c94304d6a00866ff8b9ed3529f304",
+          "source_package": "tcl-lsp-server",
+          "file": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 31760,
+          "column": 19,
+          "category": "ClippyLint",
+          "primary_for_requested_scope": true
+        }
+      ],
+      "source_sha256": "abdfb49b34b24e66ba8ece8f953c9c947f72999452e2ae5689c0a8cff7c3e9af",
+      "source_excerpt": [
+        {
+          "line": 31759,
+          "text": "        if config_changed {"
+        },
+        {
+          "line": 31760,
+          "text": "            match self.pull_and_apply_config().await {"
+        },
+        {
+          "line": 31761,
+          "text": "                Ok(value) => value,"
+        }
+      ]
+    },
+    {
+      "severity": "error",
+      "message": "this function has too many lines (102/100)",
+      "rust_error": null,
+      "lint": "too_many_lines",
+      "source_package": "tcl-lsp-server",
+      "file": "rust/tcl-lsp-server/src/lib.rs",
+      "line": 32174,
+      "column": 5,
+      "category": "ClippyLint",
+      "primary_for_requested_scope": true,
+      "identity_sha256": "25cf64f9f6e6f194cdf87c12c6235063bfaacfa1975f0ba2494046cc828196de",
+      "emission_count": 1,
+      "emissions": [
+        {
+          "scope_package": "tcl-lsp-server",
+          "severity": "error",
+          "message": "this function has too many lines (102/100)",
+          "rust_error": null,
+          "lint": "too_many_lines",
+          "log_member": "tcl-lsp-server.log.txt",
+          "log_line": 492,
+          "block_sha256": "899ede89c2bc8f1c10bcdf2d14d977a410e9287926cb8adb1d2754a60edd9e26",
+          "source_package": "tcl-lsp-server",
+          "file": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 32174,
+          "column": 5,
+          "category": "ClippyLint",
+          "primary_for_requested_scope": true
+        }
+      ],
+      "source_sha256": "abdfb49b34b24e66ba8ece8f953c9c947f72999452e2ae5689c0a8cff7c3e9af",
+      "source_excerpt": [
+        {
+          "line": 32173,
+          "text": ""
+        },
+        {
+          "line": 32174,
+          "text": "    async fn goto_type_definition("
+        },
+        {
+          "line": 32175,
+          "text": "        &self,"
+        }
+      ]
+    },
+    {
+      "severity": "error",
+      "message": "this function has too many lines (104/100)",
+      "rust_error": null,
+      "lint": "too_many_lines",
+      "source_package": "tcl-lsp-server",
+      "file": "rust/tcl-lsp-server/src/lib.rs",
+      "line": 32283,
+      "column": 5,
+      "category": "ClippyLint",
+      "primary_for_requested_scope": true,
+      "identity_sha256": "b2960413145b1bdc3b089f0ba36ee28a994c795f2bbe7d160a95fc9d2d51fc5d",
+      "emission_count": 1,
+      "emissions": [
+        {
+          "scope_package": "tcl-lsp-server",
+          "severity": "error",
+          "message": "this function has too many lines (104/100)",
+          "rust_error": null,
+          "lint": "too_many_lines",
+          "log_member": "tcl-lsp-server.log.txt",
+          "log_line": 503,
+          "block_sha256": "9e3e78fd0ed90081ca45638813a5d000a3dd802a217f56d887126c394a9f2453",
+          "source_package": "tcl-lsp-server",
+          "file": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 32283,
+          "column": 5,
+          "category": "ClippyLint",
+          "primary_for_requested_scope": true
+        }
+      ],
+      "source_sha256": "abdfb49b34b24e66ba8ece8f953c9c947f72999452e2ae5689c0a8cff7c3e9af",
+      "source_excerpt": [
+        {
+          "line": 32282,
+          "text": ""
+        },
+        {
+          "line": 32283,
+          "text": "    async fn goto_implementation("
+        },
+        {
+          "line": 32284,
+          "text": "        &self,"
+        }
+      ]
+    },
+    {
+      "severity": "error",
+      "message": "large future with a size of 17800 bytes",
+      "rust_error": null,
+      "lint": "large_futures",
+      "source_package": "tcl-lsp-server",
+      "file": "rust/tcl-lsp-server/src/lib.rs",
+      "line": 32650,
+      "column": 25,
+      "category": "ClippyLint",
+      "primary_for_requested_scope": true,
+      "identity_sha256": "45fd32c18964ce4305773f7aacb119a3933fe6d759ef1c72032ee538c89c035c",
+      "emission_count": 1,
+      "emissions": [
+        {
+          "scope_package": "tcl-lsp-server",
+          "severity": "error",
+          "message": "large future with a size of 17800 bytes",
+          "rust_error": null,
+          "lint": "large_futures",
+          "log_member": "tcl-lsp-server.log.txt",
+          "log_line": 514,
+          "block_sha256": "fa0a8c5c5ec2aaa3c7786e87709478bddd739c13967de6c68a58479e4a919524",
+          "source_package": "tcl-lsp-server",
+          "file": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 32650,
+          "column": 25,
+          "category": "ClippyLint",
+          "primary_for_requested_scope": true
+        }
+      ],
+      "source_sha256": "abdfb49b34b24e66ba8ece8f953c9c947f72999452e2ae5689c0a8cff7c3e9af",
+      "source_excerpt": [
+        {
+          "line": 32649,
+          "text": "        {"
+        },
+        {
+          "line": 32650,
+          "text": "            let edges = self.walk_original_source_view_calls(&item, true).await?;"
+        },
+        {
+          "line": 32651,
+          "text": "            return Ok(Some("
+        }
+      ]
+    },
+    {
+      "severity": "error",
+      "message": "large future with a size of 17800 bytes",
+      "rust_error": null,
+      "lint": "large_futures",
+      "source_package": "tcl-lsp-server",
+      "file": "rust/tcl-lsp-server/src/lib.rs",
+      "line": 32730,
+      "column": 25,
+      "category": "ClippyLint",
+      "primary_for_requested_scope": true,
+      "identity_sha256": "d450c5606c9efb1bb1b9b8984a221d48359c40f2a45ba45ca95e504ab78e513d",
+      "emission_count": 1,
+      "emissions": [
+        {
+          "scope_package": "tcl-lsp-server",
+          "severity": "error",
+          "message": "large future with a size of 17800 bytes",
+          "rust_error": null,
+          "lint": "large_futures",
+          "log_member": "tcl-lsp-server.log.txt",
+          "log_line": 522,
+          "block_sha256": "6769d87153016645ab6ffe37fcc7031e6d7421bbb19282c86808c3249d2ea973",
+          "source_package": "tcl-lsp-server",
+          "file": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 32730,
+          "column": 25,
+          "category": "ClippyLint",
+          "primary_for_requested_scope": true
+        }
+      ],
+      "source_sha256": "abdfb49b34b24e66ba8ece8f953c9c947f72999452e2ae5689c0a8cff7c3e9af",
+      "source_excerpt": [
+        {
+          "line": 32729,
+          "text": "        {"
+        },
+        {
+          "line": 32730,
+          "text": "            let edges = self.walk_original_source_view_calls(&item, false).await?;"
+        },
+        {
+          "line": 32731,
+          "text": "            return Ok(Some("
+        }
+      ]
+    },
+    {
+      "severity": "error",
+      "message": "this function has too many lines (101/100)",
+      "rust_error": null,
+      "lint": "too_many_lines",
+      "source_package": "tcl-lsp-server",
+      "file": "rust/tcl-lsp-server/src/lib.rs",
+      "line": 33051,
+      "column": 5,
+      "category": "ClippyLint",
+      "primary_for_requested_scope": true,
+      "identity_sha256": "5e3681a0bcbbd0363d867f47b78b110b557ee73d567c9a124c8b7b7df6438b14",
+      "emission_count": 1,
+      "emissions": [
+        {
+          "scope_package": "tcl-lsp-server",
+          "severity": "error",
+          "message": "this function has too many lines (101/100)",
+          "rust_error": null,
+          "lint": "too_many_lines",
+          "log_member": "tcl-lsp-server.log.txt",
+          "log_line": 530,
+          "block_sha256": "9f180bf2775f1f8c7f5f49fa67692b7b28debb1dc8241190ca515daf50d7c84a",
+          "source_package": "tcl-lsp-server",
+          "file": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 33051,
+          "column": 5,
+          "category": "ClippyLint",
+          "primary_for_requested_scope": true
+        }
+      ],
+      "source_sha256": "abdfb49b34b24e66ba8ece8f953c9c947f72999452e2ae5689c0a8cff7c3e9af",
+      "source_excerpt": [
+        {
+          "line": 33050,
+          "text": ""
+        },
+        {
+          "line": 33051,
+          "text": "    async fn semantic_tokens_full_delta("
+        },
+        {
+          "line": 33052,
+          "text": "        &self,"
+        }
+      ]
+    },
+    {
+      "severity": "error",
+      "message": "this function has too many lines (111/100)",
+      "rust_error": null,
+      "lint": "too_many_lines",
+      "source_package": "tcl-lsp-server",
+      "file": "rust/tcl-lsp-server/src/lib.rs",
+      "line": 33168,
+      "column": 5,
+      "category": "ClippyLint",
+      "primary_for_requested_scope": true,
+      "identity_sha256": "f8a40217850adc5dd9a0c03da354728dae7f800049bd2735061bd5b2284569e5",
+      "emission_count": 1,
+      "emissions": [
+        {
+          "scope_package": "tcl-lsp-server",
+          "severity": "error",
+          "message": "this function has too many lines (111/100)",
+          "rust_error": null,
+          "lint": "too_many_lines",
+          "log_member": "tcl-lsp-server.log.txt",
+          "log_line": 541,
+          "block_sha256": "e75d6cb0d8cd1d3669ec4a07c70f1339d1bc0bc4bf657a83dd9fde4a97fd54dd",
+          "source_package": "tcl-lsp-server",
+          "file": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 33168,
+          "column": 5,
+          "category": "ClippyLint",
+          "primary_for_requested_scope": true
+        }
+      ],
+      "source_sha256": "abdfb49b34b24e66ba8ece8f953c9c947f72999452e2ae5689c0a8cff7c3e9af",
+      "source_excerpt": [
+        {
+          "line": 33167,
+          "text": ""
+        },
+        {
+          "line": 33168,
+          "text": "    async fn semantic_tokens_range("
+        },
+        {
+          "line": 33169,
+          "text": "        &self,"
+        }
+      ]
+    },
+    {
+      "severity": "error",
+      "message": "this function has too many lines (128/100)",
+      "rust_error": null,
+      "lint": "too_many_lines",
+      "source_package": "tcl-lsp-server",
+      "file": "rust/tcl-lsp-server/src/lib.rs",
+      "line": 33328,
+      "column": 5,
+      "category": "ClippyLint",
+      "primary_for_requested_scope": true,
+      "identity_sha256": "e3ff4c31e34b6f13567ee95363480579eda55961d61a11afc283d2f687379526",
+      "emission_count": 1,
+      "emissions": [
+        {
+          "scope_package": "tcl-lsp-server",
+          "severity": "error",
+          "message": "this function has too many lines (128/100)",
+          "rust_error": null,
+          "lint": "too_many_lines",
+          "log_member": "tcl-lsp-server.log.txt",
+          "log_line": 552,
+          "block_sha256": "eceb56a569fe8d78327b71767f05bff7e4f4da7f0f66a463cf3df9a95104f83f",
+          "source_package": "tcl-lsp-server",
+          "file": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 33328,
+          "column": 5,
+          "category": "ClippyLint",
+          "primary_for_requested_scope": true
+        }
+      ],
+      "source_sha256": "abdfb49b34b24e66ba8ece8f953c9c947f72999452e2ae5689c0a8cff7c3e9af",
+      "source_excerpt": [
+        {
+          "line": 33327,
+          "text": ""
+        },
+        {
+          "line": 33328,
+          "text": "    async fn symbol("
+        },
+        {
+          "line": 33329,
+          "text": "        &self,"
+        }
+      ]
+    },
+    {
+      "severity": "error",
+      "message": "this function has too many lines (139/100)",
+      "rust_error": null,
+      "lint": "too_many_lines",
+      "source_package": "tcl-lsp-server",
+      "file": "rust/tcl-lsp-server/src/lib.rs",
+      "line": 33846,
+      "column": 5,
+      "category": "ClippyLint",
+      "primary_for_requested_scope": true,
+      "identity_sha256": "5c68960184cc7e4e91b45b7682a09f9f68e6ebcd894cb54da2d484cd7289e9ea",
+      "emission_count": 1,
+      "emissions": [
+        {
+          "scope_package": "tcl-lsp-server",
+          "severity": "error",
+          "message": "this function has too many lines (139/100)",
+          "rust_error": null,
+          "lint": "too_many_lines",
+          "log_member": "tcl-lsp-server.log.txt",
+          "log_line": 563,
+          "block_sha256": "1e6ad17349c71c4980f712b6ef44651db544d189ba4be7333d483e869f00b0c3",
+          "source_package": "tcl-lsp-server",
+          "file": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 33846,
+          "column": 5,
+          "category": "ClippyLint",
+          "primary_for_requested_scope": true
+        }
+      ],
+      "source_sha256": "abdfb49b34b24e66ba8ece8f953c9c947f72999452e2ae5689c0a8cff7c3e9af",
+      "source_excerpt": [
+        {
+          "line": 33845,
+          "text": ""
+        },
+        {
+          "line": 33846,
+          "text": "    async fn code_action("
+        },
+        {
+          "line": 33847,
+          "text": "        &self,"
+        }
+      ]
+    },
+    {
+      "severity": "error",
+      "message": "this function has too many lines (117/100)",
+      "rust_error": null,
+      "lint": "too_many_lines",
+      "source_package": "tcl-lsp-server",
+      "file": "rust/tcl-lsp-server/src/lib.rs",
+      "line": 34363,
+      "column": 5,
+      "category": "ClippyLint",
+      "primary_for_requested_scope": true,
+      "identity_sha256": "f0900fb8c5d493c2a9df94b3b908d30835aa2ce024f98a7ed3153baebf407642",
+      "emission_count": 1,
+      "emissions": [
+        {
+          "scope_package": "tcl-lsp-server",
+          "severity": "error",
+          "message": "this function has too many lines (117/100)",
+          "rust_error": null,
+          "lint": "too_many_lines",
+          "log_member": "tcl-lsp-server.log.txt",
+          "log_line": 574,
+          "block_sha256": "0591c14e3487a71f3a11bedb589c01d848e8c05e9c7039e4e8105bba8d9b0733",
+          "source_package": "tcl-lsp-server",
+          "file": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 34363,
+          "column": 5,
+          "category": "ClippyLint",
+          "primary_for_requested_scope": true
+        }
+      ],
+      "source_sha256": "abdfb49b34b24e66ba8ece8f953c9c947f72999452e2ae5689c0a8cff7c3e9af",
+      "source_excerpt": [
+        {
+          "line": 34362,
+          "text": ""
+        },
+        {
+          "line": 34363,
+          "text": "    async fn rename(&self, params: RenameParams) -> jsonrpc::Result<Option<WorkspaceEdit>> {"
+        },
+        {
+          "line": 34364,
+          "text": "        if !self"
+        }
+      ]
+    },
+    {
+      "severity": "error",
+      "message": "this function has too many lines (207/100)",
+      "rust_error": null,
+      "lint": "too_many_lines",
+      "source_package": "tcl-lsp-server",
+      "file": "rust/tcl-lsp-server/src/lib.rs",
+      "line": 34508,
+      "column": 5,
+      "category": "ClippyLint",
+      "primary_for_requested_scope": true,
+      "identity_sha256": "8530299844a956a9057e5c49cd22fe6339b466b79eaa4bd173e493d444e995a2",
+      "emission_count": 1,
+      "emissions": [
+        {
+          "scope_package": "tcl-lsp-server",
+          "severity": "error",
+          "message": "this function has too many lines (207/100)",
+          "rust_error": null,
+          "lint": "too_many_lines",
+          "log_member": "tcl-lsp-server.log.txt",
+          "log_line": 582,
+          "block_sha256": "620eef96cbd0d4b68a6a7f98b2fdc476d389096fef94a6c804bd4a904255046d",
+          "source_package": "tcl-lsp-server",
+          "file": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 34508,
+          "column": 5,
+          "category": "ClippyLint",
+          "primary_for_requested_scope": true
+        }
+      ],
+      "source_sha256": "abdfb49b34b24e66ba8ece8f953c9c947f72999452e2ae5689c0a8cff7c3e9af",
+      "source_excerpt": [
+        {
+          "line": 34507,
+          "text": "    /// current document/index joins precede versioned edit publication."
+        },
+        {
+          "line": 34508,
+          "text": "    async fn will_rename_files("
+        },
+        {
+          "line": 34509,
+          "text": "        &self,"
+        }
+      ]
+    },
+    {
+      "severity": "error",
+      "message": "this function has too many lines (118/100)",
+      "rust_error": null,
+      "lint": "too_many_lines",
+      "source_package": "tcl-lsp-server",
+      "file": "rust/tcl-lsp-server/src/lib.rs",
+      "line": 34864,
+      "column": 5,
+      "category": "ClippyLint",
+      "primary_for_requested_scope": true,
+      "identity_sha256": "d8bc6232cd63fc4c0d1901560f186b500f31d994b732d40de5ba5da1be2dbc5c",
+      "emission_count": 1,
+      "emissions": [
+        {
+          "scope_package": "tcl-lsp-server",
+          "severity": "error",
+          "message": "this function has too many lines (118/100)",
+          "rust_error": null,
+          "lint": "too_many_lines",
+          "log_member": "tcl-lsp-server.log.txt",
+          "log_line": 593,
+          "block_sha256": "5ea697bbabd99ce9164e9d1d63f46e3ff7e761cec03c1a55c229dce3dc16feff",
+          "source_package": "tcl-lsp-server",
+          "file": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 34864,
+          "column": 5,
+          "category": "ClippyLint",
+          "primary_for_requested_scope": true
+        }
+      ],
+      "source_sha256": "abdfb49b34b24e66ba8ece8f953c9c947f72999452e2ae5689c0a8cff7c3e9af",
+      "source_excerpt": [
+        {
+          "line": 34863,
+          "text": ""
+        },
+        {
+          "line": 34864,
+          "text": "    async fn hover(&self, params: HoverParams) -> jsonrpc::Result<Option<Hover>> {"
+        },
+        {
+          "line": 34865,
+          "text": "        if !self"
+        }
+      ]
+    },
+    {
+      "severity": "error",
+      "message": "arguments to this function are incorrect",
+      "rust_error": "E0308",
+      "lint": null,
+      "source_package": "tcl-lsp-server",
+      "file": "rust/tcl-lsp-server/src/original_document_metadata_tests.rs",
+      "line": 1679,
+      "column": 5,
+      "category": "RustEError",
+      "primary_for_requested_scope": true,
+      "identity_sha256": "243d1537321d70c6b6c48d88b3b8d7e73661f5218c291cfdae23d39c6733edfc",
+      "emission_count": 1,
+      "emissions": [
+        {
+          "scope_package": "tcl-lsp-server",
+          "severity": "error",
+          "message": "arguments to this function are incorrect",
+          "rust_error": "E0308",
+          "lint": null,
+          "log_member": "tcl-lsp-server.log.txt",
+          "log_line": 601,
+          "block_sha256": "62e7ecec1a9b7860b3133d946d262cd04fbfbd1abc2f020be82373984122b720",
+          "source_package": "tcl-lsp-server",
+          "file": "rust/tcl-lsp-server/src/original_document_metadata_tests.rs",
+          "line": 1679,
+          "column": 5,
+          "category": "RustEError",
+          "primary_for_requested_scope": true
+        }
+      ],
+      "source_sha256": "9dc192c9367c590935298a03b33cf32c56ca256bf98f32c5ffca1aca6f37bf6f",
+      "source_excerpt": [
+        {
+          "line": 1678,
+          "text": "    let current_input = current.resolved_input.as_ref().unwrap();"
+        },
+        {
+          "line": 1679,
+          "text": "    assert_current_formatter_analysis(&current, current_input, older_input);"
+        },
+        {
+          "line": 1680,
+          "text": "    assert_formatter_document_source("
+        }
+      ]
+    },
+    {
+      "severity": "error",
+      "message": "this function has too many lines (132/100)",
+      "rust_error": null,
+      "lint": "too_many_lines",
+      "source_package": "tcl-lsp-server",
+      "file": "rust/tcl-lsp-server/src/lib.rs",
+      "line": 37269,
+      "column": 1,
+      "category": "ClippyLint",
+      "primary_for_requested_scope": true,
+      "identity_sha256": "648c78893fa06363d85e19aa0214f5e8516c666a73e79e270c198c3b085ef1d1",
+      "emission_count": 1,
+      "emissions": [
+        {
+          "scope_package": "tcl-lsp-server",
+          "severity": "error",
+          "message": "this function has too many lines (132/100)",
+          "rust_error": null,
+          "lint": "too_many_lines",
+          "log_member": "tcl-lsp-server.log.txt",
+          "log_line": 632,
+          "block_sha256": "102d0b5a641bd38a9c8d67dc1f59bc3399aebbf34f1f3d767f07e717b3eb50af",
+          "source_package": "tcl-lsp-server",
+          "file": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 37269,
+          "column": 1,
+          "category": "ClippyLint",
+          "primary_for_requested_scope": true
+        }
+      ],
+      "source_sha256": "abdfb49b34b24e66ba8ece8f953c9c947f72999452e2ae5689c0a8cff7c3e9af",
+      "source_excerpt": [
+        {
+          "line": 37268,
+          "text": "/// position pays for one scan."
+        },
+        {
+          "line": 37269,
+          "text": "async fn refine_workspace_w120("
+        },
+        {
+          "line": 37270,
+          "text": "    analyser_diags: Vec<tcl_compiler::analyser::Diagnostic>,"
+        }
+      ]
+    }
+  ],
+  "scope_status": [
+    {
+      "requested_package": "tcl-lsp-core",
+      "coverage": "PARTIAL_REQUESTED_PACKAGE_CHECK_OBSERVED",
+      "zero_warning_closure": false,
+      "located_primary_findings": 22,
+      "located_errors": 22,
+      "located_warnings": 0
+    },
+    {
+      "requested_package": "tcl-lsp-db",
+      "coverage": "PARTIAL_REQUESTED_PACKAGE_CHECK_OBSERVED",
+      "zero_warning_closure": false,
+      "located_primary_findings": 3,
+      "located_errors": 3,
+      "located_warnings": 0
+    },
+    {
+      "requested_package": "tcl-lsp-server",
+      "coverage": "PARTIAL_REQUESTED_PACKAGE_CHECK_OBSERVED",
+      "zero_warning_closure": false,
+      "located_primary_findings": 52,
+      "located_errors": 52,
+      "located_warnings": 0
+    }
+  ]
+}

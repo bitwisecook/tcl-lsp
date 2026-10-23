@@ -1,0 +1,201 @@
+{
+  "observed_utc": "2026-10-23T21:15:42.805638+00:00",
+  "archive_sha256": "1b1fbabe6d94076cbe1b8a648a3dd3b89c2c8beb3acf4c4bfa550ffee8d64492",
+  "archive_bytes": 10808652,
+  "run_id": 40023228174,
+  "expected_sha": "f8a24979d71e3e9c7227088d0f4725524fae85ed",
+  "actual_overall_exit": 1,
+  "actual_error": null,
+  "assertions": {
+    "requested_sha": true,
+    "job_run": true,
+    "job_head": true,
+    "work_ref": true,
+    "full_source_identity": true,
+    "full_source_count": true,
+    "original_and_driver_pins": true,
+    "original_roster": true,
+    "byte_seals": true,
+    "final_seals": true,
+    "tool_seal": true,
+    "original_required": true,
+    "original_row_identity": true,
+    "source_parent": true,
+    "required_tcl": true,
+    "jim_version": true,
+    "limits": true,
+    "strict_environment": true,
+    "diagnostic_scope": true,
+    "two_artifacts": true,
+    "build_and_rosters": true
+  },
+  "source_count": 125122,
+  "source_selected_pins": {
+    "docs/work/name-handling/validation-tools/jim-source-diagnostics.py": {
+      "path": "/home/runner/work/tcl-lsp/tcl-lsp/docs/work/name-handling/validation-tools/jim-source-diagnostics.py",
+      "sha256": "92b2f145bfac9c1a12fa991385588fa662bb47fc0551c58a714b023228359e7b"
+    },
+    "rust/tcl-dialect/data/reference-toolchains.tsv": {
+      "path": "/home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-dialect/data/reference-toolchains.tsv",
+      "sha256": "3832de4718477a58175e466aa3040953cd92bb5a5313c3c8aab34e515f0e5a2d"
+    },
+    "rust/tcl-spectcl/tests/jim_document.rs": {
+      "path": "/home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-spectcl/tests/jim_document.rs",
+      "sha256": "15d878edcede03f7d3aa036bb2a1ad00b469858d4aa337ea913092e9d0bad015"
+    },
+    "rust/tcl-spectcl/tests/jim_own_surface.rs": {
+      "path": "/home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-spectcl/tests/jim_own_surface.rs",
+      "sha256": "a62d6bc969db115c86037645002d8db95ac2120d3cad0dba2ef374c77278cc7e"
+    },
+    "rust/tcl-test-support/jim-reference.txt": {
+      "path": "/home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-test-support/jim-reference.txt",
+      "sha256": "0808a582c3e9a7191196b430bfdb4b17341d50a603bfca8e678c0d78808beaba"
+    },
+    "scripts/dev/ensure-jim-oracle.sh": {
+      "path": "/home/runner/work/tcl-lsp/tcl-lsp/scripts/dev/ensure-jim-oracle.sh",
+      "sha256": "a3b693b8b0c3f505a645036c407781303cff013531492f9f2549930e69dddc07"
+    },
+    "scripts/dev/tcl-reference-toolchains.sh": {
+      "path": "/home/runner/work/tcl-lsp/tcl-lsp/scripts/dev/tcl-reference-toolchains.sh",
+      "sha256": "655d9125235466a12d2d9eb8db04c59dd3ee1a52304d4f3e364a6215fe51564b"
+    }
+  },
+  "large_map_byte_seals": {
+    "source": {
+      "before_sha256": "915e42b7edd896d619ad366fb0376253661dedc3f537e628fe7e77ff765d5f8f",
+      "after_sha256": "915e42b7edd896d619ad366fb0376253661dedc3f537e628fe7e77ff765d5f8f",
+      "equal": true
+    },
+    "providers": {
+      "before_sha256": "d14591277d8ab239043103ceb42ca4ac69fb2e140d3bb22318cc41a8df3ca214",
+      "after_sha256": "d14591277d8ab239043103ceb42ca4ac69fb2e140d3bb22318cc41a8df3ca214",
+      "equal": true
+    },
+    "dependencies": {
+      "before_sha256": "56123d3a8e6be33d485412a7c35cc1f192efd732bcaeb16557da93f363e44698",
+      "after_sha256": "56123d3a8e6be33d485412a7c35cc1f192efd732bcaeb16557da93f363e44698",
+      "equal": true
+    }
+  },
+  "build_evidence": {
+    "jim_document": {
+      "original_full_roster": true,
+      "listed_count": 34,
+      "fresh_strict_artifact": true,
+      "Cargo_0warnings": true,
+      "Cargo_success_terminal": true
+    },
+    "jim_own_surface": {
+      "original_full_roster": true,
+      "listed_count": 11,
+      "fresh_strict_artifact": true,
+      "Cargo_0warnings": true,
+      "Cargo_success_terminal": true
+    }
+  },
+  "outcomes": [
+    {
+      "target": "jim_document",
+      "selector": "a_class_records_the_variables_its_dictionary_names",
+      "state": "FAIL",
+      "exit_code": 101,
+      "env": {
+        "TCL_LSP_TRACE_JIM_SOURCE_OWNER": "1"
+      },
+      "process_complete": true,
+      "full_original_budget": true,
+      "exact_argv": true,
+      "two_empty_group_scans": true,
+      "independent_terminal": "FAIL",
+      "terminal_matches_claim": true
+    },
+    {
+      "target": "jim_document",
+      "selector": "a_method_body_sees_the_instance_variables_and_self",
+      "state": "FAIL",
+      "exit_code": 101,
+      "env": {
+        "TCL_LSP_TRACE_JIM_SOURCE_OWNER": "1"
+      },
+      "process_complete": true,
+      "full_original_budget": true,
+      "exact_argv": true,
+      "two_empty_group_scans": true,
+      "independent_terminal": "FAIL",
+      "terminal_matches_claim": true
+    },
+    {
+      "target": "jim_document",
+      "selector": "older_jim_retains_positive_logical_source_purpose_without_native_promotion",
+      "state": "FAIL",
+      "exit_code": 101,
+      "env": {
+        "TCL_LSP_TRACE_JIM_SOURCE_OWNER": "1"
+      },
+      "process_complete": true,
+      "full_original_budget": true,
+      "exact_argv": true,
+      "two_empty_group_scans": true,
+      "independent_terminal": "FAIL",
+      "terminal_matches_claim": true
+    },
+    {
+      "target": "jim_document",
+      "selector": "nested_jim_headers_retain_the_authentic_conditional_source_parent",
+      "state": "FAIL",
+      "exit_code": 101,
+      "env": {
+        "TCL_LSP_TRACE_JIM_SOURCE_OWNER": "1"
+      },
+      "process_complete": true,
+      "full_original_budget": true,
+      "exact_argv": true,
+      "two_empty_group_scans": true,
+      "independent_terminal": "FAIL",
+      "terminal_matches_claim": true
+    },
+    {
+      "target": "jim_document",
+      "selector": "authored_jim_dictionary_and_odd_shape_use_the_original_list_fields",
+      "state": "PASS",
+      "exit_code": 0,
+      "env": {
+        "TCL_LSP_TRACE_JIM_SOURCE_OWNER": "1"
+      },
+      "process_complete": true,
+      "full_original_budget": true,
+      "exact_argv": true,
+      "two_empty_group_scans": true,
+      "independent_terminal": "PASS",
+      "terminal_matches_claim": true
+    },
+    {
+      "target": "jim_own_surface",
+      "selector": "a_jim_document_resolves_every_declared_command",
+      "state": "PASS",
+      "exit_code": 0,
+      "env": {},
+      "process_complete": true,
+      "full_original_budget": true,
+      "exact_argv": true,
+      "two_empty_group_scans": true,
+      "independent_terminal": "PASS",
+      "terminal_matches_claim": true
+    },
+    {
+      "target": "jim_own_surface",
+      "selector": "a_pack_carrying_jim_store_keeps_jims_own_surface",
+      "state": "PASS",
+      "exit_code": 0,
+      "env": {},
+      "process_complete": true,
+      "full_original_budget": true,
+      "exact_argv": true,
+      "two_empty_group_scans": true,
+      "independent_terminal": "PASS",
+      "terminal_matches_claim": true
+    }
+  ],
+  "all_seven_closed": true,
+  "limits": "ZIP-only read and small summary. No current cause/runtime/release acceptance inferred from sealed failing assertions."
+}

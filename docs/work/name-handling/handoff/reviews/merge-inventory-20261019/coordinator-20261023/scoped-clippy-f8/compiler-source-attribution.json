@@ -1,0 +1,17 @@
+{
+  "run": 40023224304,
+  "source": "f8a24979d71e3e9c7227088d0f4725524fae85ed",
+  "path": "rust/tcl-compiler/src/compilation_unit.rs",
+  "exact_Git_and_snapshot_sha256": "6dc0590c3dfe0d6a6ead54c16d955f4c64f61671f189cd867a9728b15bbf167a",
+  "actual_observation": {
+    "located_errors": 0,
+    "located_warnings": 0,
+    "check_line_observed_in_scopes": [
+      "tcl-lsp-core",
+      "tcl-lsp-db",
+      "tcl-lsp-server"
+    ],
+    "scope_limit": "Compiler built as dependency under --no-deps; this is not a strict compiler Clippy/all-target gate"
+  },
+  "limit": "Compiler dependency check only; no strictcompiler Clippy gate."
+}

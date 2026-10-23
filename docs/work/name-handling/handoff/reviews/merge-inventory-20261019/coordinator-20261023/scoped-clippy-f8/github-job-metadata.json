@@ -1,0 +1,140 @@
+{
+  "jobs": [
+    {
+      "id": 120652825387,
+      "name": "scoped-lsp-clippy-diagnostics",
+      "status": "completed",
+      "conclusion": "failure",
+      "run_id": 40023224304,
+      "logs_url": null,
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1
+        },
+        {
+          "name": "Checkout exact work revision",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2
+        },
+        {
+          "name": "Install Rust and Clippy",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3
+        },
+        {
+          "name": "Validate revision and record source and tools",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4
+        },
+        {
+          "name": "Capture all three strict scoped Clippy outcomes",
+          "status": "completed",
+          "conclusion": "failure",
+          "number": 5
+        },
+        {
+          "name": "Upload scoped Clippy diagnostic evidence",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6
+        },
+        {
+          "name": "Post Install Rust and Clippy",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 11
+        },
+        {
+          "name": "Post Checkout exact work revision",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 12
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 13
+        }
+      ]
+    },
+    {
+      "id": 120652826307,
+      "name": "lsp-startup-diagnostics",
+      "status": "completed",
+      "conclusion": "skipped",
+      "run_id": 40023224304,
+      "logs_url": null,
+      "steps": null
+    },
+    {
+      "id": 120652826610,
+      "name": "runtime-diagnostics",
+      "status": "completed",
+      "conclusion": "skipped",
+      "run_id": 40023224304,
+      "logs_url": null,
+      "steps": null
+    },
+    {
+      "id": 120652826841,
+      "name": "Paired ${{ matrix.scope }} / ${{ matrix.platform }}",
+      "status": "completed",
+      "conclusion": "skipped",
+      "run_id": 40023224304,
+      "logs_url": null,
+      "steps": null
+    },
+    {
+      "id": 120652826919,
+      "name": "runtime-fulltom-diagnostics",
+      "status": "completed",
+      "conclusion": "skipped",
+      "run_id": 40023224304,
+      "logs_url": null,
+      "steps": null
+    },
+    {
+      "id": 120652826957,
+      "name": "jim-source-diagnostics",
+      "status": "completed",
+      "conclusion": "skipped",
+      "run_id": 40023224304,
+      "logs_url": null,
+      "steps": null
+    },
+    {
+      "id": 120652827445,
+      "name": "graphs-current",
+      "status": "completed",
+      "conclusion": "skipped",
+      "run_id": 40023224304,
+      "logs_url": null,
+      "steps": null
+    },
+    {
+      "id": 120652867430,
+      "name": "spectcl-fold-diagnostics",
+      "status": "completed",
+      "conclusion": "skipped",
+      "run_id": 40023224304,
+      "logs_url": null,
+      "steps": null
+    },
+    {
+      "id": 120652880282,
+      "name": "benchmark",
+      "status": "completed",
+      "conclusion": "skipped",
+      "run_id": 40023224304,
+      "logs_url": null,
+      "steps": null
+    }
+  ]
+}

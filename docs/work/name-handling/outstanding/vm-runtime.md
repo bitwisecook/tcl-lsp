@@ -2,7 +2,7 @@
 
 Area: standalone runtime, tcl-vm, SpecTcl and Studio.
 
-Last updated: 2026-10-23T20:56:23.988508+00:00
+Last updated: 2026-10-23T20:58:12.145894+00:00
 
 ## Resume
 
@@ -87,7 +87,7 @@ No build/runtime result claimed. Beforeinterp WORK7436d81a/CLEANcafe257c.
    cache/state/constructor constraints remain. Performance UNMEASURED.
 2. `/tmp/vm-active-public-c-reconciliation-work-v1/` patch
    11ed358873fb8cc5cf4375c22281c88c618ce574289e10fe82a03fd8f31e8664,
-   manifestda629106, interpFINALd265441a/workflow49fa9a04→b9fd4a65.
+   manifestda629106, interpFINAL84dbd75e/workflow49fa9a04→b9fd4a65.
    Clean counterpart `...-clean-v1/` patchb710f98d/manifest5c9e7ef0,
    interpFINAL7ea7bf2f. Only contradictory active_calls0→1, accurate comments/
    messages and rename to active_public_command_replacement_retires_client_data_before_dispatch_releases_its_handle.
@@ -113,13 +113,17 @@ erasingonlyscaffolding exactly recovers originalfunction. Copiesboth0/fmt2021PAS
 C-only-owner-order-proof.json traces actualC native_context_path constructed-only
 branch, shared purebyteprojection/tablelookup and absence of callbacks/protocol
 mutation until attest. It makes no Jimlookup purity claim. DB independent deep
-C/Jimorder peer pending, rootalone integrates afterCLEAR. PerformanceUNMEASURED;
+C/Jimorder peer independently CLEAR /tmp/db-peer-attach-c-only-v2/review.json
+SHAd368991a099e7a378fdf777e2a96ccfb6096e807e323bcc9882da1218a3c94ed.
+Actualfieldborrow dropsbeforeloop, no callbacks/protocolmutation, exact Cpure
+Rustgeometry and Jim/None originalnativeorder authenticated independently.
+Rootalone integrates. PerformanceUNMEASURED;
 original1035freshInterps/180 still judge. All-profiled00aad03 stays WITHDRAWN.
 
 ## Next actions
 
 - Root applied separately cleared active correction. HOLD all-profile d00aad03;
-  finish required DB C-onlyv2 deep owner/order peer before rootintegration. No
+  required DB C-onlyv2 deep owner/order peer is CLEAR, rootintegration pending. No
   speculative numericreset or unsupported Nativepurpose/lifetime switch.
 - Root alone runs fresh originalfocused3 and fullsharedprocess/fullroster gates.
   Preserve original1035/180 and allunchangedchecks; inspect exactfullpayloads,

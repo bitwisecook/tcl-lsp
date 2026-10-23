@@ -1,0 +1,23 @@
+{
+  "artifacts": [
+    {
+      "id": 12532387119,
+      "name": "jim-source-diagnostics-f8a24979d71e3e9c7227088d0f4725524fae85ed-1",
+      "size_in_bytes": 10808652,
+      "url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/artifacts/12532387119",
+      "archive_download_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/artifacts/12532387119/zip",
+      "expired": false,
+      "created_at": "2026-10-23T21:14:19Z",
+      "expires_at": "2026-11-22T21:14:16Z",
+      "updated_at": "2026-10-23T21:14:19Z",
+      "digest": "sha256:1b1fbabe6d94076cbe1b8a648a3dd3b89c2c8beb3acf4c4bfa550ffee8d64492",
+      "workflow_run": {
+        "id": 40023228174,
+        "repository_id": 1180966961,
+        "head_repository_id": 1180966961,
+        "head_branch": "work",
+        "head_sha": "f8a24979d71e3e9c7227088d0f4725524fae85ed"
+      }
+    }
+  ]
+}

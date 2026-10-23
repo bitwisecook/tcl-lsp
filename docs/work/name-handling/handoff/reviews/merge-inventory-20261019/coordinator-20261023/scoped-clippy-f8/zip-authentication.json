@@ -1,0 +1,114 @@
+{
+  "artifact": {
+    "id": 12531413986,
+    "name": "scoped-lsp-clippy-f8a24979d71e3e9c7227088d0f4725524fae85ed-1",
+    "size_in_bytes": 3971215,
+    "url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/artifacts/12531413986",
+    "archive_download_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/artifacts/12531413986/zip",
+    "expired": false,
+    "created_at": "2026-10-23T21:10:02Z",
+    "expires_at": "2026-11-22T21:10:00Z",
+    "updated_at": "2026-10-23T21:10:02Z",
+    "digest": "sha256:2711060e2f9af8c064ef10fc4bb87dd9c1c83c098fd976ab643684cad5ff7b96",
+    "workflow_run": {
+      "id": 40023224304,
+      "repository_id": 1180966961,
+      "head_repository_id": 1180966961,
+      "head_branch": "work",
+      "head_sha": "f8a24979d71e3e9c7227088d0f4725524fae85ed"
+    }
+  },
+  "zip_sha256": "2711060e2f9af8c064ef10fc4bb87dd9c1c83c098fd976ab643684cad5ff7b96",
+  "members": [
+    {
+      "path": "capture-exit.txt",
+      "uncompressed_bytes": 2,
+      "compressed_bytes": 4
+    },
+    {
+      "path": "capture-incomplete.txt",
+      "uncompressed_bytes": 2,
+      "compressed_bytes": 4
+    },
+    {
+      "path": "cargo-version.txt",
+      "uncompressed_bytes": 36,
+      "compressed_bytes": 38
+    },
+    {
+      "path": "clippy-version.txt",
+      "uncompressed_bytes": 38,
+      "compressed_bytes": 40
+    },
+    {
+      "path": "coverage.txt",
+      "uncompressed_bytes": 203,
+      "compressed_bytes": 154
+    },
+    {
+      "path": "git-after.txt",
+      "uncompressed_bytes": 0,
+      "compressed_bytes": 2
+    },
+    {
+      "path": "git-before.txt",
+      "uncompressed_bytes": 0,
+      "compressed_bytes": 2
+    },
+    {
+      "path": "job.txt",
+      "uncompressed_bytes": 24,
+      "compressed_bytes": 26
+    },
+    {
+      "path": "outcomes.json",
+      "uncompressed_bytes": 1964,
+      "compressed_bytes": 409
+    },
+    {
+      "path": "rustc-version.txt",
+      "uncompressed_bytes": 196,
+      "compressed_bytes": 150
+    },
+    {
+      "path": "source-after.json",
+      "uncompressed_bytes": 543,
+      "compressed_bytes": 262
+    },
+    {
+      "path": "source-commit.txt",
+      "uncompressed_bytes": 41,
+      "compressed_bytes": 41
+    },
+    {
+      "path": "tcl-lsp-core.log.txt",
+      "uncompressed_bytes": 22925,
+      "compressed_bytes": 4590
+    },
+    {
+      "path": "tcl-lsp-db.log.txt",
+      "uncompressed_bytes": 6170,
+      "compressed_bytes": 1541
+    },
+    {
+      "path": "tcl-lsp-server.log.txt",
+      "uncompressed_bytes": 30767,
+      "compressed_bytes": 4918
+    },
+    {
+      "path": "tools-after.txt",
+      "uncompressed_bytes": 242,
+      "compressed_bytes": 102
+    },
+    {
+      "path": "tools.sha256",
+      "uncompressed_bytes": 428,
+      "compressed_bytes": 219
+    },
+    {
+      "path": "tracked-source-before.json",
+      "uncompressed_bytes": 26258167,
+      "compressed_bytes": 3956443
+    }
+  ]
+}

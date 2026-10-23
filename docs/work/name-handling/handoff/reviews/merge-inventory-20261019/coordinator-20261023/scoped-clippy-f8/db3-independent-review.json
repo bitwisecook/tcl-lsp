@@ -1,0 +1,55 @@
+{
+  "updated_utc": "2026-10-23T21:17:22.822504+00:00",
+  "verdict": "INDEPENDENT_BOUNDED_STATIC_MINIMUM_WORK_CLEAN_THREE_ACTUAL_LINT_REPAIR_CLEAR_UNCOMPILED_V2_ONLY",
+  "files": [
+    {
+      "mode": "work",
+      "manifest_sha256": "4d9d3b36808216e24b24ccc43821f5b9e10fc20ddd2a05c09452535637d8982f",
+      "patch_sha256": "426fe693a98a8afdadff338c797a9bcaf5ebc17be69d1137f7a5b1bb41c66f90",
+      "files": [
+        {
+          "path": "rust/tcl-lsp-db/src/lib.rs",
+          "before_sha256": "0719dd7828e9b1d43109814ebbd9c3b2ffa531c728653c6b0b402ffd60aa2362",
+          "after_sha256": "e23c9f7a7e27f6022df1bff310c9bede5be64b761cf924973599f9a2f815c8ad",
+          "before_git_blob": "88062c18b82342d78e49b7c202a8eae5a117afc6",
+          "exact_inverse_and_pinnedfmt_recovers_entire_original": "PASS"
+        },
+        {
+          "path": "rust/tcl-lsp-db/tests/memory_alias_graph.rs",
+          "before_sha256": "23a583f3edb60aa9294028f1367e1ee4c44e48c327f68fad850e5bf92be3eb38",
+          "after_sha256": "3e85feb84d6857ab18b36575c6f1ebf7cbeaad11298ebbc76c2f30b49daf17e2",
+          "before_git_blob": "8223f8f88f9ff162bf8d1348c95056e9d5a524c3",
+          "exact_inverse_and_pinnedfmt_recovers_entire_original": "PASS"
+        }
+      ],
+      "current_actual_work_beforepins_exact_minimum_source_transform": "PASS",
+      "copied_forward_reverse0nooffset_finals_fmt_assertallow_counts": "PASS"
+    },
+    {
+      "mode": "clean",
+      "manifest_sha256": "6be990af222d285f94f00b3cfc34395e87eba12b4a0bb95b0de4e4f8f53cbe7b",
+      "patch_sha256": "f7ff3ec558a09d3d409ed953ae2f626d3c00343bfb04684c87697c84e96c92c4",
+      "files": [
+        {
+          "path": "rust/tcl-lsp-db/src/lib.rs",
+          "before_sha256": "6ec8c4ccad69f63a504a6aa506e981d270fc4c9e3f94b47511e876da5e3aba84",
+          "after_sha256": "e4a370e71e035374afc896367a234f12e7ef39614f054a47434d4fa2310bfd1d",
+          "before_git_blob": "9133ce748cfd29423d21e3f384854d79e5e62203",
+          "exact_inverse_and_pinnedfmt_recovers_entire_original": "PASS"
+        },
+        {
+          "path": "rust/tcl-lsp-db/tests/memory_alias_graph.rs",
+          "before_sha256": "851627b38dc3fdf543ae76b0eb7c0acc0c769c01da9a4c3b1da59482009f137b",
+          "after_sha256": "5595d15c733e4c5ac536dafa275928ba48332af998c254c24b1f2a77f2342b2f",
+          "before_git_blob": "98703f5e2d29b5b9b68d2be2fed746802bc9c309",
+          "exact_inverse_and_pinnedfmt_recovers_entire_original": "PASS"
+        }
+      ],
+      "current_actual_work_beforepins_exact_minimum_source_transform": "PASS",
+      "copied_forward_reverse0nooffset_finals_fmt_assertallow_counts": "PASS"
+    }
+  ],
+  "same_existing_ordered_cleanup_full_before_after": "EXACT",
+  "semantics": "Only private cfgtest helper explicit named lifetime replaced by standard elision: db sole borrowed input determines returned Salsa CfgContext lifetime, CompilerMemoSnapshot owned output unchanged, entire helperbody/query/order/guards/callers unchanged and no explicit lifetime application. Two empty-array assertions retain exact complete JSON unwrap expression once and compare its slice to explicitly typed empty Value slice; zero elements perform no element equality, differing length refuses, same original assertion purpose/guards/messages. Explicit Value annotation addresses authentic same-pattern Server E0282; v1 untyped arrays remain HELD, never apply. No source/native authority, new owner/clone/query/drop endpoint/allow/normalizer or assertion weakening.",
+  "limits": "Fresh actual type/Clippy/test required; no Cargo or product/Git writes; no completeDB/runtime/gate admission."
+}

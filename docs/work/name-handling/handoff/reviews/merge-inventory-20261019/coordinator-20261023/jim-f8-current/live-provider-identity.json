@@ -1,0 +1,124 @@
+{
+  "utc": "2026-10-23T21:22:57.078407+00:00",
+  "run": 40023228174,
+  "source": "f8a24979d71e3e9c7227088d0f4725524fae85ed",
+  "provider_before_entries": 10202,
+  "provider_before_bytes": 1900247,
+  "provider_final_bytes": 1900247,
+  "selected_live_provider_pins": {
+    "/home/runner/work/_temp/jim-source-provider/jimsh": "6ea5d61899319fc6fb430e2e692ff29f8caacb0dbbbb92e1fd3899075df12145",
+    "/home/runner/work/tcl-lsp/tcl-lsp/tmp/tcl8.4.20/generic/tclBasic.c": "cab6d4decd1a3e365fe3cef49a2d5430dfef01cd775dd7d34f98064032f3a81a",
+    "/home/runner/work/tcl-lsp/tcl-lsp/tmp/tcl8.4.20/unix/Makefile": "c5dd90eeb7d53d545f8db165e38be57f50d2edb15f1cbfc14b3c8a3061e39640",
+    "/home/runner/work/tcl-lsp/tcl-lsp/tmp/tcl8.4.20/unix/tclConfig.sh": "33d929abbd1102f01624ca3aa217af1bcdc7e6023be2ea094e82e5228f8880e9",
+    "/home/runner/work/tcl-lsp/tcl-lsp/tmp/tcl8.4.20/unix/tclsh": "44b069f1f8583f18db6de47cfaf7171ee6712de2c6f43aac0cf91e07d19001f6",
+    "/home/runner/work/tcl-lsp/tcl-lsp/tmp/tcl8.5.19/generic/tclBasic.c": "d09c16386ea0376dc3590a74ded2c6e2bcef5079f2b1a3785545bad37c7ead63",
+    "/home/runner/work/tcl-lsp/tcl-lsp/tmp/tcl8.5.19/unix/Makefile": "d3a8364bd8686600458095ea835b87346869239c5e234ecbb51826e923124697",
+    "/home/runner/work/tcl-lsp/tcl-lsp/tmp/tcl8.5.19/unix/tclConfig.sh": "f96b4d45f524b6821ca0e636834349c90d63f02782f3a58af4df60949811f578",
+    "/home/runner/work/tcl-lsp/tcl-lsp/tmp/tcl8.5.19/unix/tclsh": "688daaf5d67b4160abd01f3298392299b0a0fd2653da9473c5450900a712da91",
+    "/home/runner/work/tcl-lsp/tcl-lsp/tmp/tcl8.6.18/generic/tclBasic.c": "19e28c2c9fbcd27e7e538a06960f0d806d04f8c25d94499cf9eb9031f8440198",
+    "/home/runner/work/tcl-lsp/tcl-lsp/tmp/tcl8.6.18/unix/Makefile": "3ad01b3c41cb5eb66a6b354cc2cab5c3db89b428e69a68e644ac7a9921c3d5e4",
+    "/home/runner/work/tcl-lsp/tcl-lsp/tmp/tcl8.6.18/unix/tclConfig.sh": "23f8b8492cb2fce089b86116c52ba157765b3d2390046e0b99221e7c866af929",
+    "/home/runner/work/tcl-lsp/tcl-lsp/tmp/tcl8.6.18/unix/tclsh": "71a7bd038b808998c0e9a69d4962fbbb079eb12f30fe728b810473b4f1cd34ae",
+    "/home/runner/work/tcl-lsp/tcl-lsp/tmp/tcl9.0.4/generic/tclBasic.c": "6d995c1af94fea92717183882ca41775fe8c0e088def163f6ac8fe699cbffc67",
+    "/home/runner/work/tcl-lsp/tcl-lsp/tmp/tcl9.0.4/unix/Makefile": "4acccecbae6702f697ae7f03bdbd635a05090910a2ba9625aeb42a6bea1cdb6d",
+    "/home/runner/work/tcl-lsp/tcl-lsp/tmp/tcl9.0.4/unix/tclConfig.sh": "55eee93a293b65235ce96e08fdf36400fcb7a975eb7e1845c32a39d0ebee186a",
+    "/home/runner/work/tcl-lsp/tcl-lsp/tmp/tcl9.0.4/unix/tclsh": "3a9e769098e2ac0db2edf60a7489a2856381d993184a186aa61a7df2d7924880",
+    "/home/runner/work/tcl-lsp/tcl-lsp/tmp/tcl9.1.0/generic/tclBasic.c": "5f52206bed251629baedd8ef8cc0f7ae1237bf9a7edc7d4bca76d3932f8870d2",
+    "/home/runner/work/tcl-lsp/tcl-lsp/tmp/tcl9.1.0/unix/Makefile": "20d48571fc9d63a5bcb8409064ccec6b1eccfe57066059cddaa519aaac8dfa34",
+    "/home/runner/work/tcl-lsp/tcl-lsp/tmp/tcl9.1.0/unix/tclConfig.sh": "28f2bf5bf8c6c3209e45caf08b5e4232d123518229f872c1419dd12c12c4b10f",
+    "/home/runner/work/tcl-lsp/tcl-lsp/tmp/tcl9.1.0/unix/tclsh": "954c276c2b0c4ad27a103957cfed9640e9ee16ff1d7fe8d713a80a648f9f94bd"
+  },
+  "actual_wrapper_paths": {
+    "TCL_LSP_TCLSH84": "/home/runner/work/_temp/jim-reference-bin/tclsh8.4",
+    "TCL_LSP_TCLSH85": "/home/runner/work/_temp/jim-reference-bin/tclsh8.5",
+    "TCL_LSP_TCLSH86": "/home/runner/work/_temp/jim-reference-bin/tclsh8.6",
+    "TCL_LSP_TCLSH90": "/home/runner/work/_temp/jim-reference-bin/tclsh9.0",
+    "TCL_LSP_TCLSH91": "/home/runner/work/_temp/jim-reference-bin/tclsh9.1"
+  },
+  "tool_versions": {
+    "ar": "GNU ar (GNU Binutils for Ubuntu) 2.46\nCopyright (C) 2026 Free Software Foundation, Inc.\nThis program is free software; you may redistribute it under the terms of\nthe GNU General Public License version 3 or (at your option) any later version.\nThis program has absolutely no warranty.\n",
+    "cargo": "cargo 1.99.1 (5f94df478 2026-08-27)\n",
+    "cc": "x86_64-linux-gnu-gcc-15 (Ubuntu 15.2.0-16ubuntu1) 15.2.0\nCopyright (C) 2025 Free Software Foundation, Inc.\nThis is free software; see the source for copying conditions.  There is NO\nwarranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.\n\n",
+    "jim_patchlevel": "0.84-9-g5bac7c9",
+    "ld": "GNU ld (GNU Binutils for Ubuntu) 2.46\nCopyright (C) 2026 Free Software Foundation, Inc.\nThis program is free software; you may redistribute it under the terms of\nthe GNU General Public License version 3 or (at your option) a later version.\nThis program has absolutely no warranty.\n",
+    "python": "Python 3.14.4\n",
+    "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)\n",
+    "rustc_verbose": "rustc 1.99.1 (58cf8f9c3 2026-10-13)\nbinary: rustc\ncommit-hash: 58cf8f9c35b355199727627d07ae34a4e2846d67\ncommit-date: 2026-10-13\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.1\nLLVM version: 23.1.1\n"
+  },
+  "tool_pins": {
+    "/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo": {
+      "sha256": "a670e02cfa39ac2e53f77a2d911ca1fc9e2c479b0603ec956625be1daf24e3af",
+      "symlink": null
+    },
+    "/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/rustc": {
+      "sha256": "b53b780f77f952062f8ca8a3b70aef2390b1e45ad91939be94afdc9543026853",
+      "symlink": null
+    },
+    "/home/runner/work/_temp/jim-reference-bin/tclsh8.4": {
+      "sha256": "fac9491775f61bd72f2ad0d40516397bcb0442ae760434e9a19f09f886e283bc",
+      "symlink": null
+    },
+    "/home/runner/work/_temp/jim-reference-bin/tclsh8.5": {
+      "sha256": "47dbd4b16924f631dfff2a7db3bc0f819cd89b3b4584b57b525a6375958dde37",
+      "symlink": null
+    },
+    "/home/runner/work/_temp/jim-reference-bin/tclsh8.6": {
+      "sha256": "6ef47114b38517a396bc7eeab887b89ea9f51ea36a744e759cc49f5efc79f087",
+      "symlink": null
+    },
+    "/home/runner/work/_temp/jim-reference-bin/tclsh9.0": {
+      "sha256": "e13797b635287eaac842bde73c5c81331938b089d3b0f29b598791de8aa57569",
+      "symlink": null
+    },
+    "/home/runner/work/_temp/jim-reference-bin/tclsh9.1": {
+      "sha256": "2a52ef95a50bff01e0244aa19a69f6ab811db9241731054f3bd5b3a883151e5b",
+      "symlink": null
+    },
+    "/home/runner/work/_temp/jim-source-provider/jimsh": {
+      "sha256": "6ea5d61899319fc6fb430e2e692ff29f8caacb0dbbbb92e1fd3899075df12145",
+      "symlink": null
+    },
+    "/home/runner/work/tcl-lsp/tcl-lsp/docs/work/name-handling/validation-tools/runtime-diagnostics-exec.py": {
+      "sha256": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811",
+      "symlink": null
+    },
+    "/home/runner/work/tcl-lsp/tcl-lsp/tmp/tcl8.4.20/unix/tclsh": {
+      "sha256": "44b069f1f8583f18db6de47cfaf7171ee6712de2c6f43aac0cf91e07d19001f6",
+      "symlink": null
+    },
+    "/home/runner/work/tcl-lsp/tcl-lsp/tmp/tcl8.5.19/unix/tclsh": {
+      "sha256": "688daaf5d67b4160abd01f3298392299b0a0fd2653da9473c5450900a712da91",
+      "symlink": null
+    },
+    "/home/runner/work/tcl-lsp/tcl-lsp/tmp/tcl8.6.18/unix/tclsh": {
+      "sha256": "71a7bd038b808998c0e9a69d4962fbbb079eb12f30fe728b810473b4f1cd34ae",
+      "symlink": null
+    },
+    "/home/runner/work/tcl-lsp/tcl-lsp/tmp/tcl9.0.4/unix/tclsh": {
+      "sha256": "3a9e769098e2ac0db2edf60a7489a2856381d993184a186aa61a7df2d7924880",
+      "symlink": null
+    },
+    "/home/runner/work/tcl-lsp/tcl-lsp/tmp/tcl9.1.0/unix/tclsh": {
+      "sha256": "954c276c2b0c4ad27a103957cfed9640e9ee16ff1d7fe8d713a80a648f9f94bd",
+      "symlink": null
+    },
+    "/usr/bin/python3.14": {
+      "sha256": "be9a2a5eada8c89c1c399fdfb8397179e877c20d8db0739c802f726d4d0e69fd",
+      "symlink": null
+    },
+    "/usr/bin/x86_64-linux-gnu-ar": {
+      "sha256": "22c9d13affd2bea0f0237533ccb1bb2682eb9d22d6a4ed953bcc38445c8c98ab",
+      "symlink": null
+    },
+    "/usr/bin/x86_64-linux-gnu-gcc-15": {
+      "sha256": "864711037b900acdb7a449cf48d912cefa935b527fb60c767ccb956779e66136",
+      "symlink": null
+    },
+    "/usr/bin/x86_64-linux-gnu-ld.bfd": {
+      "sha256": "25a16b3e77ce7c7c4b13063d64c2a1f1a3b77a8a13e0d25b445bc77d11a50d17",
+      "symlink": null
+    }
+  },
+  "archive_admission": "This actual fresh build has these live provider/config identities. No new nativeformatter archive build identity is admitted; old approved pair proves none of these new compiled artifacts. Full before/final provider equality authenticated separately.",
+  "same_C84_compatibility_helper_source_sha256": "d0ebdb903e5746957616deabc24b9b44e294700abb8f2c6a652b27c3b5f53b49"
+}
