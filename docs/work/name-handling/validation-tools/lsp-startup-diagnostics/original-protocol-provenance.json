@@ -1,0 +1,42 @@
+{
+  "current_input_pins": {
+    ".claude/skills/lsp-client/lsp_client.py": "c10be772eca42e36970aa90dc86908fa4457967130080b897b15f045d18dccc0",
+    ".github/workflows/ci.yml": "370cb3c6a646d7f7bb144831a3134b9d625737119b512777037755f4f5f04707",
+    "Cargo.toml": "4378b17fd41d5e33bbcf029930001a80a8863cb9e4f18d0ce6caffa90a61ddcc",
+    "docs/design/rust/engineering-guide.md": "04d61fc6541c126cf12eca781ca4621894a3277b0b563f94b657e9cc3f773648",
+    "docs/design/rust/lsp-performance.md": "5c54e0a0f3a097194e6fdc23339daed698c3c8d0515731fb58d84322987c844c",
+    "docs/work/name-handling/reviews/naming-migration-review-20261022.md": "1eab0fd09c14cab307102c18d1c59df982d7b090e18fb6a01e1849f369925cc9",
+    "docs/work/name-handling/reviews/triage-20261022/run5.sh": "292c8cded602404777fe655355990c6b1b9acf5bb04fd3c1b42f0aa3e581886d",
+    "docs/work/name-handling/reviews/triage-20261022/zz_review_probe.rs.txt": "885d33a593f4f352d63d19601e8e00bf583f3327b15175599a342b601c42876a",
+    "editors/vscode/src/test/multiFolder/multiFolderConfig.test.ts": "7d94172a2afc46db103ca507e681bc3937f9511293d5874c796bedf868ba51bb",
+    "editors/vscode/src/test/runMultiFolderTest.ts": "4d99a244cbc87a797aad478d4a66ac9feba14eec073c5eb17535d3ccc885eeba",
+    "rust/tcl-lsp-server/tests/e2e/common/mod.rs": "a03dedc976a0c19f9b67158f666281da0575ca02179ef00650745a9c5c538613",
+    "rust/tcl-lsp-server/tests/e2e/naming_source_views.rs": "ce18742de81c758d14db7c30162ce34fcd8411a8c43b943f2bea14c5fcbc2f50",
+    "scripts/perf/bench.py": "4d6dfd09a5c884b4f670f643c9cbbdb91ca9a8ed0e497b74bca67277ff53b01f"
+  },
+  "original_context_source": "/workspace/naming-proof-storage/lsp-context-cache-protocol-v5/worker-template",
+  "original_typical_source": "/workspace/naming-proof-storage/ccg-selected-server-8332-endpoint600-materialized-v5/worker-protocol",
+  "worker_changes": "AGPL comment headers only for original typical modules; Context reproduce.py also substitutes ROOT from explicit current hosted checkout environment. No timeout, assertion, fixture or server answer edits. Python -B prevents imported bytecode from altering materialised input map.",
+  "workers": {
+    "context/bounded_client.py": {
+      "original_body_unchanged_except_documented_ROOT": true,
+      "original_sha256": "f3436a6a4d40df93dbd2a90a7d0bc17be60d67e40fde3d1e014a796a06246383"
+    },
+    "context/reproduce.py": {
+      "original_body_unchanged_except_documented_ROOT": true,
+      "original_sha256": "c607e91ddfbc7e9e8f2c65abeb1719858dc7933dc449bc4ce21a94993e3b8d95"
+    },
+    "typical/bounded_client.py": {
+      "original_body_unchanged_except_documented_ROOT": true,
+      "original_sha256": "541ef397da0227748c490c6ffbb79cde7efc2b361e88599bc9c0c5089b6d12a2"
+    },
+    "typical/semantic_checks.py": {
+      "original_body_unchanged_except_documented_ROOT": true,
+      "original_sha256": "f299b4c8b00210e879f0089a1b654f498bbc6d47e6ca51df66ace7d0d96412ab"
+    },
+    "typical/worker.py": {
+      "original_body_unchanged_except_documented_ROOT": true,
+      "original_sha256": "a9405a7bf04bb92c0b2329eb10ed2fa8ff4ffad821b16da2afc80fd32ae090eb"
+    }
+  }
+}

@@ -50,9 +50,9 @@ on:
         required: true
         type: choice
         default: standard
-        options: [standard, paired, runtime-diagnostics, runtime-fulltom-diagnostics, scoped-lsp-clippy-diagnostics]
+        options: [standard, paired, runtime-diagnostics, runtime-fulltom-diagnostics, scoped-lsp-clippy-diagnostics, lsp-startup-diagnostics]
       runtime_sha:
-        description: Exact full work commit SHA for temporary runtime diagnostics
+        description: Exact full work commit SHA for temporary diagnostics
         required: false
         type: string
       baseline_sha:
@@ -81,7 +81,7 @@ jobs:
   # trigger and catches a hand-edited SVG or a results file committed without
   # re-rendering, long before `rust_release.sh verify` would at tag time.
   graphs-current:
-    if: inputs.mode != 'paired' && inputs.mode != 'runtime-diagnostics' && inputs.mode != 'runtime-fulltom-diagnostics' && inputs.mode != 'scoped-lsp-clippy-diagnostics'
+    if: inputs.mode != 'paired' && inputs.mode != 'runtime-diagnostics' && inputs.mode != 'runtime-fulltom-diagnostics' && inputs.mode != 'scoped-lsp-clippy-diagnostics' && inputs.mode != 'lsp-startup-diagnostics'
     runs-on: ubuntu-26.04
     timeout-minutes: 5
     steps:
@@ -102,7 +102,7 @@ jobs:
   benchmark:
     # Not on PRs — see the `pull_request` trigger comment. Nothing `needs:` this
     # job, so a job-level skip costs no downstream status.
-    if: github.event_name != 'pull_request' && inputs.mode != 'paired' && inputs.mode != 'runtime-diagnostics' && inputs.mode != 'runtime-fulltom-diagnostics' && inputs.mode != 'scoped-lsp-clippy-diagnostics'
+    if: github.event_name != 'pull_request' && inputs.mode != 'paired' && inputs.mode != 'runtime-diagnostics' && inputs.mode != 'runtime-fulltom-diagnostics' && inputs.mode != 'scoped-lsp-clippy-diagnostics' && inputs.mode != 'lsp-startup-diagnostics'
     runs-on: ubuntu-26.04
     timeout-minutes: 60
     permissions:
@@ -764,5 +764,69 @@ jobs:
         with:
           name: scoped-lsp-clippy-${{ inputs.runtime_sha }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/scoped-lsp-clippy-output
+          if-no-files-found: error
+          retention-days: 30
+
+  # Temporary WORK-only startup diagnosis; never carry to release.
+  lsp-startup-diagnostics:
+    if: github.event_name == 'workflow_dispatch' && inputs.mode == 'lsp-startup-diagnostics' && github.ref == 'refs/heads/work'
+    runs-on: ubuntu-26.04
+    timeout-minutes: 70
+    permissions:
+      contents: read
+    env:
+      CARGO_INCREMENTAL: "0"
+      CARGO_BUILD_JOBS: "2"
+      CARGO_TERM_COLOR: never
+      RUSTFLAGS: "-Dwarnings"
+      RUST_BACKTRACE: short
+    steps:
+      - name: Checkout exact work revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.runtime_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Install uncached Rust
+        uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
+        with:
+          toolchain: stable
+          build-warnings: deny
+          cache: false
+      - name: Fetch full TomMath provider
+        env:
+          EXPECTED_WORK_SHA: ${{ inputs.runtime_sha }}
+        run: |
+          set -euo pipefail
+          [[ "$EXPECTED_WORK_SHA" =~ ^[0-9a-f]{40}$ ]]
+          test "$(git rev-parse HEAD)" = "$EXPECTED_WORK_SHA"
+          test "$GITHUB_SHA" = "$EXPECTED_WORK_SHA"
+          .claude/skills/fetch-tcl-source/fetch_tcl_source.sh 9.0
+          test -f tmp/tcl9.0.4/libtommath/tommath.h
+      - name: Run original startup assertions with current coarse observer
+        env:
+          CARGO_TARGET_DIR: ${{ runner.temp }}/lsp-startup-target
+          OUT: ${{ runner.temp }}/lsp-startup-output
+          EXPECTED_WORK_SHA: ${{ inputs.runtime_sha }}
+        run: |
+          set -euo pipefail
+          unset TCL_RUNTIME_EXPECT_NO_TOMMATH
+          export TCL_TOMMATH_DIR="$GITHUB_WORKSPACE/tmp/tcl9.0.4/libtommath"
+          python3 -B docs/work/name-handling/validation-tools/lsp-startup-diagnostics/run.py --sha "$EXPECTED_WORK_SHA" --out "$OUT"
+      - name: Upload bounded diagnostic evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: lsp-startup-diagnostics-${{ inputs.runtime_sha }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/lsp-startup-output/*.json
+            ${{ runner.temp }}/lsp-startup-output/*.stdout
+            ${{ runner.temp }}/lsp-startup-output/*.stderr
+            ${{ runner.temp }}/lsp-startup-output/typical/measurement.json
+            ${{ runner.temp }}/lsp-startup-output/typical/server.stdout.frames
+            ${{ runner.temp }}/lsp-startup-output/typical/server.stderr
+            ${{ runner.temp }}/lsp-startup-output/context/result.json
+            ${{ runner.temp }}/lsp-startup-output/context/server.stdout.frames
+            ${{ runner.temp }}/lsp-startup-output/context/server.stderr
           if-no-files-found: error
           retention-days: 30
