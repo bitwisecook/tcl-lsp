@@ -1807,6 +1807,30 @@ pub fn solve_interprocedural_taints_with(
     solve_interprocedural_taints_with_context(cu, registry, dialect, interproc, infer_fn, None)
 }
 
+fn ordered_taint_procedure_ids(cu: &CompilationUnit) -> Vec<&crate::ir::ProcedureId> {
+    let mut proc_names: Vec<&crate::ir::ProcedureId> = cu
+        .ir_module
+        .original_source_procedure_bodies()
+        .filter_map(|(id, _)| cu.function_for_body(Some(*id)).map(|_| id))
+        .collect();
+    proc_names.sort();
+    proc_names
+}
+
+fn merge_external_taint_seeds(
+    entry: &mut HashMap<String, TaintLattice>,
+    external_variable_seeds: Option<&HashMap<String, TaintLattice>>,
+) {
+    if let Some(external_variable_seeds) = external_variable_seeds {
+        for (name, taint) in external_variable_seeds {
+            let slot = entry
+                .entry(name.clone())
+                .or_insert_with(TaintLattice::clean);
+            *slot = slot.join(*taint);
+        }
+    }
+}
+
 fn solve_interprocedural_taints_with_context(
     cu: &CompilationUnit,
     registry: &CommandRegistry,
@@ -1819,12 +1843,7 @@ fn solve_interprocedural_taints_with_context(
 
     // Procedures in deterministic (sorted) order, and the name set — both consumed
     // by the entry-taint worklist below.
-    let mut proc_names: Vec<&crate::ir::ProcedureId> = cu
-        .ir_module
-        .original_source_procedure_bodies()
-        .filter_map(|(id, _)| cu.function_for_body(Some(*id)).map(|_| id))
-        .collect();
-    proc_names.sort();
+    let proc_names = ordered_taint_procedure_ids(cu);
     let known: HashSet<crate::ir::ProcedureId> = summaries.keys().copied().collect();
 
     // Top-level taints under the converged summaries.
@@ -1892,14 +1911,7 @@ fn solve_interprocedural_taints_with_context(
             continue;
         };
         let mut entry = entry_taints.get(&qname).cloned().unwrap_or_default();
-        if let Some(external_variable_seeds) = external_variable_seeds {
-            for (name, taint) in external_variable_seeds {
-                let slot = entry
-                    .entry(name.clone())
-                    .or_insert_with(TaintLattice::clean);
-                *slot = slot.join(*taint);
-            }
-        }
+        merge_external_taint_seeds(&mut entry, external_variable_seeds);
         let graph = graphs
             .entry(qname)
             .or_insert_with(|| TaintGraph::new(&fu.cfg, &fu.ssa, &fu.sccp));

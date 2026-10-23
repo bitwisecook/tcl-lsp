@@ -2885,6 +2885,24 @@ impl Analyser {
     /// registry-owned body. Sets event / conditional context and emits W105
     /// on the body argument before recursing, rather than on a nested
     /// re-segmentation.
+    fn enter_body_depths(&mut self, conditional: bool, control_flow: bool) {
+        if conditional {
+            self.conditional_depth += 1;
+        }
+        if control_flow {
+            self.control_flow_body_depth += 1;
+        }
+    }
+
+    fn leave_body_depths(&mut self, conditional: bool, control_flow: bool) {
+        if conditional {
+            self.conditional_depth -= 1;
+        }
+        if control_flow {
+            self.control_flow_body_depth -= 1;
+        }
+    }
+
     fn dispatch_body_arguments(
         &mut self,
         cmd_name: &str,
@@ -2976,12 +2994,7 @@ impl Analyser {
                     effective.unwrap_or(idx),
                     logical_traits,
                 );
-                if conditional {
-                    self.conditional_depth += 1;
-                }
-                if control_flow {
-                    self.control_flow_body_depth += 1;
-                }
+                self.enter_body_depths(conditional, control_flow);
                 let is_single_token = arg_single.get(idx).copied().unwrap_or(false);
                 self.dispatch_one_body_argument(
                     cmd_name,
@@ -2991,12 +3004,7 @@ impl Analyser {
                     scope_path,
                     body_scope,
                 );
-                if conditional {
-                    self.conditional_depth -= 1;
-                }
-                if control_flow {
-                    self.control_flow_body_depth -= 1;
-                }
+                self.leave_body_depths(conditional, control_flow);
             }
         }
         if entered_event {

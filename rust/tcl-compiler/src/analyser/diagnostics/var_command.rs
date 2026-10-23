@@ -79,6 +79,40 @@ struct W307FunctionRange<'a> {
     end: u32,
 }
 
+fn w307_function_ranges(
+    cu: &crate::compilation_unit::CompilationUnit,
+) -> Vec<W307FunctionRange<'_>> {
+    let mut func_ranges = vec![W307FunctionRange {
+        function: &cu.top_level,
+        start: 0,
+        end: u32::MAX,
+    }];
+    for (qname, fu) in &cu.procedures {
+        if let Some(ir_proc) = cu.ir_module.procedures.get(qname) {
+            func_ranges.push(W307FunctionRange {
+                function: fu,
+                start: ir_proc.span.start(),
+                end: ir_proc.span.end(),
+            });
+        }
+    }
+    for (qname, fu) in &cu.methods {
+        if let Some(span) = cu
+            .ir_module
+            .methods
+            .get(qname)
+            .and_then(|method| method.span)
+        {
+            func_ranges.push(W307FunctionRange {
+                function: fu,
+                start: span.start(),
+                end: span.end(),
+            });
+        }
+    }
+    func_ranges
+}
+
 impl Analyser {
     /// Source-only classification of one selected method's actual body.
     /// It retains declared source applicability and supplies no entered method,
@@ -882,34 +916,7 @@ impl Analyser {
         // use-version instead of the merged set.  ``::top`` covers the
         // whole source; each original procedure or method owns its narrower
         // declaration range and its own symbolic value facts.
-        let mut func_ranges = vec![W307FunctionRange {
-            function: &cu.top_level,
-            start: 0,
-            end: u32::MAX,
-        }];
-        for (qname, fu) in &cu.procedures {
-            if let Some(ir_proc) = cu.ir_module.procedures.get(qname) {
-                func_ranges.push(W307FunctionRange {
-                    function: fu,
-                    start: ir_proc.span.start(),
-                    end: ir_proc.span.end(),
-                });
-            }
-        }
-        for (qname, fu) in &cu.methods {
-            if let Some(span) = cu
-                .ir_module
-                .methods
-                .get(qname)
-                .and_then(|method| method.span)
-            {
-                func_ranges.push(W307FunctionRange {
-                    function: fu,
-                    start: span.start(),
-                    end: span.end(),
-                });
-            }
-        }
+        let func_ranges = w307_function_ranges(cu);
 
         // Drain sites so we can borrow self.result mutably below.
         let sites = std::mem::take(&mut self.var_command_sites);

@@ -112,6 +112,33 @@ pub(crate) fn original_authored_control_invocation(
     )))
 }
 
+fn authored_scalar_context_is_local(
+    variables: &crate::var_resolve::ResolveContext,
+    scope: &OriginalAuthoredSourceBodyScope,
+) -> bool {
+    variables.frame_kind == crate::var_resolve::VariableFrameKind::Local
+        && variables
+            .execution_name_policy
+            .is_none_or(|policy| scope.retains_authored_source_name_policy(policy))
+        && variables.interpreter.is_none()
+        && variables.execution.is_none()
+        && variables.hosted_execution_context.is_none()
+        && !variables.dynamic_bindings
+        && !variables.dynamic_traces
+        && variables.globals.is_empty()
+        && variables.ns_vars.is_empty()
+        && variables.upvar_aliases.is_empty()
+        && variables.instance_vars.is_empty()
+        && variables.alias_bindings.is_empty()
+        && variables.namespace_alias_bindings.is_empty()
+        && variables.name_alias_bindings.is_empty()
+        && variables.namespace_name_alias_bindings.is_empty()
+        && variables.traced.is_empty()
+        && variables.trace_registrations.is_empty()
+        && variables.untracked_traces.is_empty()
+        && variables.possible_trace_registrations.is_empty()
+}
+
 /// Scalar syntax from the exact Standalone declaration lookup and held body.
 /// It supplies analytical source operations, never a completed Native handler.
 pub(crate) fn original_authored_scalar_invocation(
@@ -132,28 +159,7 @@ pub(crate) fn original_authored_scalar_invocation(
         return None;
     }
     let variables = advice.original_variable_context();
-    if variables.frame_kind != crate::var_resolve::VariableFrameKind::Local
-        || variables
-            .execution_name_policy
-            .is_some_and(|policy| !scope.retains_authored_source_name_policy(policy))
-        || variables.interpreter.is_some()
-        || variables.execution.is_some()
-        || variables.hosted_execution_context.is_some()
-        || variables.dynamic_bindings
-        || variables.dynamic_traces
-        || !variables.globals.is_empty()
-        || !variables.ns_vars.is_empty()
-        || !variables.upvar_aliases.is_empty()
-        || !variables.instance_vars.is_empty()
-        || !variables.alias_bindings.is_empty()
-        || !variables.namespace_alias_bindings.is_empty()
-        || !variables.name_alias_bindings.is_empty()
-        || !variables.namespace_name_alias_bindings.is_empty()
-        || !variables.traced.is_empty()
-        || !variables.trace_registrations.is_empty()
-        || !variables.untracked_traces.is_empty()
-        || !variables.possible_trace_registrations.is_empty()
-    {
+    if !authored_scalar_context_is_local(variables, scope) {
         return None;
     }
     let frame_local = |name: &[u8]| {

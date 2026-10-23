@@ -227,49 +227,58 @@ impl<'u> WordIndex<'u> {
                         )
                 })
                 .collect();
-            for block in blocks {
-                let Some(cfg_block) = fu.cfg.blocks.get(&block) else {
-                    continue;
-                };
-                for (at, statement) in cfg_block.statements.iter().enumerate() {
-                    let id = StatementId { block, index: at };
-                    if matches!(statement, crate::ir::Statement::Call { .. })
-                        && let Some(tokens) = fu.cfg.source_tokens_at(block, at)
-                        && tokens.synthetic.is_none()
-                    {
-                        for (word, &span) in tokens.argv.iter().enumerate() {
-                            index.insert(fu, span, WordAddress::Statement(id, word));
-                        }
-                    }
-                    let span = Some(fu.abs_span(statement.span()));
-                    if holds(span) {
-                        index.add_host(
-                            fu,
-                            SubstitutionHost::Statement(id),
-                            span,
-                            (config, surface),
-                        );
-                    }
-                }
-                let span = match &cfg_block.terminator {
-                    Some(
-                        crate::cfg::Terminator::Return { span, .. }
-                        | crate::cfg::Terminator::Branch { span, .. },
-                    ) => span.map(|span| fu.abs_span(span)),
-                    _ => None,
-                };
-                if holds(span) {
-                    index.add_host(
-                        fu,
-                        SubstitutionHost::Terminator(block),
-                        span,
-                        (config, surface),
-                    );
-                    index.add_return(fu, block, source, config);
-                }
-            }
+            index.add_function_blocks(fu, blocks, &holds, source, (config, surface));
         }
         index
+    }
+
+    fn add_function_blocks(
+        &mut self,
+        fu: &'u FunctionUnit,
+        blocks: Vec<crate::cfg::BlockId>,
+        holds: &impl Fn(Option<Span>) -> bool,
+        source: &str,
+        (config, surface): (
+            tcl_lexer::LexerConfig,
+            &tcl_registry::model::DocumentCommandSurface<'_>,
+        ),
+    ) {
+        for block in blocks {
+            let Some(cfg_block) = fu.cfg.blocks.get(&block) else {
+                continue;
+            };
+            for (at, statement) in cfg_block.statements.iter().enumerate() {
+                let id = StatementId { block, index: at };
+                if matches!(statement, crate::ir::Statement::Call { .. })
+                    && let Some(tokens) = fu.cfg.source_tokens_at(block, at)
+                    && tokens.synthetic.is_none()
+                {
+                    for (word, &span) in tokens.argv.iter().enumerate() {
+                        self.insert(fu, span, WordAddress::Statement(id, word));
+                    }
+                }
+                let span = Some(fu.abs_span(statement.span()));
+                if holds(span) {
+                    self.add_host(fu, SubstitutionHost::Statement(id), span, (config, surface));
+                }
+            }
+            let span = match &cfg_block.terminator {
+                Some(
+                    crate::cfg::Terminator::Return { span, .. }
+                    | crate::cfg::Terminator::Branch { span, .. },
+                ) => span.map(|span| fu.abs_span(span)),
+                _ => None,
+            };
+            if holds(span) {
+                self.add_host(
+                    fu,
+                    SubstitutionHost::Terminator(block),
+                    span,
+                    (config, surface),
+                );
+                self.add_return(fu, block, source, config);
+            }
+        }
     }
 
     /// Index the words of `block`'s `return` terminator, when it has one.

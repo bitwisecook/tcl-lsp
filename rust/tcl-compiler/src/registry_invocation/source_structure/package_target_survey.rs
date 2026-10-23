@@ -143,6 +143,40 @@ impl OriginalPackageIndexTargetGuard {
     }
 }
 
+struct TargetGuardExpression {
+    syntax: tcl_syntax::expr::parser::ExprParseContext,
+    tree: ExprNode,
+    negated: bool,
+    extent: tcl_lexer::Span,
+}
+
+struct TargetGuardComponents {
+    requirements: Vec<String>,
+    models: Vec<crate::command_binding::OriginalPackageIndexSourceModel>,
+}
+
+type PackageQueryReleaseArity = (
+    tcl_registry::source_navigation::SourcePackageQueryInvocation,
+    Vec<(tcl_dialect::TclVersion, bool)>,
+);
+
+fn package_query_release_arity(
+    schema: &tcl_registry::ResolvedInvocation<'_, '_>,
+) -> Option<PackageQueryReleaseArity> {
+    let decided = tcl_dialect::TclVersion::ALL
+        .into_iter()
+        .filter_map(|release| {
+            tcl_registry::InvocationDialect::for_version(release)
+                .authoring_query()
+                .and_then(|query| schema.arity_accepts_under(&query))
+                .map(|accepted| (release, accepted))
+        })
+        .collect::<Vec<_>>();
+    schema
+        .authored_source_package_query()
+        .map(|query| (query, decided))
+}
+
 impl OriginalPackageIndexSourceSurvey {
     /// Capture an explicit fixed survey, preserving the actual whole grammar
     /// and supplied Registry generation. A detached body is not a fresh root.
@@ -391,32 +425,65 @@ impl OriginalPackageIndexSourceSurvey {
         }))
     }
 
-    /// Whole original braced Expr operand -> actual retained query descriptors,
-    /// exact nested source commands and untouched hypothetical-subject history.
-    /// Require is deliberately not a read-only substitute for provide.
-    #[must_use]
-    pub fn target_guard(
+    fn target_guard_components(
         &self,
         parent: &tcl_lexer::NativeScriptCommandWords,
-        argument: usize,
-    ) -> Option<OriginalPackageIndexTargetGuard> {
-        use tcl_registry::source_navigation::SourcePackageQuery;
-        let words = self.command_words(parent)?;
-        let registry_context = self.source.input.context_registry();
-        let expression = words.original_argument_word(argument)?;
-        if expression.group().expand
-            || expression.group().kind != tcl_lexer::WordKind::Braced
-            || words
-                .roles()?
-                .iter()
-                .filter(|(index, role)| *index == argument && *role == ArgRole::Expr)
-                .count()
-                != 1
+        outer: &tcl_lexer::NativeScriptCommandWords,
+        inner: &super::OriginalSingleSourceCommandSubstitution,
+        subject: &str,
+        outer_words: &OriginalRegistryWords,
+        outer_query: &tcl_registry::source_navigation::SourcePackageQueryInvocation,
+    ) -> Option<TargetGuardComponents> {
+        if ![
+            tcl_dialect::TclVersion::V8_4,
+            tcl_dialect::TclVersion::V8_5,
+            tcl_dialect::TclVersion::V8_6,
+            tcl_dialect::TclVersion::V9_0,
+            tcl_dialect::TclVersion::V9_1,
+        ]
+        .iter()
+        .any(|target| {
+            target.core_provided_packages().iter().any(|row| {
+                row.role == tcl_dialect::CorePackageRole::InterpreterRelease && row.name == subject
+            })
+        }) {
+            return None;
+        }
+        let requirements = (outer_query.arguments.start.checked_add(1)?..outer_query.arguments.end)
+            .map(|ordinal| {
+                String::from_utf8(tcl_syntax::word_rules::original_static_word_unicode_value(
+                    outer_words.original_argument_word(ordinal)?,
+                )?)
+                .ok()
+            })
+            .collect::<Option<Vec<_>>>()?;
+        let models = vec![
+            self.model(parent, subject)?,
+            self.model(outer, subject)?,
+            self.model(inner.command(), subject)?,
+        ];
+        if models
+            .iter()
+            .skip(1)
+            .any(|model| !model.same_source_context(&models[0]))
         {
             return None;
         }
-        let content = expression.content_span().ok()?;
-        let text = self.source.image.try_text().ok()?.get(content.as_range())?;
+        let mut models = models;
+        for (source, command) in &self.ancestors {
+            let ancestor = Self {
+                source: std::sync::Arc::clone(source),
+                ancestors: Vec::new(),
+            };
+            models.push(ancestor.model(command, subject)?);
+        }
+        Some(TargetGuardComponents {
+            requirements,
+            models,
+        })
+    }
+
+    fn target_guard_expression(&self, text: &str) -> Option<TargetGuardExpression> {
         let mut syntax = tcl_syntax::expr::parser::ExprParseContext::for_profile(
             self.source.input.analyser_profile(),
         );
@@ -450,6 +517,46 @@ impl OriginalPackageIndexSourceSurvey {
         if text.get(extent.as_range()) != Some(command_text.as_str()) {
             return None;
         }
+        Some(TargetGuardExpression {
+            syntax,
+            tree,
+            negated,
+            extent,
+        })
+    }
+
+    /// Whole original braced Expr operand -> actual retained query descriptors,
+    /// exact nested source commands and untouched hypothetical-subject history.
+    /// Require is deliberately not a read-only substitute for provide.
+    #[must_use]
+    pub fn target_guard(
+        &self,
+        parent: &tcl_lexer::NativeScriptCommandWords,
+        argument: usize,
+    ) -> Option<OriginalPackageIndexTargetGuard> {
+        use tcl_registry::source_navigation::SourcePackageQuery;
+        let words = self.command_words(parent)?;
+        let registry_context = self.source.input.context_registry();
+        let expression = words.original_argument_word(argument)?;
+        if expression.group().expand
+            || expression.group().kind != tcl_lexer::WordKind::Braced
+            || words
+                .roles()?
+                .iter()
+                .filter(|(index, role)| *index == argument && *role == ArgRole::Expr)
+                .count()
+                != 1
+        {
+            return None;
+        }
+        let content = expression.content_span().ok()?;
+        let text = self.source.image.try_text().ok()?.get(content.as_range())?;
+        let TargetGuardExpression {
+            syntax: _syntax,
+            tree: _tree,
+            negated,
+            extent,
+        } = self.target_guard_expression(text)?;
         let scripts =
             words.source_expression_script_bodies_at(&self.source.input, content.start())?;
         let [script] = scripts.as_slice() else {
@@ -483,20 +590,7 @@ impl OriginalPackageIndexSourceSurvey {
         };
         let outer_words = self.command_words(outer)?;
         let (outer_query, release_arity) =
-            outer_words.with_source_schema(&registry_context, |schema| {
-                let decided = tcl_dialect::TclVersion::ALL
-                    .into_iter()
-                    .filter_map(|release| {
-                        tcl_registry::InvocationDialect::for_version(release)
-                            .authoring_query()
-                            .and_then(|query| schema.arity_accepts_under(&query))
-                            .map(|accepted| (release, accepted))
-                    })
-                    .collect::<Vec<_>>();
-                schema
-                    .authored_source_package_query()
-                    .map(|query| (query, decided))
-            })??;
+            outer_words.with_source_schema(&registry_context, package_query_release_arity)??;
         if outer_query.query != SourcePackageQuery::VersionSatisfies {
             return None;
         }
@@ -515,49 +609,17 @@ impl OriginalPackageIndexSourceSurvey {
                 inner_words.original_argument_word(inner_query.arguments.start)?,
             )?)
             .ok()?;
-        if ![
-            tcl_dialect::TclVersion::V8_4,
-            tcl_dialect::TclVersion::V8_5,
-            tcl_dialect::TclVersion::V8_6,
-            tcl_dialect::TclVersion::V9_0,
-            tcl_dialect::TclVersion::V9_1,
-        ]
-        .iter()
-        .any(|target| {
-            target.core_provided_packages().iter().any(|row| {
-                row.role == tcl_dialect::CorePackageRole::InterpreterRelease && row.name == subject
-            })
-        }) {
-            return None;
-        }
-        let requirements = (outer_query.arguments.start.checked_add(1)?..outer_query.arguments.end)
-            .map(|ordinal| {
-                String::from_utf8(tcl_syntax::word_rules::original_static_word_unicode_value(
-                    outer_words.original_argument_word(ordinal)?,
-                )?)
-                .ok()
-            })
-            .collect::<Option<Vec<_>>>()?;
-        let models = vec![
-            self.model(parent, &subject)?,
-            self.model(outer, &subject)?,
-            self.model(inner.command(), &subject)?,
-        ];
-        if models
-            .iter()
-            .skip(1)
-            .any(|model| !model.same_source_context(&models[0]))
-        {
-            return None;
-        }
-        let mut models = models;
-        for (source, command) in &self.ancestors {
-            let ancestor = Self {
-                source: std::sync::Arc::clone(source),
-                ancestors: Vec::new(),
-            };
-            models.push(ancestor.model(command, &subject)?);
-        }
+        let TargetGuardComponents {
+            requirements,
+            models,
+        } = self.target_guard_components(
+            parent,
+            outer,
+            &inner,
+            &subject,
+            &outer_words,
+            &outer_query,
+        )?;
         Some(OriginalPackageIndexTargetGuard {
             requirements,
             release_arity,

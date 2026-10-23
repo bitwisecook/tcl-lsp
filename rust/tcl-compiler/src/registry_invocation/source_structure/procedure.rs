@@ -243,6 +243,20 @@ impl<'a> OriginalLogicalProcedureArguments<'a> {
     }
 }
 
+fn original_procedure_segment_geometry_matches(
+    actual: &crate::segmenter::SegmentedCommand,
+    segment: &crate::segmenter::SegmentedCommand,
+) -> bool {
+    actual.span == segment.span
+        && actual.argv == segment.argv
+        && actual.texts == segment.texts
+        && actual.word_fragments == segment.word_fragments
+        && actual.single_token_word == segment.single_token_word
+        && actual.expand_word == segment.expand_word
+        && actual.is_partial == segment.is_partial
+        && actual.partial_delimiter == segment.partial_delimiter
+}
+
 /// Join an authentic Logical occurrence to its selected source allocation and
 /// same current declaration card. Missing selection, effects, expansion or formal
 /// disagreement withholds source roles without changing Native lookup purposes.
@@ -284,15 +298,7 @@ pub fn original_logical_procedure_arguments<'a>(
         config,
     )?;
     let actual = projection.command();
-    if actual.span != segment.span
-        || actual.argv != segment.argv
-        || actual.texts != segment.texts
-        || actual.word_fragments != segment.word_fragments
-        || actual.single_token_word != segment.single_token_word
-        || actual.expand_word != segment.expand_word
-        || actual.is_partial != segment.is_partial
-        || actual.partial_delimiter != segment.partial_delimiter
-    {
+    if !original_procedure_segment_geometry_matches(actual, segment) {
         return None;
     }
     let native = projection.native_words();

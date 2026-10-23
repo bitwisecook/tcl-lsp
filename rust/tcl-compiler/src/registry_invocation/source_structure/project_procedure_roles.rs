@@ -181,6 +181,59 @@ impl OriginalProjectProcedureArguments<'_> {
     }
 }
 
+fn project_procedure_geometry_matches(
+    actual: &crate::segmenter::SegmentedCommand,
+    segment: &crate::segmenter::SegmentedCommand,
+) -> bool {
+    actual.span == segment.span
+        && actual.argv == segment.argv
+        && actual.texts == segment.texts
+        && actual.word_fragments == segment.word_fragments
+        && actual.single_token_word == segment.single_token_word
+        && actual.expand_word == segment.expand_word
+        && actual.is_partial == segment.is_partial
+        && actual.partial_delimiter == segment.partial_delimiter
+}
+
+fn project_procedure_argument_values(
+    input: &ResolvedAnalysisInput,
+    binding: &crate::command_binding::SourceInvocationBinding,
+    tokens: &crate::ir::CommandTokens,
+    native: &[tcl_lexer::NativeWord],
+) -> Vec<EffectiveInvocationWord> {
+    native
+        .iter()
+        .enumerate()
+        .skip(1)
+        .map(|(ordinal, word)| {
+            if input.has_logical_source_name_context() {
+                tcl_syntax::word_rules::original_static_word_unicode_value(word)
+                    .map_or(EffectiveInvocationWord::Dynamic, |value| {
+                        EffectiveInvocationWord::from_bytes(&value)
+                    })
+            } else {
+                binding
+                    .original_written_name_input(tokens, ordinal)
+                    .map_or(EffectiveInvocationWord::Dynamic, |input| {
+                        EffectiveInvocationWord::from_bytes(input.bytes())
+                    })
+            }
+        })
+        .collect::<Vec<_>>()
+}
+
+fn project_procedure_has_duplicate_formals(formals: &SignatureSourceFormalParameters) -> bool {
+    formals
+        .parameters()
+        .iter()
+        .enumerate()
+        .any(|(index, parameter)| {
+            formals.parameters()[..index]
+                .iter()
+                .any(|earlier| earlier.name == parameter.name)
+        })
+}
+
 /// Select a foreign source header through genuine original occurrence occupancy,
 /// then bind only its retained formal topology to the unchanged written argv.
 #[must_use]
@@ -228,15 +281,7 @@ pub fn original_project_procedure_arguments<'a>(
         )?
     };
     let actual = projection.command();
-    if actual.span != segment.span
-        || actual.argv != segment.argv
-        || actual.texts != segment.texts
-        || actual.word_fragments != segment.word_fragments
-        || actual.single_token_word != segment.single_token_word
-        || actual.expand_word != segment.expand_word
-        || actual.is_partial != segment.is_partial
-        || actual.partial_delimiter != segment.partial_delimiter
-    {
+    if !project_procedure_geometry_matches(actual, segment) {
         return None;
     }
     if projection.native_words().iter().any(|word| {
@@ -273,26 +318,8 @@ pub fn original_project_procedure_arguments<'a>(
             .collect(),
         binding_prefix: Vec::new(),
     };
-    let arguments = projection
-        .native_words()
-        .iter()
-        .enumerate()
-        .skip(1)
-        .map(|(ordinal, word)| {
-            if input.has_logical_source_name_context() {
-                tcl_syntax::word_rules::original_static_word_unicode_value(word)
-                    .map_or(EffectiveInvocationWord::Dynamic, |value| {
-                        EffectiveInvocationWord::from_bytes(&value)
-                    })
-            } else {
-                binding
-                    .original_written_name_input(&tokens, ordinal)
-                    .map_or(EffectiveInvocationWord::Dynamic, |input| {
-                        EffectiveInvocationWord::from_bytes(input.bytes())
-                    })
-            }
-        })
-        .collect::<Vec<_>>();
+    let arguments =
+        project_procedure_argument_values(input, binding, &tokens, projection.native_words());
     let bindings = if input.has_logical_source_name_context() {
         selected
             .logical
@@ -300,16 +327,7 @@ pub fn original_project_procedure_arguments<'a>(
             .source_argument_bindings(arguments.len())?
     } else {
         let formals = selected.native_formals.as_ref()?;
-        if formals
-            .parameters()
-            .iter()
-            .enumerate()
-            .any(|(index, parameter)| {
-                formals.parameters()[..index]
-                    .iter()
-                    .any(|earlier| earlier.name == parameter.name)
-            })
-        {
+        if project_procedure_has_duplicate_formals(formals) {
             return None;
         }
         formals.bindings(arguments.len()).ok()?

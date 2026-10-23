@@ -517,43 +517,12 @@ fn trace_original_structure(stage: &str, tokens: &CommandTokens, passed: bool) {
     }
 }
 
-/// Select source structure using the caller's complete immutable context.
-/// Missing or foreign context refuses; this supplies no executed body/frame.
-pub(crate) fn logical_structured_invocation_with_metadata_context(
+fn original_structured_source_selection(
     registry: &CommandRegistry,
     context: InvocationMetadataContext<'_>,
     tokens: &CommandTokens,
     bindings: Option<&crate::command_binding::SourceCommandBindings>,
-) -> Option<LogicalStructuredInvocation> {
-    let source_purpose = tokens
-        .source_binding
-        .as_ref()?
-        .original_source_advice_purpose(tokens, context, registry)?;
-    let logical_source =
-        source_purpose == crate::command_binding::OriginalInvocationSourcePurpose::Logical;
-    if !context.matches_registry(registry) {
-        #[cfg(test)]
-        trace_original_structure("registry", tokens, false);
-        return None;
-    }
-    let context = if logical_source {
-        tokens
-            .source_binding
-            .as_ref()?
-            .original_invocation_metadata_for_input(
-                tokens,
-                context.source_analysis_input()?,
-                registry,
-            )?
-    } else {
-        context
-    };
-    if bindings.is_some_and(|bindings| bindings.original_arguments_rejected_before_handler(tokens))
-    {
-        #[cfg(test)]
-        trace_original_structure("argument_entry", tokens, false);
-        return None;
-    }
+) -> Option<ResolvedStatementInvocation> {
     let selected =
         resolved_handler_invocation_with_metadata_context(registry, Some(context), tokens);
     #[cfg(test)]
@@ -579,126 +548,87 @@ pub(crate) fn logical_structured_invocation_with_metadata_context(
         trace_original_structure("original_inline_control", tokens, selected.is_some());
         selected
     })?;
-    let source_roles = if logical_source {
-        let binding = tokens.source_binding.as_ref()?;
-        let realm = binding.original_source_realm_for_input(
-            tokens,
-            context.source_analysis_input()?,
-            registry,
-        )?;
-        selected
-            .with_metadata_schema(registry, context, realm, |schema| {
-                schema.authored_logical_source_role_projection()
-            })
-            .map(StructuredSourceRoles::Logical)
-    } else if !selected.facts.arg_roles_complete {
-        // Case syntax retains its independently selected source purpose.
-        // Native lookup requires its original compiler observation; authored
-        // simulation retains its source namespace without a physical frame.
-        let binding = tokens.source_binding.as_ref()?;
-        let authored_simulation = source_purpose
-            == crate::command_binding::OriginalInvocationSourcePurpose::AuthoredSimulation;
-        let lookup = if authored_simulation {
-            binding
-                .declaration_operand_layout_advice(tokens)
-                .or_else(|| binding.original_compilation_lookup_advice(tokens))?
-        } else {
-            binding.original_compilation_lookup_advice(tokens)?
-        };
-        if if authored_simulation {
-            !lookup.closed_authored_simulation_source_lookup(tokens, context, registry)
-        } else {
-            lookup.has_unclosed_source_coverage()
-        } {
-            return None;
-        }
-        match selected.authored_case_body_selection.as_ref()? {
-            AuthoredSourceCaseBodySelection::Selected(roles)
-                if !roles.selection_unknown
-                    && roles
-                        .bodies
-                        .iter()
-                        .all(|body| selected.argument_literal(body.argument).is_some()) =>
-            {
-                Some(if authored_simulation {
-                    StructuredSourceRoles::AuthoredSimulationCase(roles.clone())
-                } else {
-                    StructuredSourceRoles::NativeCase(roles.clone())
+    Some(selected)
+}
+
+fn authored_simulation_structure_is_supported(
+    registry: &CommandRegistry,
+    context: InvocationMetadataContext<'_>,
+    tokens: &CommandTokens,
+    selected: &ResolvedStatementInvocation,
+    source_roles: Option<&StructuredSourceRoles>,
+) -> Option<()> {
+    let advice = tokens
+        .source_binding
+        .as_ref()?
+        .declaration_operand_layout_advice(tokens)
+        .or_else(|| {
+            tokens
+                .source_binding
+                .as_ref()?
+                .original_compilation_lookup_advice(tokens)
+        })?;
+    if !advice.closed_authored_simulation_source_lookup(tokens, context, registry) {
+        return None;
+    }
+    let config = context.source_analysis_input()?.lexer_config();
+    if tokens.words().iter().any(|word| match word {
+        WordExpr::Literal { .. } | WordExpr::BracedLiteral { .. } => false,
+        WordExpr::Variable { .. } => {
+            word.sole_variable_substitution()
+                .is_none_or(|(spelling, _)| {
+                    tcl_syntax::naming::whole_scalar_variable_reference_name(spelling, config)
+                        .is_none()
                 })
-            }
-            _ => None,
         }
-    } else {
-        None
-    };
-    if source_purpose == crate::command_binding::OriginalInvocationSourcePurpose::AuthoredSimulation
-    {
-        let advice = tokens
-            .source_binding
-            .as_ref()?
-            .declaration_operand_layout_advice(tokens)
-            .or_else(|| {
-                tokens
-                    .source_binding
-                    .as_ref()?
-                    .original_compilation_lookup_advice(tokens)
-            })?;
-        if !advice.closed_authored_simulation_source_lookup(tokens, context, registry) {
+        _ => true,
+    }) {
+        return None;
+    }
+    let roles = source_roles.map_or_else(
+        || selected.written_argument_roles(),
+        StructuredSourceRoles::argument_roles,
+    );
+    selected.with_metadata_schema(registry, context, advice.realm(), |schema| {
+        use tcl_registry::hooks::LoweringHookId;
+        if !matches!(
+            schema.facts().lowering_hook?,
+            LoweringHookId::If
+                | LoweringHookId::Switch
+                | LoweringHookId::While
+                | LoweringHookId::For
+                | LoweringHookId::Foreach
+                | LoweringHookId::Lmap
+                | LoweringHookId::Catch
+                | LoweringHookId::Try
+        ) || schema.semantics.frame_effect.is_some()
+            || schema.semantics.body_kind != tcl_registry::BodyKind::Plain
+            || schema.semantics.body_interpreter != tcl_registry::BodyInterpreter::Current
+        {
             return None;
         }
-        let config = context.source_analysis_input()?.lexer_config();
-        if tokens.words().iter().any(|word| match word {
-            WordExpr::Literal { .. } | WordExpr::BracedLiteral { .. } => false,
-            WordExpr::Variable { .. } => {
-                word.sole_variable_substitution()
-                    .is_none_or(|(spelling, _)| {
-                        tcl_syntax::naming::whole_scalar_variable_reference_name(spelling, config)
-                            .is_none()
-                    })
-            }
-            _ => true,
-        }) {
-            return None;
-        }
-        let roles = source_roles.as_ref().map_or_else(
-            || selected.written_argument_roles(),
-            StructuredSourceRoles::argument_roles,
-        );
-        selected.with_metadata_schema(registry, context, advice.realm(), |schema| {
-            use tcl_registry::hooks::LoweringHookId;
-            if !matches!(
-                schema.facts().lowering_hook?,
-                LoweringHookId::If
-                    | LoweringHookId::Switch
-                    | LoweringHookId::While
-                    | LoweringHookId::For
-                    | LoweringHookId::Foreach
-                    | LoweringHookId::Lmap
-                    | LoweringHookId::Catch
-                    | LoweringHookId::Try
-            ) || schema.semantics.frame_effect.is_some()
-                || schema.semantics.body_kind != tcl_registry::BodyKind::Plain
-                || schema.semantics.body_interpreter != tcl_registry::BodyInterpreter::Current
+        for &(argument, role) in &roles {
+            if role == tcl_registry::ArgRole::Body
+                && schema.authored_source_script_timing_at(argument)?
+                    != tcl_registry::ScriptTiming::SameInvocation
             {
                 return None;
             }
-            for &(argument, role) in &roles {
-                if role == tcl_registry::ArgRole::Body
-                    && schema.authored_source_script_timing_at(argument)?
-                        != tcl_registry::ScriptTiming::SameInvocation
-                {
-                    return None;
-                }
-            }
-            Some(())
-        })?;
-    }
+        }
+        Some(())
+    })?;
+    Some(())
+}
+
+fn original_structured_operands_are_supported(
+    registry: &CommandRegistry,
+    selected: &ResolvedStatementInvocation,
+    source_roles: Option<&StructuredSourceRoles>,
+    tokens: &CommandTokens,
+) -> Option<()> {
     // A possible case body is readonly advice. Unreadable option selection
     // retains generic IR instead of borrowing a definitive Switch topology.
-    if source_roles
-        .as_ref()
-        .is_some_and(StructuredSourceRoles::selection_unknown)
-    {
+    if source_roles.is_some_and(StructuredSourceRoles::selection_unknown) {
         #[cfg(test)]
         trace_original_structure("source_roles", tokens, false);
         return None;
@@ -762,6 +692,110 @@ pub(crate) fn logical_structured_invocation_with_metadata_context(
     }
     #[cfg(test)]
     trace_original_structure("complete", tokens, true);
+    Some(())
+}
+
+/// Select source structure using the caller's complete immutable context.
+/// Missing or foreign context refuses; this supplies no executed body/frame.
+pub(crate) fn logical_structured_invocation_with_metadata_context(
+    registry: &CommandRegistry,
+    context: InvocationMetadataContext<'_>,
+    tokens: &CommandTokens,
+    bindings: Option<&crate::command_binding::SourceCommandBindings>,
+) -> Option<LogicalStructuredInvocation> {
+    let source_purpose = tokens
+        .source_binding
+        .as_ref()?
+        .original_source_advice_purpose(tokens, context, registry)?;
+    let logical_source =
+        source_purpose == crate::command_binding::OriginalInvocationSourcePurpose::Logical;
+    if !context.matches_registry(registry) {
+        #[cfg(test)]
+        trace_original_structure("registry", tokens, false);
+        return None;
+    }
+    let context = if logical_source {
+        tokens
+            .source_binding
+            .as_ref()?
+            .original_invocation_metadata_for_input(
+                tokens,
+                context.source_analysis_input()?,
+                registry,
+            )?
+    } else {
+        context
+    };
+    if bindings.is_some_and(|bindings| bindings.original_arguments_rejected_before_handler(tokens))
+    {
+        #[cfg(test)]
+        trace_original_structure("argument_entry", tokens, false);
+        return None;
+    }
+    let selected = original_structured_source_selection(registry, context, tokens, bindings)?;
+    let source_roles = if logical_source {
+        let binding = tokens.source_binding.as_ref()?;
+        let realm = binding.original_source_realm_for_input(
+            tokens,
+            context.source_analysis_input()?,
+            registry,
+        )?;
+        selected
+            .with_metadata_schema(registry, context, realm, |schema| {
+                schema.authored_logical_source_role_projection()
+            })
+            .map(StructuredSourceRoles::Logical)
+    } else if !selected.facts.arg_roles_complete {
+        // Case syntax retains its independently selected source purpose.
+        // Native lookup requires its original compiler observation; authored
+        // simulation retains its source namespace without a physical frame.
+        let binding = tokens.source_binding.as_ref()?;
+        let authored_simulation = source_purpose
+            == crate::command_binding::OriginalInvocationSourcePurpose::AuthoredSimulation;
+        let lookup = if authored_simulation {
+            binding
+                .declaration_operand_layout_advice(tokens)
+                .or_else(|| binding.original_compilation_lookup_advice(tokens))?
+        } else {
+            binding.original_compilation_lookup_advice(tokens)?
+        };
+        if if authored_simulation {
+            !lookup.closed_authored_simulation_source_lookup(tokens, context, registry)
+        } else {
+            lookup.has_unclosed_source_coverage()
+        } {
+            return None;
+        }
+        match selected.authored_case_body_selection.as_ref()? {
+            AuthoredSourceCaseBodySelection::Selected(roles)
+                if !roles.selection_unknown
+                    && roles
+                        .bodies
+                        .iter()
+                        .all(|body| selected.argument_literal(body.argument).is_some()) =>
+            {
+                Some(if authored_simulation {
+                    StructuredSourceRoles::AuthoredSimulationCase(roles.clone())
+                } else {
+                    StructuredSourceRoles::NativeCase(roles.clone())
+                })
+            }
+            _ => None,
+        }
+    } else {
+        None
+    };
+    if source_purpose == crate::command_binding::OriginalInvocationSourcePurpose::AuthoredSimulation
+    {
+        authored_simulation_structure_is_supported(
+            registry,
+            context,
+            tokens,
+            &selected,
+            source_roles.as_ref(),
+        )?;
+    }
+    original_structured_operands_are_supported(registry, &selected, source_roles.as_ref(), tokens)?;
     Some(LogicalStructuredInvocation {
         invocation: selected,
         source_roles,
@@ -7539,6 +7573,47 @@ fn retain_conditional_body_invocation(
     }
 }
 
+struct LogicalParameterSourceFacts {
+    facts: InvocationFacts,
+    source_roles: Option<(Vec<(u8, tcl_registry::ArgRole)>, bool)>,
+    named_only_roles: bool,
+}
+
+fn logical_parameter_source_facts(
+    words: &source_structure::OriginalRegistryWords,
+    context: &tcl_registry::model::ContextRegistry,
+    conditional_source: bool,
+    named_only: bool,
+) -> Option<LogicalParameterSourceFacts> {
+    let (facts, source_roles) = words.with_source_schema(context, |schema| {
+        (
+            schema.facts().clone(),
+            conditional_source.then(|| schema.authored_logical_source_argument_roles()),
+        )
+    })?;
+    let named_only_roles = named_only && facts.arg_roles_complete;
+    if facts.arity_accepts_frozen_arguments() != Some(true)
+        || (!named_only_roles && !source_roles.as_ref().is_some_and(|(_, complete)| *complete))
+    {
+        return None;
+    }
+    Some(LogicalParameterSourceFacts {
+        facts,
+        source_roles,
+        named_only_roles,
+    })
+}
+
+fn logical_parameter_origins_are_unwritten(
+    words: &source_structure::OriginalRegistryWords,
+) -> bool {
+    words
+        .origins()
+        .iter()
+        .enumerate()
+        .any(|(ordinal, origin)| *origin != InvocationWordOrigin::Written(ordinal))
+}
+
 /// Offset-free syntax assistance joins the retained lookup worlds. It has no
 /// original invocation point and therefore never returns definite grammar,
 /// entered scope or state-bearing alias/value-copy evidence.
@@ -7589,30 +7664,18 @@ pub(crate) fn logical_parameter_body_assistance(
     {
         return None;
     }
-    let (facts, source_roles) = words.with_source_schema(context, |schema| {
-        (
-            schema.facts().clone(),
-            conditional_source.then(|| schema.authored_logical_source_argument_roles()),
-        )
-    })?;
-    let named_only_roles = named_only && facts.arg_roles_complete;
-    if facts.arity_accepts_frozen_arguments() != Some(true)
-        || (!named_only_roles && !source_roles.as_ref().is_some_and(|(_, complete)| *complete))
-    {
-        return None;
-    }
+    let LogicalParameterSourceFacts {
+        facts,
+        source_roles,
+        named_only_roles,
+    } = logical_parameter_source_facts(&words, context, conditional_source, named_only)?;
     let mut tokens =
         CommandTokens::from_segmented(&tcl_lexer::SourceMap::from_image(image), config, &segment);
     realm.stamp_original_tokens(&mut tokens);
     // This named-only source descriptor has no alias or expanded prefix. Its
     // canonical Registry label selects facts; original Written operands retain
     // their own geometry and unknown values.
-    if words
-        .origins()
-        .iter()
-        .enumerate()
-        .any(|(ordinal, origin)| *origin != InvocationWordOrigin::Written(ordinal))
-    {
+    if logical_parameter_origins_are_unwritten(&words) {
         return None;
     }
     let effective = compose_original_effective_words(&tokens, words.command(), &[])?;

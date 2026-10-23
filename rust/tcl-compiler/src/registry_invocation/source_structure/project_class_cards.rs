@@ -405,19 +405,11 @@ pub fn original_project_receiver_class_in_unit(
     )
 }
 
-/// The same source display over a once-captured actual CU collection inventory.
-#[must_use]
-pub fn original_project_receiver_class_with_sources(
-    source: &str,
-    analysis: &AnalysisResult,
+fn project_receiver_invocation_is_static(
+    actual: &crate::segmenter::SegmentedCommand,
     segment: &crate::segmenter::SegmentedCommand,
-    providers: &[OriginalProjectClassCards],
-    sources: Option<&crate::object_types::OriginalObjectCollectionSources>,
-) -> Option<OriginalProjectReceiverClass> {
-    let offset = segment.argv.first()?.span.start();
-    let (input, realm, words) = super::registered_original_words_at(source, analysis, offset)?;
-    let binding = realm.invocation_at_source("", offset);
-    let (actual, _) = binding.original_recorded_command()?;
+    words: &[NativeWord],
+) -> bool {
     if actual.span != segment.span
         || actual.argv != segment.argv
         || actual.texts != segment.texts
@@ -431,7 +423,7 @@ pub fn original_project_receiver_class_with_sources(
             .as_ref()
             .is_some_and(|expanded| expanded.iter().any(|expanded| *expanded))
     {
-        return None;
+        return false;
     }
     // Operands can mutate tables before dispatch; this purpose has no effect
     // proof for dynamic operands and keeps them unavailable.
@@ -440,6 +432,25 @@ pub fn original_project_receiver_class_with_sources(
         .skip(1)
         .any(|word| tcl_syntax::word_rules::original_static_word_unicode_value(word).is_none())
     {
+        return false;
+    }
+    true
+}
+
+/// The same source display over a once-captured actual CU collection inventory.
+#[must_use]
+pub fn original_project_receiver_class_with_sources(
+    source: &str,
+    analysis: &AnalysisResult,
+    segment: &crate::segmenter::SegmentedCommand,
+    providers: &[OriginalProjectClassCards],
+    sources: Option<&crate::object_types::OriginalObjectCollectionSources>,
+) -> Option<OriginalProjectReceiverClass> {
+    let offset = segment.argv.first()?.span.start();
+    let (input, realm, words) = super::registered_original_words_at(source, analysis, offset)?;
+    let binding = realm.invocation_at_source("", offset);
+    let (actual, _) = binding.original_recorded_command()?;
+    if !project_receiver_invocation_is_static(&actual, segment, &words) {
         return None;
     }
     if let Some(receipt) = realm.original_source_class_instance_words(input, &words) {

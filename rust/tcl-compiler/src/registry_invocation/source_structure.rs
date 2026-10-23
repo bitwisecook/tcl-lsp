@@ -1275,6 +1275,18 @@ fn selected_registry_words_from_tokens(
     })
 }
 
+fn conditional_native_case_head(
+    native: &[tcl_lexer::NativeWord],
+    binding: &crate::command_binding::SourceInvocationBinding,
+    tokens: &crate::ir::CommandTokens,
+) -> Option<OriginalOperandSource> {
+    Some(OriginalOperandSource {
+        span: native.first()?.span(),
+        input: binding.original_written_name_input(tokens, 0),
+        word: native.first().cloned(),
+    })
+}
+
 /// Conditional original Native argv for the narrow possible-case-body
 /// syntax consumer. The exact full input, image/configuration, stamped source
 /// binding, native vector and all Registry lookup residuals remain retained.
@@ -1362,11 +1374,7 @@ fn conditional_native_case_source_words(
         &arguments,
         Some(&native),
     )?;
-    let head = Some(OriginalOperandSource {
-        span: native.first()?.span(),
-        input: binding.original_written_name_input(&tokens, 0),
-        word: native.first().cloned(),
-    });
+    let head = Some(conditional_native_case_head(&native, binding, &tokens)?);
     Some(OriginalRegistryWords {
         command: shape.command.clone(),
         dialect: Some(dialect),
@@ -1874,6 +1882,53 @@ pub fn source_registry_words_in_definition_body_at(
     }
 }
 
+struct DefinitionChildOperands {
+    arguments: Vec<crate::registry_invocation::EffectiveInvocationWord>,
+    operands: Vec<Option<OriginalOperandSource>>,
+    origins: Vec<crate::registry_invocation::InvocationWordOrigin>,
+}
+
+fn original_definition_child_operands(
+    original: &[tcl_lexer::NativeWord],
+) -> DefinitionChildOperands {
+    use crate::registry_invocation::{EffectiveInvocationWord, InvocationWordOrigin};
+    let mut arguments = Vec::with_capacity(original.len().saturating_sub(1));
+    let mut operands = Vec::with_capacity(arguments.capacity());
+    let mut origins = vec![InvocationWordOrigin::Written(0)];
+    for (index, word) in original.iter().enumerate().skip(1) {
+        let value = if word.group().expand {
+            EffectiveInvocationWord::Expanded
+        } else if let Some(value) = tcl_syntax::word_rules::original_static_word_unicode_value(word)
+        {
+            EffectiveInvocationWord::ByteLiteral(std::sync::Arc::from(value))
+        } else {
+            EffectiveInvocationWord::Dynamic
+        };
+        arguments.push(value);
+        operands.push(Some(OriginalOperandSource {
+            span: word.span(),
+            input: None,
+            word: Some(word.clone()),
+        }));
+        origins.push(InvocationWordOrigin::Written(index));
+    }
+    DefinitionChildOperands {
+        arguments,
+        operands,
+        origins,
+    }
+}
+
+fn original_definition_child_head(
+    original: &[tcl_lexer::NativeWord],
+) -> Option<OriginalOperandSource> {
+    Some(OriginalOperandSource {
+        span: original.first()?.span(),
+        input: None,
+        word: Some(original.first()?.clone()),
+    })
+}
+
 // naming.source.original-generic-definition-child-registry-roles
 // docs/design/analysis/name-resolution-proofs/source-original-generic-definition-child-registry-roles.md
 fn generic_definition_child_source_words(
@@ -1882,7 +1937,6 @@ fn generic_definition_child_source_words(
     segment: &crate::segmenter::SegmentedCommand,
     parent: &super::source_scoped_body::OriginalSourceScriptBody,
 ) -> Option<OriginalRegistryWords> {
-    use crate::registry_invocation::{EffectiveInvocationWord, InvocationWordOrigin};
     let input = analysis.resolved_input.as_ref()?;
     let config = input.lexer_config();
     let image = retained_document_image(source, analysis.retained_command_realm()?, config)?;
@@ -1961,31 +2015,12 @@ fn generic_definition_child_source_words(
                 .map(|position| (position, role))
         })
         .collect::<Option<Vec<_>>>()?;
-    let mut arguments = Vec::with_capacity(original.len().saturating_sub(1));
-    let mut operands = Vec::with_capacity(arguments.capacity());
-    let mut origins = vec![InvocationWordOrigin::Written(0)];
-    for (index, word) in original.iter().enumerate().skip(1) {
-        let value = if word.group().expand {
-            EffectiveInvocationWord::Expanded
-        } else if let Some(value) = tcl_syntax::word_rules::original_static_word_unicode_value(word)
-        {
-            EffectiveInvocationWord::ByteLiteral(std::sync::Arc::from(value))
-        } else {
-            EffectiveInvocationWord::Dynamic
-        };
-        arguments.push(value);
-        operands.push(Some(OriginalOperandSource {
-            span: word.span(),
-            input: None,
-            word: Some(word.clone()),
-        }));
-        origins.push(InvocationWordOrigin::Written(index));
-    }
-    let head = OriginalOperandSource {
-        span: original.first()?.span(),
-        input: None,
-        word: Some(original.first()?.clone()),
-    };
+    let DefinitionChildOperands {
+        arguments,
+        operands,
+        origins,
+    } = original_definition_child_operands(original);
+    let head = original_definition_child_head(original)?;
     Some(OriginalRegistryWords {
         command: selected.canonical_command.to_owned(),
         dialect: parent.source_words().dialect(),

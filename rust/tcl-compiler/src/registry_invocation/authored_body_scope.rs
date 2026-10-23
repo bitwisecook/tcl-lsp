@@ -547,6 +547,82 @@ fn parameter_source_word(word: &NativeWord) -> Option<AuthoredParameterSourceWor
         .then_some(AuthoredParameterSourceWord::Scalar(scalar?))
 }
 
+struct AuthoredParameterSourceEffects {
+    roles: Vec<(usize, tcl_registry::ArgRole)>,
+    aliases: Vec<tcl_registry::VariableCellAliasTransition>,
+    continues: bool,
+}
+
+fn authored_parameter_source_effects(
+    schema: &tcl_registry::ResolvedInvocation<'_, '_>,
+    selected: &super::ResolvedStatementInvocation,
+    dialect: tcl_registry::InvocationDialect,
+) -> Option<AuthoredParameterSourceEffects> {
+    let facts = schema.facts();
+    let (roles, complete) = schema.authored_source_argument_roles();
+    if facts.descriptor_key() != selected.facts.descriptor_key()
+        || !complete
+        || facts.arity_accepts_frozen_arguments() != Some(true)
+    {
+        return None;
+    }
+    let roles = roles
+        .into_iter()
+        .map(|(at, role)| (facts.argument_offset + usize::from(at), role))
+        .collect::<Vec<_>>();
+    let (_, transitions) = schema.authored_source_effects_and_state_transitions(dialect);
+    let continues = schema.semantics.state_transitions.is_declared()
+        && transitions.command_resolution_impact() == tcl_registry::CommandResolutionImpact::None
+        && transitions.facts().iter().all(|fact| {
+            matches!(
+                fact.transition,
+                tcl_registry::StateTransition::VariableCellAlias(_)
+            )
+        })
+        && ![
+            tcl_registry::StateTransitionDomain::VariableTraces,
+            tcl_registry::StateTransitionDomain::CommandTraces,
+            tcl_registry::StateTransitionDomain::ExecutionTraces,
+            tcl_registry::StateTransitionDomain::InterpreterTopology,
+            tcl_registry::StateTransitionDomain::InterpreterPolicy,
+            tcl_registry::StateTransitionDomain::Interpreters,
+            tcl_registry::StateTransitionDomain::ObjectDispatch,
+        ]
+        .into_iter()
+        .any(|domain| transitions.widens(domain))
+        && !roles.iter().any(|(_, role)| {
+            matches!(
+                role,
+                tcl_registry::ArgRole::Body
+                    | tcl_registry::ArgRole::Expr
+                    | tcl_registry::ArgRole::LambdaLiteral
+                    | tcl_registry::ArgRole::CommandPrefix
+            )
+        })
+        && !facts.traits.intersects(
+            tcl_registry::Traits::EVALUATES_CODE
+                | tcl_registry::Traits::DYNAMIC_EVAL_BODY
+                | tcl_registry::Traits::DEFERS_BODY
+                | tcl_registry::Traits::PERFORMS_SUBSTITUTION,
+        );
+    let aliases = transitions
+        .facts()
+        .iter()
+        .filter_map(|fact| {
+            if let tcl_registry::StateTransition::VariableCellAlias(alias) = &fact.transition {
+                Some(alias.clone())
+            } else {
+                None
+            }
+        })
+        .collect();
+    Some(AuthoredParameterSourceEffects {
+        roles,
+        aliases,
+        continues,
+    })
+}
+
 /// Reborrow genuine original declaration/source syntax for conditional formal
 /// observations. A present stronger source owner retains its own terminal gate.
 pub(crate) fn original_authored_parameter_source_command_for_module(
@@ -621,67 +697,12 @@ pub(crate) fn original_authored_parameter_source_command_for_module(
         .then_some(())?;
     let selected = super::resolve_original_source_layout(registry, None, &declared, &advice)?;
     let dialect = scope.original_word_dialect()?;
-    let (roles, aliases, continues) = scope.with_source_schema(tokens, registry, |schema| {
-        let facts = schema.facts();
-        let (roles, complete) = schema.authored_source_argument_roles();
-        if facts.descriptor_key() != selected.facts.descriptor_key()
-            || !complete
-            || facts.arity_accepts_frozen_arguments() != Some(true)
-        {
-            return None;
-        }
-        let roles = roles
-            .into_iter()
-            .map(|(at, role)| (facts.argument_offset + usize::from(at), role))
-            .collect::<Vec<_>>();
-        let (_, transitions) = schema.authored_source_effects_and_state_transitions(dialect);
-        let continues = schema.semantics.state_transitions.is_declared()
-            && transitions.command_resolution_impact()
-                == tcl_registry::CommandResolutionImpact::None
-            && transitions.facts().iter().all(|fact| {
-                matches!(
-                    fact.transition,
-                    tcl_registry::StateTransition::VariableCellAlias(_)
-                )
-            })
-            && ![
-                tcl_registry::StateTransitionDomain::VariableTraces,
-                tcl_registry::StateTransitionDomain::CommandTraces,
-                tcl_registry::StateTransitionDomain::ExecutionTraces,
-                tcl_registry::StateTransitionDomain::InterpreterTopology,
-                tcl_registry::StateTransitionDomain::InterpreterPolicy,
-                tcl_registry::StateTransitionDomain::Interpreters,
-                tcl_registry::StateTransitionDomain::ObjectDispatch,
-            ]
-            .into_iter()
-            .any(|domain| transitions.widens(domain))
-            && !roles.iter().any(|(_, role)| {
-                matches!(
-                    role,
-                    tcl_registry::ArgRole::Body
-                        | tcl_registry::ArgRole::Expr
-                        | tcl_registry::ArgRole::LambdaLiteral
-                        | tcl_registry::ArgRole::CommandPrefix
-                )
-            })
-            && !facts.traits.intersects(
-                tcl_registry::Traits::EVALUATES_CODE
-                    | tcl_registry::Traits::DYNAMIC_EVAL_BODY
-                    | tcl_registry::Traits::DEFERS_BODY
-                    | tcl_registry::Traits::PERFORMS_SUBSTITUTION,
-            );
-        let aliases = transitions
-            .facts()
-            .iter()
-            .filter_map(|fact| {
-                if let tcl_registry::StateTransition::VariableCellAlias(alias) = &fact.transition {
-                    Some(alias.clone())
-                } else {
-                    None
-                }
-            })
-            .collect();
-        Some((roles, aliases, continues))
+    let AuthoredParameterSourceEffects {
+        roles,
+        aliases,
+        continues,
+    } = scope.with_source_schema(tokens, registry, |schema| {
+        authored_parameter_source_effects(schema, &selected, dialect)
     })?;
     Some(OriginalAuthoredParameterSourceCommand {
         body,
