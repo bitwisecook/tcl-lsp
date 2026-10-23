@@ -557,7 +557,10 @@ mod event_function_owner_tests {
         assert!(module.source_entry.native_entry.is_none());
         let foreign =
             tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
-        let stale = tcl_lexer::SourceImage::from_bytes(b"changed source", module.source.channel());
+        let stale = tcl_lexer::SourceImage::from_bytes(
+            b"changed source".as_slice(),
+            module.source.channel(),
+        );
         let changed_config = tcl_lexer::LexerConfig {
             strict_quoting: !module.lexer_config.strict_quoting,
             ..module.lexer_config
