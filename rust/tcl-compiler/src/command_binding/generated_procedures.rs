@@ -404,7 +404,7 @@ impl OriginalNativeProcedureBody {
         let snapshot_input = snapshot.baseline.metadata_context.source_analysis_input()?;
         (tokens.synthetic.is_none()
             && original.words() == tokens.words()
-            && command.words.first()?.span().start() == site.offset
+            && original.words().first()?.source().span.start() == site.offset
             && command.span.start() == site.offset
             && !command.is_partial
             && std::sync::Arc::ptr_eq(&site.source, &flow.read_flow.header.declaration.source)
