@@ -695,7 +695,7 @@ fn syntax_compaction(source: &str, analysis: &AnalysisResult) -> Result<String, 
     // Every selected script is checked independently. Parent words may differ
     // only by selected descendant script gaps or the expression proofs above.
     for (region, plan) in plans {
-        validate_emitted_script_gap_plan(env, region, &plan, &output, &edits, &emitted_image)?;
+        validate_emitted_script_gap_plan(env, region, &plan, &edits, &emitted_image)?;
     }
     Ok(output)
 }
@@ -723,7 +723,6 @@ fn validate_emitted_script_gap_plan(
     env: super::MinifyEnv<'_>,
     region: Span,
     plan: &tcl_lexer::NativeScriptWordsPlan,
-    output: &str,
     edits: &[SourceGapEdit],
     emitted_image: &SourceImage,
 ) -> Result<(), MinifyRefusal> {
