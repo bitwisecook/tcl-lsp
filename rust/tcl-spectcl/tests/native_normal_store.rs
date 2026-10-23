@@ -19,7 +19,10 @@ impl Drop for HostReset {
     }
 }
 
-fn installed_reference(definition: &str, arity: usize) -> tcl_registry::CommandRegistry {
+fn installed_reference(
+    definition: &str,
+    arity: usize,
+) -> std::sync::Arc<tcl_registry::CommandRegistry> {
     let directory = std::env::temp_dir().join(format!(
         "native-parent-store-{}-{:?}",
         std::process::id(),
