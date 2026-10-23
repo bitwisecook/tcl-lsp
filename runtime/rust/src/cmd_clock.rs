@@ -483,7 +483,9 @@ mod bootstrap_tests {
         );
         host.env().set(KEY, "updated");
         assert_eq!(interp.eval_str(b"list $::env(NH_RUNTIME_GETENV_VALUE) [::tcl::clock::getenv NH_RUNTIME_GETENV_VALUE]"), Code::Ok);
-        assert_eq!(interp.result_bytes(), b"actual updated");
+        // Tcl's built-in environment read trace observes the updated process
+        // environment too; the earlier readTrap check isolates the clock getter.
+        assert_eq!(interp.result_bytes(), b"updated updated");
         for (name, expected) in [
             (
                 b"NH_RUNTIME_GETENV_VALUE\0suffix".as_slice(),
