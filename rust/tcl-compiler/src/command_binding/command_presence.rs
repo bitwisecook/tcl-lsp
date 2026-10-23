@@ -1033,6 +1033,43 @@ mod tests {
     }
 
     #[test]
+    fn unclosed_normal_return_cannot_reuse_a_closed_slot_absence() {
+        for profile in ["tcl8.6", "jim"] {
+            let closed = point_in("missing", "missing", profile);
+            assert_eq!(
+                closed.selected_slot_presence(),
+                SourceCommandSlotPresence::Absent
+            );
+            assert_eq!(
+                closed.selected_slot_diagnostic_presence(),
+                SourceCommandSlotPresence::Absent
+            );
+            let mut state = closed.lookup_state.as_ref().unwrap().state.clone();
+            state.unclosed_command_world = true;
+            let mut unclosed = closed.clone();
+            unclosed.lookup_state = Some(std::sync::Arc::new(
+                super::super::SourceLookupSnapshot::new(state),
+            ));
+            assert_eq!(
+                unclosed.selected_slot_presence(),
+                SourceCommandSlotPresence::Unknown
+            );
+            assert_eq!(
+                unclosed.selected_slot_diagnostic_presence(),
+                SourceCommandSlotPresence::Unknown
+            );
+            assert_eq!(
+                closed.selected_slot_presence(),
+                SourceCommandSlotPresence::Absent
+            );
+            assert_eq!(
+                closed.selected_slot_diagnostic_presence(),
+                SourceCommandSlotPresence::Absent
+            );
+        }
+    }
+
+    #[test]
     fn import_wrapper_and_closed_default_fallback_are_separate() {
         let imported = point(
             "namespace eval n {proc helper {} {}; namespace export helper}; namespace import ::n::*; helper",

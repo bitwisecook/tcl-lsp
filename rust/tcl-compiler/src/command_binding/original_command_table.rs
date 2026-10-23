@@ -2415,7 +2415,8 @@ impl ModuleCommandBindings {
         current: &SourceNamespaceKey,
     ) -> super::SourceCommandSlotPresence {
         use super::SourceCommandSlotPresence as Presence;
-        if !input.is_current(&self.source_variables)
+        if self.unclosed_command_world
+            || !input.is_current(&self.source_variables)
             || self.baseline.unknown_entry
             || (!input.bytes().starts_with(b"::")
                 && matches!(current, SourceNamespaceKey::Authored(_))
