@@ -559,7 +559,7 @@ pub fn completions(
     // top-level guard and duplicate-event decline. Only the canonical iRules
     // profile carries those templates, including its accepted aliases.
     let (current_event, file_events) = completion_event_names(source, line, analysis, profile);
-    let at_top_level = completion_is_top_level(source, analysis, cursor, &current_event);
+    let at_top_level = completion_is_top_level(source, analysis, cursor, current_event.as_ref());
     items.extend(crate::snippets::snippet_completions(
         &crate::snippets::SnippetContext {
             profile,
@@ -3118,7 +3118,7 @@ fn completion_is_top_level(
     source: &str,
     analysis: &AnalysisResult,
     cursor: u32,
-    current_event: &Option<String>,
+    current_event: Option<&String>,
 ) -> bool {
     if analysis.allows_lexical_declaration_advice() {
         current_event.is_none()

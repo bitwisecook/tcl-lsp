@@ -2554,6 +2554,11 @@ fn apply_selected_operand_geometry(
     }
 }
 
+type SelectedCommandRoleOwners = (
+    Vec<(usize, Option<tcl_registry::ArgPresentation>)>,
+    std::sync::Arc<tcl_registry::model::ContextRegistry>,
+);
+
 fn apply_selected_command_roles(
     cmd: &mut ParsedCommand,
     selected: &crate::original_invocation::OriginalRegistryWords,
@@ -2561,10 +2566,7 @@ fn apply_selected_command_roles(
     config: &FormatterConfig,
     registry: &CommandRegistry,
     position: (&str, &tcl_compiler::segmenter::SegmentedCommand),
-) -> Option<(
-    Vec<(usize, Option<tcl_registry::ArgPresentation>)>,
-    std::sync::Arc<tcl_registry::model::ContextRegistry>,
-)> {
+) -> Option<SelectedCommandRoleOwners> {
     let (whole, segment) = position;
     let logical = match &selected.source {
         crate::original_invocation::OriginalRegistrySource::SourceTransitions(advice) => {
@@ -2576,7 +2578,7 @@ fn apply_selected_command_roles(
     let roles = selected.roles.as_deref().unwrap_or_default();
     let input = &identities.input;
     let context = input.context_registry();
-    let Some((traits, presentations, case)) = selected.with_source_schema(&context, |schema| {
+    let (traits, presentations, case) = selected.with_source_schema(&context, |schema| {
         (
             schema.semantics.traits,
             roles
@@ -2593,9 +2595,7 @@ fn apply_selected_command_roles(
                 .and_then(|(descriptor, layout)| Some((descriptor, layout.clause_list_index?)))
                 .or_else(|| schema.authored_source_case_presentation()),
         )
-    }) else {
-        return None;
-    };
+    })?;
     cmd.source_traits = Some(traits);
     cmd.source_case = case.and_then(|(descriptor, ordinal)| {
         match selected.origins.get(ordinal.checked_add(1)?)? {
