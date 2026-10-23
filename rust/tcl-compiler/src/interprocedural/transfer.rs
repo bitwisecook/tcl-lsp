@@ -50,8 +50,8 @@ use tcl_registry::world_effect::EffectFootprint;
 use tcl_syntax::formal_params::{FormalArgumentBinding, FormalParameter};
 
 mod source_context;
+use source_context::{NativeSummaryContext, ProcedureCall, SourceSummaryContext};
 pub(crate) use source_context::{OriginalSummaryExpression, OriginalSummaryScript};
-use source_context::{ProcedureCall, SourceSummaryContext};
 
 use crate::cfg::{Function as CfgFunction, Terminator};
 use crate::cfg_builder::global_write_info::GlobalWriteInfo;
@@ -263,6 +263,7 @@ pub(crate) struct ModuleProcedures<'a> {
     mutations: &'a ModuleCommandMutations,
     projection: &'a ProcBindingTrustProjection,
     source: Option<SourceSummaryContext<'a>>,
+    native_source: Option<NativeSummaryContext<'a>>,
     /// The finished summaries, by qualified name.
     summaries: RefCell<HashMap<crate::ir::ProcedureId, TransferSummary>>,
     /// The roles of the procedures of a cycle being solved: `None` while a
@@ -420,6 +421,11 @@ impl<'a> ModuleProcedures<'a> {
             mutations: inputs.mutations,
             projection: inputs.projection,
             source: SourceSummaryContext::for_module(inputs.ir, inputs.registry, inputs.config),
+            native_source: NativeSummaryContext::for_module(
+                inputs.ir,
+                inputs.registry,
+                inputs.config,
+            ),
             summaries: RefCell::new(HashMap::new()),
             provisional: RefCell::new(HashMap::new()),
             revision: revision_of(inputs.ir, inputs.mutations),
@@ -463,6 +469,11 @@ impl<'a> ModuleProcedures<'a> {
             mutations: &cu.command_mutations,
             projection: &cu.caller_scope.proc_binding_trust,
             source: SourceSummaryContext::for_module(
+                &cu.ir_module,
+                registry,
+                cu.ir_module.lexer_config,
+            ),
+            native_source: NativeSummaryContext::for_module(
                 &cu.ir_module,
                 registry,
                 cu.ir_module.lexer_config,
@@ -560,7 +571,13 @@ impl<'a> ModuleProcedures<'a> {
         body_id: Option<crate::ir::ProcedureId>,
         statement: &Statement,
     ) -> Option<CommandTokens> {
-        self.source.as_ref()?.statement_tokens(body_id, statement)
+        if let Some(source) = &self.source {
+            source.statement_tokens(body_id, statement)
+        } else {
+            self.native_source
+                .as_ref()?
+                .statement_tokens(body_id, statement)
+        }
     }
 
     pub(crate) fn original_expression(
@@ -590,7 +607,13 @@ impl<'a> ModuleProcedures<'a> {
         site: &crate::ir::SourceSite,
         script: &str,
     ) -> Option<OriginalSummaryScript> {
-        self.source.as_ref()?.substitution(parent, site, script)
+        if let Some(source) = &self.source {
+            source.substitution(parent, site, script)
+        } else {
+            self.native_source
+                .as_ref()?
+                .substitution(parent, site, script)
+        }
     }
 
     pub(crate) fn original_body(
@@ -632,6 +655,39 @@ impl<'a> ModuleProcedures<'a> {
         ) -> Option<T>,
     ) -> Option<T> {
         self.source.as_ref()?.with_operation(tokens, apply)
+    }
+
+    pub(crate) fn has_original_native_source(&self) -> bool {
+        self.native_source.is_some()
+    }
+
+    pub(crate) fn with_original_native_store<T>(
+        &self,
+        body: Option<crate::ir::ProcedureId>,
+        tokens: &CommandTokens,
+        defs: &[(String, crate::ssa::ValueKey)],
+        ssa: &crate::ssa::SsaFunction,
+        apply: impl FnOnce(
+            &crate::registry_invocation::ResolvedStatementInvocation,
+            &tcl_registry::ResolvedInvocation<'_, '_>,
+        ) -> Option<T>,
+    ) -> Option<T> {
+        self.native_source
+            .as_ref()?
+            .with_store_operation(body, tokens, defs, ssa, apply)
+    }
+
+    pub(crate) fn with_original_native_value<T>(
+        &self,
+        tokens: &CommandTokens,
+        apply: impl FnOnce(
+            &crate::registry_invocation::ResolvedStatementInvocation,
+            &tcl_registry::ResolvedInvocation<'_, '_>,
+        ) -> Option<T>,
+    ) -> Option<T> {
+        self.native_source
+            .as_ref()?
+            .with_value_operation(tokens, apply)
     }
 
     /// The default `info default` reads for `procedure`'s `parameter`, the

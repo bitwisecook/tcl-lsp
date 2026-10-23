@@ -3961,6 +3961,33 @@ impl<'a> LatticeDriver<'a> {
             let Some(original) = original else {
                 return DefValues::PerDef(widened(defs));
             };
+            if module.has_original_native_source() {
+                let Some(body) = self.body_id else {
+                    return DefValues::PerDef(widened(defs));
+                };
+                return module
+                    .with_original_native_store(
+                        body.procedure_id(),
+                        original,
+                        defs,
+                        ssa,
+                        |operation, schema| {
+                            let cooked = self.operation_arguments(operation)?;
+                            let written = (0..cooked.len())
+                                .map(|index| operation.effective.written_argument(index))
+                                .collect();
+                            Some(self.evaluate_resolved_source_call(
+                                head,
+                                schema,
+                                (&cooked, written, Some(original)),
+                                defs,
+                                (uses, values, ssa),
+                                explain_missing,
+                            ))
+                        },
+                    )
+                    .unwrap_or_else(|| DefValues::PerDef(widened(defs)));
+            }
             return module
                 .with_original_operation(original, |operation, schema| {
                     let cooked = self.operation_arguments(operation)?;
@@ -4224,6 +4251,21 @@ impl<'a> LatticeDriver<'a> {
             // A supplied Module is an actual-source ingress. Missing child
             // ownership cannot reopen the standalone catalogue route.
             let original = original?;
+            if module.has_original_native_source() {
+                return module.with_original_native_value(original, |operation, schema| {
+                    let cooked = self.operation_arguments(operation)?;
+                    let written = (0..cooked.len())
+                        .map(|index| operation.effective.written_argument(index))
+                        .collect();
+                    self.run_resolved_command(
+                        head,
+                        schema,
+                        (&cooked, written, Some(original)),
+                        lattice,
+                        under,
+                    )
+                });
+            }
             return module.with_original_operation(original, |operation, schema| {
                 let cooked = self.operation_arguments(operation)?;
                 let written = (0..cooked.len())
