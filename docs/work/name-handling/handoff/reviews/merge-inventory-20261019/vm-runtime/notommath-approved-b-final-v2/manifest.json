@@ -1,0 +1,20 @@
+{
+  "utc": "2026-10-23T09:29:17.633927+00:00",
+  "status": "USER APPROVED B immutablev2; v1 HOLD stale metadata; syntax/fmt PASS; peerpending; actualtyping/build/runtimeUNRUN",
+  "user_authorization": "Root reports explicit user answer: recommended explicit absence assertion,2026-10-23 circa09:25UTC; root owns decision record",
+  "path": "runtime/rust/build.rs",
+  "before_sha256": "fd1fea9d02fa1dd7d869a71effa55af9c73e78183b1a805d28cd828fc6680a34",
+  "after_sha256": "4088e17e8c3f5295dfa41e044381e1394c02d223a89f7dfb8eddcd1d796c893f",
+  "patch_sha256": "c7128d55a20e397b7469e3b125c8200f651827c4e535f0902192927d1735a3fc",
+  "proposed_environment": "TCL_RUNTIME_EXPECT_NO_TOMMATH=1",
+  "invariants": [
+    "locate_libtommath bytes unchanged; no backend-disable switch",
+    "expected actual absence records capabilityJSON+Cargo metadata and returns before have_tommath cfg",
+    "unexpected absence retains exact original warning",
+    "invalid flag or found source with expected absence fails build",
+    "all other C/WASI/compiler/link warnings and failures unchanged",
+    "original noTom16 selectors/Cargo arguments/default features unchanged"
+  ],
+  "execution": "None; no Cargo, GO, Git, canonical source/provider edits; separate from v8",
+  "successor_delta": "Withdraw only exact owned OUT_DIR/tommath-capability.json at start before C compilation/expectation parsing/source probe; NotFound allowed, all other removal errors terminal. No source/target cleanup executed by agent."
+}

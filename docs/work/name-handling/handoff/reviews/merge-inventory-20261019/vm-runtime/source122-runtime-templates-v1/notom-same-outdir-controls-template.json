@@ -1,0 +1,73 @@
+{
+  "schema": "vm-noTom-capability-same-outdir-controls-template-v1",
+  "status": "TEMPLATE ONLY; separate rootGO/exclusive slot; actualtyping/controlbuildsUNRUN",
+  "actual_identity": {
+    "path": "/tmp/naming-reviewed-product-actual-identity-v9-corrected/actual-identity.json",
+    "sha256": "3c55643aa5e3383204cfc7f83c10d5a5de193c0b06d6de0fc34e3f1d9a06a290",
+    "schema": "actual-integrated-product-identity-v1",
+    "approved_integrated_head": "c40883dd7f1b60616fc9ecd3e825dab39670b38c",
+    "approved_integrated_tree": "2e6b20c875f7fff44190e0f7f57913f24fa16da8",
+    "source_manifest_path": "/tmp/naming-reviewed-product-actual-identity-v9-corrected/actual-source122-manifest.json",
+    "source_manifest_sha256": "eafa64c559575c909f7debcc19ca28c50e92fcc533473aa4f7394a7e715c7e35",
+    "candidate_manifest_sha256": "b37d66a810af1b0ec6af2b96f1d4574a36e72e3012c4d2e39b74065310db2903",
+    "candidate_patch_sha256": "760957f2ec4261e1d2bb736139f3666db9359dc39b9fde6a4735db578296028d",
+    "path_count": 122,
+    "typing": false,
+    "runtime_tested": false
+  },
+  "build_argv": [
+    "cargo",
+    "test",
+    "--locked",
+    "--manifest-path",
+    "/tmp/vm-runtime-ci5205-no-tommath/runtime/rust/Cargo.toml",
+    "--lib",
+    "--no-run",
+    "--message-format=json",
+    "-j",
+    "2"
+  ],
+  "principles": [
+    "Use same isolated target/mirror/features so observed buildscript out_dir identity must actually match; if not same OUT_DIR, refuse rather than claim transition control.",
+    "Each case first establish approved env1+genuineabsence success and current ownedJSON. Then transition environment only; no source/provider file manipulation or target cleanup.",
+    "Provider-present means actual pinned canonical TomMath provider env, source absence means actual mirror probe absence; no disabling actualbackend.",
+    "Cases require current freshCargoJSON/stdout/process/file capture and exact source/provider/tool seals. Source mismatch invalidates entire diagnostic.",
+    "Expected warning/failure is diagnostic proof only and is not zero-warning release admission. Restore approved expectedabsence mode and fresh artifact before original16 runtime."
+  ],
+  "controls": [
+    {
+      "case": "unexpected-absence-after-intentional",
+      "env": {
+        "TCL_RUNTIME_EXPECT_NO_TOMMATH": null,
+        "TCL_TOMMATH_DIR": null
+      },
+      "expect": "successful build if original supportedmode; exact original source-not-found warning retained; ownedJSON absent; actual have_tommath absent; not0W admitted"
+    },
+    {
+      "case": "full-source-after-intentional",
+      "env": {
+        "TCL_RUNTIME_EXPECT_NO_TOMMATH": null,
+        "TCL_TOMMATH_DIR": "/workspace/naming-toolchains/tmp/tcl9.0.4/libtommath"
+      },
+      "expect": "successful actualfullbackend build if all providersvalid; ownedJSON absent; actual have_tommath present; no backenddisabledclaim"
+    },
+    {
+      "case": "invalid-expectation-after-intentional",
+      "env": {
+        "TCL_RUNTIME_EXPECT_NO_TOMMATH": "invalid",
+        "TCL_TOMMATH_DIR": null
+      },
+      "expect": "terminal buildfail with exactinvalidflag cause; oldownedJSON absent; no runtime"
+    },
+    {
+      "case": "found-source-mismatch-after-intentional",
+      "env": {
+        "TCL_RUNTIME_EXPECT_NO_TOMMATH": "1",
+        "TCL_TOMMATH_DIR": "/workspace/naming-toolchains/tmp/tcl9.0.4/libtommath"
+      },
+      "expect": "terminal buildfail explicitmismatch before have_tommath; oldownedJSON absent; no runtime"
+    }
+  ],
+  "additional_refusal": "Unremovable/nonfile owned metadata path must fail withdrawal; needs explicitly isolated buildartifact fixture preparation approved byroot, never alter real sources/whole targets.",
+  "root_go": null
+}

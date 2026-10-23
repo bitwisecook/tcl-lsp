@@ -1,0 +1,84 @@
+def source_view(stage, expected_go_sha):
+    check_build_environment()
+    if digest(GO) != expected_go_sha:
+        raise SystemExit('STOP: root GO changed')
+    go = json.loads(GO.read_text())
+    identity_pin = plan['actual_identity']
+    if digest(identity_pin['path']) != identity_pin['sha256']:
+        raise SystemExit('STOP: actual immutable identity changed')
+    identity = json.loads(Path(identity_pin['path']).read_text())
+    if (go.get('plan_sha256') != plan_sha
+            or go.get('source_commit') != plan['source_commit']
+            or go.get('approved_integrated_head') != plan['approved_integrated_head']
+            or go.get('approved_integrated_tree') != plan['approved_integrated_tree']
+            or go.get('actual_identity_sha256') != identity_pin['sha256']
+            or go.get('source_manifest_sha256') != plan['integrated_manifest_sha256']
+            or go.get('typing_receipt_sha256') != plan['typing_receipt']['sha256']):
+        raise SystemExit('STOP: root GO actual identity/type/plan binding')
+    if not RUNNER_MANIFEST.is_file() or go.get('runner_input_manifest_sha256') != digest(RUNNER_MANIFEST):
+        raise SystemExit('STOP: root GO runner manifest pin')
+    for path, expected in json.loads(RUNNER_MANIFEST.read_text())['inputs'].items():
+        if digest(path) != expected:
+            raise SystemExit('STOP: runner input changed '+path)
+    if (identity.get('schema') != 'actual-integrated-product-identity-v1'
+            or identity.get('approved_integrated_head') != plan['approved_integrated_head']
+            or identity.get('approved_integrated_tree') != plan['approved_integrated_tree']
+            or identity.get('source_manifest_path') != str(SOURCE46)
+            or identity.get('source_manifest_sha256') != plan['integrated_manifest_sha256']
+            or identity.get('candidate_manifest_sha256') != plan['candidate_manifest_sha256']
+            or identity.get('candidate_patch_sha256') != plan['candidate_patch_sha256']
+            or identity.get('path_count') != plan['integrated_path_count']
+            or identity.get('typing') is not False or identity.get('runtime_tested') is not False):
+        raise SystemExit('STOP: immutable actual input identity contract')
+    if digest(SOURCE46) != plan['integrated_manifest_sha256']:
+        raise SystemExit('STOP: actual source manifest changed')
+    typing = json.loads(Path(plan['typing_receipt']['path']).read_text())
+    if (digest(plan['typing_receipt']['path']) != plan['typing_receipt']['sha256']
+            or typing.get('status') != 'PASS'
+            or typing.get('guard_valid') is not True
+            or typing.get('warning_free_json_stderr_stdout') is not True
+            or typing.get('source_stable') is not True
+            or typing.get('providers_stable') is not True
+            or typing.get('cargo_exit_code') != 0
+            or typing.get('plan_sha256') != plan['typecheck_plan_sha256']
+            or typing.get('approved_product_head') != plan['approved_integrated_head']
+            or typing.get('approved_product_tree') != plan['approved_integrated_tree']
+            or typing.get('selected_packages') != ['tcl-compiler','tcl-lsp-core','tcl-lsp-db','tcl-lsp-server','tcl-vm','tcl-fuzz','tcl-spectcl','bpf-tcl-ir']):
+        raise SystemExit('STOP: exact actual-source eight-package PASS0W typing prerequisite')
+    head = subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()
+    # Full committed product/map verification is before/after the entire group.
+    # Intermediate rows retain file/tool/GO/artifact checks without a 100k scan.
+    if stage not in {'startup','final'}:
+        return head
+    approved = plan['approved_integrated_head']
+    tree = subprocess.check_output(['git','rev-parse',approved+'^{tree}'],text=True).strip()
+    if tree != plan['approved_integrated_tree']:
+        raise SystemExit('STOP: actual committed tree mismatch')
+    if subprocess.run(['git','merge-base','--is-ancestor',approved,head],check=False).returncode:
+        raise SystemExit('STOP: current HEAD is not approved product or docs descendant')
+    for commit in subprocess.check_output(['git','rev-list',f'{approved}..{head}'],text=True).splitlines():
+        touched=subprocess.check_output(['git','diff-tree','--no-commit-id','--name-only','-r','-m',commit],text=True).splitlines()
+        if any(not path.startswith('docs/work/name-handling/') for path in touched):
+            raise SystemExit('STOP: product changed after actual identity')
+    if subprocess.run(['git','diff','--quiet',approved,'--','.',':(exclude)docs/work/name-handling'],check=False).returncode:
+        raise SystemExit('STOP: dirty product differs from committed actual identity')
+    source_map=json.loads(SOURCE46.read_text())
+    rows=source_map['paths']; count=plan['integrated_path_count']
+    if (source_map.get('exact_path_count')!=count or len(rows)!=count
+            or len({row['path'] for row in rows})!=count
+            or source_map.get('approved_product_head')!=approved
+            or source_map.get('approved_product_tree')!=tree
+            or source_map.get('source_commit')!=plan['source_commit']):
+        raise SystemExit('STOP: actual source map exact identity/unique count')
+    for row in rows:
+        rel=row['path']
+        if digest(ROOT/rel)!=row['after_sha256']:
+            raise SystemExit('STOP: actual canonical source hash '+rel)
+        actual=subprocess.check_output(['git','show',approved+':'+rel])
+        if hashlib.sha256(actual).hexdigest()!=row['after_sha256']:
+            raise SystemExit('STOP: actual committed source hash '+rel)
+    untracked=subprocess.check_output(['git','ls-files','--others','--exclude-standard','-z']).split(b'\0')
+    if any(path and not path.decode(errors='surrogateescape').startswith('docs/work/name-handling/') for path in untracked):
+        raise SystemExit('STOP: untracked product outside docs evidence')
+    return head
+

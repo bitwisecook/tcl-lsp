@@ -1,0 +1,18 @@
+{
+  "inputs": {
+    "/tmp/lsp-startup-upf-source122-template-v1-direct4/suite.py": "e7b28ffea36abf93321a4990ae328eb38b3b921b6452d2582bc3ad8795df2f93",
+    "/tmp/lsp-startup-upf-source122-template-v1-direct4/launch.py": "4735ffc1eeea59c970dba39fd9b7c7811e9e2463f7b060e568787899a935cd97",
+    "/tmp/lsp-startup-upf-source122-template-v1-direct4/run.sh": "1d18d6c3a3fca2a489dd003861cb95d8a71f89ade875f77ecc1f9930c8d5d6bf",
+    "/tmp/lsp-startup-upf-source122-template-v1-direct4/providers.py": "5b01d95b0e919dc8aa16048c663003fbaa708d2f1e970408ef3c14fe47eeacd8",
+    "/tmp/lsp-startup-upf-source122-template-v1-direct4/guarded-exec.py": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811",
+    "/tmp/lsp-startup-upf-source122-template-v1-direct4/plan.json": "13a360901923cd34511227304aa67dd5fe000ed95182b9569358b72551d1038c",
+    "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/validation-tools/capture-inputs.py": "2d3a1cf8aa341d5c4b829be6616a407d516163b52878ebb0cee874040e507474",
+    "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/validation-tools/_paths.py": "f82d76f6ee9434a98ede16693364988373bf68137d0e5800d8839404385b3a0c",
+    "/tmp/name-handling-eight-package-check-v10-source122/source122-manifest.json": "eafa64c559575c909f7debcc19ca28c50e92fcc533473aa4f7394a7e715c7e35",
+    "/tmp/name-handling-eight-package-check-v10-source122/plan.json": "e77a78b2f587004b97cffc8c56e936a483b6e0a72ee1d6179c3129a3162b50f1",
+    "/tmp/name-handling-eight-package-check-v10-source122/runner-input-manifest.json": "3183ff0f774aa41ecd8eaf51e204f1034fc9422aa79924c292c1926cdfb0f582",
+    "/tmp/name-handling-eight-package-check-v10-source122/actual-identity.json": "3c55643aa5e3383204cfc7f83c10d5a5de193c0b06d6de0fc34e3f1d9a06a290",
+    "/tmp/lsp-native-protocol-v14-source46-repaired-direct15/plan.json": "7495afcfbda18ae1f355e8ac2d14a56983437d07a6cc89c433a6bf1b08ba1e98"
+  },
+  "root_go_contract": "Actual source122 product+fullmap and actualfuture typecheckPASS0W receipt path/SHA, no GO/fakePASS now"
+}

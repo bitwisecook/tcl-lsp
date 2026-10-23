@@ -2,7 +2,7 @@
 
 Area: routing, shared build allocation, snapshots and release readiness.
 
-Last updated: 2026-10-23T09:27:54.704074+00:00
+Last updated: 2026-10-23T09:55:37.540466+00:00
 
 ## In progress
 
@@ -47,7 +47,7 @@ Last updated: 2026-10-23T09:27:54.704074+00:00
 4. At08:55:37UTC run normal30minute cycle using draft0855/checkpoint and publisher freshdepth1fetch/rebase/normalpush/productdiff0, update actual outcomes and role freshness, checkdisk, then rearm exactly one timer for09:25:37. Existing reminder53105, no duplicate.
 5. Finish functional failures, authenticated fullreport perf proof, strict/repository/generated checks, SpecTcl C1C2/UPF17/noTom16, shipped native/WASM/WASI/browser/editor hosts and full exact origin/rustzeroP2F. User must ask before PR; no merge/tag/release authorised.
 
-### Current cycle and routing (09:25 UTC)
+### Current cycle and routing (09:55 UTC)
 
 - 06:55:37reporton time, activee1548731c normalpublished fefa1e468 at06:56:56 after freshdepth1fetch/rebase/productdiff0. Currentproduct897b/tree0b11/mapf756 unchanged.
 - Compiler58 actualCLOSED06:54:45:35filters58tests40PASS18FAIL/0W, allrawbuild/input/source/provider/artifact/timer/process/launcher guards rootindependentlyverified. Complete322payloadarchive23fc259d rootverified, finala2543f18/launcherae69b4eb; failed-valid runtime, allF/audit0. RootnextLSP23allocation; remainingJim7/CCG3/hook2/Native15GOsabsent.
@@ -68,3 +68,7 @@ Last updated: 2026-10-23T09:27:54.704074+00:00
 - User08:56directsexecuteplan/reachPRwithin6h target14:56UTC; PRopeningnowexplicitlyauthorisedafterexistingF+zeroP2F+green+cleancandidate. No merge/tag/releaseauthorised. FiveimplementationrolesresumedofftreeunderNative15sourceHOLD; auditpreparingcriticalpath.
 - Native15parent78490 actualCLOSEDexit2 diskfloorabortduringlastbuild:2PASS12FAIL/14,1unreached; completepartialauditpending. No hiddenrerun/wholePASSclaim. Actualsource46stable; nextrootintegrationreviewedsuccessorv8 29/88/proposed121 oncepartialauditdone.
 - UserapprovesnewexplicitNoTomabsenceassertion; warningsforunexpectedabsence andinvalid/present-mismatch failuresretained. Decisionrecorded; implementationstillpending. Candidatecleanup/provenance remainsseparatefromallfunctionalworkfixes.
+- V9functionalbatch30components89paths committedc25672d7 afterpartialoldNativearchive; firstidentityrefused3documentarypilotfixturecollectorpaths, rootpreservedbytes with.txt/correctivecommitc40883dd7. Actualidentityretry beforeanyCargo, no fakefuturetyping.
+- ActualNextestrealreporterpilot67696PASS2terminals pass+intentionalfail100 wrappercapturevalid/current source/providersstable. RootfirstmissingRUSTCpreflightrefusalbeforeCargo retained, correctedrequiredexplicitRUSTC. Freed424459522B oldrawsnapshotoutputs onlyafterlosslessarchive/currenthashverification; no targets/executables/inputstouched. TMPDIRworkspace plannedtypingfloorunchanged.
+- 09:49 actualtypev10 parent35926 CLOSEDexit1 LOCK_RELEASED; five missing registrydocs were sole emitted errors,0warnings, stable source/providers. Applied five registryfielddocs + four anticipated publicJimAPIdocs (no codechange) committed bfa5e5243. V11compositionf50c/2ea3 32components89paths/cumulative122 reviewed, newactualidentity verification running, typev11notyetGO.
+- 09:53 fresh typev11actualGO829f05a9/root85769 launched afterfullidentitya08dfd2c currentcommittedbfa5/6e889/map1ba6f21e verifiedtwice; exact8packagealltargets plan0b01d030,input75b69ef9, noTomflagomitted/TMPDIRworkspace, zeroW required.

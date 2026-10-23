@@ -1,0 +1,1236 @@
+{
+  "actual_utc": "2026-10-23T09:43:46.069150+00:00",
+  "scope": "Only include macro string literals, exact expected old+new site counts; preserve new functional source. Candidate-only destination.",
+  "consumers": [
+    {
+      "consumer": "runtime/rust/src/cmd_clock.rs",
+      "literal_pairs": [
+        {
+          "old": "\"../../../experiments/name-handling/results/clock-parse-format-args/input.tcl\"",
+          "new": "\"../../../rust/tcl-registry/tests/data/source_contract_vectors/results/clock-parse-format-args/input.tcl\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../experiments/name-handling/results/clock-parse-format-args/captured/c8.6.18.stdout.txt\"",
+          "new": "\"../../../rust/tcl-registry/tests/data/source_contract_vectors/results/clock-parse-format-args/captured/c8.6.18.stdout.txt\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../experiments/name-handling/results/runtime-c86-real-suites/get-date-fields-question/input.tcl\"",
+          "new": "\"../../../rust/tcl-registry/tests/data/source_contract_vectors/results/runtime-c86-real-suites/get-date-fields-question/input.tcl\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../experiments/name-handling/results/runtime-c86-real-suites/get-date-fields-question/capture-01/8.6.18/values/stdout.txt\"",
+          "new": "\"../../../rust/tcl-registry/tests/data/source_contract_vectors/results/runtime-c86-real-suites/get-date-fields-question/capture-01/8.6.18/values/stdout.txt\"",
+          "expected_sites": 1
+        }
+      ]
+    },
+    {
+      "consumer": "runtime/rust/src/cmd_error/tests/jim_output_name_stages.rs",
+      "literal_pairs": [
+        {
+          "old": "\"../../../../../experiments/name-handling/results/jim-try-reached-message-getters/capture07/execution.stdout\"",
+          "new": "\"../../../../../rust/tcl-registry/tests/data/source_contract_vectors/results/jim-try-reached-message-getters/capture07/execution.stdout\"",
+          "expected_sites": 1
+        }
+      ]
+    },
+    {
+      "consumer": "runtime/rust/src/cmd_fs.rs",
+      "literal_pairs": [
+        {
+          "old": "\"../../../experiments/name-handling/results/runtime-c86-real-suites/glob-type-union-question/capture-01/8.6.18/stdout.txt\"",
+          "new": "\"../../../rust/tcl-registry/tests/data/source_contract_vectors/results/runtime-c86-real-suites/glob-type-union-question/capture-01/8.6.18/stdout.txt\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../experiments/name-handling/results/runtime-c86-real-suites/glob-type-union-rwx-question/capture-01/8.6.18/stdout.txt\"",
+          "new": "\"../../../rust/tcl-registry/tests/data/source_contract_vectors/results/runtime-c86-real-suites/glob-type-union-rwx-question/capture-01/8.6.18/stdout.txt\"",
+          "expected_sites": 1
+        }
+      ]
+    },
+    {
+      "consumer": "runtime/rust/src/cmd_mathfunc.rs",
+      "literal_pairs": [
+        {
+          "old": "\"../../../experiments/name-handling/results/native-c86-mathfunc-bootstrap/init-max-shape-input.tcl\"",
+          "new": "\"../../../rust/tcl-registry/tests/data/source_contract_vectors/results/native-c86-mathfunc-bootstrap/init-max-shape-input.tcl\"",
+          "expected_sites": 1
+        }
+      ]
+    },
+    {
+      "consumer": "runtime/rust/src/cmd_namespace.rs",
+      "literal_pairs": [
+        {
+          "old": "\"../../../experiments/name-handling/results/namespace-forget-global-origin/results/tcl8.6.18/stdout.txt\"",
+          "new": "\"../../../rust/tcl-registry/tests/data/source_contract_vectors/results/namespace-forget-global-origin/results/tcl8.6.18/stdout.txt\"",
+          "expected_sites": 2
+        },
+        {
+          "old": "\"../../../experiments/name-handling/results/namespace-forget-global-origin/issue-witness.tcl\"",
+          "new": "\"../../../rust/tcl-registry/tests/data/source_contract_vectors/results/namespace-forget-global-origin/issue-witness.tcl\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../experiments/name-handling/results/namespace-forget-global-origin/probe.tcl\"",
+          "new": "\"../../../rust/tcl-registry/tests/data/source_contract_vectors/results/namespace-forget-global-origin/probe.tcl\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../experiments/name-handling/results/namespace-forget-import-chain/results/tcl8.6.18/stdout.txt\"",
+          "new": "\"../../../rust/tcl-registry/tests/data/source_contract_vectors/results/namespace-forget-import-chain/results/tcl8.6.18/stdout.txt\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../experiments/name-handling/results/namespace-forget-import-chain/probe.tcl\"",
+          "new": "\"../../../rust/tcl-registry/tests/data/source_contract_vectors/results/namespace-forget-import-chain/probe.tcl\"",
+          "expected_sites": 1
+        }
+      ]
+    },
+    {
+      "consumer": "runtime/rust/src/interp/native_namespace_names/tests.rs",
+      "literal_pairs": [
+        {
+          "old": "\"../../../../../experiments/name-handling/namespace-address-purpose/8.4.20/stdout.bin\"",
+          "new": "\"../../../../../rust/tcl-registry/tests/data/source_contract_vectors/namespace-address-purpose/8.4.20/stdout.bin\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../../../experiments/name-handling/namespace-address-purpose/8.5.19/stdout.bin\"",
+          "new": "\"../../../../../rust/tcl-registry/tests/data/source_contract_vectors/namespace-address-purpose/8.5.19/stdout.bin\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../../../experiments/name-handling/namespace-address-purpose/8.6.18/stdout.bin\"",
+          "new": "\"../../../../../rust/tcl-registry/tests/data/source_contract_vectors/namespace-address-purpose/8.6.18/stdout.bin\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../../../experiments/name-handling/namespace-address-purpose/9.0.4/stdout.bin\"",
+          "new": "\"../../../../../rust/tcl-registry/tests/data/source_contract_vectors/namespace-address-purpose/9.0.4/stdout.bin\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../../../experiments/name-handling/namespace-address-purpose/9.1.0/stdout.bin\"",
+          "new": "\"../../../../../rust/tcl-registry/tests/data/source_contract_vectors/namespace-address-purpose/9.1.0/stdout.bin\"",
+          "expected_sites": 1
+        }
+      ]
+    },
+    {
+      "consumer": "runtime/rust/tests/native_array_search_unset.rs",
+      "literal_pairs": [
+        {
+          "old": "\"../../../experiments/name-handling/results/runtime-array-search-var132-current/conformance.tcl\"",
+          "new": "\"../../../rust/tcl-registry/tests/data/source_contract_vectors/results/runtime-array-search-var132-current/conformance.tcl\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../experiments/name-handling/results/runtime-array-search-var132-current/c-8.6.18.stdout.txt\"",
+          "new": "\"../../../rust/tcl-registry/tests/data/source_contract_vectors/results/runtime-array-search-var132-current/c-8.6.18.stdout.txt\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../experiments/name-handling/results/runtime-array-search-var132-current/c-9.0.4.stdout.txt\"",
+          "new": "\"../../../rust/tcl-registry/tests/data/source_contract_vectors/results/runtime-array-search-var132-current/c-9.0.4.stdout.txt\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../experiments/name-handling/results/runtime-array-search-var132-current/original-body.tcl\"",
+          "new": "\"../../../rust/tcl-registry/tests/data/source_contract_vectors/results/runtime-array-search-var132-current/original-body.tcl\"",
+          "expected_sites": 1
+        }
+      ]
+    },
+    {
+      "consumer": "runtime/rust/tests/native_namespace_command_query.rs",
+      "literal_pairs": [
+        {
+          "old": "\"../../../experiments/name-handling/namespace-command-query/input-portable.tcl\"",
+          "new": "\"../../../rust/tcl-registry/tests/data/source_contract_vectors/namespace-command-query/input-portable.tcl\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../experiments/name-handling/namespace-command-query/portable/8.4.20/stdout.bin\"",
+          "new": "\"../../../rust/tcl-registry/tests/data/source_contract_vectors/namespace-command-query/portable/8.4.20/stdout.bin\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../experiments/name-handling/namespace-command-query/portable/8.5.19/stdout.bin\"",
+          "new": "\"../../../rust/tcl-registry/tests/data/source_contract_vectors/namespace-command-query/portable/8.5.19/stdout.bin\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../experiments/name-handling/namespace-command-query/portable/8.6.18/stdout.bin\"",
+          "new": "\"../../../rust/tcl-registry/tests/data/source_contract_vectors/namespace-command-query/portable/8.6.18/stdout.bin\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../experiments/name-handling/namespace-command-query/portable/9.0.4/stdout.bin\"",
+          "new": "\"../../../rust/tcl-registry/tests/data/source_contract_vectors/namespace-command-query/portable/9.0.4/stdout.bin\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../experiments/name-handling/namespace-command-query/portable/9.1.0/stdout.bin\"",
+          "new": "\"../../../rust/tcl-registry/tests/data/source_contract_vectors/namespace-command-query/portable/9.1.0/stdout.bin\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../experiments/name-handling/namespace-command-query/portable/jim/stdout.bin\"",
+          "new": "\"../../../rust/tcl-registry/tests/data/source_contract_vectors/namespace-command-query/portable/jim/stdout.bin\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../experiments/name-handling/namespace-origin-query/input.tcl\"",
+          "new": "\"../../../rust/tcl-registry/tests/data/source_contract_vectors/namespace-origin-query/input.tcl\"",
+          "expected_sites": 6
+        },
+        {
+          "old": "\"../../../experiments/name-handling/namespace-origin-query/8.4.20/stdout.bin\"",
+          "new": "\"../../../rust/tcl-registry/tests/data/source_contract_vectors/namespace-origin-query/8.4.20/stdout.bin\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../experiments/name-handling/namespace-origin-query/helper-root-input.tcl\"",
+          "new": "\"../../../rust/tcl-registry/tests/data/source_contract_vectors/namespace-origin-query/helper-root-input.tcl\"",
+          "expected_sites": 6
+        },
+        {
+          "old": "\"../../../experiments/name-handling/namespace-origin-query/helper-root/8.4.20/stdout.bin\"",
+          "new": "\"../../../rust/tcl-registry/tests/data/source_contract_vectors/namespace-origin-query/helper-root/8.4.20/stdout.bin\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../experiments/name-handling/namespace-origin-query/8.5.19/stdout.bin\"",
+          "new": "\"../../../rust/tcl-registry/tests/data/source_contract_vectors/namespace-origin-query/8.5.19/stdout.bin\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../experiments/name-handling/namespace-origin-query/helper-root/8.5.19/stdout.bin\"",
+          "new": "\"../../../rust/tcl-registry/tests/data/source_contract_vectors/namespace-origin-query/helper-root/8.5.19/stdout.bin\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../experiments/name-handling/namespace-origin-query/8.6.18/stdout.bin\"",
+          "new": "\"../../../rust/tcl-registry/tests/data/source_contract_vectors/namespace-origin-query/8.6.18/stdout.bin\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../experiments/name-handling/namespace-origin-query/helper-root/8.6.18/stdout.bin\"",
+          "new": "\"../../../rust/tcl-registry/tests/data/source_contract_vectors/namespace-origin-query/helper-root/8.6.18/stdout.bin\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../experiments/name-handling/namespace-origin-query/9.0.4/stdout.bin\"",
+          "new": "\"../../../rust/tcl-registry/tests/data/source_contract_vectors/namespace-origin-query/9.0.4/stdout.bin\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../experiments/name-handling/namespace-origin-query/helper-root/9.0.4/stdout.bin\"",
+          "new": "\"../../../rust/tcl-registry/tests/data/source_contract_vectors/namespace-origin-query/helper-root/9.0.4/stdout.bin\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../experiments/name-handling/namespace-origin-query/9.1.0/stdout.bin\"",
+          "new": "\"../../../rust/tcl-registry/tests/data/source_contract_vectors/namespace-origin-query/9.1.0/stdout.bin\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../experiments/name-handling/namespace-origin-query/helper-root/9.1.0/stdout.bin\"",
+          "new": "\"../../../rust/tcl-registry/tests/data/source_contract_vectors/namespace-origin-query/helper-root/9.1.0/stdout.bin\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../experiments/name-handling/namespace-origin-query/jim/stdout.bin\"",
+          "new": "\"../../../rust/tcl-registry/tests/data/source_contract_vectors/namespace-origin-query/jim/stdout.bin\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../experiments/name-handling/namespace-origin-query/helper-root/jim/stdout.bin\"",
+          "new": "\"../../../rust/tcl-registry/tests/data/source_contract_vectors/namespace-origin-query/helper-root/jim/stdout.bin\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../experiments/name-handling/runtime-command-query-string-observer/which.tcl\"",
+          "new": "\"../../../rust/tcl-registry/tests/data/source_contract_vectors/runtime-command-query-string-observer/which.tcl\"",
+          "expected_sites": 6
+        },
+        {
+          "old": "\"../../../experiments/name-handling/runtime-command-query-string-observer/which/8.4.20/stdout.bin\"",
+          "new": "\"../../../rust/tcl-registry/tests/data/source_contract_vectors/runtime-command-query-string-observer/which/8.4.20/stdout.bin\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../experiments/name-handling/runtime-command-query-string-observer/origin.tcl\"",
+          "new": "\"../../../rust/tcl-registry/tests/data/source_contract_vectors/runtime-command-query-string-observer/origin.tcl\"",
+          "expected_sites": 6
+        },
+        {
+          "old": "\"../../../experiments/name-handling/runtime-command-query-string-observer/origin/8.4.20/stdout.bin\"",
+          "new": "\"../../../rust/tcl-registry/tests/data/source_contract_vectors/runtime-command-query-string-observer/origin/8.4.20/stdout.bin\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../experiments/name-handling/runtime-command-query-string-observer/helper-root.tcl\"",
+          "new": "\"../../../rust/tcl-registry/tests/data/source_contract_vectors/runtime-command-query-string-observer/helper-root.tcl\"",
+          "expected_sites": 6
+        },
+        {
+          "old": "\"../../../experiments/name-handling/runtime-command-query-string-observer/helper-root/8.4.20/stdout.bin\"",
+          "new": "\"../../../rust/tcl-registry/tests/data/source_contract_vectors/runtime-command-query-string-observer/helper-root/8.4.20/stdout.bin\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../experiments/name-handling/runtime-command-query-string-observer/which/8.5.19/stdout.bin\"",
+          "new": "\"../../../rust/tcl-registry/tests/data/source_contract_vectors/runtime-command-query-string-observer/which/8.5.19/stdout.bin\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../experiments/name-handling/runtime-command-query-string-observer/origin/8.5.19/stdout.bin\"",
+          "new": "\"../../../rust/tcl-registry/tests/data/source_contract_vectors/runtime-command-query-string-observer/origin/8.5.19/stdout.bin\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../experiments/name-handling/runtime-command-query-string-observer/helper-root/8.5.19/stdout.bin\"",
+          "new": "\"../../../rust/tcl-registry/tests/data/source_contract_vectors/runtime-command-query-string-observer/helper-root/8.5.19/stdout.bin\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../experiments/name-handling/runtime-command-query-string-observer/which/8.6.18/stdout.bin\"",
+          "new": "\"../../../rust/tcl-registry/tests/data/source_contract_vectors/runtime-command-query-string-observer/which/8.6.18/stdout.bin\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../experiments/name-handling/runtime-command-query-string-observer/origin/8.6.18/stdout.bin\"",
+          "new": "\"../../../rust/tcl-registry/tests/data/source_contract_vectors/runtime-command-query-string-observer/origin/8.6.18/stdout.bin\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../experiments/name-handling/runtime-command-query-string-observer/helper-root/8.6.18/stdout.bin\"",
+          "new": "\"../../../rust/tcl-registry/tests/data/source_contract_vectors/runtime-command-query-string-observer/helper-root/8.6.18/stdout.bin\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../experiments/name-handling/runtime-command-query-string-observer/which/9.0.4/stdout.bin\"",
+          "new": "\"../../../rust/tcl-registry/tests/data/source_contract_vectors/runtime-command-query-string-observer/which/9.0.4/stdout.bin\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../experiments/name-handling/runtime-command-query-string-observer/origin/9.0.4/stdout.bin\"",
+          "new": "\"../../../rust/tcl-registry/tests/data/source_contract_vectors/runtime-command-query-string-observer/origin/9.0.4/stdout.bin\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../experiments/name-handling/runtime-command-query-string-observer/helper-root/9.0.4/stdout.bin\"",
+          "new": "\"../../../rust/tcl-registry/tests/data/source_contract_vectors/runtime-command-query-string-observer/helper-root/9.0.4/stdout.bin\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../experiments/name-handling/runtime-command-query-string-observer/which/9.1.0/stdout.bin\"",
+          "new": "\"../../../rust/tcl-registry/tests/data/source_contract_vectors/runtime-command-query-string-observer/which/9.1.0/stdout.bin\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../experiments/name-handling/runtime-command-query-string-observer/origin/9.1.0/stdout.bin\"",
+          "new": "\"../../../rust/tcl-registry/tests/data/source_contract_vectors/runtime-command-query-string-observer/origin/9.1.0/stdout.bin\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../experiments/name-handling/runtime-command-query-string-observer/helper-root/9.1.0/stdout.bin\"",
+          "new": "\"../../../rust/tcl-registry/tests/data/source_contract_vectors/runtime-command-query-string-observer/helper-root/9.1.0/stdout.bin\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../experiments/name-handling/runtime-command-query-string-observer/which/jim/stdout.bin\"",
+          "new": "\"../../../rust/tcl-registry/tests/data/source_contract_vectors/runtime-command-query-string-observer/which/jim/stdout.bin\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../experiments/name-handling/runtime-command-query-string-observer/origin/jim/stdout.bin\"",
+          "new": "\"../../../rust/tcl-registry/tests/data/source_contract_vectors/runtime-command-query-string-observer/origin/jim/stdout.bin\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../experiments/name-handling/runtime-command-query-string-observer/helper-root/jim/stdout.bin\"",
+          "new": "\"../../../rust/tcl-registry/tests/data/source_contract_vectors/runtime-command-query-string-observer/helper-root/jim/stdout.bin\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../experiments/name-handling/namespace-origin-query/alias-registration-nul/input.tcl\"",
+          "new": "\"../../../rust/tcl-registry/tests/data/source_contract_vectors/namespace-origin-query/alias-registration-nul/input.tcl\"",
+          "expected_sites": 6
+        },
+        {
+          "old": "\"../../../experiments/name-handling/namespace-origin-query/alias-registration-nul/8.4.20/stdout.bin\"",
+          "new": "\"../../../rust/tcl-registry/tests/data/source_contract_vectors/namespace-origin-query/alias-registration-nul/8.4.20/stdout.bin\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../experiments/name-handling/namespace-origin-query/alias-registration-nul/8.5.19/stdout.bin\"",
+          "new": "\"../../../rust/tcl-registry/tests/data/source_contract_vectors/namespace-origin-query/alias-registration-nul/8.5.19/stdout.bin\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../experiments/name-handling/namespace-origin-query/alias-registration-nul/8.6.18/stdout.bin\"",
+          "new": "\"../../../rust/tcl-registry/tests/data/source_contract_vectors/namespace-origin-query/alias-registration-nul/8.6.18/stdout.bin\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../experiments/name-handling/namespace-origin-query/alias-registration-nul/9.0.4/stdout.bin\"",
+          "new": "\"../../../rust/tcl-registry/tests/data/source_contract_vectors/namespace-origin-query/alias-registration-nul/9.0.4/stdout.bin\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../experiments/name-handling/namespace-origin-query/alias-registration-nul/9.1.0/stdout.bin\"",
+          "new": "\"../../../rust/tcl-registry/tests/data/source_contract_vectors/namespace-origin-query/alias-registration-nul/9.1.0/stdout.bin\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../experiments/name-handling/namespace-origin-query/alias-registration-nul/jim/stdout.bin\"",
+          "new": "\"../../../rust/tcl-registry/tests/data/source_contract_vectors/namespace-origin-query/alias-registration-nul/jim/stdout.bin\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../experiments/name-handling/runtime-retained-import-source/input.tcl\"",
+          "new": "\"../../../rust/tcl-registry/tests/data/source_contract_vectors/runtime-retained-import-source/input.tcl\"",
+          "expected_sites": 6
+        },
+        {
+          "old": "\"../../../experiments/name-handling/runtime-retained-import-source/8.4.20/stdout.bin\"",
+          "new": "\"../../../rust/tcl-registry/tests/data/source_contract_vectors/runtime-retained-import-source/8.4.20/stdout.bin\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../experiments/name-handling/runtime-retained-import-source/8.5.19/stdout.bin\"",
+          "new": "\"../../../rust/tcl-registry/tests/data/source_contract_vectors/runtime-retained-import-source/8.5.19/stdout.bin\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../experiments/name-handling/runtime-retained-import-source/8.6.18/stdout.bin\"",
+          "new": "\"../../../rust/tcl-registry/tests/data/source_contract_vectors/runtime-retained-import-source/8.6.18/stdout.bin\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../experiments/name-handling/runtime-retained-import-source/9.0.4/stdout.bin\"",
+          "new": "\"../../../rust/tcl-registry/tests/data/source_contract_vectors/runtime-retained-import-source/9.0.4/stdout.bin\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../experiments/name-handling/runtime-retained-import-source/9.1.0/stdout.bin\"",
+          "new": "\"../../../rust/tcl-registry/tests/data/source_contract_vectors/runtime-retained-import-source/9.1.0/stdout.bin\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../experiments/name-handling/runtime-retained-import-source/jim/stdout.bin\"",
+          "new": "\"../../../rust/tcl-registry/tests/data/source_contract_vectors/runtime-retained-import-source/jim/stdout.bin\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../experiments/name-handling/namespace-origin-query/jim-alias-format-nul/input.tcl\"",
+          "new": "\"../../../rust/tcl-registry/tests/data/source_contract_vectors/namespace-origin-query/jim-alias-format-nul/input.tcl\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../experiments/name-handling/namespace-origin-query/jim-alias-format-nul/stdout.bin\"",
+          "new": "\"../../../rust/tcl-registry/tests/data/source_contract_vectors/namespace-origin-query/jim-alias-format-nul/stdout.bin\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../experiments/name-handling/namespace-origin-query/alias-registration-records/input.tcl\"",
+          "new": "\"../../../rust/tcl-registry/tests/data/source_contract_vectors/namespace-origin-query/alias-registration-records/input.tcl\"",
+          "expected_sites": 5
+        },
+        {
+          "old": "\"../../../experiments/name-handling/namespace-origin-query/alias-registration-records/8.4.20/stdout.bin\"",
+          "new": "\"../../../rust/tcl-registry/tests/data/source_contract_vectors/namespace-origin-query/alias-registration-records/8.4.20/stdout.bin\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../experiments/name-handling/namespace-origin-query/alias-registration-records/8.5.19/stdout.bin\"",
+          "new": "\"../../../rust/tcl-registry/tests/data/source_contract_vectors/namespace-origin-query/alias-registration-records/8.5.19/stdout.bin\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../experiments/name-handling/namespace-origin-query/alias-registration-records/8.6.18/stdout.bin\"",
+          "new": "\"../../../rust/tcl-registry/tests/data/source_contract_vectors/namespace-origin-query/alias-registration-records/8.6.18/stdout.bin\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../experiments/name-handling/namespace-origin-query/alias-registration-records/9.0.4/stdout.bin\"",
+          "new": "\"../../../rust/tcl-registry/tests/data/source_contract_vectors/namespace-origin-query/alias-registration-records/9.0.4/stdout.bin\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../experiments/name-handling/namespace-origin-query/alias-registration-records/9.1.0/stdout.bin\"",
+          "new": "\"../../../rust/tcl-registry/tests/data/source_contract_vectors/namespace-origin-query/alias-registration-records/9.1.0/stdout.bin\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../experiments/name-handling/rename-error-reporting/tcl8.4.20/stdout.bin\"",
+          "new": "\"../../../rust/tcl-registry/tests/data/source_contract_vectors/rename-error-reporting/tcl8.4.20/stdout.bin\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../experiments/name-handling/rename-error-reporting/tcl8.5.19/stdout.bin\"",
+          "new": "\"../../../rust/tcl-registry/tests/data/source_contract_vectors/rename-error-reporting/tcl8.5.19/stdout.bin\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../experiments/name-handling/rename-error-reporting/tcl8.6.18/stdout.bin\"",
+          "new": "\"../../../rust/tcl-registry/tests/data/source_contract_vectors/rename-error-reporting/tcl8.6.18/stdout.bin\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../experiments/name-handling/rename-error-reporting/tcl9.0.4/stdout.bin\"",
+          "new": "\"../../../rust/tcl-registry/tests/data/source_contract_vectors/rename-error-reporting/tcl9.0.4/stdout.bin\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../experiments/name-handling/rename-error-reporting/tcl9.1.0/stdout.bin\"",
+          "new": "\"../../../rust/tcl-registry/tests/data/source_contract_vectors/rename-error-reporting/tcl9.1.0/stdout.bin\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../experiments/name-handling/rename-error-reporting/jim/stdout.bin\"",
+          "new": "\"../../../rust/tcl-registry/tests/data/source_contract_vectors/rename-error-reporting/jim/stdout.bin\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../experiments/name-handling/rename-error-reporting/input.tcl\"",
+          "new": "\"../../../rust/tcl-registry/tests/data/source_contract_vectors/rename-error-reporting/input.tcl\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../experiments/name-handling/results/original-fresh-dying-namespace-20261015/trace-add/probe.tcl\"",
+          "new": "\"../../../rust/tcl-registry/tests/data/source_contract_vectors/results/original-fresh-dying-namespace-20261015/trace-add/probe.tcl\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../experiments/name-handling/results/original-fresh-dying-namespace-20261015/trace-add/8-4-20.stdout\"",
+          "new": "\"../../../rust/tcl-registry/tests/data/source_contract_vectors/results/original-fresh-dying-namespace-20261015/trace-add/8-4-20.stdout\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../experiments/name-handling/results/original-fresh-dying-namespace-20261015/trace-add/8-5-19.stdout\"",
+          "new": "\"../../../rust/tcl-registry/tests/data/source_contract_vectors/results/original-fresh-dying-namespace-20261015/trace-add/8-5-19.stdout\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../experiments/name-handling/results/original-fresh-dying-namespace-20261015/trace-add/8-6-18.stdout\"",
+          "new": "\"../../../rust/tcl-registry/tests/data/source_contract_vectors/results/original-fresh-dying-namespace-20261015/trace-add/8-6-18.stdout\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../experiments/name-handling/results/original-fresh-dying-namespace-20261015/trace-add/9-0-4.stdout\"",
+          "new": "\"../../../rust/tcl-registry/tests/data/source_contract_vectors/results/original-fresh-dying-namespace-20261015/trace-add/9-0-4.stdout\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../experiments/name-handling/results/original-fresh-dying-namespace-20261015/trace-add/9-1-0.stdout\"",
+          "new": "\"../../../rust/tcl-registry/tests/data/source_contract_vectors/results/original-fresh-dying-namespace-20261015/trace-add/9-1-0.stdout\"",
+          "expected_sites": 1
+        }
+      ]
+    },
+    {
+      "consumer": "runtime/rust/tests/native_namespace_query_bases.rs",
+      "literal_pairs": [
+        {
+          "old": "\"../../../experiments/name-handling/variable-namespace-query-bases/result-input.tcl\"",
+          "new": "\"../../../rust/tcl-registry/tests/data/source_contract_vectors/variable-namespace-query-bases/result-input.tcl\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../experiments/name-handling/variable-namespace-query-bases/84/result.stdout.bin\"",
+          "new": "\"../../../rust/tcl-registry/tests/data/source_contract_vectors/variable-namespace-query-bases/84/result.stdout.bin\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../experiments/name-handling/variable-namespace-query-bases/85/result.stdout.bin\"",
+          "new": "\"../../../rust/tcl-registry/tests/data/source_contract_vectors/variable-namespace-query-bases/85/result.stdout.bin\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../experiments/name-handling/variable-namespace-query-bases/86/result.stdout.bin\"",
+          "new": "\"../../../rust/tcl-registry/tests/data/source_contract_vectors/variable-namespace-query-bases/86/result.stdout.bin\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../experiments/name-handling/variable-namespace-query-bases/90/result.stdout.bin\"",
+          "new": "\"../../../rust/tcl-registry/tests/data/source_contract_vectors/variable-namespace-query-bases/90/result.stdout.bin\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../experiments/name-handling/variable-namespace-query-bases/91/result.stdout.bin\"",
+          "new": "\"../../../rust/tcl-registry/tests/data/source_contract_vectors/variable-namespace-query-bases/91/result.stdout.bin\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../experiments/name-handling/variable-namespace-query-bases/jim/result.stdout.bin\"",
+          "new": "\"../../../rust/tcl-registry/tests/data/source_contract_vectors/variable-namespace-query-bases/jim/result.stdout.bin\"",
+          "expected_sites": 1
+        }
+      ]
+    },
+    {
+      "consumer": "runtime/rust/tests/native_variable_array_modes.rs",
+      "literal_pairs": [
+        {
+          "old": "\"../../../experiments/name-handling/results/native-variable-array-modes/conformance.tcl\"",
+          "new": "\"../../../rust/tcl-registry/tests/data/source_contract_vectors/results/native-variable-array-modes/conformance.tcl\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../experiments/name-handling/results/native-variable-array-modes/c-8.4.20/conformance-stdout.txt\"",
+          "new": "\"../../../rust/tcl-registry/tests/data/source_contract_vectors/results/native-variable-array-modes/c-8.4.20/conformance-stdout.txt\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../experiments/name-handling/results/native-variable-array-modes/c-8.5.19/conformance-stdout.txt\"",
+          "new": "\"../../../rust/tcl-registry/tests/data/source_contract_vectors/results/native-variable-array-modes/c-8.5.19/conformance-stdout.txt\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../experiments/name-handling/results/native-variable-array-modes/c-8.6.18/conformance-stdout.txt\"",
+          "new": "\"../../../rust/tcl-registry/tests/data/source_contract_vectors/results/native-variable-array-modes/c-8.6.18/conformance-stdout.txt\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../experiments/name-handling/results/native-variable-array-modes/c-9.0.4/conformance-stdout.txt\"",
+          "new": "\"../../../rust/tcl-registry/tests/data/source_contract_vectors/results/native-variable-array-modes/c-9.0.4/conformance-stdout.txt\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../experiments/name-handling/results/native-variable-array-modes/c-9.1.0/conformance-stdout.txt\"",
+          "new": "\"../../../rust/tcl-registry/tests/data/source_contract_vectors/results/native-variable-array-modes/c-9.1.0/conformance-stdout.txt\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../experiments/name-handling/results/native-variable-array-modes/jim-5bac7c9/conformance-stdout.txt\"",
+          "new": "\"../../../rust/tcl-registry/tests/data/source_contract_vectors/results/native-variable-array-modes/jim-5bac7c9/conformance-stdout.txt\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../experiments/name-handling/results/native-variable-array-modes/c-8.4.20/extra-arity-stdout.txt\"",
+          "new": "\"../../../rust/tcl-registry/tests/data/source_contract_vectors/results/native-variable-array-modes/c-8.4.20/extra-arity-stdout.txt\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../experiments/name-handling/results/native-variable-array-modes/c-8.5.19/extra-arity-stdout.txt\"",
+          "new": "\"../../../rust/tcl-registry/tests/data/source_contract_vectors/results/native-variable-array-modes/c-8.5.19/extra-arity-stdout.txt\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../experiments/name-handling/results/native-variable-array-modes/c-8.6.18/extra-arity-stdout.txt\"",
+          "new": "\"../../../rust/tcl-registry/tests/data/source_contract_vectors/results/native-variable-array-modes/c-8.6.18/extra-arity-stdout.txt\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../experiments/name-handling/results/native-variable-array-modes/c-9.0.4/extra-arity-stdout.txt\"",
+          "new": "\"../../../rust/tcl-registry/tests/data/source_contract_vectors/results/native-variable-array-modes/c-9.0.4/extra-arity-stdout.txt\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../experiments/name-handling/results/native-variable-array-modes/c-9.1.0/extra-arity-stdout.txt\"",
+          "new": "\"../../../rust/tcl-registry/tests/data/source_contract_vectors/results/native-variable-array-modes/c-9.1.0/extra-arity-stdout.txt\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../experiments/name-handling/results/native-variable-array-modes/jim-5bac7c9/extra-arity-stdout.txt\"",
+          "new": "\"../../../rust/tcl-registry/tests/data/source_contract_vectors/results/native-variable-array-modes/jim-5bac7c9/extra-arity-stdout.txt\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../experiments/name-handling/array-mode-validation/regression-vectors/c-8.4.20.tsv\"",
+          "new": "\"../../../rust/tcl-registry/tests/data/source_contract_vectors/array-mode-validation/regression-vectors/c-8.4.20.tsv\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../experiments/name-handling/array-mode-validation/regression-vectors/c-8.5.19.tsv\"",
+          "new": "\"../../../rust/tcl-registry/tests/data/source_contract_vectors/array-mode-validation/regression-vectors/c-8.5.19.tsv\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../experiments/name-handling/array-mode-validation/regression-vectors/c-8.6.18.tsv\"",
+          "new": "\"../../../rust/tcl-registry/tests/data/source_contract_vectors/array-mode-validation/regression-vectors/c-8.6.18.tsv\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../experiments/name-handling/array-mode-validation/regression-vectors/c-9.0.4.tsv\"",
+          "new": "\"../../../rust/tcl-registry/tests/data/source_contract_vectors/array-mode-validation/regression-vectors/c-9.0.4.tsv\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../experiments/name-handling/array-mode-validation/regression-vectors/c-9.1.0.tsv\"",
+          "new": "\"../../../rust/tcl-registry/tests/data/source_contract_vectors/array-mode-validation/regression-vectors/c-9.1.0.tsv\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../experiments/name-handling/array-mode-validation/regression-vectors/jim-5bac7c9.tsv\"",
+          "new": "\"../../../rust/tcl-registry/tests/data/source_contract_vectors/array-mode-validation/regression-vectors/jim-5bac7c9.tsv\"",
+          "expected_sites": 1
+        }
+      ]
+    },
+    {
+      "consumer": "rust/tcl-cmd-core/src/clock.rs",
+      "literal_pairs": [
+        {
+          "old": "\"../../../experiments/name-handling/results/runtime-c86-real-suites/get-date-fields-question/capture-01/8.6.18/values/stdout.txt\"",
+          "new": "\"../../tcl-registry/tests/data/source_contract_vectors/results/runtime-c86-real-suites/get-date-fields-question/capture-01/8.6.18/values/stdout.txt\"",
+          "expected_sites": 1
+        }
+      ]
+    },
+    {
+      "consumer": "rust/tcl-compiler/src/analyser/diagnostics/tests.rs",
+      "literal_pairs": [
+        {
+          "old": "\"../../../../../experiments/name-handling/tcltest-shared-frame/probe.tcl\"",
+          "new": "\"../../../../tcl-registry/tests/data/source_contract_vectors/tcltest-shared-frame/probe.tcl\"",
+          "expected_sites": 1
+        }
+      ]
+    },
+    {
+      "consumer": "rust/tcl-compiler/src/analyser/types/original_linked_member.rs",
+      "literal_pairs": [
+        {
+          "old": "\"../../../../../experiments/name-handling/tcloo-linked-source/class-delegate/9.0.4/stdout.bin\"",
+          "new": "\"../../../../tcl-registry/tests/data/source_contract_vectors/tcloo-linked-source/class-delegate/9.0.4/stdout.bin\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../../../experiments/name-handling/tcloo-linked-source/class-delegate/9.1.0/stdout.bin\"",
+          "new": "\"../../../../tcl-registry/tests/data/source_contract_vectors/tcloo-linked-source/class-delegate/9.1.0/stdout.bin\"",
+          "expected_sites": 1
+        }
+      ]
+    },
+    {
+      "consumer": "rust/tcl-compiler/src/command_binding/original_name_value.rs",
+      "literal_pairs": [
+        {
+          "old": "\"../../../../experiments/name-handling/patterns/composed-callback-prefix/probes/positive.tcl\"",
+          "new": "\"../../../tcl-registry/tests/data/source_contract_vectors/patterns/composed-callback-prefix/probes/positive.tcl\"",
+          "expected_sites": 2
+        }
+      ]
+    },
+    {
+      "consumer": "rust/tcl-compiler/src/command_binding/source_catalogue_advice.rs",
+      "literal_pairs": [
+        {
+          "old": "\"../../../../experiments/name-handling/patterns/composed-callback-prefix/probes/positive.tcl\"",
+          "new": "\"../../../tcl-registry/tests/data/source_contract_vectors/patterns/composed-callback-prefix/probes/positive.tcl\"",
+          "expected_sites": 1
+        }
+      ]
+    },
+    {
+      "consumer": "rust/tcl-compiler/src/registry_invocation/source_structure.rs",
+      "literal_pairs": [
+        {
+          "old": "\"/../../experiments/name-handling/patterns/composed-callback-prefix/probes/positive.tcl\"",
+          "new": "\"/../tcl-registry/tests/data/source_contract_vectors/patterns/composed-callback-prefix/probes/positive.tcl\"",
+          "expected_sites": 2
+        },
+        {
+          "old": "\"/../../experiments/name-handling/patterns/composed-callback-prefix/fixtures/private-positive.tcl\"",
+          "new": "\"/../tcl-registry/tests/data/source_contract_vectors/patterns/composed-callback-prefix/fixtures/private-positive.tcl\"",
+          "expected_sites": 1
+        }
+      ]
+    },
+    {
+      "consumer": "rust/tcl-lsp-core/src/references.rs",
+      "literal_pairs": [
+        {
+          "old": "\"/../../experiments/name-handling/patterns/composed-callback-prefix/probes/positive.tcl\"",
+          "new": "\"/../tcl-registry/tests/data/source_contract_vectors/patterns/composed-callback-prefix/probes/positive.tcl\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"/../../experiments/name-handling/patterns/composed-callback-prefix/probes/unknown-writer.tcl\"",
+          "new": "\"/../tcl-registry/tests/data/source_contract_vectors/patterns/composed-callback-prefix/probes/unknown-writer.tcl\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"/../../experiments/name-handling/patterns/composed-callback-prefix/fixtures/private-positive.tcl\"",
+          "new": "\"/../tcl-registry/tests/data/source_contract_vectors/patterns/composed-callback-prefix/fixtures/private-positive.tcl\"",
+          "expected_sites": 1
+        }
+      ]
+    },
+    {
+      "consumer": "rust/tcl-registry/src/f5/evidence/resolution_contexts.rs",
+      "literal_pairs": [
+        {
+          "old": "\"../../../../../scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006l/scriptd-results.txt\"",
+          "new": "\"../../../data/f5/resolution_contexts/scriptd.txt\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../../../scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006l/cli-run.txt\"",
+          "new": "\"../../../data/f5/resolution_contexts/cli.txt\"",
+          "expected_sites": 1
+        }
+      ]
+    },
+    {
+      "consumer": "rust/tcl-registry/src/native_compilation/namespace_which_tests.rs",
+      "literal_pairs": [
+        {
+          "old": "\"../../../../experiments/name-handling/namespace-which-compiler/input.tcl\"",
+          "new": "\"../../tests/data/source_contract_vectors/namespace-which-compiler/input.tcl\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../../experiments/name-handling/namespace-which-compiler/8.4.20/classification.txt\"",
+          "new": "\"../../tests/data/source_contract_vectors/namespace-which-compiler/8.4.20/classification.txt\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../../experiments/name-handling/namespace-which-compiler/8.5.19/classification.txt\"",
+          "new": "\"../../tests/data/source_contract_vectors/namespace-which-compiler/8.5.19/classification.txt\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../../experiments/name-handling/namespace-which-compiler/8.6.18/classification.txt\"",
+          "new": "\"../../tests/data/source_contract_vectors/namespace-which-compiler/8.6.18/classification.txt\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../../experiments/name-handling/namespace-which-compiler/9.0.4/classification.txt\"",
+          "new": "\"../../tests/data/source_contract_vectors/namespace-which-compiler/9.0.4/classification.txt\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../../experiments/name-handling/namespace-which-compiler/9.1.0/classification.txt\"",
+          "new": "\"../../tests/data/source_contract_vectors/namespace-which-compiler/9.1.0/classification.txt\"",
+          "expected_sites": 1
+        }
+      ]
+    },
+    {
+      "consumer": "rust/tcl-syntax/src/event_handler.rs",
+      "literal_pairs": [
+        {
+          "old": "\"../../../experiments/name-handling/syntax-event-head-geometry/8.4.20/stdout.bin\"",
+          "new": "\"../../tcl-registry/tests/data/source_contract_vectors/syntax-event-head-geometry/8.4.20/stdout.bin\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../experiments/name-handling/syntax-event-head-geometry/8.5.19/stdout.bin\"",
+          "new": "\"../../tcl-registry/tests/data/source_contract_vectors/syntax-event-head-geometry/8.5.19/stdout.bin\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../experiments/name-handling/syntax-event-head-geometry/8.6.18/stdout.bin\"",
+          "new": "\"../../tcl-registry/tests/data/source_contract_vectors/syntax-event-head-geometry/8.6.18/stdout.bin\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../experiments/name-handling/syntax-event-head-geometry/9.0.4/stdout.bin\"",
+          "new": "\"../../tcl-registry/tests/data/source_contract_vectors/syntax-event-head-geometry/9.0.4/stdout.bin\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../experiments/name-handling/syntax-event-head-geometry/9.1.0/stdout.bin\"",
+          "new": "\"../../tcl-registry/tests/data/source_contract_vectors/syntax-event-head-geometry/9.1.0/stdout.bin\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../experiments/name-handling/syntax-event-head-geometry/jim/stdout.bin\"",
+          "new": "\"../../tcl-registry/tests/data/source_contract_vectors/syntax-event-head-geometry/jim/stdout.bin\"",
+          "expected_sites": 1
+        }
+      ]
+    },
+    {
+      "consumer": "rust/tcl-syntax/src/naming/native.rs",
+      "literal_pairs": [
+        {
+          "old": "\"../../../../experiments/name-handling/results/runtime-c86-real-suites/retired-namespace-variable-diagnostic-question/capture-01/8.4.20/stdout.txt\"",
+          "new": "\"../../../tcl-registry/tests/data/source_contract_vectors/results/runtime-c86-real-suites/retired-namespace-variable-diagnostic-question/capture-01/8.4.20/stdout.txt\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../../experiments/name-handling/results/runtime-c86-real-suites/retired-namespace-variable-diagnostic-question/capture-02/8.4.20/stdout.txt\"",
+          "new": "\"../../../tcl-registry/tests/data/source_contract_vectors/results/runtime-c86-real-suites/retired-namespace-variable-diagnostic-question/capture-02/8.4.20/stdout.txt\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../../experiments/name-handling/results/runtime-c86-real-suites/retired-namespace-variable-diagnostic-question/capture-01/8.5.19/stdout.txt\"",
+          "new": "\"../../../tcl-registry/tests/data/source_contract_vectors/results/runtime-c86-real-suites/retired-namespace-variable-diagnostic-question/capture-01/8.5.19/stdout.txt\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../../experiments/name-handling/results/runtime-c86-real-suites/retired-namespace-variable-diagnostic-question/capture-02/8.5.19/stdout.txt\"",
+          "new": "\"../../../tcl-registry/tests/data/source_contract_vectors/results/runtime-c86-real-suites/retired-namespace-variable-diagnostic-question/capture-02/8.5.19/stdout.txt\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../../experiments/name-handling/results/runtime-c86-real-suites/retired-namespace-variable-diagnostic-question/capture-01/8.6.18/stdout.txt\"",
+          "new": "\"../../../tcl-registry/tests/data/source_contract_vectors/results/runtime-c86-real-suites/retired-namespace-variable-diagnostic-question/capture-01/8.6.18/stdout.txt\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../../experiments/name-handling/results/runtime-c86-real-suites/retired-namespace-variable-diagnostic-question/capture-02/8.6.18/stdout.txt\"",
+          "new": "\"../../../tcl-registry/tests/data/source_contract_vectors/results/runtime-c86-real-suites/retired-namespace-variable-diagnostic-question/capture-02/8.6.18/stdout.txt\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../../experiments/name-handling/results/runtime-c86-real-suites/retired-namespace-variable-diagnostic-question/capture-01/9.0.4/stdout.txt\"",
+          "new": "\"../../../tcl-registry/tests/data/source_contract_vectors/results/runtime-c86-real-suites/retired-namespace-variable-diagnostic-question/capture-01/9.0.4/stdout.txt\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../../experiments/name-handling/results/runtime-c86-real-suites/retired-namespace-variable-diagnostic-question/capture-02/9.0.4/stdout.txt\"",
+          "new": "\"../../../tcl-registry/tests/data/source_contract_vectors/results/runtime-c86-real-suites/retired-namespace-variable-diagnostic-question/capture-02/9.0.4/stdout.txt\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../../experiments/name-handling/results/runtime-c86-real-suites/retired-namespace-variable-diagnostic-question/capture-01/9.1.0/stdout.txt\"",
+          "new": "\"../../../tcl-registry/tests/data/source_contract_vectors/results/runtime-c86-real-suites/retired-namespace-variable-diagnostic-question/capture-01/9.1.0/stdout.txt\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../../experiments/name-handling/results/runtime-c86-real-suites/retired-namespace-variable-diagnostic-question/capture-02/9.1.0/stdout.txt\"",
+          "new": "\"../../../tcl-registry/tests/data/source_contract_vectors/results/runtime-c86-real-suites/retired-namespace-variable-diagnostic-question/capture-02/9.1.0/stdout.txt\"",
+          "expected_sites": 1
+        }
+      ]
+    },
+    {
+      "consumer": "rust/tcl-syntax/src/naming/tcloo_link.rs",
+      "literal_pairs": [
+        {
+          "old": "\"../../../../experiments/name-handling/tcloo-linked-source/publication-followon/9.0.4/stdout.bin\"",
+          "new": "\"../../../tcl-registry/tests/data/source_contract_vectors/tcloo-linked-source/publication-followon/9.0.4/stdout.bin\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../../experiments/name-handling/tcloo-linked-source/publication-followon/9.1.0/stdout.bin\"",
+          "new": "\"../../../tcl-registry/tests/data/source_contract_vectors/tcloo-linked-source/publication-followon/9.1.0/stdout.bin\"",
+          "expected_sites": 1
+        }
+      ]
+    },
+    {
+      "consumer": "rust/tcl-vm/src/cmd_try/jim_reached_message_tests.rs",
+      "literal_pairs": [
+        {
+          "old": "\"../../../../experiments/name-handling/results/jim-try-reached-message-getters/capture07/execution.stdout\"",
+          "new": "\"../../../tcl-registry/tests/data/source_contract_vectors/results/jim-try-reached-message-getters/capture07/execution.stdout\"",
+          "expected_sites": 1
+        }
+      ]
+    },
+    {
+      "consumer": "rust/tcl-vm/src/interp/authored_tmm_static.rs",
+      "literal_pairs": [
+        {
+          "old": "\"../../../../scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/traffic-static-group-cmp-yes-read-initial.jsonl\"",
+          "new": "\"../../../tcl-registry/tests/data/source_contract_vectors/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/traffic-static-group-cmp-yes-read-initial.jsonl\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../../scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/traffic-static-group-cmp-yes-read-after-write.jsonl\"",
+          "new": "\"../../../tcl-registry/tests/data/source_contract_vectors/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/traffic-static-group-cmp-yes-read-after-write.jsonl\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../../scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/traffic-static-group-cmp-yes-read-after-unset.jsonl\"",
+          "new": "\"../../../tcl-registry/tests/data/source_contract_vectors/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/traffic-static-group-cmp-yes-read-after-unset.jsonl\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../../scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/traffic-static-group-cmp-yes-read-after-recreate.jsonl\"",
+          "new": "\"../../../tcl-registry/tests/data/source_contract_vectors/bigip-probes/resolution-2286/evidence/r2286_20261006c/dev/traffic-static-group-cmp-yes-read-after-recreate.jsonl\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../../scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/r2286_20261006c-fixtures/static_group.conf\"",
+          "new": "\"../../../tcl-registry/tests/data/source_contract_vectors/bigip-probes/resolution-2286/evidence/r2286_20261006c/appliance/r2286_20261006c-fixtures/static_group.conf\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../../scripts/dev/bigip-probes/resolution-2286/BIGIP_RESULTS.md\"",
+          "new": "\"../../tests/data/authored_static_group_reinitialization.txt\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../../scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261007vllex/appliance/r2286vl1-fixtures-v4/sources/static.conf\"",
+          "new": "\"../../../tcl-registry/tests/data/source_contract_vectors/bigip-probes/resolution-2286/evidence/r2286_20261007vllex/appliance/r2286vl1-fixtures-v4/sources/static.conf\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../../scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261007vllex/client-server/vl-static-initial-42100.body\"",
+          "new": "\"../../../tcl-registry/tests/data/source_contract_vectors/bigip-probes/resolution-2286/evidence/r2286_20261007vllex/client-server/vl-static-initial-42100.body\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../../scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261007vllex/client-server/vl-static-initial-42101.body\"",
+          "new": "\"../../../tcl-registry/tests/data/source_contract_vectors/bigip-probes/resolution-2286/evidence/r2286_20261007vllex/client-server/vl-static-initial-42101.body\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../../scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261007vllex/client-server/vl-static-initial-42102.body\"",
+          "new": "\"../../../tcl-registry/tests/data/source_contract_vectors/bigip-probes/resolution-2286/evidence/r2286_20261007vllex/client-server/vl-static-initial-42102.body\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../../scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261007vllex/client-server/vl-static-initial-42103.body\"",
+          "new": "\"../../../tcl-registry/tests/data/source_contract_vectors/bigip-probes/resolution-2286/evidence/r2286_20261007vllex/client-server/vl-static-initial-42103.body\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../../scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261007vllex/client-server/vl-static-after-write-42100.body\"",
+          "new": "\"../../../tcl-registry/tests/data/source_contract_vectors/bigip-probes/resolution-2286/evidence/r2286_20261007vllex/client-server/vl-static-after-write-42100.body\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../../scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261007vllex/client-server/vl-static-after-write-42101.body\"",
+          "new": "\"../../../tcl-registry/tests/data/source_contract_vectors/bigip-probes/resolution-2286/evidence/r2286_20261007vllex/client-server/vl-static-after-write-42101.body\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../../scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261007vllex/client-server/vl-static-after-write-42102.body\"",
+          "new": "\"../../../tcl-registry/tests/data/source_contract_vectors/bigip-probes/resolution-2286/evidence/r2286_20261007vllex/client-server/vl-static-after-write-42102.body\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../../scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261007vllex/client-server/vl-static-after-write-42103.body\"",
+          "new": "\"../../../tcl-registry/tests/data/source_contract_vectors/bigip-probes/resolution-2286/evidence/r2286_20261007vllex/client-server/vl-static-after-write-42103.body\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../../scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261007vllex/client-server/vl-static-unset-42101.body\"",
+          "new": "\"../../../tcl-registry/tests/data/source_contract_vectors/bigip-probes/resolution-2286/evidence/r2286_20261007vllex/client-server/vl-static-unset-42101.body\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../../scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261007vllex/client-server/vl-static-after-unset-42100.body\"",
+          "new": "\"../../../tcl-registry/tests/data/source_contract_vectors/bigip-probes/resolution-2286/evidence/r2286_20261007vllex/client-server/vl-static-after-unset-42100.body\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../../scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261007vllex/client-server/vl-static-after-unset-42101.body\"",
+          "new": "\"../../../tcl-registry/tests/data/source_contract_vectors/bigip-probes/resolution-2286/evidence/r2286_20261007vllex/client-server/vl-static-after-unset-42101.body\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../../scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261007vllex/client-server/vl-static-after-unset-42102.body\"",
+          "new": "\"../../../tcl-registry/tests/data/source_contract_vectors/bigip-probes/resolution-2286/evidence/r2286_20261007vllex/client-server/vl-static-after-unset-42102.body\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../../scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261007vllex/client-server/vl-static-after-unset-42103.body\"",
+          "new": "\"../../../tcl-registry/tests/data/source_contract_vectors/bigip-probes/resolution-2286/evidence/r2286_20261007vllex/client-server/vl-static-after-unset-42103.body\"",
+          "expected_sites": 1
+        }
+      ]
+    },
+    {
+      "consumer": "rust/tcl-vm/src/interp/native_alias_registration_tests.rs",
+      "literal_pairs": [
+        {
+          "old": "\"../../../../experiments/name-handling/namespace-origin-query/alias-registration-records/input.tcl\"",
+          "new": "\"../../../tcl-registry/tests/data/source_contract_vectors/namespace-origin-query/alias-registration-records/input.tcl\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../../experiments/name-handling/namespace-origin-query/alias-registration-records/\"",
+          "new": "\"../../../tcl-registry/tests/data/source_contract_vectors/namespace-origin-query/alias-registration-records/\"",
+          "expected_sites": 1
+        }
+      ]
+    },
+    {
+      "consumer": "rust/tcl-vm/src/interp/native_error_variables.rs",
+      "literal_pairs": [
+        {
+          "old": "\"../../../../experiments/name-handling/results/c84-execution-environment-error-name-objects/capture02/execution.stdout\"",
+          "new": "\"../../../tcl-registry/tests/data/source_contract_vectors/results/c84-execution-environment-error-name-objects/capture02/execution.stdout\"",
+          "expected_sites": 2
+        },
+        {
+          "old": "\"../../../../experiments/name-handling/results/c84-original-global-string-error-code/capture01/execution.stdout\"",
+          "new": "\"../../../tcl-registry/tests/data/source_contract_vectors/results/c84-original-global-string-error-code/capture01/execution.stdout\"",
+          "expected_sites": 2
+        }
+      ]
+    },
+    {
+      "consumer": "rust/tcl-vm/src/interp/native_jim_lookup/global_error_code_tests.rs",
+      "literal_pairs": [
+        {
+          "old": "\"../../../../../experiments/name-handling/results/jim-catch-try-quiet-global-capture/capture03/execution.stdout\"",
+          "new": "\"../../../../tcl-registry/tests/data/source_contract_vectors/results/jim-catch-try-quiet-global-capture/capture03/execution.stdout\"",
+          "expected_sites": 1
+        }
+      ]
+    },
+    {
+      "consumer": "rust/tcl-vm/src/interp/native_namespace_address_tests.rs",
+      "literal_pairs": [
+        {
+          "old": "\"../../../../experiments/name-handling/namespace-address-purpose/\"",
+          "new": "\"../../../tcl-registry/tests/data/source_contract_vectors/namespace-address-purpose/\"",
+          "expected_sites": 1
+        }
+      ]
+    },
+    {
+      "consumer": "rust/tcl-vm/src/interp/native_namespace_command_query_tests.rs",
+      "literal_pairs": [
+        {
+          "old": "\"../../../../experiments/name-handling/namespace-command-query/input-portable.tcl\"",
+          "new": "\"../../../tcl-registry/tests/data/source_contract_vectors/namespace-command-query/input-portable.tcl\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../../experiments/name-handling/namespace-command-query/portable/\"",
+          "new": "\"../../../tcl-registry/tests/data/source_contract_vectors/namespace-command-query/portable/\"",
+          "expected_sites": 1
+        }
+      ]
+    },
+    {
+      "consumer": "rust/tcl-vm/src/interp/native_namespace_origin_tests.rs",
+      "literal_pairs": [
+        {
+          "old": "\"../../../../experiments/name-handling/namespace-origin-query/\"",
+          "new": "\"../../../tcl-registry/tests/data/source_contract_vectors/namespace-origin-query/\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../../experiments/name-handling/namespace-origin-query/input.tcl\"",
+          "new": "\"../../../tcl-registry/tests/data/source_contract_vectors/namespace-origin-query/input.tcl\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../../experiments/name-handling/namespace-origin-query/helper-root/\"",
+          "new": "\"../../../tcl-registry/tests/data/source_contract_vectors/namespace-origin-query/helper-root/\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../../experiments/name-handling/namespace-origin-query/helper-root-input.tcl\"",
+          "new": "\"../../../tcl-registry/tests/data/source_contract_vectors/namespace-origin-query/helper-root-input.tcl\"",
+          "expected_sites": 1
+        }
+      ]
+    },
+    {
+      "consumer": "rust/tcl-vm/src/interp/native_variable_query_tests.rs",
+      "literal_pairs": [
+        {
+          "old": "\"../../../../experiments/name-handling/variable-namespace-query-bases/result-input.tcl\"",
+          "new": "\"../../../tcl-registry/tests/data/source_contract_vectors/variable-namespace-query-bases/result-input.tcl\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../../experiments/name-handling/variable-namespace-query-bases/\"",
+          "new": "\"../../../tcl-registry/tests/data/source_contract_vectors/variable-namespace-query-bases/\"",
+          "expected_sites": 1
+        }
+      ]
+    },
+    {
+      "consumer": "rust/tcl-vm/tests/native_variable_declaration.rs",
+      "literal_pairs": [
+        {
+          "old": "\"../../../experiments/name-handling/results/native-variable-array-modes/c-8.4.20/stdout.txt\"",
+          "new": "\"../../tcl-registry/tests/data/source_contract_vectors/results/native-variable-array-modes/c-8.4.20/stdout.txt\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../experiments/name-handling/results/native-variable-array-modes/c-8.4.20/extra-arity-stdout.txt\"",
+          "new": "\"../../tcl-registry/tests/data/source_contract_vectors/results/native-variable-array-modes/c-8.4.20/extra-arity-stdout.txt\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../experiments/name-handling/results/native-variable-array-modes/c-8.5.19/stdout.txt\"",
+          "new": "\"../../tcl-registry/tests/data/source_contract_vectors/results/native-variable-array-modes/c-8.5.19/stdout.txt\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../experiments/name-handling/results/native-variable-array-modes/c-8.5.19/extra-arity-stdout.txt\"",
+          "new": "\"../../tcl-registry/tests/data/source_contract_vectors/results/native-variable-array-modes/c-8.5.19/extra-arity-stdout.txt\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../experiments/name-handling/results/native-variable-array-modes/c-8.6.18/stdout.txt\"",
+          "new": "\"../../tcl-registry/tests/data/source_contract_vectors/results/native-variable-array-modes/c-8.6.18/stdout.txt\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../experiments/name-handling/results/native-variable-array-modes/c-8.6.18/extra-arity-stdout.txt\"",
+          "new": "\"../../tcl-registry/tests/data/source_contract_vectors/results/native-variable-array-modes/c-8.6.18/extra-arity-stdout.txt\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../experiments/name-handling/results/native-variable-array-modes/c-9.0.4/stdout.txt\"",
+          "new": "\"../../tcl-registry/tests/data/source_contract_vectors/results/native-variable-array-modes/c-9.0.4/stdout.txt\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../experiments/name-handling/results/native-variable-array-modes/c-9.0.4/extra-arity-stdout.txt\"",
+          "new": "\"../../tcl-registry/tests/data/source_contract_vectors/results/native-variable-array-modes/c-9.0.4/extra-arity-stdout.txt\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../experiments/name-handling/results/native-variable-array-modes/c-9.1.0/stdout.txt\"",
+          "new": "\"../../tcl-registry/tests/data/source_contract_vectors/results/native-variable-array-modes/c-9.1.0/stdout.txt\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../experiments/name-handling/results/native-variable-array-modes/c-9.1.0/extra-arity-stdout.txt\"",
+          "new": "\"../../tcl-registry/tests/data/source_contract_vectors/results/native-variable-array-modes/c-9.1.0/extra-arity-stdout.txt\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../experiments/name-handling/results/native-variable-array-modes/jim-5bac7c9/stdout.txt\"",
+          "new": "\"../../tcl-registry/tests/data/source_contract_vectors/results/native-variable-array-modes/jim-5bac7c9/stdout.txt\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../experiments/name-handling/results/native-variable-array-modes/jim-5bac7c9/extra-arity-stdout.txt\"",
+          "new": "\"../../tcl-registry/tests/data/source_contract_vectors/results/native-variable-array-modes/jim-5bac7c9/extra-arity-stdout.txt\"",
+          "expected_sites": 1
+        }
+      ]
+    },
+    {
+      "consumer": "runtime/rust/src/interp/native_variable_names.rs",
+      "literal_pairs": [
+        {
+          "old": "\"../../../../experiments/name-handling/results/runtime-c86-real-suites/retired-namespace-variable-diagnostic-question/input.tcl\"",
+          "new": "\"../../../../rust/tcl-registry/tests/data/source_contract_vectors/results/runtime-c86-real-suites/retired-namespace-variable-diagnostic-question/input.tcl\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../../experiments/name-handling/results/runtime-c86-real-suites/retired-namespace-variable-diagnostic-question/capture-01/8.6.18/stdout.txt\"",
+          "new": "\"../../../../rust/tcl-registry/tests/data/source_contract_vectors/results/runtime-c86-real-suites/retired-namespace-variable-diagnostic-question/capture-01/8.6.18/stdout.txt\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../../experiments/name-handling/results/runtime-c86-real-suites/retired-namespace-variable-diagnostic-question/variable-head-input.tcl\"",
+          "new": "\"../../../../rust/tcl-registry/tests/data/source_contract_vectors/results/runtime-c86-real-suites/retired-namespace-variable-diagnostic-question/variable-head-input.tcl\"",
+          "expected_sites": 1
+        },
+        {
+          "old": "\"../../../../experiments/name-handling/results/runtime-c86-real-suites/retired-namespace-variable-diagnostic-question/capture-02/8.6.18/stdout.txt\"",
+          "new": "\"../../../../rust/tcl-registry/tests/data/source_contract_vectors/results/runtime-c86-real-suites/retired-namespace-variable-diagnostic-question/capture-02/8.6.18/stdout.txt\"",
+          "expected_sites": 2
+        }
+      ]
+    }
+  ]
+}

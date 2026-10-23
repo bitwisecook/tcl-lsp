@@ -2,11 +2,75 @@
 
 Area: tcl-vm, runtime/rust, tcl-spectcl, tcl-spec-studio: SpecTcl execution and acceptance.
 
-Last updated: 2026-10-23T09:24:42.940235+00:00 (Jim/UPF staticCLEAR; NoTom A/B concrete design prepared, userchoice pending)
+Last updated: 2026-10-23T09:44:08.776126+00:00 (actualv10 FAIL5missingdocs/0W; minimal5docfix ready; finite16 templates unbound)
 
 Maintained by the vm-runtime agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## Resume
+
+Actual source122 v10 typing closed09:42:26 Cargo101 with five missing_docs
+errors (BuiltinCoreProcedureDescriptor fields native_procedure.rs29–33), no
+observedwarnings. Source/provider/input stability retained but aggregate
+validation false; no runtime acceptance. Minimal frozen off-tree correction
+`/tmp/vm-core-descriptor-field-docs-fix-v1/proposal.patch` SHA8586073c,
+c30a3291→b725539f, adds exactly5fielddocs/noncommentbytesunchanged/fmtPASS.
+Actual5-field docfix staticpeerCLEAR fromcompiler. Additional inspected
+compilerlib83 deny(missing_docs) gap: four new public Jimcall methods lackdocs,
+notyet emitted because registry blockedv10. Separate minimal4doc patch
+`/tmp/vm-jim-call-api-docs-fix-v1/proposal.patch` SHA6f05afd5,
+source_jim_class8a0affd6→224ca23c, fmtPASS/no noncommentchange, peerpending.
+Root/compiler notified; no canonical/Cargo retry by VM.
+
+Future runtime TEMPLATE only `/tmp/vm-source122-jim11-upf2-spec3-template-v1/`
+plan17e5d060: Jimoriginal7 + actualsource-discovered authoredcall3/metadata1
+=Jim11, UPForiginal2, Specoriginal3 =exact16/selectors7freshartifacttargets.
+Explicit observed c40883dd/tree2e6b/map122eafa64; futuretyping receipt/launcher
+hashes NULL and no GO. New4names staticallydiscovered, not claimed actual
+Cargo/libtest roster. A different product after docfix needs new immutable
+identity-bound successor; cannot fill oldtemplate with mismatchedtyping proof.
+Separate noTom16 template6b1518db +sameOUTDIRcontrols cf7c4e6f preserve exact
+originalCargoargs/defaultfeatures and approvedflag1, genuinecfgabsence/current
+capabilitymetadata/fullseals/strict0W; negativebuildcontrols not runtimePASS.
+Normal16 template requires flagABSENT/fullTomsource and TMPDIRworkspace;
+actualmount2GiB/log20MiB/180s/88125/fullsourceproviders unchanged. No duplicate
+runner created or queued; owned source122-runtime-templates-v1 archive.
+No Cargo/GO/Git/source/provider changes. GeneralVMparity parked; original
+runtime16 baseline and finalC1C2/whole66 remain required separate actualproof.
+
+Approved NoTom B final immutablev2 staticCLEAR CCGpeer ed7dc8a2:
+`/tmp/vm-notommath-intentional-capability-b-final-v2/proposal.patch`
+SHAc7128d55a20e397b7469e3b125c8200f651827c4e535f0902192927d1735a3fc,
+single runtime/rust/build.rs fd1fea9d→4088e17e. V1 held because OUT_DIR status
+could persist after mode change; v2 withdraws only exactowned capabilityJSON
+at build start before C/expectationparse/probe, NotFoundonly tolerated.
+TCL_RUNTIME_EXPECT_NO_TOMMATH=1 asserts actualsourceabsence; no backend-disable
+switch. Expectedabsence metadata0W, unexpectedexactwarning, invalidflag or
+present-source mismatch terminalFAIL. Detection/cfg/Cbackend/failureguards/
+original16Cargoargs/defaultfeatures unchanged. Independentcurrentbefore/
+zero-fuzz/final/runtimeedition2021fmt peerPASS; allactualtyping/buildcontrol/
+runtime16UNRUN. Root alone may explicitv9append/followingbatch, never mutatev8.
+Owned lossless source/proposal/peer/control artifact:
+`vm-runtime/notommath-approved-b-final-v2/archive-manifest.txt`.
+Required latercontrols include sameOUTDIR intentional→unset/unexpected/full/
+invalid/mismatch withdrawal plus actualCargoJSONcfg/outdir/source/provider
+joins; stalefile alone never evidence. No warningwaiver or releaseadmission.
+No VM Cargo/GO/Git/canonical source/provider/targetcleanup performed.
+
+User answer received via root: explicit intentional noTom absence assertion B
+approved. Final off-tree `/tmp/vm-notommath-intentional-capability-b-final-v1/`
+proposal0dd6bd8f, build.rs fd1fea9d→992f5bd3, manifestb7433fdc. Independent
+currentpins/zero-fuzz/fmt PASS, Codegen boundedpeerpending; actual type/build/
+runtime16UNRUN. Newenv TCL_RUNTIME_EXPECT_NO_TOMMATH=1 asserts actualabsence,
+never disables found sources. Expectedactualabsence capabilityJSON+metadata,
+unexpectedabsence exactwarning; invalidflag/foundsource-mismatchfails closed.
+No source detection/cfg/backend/Cfailure/testargs/defaultfeature change. Keep
+separate from immutablev8; explicit rootfutureappend only. Ownedapproved
+candidate `vm-runtime/notommath-approved-b-final-v1/`.
+No Cargo/GO/Git/canonical source/provider changes. Native15 root reports partial
+14=2PASS/12FAIL plus1unknown diskfloor/tmp; not finite15 acceptance. Root future
+TMPDIR workspace needs fresh protocolenv binding, not silent oldrunner change.
+Original noTom16v3 immutablewarning capture not release0W; successor must pin
+chosenproduct/actualmode/currentCargoJSONcfg+outdir status and original16.
 
 NoTom capability design OPTIONS ONLY prepared off-tree/ownedarchive:
 `vm-runtime/notommath-capability-design-options-v1/decision-and-controls.txt`

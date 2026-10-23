@@ -2,8 +2,8 @@
   "created_utc": "2026-10-22T15:17:08.060204+00:00",
   "active_root": "/workspace/naming-migration-active/tcl-lsp",
   "publisher_root": "/workspace/naming-migration-publish/tcl-lsp",
-  "last_source_snapshot": "78efa4abe27eaa48f0dd81290da92d6e41c0a599",
-  "last_published_snapshot": "cbfb4771618199e6d16c880ec78bdd3ccfff96e9",
+  "last_source_snapshot": "b9ec3ebc02391327ab7c4d675e8b8dac31d78d0a",
+  "last_published_snapshot": "f58c74f2530006356c3998fddcfba1932d2341a8",
   "source_branch": "work",
   "publisher_branch": "work",
   "rules": [
@@ -16,13 +16,13 @@
     "After a stable build window, checkpoint all active work and rebase active work onto latest work, allowing Git to skip previously cherry-picked equivalents. Notify owners/rebuild if product inputs changed.",
     "Keep active logs under /tmp; preserve all target/executable disk rules."
   ],
-  "last_published_utc": "2026-10-23T08:58:57.347210+00:00",
+  "last_published_utc": "2026-10-23T09:30:47.649594+00:00",
   "product_tree_diff": [],
   "source_lineage_rebased_utc": "2026-10-22T20:32:04.450664+00:00",
   "source_lineage_note": "20:55 cycle published active420/def9/fe802/ab1 checkpoints onto external27c2d and normal-pushedf5d78f. Product equality verified. Active source lineage stays in place during runtime6; next publication selects ab1..HEAD until next mapped active rebase.",
-  "unpublished_active_base": "78efa4abe27eaa48f0dd81290da92d6e41c0a599",
-  "active_current_head": "78efa4abe27eaa48f0dd81290da92d6e41c0a599",
+  "unpublished_active_base": "b9ec3ebc02391327ab7c4d675e8b8dac31d78d0a",
+  "active_current_head": "b9ec3ebc02391327ab7c4d675e8b8dac31d78d0a",
   "product_tree_diff_at_integration": [],
-  "updated_utc": "2026-10-23T08:58:57.347210+00:00",
+  "updated_utc": "2026-10-23T09:30:47.649594+00:00",
   "push_authentication": "Command-local git -c credential.helper= -c credential.helper=!gh auth git-credential push origin HEAD:work; never print/store credential payloads. GH auth status endpoint reported invalid but standard repo-scoped credential helper normal push succeeded, so endpoint status alone is not Git readiness."
 }

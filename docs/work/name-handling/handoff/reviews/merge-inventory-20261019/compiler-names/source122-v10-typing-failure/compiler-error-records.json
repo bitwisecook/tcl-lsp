@@ -1,0 +1,298 @@
+[
+  {
+    "reason": "compiler-message",
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-registry#0.1.0",
+    "manifest_path": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-registry/Cargo.toml",
+    "target": {
+      "kind": [
+        "lib"
+      ],
+      "crate_types": [
+        "lib"
+      ],
+      "name": "tcl_registry",
+      "src_path": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-registry/src/lib.rs",
+      "edition": "2024",
+      "doc": true,
+      "doctest": true,
+      "test": true
+    },
+    "message": {
+      "rendered": "error: missing documentation for a struct field\n  --> rust/tcl-registry/src/native_procedure.rs:29:5\n   |\n29 |     pub name: &'static str,\n   |     ^^^^^^^^^^^^^^^^^^^^^^\n   |\nnote: the lint level is defined here\n  --> rust/tcl-registry/src/lib.rs:48:9\n   |\n48 | #![deny(missing_docs)]\n   |         ^^^^^^^^^^^^\n\n",
+      "$message_type": "diagnostic",
+      "children": [
+        {
+          "children": [],
+          "code": null,
+          "level": "note",
+          "message": "the lint level is defined here",
+          "rendered": null,
+          "spans": [
+            {
+              "byte_end": 2381,
+              "byte_start": 2369,
+              "column_end": 21,
+              "column_start": 9,
+              "expansion": null,
+              "file_name": "rust/tcl-registry/src/lib.rs",
+              "is_primary": true,
+              "label": null,
+              "line_end": 48,
+              "line_start": 48,
+              "suggested_replacement": null,
+              "suggestion_applicability": null,
+              "text": [
+                {
+                  "highlight_end": 21,
+                  "highlight_start": 9,
+                  "text": "#![deny(missing_docs)]"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "level": "error",
+      "message": "missing documentation for a struct field",
+      "spans": [
+        {
+          "byte_end": 1307,
+          "byte_start": 1285,
+          "column_end": 27,
+          "column_start": 5,
+          "expansion": null,
+          "file_name": "rust/tcl-registry/src/native_procedure.rs",
+          "is_primary": true,
+          "label": null,
+          "line_end": 29,
+          "line_start": 29,
+          "suggested_replacement": null,
+          "suggestion_applicability": null,
+          "text": [
+            {
+              "highlight_end": 27,
+              "highlight_start": 5,
+              "text": "    pub name: &'static str,"
+            }
+          ]
+        }
+      ],
+      "code": {
+        "code": "missing_docs",
+        "explanation": null
+      }
+    }
+  },
+  {
+    "reason": "compiler-message",
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-registry#0.1.0",
+    "manifest_path": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-registry/Cargo.toml",
+    "target": {
+      "kind": [
+        "lib"
+      ],
+      "crate_types": [
+        "lib"
+      ],
+      "name": "tcl_registry",
+      "src_path": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-registry/src/lib.rs",
+      "edition": "2024",
+      "doc": true,
+      "doctest": true,
+      "test": true
+    },
+    "message": {
+      "rendered": "error: missing documentation for a struct field\n  --> rust/tcl-registry/src/native_procedure.rs:30:5\n   |\n30 |     pub provider: tcl_dialect::model::SpecProvider,\n   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n\n",
+      "$message_type": "diagnostic",
+      "children": [],
+      "level": "error",
+      "message": "missing documentation for a struct field",
+      "spans": [
+        {
+          "byte_end": 1359,
+          "byte_start": 1313,
+          "column_end": 51,
+          "column_start": 5,
+          "expansion": null,
+          "file_name": "rust/tcl-registry/src/native_procedure.rs",
+          "is_primary": true,
+          "label": null,
+          "line_end": 30,
+          "line_start": 30,
+          "suggested_replacement": null,
+          "suggestion_applicability": null,
+          "text": [
+            {
+              "highlight_end": 51,
+              "highlight_start": 5,
+              "text": "    pub provider: tcl_dialect::model::SpecProvider,"
+            }
+          ]
+        }
+      ],
+      "code": {
+        "code": "missing_docs",
+        "explanation": null
+      }
+    }
+  },
+  {
+    "reason": "compiler-message",
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-registry#0.1.0",
+    "manifest_path": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-registry/Cargo.toml",
+    "target": {
+      "kind": [
+        "lib"
+      ],
+      "crate_types": [
+        "lib"
+      ],
+      "name": "tcl_registry",
+      "src_path": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-registry/src/lib.rs",
+      "edition": "2024",
+      "doc": true,
+      "doctest": true,
+      "test": true
+    },
+    "message": {
+      "rendered": "error: missing documentation for a struct field\n  --> rust/tcl-registry/src/native_procedure.rs:31:5\n   |\n31 |     pub analyser_hook: crate::hooks::AnalyserHookId,\n   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n\n",
+      "$message_type": "diagnostic",
+      "children": [],
+      "level": "error",
+      "message": "missing documentation for a struct field",
+      "spans": [
+        {
+          "byte_end": 1412,
+          "byte_start": 1365,
+          "column_end": 52,
+          "column_start": 5,
+          "expansion": null,
+          "file_name": "rust/tcl-registry/src/native_procedure.rs",
+          "is_primary": true,
+          "label": null,
+          "line_end": 31,
+          "line_start": 31,
+          "suggested_replacement": null,
+          "suggestion_applicability": null,
+          "text": [
+            {
+              "highlight_end": 52,
+              "highlight_start": 5,
+              "text": "    pub analyser_hook: crate::hooks::AnalyserHookId,"
+            }
+          ]
+        }
+      ],
+      "code": {
+        "code": "missing_docs",
+        "explanation": null
+      }
+    }
+  },
+  {
+    "reason": "compiler-message",
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-registry#0.1.0",
+    "manifest_path": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-registry/Cargo.toml",
+    "target": {
+      "kind": [
+        "lib"
+      ],
+      "crate_types": [
+        "lib"
+      ],
+      "name": "tcl_registry",
+      "src_path": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-registry/src/lib.rs",
+      "edition": "2024",
+      "doc": true,
+      "doctest": true,
+      "test": true
+    },
+    "message": {
+      "rendered": "error: missing documentation for a struct field\n  --> rust/tcl-registry/src/native_procedure.rs:32:5\n   |\n32 |     pub traits: crate::Traits,\n   |     ^^^^^^^^^^^^^^^^^^^^^^^^^\n\n",
+      "$message_type": "diagnostic",
+      "children": [],
+      "level": "error",
+      "message": "missing documentation for a struct field",
+      "spans": [
+        {
+          "byte_end": 1443,
+          "byte_start": 1418,
+          "column_end": 30,
+          "column_start": 5,
+          "expansion": null,
+          "file_name": "rust/tcl-registry/src/native_procedure.rs",
+          "is_primary": true,
+          "label": null,
+          "line_end": 32,
+          "line_start": 32,
+          "suggested_replacement": null,
+          "suggestion_applicability": null,
+          "text": [
+            {
+              "highlight_end": 30,
+              "highlight_start": 5,
+              "text": "    pub traits: crate::Traits,"
+            }
+          ]
+        }
+      ],
+      "code": {
+        "code": "missing_docs",
+        "explanation": null
+      }
+    }
+  },
+  {
+    "reason": "compiler-message",
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-registry#0.1.0",
+    "manifest_path": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-registry/Cargo.toml",
+    "target": {
+      "kind": [
+        "lib"
+      ],
+      "crate_types": [
+        "lib"
+      ],
+      "name": "tcl_registry",
+      "src_path": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-registry/src/lib.rs",
+      "edition": "2024",
+      "doc": true,
+      "doctest": true,
+      "test": true
+    },
+    "message": {
+      "rendered": "error: missing documentation for a struct field\n  --> rust/tcl-registry/src/native_procedure.rs:33:5\n   |\n33 |     pub definition: NativeProcedureDefinitionSpec,\n   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n\n",
+      "$message_type": "diagnostic",
+      "children": [],
+      "level": "error",
+      "message": "missing documentation for a struct field",
+      "spans": [
+        {
+          "byte_end": 1494,
+          "byte_start": 1449,
+          "column_end": 50,
+          "column_start": 5,
+          "expansion": null,
+          "file_name": "rust/tcl-registry/src/native_procedure.rs",
+          "is_primary": true,
+          "label": null,
+          "line_end": 33,
+          "line_start": 33,
+          "suggested_replacement": null,
+          "suggestion_applicability": null,
+          "text": [
+            {
+              "highlight_end": 50,
+              "highlight_start": 5,
+              "text": "    pub definition: NativeProcedureDefinitionSpec,"
+            }
+          ]
+        }
+      ],
+      "code": {
+        "code": "missing_docs",
+        "explanation": null
+      }
+    }
+  }
+]

@@ -1,0 +1,20 @@
+{
+  "utc": "2026-10-23T09:51:56.646524+00:00",
+  "scope": "Exact final receipt and five complete Cargo JSON diagnostic records only; whole protocol/run/launcher retained live under root ownership",
+  "run": "/tmp/name-handling-eight-package-check-v10-source122/runs/20261023T093900.353132Z",
+  "stdout_sha256": "f5ecbb23650f06fa9a5242a68565500c2dd8ffbd2e1ea322775450cbe334fae2",
+  "stderr_sha256": "eb7bbda595f8495ac6709b6863e92c3614e888d64269ab59c7d3369519271f2d",
+  "complete_json_events": 345,
+  "error_count": 5,
+  "warning_count": 0,
+  "build_finished": [
+    {
+      "reason": "build-finished",
+      "success": false
+    }
+  ],
+  "final_sha256": "656719ecfc91ae0aecd723d813aeb20b42f01f48caac66a8d2abb4f26994eb76",
+  "archive_final_sha256": "656719ecfc91ae0aecd723d813aeb20b42f01f48caac66a8d2abb4f26994eb76",
+  "diagnostics_sha256": "4cd154b1088141adcdd125506b0a18097db41511087506e5f11a9bfd55370d18",
+  "limitation": "Five missing_docs errors observed before downstream compilation. No downstream typing, runtime or absence-of-other-errors claim."
+}

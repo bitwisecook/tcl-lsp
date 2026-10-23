@@ -1,0 +1,211 @@
+{
+  "audited_utc": "2026-10-23T09:28:59.954410+00:00",
+  "builds": {
+    "e2e": {
+      "completed": true,
+      "exit_code": 0,
+      "server_artifact_sha256": "de42d4f2d588923271fbd181e902f1be878d0c5b0356fff335d7ddc31a720640",
+      "test_artifact_sha256": "b2a761a7709075ff63373d01f55a97ec8c756b0ef839bc4d6fda031645dca346"
+    },
+    "server_lib": {
+      "cleanup_signal": "SIGINT",
+      "completed": false,
+      "exit_code": -2,
+      "floor_bytes": 2300000000,
+      "minimum_free_bytes": 2284290048,
+      "no_completed_artifact": true,
+      "stop_reason": "disk_below_floor"
+    }
+  },
+  "classification": "guarded resource abort on incomplete Cargo build; 12 observed timeout failures remain test failures; the resource stop does not convert them to passes or establish their root cause.",
+  "first_failure_raw_classification": {
+    "harness_explicitly_says_not_oracle_divergence": true,
+    "latency_barrier_timeout_marker": true,
+    "starvation_not_confirmed": true,
+    "timeout_classified": true
+  },
+  "guards": {
+    "all_14_test_artifacts_stable_and_raw_terminal_counts_match": true,
+    "all_14_test_processes_closed_and_capped": true,
+    "e2e_artifact_stable": true,
+    "global_lock_released_by_root": true,
+    "input_hashes_current": true,
+    "source46_and_explicit_source_pins_current": true,
+    "source_and_provider_stable": true
+  },
+  "limitations": [
+    "No selector 15 result exists.",
+    "The interrupted server-lib build is incomplete and emitted no validated test artifact.",
+    "No full15 or release-gate acceptance claim."
+  ],
+  "parent_closure": {
+    "exit_code": 2,
+    "failed": 12,
+    "lock_release_observation": "Root acquired and released exact global lock nonblocking after exec session returned exit2; no timestamp inferred for earlier release",
+    "lock_released": true,
+    "observed_closed": true,
+    "observed_tests": 14,
+    "observed_utc": "2026-10-23T09:26:32.344470+00:00",
+    "passed": 2,
+    "resource_abort": "disk_below_floor",
+    "root_parent_session": 78490,
+    "tool_session_id": 78490,
+    "unreached": 1,
+    "whole15_pass": false
+  },
+  "parent_session": 78490,
+  "pins": {
+    "GO_sha256": "13ddd06e1c6ea561dafef5c9206747e697ee2972476c0f90cb177a0b0531d6f2",
+    "plan_sha256": "7495afcfbda18ae1f355e8ac2d14a56983437d07a6cc89c433a6bf1b08ba1e98",
+    "runner_input_manifest_sha256": "71d35489bfb5d66be72249541e42ffcefe2148c8764135deb8ab78b34fc4bf65",
+    "source46_manifest_sha256": "f7568b8400f5f3c0b9af0e2181e0539a81e6a42c8a19ab8a0f677a667beca9b7"
+  },
+  "run": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z",
+  "schema": "source46-native15-v14-resource-abort-partial-audit-v1",
+  "scope": "Partial audit of the exact original Native15 v14 finite run; resource-aborted before selector 15; not a completed 15-test suite, not naming/release acceptance.",
+  "selectors": [
+    {
+      "exit_code": 101,
+      "failed": 1,
+      "minimum_free_bytes": 3057422336,
+      "passed": 0,
+      "selector": "naming_source_view_owners::retained_child_views_keep_distinct_parent_inputs_and_refuse_retired_owner",
+      "status": "FAILED",
+      "warnings": false
+    },
+    {
+      "exit_code": 101,
+      "failed": 1,
+      "minimum_free_bytes": 3043004416,
+      "passed": 0,
+      "selector": "naming_source_view_owners::pending_source_scopes_and_rootless_cycles_keep_independent_first_answers",
+      "status": "FAILED",
+      "warnings": false
+    },
+    {
+      "exit_code": 101,
+      "failed": 1,
+      "minimum_free_bytes": 3009679360,
+      "passed": 0,
+      "selector": "naming_source_view_owners::path_advice_controls::source_path_handles_require_current_complete_same_session_parent",
+      "status": "FAILED",
+      "warnings": false
+    },
+    {
+      "exit_code": 101,
+      "failed": 1,
+      "minimum_free_bytes": 2977497088,
+      "passed": 0,
+      "selector": "naming_source_view_owners::path_advice_controls::qualified_source_path_uses_current_cut_and_variable_free_own_writes",
+      "status": "FAILED",
+      "warnings": false
+    },
+    {
+      "exit_code": 101,
+      "failed": 1,
+      "minimum_free_bytes": 2958499840,
+      "passed": 0,
+      "selector": "naming_source_view_owners::path_advice_controls::source_path_shadows_intermediate_writes_and_effects_cannot_enable_wrong_good",
+      "status": "FAILED",
+      "warnings": false
+    },
+    {
+      "exit_code": 101,
+      "failed": 1,
+      "minimum_free_bytes": 2920411136,
+      "passed": 0,
+      "selector": "naming_packages::package_release_queries_are_order_independent_and_retire_old_library_paths",
+      "status": "FAILED",
+      "warnings": false
+    },
+    {
+      "exit_code": 101,
+      "failed": 1,
+      "minimum_free_bytes": 2898870272,
+      "passed": 0,
+      "selector": "naming_source_views::first_source_inventory_carries_twelve_composed_views_and_retires_removed_edge",
+      "status": "FAILED",
+      "warnings": false
+    },
+    {
+      "exit_code": 101,
+      "failed": 1,
+      "minimum_free_bytes": 2875912192,
+      "passed": 0,
+      "selector": "naming_lifecycle::warm_lifecycle_answers_match_fresh_after_open_and_closed_provider_changes",
+      "status": "FAILED",
+      "warnings": false
+    },
+    {
+      "exit_code": 101,
+      "failed": 1,
+      "minimum_free_bytes": 2849824768,
+      "passed": 0,
+      "selector": "spec_packs::environment_lifecycle::unchanged_documents_follow_folder_pack_and_stub_generations",
+      "status": "FAILED",
+      "warnings": false
+    },
+    {
+      "exit_code": 101,
+      "failed": 1,
+      "minimum_free_bytes": 2812792832,
+      "passed": 0,
+      "selector": "naming_edits::declaration_and_call_origin_edits_agree_with_references_and_execute_across_open_closed_files",
+      "status": "FAILED",
+      "warnings": false
+    },
+    {
+      "exit_code": 0,
+      "failed": 0,
+      "minimum_free_bytes": 2776399872,
+      "passed": 1,
+      "selector": "naming_edits::class_and_method_collisions_are_atomic_typed_protocol_refusals",
+      "status": "ok",
+      "warnings": false
+    },
+    {
+      "exit_code": 101,
+      "failed": 1,
+      "minimum_free_bytes": 2754215936,
+      "passed": 0,
+      "selector": "naming_edits::import_and_alias_rename_is_complete_or_returns_an_atomic_typed_refusal",
+      "status": "FAILED",
+      "warnings": false
+    },
+    {
+      "exit_code": 101,
+      "failed": 1,
+      "minimum_free_bytes": 2710609920,
+      "passed": 0,
+      "selector": "naming_edits::shadowed_builtin_identity_agrees_with_diagnostics_and_enabled_transforms",
+      "status": "FAILED",
+      "warnings": false
+    },
+    {
+      "exit_code": 0,
+      "failed": 0,
+      "minimum_free_bytes": 2689744896,
+      "passed": 1,
+      "selector": "commands::minify_compact_reports_naming_refusal_and_preserves_result",
+      "status": "ok",
+      "warnings": false
+    }
+  ],
+  "source_provider": {
+    "all_source46_current_hashes_match_approved_map": true,
+    "full_source_snapshot_entries": 40940,
+    "prebuild_to_e2e_postbuild_to_failure_after_stable": true,
+    "provider_snapshot_entries": 3464,
+    "recomputed_current_providers_match_startup": true,
+    "recomputed_current_source_matches_startup": true,
+    "source46_file_count": 46
+  },
+  "totals": {
+    "failed": 12,
+    "observed": 14,
+    "passed": 2,
+    "planned": 15,
+    "unreached": 1,
+    "unreached_selector": "tests::package_definition_keeps_each_callers_release_in_one_backend"
+  }
+}

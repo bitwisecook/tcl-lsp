@@ -1,0 +1,22 @@
+{
+  "utc": "2026-10-23T09:24:30.874526+00:00",
+  "status": "ROOT ONLY concrete finite pilot runner, static only; unrun real reporter",
+  "plan_sha256": "d0c8832e890ed5b92bd9ba68874d0c64f47e620f6ab692bd70886a9f0953aa38",
+  "runner_sha256": "4c9e2eb2d0a0cfecb82c831e130573dca04c2dda539f41d1aea131e12216a173",
+  "manifest_sha256": "11cd2d2511b26ae7168993169b4bce576b31f52441020755a4077299711a777a",
+  "launcher_sha256": "05764f854476731fc62fe1fc8ba3a26072d13da3275ac48ba54433f2f36c9497",
+  "executor_sha256": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811",
+  "root_command": "python3 /tmp/ccg-nextest-real-pilot-v1/launch.py --go <root-owned-go.json>",
+  "root_GO_required": {
+    "purpose": "nextest-real-pilot-v1",
+    "plan_sha256": "d0c8832e890ed5b92bd9ba68874d0c64f47e620f6ab692bd70886a9f0953aa38",
+    "runner_input_manifest_sha256": "11cd2d2511b26ae7168993169b4bce576b31f52441020755a4077299711a777a"
+  },
+  "checks": [
+    "PythonAST/bashsyntax/pins PASS",
+    "NoGO launcher refusal nochild/Cargo",
+    "Executor byteexact reviewed88125bd5"
+  ],
+  "contract": "Global nonblocking wholecommand lock across actual list+no-deps build and unchangedwrapperactualreporter2, exactd0c8 fixture/tool/wrapperpins, fullsource/providers beforeafter group, percommand tool/artifact seals,900sbuild and180srun,20MiB logs/2GiBfloor/mountedtarget/ownedprocess88125. Intentionalfailrawexit mustequal wrapper summary; roster2/terminal2passfail exactlyjoined; nestednextestgroupempty beforeparentreap required. Newpaths outputs differ only unique receipt location/absoluteactualPython. Allartifactsretained.",
+  "limits": "Actual CLI/reporter compatibility unrun. Outer88125guard wraps Pythonwrapper that owns a separate nextest PG; inner summary lifecycle and outercomplete both mandatory; a timeout invalidates pilot, never acceptance. Toolfixture failure not productfailure or productgate. Root alone runs after Native15closure."
+}

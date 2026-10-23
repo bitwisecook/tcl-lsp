@@ -1,0 +1,15 @@
+{
+  "utc": "2026-10-23T09:32:33.343286+00:00",
+  "reviewer_role": "compiler-codegen",
+  "status": "Bounded static delta composition CLEAR; untyped/unrun",
+  "manifest_sha256": "b37d66a810af1b0ec6af2b96f1d4574a36e72e3012c4d2e39b74065310db2903",
+  "patch_sha256": "760957f2ec4261e1d2bb736139f3666db9359dc39b9fde6a4735db578296028d",
+  "component_count": 30,
+  "independent_before_final_files": 89,
+  "delta": "Only new runtime/rust/build.rs exact reviewedBv2 c712 proposed4088. All88v8finalhashes identical. VM25membership/held6exclusion and allCCG/nativeobserver/querybytes preserved by unchangedold88. No same-site union.",
+  "checks": [
+    "Independent89currentbefore/newabsence+copiedgitapplycheck/apply reaches89exactfinals",
+    "NoTomnewsourceafter exactlyreviewedBv2"
+  ],
+  "limits": "Oldcomponent peers retained; v1NoTomstaleheld. No actualidentity/typing/runtime/0W/Clippy or16acceptance. Rootsoleintegration/Cargo/Git."
+}

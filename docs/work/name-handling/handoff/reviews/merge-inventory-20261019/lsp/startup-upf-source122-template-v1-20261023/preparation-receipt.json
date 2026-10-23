@@ -1,0 +1,18 @@
+{
+  "actual_utc": "2026-10-23T09:42:31.179128+00:00",
+  "scope": "Template preparation only; AST4/Bash/input pins/absenceGO direct refusal. No actualGO/Cargo/run",
+  "checks": {
+    "ast4": true,
+    "bash": true,
+    "allinputs": true,
+    "absent_go_refusal_exit": 2,
+    "absent_go_refusal": "STOP RuntimeError('STOP: no root GO; no lock or Cargo')"
+  },
+  "pins": {
+    "plan.json": "13a360901923cd34511227304aa67dd5fe000ed95182b9569358b72551d1038c",
+    "suite.py": "e7b28ffea36abf93321a4990ae328eb38b3b921b6452d2582bc3ad8795df2f93",
+    "launch.py": "4735ffc1eeea59c970dba39fd9b7c7811e9e2463f7b060e568787899a935cd97",
+    "runner-input-manifest.json": "aaf002cde799a2ad1cab1dfb4f3e1ea265a60e7c16f9dde81b55145337a63d39",
+    "guarded-exec.py": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811"
+  }
+}

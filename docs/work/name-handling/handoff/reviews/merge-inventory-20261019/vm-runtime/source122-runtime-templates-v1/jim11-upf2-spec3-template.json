@@ -1,0 +1,578 @@
+{
+  "schema": "vm-source122-finite-runtime-template-v1",
+  "utc": "2026-10-23T09:41:44.375684+00:00",
+  "status": "TEMPLATE ONLY; NO GO/LAUNCH/RUNNABLE ADMISSION; future same-product typing proof required",
+  "actual_identity": {
+    "path": "/tmp/naming-reviewed-product-actual-identity-v9-corrected/actual-identity.json",
+    "sha256": "3c55643aa5e3383204cfc7f83c10d5a5de193c0b06d6de0fc34e3f1d9a06a290",
+    "schema": "actual-integrated-product-identity-v1",
+    "approved_integrated_head": "c40883dd7f1b60616fc9ecd3e825dab39670b38c",
+    "approved_integrated_tree": "2e6b20c875f7fff44190e0f7f57913f24fa16da8",
+    "source_manifest_path": "/tmp/naming-reviewed-product-actual-identity-v9-corrected/actual-source122-manifest.json",
+    "source_manifest_sha256": "eafa64c559575c909f7debcc19ca28c50e92fcc533473aa4f7394a7e715c7e35",
+    "candidate_manifest_sha256": "b37d66a810af1b0ec6af2b96f1d4574a36e72e3012c4d2e39b74065310db2903",
+    "candidate_patch_sha256": "760957f2ec4261e1d2bb736139f3666db9359dc39b9fde6a4735db578296028d",
+    "path_count": 122,
+    "typing": false,
+    "runtime_tested": false
+  },
+  "typing_prerequisite": {
+    "plan_path": "/tmp/name-handling-eight-package-check-v10-source122/plan.json",
+    "plan_sha256": "e77a78b2f587004b97cffc8c56e936a483b6e0a72ee1d6179c3129a3162b50f1",
+    "runner_input_manifest_path": "/tmp/name-handling-eight-package-check-v10-source122/runner-input-manifest.json",
+    "runner_input_manifest_sha256": "3183ff0f774aa41ecd8eaf51e204f1034fc9422aa79924c292c1926cdfb0f582",
+    "actual_final_receipt": null,
+    "actual_final_sha256": null,
+    "actual_launcher_receipt": null,
+    "actual_launcher_sha256": null,
+    "policy": "future actual source122 exact product PASS/0errors/0warnings/fullguards/launcher+parentclosure; never fill from typing=false identity or in-flight log"
+  },
+  "counts": {
+    "Jim_original7": 7,
+    "Jim_new4": 4,
+    "UPF2": 2,
+    "Spec3": 3,
+    "selectors": 16,
+    "artifacts": 7
+  },
+  "new_test_discovery": [
+    {
+      "source": "rust/tcl-spectcl/tests/jim_authored_call.rs",
+      "selector": "an_authored_call_retains_its_original_class_without_native_identity",
+      "discovery": "actual current Rust #[test] function; fresh libtest roster still required"
+    },
+    {
+      "source": "rust/tcl-spectcl/tests/jim_authored_call.rs",
+      "selector": "callbacks_deferred_calls_missing_cells_and_foreign_dialects_refuse",
+      "discovery": "actual current Rust #[test] function; fresh libtest roster still required"
+    },
+    {
+      "source": "rust/tcl-spectcl/tests/jim_authored_call.rs",
+      "selector": "earlier_unknown_effects_remain_explicit_conditional_debt",
+      "discovery": "actual current Rust #[test] function; fresh libtest roster still required"
+    },
+    {
+      "source": "rust/tcl-spectcl/tests/jim_core_metadata_identity.rs",
+      "selector": "compiled_core_metadata_is_pure_before_and_after_active_registration",
+      "discovery": "actual current Rust #[test] function; fresh libtest roster still required"
+    }
+  ],
+  "required_filters": [
+    {
+      "package": "tcl-spectcl",
+      "target": "jim_document",
+      "target_kind": [
+        "test"
+      ],
+      "manifest_path": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-spectcl/Cargo.toml",
+      "artifact_key": "tcl-spectcl:test:jim_document",
+      "selector": "a_class_records_the_variables_its_dictionary_names",
+      "exact": true,
+      "expected_selected": 1,
+      "source_path": "rust/tcl-spectcl/tests/jim_document.rs",
+      "source_sha256": "15d878edcede03f7d3aa036bb2a1ad00b469858d4aa337ea913092e9d0bad015",
+      "group": "Jim-original-source-owner5",
+      "assertion_policy": "original current test body unchanged",
+      "env": {
+        "TCL_LSP_TRACE_JIM_SOURCE_OWNER": "1"
+      }
+    },
+    {
+      "package": "tcl-spectcl",
+      "target": "jim_document",
+      "target_kind": [
+        "test"
+      ],
+      "manifest_path": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-spectcl/Cargo.toml",
+      "artifact_key": "tcl-spectcl:test:jim_document",
+      "selector": "a_method_body_sees_the_instance_variables_and_self",
+      "exact": true,
+      "expected_selected": 1,
+      "source_path": "rust/tcl-spectcl/tests/jim_document.rs",
+      "source_sha256": "15d878edcede03f7d3aa036bb2a1ad00b469858d4aa337ea913092e9d0bad015",
+      "group": "Jim-original-source-owner5",
+      "assertion_policy": "original current test body unchanged",
+      "env": {
+        "TCL_LSP_TRACE_JIM_SOURCE_OWNER": "1"
+      }
+    },
+    {
+      "package": "tcl-spectcl",
+      "target": "jim_document",
+      "target_kind": [
+        "test"
+      ],
+      "manifest_path": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-spectcl/Cargo.toml",
+      "artifact_key": "tcl-spectcl:test:jim_document",
+      "selector": "older_jim_retains_positive_logical_source_purpose_without_native_promotion",
+      "exact": true,
+      "expected_selected": 1,
+      "source_path": "rust/tcl-spectcl/tests/jim_document.rs",
+      "source_sha256": "15d878edcede03f7d3aa036bb2a1ad00b469858d4aa337ea913092e9d0bad015",
+      "group": "Jim-original-source-owner5",
+      "assertion_policy": "original current test body unchanged",
+      "env": {
+        "TCL_LSP_TRACE_JIM_SOURCE_OWNER": "1"
+      }
+    },
+    {
+      "package": "tcl-spectcl",
+      "target": "jim_document",
+      "target_kind": [
+        "test"
+      ],
+      "manifest_path": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-spectcl/Cargo.toml",
+      "artifact_key": "tcl-spectcl:test:jim_document",
+      "selector": "nested_jim_headers_retain_the_authentic_conditional_source_parent",
+      "exact": true,
+      "expected_selected": 1,
+      "source_path": "rust/tcl-spectcl/tests/jim_document.rs",
+      "source_sha256": "15d878edcede03f7d3aa036bb2a1ad00b469858d4aa337ea913092e9d0bad015",
+      "group": "Jim-original-source-owner5",
+      "assertion_policy": "original current test body unchanged",
+      "env": {
+        "TCL_LSP_TRACE_JIM_SOURCE_OWNER": "1"
+      }
+    },
+    {
+      "package": "tcl-spectcl",
+      "target": "jim_document",
+      "target_kind": [
+        "test"
+      ],
+      "manifest_path": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-spectcl/Cargo.toml",
+      "artifact_key": "tcl-spectcl:test:jim_document",
+      "selector": "authored_jim_dictionary_and_odd_shape_use_the_original_list_fields",
+      "exact": true,
+      "expected_selected": 1,
+      "source_path": "rust/tcl-spectcl/tests/jim_document.rs",
+      "source_sha256": "15d878edcede03f7d3aa036bb2a1ad00b469858d4aa337ea913092e9d0bad015",
+      "group": "Jim-original-source-owner5",
+      "assertion_policy": "original current test body unchanged",
+      "env": {
+        "TCL_LSP_TRACE_JIM_SOURCE_OWNER": "1"
+      }
+    },
+    {
+      "package": "tcl-spectcl",
+      "target": "jim_own_surface",
+      "target_kind": [
+        "test"
+      ],
+      "manifest_path": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-spectcl/Cargo.toml",
+      "artifact_key": "tcl-spectcl:test:jim_own_surface",
+      "selector": "a_jim_document_resolves_every_declared_command",
+      "exact": true,
+      "expected_selected": 1,
+      "source_path": "rust/tcl-spectcl/tests/jim_own_surface.rs",
+      "source_sha256": "a62d6bc969db115c86037645002d8db95ac2120d3cad0dba2ef374c77278cc7e",
+      "group": "Jim-original-proc-row2",
+      "assertion_policy": "original current test body unchanged",
+      "env": {}
+    },
+    {
+      "package": "tcl-spectcl",
+      "target": "jim_own_surface",
+      "target_kind": [
+        "test"
+      ],
+      "manifest_path": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-spectcl/Cargo.toml",
+      "artifact_key": "tcl-spectcl:test:jim_own_surface",
+      "selector": "a_pack_carrying_jim_store_keeps_jims_own_surface",
+      "exact": true,
+      "expected_selected": 1,
+      "source_path": "rust/tcl-spectcl/tests/jim_own_surface.rs",
+      "source_sha256": "a62d6bc969db115c86037645002d8db95ac2120d3cad0dba2ef374c77278cc7e",
+      "group": "Jim-original-proc-row2",
+      "assertion_policy": "original current test body unchanged",
+      "env": {}
+    },
+    {
+      "package": "tcl-spectcl",
+      "target": "jim_authored_call",
+      "target_kind": [
+        "test"
+      ],
+      "manifest_path": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-spectcl/Cargo.toml",
+      "artifact_key": "tcl-spectcl:test:jim_authored_call",
+      "selector": "an_authored_call_retains_its_original_class_without_native_identity",
+      "exact": true,
+      "expected_selected": 1,
+      "source_path": "rust/tcl-spectcl/tests/jim_authored_call.rs",
+      "source_sha256": "8c801598ff378b3944046d5e5c3d09befddbb8be356b4abd306812f845a92425",
+      "group": "Jim-new-authenticity-controls4",
+      "assertion_policy": "original current test body unchanged",
+      "env": {}
+    },
+    {
+      "package": "tcl-spectcl",
+      "target": "jim_authored_call",
+      "target_kind": [
+        "test"
+      ],
+      "manifest_path": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-spectcl/Cargo.toml",
+      "artifact_key": "tcl-spectcl:test:jim_authored_call",
+      "selector": "callbacks_deferred_calls_missing_cells_and_foreign_dialects_refuse",
+      "exact": true,
+      "expected_selected": 1,
+      "source_path": "rust/tcl-spectcl/tests/jim_authored_call.rs",
+      "source_sha256": "8c801598ff378b3944046d5e5c3d09befddbb8be356b4abd306812f845a92425",
+      "group": "Jim-new-authenticity-controls4",
+      "assertion_policy": "original current test body unchanged",
+      "env": {}
+    },
+    {
+      "package": "tcl-spectcl",
+      "target": "jim_authored_call",
+      "target_kind": [
+        "test"
+      ],
+      "manifest_path": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-spectcl/Cargo.toml",
+      "artifact_key": "tcl-spectcl:test:jim_authored_call",
+      "selector": "earlier_unknown_effects_remain_explicit_conditional_debt",
+      "exact": true,
+      "expected_selected": 1,
+      "source_path": "rust/tcl-spectcl/tests/jim_authored_call.rs",
+      "source_sha256": "8c801598ff378b3944046d5e5c3d09befddbb8be356b4abd306812f845a92425",
+      "group": "Jim-new-authenticity-controls4",
+      "assertion_policy": "original current test body unchanged",
+      "env": {}
+    },
+    {
+      "package": "tcl-spectcl",
+      "target": "jim_core_metadata_identity",
+      "target_kind": [
+        "test"
+      ],
+      "manifest_path": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-spectcl/Cargo.toml",
+      "artifact_key": "tcl-spectcl:test:jim_core_metadata_identity",
+      "selector": "compiled_core_metadata_is_pure_before_and_after_active_registration",
+      "exact": true,
+      "expected_selected": 1,
+      "source_path": "rust/tcl-spectcl/tests/jim_core_metadata_identity.rs",
+      "source_sha256": "db445c8b9b99e90bc33770968ae17e1738cefb5f1508d25ddd701a3cadd86a11",
+      "group": "Jim-new-authenticity-controls4",
+      "assertion_policy": "original current test body unchanged",
+      "env": {}
+    },
+    {
+      "package": "tcl-spectcl",
+      "target": "upf_hooks",
+      "target_kind": [
+        "test"
+      ],
+      "manifest_path": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-spectcl/Cargo.toml",
+      "artifact_key": "tcl-spectcl:test:upf_hooks",
+      "selector": "every_upf_option_arity_hook_consumes_exactly_its_optional_value",
+      "exact": true,
+      "expected_selected": 1,
+      "source_path": "rust/tcl-spectcl/tests/upf_hooks.rs",
+      "source_sha256": "129d69ce0c48c613f8caea5b86b33548a8eb62d9d16bf167c9985cdf9b718b39",
+      "group": "UPF-original2-97calls17slots",
+      "assertion_policy": "original current test body unchanged",
+      "env": {}
+    },
+    {
+      "package": "tcl-spectcl",
+      "target": "upf_hooks",
+      "target_kind": [
+        "test"
+      ],
+      "manifest_path": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-spectcl/Cargo.toml",
+      "artifact_key": "tcl-spectcl:test:upf_hooks",
+      "selector": "the_define_power_model_resolver_marks_the_trailing_body",
+      "exact": true,
+      "expected_selected": 1,
+      "source_path": "rust/tcl-spectcl/tests/upf_hooks.rs",
+      "source_sha256": "129d69ce0c48c613f8caea5b86b33548a8eb62d9d16bf167c9985cdf9b718b39",
+      "group": "UPF-original2-97calls17slots",
+      "assertion_policy": "original current test body unchanged",
+      "env": {}
+    },
+    {
+      "package": "tcl-spectcl",
+      "target": "workspace_packs",
+      "target_kind": [
+        "test"
+      ],
+      "manifest_path": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-spectcl/Cargo.toml",
+      "artifact_key": "tcl-spectcl:test:workspace_packs",
+      "selector": "a_manifest_that_places_nothing_does_not_lift_its_pack",
+      "exact": true,
+      "expected_selected": 1,
+      "source_path": "rust/tcl-spectcl/tests/workspace_packs.rs",
+      "source_sha256": "f6c4edb4a2af225557daafa651cf681e06e657ddda6d41026c6c855d0dab366e",
+      "group": "Spec-original3",
+      "assertion_policy": "original current test body unchanged",
+      "env": {}
+    },
+    {
+      "package": "tcl-spectcl",
+      "target": "workspace_packs",
+      "target_kind": [
+        "test"
+      ],
+      "manifest_path": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-spectcl/Cargo.toml",
+      "artifact_key": "tcl-spectcl:test:workspace_packs",
+      "selector": "a_warm_cache_produces_the_identical_load",
+      "exact": true,
+      "expected_selected": 1,
+      "source_path": "rust/tcl-spectcl/tests/workspace_packs.rs",
+      "source_sha256": "f6c4edb4a2af225557daafa651cf681e06e657ddda6d41026c6c855d0dab366e",
+      "group": "Spec-original3",
+      "assertion_policy": "original current test body unchanged",
+      "env": {}
+    },
+    {
+      "package": "tcl-spec-studio",
+      "target": "spectcl_ports",
+      "target_kind": [
+        "test"
+      ],
+      "manifest_path": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-spec-studio/Cargo.toml",
+      "artifact_key": "tcl-spec-studio:test:spectcl_ports",
+      "selector": "every_port_loads_and_matches_its_shipped_spec",
+      "exact": true,
+      "expected_selected": 1,
+      "source_path": "rust/tcl-spec-studio/tests/spectcl_ports.rs",
+      "source_sha256": "9b7472985681d56fba6dd09bb0757cf15118fb943d9a755348717425d67a7c89",
+      "group": "Spec-original3",
+      "assertion_policy": "original current test body unchanged",
+      "env": {}
+    }
+  ],
+  "package_builds": [
+    {
+      "package": "tcl-spectcl",
+      "target": "jim_document",
+      "target_kind": [
+        "test"
+      ],
+      "manifest_path": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-spectcl/Cargo.toml",
+      "cargo_argv": [
+        "/workspace/.rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/bin/cargo",
+        "test",
+        "--locked",
+        "-p",
+        "tcl-spectcl",
+        "--test",
+        "jim_document",
+        "--no-run",
+        "--message-format=json"
+      ],
+      "profile_test": true,
+      "features": [],
+      "actual_Cargo_artifact": null,
+      "mapping_policy": "Fresh invocation JSON exactly one matching package manifest,target name,kind test,testprofile,executable under actual pinnedtarget; no stale fallback; full hash before/after; actual --list roster must contain each exact selector once."
+    },
+    {
+      "package": "tcl-spectcl",
+      "target": "jim_own_surface",
+      "target_kind": [
+        "test"
+      ],
+      "manifest_path": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-spectcl/Cargo.toml",
+      "cargo_argv": [
+        "/workspace/.rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/bin/cargo",
+        "test",
+        "--locked",
+        "-p",
+        "tcl-spectcl",
+        "--test",
+        "jim_own_surface",
+        "--no-run",
+        "--message-format=json"
+      ],
+      "profile_test": true,
+      "features": [],
+      "actual_Cargo_artifact": null,
+      "mapping_policy": "Fresh invocation JSON exactly one matching package manifest,target name,kind test,testprofile,executable under actual pinnedtarget; no stale fallback; full hash before/after; actual --list roster must contain each exact selector once."
+    },
+    {
+      "package": "tcl-spectcl",
+      "target": "jim_authored_call",
+      "target_kind": [
+        "test"
+      ],
+      "manifest_path": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-spectcl/Cargo.toml",
+      "cargo_argv": [
+        "/workspace/.rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/bin/cargo",
+        "test",
+        "--locked",
+        "-p",
+        "tcl-spectcl",
+        "--test",
+        "jim_authored_call",
+        "--no-run",
+        "--message-format=json"
+      ],
+      "profile_test": true,
+      "features": [],
+      "actual_Cargo_artifact": null,
+      "mapping_policy": "Fresh invocation JSON exactly one matching package manifest,target name,kind test,testprofile,executable under actual pinnedtarget; no stale fallback; full hash before/after; actual --list roster must contain each exact selector once."
+    },
+    {
+      "package": "tcl-spectcl",
+      "target": "jim_core_metadata_identity",
+      "target_kind": [
+        "test"
+      ],
+      "manifest_path": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-spectcl/Cargo.toml",
+      "cargo_argv": [
+        "/workspace/.rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/bin/cargo",
+        "test",
+        "--locked",
+        "-p",
+        "tcl-spectcl",
+        "--test",
+        "jim_core_metadata_identity",
+        "--no-run",
+        "--message-format=json"
+      ],
+      "profile_test": true,
+      "features": [],
+      "actual_Cargo_artifact": null,
+      "mapping_policy": "Fresh invocation JSON exactly one matching package manifest,target name,kind test,testprofile,executable under actual pinnedtarget; no stale fallback; full hash before/after; actual --list roster must contain each exact selector once."
+    },
+    {
+      "package": "tcl-spectcl",
+      "target": "upf_hooks",
+      "target_kind": [
+        "test"
+      ],
+      "manifest_path": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-spectcl/Cargo.toml",
+      "cargo_argv": [
+        "/workspace/.rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/bin/cargo",
+        "test",
+        "--locked",
+        "-p",
+        "tcl-spectcl",
+        "--test",
+        "upf_hooks",
+        "--no-run",
+        "--message-format=json"
+      ],
+      "profile_test": true,
+      "features": [],
+      "actual_Cargo_artifact": null,
+      "mapping_policy": "Fresh invocation JSON exactly one matching package manifest,target name,kind test,testprofile,executable under actual pinnedtarget; no stale fallback; full hash before/after; actual --list roster must contain each exact selector once."
+    },
+    {
+      "package": "tcl-spectcl",
+      "target": "workspace_packs",
+      "target_kind": [
+        "test"
+      ],
+      "manifest_path": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-spectcl/Cargo.toml",
+      "cargo_argv": [
+        "/workspace/.rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/bin/cargo",
+        "test",
+        "--locked",
+        "-p",
+        "tcl-spectcl",
+        "--test",
+        "workspace_packs",
+        "--no-run",
+        "--message-format=json"
+      ],
+      "profile_test": true,
+      "features": [],
+      "actual_Cargo_artifact": null,
+      "mapping_policy": "Fresh invocation JSON exactly one matching package manifest,target name,kind test,testprofile,executable under actual pinnedtarget; no stale fallback; full hash before/after; actual --list roster must contain each exact selector once."
+    },
+    {
+      "package": "tcl-spec-studio",
+      "target": "spectcl_ports",
+      "target_kind": [
+        "test"
+      ],
+      "manifest_path": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-spec-studio/Cargo.toml",
+      "cargo_argv": [
+        "/workspace/.rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/bin/cargo",
+        "test",
+        "--locked",
+        "-p",
+        "tcl-spec-studio",
+        "--test",
+        "spectcl_ports",
+        "--no-run",
+        "--message-format=json"
+      ],
+      "profile_test": true,
+      "features": [],
+      "actual_Cargo_artifact": null,
+      "mapping_policy": "Fresh invocation JSON exactly one matching package manifest,target name,kind test,testprofile,executable under actual pinnedtarget; no stale fallback; full hash before/after; actual --list roster must contain each exact selector once."
+    }
+  ],
+  "required_environment": {
+    "CARGO_BUILD_JOBS": "2",
+    "CARGO_HOME": "/workspace/.cargo",
+    "CARGO_INCREMENTAL": "0",
+    "CARGO_PROFILE_DEV_DEBUG": "0",
+    "CARGO_PROFILE_TEST_DEBUG": "0",
+    "CARGO_TARGET_DIR": "/workspace/naming-migration-active/tcl-lsp/target",
+    "RUSTC": "/workspace/.rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/bin/rustc",
+    "RUSTUP_HOME": "/workspace/.rustup",
+    "RUSTUP_TOOLCHAIN": "1.99.1",
+    "TCL_LSP_JIMSH": "/workspace/naming-toolchains/tmp/jimtcl-oracle/jimsh",
+    "TCL_LSP_REQUIRE_TCLSH": "9.0,8.6",
+    "TMPDIR": "/workspace/naming-build-tmp",
+    "WASI_SDK_PATH": "/workspace/.toolchains/wasi-sdk-34.0",
+    "TCL_LSP_TCLSH84": "/workspace/naming-toolchains/bin/tclsh8.4",
+    "TCL_LSP_TCLSH85": "/workspace/naming-toolchains/bin/tclsh8.5",
+    "TCL_LSP_TCLSH86": "/workspace/naming-toolchains/bin/tclsh8.6",
+    "TCL_LSP_TCLSH90": "/workspace/naming-toolchains/bin/tclsh9.0",
+    "TCL_LSP_TCLSH91": "/workspace/naming-toolchains/bin/tclsh9.1",
+    "TCL_TOMMATH_DIR": "/workspace/naming-toolchains/tmp/tcl9.0.4/libtommath"
+  },
+  "required_environment_absent": [
+    "TCL_RUNTIME_EXPECT_NO_TOMMATH"
+  ],
+  "refused_environment_exact": [
+    "RUSTFLAGS",
+    "CARGO_ENCODED_RUSTFLAGS",
+    "RUSTC_WRAPPER",
+    "RUSTC_WORKSPACE_WRAPPER",
+    "CARGO_BUILD_RUSTFLAGS",
+    "CARGO_BUILD_RUSTC",
+    "CARGO_BUILD_RUSTC_WRAPPER",
+    "CARGO_BUILD_RUSTC_WORKSPACE_WRAPPER",
+    "CARGO_BUILD_TARGET",
+    "RUSTC_BOOTSTRAP",
+    "TCL_RUNTIME_EXPECT_NO_TOMMATH"
+  ],
+  "refused_environment_patterns": [
+    {
+      "prefix": "CARGO_TARGET_",
+      "suffix": "_RUSTFLAGS"
+    }
+  ],
+  "path_prefix": "/workspace/.cargo/bin:/workspace/naming-toolchains/node26/bin:/workspace/naming-toolchains/bin",
+  "cargo_path": "/workspace/.rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/bin/cargo",
+  "cargo_sha256": "a670e02cfa39ac2e53f77a2d911ca1fc9e2c479b0603ec956625be1daf24e3af",
+  "rustc_path": "/workspace/.rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/bin/rustc",
+  "rustc_sha256": "b53b780f77f952062f8ca8a3b70aef2390b1e45ad91939be94afdc9543026853",
+  "guards": {
+    "whole_lock": "/tmp/tcl-lsp-naming-build.lock; nonblocking exclusive before full source/provider snapshots, all7builds+rosters+16 selectors+final closure; parent owned until lock release",
+    "source": "Exact approved actualidentity/map122 before+perphase+final inclafterfinalseals; all source/provider inputs, root manifest+lock+toolchain+Makefile/.cargo, no product drift; monotonic docs-only descendants allowed by reviewed source_view",
+    "providers": "Full five Tcl/Jim actualexe/wrappers/proxy/shared+static libs/scripts+recursive ELF; C compiler/binutils/headers/GCC/SDK/sourcearchive/TomMath provider trees and actual tools; full before/perphase/final equality",
+    "lifecycle_executor_sha256": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811",
+    "build_deadline_seconds": 3600,
+    "selector_deadline_seconds": 180,
+    "log_cap_bytes": 20971520,
+    "logs": "shared aggregate stdout/stderr budget across owned processes; durable raw process receipts",
+    "disk_floor_bytes": 2147483648,
+    "disk_paths": [
+      "/workspace",
+      "/tmp"
+    ],
+    "TMPDIR": "/workspace/naming-build-tmp",
+    "process": "pre-spawn timer, exact owned PID/startticks, WNOWAIT through EOF+two complete empty ownedgroup scans, signal cleanup bounded; timeout/incomplete terminal protocol failure not ordinary testFAIL",
+    "libtest": "started1/name exact/summary one/pass+fail1/ignored0; statusok iff pass1 exit0, statusFAILED iff fail1 exit101; signals/inconsistent summaries terminal protocolfailure retained raw",
+    "warnings": "strict0 build/compiler/buildscript/runtime; no intentional warning exception",
+    "cleanup": "no source/provider/target deletion; metadata withdrawal only approved runtimebuildscript behavior",
+    "final": "all16 selected, final source/provider/artifacts+input+rootGO stable, finalafterseals source_view then lockrelease+finishedlauncher+rootparent observation; archive only complete closedrun"
+  },
+  "root_go": null,
+  "limits": "No Cargo/metadata/libtest/GO invoked. Four new names discovered statically from current files, not claimed actual roster. Original assertions retained; failed selector may not reach later original subcases. Finite11 Jim is not whole66 or releaseC1C2. ServerUPFnew2, browser/shippedhosts/reload, noTom16 are separate gates. Older all-features dependency-unification limitation retained: these default no-run builds prove only their captured graph/artifacts, not all-features parity."
+}

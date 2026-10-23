@@ -1,0 +1,39 @@
+{
+  "artifacts": [
+    {
+      "binary_id": "nextest-capture-pilot",
+      "captured_from_actual_nextest_listing": true,
+      "mtime_ns": 1792747920359651569,
+      "path": "/tmp/ccg-nextest-real-pilot-v1/target/debug/deps/nextest_capture_pilot-20416c52fa816649",
+      "sha256": "5a1af64f04c9b5cea99c7d983f19fade26ff1f227c494f1b8e394c681ac5e1d7"
+    }
+  ],
+  "artifacts_retained": true,
+  "finished_utc": "2026-10-23T09:32:42.757303+00:00",
+  "head_after": "b9ec3ebc02391327ab7c4d675e8b8dac31d78d0a",
+  "head_before": "b9ec3ebc02391327ab7c4d675e8b8dac31d78d0a",
+  "intentional_fixture_failure_exit": 100,
+  "nested_lifecycle": {
+    "cleanup_signals": [],
+    "group_empty_before_parent_reap": true,
+    "group_scan_attempts": 2,
+    "last_live_members": [],
+    "last_scan_complete": true,
+    "owned_pgid": 359194,
+    "parent_pid": 359194,
+    "parent_start_ticks": 7258270
+  },
+  "providers_stable": true,
+  "receipt": "/tmp/ccg-nextest-real-pilot-v1/runs/20261023T093129.668476Z",
+  "root_go_stable": true,
+  "scope": "real nextest reporter tool pilot only",
+  "selected": 2,
+  "source_stable": true,
+  "status": "PASS",
+  "statuses": {
+    "tests::actual_reporter_failure": "failed",
+    "tests::actual_reporter_pass": "ok"
+  },
+  "terminal": 2,
+  "tool_pilot_passed": true
+}

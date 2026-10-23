@@ -1,0 +1,58 @@
+{
+  "utc": "2026-10-23T09:34:47.941009+00:00",
+  "status": "OFFTREE latest normaltyping builder/actualidentity adapter staticCLEAR; actual identity/Git/materialization/typing UNRUN",
+  "archive_sha256": "4514c81de1a3ecbfdc4b64646f4453c6a87c9697b73f79a6699adac87e427d6b",
+  "files": [
+    {
+      "path": "README.md",
+      "sha256": "b194cbdbb6075a69868e50892b8cf68b91a905888c2c18810799937f7ebfc10b"
+    },
+    {
+      "path": "actual-identity-required-schema.json",
+      "sha256": "11173c4708bd818c3efb0b44f2d056c3928c39d33162e9c780829872ba400f37"
+    },
+    {
+      "path": "builder.py",
+      "sha256": "5cfeb693bb140623b61da85ff0533f81e14df7d80967269f86893a446c082cd3"
+    },
+    {
+      "path": "compiler-environment-peer.json",
+      "sha256": "cad20f9b4c934cb9d829da4691e1caa8570da76abece43e0014405fe1af957ce"
+    },
+    {
+      "path": "guarded-exec.py.template.txt",
+      "sha256": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811"
+    },
+    {
+      "path": "launch.py.template.txt",
+      "sha256": "879b4c65b573effa93973cf804167d2081b178a466efcdf43f14b1a88897c9b6"
+    },
+    {
+      "path": "plan.template.json",
+      "sha256": "d2742cb47196c8ed8629a196a13842d679b531ae513f8c1da5e40a7f160c62b7"
+    },
+    {
+      "path": "policy.json",
+      "sha256": "e9660031a85c69722c6f9f9b26bc13319a591910594e7bf927902b79a5d8e7ca"
+    },
+    {
+      "path": "preparation-manifest.json",
+      "sha256": "b387fcc3b4eb18f77cc6545ecc5bf42aced205e19744a2a538cfa7ea0a16d3b0"
+    },
+    {
+      "path": "run.sh.template.txt",
+      "sha256": "ad51c19824a1755520fedb71d5cc45ceb8463854f233a5d8dab75b138d2a5110"
+    },
+    {
+      "path": "static-checks.json",
+      "sha256": "b92a4cc99b418f481989b8fe68aa26a2b589b04f3852ff1ca5b1659daa18df58"
+    },
+    {
+      "path": "suite.py.template.txt",
+      "sha256": "455d9c800e9bc39d118a7b8eccf1ad8c3220c858e0c28c7b4df9919d06440b8f"
+    }
+  ],
+  "roundtrip": true,
+  "policy": "TMPDIR required /workspace/naming-build-tmp; TCL_RUNTIME_EXPECT_NO_TOMMATH refused if present evenempty for normaltyping (Tomsourcepresent). Separate intentionalNoTom controls useexplicit1+actualabsence. All old guards/floor bytes/argv/source/provider/GO/0W unchanged. Actual source/root-reviewed manifest+realcommitted identity remain required.",
+  "builder_preparation_sha256": "b387fcc3b4eb18f77cc6545ecc5bf42aced205e19744a2a538cfa7ea0a16d3b0"
+}

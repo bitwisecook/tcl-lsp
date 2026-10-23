@@ -1,0 +1,10 @@
+{
+  "utc": "2026-10-23T09:43:07.027935+00:00",
+  "status": "offtree doc-only fix for actual v10 five missing_docs errors; fmtPASS; no typing/runtime acceptance",
+  "path": "rust/tcl-registry/src/native_procedure.rs",
+  "before_sha256": "c30a329197ea1a15459779ce9e51e37adf1a45435487d4685f4d72793d848d9f",
+  "after_sha256": "b725539fb7b1d9c00005036abe4dcbfee51e7b2eebdf8e9d70b047b9908c5048",
+  "patch_sha256": "8586073c53118a3261188d9813a29403b7fa8e19d113206628fe38e293c59c5a",
+  "actual_diagnostic_run": "/tmp/name-handling-eight-package-check-v10-source122/runs/20261023T093900.353132Z",
+  "invariant": "Only five /// field doc lines added; no noncomment code token change, allows, visibility or assertions."
+}

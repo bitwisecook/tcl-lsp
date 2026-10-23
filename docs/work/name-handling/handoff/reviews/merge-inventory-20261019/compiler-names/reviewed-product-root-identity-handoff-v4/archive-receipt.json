@@ -1,0 +1,26 @@
+{
+  "utc": "2026-10-23T09:34:47.961835+00:00",
+  "status": "OFFTREE latest normaltyping builder/actualidentity adapter staticCLEAR; actual identity/Git/materialization/typing UNRUN",
+  "archive_sha256": "c0b83d919bf24befe5f5ccda4396f6a3edecad65a70978b9e912a09bb86aaab3",
+  "files": [
+    {
+      "path": "ROOT-COMMANDS.txt",
+      "sha256": "4369278a9b759e89a4f990588e71bb91e17c61cfc0fc93492bff0c8fa1d72339"
+    },
+    {
+      "path": "compiler-static-peer.json",
+      "sha256": "2f943d11548995ed0f10c4df5593c65c1384ae694cdd1af71e25219cdb4e31d0"
+    },
+    {
+      "path": "prepare_actual_identity.py",
+      "sha256": "c7500913a33a7e7b69164efbb7b32dcecb98de6c0365d913a233703cac800f06"
+    },
+    {
+      "path": "static-preflight.json",
+      "sha256": "32318db390b2592edc13c380cab4a96ae1403b9d2e095ea32c7972a213c9aa27"
+    }
+  ],
+  "roundtrip": true,
+  "policy": "TMPDIR required /workspace/naming-build-tmp; TCL_RUNTIME_EXPECT_NO_TOMMATH refused if present evenempty for normaltyping (Tomsourcepresent). Separate intentionalNoTom controls useexplicit1+actualabsence. All old guards/floor bytes/argv/source/provider/GO/0W unchanged. Actual source/root-reviewed manifest+realcommitted identity remain required.",
+  "builder_preparation_sha256": "b387fcc3b4eb18f77cc6545ecc5bf42aced205e19744a2a538cfa7ea0a16d3b0"
+}

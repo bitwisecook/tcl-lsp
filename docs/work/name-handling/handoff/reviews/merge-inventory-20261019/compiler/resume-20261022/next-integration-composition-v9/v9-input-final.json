@@ -1,0 +1,20 @@
+{
+  "root": "/workspace/naming-migration-active/tcl-lsp",
+  "predecessor_manifest": "/tmp/compiler-next-integration-composition-v8/manifest.json",
+  "predecessor_manifest_sha256": "4da29a53c7edab1c281712b63f4d38bf1864ecd0abad1d6376e303a2ba37311b",
+  "additions": [
+    {
+      "id": "notom-intentional-capability-b-v2",
+      "patch_path": "/tmp/vm-notommath-intentional-capability-b-final-v2/proposal.patch",
+      "patch_sha256": "c7128d55a20e397b7469e3b125c8200f651827c4e535f0902192927d1735a3fc",
+      "static_peer_receipt_sha256": "ed7dc8a269b43be4c73dd79a5fff57edcb272a9c99dd443969b57e3344a6b8b3",
+      "category": "explicit-capability-build-expectation",
+      "base_kind": "current"
+    }
+  ],
+  "excluded": [
+    "NoTomBv1 staleOUTDIR HELD",
+    "EXPECT_NO_TOMMATH mustbeABSENT in normaltype/runtime protocols",
+    "VM6structural/aliasoriginalreplacementheld"
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "schema": "names-v11-retry-preparation-archive",
+  "utc": "2026-10-23T09:49:21.242652+00:00",
+  "archive_sha256": "a25249401e75c8d92ac72beba318097591909ac9ae0c6d361c5573be30b22027",
+  "builder_preparation_sha256": "4be14fae7d966183593ab660070dbdaee3a92a12d806f633a69506b6cfac4e5c",
+  "adapter_sha256": "f67726987073c00068204e9743316e6c86e8a81ba9520a211fd4ba8bf1184223",
+  "builder_peer_sha256": "675edad91161eac7a0bc131cead7cd142cdb11b7014c3d0ab87d3774c5d82476",
+  "limits": "Label-only v11 retry template. No actual identity, GO, materialization, Cargo or typing acceptance by Names. Failed v10 preserved."
+}

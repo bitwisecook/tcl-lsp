@@ -1,0 +1,23 @@
+--- a/rust/tcl-compiler/src/command_binding/source_transition_advice/source_jim_class.rs
++++ b/rust/tcl-compiler/src/command_binding/source_transition_advice/source_jim_class.rs
+@@ -419,16 +419,20 @@
+     obligations: Vec<super::SourceCommandTransitionObligation>,
+ }
+ impl OriginalAuthoredJimClassCall {
++    /// Complete original call words, retaining their image, grouping and grammar.
+     pub fn original_words(&self) -> &[NativeWord] {
+         &self.original
+     }
++    /// Authentic conditional source class selected by this original graph lookup.
+     pub fn class(&self) -> &OriginalAuthoredJimClass {
+         &self.class
+     }
++    /// Whether earlier unknown effects remain an explicit applicability debt.
+     pub fn has_earlier_unknown_mutations(&self) -> bool {
+         self.obligations
+             .contains(&super::SourceCommandTransitionObligation::UnknownEarlierMutation)
+     }
++    /// Unresolved source and execution premises; no successful dispatch is implied.
+     pub fn obligations(&self) -> &[super::SourceCommandTransitionObligation] {
+         &self.obligations
+     }

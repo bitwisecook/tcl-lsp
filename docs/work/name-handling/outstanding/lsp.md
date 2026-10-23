@@ -1,6 +1,6 @@
 # Outstanding work: lsp agent
 
-Current status 2026-10-23T09:18:25Z: root-authorized releasecandidate fixturecleanup completed candidateonly:232unique requiredorigin inputs/642528retainedbytes,33Rustconsumers differ onlyinclude pathliterals (allother tokens/assertions identical). Staticdirect include closure3358present0missing3generated; all89macros accounted(88literalexpansion+14variadicstdlibfiles),0missing. WORK `lsp/release-candidate-fixture-cleanup-20261023/cleanup-final-map.json` exactmap+pins. ProductionF5 tables moved fullbytes/cratedata, IDs/parser/facts unchanged; dangling historical provenance reference requires rootexternalowner disposition. Audit extracted sole assertedreportrow123bytes, no bulkreport. RuntimeIO/CI/build gates remain unvalidated. Readonlyimage76b7+durablefailuref1af peerCLEAR includedrootsuccessor; imagebytechecks maystillcubic, actualperf unmeasured. RootNative15HOLD/no LSPCargo/Git/GO.
+Current status 2026-10-23T09:44:32Z: actual source122 productc40883dd/tree2e6b20c8/map eafa64c5 rootv10typing35926 RUNNING, no finalverdict. Startup2+UPF2 template `/tmp/lsp-startup-upf-source122-template-v1-direct4` frozen plan13a36090/suitee7b28ffe/inputsaaf002cd; actualidentity3c55643a+futureactualPASS0Wtype10receipt only, GOabsent/noCargo. Onefresh e2e+serverpair4exacttests, originalstartup/classcollisioncontrol+newUPF2; samebudgets/88125/fullseals/TMPDIRworkspace/NoTomrefusal/failurecontext, peerspending. Candidatecleanup reapply validates current122functional WORK33files/258literalreplacements check-only, currentcandidatealreadyclean; rootlatercarry+token-onlyreapply avoids overwritingfunctionality. SourceHOLD/rootsoleintegration.
 
 
 
@@ -63,13 +63,13 @@ Prepared separate Core1 ownership/refusal phase `/tmp/lsp-body-guard-core1/run.s
 
 Area: tcl-lsp-core, tcl-lsp-db and tcl-lsp-server (generic providers, server, WASM/WASI hosts).
 
-Last updated: 2026-10-23T09:18:25Z
+Last updated: 2026-10-23T09:44:32Z
 
 Maintained by the lsp agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## Resume
 
-Latest resume pointer 2026-10-23T09:18:25Z: candidate `/workspace/naming-lsp-release/tcl-lsp` now has reviewed-scope fixturecleanup; WORK `lsp/release-candidate-fixture-cleanup-20261023/cleanup-final-map.json` and consumer-token-preservation prove232origins/33path-onlyconsumers. Root must reapply cleanup literals over later functional sourcecopy rather than overwrite. No test/assertion/gate removed;51families oldreadpaths retained. Staticinclude closure not fullRust/runtimeIO/CI acceptance. Keep Native15 actualbarrier failures and unresolvedreadonly/headreplacement/nestedproof controls; root owns newsourceunion/typing/allocation, user1317/2231 strict.
+Latest resume pointer 2026-10-23T09:44:32Z: startup/UPF template `lsp/startup-upf-source122-template-v1-20261023/` has actual122identity/futuretype10schema, noGO/PASSfiction; await Names/CCG peers then rootallocation after actualtyping. Candidatefixture reapply `lsp/release-candidate-fixture-cleanup-20261023/reapply-include-paths.py` defaultcheck validated bothalreadyclean candidate andcurrent122workmapping (33files/258literals). Root must carryfunctionaldeltas then explicitcandidate-onlyapply. Keep original startup/barrier/UPF assertion semantics/allguards; no LSPCargo/source/Git/GO.
 
 
 

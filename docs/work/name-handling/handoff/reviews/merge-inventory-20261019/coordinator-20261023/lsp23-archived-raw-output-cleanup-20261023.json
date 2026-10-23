@@ -1,0 +1,355 @@
+{
+  "utc": "2026-10-23T09:32:28.772702+00:00",
+  "reason": "Release only archived losslessly verified raw output duplicates, not targets/executables/inputs",
+  "bytes_freed": 386274142,
+  "files": [
+    {
+      "raw_output": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/after.source.json",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "bytes": 6659899,
+      "archive": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/lsp/quote-body23-v5-closed-20261023/run/after.source.json.gz"
+    },
+    {
+      "raw_output": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/before.source.json",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "bytes": 6659899,
+      "archive": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/lsp/quote-body23-v5-closed-20261023/run/before.source.json.gz"
+    },
+    {
+      "raw_output": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/compiler_lib-postbuild.source.json",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "bytes": 6659899,
+      "archive": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/lsp/quote-body23-v5-closed-20261023/run/compiler_lib-postbuild.source.json.gz"
+    },
+    {
+      "raw_output": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/compiler_lib-posttest-0.source.json",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "bytes": 6659899,
+      "archive": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/lsp/quote-body23-v5-closed-20261023/run/compiler_lib-posttest-0.source.json.gz"
+    },
+    {
+      "raw_output": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/compiler_lib-posttest-1.source.json",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "bytes": 6659899,
+      "archive": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/lsp/quote-body23-v5-closed-20261023/run/compiler_lib-posttest-1.source.json.gz"
+    },
+    {
+      "raw_output": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/compiler_lib-posttest-2.source.json",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "bytes": 6659899,
+      "archive": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/lsp/quote-body23-v5-closed-20261023/run/compiler_lib-posttest-2.source.json.gz"
+    },
+    {
+      "raw_output": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/compiler_lib-posttest-3.source.json",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "bytes": 6659899,
+      "archive": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/lsp/quote-body23-v5-closed-20261023/run/compiler_lib-posttest-3.source.json.gz"
+    },
+    {
+      "raw_output": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/compiler_lib-posttest-4.source.json",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "bytes": 6659899,
+      "archive": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/lsp/quote-body23-v5-closed-20261023/run/compiler_lib-posttest-4.source.json.gz"
+    },
+    {
+      "raw_output": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/compiler_lib-prebuild.source.json",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "bytes": 6659899,
+      "archive": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/lsp/quote-body23-v5-closed-20261023/run/compiler_lib-prebuild.source.json.gz"
+    },
+    {
+      "raw_output": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/compiler_lib-pretest-0.source.json",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "bytes": 6659899,
+      "archive": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/lsp/quote-body23-v5-closed-20261023/run/compiler_lib-pretest-0.source.json.gz"
+    },
+    {
+      "raw_output": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/compiler_lib-pretest-1.source.json",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "bytes": 6659899,
+      "archive": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/lsp/quote-body23-v5-closed-20261023/run/compiler_lib-pretest-1.source.json.gz"
+    },
+    {
+      "raw_output": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/compiler_lib-pretest-2.source.json",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "bytes": 6659899,
+      "archive": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/lsp/quote-body23-v5-closed-20261023/run/compiler_lib-pretest-2.source.json.gz"
+    },
+    {
+      "raw_output": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/compiler_lib-pretest-3.source.json",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "bytes": 6659899,
+      "archive": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/lsp/quote-body23-v5-closed-20261023/run/compiler_lib-pretest-3.source.json.gz"
+    },
+    {
+      "raw_output": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/compiler_lib-pretest-4.source.json",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "bytes": 6659899,
+      "archive": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/lsp/quote-body23-v5-closed-20261023/run/compiler_lib-pretest-4.source.json.gz"
+    },
+    {
+      "raw_output": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-postbuild.source.json",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "bytes": 6659899,
+      "archive": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/lsp/quote-body23-v5-closed-20261023/run/core_lib-postbuild.source.json.gz"
+    },
+    {
+      "raw_output": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-posttest-0.source.json",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "bytes": 6659899,
+      "archive": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/lsp/quote-body23-v5-closed-20261023/run/core_lib-posttest-0.source.json.gz"
+    },
+    {
+      "raw_output": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-posttest-1.source.json",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "bytes": 6659899,
+      "archive": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/lsp/quote-body23-v5-closed-20261023/run/core_lib-posttest-1.source.json.gz"
+    },
+    {
+      "raw_output": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-posttest-10.source.json",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "bytes": 6659899,
+      "archive": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/lsp/quote-body23-v5-closed-20261023/run/core_lib-posttest-10.source.json.gz"
+    },
+    {
+      "raw_output": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-posttest-11.source.json",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "bytes": 6659899,
+      "archive": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/lsp/quote-body23-v5-closed-20261023/run/core_lib-posttest-11.source.json.gz"
+    },
+    {
+      "raw_output": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-posttest-2.source.json",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "bytes": 6659899,
+      "archive": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/lsp/quote-body23-v5-closed-20261023/run/core_lib-posttest-2.source.json.gz"
+    },
+    {
+      "raw_output": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-posttest-3.source.json",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "bytes": 6659899,
+      "archive": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/lsp/quote-body23-v5-closed-20261023/run/core_lib-posttest-3.source.json.gz"
+    },
+    {
+      "raw_output": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-posttest-4.source.json",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "bytes": 6659899,
+      "archive": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/lsp/quote-body23-v5-closed-20261023/run/core_lib-posttest-4.source.json.gz"
+    },
+    {
+      "raw_output": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-posttest-5.source.json",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "bytes": 6659899,
+      "archive": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/lsp/quote-body23-v5-closed-20261023/run/core_lib-posttest-5.source.json.gz"
+    },
+    {
+      "raw_output": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-posttest-6.source.json",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "bytes": 6659899,
+      "archive": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/lsp/quote-body23-v5-closed-20261023/run/core_lib-posttest-6.source.json.gz"
+    },
+    {
+      "raw_output": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-posttest-7.source.json",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "bytes": 6659899,
+      "archive": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/lsp/quote-body23-v5-closed-20261023/run/core_lib-posttest-7.source.json.gz"
+    },
+    {
+      "raw_output": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-posttest-8.source.json",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "bytes": 6659899,
+      "archive": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/lsp/quote-body23-v5-closed-20261023/run/core_lib-posttest-8.source.json.gz"
+    },
+    {
+      "raw_output": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-posttest-9.source.json",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "bytes": 6659899,
+      "archive": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/lsp/quote-body23-v5-closed-20261023/run/core_lib-posttest-9.source.json.gz"
+    },
+    {
+      "raw_output": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-prebuild.source.json",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "bytes": 6659899,
+      "archive": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/lsp/quote-body23-v5-closed-20261023/run/core_lib-prebuild.source.json.gz"
+    },
+    {
+      "raw_output": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-pretest-0.source.json",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "bytes": 6659899,
+      "archive": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/lsp/quote-body23-v5-closed-20261023/run/core_lib-pretest-0.source.json.gz"
+    },
+    {
+      "raw_output": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-pretest-1.source.json",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "bytes": 6659899,
+      "archive": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/lsp/quote-body23-v5-closed-20261023/run/core_lib-pretest-1.source.json.gz"
+    },
+    {
+      "raw_output": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-pretest-10.source.json",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "bytes": 6659899,
+      "archive": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/lsp/quote-body23-v5-closed-20261023/run/core_lib-pretest-10.source.json.gz"
+    },
+    {
+      "raw_output": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-pretest-11.source.json",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "bytes": 6659899,
+      "archive": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/lsp/quote-body23-v5-closed-20261023/run/core_lib-pretest-11.source.json.gz"
+    },
+    {
+      "raw_output": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-pretest-2.source.json",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "bytes": 6659899,
+      "archive": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/lsp/quote-body23-v5-closed-20261023/run/core_lib-pretest-2.source.json.gz"
+    },
+    {
+      "raw_output": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-pretest-3.source.json",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "bytes": 6659899,
+      "archive": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/lsp/quote-body23-v5-closed-20261023/run/core_lib-pretest-3.source.json.gz"
+    },
+    {
+      "raw_output": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-pretest-4.source.json",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "bytes": 6659899,
+      "archive": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/lsp/quote-body23-v5-closed-20261023/run/core_lib-pretest-4.source.json.gz"
+    },
+    {
+      "raw_output": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-pretest-5.source.json",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "bytes": 6659899,
+      "archive": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/lsp/quote-body23-v5-closed-20261023/run/core_lib-pretest-5.source.json.gz"
+    },
+    {
+      "raw_output": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-pretest-6.source.json",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "bytes": 6659899,
+      "archive": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/lsp/quote-body23-v5-closed-20261023/run/core_lib-pretest-6.source.json.gz"
+    },
+    {
+      "raw_output": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-pretest-7.source.json",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "bytes": 6659899,
+      "archive": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/lsp/quote-body23-v5-closed-20261023/run/core_lib-pretest-7.source.json.gz"
+    },
+    {
+      "raw_output": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-pretest-8.source.json",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "bytes": 6659899,
+      "archive": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/lsp/quote-body23-v5-closed-20261023/run/core_lib-pretest-8.source.json.gz"
+    },
+    {
+      "raw_output": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/core_lib-pretest-9.source.json",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "bytes": 6659899,
+      "archive": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/lsp/quote-body23-v5-closed-20261023/run/core_lib-pretest-9.source.json.gz"
+    },
+    {
+      "raw_output": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/lsp_core_residual-postbuild.source.json",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "bytes": 6659899,
+      "archive": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/lsp/quote-body23-v5-closed-20261023/run/lsp_core_residual-postbuild.source.json.gz"
+    },
+    {
+      "raw_output": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/lsp_core_residual-posttest-0.source.json",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "bytes": 6659899,
+      "archive": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/lsp/quote-body23-v5-closed-20261023/run/lsp_core_residual-posttest-0.source.json.gz"
+    },
+    {
+      "raw_output": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/lsp_core_residual-posttest-1.source.json",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "bytes": 6659899,
+      "archive": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/lsp/quote-body23-v5-closed-20261023/run/lsp_core_residual-posttest-1.source.json.gz"
+    },
+    {
+      "raw_output": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/lsp_core_residual-posttest-2.source.json",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "bytes": 6659899,
+      "archive": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/lsp/quote-body23-v5-closed-20261023/run/lsp_core_residual-posttest-2.source.json.gz"
+    },
+    {
+      "raw_output": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/lsp_core_residual-posttest-3.source.json",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "bytes": 6659899,
+      "archive": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/lsp/quote-body23-v5-closed-20261023/run/lsp_core_residual-posttest-3.source.json.gz"
+    },
+    {
+      "raw_output": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/lsp_core_residual-prebuild.source.json",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "bytes": 6659899,
+      "archive": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/lsp/quote-body23-v5-closed-20261023/run/lsp_core_residual-prebuild.source.json.gz"
+    },
+    {
+      "raw_output": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/lsp_core_residual-pretest-0.source.json",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "bytes": 6659899,
+      "archive": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/lsp/quote-body23-v5-closed-20261023/run/lsp_core_residual-pretest-0.source.json.gz"
+    },
+    {
+      "raw_output": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/lsp_core_residual-pretest-1.source.json",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "bytes": 6659899,
+      "archive": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/lsp/quote-body23-v5-closed-20261023/run/lsp_core_residual-pretest-1.source.json.gz"
+    },
+    {
+      "raw_output": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/lsp_core_residual-pretest-2.source.json",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "bytes": 6659899,
+      "archive": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/lsp/quote-body23-v5-closed-20261023/run/lsp_core_residual-pretest-2.source.json.gz"
+    },
+    {
+      "raw_output": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/lsp_core_residual-pretest-3.source.json",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "bytes": 6659899,
+      "archive": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/lsp/quote-body23-v5-closed-20261023/run/lsp_core_residual-pretest-3.source.json.gz"
+    },
+    {
+      "raw_output": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/lsp_edit_workspace-postbuild.source.json",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "bytes": 6659899,
+      "archive": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/lsp/quote-body23-v5-closed-20261023/run/lsp_edit_workspace-postbuild.source.json.gz"
+    },
+    {
+      "raw_output": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/lsp_edit_workspace-posttest-0.source.json",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "bytes": 6659899,
+      "archive": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/lsp/quote-body23-v5-closed-20261023/run/lsp_edit_workspace-posttest-0.source.json.gz"
+    },
+    {
+      "raw_output": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/lsp_edit_workspace-prebuild.source.json",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "bytes": 6659899,
+      "archive": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/lsp/quote-body23-v5-closed-20261023/run/lsp_edit_workspace-prebuild.source.json.gz"
+    },
+    {
+      "raw_output": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/lsp_edit_workspace-pretest-0.source.json",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "bytes": 6659899,
+      "archive": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/lsp/quote-body23-v5-closed-20261023/run/lsp_edit_workspace-pretest-0.source.json.gz"
+    },
+    {
+      "raw_output": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/minify_residual-postbuild.source.json",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "bytes": 6659899,
+      "archive": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/lsp/quote-body23-v5-closed-20261023/run/minify_residual-postbuild.source.json.gz"
+    },
+    {
+      "raw_output": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/minify_residual-posttest-0.source.json",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "bytes": 6659899,
+      "archive": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/lsp/quote-body23-v5-closed-20261023/run/minify_residual-posttest-0.source.json.gz"
+    },
+    {
+      "raw_output": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/minify_residual-prebuild.source.json",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "bytes": 6659899,
+      "archive": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/lsp/quote-body23-v5-closed-20261023/run/minify_residual-prebuild.source.json.gz"
+    },
+    {
+      "raw_output": "/tmp/lsp-quote-body-finite-v5-source46-repaired-direct23-runs/20261023T065926.834721Z/minify_residual-pretest-0.source.json",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "bytes": 6659899,
+      "archive": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/lsp/quote-body23-v5-closed-20261023/run/minify_residual-pretest-0.source.json.gz"
+    }
+  ]
+}

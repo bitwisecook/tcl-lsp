@@ -1,0 +1,93 @@
+{
+  "utc": "2026-10-23T09:29:12.081830+00:00",
+  "status": "Frozen explicitactualidentity+actualtyping focused5 materialisation TEMPLATE; no futureidentity guessed/minted, no Cargo",
+  "builder_sha256": "f1612db9a2bd44a6ada42c45cc6a5e9a5bd830497aac720b0458ef16c694a4ff",
+  "manifest_sha256": "59823874901429280cb4e179edd07f0784d2f3bc14577db64169df667b684fe2",
+  "suite_template_sha256": "d041e97441b65385f7d3b4ae7061409378bc194899d13333aead295de5962090",
+  "required_explicit_inputs": [
+    "--identity actual-integrated-product-identity-v1 JSON",
+    "--typing-receipt actualeightpackage PASS/guardvalid/zeroW sameHEADtree",
+    "--typing-plan exact actual v10 plan",
+    "--typing-input-manifest transitive actual typing inputs",
+    "--out new immutable absolute materialisationdirectory"
+  ],
+  "example": "python3 /tmp/ccg-focused5-next-builder-v1/builder.py --identity <actual-identity.json> --typing-receipt <actual-final.json> --typing-plan <actual-plan.json> --typing-input-manifest <actual-runner-input-manifest.json> --out <new-directory>",
+  "expected_filters": [
+    {
+      "env": {
+        "TCL_LSP_NATIVE_ADMISSION_DIAGNOSTIC": "first-decline-v1"
+      },
+      "exact": true,
+      "expected_selected": 1,
+      "label": "native_admission_first_decline",
+      "package": "tcl-vm",
+      "phase": "native1",
+      "selected_tests": [
+        "a_catch_body_write_is_visible_after_the_catch"
+      ],
+      "selector": "a_catch_body_write_is_visible_after_the_catch",
+      "target": "cmd_control_e2e"
+    },
+    {
+      "env": {},
+      "exact": true,
+      "expected_selected": 1,
+      "label": "derived_first_decline_1",
+      "package": "tcl-spectcl",
+      "phase": "n17two",
+      "selected_tests": [
+        "a_reference_body_answers_through_the_host_as_the_procedure_does"
+      ],
+      "selector": "a_reference_body_answers_through_the_host_as_the_procedure_does",
+      "target": "pack_source_e2e"
+    },
+    {
+      "env": {},
+      "exact": true,
+      "expected_selected": 1,
+      "label": "derived_first_decline_2",
+      "package": "tcl-spectcl",
+      "phase": "n17two",
+      "selected_tests": [
+        "a_derived_body_runs_under_the_release_the_call_is_analysed_under"
+      ],
+      "selector": "a_derived_body_runs_under_the_release_the_call_is_analysed_under",
+      "target": "pack_source_e2e"
+    },
+    {
+      "env": {},
+      "exact": true,
+      "expected_selected": 1,
+      "label": "pack_file_live_const_fold",
+      "package": "tcl-spectcl",
+      "phase": "pack_hook_exact2",
+      "selected_tests": [
+        "a_pack_file_folds_a_call_site_in_the_optimiser"
+      ],
+      "selector": "a_pack_file_folds_a_call_site_in_the_optimiser",
+      "target": "pack_source_e2e"
+    },
+    {
+      "env": {},
+      "exact": true,
+      "expected_selected": 1,
+      "label": "pack_file_without_host_abstains",
+      "package": "tcl-spectcl",
+      "phase": "pack_hook_exact2",
+      "selected_tests": [
+        "without_a_host_the_installed_pack_simply_does_not_fold"
+      ],
+      "selector": "without_a_host_the_installed_pack_simply_does_not_fold",
+      "target": "pack_source_e2e"
+    }
+  ],
+  "guard_contract": "Original exactdirect3+hook2 selectors/assertions unchanged. Exact88125directlifecycle/currentCargoJSONtwoartifacts,180sperrow/20MiB/2GiB. Fullsource/provider beforeafter whole build+5row group only; perrowartifact+runner/tool/GO/identity/typepins. Source/provider fieldsperrow None pending finalmandatoryseal. RootsoleHOLD acrossgroup; everyoriginaltest traceenv firstdecline/native +firstgateN17, derivedcensus compiledexistinghelper.",
+  "materialisation_policy": "Actualcommittedmap/HEAD/tree/count/deltas validated, immutablesourceidentity typingfalse/runtimefalse staysunchanged; separate actualPASS0W receipt required. Knowninventorychanges onlyif actualapprovedmapauthorisesexactafterhash. Never rootGOcreated; root-go.required schemaonly. No actualsource/runtimeacceptance until rootGO+execution.",
+  "checks": [
+    "Template/builder AST PASS",
+    "Exact5selectorinventory PASS",
+    "Only2fullsource_manifest calls groupbefore/groupafter",
+    "Oldplans/scripts88125 remainimmutable"
+  ],
+  "limits": "Template only, prospectiveactualidentity and actualtyping notyetprovided; materialisation and runtimeunrun. Root review of concrete output required; no guessed HEAD/count, no publishedgateclaim."
+}

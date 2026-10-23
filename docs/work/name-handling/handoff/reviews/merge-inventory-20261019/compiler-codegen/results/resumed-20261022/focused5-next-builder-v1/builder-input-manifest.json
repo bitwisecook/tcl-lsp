@@ -1,0 +1,15 @@
+{
+  "inputs": {
+    "/tmp/ccg-focused5-next-builder-v1/builder.py": "f1612db9a2bd44a6ada42c45cc6a5e9a5bd830497aac720b0458ef16c694a4ff",
+    "/tmp/ccg-focused5-next-builder-v1/source_view.py.fragment": "6628fa2c66cd63296104030085dd60f98002a1f909b5a7f20945f4114a508950",
+    "/tmp/ccg-focused5-next-builder-v1/prepare_template.py": "71aab32a0e1d8070bb6df34f9db91e419d0fcc442f2071d576add070cbcdcdac",
+    "/tmp/ccg-focused5-next-builder-v1/suite.py.template.txt": "d041e97441b65385f7d3b4ae7061409378bc194899d13333aead295de5962090",
+    "/tmp/ccg-focused5-next-builder-v1/guarded-cargo.py.template.txt": "3cd136da68bd3fb7f601a403e8fa22297b720e509e9860d272bc4f6223ab39cf",
+    "/tmp/ccg-post46-direct3-v6/plan.json": "8dba2a61cd5451854387298f146583780fab69067f18ff3d85e397cdf074ba34",
+    "/tmp/ccg-post46-direct3-v6/suite.py": "2c278dd13e98e4fac66b3da5771ca29bbb578f34a5553f60ea17dad5895a4885",
+    "/tmp/ccg-post46-direct3-v6/launch.py": "d543bc1fac616615303d31bef647e58588b910e208f10c6c08eee6db2abc4b5c",
+    "/tmp/ccg-post46-direct3-v6/guarded-exec.py": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811",
+    "/tmp/ccg-pack-hook-exact2-v1/plan.json": "81e279e98cffe1558cd93e6269c0a14799dc8b8ce10c41e2bfd1fb0ddde10511"
+  },
+  "version": "focused5-next-builder-v1"
+}

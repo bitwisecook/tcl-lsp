@@ -1,0 +1,50 @@
+DESIGN OPTIONS ONLY — neither is implemented or authorized for integration.
+Current source/provider HOLD; exclude from successor v8. User choice must be
+asked and recorded by root before implementing an option.
+
+Recommend B: explicitly declare an intentional no-TomMath diagnostic build.
+Proposed environment: TCL_RUNTIME_EXPECT_NO_TOMMATH=1 (absent is normal mode;
+all other supplied values fail, including invalid Unicode). This is an
+expectation checked against unmodified source discovery, never a switch that
+turns an available backend off. Original noTom16 Cargo args/default features
+and test bodies/selectors remain unchanged.
+
+B exact delta is runtime/rust/build.rs only: add rerun-if-env-changed; parse
+expectation; keep locate_libtommath() exactly; if source absent AND expectation
+1, write OUT_DIR/tommath-capability.json detected=false/intentional_absence=true
+and cargo::metadata=tommath_capability=absent-intentional. If source absent
+without opt-in, retain exact original cargo:warning. If source found while
+expecting absence, fail build before C compilation/cfg. Otherwise full path,
+all C compiler/link/header/SDK errors, warning behavior, have_tommath emission
+and force-tower-reprobe remain unchanged. No source or backend fallback.
+Metadata is a capability observation scoped to that successful current build,
+not runtime authority or a test pass. A stale file alone is never evidence.
+
+A exact delta is the same source-absent branch only: all detected absences
+become capability metadata, intentional_absence=false, and no warning. No
+new env/build args, source detection unchanged; drawback is loss of the warning
+for an accidental provider loss in ordinary builds. This is a broader policy
+choice, not a harmless lint edit.
+
+Required genuine controls after user choice and reviewed product typing:
+1. B env absent + source present: fresh original full backend build/event,
+   actual have_tommath cfg, zero warnings and unchanged full4 runtime controls.
+2. B env absent + source absent: original warning still emitted. Capture as
+   expected diagnostic proof only; cannot admit a zero-warning release gate.
+3. B env1 + source absent: fresh noTom build event, actual have_tommath absent,
+   metadata output+current out_dir JSON exact intentional status, zero warnings;
+   then original exact16 runtime assertions under original default/no-engine
+   Cargo flags. No exception for any other warning.
+4. B env1 + source present (including discovered fallback despite missing
+   explicit path): terminal build failure, no executable/runtime admission.
+5. B envinvalid: terminal build failure, no tests. No disabling environment
+   guard or pretending a parser/protocol refusal is an original test failure.
+6. Foreign/stale metadata file or mismatched build/out_dir/source/provider
+   evidence must be rejected; current Cargo JSON ownership and actual cfg
+   remain mandatory. Never infer cfg absence from the env name or metadata.
+
+Existing noTom16 v3 is immutable and still records the original warning; it
+cannot meet user's zero-warning admission. A future explicit reviewed
+successor must bind chosen source product, tool/env/prerequisite pins, exactly
+original16 selectors/features/args and strict0warnings. No runtime16 closure,
+source change, Cargo invocation or release admission has occurred here.

@@ -1,0 +1,23 @@
+{
+  "schema": "nextest-capture-v1",
+  "listing_sha256": "224c8acc2f024246f10ed4870f0d3d3945be633ab2af474e8fe0cb060804a1cf",
+  "nextest_exit": 100,
+  "terminal_count": 2,
+  "selected_count": 2,
+  "started_unfinished": [],
+  "never_started": [],
+  "ignored_unreported": [],
+  "missing_terminal": [],
+  "capture_errors": [],
+  "stderr_truncated": false,
+  "lifecycle": {
+    "parent_pid": 359194,
+    "parent_start_ticks": 7258270,
+    "owned_pgid": 359194,
+    "group_scan_attempts": 2,
+    "group_empty_before_parent_reap": true,
+    "cleanup_signals": [],
+    "last_live_members": [],
+    "last_scan_complete": true
+  }
+}

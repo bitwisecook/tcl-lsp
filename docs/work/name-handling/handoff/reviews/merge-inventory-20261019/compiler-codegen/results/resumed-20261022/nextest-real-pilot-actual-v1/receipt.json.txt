@@ -1,0 +1,16 @@
+{
+  "utc": "2026-10-23T09:36:44.274625+00:00",
+  "scope": "Actual external fixture reporter pilot only; no product test or typing claim",
+  "run_path": "/tmp/ccg-nextest-real-pilot-v1/runs/20261023T093129.668476Z",
+  "status": "PASS",
+  "selected": 2,
+  "terminal": 2,
+  "intentional_failure_raw_exit": 100,
+  "source_stable": true,
+  "providers_stable": true,
+  "archive_files": {
+    "final.json.txt": "2914e54d26c20380e6cb22251b858e19e6203f3171b7805199f092cc0a0243ff",
+    "actual-capture-summary.json.txt": "520a7c58538874392ca35bec9524645f4767805ac3e558b8894d5739ed849152"
+  },
+  "fixture_archive_policy": "Only .txt/.tar.gz; no loose Cargo or Rust source fixture copies"
+}

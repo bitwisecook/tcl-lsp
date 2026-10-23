@@ -1,0 +1,21 @@
+{
+  "utc": "2026-10-23T09:33:57.716190+00:00",
+  "status": "STATICCLEAR-only; actualidentity/typing/runtime require rootintegration",
+  "manifest_sha256": "b37d66a810af1b0ec6af2b96f1d4574a36e72e3012c4d2e39b74065310db2903",
+  "combined_patch_sha256": "760957f2ec4261e1d2bb736139f3666db9359dc39b9fde6a4735db578296028d",
+  "counts": {
+    "components": 30,
+    "batch_paths": 89,
+    "proposed_cumulative": 122,
+    "new_test_function_names_static": 9
+  },
+  "format_receipt_sha256": "91c5f20e5126fe9bbd2aedc26900f3c57c69113130cbd599dc4f15b5446ba64e",
+  "candidate_map_sha256": "f0f0ac376d6a7e4eaebd7d9a4f25d62a46260b28bcb7478c742b8570e2167c0d",
+  "names_peer": "479126df82e812a76804bf11ad6635c7253e5d5e27c7b4a9ea2e9af8e1d10daf",
+  "ccg_peer": "88b922c0db8f0862f3029462c46bc1af3cc7125c3e7ec19324ef7ff8d7575b22",
+  "sole_append": "NoTomBv2 c712; v1staleOUTDIR held; all29v8componentpins/88finals exact",
+  "normal_environment": "builderv5 b387 TMPDIRworkspace required andNoTomexpectation presence refused, never1normal",
+  "typing": false,
+  "runtime": false,
+  "rootGO": false
+}

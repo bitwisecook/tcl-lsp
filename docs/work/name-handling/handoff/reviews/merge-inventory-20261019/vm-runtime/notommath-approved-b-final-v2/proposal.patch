@@ -1,0 +1,65 @@
+--- a/runtime/rust/build.rs
++++ b/runtime/rust/build.rs
+@@ -42,6 +42,7 @@
+ fn main() {
+     println!("cargo:rerun-if-changed=build.rs");
+     println!("cargo:rerun-if-env-changed=TCL_TOMMATH_DIR");
++    println!("cargo:rerun-if-env-changed=TCL_RUNTIME_EXPECT_NO_TOMMATH");
+     println!("cargo:rerun-if-env-changed=TCL_WASM_CC");
+     println!("cargo:rerun-if-env-changed=TCL_WASM_AR");
+     println!("cargo:rerun-if-env-changed=TCL_WASM_SYSROOT");
+@@ -53,6 +54,16 @@
+     println!("cargo:rustc-check-cfg=cfg(have_tommath)");
+     println!("cargo:rustc-check-cfg=cfg(runtime_c_tests)");
+ 
++    // OUT_DIR survives reruns: an old intentional-absence observation must
++    // never outlive a changed expectation, failed probe, or full-backend build.
++    let capability_path = PathBuf::from(env::var("OUT_DIR").expect("Cargo supplies OUT_DIR"))
++        .join("tommath-capability.json");
++    match fs::remove_file(&capability_path) {
++        Ok(()) => {}
++        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
++        Err(error) => panic!("cannot withdraw old TomMath capability metadata: {error}"),
++    }
++
+     // The regex engine is now the pure-Rust `tcl-regex` crate (a normal cargo
+     // dependency); no C is compiled for it here. Only the bignum backend
+     // (libtommath) is still linked from C.
+@@ -97,6 +108,13 @@
+         println!("cargo:rustc-link-arg=--growable-table");
+     }
+ 
++    // An explicit diagnostic build expectation is not a backend-disable switch.
++    // Source discovery remains authoritative and an unexpected backend is an error.
++    let expect_no_tommath = match env::var("TCL_RUNTIME_EXPECT_NO_TOMMATH") {
++        Err(env::VarError::NotPresent) => false,
++        Ok(value) if value == "1" => true,
++        _ => panic!("TCL_RUNTIME_EXPECT_NO_TOMMATH must be absent or exactly 1"),
++    };
+     let Some(ltm) = locate_libtommath() else {
+         // No source tree (e.g. a checkout without `tmp/` fetched): skip the
+         // bignum backend rather than fail the build. The bignum obj rep is
+@@ -114,9 +132,22 @@
+             let never = PathBuf::from(out).join("force-tower-reprobe");
+             println!("cargo:rerun-if-changed={}", never.display());
+         }
+-        println!("cargo:warning=libtommath source not found; bignum backend disabled");
++        if expect_no_tommath {
++            fs::write(
++                &capability_path,
++                b"{\"detected\":false,\"intentional_absence\":true}\n",
++            )
++            .expect("record intentional no-TomMath capability");
++            println!("cargo::metadata=tommath_capability=absent-intentional");
++        } else {
++            println!("cargo:warning=libtommath source not found; bignum backend disabled");
++        }
+         return;
+     };
++    assert!(
++        !expect_no_tommath,
++        "TomMath sources found despite TCL_RUNTIME_EXPECT_NO_TOMMATH=1"
++    );
+     println!("cargo:rerun-if-changed={}", ltm.display());
+ 
+     // Pick the C cross-compiler + archiver and target flags.

@@ -1,0 +1,26 @@
+{
+  "utc": "2026-10-23T09:33:00.495541+00:00",
+  "status": "CLEAR bounded exact sole v8\u2192v9 append; no actualproduct/typing/runtime claim",
+  "manifest_sha256": "b37d66a810af1b0ec6af2b96f1d4574a36e72e3012c4d2e39b74065310db2903",
+  "combined_patch_sha256": "760957f2ec4261e1d2bb736139f3666db9359dc39b9fde6a4735db578296028d",
+  "counts": {
+    "preserved_components": 29,
+    "new_components": 1,
+    "total_components": 30,
+    "batch_paths": 89,
+    "proposed_cumulative_paths": 122
+  },
+  "checks": [
+    "all29 v8component metadata/pins and all88final filebytes unchanged",
+    "sole new runtime/rust/build.rs source path, exact NoTomBv2 c712 pin+CCGsemanticpeer ed7dc",
+    "independent newcomponent currentbefore/final/zero-fuzz-nooffset apply",
+    "all89currentbefore/candidatefinal hashes and fullpatchregeneration byte-identical",
+    "independent whole89patch zero-fuzz/nooffset application and finalhashes",
+    "all46 actual product pins unchanged; exactcandidate122map independentlyderived",
+    "format receipt bound/preserved88 plusnew1 verified below"
+  ],
+  "authority": "NoTom expectation source component preserved exactly as CCG reviewed; all previous Normalowner/Installed/nested/source/alias/UPF/style components byte-identical. OriginalNativealias assertion unchanged. Normaltyping builderv5 requires absence of TCL_RUNTIME_EXPECT_NO_TOMMATH; separate intentionalabsence controls may pin1. No backend-disable fallback or warning/guard weakening synthesised by union.",
+  "format_receipt_sha256": "91c5f20e5126fe9bbd2aedc26900f3c57c69113130cbd599dc4f15b5446ba64e",
+  "candidate_map_sha256": "f0f0ac376d6a7e4eaebd7d9a4f25d62a46260b28bcb7478c742b8570e2167c0d",
+  "limits": "No canonical/Git/Cargo/GO/newidentity/type/runtime/Clippy/perf acceptance. Proposed122 only, actual source46 until root integrates. Generic adapterv4/builderv5 require explicit v9manifest and actual newcommit; TMPDIR workspace and allfloors unchanged."
+}

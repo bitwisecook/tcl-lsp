@@ -1,0 +1,1803 @@
+{
+  "archive": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/coordinator-20261023/source46-native15-v14-partial-lossless-20261023.tar.gz",
+  "archive_contents": "Each unique file payload is stored once under blobs/<sha256>. files[] records every source/archive path, byte length, SHA-256 and deduplicated blob reference. Identical snapshots are retained losslessly by mapping all original paths to the shared payload.",
+  "created_utc": "2026-10-23T09:32:40.433051+00:00",
+  "file_path_count": 224,
+  "files": [
+    {
+      "archive_path": "launcher/launcher.json",
+      "blob": "blobs/188c967239a51401fb9c84c18c773b55353b81e3471f04f9e51fa72de5a9cff8",
+      "kind": "actual_closed_launcher",
+      "sha256": "188c967239a51401fb9c84c18c773b55353b81e3471f04f9e51fa72de5a9cff8",
+      "size": 5094,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-launches/20261023T083852.251523Z/launcher.json"
+    },
+    {
+      "archive_path": "launcher/launcher.transcript",
+      "blob": "blobs/a972579b0578e4d5ccad23c6bd123093c92f22f28c5c620237d852b9aed013b3",
+      "kind": "actual_closed_launcher",
+      "sha256": "a972579b0578e4d5ccad23c6bd123093c92f22f28c5c620237d852b9aed013b3",
+      "size": 7365,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-launches/20261023T083852.251523Z/launcher.transcript"
+    },
+    {
+      "archive_path": "pinned_inputs/_paths.py-0df175c721",
+      "blob": "blobs/f82d76f6ee9434a98ede16693364988373bf68137d0e5800d8839404385b3a0c",
+      "kind": "transitive_pinned_input",
+      "sha256": "f82d76f6ee9434a98ede16693364988373bf68137d0e5800d8839404385b3a0c",
+      "size": 576,
+      "source": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/validation-tools/_paths.py"
+    },
+    {
+      "archive_path": "pinned_inputs/capture-inputs.py-0ac35613c2",
+      "blob": "blobs/2d3a1cf8aa341d5c4b829be6616a407d516163b52878ebb0cee874040e507474",
+      "kind": "transitive_pinned_input",
+      "sha256": "2d3a1cf8aa341d5c4b829be6616a407d516163b52878ebb0cee874040e507474",
+      "size": 601,
+      "source": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/validation-tools/capture-inputs.py"
+    },
+    {
+      "archive_path": "pinned_inputs/guarded-exec.py-b25218d960",
+      "blob": "blobs/88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811",
+      "kind": "transitive_pinned_input",
+      "sha256": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811",
+      "size": 13109,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15/guarded-exec.py"
+    },
+    {
+      "archive_path": "pinned_inputs/immutable-manifest.json-0de77317dc",
+      "blob": "blobs/6db184469d0ad2342f1f5cbb220c2d28d2cfe7cdd94917333aa8d87818e90fcc",
+      "kind": "transitive_pinned_input",
+      "sha256": "6db184469d0ad2342f1f5cbb220c2d28d2cfe7cdd94917333aa8d87818e90fcc",
+      "size": 611,
+      "source": "/tmp/lsp-native-protocol-v3/immutable-manifest.json"
+    },
+    {
+      "archive_path": "pinned_inputs/independent-review.json-b1f2feaf0e",
+      "blob": "blobs/c3c94284471d8b2948f890a86b83862019cab6707b631d329de79bc0bc8c4a6a",
+      "kind": "transitive_pinned_input",
+      "sha256": "c3c94284471d8b2948f890a86b83862019cab6707b631d329de79bc0bc8c4a6a",
+      "size": 1815,
+      "source": "/tmp/lsp-native-protocol-v3/independent-review.json"
+    },
+    {
+      "archive_path": "pinned_inputs/launch.py-d43ecb62c8",
+      "blob": "blobs/afde92f96e0fee35c4833484a2b51f08932f65feaff3f1bc121a0c8deb61b84c",
+      "kind": "transitive_pinned_input",
+      "sha256": "afde92f96e0fee35c4833484a2b51f08932f65feaff3f1bc121a0c8deb61b84c",
+      "size": 3085,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15/launch.py"
+    },
+    {
+      "archive_path": "pinned_inputs/manifest-v4.json-4146659c30",
+      "blob": "blobs/269b0b429dc137f8428d02383d1c50d1555d23744019923648893268c15f90ba",
+      "kind": "transitive_pinned_input",
+      "sha256": "269b0b429dc137f8428d02383d1c50d1555d23744019923648893268c15f90ba",
+      "size": 6755,
+      "source": "/tmp/five-cleared-candidate-composition-v4-20261023T015223Z/manifest-v4.json"
+    },
+    {
+      "archive_path": "pinned_inputs/naming-source46-repaired-identity.json-7e41507415",
+      "blob": "blobs/e4349c8ae1a475b0b0339db80079adf5872e2c9972feb2b64c5a8e61b25f5594",
+      "kind": "transitive_pinned_input",
+      "sha256": "e4349c8ae1a475b0b0339db80079adf5872e2c9972feb2b64c5a8e61b25f5594",
+      "size": 435,
+      "source": "/tmp/naming-source46-repaired-identity.json"
+    },
+    {
+      "archive_path": "pinned_inputs/plan.json-38bd4cb138",
+      "blob": "blobs/fb911b29d143082a0f7ec293702a730e96e0c9ff328e3ffae5a290e09704d880",
+      "kind": "transitive_pinned_input",
+      "sha256": "fb911b29d143082a0f7ec293702a730e96e0c9ff328e3ffae5a290e09704d880",
+      "size": 7107,
+      "source": "/tmp/lsp-native-protocol-v3/plan.json"
+    },
+    {
+      "archive_path": "pinned_inputs/plan.json-58189201b6",
+      "blob": "blobs/983d34189ebdc92cedc5fa3cfc73b613426f60dba8e78535a7c75e9b95005a9e",
+      "kind": "transitive_pinned_input",
+      "sha256": "983d34189ebdc92cedc5fa3cfc73b613426f60dba8e78535a7c75e9b95005a9e",
+      "size": 4534,
+      "source": "/tmp/name-handling-eight-package-check-v9-source46/plan.json"
+    },
+    {
+      "archive_path": "pinned_inputs/plan.json-90fc54d5e4",
+      "blob": "blobs/7495afcfbda18ae1f355e8ac2d14a56983437d07a6cc89c433a6bf1b08ba1e98",
+      "kind": "transitive_pinned_input",
+      "sha256": "7495afcfbda18ae1f355e8ac2d14a56983437d07a6cc89c433a6bf1b08ba1e98",
+      "size": 12906,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15/plan.json"
+    },
+    {
+      "archive_path": "pinned_inputs/providers.py-77312afb8f",
+      "blob": "blobs/5b01d95b0e919dc8aa16048c663003fbaa708d2f1e970408ef3c14fe47eeacd8",
+      "kind": "transitive_pinned_input",
+      "sha256": "5b01d95b0e919dc8aa16048c663003fbaa708d2f1e970408ef3c14fe47eeacd8",
+      "size": 676,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15/providers.py"
+    },
+    {
+      "archive_path": "pinned_inputs/run.sh-41421775b8",
+      "blob": "blobs/558d14d3a71579cdd46324be6efbd3dec69a5a37156a0a0039c7906c7fa2cfc4",
+      "kind": "transitive_pinned_input",
+      "sha256": "558d14d3a71579cdd46324be6efbd3dec69a5a37156a0a0039c7906c7fa2cfc4",
+      "size": 208,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15/run.sh"
+    },
+    {
+      "archive_path": "pinned_inputs/source46-manifest.json-85c2a10b00",
+      "blob": "blobs/f7568b8400f5f3c0b9af0e2181e0539a81e6a42c8a19ab8a0f677a667beca9b7",
+      "kind": "transitive_pinned_input",
+      "sha256": "f7568b8400f5f3c0b9af0e2181e0539a81e6a42c8a19ab8a0f677a667beca9b7",
+      "size": 12539,
+      "source": "/tmp/name-handling-eight-package-check-v9-source46/source46-manifest.json"
+    },
+    {
+      "archive_path": "pinned_inputs/suite.py-cc37dcf503",
+      "blob": "blobs/4e96d307c41232b753944892128e41a3d132d6a99294974989326f2592792a47",
+      "kind": "transitive_pinned_input",
+      "sha256": "4e96d307c41232b753944892128e41a3d132d6a99294974989326f2592792a47",
+      "size": 19264,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15/suite.py"
+    },
+    {
+      "archive_path": "pinned_inputs/tcl-lsp-naming-env.sh-336da78fa1",
+      "blob": "blobs/9d33ccdba049a778482244c60a8206cd62fc503db55227b7c6cf87645c932f29",
+      "kind": "transitive_pinned_input",
+      "sha256": "9d33ccdba049a778482244c60a8206cd62fc503db55227b7c6cf87645c932f29",
+      "size": 1042,
+      "source": "/tmp/tcl-lsp-naming-env.sh"
+    },
+    {
+      "archive_path": "protocol/guarded-exec.py",
+      "blob": "blobs/88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811",
+      "kind": "pinned_protocol_input",
+      "sha256": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811",
+      "size": 13109,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15/guarded-exec.py"
+    },
+    {
+      "archive_path": "protocol/launch.py",
+      "blob": "blobs/afde92f96e0fee35c4833484a2b51f08932f65feaff3f1bc121a0c8deb61b84c",
+      "kind": "pinned_protocol_input",
+      "sha256": "afde92f96e0fee35c4833484a2b51f08932f65feaff3f1bc121a0c8deb61b84c",
+      "size": 3085,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15/launch.py"
+    },
+    {
+      "archive_path": "protocol/plan.json",
+      "blob": "blobs/7495afcfbda18ae1f355e8ac2d14a56983437d07a6cc89c433a6bf1b08ba1e98",
+      "kind": "pinned_protocol_input",
+      "sha256": "7495afcfbda18ae1f355e8ac2d14a56983437d07a6cc89c433a6bf1b08ba1e98",
+      "size": 12906,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15/plan.json"
+    },
+    {
+      "archive_path": "protocol/predecessor-compiler-names-peer-review.json",
+      "blob": "blobs/47b68d834747f95280887df3871416a8a7a104bcf56d08e7a64ceca11ddaa2ed",
+      "kind": "pinned_protocol_input",
+      "sha256": "47b68d834747f95280887df3871416a8a7a104bcf56d08e7a64ceca11ddaa2ed",
+      "size": 2459,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15/predecessor-compiler-names-peer-review.json"
+    },
+    {
+      "archive_path": "protocol/predecessor-launch-preflight-refusal.json",
+      "blob": "blobs/399f8937c5f6623bfcef9f70315c5c92a8d9bc43d0d3cabd0212f2fc5ae532cf",
+      "kind": "pinned_protocol_input",
+      "sha256": "399f8937c5f6623bfcef9f70315c5c92a8d9bc43d0d3cabd0212f2fc5ae532cf",
+      "size": 144,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15/predecessor-launch-preflight-refusal.json"
+    },
+    {
+      "archive_path": "protocol/preparation-receipt.json",
+      "blob": "blobs/74bce6c7cc71fb3fc2a65e256e085a162a7bfed9856930f77f1630fa954a6873",
+      "kind": "pinned_protocol_input",
+      "sha256": "74bce6c7cc71fb3fc2a65e256e085a162a7bfed9856930f77f1630fa954a6873",
+      "size": 1378,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15/preparation-receipt.json"
+    },
+    {
+      "archive_path": "protocol/providers.py",
+      "blob": "blobs/5b01d95b0e919dc8aa16048c663003fbaa708d2f1e970408ef3c14fe47eeacd8",
+      "kind": "pinned_protocol_input",
+      "sha256": "5b01d95b0e919dc8aa16048c663003fbaa708d2f1e970408ef3c14fe47eeacd8",
+      "size": 676,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15/providers.py"
+    },
+    {
+      "archive_path": "protocol/root-go.json",
+      "blob": "blobs/13ddd06e1c6ea561dafef5c9206747e697ee2972476c0f90cb177a0b0531d6f2",
+      "kind": "pinned_protocol_input",
+      "sha256": "13ddd06e1c6ea561dafef5c9206747e697ee2972476c0f90cb177a0b0531d6f2",
+      "size": 1940,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15/root-go.json"
+    },
+    {
+      "archive_path": "protocol/run.sh",
+      "blob": "blobs/558d14d3a71579cdd46324be6efbd3dec69a5a37156a0a0039c7906c7fa2cfc4",
+      "kind": "pinned_protocol_input",
+      "sha256": "558d14d3a71579cdd46324be6efbd3dec69a5a37156a0a0039c7906c7fa2cfc4",
+      "size": 208,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15/run.sh"
+    },
+    {
+      "archive_path": "protocol/runner-input-manifest.json",
+      "blob": "blobs/71d35489bfb5d66be72249541e42ffcefe2148c8764135deb8ab78b34fc4bf65",
+      "kind": "pinned_protocol_input",
+      "sha256": "71d35489bfb5d66be72249541e42ffcefe2148c8764135deb8ab78b34fc4bf65",
+      "size": 2446,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15/runner-input-manifest.json"
+    },
+    {
+      "archive_path": "protocol/suite.py",
+      "blob": "blobs/4e96d307c41232b753944892128e41a3d132d6a99294974989326f2592792a47",
+      "kind": "pinned_protocol_input",
+      "sha256": "4e96d307c41232b753944892128e41a3d132d6a99294974989326f2592792a47",
+      "size": 19264,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15/suite.py"
+    },
+    {
+      "archive_path": "run/before.providers.json",
+      "blob": "blobs/4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b",
+      "kind": "actual_run",
+      "sha256": "4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b",
+      "size": 498685,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/before.providers.json"
+    },
+    {
+      "archive_path": "run/before.source.json",
+      "blob": "blobs/f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "kind": "actual_run",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "size": 6659899,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/before.source.json"
+    },
+    {
+      "archive_path": "run/build-e2e.argv.json",
+      "blob": "blobs/cbe178bb47a43dab72d2129696b11192eb3a033b0933d8abb686133002d3c97e",
+      "kind": "actual_run",
+      "sha256": "cbe178bb47a43dab72d2129696b11192eb3a033b0933d8abb686133002d3c97e",
+      "size": 194,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/build-e2e.argv.json"
+    },
+    {
+      "archive_path": "run/build-e2e.artifact.json",
+      "blob": "blobs/beea70280f50ea4635a72bbbfb84aad727b3a14931f1ad61e23a496e2e8796ad",
+      "kind": "actual_run",
+      "sha256": "beea70280f50ea4635a72bbbfb84aad727b3a14931f1ad61e23a496e2e8796ad",
+      "size": 1334,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/build-e2e.artifact.json"
+    },
+    {
+      "archive_path": "run/build-e2e.process.json",
+      "blob": "blobs/2e627da88b29305cc1e7f959aa3b7122c84f7aa21a4f8618fff260ad87c10f1d",
+      "kind": "actual_run",
+      "sha256": "2e627da88b29305cc1e7f959aa3b7122c84f7aa21a4f8618fff260ad87c10f1d",
+      "size": 2499,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/build-e2e.process.json"
+    },
+    {
+      "archive_path": "run/build-e2e.stderr",
+      "blob": "blobs/a0f4d3749206ffa57998b8160580c406ff3740ba2564ea6124698c512e839235",
+      "kind": "actual_run",
+      "sha256": "a0f4d3749206ffa57998b8160580c406ff3740ba2564ea6124698c512e839235",
+      "size": 1491,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/build-e2e.stderr"
+    },
+    {
+      "archive_path": "run/build-e2e.stdout",
+      "blob": "blobs/d4b299ee93f65f02ad4943ba04f62c9431e369ffb314a4bd90da09fc07a01204",
+      "kind": "actual_run",
+      "sha256": "d4b299ee93f65f02ad4943ba04f62c9431e369ffb314a4bd90da09fc07a01204",
+      "size": 182957,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/build-e2e.stdout"
+    },
+    {
+      "archive_path": "run/build-e2e.warnings.json",
+      "blob": "blobs/7019b4347fcaa6d92e2e8b0b1eb2536a0ce8aa64a5cca794209458e53a2cd2ea",
+      "kind": "actual_run",
+      "sha256": "7019b4347fcaa6d92e2e8b0b1eb2536a0ce8aa64a5cca794209458e53a2cd2ea",
+      "size": 91,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/build-e2e.warnings.json"
+    },
+    {
+      "archive_path": "run/build-environment.json",
+      "blob": "blobs/15d38a09c69c994312ff393bf6303c61306d05586b484e29622f61b6318f486c",
+      "kind": "actual_run",
+      "sha256": "15d38a09c69c994312ff393bf6303c61306d05586b484e29622f61b6318f486c",
+      "size": 1801,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/build-environment.json"
+    },
+    {
+      "archive_path": "run/build-server_lib.argv.json",
+      "blob": "blobs/13cb4611e15514785d54604a4ff62779e48350659981fe198a2d36e22223ea0b",
+      "kind": "actual_run",
+      "sha256": "13cb4611e15514785d54604a4ff62779e48350659981fe198a2d36e22223ea0b",
+      "size": 184,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/build-server_lib.argv.json"
+    },
+    {
+      "archive_path": "run/build-server_lib.process.json",
+      "blob": "blobs/d8336f55d8dd69587cba6930a7d211d3fc91a6bf9108bc829e8581e807524b4a",
+      "kind": "actual_run",
+      "sha256": "d8336f55d8dd69587cba6930a7d211d3fc91a6bf9108bc829e8581e807524b4a",
+      "size": 2594,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/build-server_lib.process.json"
+    },
+    {
+      "archive_path": "run/build-server_lib.stderr",
+      "blob": "blobs/c10ee820c0aa0c3cbe601885c6dd065b510a09407d5ee66c38d0e2de3967b2a6",
+      "kind": "actual_run",
+      "sha256": "c10ee820c0aa0c3cbe601885c6dd065b510a09407d5ee66c38d0e2de3967b2a6",
+      "size": 194,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/build-server_lib.stderr"
+    },
+    {
+      "archive_path": "run/build-server_lib.stdout",
+      "blob": "blobs/6d1d111d055c50fc738158e54c9423bc9d44824aa4cf32d77f015915efb3aba9",
+      "kind": "actual_run",
+      "sha256": "6d1d111d055c50fc738158e54c9423bc9d44824aa4cf32d77f015915efb3aba9",
+      "size": 180610,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/build-server_lib.stdout"
+    },
+    {
+      "archive_path": "run/e2e-00.process.json",
+      "blob": "blobs/2e214f9dcf79111b5c374edf174d779298157a43db092f901c7a441bddff0843",
+      "kind": "actual_run",
+      "sha256": "2e214f9dcf79111b5c374edf174d779298157a43db092f901c7a441bddff0843",
+      "size": 2556,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/e2e-00.process.json"
+    },
+    {
+      "archive_path": "run/e2e-00.result.json",
+      "blob": "blobs/759f0a28bac449e09de756a952aad4500992f3f9a1461b46b115f664f92fd187",
+      "kind": "actual_run",
+      "sha256": "759f0a28bac449e09de756a952aad4500992f3f9a1461b46b115f664f92fd187",
+      "size": 3479,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/e2e-00.result.json"
+    },
+    {
+      "archive_path": "run/e2e-00.stderr",
+      "blob": "blobs/f34def14b769e8f86613681cf1ea87def0320ea393df7e5b03624e70f7f11ae2",
+      "kind": "actual_run",
+      "sha256": "f34def14b769e8f86613681cf1ea87def0320ea393df7e5b03624e70f7f11ae2",
+      "size": 1142,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/e2e-00.stderr"
+    },
+    {
+      "archive_path": "run/e2e-00.stdout",
+      "blob": "blobs/0c23a9a1fe17df5b9b184bc83b4018fc8d1090b779dd4d48fe94feadebd2f836",
+      "kind": "actual_run",
+      "sha256": "0c23a9a1fe17df5b9b184bc83b4018fc8d1090b779dd4d48fe94feadebd2f836",
+      "size": 364,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/e2e-00.stdout"
+    },
+    {
+      "archive_path": "run/e2e-01.process.json",
+      "blob": "blobs/171c55e2083e669d10c4da4ca3b126534998ae462bfda5982657562e2738364a",
+      "kind": "actual_run",
+      "sha256": "171c55e2083e669d10c4da4ca3b126534998ae462bfda5982657562e2738364a",
+      "size": 2555,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/e2e-01.process.json"
+    },
+    {
+      "archive_path": "run/e2e-01.result.json",
+      "blob": "blobs/3a654c65d5cfb150bd1350ec466759997e64bad42cefab7aba27b40393d97f31",
+      "kind": "actual_run",
+      "sha256": "3a654c65d5cfb150bd1350ec466759997e64bad42cefab7aba27b40393d97f31",
+      "size": 3476,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/e2e-01.result.json"
+    },
+    {
+      "archive_path": "run/e2e-01.stderr",
+      "blob": "blobs/eb266d2dafb8f497132bc903c68c2e9544deb401cf26ad5180273e49acffb0f1",
+      "kind": "actual_run",
+      "sha256": "eb266d2dafb8f497132bc903c68c2e9544deb401cf26ad5180273e49acffb0f1",
+      "size": 1141,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/e2e-01.stderr"
+    },
+    {
+      "archive_path": "run/e2e-01.stdout",
+      "blob": "blobs/1d0fc317e76ecc89588d3ef528ea0b5da7e5220befbd7e5b014dc02b63e2c793",
+      "kind": "actual_run",
+      "sha256": "1d0fc317e76ecc89588d3ef528ea0b5da7e5220befbd7e5b014dc02b63e2c793",
+      "size": 362,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/e2e-01.stdout"
+    },
+    {
+      "archive_path": "run/e2e-02.process.json",
+      "blob": "blobs/6be883ca018168b2e1b054a56fe0ce09e5c89b14eb374913203582443439e04d",
+      "kind": "actual_run",
+      "sha256": "6be883ca018168b2e1b054a56fe0ce09e5c89b14eb374913203582443439e04d",
+      "size": 2569,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/e2e-02.process.json"
+    },
+    {
+      "archive_path": "run/e2e-02.result.json",
+      "blob": "blobs/1389f8aa688a5e85c03ac702d94b225a31518cd188f2e5c8f6b58de3565664c4",
+      "kind": "actual_run",
+      "sha256": "1389f8aa688a5e85c03ac702d94b225a31518cd188f2e5c8f6b58de3565664c4",
+      "size": 3518,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/e2e-02.result.json"
+    },
+    {
+      "archive_path": "run/e2e-02.stderr",
+      "blob": "blobs/b14a0a1d02d6cb9e69aba3238776a1dfc949c0147f17f03511edd1f912c7a0b9",
+      "kind": "actual_run",
+      "sha256": "b14a0a1d02d6cb9e69aba3238776a1dfc949c0147f17f03511edd1f912c7a0b9",
+      "size": 1155,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/e2e-02.stderr"
+    },
+    {
+      "archive_path": "run/e2e-02.stdout",
+      "blob": "blobs/7c4ee7b0e63704f6584aaaf7a30ca9099e1eb3f4533464ba4cb966152d64a900",
+      "kind": "actual_run",
+      "sha256": "7c4ee7b0e63704f6584aaaf7a30ca9099e1eb3f4533464ba4cb966152d64a900",
+      "size": 390,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/e2e-02.stdout"
+    },
+    {
+      "archive_path": "run/e2e-03.process.json",
+      "blob": "blobs/d7c04cdd42cfa3bdfe1e6b34994adef74a5bfa3545da88becc2f9dff0d7a53eb",
+      "kind": "actual_run",
+      "sha256": "d7c04cdd42cfa3bdfe1e6b34994adef74a5bfa3545da88becc2f9dff0d7a53eb",
+      "size": 2572,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/e2e-03.process.json"
+    },
+    {
+      "archive_path": "run/e2e-03.result.json",
+      "blob": "blobs/0e5e893dc7eb02a9135e4319c5b48a3c2347a148309e6159c2550df0bdc3a0b3",
+      "kind": "actual_run",
+      "sha256": "0e5e893dc7eb02a9135e4319c5b48a3c2347a148309e6159c2550df0bdc3a0b3",
+      "size": 3527,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/e2e-03.result.json"
+    },
+    {
+      "archive_path": "run/e2e-03.stderr",
+      "blob": "blobs/9b6e428eb2bfaea4bd8bb69742eaeb18035a70d8052317cf4b4b31239189ba1e",
+      "kind": "actual_run",
+      "sha256": "9b6e428eb2bfaea4bd8bb69742eaeb18035a70d8052317cf4b4b31239189ba1e",
+      "size": 1158,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/e2e-03.stderr"
+    },
+    {
+      "archive_path": "run/e2e-03.stdout",
+      "blob": "blobs/38789c2818aadcca8039a14b7f61786ac1dc3cadf100d300cf56ce2546b43eca",
+      "kind": "actual_run",
+      "sha256": "38789c2818aadcca8039a14b7f61786ac1dc3cadf100d300cf56ce2546b43eca",
+      "size": 396,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/e2e-03.stdout"
+    },
+    {
+      "archive_path": "run/e2e-04.process.json",
+      "blob": "blobs/cf9a3a312b5e065e513a80ae8b344e1a658898a0a43cf2090493581fb2da9eaf",
+      "kind": "actual_run",
+      "sha256": "cf9a3a312b5e065e513a80ae8b344e1a658898a0a43cf2090493581fb2da9eaf",
+      "size": 2581,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/e2e-04.process.json"
+    },
+    {
+      "archive_path": "run/e2e-04.result.json",
+      "blob": "blobs/7f885d127215f751f8f4c0db0da79bbcdcf79fd0f5f1834010f4c04a96b3ee4e",
+      "kind": "actual_run",
+      "sha256": "7f885d127215f751f8f4c0db0da79bbcdcf79fd0f5f1834010f4c04a96b3ee4e",
+      "size": 3554,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/e2e-04.result.json"
+    },
+    {
+      "archive_path": "run/e2e-04.stderr",
+      "blob": "blobs/6d47ef79adca8b57b8f501248c49b7a688cbd6ea94464b0b5b5b53b05b1bb2fc",
+      "kind": "actual_run",
+      "sha256": "6d47ef79adca8b57b8f501248c49b7a688cbd6ea94464b0b5b5b53b05b1bb2fc",
+      "size": 1241,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/e2e-04.stderr"
+    },
+    {
+      "archive_path": "run/e2e-04.stdout",
+      "blob": "blobs/c84380da4d1b0a9fa629df12c3bbca9fb83a60178cded22dee60e2feef4a1bb0",
+      "kind": "actual_run",
+      "sha256": "c84380da4d1b0a9fa629df12c3bbca9fb83a60178cded22dee60e2feef4a1bb0",
+      "size": 414,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/e2e-04.stdout"
+    },
+    {
+      "archive_path": "run/e2e-05.process.json",
+      "blob": "blobs/9e0f303147966ba4bf39aba48b5485bb53b687dda007916f37b34e6cebce08f4",
+      "kind": "actual_run",
+      "sha256": "9e0f303147966ba4bf39aba48b5485bb53b687dda007916f37b34e6cebce08f4",
+      "size": 2547,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/e2e-05.process.json"
+    },
+    {
+      "archive_path": "run/e2e-05.result.json",
+      "blob": "blobs/f9dbcbaacefcdec2a6b2de6eab375eb3ec3a879bc1711116566bd9fce3b5df4c",
+      "kind": "actual_run",
+      "sha256": "f9dbcbaacefcdec2a6b2de6eab375eb3ec3a879bc1711116566bd9fce3b5df4c",
+      "size": 3452,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/e2e-05.result.json"
+    },
+    {
+      "archive_path": "run/e2e-05.stderr",
+      "blob": "blobs/b32f0bddc46e732cacc222664fb74146627a71c4b6ce408115ee979ff521c0e3",
+      "kind": "actual_run",
+      "sha256": "b32f0bddc46e732cacc222664fb74146627a71c4b6ce408115ee979ff521c0e3",
+      "size": 1133,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/e2e-05.stderr"
+    },
+    {
+      "archive_path": "run/e2e-05.stdout",
+      "blob": "blobs/1905d84301be4290a7a23a5c6ee9ba45f9e2f415de159c56ae9048583e8e9959",
+      "kind": "actual_run",
+      "sha256": "1905d84301be4290a7a23a5c6ee9ba45f9e2f415de159c56ae9048583e8e9959",
+      "size": 346,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/e2e-05.stdout"
+    },
+    {
+      "archive_path": "run/e2e-06.process.json",
+      "blob": "blobs/f3810b64b58f0e4aaae48234a17a362f28ec0970e5231bab5edc2ce70475564e",
+      "kind": "actual_run",
+      "sha256": "f3810b64b58f0e4aaae48234a17a362f28ec0970e5231bab5edc2ce70475564e",
+      "size": 2554,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/e2e-06.process.json"
+    },
+    {
+      "archive_path": "run/e2e-06.result.json",
+      "blob": "blobs/0a8ad2213ceebf24f48b7a51733bcd641dfaeb747a160ea86c4372b7d6c4c26e",
+      "kind": "actual_run",
+      "sha256": "0a8ad2213ceebf24f48b7a51733bcd641dfaeb747a160ea86c4372b7d6c4c26e",
+      "size": 3473,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/e2e-06.result.json"
+    },
+    {
+      "archive_path": "run/e2e-06.stderr",
+      "blob": "blobs/c686609629fce8fe930cd26dd8ac1a4561b48d62173bbda5e887925f9a11fbf2",
+      "kind": "actual_run",
+      "sha256": "c686609629fce8fe930cd26dd8ac1a4561b48d62173bbda5e887925f9a11fbf2",
+      "size": 1140,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/e2e-06.stderr"
+    },
+    {
+      "archive_path": "run/e2e-06.stdout",
+      "blob": "blobs/f97feb68db8ba8d9ef5e5ffebdf9792155d287b8c57c5f2f3c4af3c53dff649b",
+      "kind": "actual_run",
+      "sha256": "f97feb68db8ba8d9ef5e5ffebdf9792155d287b8c57c5f2f3c4af3c53dff649b",
+      "size": 360,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/e2e-06.stdout"
+    },
+    {
+      "archive_path": "run/e2e-07.process.json",
+      "blob": "blobs/9b5457a5d9e89eae5a0f00a5a3311eb19f576c1a84f518eda8b5224c1d3b370e",
+      "kind": "actual_run",
+      "sha256": "9b5457a5d9e89eae5a0f00a5a3311eb19f576c1a84f518eda8b5224c1d3b370e",
+      "size": 2546,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/e2e-07.process.json"
+    },
+    {
+      "archive_path": "run/e2e-07.result.json",
+      "blob": "blobs/ba961821123273a09a50285e06b0074bbca815d1c00c2ce638f81d2863b92254",
+      "kind": "actual_run",
+      "sha256": "ba961821123273a09a50285e06b0074bbca815d1c00c2ce638f81d2863b92254",
+      "size": 3451,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/e2e-07.result.json"
+    },
+    {
+      "archive_path": "run/e2e-07.stderr",
+      "blob": "blobs/a21603532ec6930195179728739c9b1f113210638fd77018e66c108449e43e0b",
+      "kind": "actual_run",
+      "sha256": "a21603532ec6930195179728739c9b1f113210638fd77018e66c108449e43e0b",
+      "size": 698,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/e2e-07.stderr"
+    },
+    {
+      "archive_path": "run/e2e-07.stdout",
+      "blob": "blobs/c34c631226cc99b7609ec72b6a8f8c4e59a5bba86551a14a646211151a1671df",
+      "kind": "actual_run",
+      "sha256": "c34c631226cc99b7609ec72b6a8f8c4e59a5bba86551a14a646211151a1671df",
+      "size": 346,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/e2e-07.stdout"
+    },
+    {
+      "archive_path": "run/e2e-08.process.json",
+      "blob": "blobs/cfe933e031f3bca467e5e29a65f96be71e89925330c783f529e7bb604b672e78",
+      "kind": "actual_run",
+      "sha256": "cfe933e031f3bca467e5e29a65f96be71e89925330c783f529e7bb604b672e78",
+      "size": 2550,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/e2e-08.process.json"
+    },
+    {
+      "archive_path": "run/e2e-08.result.json",
+      "blob": "blobs/de6db7bd0cb902f10aca61daeecf046ce8dd586e5498d292802e255641c46b32",
+      "kind": "actual_run",
+      "sha256": "de6db7bd0cb902f10aca61daeecf046ce8dd586e5498d292802e255641c46b32",
+      "size": 3461,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/e2e-08.result.json"
+    },
+    {
+      "archive_path": "run/e2e-08.stderr",
+      "blob": "blobs/a31e465b4c079d09c879bc06ccc06b196f9b56cff97df264c8a14bfdfce07508",
+      "kind": "actual_run",
+      "sha256": "a31e465b4c079d09c879bc06ccc06b196f9b56cff97df264c8a14bfdfce07508",
+      "size": 4271,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/e2e-08.stderr"
+    },
+    {
+      "archive_path": "run/e2e-08.stdout",
+      "blob": "blobs/cf49764e507a57a0411b034af76ad0ffc5f0a3442de4e65133ba3c02a5ceda4d",
+      "kind": "actual_run",
+      "sha256": "cf49764e507a57a0411b034af76ad0ffc5f0a3442de4e65133ba3c02a5ceda4d",
+      "size": 352,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/e2e-08.stdout"
+    },
+    {
+      "archive_path": "run/e2e-09.process.json",
+      "blob": "blobs/e661438d2f23194f704ed98300291e8888c8a27201bb9a7ebf4f0967b537ed44",
+      "kind": "actual_run",
+      "sha256": "e661438d2f23194f704ed98300291e8888c8a27201bb9a7ebf4f0967b537ed44",
+      "size": 2562,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/e2e-09.process.json"
+    },
+    {
+      "archive_path": "run/e2e-09.result.json",
+      "blob": "blobs/fbd26e0b79a9438ad992841b0740b443c84e742549077e32ab63b6972f21d459",
+      "kind": "actual_run",
+      "sha256": "fbd26e0b79a9438ad992841b0740b443c84e742549077e32ab63b6972f21d459",
+      "size": 3497,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/e2e-09.result.json"
+    },
+    {
+      "archive_path": "run/e2e-09.stderr",
+      "blob": "blobs/61e5cf6f9fbb3cddd858cc091f1bbdd20c3b68886554b14e77d37608e139f518",
+      "kind": "actual_run",
+      "sha256": "61e5cf6f9fbb3cddd858cc091f1bbdd20c3b68886554b14e77d37608e139f518",
+      "size": 1148,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/e2e-09.stderr"
+    },
+    {
+      "archive_path": "run/e2e-09.stdout",
+      "blob": "blobs/09e139f090ca0da30cc5c1aef52381fdb887921d0da391a8b52c17c494119fb4",
+      "kind": "actual_run",
+      "sha256": "09e139f090ca0da30cc5c1aef52381fdb887921d0da391a8b52c17c494119fb4",
+      "size": 376,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/e2e-09.stdout"
+    },
+    {
+      "archive_path": "run/e2e-10.process.json",
+      "blob": "blobs/84ca37d6fff90dfa5fd5d10e7db7a49fd793f1fcd81e49c95f658cf73c246729",
+      "kind": "actual_run",
+      "sha256": "84ca37d6fff90dfa5fd5d10e7db7a49fd793f1fcd81e49c95f658cf73c246729",
+      "size": 2524,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/e2e-10.process.json"
+    },
+    {
+      "archive_path": "run/e2e-10.result.json",
+      "blob": "blobs/1f2d23a97efb7f6c609af0efbab9afb495c29348e862ed8270144273a2c53ac0",
+      "kind": "actual_run",
+      "sha256": "1f2d23a97efb7f6c609af0efbab9afb495c29348e862ed8270144273a2c53ac0",
+      "size": 3398,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/e2e-10.result.json"
+    },
+    {
+      "archive_path": "run/e2e-10.stderr",
+      "blob": "blobs/e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "kind": "actual_run",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/e2e-10.stderr"
+    },
+    {
+      "archive_path": "run/e2e-10.stdout",
+      "blob": "blobs/aebb8f95a908dea2ca15c25259c311a4c877f30d03b8edcd9f74837570a5a51c",
+      "kind": "actual_run",
+      "sha256": "aebb8f95a908dea2ca15c25259c311a4c877f30d03b8edcd9f74837570a5a51c",
+      "size": 205,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/e2e-10.stdout"
+    },
+    {
+      "archive_path": "run/e2e-11.process.json",
+      "blob": "blobs/bbe4741edca89fc0dd5ec88d4cd25ef1577df55f4a00f9db8d37d398a1d0871b",
+      "kind": "actual_run",
+      "sha256": "bbe4741edca89fc0dd5ec88d4cd25ef1577df55f4a00f9db8d37d398a1d0871b",
+      "size": 2540,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/e2e-11.process.json"
+    },
+    {
+      "archive_path": "run/e2e-11.result.json",
+      "blob": "blobs/ef0af3b3e17435aa2ddca02d297493713737346ae425654f0ac169c985c381ad",
+      "kind": "actual_run",
+      "sha256": "ef0af3b3e17435aa2ddca02d297493713737346ae425654f0ac169c985c381ad",
+      "size": 3431,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/e2e-11.result.json"
+    },
+    {
+      "archive_path": "run/e2e-11.stderr",
+      "blob": "blobs/60e4b804f3b9ad398cf384ab77458318e7dc1289ae89a351812f9e988b575dc9",
+      "kind": "actual_run",
+      "sha256": "60e4b804f3b9ad398cf384ab77458318e7dc1289ae89a351812f9e988b575dc9",
+      "size": 1126,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/e2e-11.stderr"
+    },
+    {
+      "archive_path": "run/e2e-11.stdout",
+      "blob": "blobs/cfb7a22d052c5a7ec7c59ac7956c3b25310def5f67f4fc02b86ca7ec845e0b84",
+      "kind": "actual_run",
+      "sha256": "cfb7a22d052c5a7ec7c59ac7956c3b25310def5f67f4fc02b86ca7ec845e0b84",
+      "size": 332,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/e2e-11.stdout"
+    },
+    {
+      "archive_path": "run/e2e-12.process.json",
+      "blob": "blobs/b310a6913a1b3de1ca08ae138bbd356d2fd2a86933942ae49fbccd2757710c95",
+      "kind": "actual_run",
+      "sha256": "b310a6913a1b3de1ca08ae138bbd356d2fd2a86933942ae49fbccd2757710c95",
+      "size": 2541,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/e2e-12.process.json"
+    },
+    {
+      "archive_path": "run/e2e-12.result.json",
+      "blob": "blobs/001b829238e55920bcc9664aaad85ff15d1bfbc1513bce115571d9feab0c9aaf",
+      "kind": "actual_run",
+      "sha256": "001b829238e55920bcc9664aaad85ff15d1bfbc1513bce115571d9feab0c9aaf",
+      "size": 3436,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/e2e-12.result.json"
+    },
+    {
+      "archive_path": "run/e2e-12.stderr",
+      "blob": "blobs/51fb1b535e62dc3e8051f775ae7420e16b9d3d88a66a7ec3125f7494ba3c3bc8",
+      "kind": "actual_run",
+      "sha256": "51fb1b535e62dc3e8051f775ae7420e16b9d3d88a66a7ec3125f7494ba3c3bc8",
+      "size": 1128,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/e2e-12.stderr"
+    },
+    {
+      "archive_path": "run/e2e-12.stdout",
+      "blob": "blobs/ed83d2558d53ecaa34f3f7fa706450decd4f0ae47435fca6160e6932b7ed53d6",
+      "kind": "actual_run",
+      "sha256": "ed83d2558d53ecaa34f3f7fa706450decd4f0ae47435fca6160e6932b7ed53d6",
+      "size": 336,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/e2e-12.stdout"
+    },
+    {
+      "archive_path": "run/e2e-13.process.json",
+      "blob": "blobs/aedb86c1eae424ce84d0702a90afaaa56ee645c1cb5f4e7504c4d951a398b9c5",
+      "kind": "actual_run",
+      "sha256": "aedb86c1eae424ce84d0702a90afaaa56ee645c1cb5f4e7504c4d951a398b9c5",
+      "size": 2516,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/e2e-13.process.json"
+    },
+    {
+      "archive_path": "run/e2e-13.result.json",
+      "blob": "blobs/a0cd6d896736e874ac22c5f748938dcab594c5e1289ebf0062902e5e4c16bf60",
+      "kind": "actual_run",
+      "sha256": "a0cd6d896736e874ac22c5f748938dcab594c5e1289ebf0062902e5e4c16bf60",
+      "size": 3374,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/e2e-13.result.json"
+    },
+    {
+      "archive_path": "run/e2e-13.stderr",
+      "blob": "blobs/e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "kind": "actual_run",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/e2e-13.stderr"
+    },
+    {
+      "archive_path": "run/e2e-13.stdout",
+      "blob": "blobs/19df9e53efd70776672f8a495ae9f41744b091dc01481e3203c82b83700bf341",
+      "kind": "actual_run",
+      "sha256": "19df9e53efd70776672f8a495ae9f41744b091dc01481e3203c82b83700bf341",
+      "size": 197,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/e2e-13.stdout"
+    },
+    {
+      "archive_path": "run/e2e-postbuild.providers.json",
+      "blob": "blobs/4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b",
+      "kind": "actual_run",
+      "sha256": "4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b",
+      "size": 498685,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/e2e-postbuild.providers.json"
+    },
+    {
+      "archive_path": "run/e2e-postbuild.source.json",
+      "blob": "blobs/f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "kind": "actual_run",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "size": 6659899,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/e2e-postbuild.source.json"
+    },
+    {
+      "archive_path": "run/e2e-posttest-0.providers.json",
+      "blob": "blobs/4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b",
+      "kind": "actual_run",
+      "sha256": "4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b",
+      "size": 498685,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/e2e-posttest-0.providers.json"
+    },
+    {
+      "archive_path": "run/e2e-posttest-0.source.json",
+      "blob": "blobs/f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "kind": "actual_run",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "size": 6659899,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/e2e-posttest-0.source.json"
+    },
+    {
+      "archive_path": "run/e2e-posttest-1.providers.json",
+      "blob": "blobs/4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b",
+      "kind": "actual_run",
+      "sha256": "4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b",
+      "size": 498685,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/e2e-posttest-1.providers.json"
+    },
+    {
+      "archive_path": "run/e2e-posttest-1.source.json",
+      "blob": "blobs/f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "kind": "actual_run",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "size": 6659899,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/e2e-posttest-1.source.json"
+    },
+    {
+      "archive_path": "run/e2e-posttest-10.providers.json",
+      "blob": "blobs/4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b",
+      "kind": "actual_run",
+      "sha256": "4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b",
+      "size": 498685,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/e2e-posttest-10.providers.json"
+    },
+    {
+      "archive_path": "run/e2e-posttest-10.source.json",
+      "blob": "blobs/f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "kind": "actual_run",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "size": 6659899,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/e2e-posttest-10.source.json"
+    },
+    {
+      "archive_path": "run/e2e-posttest-11.providers.json",
+      "blob": "blobs/4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b",
+      "kind": "actual_run",
+      "sha256": "4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b",
+      "size": 498685,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/e2e-posttest-11.providers.json"
+    },
+    {
+      "archive_path": "run/e2e-posttest-11.source.json",
+      "blob": "blobs/f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "kind": "actual_run",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "size": 6659899,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/e2e-posttest-11.source.json"
+    },
+    {
+      "archive_path": "run/e2e-posttest-12.providers.json",
+      "blob": "blobs/4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b",
+      "kind": "actual_run",
+      "sha256": "4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b",
+      "size": 498685,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/e2e-posttest-12.providers.json"
+    },
+    {
+      "archive_path": "run/e2e-posttest-12.source.json",
+      "blob": "blobs/f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "kind": "actual_run",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "size": 6659899,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/e2e-posttest-12.source.json"
+    },
+    {
+      "archive_path": "run/e2e-posttest-13.providers.json",
+      "blob": "blobs/4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b",
+      "kind": "actual_run",
+      "sha256": "4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b",
+      "size": 498685,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/e2e-posttest-13.providers.json"
+    },
+    {
+      "archive_path": "run/e2e-posttest-13.source.json",
+      "blob": "blobs/f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "kind": "actual_run",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "size": 6659899,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/e2e-posttest-13.source.json"
+    },
+    {
+      "archive_path": "run/e2e-posttest-2.providers.json",
+      "blob": "blobs/4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b",
+      "kind": "actual_run",
+      "sha256": "4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b",
+      "size": 498685,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/e2e-posttest-2.providers.json"
+    },
+    {
+      "archive_path": "run/e2e-posttest-2.source.json",
+      "blob": "blobs/f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "kind": "actual_run",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "size": 6659899,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/e2e-posttest-2.source.json"
+    },
+    {
+      "archive_path": "run/e2e-posttest-3.providers.json",
+      "blob": "blobs/4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b",
+      "kind": "actual_run",
+      "sha256": "4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b",
+      "size": 498685,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/e2e-posttest-3.providers.json"
+    },
+    {
+      "archive_path": "run/e2e-posttest-3.source.json",
+      "blob": "blobs/f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "kind": "actual_run",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "size": 6659899,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/e2e-posttest-3.source.json"
+    },
+    {
+      "archive_path": "run/e2e-posttest-4.providers.json",
+      "blob": "blobs/4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b",
+      "kind": "actual_run",
+      "sha256": "4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b",
+      "size": 498685,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/e2e-posttest-4.providers.json"
+    },
+    {
+      "archive_path": "run/e2e-posttest-4.source.json",
+      "blob": "blobs/f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "kind": "actual_run",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "size": 6659899,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/e2e-posttest-4.source.json"
+    },
+    {
+      "archive_path": "run/e2e-posttest-5.providers.json",
+      "blob": "blobs/4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b",
+      "kind": "actual_run",
+      "sha256": "4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b",
+      "size": 498685,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/e2e-posttest-5.providers.json"
+    },
+    {
+      "archive_path": "run/e2e-posttest-5.source.json",
+      "blob": "blobs/f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "kind": "actual_run",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "size": 6659899,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/e2e-posttest-5.source.json"
+    },
+    {
+      "archive_path": "run/e2e-posttest-6.providers.json",
+      "blob": "blobs/4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b",
+      "kind": "actual_run",
+      "sha256": "4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b",
+      "size": 498685,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/e2e-posttest-6.providers.json"
+    },
+    {
+      "archive_path": "run/e2e-posttest-6.source.json",
+      "blob": "blobs/f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "kind": "actual_run",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "size": 6659899,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/e2e-posttest-6.source.json"
+    },
+    {
+      "archive_path": "run/e2e-posttest-7.providers.json",
+      "blob": "blobs/4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b",
+      "kind": "actual_run",
+      "sha256": "4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b",
+      "size": 498685,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/e2e-posttest-7.providers.json"
+    },
+    {
+      "archive_path": "run/e2e-posttest-7.source.json",
+      "blob": "blobs/f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "kind": "actual_run",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "size": 6659899,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/e2e-posttest-7.source.json"
+    },
+    {
+      "archive_path": "run/e2e-posttest-8.providers.json",
+      "blob": "blobs/4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b",
+      "kind": "actual_run",
+      "sha256": "4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b",
+      "size": 498685,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/e2e-posttest-8.providers.json"
+    },
+    {
+      "archive_path": "run/e2e-posttest-8.source.json",
+      "blob": "blobs/f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "kind": "actual_run",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "size": 6659899,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/e2e-posttest-8.source.json"
+    },
+    {
+      "archive_path": "run/e2e-posttest-9.providers.json",
+      "blob": "blobs/4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b",
+      "kind": "actual_run",
+      "sha256": "4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b",
+      "size": 498685,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/e2e-posttest-9.providers.json"
+    },
+    {
+      "archive_path": "run/e2e-posttest-9.source.json",
+      "blob": "blobs/f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "kind": "actual_run",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "size": 6659899,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/e2e-posttest-9.source.json"
+    },
+    {
+      "archive_path": "run/e2e-prebuild.providers.json",
+      "blob": "blobs/4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b",
+      "kind": "actual_run",
+      "sha256": "4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b",
+      "size": 498685,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/e2e-prebuild.providers.json"
+    },
+    {
+      "archive_path": "run/e2e-prebuild.source.json",
+      "blob": "blobs/f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "kind": "actual_run",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "size": 6659899,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/e2e-prebuild.source.json"
+    },
+    {
+      "archive_path": "run/e2e-pretest-0.providers.json",
+      "blob": "blobs/4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b",
+      "kind": "actual_run",
+      "sha256": "4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b",
+      "size": 498685,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/e2e-pretest-0.providers.json"
+    },
+    {
+      "archive_path": "run/e2e-pretest-0.source.json",
+      "blob": "blobs/f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "kind": "actual_run",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "size": 6659899,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/e2e-pretest-0.source.json"
+    },
+    {
+      "archive_path": "run/e2e-pretest-1.providers.json",
+      "blob": "blobs/4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b",
+      "kind": "actual_run",
+      "sha256": "4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b",
+      "size": 498685,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/e2e-pretest-1.providers.json"
+    },
+    {
+      "archive_path": "run/e2e-pretest-1.source.json",
+      "blob": "blobs/f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "kind": "actual_run",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "size": 6659899,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/e2e-pretest-1.source.json"
+    },
+    {
+      "archive_path": "run/e2e-pretest-10.providers.json",
+      "blob": "blobs/4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b",
+      "kind": "actual_run",
+      "sha256": "4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b",
+      "size": 498685,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/e2e-pretest-10.providers.json"
+    },
+    {
+      "archive_path": "run/e2e-pretest-10.source.json",
+      "blob": "blobs/f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "kind": "actual_run",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "size": 6659899,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/e2e-pretest-10.source.json"
+    },
+    {
+      "archive_path": "run/e2e-pretest-11.providers.json",
+      "blob": "blobs/4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b",
+      "kind": "actual_run",
+      "sha256": "4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b",
+      "size": 498685,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/e2e-pretest-11.providers.json"
+    },
+    {
+      "archive_path": "run/e2e-pretest-11.source.json",
+      "blob": "blobs/f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "kind": "actual_run",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "size": 6659899,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/e2e-pretest-11.source.json"
+    },
+    {
+      "archive_path": "run/e2e-pretest-12.providers.json",
+      "blob": "blobs/4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b",
+      "kind": "actual_run",
+      "sha256": "4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b",
+      "size": 498685,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/e2e-pretest-12.providers.json"
+    },
+    {
+      "archive_path": "run/e2e-pretest-12.source.json",
+      "blob": "blobs/f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "kind": "actual_run",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "size": 6659899,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/e2e-pretest-12.source.json"
+    },
+    {
+      "archive_path": "run/e2e-pretest-13.providers.json",
+      "blob": "blobs/4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b",
+      "kind": "actual_run",
+      "sha256": "4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b",
+      "size": 498685,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/e2e-pretest-13.providers.json"
+    },
+    {
+      "archive_path": "run/e2e-pretest-13.source.json",
+      "blob": "blobs/f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "kind": "actual_run",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "size": 6659899,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/e2e-pretest-13.source.json"
+    },
+    {
+      "archive_path": "run/e2e-pretest-2.providers.json",
+      "blob": "blobs/4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b",
+      "kind": "actual_run",
+      "sha256": "4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b",
+      "size": 498685,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/e2e-pretest-2.providers.json"
+    },
+    {
+      "archive_path": "run/e2e-pretest-2.source.json",
+      "blob": "blobs/f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "kind": "actual_run",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "size": 6659899,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/e2e-pretest-2.source.json"
+    },
+    {
+      "archive_path": "run/e2e-pretest-3.providers.json",
+      "blob": "blobs/4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b",
+      "kind": "actual_run",
+      "sha256": "4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b",
+      "size": 498685,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/e2e-pretest-3.providers.json"
+    },
+    {
+      "archive_path": "run/e2e-pretest-3.source.json",
+      "blob": "blobs/f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "kind": "actual_run",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "size": 6659899,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/e2e-pretest-3.source.json"
+    },
+    {
+      "archive_path": "run/e2e-pretest-4.providers.json",
+      "blob": "blobs/4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b",
+      "kind": "actual_run",
+      "sha256": "4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b",
+      "size": 498685,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/e2e-pretest-4.providers.json"
+    },
+    {
+      "archive_path": "run/e2e-pretest-4.source.json",
+      "blob": "blobs/f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "kind": "actual_run",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "size": 6659899,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/e2e-pretest-4.source.json"
+    },
+    {
+      "archive_path": "run/e2e-pretest-5.providers.json",
+      "blob": "blobs/4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b",
+      "kind": "actual_run",
+      "sha256": "4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b",
+      "size": 498685,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/e2e-pretest-5.providers.json"
+    },
+    {
+      "archive_path": "run/e2e-pretest-5.source.json",
+      "blob": "blobs/f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "kind": "actual_run",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "size": 6659899,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/e2e-pretest-5.source.json"
+    },
+    {
+      "archive_path": "run/e2e-pretest-6.providers.json",
+      "blob": "blobs/4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b",
+      "kind": "actual_run",
+      "sha256": "4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b",
+      "size": 498685,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/e2e-pretest-6.providers.json"
+    },
+    {
+      "archive_path": "run/e2e-pretest-6.source.json",
+      "blob": "blobs/f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "kind": "actual_run",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "size": 6659899,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/e2e-pretest-6.source.json"
+    },
+    {
+      "archive_path": "run/e2e-pretest-7.providers.json",
+      "blob": "blobs/4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b",
+      "kind": "actual_run",
+      "sha256": "4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b",
+      "size": 498685,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/e2e-pretest-7.providers.json"
+    },
+    {
+      "archive_path": "run/e2e-pretest-7.source.json",
+      "blob": "blobs/f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "kind": "actual_run",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "size": 6659899,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/e2e-pretest-7.source.json"
+    },
+    {
+      "archive_path": "run/e2e-pretest-8.providers.json",
+      "blob": "blobs/4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b",
+      "kind": "actual_run",
+      "sha256": "4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b",
+      "size": 498685,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/e2e-pretest-8.providers.json"
+    },
+    {
+      "archive_path": "run/e2e-pretest-8.source.json",
+      "blob": "blobs/f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "kind": "actual_run",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "size": 6659899,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/e2e-pretest-8.source.json"
+    },
+    {
+      "archive_path": "run/e2e-pretest-9.providers.json",
+      "blob": "blobs/4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b",
+      "kind": "actual_run",
+      "sha256": "4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b",
+      "size": 498685,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/e2e-pretest-9.providers.json"
+    },
+    {
+      "archive_path": "run/e2e-pretest-9.source.json",
+      "blob": "blobs/f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "kind": "actual_run",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "size": 6659899,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/e2e-pretest-9.source.json"
+    },
+    {
+      "archive_path": "run/failure-after.providers.json",
+      "blob": "blobs/4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b",
+      "kind": "actual_run",
+      "sha256": "4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b",
+      "size": 498685,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/failure-after.providers.json"
+    },
+    {
+      "archive_path": "run/failure-after.source.json",
+      "blob": "blobs/f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "kind": "actual_run",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "size": 6659899,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/failure-after.source.json"
+    },
+    {
+      "archive_path": "run/failure.json",
+      "blob": "blobs/78dcf588999240e236b4c16c361e83cd7ae72fcdeb3537786ce4cf359cd4c6f9",
+      "kind": "actual_run",
+      "sha256": "78dcf588999240e236b4c16c361e83cd7ae72fcdeb3537786ce4cf359cd4c6f9",
+      "size": 501,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/failure.json"
+    },
+    {
+      "archive_path": "run/go.json",
+      "blob": "blobs/13ddd06e1c6ea561dafef5c9206747e697ee2972476c0f90cb177a0b0531d6f2",
+      "kind": "actual_run",
+      "sha256": "13ddd06e1c6ea561dafef5c9206747e697ee2972476c0f90cb177a0b0531d6f2",
+      "size": 1940,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/go.json"
+    },
+    {
+      "archive_path": "run/head-samples.json",
+      "blob": "blobs/c36e4526f219d66ff3f5c54940e6d3139010f92f10a5ebf25bd78a86ef8466bf",
+      "kind": "actual_run",
+      "sha256": "c36e4526f219d66ff3f5c54940e6d3139010f92f10a5ebf25bd78a86ef8466bf",
+      "size": 3779,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/head-samples.json"
+    },
+    {
+      "archive_path": "run/lock-released.json",
+      "blob": "blobs/61595c76b5352337b8706aa2792a19ec976bbed9a4b1072b20e18d82a85a0a6f",
+      "kind": "actual_run",
+      "sha256": "61595c76b5352337b8706aa2792a19ec976bbed9a4b1072b20e18d82a85a0a6f",
+      "size": 85,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/lock-released.json"
+    },
+    {
+      "archive_path": "run/plan.json",
+      "blob": "blobs/bfca0cedd84f652c006009d6b63334e593295c087aef0c4f047c736990446b51",
+      "kind": "actual_run",
+      "sha256": "bfca0cedd84f652c006009d6b63334e593295c087aef0c4f047c736990446b51",
+      "size": 12906,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/plan.json"
+    },
+    {
+      "archive_path": "run/results.json",
+      "blob": "blobs/b7912c4c5d8cfb210c2ce879ff17a414ff5cc3c05959be8c16e019e167aac84d",
+      "kind": "actual_run",
+      "sha256": "b7912c4c5d8cfb210c2ce879ff17a414ff5cc3c05959be8c16e019e167aac84d",
+      "size": 50812,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/results.json"
+    },
+    {
+      "archive_path": "run/root-observed-parent-closure.json",
+      "blob": "blobs/e2dfaaac74944c7a0ece2b6d4a07873d8d633cb8967ec854c2cd5d7cebad050e",
+      "kind": "actual_run",
+      "sha256": "e2dfaaac74944c7a0ece2b6d4a07873d8d633cb8967ec854c2cd5d7cebad050e",
+      "size": 492,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/root-observed-parent-closure.json"
+    },
+    {
+      "archive_path": "run/server_lib-prebuild.providers.json",
+      "blob": "blobs/4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b",
+      "kind": "actual_run",
+      "sha256": "4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b",
+      "size": 498685,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/server_lib-prebuild.providers.json"
+    },
+    {
+      "archive_path": "run/server_lib-prebuild.source.json",
+      "blob": "blobs/f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "kind": "actual_run",
+      "sha256": "f6cb26375a14c8ee554a06b48f4f08f8e7f877bd06a6fbebf76d88acff73f8ad",
+      "size": 6659899,
+      "source": "/tmp/lsp-native-protocol-v14-source46-repaired-direct15-runs/20261023T083855.013383Z/server_lib-prebuild.source.json"
+    },
+    {
+      "archive_path": "source46/runtime/rust/src/interp.rs",
+      "blob": "blobs/580d73c054dab8c309ef977572f74c6ba0f6c7febbc206d3dc3f3ff52f8ec398",
+      "kind": "approved_source46_file",
+      "sha256": "580d73c054dab8c309ef977572f74c6ba0f6c7febbc206d3dc3f3ff52f8ec398",
+      "size": 1115916,
+      "source": "/workspace/naming-migration-active/tcl-lsp/runtime/rust/src/interp.rs"
+    },
+    {
+      "archive_path": "source46/rust/bpf-tcl-ir/src/source/phase.rs",
+      "blob": "blobs/c3882a6a6e3cf2d2dac487fe0692f329fd0d9a45ff9e8864fbabe3745b240f27",
+      "kind": "approved_source46_file",
+      "sha256": "c3882a6a6e3cf2d2dac487fe0692f329fd0d9a45ff9e8864fbabe3745b240f27",
+      "size": 23292,
+      "source": "/workspace/naming-migration-active/tcl-lsp/rust/bpf-tcl-ir/src/source/phase.rs"
+    },
+    {
+      "archive_path": "source46/rust/tcl-compiler/src/analyser/authenticated_report.rs",
+      "blob": "blobs/fd345cd909c113bc0df44da01672fe71b63d6c5261e68bf4d8bc2f9a862a804e",
+      "kind": "approved_source46_file",
+      "sha256": "fd345cd909c113bc0df44da01672fe71b63d6c5261e68bf4d8bc2f9a862a804e",
+      "size": 22079,
+      "source": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/analyser/authenticated_report.rs"
+    },
+    {
+      "archive_path": "source46/rust/tcl-compiler/src/analyser/authenticated_report/body_correspondence.rs",
+      "blob": "blobs/20c93448f12ead53845dbc18596552190bc814a67c27bf23bdea1f3b262ec9ef",
+      "kind": "approved_source46_file",
+      "sha256": "20c93448f12ead53845dbc18596552190bc814a67c27bf23bdea1f3b262ec9ef",
+      "size": 26683,
+      "source": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/analyser/authenticated_report/body_correspondence.rs"
+    },
+    {
+      "archive_path": "source46/rust/tcl-compiler/src/analyser/authenticated_report/field_comparison.rs",
+      "blob": "blobs/a2469d752fdde34d9af37470f97b5d1614678ae043b2fae7befaec5589ef3eb0",
+      "kind": "approved_source46_file",
+      "sha256": "a2469d752fdde34d9af37470f97b5d1614678ae043b2fae7befaec5589ef3eb0",
+      "size": 12880,
+      "source": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/analyser/authenticated_report/field_comparison.rs"
+    },
+    {
+      "archive_path": "source46/rust/tcl-compiler/src/analyser/class_hierarchy.rs",
+      "blob": "blobs/ce8f7d9b3ffd4df4ab6d4713a313028f1305caf659f77cf521a23d647e7aaa31",
+      "kind": "approved_source46_file",
+      "sha256": "ce8f7d9b3ffd4df4ab6d4713a313028f1305caf659f77cf521a23d647e7aaa31",
+      "size": 84926,
+      "source": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/analyser/class_hierarchy.rs"
+    },
+    {
+      "archive_path": "source46/rust/tcl-compiler/src/analyser/commands.rs",
+      "blob": "blobs/819c5f23f771e058582f955e315a8ce8cf7af41abb1a25347446e9e21f07e3f0",
+      "kind": "approved_source46_file",
+      "sha256": "819c5f23f771e058582f955e315a8ce8cf7af41abb1a25347446e9e21f07e3f0",
+      "size": 385896,
+      "source": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/analyser/commands.rs"
+    },
+    {
+      "archive_path": "source46/rust/tcl-compiler/src/analyser/diagnostic_subject.rs",
+      "blob": "blobs/607f13c3a49db923b82026f99e1992fa24d3d016426cba2aa3795c719f1a9eb3",
+      "kind": "approved_source46_file",
+      "sha256": "607f13c3a49db923b82026f99e1992fa24d3d016426cba2aa3795c719f1a9eb3",
+      "size": 26852,
+      "source": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/analyser/diagnostic_subject.rs"
+    },
+    {
+      "archive_path": "source46/rust/tcl-compiler/src/analyser/diagnostics.rs",
+      "blob": "blobs/f9881885a30575ad2a5cbfe10ac867b72ca6e16f2402a1ae852652eeb19ee086",
+      "kind": "approved_source46_file",
+      "sha256": "f9881885a30575ad2a5cbfe10ac867b72ca6e16f2402a1ae852652eeb19ee086",
+      "size": 74120,
+      "source": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/analyser/diagnostics.rs"
+    },
+    {
+      "archive_path": "source46/rust/tcl-compiler/src/analyser/mod.rs",
+      "blob": "blobs/01624f36d846c6a3a980ebc57121d27c7fd8a37bfa28904040698b9ea0cfdf43",
+      "kind": "approved_source46_file",
+      "sha256": "01624f36d846c6a3a980ebc57121d27c7fd8a37bfa28904040698b9ea0cfdf43",
+      "size": 5975,
+      "source": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/analyser/mod.rs"
+    },
+    {
+      "archive_path": "source46/rust/tcl-compiler/src/analyser/oo.rs",
+      "blob": "blobs/88dd3cb2a2e0cf9d30b10f8bbd2aee5acbfcfad78dad9bd991a53384f2f86f0e",
+      "kind": "approved_source46_file",
+      "sha256": "88dd3cb2a2e0cf9d30b10f8bbd2aee5acbfcfad78dad9bd991a53384f2f86f0e",
+      "size": 389879,
+      "source": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/analyser/oo.rs"
+    },
+    {
+      "archive_path": "source46/rust/tcl-compiler/src/analyser/original_definer.rs",
+      "blob": "blobs/e2878283866c3657c5692b5057c96edb5436e25cd1592a045c5b105f4c41fbed",
+      "kind": "approved_source46_file",
+      "sha256": "e2878283866c3657c5692b5057c96edb5436e25cd1592a045c5b105f4c41fbed",
+      "size": 26054,
+      "source": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/analyser/original_definer.rs"
+    },
+    {
+      "archive_path": "source46/rust/tcl-compiler/src/analyser/state.rs",
+      "blob": "blobs/ecba537a5e51ee375f34587e0bd82a0ce2f14fa60b7fb1c9dea86ed9f1dc0ce6",
+      "kind": "approved_source46_file",
+      "sha256": "ecba537a5e51ee375f34587e0bd82a0ce2f14fa60b7fb1c9dea86ed9f1dc0ce6",
+      "size": 356563,
+      "source": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/analyser/state.rs"
+    },
+    {
+      "archive_path": "source46/rust/tcl-compiler/src/cfg_builder/mod.rs",
+      "blob": "blobs/223477a7dc7845efc42c047979a8d6540848d1bb7beeb3eff53c669c9de9d696",
+      "kind": "approved_source46_file",
+      "sha256": "223477a7dc7845efc42c047979a8d6540848d1bb7beeb3eff53c669c9de9d696",
+      "size": 349622,
+      "source": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/cfg_builder/mod.rs"
+    },
+    {
+      "archive_path": "source46/rust/tcl-compiler/src/command_binding.rs",
+      "blob": "blobs/8207fff06e00e6a11434372505672b447a644bfe8b49df1667367f82fbaa9baf",
+      "kind": "approved_source46_file",
+      "sha256": "8207fff06e00e6a11434372505672b447a644bfe8b49df1667367f82fbaa9baf",
+      "size": 1060142,
+      "source": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/command_binding.rs"
+    },
+    {
+      "archive_path": "source46/rust/tcl-compiler/src/command_binding/compiler_inventory.rs",
+      "blob": "blobs/f7f002827b34344f097811d18f15b632aded31795246ed0a3a8cb935a6af216a",
+      "kind": "approved_source46_file",
+      "sha256": "f7f002827b34344f097811d18f15b632aded31795246ed0a3a8cb935a6af216a",
+      "size": 100672,
+      "source": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/command_binding/compiler_inventory.rs"
+    },
+    {
+      "archive_path": "source46/rust/tcl-compiler/src/command_binding/conditional_expression_tests.rs",
+      "blob": "blobs/27d8a330514570981f3b28f493e3b8d1a8e6461d38fbfab9df40d7fc833a7120",
+      "kind": "approved_source46_file",
+      "sha256": "27d8a330514570981f3b28f493e3b8d1a8e6461d38fbfab9df40d7fc833a7120",
+      "size": 4547,
+      "source": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/command_binding/conditional_expression_tests.rs"
+    },
+    {
+      "archive_path": "source46/rust/tcl-compiler/src/command_binding/conditional_source.rs",
+      "blob": "blobs/1dd08818ebcceb83eb518c8d819c1a66375c08c7bc9182e538f48ae74320aaae",
+      "kind": "approved_source46_file",
+      "sha256": "1dd08818ebcceb83eb518c8d819c1a66375c08c7bc9182e538f48ae74320aaae",
+      "size": 26466,
+      "source": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/command_binding/conditional_source.rs"
+    },
+    {
+      "archive_path": "source46/rust/tcl-compiler/src/command_binding/conditional_source/region.rs",
+      "blob": "blobs/775dc2a7f70e436592b3d36bc6baad7baa815a0fe87c5f3140107a520df4d6b3",
+      "kind": "approved_source46_file",
+      "sha256": "775dc2a7f70e436592b3d36bc6baad7baa815a0fe87c5f3140107a520df4d6b3",
+      "size": 59337,
+      "source": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/command_binding/conditional_source/region.rs"
+    },
+    {
+      "archive_path": "source46/rust/tcl-compiler/src/command_binding/expression_preparation.rs",
+      "blob": "blobs/58db7cef50cb2aaf2ac6d8669bd3e53b53c62b71fc9f5a2144a86b8d1ef3bcf8",
+      "kind": "approved_source46_file",
+      "sha256": "58db7cef50cb2aaf2ac6d8669bd3e53b53c62b71fc9f5a2144a86b8d1ef3bcf8",
+      "size": 105091,
+      "source": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/command_binding/expression_preparation.rs"
+    },
+    {
+      "archive_path": "source46/rust/tcl-compiler/src/command_binding/normal_result.rs",
+      "blob": "blobs/3fdd6e0135de31ca97d078a1ee5665c8df714c0608f68c444d1bcc09f535dd16",
+      "kind": "approved_source46_file",
+      "sha256": "3fdd6e0135de31ca97d078a1ee5665c8df714c0608f68c444d1bcc09f535dd16",
+      "size": 46940,
+      "source": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/command_binding/normal_result.rs"
+    },
+    {
+      "archive_path": "source46/rust/tcl-compiler/src/command_binding/original_literal_argv_rewrite.rs",
+      "blob": "blobs/5cd17e416dcdf0f1f32353af900a024d44ee9ac9cc0f59f365c18cf37f9be725",
+      "kind": "approved_source46_file",
+      "sha256": "5cd17e416dcdf0f1f32353af900a024d44ee9ac9cc0f59f365c18cf37f9be725",
+      "size": 55436,
+      "source": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/command_binding/original_literal_argv_rewrite.rs"
+    },
+    {
+      "archive_path": "source46/rust/tcl-compiler/src/command_binding/retained_source.rs",
+      "blob": "blobs/6def128ba1ca8481473ec7e1679911cabe7b153130199e814e11d50b1891ebd0",
+      "kind": "approved_source46_file",
+      "sha256": "6def128ba1ca8481473ec7e1679911cabe7b153130199e814e11d50b1891ebd0",
+      "size": 54197,
+      "source": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/command_binding/retained_source.rs"
+    },
+    {
+      "archive_path": "source46/rust/tcl-compiler/src/command_binding/source_transition_advice.rs",
+      "blob": "blobs/5279406d35d53ae4a8ce8747fddc5ed62e436d975ccc1dda1c5d6dcfc183b2ca",
+      "kind": "approved_source46_file",
+      "sha256": "5279406d35d53ae4a8ce8747fddc5ed62e436d975ccc1dda1c5d6dcfc183b2ca",
+      "size": 187568,
+      "source": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/command_binding/source_transition_advice.rs"
+    },
+    {
+      "archive_path": "source46/rust/tcl-compiler/src/command_binding/source_transition_advice/source_point.rs",
+      "blob": "blobs/99e5c752d1f0ab16db787a40f0acb5f81113db0b8ea645b01afc501bf6277718",
+      "kind": "approved_source46_file",
+      "sha256": "99e5c752d1f0ab16db787a40f0acb5f81113db0b8ea645b01afc501bf6277718",
+      "size": 27436,
+      "source": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/command_binding/source_transition_advice/source_point.rs"
+    },
+    {
+      "archive_path": "source46/rust/tcl-compiler/src/command_binding/source_transition_advice/source_procedure.rs",
+      "blob": "blobs/05815c97d867964a1c10aef183a6449d5eb5f3df5251c3868edc1ddde23d4ef2",
+      "kind": "approved_source46_file",
+      "sha256": "05815c97d867964a1c10aef183a6449d5eb5f3df5251c3868edc1ddde23d4ef2",
+      "size": 37379,
+      "source": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/command_binding/source_transition_advice/source_procedure.rs"
+    },
+    {
+      "archive_path": "source46/rust/tcl-compiler/src/compilation_unit/optimiser_source_owner.rs",
+      "blob": "blobs/ec86b02ea0504c7d812adbe6ebf3c563512dad7b83b4f7b0652f27b73d962500",
+      "kind": "approved_source46_file",
+      "sha256": "ec86b02ea0504c7d812adbe6ebf3c563512dad7b83b4f7b0652f27b73d962500",
+      "size": 15251,
+      "source": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/compilation_unit/optimiser_source_owner.rs"
+    },
+    {
+      "archive_path": "source46/rust/tcl-compiler/src/ir.rs",
+      "blob": "blobs/c9fba4d08958525626105393cbcf80300da2618682edf041df37e162b3c640c5",
+      "kind": "approved_source46_file",
+      "sha256": "c9fba4d08958525626105393cbcf80300da2618682edf041df37e162b3c640c5",
+      "size": 200625,
+      "source": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/ir.rs"
+    },
+    {
+      "archive_path": "source46/rust/tcl-compiler/src/ir/source_bpf_command.rs",
+      "blob": "blobs/15ee53b35fe9f4e5d65a866f90f5911692c781381dcc7ef322337eec793b5cca",
+      "kind": "approved_source46_file",
+      "sha256": "15ee53b35fe9f4e5d65a866f90f5911692c781381dcc7ef322337eec793b5cca",
+      "size": 35031,
+      "source": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/ir/source_bpf_command.rs"
+    },
+    {
+      "archive_path": "source46/rust/tcl-compiler/src/object_types.rs",
+      "blob": "blobs/42bd4ed50b0f5cbef2b67eec0904efa016470c789d2d2273e8db8d7430abe3d2",
+      "kind": "approved_source46_file",
+      "sha256": "42bd4ed50b0f5cbef2b67eec0904efa016470c789d2d2273e8db8d7430abe3d2",
+      "size": 153969,
+      "source": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/object_types.rs"
+    },
+    {
+      "archive_path": "source46/rust/tcl-compiler/src/object_types/authenticated_report.rs",
+      "blob": "blobs/7bf19fe591eff32db05840557feee8b9b9d5d523b3070cb46177f493a266a248",
+      "kind": "approved_source46_file",
+      "sha256": "7bf19fe591eff32db05840557feee8b9b9d5d523b3070cb46177f493a266a248",
+      "size": 10380,
+      "source": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/object_types/authenticated_report.rs"
+    },
+    {
+      "archive_path": "source46/rust/tcl-compiler/src/object_types/logical_source_candidates.rs",
+      "blob": "blobs/955ca4821e509d0d27be51484e21d58878df22a1bf437dd015aba023d41c1c68",
+      "kind": "approved_source46_file",
+      "sha256": "955ca4821e509d0d27be51484e21d58878df22a1bf437dd015aba023d41c1c68",
+      "size": 27385,
+      "source": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/object_types/logical_source_candidates.rs"
+    },
+    {
+      "archive_path": "source46/rust/tcl-compiler/src/optimiser/chain_fold.rs",
+      "blob": "blobs/b6fd1433b4c9612ad16b4cc6ea1dbb9fcc457b9c7f2eabe6d785fe2bda0de839",
+      "kind": "approved_source46_file",
+      "sha256": "b6fd1433b4c9612ad16b4cc6ea1dbb9fcc457b9c7f2eabe6d785fe2bda0de839",
+      "size": 58694,
+      "source": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/optimiser/chain_fold.rs"
+    },
+    {
+      "archive_path": "source46/rust/tcl-compiler/src/optimiser/elimination.rs",
+      "blob": "blobs/bfd12ca5418e074ca1b5e0cfe8c84fae9b4dd7b7c517fbb311db8f3c399c7ca7",
+      "kind": "approved_source46_file",
+      "sha256": "bfd12ca5418e074ca1b5e0cfe8c84fae9b4dd7b7c517fbb311db8f3c399c7ca7",
+      "size": 130113,
+      "source": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/optimiser/elimination.rs"
+    },
+    {
+      "archive_path": "source46/rust/tcl-compiler/src/optimiser/propagation.rs",
+      "blob": "blobs/b623c6273111c4ad176a2528bf7b6fd41c4a6c13f02f5a30711a86fb62ae7bab",
+      "kind": "approved_source46_file",
+      "sha256": "b623c6273111c4ad176a2528bf7b6fd41c4a6c13f02f5a30711a86fb62ae7bab",
+      "size": 252819,
+      "source": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/optimiser/propagation.rs"
+    },
+    {
+      "archive_path": "source46/rust/tcl-compiler/src/realm/source_transition_advice.rs",
+      "blob": "blobs/34f43bb092c963355b2906e117dde14e77f180b2f13c954b89e46169d9904de8",
+      "kind": "approved_source46_file",
+      "sha256": "34f43bb092c963355b2906e117dde14e77f180b2f13c954b89e46169d9904de8",
+      "size": 75736,
+      "source": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/realm/source_transition_advice.rs"
+    },
+    {
+      "archive_path": "source46/rust/tcl-compiler/src/registry_invocation/source_remote_first_operand.rs",
+      "blob": "blobs/41e813430c6080b32d3c89e27f685397417b4266a3c367bb88fd8916501b4be1",
+      "kind": "approved_source46_file",
+      "sha256": "41e813430c6080b32d3c89e27f685397417b4266a3c367bb88fd8916501b4be1",
+      "size": 46718,
+      "source": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/registry_invocation/source_remote_first_operand.rs"
+    },
+    {
+      "archive_path": "source46/rust/tcl-compiler/src/registry_invocation/source_structure.rs",
+      "blob": "blobs/449d7cc65b838ac5890cc96a9f011e4d577448721966e3b7789842c7d3db6875",
+      "kind": "approved_source46_file",
+      "sha256": "449d7cc65b838ac5890cc96a9f011e4d577448721966e3b7789842c7d3db6875",
+      "size": 299174,
+      "source": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/registry_invocation/source_structure.rs"
+    },
+    {
+      "archive_path": "source46/rust/tcl-compiler/src/registry_invocation/source_structure/original_body_syntax.rs",
+      "blob": "blobs/9987de839106c8d77f1435668f73e2dfa041e5fab2ee70ea49754cbc9584e6b6",
+      "kind": "approved_source46_file",
+      "sha256": "9987de839106c8d77f1435668f73e2dfa041e5fab2ee70ea49754cbc9584e6b6",
+      "size": 25040,
+      "source": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/registry_invocation/source_structure/original_body_syntax.rs"
+    },
+    {
+      "archive_path": "source46/rust/tcl-compiler/tests/wasm_real_link.rs",
+      "blob": "blobs/4d487875d8ed7bfd8bf5ebb1ace19db064db3a471e6884e44e891dae2bdcec15",
+      "kind": "approved_source46_file",
+      "sha256": "4d487875d8ed7bfd8bf5ebb1ace19db064db3a471e6884e44e891dae2bdcec15",
+      "size": 78379,
+      "source": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/tests/wasm_real_link.rs"
+    },
+    {
+      "archive_path": "source46/rust/tcl-lsp-core/src/minify/original.rs",
+      "blob": "blobs/b1c96a8ea640b46e36142e74d696c1efb497bb37f8c3ebecd26821732988a88e",
+      "kind": "approved_source46_file",
+      "sha256": "b1c96a8ea640b46e36142e74d696c1efb497bb37f8c3ebecd26821732988a88e",
+      "size": 101603,
+      "source": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-lsp-core/src/minify/original.rs"
+    },
+    {
+      "archive_path": "source46/rust/tcl-lsp-core/src/source_structure.rs",
+      "blob": "blobs/b1598fddc0797d2da5c769caeb007c97de4d6027bc2bad91b1ddc3aa52698b20",
+      "kind": "approved_source46_file",
+      "sha256": "b1598fddc0797d2da5c769caeb007c97de4d6027bc2bad91b1ddc3aa52698b20",
+      "size": 120364,
+      "source": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-lsp-core/src/source_structure.rs"
+    },
+    {
+      "archive_path": "source46/rust/tcl-lsp-server/src/lib.rs",
+      "blob": "blobs/2e9cd7b7148d439c5ddbf7ee70494f418f22fd123f78e53433b6d47fbfa4ae1c",
+      "kind": "approved_source46_file",
+      "sha256": "2e9cd7b7148d439c5ddbf7ee70494f418f22fd123f78e53433b6d47fbfa4ae1c",
+      "size": 2922005,
+      "source": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-lsp-server/src/lib.rs"
+    },
+    {
+      "archive_path": "source46/rust/tcl-lsp-server/src/readonly_reference_reports.rs",
+      "blob": "blobs/44a04816e405d9f0a6a61fb711a543c935411f110d4d08edaa7cfc08b4b757a3",
+      "kind": "approved_source46_file",
+      "sha256": "44a04816e405d9f0a6a61fb711a543c935411f110d4d08edaa7cfc08b4b757a3",
+      "size": 172928,
+      "source": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-lsp-server/src/readonly_reference_reports.rs"
+    },
+    {
+      "archive_path": "source46/rust/tcl-lsp-server/src/readonly_reference_reports/source_views.rs",
+      "blob": "blobs/151c4869840da62605eac7ed1077e00293cf31ecef7e4f543dd5814e5d4802ee",
+      "kind": "approved_source46_file",
+      "sha256": "151c4869840da62605eac7ed1077e00293cf31ecef7e4f543dd5814e5d4802ee",
+      "size": 123803,
+      "source": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-lsp-server/src/readonly_reference_reports/source_views.rs"
+    },
+    {
+      "archive_path": "source46/rust/tcl-spectcl/tests/spec_corpus.rs",
+      "blob": "blobs/68ceb946570a53f4dd1cf1e037c67ffc76db0da2ac9c1b70c8d2128a3c453db5",
+      "kind": "approved_source46_file",
+      "sha256": "68ceb946570a53f4dd1cf1e037c67ffc76db0da2ac9c1b70c8d2128a3c453db5",
+      "size": 68487,
+      "source": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-spectcl/tests/spec_corpus.rs"
+    },
+    {
+      "archive_path": "support/final.json-857f2ec251",
+      "blob": "blobs/e4ccee9d320bc44b982f9c609b780e38b6fef21aec32c80d574fc2f69ed1ec00",
+      "kind": "audit_and_prerequisite",
+      "sha256": "e4ccee9d320bc44b982f9c609b780e38b6fef21aec32c80d574fc2f69ed1ec00",
+      "size": 2534,
+      "source": "/tmp/compiler-authenticated-report-focused14-v6-source30-runs/20261023T031436.856477Z/final.json"
+    },
+    {
+      "archive_path": "support/final.json-bea33f104e",
+      "blob": "blobs/603412312538794b380dcfc1c457df70449f7a2febdafbdf5c503ea98b7deb24",
+      "kind": "audit_and_prerequisite",
+      "sha256": "603412312538794b380dcfc1c457df70449f7a2febdafbdf5c503ea98b7deb24",
+      "size": 1395,
+      "source": "/tmp/name-handling-eight-package-check-v9-source46/runs/20261023T052332.886291Z/final.json"
+    },
+    {
+      "archive_path": "support/launcher.json-3debcc8e27",
+      "blob": "blobs/22360c89167fe221186b9a964c22bc1bdddb3344232e492873868d8ab046eadf",
+      "kind": "audit_and_prerequisite",
+      "sha256": "22360c89167fe221186b9a964c22bc1bdddb3344232e492873868d8ab046eadf",
+      "size": 4004,
+      "source": "/tmp/name-handling-eight-package-check-v9-source46/launcher-runs/20261023T052327.120208Z/launcher.json"
+    },
+    {
+      "archive_path": "support/launcher.transcript-5d4f8367f5",
+      "blob": "blobs/4a6aa4f7787f60e69a3169f97efad3f612fd22789a6f1b1272fb8d1a6a499dc7",
+      "kind": "audit_and_prerequisite",
+      "sha256": "4a6aa4f7787f60e69a3169f97efad3f612fd22789a6f1b1272fb8d1a6a499dc7",
+      "size": 121,
+      "source": "/tmp/name-handling-eight-package-check-v9-source46/launcher-runs/20261023T052327.120208Z/launcher.transcript"
+    },
+    {
+      "archive_path": "support/naming-source46-repaired-identity.json-7e41507415",
+      "blob": "blobs/e4349c8ae1a475b0b0339db80079adf5872e2c9972feb2b64c5a8e61b25f5594",
+      "kind": "audit_and_prerequisite",
+      "sha256": "e4349c8ae1a475b0b0339db80079adf5872e2c9972feb2b64c5a8e61b25f5594",
+      "size": 435,
+      "source": "/tmp/naming-source46-repaired-identity.json"
+    },
+    {
+      "archive_path": "support/plan.json-58189201b6",
+      "blob": "blobs/983d34189ebdc92cedc5fa3cfc73b613426f60dba8e78535a7c75e9b95005a9e",
+      "kind": "audit_and_prerequisite",
+      "sha256": "983d34189ebdc92cedc5fa3cfc73b613426f60dba8e78535a7c75e9b95005a9e",
+      "size": 4534,
+      "source": "/tmp/name-handling-eight-package-check-v9-source46/plan.json"
+    },
+    {
+      "archive_path": "support/source46-manifest.json-85c2a10b00",
+      "blob": "blobs/f7568b8400f5f3c0b9af0e2181e0539a81e6a42c8a19ab8a0f677a667beca9b7",
+      "kind": "audit_and_prerequisite",
+      "sha256": "f7568b8400f5f3c0b9af0e2181e0539a81e6a42c8a19ab8a0f677a667beca9b7",
+      "size": 12539,
+      "source": "/tmp/name-handling-eight-package-check-v9-source46/source46-manifest.json"
+    },
+    {
+      "archive_path": "support/source46-native15-v14-resource-abort-partial-audit.json-58c818a622",
+      "blob": "blobs/35bf18f65502a025879440ab3388a2daa43dbe24e5a25ff742d7e9a96238396e",
+      "kind": "audit_and_prerequisite",
+      "sha256": "35bf18f65502a025879440ab3388a2daa43dbe24e5a25ff742d7e9a96238396e",
+      "size": 7429,
+      "source": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/coordinator-20261023/source46-native15-v14-resource-abort-partial-audit.json"
+    },
+    {
+      "archive_path": "support/verify-native15-v14-partial-root-audit.py-1635377b93",
+      "blob": "blobs/c3813f78abf79b81df96327fedeac53382e83a1de567aa9b936fcad329d8adc3",
+      "kind": "audit_and_prerequisite",
+      "sha256": "c3813f78abf79b81df96327fedeac53382e83a1de567aa9b936fcad329d8adc3",
+      "size": 10792,
+      "source": "/tmp/verify-native15-v14-partial-root-audit.py"
+    }
+  ],
+  "schema": "native15-v14-partial-lossless-content-deduplicated-v1",
+  "scope": "Exact observed Native15 v14 partial only: 14/15 selectors, 2 PASS, 12 FAIL, selector 15 unreached after guarded server-lib Cargo build stopped below disk floor. No whole15/release acceptance.",
+  "unique_payload_count": 149
+}

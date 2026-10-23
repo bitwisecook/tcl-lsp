@@ -1,0 +1,9 @@
+{
+  "utc": "2026-10-23T09:44:59.573303+00:00",
+  "status": "OFFTREE fourmethod doc-only correction; anticipated deny(missing_docs) from inspected compilerlib83, not yet emitted because v10 stopped registry; runtime/typing UNRUN",
+  "path": "rust/tcl-compiler/src/command_binding/source_transition_advice/source_jim_class.rs",
+  "before_sha256": "8a0affd6c8fa72039e2ad7e14fb455e419b08f3bf1fdc641037d478753591d3e",
+  "after_sha256": "224ca23ca59bbd53c67088e69d2c3fae84f03086ada5961d008664d8cf9432aa",
+  "patch_sha256": "6f05afd5afed48b87335d3d5514cfb41c7197bfc3c102486c0930928063ba606",
+  "invariant": "Exactly4 /// lines, zero noncomment change, no allows/visibility/assertions."
+}
