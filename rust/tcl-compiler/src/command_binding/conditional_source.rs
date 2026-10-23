@@ -448,7 +448,7 @@ impl super::SourceCommandBindings {
             Some(outcome) => outcome.graph_for(child)?,
             None => child_bindings
                 .original_source_transition_seed()?
-                .normal_source_outcome_graph(input.borrowed_context_registry())?,
+                .normal_source_outcome_graph(input.borrowed_context_registry(), child_bindings)?,
         };
         let payload = SourceConditionalContinuationPayload {
             point,

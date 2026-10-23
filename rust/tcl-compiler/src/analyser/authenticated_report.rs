@@ -107,7 +107,12 @@ impl AuthenticatedAnalysisReport {
 
     fn current_capture(&self) -> Result<&ActualReportCapture, AnalysisReportUnavailable> {
         let capture = self.capture.as_ref().map_err(|reason| *reason)?;
-        capture.matches_output(&self.analysis)?;
+        let matched = capture.matches_output(&self.analysis);
+        #[cfg(test)]
+        if std::env::var_os("TCL_LSP_TRACE_AUTHENTICATED_REPORT").is_some() {
+            eprintln!("REPORT_CAPTURE stage=current-output result={matched:?}");
+        }
+        matched?;
         Ok(capture)
     }
 }
@@ -204,6 +209,27 @@ impl ReportOutputCorrespondence<'_> {
     }
 }
 
+// Preserve each original Option exactly once; diagnostic output is test-only.
+fn trace_capture_option<T>(value: Option<T>, stage: &str) -> Option<T> {
+    #[cfg(test)]
+    if std::env::var_os("TCL_LSP_TRACE_AUTHENTICATED_REPORT").is_some() {
+        eprintln!("REPORT_CAPTURE stage={stage} available={}", value.is_some());
+    }
+    #[cfg(not(test))]
+    let _ = stage;
+    value
+}
+
+fn trace_capture_gate(value: bool, stage: &str) -> bool {
+    #[cfg(test)]
+    if std::env::var_os("TCL_LSP_TRACE_AUTHENTICATED_REPORT").is_some() {
+        eprintln!("REPORT_CAPTURE stage={stage} refuses={value}");
+    }
+    #[cfg(not(test))]
+    let _ = stage;
+    value
+}
+
 struct ActualReportCapture {
     image: SourceImage,
     input: ResolvedAnalysisInput,
@@ -222,27 +248,61 @@ impl ActualReportCapture {
         unit: &CompilationUnit,
         registry: &CommandRegistry,
     ) -> Option<Self> {
-        let input = analysis.resolved_input.as_ref()?;
-        let realm = analysis.retained_command_realm()?;
+        let input = trace_capture_option(analysis.resolved_input.as_ref(), "capture.input")?;
+        let realm = trace_capture_option(analysis.retained_command_realm(), "capture.realm")?;
         let bindings = realm.source_bindings_ref();
-        let realm_owner = bindings.original_analysis_owner()?;
+        let realm_owner =
+            trace_capture_option(bindings.original_analysis_owner(), "capture.realm-owner")?;
         let module = &unit.ir_module;
-        let positioned = module.retained_source_bindings.as_ref()?;
-        let module_bindings = positioned.positioned_for_module(module, registry)?;
-        let module_owner = module_bindings.original_analysis_owner()?;
-        let image = realm.original_source_image()?;
-        let origin = unit.original_optimiser_source_origin()?;
-        let prepared = unit.original_full_report_prepared_unit(registry)?;
-        let bodies = ReportBodyInventory::capture(prepared, registry)?;
-        if analysis.analysis_context_unavailable.is_some()
-            || analysis.original_source_region.is_some()
-            || !realm_owner.matches(bindings, input)
-            || !module_owner.matches(module_bindings, input)
-            || image != &module.source
-            || image.try_text().ok()? != unit.source
-            || module.source_metadata_input.as_ref() != Some(input)
-            || !analysis.matches_original_source_image(image, input.lexer_config())
-            || registry.snapshot() != input.borrowed_context_registry().commands().snapshot()
+        let positioned = trace_capture_option(
+            module.retained_source_bindings.as_ref(),
+            "capture.retained-module",
+        )?;
+        let module_bindings = trace_capture_option(
+            positioned.positioned_for_module(module, registry),
+            "capture.positioned-module",
+        )?;
+        let module_owner = trace_capture_option(
+            module_bindings.original_analysis_owner(),
+            "capture.module-owner",
+        )?;
+        let image = trace_capture_option(realm.original_source_image(), "capture.image")?;
+        let origin =
+            trace_capture_option(unit.original_optimiser_source_origin(), "capture.origin")?;
+        let prepared = trace_capture_option(
+            unit.original_full_report_prepared_unit(registry),
+            "capture.prepared",
+        )?;
+        let bodies = trace_capture_option(
+            ReportBodyInventory::capture(prepared, registry),
+            "capture.bodies",
+        )?;
+        if trace_capture_gate(
+            analysis.analysis_context_unavailable.is_some(),
+            "capture.analysis-context",
+        ) || trace_capture_gate(
+            analysis.original_source_region.is_some(),
+            "capture.source-region",
+        ) || trace_capture_gate(
+            !realm_owner.matches(bindings, input),
+            "capture.realm-owner-match",
+        ) || trace_capture_gate(
+            !module_owner.matches(module_bindings, input),
+            "capture.module-owner-match",
+        ) || trace_capture_gate(image != &module.source, "capture.module-image")
+            || trace_capture_gate(image.try_text().ok()? != unit.source, "capture.unit-source")
+            || trace_capture_gate(
+                module.source_metadata_input.as_ref() != Some(input),
+                "capture.module-input",
+            )
+            || trace_capture_gate(
+                !analysis.matches_original_source_image(image, input.lexer_config()),
+                "capture.analysis-image",
+            )
+            || trace_capture_gate(
+                registry.snapshot() != input.borrowed_context_registry().commands().snapshot(),
+                "capture.registry",
+            )
             || !analysis
                 .optimiser_source_origin
                 .as_ref()?
@@ -273,13 +333,27 @@ impl ActualReportCapture {
         let realm = analysis.retained_command_realm().ok_or(unavailable)?;
         let bindings = realm.source_bindings_ref();
         let owner = bindings.original_analysis_owner().ok_or(unavailable)?;
-        if analysis.resolved_input.as_ref() != Some(&self.input)
-            || registry.snapshot() != self.registry
-            || !self.origin.same_request_allocation(origin)
-            || !self.bodies.same_request(origin)
-            || !Arc::ptr_eq(owner, &self.realm_owner)
-            || !self.realm_owner.matches(bindings, &self.input)
-            || !analysis.matches_original_source_image(&self.image, self.input.lexer_config())
+        if trace_capture_gate(
+            analysis.resolved_input.as_ref() != Some(&self.input),
+            "output.input",
+        ) || trace_capture_gate(registry.snapshot() != self.registry, "output.registry")
+            || trace_capture_gate(
+                !self.origin.same_request_allocation(origin),
+                "output.origin-allocation",
+            )
+            || trace_capture_gate(!self.bodies.same_request(origin), "output.body-request")
+            || trace_capture_gate(
+                !Arc::ptr_eq(owner, &self.realm_owner),
+                "output.realm-allocation",
+            )
+            || trace_capture_gate(
+                !self.realm_owner.matches(bindings, &self.input),
+                "output.realm-match",
+            )
+            || trace_capture_gate(
+                !analysis.matches_original_source_image(&self.image, self.input.lexer_config()),
+                "output.image",
+            )
             || !self.positioned.matches_full_report_capture_owner(
                 &self.image,
                 &self.input,

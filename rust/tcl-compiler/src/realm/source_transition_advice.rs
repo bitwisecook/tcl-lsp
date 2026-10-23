@@ -472,8 +472,14 @@ impl super::CommandBindingRealm {
         input: &crate::analyser::ResolvedAnalysisInput,
         original: &[tcl_lexer::NativeWord],
     ) -> Option<Arc<crate::command_binding::OriginalAuthoredJimClass>> {
-        self.matches_resolved_analysis_input(input).then_some(())?;
-        let image = self.original_source_image()?;
+        crate::registry_invocation::source_structure::trace_jim_source_option(
+            "authored.input",
+            self.matches_resolved_analysis_input(input).then_some(()),
+        )?;
+        let image = crate::registry_invocation::source_structure::trace_jim_source_option(
+            "authored.image",
+            self.original_source_image(),
+        )?;
         let config = input.lexer_config();
         self.matches_original_source_image(image, config)
             .then_some(())?;
@@ -482,10 +488,14 @@ impl super::CommandBindingRealm {
             self.bindings
                 .original_source_transition_advice_tape(&context)
         });
-        let receipt = prepared
-            .as_ref()
-            .as_ref()?
-            .authored_jim_class(original.first()?.span().start())?;
+        let tape = crate::registry_invocation::source_structure::trace_jim_source_option(
+            "authored.tape",
+            prepared.as_ref().as_ref(),
+        )?;
+        let receipt = crate::registry_invocation::source_structure::trace_jim_source_option(
+            "authored.tape_receipt",
+            tape.authored_jim_class(original.first()?.span().start()),
+        )?;
         (receipt.matches_source_context(image, config, &context)
             && receipt.factory().original_words() == original)
             .then(|| Arc::clone(receipt))
@@ -603,8 +613,14 @@ impl super::CommandBindingRealm {
         input: &crate::analyser::ResolvedAnalysisInput,
         original: &[tcl_lexer::NativeWord],
     ) -> Option<crate::command_binding::OriginalSourceConstructorCall> {
-        self.matches_resolved_analysis_input(input).then_some(())?;
-        let image = self.original_source_image()?;
+        crate::registry_invocation::source_structure::trace_jim_source_option(
+            "constructor.input",
+            self.matches_resolved_analysis_input(input).then_some(()),
+        )?;
+        let image = crate::registry_invocation::source_structure::trace_jim_source_option(
+            "constructor.image",
+            self.original_source_image(),
+        )?;
         let config = input.lexer_config();
         self.matches_original_source_image(image, config)
             .then_some(())?;
@@ -613,10 +629,14 @@ impl super::CommandBindingRealm {
             self.bindings
                 .original_source_transition_advice_tape(&context)
         });
-        let receipt = prepared
-            .as_ref()
-            .as_ref()?
-            .constructor_call(original.first()?.span().start())?;
+        let tape = crate::registry_invocation::source_structure::trace_jim_source_option(
+            "constructor.tape",
+            prepared.as_ref().as_ref(),
+        )?;
+        let receipt = crate::registry_invocation::source_structure::trace_jim_source_option(
+            "constructor.tape_receipt",
+            tape.constructor_call(original.first()?.span().start()),
+        )?;
         (receipt.matches_source_context(image, config, &context)
             && receipt.original_words() == original)
             .then(|| receipt.clone())

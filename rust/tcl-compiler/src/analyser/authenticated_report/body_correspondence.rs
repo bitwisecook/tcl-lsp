@@ -67,12 +67,31 @@ impl ReportBodyInventory {
             return None;
         }
         let module = &prepared.unit().ir_module;
-        let retained = module.retained_source_bindings.as_ref()?;
-        let bindings = retained.positioned_for_module(module, registry)?;
-        let root = Arc::clone(bindings.source_origin()?);
-        let input = module.source_metadata_input.as_ref()?;
+        let retained = super::trace_capture_option(
+            module.retained_source_bindings.as_ref(),
+            "bodies.retained",
+        )?;
+        let bindings = super::trace_capture_option(
+            retained.positioned_for_module(module, registry),
+            "bodies.positioned",
+        )?;
+        let root = Arc::clone(super::trace_capture_option(
+            bindings.source_origin(),
+            "bodies.source-origin",
+        )?);
+        let input =
+            super::trace_capture_option(module.source_metadata_input.as_ref(), "bodies.input")?;
         // Hosted source is a separate actual-entry domain, never inferred from
         // a dialect label and never promoted to Native execution eligibility.
+        #[cfg(test)]
+        if std::env::var_os("TCL_LSP_TRACE_AUTHENTICATED_REPORT").is_some() {
+            eprintln!(
+                "REPORT_BODY_DOMAIN hosted={} vendor_input_matches={} native_entry={}",
+                input.has_hosted_source_name_context(),
+                module.source_entry.vendor_source_input.as_ref() == Some(input),
+                module.source_entry.native_entry.is_some()
+            );
+        }
         let hosted_entry = if input.has_hosted_source_name_context() {
             if module.source_entry.vendor_source_input.as_ref() != Some(input)
                 || module.source_entry.native_entry.is_some()
@@ -91,6 +110,18 @@ impl ReportBodyInventory {
             if hosted_entry.is_none() || !card.matches_procedure(module, body, registry) {
                 return None;
             }
+        }
+        #[cfg(test)]
+        if std::env::var_os("TCL_LSP_TRACE_AUTHENTICATED_REPORT").is_some() {
+            eprintln!(
+                "REPORT_BODY_INVENTORY named={} units={} hosted_cards={} events={} definitions={} hosted_input={}",
+                module.procedures.len(),
+                module.body_units.len(),
+                module.original_hosted_declaration_body_units.len(),
+                module.irules_event_bodies.len(),
+                module.original_definition_scripts.len(),
+                input.has_hosted_source_name_context()
+            );
         }
         let mut bodies = Vec::new();
         for (id, body) in &module.procedures {
@@ -252,6 +283,35 @@ impl ReportBodyInventory {
         body: &Procedure,
         role: ReportBodyRole,
     ) -> Option<ReportBodyOwner> {
+        #[cfg(test)]
+        if std::env::var_os("TCL_LSP_TRACE_AUTHENTICATED_REPORT").is_some() {
+            let role = match role {
+                ReportBodyRole::Named(_) => "named",
+                ReportBodyRole::Unit(_) => "unit",
+                ReportBodyRole::Carried(_) => "carried",
+                ReportBodyRole::Method(_) => "method",
+                ReportBodyRole::Definition(_) => "definition",
+            };
+            eprintln!(
+                "REPORT_BODY_CANDIDATE id={id:?} role={role} kind={:?} declaration={:?} site={:?} allocated={} native={} logical={} authored={} hosted={}",
+                body.body_kind,
+                body.span,
+                body.declaration_site,
+                module.original_declaration_body_units.contains_key(&id),
+                module
+                    .original_native_declaration_body_units
+                    .contains_key(&id),
+                module
+                    .original_logical_declaration_body_units
+                    .contains_key(&id),
+                module
+                    .original_authored_declaration_body_units
+                    .contains_key(&id),
+                module
+                    .original_hosted_declaration_body_units
+                    .contains_key(&id)
+            );
+        }
         if body.body_kind == ProcedureBodyKind::Event
             && !module.irules_event_bodies.contains_key(&id)
         {
@@ -335,6 +395,19 @@ impl ReportBodyInventory {
         id: ProcedureId,
         body: ReportBodyOwner,
     ) -> Option<()> {
+        #[cfg(test)]
+        if std::env::var_os("TCL_LSP_TRACE_AUTHENTICATED_REPORT").is_some() {
+            eprintln!(
+                "REPORT_BODY_PUSH id={id:?} owns={} duplicate={} declaration_nonempty={}",
+                module.procedure_ids.owns(id),
+                bodies.iter().any(|held| held.id == id),
+                module
+                    .source
+                    .bytes()
+                    .get(body.declaration.as_range())
+                    .is_some_and(|source| !source.is_empty())
+            );
+        }
         if !module.procedure_ids.owns(id)
             || bodies.iter().any(|held| held.id == id)
             || module

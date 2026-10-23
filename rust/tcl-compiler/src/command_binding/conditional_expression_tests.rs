@@ -65,8 +65,11 @@ fn conditional_expression_template_retains_grammar_without_actual_entry() {
     assert!(binding.compiler_lookup_state.is_none());
     assert!(bindings.final_state.baseline.native_entry.is_none());
     binding.trace_g4_normal_frame_facts("conditional-expression", &tokens, registry);
-    assert!(binding.original_normal_result(&tokens).is_none());
-    assert!(!binding.original_invocation_completes_normally(&tokens));
+    assert_eq!(
+        binding.original_normal_result(&tokens).unwrap().text(),
+        "14"
+    );
+    assert!(binding.original_invocation_completes_normally(&tokens));
     assert!(binding.expression_preparation(&[]).is_none());
 }
 

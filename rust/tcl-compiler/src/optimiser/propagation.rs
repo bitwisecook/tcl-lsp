@@ -391,11 +391,7 @@ fn run_load_forwarding(
         if !is_value_safe_bare_word(&literal) {
             continue;
         }
-        let message = if code == DiagCode::O102 {
-            format!("Forward literal load of '{var_name}' from its single reaching definition")
-        } else {
-            format!("Inline the constant value of '{var_name}' proved at this read")
-        };
+        let message = load_forward_message(code, var_name);
         for use_site in &chain.uses {
             if use_site.kind != UseKind::Operand {
                 continue;
@@ -442,6 +438,14 @@ fn run_load_forwarding(
                 },
             );
         }
+    }
+}
+
+fn load_forward_message(code: DiagCode, var_name: &str) -> String {
+    if code == DiagCode::O102 {
+        format!("Forward literal load of '{var_name}' from its single reaching definition")
+    } else {
+        format!("Inline the constant value of '{var_name}' proved at this read")
     }
 }
 

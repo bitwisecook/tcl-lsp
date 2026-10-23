@@ -1,0 +1,361 @@
+{
+  "utc": "2026-10-23T04:59:30.819065+00:00",
+  "status": "completed target only; target guards valid; fullphase running/finalpending",
+  "target": "eda_environment_packs",
+  "counts": {
+    "observed": 5,
+    "PASS": 5,
+    "FAIL": 0
+  },
+  "target_source_provider_artifact_valid": true,
+  "build_warnings": [],
+  "artifact": {
+    "event": {
+      "executable": "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/eda_environment_packs-8b4ac261b7fc6ba2",
+      "features": [],
+      "filenames": [
+        "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/eda_environment_packs-8b4ac261b7fc6ba2"
+      ],
+      "fresh": false,
+      "manifest_path": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-spectcl/Cargo.toml",
+      "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-spectcl#0.1.0",
+      "profile": {
+        "debug_assertions": true,
+        "debuginfo": 0,
+        "opt_level": "0",
+        "overflow_checks": true,
+        "test": true
+      },
+      "reason": "compiler-artifact",
+      "target": {
+        "crate_types": [
+          "bin"
+        ],
+        "doc": false,
+        "doctest": false,
+        "edition": "2024",
+        "kind": [
+          "test"
+        ],
+        "name": "eda_environment_packs",
+        "src_path": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-spectcl/tests/eda_environment_packs.rs",
+        "test": true
+      }
+    },
+    "path": "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/eda_environment_packs-8b4ac261b7fc6ba2",
+    "sha256": "feb2a046ae88a907490dc25b0fab99ba7165dd3df22d30a66e9f099d3d3cf9c0"
+  },
+  "failures": [],
+  "files": [
+    {
+      "path": "run/before.providers-provider-chain.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/before.providers-provider-chain.json",
+      "sha256": "7761c05f15e4c1c4526ed2503f1c47082b3ea7a2b226eaf96e7818e51fcef31d",
+      "bytes": 46471,
+      "blob": "blobs/7761c05f15e4c1c4526ed2503f1c47082b3ea7a2b226eaf96e7818e51fcef31d.gz"
+    },
+    {
+      "path": "run/before.providers.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/before.providers.json",
+      "sha256": "0badd46e437fb76410ec8c3ac9ba34d002074cbe11eba2368c8486e918b41717",
+      "bytes": 1126070,
+      "blob": "blobs/0badd46e437fb76410ec8c3ac9ba34d002074cbe11eba2368c8486e918b41717.gz"
+    },
+    {
+      "path": "run/before.source.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/before.source.json",
+      "sha256": "1d7dbd509e2597f3dd48ac6703d198368ccb2ca3d6419f63f28f39a859c5921f",
+      "bytes": 6659899,
+      "blob": "blobs/1d7dbd509e2597f3dd48ac6703d198368ccb2ca3d6419f63f28f39a859c5921f.gz"
+    },
+    {
+      "path": "run/build-eda_environment_packs.artifact.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/build-eda_environment_packs.artifact.json",
+      "sha256": "3d9f45088462948f26bda53aa2d522031b509d552b46ca02b913dcc0929f741b",
+      "bytes": 1237,
+      "blob": "blobs/3d9f45088462948f26bda53aa2d522031b509d552b46ca02b913dcc0929f741b.gz"
+    },
+    {
+      "path": "run/build-eda_environment_packs.process.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/build-eda_environment_packs.process.json",
+      "sha256": "911a0dd356fd39ce2fa6d13fd1c977d22cd5a9df5443f48bdfd126623af0311f",
+      "bytes": 2404,
+      "blob": "blobs/911a0dd356fd39ce2fa6d13fd1c977d22cd5a9df5443f48bdfd126623af0311f.gz"
+    },
+    {
+      "path": "run/build-eda_environment_packs.stderr",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/build-eda_environment_packs.stderr",
+      "sha256": "192c23d4e14ca574afa488b32cf8d6d2dc4dae414834c4705d32cacac899245c",
+      "bytes": 156,
+      "blob": "blobs/192c23d4e14ca574afa488b32cf8d6d2dc4dae414834c4705d32cacac899245c.gz"
+    },
+    {
+      "path": "run/build-eda_environment_packs.stdout",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/build-eda_environment_packs.stdout",
+      "sha256": "b11283503e3fa8a74d8dc8764cddd3bd4b3abfb74046f592fc08da32f9208d41",
+      "bytes": 130183,
+      "blob": "blobs/b11283503e3fa8a74d8dc8764cddd3bd4b3abfb74046f592fc08da32f9208d41.gz"
+    },
+    {
+      "path": "run/build-eda_environment_packs.warnings.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/build-eda_environment_packs.warnings.json",
+      "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+      "bytes": 3,
+      "blob": "blobs/37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570.gz"
+    },
+    {
+      "path": "run/eda_environment_packs-00.process.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/eda_environment_packs-00.process.json",
+      "sha256": "6c85489c92d5a2e5b4a8b69439f72fd9b69a51ec4f1d0a4a4278351bea4c1f47",
+      "bytes": 2449,
+      "blob": "blobs/6c85489c92d5a2e5b4a8b69439f72fd9b69a51ec4f1d0a4a4278351bea4c1f47.gz"
+    },
+    {
+      "path": "run/eda_environment_packs-00.stderr",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/eda_environment_packs-00.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "blob": "blobs/e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855.gz"
+    },
+    {
+      "path": "run/eda_environment_packs-00.stdout",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/eda_environment_packs-00.stdout",
+      "sha256": "9c5eadd6011561f1ba9b7cd71decc734a37dfdb0b67ab82dfcd653edda7802c6",
+      "bytes": 185,
+      "blob": "blobs/9c5eadd6011561f1ba9b7cd71decc734a37dfdb0b67ab82dfcd653edda7802c6.gz"
+    },
+    {
+      "path": "run/eda_environment_packs-00.summary-admission.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/eda_environment_packs-00.summary-admission.json",
+      "sha256": "7401af282cc9d0e3ebb31f6f28354a3c1ca15330267f0d16111e01713cc1aecd",
+      "bytes": 2812,
+      "blob": "blobs/7401af282cc9d0e3ebb31f6f28354a3c1ca15330267f0d16111e01713cc1aecd.gz"
+    },
+    {
+      "path": "run/eda_environment_packs-01.process.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/eda_environment_packs-01.process.json",
+      "sha256": "7cfb63c077bdea49d928bb623543bb9bcba88b2655176317de4324557e73bbfc",
+      "bytes": 2438,
+      "blob": "blobs/7cfb63c077bdea49d928bb623543bb9bcba88b2655176317de4324557e73bbfc.gz"
+    },
+    {
+      "path": "run/eda_environment_packs-01.stderr",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/eda_environment_packs-01.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "blob": "blobs/e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855.gz"
+    },
+    {
+      "path": "run/eda_environment_packs-01.stdout",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/eda_environment_packs-01.stdout",
+      "sha256": "c3f147abe6fab158e9418b6b9e075f6d0f5017bc0e66cb25bbdbe6ad6e12224e",
+      "bytes": 170,
+      "blob": "blobs/c3f147abe6fab158e9418b6b9e075f6d0f5017bc0e66cb25bbdbe6ad6e12224e.gz"
+    },
+    {
+      "path": "run/eda_environment_packs-01.summary-admission.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/eda_environment_packs-01.summary-admission.json",
+      "sha256": "9a0aa221d5c1098721ee06b72fbaafeb9261185d2673b2e249c01ee8c916abcc",
+      "bytes": 2801,
+      "blob": "blobs/9a0aa221d5c1098721ee06b72fbaafeb9261185d2673b2e249c01ee8c916abcc.gz"
+    },
+    {
+      "path": "run/eda_environment_packs-02.process.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/eda_environment_packs-02.process.json",
+      "sha256": "fb3041768c36371b024e9b366984bb8f244b1246c721a341c80a27abbcc0f745",
+      "bytes": 2446,
+      "blob": "blobs/fb3041768c36371b024e9b366984bb8f244b1246c721a341c80a27abbcc0f745.gz"
+    },
+    {
+      "path": "run/eda_environment_packs-02.stderr",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/eda_environment_packs-02.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "blob": "blobs/e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855.gz"
+    },
+    {
+      "path": "run/eda_environment_packs-02.stdout",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/eda_environment_packs-02.stdout",
+      "sha256": "f66cf3490e4d6bf45834874455c9104c73689d8107f02e4ea699cdf035580490",
+      "bytes": 178,
+      "blob": "blobs/f66cf3490e4d6bf45834874455c9104c73689d8107f02e4ea699cdf035580490.gz"
+    },
+    {
+      "path": "run/eda_environment_packs-02.summary-admission.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/eda_environment_packs-02.summary-admission.json",
+      "sha256": "41c904ad28d8beda037aaf94cb8523d9a38158d9d68402769a052fb49ad2a430",
+      "bytes": 2809,
+      "blob": "blobs/41c904ad28d8beda037aaf94cb8523d9a38158d9d68402769a052fb49ad2a430.gz"
+    },
+    {
+      "path": "run/eda_environment_packs-03.process.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/eda_environment_packs-03.process.json",
+      "sha256": "6d14e27bbbe3d80e7940bb89cd14371a9f8d4903ae809ec7cac72521b6e0cf37",
+      "bytes": 2436,
+      "blob": "blobs/6d14e27bbbe3d80e7940bb89cd14371a9f8d4903ae809ec7cac72521b6e0cf37.gz"
+    },
+    {
+      "path": "run/eda_environment_packs-03.stderr",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/eda_environment_packs-03.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "blob": "blobs/e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855.gz"
+    },
+    {
+      "path": "run/eda_environment_packs-03.stdout",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/eda_environment_packs-03.stdout",
+      "sha256": "a6737222d91af49f41e0e8e039d5cbc1df806110155edee24eff433ed76e475f",
+      "bytes": 168,
+      "blob": "blobs/a6737222d91af49f41e0e8e039d5cbc1df806110155edee24eff433ed76e475f.gz"
+    },
+    {
+      "path": "run/eda_environment_packs-03.summary-admission.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/eda_environment_packs-03.summary-admission.json",
+      "sha256": "e171d121940e371575d7e1572b95fcd1248819fa908d06458b3eb3cfc88c4290",
+      "bytes": 2799,
+      "blob": "blobs/e171d121940e371575d7e1572b95fcd1248819fa908d06458b3eb3cfc88c4290.gz"
+    },
+    {
+      "path": "run/eda_environment_packs-04.process.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/eda_environment_packs-04.process.json",
+      "sha256": "153ccc44974d640c4bf802d9878cba6f4ad4c4109337072e62cedaf6e401a9fd",
+      "bytes": 2452,
+      "blob": "blobs/153ccc44974d640c4bf802d9878cba6f4ad4c4109337072e62cedaf6e401a9fd.gz"
+    },
+    {
+      "path": "run/eda_environment_packs-04.stderr",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/eda_environment_packs-04.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "blob": "blobs/e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855.gz"
+    },
+    {
+      "path": "run/eda_environment_packs-04.stdout",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/eda_environment_packs-04.stdout",
+      "sha256": "c101076d609f138442f1a675f9879e186cc64349ead89d4eb73704b32d285fa8",
+      "bytes": 184,
+      "blob": "blobs/c101076d609f138442f1a675f9879e186cc64349ead89d4eb73704b32d285fa8.gz"
+    },
+    {
+      "path": "run/eda_environment_packs-04.summary-admission.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/eda_environment_packs-04.summary-admission.json",
+      "sha256": "4b7bfcc5b2a92d468e303b06892b9e2bc9c36cac9d478bc04f6e7235acfe1e37",
+      "bytes": 2815,
+      "blob": "blobs/4b7bfcc5b2a92d468e303b06892b9e2bc9c36cac9d478bc04f6e7235acfe1e37.gz"
+    },
+    {
+      "path": "run/eda_environment_packs-after.providers-provider-chain.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/eda_environment_packs-after.providers-provider-chain.json",
+      "sha256": "7761c05f15e4c1c4526ed2503f1c47082b3ea7a2b226eaf96e7818e51fcef31d",
+      "bytes": 46471,
+      "blob": "blobs/7761c05f15e4c1c4526ed2503f1c47082b3ea7a2b226eaf96e7818e51fcef31d.gz"
+    },
+    {
+      "path": "run/eda_environment_packs-after.providers.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/eda_environment_packs-after.providers.json",
+      "sha256": "0badd46e437fb76410ec8c3ac9ba34d002074cbe11eba2368c8486e918b41717",
+      "bytes": 1126070,
+      "blob": "blobs/0badd46e437fb76410ec8c3ac9ba34d002074cbe11eba2368c8486e918b41717.gz"
+    },
+    {
+      "path": "run/eda_environment_packs-after.source.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/eda_environment_packs-after.source.json",
+      "sha256": "1d7dbd509e2597f3dd48ac6703d198368ccb2ca3d6419f63f28f39a859c5921f",
+      "bytes": 6659899,
+      "blob": "blobs/1d7dbd509e2597f3dd48ac6703d198368ccb2ca3d6419f63f28f39a859c5921f.gz"
+    },
+    {
+      "path": "run/roster-eda_environment_packs.process.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/roster-eda_environment_packs.process.json",
+      "sha256": "1e203884d6298a8afce1e7e312f93d9850929fe6794e68f5fbdcf57884475cd8",
+      "bytes": 2378,
+      "blob": "blobs/1e203884d6298a8afce1e7e312f93d9850929fe6794e68f5fbdcf57884475cd8.gz"
+    },
+    {
+      "path": "run/roster-eda_environment_packs.stderr",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/roster-eda_environment_packs.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "blob": "blobs/e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855.gz"
+    },
+    {
+      "path": "run/roster-eda_environment_packs.stdout",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/roster-eda_environment_packs.stdout",
+      "sha256": "037d3ce293d30ad813a06f5b536a8f4be216d501ebccc34b55cc23c31f03877a",
+      "bytes": 287,
+      "blob": "blobs/037d3ce293d30ad813a06f5b536a8f4be216d501ebccc34b55cc23c31f03877a.gz"
+    },
+    {
+      "path": "results-target-snapshot.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/results.json",
+      "sha256": "4c6acbe682b3a070d8ca9e36fec0101d2954bfb5db497289a7ab52979a716508",
+      "bytes": 30172,
+      "blob": "blobs/4c6acbe682b3a070d8ca9e36fec0101d2954bfb5db497289a7ab52979a716508.gz"
+    },
+    {
+      "path": "run/plan.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/plan.json",
+      "sha256": "8685f04a44c3f9f39d1528daddb205b46cc4f2a25f99e65c032052edca8093e6",
+      "bytes": 10399,
+      "blob": "blobs/8685f04a44c3f9f39d1528daddb205b46cc4f2a25f99e65c032052edca8093e6.gz"
+    },
+    {
+      "path": "run/go.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/go.json",
+      "sha256": "26396d7569205cac18362620f3d2871a1fb1394f0165994a6ee7d865b30deb61",
+      "bytes": 646,
+      "blob": "blobs/26396d7569205cac18362620f3d2871a1fb1394f0165994a6ee7d865b30deb61.gz"
+    },
+    {
+      "path": "protocol/suite.py",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4/suite.py",
+      "sha256": "9b1346ed87ac884c17928202b7f89e6a1ed7ca6ec835f7bdcd0980c44c28ad4d",
+      "bytes": 11876,
+      "blob": "blobs/9b1346ed87ac884c17928202b7f89e6a1ed7ca6ec835f7bdcd0980c44c28ad4d.gz"
+    },
+    {
+      "path": "protocol/launch.py",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4/launch.py",
+      "sha256": "c8fc1baa7f6c8e6a72144c89d826de5aad9a273f11a8b7eba62dd8d584050b0f",
+      "bytes": 2295,
+      "blob": "blobs/c8fc1baa7f6c8e6a72144c89d826de5aad9a273f11a8b7eba62dd8d584050b0f.gz"
+    },
+    {
+      "path": "protocol/run.sh",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4/run.sh",
+      "sha256": "ad7d640d951bf1870205d5d913b1bd7de0720e86d784184a0ced441051a6c82c",
+      "bytes": 181,
+      "blob": "blobs/ad7d640d951bf1870205d5d913b1bd7de0720e86d784184a0ced441051a6c82c.gz"
+    },
+    {
+      "path": "protocol/guarded-exec.py",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4/guarded-exec.py",
+      "sha256": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811",
+      "bytes": 13109,
+      "blob": "blobs/88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811.gz"
+    },
+    {
+      "path": "protocol/providers.py",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4/providers.py",
+      "sha256": "ba6a8be84fe9024c29c710b8fa1c7e445086c627957f5e7197efaf828e17b2ac",
+      "bytes": 2286,
+      "blob": "blobs/ba6a8be84fe9024c29c710b8fa1c7e445086c627957f5e7197efaf828e17b2ac.gz"
+    },
+    {
+      "path": "protocol/provider-chain.py",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4/provider-chain.py",
+      "sha256": "a647bf8699e1eecebce0702d01d11206f4d8a1a7d09f6661afd9ef928a52a5d9",
+      "bytes": 2324,
+      "blob": "blobs/a647bf8699e1eecebce0702d01d11206f4d8a1a7d09f6661afd9ef928a52a5d9.gz"
+    },
+    {
+      "path": "protocol/runner-input-manifest.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4/runner-input-manifest.json",
+      "sha256": "f25861dfe4ad982fefef543fc0a920ff0c885a0708e394c0b0d69891dc525ad8",
+      "bytes": 1448,
+      "blob": "blobs/f25861dfe4ad982fefef543fc0a920ff0c885a0708e394c0b0d69891dc525ad8.gz"
+    }
+  ],
+  "roundtrip_verified": true,
+  "full66_closure_claim": false
+}

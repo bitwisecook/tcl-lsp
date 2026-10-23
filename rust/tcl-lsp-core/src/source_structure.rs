@@ -1513,6 +1513,30 @@ impl SourceStructure {
             self.census_command_bodies(source, command, script, queue);
             return;
         }
+        if purpose == CapturePurpose::SyntaxCompaction
+            && let Some(input) = analysis.resolved_input.as_ref()
+        {
+            let context = input.context_registry();
+            let bodies = self
+                .compiler_body_syntax
+                .as_ref()
+                .and_then(|inventory| inventory.script_bodies(source, analysis, command))
+                .unwrap_or_default();
+            for body in bodies {
+                if !body.matches_source(&SourceImage::document(source), config)
+                    || !body.matches_context(&context)
+                {
+                    continue;
+                }
+                self.bodies.push(body.container_extent_span());
+                self.bodies.push(body.extent_span());
+                // This syntax-only path never lends caller/frame or definition
+                // authority to another purpose or to descendant interpretation.
+                self.caller_context_unavailable_bodies
+                    .push(body.content_span());
+                queue.push_back((body.content_span(), depth + 1, None));
+            }
+        }
         if self.definition_cursor_document_bodies(source, command, script, queue)
             || self.readonly_command_bodies(source, command, script, queue)
         {

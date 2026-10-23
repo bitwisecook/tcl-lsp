@@ -550,7 +550,7 @@ fn walk_region_uncached(
     bindings.invalidate_unpositioned_projections();
     let normal_graph = bindings
         .original_source_transition_seed()?
-        .normal_source_outcome_graph(context);
+        .normal_source_outcome_graph(context, &bindings);
     Some(RegionPayload {
         point,
         entry,

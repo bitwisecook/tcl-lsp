@@ -28,7 +28,9 @@ pub enum SourceRuntimeReachability {
 pub(crate) struct OriginalCompilerArgumentSyntax<'a> {
     metadata: crate::registry_invocation::InvocationMetadataContext<'a>,
     original: &'a super::compiled_invocation::SourceOriginalCompilerWords,
-    snapshot: &'a super::SourceLookupSnapshot,
+    snapshot: &'a Arc<super::SourceLookupSnapshot>,
+    namespace: &'a super::SourceNamespaceKey,
+    dialect: Option<tcl_registry::InvocationDialect>,
     analysis_owner: &'a Arc<super::OriginalSourceAnalysisOwner>,
 }
 
@@ -55,6 +57,26 @@ impl<'a> OriginalCompilerArgumentSyntax<'a> {
 
     pub(crate) fn realm(&self) -> tcl_dialect::model::InvocationRealm {
         self.snapshot.realm
+    }
+
+    pub(crate) fn source_dialect(&self) -> Option<tcl_registry::InvocationDialect> {
+        let mut dialect = self.dialect?;
+        dialect.lexer_grammar = self.config().grammar_over(dialect.lexer_grammar);
+        dialect.word_values = tcl_syntax::word_rules::WordValueRules::from_config(&self.config());
+        Some(dialect)
+    }
+
+    pub(crate) fn source_lookup_advice(
+        &self,
+        tokens: &crate::ir::CommandTokens,
+    ) -> Option<super::OriginalCompilationLookupAdvice> {
+        super::original_site_operand_layout_advice(
+            self.site(),
+            tokens,
+            self.snapshot,
+            self.namespace,
+            self.config(),
+        )
     }
 
     pub(crate) fn same_analysis(&self, other: &Self) -> bool {
@@ -201,8 +223,193 @@ impl SourceInvocationBinding {
             metadata,
             original,
             snapshot,
+            namespace: &self.lookup_namespace_key,
+            dialect: self.compiler_word_dialect(),
             analysis_owner,
         })
+    }
+}
+
+impl SourceCommandBindings {
+    /// Every actual compiler observation retains its own immutable table and
+    /// namespace. Missing unanimous Native attachment cannot select one table.
+    pub(crate) fn original_compiler_syntax_alternatives<'a>(
+        &'a self,
+        tokens: &crate::ir::CommandTokens,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        registry: &tcl_registry::CommandRegistry,
+    ) -> Option<Vec<OriginalCompilerArgumentSyntax<'a>>> {
+        let owner = self.original_analysis_owner.as_ref()?;
+        let binding = tokens.source_binding.as_ref()?;
+        if tokens.synthetic.is_some()
+            || !tokens.original_words_match_argv_text()
+            || input.has_logical_source_name_context()
+            || input.has_hosted_source_name_context()
+            || !binding
+                .original_analysis_owner
+                .as_ref()
+                .is_some_and(|actual| Arc::ptr_eq(actual, owner))
+            || owner.metadata.source_analysis_input() != Some(input)
+            || !self
+                .matches_original_source_image(owner.source.source_image(), input.lexer_config())
+        {
+            return None;
+        }
+        let site = CommandAllocationSite {
+            source: Arc::clone(&owner.source),
+            offset: tokens.words().first()?.source().span.start(),
+        };
+        let mut visits = self
+            .compiler_invocations
+            .get(&site)
+            .into_iter()
+            .flatten()
+            .collect::<Vec<_>>();
+        if let Some(children) = self.original_child_compiler_visits(&site) {
+            visits.extend(children);
+        }
+        if visits.is_empty() {
+            return None;
+        }
+        visits
+            .into_iter()
+            .map(|visit| {
+                original_compiler_syntax_alternative(visit, owner, tokens, input, registry)
+            })
+            .collect()
+    }
+}
+
+fn original_compiler_syntax_alternative<'a>(
+    visit: &'a SourceCompilerInvocation,
+    owner: &'a Arc<super::OriginalSourceAnalysisOwner>,
+    tokens: &crate::ir::CommandTokens,
+    input: &crate::analyser::ResolvedAnalysisInput,
+    registry: &tcl_registry::CommandRegistry,
+) -> Option<OriginalCompilerArgumentSyntax<'a>> {
+    let original = visit.original_words.as_ref()?;
+    let policy = visit.policy.as_ref()?;
+    policy.compiler?;
+    policy.source_protocol?;
+    let dialect = policy.words?;
+    let snapshot = &visit.table;
+    if original.words.as_ref() != tokens.words()
+        || original.config != input.lexer_config()
+        || owner.config != original.config
+        || !Arc::ptr_eq(&owner.source, &original.site.source)
+        || snapshot.state.current_source_origin.as_ref() != Some(&original.site.source)
+        || snapshot.state.baseline.registry_snapshot != Some(registry.snapshot().semantic_key())
+        || policy.realm != snapshot.realm
+    {
+        return None;
+    }
+    original.site.source.original_lexical_command(
+        &original.words,
+        original.site.offset,
+        original.config,
+    )?;
+    let point = snapshot
+        .state
+        .baseline
+        .metadata_context
+        .source_analysis_input()?;
+    if point != input && point != &input.for_nested_source() {
+        return None;
+    }
+    let metadata = crate::registry_invocation::InvocationMetadataContext::for_source_input(
+        registry,
+        point,
+        original.config,
+        Some(point.unit_profile()),
+    )?;
+    Some(OriginalCompilerArgumentSyntax {
+        metadata,
+        original,
+        snapshot,
+        namespace: &visit.namespace_key,
+        dialect: Some(dialect),
+        analysis_owner: owner,
+    })
+}
+
+#[cfg(test)]
+mod source_syntax_alternative_tests {
+    use super::*;
+
+    #[test]
+    fn source_syntax_requires_every_actual_alternative_and_full_input() {
+        let source = "proc f {x} {if {$x <= 1} {return 1}}";
+        let analysis = crate::analyser::Analyser::new().analyse(source, "tcl8.6");
+        let input = analysis.resolved_input.as_ref().unwrap();
+        let registry = analysis.resolved_registry().unwrap();
+        let bindings = analysis
+            .retained_command_realm()
+            .unwrap()
+            .source_bindings_ref();
+        let offset = source.find("if {").unwrap();
+        let segment = crate::segmenter::segment_commands_with_offset_and_config(
+            &source[offset..],
+            u32::try_from(offset).unwrap(),
+            input.lexer_config(),
+        )
+        .remove(0);
+        let mut tokens = crate::ir::CommandTokens::from_segmented(
+            &tcl_lexer::SourceMap::new(source),
+            input.lexer_config(),
+            &segment,
+        );
+        bindings.stamp_original_tokens(&mut tokens);
+        let views = bindings
+            .original_compiler_syntax_alternatives(&tokens, input, registry)
+            .unwrap();
+        assert!(!views.is_empty());
+        assert!(
+            views.iter().all(
+                |view| view
+                    .source_lookup_advice(&tokens)
+                    .is_some_and(|advice| advice.closed_authored_simulation_source_lookup(
+                        &tokens,
+                        view.metadata(),
+                        registry
+                    ))
+            )
+        );
+        let site = views[0].site().clone();
+        let mut withdrawn = bindings.clone();
+        let visits = withdrawn.compiler_invocations.get_mut(&site).unwrap();
+        let mut missing = visits[0].clone();
+        missing.policy = None;
+        visits.push(missing);
+        assert!(
+            withdrawn
+                .original_compiler_syntax_alternatives(&tokens, input, registry)
+                .is_none()
+        );
+        let mut changed = bindings.clone();
+        let visits = changed.compiler_invocations.get_mut(&site).unwrap();
+        let mut opaque = visits[0].clone();
+        Arc::make_mut(&mut opaque.table)
+            .state
+            .opaque_binding_mutation = true;
+        visits.push(opaque);
+        let all = changed
+            .original_compiler_syntax_alternatives(&tokens, input, registry)
+            .unwrap();
+        assert!(all.len() > views.len());
+        assert!(all.iter().any(
+            |view| !view.source_lookup_advice(&tokens).is_some_and(|advice| {
+                advice.closed_authored_simulation_source_lookup(&tokens, view.metadata(), registry)
+            })
+        ));
+        let other = crate::analyser::Analyser::new().analyse(source, "tcl8.6");
+        assert!(
+            other
+                .retained_command_realm()
+                .unwrap()
+                .source_bindings_ref()
+                .original_compiler_syntax_alternatives(&tokens, input, registry)
+                .is_none()
+        );
     }
 }
 

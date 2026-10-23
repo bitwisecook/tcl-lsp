@@ -555,34 +555,7 @@ impl SourceInvocationBinding {
         if !original.contains(operand) {
             return None;
         }
-        let content = operand.content_span().ok()?;
-        let bytes = operand.image().bytes().get(content.as_range())?;
-        let mut parser = ExprParseContext::for_profile(input.unit_profile());
-        parser.lexer_grammar = envelope.config.grammar_over(parser.lexer_grammar);
-        let original_tokens = expression_syntax_signature(bytes, &parser, envelope.config)?;
-        let candidate_tokens =
-            expression_syntax_signature(candidate.as_bytes(), &parser, envelope.config)?;
-        if original_tokens
-            .iter()
-            .map(|token| (&token.kind, &token.text))
-            .ne(candidate_tokens
-                .iter()
-                .map(|token| (&token.kind, &token.text)))
-            || !matches!(
-                tcl_syntax::expr::parser::parse_expr_bytes_checked_with_context(bytes, &parser),
-                CheckedExprParse::Parsed(_)
-            )
-            || !matches!(
-                tcl_syntax::expr::parser::parse_expr_bytes_checked_with_context(
-                    candidate.as_bytes(),
-                    &parser
-                ),
-                CheckedExprParse::Parsed(_)
-            )
-        {
-            return None;
-        }
-        whitespace_gap_spans(bytes, candidate.as_bytes(), content.start())
+        configured_expression_syntax_gaps(operand, input, candidate)
     }
 
     /// Independently prove only boolean equality/membership complementation.
@@ -699,6 +672,49 @@ impl SourceInvocationBinding {
             state,
         })
     }
+}
+
+/// Lexical correspondence only. The caller independently authenticates the
+/// original whole operand and its selected source or runtime syntax purpose.
+pub(crate) fn configured_expression_syntax_gaps(
+    operand: &NativeWord,
+    input: &crate::analyser::ResolvedAnalysisInput,
+    candidate: &str,
+) -> Option<Vec<Span>> {
+    let config = operand.config();
+    if config != input.lexer_config()
+        || operand.group().kind != WordKind::Braced
+        || operand.group().expand
+    {
+        return None;
+    }
+    let content = operand.content_span().ok()?;
+    let bytes = operand.image().bytes().get(content.as_range())?;
+    let mut parser = ExprParseContext::for_profile(input.unit_profile());
+    parser.lexer_grammar = config.grammar_over(parser.lexer_grammar);
+    let original_tokens = expression_syntax_signature(bytes, &parser, config)?;
+    let candidate_tokens = expression_syntax_signature(candidate.as_bytes(), &parser, config)?;
+    if original_tokens
+        .iter()
+        .map(|token| (&token.kind, &token.text))
+        .ne(candidate_tokens
+            .iter()
+            .map(|token| (&token.kind, &token.text)))
+        || !matches!(
+            tcl_syntax::expr::parser::parse_expr_bytes_checked_with_context(bytes, &parser),
+            CheckedExprParse::Parsed(_)
+        )
+        || !matches!(
+            tcl_syntax::expr::parser::parse_expr_bytes_checked_with_context(
+                candidate.as_bytes(),
+                &parser
+            ),
+            CheckedExprParse::Parsed(_)
+        )
+    {
+        return None;
+    }
+    whitespace_gap_spans(bytes, candidate.as_bytes(), content.start())
 }
 
 fn original_literal_bracing_operand(

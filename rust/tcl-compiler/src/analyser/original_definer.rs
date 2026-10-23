@@ -115,12 +115,21 @@ pub(super) struct OriginalClassCallSource {
 
 impl OriginalClassCallSource {
     pub(super) fn capture(source: &str, analysis: &AnalysisResult, offset: u32) -> Option<Self> {
-        let call = crate::registry_invocation::source_structure::source_constructor_call_at(
-            source, analysis, offset,
+        let call = crate::registry_invocation::source_structure::trace_jim_source_option(
+            "capture.constructor",
+            crate::registry_invocation::source_structure::source_constructor_call_at(
+                source, analysis, offset,
+            ),
         )?;
         let context = analysis.resolved_input.as_ref()?.context_registry();
-        let grammar = call.class_declaration().grammar(&context)?;
-        call.class_declaration().source_class(analysis)?;
+        let grammar = crate::registry_invocation::source_structure::trace_jim_source_option(
+            "capture.grammar",
+            call.class_declaration().grammar(&context),
+        )?;
+        crate::registry_invocation::source_structure::trace_jim_source_option(
+            "capture.source_class",
+            call.class_declaration().source_class(analysis),
+        )?;
         let mut arguments = Vec::new();
         let mut tokens = Vec::new();
         for (ordinal, value) in call.arguments().iter().enumerate() {

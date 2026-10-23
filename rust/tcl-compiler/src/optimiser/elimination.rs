@@ -1091,23 +1091,9 @@ fn emit_dead_stores_and_unused(
         // global / upvar are visible in other scopes. Policy sets hold
         // *base* names, so an element symbol (`a(k)`) checks its base too.
 
-        let (cell_name, _) = &chain.key;
-        let Some(symbol) = fu.def_use.symbol(&fu.ssa, *cell_name) else {
+        let Some(var) = dead_store_candidate_name(fu, chain) else {
             continue;
         };
-        let Some(cell_name) = fu.ssa.cell_key(symbol) else {
-            continue;
-        };
-        let var = fu.ssa.var_name(symbol);
-        // A synthetic may-def (base refresh / element fan) is not a write
-        // the user made — never an O109/O126 candidate.
-        if fu.ssa.is_synthetic_def(
-            &chain.definition.block,
-            chain.definition.statement_index,
-            cell_name,
-        ) {
-            continue;
-        }
         if dead_store_alias_observed(fu, chain, var, &raise_proof.scope_aliases, &call_by_name) {
             continue;
         }
@@ -1133,6 +1119,25 @@ fn emit_dead_stores_and_unused(
     }
 
     emit_dse_entries(ctx, fu, is_top_level, entries)
+}
+
+fn dead_store_candidate_name<'a>(
+    fu: &'a FunctionUnit,
+    chain: &crate::def_use::DefUseChain,
+) -> Option<&'a str> {
+    let (cell_name, _) = &chain.key;
+    let symbol = fu.def_use.symbol(&fu.ssa, *cell_name)?;
+    let cell_name = fu.ssa.cell_key(symbol)?;
+    // A synthetic may-def (base refresh / element fan) is not a write
+    // the user made — never an O109/O126 candidate.
+    if fu.ssa.is_synthetic_def(
+        &chain.definition.block,
+        chain.definition.statement_index,
+        cell_name,
+    ) {
+        return None;
+    }
+    Some(fu.ssa.var_name(symbol))
 }
 
 fn dead_store_alias_observed(

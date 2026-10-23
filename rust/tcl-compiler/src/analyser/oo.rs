@@ -2641,7 +2641,13 @@ impl Analyser {
                     token.span.start(),
                 )
             })
-            .filter(|source| source.matches_arguments(args, arg_tokens))
+            .filter(|source| {
+                crate::registry_invocation::source_structure::trace_jim_source_option(
+                    "ingress.arguments",
+                    source.matches_arguments(args, arg_tokens).then_some(()),
+                )
+                .is_some()
+            })
         else {
             return false;
         };

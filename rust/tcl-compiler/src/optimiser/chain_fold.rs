@@ -650,14 +650,7 @@ fn try_fold_chain_at(
     // The whole-module traced-variable fact is stored `::`-stripped (see
     // `populate_variable_trace_facts`), so a `::`-qualified chain target is
     // checked under that canonical spelling too.
-    if writes.len() < 2
-        || crate::variable_observation_names::variable_name_may_be_observed(
-            protected,
-            &var,
-            false,
-            crate::variable_observation_names::VariableProtectionPurpose::MixedSourceProtection,
-        )
-    {
+    if writes.len() < 2 || chain_target_is_protected(protected, &var) {
         return None;
     }
     let var_word = tcl_syntax::word_rules::lexical_unicode_source_word(&var, semantics.config)?;
@@ -702,6 +695,15 @@ fn try_fold_chain_at(
     }
 
     Some(writes.len())
+}
+
+fn chain_target_is_protected(protected: &HashSet<String>, var: &str) -> bool {
+    crate::variable_observation_names::variable_name_may_be_observed(
+        protected,
+        var,
+        false,
+        crate::variable_observation_names::VariableProtectionPurpose::MixedSourceProtection,
+    )
 }
 
 fn render_chain_value(

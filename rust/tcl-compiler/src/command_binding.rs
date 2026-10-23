@@ -188,6 +188,7 @@ pub(crate) use source_transition_advice::{
     original_single_command_substitution_words, original_single_command_substitution_words_in_plan,
 };
 mod original_literal_argv_rewrite;
+pub(crate) use original_literal_argv_rewrite::configured_expression_syntax_gaps;
 pub use original_literal_argv_rewrite::{
     OriginalExpressionGapCompaction, OriginalLiteralExpressionBracing,
 };
@@ -258,6 +259,7 @@ pub use generated_procedures::{
 };
 mod compiled_preflight;
 mod compiler_inventory;
+pub(crate) use compiler_inventory::OriginalCompilerArgumentSyntax;
 mod variable_observers;
 mod variable_outputs;
 pub use compiled_preflight::{

@@ -2501,7 +2501,7 @@ struct AdviceTapeInputs<'a> {
 
 #[derive(Clone, Copy)]
 enum SourceAdviceQuery<'a> {
-    NormalSourceOutcome(&'a source_point::NormalSourceOutcomeQuery),
+    NormalSourceOutcome(&'a source_point::NormalSourceOutcomeQuery<'a>),
     SourcePoint(&'a source_point::SourcePointQuery<'a>),
     ClassRelation(source_relation_provider::ClassRelationQuery<'a>),
     LogicalClassRelation(source_relation_provider::LogicalClassRelationQuery<'a>),
@@ -2601,7 +2601,7 @@ impl AdviceInvocationContext<'_> {
                 graph.widen(native);
             }
             inventory.extend_inventory(projected.inventory);
-        } else if !declared {
+        } else if !declared && !self.normal_source_variable_effects_closed(invocation, schema) {
             graph.widen(native);
         }
         if schema.semantics.procedure_definition.is_none()

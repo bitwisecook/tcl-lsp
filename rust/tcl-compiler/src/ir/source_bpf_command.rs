@@ -60,6 +60,118 @@ impl SourceBpfModuleContext {
     }
 }
 
+/// Proof that one exact, fully expanded closed BPF script performs no Tcl
+/// command dispatch. This does not prove original-script census, transformation
+/// correctness, target-program admission, or Native execution/effects.
+#[derive(Debug, Clone)]
+pub struct SourceBpfClosedEffects {
+    context: SourceBpfModuleContext,
+    script: super::Script,
+    phase_config: LexerConfig,
+}
+
+impl SourceBpfModuleContext {
+    /// Certify every node of the supplied final phase against actual BPF
+    /// selections. The phase owner still proves its original source census and
+    /// transformations; this witness only separates closed operations from Tcl.
+    #[must_use]
+    pub fn closed_effects_for(
+        &self,
+        module: &Module,
+        registry: &CommandRegistry,
+        script: &super::Script,
+        phase_config: LexerConfig,
+    ) -> Option<SourceBpfClosedEffects> {
+        self.matches_module(module, registry).then_some(())?;
+        let mut bodies = vec![(script, 1)];
+        while let Some((body, depth)) = bodies.pop() {
+            // Refuse rather than certify a phase the unchanged builder truncates.
+            if crate::depth_guard::MAX_SOURCE_NEST_DEPTH.exceeded(depth) {
+                return None;
+            }
+            // Closed phases cannot borrow independent Native advice.
+            if body.executed_source.is_some()
+                || !body.implicit_math_invocations.is_empty()
+                || !body.expression_preparations.is_empty()
+                || body.command_binding_sites.iter().next().is_some()
+                || body.procedure_binding_requirements.iter().next().is_some()
+                || body.native_compilation_failure.is_some()
+                || body.native_compilation_admission.is_some()
+            {
+                return None;
+            }
+            for statement in &body.statements {
+                match statement {
+                    super::Statement::Call {
+                        args,
+                        tokens: Some(tokens),
+                        foreach_groups: None,
+                        ..
+                    } => {
+                        let selected = tokens.source_bpf_command.as_ref()?;
+                        selected.closed_operation(tokens, args, self, registry)?;
+                    }
+                    super::Statement::If {
+                        clauses, else_body, ..
+                    } => {
+                        for clause in clauses {
+                            pure_bpf_condition(&clause.condition).then_some(())?;
+                            bodies.push((&clause.body, depth + 1));
+                        }
+                        if let Some(body) = else_body {
+                            bodies.push((body, depth + 1));
+                        }
+                    }
+                    _ => return None,
+                }
+            }
+        }
+        Some(SourceBpfClosedEffects {
+            context: self.clone(),
+            script: script.clone(),
+            phase_config,
+        })
+    }
+}
+
+impl SourceBpfClosedEffects {
+    pub(crate) fn matches(
+        &self,
+        module: &Module,
+        registry: &CommandRegistry,
+        script: &super::Script,
+        config: LexerConfig,
+    ) -> bool {
+        self.context.matches_module(module, registry)
+            && self.phase_config == config
+            && self.script == *script
+    }
+}
+
+// Operator/program support remains the BPF lowerer's independent obligation.
+// Literal operator trees contain no Tcl command execution. Variable nodes
+// have no BPF register-owner proof here: scalar traces and indexed substitutions
+// cannot be ruled out by syntax alone, so all variable nodes refuse.
+fn pure_bpf_condition(condition: &crate::expr_ast::ExprNode) -> bool {
+    use crate::expr_ast::ExprNode;
+    let mut pending = vec![(condition, 1)];
+    while let Some((node, depth)) = pending.pop() {
+        if crate::depth_guard::MAX_EXPR_NODE_DEPTH.exceeded(depth) {
+            return false;
+        }
+        match node {
+            ExprNode::Literal { .. } => {}
+            ExprNode::Binary { left, right, .. } => {
+                pending.push((left, depth + 1));
+                pending.push((right, depth + 1));
+            }
+            ExprNode::Unary { operand, .. } => pending.push((operand, depth + 1)),
+            _ => return false,
+        }
+    }
+    true
+}
+
 impl Module {
     /// Retain the genuine original input owner for closed-DSL source phases.
     /// Missing or stale metadata cannot be reconstructed from Module labels.
@@ -278,6 +390,53 @@ impl SourceBpfCommand {
         }
     }
 
+    fn closed_operation(
+        &self,
+        tokens: &CommandTokens,
+        args: &[String],
+        context: &SourceBpfModuleContext,
+        registry: &CommandRegistry,
+    ) -> Option<()> {
+        let selected = self.descriptor(tokens, args, registry)??;
+        match selected.bpf_op?.kind {
+            BpfOpKind::ScalarSet(_)
+            | BpfOpKind::BindPacket
+            | BpfOpKind::PacketLoad { .. }
+            | BpfOpKind::PacketLen
+            | BpfOpKind::MapDeclare
+            | BpfOpKind::MapGet
+            | BpfOpKind::MapSet
+            | BpfOpKind::MapHas
+            | BpfOpKind::Verdict(_) => {}
+            BpfOpKind::Conditional | BpfOpKind::LoopMacro | BpfOpKind::Framework(_) => return None,
+        }
+        if tokens.source_binding.is_some()
+            || !tokens.nested_bindings.is_empty()
+            || !tokens.variable_accesses.is_empty()
+            || tokens.evaluated_body.is_some()
+        {
+            return None;
+        }
+        match &self.0.origin {
+            BpfCommandOrigin::Original {
+                words,
+                purpose,
+                region,
+            } => words
+                .iter()
+                .all(|word| {
+                    word.image() == &context.source
+                        && word.config() == purpose.config(context.config)
+                        && region.start() <= word.span().start()
+                        && word.span().end() <= region.end()
+                        && tcl_syntax::word_rules::original_static_word_unicode_value(word)
+                            .is_some()
+                })
+                .then_some(()),
+            BpfCommandOrigin::Generated => Some(()),
+        }
+    }
+
     fn is_current(
         &self,
         tokens: &CommandTokens,
@@ -454,6 +613,128 @@ mod tests {
     use super::*;
     use crate::ir::Statement;
     use tcl_registry::bpf_op::{BpfScalarWidth, BpfVerdictKind};
+
+    fn closed_phase_fixture(registry: &CommandRegistry) -> (Module, super::super::Script) {
+        let config = LexerConfig::for_profile(registry.profile());
+        let module = crate::lowering::lower_to_ir_with_dialect(
+            "accept",
+            registry,
+            config,
+            registry.profile(),
+        );
+        let args = Vec::new();
+        let tokens = CommandTokens::generated_bpf_operation(
+            BpfOpKind::Verdict(BpfVerdictKind::Accept),
+            &args,
+            Span::empty(0),
+            registry,
+        )
+        .unwrap();
+        let script = super::super::Script::from_statements(vec![Statement::Call {
+            span: Span::empty(0),
+            command: "accept".to_owned(),
+            canonical_command: None,
+            args,
+            defs: Vec::new(),
+            reads: Vec::new(),
+            reads_own_defs: false,
+            safe_on_uninit: false,
+            tokens: Some(tokens),
+            foreach_groups: None,
+        }]);
+        (module, script)
+    }
+
+    #[test]
+    fn closed_bpf_effects_keep_script_module_registry_and_config_current() {
+        let registry = tcl_registry::model::ingress::static_context_for("bpf").commands();
+        let (module, script) = closed_phase_fixture(registry);
+        let config = module.native_lexer_config();
+        let context = module.source_bpf_module_context(registry).unwrap();
+        let effects = context
+            .closed_effects_for(&module, registry, &script, config)
+            .unwrap();
+        let build = |script, module, registry, config| {
+            crate::cfg_builder::build_cfg_function_in_bpf_selected_scope(
+                "generated-label",
+                script,
+                module,
+                registry,
+                config,
+                &effects,
+            )
+        };
+        assert!(build(&script, &module, registry, config).is_some());
+        let mut changed = script.clone();
+        changed.statements.push(script.statements[0].clone());
+        assert!(build(&changed, &module, registry, config).is_none());
+        let (foreign, _) = closed_phase_fixture(registry);
+        assert!(build(&script, &foreign, registry, config).is_none());
+        assert!(build(&script, &module, &CommandRegistry::build_default(), config).is_none());
+        let mut changed_config = config;
+        changed_config.strict_quoting = !changed_config.strict_quoting;
+        assert!(build(&script, &module, registry, changed_config).is_none());
+    }
+
+    #[test]
+    fn closed_bpf_effects_refuse_missing_selection_and_effectful_conditions() {
+        let registry = tcl_registry::model::ingress::static_context_for("bpf").commands();
+        let (module, script) = closed_phase_fixture(registry);
+        let config = module.native_lexer_config();
+        let context = module.source_bpf_module_context(registry).unwrap();
+        assert!(
+            context
+                .closed_effects_for(&module, registry, &script, config)
+                .is_some()
+        );
+        let mut unselected = script.clone();
+        unselected.statements[0]
+            .tokens_mut()
+            .unwrap()
+            .source_bpf_command = None;
+        assert!(
+            context
+                .closed_effects_for(&module, registry, &unselected, config)
+                .is_none()
+        );
+        let conditional = super::super::Script::from_statements(vec![Statement::If {
+            span: Span::empty(0),
+            clauses: vec![super::super::IfClause {
+                condition: crate::parse_expr("[unknown]", None),
+                condition_span: Span::empty(0),
+                condition_base: None,
+                body: script,
+                body_span: Span::empty(0),
+            }],
+            else_body: None,
+            else_span: None,
+        }]);
+        assert!(
+            context
+                .closed_effects_for(&module, registry, &conditional, config)
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn closed_bpf_effects_refuse_over_budget_scalar_tree() {
+        use crate::expr_ast::{ExprNode, UnaryOp};
+        let mut condition = crate::parse_expr("1", None);
+        assert!(pure_bpf_condition(&condition));
+        for source in ["$arr([step])", "$value"] {
+            assert!(
+                !pure_bpf_condition(&crate::parse_expr(source, None)),
+                "{source}"
+            );
+        }
+        for _ in 0..crate::depth_guard::MAX_EXPR_NODE_DEPTH.0 {
+            condition = ExprNode::Unary {
+                op: UnaryOp::Pos,
+                operand: Box::new(condition),
+            };
+        }
+        assert!(!pure_bpf_condition(&condition));
+    }
 
     struct Fixture {
         tokens: CommandTokens,

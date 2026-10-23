@@ -210,14 +210,169 @@ impl OriginalSourceTransitionSeed {
 }
 
 /// Separate genuine root-graph result, sealed before future-body surveys.
-pub(super) struct NormalSourceOutcomeQuery {
+pub(super) struct NormalSourceOutcomeQuery<'a> {
+    bindings: &'a crate::command_binding::SourceCommandBindings,
     pending: Cell<usize>,
     sealed: Cell<bool>,
     refused: Cell<bool>,
     graph: RefCell<Option<OriginalSourcePointAdviceGraph>>,
 }
 
+fn normal_source_variable_effects_bounded(facts: &tcl_registry::InvocationFacts) -> bool {
+    use tcl_registry::world_effect::{
+        CallbackKinds, EffectAccessMode, InterpreterScope, Reentrancy, WorldStateDomain,
+    };
+    if facts.arity_accepts_frozen_arguments() != Some(true)
+        || !facts.arg_roles_complete
+        || facts.argument_offset != 0
+        || facts.arg_roles.as_slice() != [(0, tcl_registry::ArgRole::VarWrite)]
+        || facts.frame_effect.is_some()
+        || !matches!(
+            facts.effects.callback().kinds,
+            CallbackKinds::NONE | CallbackKinds::TRACE
+        )
+        || facts.effects.callback().reentrancy == Reentrancy::AnyInterpreter
+        || !facts.effects.accesses().iter().any(|access| {
+            access.domain == WorldStateDomain::VariableStore
+                && access.mode == EffectAccessMode::Write
+        })
+        || facts.effects.accesses().iter().any(|access| {
+            access.interpreter != InterpreterScope::Current
+                || match access.domain {
+                    WorldStateDomain::VariableStore => access.mode != EffectAccessMode::Write,
+                    WorldStateDomain::VariableTraces | WorldStateDomain::InterpreterPolicy => {
+                        access.mode != EffectAccessMode::Read
+                    }
+                    _ => true,
+                }
+        })
+    {
+        return false;
+    }
+    true
+}
+
+fn normal_source_variable_point_is_closed(
+    point: &crate::command_binding::SourceBindingPoint,
+    native: &[NativeWord],
+    origin: &Arc<crate::command_binding::SourceOriginId>,
+    operands: &crate::variable_bindings::OriginalVariableInvocation,
+    registry: &tcl_registry::CommandRegistry,
+    canonical: &str,
+) -> bool {
+    let state = &point.state;
+    if point.declaration_preview
+        || !point.original_arguments_complete_normally
+        || point.observer_execution.observed()
+        || point
+            .original_written_words
+            .as_ref()
+            .is_none_or(|words| !words.matches_native_words(native))
+        || state
+            .current_source_origin
+            .as_ref()
+            .is_none_or(|current| !Arc::ptr_eq(current, origin))
+        || state.has_opaque_domain()
+        || state.baseline.unknown_entry
+        || state.source_step_observed()
+        || state.source_variables.dynamic_bindings
+        || state.source_variables.dynamic_traces
+    {
+        return false;
+    }
+    let selected = crate::command_binding::SourceCommandBindings::query_dispatch_points(
+        std::iter::once(point),
+    );
+    let [target] = selected.targets.as_slice() else {
+        return false;
+    };
+    if selected.unknown
+        || selected.may_be_absent
+        || !target.registry_backed
+        || !target.prepended.is_empty()
+        || !tcl_registry::command_descriptor_labels_match(&target.command, canonical)
+        || target
+            .identity
+            .as_ref()
+            .is_none_or(|identity| state.source_execution_observed(Some(identity)))
+    {
+        return false;
+    }
+    let receiver = operands.access(
+        0,
+        &state.source_variables,
+        registry,
+        tcl_registry::TraceOperation::Write,
+        false,
+    );
+    if receiver.dynamic
+        || receiver.observed
+        || receiver.kind != crate::place::PlaceKind::Scalar
+        || receiver.index.is_some()
+        || state
+            .source_variables
+            .original_normal_value_write(&receiver, registry)
+            .is_none()
+    {
+        return false;
+    }
+    true
+}
+
 impl AdviceInvocationContext<'_> {
+    /// Refine an otherwise unknown identity transition only for this genuine
+    /// normal-outcome query. The existing quiet-write owner closes callbacks;
+    /// descriptor callback-retention absence alone never does so.
+    pub(super) fn normal_source_variable_effects_closed(
+        &self,
+        invocation: super::AdviceInvocation<'_>,
+        schema: &tcl_registry::ResolvedInvocation<'_, '_>,
+    ) -> bool {
+        let Some(SourceAdviceQuery::NormalSourceOutcome(query)) = self.query else {
+            return false;
+        };
+        let facts = schema.facts();
+        if query.sealed.get()
+            || !invocation.lineage.is_empty()
+            || !normal_source_variable_effects_bounded(&facts)
+            || !invocation.native.iter().all(|word| {
+                tcl_syntax::word_rules::original_static_word_unicode_value(word).is_some()
+            })
+        {
+            return false;
+        }
+        let Some(first) = invocation.native.first() else {
+            return false;
+        };
+        let bindings = query.bindings;
+        let site = CommandAllocationSite {
+            source: Arc::clone(self.origin),
+            offset: first.span().start(),
+        };
+        let Some(operands) = bindings
+            .original_variable_invocations
+            .get(&site)
+            .and_then(Option::as_deref)
+        else {
+            return false;
+        };
+        let mut seen = false;
+        for point in bindings.dispatch_points_at(site.offset) {
+            seen = true;
+            if !normal_source_variable_point_is_closed(
+                point,
+                invocation.native,
+                self.origin,
+                operands,
+                self.context.commands(),
+                &facts.canonical_command,
+            ) {
+                return false;
+            }
+        }
+        seen
+    }
+
     pub(super) fn begin_normal_source_invocation(&self) {
         let Some(SourceAdviceQuery::NormalSourceOutcome(query)) = self.query else {
             return;
@@ -307,8 +462,18 @@ impl OriginalSourceTransitionSeed {
     pub(in crate::command_binding) fn normal_source_outcome_graph(
         &self,
         context: &ContextRegistry,
+        bindings: &crate::command_binding::SourceCommandBindings,
     ) -> Option<Arc<OriginalSourcePointAdviceGraph>> {
+        if bindings
+            .source_origin()
+            .is_none_or(|origin| !Arc::ptr_eq(origin, &self.origin))
+            || !Arc::ptr_eq(&bindings.final_state.baseline, &self.baseline)
+            || !bindings.matches_original_source_image(self.origin.source_image(), self.config)
+        {
+            return None;
+        }
         let query = NormalSourceOutcomeQuery {
+            bindings,
             pending: Cell::new(0),
             sealed: Cell::new(false),
             refused: Cell::new(false),
@@ -345,6 +510,110 @@ impl OriginalSourceTransitionSeed {
         }
         (!query.refused.get() && query.sealed.get()).then_some(())?;
         query.graph.into_inner().map(Arc::new)
+    }
+}
+
+#[cfg(test)]
+mod quiet_variable_normal_graph_controls {
+    use super::*;
+    use crate::analyser::Analyser;
+
+    fn has_normal_graph(source: &str, dialect: &str) -> bool {
+        let analysis = Analyser::new().analyse(source, dialect);
+        let input = analysis.resolved_input.as_ref().unwrap();
+        let bindings = analysis
+            .retained_command_realm()
+            .unwrap()
+            .source_bindings_ref();
+        bindings
+            .original_source_transition_seed()
+            .unwrap()
+            .normal_source_outcome_graph(input.borrowed_context_registry(), bindings)
+            .is_some()
+    }
+
+    #[test]
+    fn normal_source_outcome_requires_actual_quiet_variable_effects() {
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            assert!(
+                has_normal_graph("set fresh VALUE", dialect),
+                "{dialect}: genuine quiet store"
+            );
+            for source in [
+                "proc rewrite args {rename victim {}; proc victim {} {return CHANGED}}; proc victim {} {return OLD}; trace add variable fresh write rewrite; set fresh VALUE",
+                "proc set args {return SHADOW}; set fresh VALUE",
+                "set name fresh; set $name VALUE",
+                "array set fresh {}; set fresh VALUE",
+            ] {
+                assert!(!has_normal_graph(source, dialect), "{dialect}: {source}");
+            }
+        }
+    }
+
+    #[test]
+    fn normal_source_outcome_refuses_foreign_equal_source_and_changed_config() {
+        let source = "set fresh VALUE";
+        let left = Analyser::new().analyse(source, "tcl8.6");
+        let foreign = Analyser::new().analyse(source, "tcl8.6");
+        let input = left.resolved_input.as_ref().unwrap();
+        let bindings = left.retained_command_realm().unwrap().source_bindings_ref();
+        let other = foreign
+            .retained_command_realm()
+            .unwrap()
+            .source_bindings_ref();
+        let seed = bindings.original_source_transition_seed().unwrap();
+        assert!(
+            seed.normal_source_outcome_graph(input.borrowed_context_registry(), bindings)
+                .is_some()
+        );
+        assert!(
+            seed.normal_source_outcome_graph(input.borrowed_context_registry(), other)
+                .is_none()
+        );
+        // Keep every other actual point field unchanged; only replace its
+        // captured source owner with another real source generation.
+        let other_source = Analyser::new().analyse("set different VALUE", "tcl8.6");
+        let other_bindings = other_source
+            .retained_command_realm()
+            .unwrap()
+            .source_bindings_ref();
+        let other_origin = other_bindings.source_origin().unwrap();
+        assert!(!Arc::ptr_eq(other_origin, &seed.origin));
+        let mut point = bindings.dispatch_points_at(0).next().unwrap().clone();
+        point.state.current_source_origin = Some(Arc::clone(other_origin));
+        let plan = seed
+            .origin
+            .original_script_words_in(
+                tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap()),
+                seed.config,
+                tcl_lexer::SourceSegmentationPurpose::WholeInput,
+            )
+            .unwrap();
+        let site = CommandAllocationSite {
+            source: Arc::clone(&seed.origin),
+            offset: 0,
+        };
+        let operands = bindings
+            .original_variable_invocations
+            .get(&site)
+            .unwrap()
+            .as_ref()
+            .unwrap();
+        assert!(!normal_source_variable_point_is_closed(
+            &point,
+            &plan.commands[0].words,
+            &seed.origin,
+            operands,
+            input.borrowed_context_registry().commands(),
+            "set",
+        ));
+        let mut changed = seed;
+        changed.config.base_line += 1;
+        assert!(
+            changed
+                .normal_source_outcome_graph(input.borrowed_context_registry(), bindings)
+                .is_none()
+        );
     }
 }
 

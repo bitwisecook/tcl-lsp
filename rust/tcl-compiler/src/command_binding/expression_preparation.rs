@@ -2001,6 +2001,36 @@ mod tests {
         assert_eq!(proofs[0].source.origin, script.origin);
     }
 
+    fn assert_replaced_expression_target(
+        binding: &super::super::SourceInvocationBinding,
+        source: &str,
+    ) {
+        let target = binding
+            .proved_execution_target()
+            .expect("actual after-load replacement");
+        eprintln!(
+            "G4_REPLACED_TARGET kind={:?} registry_backed={} allocation={} authored_match={}",
+            target.kind,
+            target.registry_backed,
+            target.implementation_allocation.is_some(),
+            target.matches_authored_implementation(
+                source,
+                u32::try_from(source.rfind("proc expr").unwrap()).unwrap()
+            ),
+        );
+        assert_eq!(
+            binding.runtime_reachability(),
+            super::super::SourceRuntimeReachability::Reached
+        );
+        assert_eq!(target.command, "::expr");
+        assert_eq!(target.kind, super::super::BindingKind::Proc);
+        assert!(!target.registry_backed);
+        assert!(target.matches_authored_implementation(
+            source,
+            u32::try_from(source.rfind("proc expr").unwrap()).unwrap()
+        ));
+    }
+
     #[test]
     fn scoped_nested_normalisation_keeps_original_world_frame_and_source() {
         let expression = "expr {[expr {$x * 2}]}";
@@ -2064,6 +2094,8 @@ mod tests {
                     );
                     assert!(binding.compiler_lookup_state.is_none());
                     assert!(bindings.final_state.baseline.native_entry.is_none());
+                } else if suffix == "; rename expr saved; proc expr args {return changed}" {
+                    assert_replaced_expression_target(binding, &source);
                 } else {
                     assert!(binding.proved_execution_target().is_none());
                 }
@@ -2168,6 +2200,8 @@ mod tests {
                     );
                     assert!(binding.compiler_lookup_state.is_none());
                     assert!(bindings.final_state.baseline.native_entry.is_none());
+                } else if suffix == "; rename expr saved; proc expr args {return changed}" {
+                    assert_replaced_expression_target(binding, &source);
                 } else {
                     assert!(binding.proved_execution_target().is_none());
                 }

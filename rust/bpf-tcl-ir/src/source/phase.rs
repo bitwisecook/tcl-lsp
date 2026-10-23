@@ -55,6 +55,7 @@ pub(crate) struct BpfPreparedFunction {
     registry: RegistrySnapshot,
     config: LexerConfig,
     _context: Arc<SourceBpfModuleContext>,
+    _effects: tcl_compiler::ir::SourceBpfClosedEffects,
 }
 
 impl BpfPreparedFunction {
@@ -206,19 +207,25 @@ impl BpfSourceScript {
             None => unrolled,
         };
         crate::capability::check_policy(&expanded, &self.environment.policy, registry)?;
-        let function = tcl_compiler::cfg_builder::build_cfg_function_in_runtime_selected_scope(
+        let effects = self
+            .context
+            .closed_effects_for(module, registry, &expanded, self.source.config)
+            .ok_or_else(|| unavailable(Span::empty(0)))?;
+        let function = tcl_compiler::cfg_builder::build_cfg_function_in_bpf_selected_scope(
             name,
             &expanded,
-            false,
+            module,
             registry,
-            false,
             self.source.config,
-        );
+            &effects,
+        )
+        .ok_or_else(|| unavailable(Span::empty(0)))?;
         Ok(BpfPreparedFunction {
             function,
             registry: self.registry,
             config: self.source.config,
             _context: self.context,
+            _effects: effects,
         })
     }
 }
@@ -427,6 +434,27 @@ when XDP {use t {a b=7}; pass}",
             crate::frontend::select_when_declaration(statement, &phase, registry).unwrap();
         let body = phase.handler_body(&selected, registry).unwrap();
         assert!(body.prepare_function(&changed, "main", registry).is_err());
+    }
+
+    #[test]
+    fn closed_bpf_effect_phase_accepts_static_socket_program_and_refuses_substitution() {
+        let registry = tcl_registry::model::ingress::static_context_for("bpf").commands();
+        let module = super::super::lower_bpf_source("map m hash 4 8 1; accept", registry);
+        let phase = BpfSourceScript::from_module(&module, registry).unwrap();
+        let prepared = phase
+            .prepare_function(&module, "main", registry)
+            .expect("static selected BPF operations have no Tcl call effects");
+        crate::lower::lower_prepared_function(
+            &prepared,
+            crate::ir::ProgType::SocketFilter,
+            registry,
+        )
+        .expect("socket filter accepts its selected verdict");
+
+        let dynamic =
+            super::super::lower_bpf_source("map m hash 4 8 1; accept [unknown]", registry);
+        let phase = BpfSourceScript::from_module(&dynamic, registry).unwrap();
+        assert!(phase.prepare_function(&dynamic, "main", registry).is_err());
     }
 
     #[test]

@@ -313,6 +313,8 @@ fn statement_has_literal_head(stmt: &Statement) -> bool {
 /// would hide that each can be selected by a different public CFG entry point.
 #[allow(clippy::struct_excessive_bools)]
 pub(crate) struct CfgBuilder<'a> {
+    /// Only the sealed closed-phase entry installs this no-Tcl-effect proof.
+    bpf_closed_effects: Option<Arc<crate::ir::SourceBpfClosedEffects>>,
     counter: u32,
     blocks: HashMap<String, MutableBlock>,
     statement_sources: HashMap<
@@ -613,6 +615,7 @@ impl<'a> CfgBuilder<'a> {
             .values()
             .any(|info| !info.names.is_empty());
         Self {
+            bpf_closed_effects: None,
             counter: 0,
             blocks: HashMap::new(),
             statement_sources: HashMap::new(),
@@ -2302,6 +2305,12 @@ impl<'a> CfgBuilder<'a> {
     /// builds, `tailcall`) to a `Return` terminator so any following statements
     /// become dead code (mirrors the `TERMINATES_BLOCK` registry trait).
     fn push_plain_statement(&mut self, current: &str, stmt: &Statement) {
+        if self.bpf_closed_effects.is_some() {
+            // Every call was certified as an actual closed BPF core operation.
+            // It is emitted as DSL data, never dispatched through Tcl.
+            self.push_statement(current, stmt.clone());
+            return;
+        }
         for s in self.apply_upvar_invalidation(stmt.clone()) {
             self.push_statement(current, s);
         }
@@ -4049,6 +4058,29 @@ pub fn build_cfg_function_in_runtime_selected_scope(
         .with_command_surface(plain_command_dispatch)
         .with_invocation_namespace(crate::ir::ExecutionNamespace::RuntimeSelected)
         .build_function(name, script)
+}
+
+/// Build the exact certified closed BPF phase without inventing Tcl callee
+/// effects. Original source/census and BPF target admission remain separate.
+#[must_use]
+pub fn build_cfg_function_in_bpf_selected_scope(
+    name: &str,
+    script: &Script,
+    module: &Module,
+    registry: &CommandRegistry,
+    config: tcl_lexer::LexerConfig,
+    effects: &crate::ir::SourceBpfClosedEffects,
+) -> Option<Function> {
+    effects
+        .matches(module, registry, script, config)
+        .then_some(())?;
+    let mut builder = CfgBuilder::new(false, registry)
+        .with_lexer_config(config)
+        .with_invocation_namespace(
+            script.execution_namespace(crate::ir::ExecutionNamespace::RuntimeSelected),
+        );
+    builder.bpf_closed_effects = Some(Arc::new(effects.clone()));
+    Some(builder.build_function(name, script))
 }
 
 /// Build a secondary analysis body in its retained execution namespace.

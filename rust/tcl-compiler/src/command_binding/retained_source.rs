@@ -420,6 +420,28 @@ impl RetainedSourceModuleBindings {
             .is_some_and(|(actual, original)| Arc::ptr_eq(actual, original))
     }
 
+    /// Independent source-syntax observations from the original compiler.
+    /// Runtime and Native attachment remain unchanged and may be unavailable.
+    pub(crate) fn original_compiler_syntax_alternatives<'a>(
+        &'a self,
+        tokens: &crate::ir::CommandTokens,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        registry: &CommandRegistry,
+    ) -> Option<Vec<super::compiler_inventory::OriginalCompilerArgumentSyntax<'a>>> {
+        if !self.owns_original_analysis_attachment(tokens)
+            || self.grammar != input.lexer_config()
+            || self.registry != registry.snapshot().semantic_key()
+            || self.entry.metadata_context.source_analysis_input() != Some(input)
+            || !self
+                .positioned
+                .matches_original_source_image(&self.source, self.grammar)
+        {
+            return None;
+        }
+        self.positioned
+            .original_compiler_syntax_alternatives(tokens, input, registry)
+    }
+
     /// Authenticate the complete written source carrier under this Module's
     /// original interpretation. This supplies source ownership independently of
     /// compiler visitation, Native handler admission and read/store receipts.

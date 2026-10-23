@@ -17,6 +17,17 @@ pub use package_target_survey::{
 use crate::analyser::AnalysisResult;
 use tcl_registry::{CommandRegistry, InvocationArguments};
 
+/// Observe an existing source-owner Option without changing evaluation or authority.
+pub(crate) fn trace_jim_source_option<T>(stage: &str, value: Option<T>) -> Option<T> {
+    #[cfg(debug_assertions)]
+    if std::env::var_os("TCL_LSP_TRACE_JIM_SOURCE_OWNER").is_some() {
+        eprintln!("JIM_SOURCE_OWNER stage={stage} present={}", value.is_some());
+    }
+    #[cfg(not(debug_assertions))]
+    let _ = stage;
+    value
+}
+
 #[cfg(test)]
 fn trace_original_child_guard(label: &str, offset: Option<u32>, passed: bool) {
     if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some() {
@@ -2576,8 +2587,14 @@ pub fn source_constructor_call_at(
     analysis: &AnalysisResult,
     offset: u32,
 ) -> Option<crate::command_binding::OriginalSourceConstructorCall> {
-    let (input, realm, native) = registered_original_words_at(source, analysis, offset)?;
-    realm.original_source_constructor_call(input, &native)
+    let (input, realm, native) = trace_jim_source_option(
+        "constructor.registered_words",
+        registered_original_words_at(source, analysis, offset),
+    )?;
+    trace_jim_source_option(
+        "constructor.realm_receipt",
+        realm.original_source_constructor_call(input, &native),
+    )
 }
 
 /// Actual whole `Class::proc` call and the [incr Tcl] source class its
@@ -2735,8 +2752,14 @@ pub fn source_authored_jim_class_at(
     analysis: &AnalysisResult,
     offset: u32,
 ) -> Option<std::sync::Arc<crate::command_binding::OriginalAuthoredJimClass>> {
-    let (input, realm, native) = registered_original_words_at(source, analysis, offset)?;
-    realm.original_authored_jim_class(input, &native)
+    let (input, realm, native) = trace_jim_source_option(
+        "authored.registered_words",
+        registered_original_words_at(source, analysis, offset),
+    )?;
+    trace_jim_source_option(
+        "authored.realm_receipt",
+        realm.original_authored_jim_class(input, &native),
+    )
 }
 
 /// Exact original selected class declaration at its authentic source occurrence.

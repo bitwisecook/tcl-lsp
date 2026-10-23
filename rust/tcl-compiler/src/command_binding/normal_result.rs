@@ -646,31 +646,33 @@ mod tests {
         assert!(unknown.original_completed_root_state.is_none());
     }
 
+    fn scoped_procedure_tokens(source: &str) -> crate::ir::CommandTokens {
+        let (bindings, config) = inventory_for(source, "tcl9.0");
+        let offset = source.find("[answer]").unwrap() + 1;
+        let segment = crate::segmenter::segment_commands_with_offset_and_config(
+            "answer",
+            u32::try_from(offset).unwrap(),
+            config,
+        )
+        .remove(0);
+        let mut tokens = crate::ir::CommandTokens::from_segmented(
+            &tcl_lexer::SourceMap::new(source),
+            config,
+            &segment,
+        );
+        bindings.stamp_original_tokens(&mut tokens);
+        crate::command_binding::trace_original_g4_owner(
+            "scoped-procedure-equivalence",
+            &bindings,
+            &tokens,
+        );
+        tokens
+    }
+
     #[test]
     fn scoped_procedure_equivalence_keeps_independent_world_and_completion_obligations() {
-        let make = |source: &str| {
-            let (bindings, config) = inventory_for(source, "tcl9.0");
-            let offset = source.find("[answer]").unwrap() + 1;
-            let segment = crate::segmenter::segment_commands_with_offset_and_config(
-                "answer",
-                u32::try_from(offset).unwrap(),
-                config,
-            )
-            .remove(0);
-            let mut tokens = crate::ir::CommandTokens::from_segmented(
-                &tcl_lexer::SourceMap::new(source),
-                config,
-                &segment,
-            );
-            bindings.stamp_original_tokens(&mut tokens);
-            crate::command_binding::trace_original_g4_owner(
-                "scoped-procedure-equivalence",
-                &bindings,
-                &tokens,
-            );
-            tokens
-        };
-        let positive = make("proc answer {} {return 42}; proc f {} {return [answer]}");
+        let positive =
+            scoped_procedure_tokens("proc answer {} {return 42}; proc f {} {return [answer]}");
         let binding = positive.source_binding.as_ref().unwrap();
         assert_eq!(
             binding
@@ -688,18 +690,18 @@ mod tests {
             &positive,
             tcl_registry::model::ingress::static_context_for("tcl9.0").commands(),
         );
-        assert!(!binding.original_invocation_completes_normally(&positive));
-        let proof = binding
-            .scoped_procedure_evaluation(&positive)
-            .expect("independent original scoped certificates");
-        assert_eq!(proof.target.command, "::answer");
-        assert_eq!(proof.result.text(), "42");
+        assert!(binding.original_invocation_completes_normally(&positive));
+        assert_eq!(
+            binding.original_normal_result(&positive).unwrap().text(),
+            "42"
+        );
+        assert!(binding.scoped_procedure_evaluation(&positive).is_none());
         for source in [
             "proc answer {} {return 42}; proc f {} {return [answer]}; unknown_future_entry",
             "proc answer {} {return 42}; proc f {} {return [answer]}; trace add execution answer enter callback",
             "proc answer {} {unknown_callback; return 42}; proc f {} {return [answer]}",
         ] {
-            let tokens = make(source);
+            let tokens = scoped_procedure_tokens(source);
             assert!(
                 tokens
                     .source_binding
@@ -713,6 +715,65 @@ mod tests {
         let mut foreign = positive.clone();
         foreign.synthetic = Some(crate::ir::SyntheticMarker::IterationBindings(None));
         assert!(binding.scoped_procedure_evaluation(&foreign).is_none());
+    }
+
+    #[test]
+    fn scoped_procedure_equivalence_keeps_a_genuine_conditional_body_entry() {
+        let source = "proc answer {} {return 42}; proc f {} {return [answer]}; return ROOT";
+        let tokens = scoped_procedure_tokens(source);
+        let binding = tokens.source_binding.as_ref().unwrap();
+        binding.trace_g4_normal_frame_facts(
+            "scoped-procedure-abrupt-root",
+            &tokens,
+            tcl_registry::model::ingress::static_context_for("tcl9.0").commands(),
+        );
+        let state = &binding
+            .lookup_state
+            .as_ref()
+            .expect("genuine conditional source point")
+            .state;
+        eprintln!(
+            "G4_CONDITIONAL_SOURCE opaque={} source_step={} execution_observed={} entered_observer={} scoped_target={}",
+            state.has_opaque_domain(),
+            state.source_step_observed(),
+            state.source_execution_observed(None),
+            binding.entered_execution_observer.observed(),
+            binding.scoped_unobserved_target(&tokens).is_some(),
+        );
+        assert_eq!(
+            binding.runtime_reachability(),
+            super::super::SourceRuntimeReachability::Conditional
+        );
+        assert!(binding.proved_execution_target().is_none());
+        assert!(binding.original_normal_result(&tokens).is_none());
+        assert!(!binding.original_invocation_completes_normally(&tokens));
+        let proof = binding
+            .scoped_procedure_evaluation(&tokens)
+            .expect("independent original scoped certificates after abrupt root completion");
+        assert_eq!(proof.target.command, "::answer");
+        assert_eq!(proof.target.kind, super::super::BindingKind::Proc);
+        assert!(!proof.target.registry_backed);
+        assert!(proof.target.matches_authored_implementation(source, 0));
+        assert_eq!(proof.result.text(), "42");
+        let mut foreign = tokens.clone();
+        foreign.synthetic = Some(crate::ir::SyntheticMarker::IterationBindings(None));
+        assert!(binding.scoped_procedure_evaluation(&foreign).is_none());
+        for source in [
+            "proc answer {} {return 42}; proc f {} {return [answer]}; unknown_future_entry; return ROOT",
+            "proc answer {} {return 42}; proc f {} {return [answer]}; trace add execution answer enter callback; return ROOT",
+            "proc answer {} {unknown_callback; return 42}; proc f {} {return [answer]}; return ROOT",
+        ] {
+            let tokens = scoped_procedure_tokens(source);
+            assert!(
+                tokens
+                    .source_binding
+                    .as_ref()
+                    .unwrap()
+                    .scoped_procedure_evaluation(&tokens)
+                    .is_none(),
+                "{source}"
+            );
+        }
     }
 
     #[test]
