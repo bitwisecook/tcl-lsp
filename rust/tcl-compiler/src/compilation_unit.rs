@@ -907,6 +907,253 @@ impl<'a> FunctionBuildInputs<'a> {
     }
 }
 
+struct FullSccpInputs<'a> {
+    cfg: &'a CfgFunction,
+    inputs: FunctionBuildInputs<'a>,
+    ssa: &'a SsaFunction,
+    existence: crate::sccp::ExistenceEntry<'a>,
+    tier: AnalysisTier,
+    fold_policy: crate::tcl_expr_eval::FoldPolicy,
+}
+
+struct FullSccpArtifacts {
+    fold_policy: crate::tcl_expr_eval::FoldPolicy,
+    dynamic_names: crate::dynamic_names::DynamicNameBarrier,
+    sccp: SccpResult,
+}
+
+struct FullDerivedArtifacts {
+    sccp: SccpResult,
+    dynamic_names: crate::dynamic_names::DynamicNameBarrier,
+    semantic_value_projection: Arc<crate::sccp::SemanticValueProjection>,
+    types: HashMap<ValueKey, TypeLattice>,
+    return_type: TypeLattice,
+    rendered_props: HashMap<ValueKey, RenderedValueProps>,
+    taints: HashMap<ValueKey, TaintLattice>,
+}
+
+fn build_full_ssa_artifacts(
+    cfg: &CfgFunction,
+    inputs: FunctionBuildInputs<'_>,
+    #[cfg(any(test, debug_assertions))] phase_trace: &mut SourceFunctionPhaseTrace,
+) -> (SsaFunction, DefUseFacts, crate::tcl_expr_eval::FoldPolicy) {
+    let entry = function_source_entry(cfg, inputs.entry_context);
+    let fold_policy = crate::tcl_expr_eval::FoldPolicy::for_retained_entry(
+        inputs.registry,
+        entry.invocation_dialect,
+        &inputs.config,
+    );
+    let metadata = inputs.source_metadata_input.and_then(|input| {
+        crate::registry_invocation::InvocationMetadataContext::for_source_input(
+            inputs.registry,
+            input,
+            inputs.config,
+            Some(input.unit_profile()),
+        )
+    });
+    #[cfg(any(test, debug_assertions))]
+    phase_trace.phase(0);
+    let ssa = build_ssa_with_context_for_entry_and_metadata(
+        cfg,
+        inputs.registry,
+        inputs.config,
+        entry,
+        Some(inputs.params),
+        metadata,
+        cfg.metadata_context.is_standalone(),
+    );
+    #[cfg(any(test, debug_assertions))]
+    phase_trace.phase(1);
+    let def_use = build_def_use_chains(&ssa, Some(cfg), inputs.config);
+    #[cfg(any(test, debug_assertions))]
+    phase_trace.phase(2);
+    (ssa, def_use, fold_policy)
+}
+
+fn build_full_sccp_artifacts(
+    full: FullSccpInputs<'_>,
+    #[cfg(any(test, debug_assertions))] phase_trace: &mut SourceFunctionPhaseTrace,
+) -> FullSccpArtifacts {
+    let FullSccpInputs {
+        cfg,
+        inputs,
+        ssa,
+        existence,
+        tier,
+        fold_policy,
+    } = full;
+    let dynamic_names =
+        crate::dynamic_names::dynamic_name_barrier(cfg, inputs.registry, inputs.config);
+    #[cfg(any(test, debug_assertions))]
+    phase_trace.phase(3);
+    let sccp = crate::sccp::sccp_in_module(&crate::sccp::SolveInputs {
+        cfg,
+        ssa,
+        param_constants: inputs.param_constants,
+        policy: fold_policy,
+        extra_escaping: inputs.extra_global_escaping,
+        trace: crate::sccp::TraceInputs {
+            source_metadata_input: inputs.source_metadata_input,
+            registry: inputs.registry,
+            traced_variables: inputs.trace_facts.traced_variables,
+            has_dynamic_variable_trace: inputs.trace_facts.has_dynamic_variable_trace
+                || dynamic_names.writes
+                || dynamic_names.destroys,
+            deferred_writes: inputs.trace_facts.deferred_writes,
+            analysis_context: inputs.analysis_context,
+            existence: (tier == AnalysisTier::Deep).then_some(existence),
+        },
+        folds: Some(crate::sccp::BuiltinFoldInputs {
+            source_metadata_input: inputs.source_metadata_input,
+            registry: inputs.registry,
+            mutations: inputs.command_trust,
+            dialect: None,
+            defining_class: None,
+            registry_engine: false,
+            trust: crate::sccp::FoldTrust::ObservedBindings,
+            proven_pure_parameters: false,
+        }),
+        module: crate::sccp::ModuleRun {
+            analysis_body: inputs.analysis_body,
+            ..crate::sccp::ModuleRun::reading(inputs.procedures)
+        },
+    });
+    #[cfg(any(test, debug_assertions))]
+    phase_trace.phase(4);
+    FullSccpArtifacts {
+        fold_policy,
+        dynamic_names,
+        sccp,
+    }
+}
+
+fn propagate_full_type_artifacts(
+    cfg: &CfgFunction,
+    inputs: FunctionBuildInputs<'_>,
+    ssa: &SsaFunction,
+    sccp: &SccpResult,
+) -> (HashMap<ValueKey, TypeLattice>, TypeLattice) {
+    let type_metadata = TypePropagationMetadata {
+        registry: inputs.registry,
+        context: inputs.source_metadata_input.and_then(|input| {
+            crate::registry_invocation::InvocationMetadataContext::for_analysis_input(
+                inputs.registry,
+                input,
+            )
+        }),
+        config: inputs.config,
+        numbers: inputs
+            .source_metadata_input
+            .map_or(inputs.registry.numbers(), |input| {
+                input.unit_profile().grammar.numbers
+            }),
+    };
+    let types = propagate_types_with_metadata_context(
+        cfg,
+        ssa,
+        sccp,
+        type_metadata,
+        inputs.known_classes,
+        inputs.extra_global_escaping,
+        inputs.trace_facts,
+    );
+    let return_type = crate::type_infer::infer_function_return_type(
+        cfg,
+        sccp,
+        &types,
+        type_metadata,
+        inputs.known_classes,
+        ssa,
+    );
+    (types, return_type)
+}
+
+fn build_full_derived_artifacts(
+    cfg: &CfgFunction,
+    inputs: FunctionBuildInputs<'_>,
+    ssa: &SsaFunction,
+    mut core: FullSccpArtifacts,
+    #[cfg(any(test, debug_assertions))] phase_trace: &mut SourceFunctionPhaseTrace,
+) -> FullDerivedArtifacts {
+    let value_inputs = inputs.value_fact_inputs(core.fold_policy);
+    let semantic_value_projection =
+        Arc::new(crate::sccp::SemanticValueProjection::new(value_inputs));
+    if inputs.initial_state == crate::sccp::ExistenceInitialState::DeclaredFrame
+        || ssa.point_contexts.is_some()
+    {
+        extend_existence_folds(
+            &mut core.sccp,
+            cfg,
+            ssa,
+            crate::sccp::ExistenceFrame {
+                params: inputs.params,
+                object_state: inputs.object_state,
+                initial_global: inputs.initial_global,
+            },
+            crate::sccp::ExistenceMetadataInputs {
+                registry: inputs.registry,
+                context: inputs.source_metadata_input.and_then(|input| {
+                    crate::registry_invocation::InvocationMetadataContext::for_analysis_input(
+                        inputs.registry,
+                        input,
+                    )
+                }),
+            },
+            inputs.config,
+        );
+    }
+    #[cfg(any(test, debug_assertions))]
+    phase_trace.phase(5);
+    let (types, return_type) = propagate_full_type_artifacts(cfg, inputs, ssa, &core.sccp);
+    #[cfg(any(test, debug_assertions))]
+    phase_trace.phase(6);
+    let rendered_props = propagate_rendered_props_with_config(
+        cfg,
+        ssa,
+        &core.sccp,
+        inputs.registry,
+        Some(inputs.config),
+    );
+    #[cfg(any(test, debug_assertions))]
+    phase_trace.phase(7);
+    let instance_classes = instance_classes_for_function(
+        cfg,
+        inputs.registry,
+        None,
+        false,
+        TaintSourceContext::for_input(inputs.registry, inputs.source_metadata_input, inputs.config),
+    );
+    #[cfg(any(test, debug_assertions))]
+    phase_trace.phase(8);
+    let taints = propagate_taints(
+        &TaintGraph::new(cfg, ssa, &core.sccp),
+        TaintPropagationInputs {
+            registry: inputs.registry,
+            rendered_props: Some(&rendered_props),
+            interproc: None,
+            source: TaintSourceContext::for_input(
+                inputs.registry,
+                inputs.source_metadata_input,
+                inputs.config,
+            ),
+            param_taints: None,
+            taint_summaries: None,
+            instance_classes: &instance_classes,
+        },
+    );
+    #[cfg(any(test, debug_assertions))]
+    phase_trace.phase(9);
+    FullDerivedArtifacts {
+        sccp: core.sccp,
+        dynamic_names: core.dynamic_names,
+        semantic_value_projection,
+        types,
+        return_type,
+        rendered_props,
+        taints,
+    }
+}
+
 impl<'a> ModuleTraceFacts<'a> {
     /// The trace facts lowering recorded on `module`.
     #[must_use]
@@ -1846,32 +2093,6 @@ impl FunctionUnit {
         #[cfg(any(test, debug_assertions))]
         let mut phase_trace = SourceFunctionPhaseTrace::new();
         let name = name.into();
-        let existence = inputs.existence_entry(&name);
-        // The request's tier: a context key names it, a detached build is
-        // deep. Below the deep tier the existence rung is not run, so its
-        // every read answers `Unavailable` rather than a fact.
-        let tier = inputs
-            .analysis_context
-            .map_or(AnalysisTier::Deep, |key| key.tier);
-        let FunctionBuildInputs {
-            analysis_body,
-            initial_state,
-            source_metadata_input,
-            entry_context,
-            config,
-            params,
-            param_constants,
-            registry,
-            known_classes,
-            extra_global_escaping,
-            trace_facts,
-            object_state,
-            initial_global,
-            analysis_context,
-            command_trust,
-            procedures,
-            ..
-        } = inputs;
         // Complexity guard (block-count half): a pathologically large body
         // would cost seconds of SSA + dataflow for near-zero findings, so skip
         // the deep analysis and flag the unit. The body-byte half is applied by
@@ -1880,213 +2101,63 @@ impl FunctionUnit {
         // salsa `function_lattice` callbacks.
         if crate::ssa::is_complexity_guarded(&cfg) {
             return Self::trivial_guarded(name, cfg)
-                .with_source_metadata(source_metadata_input, config);
+                .with_source_metadata(inputs.source_metadata_input, inputs.config);
         }
-        let entry = function_source_entry(&cfg, entry_context);
-        let fold_policy = crate::tcl_expr_eval::FoldPolicy::for_retained_entry(
-            registry,
-            entry.invocation_dialect,
-            &config,
-        );
-        let metadata = source_metadata_input.and_then(|input| {
-            crate::registry_invocation::InvocationMetadataContext::for_source_input(
-                registry,
-                input,
-                config,
-                Some(input.unit_profile()),
-            )
-        });
-        #[cfg(any(test, debug_assertions))]
-        phase_trace.phase(0);
-        let ssa = build_ssa_with_context_for_entry_and_metadata(
+        let (ssa, def_use, fold_policy) = build_full_ssa_artifacts(
             &cfg,
-            registry,
-            config,
-            entry,
-            Some(params),
-            metadata,
-            cfg.metadata_context.is_standalone(),
+            inputs,
+            #[cfg(any(test, debug_assertions))]
+            &mut phase_trace,
         );
-        #[cfg(any(test, debug_assertions))]
-        phase_trace.phase(1);
-        let def_use = build_def_use_chains(&ssa, Some(&cfg), config);
-        #[cfg(any(test, debug_assertions))]
-        phase_trace.phase(2);
-
-        // The registry carries its dialect profile's fold policy: the octal
-        // rule, which fixes how a bare leading-zero literal (`08`, `010`) is
-        // read when SCCP folds `==`/`!=` — octal in the 8.x runtimes (tcl8.x /
-        // F5 / EDA), decimal in the 9.x runtimes (tcl9.0/9.1 and bpf), and
-        // `None` (abstain) when there is no Tcl runtime to have an opinion
-        // (f5-bigip, an unknown dialect) — plus whether the dialect's `expr`
-        // grammar carries the iRules word operators, so `if {$x contains
-        // "cd"}` folds under `f5-irules`. A hand-assembled registry without a
-        // profile falls back to deriving the octal rule from the loaded packs.
-        // Dynamic names affect the contents at their execution point. They do
-        // not establish a variable trace, nor invalidate earlier definitions.
-        // SSA retains fresh stores and exact read origins across these effects;
-        // the summary remains available for compatibility existence queries.
-        let dynamic_names = crate::dynamic_names::dynamic_name_barrier(&cfg, registry, config);
-        #[cfg(any(test, debug_assertions))]
-        phase_trace.phase(3);
-        let mut sccp = crate::sccp::sccp_in_module(&crate::sccp::SolveInputs {
-            cfg: &cfg,
-            ssa: &ssa,
-            param_constants,
-            policy: fold_policy,
-            extra_escaping: extra_global_escaping,
-            trace: crate::sccp::TraceInputs {
-                source_metadata_input,
-                registry,
-                traced_variables: trace_facts.traced_variables,
-                has_dynamic_variable_trace: trace_facts.has_dynamic_variable_trace
-                    || dynamic_names.writes
-                    || dynamic_names.destroys,
-                deferred_writes: trace_facts.deferred_writes,
-                analysis_context,
-                existence: (tier == AnalysisTier::Deep).then_some(existence),
+        // The request's tier: a context key names it, a detached build is
+        // deep. Below the deep tier the existence rung is not run, so its
+        // every read answers `Unavailable` rather than a fact.
+        let tier = inputs
+            .analysis_context
+            .map_or(AnalysisTier::Deep, |key| key.tier);
+        let core = build_full_sccp_artifacts(
+            FullSccpInputs {
+                cfg: &cfg,
+                inputs,
+                ssa: &ssa,
+                existence: inputs.existence_entry(&name),
+                tier,
+                fold_policy,
             },
-            // The trust fact, and only the trust fact: every declared route
-            // the value-transfer driver runs is gated on it, while the
-            // registry `const_fold` engine stays off here so this lattice's
-            // fold surface is the routes'. The optimiser's own re-run turns
-            // the engine on (`crate::optimiser::propagation`).
-            folds: Some(crate::sccp::BuiltinFoldInputs {
-                source_metadata_input,
-                registry,
-                mutations: command_trust,
-                dialect: None,
-                defining_class: None,
-                registry_engine: false,
-                trust: crate::sccp::FoldTrust::ObservedBindings,
-                proven_pure_parameters: false,
-            }),
-            module: crate::sccp::ModuleRun {
-                analysis_body,
-                ..crate::sccp::ModuleRun::reading(procedures)
-            },
-        });
-        #[cfg(any(test, debug_assertions))]
-        phase_trace.phase(4);
-        let value_inputs = inputs.value_fact_inputs(fold_policy);
-        let semantic_value_projection =
-            Arc::new(crate::sccp::SemanticValueProjection::new(value_inputs));
-        // Surface `[info exists X]` / `[array exists X]`
-        // folds (parameter → exists, never-defined non-param → absent)
-        // as constant branches so the optimiser's O101 fold / DCE sees
-        // them. The analyser's I230 uses the same fold via
-        // `existence_constant_branches`; the SCCP pass proper has no
-        // parameter/existence facts to fold them itself.  A method body's
-        // instance variables are handed over too, so the fold abstains on
-        // object state instead of calling it absent.
-        // Inherited frames need genuine point contexts for this source-presence
-        // extension; only declared frames may use its fresh-local fallback.
-        if initial_state == crate::sccp::ExistenceInitialState::DeclaredFrame
-            || ssa.point_contexts.is_some()
-        {
-            extend_existence_folds(
-                &mut sccp,
-                &cfg,
-                &ssa,
-                crate::sccp::ExistenceFrame {
-                    params,
-                    object_state,
-                    initial_global,
-                },
-                crate::sccp::ExistenceMetadataInputs {
-                    registry,
-                    context: source_metadata_input.and_then(|input| {
-                        crate::registry_invocation::InvocationMetadataContext::for_analysis_input(
-                            registry, input,
-                        )
-                    }),
-                },
-                config,
-            );
-        }
-        #[cfg(any(test, debug_assertions))]
-        phase_trace.phase(5);
-        let type_metadata = TypePropagationMetadata {
-            registry,
-            context: source_metadata_input.and_then(|input| {
-                crate::registry_invocation::InvocationMetadataContext::for_analysis_input(
-                    registry, input,
-                )
-            }),
-            config,
-            numbers: source_metadata_input.map_or(registry.numbers(), |input| {
-                input.unit_profile().grammar.numbers
-            }),
-        };
-        let types = propagate_types_with_metadata_context(
+            #[cfg(any(test, debug_assertions))]
+            &mut phase_trace,
+        );
+        let derived = build_full_derived_artifacts(
             &cfg,
+            inputs,
             &ssa,
-            &sccp,
-            type_metadata,
-            known_classes,
-            extra_global_escaping,
-            trace_facts,
+            core,
+            #[cfg(any(test, debug_assertions))]
+            &mut phase_trace,
         );
-        let return_type = crate::type_infer::infer_function_return_type(
-            &cfg,
-            &sccp,
-            &types,
-            type_metadata,
-            known_classes,
-            &ssa,
-        );
-        #[cfg(any(test, debug_assertions))]
-        phase_trace.phase(6);
-        let rendered_props =
-            propagate_rendered_props_with_config(&cfg, &ssa, &sccp, registry, Some(config));
-        #[cfg(any(test, debug_assertions))]
-        phase_trace.phase(7);
-        let instance_classes = instance_classes_for_function(
-            &cfg,
-            registry,
-            None,
-            false,
-            TaintSourceContext::for_input(registry, source_metadata_input, config),
-        );
-        #[cfg(any(test, debug_assertions))]
-        phase_trace.phase(8);
-        let taints = propagate_taints(
-            &TaintGraph::new(&cfg, &ssa, &sccp),
-            TaintPropagationInputs {
-                registry,
-                rendered_props: Some(&rendered_props),
-                interproc: None,
-                source: TaintSourceContext::for_input(registry, source_metadata_input, config),
-                param_taints: None,
-                taint_summaries: None,
-                instance_classes: &instance_classes,
-            },
-        );
-        #[cfg(any(test, debug_assertions))]
-        phase_trace.phase(9);
         #[cfg(any(test, debug_assertions))]
         phase_trace.finish(&cfg);
-        cfg.retain_math_invocations(&sccp.required_math_invocations);
-        cfg.retain_expression_preparations(&sccp.required_expression_preparations);
+        cfg.retain_math_invocations(&derived.sccp.required_math_invocations);
+        cfg.retain_expression_preparations(&derived.sccp.required_expression_preparations);
         Self {
             original_lattice_worker: None,
             original_lattice_callback_admission: None,
-            source_metadata_input: source_metadata_input.cloned(),
-            source_config: config,
+            source_metadata_input: inputs.source_metadata_input.cloned(),
+            source_config: inputs.config,
             name,
             body_id: None,
             cfg,
             ssa,
             def_use,
-            sccp,
-            retained_semantic_value_owner: Some(Arc::clone(&semantic_value_projection)),
-            semantic_value_projection,
-            types: Arc::new(types),
-            return_type,
-            taints: Arc::new(taints),
-            rendered_props: Arc::new(rendered_props),
+            sccp: derived.sccp,
+            retained_semantic_value_owner: Some(Arc::clone(&derived.semantic_value_projection)),
+            semantic_value_projection: derived.semantic_value_projection,
+            types: Arc::new(derived.types),
+            return_type: derived.return_type,
+            taints: Arc::new(derived.taints),
+            rendered_props: Arc::new(derived.rendered_props),
             memory_ssa: None,
-            dynamic_names,
+            dynamic_names: derived.dynamic_names,
             complexity_guarded: false,
             tier,
             base_offset: 0,
@@ -2989,6 +3060,160 @@ struct DeclaredBodyMemoContext<'a> {
     analysis_context: &'a crate::value_transfer::AnalysisContextKey,
 }
 
+struct BodyMemoBuildInputs<'a> {
+    ir_module: &'a IrModule,
+    registry: &'a CommandRegistry,
+    id: &'a crate::ir::ProcedureId,
+    proc: &'a crate::ir::Procedure,
+    cfg: &'a CfgFunction,
+    qname: &'a str,
+    context: BodyUnitContext<'a>,
+    memo_context: DeclaredBodyMemoContext<'a>,
+    original_request_scope: Option<&'a original_lattice_worker::OriginalLatticeRequestScope>,
+}
+
+fn memoized_body_unit(
+    cache: &mut Option<&mut ProcLatticeCache<'_>>,
+    inputs: BodyMemoBuildInputs<'_>,
+    body_bytes: usize,
+    original_declaration_body: bool,
+) -> Option<FunctionUnit> {
+    if body_bytes > crate::ssa::DEEP_ANALYSIS_BODY_BYTES || !original_declaration_body {
+        return None;
+    }
+    let BodyMemoBuildInputs {
+        ir_module,
+        registry,
+        id,
+        proc,
+        cfg,
+        qname,
+        context,
+        memo_context,
+        original_request_scope,
+    } = inputs;
+    let memo = cache.as_mut()?;
+    let (upvar_procs, proc_params, global_write_procs, command_bindings, procedure_summary_owners) =
+        memo_context.prepared?;
+    let source = ir_module.source.try_text().ok()?;
+    let memo_config = context.config.nested().normalized();
+    let memo_input = module_source_metadata_input(ir_module, registry)
+        .map(crate::analyser::ResolvedAnalysisInput::for_nested_source);
+    let mut body = proc.body.clone();
+    crate::lattice_rebase::rebase_script(&mut body, -i64::from(proc.span.start()));
+    let mut request = LatticeRequest {
+        original_worker_request: None,
+        module: ir_module,
+        body_id: *id,
+        qname,
+        body: &body,
+        source,
+        original_body_offset: proc.span.start(),
+        executable_body_offset: proc.body_offset,
+        body_source: proc.body_source.as_deref(),
+        irules_event_body: None,
+        command_trust: context.command_trust,
+        params: &proc.params,
+        upvar_procs,
+        proc_params,
+        global_write_procs,
+        command_bindings,
+        procedure_summary_owners,
+        source_metadata_input: memo_input.as_ref(),
+        lexer_config: memo_config,
+        dialect: memo_context.dialect,
+        plain_command_dispatch: ir_module.plain_command_dispatch,
+        param_constants: &[],
+        known_classes: memo_context.known_classes,
+        traced_variables: memo_context.traced_variables,
+        analysis_context: memo_context.analysis_context,
+        has_dynamic_variable_trace: ir_module.has_dynamic_variable_trace,
+    };
+    let original_request = original_lattice_worker::OriginalLatticeRequestSeal::capture(
+        &request,
+        original_request_scope.expect("actual memo context"),
+        registry,
+    );
+    request.original_worker_request = Some(&original_request);
+    let mut unit = memo(&request);
+    unit.original_lattice_callback_admission = Some(
+        LatticeRequest::accepts_original_worker_result(&request, &unit, registry),
+    );
+    crate::lattice_rebase::rebase_function_unit(&mut unit, i64::from(proc.span.start()));
+    (unit.cfg == *cfg && !unit.sccp.reads_module).then_some(unit)
+}
+
+fn body_unit_entry_context(
+    ir_module: &IrModule,
+    registry: &CommandRegistry,
+    id: &crate::ir::ProcedureId,
+    proc: &crate::ir::Procedure,
+    cfg: &CfgFunction,
+) -> (bool, bool, crate::var_resolve::ResolveContext) {
+    let original_declaration_body = (ir_module.original_declaration_body_units.contains_key(id)
+        || ir_module
+            .original_native_declaration_body_units
+            .contains_key(id)
+        || ir_module
+            .original_logical_declaration_body_units
+            .contains_key(id)
+        || ir_module
+            .original_hosted_declaration_body_units
+            .contains_key(id)
+        || ir_module
+            .original_authored_declaration_body_units
+            .contains_key(id))
+        && ir_module
+            .original_source_procedure_bodies()
+            .any(|(owned, _)| owned == id);
+    let declaration_body =
+        original_declaration_body || ir_module.installed_procedure_body_units.contains_key(id);
+    let mut entry_context = if original_declaration_body {
+        conditional_function_source_entry(cfg, module_source_metadata_input(ir_module, registry))
+    } else if declaration_body {
+        if let Some(namespace) = proc.body.namespace_context.as_deref() {
+            let frame = crate::var_resolve::VariableExecutionFrame::Procedure {
+                namespace: namespace.display().unwrap_or_default(),
+                identity: id.reporting_key(),
+            }
+            .with_namespace_identity(namespace.clone());
+            crate::var_resolve::ResolveContext::default().in_frame(&frame)
+        } else {
+            crate::var_resolve::ResolveContext::default()
+                .in_frame(&crate::var_resolve::VariableExecutionFrame::Unknown)
+        }
+    } else if let Some(namespace) = proc.body.namespace_context.as_deref() {
+        let frame = if ir_module.lambda_body_units.contains(id) {
+            crate::var_resolve::VariableExecutionFrame::Procedure {
+                namespace: namespace.display().unwrap_or_default(),
+                identity: id.reporting_key(),
+            }
+        } else {
+            crate::var_resolve::VariableExecutionFrame::NamespaceActivation {
+                namespace: namespace.display().unwrap_or_default(),
+                identity: id.reporting_key(),
+            }
+        }
+        .with_namespace_identity(namespace.clone());
+        crate::var_resolve::ResolveContext::default().in_frame(&frame)
+    } else {
+        crate::var_resolve::ResolveContext::default()
+            .in_frame(&crate::var_resolve::VariableExecutionFrame::Unknown)
+    };
+    entry_context.namespace_cells.closed = false;
+    (original_declaration_body, declaration_body, entry_context)
+}
+
+fn body_unit_request_scope(
+    ir_module: &IrModule,
+    cache: &Option<&mut ProcLatticeCache<'_>>,
+    memo_context: DeclaredBodyMemoContext<'_>,
+) -> Option<original_lattice_worker::OriginalLatticeRequestScope> {
+    cache.as_ref().and(memo_context.prepared).map(|context| {
+        original_lattice_worker::OriginalLatticeRequestScope::capture(ir_module, context)
+    })
+}
+
 /// Module-wide, read-only inputs [`build_procedure_units`] shares across
 /// every procedure in the loop.  Grouped into one struct so the extracted
 /// helper takes two parameters instead of a dozen.
@@ -3035,6 +3260,116 @@ impl<'a> ProcedureBuildContext<'a> {
             analysis_context: self.analysis_context,
             command_trust: self.command_trust,
         }
+    }
+}
+
+struct ProcedureMemoInputs<'a> {
+    ctx: &'a ProcedureBuildContext<'a>,
+    id: &'a crate::ir::ProcedureId,
+    cfg: &'a CfgFunction,
+    proc: Option<&'a crate::ir::Procedure>,
+    params: &'a [String],
+    qname: &'a str,
+    event_body: Option<&'a Arc<crate::ir::SourceIrulesEventBody>>,
+    original_request_scope: Option<&'a original_lattice_worker::OriginalLatticeRequestScope>,
+    memo_config: tcl_lexer::LexerConfig,
+    memo_input: Option<&'a crate::analyser::ResolvedAnalysisInput>,
+    body_offset: u32,
+}
+
+fn memoized_procedure_unit(
+    cache: &mut Option<&mut ProcLatticeCache<'_>>,
+    input: ProcedureMemoInputs<'_>,
+    encoded_pc: Option<Vec<(String, u32, String)>>,
+    has_instance_global_writes: bool,
+) -> Option<FunctionUnit> {
+    let ProcedureMemoInputs {
+        ctx,
+        id,
+        cfg,
+        proc,
+        params,
+        qname,
+        event_body,
+        original_request_scope,
+        memo_config,
+        memo_input,
+        body_offset,
+    } = input;
+    match (
+        cache.as_mut(),
+        proc,
+        ctx.cfg_context,
+        encoded_pc,
+        has_instance_global_writes,
+        ctx.ir_module.source.try_text().ok(),
+    ) {
+        (
+            Some(memo),
+            Some(proc),
+            Some((
+                upvar_procs,
+                proc_params,
+                global_write_procs,
+                command_bindings,
+                procedure_summary_owners,
+            )),
+            Some(encoded_pc),
+            false,
+            Some(source),
+        ) => {
+            let mut body = proc.body.clone();
+            crate::lattice_rebase::rebase_script(&mut body, -i64::from(body_offset));
+            let mut request = LatticeRequest {
+                original_worker_request: None,
+                module: ctx.ir_module,
+                body_id: *id,
+                qname,
+                body: &body,
+                source,
+                original_body_offset: body_offset,
+                executable_body_offset: proc.body_offset,
+                body_source: proc.body_source.as_deref(),
+                irules_event_body: event_body,
+                command_trust: ctx.command_trust,
+                params,
+                upvar_procs,
+                proc_params,
+                global_write_procs,
+                command_bindings,
+                procedure_summary_owners,
+                source_metadata_input: memo_input,
+                lexer_config: memo_config,
+                dialect: ctx.dialect,
+                plain_command_dispatch: ctx.ir_module.plain_command_dispatch,
+                param_constants: &encoded_pc,
+                known_classes: ctx.known_classes,
+                traced_variables: ctx.traced_variable_names,
+                analysis_context: ctx.analysis_context,
+                has_dynamic_variable_trace: ctx.ir_module.has_dynamic_variable_trace,
+            };
+            let original_request = original_lattice_worker::OriginalLatticeRequestSeal::capture(
+                &request,
+                original_request_scope.expect("actual memo context"),
+                ctx.registry,
+            );
+            request.original_worker_request = Some(&original_request);
+            let mut fu = memo(&request);
+            fu.original_lattice_callback_admission = Some(
+                LatticeRequest::accepts_original_worker_result(&request, &fu, ctx.registry),
+            );
+            crate::lattice_rebase::rebase_function_unit(&mut fu, i64::from(body_offset));
+            let matches = fu.cfg == *cfg;
+            #[cfg(debug_assertions)]
+            if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_FUNCTION_LATTICE").is_some() {
+                eprintln!(
+                    "ORIGINAL_FUNCTION_LATTICE_ACCEPT qname={qname} event={} cfg_matches={matches}",
+                    event_body.is_some()
+                );
+            }
+            (matches && !fu.sccp.reads_module).then_some(fu)
+        }
+        _ => None,
     }
 }
 
@@ -3112,6 +3447,78 @@ fn retain_procedure_parameter_constants(
     }
 }
 
+struct ProcedureBuildInfo<'a> {
+    id: &'a crate::ir::ProcedureId,
+    cfg: &'a CfgFunction,
+    params: &'a [String],
+    proc: Option<&'a crate::ir::Procedure>,
+    qname: &'a str,
+    event_body: Option<Arc<crate::ir::SourceIrulesEventBody>>,
+    param_constants: Option<HashMap<(String, crate::ssa::Version), crate::analyses::LatticeValue>>,
+    encoded_pc: Option<Vec<(String, u32, String)>>,
+    body_offset: u32,
+    has_instance_global_writes: bool,
+}
+
+enum PreparedProcedureBuild<'a> {
+    Guarded(crate::ir::ProcedureId, FunctionUnit),
+    Ready(ProcedureBuildInfo<'a>),
+}
+
+fn prepare_procedure_build<'a>(
+    ctx: &'a ProcedureBuildContext<'a>,
+    id: &'a crate::ir::ProcedureId,
+    cfg: &'a CfgFunction,
+    config: tcl_lexer::LexerConfig,
+    param_constants_by_proc: &mut BTreeMap<crate::ir::ProcedureId, Vec<(String, u32, String)>>,
+) -> PreparedProcedureBuild<'a> {
+    let params = ctx
+        .ir_module
+        .procedures
+        .get(id)
+        .map_or(&[][..], |p| p.params.as_slice());
+    let proc = ctx.ir_module.procedures.get(id);
+    let qname = cfg.name.as_str();
+    let event_body = retained_procedure_event_body(ctx, id, proc, config);
+    let param_constants = proc.and_then(|procedure| {
+        params_constants_from_native_call_sites(
+            ctx.ir_module,
+            *id,
+            procedure,
+            ctx.ir_module.parameter_grammar(),
+            ctx.call_sites,
+            ctx.caller_view,
+        )
+    });
+    if procedure_is_complexity_guarded(proc, cfg) {
+        let mut unit = FunctionUnit::trivial_guarded(qname, cfg.clone()).with_source_metadata(
+            module_source_metadata_input(ctx.ir_module, ctx.registry),
+            config,
+        );
+        unit.irules_event_body = event_body;
+        return PreparedProcedureBuild::Guarded(*id, unit.with_body_id(*id));
+    }
+    let body_offset = proc.map_or(0, |p| p.span.start());
+    let encoded_pc = encode_param_constants(param_constants.as_ref());
+    retain_procedure_parameter_constants(param_constants_by_proc, id, encoded_pc.as_deref());
+    let has_instance_global_writes = ctx
+        .tainted_global_writes
+        .get(id)
+        .is_some_and(|writes| !writes.is_empty());
+    PreparedProcedureBuild::Ready(ProcedureBuildInfo {
+        id,
+        cfg,
+        params,
+        proc,
+        qname,
+        event_body,
+        param_constants,
+        encoded_pc,
+        body_offset,
+        has_instance_global_writes,
+    })
+}
+
 fn build_procedure_units(
     ctx: &ProcedureBuildContext<'_>,
     mut cache: Option<&mut ProcLatticeCache<'_>>,
@@ -3130,162 +3537,44 @@ fn build_procedure_units(
     let mut param_constants_by_proc: BTreeMap<crate::ir::ProcedureId, Vec<(String, u32, String)>> =
         BTreeMap::new();
     for (id, cfg) in &ctx.cfg_module.procedures {
-        let params = ctx
-            .ir_module
-            .procedures
-            .get(id)
-            .map_or(&[][..], |p| p.params.as_slice());
-        let proc = ctx.ir_module.procedures.get(id);
-        let qname = cfg.name.as_str();
-        let event_body = retained_procedure_event_body(ctx, id, proc, config);
-        let param_constants = proc.and_then(|procedure| {
-            params_constants_from_native_call_sites(
-                ctx.ir_module,
-                *id,
-                procedure,
-                ctx.ir_module.parameter_grammar(),
-                ctx.call_sites,
-                ctx.caller_view,
-            )
-        });
-        // Complexity guard (block-count or body-byte half): skip both the
-        // memo and the deep analysis for an oversized body. A flat
-        // generated proc is block-light yet byte-huge, so the byte test is
-        // what catches it.
-        if procedure_is_complexity_guarded(proc, cfg) {
-            let mut unit = FunctionUnit::trivial_guarded(qname, cfg.clone()).with_source_metadata(
-                module_source_metadata_input(ctx.ir_module, ctx.registry),
-                config,
-            );
-            unit.irules_event_body = event_body;
-            procedures.insert(*id, unit.with_body_id(*id));
-            continue;
-        }
-        let body_offset = proc.map_or(0, |p| p.span.start());
-        // Encode the interprocedural seeds into the hashable form the memo
-        // key carries.  The interproc `param_constants` are folded *into*
-        // the key (not a fresh-build escape hatch as before), so a procedure
-        // with caller-uniform literals still engages the memo — its key
-        // simply also distinguishes the seeds, so it rebuilds iff a caller's
-        // literal at that position changes.  `None` means a seed shape we
-        // can't intern (defensive; the current producer only emits string
-        // consts) → build fresh.
-        let encoded_pc = encode_param_constants(param_constants.as_ref());
-        // Keep the seed for the explorer's interprocedural view: it is the
-        // one fact that explains why a condition on a parameter folded —
-        // and, by its absence, that an indirect or cross-file call site
-        // withdrew it.  The non-empty filter keeps the map to procedures
-        // that were actually seeded.
-        retain_procedure_parameter_constants(
-            &mut param_constants_by_proc,
+        let build =
+            match prepare_procedure_build(ctx, id, cfg, config, &mut param_constants_by_proc) {
+                PreparedProcedureBuild::Guarded(id, unit) => {
+                    procedures.insert(id, unit);
+                    continue;
+                }
+                PreparedProcedureBuild::Ready(build) => build,
+            };
+        let ProcedureBuildInfo {
             id,
-            encoded_pc.as_deref(),
-        );
-        // Route through the memo only when (a) a cache is present, (b) the
-        // procedure has a real body, (c) the module context is available,
-        // and (d) the seeds encode into the hashable key form.
-        let has_instance_global_writes = ctx
-            .tainted_global_writes
-            .get(id)
-            .is_some_and(|writes| !writes.is_empty());
-        // The memo request retains the complete module mutation obligations;
-        // a shadow or unknown callback rekeys the lattice rather than borrowing
-        // the untouched-module fold state. Current CFG equality remains an
-        // independent acceptance check after rebasing.
-        // The memo key (`LatticeRequest`) carries the module's analysis
-        // context, whose command-trust snapshot is the whole-module
-        // command-mutation scan — the only place a namespace-local
-        // `proc llength …` shadow is visible — and the memoised build folds
-        // under that snapshot. A module whose trust differs is a different
-        // key, so the memo stays on for it (#2164).
-        let memoised = match (
-            cache.as_mut(),
+            cfg,
+            params,
             proc,
-            ctx.cfg_context,
+            qname,
+            event_body,
+            param_constants,
+            encoded_pc,
+            body_offset,
+            has_instance_global_writes,
+        } = build;
+        let memoised = memoized_procedure_unit(
+            &mut cache,
+            ProcedureMemoInputs {
+                ctx,
+                id,
+                cfg,
+                proc,
+                params,
+                qname,
+                event_body: event_body.as_ref(),
+                original_request_scope: original_request_scope.as_ref(),
+                memo_config,
+                memo_input: memo_input.as_ref(),
+                body_offset,
+            },
             encoded_pc,
             has_instance_global_writes,
-            ctx.ir_module.source.try_text().ok(),
-        ) {
-            (
-                Some(memo),
-                Some(proc),
-                Some((
-                    upvar_procs,
-                    proc_params,
-                    global_write_procs,
-                    command_bindings,
-                    procedure_summary_owners,
-                )),
-                Some(encoded_pc),
-                false,
-                Some(source),
-            ) => {
-                // Normalise the body to offset 0 so a shifted-but-unchanged
-                // procedure produces an identical request (memo hit).
-                let mut body = proc.body.clone();
-                crate::lattice_rebase::rebase_script(&mut body, -i64::from(body_offset));
-                let mut request = LatticeRequest {
-                    original_worker_request: None,
-                    module: ctx.ir_module,
-                    body_id: *id,
-                    qname,
-                    body: &body,
-                    source,
-                    original_body_offset: body_offset,
-                    executable_body_offset: proc.body_offset,
-                    body_source: proc.body_source.as_deref(),
-                    irules_event_body: event_body.as_ref(),
-                    command_trust: ctx.command_trust,
-                    params,
-                    upvar_procs,
-                    proc_params,
-                    global_write_procs,
-                    command_bindings,
-                    procedure_summary_owners,
-                    source_metadata_input: memo_input.as_ref(),
-                    lexer_config: memo_config,
-                    dialect: ctx.dialect,
-                    plain_command_dispatch: ctx.ir_module.plain_command_dispatch,
-                    param_constants: &encoded_pc,
-                    known_classes: ctx.known_classes,
-                    traced_variables: ctx.traced_variable_names,
-                    analysis_context: ctx.analysis_context,
-                    has_dynamic_variable_trace: ctx.ir_module.has_dynamic_variable_trace,
-                };
-                let original_request = original_lattice_worker::OriginalLatticeRequestSeal::capture(
-                    &request,
-                    original_request_scope
-                        .as_ref()
-                        .expect("actual memo context"),
-                    ctx.registry,
-                );
-                request.original_worker_request = Some(&original_request);
-                let mut fu = memo(&request);
-                fu.original_lattice_callback_admission = Some(
-                    LatticeRequest::accepts_original_worker_result(&request, &fu, ctx.registry),
-                );
-                // Rebase the offset-0 memo result to the procedure's real
-                // position so every consumer sees **absolute** spans without
-                // needing offset-awareness — robust against new/upstream
-                // diagnostic & optimiser passes that read `fu.cfg` spans
-                // directly (`base_offset` stays 0; `abs_span` is identity).
-                crate::lattice_rebase::rebase_function_unit(&mut fu, i64::from(body_offset));
-                // Source-order entry states can change this procedure's CFG
-                // without changing the closed module state in the memo key.
-                // Reuse only a unit built under the exact current CFG; the
-                // ordinary fresh path carries any missing timeline effects.
-                let matches = fu.cfg == *cfg;
-                #[cfg(debug_assertions)]
-                if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_FUNCTION_LATTICE").is_some() {
-                    eprintln!(
-                        "ORIGINAL_FUNCTION_LATTICE_ACCEPT qname={qname} event={} cfg_matches={matches}",
-                        event_body.is_some()
-                    );
-                }
-                (matches && !fu.sccp.reads_module).then_some(fu)
-            }
-            _ => None,
-        };
+        );
         let mut fu = memoised.unwrap_or_else(|| {
             FunctionUnit::build_procedure_in_module(
                 (
@@ -3332,6 +3621,516 @@ fn build_procedure_units(
 struct BuiltProcedureUnits {
     procedures: HashMap<crate::ir::ProcedureId, FunctionUnit>,
     param_constants_by_proc: BTreeMap<crate::ir::ProcedureId, Vec<(String, u32, String)>>,
+}
+
+struct RetainedLoweredSource {
+    ir_module: IrModule,
+    cfg_module: CfgModule,
+    tainted_global_writes: HashMap<crate::ir::ProcedureId, HashSet<String>>,
+    prepared_cfg_context: PreparedCfgContext,
+    integrity: std::cell::Cell<bool>,
+}
+
+struct RetainedLoweringInput<'a, 'b> {
+    source: &'a str,
+    options: UnitBuildOptions<'b>,
+    body_caches: OriginalBodyCacheInputs<'b>,
+    entry: Option<&'b crate::command_binding::SourceAnalysisEntry>,
+    context: Option<std::sync::Arc<tcl_registry::model::ContextRegistry>>,
+    input: Option<&'b crate::analyser::ResolvedAnalysisInput>,
+    source_body_cache: Option<&'b crate::lowering::SourceBodySyntaxCache<'b>>,
+    standalone: Option<crate::lowering::StandaloneSourceInput<'b>>,
+}
+
+fn lower_retained_source(
+    request: RetainedLoweringInput<'_, '_>,
+    #[cfg(any(test, debug_assertions))] phase_trace: &mut SourcePipelineTrace,
+) -> RetainedLoweredSource {
+    let RetainedLoweringInput {
+        source,
+        options,
+        body_caches,
+        entry,
+        context,
+        input,
+        source_body_cache,
+        standalone,
+    } = request;
+    let integrity = std::cell::Cell::new(true);
+    let (ir_module, cfg_module, tainted_global_writes, prepared_cfg_context) =
+        lower_and_build_cfg_with_original_caches(
+            source,
+            options,
+            OriginalLoweringCaches {
+                legacy: body_caches.legacy,
+                source: source_body_cache,
+                original: body_caches.original,
+                integrity: &integrity,
+            },
+            entry,
+            context,
+            input,
+            standalone,
+        );
+    #[cfg(any(test, debug_assertions))]
+    {
+        phase_trace.procedures = ir_module.procedures.len();
+        phase_trace.phase("lower-and-cfg");
+    }
+    RetainedLoweredSource {
+        ir_module,
+        cfg_module,
+        tainted_global_writes,
+        prepared_cfg_context,
+        integrity,
+    }
+}
+
+struct RetainedModuleFacts<'a> {
+    command_mutations: crate::command_binding::ModuleCommandMutations,
+    proc_binding_trust: crate::command_binding::ProcBindingTrustProjection,
+    analysis_context: crate::value_transfer::AnalysisContextKey,
+    cfg_context: Option<&'a CfgContext>,
+    call_site_constants: crate::unit_scope::CallSiteEvidence,
+    linkage: tcl_registry::Traits,
+    extra_callers: Vec<crate::unit_scope::ExtraCallSiteScanContext>,
+    has_cross_file_evidence: bool,
+    tainted_global_writes: HashMap<crate::ir::ProcedureId, HashSet<String>>,
+    module_wide: ModuleWideFacts,
+    trace_facts: ModuleTraceFacts<'a>,
+}
+
+struct RetainedModuleFactsInput<'a, 'b> {
+    source: &'a str,
+    options: UnitBuildOptions<'b>,
+    ir_module: &'a IrModule,
+    cfg_module: &'a CfgModule,
+    tainted_global_writes: HashMap<crate::ir::ProcedureId, HashSet<String>>,
+    prepared_cfg_context: &'a PreparedCfgContext,
+    cache_available: bool,
+}
+
+fn retained_module_facts<'a>(
+    input: RetainedModuleFactsInput<'a, '_>,
+    #[cfg(any(test, debug_assertions))] phase_trace: &mut SourcePipelineTrace,
+) -> RetainedModuleFacts<'a> {
+    let RetainedModuleFactsInput {
+        source,
+        options,
+        ir_module,
+        cfg_module,
+        tainted_global_writes,
+        prepared_cfg_context,
+        cache_available,
+    } = input;
+    let registry = options.registry;
+    let (command_mutations, proc_binding_trust) =
+        prepared_command_trust(ir_module, registry, prepared_cfg_context);
+    let analysis_context =
+        crate::value_transfer::AnalysisContextKey::for_module(&command_mutations, registry)
+            .with_connection_scoped(connection_scoped_names(
+                ir_module, cfg_module, registry, options,
+            ))
+            .with_deferred_writes(ir_module.deferred_writes.clone());
+    let cfg_context = (cache_available
+        || crate::unit_scope::needs_extra_call_site_scan_contexts(ir_module))
+    .then_some(prepared_cfg_context);
+    #[cfg(any(test, debug_assertions))]
+    phase_trace.phase("module-context");
+    let (call_site_constants, linkage, extra_callers) =
+        resolve_unit_scope(ir_module, cfg_module, cfg_context, options);
+    #[cfg(any(test, debug_assertions))]
+    phase_trace.phase("unit-scope");
+    let has_cross_file_evidence = options.external_call_sites.is_some();
+    let module_wide = ModuleWideFacts::collect(source, ir_module, registry);
+    let trace_facts = ModuleTraceFacts::of(ir_module);
+    #[cfg(any(test, debug_assertions))]
+    phase_trace.phase("module-facts");
+    RetainedModuleFacts {
+        command_mutations,
+        proc_binding_trust,
+        analysis_context,
+        cfg_context,
+        call_site_constants,
+        linkage,
+        extra_callers,
+        has_cross_file_evidence,
+        tainted_global_writes,
+        module_wide,
+        trace_facts,
+    }
+}
+
+struct RetainedBodyUnits {
+    methods: HashMap<crate::ir::ProcedureId, FunctionUnit>,
+    source_body_cfgs: HashMap<crate::ir::ProcedureId, CfgFunction>,
+    body_units: HashMap<crate::ir::ProcedureId, FunctionUnit>,
+}
+
+fn build_retained_body_units(
+    ir_module: &IrModule,
+    extra_callers: &[crate::unit_scope::ExtraCallSiteScanContext],
+    context: BodyUnitContext<'_>,
+    mut cache: Option<&mut ProcLatticeCache<'_>>,
+    memo_context: DeclaredBodyMemoContext<'_>,
+) -> RetainedBodyUnits {
+    let methods = CompilationUnit::build_method_units(ir_module, extra_callers, context);
+    let source_body_cfgs = ir_module
+        .body_units
+        .iter()
+        .filter_map(|(id, _)| {
+            extra_callers
+                .iter()
+                .find_map(|caller| caller.body_analysis_cfg(*id))
+                .map(|cfg| (*id, cfg.clone()))
+        })
+        .collect();
+    let body_units = CompilationUnit::build_body_units(
+        ir_module,
+        extra_callers,
+        context,
+        cache.as_deref_mut(),
+        memo_context,
+    );
+    RetainedBodyUnits {
+        methods,
+        source_body_cfgs,
+        body_units,
+    }
+}
+
+struct RetainedProcedureBuildInputs<'borrow, 'module, 'registry> {
+    ir_module: &'module IrModule,
+    cfg_module: &'module CfgModule,
+    facts: &'borrow RetainedModuleFacts<'module>,
+    module_procedures: &'borrow crate::interprocedural::ModuleProcedures<'module>,
+    registry: &'registry CommandRegistry,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
+    config: tcl_lexer::LexerConfig,
+}
+
+fn build_top_level_and_procedures(
+    input: RetainedProcedureBuildInputs<'_, '_, '_>,
+    mut cache: Option<&mut ProcLatticeCache<'_>>,
+    #[cfg(any(test, debug_assertions))] phase_trace: &mut SourcePipelineTrace,
+) -> (FunctionUnit, BuiltProcedureUnits) {
+    let RetainedProcedureBuildInputs {
+        ir_module,
+        cfg_module,
+        facts,
+        module_procedures,
+        registry,
+        dialect,
+        config,
+    } = input;
+    let ModuleWideFacts {
+        known_class_set,
+        known_classes,
+        top_level_extra_escaping,
+        traced_variable_names,
+        ..
+    } = &facts.module_wide;
+    let top_level = FunctionUnit::build_top_level(
+        cfg_module.top_level.clone(),
+        UnitDialect {
+            registry,
+            config,
+            source_metadata_input: module_source_metadata_input(ir_module, registry),
+        },
+        known_class_set,
+        top_level_extra_escaping,
+        facts.trace_facts,
+        &facts.command_mutations,
+        Some(module_procedures),
+    )
+    .with_retained_semantic_analysis(
+        registry,
+        Some(&ir_module.top_level),
+        crate::dispatch_proof::DispatchEntryAssumption::PristineRegistryWorld,
+    );
+    #[cfg(any(test, debug_assertions))]
+    phase_trace.phase("top-level-lattice");
+    let caller_view = crate::unit_scope::UnitCallerView {
+        linkage: facts.linkage,
+        has_cross_file_evidence: facts.has_cross_file_evidence,
+        proc_binding_trust: &facts.proc_binding_trust,
+        source: ir_module.source.try_text().ok(),
+    };
+    let built = build_procedure_units(
+        &ProcedureBuildContext {
+            ir_module,
+            cfg_module,
+            cfg_context: facts.cfg_context.map(|prepared| &prepared.context),
+            registry,
+            dialect,
+            call_sites: &facts.call_site_constants,
+            caller_view: &caller_view,
+            known_class_set,
+            known_classes,
+            traced_variable_names,
+            trace_facts: facts.trace_facts,
+            analysis_context: &facts.analysis_context,
+            command_trust: &facts.command_mutations,
+            tainted_global_writes: &facts.tainted_global_writes,
+            procedures: Some(module_procedures),
+        },
+        cache.as_deref_mut(),
+        config,
+    );
+    #[cfg(any(test, debug_assertions))]
+    phase_trace.phase("procedure-lattices");
+    (top_level, built)
+}
+
+struct RetainedUnitAssembly<'a> {
+    source: &'a str,
+    ir_module: IrModule,
+    cfg_module: CfgModule,
+    command_mutations: crate::command_binding::ModuleCommandMutations,
+    source_class_facts: Option<Arc<RetainedSourceClassFacts>>,
+    top_level: FunctionUnit,
+    procedures: HashMap<crate::ir::ProcedureId, FunctionUnit>,
+    methods: HashMap<crate::ir::ProcedureId, FunctionUnit>,
+    body_units: HashMap<crate::ir::ProcedureId, FunctionUnit>,
+    source_body_cfgs: HashMap<crate::ir::ProcedureId, CfgFunction>,
+    connection_scope: Option<crate::connection_scope::ConnectionScope>,
+    caller_scope: UnitCallerScope,
+    declared_commands: tcl_registry::model::DeclaredSurface,
+    transfers: crate::interprocedural::TransferSummaries,
+    analysis_context: &'a crate::value_transfer::AnalysisContextKey,
+    options: UnitBuildOptions<'a>,
+    original_source_ingress: optimiser_source_owner::OriginalSourceBuildIngress,
+    lowering_integrity: std::cell::Cell<bool>,
+}
+
+fn assemble_retained_unit(input: RetainedUnitAssembly<'_>) -> CompilationUnit {
+    let mut unit = CompilationUnit {
+        optimiser_source_owner: None,
+        source: input.source.to_owned(),
+        ir_module: input.ir_module,
+        cfg_module: input.cfg_module,
+        command_mutations: input.command_mutations,
+        source_class_facts: input.source_class_facts,
+        top_level: input.top_level,
+        procedures: input.procedures,
+        methods: input.methods,
+        body_units: input.body_units,
+        carried_installed_lowerings: HashMap::new(),
+        source_body_cfgs: input.source_body_cfgs,
+        interproc: None,
+        connection_scope: input.connection_scope,
+        caller_scope: input.caller_scope,
+        declared_commands: input.declared_commands,
+        transfers: input.transfers,
+    };
+    crate::body_analysis_capsule::carry_readonly_authored_lowerings(
+        &mut unit,
+        input.options.registry,
+    );
+    if input.lowering_integrity.get() && unit.original_lattice_callbacks_are_current() {
+        unit.retain_original_optimiser_source_origin(
+            input.options,
+            input.analysis_context,
+            input.original_source_ingress,
+        );
+    }
+    unit
+}
+
+struct RetainedAnalysisStage<'a> {
+    facts: RetainedModuleFacts<'a>,
+    top_level: FunctionUnit,
+    procedures: HashMap<crate::ir::ProcedureId, FunctionUnit>,
+    param_constants_by_proc: BTreeMap<crate::ir::ProcedureId, Vec<(String, u32, String)>>,
+    transfers: crate::interprocedural::TransferSummaries,
+}
+
+struct RetainedPostAnalysisInput<'a, 'b, 'borrow, 'callback> {
+    ir_module: &'a IrModule,
+    facts: RetainedModuleFacts<'a>,
+    top_level: FunctionUnit,
+    procedures: HashMap<crate::ir::ProcedureId, FunctionUnit>,
+    param_constants_by_proc: BTreeMap<crate::ir::ProcedureId, Vec<(String, u32, String)>>,
+    transfers: crate::interprocedural::TransferSummaries,
+    options: UnitBuildOptions<'b>,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
+    cache: Option<&'borrow mut ProcLatticeCache<'callback>>,
+}
+
+struct RetainedPostAnalysis {
+    command_mutations: crate::command_binding::ModuleCommandMutations,
+    proc_binding_trust: crate::command_binding::ProcBindingTrustProjection,
+    analysis_context: crate::value_transfer::AnalysisContextKey,
+    call_site_constants: crate::unit_scope::CallSiteEvidence,
+    linkage: tcl_registry::Traits,
+    has_cross_file_evidence: bool,
+    extra_callers: Vec<crate::unit_scope::ExtraCallSiteScanContext>,
+    module_wide: ModuleWideFacts,
+    tainted_global_writes: HashMap<crate::ir::ProcedureId, HashSet<String>>,
+    top_level: FunctionUnit,
+    procedures: HashMap<crate::ir::ProcedureId, FunctionUnit>,
+    methods: HashMap<crate::ir::ProcedureId, FunctionUnit>,
+    body_units: HashMap<crate::ir::ProcedureId, FunctionUnit>,
+    source_body_cfgs: HashMap<crate::ir::ProcedureId, CfgFunction>,
+    connection_scope: Option<crate::connection_scope::ConnectionScope>,
+    param_constants_by_proc: BTreeMap<crate::ir::ProcedureId, Vec<(String, u32, String)>>,
+    transfers: crate::interprocedural::TransferSummaries,
+}
+
+fn build_retained_post_analysis(
+    input: RetainedPostAnalysisInput<'_, '_, '_, '_>,
+    #[cfg(any(test, debug_assertions))] phase_trace: &mut SourcePipelineTrace,
+) -> RetainedPostAnalysis {
+    let RetainedPostAnalysisInput {
+        ir_module,
+        facts,
+        top_level,
+        procedures,
+        param_constants_by_proc,
+        transfers,
+        options,
+        dialect,
+        mut cache,
+    } = input;
+    let mut procedures = procedures;
+    let RetainedModuleFacts {
+        command_mutations,
+        proc_binding_trust,
+        analysis_context,
+        cfg_context,
+        call_site_constants,
+        linkage,
+        extra_callers,
+        has_cross_file_evidence,
+        module_wide,
+        tainted_global_writes,
+        trace_facts,
+        ..
+    } = facts;
+    let body_unit_context = BodyUnitContext {
+        registry: options.registry,
+        known_class_set: &module_wide.known_class_set,
+        trace_facts,
+        command_trust: &command_mutations,
+        config: options.config,
+    };
+    let RetainedBodyUnits {
+        methods,
+        source_body_cfgs,
+        body_units,
+    } = build_retained_body_units(
+        ir_module,
+        &extra_callers,
+        body_unit_context,
+        cache.as_deref_mut(),
+        DeclaredBodyMemoContext {
+            prepared: cfg_context.map(|prepared| &prepared.context),
+            dialect,
+            known_classes: &module_wide.known_classes,
+            traced_variables: &module_wide.traced_variable_names,
+            analysis_context: &analysis_context,
+        },
+    );
+    #[cfg(any(test, debug_assertions))]
+    phase_trace.phase("method-and-body-lattices");
+    let connection_scope =
+        CompilationUnit::build_connection_scope(&procedures, options.registry, ir_module);
+    CompilationUnit::drop_cross_event_existence_folds(
+        &mut procedures,
+        connection_scope.as_ref(),
+        options.registry,
+    );
+    #[cfg(any(test, debug_assertions))]
+    phase_trace.phase("connection-scope");
+    RetainedPostAnalysis {
+        command_mutations,
+        proc_binding_trust,
+        analysis_context,
+        call_site_constants,
+        linkage,
+        has_cross_file_evidence,
+        extra_callers,
+        module_wide,
+        tainted_global_writes,
+        top_level,
+        procedures,
+        methods,
+        body_units,
+        source_body_cfgs,
+        connection_scope,
+        param_constants_by_proc,
+        transfers,
+    }
+}
+
+struct RetainedAnalysisStageInput<'a, 'b, 'borrow, 'callback> {
+    source: &'a str,
+    options: UnitBuildOptions<'b>,
+    ir_module: &'a IrModule,
+    cfg_module: &'a CfgModule,
+    tainted_global_writes: HashMap<crate::ir::ProcedureId, HashSet<String>>,
+    prepared_cfg_context: &'a PreparedCfgContext,
+    cache: Option<&'borrow mut ProcLatticeCache<'callback>>,
+}
+
+fn build_retained_analysis_stage<'a>(
+    input: RetainedAnalysisStageInput<'a, '_, '_, '_>,
+    #[cfg(any(test, debug_assertions))] phase_trace: &mut SourcePipelineTrace,
+) -> RetainedAnalysisStage<'a> {
+    let RetainedAnalysisStageInput {
+        source,
+        options,
+        ir_module,
+        cfg_module,
+        tainted_global_writes,
+        prepared_cfg_context,
+        mut cache,
+    } = input;
+    let facts = retained_module_facts(
+        RetainedModuleFactsInput {
+            source,
+            options,
+            ir_module,
+            cfg_module,
+            tainted_global_writes,
+            prepared_cfg_context,
+            cache_available: cache.is_some(),
+        },
+        #[cfg(any(test, debug_assertions))]
+        phase_trace,
+    );
+    let module_procedures = module_procedures(
+        (ir_module, cfg_module, prepared_cfg_context),
+        (&facts.command_mutations, &facts.proc_binding_trust),
+        &facts.analysis_context,
+        (options.registry, options.config),
+    );
+    #[cfg(any(test, debug_assertions))]
+    phase_trace.phase("procedure-transfers");
+    let (top_level, built) = build_top_level_and_procedures(
+        RetainedProcedureBuildInputs {
+            ir_module,
+            cfg_module,
+            facts: &facts,
+            module_procedures: &module_procedures,
+            registry: options.registry,
+            dialect: options.dialect,
+            config: options.config,
+        },
+        cache.as_deref_mut(),
+        #[cfg(any(test, debug_assertions))]
+        phase_trace,
+    );
+    let procedures = built.procedures;
+    let param_constants_by_proc = built.param_constants_by_proc;
+    let transfers = module_procedures.into_summaries();
+    RetainedAnalysisStage {
+        facts,
+        top_level,
+        procedures,
+        param_constants_by_proc,
+        transfers,
+    }
 }
 
 impl CompilationUnit {
@@ -3874,11 +4673,6 @@ impl CompilationUnit {
         // Optional callback/cache outputs need their own authentic analysis
         // receipts before this source-action producer can reborrow them.
         // Report construction and all existing analysis remain unchanged.
-        let OriginalBodyCacheInputs {
-            legacy: body_cache,
-            original: original_body_cache,
-        } = body_caches;
-        let lowering_integrity = std::cell::Cell::new(true);
         let original_source_ingress = if standalone.is_some() {
             optimiser_source_owner::OriginalSourceBuildIngress::ExplicitStandalone
         } else if entry.is_none() && context.is_none() && input.is_none() {
@@ -3894,209 +4688,87 @@ impl CompilationUnit {
         let mut phase_trace = SourcePipelineTrace::new("unit", source.len());
         #[cfg(any(test, debug_assertions))]
         phase_trace.phase("initial");
-        let (ir_module, cfg_module, tainted_global_writes, prepared_cfg_context) =
-            lower_and_build_cfg_with_original_caches(
+        let lowered = lower_retained_source(
+            RetainedLoweringInput {
                 source,
                 options,
-                OriginalLoweringCaches {
-                    legacy: body_cache,
-                    source: source_body_cache,
-                    original: original_body_cache,
-                    integrity: &lowering_integrity,
-                },
+                body_caches,
                 entry,
                 context,
                 input,
+                source_body_cache,
                 standalone,
-            );
-        #[cfg(any(test, debug_assertions))]
-        {
-            phase_trace.procedures = ir_module.procedures.len();
-            phase_trace.phase("lower-and-cfg");
-        }
-        let (command_mutations, proc_binding_trust) =
-            prepared_command_trust(&ir_module, registry, &prepared_cfg_context);
-        // The module's analysis context: one value every per-procedure
-        // lattice in this build — memoised or not — is keyed and run under.
-        // The names an iRules handler may find bound on entry ride on it,
-        // so a handler's memoised lattice re-keys when another handler binds
-        // a new name, and every lattice when a callback script of the module
-        // writes one.
-        let analysis_context =
-            crate::value_transfer::AnalysisContextKey::for_module(&command_mutations, registry)
-                .with_connection_scoped(connection_scoped_names(
-                    &ir_module,
-                    &cfg_module,
-                    registry,
-                    options,
-                ))
-                .with_deferred_writes(ir_module.deferred_writes.clone());
-        // Module-wide upvar/param context — the CFG-determining context a
-        // procedure body is rebuilt under.  Computed once and shared by every
-        // memoised request, the methods/body-units below, and the call-site
-        // scan's extra caller contexts, so the offset-0 CFG the memo rebuilds
-        // is identical to this whole-module build's.  Only needed on the
-        // memoised path or when the call-site scan has extra caller contexts
-        // to build (methods, body units, `uplevel #0` bodies).
-        let cfg_context = (cache.is_some()
-            || crate::unit_scope::needs_extra_call_site_scan_contexts(&ir_module))
-        .then_some(&prepared_cfg_context);
-        #[cfg(any(test, debug_assertions))]
-        phase_trace.phase("module-context");
-        let (call_site_constants, linkage, extra_callers) =
-            resolve_unit_scope(&ir_module, &cfg_module, cfg_context, options);
-        #[cfg(any(test, debug_assertions))]
-        phase_trace.phase("unit-scope");
-        let has_cross_file_evidence = options.external_call_sites.is_some();
-        let ModuleWideFacts {
-            known_class_set,
-            source_class_facts,
-            known_classes,
-            top_level_extra_escaping,
-            traced_variable_names,
-        } = ModuleWideFacts::collect(source, &ir_module, registry);
-        // Whole-module variable-trace fact — computed once by lowering
-        // and stored on `ir_module`, so every per-function build below is a
-        // cheap reference pass-through, not a recomputation.
-        let trace_facts = ModuleTraceFacts::of(&ir_module);
-        // The module's procedures, each with its transfer summary: what a
-        // lattice reading another procedure reads.
-        #[cfg(any(test, debug_assertions))]
-        phase_trace.phase("module-facts");
-        let module_procedures = module_procedures(
-            (&ir_module, &cfg_module, &prepared_cfg_context),
-            (&command_mutations, &proc_binding_trust),
-            &analysis_context,
-            (registry, options.config),
-        );
-        #[cfg(any(test, debug_assertions))]
-        phase_trace.phase("procedure-transfers");
-        let top_level = FunctionUnit::build_top_level(
-            cfg_module.top_level.clone(),
-            UnitDialect {
-                registry,
-                config: options.config,
-                source_metadata_input: module_source_metadata_input(&ir_module, registry),
             },
-            &known_class_set,
-            &top_level_extra_escaping,
-            trace_facts,
-            &command_mutations,
-            Some(&module_procedures),
-        )
-        .with_retained_semantic_analysis(
-            registry,
-            Some(&ir_module.top_level),
-            crate::dispatch_proof::DispatchEntryAssumption::PristineRegistryWorld,
+            #[cfg(any(test, debug_assertions))]
+            &mut phase_trace,
         );
-        #[cfg(any(test, debug_assertions))]
-        phase_trace.phase("top-level-lattice");
-        let caller_view = crate::unit_scope::UnitCallerView {
-            linkage,
-            has_cross_file_evidence,
-            proc_binding_trust: &proc_binding_trust,
-            source: ir_module.source.try_text().ok(),
-        };
-        let built = build_procedure_units(
-            &ProcedureBuildContext {
-                ir_module: &ir_module,
-                cfg_module: &cfg_module,
-                cfg_context: cfg_context.map(|prepared| &prepared.context),
-                registry,
-                dialect,
-                call_sites: &call_site_constants,
-                caller_view: &caller_view,
-                known_class_set: &known_class_set,
-                known_classes: &known_classes,
-                traced_variable_names: &traced_variable_names,
-                trace_facts,
-                analysis_context: &analysis_context,
-                command_trust: &command_mutations,
-                tainted_global_writes: &tainted_global_writes,
-                procedures: Some(&module_procedures),
-            },
-            cache.as_deref_mut(),
-            options.config,
-        );
-        #[cfg(any(test, debug_assertions))]
-        phase_trace.phase("procedure-lattices");
-        let mut procedures = built.procedures;
-        let transfers = module_procedures.into_summaries();
-        let body_unit_context = BodyUnitContext {
-            registry,
-            known_class_set: &known_class_set,
-            trace_facts,
-            command_trust: &command_mutations,
-            config: options.config,
-        };
-        let methods = Self::build_method_units(&ir_module, &extra_callers, body_unit_context);
-        let source_body_cfgs = ir_module
-            .body_units
-            .iter()
-            .filter_map(|(id, _)| {
-                extra_callers
-                    .iter()
-                    .find_map(|caller| caller.body_analysis_cfg(*id))
-                    .map(|cfg| (*id, cfg.clone()))
-            })
-            .collect();
-        let body_units = Self::build_body_units(
-            &ir_module,
-            &extra_callers,
-            body_unit_context,
-            cache,
-            DeclaredBodyMemoContext {
-                prepared: cfg_context.map(|prepared| &prepared.context),
-                dialect,
-                known_classes: &known_classes,
-                traced_variables: &traced_variable_names,
-                analysis_context: &analysis_context,
-            },
-        );
-        #[cfg(any(test, debug_assertions))]
-        phase_trace.phase("method-and-body-lattices");
-        let connection_scope = Self::build_connection_scope(&procedures, registry, &ir_module);
-        Self::drop_cross_event_existence_folds(
-            &mut procedures,
-            connection_scope.as_ref(),
-            registry,
-        );
-        #[cfg(any(test, debug_assertions))]
-        phase_trace.phase("connection-scope");
-        let mut unit = Self {
-            optimiser_source_owner: None,
-            source: source.to_owned(),
+        let RetainedLoweredSource {
             ir_module,
             cfg_module,
-            command_mutations,
-            source_class_facts,
+            tainted_global_writes,
+            prepared_cfg_context,
+            integrity,
+        } = lowered;
+        let RetainedAnalysisStage {
+            facts,
             top_level,
             procedures,
-            methods,
-            body_units,
-            carried_installed_lowerings: HashMap::new(),
-            source_body_cfgs,
-            interproc: None,
-            connection_scope,
+            param_constants_by_proc,
+            transfers,
+        } = build_retained_analysis_stage(
+            RetainedAnalysisStageInput {
+                source,
+                options,
+                ir_module: &ir_module,
+                cfg_module: &cfg_module,
+                tainted_global_writes,
+                prepared_cfg_context: &prepared_cfg_context,
+                cache: cache.as_deref_mut(),
+            },
+            #[cfg(any(test, debug_assertions))]
+            &mut phase_trace,
+        );
+        let post = build_retained_post_analysis(
+            RetainedPostAnalysisInput {
+                ir_module: &ir_module,
+                facts,
+                top_level,
+                procedures,
+                param_constants_by_proc,
+                transfers,
+                options,
+                dialect,
+                cache: cache.as_deref_mut(),
+            },
+            #[cfg(any(test, debug_assertions))]
+            &mut phase_trace,
+        );
+        assemble_retained_unit(RetainedUnitAssembly {
+            source,
+            ir_module,
+            cfg_module,
+            command_mutations: post.command_mutations,
+            source_class_facts: post.module_wide.source_class_facts,
+            top_level: post.top_level,
+            procedures: post.procedures,
+            methods: post.methods,
+            body_units: post.body_units,
+            source_body_cfgs: post.source_body_cfgs,
+            connection_scope: post.connection_scope,
             caller_scope: UnitCallerScope {
-                linkage,
-                has_cross_file_evidence,
-                call_sites: call_site_constants,
-                param_constants_by_proc: built.param_constants_by_proc,
-                proc_binding_trust,
+                linkage: post.linkage,
+                has_cross_file_evidence: post.has_cross_file_evidence,
+                call_sites: post.call_site_constants,
+                param_constants_by_proc: post.param_constants_by_proc,
+                proc_binding_trust: post.proc_binding_trust,
             },
             declared_commands: options.declared_commands.cloned().unwrap_or_default(),
-            transfers,
-        };
-        crate::body_analysis_capsule::carry_readonly_authored_lowerings(&mut unit, registry);
-        if lowering_integrity.get() && unit.original_lattice_callbacks_are_current() {
-            unit.retain_original_optimiser_source_origin(
-                options,
-                &analysis_context,
-                original_source_ingress,
-            );
-        }
-        unit
+            transfers: post.transfers,
+            analysis_context: &post.analysis_context,
+            options,
+            original_source_ingress,
+            lowering_integrity: integrity,
+        })
     }
 
     /// Lower `TclOO` method bodies (populated in `ir_module.methods` by
@@ -4243,6 +4915,7 @@ impl CompilationUnit {
         mut cache: Option<&mut ProcLatticeCache<'_>>,
         memo_context: DeclaredBodyMemoContext<'_>,
     ) -> HashMap<crate::ir::ProcedureId, FunctionUnit> {
+        let body_context = ctx;
         let BodyUnitContext {
             registry,
             known_class_set,
@@ -4253,9 +4926,7 @@ impl CompilationUnit {
         if ir_module.body_units.is_empty() {
             return HashMap::new();
         }
-        let original_request_scope = cache.as_ref().and(memo_context.prepared).map(|context| {
-            original_lattice_worker::OriginalLatticeRequestScope::capture(ir_module, context)
-        });
+        let original_request_scope = body_unit_request_scope(ir_module, &cache, memo_context);
         let no_extra_escaping = HashSet::new();
         ir_module
             .body_units
@@ -4271,132 +4942,24 @@ impl CompilationUnit {
                 // generated lambda body contributes trivial lattices instead of
                 // a deep (and slow) analysis.
                 let body_bytes = proc.span.end().saturating_sub(proc.span.start()) as usize;
-                let original_declaration_body =
-                    (ir_module.original_declaration_body_units.contains_key(id)
-                        || ir_module
-                            .original_native_declaration_body_units
-                            .contains_key(id)
-                        || ir_module
-                            .original_logical_declaration_body_units
-                            .contains_key(id)
-                        || ir_module
-                            .original_hosted_declaration_body_units
-                            .contains_key(id)
-                        || ir_module
-                            .original_authored_declaration_body_units
-                            .contains_key(id))
-                        && ir_module
-                            .original_source_procedure_bodies()
-                            .any(|(owned, _)| owned == id);
-                let declaration_body = original_declaration_body
-                    || ir_module.installed_procedure_body_units.contains_key(id);
-                let mut entry_context = if original_declaration_body {
-                    conditional_function_source_entry(
-                        &cfg,
-                        module_source_metadata_input(ir_module, registry),
-                    )
-                } else if declaration_body {
-                    if let Some(namespace) = proc.body.namespace_context.as_deref() {
-                        // This is the original declaration's analytical local
-                        // frame, not an actual invocation of this internal unit.
-                        let frame = crate::var_resolve::VariableExecutionFrame::Procedure {
-                            namespace: namespace.display().unwrap_or_default(),
-                            identity: id.reporting_key(),
-                        }
-                        .with_namespace_identity(namespace.clone());
-                        crate::var_resolve::ResolveContext::default().in_frame(&frame)
-                    } else {
-                        crate::var_resolve::ResolveContext::default()
-                            .in_frame(&crate::var_resolve::VariableExecutionFrame::Unknown)
-                    }
-                } else if let Some(namespace) = proc.body.namespace_context.as_deref() {
-                    let frame = if ir_module.lambda_body_units.contains(id) {
-                        crate::var_resolve::VariableExecutionFrame::Procedure {
-                            namespace: namespace.display().unwrap_or_default(),
-                            identity: id.reporting_key(),
-                        }
-                    } else {
-                        crate::var_resolve::VariableExecutionFrame::NamespaceActivation {
-                            namespace: namespace.display().unwrap_or_default(),
-                            identity: id.reporting_key(),
-                        }
-                    }
-                    .with_namespace_identity(namespace.clone());
-                    crate::var_resolve::ResolveContext::default().in_frame(&frame)
-                } else {
-                    crate::var_resolve::ResolveContext::default()
-                        .in_frame(&crate::var_resolve::VariableExecutionFrame::Unknown)
-                };
-                entry_context.namespace_cells.closed = false;
-                let memoised = (body_bytes <= crate::ssa::DEEP_ANALYSIS_BODY_BYTES
-                    && original_declaration_body)
-                    .then(|| {
-                        let memo = cache.as_mut()?;
-                        let (
-                            upvar_procs,
-                            proc_params,
-                            global_write_procs,
-                            command_bindings,
-                            procedure_summary_owners,
-                        ) = memo_context.prepared?;
-                        let source = ir_module.source.try_text().ok()?;
-                        let memo_config = config.nested().normalized();
-                        let memo_input = module_source_metadata_input(ir_module, registry)
-                            .map(crate::analyser::ResolvedAnalysisInput::for_nested_source);
-                        let mut body = proc.body.clone();
-                        crate::lattice_rebase::rebase_script(
-                            &mut body,
-                            -i64::from(proc.span.start()),
-                        );
-                        let mut request = LatticeRequest {
-                            original_worker_request: None,
-                            module: ir_module,
-                            body_id: *id,
-                            qname,
-                            body: &body,
-                            source,
-                            original_body_offset: proc.span.start(),
-                            executable_body_offset: proc.body_offset,
-                            body_source: proc.body_source.as_deref(),
-                            irules_event_body: None,
-                            command_trust,
-                            params: &proc.params,
-                            upvar_procs,
-                            proc_params,
-                            global_write_procs,
-                            command_bindings,
-                            procedure_summary_owners,
-                            source_metadata_input: memo_input.as_ref(),
-                            lexer_config: memo_config,
-                            dialect: memo_context.dialect,
-                            plain_command_dispatch: ir_module.plain_command_dispatch,
-                            param_constants: &[],
-                            known_classes: memo_context.known_classes,
-                            traced_variables: memo_context.traced_variables,
-                            analysis_context: memo_context.analysis_context,
-                            has_dynamic_variable_trace: ir_module.has_dynamic_variable_trace,
-                        };
-                        let original_request =
-                            original_lattice_worker::OriginalLatticeRequestSeal::capture(
-                                &request,
-                                original_request_scope
-                                    .as_ref()
-                                    .expect("actual memo context"),
-                                registry,
-                            );
-                        request.original_worker_request = Some(&original_request);
-                        let mut unit = memo(&request);
-                        unit.original_lattice_callback_admission =
-                            Some(LatticeRequest::accepts_original_worker_result(
-                                &request, &unit, registry,
-                            ));
-                        crate::lattice_rebase::rebase_function_unit(
-                            &mut unit,
-                            i64::from(proc.span.start()),
-                        );
-                        (unit.cfg == cfg && !unit.sccp.reads_module).then_some(unit)
-                    })
-                    .flatten();
+                let (original_declaration_body, declaration_body, mut entry_context) =
+                    body_unit_entry_context(ir_module, registry, id, proc, &cfg);
+                let memoised = memoized_body_unit(
+                    &mut cache,
+                    BodyMemoBuildInputs {
+                        ir_module,
+                        registry,
+                        id,
+                        proc,
+                        cfg: &cfg,
+                        qname,
+                        context: body_context,
+                        memo_context,
+                        original_request_scope: original_request_scope.as_ref(),
+                    },
+                    body_bytes,
+                    original_declaration_body,
+                );
                 let mut fu = memoised
                     .unwrap_or_else(|| {
                         if body_bytes > crate::ssa::DEEP_ANALYSIS_BODY_BYTES {
