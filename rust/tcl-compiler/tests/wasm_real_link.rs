@@ -361,6 +361,19 @@ fn leak_bootstrap_wat() -> String {
     (if (i64.ne (call $residual) (local.get $before)) (then unreachable))
     (if (i64.ne (call $doubles) (i64.const 0)) (then unreachable))
     (if (i32.ne (call $frames) (i32.const 0)) (then unreachable)))
+  ;; Diagnostic-only entry: a fresh instance reports original counter values.
+  ;; The _start assertion sequence above is unchanged and remains the test gate.
+  (func (export "diagnostic_counts") (result i64 i64 i64 i32 i64)
+    (local $interp i32) (local $first i64) (local $second i64)
+    (local.set $interp (call $create))
+    (call $setcur (local.get $interp))
+    (call $top)
+    (local.set $first (call $residual))
+    (call $top)
+    (local.set $second (call $residual))
+    (call $top)
+    (local.get $first) (local.get $second) (call $residual)
+    (call $frames) (call $doubles))
 )"#
     .to_owned()
 }
@@ -548,11 +561,123 @@ fn native_i64_add_bootstrap_wat() -> String {
     )
 }
 
+struct NativeWholeProgramFixture {
+    unit: CompilationUnit,
+    context: std::sync::Arc<tcl_registry::model::ContextRegistry>,
+    _owner: tcl_vm::Vm,
+}
+
+fn native_whole_program_fixture(program: &str) -> NativeWholeProgramFixture {
+    use std::cell::RefCell;
+    use std::rc::Rc;
+    use tcl_runtime_api::CompileService;
+
+    struct Capture {
+        original: String,
+        entry: Rc<RefCell<Option<tcl_runtime_api::NativeCompilationEntry>>>,
+    }
+    impl CompileService for Capture {
+        type Module = tcl_bytecode::ModuleAsm;
+        fn compile(&self, _: &str) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+            Err(tcl_runtime_api::CompileError::Unsupported(
+                "entry capture only".into(),
+            ))
+        }
+        fn compile_script_bytes_with_entry(
+            &self,
+            target: tcl_runtime_api::ScriptCompileTargetBytes<'_>,
+            _: &'static tcl_dialect::DialectProfile,
+            entry: &tcl_runtime_api::NativeCompilationEntry,
+        ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+            assert_eq!(target.source.bytes(), self.original.as_bytes());
+            assert!(target.namespace.as_segments().is_empty());
+            *self.entry.borrow_mut() = Some(entry.clone());
+            self.compile("")
+        }
+        fn compile_script_with_entry(
+            &self,
+            target: tcl_runtime_api::ScriptCompileTarget<'_>,
+            _: &'static tcl_dialect::DialectProfile,
+            entry: &tcl_runtime_api::NativeCompilationEntry,
+        ) -> Result<Self::Module, tcl_runtime_api::CompileError> {
+            assert_eq!(target.source, self.original);
+            assert!(target.namespace.is_empty());
+            *self.entry.borrow_mut() = Some(entry.clone());
+            self.compile("")
+        }
+        fn script_command_plan_bytes_with_entry(
+            &self,
+            source: &tcl_runtime_api::SourceImage,
+            profile: &'static tcl_dialect::DialectProfile,
+            entry: &tcl_runtime_api::NativeCompilationEntry,
+        ) -> Result<tcl_runtime_api::ScriptCommandPlan, tcl_runtime_api::CompileError> {
+            tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile)
+                .script_command_plan_bytes_with_entry(source, profile, entry)
+        }
+    }
+    let environment = tcl_registry::model::ingress::resolve_environment("tcl9.0");
+    let profile = environment.unit_profile();
+    let context = environment.default_context_registry();
+    let captured = Rc::new(RefCell::new(None));
+    let mut owner = tcl_vm::Vm::with_native_core(
+        Box::new(std::io::sink()),
+        Rc::new(tcl_vm::host_native::NativeHost::new()),
+        profile,
+        tcl_registry::special_vars::NativeBootstrapInputs {
+            package_path: Vec::new(),
+            default_library: None,
+        },
+    )
+    .expect("actual native core for whole-program WASM fixture");
+    owner.set_compiler(Box::new(Capture {
+        original: program.to_owned(),
+        entry: Rc::clone(&captured),
+    }));
+    assert!(owner.try_compile_function(program).is_err());
+    let native = captured
+        .borrow_mut()
+        .take()
+        .expect("actual original-program native entry");
+    // Same whole-program/Direct source contract as common_aot_plan::tests::native_unit;
+    // environment_ingress::captured_native_entry_with_owner retains its actual VM too.
+    // This AOT driver purpose is independent of the callback's bytecode request.
+    let entry = tcl_compiler::command_binding::SourceAnalysisEntry {
+        native_entry: Some(std::sync::Arc::new(native)),
+        invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+        native_compilation: tcl_registry::native_compilation::NativeCompilationContext {
+            mode: tcl_registry::native_compilation::NativeCompilationMode::Direct,
+            frame: tcl_registry::native_compilation::NativeCompilationFrame::ScriptCode,
+            loop_depth: 0,
+            catch_depth: Some(0),
+        },
+        ..Default::default()
+    };
+    let unit = CompilationUnit::build_with_context_registry(
+        program,
+        tcl_compiler::compilation_unit::UnitBuildOptions {
+            registry: context.commands(),
+            defer_top_level: false,
+            config: tcl_lexer::LexerConfig::for_dialect("tcl9.0"),
+            dialect: Some(profile),
+            external_call_sites: None,
+            declared_commands: None,
+        },
+        Some(&entry),
+        std::sync::Arc::clone(&context),
+    );
+    NativeWholeProgramFixture {
+        unit,
+        context,
+        _owner: owner,
+    }
+}
+
 fn run_real_native_i64_add(runtime: &Path, program: &str) -> String {
-    let registry = CommandRegistry::build_default();
-    let unit = CompilationUnit::build_for_dialect(program, &registry, false, "tcl9.0");
-    let mut output = compile_wasm(&unit, &registry, native_i64_add_options());
-    report_actual_native_admission(program, &unit, &output);
+    let fixture = native_whole_program_fixture(program);
+    let registry = fixture.context.commands();
+    let unit = &fixture.unit;
+    let mut output = compile_wasm(unit, registry, native_i64_add_options());
+    report_actual_native_admission(program, unit, &output);
     assert!(
         matches!(output.plan, WasmCodegenPlan::NativeI64Add { .. }),
         "native proof did not select: {:?}",
@@ -986,6 +1111,21 @@ fn compiled_argv_balances_allocations_in_the_real_runtime() {
             .arg(&boot)
             .output()
             .expect("run wasmtime");
+        if !out.status.success() {
+            // Preserve the failed original process and its assertion. This separate
+            // fresh instance only reports first/second/third residual, frames and doubles.
+            let diagnostic = Command::new("wasmtime")
+                .arg("run")
+                .arg("--invoke")
+                .arg("diagnostic_counts")
+                .arg("--preload")
+                .arg(format!("tcl={}", runtime.display()))
+                .arg("--preload")
+                .arg(format!("user={}", user.display()))
+                .arg(&boot)
+                .output();
+            eprintln!("WASM_LEAK_COUNTER_WITNESS tag={tag} result={diagnostic:?}");
+        }
         let _ = std::fs::remove_file(&user);
         let _ = std::fs::remove_file(&boot);
         assert!(
