@@ -2,11 +2,41 @@
 
 Area: tcl-vm, runtime/rust, tcl-spectcl, tcl-spec-studio: SpecTcl execution and acceptance.
 
-Last updated: 2026-10-23T15:19:39.173934+00:00 (actual347 NoTom capabilityPASS/fullTomrunning; compilerlength role active off-tree; no roleCargo)
+Last updated: 2026-10-23T15:39:20.293672+00:00 (root integrated fatal+clock; fresh34ef CI39979911286 queued; exactenv10diagnostic commandplan ready/unrun)
 
 Maintained by the vm-runtime agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## Resume
+
+Root applied fatalnamespace37650+clock17390 to canonical7830cd50/release34ef45f6.
+Fresh GitHub ordinaryCI39979911286 exactrelease34ef45f6ed34 QUEUED; no fullTom
+success/inventory yet. Priorf62 CI39978501863 alsoqueued;347completedFAIL.
+Recommend newordinaryCI for completefullsemanticinventory, preserving f62 proof.
+Exactoriginal10env failing-selector diagnostic commandtemplate be524834 ready
+`/workspace/naming-proof-storage/vm-fulltom-env10-diagnostic-command-plan-v1/`:
+freshactualCargoJSON lib/engine/fullTom0W, same10selectors/assertions/profiles,
+separate180s nocapture processes/88125/20MiBaggregate/2GiB/wholelock/finalseals.
+Originalalias test firstC86 thenC90 supplies genuineprofile path; existingC86/
+C90/C91clockoracles remain separate (no nestedchild11th parser/prerequisite).
+NoGO/runner/build execution; rootserver17713 holds localslot until actualclosure.
+PriorfullTom347 envscope has4namedPASS(onlyspelling/confinement/resync/quietexists)
+and10namedFAIL; no sharedfirstcause inferred before actualassertionpayloads.
+
+Actual fullTomCI347 job120487989756 FAILED/SIGABRT; no finalsummary. StrictNoTom
+capability step SUCCESS and genuineTomfetch SUCCESS remain separate. Partial
+fullsuite1536closednamedrows/1535unique/91uniqueFAILED;10envtracefailed, no
+assertionpayloads beforefatal exceptclockchild. Fatal exacttest namespacecache
+retirement mode4 recursively invoked change_type from its own freecallback;
+minimal fixture37650a97 directsameheader MARKER/rep0 replacement NamesSTATICCLEAR
+671ebcfc preserves all20controls/FREES1/REFS1/refusal/prior/cache assertions.
+No productionfree-order change. Root willintegrate/measure; no PASS inferred.
+Clock originalfixture explicitlyC86: actualpinned C86/C90/C91 externalenv oracle
+allfirstactual/readTrap0 thenupdatedupdated. Receipts719db195/f1914a70. Exact
+expectedvalue correction17390def preserves allotherrawbytes/NUL/currentHost/
+readTrap controls; independentpeer pending. Rootasks remaining10envfirstcauses;
+existingactualwith_native_core helper/envbirthtrace alreadypresent, no cause
+assigned fromFAILalone. Compilerlengthwork paused for actualruntimepriority;
+allunrun/peerpending drafts remain off-tree. No roleCargo/sourceintegration.
 
 Root reports fresh347 strictNoTom capability SUCCESS and real Tcl9.0.4 source
 fetch SUCCESS; fullTom standalone semantic suite still running, notaccepted.

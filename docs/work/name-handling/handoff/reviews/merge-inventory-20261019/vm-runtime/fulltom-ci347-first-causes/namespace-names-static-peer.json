@@ -1,0 +1,10 @@
+{
+  "verdict": "STATIC_FIXTURE_RETIREMENT_CONTRACT_CLEAR",
+  "patch_sha256": "37650a972f3dcf6ab8468236814aa1489aabe0c7654f28a8944ce9fc3076073c",
+  "both_actual_before_copyapply0_nooffset_finals_fmt2021": {
+    "work": true,
+    "candidate": true
+  },
+  "substantive": "free_namespace already owns reached old zero-payload representation retirement. Calling change_type(original) recursively enters that same still-installed free proc; direct replacement of same original type_ptr/internal_rep avoids recursion without touching production retirement order or adding authority. Marker has no free callback, zero original payload owns no heap allocation. Existing change_type_using after-free same_slot compares old type/rep and detects marker replacement, so replacement remains protected. All original 20 profile/mode controls and FREES1/REFS1/prior result/refusal/cache assertions retained.",
+  "limits": "No Cargo/typecheck/runtime execution; actual fatal recovery remains unverified until rerun."
+}

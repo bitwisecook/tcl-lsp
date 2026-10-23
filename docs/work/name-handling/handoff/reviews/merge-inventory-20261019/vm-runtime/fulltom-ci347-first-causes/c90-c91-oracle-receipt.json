@@ -1,0 +1,58 @@
+{
+  "actual": [
+    {
+      "version": "9.0.4",
+      "argv": [
+        "cc",
+        "-I/workspace/naming-toolchains/tmp/tcl9.0.4/generic",
+        "/workspace/naming-proof-storage/vm-clock-environment-c90-c91-oracle-v1/9.0.4.c",
+        "/workspace/naming-toolchains/tmp/tcl9.0.4/unix/libtcl9.0.a",
+        "-ldl",
+        "-lz",
+        "-lrt",
+        "-lpthread",
+        "-lm",
+        "-o",
+        "/workspace/naming-proof-storage/vm-clock-environment-c90-c91-oracle-v1/oracle-9.0.4"
+      ],
+      "build_exit": 0,
+      "run_exit": 0,
+      "stdout": "first status=0 result=actual calls=0\nafter status=0 result=updated updated\n",
+      "stderr": "",
+      "pins_before_after": {
+        "/workspace/naming-toolchains/tmp/tcl9.0.4/generic/tclEnv.c": "9b3c14de1f4c2f59d3ea17353473f25dd7c61f298b271a57751ce2d5584243af",
+        "/workspace/naming-toolchains/tmp/tcl9.0.4/generic/tcl.h": "eacd3dc6b0f9615fa654e4645699221dd30137811bd09f92c34f3f7135e96f7a",
+        "/workspace/naming-toolchains/tmp/tcl9.0.4/unix/libtcl9.0.a": "c92aa0fa09d39bf9875d9cf792458fae5b8f898ad0386d7a038fa60824036bb2"
+      },
+      "source_sha256": "8d85a78d0089f3e36d4efb960ff5f515723dace8847a9027e4f3fd55102dddc1"
+    },
+    {
+      "version": "9.1.0",
+      "argv": [
+        "cc",
+        "-I/workspace/naming-toolchains/tmp/tcl9.1.0/generic",
+        "/workspace/naming-proof-storage/vm-clock-environment-c90-c91-oracle-v1/9.1.0.c",
+        "/workspace/naming-toolchains/tmp/tcl9.1.0/unix/libtcl9.1.a",
+        "-ldl",
+        "-lz",
+        "-lrt",
+        "-lpthread",
+        "-lm",
+        "-o",
+        "/workspace/naming-proof-storage/vm-clock-environment-c90-c91-oracle-v1/oracle-9.1.0"
+      ],
+      "build_exit": 0,
+      "run_exit": 0,
+      "stdout": "first status=0 result=actual calls=0\nafter status=0 result=updated updated\n",
+      "stderr": "",
+      "pins_before_after": {
+        "/workspace/naming-toolchains/tmp/tcl9.1.0/generic/tclEnv.c": "5b7a0e3f4c7358aea14f1fa80c6524e91e84eccddac1ca0446ccc8205c1e35f2",
+        "/workspace/naming-toolchains/tmp/tcl9.1.0/generic/tcl.h": "30fa3a517fae1771933cc40955702c942f7be74efcecff4790e7b423dc1be950",
+        "/workspace/naming-toolchains/tmp/tcl9.1.0/unix/libtcl9.1.a": "f38364134408206aaf4a79ba0b8f45d7197ea1742ce36efb71532a41551d32cc"
+      },
+      "source_sha256": "1ef4ebfc63e1b0f8124bdbf239fc6f1e9bd5203fc3c8e179fe4e1823c6dc4a55"
+    }
+  ],
+  "matches_existing_c86_script_except_selected_pinned_library": true,
+  "no_cargo_sharedtarget": true
+}

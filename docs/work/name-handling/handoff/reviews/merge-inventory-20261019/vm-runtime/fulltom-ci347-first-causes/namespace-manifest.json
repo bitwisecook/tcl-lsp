@@ -1,0 +1,28 @@
+{
+  "work": {
+    "source_root": "/workspace/naming-migration-publish/tcl-lsp",
+    "files": [
+      {
+        "path": "runtime/rust/src/interp/native_body_artifact/original_variable_boundary_tests.rs",
+        "before_sha256": "816c7389a525512dd9b4ce148da069e65c5549d388a88acd0ede35b7e8cc0074",
+        "after_sha256": "f72e70a4207143e86ccda89ab36fb99b5f84047b020518aece7c398fa03cde22"
+      }
+    ],
+    "patch_sha256": "37650a972f3dcf6ab8468236814aa1489aabe0c7654f28a8944ce9fc3076073c",
+    "fmt2021_copyapply0_exactfinal": true
+  },
+  "candidate": {
+    "source_root": "/workspace/naming-lsp-release/tcl-lsp",
+    "files": [
+      {
+        "path": "runtime/rust/src/interp/native_body_artifact/original_variable_boundary_tests.rs",
+        "before_sha256": "d7b6a0e3625e62ac2378f39afbbbbfbcf65c19abceef5a2df275f54846c1aab0",
+        "after_sha256": "b858c7d52e1d2615bc81a54f30c4c71c696562de3efca86f1d094d0c01db034a"
+      }
+    ],
+    "patch_sha256": "37650a972f3dcf6ab8468236814aa1489aabe0c7654f28a8944ce9fc3076073c",
+    "fmt2021_copyapply0_exactfinal": true
+  },
+  "actual_failure": "CI347 fullTom fatal exact test original_compiled_namespace_cache_retirement_checks_same_body_before_adoption: recursive free_namespace mode4\u2192obj.change_type\u2192oldfreeproc\u2192free_namespace",
+  "scope": "Fixture callback-only same originalheader/marker/zero payload; all originalFREES1/REFS1/priorresult/currentness/20profile-mode assertions unchanged; no productionretirement or Csemantics changes"
+}

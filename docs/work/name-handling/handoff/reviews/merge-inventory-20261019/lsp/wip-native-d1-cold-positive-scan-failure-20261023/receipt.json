@@ -1,0 +1,166 @@
+{
+  "utc": "2026-10-23T15:45:49.139146+00:00",
+  "run": "/workspace/naming-release-measurement-artifacts/wip-coarse-diagnostic-runs/20261023T153521.109815Z",
+  "tool_session_id": 17713,
+  "actual_suite_pid": 465450,
+  "finished_utc": "2026-10-23T15:43:41.143420+00:00",
+  "lock_release": {
+    "pid": 465450,
+    "utc": "2026-10-23T15:43:41.146312+00:00"
+  },
+  "scope": "guarded development selectedserver diagnostic, not shippingperformance/8package/wholehost acceptance",
+  "selected_server_compilation_0w": true,
+  "seals": {
+    "source_stable": true,
+    "providers_stable": true,
+    "artifact_stable": true,
+    "go_stable": true
+  },
+  "actual": "Coldrequest2 response25tokenwords,2692.715306ms (didOpen2693.369131ms). Actualgenuine recaptureinputepoch1\u21922 seedjoins exact; allfresh finalcurrentness+cacheguards true. Originalindependent30s scanbarrier FAIL with no timingmarker; allsemanticprobe/navigation/rename/reference/lens/warm/cancel/configchurn UNREACHED. NoSpecPacksReloaded notification either; actualstartupstageunproven. Sampling55CPUsec/38.6swall peak332856KiB indicatesCPUactivity, notprovenidledeadlock. NevercompareDEVnumbers asshippingregression/admission.",
+  "worker_status": "INCOMPLETE",
+  "server_sha256": "7f2cdbd76d97917259a9031eb2836c97a56c460911da3aecc7cca0b2e8e18235",
+  "archive_sha256": "a13a8a0fe5b2b76568ca53aba179a02edca5239c5502ff789a69a9346f19709b",
+  "roundtrip": true,
+  "files": [
+    {
+      "path": "build-command.json",
+      "bytes": 225,
+      "sha256": "93de4c5eabb093cb44aee11881d9502f47bf6f7c01ca5a4123f7d5ad7c76f580"
+    },
+    {
+      "path": "build.process.json",
+      "bytes": 2469,
+      "sha256": "3629b79770837dde18c7309f59f39f5d7fe878ef2c6bd8eb3c973e3999b7b560"
+    },
+    {
+      "path": "build.stderr",
+      "bytes": 255,
+      "sha256": "caabe366d8410a83d560337b51862bc59f18982ed4f7aa7e24fb45ae57e3fecd"
+    },
+    {
+      "path": "build.stdout",
+      "bytes": 180543,
+      "sha256": "1fcdbd2762a647585cc47512167589ce5be290af389d0c76cef6b07f984b3f48"
+    },
+    {
+      "path": "final.json",
+      "bytes": 13605,
+      "sha256": "a118ca76d07742fc423c8f1b51bd3981e5d4056518240b6bdd13bca39a70cba8"
+    },
+    {
+      "path": "lock-released.json",
+      "bytes": 65,
+      "sha256": "861b9718f85410da76f79408d7b5b1b91d361d4fc3be381a1d7dfebb8561e368"
+    },
+    {
+      "path": "plan.json",
+      "bytes": 3086,
+      "sha256": "6b34da246105d1c54658fbc405677aa856a297d78f1fc28d5805a9340f823f8f"
+    },
+    {
+      "path": "providers-after.json",
+      "bytes": 31165,
+      "sha256": "bfa3e8e7b689dadefe4417f1f953cf6cafe06bfba4c8a2ed261111baa103c246"
+    },
+    {
+      "path": "providers-after.process.json",
+      "bytes": 2438,
+      "sha256": "f5bb9afdc00b0322fa9fa130800ef65ead469c64d7840a34d0b738f9a24187b8"
+    },
+    {
+      "path": "providers-after.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "providers-after.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "providers-before.json",
+      "bytes": 31165,
+      "sha256": "bfa3e8e7b689dadefe4417f1f953cf6cafe06bfba4c8a2ed261111baa103c246"
+    },
+    {
+      "path": "providers-before.process.json",
+      "bytes": 2441,
+      "sha256": "34c749c6304816c3b0252cc1c82a96fb61f031deaa0fa66bd103a6271faff3f6"
+    },
+    {
+      "path": "providers-before.stderr",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "providers-before.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "root-go.json",
+      "bytes": 955,
+      "sha256": "ac31dee08286ba211ca436edbbcee96bc9d1dfaf6f22d9a3cb4c643623b99663"
+    },
+    {
+      "path": "server-artifact.json",
+      "bytes": 1207,
+      "sha256": "90a5fae80b1e918e8a5c929c54fc2c5955608d12d685f5fd0bc2e898e794406d"
+    },
+    {
+      "path": "source-after.json",
+      "bytes": 12765577,
+      "sha256": "60616575f2e383be6344f92c7566761f9a1a3f6dbc518e38d8374af642c79c3a"
+    },
+    {
+      "path": "source-before.json",
+      "bytes": 12765577,
+      "sha256": "60616575f2e383be6344f92c7566761f9a1a3f6dbc518e38d8374af642c79c3a"
+    },
+    {
+      "path": "worker/measurement.json",
+      "bytes": 9546,
+      "sha256": "44ee4fbde0bc2708e6f54b2cf10e3ffa17eeed491ea9185f8b5ac71b71a74639"
+    },
+    {
+      "path": "worker/server.stderr",
+      "bytes": 10327,
+      "sha256": "be4c5550704c52cacb436f7cde037a354b4f54d67eca86eb5505b3923a112cb5"
+    },
+    {
+      "path": "worker/server.stdout.frames",
+      "bytes": 6634,
+      "sha256": "aa50d4798a9b51d783d59064856b85bf247a546d77f3eee2b7cbcf8df68a19fc"
+    },
+    {
+      "path": "worker/workspace/main.tcl",
+      "bytes": 40,
+      "sha256": "162614181eefa1fe279d150097eb490e25255a67438bc548410147466b85d37b"
+    },
+    {
+      "path": "worker-command.json",
+      "bytes": 598,
+      "sha256": "18dffc920b5dbf128c4ab7d1bd8f2746f918c0ad052aee3b703d31b2a0237000"
+    },
+    {
+      "path": "worker-environment.json",
+      "bytes": 127,
+      "sha256": "cd4c5b76eb5cc90cd9a6a5b95dfd70d78bc6012f52fa871ba2ee0729ce017935"
+    },
+    {
+      "path": "worker.process.json",
+      "bytes": 2852,
+      "sha256": "734fa63834fc4f09c4b4b6c85c1e25d6a14929df252c93906413639298fb3976"
+    },
+    {
+      "path": "worker.stderr",
+      "bytes": 1026,
+      "sha256": "cde11bbc6afcb575bbae4c5cf2732c3288dfefd1d89ba9172efca4a0e51b2b4f"
+    },
+    {
+      "path": "worker.stdout",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ]
+}

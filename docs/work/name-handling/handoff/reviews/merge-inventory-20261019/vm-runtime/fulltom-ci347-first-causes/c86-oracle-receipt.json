@@ -1,0 +1,25 @@
+{
+  "argv": [
+    "cc",
+    "-I/workspace/naming-toolchains/tmp/tcl8.6.18/generic",
+    "/workspace/naming-proof-storage/vm-clock-environment-c86-oracle-v1/oracle.c",
+    "/workspace/naming-toolchains/tmp/tcl8.6.18/unix/libtcl8.6.a",
+    "-ldl",
+    "-lz",
+    "-lpthread",
+    "-lm",
+    "-o",
+    "/workspace/naming-proof-storage/vm-clock-environment-c86-oracle-v1/oracle"
+  ],
+  "build_exit": 0,
+  "run_exit": 0,
+  "stdout": "first status=0 result=actual calls=0\nafter status=0 result=updated updated\n",
+  "stderr": "",
+  "source_header_staticlib_pins_before_after": {
+    "/workspace/naming-toolchains/tmp/tcl8.6.18/generic/tclEnv.c": "4a3efa47312567d17794b3b125e8281e2c1abae6e001e6009be415b6ed671669",
+    "/workspace/naming-toolchains/tmp/tcl8.6.18/generic/tcl.h": "aed709900889091def1cd98ffad6f214b870b0e8dbbf7933314fb4668655c245",
+    "/workspace/naming-toolchains/tmp/tcl8.6.18/unix/libtcl8.6.a": "a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6"
+  },
+  "oracle_c_sha256": "717fa94257490d7df9a504a79a8904641d81334b94eef0178545e10663826ff6",
+  "no_cargo_or_shared_target": true
+}

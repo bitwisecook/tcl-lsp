@@ -1,0 +1,8 @@
+{
+  "utc": "2026-10-23T15:54:36Z",
+  "scope": "Staticpreparedroot-onlywrapper; noGOorpositiveexecution; root88125runtime180s; fullsource/providerseals; noCargo",
+  "root_go_schema_sha256": "04b45b6508df611ce2302bd8d0da5e1593ccaf12bee78320b0c9a4aca13c404d",
+  "archive_sha256": "9886bd50c87076b66494c20624c1103d411f7233174f6a381b878de3ead52ba8",
+  "peer_path": "/workspace/naming-proof-storage/ccg-peer-context-root-wrapper-v1/receipt.json",
+  "peer_sha256": "efa5e6e133a21e79ef152dc6b6e4accef4bcc93392c1639a2fae7966892f4a15"
+}

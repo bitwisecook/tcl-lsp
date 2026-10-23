@@ -1,0 +1,70 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-23T15:59:29.510324+00:00",
+  "scheduled_report_utc": "2026-10-23T15:55:37+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-23T16:25:37+00:00",
+  "change_since_previous_report": [
+    "Fresh f62 strict Clippy measured127 findings (compiler123+VM4), down from323; no Rust type errors observed in that job. Additional reviewed fixes are applied or integrating; fresh postpatch result unknown.",
+    "Actuald1 selected server compiled with zero warnings and passed the original cold-token request in2692.7ms, then failed the unchanged30s workspace-scan barrier. All final source/provider/binary/GO seals passed; later client scenarios remain unreached.",
+    "The exact original multi-folder diagnostic Context reproduction is running with that authenticated binary, original terminal refusal and fresh final seals. No Cargo or editor acceptance claim.",
+    "Actual shipping Linux release build f62 succeeded. Artifact12513920874 ZIP and extracted native binary are preserved and hash-verified; unchanged shipping-client binding/run remains pending.",
+    "Two narrow runtime test corrections preserve original semantics/assertion strength: prevent recursive reentry into the currently executing free callback, and match explicit Tcl8.6 current host environment oracle. Both are pushed to work and release; fresh runtime tests still pending.",
+    "External role freshness is checked against authenticated remote headers. BIGIP completed handoff remains over60minutes and is reported without takeover; perf last15:13 remains within60minutes. No optimization proof accepted."
+  ],
+  "committed": [
+    "d1b9130f93485e928b2e5e1ef5ff4e4de3244797"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Finish actual Context diagnostic and ship-profile unchanged client; fix first genuine provider failure without bypassing refusal guards.",
+    "Complete remaining strict Clippy batches and actual runtime/WASM/SpecTcl/editor gate failures, then rerun exact cleaned candidate.",
+    "Complete Tcl corpus performance, sectionF and full zero-PASS-to-FAIL comparison; remove release chaff and open PR only after every required gate is green."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-23T13:17:00+00:00",
+    "perf": "2026-10-23T15:13:00+00:00",
+    "review-triage": "2026-10-22T19:57:30+00:00"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "No audit admissions/validated-count changes. Actual coldtoken targeted positive; fullclient failed scan. StrictNoTom separately PASS; fullTom FAIL/aborted. f62 strictClippy127 FAIL. Native release producer SUCCESS is build proof only. No cleanPR/fullbaseline/performance admission.",
+  "disk_free_bytes": 2940452864,
+  "baseline_ci_run": 39816429638,
+  "baseline_ci_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731"
+}

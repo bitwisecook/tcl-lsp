@@ -2,7 +2,7 @@
 
 Area: routing, shared build allocation, snapshots and release readiness.
 
-Last updated: 2026-10-23T15:27:24.757080+00:00
+Last updated: 2026-10-23T15:59:27.638816+00:00
 
 ## In progress
 
@@ -47,12 +47,11 @@ Last updated: 2026-10-23T15:27:24.757080+00:00
 4. At08:55:37UTC run normal30minute cycle using draft0855/checkpoint and publisher freshdepth1fetch/rebase/normalpush/productdiff0, update actual outcomes and role freshness, checkdisk, then rearm exactly one timer for09:25:37. Existing reminder53105, no duplicate.
 5. Finish functional failures, authenticated fullreport perf proof, strict/repository/generated checks, SpecTcl C1C2/UPF17/noTom16, shipped native/WASM/WASI/browser/editor hosts and full exact origin/rustzeroP2F. User must ask before PR; no merge/tag/release authorised.
 
-### Current cycle and routing (15:25 UTC)
+### Current cycle and routing (15:55 UTC)
 
-- Published the compiler and VM lint batches to work and carried all 80 affected files to the release branch, preserving cleanup and original assertions.
-- Fresh release CI39975195569 on34798afd8 caught compiler and VM helper type errors introduced by those refactors. Minimal independently reviewed repairs are published on canonical work795c39c10 and carried locally to release.
-- Fresh CI strict no-TomMath capability passed. Actual full-TomMath semantic suite then reported many assertions and aborted with a stack overflow; complete raw log preserved and routed to VM/runtime for immediate first-cause diagnosis. No full semantic admission.
-- The unchanged cold-client rerun on b2b compiled with zero warnings but failed cold semantic tokens in3690.83ms. All final source/provider/artifact/GO seals passed. Actual helper rejected the held open snapshot and performed no second capture; later final epoch/factory validation also rejected.
-- A reviewed current-document recapture successor preserves exact source, configuration, provider and URI eligibility, fully resolves the current dialect generation, and recomputes under fresh ownership. Its next actual client run remains pending.
-- The next45a selectedserver diagnostic caught a WORK-only Context observer Uri formatting type error before runtime; exact observer-only one-line fix is prepared. Original failed run will finish all final seals before source changes.
-- External perf owner updated15:13 and remains active; no optimisation proof or corpus acceptance. BIGIP13:17 completed handoff remains over60minutes and user is notified; no duplicate or takeover.
+- Fresh f62 strict Clippy measured127 findings (compiler123+VM4), down from323; no Rust type errors observed in that job. Additional reviewed fixes are applied or integrating; fresh postpatch result unknown.
+- Actuald1 selected server compiled with zero warnings and passed the original cold-token request in2692.7ms, then failed the unchanged30s workspace-scan barrier. All final source/provider/binary/GO seals passed; later client scenarios remain unreached.
+- The exact original multi-folder diagnostic Context reproduction is running with that authenticated binary, original terminal refusal and fresh final seals. No Cargo or editor acceptance claim.
+- Actual shipping Linux release build f62 succeeded. Artifact12513920874 ZIP and extracted native binary are preserved and hash-verified; unchanged shipping-client binding/run remains pending.
+- Two narrow runtime test corrections preserve original semantics/assertion strength: prevent recursive reentry into the currently executing free callback, and match explicit Tcl8.6 current host environment oracle. Both are pushed to work and release; fresh runtime tests still pending.
+- External role freshness is checked against authenticated remote headers. BIGIP completed handoff remains over60minutes and is reported without takeover; perf last15:13 remains within60minutes. No optimization proof accepted.

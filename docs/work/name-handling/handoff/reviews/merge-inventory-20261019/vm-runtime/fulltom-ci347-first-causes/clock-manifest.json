@@ -1,0 +1,26 @@
+{
+  "work": {
+    "files": [
+      {
+        "path": "runtime/rust/src/cmd_clock.rs",
+        "before_sha256": "42f80dbaa49b779349c9ca18bd7647d1850648b69a9f81c25cf8d61dcda99840",
+        "after_sha256": "e8f8de8a32a894616744e6f7cfaebbd2b0c2c8c4505902788b11fae9d4ae4690"
+      }
+    ],
+    "patch_sha256": "17390def66be82b114625d512ed43e9052c235da0f5c0dc69074e09adb1b4682",
+    "fmt2021_copyapply0_final": true
+  },
+  "candidate": {
+    "files": [
+      {
+        "path": "runtime/rust/src/cmd_clock.rs",
+        "before_sha256": "3f12c692d11177e5a332187c9133a0fdc52fb8ed4a60e37283be78642b0df35d",
+        "after_sha256": "039dcffb587d3d437177c108d230f986b8faeaea77959ad2ed129aa373227ded"
+      }
+    ],
+    "patch_sha256": "17390def66be82b114625d512ed43e9052c235da0f5c0dc69074e09adb1b4682",
+    "fmt2021_copyapply0_final": true
+  },
+  "actual_c86_oracle_sha256": "719db19594447293962cb856dde3eae8981f55c23c55ba745415f5061969eb4c",
+  "scope": "Exactly measuredC86 expectedvalue correction; earlier readTrap0 and all child/currentHost/rawbyte/NUL/missing/assertions retained; no production or trace policy changes"
+}

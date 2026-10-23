@@ -1,6 +1,6 @@
 # Outstanding work: lsp agent
 
-Current status 2026-10-23T15:27:55Z: actual45a diagnostic root55746 selectedserverbuild FAILED1E0277/0observedwarnings at WORK-only Contextobserver current_diagnostics311 (Uri lacks Display), no runtime. Fullprotocolfinalseals stillpending; neverTERM. Minimal observer-onlyfix204509f2 uses Uri.as_str(), NamesexacttypeCLEAR7d5dbf9e, rootapplyawaitsclosure. Functionalfresh-current recapture084cf61b remainsunchanged/unmeasured. Separate originalproj-a native Contextrepro2282361d CCGCLEAR95c37133 prepared/root-only180s88125/20MiB/2GiB afterfreshcorrectedserver. Candidatefunctionalcc33 appliedroot401a374d withobserverexcluded. Priorb2b validcoldFAIL archived; allshippingF/P2F/hostacceptanceOPEN.
+Current status 2026-10-23T15:54:36Z: root-only nativeContext wrapper READY /workspace/naming-proof-storage/lsp-multifolder-context-root-wrapper-v1 (plan00e31499/inputs0d293da1,52pins/tools/AST PASS, CCGefa5e6e1 STATICCLEAR); rootGO absent/noexecution atreadiness. Actuald1freshserver7f2cdbd authenticatedfromclosed17713 selectedDEV0W/allsource-provider-artifact-GOsealstrue. WrapperhasNOCargo andunchangedoriginalproj-a repro2282361d;180sworker/15ssettle/6sdiagnostics terminalContext, providers64KiB+worker128KiB+providers64KiB, total20MiBaccounting; v5fullsource/providersealouter/lifecycle retained. PriorcoldtokensPASS2692.7ms, scan30sFAIL/alllaterunreached archived. Multi-folder4Context/WASIlocaldef/browserUnknownWorld remainunfixed/unaccepted. AllshippingF/P2F/host/performanceacceptanceOPEN.
 
 
 
@@ -63,15 +63,15 @@ Prepared separate Core1 ownership/refusal phase `/tmp/lsp-body-guard-core1/run.s
 
 Area: tcl-lsp-core, tcl-lsp-db and tcl-lsp-server (generic providers, server, WASM/WASI hosts).
 
-Last updated: 2026-10-23T15:27:55Z
+Last updated: 2026-10-23T15:54:36Z
 
 Maintained by the lsp agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## Resume
 
-Current status 2026-10-23T15:27:55Z: actual45a diagnostic root55746 selectedserverbuild FAILED1E0277/0observedwarnings at WORK-only Contextobserver current_diagnostics311 (Uri lacks Display), no runtime. Fullprotocolfinalseals stillpending; neverTERM. Minimal observer-onlyfix204509f2 uses Uri.as_str(), NamesexacttypeCLEAR7d5dbf9e, rootapplyawaitsclosure. Functionalfresh-current recapture084cf61b remainsunchanged/unmeasured. Separate originalproj-a native Contextrepro2282361d CCGCLEAR95c37133 prepared/root-only180s88125/20MiB/2GiB afterfreshcorrectedserver. Candidatefunctionalcc33 appliedroot401a374d withobserverexcluded. Priorb2b validcoldFAIL archived; allshippingF/P2F/hostacceptanceOPEN.
+Current status 2026-10-23T15:54:36Z: root-only nativeContext wrapper READY /workspace/naming-proof-storage/lsp-multifolder-context-root-wrapper-v1 (plan00e31499/inputs0d293da1,52pins/tools/AST PASS, CCGefa5e6e1 STATICCLEAR); rootGO absent/noexecution atreadiness. Actuald1freshserver7f2cdbd authenticatedfromclosed17713 selectedDEV0W/allsource-provider-artifact-GOsealstrue. WrapperhasNOCargo andunchangedoriginalproj-a repro2282361d;180sworker/15ssettle/6sdiagnostics terminalContext, providers64KiB+worker128KiB+providers64KiB, total20MiBaccounting; v5fullsource/providersealouter/lifecycle retained. PriorcoldtokensPASS2692.7ms, scan30sFAIL/alllaterunreached archived. Multi-folder4Context/WASIlocaldef/browserUnknownWorld remainunfixed/unaccepted. AllshippingF/P2F/host/performanceacceptanceOPEN.
 
-Next: preserve actual55746 finalseals/lockrelease; root-only observerformatfix204509f2 integration/freshidentity/protocol, selectedserverrebuild andunchangedcoldworker. No ownsource/Cargo/GO.
+Next: root-only explicitGO+launch wrapper/launch.py, inspectactual DIAGNOSTIC_CONTEXT firstfalse facets; never weaken owner/input/currentness. No ownCargo/source/runtime.
 
 ## In progress
 
