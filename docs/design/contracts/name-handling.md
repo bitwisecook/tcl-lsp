@@ -1863,9 +1863,9 @@ The unchanged all-document readonly SourceStore/provider transaction accepts
 publication only while a nonblocking actual index read retains that same stamp.
 A missing or busy owner remains unavailable. Native and TYPE wire behaviour,
 source reference publication and all existing compatibility assertions remain
-independent. This is a partial migration of audited CALL unit 642; it does not
-close unsupported inherited-provider/call-graph coverage or duplicate TYPE or
-original procedure fallback unit 614.
+independent. This receipt does not cover unsupported inherited providers or complete
+call-graph resolution. TYPE and original procedure fallback remain
+independent consumers with no authority from this receipt.
 
 
 ### Logical readonly lens declaration and publication
@@ -2354,8 +2354,8 @@ resolver or token store.
 The new coarse cache/wire receipt requires an actual open document. A closed
 path address alone supplies no unchanged-source-byte owner; closed fallback
 without the separately retained published source counterpart is unavailable,
-not an empty stream. This is a partial migration of the existing generic
-semantic fallback purpose, with closed and range paths explicitly unclaimed.
+not an empty stream. This receipt covers the open-document full-token fallback only.
+Closed-document and range paths have no corresponding receipt.
 
 A pending per-document dialect-resolution generation also withholds the coarse
 receipt. Equal current source bytes and global input epoch cannot donate the
