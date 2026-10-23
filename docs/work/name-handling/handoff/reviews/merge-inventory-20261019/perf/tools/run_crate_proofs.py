@@ -121,12 +121,11 @@ for stage, (package, targets, suites) in stages.items():
         for suite, selected in suites:
             exe = (artifacts[suite] if stage == "spectcl" else next(iter(artifacts.values())))
             outcomes = {}
-            expected_server_tests = None
-            if stage == "server":
-                listed = subprocess.check_output([str(exe), *selected, "--list"],
-                                                 cwd=root / "rust" / package, env=env, text=True)
-                expected_server_tests = set(re.findall(r"^(.+): test$", listed, re.M))
-                assert expected_server_tests, f"no declared tests for {suite}"
+            listed = subprocess.check_output([str(exe), *selected, "--list"],
+                                             cwd=root / "rust" / package, env=env, text=True)
+            (evidence / f"tests-{stage}-{suite}-list.out").write_text(listed)
+            expected_tests = set(re.findall(r"^(.+): test$", listed, re.M))
+            assert expected_tests, f"no declared tests for {suite}"
             for mode in ("new", "old"):
                 log = evidence / f"tests-{stage}-{suite}-{mode}.out"
                 package_root = root / "rust" / package
@@ -147,13 +146,11 @@ for stage, (package, targets, suites) in stages.items():
                 text = log.read_text()
                 log.write_text(text.rstrip() + "\n")
                 rows = dict(re.findall(r"^test (.+?) \.\.\. (ok|FAILED|ignored)$", text, re.M))
-                if expected_server_tests is not None:
-                    assert set(rows) <= expected_server_tests, f"unexpected tests in {log}"
-                    if code == "timeout180":
-                        # A timeout is a separate failed gate state, never an assertion result.
-                        rows.update({name: "timeout180" for name in expected_server_tests - set(rows)})
-                    assert set(rows) == expected_server_tests, f"incomplete test inventory in {log}"
-                assert rows or code == "timeout180", f"no test outcomes in {log}"
+                assert set(rows) <= expected_tests, f"unexpected tests in {log}"
+                if code == "timeout180":
+                    # A timeout is a failed gate state, never an assertion result.
+                    rows.update({name: "timeout180" for name in expected_tests - set(rows)})
+                assert set(rows) == expected_tests, f"incomplete test inventory in {log}"
                 outcomes[mode] = rows
                 summary[f"{stage}/{suite}/{mode}"] = {
                     "returncode": code, "seconds": round(time.monotonic() - started, 3),
@@ -169,9 +166,14 @@ for stage, (package, targets, suites) in stages.items():
                 (evidence / f"tests-{stage}-summary.json").write_text(json.dumps(summary, indent=2) + "\n")
             regressions = [name for name, state in outcomes["old"].items()
                            if state == "ok" and outcomes["new"].get(name) != "ok"]
-            assert not regressions, f"pass-to-fail: {regressions}"
             assert set(outcomes["new"]) == set(outcomes["old"]), "test inventories differ"
-            print(f"PASS zero pass-to-fail {stage}/{suite}", flush=True)
+            summary[f"{stage}/{suite}/new"]["pass_to_fail"] = regressions
+            (evidence / f"tests-{stage}-summary.json").write_text(json.dumps(summary, indent=2) + "\n")
+            if regressions:
+                failed = True
+                print(f"FAIL pass-to-fail {stage}/{suite}: {regressions}", flush=True)
+            else:
+                print(f"PASS zero pass-to-fail {stage}/{suite}", flush=True)
     finally:
         for exe in artifacts.values():
             exe.unlink(missing_ok=True)

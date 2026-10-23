@@ -1,6 +1,12 @@
 # perf agent notes: Analyser and SpecTcl
 
-Last updated: 2026-10-23 16:38 UTC
+Last updated: 2026-10-23 17:00:04 UTC
+
+**Execution is currently blocked by the cloud shell disconnect; full canonical
+proof is incomplete and the six-file perf code remains unlanded.** Latest
+verified publication is4d531fb2. See outstanding/perf.md Resume for exact
+surviving-job checks, retired43-case no-switch run, and unreleased quiet-test
+readiness. No runtime successor verdict follows from patch generation.
 
 **Necessary hosted-name repair19936eb9 is pushed; perf code remains unlanded.**
 Source head when was compared to retained rooted target ::when. The repair

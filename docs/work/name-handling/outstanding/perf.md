@@ -2,9 +2,61 @@
 
 Area: Analysis and SpecTcl pack-load performance.
 
-Last updated: 2026-10-23 16:38 UTC
+Last updated: 2026-10-23 17:00:04 UTC
 
 ## Resume
+
+**Execution interrupted at 2026-10-23 17:00:04 UTC.** The cloud execution service is
+unavailable after a second transport disconnect. GitHub remains accessible.
+No successor control/corpus/crate verdict or six-file perf commit is claimed.
+The last verified product repair is19936eb9; evidence/patch publication is
+4d531fb2. The combined proof source is frozen ata3a4b181, which includes that
+repair. The later coordinator34191a36 is not in that frozen proof tree.
+
+On recovery, inspect the surviving processes and logs before starting work.
+The first disconnect recovered the same workspace/PIDs; the second has not
+recovered at this checkpoint. Do not assume either job completion or cleanup.
+
+- Combined controls: session14484, /tmp/perf-a3-controls.log, Python31145;
+  private compiler-filter watcher80149, /tmp/perf-watch-compiler-canonical.log,
+  Python31142. Current control build had no diagnostic yet when last checked.
+- Opt1 normal library build97685, /tmp/perf-a3-opt1-lib.log, Cargo31394.
+  Full corpus watcher14724, /tmp/perf-a3-full-corpus.log, Python32385 starts
+  only after complete controls pass both modes and the source seal matches.
+- Clean6 ccd compiler build finished with zero warnings. Its runtime was
+  deliberately retired at43 completed new-mode cases; old mode UNRUN. This
+  predecessor lacks19936 and is not a complete current comparison. Receipt:
+  current-ccd57033-clean6/crate-tests-default/
+  superseded-canonical-namespace-fix.json. Parent29714/child31121 exited;
+  verify original executable cleanup. No workers were left paused by retirement.
+- Clean6 Clippy64026, /tmp/perf-clean6-ccd-clippy.log, parent31910 was still
+  checking compiler source. Combined canonical Clippy59053,
+  /tmp/perf-a3-clippy.log, was waiting for the Cargo target lock.
+- Fresh server34519 (/tmp/perf-a3-server.log, Python32586) and SpecTcl82587
+  (/tmp/perf-a3-spectcl.log, Python32597) were queued to build/run/delete with
+  original assertions/budgets, then wait for separate resource-readiness files.
+  The quiet coordinator27780 was stopped before either readiness release.
+  Recreate it AFTER registering the successor clean6 runner; finish current
+  compiler/corpus work naturally before quiet wall-budget comparisons.
+- The attempted /tmp/perf-clean6-canonical.py creation/start failed when the
+  second transport disconnected. Do not assume it exists or started. Once all
+  owned-tree builders stop, preserve the six-file diff, switch to the same
+  canonical proof commit, apply clean6 with the refreshed helper, scope-format,
+  verify exact six-file snapshot/no switch, and run lexer/compiler inventories
+  atopt1 with debug/overflow assertions retained and separate owned target.
+
+The local publisher also contains uncommitted a3 residual refreshes, helper
+reproductions, a frozen-a8 timing table and tracking updates. Preserve them,
+then fetch/rebase current work before publishing; this remote checkpoint
+changes the same tracking/runner paths, so reconcile rather than discarding.
+No residual production change is applied. The ordinary-path and analyser
+residual drafts remain Blocked/routed and semantically unproven.
+
+The crate runner saved by this checkpoint requires EVERY declared test outcome.
+A recorded P2F keeps the overall exit failed while later suites still execute;
+no test assertion or budget is weakened. This prevents another golden-packs
+omission after an eval-loader regression. Earlier aborted runs remain retained.
+
 
 **Hosted-head repair19936eb9 is pushed to work. No perf production commit or
 full-corpus acceptance yet.** The user authorised necessary shared-file repairs
@@ -21,7 +73,7 @@ controls and the all-old/mixed102 Tcl+15 iRules+synthetic corpus. The canonical
 source has additional compiler refactors, Native declaration-span fixes and
 an already-landed SpecTcl line-index improvement. Preserve those changes and
 make the temporary old switch reflect the CURRENT baseline. Both split perf
-patches need refreshing. Do not commit realm/interprocedural or either switch.
+patches are refreshed againsta3; semantic proof remains pending. Do not commit realm/interprocedural or either switch.
 
 The hosted refusal is now located, not speculative: source head "when" was
 compared to retained canonical target "::when". Public target diagnostics
@@ -64,7 +116,8 @@ server executable deleted. Separate contended existing-phase trace completes
 analysis at171.372s (walk79.839/diagnostics91.531 inclusive), then times out180;
 not quiet latency attribution. Raw source/binary/cleanup receipts in current-a8.
 
-Clean6 no-switch compiler retry at ccd57033 is still building in
+Historical clean6 no-switch compiler retry at ccd57033 built without warnings;
+its partial runtime is retired as described above. The predecessor was in
 /workspace/tcl-lsp-owned: session35495, /tmp/perf-clean6-complete-inputs.log.
 Earlier6e build failed only3 owner VM typing errors, fixed upstream0747a2a5.
 Canonicalccd build then failed12 includes across8 sparse-excluded tracked
@@ -92,7 +145,8 @@ No normalization, omitted field/subject, weakened assertion or budget.
   build was interrupted before tests, not a full comparison. Separate6e729fe9
   restores the missing state import, mutable accumulators, command borrow,
   qualified compilation context and removes exactly3 unused imports. Its
-  required compiler retry is still building; no green result claimed.
+  retry build completed without warnings, but runtime was retired on the
+  predecessor; no complete current comparison claimed.
 - All117 text fixtures match baseline/added-class hashes on94. Six tracked
   registry oracle captures excluded by that older sparse pattern were restored
   byte-exactly; failed sparse builds are retained, zero tests/warnings.
