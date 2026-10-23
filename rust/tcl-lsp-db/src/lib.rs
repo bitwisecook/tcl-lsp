@@ -199,8 +199,6 @@
 
 // Retained analysis receipts require deeper auto-trait evaluation.
 #![recursion_limit = "256"]
-// Long fail-closed guard chains and scenario tests retain their checks in order.
-#![allow(clippy::too_many_lines)]
 
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque};
 use std::sync::{Arc, Mutex};

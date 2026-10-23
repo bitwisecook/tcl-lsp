@@ -30,8 +30,6 @@
 #![recursion_limit = "256"]
 #![deny(missing_docs)]
 #![forbid(unsafe_code)]
-// Long fail-closed guard chains and scenario tests retain their checks in order.
-#![allow(clippy::too_many_lines)]
 
 /// The INI parse and the three-layer merge, shared with every surface
 /// through `tcl-lsp-core`.

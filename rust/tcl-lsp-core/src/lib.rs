@@ -30,8 +30,6 @@
 #![cfg_attr(test, recursion_limit = "256")]
 #![deny(missing_docs)]
 #![forbid(unsafe_code)]
-// Long fail-closed guard chains and scenario tests retain their checks in order.
-#![allow(clippy::too_many_lines)]
 
 #[cfg(test)]
 const _: fn() = || {
