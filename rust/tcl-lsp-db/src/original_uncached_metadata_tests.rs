@@ -89,7 +89,7 @@ fn uncached_source_units_retain_actual_availability_and_source_currency() {
         environment: "tcl8.6".to_owned(),
         overlay: 0x345,
     });
-    for refused in [missing, stale, foreign, generation_missing] {
+    for refused in vec![missing, stale, foreign, generation_missing].into_boxed_slice() {
         assert!(
             compilation_unit_uncached_from_analysis(source, current.commands(), &refused, None,)
                 .is_none()

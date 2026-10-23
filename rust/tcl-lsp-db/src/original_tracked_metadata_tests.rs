@@ -221,7 +221,7 @@ fn tracked_document_input_refuses_unavailable_generation_before_any_source_walk(
         Some(&miss)
     );
     assert!(incremental.resolved_input.is_none());
-    assert!(incremental.command_invocations.is_empty());
+    assert_eq!(incremental.command_invocations.len(), 0);
     assert_eq!(*incremental, *file_analysis(&db, file, config));
     let diagnostics = compiler_check_diagnostics(&db, file, config);
     assert!(diagnostics.checks.is_empty() && diagnostics.optimisations.is_empty());
