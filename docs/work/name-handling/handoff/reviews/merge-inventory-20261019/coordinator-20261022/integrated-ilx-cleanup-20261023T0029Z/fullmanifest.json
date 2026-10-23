@@ -1,0 +1,108 @@
+{
+  "status": "OFFTREE ONLY; no canonical apply/build/typecheck; source HOLD",
+  "prepared_utc": "2026-10-23T00:28:48Z",
+  "canonical_head_at_compose": "df68309bdf60f358a0d1c2abd543d729d67fda79",
+  "components": {
+    "lsp_zero_warning_v2_patch": {
+      "path": "/tmp/lsp-zero-warning-cleanup-v2/proposal.patch",
+      "sha256": "3dd82aa913c053823ec6820d6f32f5b205a78a4b49cf8aa3647d044407feff1e"
+    },
+    "lsp_zero_warning_v2_receipt": {
+      "path": "/tmp/lsp-zero-warning-cleanup-v2/receipt.json",
+      "sha256": "7e50c2bdd8c0b7d40269111d1340303377c1567c4f116d327f7c6685790a811d"
+    },
+    "lsp_peer_review": {
+      "path": "/tmp/ccg-lsp-zero-warning-cleanup-v2-peer-review.json",
+      "sha256": "50a4daaa36d99d90555906f2668eb081973bdb9f4cc1cd9f1ecbe0e79bc1d470"
+    },
+    "ilx_v3_patch": {
+      "path": "/tmp/compiler-ilx-first-operand-v3/proposal.patch",
+      "sha256": "fac7071946c6dcc9dd463b0e719bb934d9e6dc131eb50aab1996f5fb88783085"
+    },
+    "ilx_v3_receipt": {
+      "path": "/tmp/compiler-ilx-first-operand-v3/receipt.json",
+      "sha256": "2519e47249af864b47169fbe93ead9d4079141f373499eaef2901f5d07dea4a9"
+    },
+    "ilx_peer_review": {
+      "path": "/tmp/compiler-names-ilx-first-operand-v3-review.json",
+      "sha256": "8ad89c56c40108ca9adecc3cea141da1340f8656e96393aa3f7c3bf54cebe133"
+    },
+    "ilx_consumer_api": {
+      "path": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/compiler/resume-20261022/ilx-first-operand-v3-20261023T0020Z/consumer-api.json",
+      "sha256": "682a529b219ca69ab25f78069b6821d8ae4ad3b04d6fe9ea74104005a7b81f34"
+    },
+    "ilx_archive_manifest": {
+      "path": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/compiler/resume-20261022/ilx-first-operand-v3-20261023T0020Z/archive-manifest.json",
+      "sha256": "c089b3886429631356e1bcc6894ca67b09befd3b58266f55e089ab4cce2e7ca3"
+    }
+  },
+  "integrated_base_proof": {
+    "old_base_commit": "afde9bfdbdf9a25257136833961025dee6429f8c",
+    "integrated_current_commit": "ac584008611f8bc86fa0ee15c65d297714d379ca",
+    "old_base_sha256": "f617ff2c56aaaaa8d1e15ee5a552af3e3148936cfce15715d9495cec4336f661",
+    "integrated_before_sha256": "9f3b5460d2140c3ef0eef94ab7cbac1f4ce9111872e7671b2235d6b6c196ab0a",
+    "patch_on_declared_base_sha256": "0f4a84ece61458433c5b240ee81e08631588f218ca406b0e9a245551e06fcc6d",
+    "integrated_delta_patch_sha256": "ec7d306a4d0c7b8529aa4f72ac321984de35d272dcdf9a8aae011f6c20af490c",
+    "order_a": "base f617 -> exact ILX patch zero-fuzz (intermediate matches receipt) -> exact integrated delta zero-fuzz",
+    "order_b": "integrated current 9f3 -> exact ILX patch zero-fuzz directly",
+    "order_a_equals_order_b_sha256": "9045693543f63a664a4510892621d52709be26fef85c1ec9e88a6a2d0f693de9",
+    "new_source_sha256": "e0e861453d365ce5de654748a90926c846914f4803c2b69c4088e7026239b103",
+    "zero_fuzz": "All four component/successor applications used patch --fuzz=0; integrated delta succeeded at explicit +5 line offsets (no fuzz), and resulted in byte-identical registry source."
+  },
+  "files": [
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation.rs",
+      "before_sha256": "9f3b5460d2140c3ef0eef94ab7cbac1f4ce9111872e7671b2235d6b6c196ab0a",
+      "final_sha256": "9045693543f63a664a4510892621d52709be26fef85c1ec9e88a6a2d0f693de9",
+      "exists_before": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation/source_remote_first_operand.rs",
+      "before_sha256": null,
+      "final_sha256": "e0e861453d365ce5de654748a90926c846914f4803c2b69c4088e7026239b103",
+      "exists_before": false
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/lib.rs",
+      "before_sha256": "77e4246cbb9e1c88225e48aabf43d0f9133ddfaa321e06a27e7a6d2710f2dcf2",
+      "final_sha256": "daa7e038b161fd34bd29fa26e3062ba28cffa8c07e1fe06e30d9dd1e4ee070d7",
+      "exists_before": true
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/readonly_reference_reports/source_views.rs",
+      "before_sha256": "73f64882ffc5ee33234f38d758ac40e688d554ea5617ef23c3c16a32d392be2a",
+      "final_sha256": "d8aeeba10c3ee218531deffa0111213dcabdda437a849fffbabf780c4965124d",
+      "exists_before": true
+    }
+  ],
+  "combined_patch_sha256": "bcd49e8e93f9ceb58a39f37bb56587b285d4821d23fe3caa44cd5c8dd1c45438",
+  "combined_patch": "/tmp/coordinator-n13-pair-nextsource-v1/combined.patch",
+  "formatting_manifest_sha256": "9261f5dbd1d545b6eccf7aa9458dfe1992d1430cbd2a08532d6687b59c2ec255",
+  "component_base_assertion": "LSP receipt bases match canonical bytes. ILX registry declared base f617 differs from canonical 9f3; exact pre-RBS/integrated predecessor delta retained and commutativity proved; no base refresh.",
+  "independent_reapply_receipt_sha256": "a6695a3603c20b10b5f6afc6eaa6bfc27f8c1819f3973886c48bae430141317b",
+  "independent_reapply_receipt": "/tmp/coordinator-n13-pair-nextsource-v1/independent-reapply.json",
+  "formatting_delta_files_all_empty": true,
+  "canonical_untouched": true,
+  "additional_original_pins": {
+    "ilx_v3_v2_delta_patch": {
+      "path": "/tmp/compiler-ilx-first-operand-v3/v2-delta.patch",
+      "sha256": "20169894a3ad6a098d37b3a084687796b690de900ebc2a4429143a199f9b251e"
+    },
+    "archived_proposal_patch": {
+      "path": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/compiler/resume-20261022/ilx-first-operand-v3-20261023T0020Z/proposal.patch",
+      "sha256": "fac7071946c6dcc9dd463b0e719bb934d9e6dc131eb50aab1996f5fb88783085"
+    },
+    "archived_consumer_api": {
+      "path": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/compiler/resume-20261022/ilx-first-operand-v3-20261023T0020Z/consumer-api.json",
+      "sha256": "682a529b219ca69ab25f78069b6821d8ae4ad3b04d6fe9ea74104005a7b81f34"
+    },
+    "archived_receipt": {
+      "path": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/compiler/resume-20261022/ilx-first-operand-v3-20261023T0020Z/receipt.json",
+      "sha256": "2519e47249af864b47169fbe93ead9d4079141f373499eaef2901f5d07dea4a9"
+    },
+    "archived_compiler_names_review": {
+      "path": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/compiler/resume-20261022/ilx-first-operand-v3-20261023T0020Z/compiler-names-review.json",
+      "sha256": "8ad89c56c40108ca9adecc3cea141da1340f8656e96393aa3f7c3bf54cebe133"
+    }
+  }
+}

@@ -1,0 +1,41 @@
+{
+  "tool": "/workspace/.rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/bin/rustfmt",
+  "tool_reported_version": "rustfmt 1.10.0-stable (58cf8f9c35 2026-10-13)",
+  "edition": "2024",
+  "config": "skip_children=true",
+  "check_exit": 0,
+  "files": [
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation.rs",
+      "before_format_sha256": "9045693543f63a664a4510892621d52709be26fef85c1ec9e88a6a2d0f693de9",
+      "after_format_sha256": "9045693543f63a664a4510892621d52709be26fef85c1ec9e88a6a2d0f693de9",
+      "changed": false,
+      "format_delta_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "delta_file": "/tmp/coordinator-n13-pair-nextsource-v1/format-deltas/registry_invocation.rs"
+    },
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation/source_remote_first_operand.rs",
+      "before_format_sha256": "e0e861453d365ce5de654748a90926c846914f4803c2b69c4088e7026239b103",
+      "after_format_sha256": "e0e861453d365ce5de654748a90926c846914f4803c2b69c4088e7026239b103",
+      "changed": false,
+      "format_delta_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "delta_file": "/tmp/coordinator-n13-pair-nextsource-v1/format-deltas/source_remote_first_operand.rs"
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/lib.rs",
+      "before_format_sha256": "daa7e038b161fd34bd29fa26e3062ba28cffa8c07e1fe06e30d9dd1e4ee070d7",
+      "after_format_sha256": "daa7e038b161fd34bd29fa26e3062ba28cffa8c07e1fe06e30d9dd1e4ee070d7",
+      "changed": false,
+      "format_delta_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "delta_file": "/tmp/coordinator-n13-pair-nextsource-v1/format-deltas/lib.rs"
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/readonly_reference_reports/source_views.rs",
+      "before_format_sha256": "d8aeeba10c3ee218531deffa0111213dcabdda437a849fffbabf780c4965124d",
+      "after_format_sha256": "d8aeeba10c3ee218531deffa0111213dcabdda437a849fffbabf780c4965124d",
+      "changed": false,
+      "format_delta_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "delta_file": "/tmp/coordinator-n13-pair-nextsource-v1/format-deltas/source_views.rs"
+    }
+  ]
+}

@@ -1350,9 +1350,8 @@ struct OpenDocumentTexts {
 /// A source-rehoming read that never waits for live publication while holding
 /// [`Backend::rehoming_gate`].
 enum RehomingDocumentSnapshot {
-    /// Published source bytes, plus the open revision to re-check before the
-    /// index write (`None` means the source was closed and came from Salsa).
-    Ready(Box<DocumentState>, Option<u64>),
+    /// Published source bytes for independently leased source-view capture.
+    Ready(Box<DocumentState>),
     /// An open revision is waiting to acquire the rehoming gate and publish.
     Pending,
     /// The URI has neither an open buffer nor a tracked Salsa source.
@@ -1928,6 +1927,7 @@ struct TrackedReadGuard<'a, T> {
     id: u64,
 }
 
+#[cfg(test)]
 impl<T> TrackedReadGuard<'_, T> {
     /// Name the step this reader is at, without releasing it.
     fn retag(&self, phase: &'static str) {
@@ -8820,9 +8820,8 @@ async fn publish_diagnostics_result_with_sources(
         // parked on the index while holding `documents` stalls the edit turn
         // behind the map and every request behind the turn. On contention the
         // map is released, the writer joins the index's fair queue holding
-        // nothing but the rehoming gate (the order `publish_rehomed_if_current`
-        // and `did_open` use), and currency is re-checked under a fresh map
-        // guard before the update is applied.
+        // nothing but the rehoming gate (the order `did_open` uses), and
+        // currency is re-checked under a fresh map guard before the update is applied.
         let (mut docs, mut index) = loop {
             let docs = delivery.documents.lock("publish_diagnostics_result").await;
             if !delivery.is_current(&docs).await {
@@ -9449,18 +9448,7 @@ pub struct Backend {
     /// only re-analyses on change, and so declaration-side queries can map a
     /// standalone name to its re-homed twin.
     ///
-    /// **Invariant: this map holds exactly the documents whose indexed analysis
-    /// is re-homed *away from* the standalone view.**  A document whose only
-    /// source site is the global namespace has a desired seed set of exactly
-    /// `["::"]`, which *is* the ordinary standalone analysis the index already
-    /// holds, so it is recorded as **absence** — never as an entry.  Every
-    /// producer and consumer has to agree on that single representation, via
-    /// [`Backend::is_standalone_view`]: while
-    /// [`Backend::refresh_source_rehoming_locked`]'s work queue and its store
-    /// disagree about it, an ordinary top-level `source b.tcl` never converges
-    /// — `b.tcl` is re-analysed and re-indexed on every round of every call,
-    /// and each re-index bumps the workspace index's generation, dropping every
-    /// `Derived` memo built on it.
+    /// URI retirement clears these retained namespace-seed records.
     rehomed_source_seeds: Arc<Mutex<HashMap<String, Vec<String>>>>,
     /// Serialises [`Backend::refresh_source_rehoming`] passes.
     ///
@@ -16151,14 +16139,7 @@ impl Backend {
     /// The per-URI caches go through the shared [`Self::forget_uri_states`]
     /// rather than being cleared by hand here, which is how
     /// `rehomed_source_seeds` and `autoloaded_library_uris` get missed.  A
-    /// retained seed record is far worse than the
-    /// bytes it holds — `refresh_source_rehoming_locked` can never reach its
-    /// early return again, because the stale URI is queued as work on every
-    /// round of every call (the desired set no longer names it) and the work
-    /// item then dies at the `read_document` guard before it can heal the
-    /// record.  One rename of a `source`d file would therefore turn an O(1)
-    /// early return into a permanent four-round workspace scan on every
-    /// navigation request that enters through `rehomed_index_guard`.
+    /// retained seed record would preserve an obsolete URI association.
     async fn retire_renamed_uri(
         &self,
         uri: &Uri,
@@ -28783,24 +28764,7 @@ impl Backend {
     /// `tclLsp.workspaceScan.maxFiles` files (default
     /// [`WORKSPACE_SCAN_FILE_CAP`]) so a large tree can't
     /// stall start-up.
-    /// Bring the index's per-document views in line with the *source
-    /// graph* — `source` evaluates a file in the caller's namespace, so a
-    /// document sourced from `namespace eval ::x` must be indexed under a
-    /// `::x`-seeded analysis (its bare `proc helper` is really
-    /// `::x::helper`).  Computes the desired seed set per sourced document
-    /// (literal paths, plus statically-foldable `[file join …]` forms),
-    /// re-analyses documents whose applied seeds differ, and
-    /// merges each seeded view into the index (one document may carry
-    /// several views when sourced from several namespaces — all true at
-    /// run time).  Iterates to a fixpoint (bounded) because a seeded parent
-    /// records *composed* namespaces for its own nested `source` calls.
-    ///
-    /// Serialised by [`Self::rehoming_gate`]: a caller that
-    /// lands while another pass (a peer request, or `scan_workspace_folders`'
-    /// own call after a merge) is already reconciling waits for it instead of
-    /// running its own redundant copy of the loop below — the early return a
-    /// few lines down then answers "already converged" for every waiter but
-    /// whichever caller actually did the work.
+    /// Reconcile exact source views and require their current indexed settlement.
     async fn refresh_source_rehoming(&self) -> DocumentSourceResult<()> {
         let _guard = self.rehomed_index_guard().await?;
 
@@ -28845,13 +28809,6 @@ impl Backend {
         Ok(guard)
     }
 
-    /// The seed standing for "evaluated in the global namespace".
-    ///
-    /// Must match the seed `WorkspaceIndex::source_seed_map` emits for a
-    /// `source` whose site namespace is empty — the two halves of the same
-    /// convention.
-    const STANDALONE_SEED: &'static str = "::";
-
     /// Capture a source for rehoming without calling [`Self::read_document`].
     /// The latter waits for indexed publication, which would deadlock here: the
     /// pending publisher needs the rehoming gate its caller already owns.
@@ -28865,20 +28822,16 @@ impl Backend {
             Some(doc) if doc.publication != DocumentPublication::Indexed => {
                 return Ok(RehomingDocumentSnapshot::Pending);
             }
-            Some(doc) => Some((
+            Some(doc) => Some(
                 doc.clone()
                     .with_path_admission(Arc::clone(&admission))
                     .normalised_for_analysis(),
-                doc.revision,
-            )),
+            ),
             None => None,
         };
         drop(docs);
-        if let Some((doc, revision)) = live {
-            return Ok(RehomingDocumentSnapshot::Ready(
-                Box::new(doc),
-                Some(revision),
-            ));
+        if let Some(doc) = live {
+            return Ok(RehomingDocumentSnapshot::Ready(Box::new(doc)));
         }
 
         let snapshot = {
@@ -28899,193 +28852,11 @@ impl Backend {
             {
                 RehomingDocumentSnapshot::Pending
             } else if let Some(snapshot) = snapshot {
-                RehomingDocumentSnapshot::Ready(Box::new(snapshot), None)
+                RehomingDocumentSnapshot::Ready(Box::new(snapshot))
             } else {
                 RehomingDocumentSnapshot::Missing
             },
         )
-    }
-
-    /// Replace one rehomed index view only if the source snapshot is still the
-    /// authoritative published revision. On index contention, join its fair
-    /// queue while holding no document-map guard, then re-check currency.
-    async fn publish_rehomed_if_current(
-        &self,
-        uri: &Uri,
-        open_revision: Option<u64>,
-        source: &str,
-        analyses: &[FreshAnalysisSeed],
-    ) -> DocumentSourceResult<bool> {
-        loop {
-            for analysis in analyses {
-                if !self.fresh_index_generation_is_current(analysis).await
-                    || (analysis.analysis.analysis_context_unavailable.is_none()
-                        && tcl_compiler::source_graph::current_analysis(source, &analysis.analysis)
-                            .is_none())
-                {
-                    return Ok(false);
-                }
-            }
-            let docs = self.documents.lock("refresh_source_rehoming_publish").await;
-            let current = match open_revision {
-                Some(revision) => docs.get(uri).is_some_and(|current| {
-                    current.publication == DocumentPublication::Indexed
-                        && current.revision == revision
-                }),
-                None => !docs.contains_key(uri),
-            };
-            if !current {
-                return Ok(false);
-            }
-            docs.retag("refresh_source_rehoming_publish: workspace_index.try_write");
-            let Ok(mut index) = self.workspace_index.try_write() else {
-                drop(docs);
-                drop(self.workspace_index.write().await);
-                continue;
-            };
-            let admissions = analyses
-                .iter()
-                .map(|analysis| analysis.path_admission.as_ref())
-                .collect::<Vec<_>>();
-            DocumentPathAdmission::with_current(&admissions, self.store.as_ref(), || {
-                index.retag("refresh_source_rehoming_publish: add_document");
-                index.remove_document(uri.as_str());
-                for analysis in analyses {
-                    if analysis.analysis.analysis_context_unavailable.is_none() {
-                        index.add_document(uri.as_str(), &analysis.analysis);
-                    }
-                }
-            })?;
-            return Ok(true);
-        }
-    }
-
-    /// Whether a seed set is exactly the standalone view — i.e. the document is
-    /// **not** re-homed and [`Self::rehomed_source_seeds`] must hold no entry
-    /// for it.
-    ///
-    /// Taken as an iterator so the *one* definition serves every caller
-    /// whatever collection it holds: the desired set arrives from
-    /// `WorkspaceIndex::source_seed_map` as a `BTreeSet`, the recorded and
-    /// applied ones as a `Vec`.  Spelling the test twice — once per collection
-    /// type — is how the queue and the store come to disagree, so there is
-    /// deliberately nowhere else to state it.
-    fn is_standalone_view<'s>(seeds: impl IntoIterator<Item = &'s String>) -> bool {
-        let mut seeds = seeds.into_iter();
-        seeds
-            .next()
-            .is_some_and(|only| only == Self::STANDALONE_SEED)
-            && seeds.next().is_none()
-    }
-
-    /// [`Self::refresh_source_rehoming`] with the transaction gate already held.
-    async fn refresh_source_rehoming_locked(&self) -> DocumentSourceResult<()> {
-        for _round in 0..4 {
-            // One index read per round, scoped to the seed-map fold and
-            // released before any other store is awaited: the per-document
-            // loop below takes the document map, the Salsa stores and the
-            // index writer in turn, and none of that runs under a reader
-            // that would hold a queued writer (and every reader behind it)
-            // off the index for the whole pass.
-            let desired = {
-                let index = self.workspace_index.read().await;
-                index.retag("refresh_source_rehoming: source_seed_map");
-                // Documents whose only source site is the global namespace are
-                // dropped here: their desired view *is* the standalone analysis
-                // the index already holds, and [`Self::rehomed_source_seeds`]
-                // records that as absence.  Leaving them in stops an ordinary
-                // top-level `source b.tcl` from ever converging: the queue below
-                // would compare `recorded.get(uri)` against `Some(["::"])` while
-                // the store *removes* such an entry, so the same document is
-                // re-analysed and re-indexed on every round of every call, for
-                // ever, invalidating every index-generation memo with it.
-                index.has_source_edges().then(|| {
-                    index
-                        .source_seed_map(resolve_source_edge)
-                        .into_iter()
-                        .filter(|(_, seeds)| !Self::is_standalone_view(seeds))
-                        .collect::<HashMap<String, std::collections::BTreeSet<String>>>()
-                })
-            };
-            let recorded = self.rehomed_source_seeds.lock().await.clone();
-            let desired = match desired {
-                Some(desired) => desired,
-                None if recorded.is_empty() => return Ok(()),
-                None => HashMap::new(),
-            };
-            let mut work: Vec<(String, Vec<String>)> = Vec::new();
-            for (uri, seeds) in &desired {
-                let seeds: Vec<String> = seeds.iter().cloned().collect();
-                if recorded.get(uri) != Some(&seeds) {
-                    work.push((uri.clone(), seeds));
-                }
-            }
-            for (uri, seeds) in &recorded {
-                if !desired.contains_key(uri) && !Self::is_standalone_view(seeds) {
-                    // No longer re-homed anywhere: restore the standalone view.
-                    // The invariant makes a recorded standalone view impossible,
-                    // so the second test never fires; it stays because queuing
-                    // one would be work the store immediately undoes — the
-                    // non-convergence this pass must never re-admit.
-                    work.push((uri.clone(), vec![Self::STANDALONE_SEED.to_owned()]));
-                }
-            }
-            if work.is_empty() {
-                return Ok(());
-            }
-            for (owner_uri_text, seeds) in work {
-                let Ok(uri) = Uri::from_str(&owner_uri_text) else {
-                    continue;
-                };
-                // Never call `read_document` while holding `rehoming_gate`:
-                // that reader waits for a publication-pending open document,
-                // while live publication needs this same gate to finish. Read
-                // a published open snapshot directly, or the tracked Salsa
-                // source for a closed document. A pending live revision makes
-                // this pass retire immediately so its publisher can take the
-                // gate; the next query reconciles the newly published view.
-                let (doc, open_revision) = match self.rehoming_document_snapshot(&uri).await? {
-                    RehomingDocumentSnapshot::Ready(doc, revision) => (doc, revision),
-                    RehomingDocumentSnapshot::Pending => return Ok(()),
-                    RehomingDocumentSnapshot::Missing => continue,
-                };
-                let mut analyses = Vec::with_capacity(seeds.len());
-                for namespace in &seeds {
-                    let admission = self.document_path_admission(&uri).await?;
-                    let driver = self.fresh_analysis_driver(admission).await;
-                    let text = Arc::clone(&doc.text);
-                    let dialect = doc.dialect.clone();
-                    let namespace = namespace.clone();
-                    let analysis = crate::rt::spawn_blocking(move || {
-                        driver.analyse(&text, &dialect, Some(&namespace))
-                    })
-                    .await
-                    .map_err(|_| DocumentSourceUnavailable::Worker { uri: uri.clone() })??;
-                    analysis
-                        .path_admission
-                        .check_for(&uri, self.store.as_ref())?;
-                    analyses.push(analysis);
-                }
-                if !self
-                    .publish_rehomed_if_current(&uri, open_revision, &doc.text, &analyses)
-                    .await?
-                {
-                    return Ok(());
-                }
-                if Self::is_standalone_view(&seeds) {
-                    self.rehomed_source_seeds
-                        .lock()
-                        .await
-                        .remove(&owner_uri_text);
-                } else {
-                    self.rehomed_source_seeds
-                        .lock()
-                        .await
-                        .insert(owner_uri_text, seeds);
-                }
-            }
-        }
-        Ok(())
     }
 
     /// Wait (bounded) for the workspace index to reflect a completed folder
@@ -66940,11 +66711,6 @@ proc p {} {
             "the renamed-away path's seed record must go with it",
         );
 
-        // The consequence, not just the symptom.  `work` in
-        // `refresh_source_rehoming_locked` is derived purely from the recorded
-        // seeds and the set the index asks for, so their equality proves the
-        // next pass queues nothing and returns in its first round — the O(1)
-        // behaviour the leaked record destroyed for the rest of the session.
         backend.refresh_source_rehoming().await.unwrap();
         let desired: std::collections::BTreeMap<String, Vec<String>> = backend
             .workspace_index
@@ -66975,16 +66741,6 @@ proc p {} {
         );
     }
 
-    /// The consequence in its purest form: when the renamed pair
-    /// takes the workspace's last `source` edge with it,
-    /// `refresh_source_rehoming_locked`'s early return
-    /// (`!has_source_edges() && seeds.is_empty()`) must be reachable again.
-    ///
-    /// A retained record fails the second half of that guard for good, so every
-    /// `references` / `definition` / `hover` / `rename` / call-hierarchy request
-    /// that enters through `rehomed_index_guard` pays a full four-round
-    /// workspace scan instead of an O(1) return, serialised behind one shared
-    /// gate.
     #[tokio::test]
     async fn renaming_a_sourced_pair_restores_the_rehoming_early_return_1298() {
         let backend = test_backend();
@@ -67018,7 +66774,6 @@ proc p {} {
             "a renamed-away seed record blocks the early return for the whole \
              session — the real cost of #1298, far beyond the bytes retained",
         );
-        // …and a pass over that state is a no-op, as the early return promises.
         backend.refresh_source_rehoming().await.unwrap();
         assert!(backend.rehomed_source_seeds.lock().await.is_empty());
     }

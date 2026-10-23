@@ -140,6 +140,11 @@ mod vendor_source_barriers;
 pub use vendor_advice::{VendorRegistryInvocationShape, vendor_registry_invocation_shape};
 pub use vendor_source_barriers::{NominalAliasSourceOperandOrigin, VendorSourceCatalogueBarriers};
 
+mod source_remote_first_operand;
+pub use source_remote_first_operand::{
+    OriginalSourceRemoteFirstOperandAssociation, OriginalSourceRemoteResultAssociation,
+    RemoteResultSourceObligation, source_remote_first_operand_associations,
+};
 mod hosted_structure;
 pub(crate) use hosted_structure::{
     SourceStructuredInvocation, original_hosted_structured_invocation,

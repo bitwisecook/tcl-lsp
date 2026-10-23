@@ -803,76 +803,6 @@ impl Backend {
         )
         .await
     }
-
-    /// Bind only a genuine declaration selected in this exact current view.
-    pub(crate) async fn retain_original_source_view_declaration(
-        &self,
-        id: OriginalSourceViewId,
-        identity: &tcl_lsp_core::original_declaration::OriginalDeclarationIdentity,
-    ) -> DocumentSourceResult<Option<tcl_lsp_core::original_declaration::OriginalDeclarationHandle>>
-    {
-        self.with_current_original_source_view(id, |view| {
-            let source = &view.draft.physical;
-            identity
-                .is_current(
-                    source.uri.as_str(),
-                    &source.source,
-                    &view.draft.producer.seed.analysis,
-                )
-                .then_some(())?;
-            let mut registry = self.original_declaration_registry.try_lock().ok()?;
-            registry.issue_in_source_view(
-                identity.clone(),
-                tcl_lsp_core::original_declaration::OriginalSourceViewPublication::retain(view.id),
-            )
-        })
-        .await
-    }
-
-    /// Resolve saved A through A's exact live publication; a byte-equal B or
-    /// later restored A can never supply a replacement view key.
-    pub(crate) async fn resolve_original_source_view_declaration<T>(
-        &self,
-        handle: tcl_lsp_core::original_declaration::OriginalDeclarationHandle,
-        expected_uri: &Uri,
-        mut render: impl FnMut(
-            &tcl_lsp_core::original_declaration::OriginalDeclarationIdentity,
-            &PublishedOriginalSourceView,
-        ) -> Option<T>,
-    ) -> DocumentSourceResult<Option<T>> {
-        let id = {
-            let Ok(registry) = self.original_declaration_registry.try_lock() else {
-                return Ok(None);
-            };
-            registry
-                .source_view_publication::<OriginalSourceViewId>(handle)
-                .copied()
-        };
-        let Some(id) = id else {
-            return Ok(None);
-        };
-        self.with_current_original_source_view(id, |view| {
-            let physical = &view.draft.physical;
-            (&physical.uri == expected_uri).then_some(())?;
-            let registry = self.original_declaration_registry.try_lock().ok()?;
-            let publication =
-                tcl_lsp_core::original_declaration::OriginalSourceViewPublication::retain(view.id);
-            let identity = registry.resolve_in_source_view(
-                handle,
-                physical.uri.as_str(),
-                &physical.source,
-                &view.draft.producer.seed.analysis,
-                &publication,
-            )?;
-            // Reborrow the SAME live table allocation. There is no analysis_for
-            // call here and no first-URI lifting or legacy resolution retry.
-            // Render inside this actual publication lease. An escaped Arc
-            // would retain ownership only, never durable currentness. Any
-            // later asynchronous phase must rejoin this saved ID again.
-            render(&identity, view)
-        })
-        .await
-    }
 }
 
 impl super::super::FreshAnalysisDriver {
@@ -1993,7 +1923,7 @@ impl Backend {
                 continue;
             }
             let snapshot = self.rehoming_document_snapshot(&uri).await?;
-            let super::super::RehomingDocumentSnapshot::Ready(document, _) = snapshot else {
+            let super::super::RehomingDocumentSnapshot::Ready(document) = snapshot else {
                 work.pending.insert(uri);
                 continue;
             };
@@ -2289,7 +2219,7 @@ impl Backend {
             return Ok(Some(cached));
         }
         let snapshot = self.rehoming_document_snapshot(&uri).await?;
-        let super::super::RehomingDocumentSnapshot::Ready(document, _) = snapshot else {
+        let super::super::RehomingDocumentSnapshot::Ready(document) = snapshot else {
             return Ok(None);
         };
         let Some(draft) = self

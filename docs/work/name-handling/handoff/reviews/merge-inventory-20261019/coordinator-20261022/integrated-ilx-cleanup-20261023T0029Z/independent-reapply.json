@@ -1,0 +1,26 @@
+{
+  "status": "PASS; independent scratch reapply only; zero fuzz; canonical untouched",
+  "combined_patch_sha256": "bcd49e8e93f9ceb58a39f37bb56587b285d4821d23fe3caa44cd5c8dd1c45438",
+  "files": [
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation.rs",
+      "sha256": "9045693543f63a664a4510892621d52709be26fef85c1ec9e88a6a2d0f693de9",
+      "equal": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation/source_remote_first_operand.rs",
+      "sha256": "e0e861453d365ce5de654748a90926c846914f4803c2b69c4088e7026239b103",
+      "equal": true
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/lib.rs",
+      "sha256": "daa7e038b161fd34bd29fa26e3062ba28cffa8c07e1fe06e30d9dd1e4ee070d7",
+      "equal": true
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/readonly_reference_reports/source_views.rs",
+      "sha256": "d8aeeba10c3ee218531deffa0111213dcabdda437a849fffbabf780c4965124d",
+      "equal": true
+    }
+  ]
+}

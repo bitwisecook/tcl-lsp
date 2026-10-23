@@ -1,0 +1,123 @@
+{
+  "utc": "2026-10-23T00:28:55.131596+00:00",
+  "source": "/tmp/compiler-names-n13-typecheck-six-20261023T0016Z",
+  "summary": {
+    "cargo_exits": [
+      0
+    ],
+    "compiler_errors": 0,
+    "compiler_warnings": 7,
+    "head_after": "df68309bdf60f358a0d1c2abd543d729d67fda79",
+    "head_before": "ac584008611f8bc86fa0ee15c65d297714d379ca",
+    "passed": false,
+    "phases_completed": 1,
+    "provider_changes": [],
+    "retained_log_bytes": 435981,
+    "retention_cap_bytes": 20971520,
+    "scope": "Typecheck only, no tests or N13 functional admission. All six packages share one keep-going all-targets invocation; Cargo controls dependency failures. HEAD/index-only coordinator changes are recorded independently.",
+    "source_and_providers_unchanged": true,
+    "source_changes": [],
+    "source_count_after": 6541,
+    "source_count_before": 6541,
+    "utc": "2026-10-23T00:28:16.457155+00:00"
+  },
+  "files": [
+    {
+      "original_name": "after-providers.json",
+      "original_bytes": 31165,
+      "original_sha256": "bfa3e8e7b689dadefe4417f1f953cf6cafe06bfba4c8a2ed261111baa103c246",
+      "stored": "after-providers.json",
+      "stored_bytes": 31165,
+      "stored_sha256": "bfa3e8e7b689dadefe4417f1f953cf6cafe06bfba4c8a2ed261111baa103c246"
+    },
+    {
+      "original_name": "after-source.json",
+      "original_bytes": 872949,
+      "original_sha256": "7d1bb4c5e93338a189e96dfda920e562f1039618121533463384d2ea090de1e0",
+      "stored": "after-source.json.gz",
+      "stored_bytes": 300239,
+      "stored_sha256": "b4dddb69a9f95ca8373284a102c4afc27df7945299a205498b176f9b0ff553b9"
+    },
+    {
+      "original_name": "before-providers.json",
+      "original_bytes": 31165,
+      "original_sha256": "bfa3e8e7b689dadefe4417f1f953cf6cafe06bfba4c8a2ed261111baa103c246",
+      "stored": "before-providers.json",
+      "stored_bytes": 31165,
+      "stored_sha256": "bfa3e8e7b689dadefe4417f1f953cf6cafe06bfba4c8a2ed261111baa103c246"
+    },
+    {
+      "original_name": "before-source.json",
+      "original_bytes": 872949,
+      "original_sha256": "f8c93be36016bb8d7ba80886e6aa1dcf3016ea9d14ba067a153ab4b4874e83f8",
+      "stored": "before-source.json.gz",
+      "stored_bytes": 300237,
+      "stored_sha256": "8d42b6c84707cd2548be9aa7c8496ab907fea36cf16f48e9734480aa6ecfbc8d"
+    },
+    {
+      "original_name": "combined-artifacts.json",
+      "original_bytes": 496367,
+      "original_sha256": "65638da6393073390dda5e0783412f2915ba5fe1725474e56f6febd8690449f1",
+      "stored": "combined-artifacts.json.gz",
+      "stored_bytes": 38578,
+      "stored_sha256": "5c813f690449d71ff6cd73fa63620b3d8f38a6b1acee09534a0541bd2037565a"
+    },
+    {
+      "original_name": "combined-result.json",
+      "original_bytes": 16929,
+      "original_sha256": "8cb4160a673177441ae88927399231c6ee5e2b5f36195cb7c99494eedc633a88",
+      "stored": "combined-result.json",
+      "stored_bytes": 16929,
+      "stored_sha256": "8cb4160a673177441ae88927399231c6ee5e2b5f36195cb7c99494eedc633a88"
+    },
+    {
+      "original_name": "combined-started.json",
+      "original_bytes": 396,
+      "original_sha256": "6cb3d4c8f6e14bad57ca98889f8a1b1259c3e027833f851aff462fa0e1a0cabd",
+      "stored": "combined-started.json",
+      "stored_bytes": 396,
+      "stored_sha256": "6cb3d4c8f6e14bad57ca98889f8a1b1259c3e027833f851aff462fa0e1a0cabd"
+    },
+    {
+      "original_name": "combined.stderr.log",
+      "original_bytes": 1942,
+      "original_sha256": "6559fe2311c58b90acc8b9686c87b85e389326d6c28c499168a7ce7e2378bb50",
+      "stored": "combined.stderr.log",
+      "stored_bytes": 1942,
+      "stored_sha256": "6559fe2311c58b90acc8b9686c87b85e389326d6c28c499168a7ce7e2378bb50"
+    },
+    {
+      "original_name": "combined.stdout.jsonl",
+      "original_bytes": 434039,
+      "original_sha256": "1f343c3af009b5590d59550e26360bf9b2c9db06a17bb66a707b681faa9fb4c6",
+      "stored": "combined.stdout.jsonl.gz",
+      "stored_bytes": 28949,
+      "stored_sha256": "39536f1ed4f7ac32b153a106d63f1c8fe4df738b542bd1541739450f541a2cb1"
+    },
+    {
+      "original_name": "lock-claimed.json",
+      "original_bytes": 930,
+      "original_sha256": "6c7b961184bc59e132880820f9c65049d03ead762ee2fdb15cb77bf9dbb9f544",
+      "stored": "lock-claimed.json",
+      "stored_bytes": 930,
+      "stored_sha256": "6c7b961184bc59e132880820f9c65049d03ead762ee2fdb15cb77bf9dbb9f544"
+    },
+    {
+      "original_name": "lock-released.json",
+      "original_bytes": 65,
+      "original_sha256": "8cefdb5d17f44dc385ee51ef016a1e5d3cfc94d5354c35dfc2c6f60e1eec23e7",
+      "stored": "lock-released.json",
+      "stored_bytes": 65,
+      "stored_sha256": "8cefdb5d17f44dc385ee51ef016a1e5d3cfc94d5354c35dfc2c6f60e1eec23e7"
+    },
+    {
+      "original_name": "summary.json",
+      "original_bytes": 743,
+      "original_sha256": "5277955f7649d072e4f46479bfde249cf07a1cd189f3be1f8cd53b06498e4408",
+      "stored": "summary.json",
+      "stored_bytes": 743,
+      "stored_sha256": "5277955f7649d072e4f46479bfde249cf07a1cd189f3be1f8cd53b06498e4408"
+    }
+  ],
+  "acceptance": "Not green: Cargo0/no errors,7 Rust warning instances in4 server source groups. Stable sources/providers; no runtime/release admission."
+}

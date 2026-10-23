@@ -1,0 +1,13 @@
+{
+  "utc": "2026-10-23T00:29:32.669437+00:00",
+  "head_before": "df68309bdf60f358a0d1c2abd543d729d67fda79",
+  "patch_sha256": "bcd49e8e93f9ceb58a39f37bb56587b285d4821d23fe3caa44cd5c8dd1c45438",
+  "manifest_sha256": "a5b76d1c57e1bd807669ae29df07a826726545b97167d82b516146ddfc6cefbe",
+  "all_before_and_after_hashes_verified": true,
+  "files": 4,
+  "component_and_review_hashes_verified": true,
+  "live_cargo_rustc": [],
+  "build_lock_held": true,
+  "git_diff_check": true,
+  "scope": "ILX source API and zero-warning cleanup integrated; untyped/unrun. No runtime/Normal authority or release admission. Corrected only future metadata timestamp; original manifest preserved."
+}

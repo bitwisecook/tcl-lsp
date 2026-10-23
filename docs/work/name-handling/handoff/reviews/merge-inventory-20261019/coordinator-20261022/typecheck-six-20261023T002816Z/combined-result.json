@@ -1,0 +1,411 @@
+{
+  "argv": [
+    "cargo",
+    "check",
+    "--locked",
+    "--keep-going",
+    "-p",
+    "tcl-compiler",
+    "-p",
+    "tcl-lsp-core",
+    "-p",
+    "tcl-lsp-db",
+    "-p",
+    "tcl-lsp-server",
+    "-p",
+    "tcl-vm",
+    "-p",
+    "tcl-fuzz",
+    "--all-targets",
+    "--message-format=json"
+  ],
+  "cargo_exit": 0,
+  "disk_abort": false,
+  "error_count": 0,
+  "errors": [],
+  "logs_truncated": false,
+  "minimum_free_bytes": 11996233728,
+  "overlong_json_lines": 0,
+  "parse_errors": 0,
+  "passed": false,
+  "retained_bytes": 435981,
+  "retention_budget": 20971520,
+  "stderr_bytes": 1942,
+  "stdout_bytes": 434039,
+  "termination_scope": "Only this Popen-created Cargo session/process group; no cleanup/deletion",
+  "utc": "2026-10-23T00:28:04.427553+00:00",
+  "warning_count": 7,
+  "warnings": [
+    {
+      "code": "dead_code",
+      "message": "field `1` is never read",
+      "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-lsp-server#0.1.0",
+      "primary_spans": [
+        {
+          "byte_end": 53024,
+          "byte_start": 53013,
+          "column_end": 42,
+          "column_start": 31,
+          "expansion": null,
+          "file_name": "rust/tcl-lsp-server/src/lib.rs",
+          "is_primary": true,
+          "label": null,
+          "line_end": 1355,
+          "line_start": 1355,
+          "suggested_replacement": null,
+          "suggestion_applicability": null,
+          "text": [
+            {
+              "highlight_end": 42,
+              "highlight_start": 31,
+              "text": "    Ready(Box<DocumentState>, Option<u64>),"
+            }
+          ]
+        }
+      ],
+      "rendered": "warning: field `1` is never read\n    --> rust/tcl-lsp-server/src/lib.rs:1355:31\n     |\n1355 |     Ready(Box<DocumentState>, Option<u64>),\n     |     -----                     ^^^^^^^^^^^\n     |     |\n     |     field in this variant\n     |\n     = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default\nhelp: consider changing the field to be of unit type to suppress this warning while preserving the field numbering, or remove the field\n     |\n1355 -     Ready(Box<DocumentState>, Option<u64>),\n1355 +     Ready(Box<DocumentState>, ()),\n     |\n\n"
+    },
+    {
+      "code": "dead_code",
+      "message": "method `retag` is never used",
+      "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-lsp-server#0.1.0",
+      "primary_spans": [
+        {
+          "byte_end": 73084,
+          "byte_start": 73079,
+          "column_end": 13,
+          "column_start": 8,
+          "expansion": null,
+          "file_name": "rust/tcl-lsp-server/src/lib.rs",
+          "is_primary": true,
+          "label": null,
+          "line_end": 1933,
+          "line_start": 1933,
+          "suggested_replacement": null,
+          "suggestion_applicability": null,
+          "text": [
+            {
+              "highlight_end": 13,
+              "highlight_start": 8,
+              "text": "    fn retag(&self, phase: &'static str) {"
+            }
+          ]
+        }
+      ],
+      "rendered": "warning: method `retag` is never used\n    --> rust/tcl-lsp-server/src/lib.rs:1933:8\n     |\n1931 | impl<T> TrackedReadGuard<'_, T> {\n     | ------------------------------- method in this implementation\n1932 |     /// Name the step this reader is at, without releasing it.\n1933 |     fn retag(&self, phase: &'static str) {\n     |        ^^^^^\n\n"
+    },
+    {
+      "code": "dead_code",
+      "message": "associated items `STANDALONE_SEED`, `publish_rehomed_if_current`, `is_standalone_view`, and `refresh_source_rehoming_locked` are never used",
+      "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-lsp-server#0.1.0",
+      "primary_spans": [
+        {
+          "byte_end": 1265779,
+          "byte_start": 1265764,
+          "column_end": 26,
+          "column_start": 11,
+          "expansion": null,
+          "file_name": "rust/tcl-lsp-server/src/lib.rs",
+          "is_primary": true,
+          "label": null,
+          "line_end": 28853,
+          "line_start": 28853,
+          "suggested_replacement": null,
+          "suggestion_applicability": null,
+          "text": [
+            {
+              "highlight_end": 26,
+              "highlight_start": 11,
+              "text": "    const STANDALONE_SEED: &'static str = \"::\";"
+            }
+          ]
+        },
+        {
+          "byte_end": 1268108,
+          "byte_start": 1268082,
+          "column_end": 40,
+          "column_start": 14,
+          "expansion": null,
+          "file_name": "rust/tcl-lsp-server/src/lib.rs",
+          "is_primary": true,
+          "label": null,
+          "line_end": 28912,
+          "line_start": 28912,
+          "suggested_replacement": null,
+          "suggestion_applicability": null,
+          "text": [
+            {
+              "highlight_end": 40,
+              "highlight_start": 14,
+              "text": "    async fn publish_rehomed_if_current("
+            }
+          ]
+        },
+        {
+          "byte_end": 1270818,
+          "byte_start": 1270800,
+          "column_end": 26,
+          "column_start": 8,
+          "expansion": null,
+          "file_name": "rust/tcl-lsp-server/src/lib.rs",
+          "is_primary": true,
+          "label": null,
+          "line_end": 28973,
+          "line_start": 28973,
+          "suggested_replacement": null,
+          "suggestion_applicability": null,
+          "text": [
+            {
+              "highlight_end": 26,
+              "highlight_start": 8,
+              "text": "    fn is_standalone_view<'s>(seeds: impl IntoIterator<Item = &'s String>) -> bool {"
+            }
+          ]
+        },
+        {
+          "byte_end": 1271188,
+          "byte_start": 1271158,
+          "column_end": 44,
+          "column_start": 14,
+          "expansion": null,
+          "file_name": "rust/tcl-lsp-server/src/lib.rs",
+          "is_primary": true,
+          "label": null,
+          "line_end": 28982,
+          "line_start": 28982,
+          "suggested_replacement": null,
+          "suggestion_applicability": null,
+          "text": [
+            {
+              "highlight_end": 44,
+              "highlight_start": 14,
+              "text": "    async fn refresh_source_rehoming_locked(&self) -> DocumentSourceResult<()> {"
+            }
+          ]
+        }
+      ],
+      "rendered": "warning: associated items `STANDALONE_SEED`, `publish_rehomed_if_current`, `is_standalone_view`, and `refresh_source_rehoming_locked` are never used\n     --> rust/tcl-lsp-server/src/lib.rs:28853:11\n      |\n11052 | impl Backend {\n      | ------------ associated items in this implementation\n...\n28853 |     const STANDALONE_SEED: &'static str = \"::\";\n      |           ^^^^^^^^^^^^^^^\n...\n28912 |     async fn publish_rehomed_if_current(\n      |              ^^^^^^^^^^^^^^^^^^^^^^^^^^\n...\n28973 |     fn is_standalone_view<'s>(seeds: impl IntoIterator<Item = &'s String>) -> bool {\n      |        ^^^^^^^^^^^^^^^^^^\n...\n28982 |     async fn refresh_source_rehoming_locked(&self) -> DocumentSourceResult<()> {\n      |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n\n"
+    },
+    {
+      "code": "dead_code",
+      "message": "methods `retain_original_source_view_declaration` and `resolve_original_source_view_declaration` are never used",
+      "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-lsp-server#0.1.0",
+      "primary_spans": [
+        {
+          "byte_end": 31314,
+          "byte_start": 31275,
+          "column_end": 64,
+          "column_start": 25,
+          "expansion": null,
+          "file_name": "rust/tcl-lsp-server/src/readonly_reference_reports/source_views.rs",
+          "is_primary": true,
+          "label": null,
+          "line_end": 808,
+          "line_start": 808,
+          "suggested_replacement": null,
+          "suggestion_applicability": null,
+          "text": [
+            {
+              "highlight_end": 64,
+              "highlight_start": 25,
+              "text": "    pub(crate) async fn retain_original_source_view_declaration("
+            }
+          ]
+        },
+        {
+          "byte_end": 32413,
+          "byte_start": 32373,
+          "column_end": 65,
+          "column_start": 25,
+          "expansion": null,
+          "file_name": "rust/tcl-lsp-server/src/readonly_reference_reports/source_views.rs",
+          "is_primary": true,
+          "label": null,
+          "line_end": 834,
+          "line_start": 834,
+          "suggested_replacement": null,
+          "suggestion_applicability": null,
+          "text": [
+            {
+              "highlight_end": 65,
+              "highlight_start": 25,
+              "text": "    pub(crate) async fn resolve_original_source_view_declaration<T>("
+            }
+          ]
+        }
+      ],
+      "rendered": "warning: methods `retain_original_source_view_declaration` and `resolve_original_source_view_declaration` are never used\n   --> rust/tcl-lsp-server/src/readonly_reference_reports/source_views.rs:808:25\n    |\n739 | impl Backend {\n    | ------------ methods in this implementation\n...\n808 |     pub(crate) async fn retain_original_source_view_declaration(\n    |                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n...\n834 |     pub(crate) async fn resolve_original_source_view_declaration<T>(\n    |                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n\n"
+    },
+    {
+      "code": "dead_code",
+      "message": "field `1` is never read",
+      "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-lsp-server#0.1.0",
+      "primary_spans": [
+        {
+          "byte_end": 53024,
+          "byte_start": 53013,
+          "column_end": 42,
+          "column_start": 31,
+          "expansion": null,
+          "file_name": "rust/tcl-lsp-server/src/lib.rs",
+          "is_primary": true,
+          "label": null,
+          "line_end": 1355,
+          "line_start": 1355,
+          "suggested_replacement": null,
+          "suggestion_applicability": null,
+          "text": [
+            {
+              "highlight_end": 42,
+              "highlight_start": 31,
+              "text": "    Ready(Box<DocumentState>, Option<u64>),"
+            }
+          ]
+        }
+      ],
+      "rendered": "warning: field `1` is never read\n    --> rust/tcl-lsp-server/src/lib.rs:1355:31\n     |\n1355 |     Ready(Box<DocumentState>, Option<u64>),\n     |     -----                     ^^^^^^^^^^^\n     |     |\n     |     field in this variant\n     |\n     = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default\nhelp: consider changing the field to be of unit type to suppress this warning while preserving the field numbering, or remove the field\n     |\n1355 -     Ready(Box<DocumentState>, Option<u64>),\n1355 +     Ready(Box<DocumentState>, ()),\n     |\n\n"
+    },
+    {
+      "code": "dead_code",
+      "message": "associated items `STANDALONE_SEED`, `publish_rehomed_if_current`, `is_standalone_view`, and `refresh_source_rehoming_locked` are never used",
+      "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-lsp-server#0.1.0",
+      "primary_spans": [
+        {
+          "byte_end": 1265779,
+          "byte_start": 1265764,
+          "column_end": 26,
+          "column_start": 11,
+          "expansion": null,
+          "file_name": "rust/tcl-lsp-server/src/lib.rs",
+          "is_primary": true,
+          "label": null,
+          "line_end": 28853,
+          "line_start": 28853,
+          "suggested_replacement": null,
+          "suggestion_applicability": null,
+          "text": [
+            {
+              "highlight_end": 26,
+              "highlight_start": 11,
+              "text": "    const STANDALONE_SEED: &'static str = \"::\";"
+            }
+          ]
+        },
+        {
+          "byte_end": 1268108,
+          "byte_start": 1268082,
+          "column_end": 40,
+          "column_start": 14,
+          "expansion": null,
+          "file_name": "rust/tcl-lsp-server/src/lib.rs",
+          "is_primary": true,
+          "label": null,
+          "line_end": 28912,
+          "line_start": 28912,
+          "suggested_replacement": null,
+          "suggestion_applicability": null,
+          "text": [
+            {
+              "highlight_end": 40,
+              "highlight_start": 14,
+              "text": "    async fn publish_rehomed_if_current("
+            }
+          ]
+        },
+        {
+          "byte_end": 1270818,
+          "byte_start": 1270800,
+          "column_end": 26,
+          "column_start": 8,
+          "expansion": null,
+          "file_name": "rust/tcl-lsp-server/src/lib.rs",
+          "is_primary": true,
+          "label": null,
+          "line_end": 28973,
+          "line_start": 28973,
+          "suggested_replacement": null,
+          "suggestion_applicability": null,
+          "text": [
+            {
+              "highlight_end": 26,
+              "highlight_start": 8,
+              "text": "    fn is_standalone_view<'s>(seeds: impl IntoIterator<Item = &'s String>) -> bool {"
+            }
+          ]
+        },
+        {
+          "byte_end": 1271188,
+          "byte_start": 1271158,
+          "column_end": 44,
+          "column_start": 14,
+          "expansion": null,
+          "file_name": "rust/tcl-lsp-server/src/lib.rs",
+          "is_primary": true,
+          "label": null,
+          "line_end": 28982,
+          "line_start": 28982,
+          "suggested_replacement": null,
+          "suggestion_applicability": null,
+          "text": [
+            {
+              "highlight_end": 44,
+              "highlight_start": 14,
+              "text": "    async fn refresh_source_rehoming_locked(&self) -> DocumentSourceResult<()> {"
+            }
+          ]
+        }
+      ],
+      "rendered": "warning: associated items `STANDALONE_SEED`, `publish_rehomed_if_current`, `is_standalone_view`, and `refresh_source_rehoming_locked` are never used\n     --> rust/tcl-lsp-server/src/lib.rs:28853:11\n      |\n11052 | impl Backend {\n      | ------------ associated items in this implementation\n...\n28853 |     const STANDALONE_SEED: &'static str = \"::\";\n      |           ^^^^^^^^^^^^^^^\n...\n28912 |     async fn publish_rehomed_if_current(\n      |              ^^^^^^^^^^^^^^^^^^^^^^^^^^\n...\n28973 |     fn is_standalone_view<'s>(seeds: impl IntoIterator<Item = &'s String>) -> bool {\n      |        ^^^^^^^^^^^^^^^^^^\n...\n28982 |     async fn refresh_source_rehoming_locked(&self) -> DocumentSourceResult<()> {\n      |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n\n"
+    },
+    {
+      "code": "dead_code",
+      "message": "methods `retain_original_source_view_declaration` and `resolve_original_source_view_declaration` are never used",
+      "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-lsp-server#0.1.0",
+      "primary_spans": [
+        {
+          "byte_end": 31314,
+          "byte_start": 31275,
+          "column_end": 64,
+          "column_start": 25,
+          "expansion": null,
+          "file_name": "rust/tcl-lsp-server/src/readonly_reference_reports/source_views.rs",
+          "is_primary": true,
+          "label": null,
+          "line_end": 808,
+          "line_start": 808,
+          "suggested_replacement": null,
+          "suggestion_applicability": null,
+          "text": [
+            {
+              "highlight_end": 64,
+              "highlight_start": 25,
+              "text": "    pub(crate) async fn retain_original_source_view_declaration("
+            }
+          ]
+        },
+        {
+          "byte_end": 32413,
+          "byte_start": 32373,
+          "column_end": 65,
+          "column_start": 25,
+          "expansion": null,
+          "file_name": "rust/tcl-lsp-server/src/readonly_reference_reports/source_views.rs",
+          "is_primary": true,
+          "label": null,
+          "line_end": 834,
+          "line_start": 834,
+          "suggested_replacement": null,
+          "suggestion_applicability": null,
+          "text": [
+            {
+              "highlight_end": 65,
+              "highlight_start": 25,
+              "text": "    pub(crate) async fn resolve_original_source_view_declaration<T>("
+            }
+          ]
+        }
+      ],
+      "rendered": "warning: methods `retain_original_source_view_declaration` and `resolve_original_source_view_declaration` are never used\n   --> rust/tcl-lsp-server/src/readonly_reference_reports/source_views.rs:808:25\n    |\n739 | impl Backend {\n    | ------------ methods in this implementation\n...\n808 |     pub(crate) async fn retain_original_source_view_declaration(\n    |                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n...\n834 |     pub(crate) async fn resolve_original_source_view_declaration<T>(\n    |                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n\n"
+    }
+  ]
+}
