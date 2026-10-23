@@ -37,6 +37,7 @@
 
 #![deny(missing_docs)]
 #![forbid(unsafe_code)]
+#![recursion_limit = "256"]
 // Several pedantic lints fight this crate's structure: nested conditionals
 // that follow the iRule `if`/`match` nesting, declarative data-table `match`
 // arms that legitimately share a description string, and the long IR-walk

@@ -1,0 +1,12 @@
+{
+  "command": [
+    "/workspace/bigip-lsp/target/debug/f5-query",
+    "query",
+    "--write",
+    ".ltm.pool[] | .description = (file(\"etc/donor\") | .content)",
+    "/tmp/f5-query-file-donor-13482/input.ucs"
+  ],
+  "exit": 2,
+  "stdout": "",
+  "stderr": "error: cannot edit 'description' on '/Common/old': this field has no single-line slot in the source (compound values are not writable in v1)\n"
+}

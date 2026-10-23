@@ -2,7 +2,7 @@
 
 Area: editors/, BIG-IP/F5 crates and LSP modules.
 
-Last updated: 2026-10-23T12:03Z
+Last updated: 2026-10-23T12:14Z
 
 Maintained by the bigip-lsp agent. Keep this snapshot and Resume current, and
 push at least every 30 minutes and after each finished item. Full unit table:
@@ -204,7 +204,9 @@ prior receipts below describe their original source, not the new integrated tip.
   Core ILX, CLI/provider/trace/simulation, server F5 pull, ILX16/XC/W109 e2e).
   Previous launch96931 was stopped before artifacts after the new user decision;
   has been restarted as65063 after focused8/8 and restoring16 additional
-  literal fixtures unchanged from HEAD. Build sources stay frozen.
+  literal fixtures unchanged from HEAD. The compiled snapshot is pinned as d392eb63 (exact source patch and all
+  11 binary hashes retained). Follow-up source edits below are after that build;
+  no whole-run source-seal claim. Runtime fixture files are unchanged.
 - Earlier Core test build failed only on three omitted literal experiment
   fixtures; their exact HEAD bytes are restored and sparse patterns retained.
   Scoped broad Clippy completed with10generic Core errors, no owned finding;
@@ -237,3 +239,23 @@ Coordinator follow-up 2026-10-23T00:48:04.062877+00:00: compiler first-operand s
 ### Coordinator current-CI routing — 2026-10-23T02:06Z (owner header unchanged)
 
 CI5206 product3b1 heavy job120175508112 completed: 354 exact outcomes,312PASS42FAIL. Matching actual origin/rust CI5203 heavy job119956195910 shows18PASS-to-FAIL, including16 CLI/iRules selectors and2 compiler/BPF selectors. Exact separate ledger: `handoff/reviews/merge-inventory-20261019/coordinator-20261023/ci5206-log-triage/new-completed-0200Z/heavy-exact-baseline-join.json`; byte-exact decoded gzip/log hashes alongside. External BIG-IP retains CLI/iRules ownership; compiler-codegen is triaging the2 BPF cases. Old-owner timestamp remains stale; no takeover or green claim. Compiler49 current-source guarded run active; source batch remains pending closure.
+
+### Follow-up checks — current continuation
+
+- Compiler controls4PASS/1FAIL (procedure body), Core ILX19/19PASS. The
+  initial f5-query bin filters selected0tests: provider tests live in f5_cli
+  library and are explicitly scheduled in cli-final.json. No provider-test
+  pass is claimed from those0-test runs.
+- Original CLI17:13PASS/4FAIL. Two explain goldens reproduce the missing
+  compiler event-word inventory. The other two failures precede byte admission:
+  scalar rename received a stream; inline description had no writable slot.
+  Corrected only to first(full-path) and multiline config; donor bytes, both
+  preview controls and every refusal/artifact assertion remain. Production
+  controls pass; original17+library provider/source-event rerun pending.
+- Native eight-root strict Clippy PASS0warnings after owned XC recursion256;
+  exact command/source patch: bigip-lsp/f5-clippy-final-20261023.json.
+- Original irule14 is still active in the500-level minifier stack regression.
+  Remaining trace/simulation/server/e2e results pending. Separate f5-xc31 and
+  exact three editor comparison tests build99672 active; no test artifact
+  overlaps with the remaining original run. Do not rebuild f5-query until its
+  original irule/explain-flow consumers finish.

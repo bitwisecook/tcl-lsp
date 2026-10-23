@@ -1,0 +1,26 @@
+{
+  "date_utc": "2026-10-23T12:14:47Z",
+  "source_base": "4ada2d58",
+  "source_patch_sha256": "4416ed9807012429b6ec15ef0229b2e4b2323c3616e9b899cc35f7b2c29a2224",
+  "command": "cargo clippy --locked --keep-going -p tcl-bigip -p tcl-bigip-io -p tcl-bigip-query -p tcl-irules -p f5-xc -p f5-cli -p tcl-f5mku -p bigip-report-gen-rust --lib --bins --tests --no-deps --message-format=json -- -D warnings",
+  "exit": 0,
+  "messages": [],
+  "rust": "1.99.1",
+  "environment": {
+    "CARGO_BUILD_JOBS": "1",
+    "CARGO_INCREMENTAL": "0",
+    "CARGO_PROFILE_DEV_DEBUG": "0",
+    "CARGO_PROFILE_TEST_DEBUG": "0",
+    "CARGO_TARGET_DIR": "/workspace/bigip-clippy-target"
+  },
+  "raw_sha256": {
+    "f5-clippy-final.jsonl": "961173bc79a8ef84517be7277268ff83f7047087c26b49f9561ad06d1ae4f7b0",
+    "f5-clippy-final.stderr": "3c40b76e10d9af078abb8cc6ee84810aeefc81467020c69735d0acc6165a3887"
+  },
+  "scope": "All eight selected native F5 roots; no dependency-inclusive gate claim. Core/server and non-editor xtask failures indexed separately. XC trait recursion aligns with Compiler/server/irules256 without a lint allowance.",
+  "final_source_sha256": {
+    "rust/f5-xc/src/lib.rs": "34e061e895154cc594e4b22f42ab8e4c9a2638bd9230d156e44798524765c7b5",
+    "rust/tcl-bigip-io/src/ucs.rs": "017ed71744c396906c413f24deb4bee401a9eb64925a13699975a7e7091b5773",
+    "rust/f5-cli/tests/cli.rs": "334be757d6da338895b881cd77b8f318f96ec4e7954d8da1ff590b10efc96b62"
+  }
+}

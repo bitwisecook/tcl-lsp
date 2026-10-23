@@ -146,7 +146,7 @@ pub fn is_pgp_bytes(data: &[u8]) -> bool {
     matches!(tag, 1 | 3 | 9 | 18)
 }
 
-/// Strip leading `.`/`/` characters.
+/// Strip leading archive-root `/` and `./` prefixes.
 fn lstrip_dot_slash(mut name: &str) -> &str {
     loop {
         name = name.trim_start_matches('/');

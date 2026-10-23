@@ -1,0 +1,15 @@
+{
+  "command": [
+    "/workspace/bigip-lsp/target/debug/f5-query",
+    "query",
+    "--write",
+    "--name",
+    "donor=/tmp/f5-query-donor-fidelity-13482/donor.conf",
+    "rename(\"/Common/old\", first($donor.ltm.pool[].full-path))",
+    "/tmp/f5-query-donor-fidelity-13482/target.conf",
+    "/tmp/f5-query-donor-fidelity-13482/donor.conf"
+  ],
+  "exit": 2,
+  "stdout": "",
+  "stderr": "error: invalid UTF-8 in input: invalid utf-8 sequence of 1 bytes from index 17\n"
+}

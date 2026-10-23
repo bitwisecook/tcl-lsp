@@ -1,0 +1,32 @@
+[
+  {
+    "faithful": false,
+    "preview": {
+      "exit": 0,
+      "stdout": "new\ufffd\n",
+      "stderr": ""
+    },
+    "mutation": {
+      "exit": 2,
+      "stdout": "",
+      "stderr": "error: invalid UTF-8 in UCS member etc/donor: invalid utf-8 sequence of 1 bytes from index 3\n"
+    },
+    "archive_unchanged": true,
+    "archive_sha256": "25aa445165ecb1e545b84071f7a558245bc5d9739b0ab38523a8239ecf0c9e77"
+  },
+  {
+    "faithful": true,
+    "preview": {
+      "exit": 0,
+      "stdout": "new\ufffd\n",
+      "stderr": ""
+    },
+    "mutation": {
+      "exit": 0,
+      "stdout": "#\n# config/bigip.conf\n#\nltm pool /Common/old {\n    description new\ufffd\n}\n",
+      "stderr": ""
+    },
+    "archive_unchanged": true,
+    "archive_sha256": "c5e83e61f5826ccff1b4276bba781d1caf7c4bccc077beac658e58fc4d6bb650"
+  }
+]
