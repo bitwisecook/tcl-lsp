@@ -797,6 +797,20 @@ fn typed_reads_of_statement(
 
             let inert = inert_effective_args(&invocation);
             for i in 0..argument_count {
+                if super::hints::read_modify_write_argument(&invocation, i) {
+                    if let Some(hint) = super::hints::invocation_shimmer_expectation(&invocation, i)
+                        && let Some((_, read)) = super::hints::literal_target_read(
+                            &invocation,
+                            i,
+                            ctx.source,
+                            uses,
+                            ctx.registry,
+                        )
+                    {
+                        push_positioned_read(&mut out, read, hint.expected, stmt.span());
+                    }
+                    continue;
+                }
                 if inert.contains(&i) {
                     continue;
                 }

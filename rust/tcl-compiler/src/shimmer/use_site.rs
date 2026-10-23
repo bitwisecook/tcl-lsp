@@ -377,6 +377,7 @@ struct InvocationSite<'a> {
     /// fixtures) or a substitution word count `arg_spans` didn't fully
     /// resolve.
     fallback_span: Span,
+    target_uses: Option<&'a HashMap<Symbol, u32>>,
 }
 
 /// Check one command invocation's arguments for an intrep mismatch
@@ -391,7 +392,7 @@ fn check_invocation(ctx: &mut UseSiteCtx<'_>, site: &InvocationSite<'_>) {
     // de-braced `args` text spells a live `$x` that is not one.
     let inert = site.inert_arguments;
     for i in 0..site.invocation.argument_count() {
-        if inert.contains(&i) {
+        if inert.contains(&i) && !super::hints::read_modify_write_argument(site.invocation, i) {
             continue;
         }
         check_argument(ctx, site, i);
@@ -449,6 +450,38 @@ fn resolve_tracked_var_use(
     Some((var, sym, ver, cost))
 }
 
+/// A variable-name operand selects its cell after argv evaluation; the
+/// represented pre-write version and selected handler role remain required.
+fn resolve_tracked_argument_use(
+    ctx: &UseSiteCtx<'_>,
+    site: &InvocationSite<'_>,
+    index: usize,
+    expected: TclType,
+) -> Option<(String, Symbol, u32, super::commit::RepresentationCost)> {
+    if !super::hints::read_modify_write_argument(site.invocation, index) {
+        return resolve_tracked_var_use(ctx, site.words.get(index)?, expected);
+    }
+    let (name, read) = super::hints::literal_target_read(
+        site.invocation,
+        index,
+        ctx.source,
+        site.target_uses?,
+        ctx.registry,
+    )?;
+    if ctx.array_syms.contains(&read.symbol) {
+        return None;
+    }
+    let version = read.version?;
+    let lattice = ctx.types.get((read.symbol, version))?;
+    if lattice.kind() != TypeKind::Known {
+        return None;
+    }
+    let cost = ctx
+        .commit
+        .cost_for_native_read(ctx.source, read, lattice.tcl_type()?, expected)?;
+    Some((name, read.symbol, version, cost))
+}
+
 fn check_argument(ctx: &mut UseSiteCtx<'_>, site: &InvocationSite<'_>, i: usize) {
     sh21_trace!("SH21 stage=argument command={} index={i}", site.command);
     let expectation = sh21_option(
@@ -459,11 +492,7 @@ fn check_argument(ctx: &mut UseSiteCtx<'_>, site: &InvocationSite<'_>, i: usize)
         return;
     };
     let expected = expectation.expected;
-    let Some((var, sym, ver, cost)) = site
-        .words
-        .get(i)
-        .and_then(|word| resolve_tracked_var_use(ctx, word, expected))
-    else {
+    let Some((var, sym, ver, cost)) = resolve_tracked_argument_use(ctx, site, i, expected) else {
         return;
     };
     if super::hints::operand_preserves_captured_cache(
@@ -713,6 +742,7 @@ fn check_lifted_calls(
                 arg_spans: &spans,
                 inert_arguments: &inert,
                 fallback_span,
+                target_uses: None,
             },
         );
     }
@@ -759,6 +789,7 @@ fn check_statement(ctx: &mut UseSiteCtx<'_>, stmt: &Statement, uses: &HashMap<Sy
                     arg_spans: &arg_spans,
                     inert_arguments: &inert,
                     fallback_span: stmt.span(),
+                    target_uses: Some(uses),
                 },
             );
         }

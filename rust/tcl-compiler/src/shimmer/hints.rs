@@ -208,6 +208,65 @@ pub fn invocation_shimmer_expectation(
     })
 }
 
+/// A selected read-modify-write operand reads the named cell, not its name value.
+pub(super) fn read_modify_write_argument(
+    invocation: &crate::registry_invocation::NormalRepresentationInvocation,
+    index: usize,
+) -> bool {
+    invocation.reads_before_write()
+        && invocation.operand_roles().iter().any(|&(argument, role)| {
+            role == tcl_registry::ArgRole::VarWrite
+                && invocation.argument_offset() + usize::from(argument) == index
+        })
+}
+
+/// Retain the represented pre-write read of a literal target name.
+/// Unknown names, missing cells and absent SSA reads supply no contents.
+pub(super) fn literal_target_read(
+    invocation: &crate::registry_invocation::NormalRepresentationInvocation,
+    index: usize,
+    source: crate::ssa::SsaSourceView<'_>,
+    uses: &std::collections::HashMap<crate::ssa::Symbol, u32>,
+    registry: &CommandRegistry,
+) -> Option<(String, crate::ssa::SsaReadReference)> {
+    read_modify_write_argument(invocation, index).then_some(())?;
+    source
+        .source_tokens()?
+        .words()
+        .iter()
+        .all(|word| {
+            matches!(
+                word,
+                crate::ir::WordExpr::Literal { .. } | crate::ir::WordExpr::BracedLiteral { .. }
+            )
+        })
+        .then_some(())?;
+    // No argv evaluation can change the named cell before this represented read.
+    invocation
+        .effective_words()
+        .words
+        .iter()
+        .all(|word| {
+            matches!(
+                word,
+                crate::ir::WordExpr::Literal { .. } | crate::ir::WordExpr::BracedLiteral { .. }
+            )
+        })
+        .then_some(())?;
+    let target = invocation.argument_literal(index)?;
+    if tcl_syntax::naming::split_element_ref(&target).is_some() {
+        return None;
+    }
+    let name = target.as_str();
+    let symbol = source.symbol(name)?;
+    let version = *uses.get(&symbol).filter(|&&version| version != 0)?;
+    let read = crate::ssa::SsaReadReference {
+        symbol,
+        version: Some(version),
+    };
+    (source.reaching_binding(name, registry)? == read).then(|| (name.to_owned(), read))
+}
+
 /// Effective argument positions that cannot read a source variable. Alias
 /// prefixes are retained values, and written braces are interpreted under the
 /// proved callee's caller-frame evaluation contract.
