@@ -106,7 +106,7 @@ fn rename_unrelated_index_yields_no_edits() {
     // A document that `source`s nothing → no edits (empty-result return).
     let idx = index_of("file:///proj/main.tcl", "puts hi\n");
     let edits = compute_rename_edits("file:///proj/a.tcl", "file:///proj/b.tcl", &idx, &[]);
-    assert!(edits.is_empty());
+    assert_eq!(edits, [] as [tcl_lsp_core::file_ops::RenameEdit; 0]);
 }
 
 #[test]
@@ -474,7 +474,10 @@ fn module<'a>(syms: &'a [DocumentSymbol], name: &str) -> Option<&'a DocumentSymb
 #[test]
 fn bigip_empty_source_yields_no_symbols() {
     // The `source.is_empty()` early return.
-    assert!(document_symbols("").is_empty());
+    assert_eq!(
+        document_symbols(""),
+        [] as [tcl_lsp_core::document_symbols::DocumentSymbol; 0]
+    );
 }
 
 #[test]
@@ -483,9 +486,15 @@ fn bigip_non_stanza_text_yields_no_symbols() {
     // whose newline arrives before any `{` is skipped (the `hit_newline`
     // branch in `extract_blocks`), and a single bare word (`parts.len() < 2`
     // in `parse_header`) is dropped.
-    assert!(document_symbols("just some words\nand more\n").is_empty());
+    assert_eq!(
+        document_symbols("just some words\nand more\n"),
+        [] as [tcl_lsp_core::document_symbols::DocumentSymbol; 0]
+    );
     // A lone single-token line cannot form a `(module, type)` pair.
-    assert!(document_symbols("ltm {\n}\n").is_empty());
+    assert_eq!(
+        document_symbols("ltm {\n}\n"),
+        [] as [tcl_lsp_core::document_symbols::DocumentSymbol; 0]
+    );
 }
 
 #[test]
@@ -666,7 +675,10 @@ fn bigip_header_running_off_end_without_brace_is_dropped() {
     // Input that ends mid-header with no `{` at all (and no newline) hits
     // the `pos >= length` run-off-the-end `break` in `extract_blocks` and
     // produces no block.
-    assert!(document_symbols("ltm pool /Common/p").is_empty());
+    assert_eq!(
+        document_symbols("ltm pool /Common/p"),
+        [] as [tcl_lsp_core::document_symbols::DocumentSymbol; 0]
+    );
 }
 
 #[test]
