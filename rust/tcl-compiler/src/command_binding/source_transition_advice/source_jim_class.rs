@@ -535,6 +535,14 @@ impl AdviceInvocationContext<'_> {
                 first.span().start(),
                 call.obligations()
             );
+            for (ordinal, operation) in graph.uncertain_operations.iter().enumerate() {
+                eprintln!(
+                    "JIM_SOURCE_OWNER stage=jim.call.uncertainty call_offset={} ordinal={} original_head={:?}",
+                    first.span().start(),
+                    ordinal,
+                    operation.first().map(|word| (word.span(), word.try_text()))
+                );
+            }
         }
         merge_receipt(
             &mut tape.authored_jim_calls,
