@@ -8468,7 +8468,6 @@ fn variable_receivers_value(
 /// instead of all of them. Only the fields a [`CommandForm`] carries are legal
 /// here; anything else is an unknown property, so a fact that belongs on the
 /// parent cannot be quietly lost inside a form.
-#[allow(clippy::too_many_lines)]
 fn apply_refine_stmt(
     form: &mut CommandForm,
     acc: &mut RefineAcc,
@@ -8520,22 +8519,7 @@ fn apply_refine_stmt(
         },
         "selector" => form.literal_argument_prefix = selector_row(stmt, log),
         "arg" => acc.args.apply(stmt, tables, log),
-        "option" => {
-            let (row, evaluation) = semantics::option_flags(stmt, log);
-            let (option, hook) = option_row(&row, tables, log);
-            if let Some(evaluation) = evaluation {
-                acc.declarations
-                    .decline_option(&option, evaluation, stmt.line, log);
-                form.semantics = acc.declarations.declaration(&scope).0;
-            }
-            if hook.is_some() {
-                log.say(
-                    stmt.line,
-                    "a form option's Tcl hook is dropped: hooks bind at command scope",
-                );
-            }
-            acc.options.push(option);
-        }
+        "option" => apply_refine_option(form, acc, stmt, tables, &scope, log),
         "option_conflict" => acc.option_relations.push(option_relation_row(
             stmt,
             tcl_registry::RelationKind::MutuallyExclusive,
@@ -8592,6 +8576,30 @@ fn apply_refine_stmt(
         "codegen_hook" => form_codegen_hook(form, stmt, log),
         _ => log.unknown_property(stmt),
     }
+}
+
+fn apply_refine_option(
+    form: &mut CommandForm,
+    acc: &mut RefineAcc,
+    stmt: &Stmt,
+    tables: &PackTables,
+    scope: &semantics::Scope<'_>,
+    log: &mut Log,
+) {
+    let (row, evaluation) = semantics::option_flags(stmt, log);
+    let (option, hook) = option_row(&row, tables, log);
+    if let Some(evaluation) = evaluation {
+        acc.declarations
+            .decline_option(&option, evaluation, stmt.line, log);
+        form.semantics = acc.declarations.declaration(scope).0;
+    }
+    if hook.is_some() {
+        log.say(
+            stmt.line,
+            "a form option's Tcl hook is dropped: hooks bind at command scope",
+        );
+    }
+    acc.options.push(option);
 }
 
 /// A form's `semantic_operation` row, which is the plain stamp or nothing.
