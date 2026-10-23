@@ -2687,7 +2687,23 @@ impl ModuleCommandBindings {
         current: &SourceNamespaceKey,
     ) -> super::SourceCommandSlotPresence {
         use super::SourceCommandSlotPresence as Presence;
-        if !input.is_current(&self.source_variables)
+        let input_is_current = input.is_current(&self.source_variables);
+        #[cfg(debug_assertions)]
+        if std::env::var_os("TCL_LSP_TRACE_JIM_SOURCE_OWNER").is_some() {
+            eprintln!(
+                "JIM_SOURCE_OWNER stage=jim.presence.entry input={:?} policy={:?} current={:?} input_current={} opaque={} unclosed={} native_entry={} unknown_entry={} namespace_known={}",
+                input.bytes(),
+                input.policy(),
+                current,
+                input_is_current,
+                self.opaque_domain,
+                self.unclosed_command_world,
+                self.baseline.native_entry.is_some(),
+                self.baseline.unknown_entry,
+                self.source_variables.namespace_known
+            );
+        }
+        if !input_is_current
             || self.baseline.unknown_entry
             || (!input.bytes().starts_with(b"::")
                 && matches!(current, SourceNamespaceKey::Authored(_))
