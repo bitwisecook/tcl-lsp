@@ -48,6 +48,52 @@ pub struct EventHandlerFacts {
     line_index: LineIndex,
 }
 
+fn event_is_top_level(
+    structure: &crate::source_structure::SourceStructure,
+    span: tcl_lexer::Span,
+) -> bool {
+    structure
+        .scripts
+        .iter()
+        .filter(|(region, _)| region.start() <= span.start() && span.end() <= region.end())
+        .min_by_key(|(region, _)| region.end() - region.start())
+        .is_some_and(|(_, depth)| *depth == 0)
+}
+
+fn lexical_event_handlers(
+    source: &str,
+    config: tcl_lexer::LexerConfig,
+    registry: &tcl_registry::CommandRegistry,
+    generation: &tcl_registry::model::ContextRegistry,
+    realm: &tcl_compiler::realm::CommandBindingRealm,
+    events: &tcl_registry::events::EventRegistry,
+) -> Vec<(String, tcl_lexer::Span)> {
+    tcl_syntax::event_handler::event_handlers_with_head_predicate(source, config, |head, offset| {
+        generation
+            .context()
+            .resolve_spec(registry, realm.resolve(head, offset).spec_name())
+            .is_some_and(|spec| spec.traits.contains(tcl_registry::Traits::IS_EVENT_HANDLER))
+    })
+    .into_iter()
+    .filter(|handler| {
+        let arguments = handler
+            .arguments
+            .iter()
+            .map(String::as_str)
+            .collect::<Vec<_>>();
+        tcl_registry::events::IrulesDeclarationArguments::new(
+            &arguments,
+            &handler.argument_tokens,
+            &handler.argument_single_tokens,
+            &handler.argument_closed_braced_tokens,
+        )
+        .and_then(|arguments| registry.irules_event_declaration(arguments, events))
+        .is_some()
+    })
+    .map(|handler| (handler.event, handler.span))
+    .collect()
+}
+
 impl EventHandlerFacts {
     /// Build resolved event-handler boundaries for one request/document and
     /// canonical profile.
@@ -79,47 +125,12 @@ impl EventHandlerFacts {
         let generation = analysis.resolved_input.as_ref()?.context_registry();
         let structure =
             crate::source_structure::SourceStructure::capture(source, Some(analysis), config)?;
-        let top_level = |span: tcl_lexer::Span| {
-            structure
-                .scripts
-                .iter()
-                .filter(|(region, _)| region.start() <= span.start() && span.end() <= region.end())
-                .min_by_key(|(region, _)| region.end() - region.start())
-                .is_some_and(|(_, depth)| *depth == 0)
-        };
+        let top_level = |span| event_is_top_level(&structure, span);
         let events = tcl_registry::events::EventRegistry::build();
         if analysis.allows_lexical_declaration_advice() {
             let realm = analysis.retained_command_realm()?;
-            let handlers = tcl_syntax::event_handler::event_handlers_with_head_predicate(
-                source,
-                config,
-                |head, offset| {
-                    generation
-                        .context()
-                        .resolve_spec(registry, realm.resolve(head, offset).spec_name())
-                        .is_some_and(|spec| {
-                            spec.traits.contains(tcl_registry::Traits::IS_EVENT_HANDLER)
-                        })
-                },
-            )
-            .into_iter()
-            .filter(|handler| {
-                let arguments = handler
-                    .arguments
-                    .iter()
-                    .map(String::as_str)
-                    .collect::<Vec<_>>();
-                tcl_registry::events::IrulesDeclarationArguments::new(
-                    &arguments,
-                    &handler.argument_tokens,
-                    &handler.argument_single_tokens,
-                    &handler.argument_closed_braced_tokens,
-                )
-                .and_then(|arguments| registry.irules_event_declaration(arguments, &events))
-                .is_some()
-            })
-            .map(|handler| (handler.event, handler.span))
-            .collect();
+            let handlers =
+                lexical_event_handlers(source, config, registry, &generation, realm, &events);
             return Some(Self {
                 handlers,
                 line_index: LineIndex::new(source),

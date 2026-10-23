@@ -426,30 +426,43 @@ impl<F: FnMut(&SegmentedCommand, HeadWords<'_>, ExecutableContext) -> bool>
                 }
             }
 
-            for index in
-                self.registry
-                    .arg_indices_for_role(head.resolved, &args, ArgRole::LambdaLiteral)
-            {
-                if self.script_is_reference_only(head.resolved, &args, index) {
-                    continue;
-                }
-                let Some(&token) = command.arg_tokens().get(index) else {
-                    continue;
-                };
-                let Some(body) = split_lambda_literal(self.source, token)
-                    .and_then(|elements| elements.braced_body())
-                else {
-                    continue;
-                };
-                if self.region(
-                    body.start() as usize,
-                    body.end() as usize,
-                    depth + 1,
-                    None,
-                    ExecutableContext::PotentialBody,
-                ) {
-                    return true;
-                }
+            if self.lambda_regions(command, head.resolved, &args, depth) {
+                return true;
+            }
+        }
+        false
+    }
+
+    fn lambda_regions(
+        &mut self,
+        command: &SegmentedCommand,
+        resolved: &str,
+        args: &[&str],
+        depth: u32,
+    ) -> bool {
+        for index in self
+            .registry
+            .arg_indices_for_role(resolved, args, ArgRole::LambdaLiteral)
+        {
+            if self.script_is_reference_only(resolved, args, index) {
+                continue;
+            }
+            let Some(&token) = command.arg_tokens().get(index) else {
+                continue;
+            };
+            let Some(body) = split_lambda_literal(self.source, token)
+                .and_then(|elements| elements.braced_body())
+            else {
+                continue;
+            };
+            if self.region(
+                body.start() as usize,
+                body.end() as usize,
+                depth + 1,
+                None,
+                ExecutableContext::PotentialBody,
+            ) {
+                return true;
             }
         }
         false
