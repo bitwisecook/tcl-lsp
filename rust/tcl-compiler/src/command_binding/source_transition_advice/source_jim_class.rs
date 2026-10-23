@@ -406,6 +406,16 @@ impl AdviceInvocationContext<'_> {
             class.factory.site().offset,
             Some(Arc::clone(&class)),
         );
+        #[cfg(debug_assertions)]
+        if std::env::var_os("TCL_LSP_TRACE_JIM_SOURCE_OWNER").is_some() {
+            eprintln!(
+                "JIM_SOURCE_OWNER stage=jim.class.tape_merge offset={} present={}",
+                class.factory.site().offset,
+                tape.authored_jim_classes
+                    .get(&class.factory.site().offset)
+                    .is_some_and(Option::is_some)
+            );
+        }
         let cell = if class.statically_complete() {
             AdviceCell::AuthoredJimClass(Arc::clone(&class))
         } else {

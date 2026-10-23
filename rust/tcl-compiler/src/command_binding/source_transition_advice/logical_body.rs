@@ -899,11 +899,14 @@ impl LogicalBodyWalk<'_, '_> {
         let (scope, handle, class_handle, operand_barrier) = owner;
         let native = invocation.native;
         let factory = self.context.registered_factory(graph, invocation, schema);
-        let authored_jim = self.context.authored_jim_class_source(
-            graph,
-            invocation,
-            schema,
-            Some(scope.body_arc()),
+        let authored_jim = crate::registry_invocation::source_structure::trace_jim_source_option(
+            "jim.class.logical_body_capture",
+            self.context.authored_jim_class_source(
+                graph,
+                invocation,
+                schema,
+                Some(scope.body_arc()),
+            ),
         );
         let class = self.context.source_class_declaration_in_body(
             tape,
@@ -923,12 +926,15 @@ impl LogicalBodyWalk<'_, '_> {
             && !schema.semantics.traits.contains(Traits::DEFERS_BODY)
             && schema.authored_source_procedure_arguments().is_none();
         if !complete || immediate_body {
-            self.context.apply_schema_transition(
-                graph,
-                invocation,
-                selected,
-                schema,
-                Some(scope),
+            crate::registry_invocation::source_structure::trace_jim_source_option(
+                "jim.class.logical_body_transition",
+                self.context.apply_schema_transition(
+                    graph,
+                    invocation,
+                    selected,
+                    schema,
+                    Some(scope),
+                ),
             )?;
         } else {
             self.context
