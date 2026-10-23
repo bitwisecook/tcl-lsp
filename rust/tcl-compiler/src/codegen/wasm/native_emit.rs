@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! WASM emission from NLIR — the native tier's emitter (see `wasm-native-lowering-plan.md` §3.3).
+//! WASM emission from NLIR — the native tier's emitter (see `wasm-native-lowering.md` §3.3).
 //!
 //! The emitter consumes a [`NativeFunction`] and nothing else: no command
 //! name, no source span, no compatibility text. It structurises the NLIR

@@ -9,9 +9,8 @@
 # counts native 64-bit numeric instructions (arithmetic, bitwise and
 # comparison; not const/load/store/extend).
 #
-# Every phase of docs/design/compiler/wasm-native-lowering-plan.md moves
-# these numbers, and a reviewed diff to this file is how that reduction is
-# claimed. A number that goes UP without a matching design change is a
+# Changes to native WASM lowering can move these numbers. A reviewed diff
+# records the effect; an increase without a matching design change is a
 # framing regression.
 tier	sample	plan	eval_code	expr_bool	invoke_argv	native_i64_f64
 t0-straight-line	00_set_incr_puts	default	3	0	0	0
