@@ -1,0 +1,10 @@
+{
+  "verdict": "BOUNDED STATIC CLEAR",
+  "patch_sha256": "a0f76417f3d79fe98f6fa6214ac109b1585b6272e2276fafc389cdf0755273c9",
+  "manifest_sha256": "b208c44b63a18af057272b8eda9ccd5555df246448548d84936d5e18ca7f3812",
+  "independent_before_final_joins": 5,
+  "zero_fuzz_apply_exit": 0,
+  "pinned_format_check_exit": 0,
+  "review": "Disjoint identical match arms retain returned facets; LambdaFormal and Declared bind identical Arc<OriginalDeclaredLogicalBodyContext>; let-else retains borrowed card. Lazy filter+map retains iteration, predicate short-circuit and clone-on-match. BTreeMap keys iteration preserves same ordered sites. Collapsed if preserves found-empty short-circuit before same input query. Five borrow removals use already &CommandTokens to concrete receiver/argument APIs. Terminator guarded arms retain same returns and rejection. No authority/guard/assertion changes or new allowances. Source_structure before is explicit prospective46 Jim-included449d7cc6; other four current source30 pins independently matched.",
+  "limits": "No Cargo/Rust typing/Clippy/tests/runtime. Later-only candidate; frozen28/46 unchanged."
+}

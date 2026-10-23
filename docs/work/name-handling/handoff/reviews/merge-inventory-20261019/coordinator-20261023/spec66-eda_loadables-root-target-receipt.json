@@ -1,0 +1,11 @@
+{
+  "utc": "2026-10-23T04:51:14.270107+00:00",
+  "target": "eda_loadables",
+  "observed": 8,
+  "passes": 8,
+  "failures": 0,
+  "manifest_sha256": "149ea1dac64a6eec5d6e8d453132563968b74d812c8e32b96d8885edfa67e6e4",
+  "payload_files_verified": 56,
+  "all_target_guards_valid": true,
+  "full66_closure_claim": false
+}

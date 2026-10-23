@@ -1,0 +1,102 @@
+{
+  "utc": "2026-10-23T04:47:39.521706+00:00",
+  "status": "OFFTREE later-batch style-only candidate; NOT part of frozen28/46; independent peer/typing/Clippy pending",
+  "source_evidence": {
+    "job": "CI5206 rust-check120175507991 on5a418",
+    "raw_log": "/tmp/ci5206-job-120175507991-connector.log",
+    "raw_log_sha256": "489505b6920928b562178bb99cf8d38a935df6eb37ec13fa73d34a3af0d5b95e",
+    "prospective46_manifest": "/tmp/coordinator-next-batch-v4-20261023T043343Z/manifest.json",
+    "prospective46_manifest_sha256": "d5c0674176c80a311a5fc9f460304ea4e2223c3f4c834f356b38d93f23fea236"
+  },
+  "files": [
+    {
+      "path": "rust/tcl-compiler/src/command_binding/declaration_layout.rs",
+      "before_sha256": "8aa8ee9a575d5055ff23f0c3e1f5f5ae49056de153b748c503b4650186af2b45",
+      "after_sha256": "0b3045ba4ec4896debf0fa8dc9a380f0aad9f8b409cc0b69da4dbfa0e95b383c",
+      "base": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/command_binding/declaration_layout.rs",
+      "current_source30_sha256": "8aa8ee9a575d5055ff23f0c3e1f5f5ae49056de153b748c503b4650186af2b45",
+      "overlaps_frozen46": false,
+      "owner": "compiler-names",
+      "actual_ci_primary_ids": [
+        123,
+        124
+      ]
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/logical_variable_scope.rs",
+      "before_sha256": "6bc98ed7e412e5bd9b6862c358a0c9ce1e7676644198708e852b16b33d3fc4e8",
+      "after_sha256": "de0bee7243194c460c48246f0e572fc5bbbc9a697d6bbadb6fa729b3eca35721",
+      "base": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/command_binding/logical_variable_scope.rs",
+      "current_source30_sha256": "6bc98ed7e412e5bd9b6862c358a0c9ce1e7676644198708e852b16b33d3fc4e8",
+      "overlaps_frozen46": false,
+      "owner": "compiler-names",
+      "actual_ci_primary_ids": [
+        127,
+        128
+      ]
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/origin_inventory.rs",
+      "before_sha256": "3907f3bde2e8e3b29577ac6b862b9ef98b603f03d8fac16f9f09f145a503f536",
+      "after_sha256": "b4626a5b5f0f0c85bdedd9ff4f62cf1a601b9224e7dfcdf977ea530431d2744a",
+      "base": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/command_binding/origin_inventory.rs",
+      "current_source30_sha256": "3907f3bde2e8e3b29577ac6b862b9ef98b603f03d8fac16f9f09f145a503f536",
+      "overlaps_frozen46": false,
+      "owner": "compiler-names",
+      "actual_ci_primary_ids": [
+        169
+      ]
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/original_name_value.rs",
+      "before_sha256": "48105c839638404799bde8a4b01b4487e40525f0e2646bdb7a9cc7cd850c1b7e",
+      "after_sha256": "dfa2aba46273a6616f0788abe71312944adfc14663cb4b3a3c304646595e2d8e",
+      "base": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/command_binding/original_name_value.rs",
+      "current_source30_sha256": "48105c839638404799bde8a4b01b4487e40525f0e2646bdb7a9cc7cd850c1b7e",
+      "overlaps_frozen46": false,
+      "owner": "compiler-names",
+      "actual_ci_primary_ids": [
+        187,
+        188
+      ]
+    },
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation/source_structure.rs",
+      "before_sha256": "449d7cc65b838ac5890cc96a9f011e4d577448721966e3b7789842c7d3db6875",
+      "after_sha256": "bc517613df98d1652ddce502cbefa837fd27f395e028be3fe4d780784fe03f39",
+      "base": "/tmp/coordinator-next-batch-v4-20261023T043343Z/shadow/rust/tcl-compiler/src/registry_invocation/source_structure.rs",
+      "current_source30_sha256": "0b86e61998e0ca5365514d79a3b9ca5894b384595c2456ff934b10679e36bc23",
+      "overlaps_frozen46": true,
+      "owner": "compiler-names",
+      "actual_ci_primary_ids": [
+        382,
+        383,
+        384,
+        385,
+        386,
+        391
+      ]
+    }
+  ],
+  "diagnostics_proposed": 13,
+  "patch_sha256": "a0f76417f3d79fe98f6fa6214ac109b1585b6272e2276fafc389cdf0755273c9",
+  "checks": {
+    "pinned_fmt_parse": "PASS5",
+    "zero_fuzz_shadow_apply": "PASS5",
+    "final_pins": "PASS5"
+  },
+  "preservation": [
+    "Merge only identical match bodies; disjoint enum alternatives retain identical returned references/options.",
+    "Match\u2192let-else borrows same frame and returnsNone on same residual, no frame recipe/source proof changes.",
+    "filter+map evaluates identical predicate once in same lazy order and clones namespace only for admitted observation, including retained OptionNone values.",
+    "BTreeMap keys iterator retains same site order; no values read originally.",
+    "Collapsed if evaluates found.is_empty before same optionalinput getter; inner guards/terminal fallback unchanged.",
+    "Exactly5 needless extra borrows removed from already-borrowed CommandTokens in same Native issuer.",
+    "Merged match remainder retains all original terminator/sourceextent refusal cases; guardedSome then guardedNone then residual refusal."
+  ],
+  "limits": [
+    "Prospective46 source_structure before pin includes Jimdiagnostic68062; requires laterroot integration binding, never apply to current source30 as-is.",
+    "No old lint patch replay, no allows/newpolicy/assertion changes, no tests for these reversible spelling changes.",
+    "No Cargo/Git/build/source/provider/GO actions. Actual strictClippy remains unrun;13 is proposal mapping, not measured error reduction."
+  ]
+}

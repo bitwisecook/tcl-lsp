@@ -1,0 +1,11 @@
+LSP Native15 source46 v10 — bounded independent static peer review
+Reviewed UTC: 2026-10-23T04:43:11+00:00
+Verdict: CLEAR for frozen template preparation. No actual source46 integration, GO, Cargo or selector verdict.
+
+Frozen /tmp/lsp-native-protocol-v10-source46-direct15-template/ hashes: plan f7ba3c96f6c67f99cb5f673031d25448167bc8f8b6b1655c149fac684904248f; suite c1075b7f4528654cfa82aa05a7b5b5b5de115c004942dc1a036bf485f728074a; runner inputs 19656f5f0c7cd9ac86932d847ff3a8d2a9705751997e2fe7044c6be67863efd8; direct executor 88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811. Source46 map SHA 9fdfc31e7ab3786eee7f41afa8c67bbd4e0209c4e12bf4818881734732aef0e6.
+
+I checked all runner input hashes and Python AST; GO is absent. The v10 plan retains all 15 original v3 selectors byte-equal and 13 current pins; the server lib pin is the approved source46 future hash and all other pins match either current unchanged source or source46 final hashes. CAPTURE and transitive _paths.py are pinned. The old reviewed executor, full provider snapshot, selected host environment, exact current Cargo JSON test/server artifact identity, 3600-second build/180-second selector budgets, 20 MB output and actual 2.3 GB disk guards remain.
+
+The source46 join checks GO's manifest hash, actual all46 worktree final hashes and each approved integrated commit blob, plus approved HEAD/tree and docs-only descendant/product worktree continuity. Successful eight-package typecheck evidence must match plan 5b60b936, PASS/exit0/zero warnings/full guard flags, all eight selected packages and the same approved product HEAD/tree. Prior report14 evidence is hash-only context and may be FAIL; no green gate is inferred. Actual approved HEAD/tree and GO have not been minted.
+
+V9 was held because one test summary and status did not check the printed selected test name. V10 requires exactly one printed name equal to the exact selector, one start, one summary, and a consistent PASS0 or FAIL101 result before preserving that result in its receipt. The original failure path remains measurable and no assertion is rewritten. Runtime behavior, source46 typecheck and Native15 results are UNRUN. This is no D6, whole-section or shipping acceptance claim.

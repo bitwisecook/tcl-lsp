@@ -1,0 +1,8 @@
+{
+  "utc": "2026-10-23T04:43:51.988479+00:00",
+  "status": "immutable TEMPLATE bounded staticCLEAR; no GO/productHEAD/tree minted; no execution",
+  "source46_map_sha256": "9fdfc31e7ab3786eee7f41afa8c67bbd4e0209c4e12bf4818881734732aef0e6",
+  "original15_sourcepins13": "byte-identicalv8; original v8 immutable",
+  "release_scope": "originalD1-D5 finite only; all15UNRUN; no D6/host/allD/shipping claim",
+  "peer_sha256": "dd0b4333ad9470f438eb9c9da5b1980c5794bfad9586564362edcb2bd2c29d26"
+}

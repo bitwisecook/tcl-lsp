@@ -2,11 +2,22 @@
 
 Area: tcl-vm, runtime/rust, tcl-spectcl, tcl-spec-studio: SpecTcl execution and acceptance.
 
-Last updated: 2026-10-23T04:40Z (Spec66v4 RUNNING; seedafterpublish1/1PASS targetguardsvalid; total53=38PASS15FAIL; EDA8+5next)
+Last updated: 2026-10-23T04:50Z (Spec66v4 RUNNING; EDAloadables8/8PASS targetguardsvalid,total61=46PASS15FAIL; finalenvironment5; CCGdirect3v3 boundedpeerCLEAR)
 
 Maintained by the vm-runtime agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## Resume
+
+Sixthtarget EDAloadables8 closed8/8PASS,0W,targetsource/provider/artifactguards
+stable; archive `vm-runtime/runs/spec66-eda_loadables-target-20261023/manifest.txt`
+ready for root pertargetpush. Total61observed46PASS15FAIL; only finalEDA
+environment5 remains, fullphasepending. No general EDA/SpecTcl acceptance.
+CCG post46direct3v3 bounded staticdelta peerCLEAR receipt
+`vm-runtime/protocols/direct-lifecycle-20261023/ccg-post46-direct3-v3-static-review.txt`
+SHA11164eb3; exactoriginal3/5pins/lifecycle retained, source46 futuretuple plus
+current8pkgPASS0W mandatory, priorreport14FAIL pinnedcontext only. No helper/
+provider/runner/Git/Cargo/lock invoked by reviewer; no runtime admission.
+
 
 Fifthtarget jim_seed_after_publish1 closed1/1PASS,0W,targetsource/provider/
 artifactguards valid. Archive `vm-runtime/runs/spec66-jim_seed_after_publish-target-20261023/manifest.txt`

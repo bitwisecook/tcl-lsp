@@ -1,0 +1,11 @@
+Codegen native1 + N17two source46 direct3 v3 — off-tree preparation
+Prepared UTC: 2026-10-23T04:45:42+00:00
+Status: frozen template; VM independent static peer pending; no GO, Cargo or selectors.
+
+Directory /tmp/ccg-post46-direct3-v3. Exact hashes: plan dd05cd530993e290a3f4fc5d4841769d4742ba6e0f7cdb646011c9bb0060d20d; suite 8532e07fe0b98bbfab4cb78a2494b0d8c66f4dd38b56ff40a0a4a4efb5c5cda5; launcher f09ba72a6b00b7284785b540ebb960cdad2893f7a5e9dd8c7907062351b0d7de; runner inputs 3ccf94ab17864cd5dcc5bc0fbe44ce355df9464226a8f0ed43e24d6b54857518; source46 map 9fdfc31e7ab3786eee7f41afa8c67bbd4e0209c4e12bf4818881734732aef0e6; reviewed direct executor 88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811; preparation receipt ba4130df19f521e67506e08f9c17d6eed56003f3fbfa34b7dfd55523477d9f4f. V2 plan fe94be02574418970590861d70fa90d46bc9d01bc70c300108a355aa62d65e36 remains immutable.
+
+Three exact selector objects, five original test/producer source pins and 36 historical provider/tool pins are retained. The current live N17 observer, host SSA, original provider seal, exact fresh Cargo JSON test artifacts, direct owned process lifecycle and 3600/180-second budgets are unchanged. No ZZ untoggle/removal or assertion change is in this template.
+
+V3 explicitly replaces v2's misleading post18 evidence names. The future root GO must bind the exact source46 map path/hash, actual approved integrated HEAD/tree descending from 3b1, prior report14 path/hash as context (its FAIL is allowed), and source46 eight-package typecheck PASS/guard_valid/zero warnings with plan 5b60b936 and the same approved product tuple. At every phase, the runner checks all46 worktree/approved commit final hashes and 3b1 original hashes, permits only docs commits after approval, and rejects all other product changes from 3b1. The original five diagnostic pins and full source/provider/artifact snapshots still gate builds and selectors.
+
+Own preparation: all runner-input hashes, Python AST, Bash syntax, exact46/three inventory pass. Absent-GO launcher and direct suite both refused before lock/Cargo. Current canonical product is pre-source46; future HEAD/tree and GO were not invented. VM peer and actual eight-package typecheck remain pending. No Cargo, Git, provider or selector execution by this role.

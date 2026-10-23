@@ -1,0 +1,193 @@
+--- rust/tcl-compiler/src/command_binding/declaration_layout.rs
++++ rust/tcl-compiler/src/command_binding/declaration_layout.rs
+@@ -160,9 +160,10 @@
+         match self {
+             Self::Body(body) => body.parameters(),
+             Self::DeclaredReceiver(body) => body.parameters(),
+-            Self::LogicalReceiver(_) => &[],
+             Self::DeclaredProcedure(body) => &body.parameters,
+-            Self::RootScript { .. } | Self::ScriptActivation { .. } => &[],
++            Self::LogicalReceiver(_) | Self::RootScript { .. } | Self::ScriptActivation { .. } => {
++                &[]
++            }
+         }
+     }
+ 
+@@ -172,9 +173,10 @@
+         match self {
+             Self::Body(body) => body.original_formal_topology(),
+             Self::DeclaredReceiver(body) => body.original_formal_topology(),
+-            Self::LogicalReceiver(_) => None,
+             Self::DeclaredProcedure(body) => body.original_parameters.as_ref(),
+-            Self::RootScript { .. } | Self::ScriptActivation { .. } => None,
++            Self::LogicalReceiver(_) | Self::RootScript { .. } | Self::ScriptActivation { .. } => {
++                None
++            }
+         }
+     }
+ 
+--- rust/tcl-compiler/src/command_binding/logical_variable_scope.rs
++++ rust/tcl-compiler/src/command_binding/logical_variable_scope.rs
+@@ -277,8 +277,10 @@
+         SignatureNamespaceScope::C(match &self.frame {
+             LogicalVariableFrameRecipe::Document(_) => tcl_core_types::ByteNamespacePath::root(),
+             LogicalVariableFrameRecipe::Formal(card) => card.scope().namespace_recipe().clone(),
+-            LogicalVariableFrameRecipe::LambdaFormal(scope) => scope.namespace_recipe().clone(),
+-            LogicalVariableFrameRecipe::Declared { scope, .. } => scope.namespace_recipe().clone(),
++            LogicalVariableFrameRecipe::LambdaFormal(scope)
++            | LogicalVariableFrameRecipe::Declared { scope, .. } => {
++                scope.namespace_recipe().clone()
++            }
+         })
+     }
+ 
+@@ -297,13 +299,13 @@
+                 &self.input,
+             );
+         }
+-        let card = match &self.frame {
+-            LogicalVariableFrameRecipe::Declared {
+-                procedure: Some(card),
+-                ..
+-            }
+-            | LogicalVariableFrameRecipe::Formal(card) => card,
+-            _ => return None,
++        let (LogicalVariableFrameRecipe::Declared {
++            procedure: Some(card),
++            ..
++        }
++        | LogicalVariableFrameRecipe::Formal(card)) = &self.frame
++        else {
++            return None;
+         };
+         SourceOriginalVariableFrame::from_logical_procedure_source(card, &self.input)
+     }
+--- rust/tcl-compiler/src/command_binding/origin_inventory.rs
++++ rust/tcl-compiler/src/command_binding/origin_inventory.rs
+@@ -794,10 +794,11 @@
+                 .then_some(first);
+         }
+         let mut conditional = self.entered_scripts.values().flat_map(|arguments| {
+-            arguments.values().flatten().filter_map(|observation| {
+-                (&observation.source == source && observation.frame.is_none())
+-                    .then(|| observation.conditional_namespace.clone())
+-            })
++            arguments
++                .values()
++                .flatten()
++                .filter(|observation| &observation.source == source && observation.frame.is_none())
++                .map(|observation| observation.conditional_namespace.clone())
+         });
+         if let Some(first) = conditional.next().flatten() {
+             let mut declared = self.deferred.values().filter(|body| {
+--- rust/tcl-compiler/src/command_binding/original_name_value.rs
++++ rust/tcl-compiler/src/command_binding/original_name_value.rs
+@@ -1955,7 +1955,7 @@
+             .map(|(offset, _)| *offset)
+             .collect::<std::collections::BTreeSet<_>>();
+         if self.original_logical_source_name_advice_input().is_some() {
+-            offsets.extend(self.declaration_layouts.iter().filter_map(|(site, _)| {
++            offsets.extend(self.declaration_layouts.keys().filter_map(|site| {
+                 (site.source == *origin && site.offset <= span.start()).then_some(site.offset)
+             }));
+         }
+@@ -2012,29 +2012,29 @@
+             let site = binding.invocation_site()?.clone();
+             found.push((native[written].clone(), written, binding, site));
+         }
+-        if found.is_empty() {
+-            if let Some(input) = self.original_logical_source_name_advice_input() {
+-                if config != input.lexer_config() {
+-                    return None;
++        if found.is_empty()
++            && let Some(input) = self.original_logical_source_name_advice_input()
++        {
++            if config != input.lexer_config() {
++                return None;
++            }
++            let tape = self.original_source_transition_advice_tape_for(
++                input.borrowed_context_registry(),
++                super::OriginalSourceCataloguePurpose::CompletePrefix,
++            )?;
++            for (word, written, site) in
++                tape.logical_original_word_observations_at_span(origin, input, span)?
++            {
++                let binding = self.invocation_at_source("", site.offset);
++                // A present original owner stays terminal even when its checks
++                // refuse. Independent body geometry only fills an absent facet.
++                if binding.original_written_words.is_some()
++                    || binding.original_compiler_words.is_some()
++                    || binding.declaration_layout_observations.is_some()
++                {
++                    continue;
+                 }
+-                let tape = self.original_source_transition_advice_tape_for(
+-                    input.borrowed_context_registry(),
+-                    super::OriginalSourceCataloguePurpose::CompletePrefix,
+-                )?;
+-                for (word, written, site) in
+-                    tape.logical_original_word_observations_at_span(origin, input, span)?
+-                {
+-                    let binding = self.invocation_at_source("", site.offset);
+-                    // A present original owner stays terminal even when its checks
+-                    // refuse. Independent body geometry only fills an absent facet.
+-                    if binding.original_written_words.is_some()
+-                        || binding.original_compiler_words.is_some()
+-                        || binding.declaration_layout_observations.is_some()
+-                    {
+-                        continue;
+-                    }
+-                    found.push((word, written, binding, site));
+-                }
++                found.push((word, written, binding, site));
+             }
+         }
+         (!found.is_empty()).then_some(found)
+--- rust/tcl-compiler/src/registry_invocation/source_structure.rs
++++ rust/tcl-compiler/src/registry_invocation/source_structure.rs
+@@ -1143,21 +1143,21 @@
+         segment.argv.first()?.span.start(),
+         config,
+     );
+-    let dialect = binding.original_source_word_dialect_for_tokens(&tokens)?;
++    let dialect = binding.original_source_word_dialect_for_tokens(tokens)?;
+     let protocol = dialect.native_source_string_protocol()?;
+     let arguments =
+-        original_source_argument_words(&tokens, effective, native.as_deref()?, protocol)?;
++        original_source_argument_words(tokens, effective, native.as_deref()?, protocol)?;
+     let words: Vec<_> = arguments
+         .iter()
+         .map(|word| word.as_registry_word())
+         .collect();
+     InvocationArguments::structured(&words).exact_argv_len()?;
+     let operands =
+-        effective_operand_sources(segment, &tokens, effective, &arguments, native.as_deref())?;
++        effective_operand_sources(segment, tokens, effective, &arguments, native.as_deref())?;
+     let head = native.as_deref().and_then(|words| {
+         Some(OriginalOperandSource {
+             span: words.first()?.span(),
+-            input: binding.original_written_name_input(&tokens, 0),
++            input: binding.original_written_name_input(tokens, 0),
+             word: words.first().cloned(),
+         })
+     });
+@@ -1172,7 +1172,7 @@
+         source: OriginalRegistrySource::Selected,
+         captured_values: None,
+         operands_preserve_source_lookup: binding
+-            .original_source_operands_preserve_lookup(&tokens, registry),
++            .original_source_operands_preserve_lookup(tokens, registry),
+         image,
+         config,
+         registry: registry.snapshot().semantic_key(),
+@@ -2883,9 +2883,8 @@
+         }
+         let insertion_end = match original.terminator {
+             Some(terminator) if terminator.start() == source_extent.end() => terminator.end(),
+-            Some(_) => return None,
+             None if source_extent.end() == source_end => source_extent.end(),
+-            None => return None,
++            Some(_) | None => return None,
+         };
+         if start < end {
+             continue;

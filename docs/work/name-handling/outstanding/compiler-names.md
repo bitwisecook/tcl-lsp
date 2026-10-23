@@ -2,11 +2,13 @@
 
 Area: command_binding.rs (except the C6 hunks), command_binding/compiled_invocation.rs, source name lookup, analyser scope/commands, nested lookups, W210 pkgIndex entry plumbing.
 
-Last updated: 2026-10-23T04:35:42.404086Z
+Last updated: 2026-10-23T04:49:01.475774Z
 
 Maintained by the compiler-names agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## In progress (resumed in /workspace/naming-migration-active/tcl-lsp; g4 first)
+
+**Actual CI5206 owned strict-style recheck / later-only candidate:** actual rust-check job120175507991 on5a418 rawlog489505b6 contains512 compilerprimary findings; inclusive Names realm/registry/scopes subset161rows59paths (73too-many-lines). All158 nontrivial reportedcode anchors remain in current source30 and prospective46; three truncated &self spans manually joined to unchanged currentfunctions. No scopedfinding marked fixed or actualcurrentlintcount inferred; historical170/104 drafts not replayed. Existing compiler mechanical19 reserved ids4/86/366/373/378/379 not duplicated; C6root208–213 routing pending. Later-only purestyle13/5files frozen `/tmp/compiler-names-ci5206-style-v1-source46`, patcha0f76417/manifestb208c44b, source_structure prospective46Jim before449d7cc6 plus4currentbeforepins; exactmatch/letelse/lazyiterator/borrow spellings preserve guards/order/assertions. Pinnedfmt/zero-fuzz/finalpins PASS, compiler independent bounded static CLEAR18eb3f0c, typing/strictClippy unrun. Evidence `ci5206-source30-v46-style-triage/{summary.json,inventory.json,proposal.patch.txt,style-manifest.json}`. Frozen28/46 unchanged; actualbodyissuer runtimefollowup primary.
 
 **Root final46 typecheck binding-only successor prepared:** `/tmp/name-handling-eight-package-check-v8-source46`, plan5b60b936/source469fdfc31e/inputs611f5e48/suite8b768f68/manifest9d1c2bd5. Root frozen nextbatchv4 has28 current4d4 paths/cumulative46; all28 actualbefore+46candidatefinal pins PASS, allprior39map rows unchanged+7new. Suite/launcher/wrapper differ only version/path/manifest/count substitutions from reviewedv7; executor and every environment/process/0W/approvedproduct/docs-onlyHEAD/finalsample guard unchanged. Parse3+absentGOrefusalPASS before runner/lock/Cargo. Root must verify actual integrated46/baselines/approvedHEAD/tree and mintGO after Spec66closure; no fictional identity/build/Git by Names. Receipt `eight-package-typecheck-v8-source46-preparation.json`; v7/39 preserved unchanged.
 

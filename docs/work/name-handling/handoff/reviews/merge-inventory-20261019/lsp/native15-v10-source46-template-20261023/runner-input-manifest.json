@@ -1,0 +1,20 @@
+{
+  "inputs": {
+    "/tmp/lsp-native-protocol-v3/plan.json": "fb911b29d143082a0f7ec293702a730e96e0c9ff328e3ffae5a290e09704d880",
+    "/tmp/lsp-native-protocol-v3/immutable-manifest.json": "6db184469d0ad2342f1f5cbb220c2d28d2cfe7cdd94917333aa8d87818e90fcc",
+    "/tmp/lsp-native-protocol-v3/independent-review.json": "c3c94284471d8b2948f890a86b83862019cab6707b631d329de79bc0bc8c4a6a",
+    "/tmp/tcl-lsp-naming-env.sh": "9d33ccdba049a778482244c60a8206cd62fc503db55227b7c6cf87645c932f29",
+    "/tmp/five-cleared-candidate-composition-v4-20261023T015223Z/manifest-v4.json": "269b0b429dc137f8428d02383d1c50d1555d23744019923648893268c15f90ba",
+    "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/validation-tools/capture-inputs.py": "2d3a1cf8aa341d5c4b829be6616a407d516163b52878ebb0cee874040e507474",
+    "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/validation-tools/_paths.py": "f82d76f6ee9434a98ede16693364988373bf68137d0e5800d8839404385b3a0c",
+    "/tmp/name-handling-eight-package-check-v8-source46/source46-manifest.json": "9fdfc31e7ab3786eee7f41afa8c67bbd4e0209c4e12bf4818881734732aef0e6",
+    "/tmp/name-handling-eight-package-check-v8-source46/plan.json": "5b60b936ebec8d802c55c60c1566e19f66901b991324394eb5b6a0cd241ca68b",
+    "/tmp/lsp-native-protocol-v10-source46-direct15-template/run.sh": "35d3d13aa741a062dfa16192e772a15157678e7902f6116e5a4355f37ba7b6d3",
+    "/tmp/lsp-native-protocol-v10-source46-direct15-template/suite.py": "c1075b7f4528654cfa82aa05a7b5b5b5de115c004942dc1a036bf485f728074a",
+    "/tmp/lsp-native-protocol-v10-source46-direct15-template/launch.py": "a2068d88c0b36593daef7625e84b75edc5bbef56cbbf32ad089bb7159de61ca8",
+    "/tmp/lsp-native-protocol-v10-source46-direct15-template/guarded-exec.py": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811",
+    "/tmp/lsp-native-protocol-v10-source46-direct15-template/providers.py": "5b01d95b0e919dc8aa16048c663003fbaa708d2f1e970408ef3c14fe47eeacd8",
+    "/tmp/lsp-native-protocol-v10-source46-direct15-template/plan.json": "f7ba3c96f6c67f99cb5f673031d25448167bc8f8b6b1655c149fac684904248f"
+  },
+  "root_go_contract": "ROOT ONLY after actual source46 integration: exact actual approved product HEAD/tree (no planned/fake values), exact template plan/runner/source46 pins, actual successful eight-package PASS0W receipt and hash-only prior report14 context evidence (known failures are not green prerequisites); no GO prepared"
+}

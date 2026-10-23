@@ -1,0 +1,25 @@
+{
+  "utc": "2026-10-23T04:50:12.349218+00:00",
+  "verdict": "CLEAR bounded immutable source46-template delta only; no execution/runtime admission",
+  "pins": {
+    "plan.json": "dd05cd530993e290a3f4fc5d4841769d4742ba6e0f7cdb646011c9bb0060d20d",
+    "suite.py": "8532e07fe0b98bbfab4cb78a2494b0d8c66f4dd38b56ff40a0a4a4efb5c5cda5",
+    "runner-input-manifest.json": "3ccf94ab17864cd5dcc5bc0fbe44ce355df9464226a8f0ed43e24d6b54857518",
+    "source46-manifest.json": "9fdfc31e7ab3786eee7f41afa8c67bbd4e0209c4e12bf4818881734732aef0e6",
+    "preparation-receipt.json": "ba4130df19f521e67506e08f9c17d6eed56003f3fbfa34b7dfd55523477d9f4f"
+  },
+  "checked": [
+    "all runner-input hashes match and Python AST passes",
+    "original3 required_filters/build argv and5 test-producer pins identical to v2; current5pins match",
+    "source46 exact46 unique map/hash and base/approved/current tuple enforcement inspected",
+    "percommit reviewed46 paths and docs-only descendants; worktree outside source46 must equal3b1; rootGO binds source46map and approvedHEAD/tree",
+    "priorreport14 path+SHA immutablecontext without greenrequirement; current eight-package PASS/guard_valid/zeroW same approvedHEAD/tree and pinnedtypeplan required",
+    "executor88125/provider/artifact/liveN17 diagnostic paths unchanged in bounded delta",
+    "rootGO absent; no runner/launcher/helper/provider/Git/Cargo/lock invoked by reviewer"
+  ],
+  "limits": [
+    "source46 not yet integrated/current typedPASS; GO must provide exact future receipts",
+    "not a re-review of inherited entire runner, no original3/N17/full51 acceptance",
+    "Spec66 current rootallocated run remains independent and uninterrupted"
+  ]
+}

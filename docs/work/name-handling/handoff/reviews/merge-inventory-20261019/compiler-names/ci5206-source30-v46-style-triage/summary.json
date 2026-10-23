@@ -1,0 +1,96 @@
+{
+  "utc": "2026-10-23T04:49:01.467975+00:00",
+  "status": "Read-only actual CI5206 vs current source30 and frozen candidate46 inspection; no current Clippy result",
+  "ci": {
+    "published_source": "5a418",
+    "job": "120175507991",
+    "raw_log": "/tmp/ci5206-job-120175507991-connector.log",
+    "sha256": "489505b6920928b562178bb99cf8d38a935df6eb37ec13fa73d34a3af0d5b95e",
+    "compiler_primary_diagnostics": 512,
+    "primary_inventory_path": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/compiler/resume-20261022/current-ci5206-mechanical-v1-20261023T0128Z/current512-primary-inventory.json",
+    "primary_inventory_sha256": "48a07e984baefc3654e1ce9e961b7001841233dd596f11c503a4db41acfb2406"
+  },
+  "scope": "Prior Names file inventory excluding compiler body_effects and LSP original_literal_argv_rewrite, plus current realm/registry lookup owner files. C6 root rows208\u2013213 routed separately/pending.",
+  "scoped_rows": 161,
+  "scoped_paths": 59,
+  "lint_distribution": {
+    "similar_names": 7,
+    "redundant_field_names": 1,
+    "too_many_lines": 73,
+    "redundant_closure_for_method_calls": 12,
+    "unnecessary_lazy_evaluations": 1,
+    "single_match": 1,
+    "needless_pass_by_value": 6,
+    "unused_self": 3,
+    "doc_markdown": 2,
+    "nonminimal_bool": 2,
+    "match_same_arms": 4,
+    "manual_let_else": 4,
+    "unnecessary_wraps": 3,
+    "wildcard_imports": 3,
+    "type_complexity": 2,
+    "filter_map_bool_then": 1,
+    "items_after_statements": 12,
+    "large_enum_variant": 4,
+    "iter_kv_map": 1,
+    "collapsible_if": 1,
+    "single_match_else": 1,
+    "default_trait_access": 2,
+    "large_types_passed_by_value": 3,
+    "used_underscore_binding": 2,
+    "assigning_clones": 2,
+    "too_many_arguments": 1,
+    "needless_borrow": 5,
+    "inconsistent_struct_constructor": 1,
+    "option_option": 1
+  },
+  "current_vs_ci": {
+    "158_nontrivial_reported_code_anchors": "All present current source30 and prospective46",
+    "three_truncated_self_spans": "Manually joined to matching current functions; no removal/fix claim",
+    "prospective_overlap_rows": 37,
+    "prospective_overlap_paths": [
+      "rust/tcl-compiler/src/command_binding.rs",
+      "rust/tcl-compiler/src/command_binding/source_transition_advice.rs",
+      "rust/tcl-compiler/src/realm/source_transition_advice.rs",
+      "rust/tcl-compiler/src/registry_invocation/source_remote_first_operand.rs",
+      "rust/tcl-compiler/src/registry_invocation/source_structure.rs"
+    ],
+    "confirmed_fixed_from_ci5206": "None of scoped findings can be marked closed by these static anchors; actual fresh strict Clippy required",
+    "historical_policy": "No aeecf old170/private104 patch replay. Existing helpers/guards are already current; source snippets decide each independent edit. Historical diagnostic count is not a current error count."
+  },
+  "later_candidate": {
+    "patch_sha256": "a0f76417f3d79fe98f6fa6214ac109b1585b6272e2276fafc389cdf0755273c9",
+    "manifest_sha256": "b208c44b63a18af057272b8eda9ccd5555df246448548d84936d5e18ca7f3812",
+    "ids": [
+      123,
+      124,
+      127,
+      128,
+      169,
+      187,
+      188,
+      382,
+      383,
+      384,
+      385,
+      386,
+      391
+    ],
+    "scope": "13style spellings5files, source_structure prospective46 before449d7cc6; other4current; no tests/assertions/authority/order changes",
+    "peer": "compiler requested; pending",
+    "included_frozen28_46": false
+  },
+  "existing_mechanical_candidate_reserved_ids": [
+    4,
+    86,
+    366,
+    373,
+    378,
+    379
+  ],
+  "limits": [
+    "No Cargo/Clippy/Git/build/provider/GO/canonical source actions.",
+    "No current lint pass/error-reduction claim; too_many_lines and policy-sensitive refactors remain open.",
+    "Root first source46 typing/runtime bodyissuer facts take precedence; style candidate is later-only."
+  ]
+}
