@@ -1,0 +1,15 @@
+--- rust/tcl-registry/src/f5/evidence/resolution_contexts.rs
++++ rust/tcl-registry/src/f5/evidence/resolution_contexts.rs
+@@ -24,10 +24,10 @@
+ };
+ 
+ const SCRIPT_D: &str = include_str!(
+-    "../../../../../scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006l/scriptd-results.txt"
++    "../../../data/f5/resolution_contexts/scriptd.txt"
+ );
+ const CLI: &str = include_str!(
+-    "../../../../../scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006l/cli-run.txt"
++    "../../../data/f5/resolution_contexts/cli.txt"
+ );
+ const PROVENANCE: super::EvidenceProvenance = appliance(
+     ProbeSetId::RESOLUTION_CONTEXTS,

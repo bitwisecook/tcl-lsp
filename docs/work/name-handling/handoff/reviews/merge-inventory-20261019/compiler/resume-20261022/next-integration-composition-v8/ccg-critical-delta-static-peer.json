@@ -1,0 +1,20 @@
+{
+  "utc": "2026-10-23T09:23:07.953866+00:00",
+  "reviewer_role": "compiler-codegen",
+  "status": "Bounded critical-delta composition static CLEAR; fmt still owner-running, untyped/unrun",
+  "manifest_sha256": "4da29a53c7edab1c281712b63f4d38bf1864ecd0abad1d6376e303a2ba37311b",
+  "patch_sha256": "0eb5f90afe884f1248043d668992237c8b7756d3627c9ce95cb90c0d3603bb04",
+  "component_count": 29,
+  "independent_current_base_final_files": 88,
+  "prior_v7_changed_finals": [
+    "rust/tcl-compiler/src/analyser/authenticated_report/body_correspondence.rs"
+  ],
+  "VM25": "Exactly25authorized paths/finalhashes match frozen3d38; all6held structural/API-linked paths absent from batch. No accidental full181 draft.",
+  "CCG_preservation": "Own constsubst/propagation/registrydispatch/host and nativepreflight/emitter/commandbinding finalhashes exactv7. Same-site purelogs unchanged.",
+  "checks": [
+    "All88currentbefore/newabsence match independently",
+    "Copied gitapplycheck+apply reaches all88exactfinals",
+    "No oldCCG/native bytes changed; VM25membership exact"
+  ],
+  "limits": "UPF2/newlogical test component semantics rely existing peers; originalNativecase inspected by owner peer. No new type/runtime/Clippy/actualintegratedidentity claim. Rootalone integrates; candidate121 remains proposed until actualcapture."
+}

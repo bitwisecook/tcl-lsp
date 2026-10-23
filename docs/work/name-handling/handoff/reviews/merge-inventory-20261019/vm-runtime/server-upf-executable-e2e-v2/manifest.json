@@ -1,0 +1,13 @@
+{
+  "utc": "2026-10-23T09:17:50.391482+00:00",
+  "status": "OFFTREE v2 appends positive Consume1 enum/property checks; v1 immutable; typing/runtimeUNRUN; peerpending",
+  "path": "rust/tcl-lsp-server/tests/e2e/spec_packs.rs",
+  "before_sha256": "59f325e04af755060579aa9d2f74702bc06f1856f5c84fffb885086e7b99f79a",
+  "after_sha256": "c099df37991ae0d2462eac5061440c9060429bde1dfe0a8bd91d2f150ed41c44",
+  "patch_sha256": "c1095135e69422bf0652f5b233cfc40c15291bd1d8e48454ba28ecc02eb8117d",
+  "selectors": [
+    "spec_packs::every_bundled_upf_optional_value_hook_reaches_editor_option_scanning",
+    "spec_packs::the_bundled_upf_body_resolver_reaches_editor_diagnostics_and_tokens"
+  ],
+  "contract": "Existing ordinary Lsp launch/bundled UPF delivery/config/ready/diagnostics/tokens, no custom hook host or registration;15boolean slots plus1feedthrough editor effects and1movingbodyresolver positive+data-negative. Original97direct calls still required separately. All existing selectors/assertions retained. No budgets changed."
+}

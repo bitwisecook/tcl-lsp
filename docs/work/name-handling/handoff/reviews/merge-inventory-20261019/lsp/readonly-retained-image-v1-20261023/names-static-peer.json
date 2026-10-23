@@ -1,0 +1,13 @@
+{
+  "utc": "2026-10-23T09:03:44.687851+00:00",
+  "status": "CLEAR bounded static authority/type/order; runtime/typing UNRUN",
+  "patch_sha256": "76b7bbe32cbb6a6d87ebbdaea20bfc676a3242e56b429934ebcbeb16582fea22",
+  "checks": [
+    "independent exact current before/final joins",
+    "independent zero-fuzz no-offset apply",
+    "public API and concrete field types read",
+    "all original guards/assertions retained"
+  ],
+  "review": "Current AnalysisResult::matches_original_source_image4094 already requires present current realm, exact input/full config/current image. Explicit Document channel+unchanged bytes and clone of that same retained image preserve success/refusal and owner identity; source_graph original_source_region/conditionalregion refusals unchanged. No persistent cache or relaxed lookup/purpose guard. No performance measured.",
+  "limits": "No Cargo/Git/source/GO/tests/timing; formatting owner receipt only, not independently rerun."
+}

@@ -2,7 +2,7 @@
 
 Area: routing, shared build allocation, snapshots and release readiness.
 
-Last updated: 2026-10-23T08:57:51.131492+00:00
+Last updated: 2026-10-23T09:27:54.704074+00:00
 
 ## In progress
 
@@ -47,7 +47,7 @@ Last updated: 2026-10-23T08:57:51.131492+00:00
 4. At08:55:37UTC run normal30minute cycle using draft0855/checkpoint and publisher freshdepth1fetch/rebase/normalpush/productdiff0, update actual outcomes and role freshness, checkdisk, then rearm exactly one timer for09:25:37. Existing reminder53105, no duplicate.
 5. Finish functional failures, authenticated fullreport perf proof, strict/repository/generated checks, SpecTcl C1C2/UPF17/noTom16, shipped native/WASM/WASI/browser/editor hosts and full exact origin/rustzeroP2F. User must ask before PR; no merge/tag/release authorised.
 
-### Current cycle and routing (08:55 UTC)
+### Current cycle and routing (09:25 UTC)
 
 - 06:55:37reporton time, activee1548731c normalpublished fefa1e468 at06:56:56 after freshdepth1fetch/rebase/productdiff0. Currentproduct897b/tree0b11/mapf756 unchanged.
 - Compiler58 actualCLOSED06:54:45:35filters58tests40PASS18FAIL/0W, allrawbuild/input/source/provider/artifact/timer/process/launcher guards rootindependentlyverified. Complete322payloadarchive23fc259d rootverified, finala2543f18/launcherae69b4eb; failed-valid runtime, allF/audit0. RootnextLSP23allocation; remainingJim7/CCG3/hook2/Native15GOsabsent.
@@ -66,3 +66,5 @@ Last updated: 2026-10-23T08:57:51.131492+00:00
 - Actualhook2GO3551bc42 mintedafterdeepv9proof, root20770 launcher082133/suite082153 running original2. Native15GOabsent. Proposedv5/core19 9e8c0477/402fbd34 has19components/31batchpaths/proposed66cumulative (actualcountscomputed, no sourceintegration), Names/CCG exactsharedpuredebug-insertion unionreview pending; all17oldv4pins unchanged. Genericactualidentitytypingbuilderv3 strictJSON/schema stilltemplate-only.
 - Userauthorisesintermediatecleanreleasebranch, allactualfunctionalfixesremainwork; evidence/processchaffmayremainworkbutexcludedfromrelease. DedicatediRulesperformanceexemptthisrelease, correctness/safetyremain. Comprehensiveplan lsp-release-pr-plan.md prepared; allgates exactreducedcandidate+Tclcorpusperformance+zeroP2F.
 - User08:56directsexecuteplan/reachPRwithin6h target14:56UTC; PRopeningnowexplicitlyauthorisedafterexistingF+zeroP2F+green+cleancandidate. No merge/tag/releaseauthorised. FiveimplementationrolesresumedofftreeunderNative15sourceHOLD; auditpreparingcriticalpath.
+- Native15parent78490 actualCLOSEDexit2 diskfloorabortduringlastbuild:2PASS12FAIL/14,1unreached; completepartialauditpending. No hiddenrerun/wholePASSclaim. Actualsource46stable; nextrootintegrationreviewedsuccessorv8 29/88/proposed121 oncepartialauditdone.
+- UserapprovesnewexplicitNoTomabsenceassertion; warningsforunexpectedabsence andinvalid/present-mismatch failuresretained. Decisionrecorded; implementationstillpending. Candidatecleanup/provenance remainsseparatefromallfunctionalworkfixes.

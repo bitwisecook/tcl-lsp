@@ -1,0 +1,37 @@
+--- runtime/rust/src/interp/native_variable_names.rs
++++ runtime/rust/src/interp/native_variable_names.rs
+@@ -5140,10 +5140,10 @@
+         trace_source_observation(
+             "tcl8.6",
+             include_bytes!(
+-                "../../../../experiments/name-handling/results/runtime-c86-real-suites/retired-namespace-variable-diagnostic-question/input.tcl"
++                "../../../../rust/tcl-registry/tests/data/source_contract_vectors/results/runtime-c86-real-suites/retired-namespace-variable-diagnostic-question/input.tcl"
+             ),
+             include_bytes!(
+-                "../../../../experiments/name-handling/results/runtime-c86-real-suites/retired-namespace-variable-diagnostic-question/capture-01/8.6.18/stdout.txt"
++                "../../../../rust/tcl-registry/tests/data/source_contract_vectors/results/runtime-c86-real-suites/retired-namespace-variable-diagnostic-question/capture-01/8.6.18/stdout.txt"
+             ),
+         );
+     }
+@@ -5153,10 +5153,10 @@
+         trace_source_observation(
+             "tcl8.6",
+             include_bytes!(
+-                "../../../../experiments/name-handling/results/runtime-c86-real-suites/retired-namespace-variable-diagnostic-question/variable-head-input.tcl"
++                "../../../../rust/tcl-registry/tests/data/source_contract_vectors/results/runtime-c86-real-suites/retired-namespace-variable-diagnostic-question/variable-head-input.tcl"
+             ),
+             include_bytes!(
+-                "../../../../experiments/name-handling/results/runtime-c86-real-suites/retired-namespace-variable-diagnostic-question/capture-02/8.6.18/stdout.txt"
++                "../../../../rust/tcl-registry/tests/data/source_contract_vectors/results/runtime-c86-real-suites/retired-namespace-variable-diagnostic-question/capture-02/8.6.18/stdout.txt"
+             ),
+         );
+     }
+@@ -5205,7 +5205,7 @@
+         let protocol =
+             tcl_syntax::native_string::NativeStringProtocol::C(tcl_dialect::TclVersion::V8_6);
+         let capture = include_str!(
+-            "../../../../experiments/name-handling/results/runtime-c86-real-suites/retired-namespace-variable-diagnostic-question/capture-02/8.6.18/stdout.txt"
++            "../../../../rust/tcl-registry/tests/data/source_contract_vectors/results/runtime-c86-real-suites/retired-namespace-variable-diagnostic-question/capture-02/8.6.18/stdout.txt"
+         );
+         let line = capture
+             .lines()

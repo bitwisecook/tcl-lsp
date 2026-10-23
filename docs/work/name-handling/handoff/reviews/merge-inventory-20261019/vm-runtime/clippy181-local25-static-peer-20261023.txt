@@ -1,0 +1,60 @@
+{
+  "utc": "2026-10-23T09:15:49.844391+00:00",
+  "reviewer_role": "compiler-codegen",
+  "status": "Bounded applicability/static surface review:25 local paths CLEAR as candidates; full31 composition HELD as pure-style batch because structural/API subset remains independently unaccepted",
+  "patch_sha256": "d6e1f4ea4c11a085f48b8ccfb6b0fa2a47645da472395483dccd7aea2daf7cde",
+  "manifest_sha256": "3a329390f0bbaceca7630fe0d486f8545644cb2f60771e640dadf07fe48c9352",
+  "applicability": "Independent31 canonical beforepins match (including newpath absence); copied gitapplycheck+apply reaches all31 exact shadow hashes. No Jim authoredcallv4 path overlap. Actual canonical source unchanged.",
+  "local_candidate_paths": [
+    "rust/tcl-vm/src/cmd_binary.rs",
+    "rust/tcl-vm/src/cmd_namespace.rs",
+    "rust/tcl-vm/src/cmd_namespace/native_jim_helpers.rs",
+    "rust/tcl-vm/src/cmd_namespace/native_jim_subcommands.rs",
+    "rust/tcl-vm/src/cmd_oo.rs",
+    "rust/tcl-vm/src/cmd_oo/native_properties/mutation.rs",
+    "rust/tcl-vm/src/cmd_oo/native_properties/mutation/tests.rs",
+    "rust/tcl-vm/src/cmd_oo/native_properties/original_stages.rs",
+    "rust/tcl-vm/src/cmd_oo/variable_mapping.rs",
+    "rust/tcl-vm/src/cmd_package.rs",
+    "rust/tcl-vm/src/command.rs",
+    "rust/tcl-vm/src/error.rs",
+    "rust/tcl-vm/src/exec/native_scalar.rs",
+    "rust/tcl-vm/src/interp/command_cleanup.rs",
+    "rust/tcl-vm/src/interp/execution_name_policy.rs",
+    "rust/tcl-vm/src/interp/native_name_consumers.rs",
+    "rust/tcl-vm/src/interp/native_name_queries.rs",
+    "rust/tcl-vm/src/interp/native_variable_names.rs",
+    "rust/tcl-vm/src/interp/oo_cleanup.rs",
+    "rust/tcl-vm/src/interp/oo_cleanup/active_frame.rs",
+    "rust/tcl-vm/src/interp/variable_cleanup.rs",
+    "rust/tcl-vm/src/native_return_merge.rs",
+    "rust/tcl-vm/src/value_ops.rs",
+    "rust/tcl-vm/src/value_ops/native_jim_index.rs",
+    "rust/tcl-vm/src/value_ops/native_list_index.rs"
+  ],
+  "local_review": [
+    "Let-chain collapses retain original left-to-right short-circuit calls, mandatory cleanup attempts before first-error guards, original failure conversion/returns and explicit drop points. No guard moved after receiver mutation.",
+    "Let-else conversions retain exact original match source, error messages and branches. NativeReturn ? preserves exact error type/ordering.",
+    "Readability/import/parameter-name/doc and explicit autoderef changes preserve actual methods and syntax; tests only import/borrow adaptations, no assertion selector or expectedvalue deltas.",
+    "error.rs private by-reference conversion adapts every local caller and observes the same error; value.borrowed expression-profile API remains a separate linked value group below.",
+    "No added allow/expect suppression, unsafe/ignore attribute or assertion changes found."
+  ],
+  "not_pure_style_structural_paths": [
+    "rust/tcl-vm/src/cmd_try.rs",
+    "rust/tcl-vm/src/exec.rs",
+    "rust/tcl-vm/src/value.rs",
+    "rust/tcl-vm/src/value/native_compound.rs"
+  ],
+  "atomic_linked_callers": [
+    "rust/tcl-vm/src/interp.rs",
+    "rust/tcl-vm/src/interp/native_string_stage_tests.rs"
+  ],
+  "structural_limits": [
+    "Exec contains actual helper extraction (prior44 plus new16 scalar arms); cmd_try four helpers and value representation/compound extraction change callframes/type placement. These are not mere syntax fixes.",
+    "Owned inverse proofs and prior44/43 independent reviews are supporting evidence only. This review does not independently accept new16/fourtry/value extraction; typing/strictClippy/functional/stack3 remain required.",
+    "value.rs also changes DialectProfileKey parameters to reference. interp.rs and native_string_stage_tests.rs caller changes must remain atomic with matching value API; cannot blindly apply all25+2 as standalone syntax patch.",
+    "Current source matches do not prove181 reductions or Clippy clean. Actual strictClippy remains pending; no count declared closed."
+  ],
+  "next_action": "Root may separately select owner-reviewed local hunks with exact pins; retain full31 HOLD for structural review+type/runtime/stack3. No new broad refactor, allowance or test weakening.",
+  "guards": "No Cargo/Clippy/test/GO/Git/sharedsource/provider changes; copied patch application only."
+}

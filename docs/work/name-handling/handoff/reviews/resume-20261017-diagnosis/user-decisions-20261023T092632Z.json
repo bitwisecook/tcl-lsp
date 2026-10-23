@@ -1,0 +1,13 @@
+{
+  "utc": "2026-10-23T09:26:32.344470+00:00",
+  "source": "User answer in this coordinator chat",
+  "question": "Should intentional no-TomMath mode use explicit absence assertion, retain unexpected-absence warning and reject invalid/present mismatches?",
+  "answer": "Explicit absence assertion (Recommended)",
+  "decisions": {
+    "intentional_no_tommath": {
+      "choice": "TCL_RUNTIME_EXPECT_NO_TOMMATH=1 asserts intentional actual absence",
+      "meaning": "Authorize bounded proposal B. Preserve backend detection/cfg, original16 test args/features, and warning for unexpected absence. Intentional absence reports capability without warning. Invalid values or present backend with absence assertion fail closed."
+    }
+  },
+  "scope": "No waiver of zero warnings, runtime correctness, source/provider/currentness, or release gates."
+}

@@ -1,0 +1,29 @@
+{
+  "utc": "2026-10-23T09:27:54.629487+00:00",
+  "reason": "Free raw archived capture output copies after Native15 /tmp disk-floor abort; all evidence retained losslessly onwork",
+  "removed_bytes": 38185380,
+  "files": [
+    {
+      "removed_raw_output": "/tmp/compiler-jim7-source46-v3-runs/20261023T074026.424485Z/source-before.json",
+      "bytes": 12728460,
+      "sha256": "0948d9cb33101e3f9eab1032d914d15967960abdbd205874f7c1acf9bce962db",
+      "lossless_archive_manifest": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/vm-runtime/runs/jim7-complete-20261023T074026Z/manifest.txt",
+      "blob": "blobs/0948d9cb33101e3f9eab1032d914d15967960abdbd205874f7c1acf9bce962db.gz"
+    },
+    {
+      "removed_raw_output": "/tmp/compiler-jim7-source46-v3-runs/20261023T074026.424485Z/source-final.json",
+      "bytes": 12728460,
+      "sha256": "0948d9cb33101e3f9eab1032d914d15967960abdbd205874f7c1acf9bce962db",
+      "lossless_archive_manifest": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/vm-runtime/runs/jim7-complete-20261023T074026Z/manifest.txt",
+      "blob": "blobs/0948d9cb33101e3f9eab1032d914d15967960abdbd205874f7c1acf9bce962db.gz"
+    },
+    {
+      "removed_raw_output": "/tmp/ccg-post46-direct3-v6-runs/20261023T075718.958272Z/source-before.json",
+      "bytes": 12728460,
+      "sha256": "0948d9cb33101e3f9eab1032d914d15967960abdbd205874f7c1acf9bce962db",
+      "lossless_archive_manifest": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/vm-runtime/runs/ccg-direct3-complete-20261023T075718Z/manifest.txt",
+      "blob": "blobs/0948d9cb33101e3f9eab1032d914d15967960abdbd205874f7c1acf9bce962db.gz"
+    }
+  ],
+  "target_or_executable_touched": false
+}

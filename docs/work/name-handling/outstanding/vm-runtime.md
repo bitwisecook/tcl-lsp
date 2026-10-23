@@ -2,11 +2,76 @@
 
 Area: tcl-vm, runtime/rust, tcl-spectcl, tcl-spec-studio: SpecTcl execution and acceptance.
 
-Last updated: 2026-10-23T08:29:11.221313+00:00 (hook2 complete1PASS/1FAIL0W; full131-file archive done; N17cleanup held)
+Last updated: 2026-10-23T09:24:42.940235+00:00 (Jim/UPF staticCLEAR; NoTom A/B concrete design prepared, userchoice pending)
 
 Maintained by the vm-runtime agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## Resume
+
+NoTom capability design OPTIONS ONLY prepared off-tree/ownedarchive:
+`vm-runtime/notommath-capability-design-options-v1/decision-and-controls.txt`
+SHA04941146. RecommendB: TCL_RUNTIME_EXPECT_NO_TOMMATH=1 asserts actualabsence,
+quiet currentbuild capabilitymetadata only; unexpectedabsence retainswarning,
+sourcepresent+flag or invalidflag fails. Bpatch0dd6bd8f. AlternativeApatch71e2421c
+quietmetadata for allabsence loses ordinaryunexpected-loss warning. Neither
+implemented/approved; root must ask and record genuine userpolicy choice before
+source integration. Both preserve source detection/backendcfg/failureguards/
+original16defaultfeature/testargs; oldv3 cannot claim0W. Future16 restoration
+requires actual chosenproduct/type/env/cfg/metadata/artifact guards and exact
+originalassertions; no warningwaiver. No Cargo/GO/Git/source/provider changes.
+Older/nested Jim identity guard investigated withNames: ResolvedAnalysisInput
+explicitly requires context Arc::ptr_eq; structural-only replacement forbidden.
+No pointerguard change made. Actual badcache/owner routing notyetproven; no
+commoncause or fix claim for original old/nested receipt3/4.
+
+Jim authored-call v4 full staticCLEAR483ef695 (productv3 ec86e344 +testdelta),
+allactualtyping/runtimeUNRUN. Compiler successorv7 authorised includes9paths;
+original sourceowner5 preserved. UPF server production2 current immutablev2
+`/tmp/vm-server-upf-executable-e2e-v2/proposal.patch` SHAc1095135: all16 optional
+slots zero-consumption preserved via following-option tokens/closedvalues;
+new TRUE enumMember andFT property checks positively require one-word
+consumption. Resolver emits actual bodydiagnostics+functiontokens plain/with
+options, ordinarydata negative. Names staticpeerCLEAR5ec46579, no Cargo/GO/source; v1
+immutable lacked positive1word assertion. Owned candidate bytes:
+`vm-runtime/server-upf-executable-e2e-v2/`.
+VM181 exactcurrent31beforepins matched; CCGpeer f670922f clears only25local
+stylepaths. Frozen subset `/tmp/vm-runtime-clippy181-local25-v1/proposal.patch`
+SHA3d38a5a32eb5863fe4b0ced3c3231976bfeeeaf7bc19420583314664daedd2e5;
+6structural/callerAPI paths held, full181notmeasured/type/stackunrun. Root/
+compiler havepins for explicit successor only; no allows/suppression. Older/
+nested Jim declarationreceipt failures remain required distinct investigation.
+
+Jim authored-call v3 production8files staticpeerCLEAR ec86e344 (authority/
+type-access/8pin independentapply only). Current frozen v4 proposal
+`/tmp/vm-jim-authored-call-repair-v4/proposal.patch` SHAcccd223c8cc133d7782c248e7f0162167cd5ec9cc904dca16d82c5559edb0679
+has productbytes exactv3 plus new jim_authored_call.rs3tests: genuine original
+metadata/noNative/foreign-stale; callback/deferred/missing/foreigndialect
+refusal; explicit earlierUnknown debt, both analyser tiers. Testdelta peer
+pending, alltyping/runtimeUNRUN. Original Jim7five/source15d878ed unchanged.
+Owned lossless before/after/proposal/peer archive:
+`vm-runtime/jim-authored-call-repair-v4/manifest.txt` SHA5bc4c426.
+V1 debtgap held; v2 intended diagnosticguard unapplied held; v3 correctedguard.
+Root may consider only explicitlyreviewed functional successor after live
+Native15 closes; no integration by VM. Remaining older/nested declarations
+still need actual source-purpose producer fix; no blanket Jim/C1C2 closure.
+
+Release execution deadline14:56UTC: VM owns concrete authored-Jim call repair.
+Frozen off-tree v3 `/tmp/vm-jim-authored-call-repair-v3/proposal.patch`
+SHA3f026914,8paths/fmtPASS/typing+runtimeUNRUN, compilerpeerpending; v1/v2HOLD.
+Actual selected AuthoredJimClass gets separate conditional callreceipt, no
+SourceClass/Native/Logical conversion. Unsupported current executable argv/
+deferred/future-body paths refuse; factory+earlierUnknown debts retained;
+diagnostic advisory requires noUnknown; genuine canonicalmetadata routes
+inline method-body analysis. Original Jim7five unchanged. Older/nested missing
+declarationreceipt3/4 remains required, not fixed by thisdraft. Core19 owns
+canonicalmetadata v4 separately. No source/Cargo/Git/GO; Native15sourceHOLD.
+Shortest C1C2 gate sequence and exact existing editor/UPF/originalSpec3 selectors:
+`vm-runtime/release-c1c2-shortest-gates-20261023.txt`. Final server UPF option/
+body-role consumption gap is explicit; workerreload fixtures already exist,
+all6vendor EDA smoke now exists, browser/shippedhost proof staysLSP-owned.
+Historical31path VM181style draft held until actualcurrenttyping/Clippy measure;
+Names has exactpins, no allows or blanket style-clear. Root integrates only
+reviewed functional fixes on work, cleanupcandidate only after actual proof.
 
 Original hook2 actual COMPLETE/LOCK_RELEASED08:26:52.326908Z; root observed
 parent20770 closedexit1, finishedlauncher stable. Exact2=1PASS/1FAIL,0warnings,

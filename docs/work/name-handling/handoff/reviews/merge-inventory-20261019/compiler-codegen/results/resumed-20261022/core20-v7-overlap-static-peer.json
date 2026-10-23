@@ -1,0 +1,22 @@
+{
+  "utc": "2026-10-23T09:14:05.952266+00:00",
+  "reviewer_role": "compiler-codegen",
+  "status": "Bounded composition static CLEAR; untyped/unrun",
+  "manifest_sha256": "e68b8fe945d84f46b028beb22350f6c8f51c227ebeb2577c65eee180b197abb4",
+  "patch_sha256": "a242806bbf7c40d784635ea87f95761af715d771ba10a45cad5613c66bc14126",
+  "component_count": 26,
+  "independent_current_base_final_files": 62,
+  "own_three_final_files_exact": [
+    "rust/tcl-compiler/src/const_subst.rs",
+    "rust/tcl-registry/src/pack_hooks.rs",
+    "rust/tcl-spec-hooks/src/host.rs"
+  ],
+  "overlap": "Propagation only two explicit same-site insertions at original87/2637: existing cfgdebug row24trace then cfgdebug envN17 log. Other changed ranges disjoint; original semantic queries/returns remain in their original order. Existing Native preflight/emitter files exactlycore19 and prepare_source_chunk exactblock unchanged despite disjoint Jim module addition.",
+  "checks": [
+    "All62 currentbase hashes independently match, newfiles absent",
+    "Independent gitapplycheck+apply on copied62 matches all exactfinals and owner shadow",
+    "Own constsubst/registrydispatch/host finals exact67c5; propagation preserves additive old exprfold and newN17logs",
+    "Core19 nativepreflight/emitter blocks byteidentical in candidate"
+  ],
+  "limits": "No broad new component semantics re-review; existing peers remain authority. No type/runtime/sourceidentity application. Rootalone integrates; v6/nestedv1 held, v7 contains reviewednestedv2."
+}

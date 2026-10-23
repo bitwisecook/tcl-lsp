@@ -1,0 +1,5 @@
+{
+  "actual_utc": "2026-10-23T09:18:25.810120+00:00",
+  "compiler_peer": "86f0f73ffa3406527a50ecfa711e2bb6e1abf5c390309347092988bd2e621b73",
+  "scope": "Patch removes repeated allocation/hash/LineIndex construction. Exact byte equality may still scan wholebuffer per comparison; no asymptotic/timing/scaling improvement established. Same80lens actual release measurement remains required."
+}

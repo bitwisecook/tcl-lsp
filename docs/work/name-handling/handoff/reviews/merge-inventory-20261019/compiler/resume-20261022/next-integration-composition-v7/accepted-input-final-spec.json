@@ -1,0 +1,98 @@
+{
+  "root": "/workspace/naming-migration-active/tcl-lsp",
+  "predecessor_manifest": "/tmp/compiler-next-integration-composition-v5/manifest.json",
+  "predecessor_manifest_sha256": "9e8c047703fb3df93d34f6ba4cac8398d45d81c509d157c89c6c14fb3a7b9ba0",
+  "additions": [
+    {
+      "id": "lsp-retained-image-v1",
+      "patch_path": "/tmp/lsp-readonly-retained-image-v1/proposal.patch",
+      "patch_sha256": "76b7bbe32cbb6a6d87ebbdaea20bfc676a3242e56b429934ebcbeb16582fea22",
+      "static_peer_receipt_sha256": "86f0f73ffa3406527a50ecfa711e2bb6e1abf5c390309347092988bd2e621b73",
+      "category": "functional",
+      "base_kind": "current"
+    },
+    {
+      "id": "lsp-failure-context-v1",
+      "patch_path": "/tmp/lsp-log-barrier-durable-context-v1/proposal.patch",
+      "patch_sha256": "f1af565b759eb1ab50d7361165d9d7d49605f3e490a6634135d312becd66268b",
+      "static_peer_receipt_sha256": "51e9069c6fc9ec42467e6645cdebfc1e0d9b96e499ed6d169e31108f04f6548a",
+      "category": "test-failure-context",
+      "base_kind": "current"
+    },
+    {
+      "id": "jim-authored-call-v4",
+      "patch_path": "/tmp/vm-jim-authored-call-repair-v4/proposal.patch",
+      "patch_sha256": "cccd223c8cc133d7782c248e7f0162167cd5ec9cc904dca16d82c5559edb0679",
+      "static_peer_receipt_sha256": "483ef69575f4656bff19e2ef4931436462e0d0e9568da35ccaf38b2b93a0bb15",
+      "category": "functional",
+      "base_kind": "current"
+    },
+    {
+      "id": "nested-source-intake-v2",
+      "patch_path": "/tmp/compiler-names-body-nested-source-intake-v2/proposal.patch",
+      "patch_sha256": "a3817823940d0a958384deb23a3c3931d52eda15e7fdfa88625f798a8fe61aca",
+      "static_peer_receipt_sha256": "09bce3e00d9f6812d42592a8c884bcc18e5ab4e917c5965f05f34461ce558119",
+      "category": "functional",
+      "base_kind": "predecessor-final"
+    },
+    {
+      "id": "n17-first-gate-v1",
+      "patch_path": "/tmp/ccg-n17-live-first-gate-v1/proposal.patch",
+      "patch_sha256": "67c5f998db51bc10a8fb55fce869e93c49d81d51a8bc537621a0c6ab3af4a219",
+      "static_peer_receipt_sha256": "839364726aadf6264a9b05a64e27c0c3c55ca631fa9384ec5674141d5131f678",
+      "category": "pure-diagnostic",
+      "base_kind": "current"
+    },
+    {
+      "id": "compiler-mechanical19-v1",
+      "patch_path": "/tmp/compiler-ci5206-mechanical-v1/proposal.patch",
+      "patch_sha256": "f0f7d52ac8a38e3cfc39db6f7e24295b7ddf32e02bee09ea428537ea2b4e0f9c",
+      "static_peer_receipt_sha256": "50233a85aaaeea168be2567479d942ef5ba12900c12f6a7e014a739196b17d6d",
+      "category": "mechanical-style",
+      "base_kind": "current"
+    },
+    {
+      "id": "names-style13-v1",
+      "patch_path": "/tmp/compiler-names-ci5206-style-v1-source46/proposal.patch",
+      "patch_sha256": "a0f76417f3d79fe98f6fa6214ac109b1585b6272e2276fafc389cdf0755273c9",
+      "static_peer_receipt_sha256": "18eb3f0c0984752e740556f5c58105d6795a7032d0f816bb83f1f174db86fc3b",
+      "category": "mechanical-style",
+      "base_kind": "current"
+    }
+  ],
+  "excluded": [
+    "alias86ebb pending genuine Logicaldomain measurement",
+    "VMlint31 pending peer/readiness",
+    "Nestedv1 HELD ambiguity availability; onlyv2 eligible"
+  ],
+  "allowed_same_site_pure_logs": [
+    {
+      "path": "rust/tcl-compiler/src/optimiser/propagation.rs",
+      "start": 87,
+      "ordered_fragments": [
+        {
+          "owner": "reviewed-predecessor",
+          "sha256": "4974f16c67dc5623a322da595c1ed7255ce7c380487510c9b48554c19345e206"
+        },
+        {
+          "owner": "n17-first-gate-v1",
+          "sha256": "81016e54cbfe7063929c1409124c2ac04a3f839fd4be4c608a1d45fa62d4204b"
+        }
+      ]
+    },
+    {
+      "path": "rust/tcl-compiler/src/optimiser/propagation.rs",
+      "start": 2637,
+      "ordered_fragments": [
+        {
+          "owner": "reviewed-predecessor",
+          "sha256": "57107f4d7c157bf38a59d0c9df9283a38c8f4838648ebcaf706ea4b8e5184d1f"
+        },
+        {
+          "owner": "n17-first-gate-v1",
+          "sha256": "94969b26fc2fa637c6d261628ec355cb36b9324f77c4e279b4d43e83a1794c58"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+--- a/runtime/rust/build.rs
++++ b/runtime/rust/build.rs
+@@ -114,7 +114,13 @@
+             let never = PathBuf::from(out).join("force-tower-reprobe");
+             println!("cargo:rerun-if-changed={}", never.display());
+         }
+-        println!("cargo:warning=libtommath source not found; bignum backend disabled");
++        let out = PathBuf::from(env::var("OUT_DIR").expect("Cargo supplies OUT_DIR"));
++        fs::write(
++            out.join("tommath-capability.json"),
++            b"{\"detected\":false,\"intentional_absence\":false}\n",
++        )
++        .expect("record no-TomMath capability");
++        println!("cargo::metadata=tommath_capability=absent");
+         return;
+     };
+     println!("cargo:rerun-if-changed={}", ltm.display());

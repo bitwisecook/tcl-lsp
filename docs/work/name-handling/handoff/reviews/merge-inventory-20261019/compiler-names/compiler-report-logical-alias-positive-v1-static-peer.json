@@ -1,0 +1,16 @@
+{
+  "utc": "2026-10-23T09:21:55.313187+00:00",
+  "status": "CLEAR bounded static additive test/authority/type/access; actual Logical dual-role premise UNRUN",
+  "patch_sha256": "0b341d71671ee8130f1d34e934fb7ce1b133bec5ac623e5fd30206c49e78f500",
+  "checks": [
+    "independent exact v7before/final hashes",
+    "zero-fuzz/nooffset apply",
+    "removing sole new test restores whole v7 file byte-identical",
+    "entire new let-a onward assertion tail occurs byte-identically in existing Native alias test",
+    "original Native test and all old test/assertion bodies unchanged",
+    "new analyse_for_report tcl inputs explicitly assert positive Logicalcontext forboth heldcaptures",
+    "pinned1.99.1edition2024 rustfmtcheckPASS"
+  ],
+  "authority": "New case demands actual retained Named+NamespaceScript same-site/declaration two distinct IDs, complete unique correspondence and full Equal, without inventing bodyroles or weakening counts. It uses the existing actual source/report API and tests are in same owner module with legitimate field access. Existing Native alias failure remains independent, not inverted or deleted.",
+  "limits": "No typing/Rust execution or proof actual supportedLogical fixture yields the demanded dual roles. If genuine premise unavailable newtest mustfail and be diagnosed. No source/Git/Cargo/GO. Root authorised additive-only."
+}

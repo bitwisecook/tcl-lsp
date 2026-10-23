@@ -1,0 +1,40 @@
+--- rust/tcl-lsp-server/tests/e2e/common/mod.rs
++++ rust/tcl-lsp-server/tests/e2e/common/mod.rs
+@@ -1521,10 +1521,35 @@
+         self.try_await_log(needles, timeout, since)
+             .unwrap_or_else(|| {
+                 panic!(
+-                    "no window/logMessage containing all of {needles:?} within {timeout:?}{}",
+-                    latency_barrier_timeout_note()
++                    "no window/logMessage containing all of {needles:?} within {timeout:?}{}\n{}",
++                    latency_barrier_timeout_note(),
++                    self.log_barrier_failure_context(since)
+                 )
+             })
++    }
++
++    /// Bounded captured evidence for a failed log barrier, without another request.
++    fn log_barrier_failure_context(&self, since: usize) -> String {
++        const LIMIT: usize = 16_384;
++        let notes = self.shared.notifications.lock().unwrap();
++        let mut recent = String::new();
++        for note in notes.iter().skip(since).rev().take(16).rev() {
++            let text = note.to_string();
++            for character in text.chars().take(1_024) {
++                recent.push(character);
++            }
++            recent.push('\n');
++        }
++        drop(notes);
++        let stderr = self.shared.stderr.lock().unwrap();
++        let mut start = stderr.len().saturating_sub(LIMIT);
++        while !stderr.is_char_boundary(start) {
++            start += 1;
++        }
++        format!(
++            "Recent captured notifications (at most16,1024 chars each):\n{recent}Server stderr tail (at most {LIMIT} bytes):\n{}",
++            &stderr[start..]
++        )
+     }
+ 
+     /// [`Lsp::await_log`] for a `window/logMessage` of type `Warning` alone: a

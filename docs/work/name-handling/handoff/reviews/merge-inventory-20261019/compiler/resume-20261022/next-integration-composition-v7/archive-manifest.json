@@ -1,0 +1,12 @@
+{
+  "utc": "2026-10-23T09:15:56.732505+00:00",
+  "status": "immutableproposal26components62batchpaths/proposed95; actualsource46 remains",
+  "archive_sha256": "96dcb85d3d93ed4439913439dde503783c74fe1e8be6ef8b48ce4a9f0d11e8a8",
+  "manifest_sha256": "e68b8fe945d84f46b028beb22350f6c8f51c227ebeb2577c65eee180b197abb4",
+  "combined_patch_sha256": "a242806bbf7c40d784635ea87f95761af715d771ba10a45cad5613c66bc14126",
+  "names_static_peer": "9b3a98dbdfbaeb7cc44707adf75df4adaa20068b5a9edf6a733b5d0feedb17a7",
+  "ccg_static_peer": "10336ba222a1a79c2409b7a38197acaf1e908d7b56a045d7b6a5f267064a77d2",
+  "typing": false,
+  "runtime": false,
+  "rootGO": false
+}

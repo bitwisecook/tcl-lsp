@@ -1,0 +1,17 @@
+{
+  "utc": "2026-10-23T09:06:39.962797+00:00",
+  "status": "CLEAR bounded static pure first-gate trace; typing/runtime UNRUN",
+  "patch_sha256": "67c5f998db51bc10a8fb55fce869e93c49d81d51a8bc537621a0c6ab3af4a219",
+  "checks": [
+    "all4 canonical before and independent final pins",
+    "independent zero-fuzz no-offset apply",
+    "pinned1.99.1 rustfmt edition2024 skip_children --check all4 PASS",
+    "all env reads and formatting cfg(debug_assertions) gated",
+    "Option wrappers evaluate original once and return same value with same ?/lazy or_else and && order",
+    "world-debt/registry/target/argument/host budget/quarantine/release guards unchanged",
+    "original hook invocation/cache/pinned engine/restore/reading.clear/outcome order preserved",
+    "no test/assertion/expected-output edits"
+  ],
+  "review": "n17_live_some evaluates original expression into local exactly once, observes is_some only under debug/env logging, then returns same Option. DynamicWord/effect/child uniqueness, depth, actualtarget/handler, declaredworldfootprint and host purity/budget/containment remain exact. Hook answer trace borrows existing result after original invocation, not another invocation. require_all_literal/host receiver/cache refusal remains unchanged. Env value exact first-gate-v1; no release env/format/track_caller execution.",
+  "limits": "No Cargo/Git/GO/source changes or positive protocol/runtime. Enabled logging can affect deadlines; no benchmark or acceptance from this trace."
+}

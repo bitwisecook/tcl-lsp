@@ -1,0 +1,30 @@
+{
+  "utc": "2026-10-23T09:17:51.283833+00:00",
+  "status": "OFFTREE bounded static CLEAR only; authentic nested availability/type/runtime UNRUN",
+  "archive_sha256": "a4c6dd665c029825b67bc690823277e8753494a71f0840f4ceac650f8941826c",
+  "files": [
+    {
+      "path": "proposal.patch",
+      "sha256": "a3817823940d0a958384deb23a3c3931d52eda15e7fdfa88625f798a8fe61aca"
+    },
+    {
+      "path": "manifest.json",
+      "sha256": "a105d33ea9b34e2464cbf07b29f2d82eb14b75d0ba9ae415424618d3391c9f94"
+    },
+    {
+      "path": "before.rs.txt",
+      "sha256": "a74be0bbd080fb633a92672a32a90a107236afa8b84cec7ddd4001c16c89b8c5"
+    },
+    {
+      "path": "ccg-static-peer.json",
+      "sha256": "09bce3e00d9f6812d42592a8c884bcc18e5ab4e917c5965f05f34461ce558119"
+    },
+    {
+      "path": "shadow/rust/tcl-compiler/src/registry_invocation/source_structure/original_body_syntax.rs",
+      "sha256": "f61298b62f775360f98af0e522f0c54ce1ae9369585fc8fb0e5aa019f135354f"
+    }
+  ],
+  "roundtrip": true,
+  "predecessor": "v1 508debb8 HELD potential duplicate geometry availability regression; never canonical-applied or executed",
+  "purpose": "New source-only commands from actual retained parent nested_bindings projection and every current compiler alternative; no Native words admission. Present oldgeometry is terminal including ambiguity or laterrefusal; existing NativeSome source refusal unchanged. No lexical discovery/firstvisit/fabricatedentry. Exactfactorial expr62/80 positive plusNativeNone/foreign/stale remain UNRUN."
+}

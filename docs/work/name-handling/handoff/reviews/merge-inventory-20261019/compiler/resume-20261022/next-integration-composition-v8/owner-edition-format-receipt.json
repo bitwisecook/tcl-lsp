@@ -1,0 +1,446 @@
+{
+  "status": "PASS88 owner-edition pinnedformat; noCargo",
+  "manifest_sha256": "4da29a53c7edab1c281712b63f4d38bf1864ecd0abad1d6376e303a2ba37311b",
+  "checks": [
+    {
+      "path": "rust/bpf-tcl-ir/src/source/phase.rs",
+      "edition": "2024",
+      "status": "PASS"
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/authenticated_report/body_correspondence.rs",
+      "edition": "2024",
+      "status": "PASS"
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs",
+      "edition": "2024",
+      "status": "PASS"
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/diagnostics/fp/sh.rs",
+      "edition": "2024",
+      "status": "PASS"
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/diagnostics/proven.rs",
+      "edition": "2024",
+      "status": "PASS"
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/diagnostics/unresolved.rs",
+      "edition": "2024",
+      "status": "PASS"
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/oo.rs",
+      "edition": "2024",
+      "status": "PASS"
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/types.rs",
+      "edition": "2024",
+      "status": "PASS"
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/types/logical_members.rs",
+      "edition": "2024",
+      "status": "PASS"
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/types/logical_procedures.rs",
+      "edition": "2024",
+      "status": "PASS"
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/variable_alias_templates.rs",
+      "edition": "2024",
+      "status": "PASS"
+    },
+    {
+      "path": "rust/tcl-compiler/src/cfg_builder/global_write_info.rs",
+      "edition": "2024",
+      "status": "PASS"
+    },
+    {
+      "path": "rust/tcl-compiler/src/codegen/emitter/generate.rs",
+      "edition": "2024",
+      "status": "PASS"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding.rs",
+      "edition": "2024",
+      "status": "PASS"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/compiled_preflight.rs",
+      "edition": "2024",
+      "status": "PASS"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/compiled_preflight/original_preparation.rs",
+      "edition": "2024",
+      "status": "PASS"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/compiler_inventory.rs",
+      "edition": "2024",
+      "status": "PASS"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/declaration_layout.rs",
+      "edition": "2024",
+      "status": "PASS"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/lifecycle_advice.rs",
+      "edition": "2024",
+      "status": "PASS"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/logical_variable_scope.rs",
+      "edition": "2024",
+      "status": "PASS"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/origin_inventory.rs",
+      "edition": "2024",
+      "status": "PASS"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/original_body_namespace.rs",
+      "edition": "2024",
+      "status": "PASS"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/original_name_value.rs",
+      "edition": "2024",
+      "status": "PASS"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/package_target_survey.rs",
+      "edition": "2024",
+      "status": "PASS"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/retained_source.rs",
+      "edition": "2024",
+      "status": "PASS"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/source_point_entry.rs",
+      "edition": "2024",
+      "status": "PASS"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/source_transition_advice.rs",
+      "edition": "2024",
+      "status": "PASS"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/source_transition_advice/source_class.rs",
+      "edition": "2024",
+      "status": "PASS"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/source_transition_advice/source_jim_class.rs",
+      "edition": "2024",
+      "status": "PASS"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/source_transition_advice/source_point.rs",
+      "edition": "2024",
+      "status": "PASS"
+    },
+    {
+      "path": "rust/tcl-compiler/src/compilation_unit.rs",
+      "edition": "2024",
+      "status": "PASS"
+    },
+    {
+      "path": "rust/tcl-compiler/src/const_subst.rs",
+      "edition": "2024",
+      "status": "PASS"
+    },
+    {
+      "path": "rust/tcl-compiler/src/dataflow_graph.rs",
+      "edition": "2024",
+      "status": "PASS"
+    },
+    {
+      "path": "rust/tcl-compiler/src/deferred_writes/supplied.rs",
+      "edition": "2024",
+      "status": "PASS"
+    },
+    {
+      "path": "rust/tcl-compiler/src/lowering/mod.rs",
+      "edition": "2024",
+      "status": "PASS"
+    },
+    {
+      "path": "rust/tcl-compiler/src/native_lowering/original_invocations.rs",
+      "edition": "2024",
+      "status": "PASS"
+    },
+    {
+      "path": "rust/tcl-compiler/src/optimiser/mod.rs",
+      "edition": "2024",
+      "status": "PASS"
+    },
+    {
+      "path": "rust/tcl-compiler/src/optimiser/propagation.rs",
+      "edition": "2024",
+      "status": "PASS"
+    },
+    {
+      "path": "rust/tcl-compiler/src/parsing/syntax/red.rs",
+      "edition": "2024",
+      "status": "PASS"
+    },
+    {
+      "path": "rust/tcl-compiler/src/realm/source_transition_advice.rs",
+      "edition": "2024",
+      "status": "PASS"
+    },
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation/conditional_vendor_metadata.rs",
+      "edition": "2024",
+      "status": "PASS"
+    },
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation/source_name_roles.rs",
+      "edition": "2024",
+      "status": "PASS"
+    },
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation/source_structure.rs",
+      "edition": "2024",
+      "status": "PASS"
+    },
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation/source_structure/original_body_syntax.rs",
+      "edition": "2024",
+      "status": "PASS"
+    },
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation/source_structure/project_class_cards.rs",
+      "edition": "2024",
+      "status": "PASS"
+    },
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation/source_structure/source_load/frontier.rs",
+      "edition": "2024",
+      "status": "PASS"
+    },
+    {
+      "path": "rust/tcl-compiler/src/script_binds.rs",
+      "edition": "2024",
+      "status": "PASS"
+    },
+    {
+      "path": "rust/tcl-compiler/src/shimmer/use_site.rs",
+      "edition": "2024",
+      "status": "PASS"
+    },
+    {
+      "path": "rust/tcl-compiler/src/signature_scan/formal_parameters.rs",
+      "edition": "2024",
+      "status": "PASS"
+    },
+    {
+      "path": "rust/tcl-compiler/src/source_graph.rs",
+      "edition": "2024",
+      "status": "PASS"
+    },
+    {
+      "path": "rust/tcl-compiler/src/taint.rs",
+      "edition": "2024",
+      "status": "PASS"
+    },
+    {
+      "path": "rust/tcl-compiler/tests/var_escape_residual2.rs",
+      "edition": "2024",
+      "status": "PASS"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/minify/original.rs",
+      "edition": "2024",
+      "status": "PASS"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/original_declaration.rs",
+      "edition": "2024",
+      "status": "PASS"
+    },
+    {
+      "path": "rust/tcl-lsp-server/tests/e2e/common/mod.rs",
+      "edition": "2024",
+      "status": "PASS"
+    },
+    {
+      "path": "rust/tcl-lsp-server/tests/e2e/spec_packs.rs",
+      "edition": "2024",
+      "status": "PASS"
+    },
+    {
+      "path": "rust/tcl-registry/src/native_procedure.rs",
+      "edition": "2024",
+      "status": "PASS"
+    },
+    {
+      "path": "rust/tcl-registry/src/pack_hooks.rs",
+      "edition": "2024",
+      "status": "PASS"
+    },
+    {
+      "path": "rust/tcl-spec-hooks/src/host.rs",
+      "edition": "2024",
+      "status": "PASS"
+    },
+    {
+      "path": "rust/tcl-spectcl/src/core_surfaces.rs",
+      "edition": "2024",
+      "status": "PASS"
+    },
+    {
+      "path": "rust/tcl-spectcl/tests/jim_authored_call.rs",
+      "edition": "2024",
+      "status": "PASS"
+    },
+    {
+      "path": "rust/tcl-spectcl/tests/jim_core_metadata_identity.rs",
+      "edition": "2024",
+      "status": "PASS"
+    },
+    {
+      "path": "rust/tcl-spectcl/tests/support/derived_first_decline.rs",
+      "edition": "2024",
+      "status": "PASS"
+    },
+    {
+      "path": "rust/tcl-vm/src/cmd_binary.rs",
+      "edition": "2024",
+      "status": "PASS"
+    },
+    {
+      "path": "rust/tcl-vm/src/cmd_namespace.rs",
+      "edition": "2024",
+      "status": "PASS"
+    },
+    {
+      "path": "rust/tcl-vm/src/cmd_namespace/native_jim_helpers.rs",
+      "edition": "2024",
+      "status": "PASS"
+    },
+    {
+      "path": "rust/tcl-vm/src/cmd_namespace/native_jim_subcommands.rs",
+      "edition": "2024",
+      "status": "PASS"
+    },
+    {
+      "path": "rust/tcl-vm/src/cmd_oo.rs",
+      "edition": "2024",
+      "status": "PASS"
+    },
+    {
+      "path": "rust/tcl-vm/src/cmd_oo/native_properties/mutation.rs",
+      "edition": "2024",
+      "status": "PASS"
+    },
+    {
+      "path": "rust/tcl-vm/src/cmd_oo/native_properties/mutation/tests.rs",
+      "edition": "2024",
+      "status": "PASS"
+    },
+    {
+      "path": "rust/tcl-vm/src/cmd_oo/native_properties/original_stages.rs",
+      "edition": "2024",
+      "status": "PASS"
+    },
+    {
+      "path": "rust/tcl-vm/src/cmd_oo/variable_mapping.rs",
+      "edition": "2024",
+      "status": "PASS"
+    },
+    {
+      "path": "rust/tcl-vm/src/cmd_package.rs",
+      "edition": "2024",
+      "status": "PASS"
+    },
+    {
+      "path": "rust/tcl-vm/src/command.rs",
+      "edition": "2024",
+      "status": "PASS"
+    },
+    {
+      "path": "rust/tcl-vm/src/error.rs",
+      "edition": "2024",
+      "status": "PASS"
+    },
+    {
+      "path": "rust/tcl-vm/src/exec/native_scalar.rs",
+      "edition": "2024",
+      "status": "PASS"
+    },
+    {
+      "path": "rust/tcl-vm/src/interp/command_cleanup.rs",
+      "edition": "2024",
+      "status": "PASS"
+    },
+    {
+      "path": "rust/tcl-vm/src/interp/execution_name_policy.rs",
+      "edition": "2024",
+      "status": "PASS"
+    },
+    {
+      "path": "rust/tcl-vm/src/interp/native_name_consumers.rs",
+      "edition": "2024",
+      "status": "PASS"
+    },
+    {
+      "path": "rust/tcl-vm/src/interp/native_name_queries.rs",
+      "edition": "2024",
+      "status": "PASS"
+    },
+    {
+      "path": "rust/tcl-vm/src/interp/native_variable_names.rs",
+      "edition": "2024",
+      "status": "PASS"
+    },
+    {
+      "path": "rust/tcl-vm/src/interp/oo_cleanup.rs",
+      "edition": "2024",
+      "status": "PASS"
+    },
+    {
+      "path": "rust/tcl-vm/src/interp/oo_cleanup/active_frame.rs",
+      "edition": "2024",
+      "status": "PASS"
+    },
+    {
+      "path": "rust/tcl-vm/src/interp/variable_cleanup.rs",
+      "edition": "2024",
+      "status": "PASS"
+    },
+    {
+      "path": "rust/tcl-vm/src/native_return_merge.rs",
+      "edition": "2024",
+      "status": "PASS"
+    },
+    {
+      "path": "rust/tcl-vm/src/value_ops.rs",
+      "edition": "2024",
+      "status": "PASS"
+    },
+    {
+      "path": "rust/tcl-vm/src/value_ops/native_jim_index.rs",
+      "edition": "2024",
+      "status": "PASS"
+    },
+    {
+      "path": "rust/tcl-vm/src/value_ops/native_list_index.rs",
+      "edition": "2024",
+      "status": "PASS"
+    }
+  ]
+}

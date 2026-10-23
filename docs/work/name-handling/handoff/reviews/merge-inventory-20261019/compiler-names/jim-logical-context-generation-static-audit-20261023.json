@@ -1,0 +1,45 @@
+{
+  "utc": "2026-10-23T09:27:09.643776+00:00",
+  "status": "Read-only current producer contract audit; no runtime cause proof or patch",
+  "question": "May the Logical Jim source-purpose exact context pointer check be replaced by structurally equal availability plus registry semantic key?",
+  "finding": "Current ResolvedAnalysisInput explicitly owns an actual Arc generation and rejects independently assembled equal generations. Replacing the pointer check alone would broaden that input-bound purpose; retain it.",
+  "evidence": [
+    {
+      "path": "rust/tcl-compiler/src/analyser/input.rs",
+      "line": 9,
+      "fact": "Clones retain same immutable generation; independently assembled generations conservatively invalidate."
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/input.rs",
+      "line": 112,
+      "fact": "context_registry returns Arc::clone; borrowed_context_registry borrows same underlying allocation."
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/input.rs",
+      "line": 149,
+      "fact": "PartialEq requires both profile cachekeys/full lexerconfig/vendorpolicy AND Arc::ptr_eq context."
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/source_transition_advice/source_jim_class.rs",
+      "line": 288,
+      "fact": "Logical selected purpose requires explicit positiveLogical input, exact full config and pointer-identical active context; Original native purpose independent."
+    },
+    {
+      "path": "rust/tcl-compiler/src/realm/source_transition_advice.rs",
+      "line": 470,
+      "fact": "original_authored_jim_class authenticates realm/input/source then obtains input.context_registry(), preserving exact Arc."
+    },
+    {
+      "path": "rust/tcl-compiler/src/realm/source_transition_advice.rs",
+      "line": 47,
+      "fact": "Source-advice cache currently matches complete ResolvedContext structural equality, command semantic_key and purpose; that semantic cache criterion alone does not authorize replacing an input-owned generation."
+    }
+  ],
+  "proposed_next_diagnostic": "Measure actual old/nested fixture selected AdviceNamingPolicy, retained Logical input/context pointer join and cache hit/prepared owner. If a cache wrongly reuses another exact input purpose, repair typed producer/cache/caller ownership while keeping the Logical pointer gate; do not treat present refusal as fallback permission. Actual first decline remains unmeasured.",
+  "nonclaims": [
+    "No actual old/nested Jim cause or fix established.",
+    "No new Native recipe, bodyallocation, runtime identity or report Eq/cutoff relaxation.",
+    "No source/Git/Cargo/GO/benchmark or protocol execution."
+  ],
+  "coordination": "VM owner informed directly; current accepted Jimv4 authored-call path and v8 composition are separate."
+}

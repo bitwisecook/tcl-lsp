@@ -1,0 +1,36 @@
+{
+  "root": "/workspace/naming-migration-active/tcl-lsp",
+  "predecessor_manifest": "/tmp/compiler-next-integration-composition-v7/manifest.json",
+  "predecessor_manifest_sha256": "e68b8fe945d84f46b028beb22350f6c8f51c227ebeb2577c65eee180b197abb4",
+  "additions": [
+    {
+      "id": "vm-local25-v1",
+      "patch_path": "/tmp/vm-runtime-clippy181-local25-v1/proposal.patch",
+      "patch_sha256": "3d38a5a32eb5863fe4b0ced3c3231976bfeeeaf7bc19420583314664daedd2e5",
+      "static_peer_receipt_sha256": "f670922f6d030ddc368b043c792a621bfac394fe5db546d27d7dd0c88977beb7",
+      "category": "mechanical-style",
+      "base_kind": "current"
+    },
+    {
+      "id": "upf-server2-v2",
+      "patch_path": "/tmp/vm-server-upf-executable-e2e-v2/proposal.patch",
+      "patch_sha256": "c1095135e69422bf0652f5b233cfc40c15291bd1d8e48454ba28ecc02eb8117d",
+      "static_peer_receipt_sha256": "5ec4657966a1b6417c428e531769ae403646b8f625f34e3329b1637765833b25",
+      "category": "additive-server-tests",
+      "base_kind": "current"
+    },
+    {
+      "id": "logical-alias-positive-v1",
+      "patch_path": "/tmp/compiler-report-logical-alias-positive-v1/proposal.patch",
+      "patch_sha256": "0b341d71671ee8130f1d34e934fb7ce1b133bec5ac623e5fd30206c49e78f500",
+      "static_peer_receipt_sha256": "2766a3eff582396b95b8c8e525f20dd27f76c33c33d15b0571670311c6dd8a2d",
+      "category": "additive-authentic-domain-test",
+      "base_kind": "predecessor-final"
+    }
+  ],
+  "excluded": [
+    "Alias86ebb originalfixture replacement remainsHELD",
+    "VMfull31 sixstructuralpaths HELD",
+    "Nestedv1 andJimv1/v2 HELD"
+  ]
+}

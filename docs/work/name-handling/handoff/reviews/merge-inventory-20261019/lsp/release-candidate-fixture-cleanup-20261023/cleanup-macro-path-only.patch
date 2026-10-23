@@ -1,0 +1,58 @@
+--- rust/tcl-vm/src/interp/native_alias_registration_tests.rs
++++ rust/tcl-vm/src/interp/native_alias_registration_tests.rs
+@@ -43,7 +43,7 @@
+     ($test:ident, $engine:literal, $provider:literal) => {
+         #[test]
+         fn $test() {
+-            compare($engine, include_bytes!(concat!("../../../../experiments/name-handling/namespace-origin-query/alias-registration-records/", $provider, "/stdout.bin")));
++            compare($engine, include_bytes!(concat!("../../../tcl-registry/tests/data/source_contract_vectors/namespace-origin-query/alias-registration-records/", $provider, "/stdout.bin")));
+         }
+     };
+ }
+--- rust/tcl-vm/src/interp/native_namespace_address_tests.rs
++++ rust/tcl-vm/src/interp/native_namespace_address_tests.rs
+@@ -105,7 +105,7 @@
+             compare_public_rows(
+                 $engine,
+                 include_str!(concat!(
+-                    "../../../../experiments/name-handling/namespace-address-purpose/",
++                    "../../../tcl-registry/tests/data/source_contract_vectors/namespace-address-purpose/",
+                     $release,
+                     "/stdout.bin"
+                 )),
+--- rust/tcl-vm/src/interp/native_namespace_command_query_tests.rs
++++ rust/tcl-vm/src/interp/native_namespace_command_query_tests.rs
+@@ -80,7 +80,7 @@
+             compare(
+                 $engine,
+                 include_bytes!(concat!(
+-                    "../../../../experiments/name-handling/namespace-command-query/portable/",
++                    "../../../tcl-registry/tests/data/source_contract_vectors/namespace-command-query/portable/",
+                     $provider,
+                     "/stdout.bin"
+                 )),
+--- rust/tcl-vm/src/interp/native_namespace_origin_tests.rs
++++ rust/tcl-vm/src/interp/native_namespace_origin_tests.rs
+@@ -60,9 +60,9 @@
+     ($test:ident, $engine:literal, $provider:literal) => {
+         #[test]
+         fn $test() {
+-            compare($engine, include_bytes!(concat!("../../../../experiments/name-handling/namespace-origin-query/", $provider, "/stdout.bin")),
++            compare($engine, include_bytes!(concat!("../../../tcl-registry/tests/data/source_contract_vectors/namespace-origin-query/", $provider, "/stdout.bin")),
+                 include_str!("../../../tcl-registry/tests/data/source_contract_vectors/namespace-origin-query/input.tcl"),37);
+-            compare($engine, include_bytes!(concat!("../../../../experiments/name-handling/namespace-origin-query/helper-root/", $provider, "/stdout.bin")),
++            compare($engine, include_bytes!(concat!("../../../tcl-registry/tests/data/source_contract_vectors/namespace-origin-query/helper-root/", $provider, "/stdout.bin")),
+                 include_str!("../../../tcl-registry/tests/data/source_contract_vectors/namespace-origin-query/helper-root-input.tcl"),5);
+         }
+     };
+--- rust/tcl-vm/src/interp/native_variable_query_tests.rs
++++ rust/tcl-vm/src/interp/native_variable_query_tests.rs
+@@ -53,7 +53,7 @@
+             compare_queries(
+                 $engine,
+                 include_str!(concat!(
+-                    "../../../../experiments/name-handling/variable-namespace-query-bases/",
++                    "../../../tcl-registry/tests/data/source_contract_vectors/variable-namespace-query-bases/",
+                     $provider,
+                     "/result.stdout.bin"
+                 )),

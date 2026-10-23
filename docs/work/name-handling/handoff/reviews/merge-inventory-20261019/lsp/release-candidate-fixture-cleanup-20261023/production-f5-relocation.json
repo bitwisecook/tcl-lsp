@@ -1,0 +1,23 @@
+{
+  "actual_utc": "2026-10-23T09:15:14.064325+00:00",
+  "scope": "Root-authorized packaging-only productiontable relocation; exact fullbytes/parser/facts/authority and EvidenceProvenance IDs unchanged",
+  "copied": [
+    {
+      "old_path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006l/scriptd-results.txt",
+      "new_path": "rust/tcl-registry/data/f5/resolution_contexts/scriptd.txt",
+      "sha256": "cbea670f6f3705c78cdb72eab38fe41d878ae0a589c2d1674db13f5bea6433a7",
+      "bytes": 33963
+    },
+    {
+      "old_path": "scripts/dev/bigip-probes/resolution-2286/evidence/r2286_20261006l/cli-run.txt",
+      "new_path": "rust/tcl-registry/data/f5/resolution_contexts/cli.txt",
+      "sha256": "8b9cfcc4541dd1751c68bf2820e5c767bcde99a75d877e97ff74973d5201d1ae",
+      "bytes": 15413
+    }
+  ],
+  "consumer": "rust/tcl-registry/src/f5/evidence/resolution_contexts.rs",
+  "before_sha256": "af90c2fb8b70f8abb422104311ff0f20a5b233e57bf9718b9caf4655c5ff79c8",
+  "final_sha256": "6268cbc6ab7b7b04a1fa55a73f1cc3f51d900e633b71fd2c620138f93b0c3248",
+  "provenance_path_flag": "EvidenceProvenance still names scripts/dev/bigip-probes/resolution-2286/BIGIP_RESULTS.md. Root external owner must disposition dangling development report reference; no facts/IDs invented.",
+  "tests_or_cargo_run": false
+}

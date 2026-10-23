@@ -1,0 +1,770 @@
+--- a/rust/tcl-vm/src/cmd_binary.rs
++++ b/rust/tcl-vm/src/cmd_binary.rs
+@@ -1037,7 +1037,7 @@
+                         &data,
+                         grammar.extent(&fmt),
+                         &mut |field| {
+-                            let vm = &mut *vm.borrow_mut();
++                            let vm = &mut vm.borrow_mut();
+                             original
+                                 .current_for_value(vm, data_v)
+                                 .and_then(|()| original.current_for_value(vm, fmt_v))
+--- a/rust/tcl-vm/src/cmd_namespace.rs
++++ b/rust/tcl-vm/src/cmd_namespace.rs
+@@ -585,12 +585,10 @@
+                         None => {
+                             if let crate::interp::NamespaceExecutionContext::OriginalJim(context) =
+                                 vm.current_namespace_execution_context()
++                                && let Err(error) =
++                                    context.materialize_using(vm, &|vm| original_names.check(vm))
+                             {
+-                                if let Err(error) =
+-                                    context.materialize_using(vm, &|vm| original_names.check(vm))
+-                                {
+-                                    return crate::command::completion_from_cmd_error(vm, error);
+-                                }
++                                return crate::command::completion_from_cmd_error(vm, error);
+                             }
+                             match vm.with_jim_current_namespace(|original| {
+                                 Ok(original.native_lifetime_lease().into_value())
+@@ -1059,13 +1057,9 @@
+                 Ok(bytes) => bytes,
+                 Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+             };
+-            let clear = match policy.recipe().namespace_export_clears(&bytes) {
+-                Ok(clear) => clear,
+-                Err(_) => {
+-                    return vm.refuse_host_command(
+-                        "native export control projection is unavailable".into(),
+-                    );
+-                }
++            let Ok(clear) = policy.recipe().namespace_export_clears(&bytes) else {
++                return vm
++                    .refuse_host_command("native export control projection is unavailable".into());
+             };
+             if clear {
+                 vm.clear_exports();
+@@ -1177,9 +1171,8 @@
+             Ok(bytes) => bytes,
+             Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+         };
+-        let allow_overwrite = match policy.recipe().namespace_import_forces(&first) {
+-            Ok(force) => force,
+-            Err(_) => return vm.refuse_host_command("native import control is unavailable".into()),
++        let Ok(allow_overwrite) = policy.recipe().namespace_import_forces(&first) else {
++            return vm.refuse_host_command("native import control is unavailable".into());
+         };
+         for operand in &rest[usize::from(allow_overwrite)..] {
+             // Native repeats the original first getter when it was not -force.
+--- a/rust/tcl-vm/src/cmd_namespace/native_jim_helpers.rs
++++ b/rust/tcl-vm/src/cmd_namespace/native_jim_helpers.rs
+@@ -1,7 +1,7 @@
+ // SPDX-License-Identifier: AGPL-3.0-or-later
+ //! Jim helper fallback performs ordinary lookup of the original selector's head.
+ 
+-use super::*;
++use super::{Completion, Value, Vm};
+ use crate::interp::native_name_consumers::OriginalNameConsumerScope;
+ use tcl_cmd_core::CmdError;
+ use tcl_syntax::value::ValueError;
+@@ -39,6 +39,7 @@
+ #[cfg(test)]
+ mod tests {
+     use super::*;
++    use crate::Code;
+     use tcl_registry::native_scripted_distribution::NativeScriptedLibrary;
+ 
+     const OBSERVED: &str = include_str!(
+--- a/rust/tcl-vm/src/cmd_namespace/native_jim_subcommands.rs
++++ b/rust/tcl-vm/src/cmd_namespace/native_jim_subcommands.rs
+@@ -1,7 +1,7 @@
+ // SPDX-License-Identifier: AGPL-3.0-or-later
+ //! `ParseSubCmd` consumes the original object's distinct native table cache.
+ 
+-use super::*;
++use super::{Code, Completion, Value, Vm, err};
+ use crate::interp::native_name_consumers::OriginalNameConsumerScope;
+ use tcl_cmd_core::CmdError;
+ use tcl_registry::native_jim_lookup::{
+--- a/rust/tcl-vm/src/cmd_oo.rs
++++ b/rust/tcl-vm/src/cmd_oo.rs
+@@ -3025,15 +3025,15 @@
+                 .and_then(|object| object.namespace_token),
+         )
+     };
+-    if let Some(command_key) = command_key {
+-        if let Err(error) = owner.retire_command(vm, obj_key, &command_key) {
+-            first.get_or_insert(error);
+-        }
+-    }
+-    if let Some(namespace) = namespace {
+-        if let Err(error) = owner.retire_namespace(vm, namespace) {
+-            first.get_or_insert(error);
+-        }
++    if let Some(command_key) = command_key
++        && let Err(error) = owner.retire_command(vm, obj_key, &command_key)
++    {
++        first.get_or_insert(error);
++    }
++    if let Some(namespace) = namespace
++        && let Err(error) = owner.retire_namespace(vm, namespace)
++    {
++        first.get_or_insert(error);
+     }
+     let retired_name = owner
+         .oo_mut(vm)?
+@@ -3694,10 +3694,8 @@
+             if let Err(error) = original_names.check_target(vm) {
+                 return crate::command::completion_from_cmd_error(vm, error);
+             }
+-            if changed {
+-                if let Err(error) = vm.native_property_structure_changed(target, true) {
+-                    return crate::command::completion_from_cmd_error(vm, error);
+-                }
++            if changed && let Err(error) = vm.native_property_structure_changed(target, true) {
++                return crate::command::completion_from_cmd_error(vm, error);
+             }
+             return ok(Value::empty());
+         }
+@@ -3750,10 +3748,8 @@
+             if let Err(error) = original_names.check_target(vm) {
+                 return crate::command::completion_from_cmd_error(vm, error);
+             }
+-            if changed {
+-                if let Err(error) = vm.native_property_structure_changed(target, true) {
+-                    return crate::command::completion_from_cmd_error(vm, error);
+-                }
++            if changed && let Err(error) = vm.native_property_structure_changed(target, true) {
++                return crate::command::completion_from_cmd_error(vm, error);
+             }
+             return ok(Value::empty());
+         }
+@@ -3890,10 +3886,8 @@
+                 }
+             }
+         }
+-        if changed {
+-            if let Err(error) = vm.native_property_structure_changed(target, is_class) {
+-                return crate::command::completion_from_cmd_error(vm, error);
+-            }
++        if changed && let Err(error) = vm.native_property_structure_changed(target, is_class) {
++            return crate::command::completion_from_cmd_error(vm, error);
+         }
+         ok(Value::empty())
+     })
+--- a/rust/tcl-vm/src/cmd_oo/native_properties/mutation.rs
++++ b/rust/tcl-vm/src/cmd_oo/native_properties/mutation.rs
+@@ -1,6 +1,9 @@
+ // SPDX-License-Identifier: AGPL-3.0-or-later
+ //! Original property setters, owning working Lists and checked metadata effects.
+-use super::*;
++use super::{
++    BTreeMap, BTreeSet, CmdError, NativePropertyGraphDependents, OoId, OriginalPropertyOperation,
++    Value, ValueError, Vm, original_stages,
++};
+ #[cfg(test)]
+ mod tests;
+ use super::super::original_name_operands::OriginalOoNameScope;
+@@ -19,9 +22,8 @@
+     class: bool,
+     work: impl FnOnce(&mut Vm, &OriginalOoNameScope) -> Result<(), CmdError>,
+ ) -> Result<(), CmdError> {
+-    let scope = NativeOperationScope::enter(vm).map_err(|error| {
+-        retain(vm, &error);
+-        error
++    let scope = NativeOperationScope::enter(vm).inspect_err(|error| {
++        retain(vm, error);
+     })?;
+     let names = OriginalOoNameScope::enter(vm, Some((class, target)))?;
+     let reached = work(vm, &names);
+--- a/rust/tcl-vm/src/cmd_oo/native_properties/mutation/tests.rs
++++ b/rust/tcl-vm/src/cmd_oo/native_properties/mutation/tests.rs
+@@ -1,8 +1,10 @@
+ // SPDX-License-Identifier: AGPL-3.0-or-later
+ //! Source-inspected setter stages and independent actual software owning roles.
+ use super::*;
++use crate::Code;
+ use crate::cmd_oo::resolve_object_value;
+ use std::cell::{Cell, RefCell};
++use std::rc::Rc;
+ use tcl_platform::{
+     NativeIntegerFormatter, NativeIntegerFormatterBuild, NativeIntegerFormatterUnavailable,
+     NativeIntegerKind,
+--- a/rust/tcl-vm/src/cmd_oo/native_properties/original_stages.rs
++++ b/rust/tcl-vm/src/cmd_oo/native_properties/original_stages.rs
+@@ -1,7 +1,10 @@
+ // SPDX-License-Identifier: AGPL-3.0-or-later
+ //! Original property context and derivation observations, without lookup grants.
+ use super::super::original_name_operands::OriginalOoNameScope;
+-use super::*;
++use super::{
++    BTreeMap, BTreeSet, Completion, OoId, Rc, Value, ValueError, Vm, private_storage_name_bytes,
++    slot_ref_obj,
++};
+ use crate::interp::{
+     native_numeric_ops::OriginalNumericOps, native_operation_currency::NativeOperationScope,
+ };
+--- a/rust/tcl-vm/src/cmd_oo/variable_mapping.rs
++++ b/rust/tcl-vm/src/cmd_oo/variable_mapping.rs
+@@ -140,16 +140,16 @@
+             } = entry;
+             // The inspected private worker releases variableObj before fullNameObj.
+             drop(original);
+-            if let Err(error) = self.checked() {
+-                if first.is_none() {
+-                    first = Some(error);
+-                }
++            if let Err(error) = self.checked()
++                && first.is_none()
++            {
++                first = Some(error);
+             }
+             drop(full_name);
+-            if let Err(error) = self.checked() {
+-                if first.is_none() {
+-                    first = Some(error);
+-                }
++            if let Err(error) = self.checked()
++                && first.is_none()
++            {
++                first = Some(error);
+             }
+             drop(name);
+         }
+--- a/rust/tcl-vm/src/cmd_package.rs
++++ b/rust/tcl-vm/src/cmd_package.rs
+@@ -494,10 +494,10 @@
+                         vm.push_script(label.to_owned());
+                     }
+                     let completion = vm.eval_script(&Value::from_native_string_bytes(contents));
+-                    if label.is_some() {
+-                        if let Err(error) = vm.cleanup(Vm::pop_script) {
+-                            return crate::command::completion_from_cmd_error(vm, error);
+-                        }
++                    if label.is_some()
++                        && let Err(error) = vm.cleanup(Vm::pop_script)
++                    {
++                        return crate::command::completion_from_cmd_error(vm, error);
+                     }
+                     let completion = vm.settle_callback(completion);
+                     vm.settle_package_source_completion(completion)
+--- a/rust/tcl-vm/src/command.rs
++++ b/rust/tcl-vm/src/command.rs
+@@ -3236,12 +3236,11 @@
+         .release_compiled
+         .take()
+         .is_some_and(|compiled| compiled.script_word.is_some());
+-    if vm.uses_jim_error_stack() {
+-        if let Err(error) = vm.reset_original_jim_global_error_code()
+-            && vm.refused_completion().is_some()
+-        {
+-            return error;
+-        }
++    if vm.uses_jim_error_stack()
++        && let Err(error) = vm.reset_original_jim_global_error_code()
++        && vm.refused_completion().is_some()
++    {
++        return error;
+     }
+     let jim = vm.uses_jim_error_stack();
+     let dialect = if jim {
+@@ -3310,16 +3309,16 @@
+         // code — is absorbed by `finish_catch` (which binds the result/options vars
+         // and yields the status code). Mirrors `cmd_eval`'s pending request, but
+         // catch's completion is caught rather than propagated.
+-        if let Some(original) = &original {
+-            if let Err(error) = original.current_for_value(vm, script) {
+-                return crate::command::completion_from_cmd_error(vm, error);
+-            }
++        if let Some(original) = &original
++            && let Err(error) = original.current_for_value(vm, script)
++        {
++            return crate::command::completion_from_cmd_error(vm, error);
+         }
+         let prepared = vm.prepare_script_commands_value(script);
+-        if let Some(original) = &original {
+-            if let Err(error) = original.check(vm) {
+-                return crate::command::completion_from_cmd_error(vm, error);
+-            }
++        if let Some(original) = &original
++            && let Err(error) = original.check(vm)
++        {
++            return crate::command::completion_from_cmd_error(vm, error);
+         }
+         match prepared {
+             Ok(prepared) if prepared.prefix.is_some() => {
+@@ -3351,10 +3350,10 @@
+             }
+         }
+     })();
+-    if let Some(original) = original {
+-        if let Err(error) = original.finish(vm) {
+-            return crate::command::completion_from_cmd_error(vm, error);
+-        }
++    if let Some(original) = original
++        && let Err(error) = original.finish(vm)
++    {
++        return crate::command::completion_from_cmd_error(vm, error);
+     }
+     reached
+ }
+--- a/rust/tcl-vm/src/error.rs
++++ b/rust/tcl-vm/src/error.rs
+@@ -35,7 +35,7 @@
+     PrimitiveErrorStateRequired(Box<tcl_syntax::scalar_getter::NativeScalarGetterError>),
+ }
+ 
+-fn resident_projection_failure(error: tcl_syntax::value::ValueError) -> TclHostFailure {
++fn resident_projection_failure(error: &tcl_syntax::value::ValueError) -> TclHostFailure {
+     TclHostFailure::ValueAccess(error.native_access_refusal().unwrap_or(
+         NativeValueAccessRefusal::CommandProtocolUnavailable("borrowed guest value projection"),
+     ))
+@@ -143,10 +143,10 @@
+                 completion
+                     .result
+                     .check_native_header()
+-                    .map_err(resident_projection_failure)?;
++                    .map_err(|error| resident_projection_failure(&error))?;
+                 completion.result.resident_string_bytes().ok_or_else(|| {
+                     resident_projection_failure(
+-                        tcl_syntax::value::ValueError::CommandProtocolUnavailable(
++                        &tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                             "borrowed guest message",
+                         ),
+                     )
+@@ -207,15 +207,15 @@
+             Self::Guest(completion) if completion.code == Code::Error => {
+                 let original =
+                     crate::command::opt_get_resident_checked(&completion.options, b"-errorcode")
+-                        .map_err(resident_projection_failure)?;
++                        .map_err(|error| resident_projection_failure(&error))?;
+                 original
+                     .map(|value| {
+                         value
+                             .check_native_header()
+-                            .map_err(resident_projection_failure)?;
++                            .map_err(|error| resident_projection_failure(&error))?;
+                         value.resident_string_bytes().ok_or_else(|| {
+                             resident_projection_failure(
+-                                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
++                                &tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                                     "borrowed error-code bytes",
+                                 ),
+                             )
+@@ -265,21 +265,21 @@
+             .is_some()
+         {
+             return Err(resident_projection_failure(
+-                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
++                &tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                     "borrowed Dictionary error-code mutation",
+                 ),
+             ));
+         }
+         let pairs = crate::command::completion_option_rows_resident(&completion.options)
+-            .map_err(resident_projection_failure)?;
++            .map_err(|error| resident_projection_failure(&error))?;
+         let mut replacement = Vec::with_capacity(pairs.len() * 2 + 2);
+         let mut replaced = false;
+         for (key, value) in pairs {
+             key.check_native_header()
+-                .map_err(resident_projection_failure)?;
++                .map_err(|error| resident_projection_failure(&error))?;
+             let bytes = key.resident_string_bytes().ok_or_else(|| {
+                 resident_projection_failure(
+-                    tcl_syntax::value::ValueError::CommandProtocolUnavailable(
++                    &tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                         "borrowed option key",
+                     ),
+                 )
+--- a/rust/tcl-vm/src/exec/native_scalar.rs
++++ b/rust/tcl-vm/src/exec/native_scalar.rs
+@@ -23,7 +23,7 @@
+ use tcl_syntax::value::{ValueError, ValueOps};
+ 
+ impl Vm {
+-    /// Only the admitted non-strict C ASCII STR_CLASS form reaches this worker.
++    /// Only the admitted non-strict C ASCII `STR_CLASS` form reaches this worker.
+     pub(super) fn execute_native_ascii_predicate(
+         &mut self,
+         original: &Value,
+--- a/rust/tcl-vm/src/interp/command_cleanup.rs
++++ b/rust/tcl-vm/src/interp/command_cleanup.rs
+@@ -192,14 +192,14 @@
+     fn end_c(&self, generation: u64) {
+         // Withdraw only this pure guard in the captured allocation, even when
+         // operation currency was withdrawn. No current table is selected here.
+-        if self.c_order.is_some() {
+-            if let Some(world) = self.world.upgrade() {
+-                let mut world = world.borrow_mut();
+-                world.command_deletion_active.remove(&generation);
+-                world
+-                    .command_compiler_deletion_published
+-                    .remove(&generation);
+-            }
++        if self.c_order.is_some()
++            && let Some(world) = self.world.upgrade()
++        {
++            let mut world = world.borrow_mut();
++            world.command_deletion_active.remove(&generation);
++            world
++                .command_compiler_deletion_published
++                .remove(&generation);
+         }
+     }
+     fn unlink(&self, vm: &mut Vm, source: &CommandTokenIdentity, recursive: bool) {
+@@ -310,10 +310,10 @@
+                     .insert(source.generation)
+                 {
+                     vm.note_native_command_name_node_changed(source.generation);
+-                    if let CommandSidecarKey::Visible(key) = &source.key {
+-                        if let Some(slot) = vm.command_slot(key) {
+-                            vm.note_native_namespace_command_lookup(slot.namespace);
+-                        }
++                    if let CommandSidecarKey::Visible(key) = &source.key
++                        && let Some(slot) = vm.command_slot(key)
++                    {
++                        vm.note_native_namespace_command_lookup(slot.namespace);
+                     }
+                 }
+             });
+--- a/rust/tcl-vm/src/interp/execution_name_policy.rs
++++ b/rust/tcl-vm/src/interp/execution_name_policy.rs
+@@ -386,43 +386,39 @@
+         // These are the same reached mandatory cache clear workers. A retained
+         // refusal never skips a later clear, and each actual clear settles its
+         // stage before the next owner is retired.
+-        if let Err(error) = self.retire_observed_input_cache(target, |vm| vm.eval_cache.clear()) {
+-            if first.is_none() {
+-                first = Some(error);
+-            }
++        if let Err(error) = self.retire_observed_input_cache(target, |vm| vm.eval_cache.clear())
++            && first.is_none()
++        {
++            first = Some(error);
+         }
+         if let Err(error) =
+             self.check_observed_input_stage(stage, ObservedInputReplacementStage::CacheRetired)
+-        {
+-            if first.is_none() {
+-                first = Some(error);
+-            }
++            && first.is_none()
++        {
++            first = Some(error);
+         }
+         if let Err(error) =
+             self.retire_observed_input_cache(target, |vm| vm.eval_cache_plain.clear())
+-        {
+-            if first.is_none() {
+-                first = Some(error);
+-            }
++            && first.is_none()
++        {
++            first = Some(error);
+         }
+         if let Err(error) =
+             self.check_observed_input_stage(stage, ObservedInputReplacementStage::CacheRetired)
+-        {
+-            if first.is_none() {
+-                first = Some(error);
+-            }
+-        }
+-        if let Err(error) = self.retire_observed_input_cache(target, |vm| vm.module_procs.clear()) {
+-            if first.is_none() {
+-                first = Some(error);
+-            }
++            && first.is_none()
++        {
++            first = Some(error);
++        }
++        if let Err(error) = self.retire_observed_input_cache(target, |vm| vm.module_procs.clear())
++            && first.is_none()
++        {
++            first = Some(error);
+         }
+         if let Err(error) =
+             self.check_observed_input_stage(stage, ObservedInputReplacementStage::CacheRetired)
+-        {
+-            if first.is_none() {
+-                first = Some(error);
+-            }
++            && first.is_none()
++        {
++            first = Some(error);
+         }
+         first.map_or(Ok(()), Err)
+     }
+@@ -461,10 +457,10 @@
+         let result = stage
+             .as_deref_mut()
+             .map_or(Ok(()), |check| check(self, reached));
+-        if let Err(error) = &result {
+-            if let Some(first) = error.native_execution_refusal() {
+-                self.retain_tcl_host_failure(crate::TclHostFailure::Execution(first.clone()));
+-            }
++        if let Err(error) = &result
++            && let Some(first) = error.native_execution_refusal()
++        {
++            self.retain_tcl_host_failure(crate::TclHostFailure::Execution(first.clone()));
+         }
+         result
+     }
+--- a/rust/tcl-vm/src/interp/native_name_consumers.rs
++++ b/rust/tcl-vm/src/interp/native_name_consumers.rs
+@@ -404,10 +404,10 @@
+             ops.current_for_value(lifetime.value())?;
+             reached
+         })();
+-        if let Err(error) = &reached {
+-            if let Some(cause) = error.native_execution_refusal() {
+-                vm.retain_tcl_host_failure(TclHostFailure::Execution(cause.clone()));
+-            }
++        if let Err(error) = &reached
++            && let Some(cause) = error.native_execution_refusal()
++        {
++            vm.retain_tcl_host_failure(TclHostFailure::Execution(cause.clone()));
+         }
+         drop(lifetime);
+         self.check(vm)?;
+--- a/rust/tcl-vm/src/interp/native_name_queries.rs
++++ b/rust/tcl-vm/src/interp/native_name_queries.rs
+@@ -381,12 +381,10 @@
+             .as_ref()
+             .map(|query| query.bytes(self, &scope, &query.declaration.body_src))
+             .transpose();
+-        if let Err(error) = &reached {
+-            if let Some(cause) = error.native_execution_refusal() {
+-                self.retain_tcl_host_failure(crate::error::TclHostFailure::Execution(
+-                    cause.clone(),
+-                ));
+-            }
++        if let Err(error) = &reached
++            && let Some(cause) = error.native_execution_refusal()
++        {
++            self.retain_tcl_host_failure(crate::error::TclHostFailure::Execution(cause.clone()));
+         }
+         drop(query);
+         scope.check(self)?;
+@@ -417,12 +415,10 @@
+             let body = query.bytes(self, &scope, &query.declaration.body_src)?;
+             Ok(Some(ProcInfo { body, params }))
+         })();
+-        if let Err(error) = &reached {
+-            if let Some(cause) = error.native_execution_refusal() {
+-                self.retain_tcl_host_failure(crate::error::TclHostFailure::Execution(
+-                    cause.clone(),
+-                ));
+-            }
++        if let Err(error) = &reached
++            && let Some(cause) = error.native_execution_refusal()
++        {
++            self.retain_tcl_host_failure(crate::error::TclHostFailure::Execution(cause.clone()));
+         }
+         drop(query);
+         scope.check(self)?;
+@@ -521,12 +517,10 @@
+             }
+             Ok(Some(result))
+         })();
+-        if let Err(error) = &reached {
+-            if let Some(cause) = error.native_execution_refusal() {
+-                self.retain_tcl_host_failure(crate::error::TclHostFailure::Execution(
+-                    cause.clone(),
+-                ));
+-            }
++        if let Err(error) = &reached
++            && let Some(cause) = error.native_execution_refusal()
++        {
++            self.retain_tcl_host_failure(crate::error::TclHostFailure::Execution(cause.clone()));
+         }
+         drop(originals);
+         scope.check(self)?;
+--- a/rust/tcl-vm/src/interp/native_variable_names.rs
++++ b/rust/tcl-vm/src/interp/native_variable_names.rs
+@@ -1636,19 +1636,17 @@
+                         .is_some_and(tcl_syntax::native_variable_name::NativeVariableNameProtocol::element_table_retains_original)
+                     && let (Some(array), Some(member)) =
+                         (captured.cell.array, captured.cell.elem.as_ref())
+-                {
+-                    if !self
++                    && !self
+                         .var_arena
+                         .retain_original_array_key(array, member, key.clone())
+-                    {
+-                        return Err(completion_from_cmd_error(
+-                            self,
+-                            tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+-                                "original array member key publication",
+-                            )
+-                            .into(),
+-                        ));
+-                    }
++                {
++                    return Err(completion_from_cmd_error(
++                        self,
++                        tcl_syntax::value::ValueError::CommandProtocolUnavailable(
++                            "original array member key publication",
++                        )
++                        .into(),
++                    ));
+                 }
+                 scope
+                     .check(self)
+--- a/rust/tcl-vm/src/interp/oo_cleanup.rs
++++ b/rust/tcl-vm/src/interp/oo_cleanup.rs
+@@ -49,10 +49,10 @@
+     fn attach(&self, vm: &mut Vm) -> OriginalOoCleanup {
+         // Check before selecting the saved physical target. Returning to that
+         // target cannot erase a callback's foreign-interpreter first cause.
+-        if let Some(currency) = &self.currency {
+-            if let Err(first) = currency.check(vm) {
+-                retain_error(vm, &first);
+-            }
++        if let Some(currency) = &self.currency
++            && let Err(first) = currency.check(vm)
++        {
++            retain_error(vm, &first);
+         }
+         let (operation, entry_failure) = match &self.currency {
+             Some(currency) => {
+--- a/rust/tcl-vm/src/interp/oo_cleanup/active_frame.rs
++++ b/rust/tcl-vm/src/interp/oo_cleanup/active_frame.rs
+@@ -407,10 +407,10 @@
+         }
+     }
+     pub(crate) fn retire_call(&mut self, vm: &mut Vm, completed: bool) {
+-        if let Some(call) = self.call.take() {
+-            if let Err(error) = self.original.pop_selected_call_frame(vm, &call, completed) {
+-                retain_error(vm, &error);
+-            }
++        if let Some(call) = self.call.take()
++            && let Err(error) = self.original.pop_selected_call_frame(vm, &call, completed)
++        {
++            retain_error(vm, &error);
+         }
+     }
+     pub(crate) fn retire_namespace(&mut self, vm: &mut Vm, completed: bool) {
+--- a/rust/tcl-vm/src/interp/variable_cleanup.rs
++++ b/rust/tcl-vm/src/interp/variable_cleanup.rs
+@@ -390,9 +390,8 @@
+         dying: bool,
+     ) -> Vec<VarId> {
+         let mut retired = Vec::new();
+-        let elements = match self.in_original(vm, |_| elements.into_iter()) {
+-            Ok(elements) => elements,
+-            Err(_) => return retired,
++        let Ok(elements) = self.in_original(vm, |_| elements.into_iter()) else {
++            return retired;
+         };
+         for (element, raw) in elements {
+             let id = self
+@@ -614,9 +613,8 @@
+         let removed = self
+             .in_original(vm, |vm| {
+                 if let Some(frame) = frame {
+-                    let level = match binding.owner {
+-                        super::VarTableOwner::Frame(level) => level,
+-                        _ => return None,
++                    let super::VarTableOwner::Frame(level) = binding.owner else {
++                        return None;
+                     };
+                     if !frame.upgrade().is_some_and(|selected| {
+                         vm.frames
+@@ -884,13 +882,12 @@
+     ) {
+         let jim = vm.jim_variable_lookup();
+         let owner = super::VarTableOwner::Namespace(if jim { super::ROOT_NS } else { namespace });
+-        let table_birth = match self
++        let Some(table_birth) = self
+             .state_mut(vm)
+             .ok()
+             .and_then(|state| table(state, owner).map(crate::vars::VarTable::weak_birth))
+-        {
+-            Some(birth) => birth,
+-            None => return,
++        else {
++            return;
+         };
+         if jim {
+             let prefix = (!canonical.is_empty()).then(|| {
+--- a/rust/tcl-vm/src/native_return_merge.rs
++++ b/rust/tcl-vm/src/native_return_merge.rs
+@@ -201,9 +201,7 @@
+                             }
+                         }
+                         b"-errorstack" if vm.supports_error_stack() => {
+-                            if let Err(error) = vm.seed_error_stack(value) {
+-                                return Err(error);
+-                            }
++                            vm.seed_error_stack(value)?;
+                         }
+                         b"-errorline" => {
+                             if let Some(line) = crate::return_options::with_original_return_ops(
+--- a/rust/tcl-vm/src/value_ops.rs
++++ b/rust/tcl-vm/src/value_ops.rs
+@@ -401,12 +401,11 @@
+     simulation: tcl_syntax::logical_numeric_simulation::AuthoredLogicalNumericSimulation,
+     bytes: &mut impl FnMut() -> Result<Rc<[u8]>, E>,
+ ) -> Result<f64, E> {
+-    let number = match simulation.parse_number(
++    let Ok(number) = simulation.parse_number(
+         &bytes()?,
+         tcl_syntax::logical_numeric_simulation::LogicalNumericInputStage::Number,
+-    ) {
+-        Ok(number) => number,
+-        Err(_) => return Err(ValueError::NotDoubleBytes(bytes()?.to_vec()).into()),
++    ) else {
++        return Err(ValueError::NotDoubleBytes(bytes()?.to_vec()).into());
+     };
+     match number {
+         Number::Int(value) => {
+--- a/rust/tcl-vm/src/value_ops/native_jim_index.rs
++++ b/rust/tcl-vm/src/value_ops/native_jim_index.rs
+@@ -222,16 +222,17 @@
+         &mut self,
+         list: &Value,
+         first: &Value,
+-        last: &Value,
++        last_index: &Value,
+     ) -> Result<Option<tcl_cmd_core::index::IndexResult<Value>>, CmdError> {
+         if self.index_c_version().is_none() {
+             return Ok(None);
+         }
+-        self.original_list_range(list, first, last).map(|value| {
+-            Some(tcl_cmd_core::index::IndexResult::ReturnedOwnedTransport(
+-                value,
+-            ))
+-        })
++        self.original_list_range(list, first, last_index)
++            .map(|value| {
++                Some(tcl_cmd_core::index::IndexResult::ReturnedOwnedTransport(
++                    value,
++                ))
++            })
+     }
+     fn index_c_version(&self) -> Option<tcl_dialect::TclVersion> {
+         self.actual_native_invocation_dialect()
+--- a/rust/tcl-vm/src/value_ops/native_list_index.rs
++++ b/rust/tcl-vm/src/value_ops/native_list_index.rs
+@@ -290,16 +290,16 @@
+         &mut self,
+         list: &Value,
+         first: &Value,
+-        last: &Value,
++        last_index: &Value,
+     ) -> Result<Value, CmdError> {
+         if self
+             .actual_native_invocation_dialect()
+             .native_string_protocol()
+             .is_some_and(|protocol| protocol.tcl_version().is_some())
+         {
+-            return native_list_index::command_range(self, list, first, last);
+-        }
+-        tcl_cmd_core::list::lrange(self, list, first, last)
++            return native_list_index::command_range(self, list, first, last_index);
++        }
++        tcl_cmd_core::list::lrange(self, list, first, last_index)
+     }
+     pub(crate) fn original_list_index(
+         &mut self,

@@ -1,0 +1,14 @@
+{
+  "status": "bounded static test-only successor CLEAR; original v3 production peer inherited",
+  "patch_sha256": "cccd223c8cc133d7782c248e7f0162167cd5ec9cc904dca16d82c5559edb0679",
+  "checks": [
+    "all8 v3 product rows exact",
+    "new isolated spectcl integration tests use authentic normal/per-item analyser and coreensure",
+    "positive noNative/source_nameNone plus changed/stale bytes; callback/deferred/missing/foreign dialect negatives; earlierunknown explicit debt",
+    "original Jim7 assertions unchanged"
+  ],
+  "limits": [
+    "typing/runtime availability unrun",
+    "not proof original Jim7 is repaired"
+  ]
+}

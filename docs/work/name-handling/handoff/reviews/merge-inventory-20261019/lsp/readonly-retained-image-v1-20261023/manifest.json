@@ -1,0 +1,26 @@
+{
+  "actual_utc": "2026-10-23T09:00:28.724882+00:00",
+  "scope": "Bounded request-local immutable original image reuse, no lookup/purpose/currentness guard removed; off-tree only no performance/runtime claim",
+  "patch_sha256": "76b7bbe32cbb6a6d87ebbdaea20bfc676a3242e56b429934ebcbeb16582fea22",
+  "files": [
+    {
+      "path": "rust/tcl-compiler/src/source_graph.rs",
+      "before_sha256": "541b3b62c589ae8fc6f14a474935713bc189a510f1713de19e48ff7cfc4927fa",
+      "final_sha256": "5783119f9ec6f9e24b1a17e1710bf7a04211445b6b90da9629d9bfc599f9dfa9"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/original_declaration.rs",
+      "before_sha256": "e17b21a594fb4492c8661f7d203cad955dd964b908ea3c55442e1db4afce811b",
+      "final_sha256": "e36dfffac247dd777ec23a7e3c194da0400522259a6c25363974938b33614d09"
+    }
+  ],
+  "causal_path": "Native codeLens per declaration readonly_reference_report/reference_spans scans invocations; invocation_targets_declaration_in performs current_analysis twice per pair. SourceImage::document allocates/copies bytes,hashes wholeimage,builds LineIndex on every call. Core OriginalDeclarationIdentity::current likewise. Reuse actual retained image clone only after exactDocument channel/bytes, keep original full matches_original_source_image config/input/realm guards.",
+  "safety": "Old successful matches_original_source_image already requires same retained realm source owner; new branches explicitly retain currentdocument bytes/channel. Existing readonly identity/currentconfig/source guards unchanged; no persistent cache or caller-keyed lookup.",
+  "validation_required": [
+    "existing code_lens original-reference/current identity controls",
+    "original_declaration stale/foreign/config controls",
+    "compiler current_analysis sourcegraph consumers",
+    "actual same80-lens/references perf fixture matching oracle outputs under root slot"
+  ],
+  "status": "Frozen off-tree pinnedfmt/dryrun PASS; peer pending, no Cargo/source/Git"
+}

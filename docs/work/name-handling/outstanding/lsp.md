@@ -1,6 +1,6 @@
 # Outstanding work: lsp agent
 
-Current status 2026-10-23T08:37:24Z: root toolsession78490 RUNNING Native15v14 allocator deep validation, then reviewed durable launch.py in same root command. Last read-only observation: actual GO absent, no launcher/run receipt yet; do not call tests/build started. Product897b/tree0b11/mapf756 unchanged. Exact original15/13sourcepins/16runnerinputs verified; finiteD1–D5 only, D6/fullhost/exactshippingbaseline open. Root hook2 actual1PASS1FAIL independently audited/131payloads archived; LSP23 actual17PASS6FAIL/allguards retained. No LSP Cargo/GO/source/Git or restart.
+Current status 2026-10-23T09:18:25Z: root-authorized releasecandidate fixturecleanup completed candidateonly:232unique requiredorigin inputs/642528retainedbytes,33Rustconsumers differ onlyinclude pathliterals (allother tokens/assertions identical). Staticdirect include closure3358present0missing3generated; all89macros accounted(88literalexpansion+14variadicstdlibfiles),0missing. WORK `lsp/release-candidate-fixture-cleanup-20261023/cleanup-final-map.json` exactmap+pins. ProductionF5 tables moved fullbytes/cratedata, IDs/parser/facts unchanged; dangling historical provenance reference requires rootexternalowner disposition. Audit extracted sole assertedreportrow123bytes, no bulkreport. RuntimeIO/CI/build gates remain unvalidated. Readonlyimage76b7+durablefailuref1af peerCLEAR includedrootsuccessor; imagebytechecks maystillcubic, actualperf unmeasured. RootNative15HOLD/no LSPCargo/Git/GO.
 
 
 
@@ -63,13 +63,13 @@ Prepared separate Core1 ownership/refusal phase `/tmp/lsp-body-guard-core1/run.s
 
 Area: tcl-lsp-core, tcl-lsp-db and tcl-lsp-server (generic providers, server, WASM/WASI hosts).
 
-Last updated: 2026-10-23T08:37:24Z
+Last updated: 2026-10-23T09:18:25Z
 
 Maintained by the lsp agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## Resume
 
-Latest resume pointer 2026-10-23T08:37:24Z: roottoolsession78490 owns allocator→launch for `/tmp/lsp-native-protocol-v14-source46-repaired-direct15`; observe actual root-go.json then `...-launches/*/launcher.json` and `...-runs/*` before reporting start. Current last observation noGO/noactualstart. Monitor completed rows/firstrefusal read-only, preserve all assertions/180s/lifecycle/source/provider guards and user2231. Native15 not D6/fullshipping/zeroP2F proof; keep independent oldCI baseline scopes separate.
+Latest resume pointer 2026-10-23T09:18:25Z: candidate `/workspace/naming-lsp-release/tcl-lsp` now has reviewed-scope fixturecleanup; WORK `lsp/release-candidate-fixture-cleanup-20261023/cleanup-final-map.json` and consumer-token-preservation prove232origins/33path-onlyconsumers. Root must reapply cleanup literals over later functional sourcecopy rather than overwrite. No test/assertion/gate removed;51families oldreadpaths retained. Staticinclude closure not fullRust/runtimeIO/CI acceptance. Keep Native15 actualbarrier failures and unresolvedreadonly/headreplacement/nestedproof controls; root owns newsourceunion/typing/allocation, user1317/2231 strict.
 
 
 

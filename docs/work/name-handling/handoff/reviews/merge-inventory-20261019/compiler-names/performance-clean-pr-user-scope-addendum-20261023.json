@@ -1,0 +1,13 @@
+{
+  "utc": "2026-10-23T09:00:13.229065+00:00",
+  "source": "User clarification relayed by root in current session",
+  "decisions": [
+    "All actual functional fixing remains on work. Intermediate branches may be used only for cleanup, extraction and validation.",
+    "iRules PERFORMANCE may be ignored for this release; there is no iRules performance gate.",
+    "iRules correctness and authenticated equivalence requirements are not waived.",
+    "Full Tcl corpus, representative/scaling workload and beyond-run-noise performance acceptance remain required."
+  ],
+  "preserved_audit": "performance-clean-pr-planning-audit-20261023.json",
+  "preserved_audit_sha256": "d8c44a617e13bc50191eda52576e715db8077caf88c5ecbb916e92f5dfe258fc",
+  "execution": "Planning addendum only; no benchmark, source/Cargo/Git/GO."
+}

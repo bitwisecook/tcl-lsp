@@ -1,0 +1,29 @@
+{
+  "utc": "2026-10-23T09:00:28.256947+00:00",
+  "role": "compiler-codegen",
+  "status": "Read-only static triage; source HOLD; no code fix inferred before actual issuer receipts",
+  "native_original3": {
+    "path": "/tmp/ccg-post46-direct3-v6-runs/20261023T075718.958272Z/final.json",
+    "sha256": "f2aaa25fe22ac3683ce60fa011300c33a9074bf8020f9d255f523fab4d59eae6"
+  },
+  "hook_original2": {
+    "path": "/tmp/ccg-pack-hook-exact2-v1-runs/20261023T082153.905914Z/final.json",
+    "sha256": "93f3a44053cdbc959e6e2cf6f9943fdceb28f41f12540ffac7bb2ef23bbb6109"
+  },
+  "actual_facts": [
+    "Native original catch29bytes reaches Procedure frame with authentic entry/profile/currentnamespace/closed context but ProviderRequired/prereqs0; existing logs do not separate preflight traversal vs emitter dependency refusal.",
+    "Original hook2 final08:26:52 has2selected: livefoldFAIL DSL1[]vs[5], hostlessPASS1/1; warningsfalse/sourceproviderartifactstable and timersvalid. DSL2 unreached in row1.",
+    "Original livefold helper uses proc::f and optimise_raw None, not derived::p observer filter. Original derived vendor procedures also lack expected returned fold; census needed."
+  ],
+  "static_exclusions": [
+    "lower_procedure_target already owns ProcedureBody/ProcedureCode and codegen module uses is_procedure=true; procedure_body=false FunctionAsm marker is not proof of wrong frame.",
+    "optimise_raw already derives registry.profile if dialect omitted; fresh_document_input carries authentic same-profile overlay command store/context. No blanket constructor/profile fix.",
+    "scoped_procedure_evaluation explicitly rejects registry-backed targets and cannot supply actual dispatch/native CPP; cannot substitute it for mylib::strlen proved_execution_target.",
+    "Slot equality in original livefold implies install clean because compile_one decline returns slotNone while plan has assignedslot; this still does not prove hook was invoked."
+  ],
+  "next_actual_facts": [
+    "Core19 nativev2 debug trace must report first actual require_provider callsite, preflight assessment or emitter flag origin before narrow native repair.",
+    "Core19 public body census must identify actual proc/body owner and source-retained join before altering N17 issuer. Hook-specific first refusal may require its actual production route receipt; no arbitrary conditional-to-executable conversion."
+  ],
+  "runtime_policy": "Root alone Cargo/Git/sharedsource integration, no new GO; deadline14:56UTC. Temporary probes/toggle cleanup held; historical untoggle stale."
+}

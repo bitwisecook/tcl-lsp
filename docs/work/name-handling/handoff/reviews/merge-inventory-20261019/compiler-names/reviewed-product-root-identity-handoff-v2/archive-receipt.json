@@ -1,0 +1,26 @@
+{
+  "utc": "2026-10-23T09:12:24.772203+00:00",
+  "status": "Generic adapter v2 bounded static CLEAR; actual Git/newidentity/materialization/typing UNRUN",
+  "archive_sha256": "1e461f56bc9b6c0adf6aaac6243d4a64890223d3a73d3d8218f18b173772f3d9",
+  "files": [
+    {
+      "path": "ROOT-COMMANDS.txt",
+      "sha256": "c237a8ee9459ec3dbaa8ff916aa0bb7b613aa4c867e5a2396cbc412410d14ede"
+    },
+    {
+      "path": "compiler-static-peer.json",
+      "sha256": "f4c8afd3406bc81c8fd6db92177c38e8e420eb18b9a2cf83fd81778b29dd316c"
+    },
+    {
+      "path": "prepare_actual_identity.py",
+      "sha256": "21e05c39b21dedf94d8bac5295b217453943f73c5da89450b0b2d575d36829c4"
+    },
+    {
+      "path": "static-preflight.json",
+      "sha256": "e46798d4e745af93cba7095036f6d9dd4979c4e51678f17a6244db93b1931c6e"
+    }
+  ],
+  "all_payloads_roundtrip_match": true,
+  "scope": "Required explicit root-reviewed candidate manifest path/SHA, actual committed SHA and derived exact cumulative count; no latest/default/future identity. Existing full reviewed verifier twice and CLI builder repeat. No GO/launch/Cargo/Git mutation.",
+  "compiler_peer_sha256": "f4c8afd3406bc81c8fd6db92177c38e8e420eb18b9a2cf83fd81778b29dd316c"
+}

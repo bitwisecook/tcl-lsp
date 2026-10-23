@@ -1,0 +1,124 @@
+{
+  "schema": "nextest-real-reporter-finite-pilot-v1",
+  "utc": "2026-10-23T09:07:04.584332+00:00",
+  "status": "OFF-TREE PLAN ONLY; no Cargo/tool pilot run; root sole GO/build window",
+  "purpose": "Validate unchanged wrapper with actual pinned nextest0.9.148 incremental libtest-json-plus pass/fail output. Separate tool fixture intentionally fails; zero product test/source/assertion changes or duplicate product selector execution.",
+  "tool": {
+    "path": "/workspace/naming-toolchains/nextest-0.9.148/cargo-nextest",
+    "sha256": "53470cfc9b5cbcd96780db2d348700d76af962467503791f1f8a8824d8967e5c"
+  },
+  "wrapper": {
+    "path": "/tmp/ccg-nextest-capture-v2/nextest_terminal_capture.py",
+    "sha256": "3824ed63de80a047b4dab9f8967ac4e1f525f9937ab546cb529592dcaaf68aad"
+  },
+  "wrapper_manifest": {
+    "path": "/tmp/ccg-nextest-capture-v2/manifest.json",
+    "sha256": "f4ab122ecb0deb52b8231f9fd86371b5fbfbd4b9f6c52a36a00136a2c02060b8"
+  },
+  "wrapper_peer_receipt": {
+    "path": "/tmp/ccg-nextest-capture-v2/peer-review-v2.json",
+    "sha256": "749f29c5e2f3052e4c7bd201a71ba90f9191a449dc1c38f4dc60b85e6b3258ed"
+  },
+  "fixture_inputs": [
+    {
+      "path": "/tmp/ccg-nextest-real-pilot-v1/fixture/Cargo.lock",
+      "sha256": "a4f72b2e824e2674f5700faa5c16c91062dca4db6f6feef892cbe8a5f80e1ab2"
+    },
+    {
+      "path": "/tmp/ccg-nextest-real-pilot-v1/fixture/Cargo.toml",
+      "sha256": "669f5618de8876d8df8f7bd368e2eca5f9db4a5fb1414ee210ea549e4142d45d"
+    },
+    {
+      "path": "/tmp/ccg-nextest-real-pilot-v1/fixture/src/lib.rs",
+      "sha256": "eb9c2e3525d36b20d6d13e0f8ad715f2335a264c0eb7ec4f180eb38be4450956"
+    }
+  ],
+  "expected_roster": {
+    "package": "nextest-capture-pilot",
+    "binary": "nextest_capture_pilot",
+    "kind": "lib",
+    "selected": [
+      "tests::actual_reporter_failure",
+      "tests::actual_reporter_pass"
+    ],
+    "count": 2
+  },
+  "commands": [
+    {
+      "phase": "list-and-build",
+      "argv": [
+        "/workspace/naming-toolchains/nextest-0.9.148/cargo-nextest",
+        "nextest",
+        "list",
+        "--manifest-path",
+        "/tmp/ccg-nextest-real-pilot-v1/fixture/Cargo.toml",
+        "--locked",
+        "--lib",
+        "-E",
+        "test(=tests::actual_reporter_pass) | test(=tests::actual_reporter_failure)",
+        "--message-format",
+        "json"
+      ],
+      "stdout": "/tmp/ccg-nextest-real-pilot-v1/actual-selected.json",
+      "max_seconds": 900,
+      "expected_exit": 0
+    },
+    {
+      "phase": "capture-actual-reporter",
+      "argv": [
+        "python3",
+        "/tmp/ccg-nextest-capture-v2/nextest_terminal_capture.py",
+        "--selected-json",
+        "/tmp/ccg-nextest-real-pilot-v1/actual-selected.json",
+        "--output-dir",
+        "/tmp/ccg-nextest-real-pilot-v1/actual-capture",
+        "--console-cap",
+        "20000000",
+        "--",
+        "/workspace/naming-toolchains/nextest-0.9.148/cargo-nextest",
+        "nextest",
+        "run",
+        "--manifest-path",
+        "/tmp/ccg-nextest-real-pilot-v1/fixture/Cargo.toml",
+        "--locked",
+        "--lib",
+        "-E",
+        "test(=tests::actual_reporter_pass) | test(=tests::actual_reporter_failure)",
+        "--no-fail-fast",
+        "--test-threads",
+        "1",
+        "--message-format",
+        "libtest-json-plus",
+        "--message-format-version",
+        "0.1"
+      ],
+      "max_seconds": 180,
+      "expected_exit": "nonzero original child test-failure status; must be preserved exactly (compare summary.nextest_exit). Do not reinterpret intentional fixture failure as product failure or wrapper failure."
+    }
+  ],
+  "environment": {
+    "CARGO_TARGET_DIR": "/tmp/ccg-nextest-real-pilot-v1/target",
+    "CARGO_BUILD_JOBS": "2",
+    "CARGO_INCREMENTAL": "0",
+    "CARGO_PROFILE_TEST_DEBUG": "0",
+    "CARGO_PROFILE_DEV_DEBUG": "0",
+    "RUSTUP_TOOLCHAIN": "1.99.1",
+    "NEXTEST_EXPERIMENTAL_LIBTEST_JSON": "1"
+  },
+  "acceptance": [
+    "Actual roster exact2/one lib package/binary and no ignored/unmatched identities; record actual binary-id from current nextest JSON, never invent it.",
+    "Fresh ordinary Cargo artifact build/freshness only, isolated target; record actual selected libtest binary hash/mtime from nextest listing. No manual exe reuse/CAS/touch.",
+    "Wrapper summary has no capture_errors, no missing_terminal, exactly2 terminal rows joined to current actual roster; one ok and one failed final.",
+    "Console includes incremental test-terminal markers for both identities, and run-end capture_validtrue; saved terminal JSONL/status tally agrees.",
+    "Original nextest test-failure exit preserved by wrapper and summary; intentional failure text appears in bounded actual diagnostics.",
+    "All tool/wrapper/fixture/workspace-source/provider pins stable before/after; no cap/timeout/disk/watchdog/signal cleanup issue."
+  ],
+  "execution_guards": [
+    "Root-issued exact planSHA GO; global /tmp/tcl-lsp-naming-build.lock nonblocking across list/build/run/receipts. No waiting Cargo queue and no concurrent root builds.",
+    "Root standard full source manifest+provider/tool seals before/after, exact fixture and wrapper/tool pins before eachcommand. At least2GiB disk, prefer2.3GiB;5sec own session disk watchdog.",
+    "20MiB bounded list/capture logs and existing20,000,000byte wrapper console cap.900sec list+build and180sec run ceilings with exact PID/start/ownedgroup validation; root standard INT/TERM/KILL bounded cleanup (wrapper forwards to actual nextest group).",
+    "Actual Cargo/nextest/artifacts retained; do not clean target or executable while process live or exe younger60sec.",
+    "No changed original product tests, no sharedsource/Git/provider changes. Original capturev2 files remain immutable."
+  ],
+  "limits": "Finite real reporter compatibility only; does not validate6hour remote artifact survival, workspace feature combinations, retries/stress/sharding/Windows, or product release gates. Intentionally failing external fixture is tool validation only."
+}

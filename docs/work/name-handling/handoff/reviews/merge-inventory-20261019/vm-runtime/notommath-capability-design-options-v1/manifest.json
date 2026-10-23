@@ -1,0 +1,23 @@
+{
+  "utc": "2026-10-23T09:23:10.768057+00:00",
+  "status": "DESIGN OPTIONS ONLY; USER CHOICE REQUIRED; neither implemented or approved for integration; syntax/fmt only, typing/runtimeUNRUN",
+  "recommended": "B",
+  "proposed_env_B": "TCL_RUNTIME_EXPECT_NO_TOMMATH=1",
+  "choices": [
+    {
+      "choice": "A",
+      "path": "runtime/rust/build.rs",
+      "before_sha256": "fd1fea9d02fa1dd7d869a71effa55af9c73e78183b1a805d28cd828fc6680a34",
+      "after_sha256": "6de89f9a0f6ae4e33d115be4a59b8e3df41b1a64a2f0c2072e8a138c63e5134b",
+      "patch_sha256": "71e2421c057ac589078b2e845d9261cc2b154bcaddf88610771ccc18425eebe1"
+    },
+    {
+      "choice": "B",
+      "path": "runtime/rust/build.rs",
+      "before_sha256": "fd1fea9d02fa1dd7d869a71effa55af9c73e78183b1a805d28cd828fc6680a34",
+      "after_sha256": "992f5bd30b71a225623bcd5b387f58481392e6e51298672c515e16d18b45d595",
+      "patch_sha256": "0dd6bd8f11f7ba043a53da6c5e2785033fde5f4dca7a45b87863cc6124f8bf1d"
+    }
+  ],
+  "contract": "No Cargo feature/test arg/detection/cfg/backend implementation change. B only classifies explicitly expected actual source absence as capability status; unanticipated absence retains original warning. Found source with B expectation or invalid env fails build. Original noTom16 remains unrun; no release0W admission."
+}

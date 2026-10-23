@@ -1,0 +1,75 @@
+SpecTcl C1-C2 shortest complete gate sequence (scheduling only)
+Recorded 2026-10-23T09:06:21.542061+00:00; deadline14:56UTC per root.
+Root alone owns source integration, Cargo, Git and GO. Native15 currently holds
+source; all following checks require actual repaired/approved product binding,
+current tools/environment/provider/source seals, fresh Cargo JSON artifacts,
+exact rosters/status/exit and existing88125 process lifecycle/budgets. No new
+runner is needed just to duplicate an existing prepared protocol.
+
+1. Integrate peer-cleared functional batch only after Native15 closes; actual
+same-source all-target typing0W. Keep ownsurface canonicalmetadata v4 in core19
+separate from authored-Jim classcall repair3f026914 currently peerpending.
+Original Jim7 source-owner5 remain untouched. Actual core19 diagnostic may
+identify current selected graph cell; new functional route only admits actual
+AuthoredJimClass cell, not SourceClass/Native/Logical coercion. Older/nested
+receipt3/4 missing declarations remain a separate required producer repair.
+2. Rebind existing Jim7 protocol to the approved product and run original7
+first. Require source-owner5 and proc-row2 allPASS; do not infer all11 controls
+from two selected ownsurface tests. Then existing66 successor must run full
+Jim34 and other32 (ownsurface11, roster4, generation-zero3, seed1, EDA8/env5).
+This is the shortest focused-failure then original full-scope closure sequence;
+original66 on source30 was51/15 and cannot certify future shipping bytes.
+3. After codegen fixes, reuse exact direct3 and separate hook2 protocols:
+catch admission+referencebody+release matrix, then original live DSL1+2.0 fold
+and hostless negative. Actual direct3=0/3 and hook2=1/1 do not authorize N17
+observer cleanup. Keep observer removal only in cleanup candidate after proof.
+4. Reuse UPF exact existing2 test source rust/tcl-spectcl/tests/upf_hooks.rs:
+ every_upf_option_arity_hook_consumes_exactly_its_optional_value
+ the_define_power_model_resolver_marks_the_trailing_body
+These execute97 host calls over17 slots (15boolean*6 +1name*4 +1resolver*3).
+Current guarded runtime unrun; map /tmp/vm-runtime-c1-c2-acceptance-map.json
+already owns their identities. Productionhost direct slot execution does not
+prove automatic worker installation, LSP consumer routing or body traversal.
+No duplicate historical representative19/UPF runner should be created.
+5. Rebind originalSpec3v2 (/tmp/vm-spectcl-original3-v2) exact workspace cache
+cold/warm/rebuild and manifest-unplaced capability tests plus studio authored/
+shipped port parity. All3 remainunrun; cache load is not server lifecycle.
+6. Final editor layer uses EXISTING tcl-lsp-server --test e2e target, exact
+module selectors (fresh actual libtest roster must authenticate spelling):
+ jim::the_first_publish_for_a_tcl_jim_document_needs_no_pack_reload
+ jim::the_jim_program_draws_only_hints_as_a_tcl_jim_document
+ jim::the_jim_program_draws_arity_errors_and_disabled_commands_as_a_tcl86_document
+ spec_packs::the_bundled_eda_loadables_make_their_vendor_commands_known
+ spec_packs::a_workspace_packs_argument_roles_drive_semantic_tokens
+ spec_packs::a_pack_const_fold_body_folds_a_call_site_in_the_optimiser
+ spec_packs::without_the_pack_the_same_call_site_does_not_fold
+ spec_packs::granting_trust_reloads_and_installs_the_bodies
+ spec_packs::a_pack_reload_after_an_edit_yields_the_new_answer_on_the_memoised_path
+ spec_packs::a_pack_added_after_startup_reloads_and_re_analyses_open_documents
+ spec_packs::a_pack_created_during_the_startup_reload_survives_it
+ spec_packs::a_stale_startup_snapshot_cannot_overwrite_a_newer_pack_set
+ spec_packs::a_pack_declared_environment_routes_its_documents_through_the_ingress
+Existing bundled EDA test NOW iterates EDA_COMMAND_CASES across all six vendor
+environments plus SDC/UPF known/rival exclusion, not historical Vivado-only.
+Existing live fold and memoised reload fixtures exercise productionworker.
+But these existing selectors do NOT explicitly send UPF option-consumption/
+define_power_model body-role examples through final server semantic/diagnostic
+providers. That final small integration gap needs genuine deterministic tests
+or exact existing proof found by LSP owner; direct2/slots alone cannot waive it.
+Installed/embedded and browser VFS shipped-host proof also remains LSP-owned.
+7. Mandatory exact noTom16 baseline restoration separately follows existing
+lifecycle plan after reviewed product/env/typebinding. Genuine have_tommath
+absence and no --features engine must remain; actual historical build warning
+cannot pass user's0W admission. Assess build.rs117 supported-mode warning
+producer separately, never waive or silently change backend. FullTom4 overlap
+only catch, different flavor. GeneralVM parity remains parked, zero baseline
+P2F requirement not waived. Repository/host/strictClippy/perf/sectionD gates
+remain root/LSP/Names/perf owners; this list closes only C1-C2 scope.
+
+Historical VM strictClippy181 draft exists31paths:
+/tmp/vm-runtime-clippy-181-composed-v3/composed.patch
+d6e1f4ea4c11a085f48b8ccfb6b0fa2a47645da472395483dccd7aea2daf7cde
+manifest3a329390f0bbaceca7630fe0d486f8545644cb2f60771e640dadf07fe48c9352.
+Only source composition/fmtsyntax measured; helper extractions are not blanket
+pure-style admission. Current diagnostics must be measured after typing; rebase
+only applicable reviewed hunks, no allows/suppressions. No newClippy/Cargo run.

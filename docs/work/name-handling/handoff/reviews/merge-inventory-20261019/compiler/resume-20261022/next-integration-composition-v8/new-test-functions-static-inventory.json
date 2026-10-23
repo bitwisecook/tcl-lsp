@@ -1,0 +1,41 @@
+{
+  "status": "staticdiscoveryonly; realfreshlibtestroster required",
+  "manifest_sha256": "4da29a53c7edab1c281712b63f4d38bf1864ecd0abad1d6376e303a2ba37311b",
+  "new_test_functions": 9,
+  "paths": [
+    {
+      "path": "rust/tcl-compiler/src/analyser/authenticated_report/body_correspondence.rs",
+      "new_test_function_names": [
+        "empty_installed_body_requires_the_current_complete_source_card",
+        "supported_logical_alias_roles_keep_the_shared_declaration"
+      ]
+    },
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation/source_structure/original_body_syntax.rs",
+      "new_test_function_names": [
+        "nested_factorial_expressions_use_their_retained_source_compiler_vectors"
+      ]
+    },
+    {
+      "path": "rust/tcl-lsp-server/tests/e2e/spec_packs.rs",
+      "new_test_function_names": [
+        "every_bundled_upf_optional_value_hook_reaches_editor_option_scanning",
+        "the_bundled_upf_body_resolver_reaches_editor_diagnostics_and_tokens"
+      ]
+    },
+    {
+      "path": "rust/tcl-spectcl/tests/jim_authored_call.rs",
+      "new_test_function_names": [
+        "an_authored_call_retains_its_original_class_without_native_identity",
+        "callbacks_deferred_calls_missing_cells_and_foreign_dialects_refuse",
+        "earlier_unknown_effects_remain_explicit_conditional_debt"
+      ]
+    },
+    {
+      "path": "rust/tcl-spectcl/tests/jim_core_metadata_identity.rs",
+      "new_test_function_names": [
+        "compiled_core_metadata_is_pure_before_and_after_active_registration"
+      ]
+    }
+  ]
+}

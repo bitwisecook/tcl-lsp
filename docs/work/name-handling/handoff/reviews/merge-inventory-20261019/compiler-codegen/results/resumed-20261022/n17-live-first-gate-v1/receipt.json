@@ -1,0 +1,399 @@
+{
+  "utc": "2026-10-23T09:05:05.882506+00:00",
+  "status": "OFF-TREE debug/env gated trace only; untyped/unrun and requires peer review",
+  "env": {
+    "TCL_LSP_TRACE_N17_FOLD": "first-gate-v1"
+  },
+  "patch_sha256": "67c5f998db51bc10a8fb55fce869e93c49d81d51a8bc537621a0c6ab3af4a219",
+  "files": [
+    {
+      "path": "rust/tcl-compiler/src/const_subst.rs",
+      "base_sha256": "c710e35b4eb63642a7050bc7cec6535b98cbe5a265d035a92cc27acdb96b2278",
+      "proposed_sha256": "d7ffe07d80a6bcaca96c0083dbeb95fc4d59b3d2459d8c2d7ed764651dc15c2f"
+    },
+    {
+      "path": "rust/tcl-compiler/src/optimiser/propagation.rs",
+      "base_sha256": "b623c6273111c4ad176a2528bf7b6fd41c4a6c13f02f5a30711a86fb62ae7bab",
+      "proposed_sha256": "9c2ca087adbe2bc0d6acadb07ef30a97a8ee011371d49dfaea6b834ed6e9c394"
+    },
+    {
+      "path": "rust/tcl-registry/src/pack_hooks.rs",
+      "base_sha256": "28e1eaa01e69618dcf9c267c05aeb2f43ba75048fdcf0e784474e2277181b049",
+      "proposed_sha256": "8ccfaa5c6089bdcf7229aa0d0d17f9e62331efcf12078d503fa00c5a1b2a74f7"
+    },
+    {
+      "path": "rust/tcl-spec-hooks/src/host.rs",
+      "base_sha256": "b6cb8f70a9bf5c769d1d44f372a37207629180987190d282ceb5640258da3120",
+      "proposed_sha256": "7da4abf0c5b325a73cca2fb7970285d5950d9076d15d0c5d2c803f75954e2d0b"
+    }
+  ],
+  "scope": "Actual propagation entry/inventory, const_subst first gates/argument results, registry dispatch and actual host invocation/outcome. No query reevaluation, authority, result/assertion change. All logging/env access cfgdebug_assertions only. Existing narrowing/invoke/cost/restore/reading-clear order unchanged; host engine outcome observed only after original restoration/clear.",
+  "limits": "Temporary debug instrumentation can affect elapsed timing when enabled; not a latency/performance measurement. No release logging/env/trackcaller attributes. Ordinary original budget guards stay unchanged. Original hook positive must be run with exact env; caller census traces alone do not locate livehook.",
+  "static_semantic_query_counts": [
+    {
+      "path": "rust/tcl-compiler/src/const_subst.rs",
+      "query": "proved_execution_target",
+      "before": 2,
+      "after": 2,
+      "same_count": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/const_subst.rs",
+      "query": "resolved_handler_invocation_with_metadata_context",
+      "before": 1,
+      "after": 1,
+      "same_count": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/const_subst.rs",
+      "query": "requires_world_barrier",
+      "before": 1,
+      "after": 1,
+      "same_count": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/const_subst.rs",
+      "query": "with_metadata_schema",
+      "before": 1,
+      "after": 1,
+      "same_count": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/const_subst.rs",
+      "query": "invocation_realm",
+      "before": 1,
+      "after": 1,
+      "same_count": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/const_subst.rs",
+      "query": "retained_arguments_at_depth",
+      "before": 3,
+      "after": 3,
+      "same_count": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/const_subst.rs",
+      "query": "get_for_surface",
+      "before": 1,
+      "after": 1,
+      "same_count": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/const_subst.rs",
+      "query": "oo_context_fact_fold",
+      "before": 3,
+      "after": 3,
+      "same_count": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/const_subst.rs",
+      "query": "run_const_fold_in",
+      "before": 4,
+      "after": 4,
+      "same_count": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/const_subst.rs",
+      "query": "scoped_procedure_evaluation",
+      "before": 1,
+      "after": 1,
+      "same_count": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/const_subst.rs",
+      "query": "effective_words_for_target",
+      "before": 1,
+      "after": 1,
+      "same_count": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/const_subst.rs",
+      "query": "object_callback_effects_closed",
+      "before": 1,
+      "after": 1,
+      "same_count": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/const_subst.rs",
+      "query": "evaluated_written_argument_value",
+      "before": 1,
+      "after": 1,
+      "same_count": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/const_subst.rs",
+      "query": "effective_invocation_word",
+      "before": 1,
+      "after": 1,
+      "same_count": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/const_subst.rs",
+      "query": "variable_access_at",
+      "before": 1,
+      "after": 1,
+      "same_count": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/const_subst.rs",
+      "query": "context_alternatives",
+      "before": 2,
+      "after": 2,
+      "same_count": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/const_subst.rs",
+      "query": "context_residual",
+      "before": 1,
+      "after": 1,
+      "same_count": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/const_subst.rs",
+      "query": "place_in_context",
+      "before": 1,
+      "after": 1,
+      "same_count": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/const_subst.rs",
+      "query": "read_produces_value",
+      "before": 1,
+      "after": 1,
+      "same_count": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/const_subst.rs",
+      "query": "contents_native_string_access_closed_at",
+      "before": 1,
+      "after": 1,
+      "same_count": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/optimiser/propagation.rs",
+      "query": "checked_lifted_calls",
+      "before": 1,
+      "after": 1,
+      "same_count": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/optimiser/propagation.rs",
+      "query": "matches_module",
+      "before": 2,
+      "after": 2,
+      "same_count": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/optimiser/propagation.rs",
+      "query": "for_module",
+      "before": 12,
+      "after": 12,
+      "same_count": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/optimiser/propagation.rs",
+      "query": "checked_original_lifted_calls_with_metadata_context",
+      "before": 1,
+      "after": 1,
+      "same_count": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/optimiser/propagation.rs",
+      "query": "retained_module_metadata_context",
+      "before": 6,
+      "after": 6,
+      "same_count": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/optimiser/propagation.rs",
+      "query": "retained_call_at",
+      "before": 3,
+      "after": 3,
+      "same_count": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/optimiser/propagation.rs",
+      "query": "fold_retained_builtin",
+      "before": 8,
+      "after": 8,
+      "same_count": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/optimiser/propagation.rs",
+      "query": "retained_o115",
+      "before": 3,
+      "after": 3,
+      "same_count": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/optimiser/propagation.rs",
+      "query": "try_o101_expr_arg_fold",
+      "before": 5,
+      "after": 5,
+      "same_count": true
+    },
+    {
+      "path": "rust/tcl-compiler/src/optimiser/propagation.rs",
+      "query": "render_propagation_word",
+      "before": 12,
+      "after": 12,
+      "same_count": true
+    },
+    {
+      "path": "rust/tcl-registry/src/pack_hooks.rs",
+      "query": "ANY_HOST.load",
+      "before": 4,
+      "after": 4,
+      "same_count": true
+    },
+    {
+      "path": "rust/tcl-registry/src/pack_hooks.rs",
+      "query": "INSTALLER.get",
+      "before": 4,
+      "after": 4,
+      "same_count": true
+    },
+    {
+      "path": "rust/tcl-registry/src/pack_hooks.rs",
+      "query": "ensure_host",
+      "before": 4,
+      "after": 4,
+      "same_count": true
+    },
+    {
+      "path": "rust/tcl-registry/src/pack_hooks.rs",
+      "query": "cache_mode",
+      "before": 4,
+      "after": 4,
+      "same_count": true
+    },
+    {
+      "path": "rust/tcl-registry/src/pack_hooks.rs",
+      "query": "shape_key",
+      "before": 5,
+      "after": 5,
+      "same_count": true
+    },
+    {
+      "path": "rust/tcl-registry/src/pack_hooks.rs",
+      "query": "content.matches",
+      "before": 1,
+      "after": 1,
+      "same_count": true
+    },
+    {
+      "path": "rust/tcl-registry/src/pack_hooks.rs",
+      "query": "host.invoke",
+      "before": 1,
+      "after": 1,
+      "same_count": true
+    },
+    {
+      "path": "rust/tcl-registry/src/pack_hooks.rs",
+      "query": "CallContent::of",
+      "before": 1,
+      "after": 1,
+      "same_count": true
+    },
+    {
+      "path": "rust/tcl-spec-hooks/src/host.rs",
+      "query": "all_literal",
+      "before": 2,
+      "after": 2,
+      "same_count": true
+    },
+    {
+      "path": "rust/tcl-spec-hooks/src/host.rs",
+      "query": "pinned_engine",
+      "before": 4,
+      "after": 4,
+      "same_count": true
+    },
+    {
+      "path": "rust/tcl-spec-hooks/src/host.rs",
+      "query": "sink.clear",
+      "before": 3,
+      "after": 3,
+      "same_count": true
+    },
+    {
+      "path": "rust/tcl-spec-hooks/src/host.rs",
+      "query": "reading.set",
+      "before": 2,
+      "after": 2,
+      "same_count": true
+    },
+    {
+      "path": "rust/tcl-spec-hooks/src/host.rs",
+      "query": "reading.clear",
+      "before": 3,
+      "after": 3,
+      "same_count": true
+    },
+    {
+      "path": "rust/tcl-spec-hooks/src/host.rs",
+      "query": "reading.set_targets",
+      "before": 1,
+      "after": 1,
+      "same_count": true
+    },
+    {
+      "path": "rust/tcl-spec-hooks/src/host.rs",
+      "query": "narrowed",
+      "before": 2,
+      "after": 2,
+      "same_count": true
+    },
+    {
+      "path": "rust/tcl-spec-hooks/src/host.rs",
+      "query": "engine.set_budget",
+      "before": 3,
+      "after": 3,
+      "same_count": true
+    },
+    {
+      "path": "rust/tcl-spec-hooks/src/host.rs",
+      "query": "engine.invoke",
+      "before": 1,
+      "after": 1,
+      "same_count": true
+    },
+    {
+      "path": "rust/tcl-spec-hooks/src/host.rs",
+      "query": "engine.commands_spent",
+      "before": 1,
+      "after": 1,
+      "same_count": true
+    },
+    {
+      "path": "rust/tcl-spec-hooks/src/host.rs",
+      "query": "record_commands_spent",
+      "before": 1,
+      "after": 1,
+      "same_count": true
+    },
+    {
+      "path": "rust/tcl-spec-hooks/src/host.rs",
+      "query": "sink.drain",
+      "before": 1,
+      "after": 1,
+      "same_count": true
+    },
+    {
+      "path": "rust/tcl-spec-hooks/src/host.rs",
+      "query": "answer_of",
+      "before": 2,
+      "after": 2,
+      "same_count": true
+    },
+    {
+      "path": "rust/tcl-spec-hooks/src/host.rs",
+      "query": "record_crash",
+      "before": 2,
+      "after": 2,
+      "same_count": true
+    }
+  ],
+  "copied_exact_inverse_check": true
+}

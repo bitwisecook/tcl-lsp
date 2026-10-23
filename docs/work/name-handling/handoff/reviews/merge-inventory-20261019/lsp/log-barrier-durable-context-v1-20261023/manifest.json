@@ -1,0 +1,14 @@
+{
+  "actual_utc": "2026-10-23T09:02:24.723512+00:00",
+  "scope": "Permanent bounded failure-only harness diagnostics; original barrier/assertion/deadline unchanged",
+  "patch_sha256": "f1af565b759eb1ab50d7361165d9d7d49605f3e490a6634135d312becd66268b",
+  "files": [
+    {
+      "path": "rust/tcl-lsp-server/tests/e2e/common/mod.rs",
+      "before_sha256": "9c8fb04893e26bc0d114500ca29c8d1d86198e823aad3d42fc40e43bd8bf343e",
+      "final_sha256": "a03dedc976a0c19f9b67158f666281da0575ca02179ef00650745a9c5c538613"
+    }
+  ],
+  "bound": "Last16captured notifications atmost1024Unicodechars each +stderr tail16384bytes UTF8boundarysafe; no request/retry/successsynthesis",
+  "runtime": "UNRUN; pinnedfmt parse/applycheck only"
+}

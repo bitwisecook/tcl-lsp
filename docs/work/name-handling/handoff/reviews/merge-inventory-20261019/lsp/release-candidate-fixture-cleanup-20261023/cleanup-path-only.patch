@@ -1,0 +1,1392 @@
+--- runtime/rust/src/cmd_clock.rs
++++ runtime/rust/src/cmd_clock.rs
+@@ -569,7 +569,7 @@
+     fn parse_format_args_matches_the_eleven_original_c86_cases() {
+         let mut interp = c86();
+         let input = include_str!(
+-            "../../../experiments/name-handling/results/clock-parse-format-args/input.tcl"
++            "../../../rust/tcl-registry/tests/data/source_contract_vectors/results/clock-parse-format-args/input.tcl"
+         );
+         let input = format!(
+             "set rows {{}}\n{}\njoin $rows \\n",
+@@ -583,7 +583,7 @@
+         );
+         assert_eq!(
+             interp.result_bytes(),
+-            include_bytes!("../../../experiments/name-handling/results/clock-parse-format-args/captured/c8.6.18.stdout.txt").strip_suffix(b"\n").unwrap(),
++            include_bytes!("../../../rust/tcl-registry/tests/data/source_contract_vectors/results/clock-parse-format-args/captured/c8.6.18.stdout.txt").strip_suffix(b"\n").unwrap(),
+         );
+     }
+ 
+@@ -833,7 +833,7 @@
+     fn get_date_fields_matches_original_c86_rows_except_unavailable_localtime() {
+         let mut interp = original();
+         let input = include_str!(
+-            "../../../experiments/name-handling/results/runtime-c86-real-suites/get-date-fields-question/input.tcl"
++            "../../../rust/tcl-registry/tests/data/source_contract_vectors/results/runtime-c86-real-suites/get-date-fields-question/input.tcl"
+         );
+         let source = format!(
+             "set ::rows {{}}\n{}\njoin $::rows \\n",
+@@ -850,7 +850,7 @@
+             "{:?}",
+             interp.native_execution_refusal()
+         );
+-        let expected = include_str!("../../../experiments/name-handling/results/runtime-c86-real-suites/get-date-fields-question/capture-01/8.6.18/values/stdout.txt")
++        let expected = include_str!("../../../rust/tcl-registry/tests/data/source_contract_vectors/results/runtime-c86-real-suites/get-date-fields-question/capture-01/8.6.18/values/stdout.txt")
+             .lines().filter(|line| line.starts_with("ROW ") && !line.starts_with("ROW empty-tzdata "))
+             .collect::<Vec<_>>().join("\n");
+         assert_eq!(interp.result_bytes(), expected.as_bytes());
+--- runtime/rust/src/cmd_fs.rs
++++ runtime/rust/src/cmd_fs.rs
+@@ -1967,7 +1967,7 @@
+ 
+     #[cfg(unix)]
+     const GLOB_TYPE_C86_ROWS: &str = include_str!(
+-        "../../../experiments/name-handling/results/runtime-c86-real-suites/glob-type-union-question/capture-01/8.6.18/stdout.txt"
++        "../../../rust/tcl-registry/tests/data/source_contract_vectors/results/runtime-c86-real-suites/glob-type-union-question/capture-01/8.6.18/stdout.txt"
+     );
+ 
+     #[cfg(unix)]
+@@ -2015,7 +2015,7 @@
+     fn glob_type_readable_writable_executable_qualifiers_remain_conjunctive() {
+         let (mut interp, _fixture) = glob_type_fixture("rwx_qualifiers");
+         let capture = include_str!(
+-            "../../../experiments/name-handling/results/runtime-c86-real-suites/glob-type-union-rwx-question/capture-01/8.6.18/stdout.txt"
++            "../../../rust/tcl-registry/tests/data/source_contract_vectors/results/runtime-c86-real-suites/glob-type-union-rwx-question/capture-01/8.6.18/stdout.txt"
+         );
+         assert_glob_type_row(
+             &mut interp,
+--- runtime/rust/src/cmd_mathfunc.rs
++++ runtime/rust/src/cmd_mathfunc.rs
+@@ -285,7 +285,7 @@
+                 NativeCompilerRecipe::ProcedureNoOp,
+             ),
+             (
+-                &include_bytes!("../../../experiments/name-handling/results/native-c86-mathfunc-bootstrap/init-max-shape-input.tcl")[..],
++                &include_bytes!("../../../rust/tcl-registry/tests/data/source_contract_vectors/results/native-c86-mathfunc-bootstrap/init-max-shape-input.tcl")[..],
+                 &b"::tcl::mathfunc::max"[..],
+                 NativeCompilerRecipe::Absent,
+             ),
+--- runtime/rust/src/cmd_namespace.rs
++++ runtime/rust/src/cmd_namespace.rs
+@@ -3476,13 +3476,13 @@
+     #[test]
+     fn native_c86_forget_global_origin_matches_original_issue_witness() {
+         let fields = forget_native_fields(include_str!(
+-            "../../../experiments/name-handling/results/namespace-forget-global-origin/results/tcl8.6.18/stdout.txt"
++            "../../../rust/tcl-registry/tests/data/source_contract_vectors/results/namespace-forget-global-origin/results/tcl8.6.18/stdout.txt"
+         ));
+         leak_free_with(
+             || native_namespace_interp(tcl_dialect::TclVersion::V8_6),
+             |interp| {
+                 assert_eq!(fields["setup_code"], b"0");
+-                let code = interp.eval_str(include_bytes!("../../../experiments/name-handling/results/namespace-forget-global-origin/issue-witness.tcl"));
++                let code = interp.eval_str(include_bytes!("../../../rust/tcl-registry/tests/data/source_contract_vectors/results/namespace-forget-global-origin/issue-witness.tcl"));
+                 assert_eq!(
+                     code.as_int().to_string().as_bytes(),
+                     fields["positive_code"]
+@@ -3496,10 +3496,10 @@
+     #[test]
+     fn native_c86_forget_global_origin_matches_original_adverse_controls() {
+         let fields = forget_native_fields(include_str!(
+-            "../../../experiments/name-handling/results/namespace-forget-global-origin/results/tcl8.6.18/stdout.txt"
++            "../../../rust/tcl-registry/tests/data/source_contract_vectors/results/namespace-forget-global-origin/results/tcl8.6.18/stdout.txt"
+         ));
+         let probe = include_str!(
+-            "../../../experiments/name-handling/results/namespace-forget-global-origin/probe.tcl"
++            "../../../rust/tcl-registry/tests/data/source_contract_vectors/results/namespace-forget-global-origin/probe.tcl"
+         );
+         let block = |start: &str, end: &str| {
+             probe
+@@ -3581,10 +3581,10 @@
+     #[test]
+     fn native_c86_forget_matches_original_import_chain_controls() {
+         let fields = forget_native_fields(include_str!(
+-            "../../../experiments/name-handling/results/namespace-forget-import-chain/results/tcl8.6.18/stdout.txt"
++            "../../../rust/tcl-registry/tests/data/source_contract_vectors/results/namespace-forget-import-chain/results/tcl8.6.18/stdout.txt"
+         ));
+         let probe = include_str!(
+-            "../../../experiments/name-handling/results/namespace-forget-import-chain/probe.tcl"
++            "../../../rust/tcl-registry/tests/data/source_contract_vectors/results/namespace-forget-import-chain/probe.tcl"
+         );
+         let block = |start: &str, end: &str| {
+             probe
+--- runtime/rust/src/cmd_error/tests/jim_output_name_stages.rs
++++ runtime/rust/src/cmd_error/tests/jim_output_name_stages.rs
+@@ -64,7 +64,7 @@
+     let observations =
+         include_str!("../../../tests/data/native_jim_output_name_stages/observations-20261015.tsv");
+     let original_try = include_str!(
+-        "../../../../../experiments/name-handling/results/jim-try-reached-message-getters/capture07/execution.stdout"
++        "../../../../../rust/tcl-registry/tests/data/source_contract_vectors/results/jim-try-reached-message-getters/capture07/execution.stdout"
+     );
+     for is_try in 0..2 {
+         for mode in 0..4 {
+--- runtime/rust/src/interp/native_namespace_names/tests.rs
++++ runtime/rust/src/interp/native_namespace_names/tests.rs
+@@ -593,31 +593,31 @@
+         (
+             "tcl8.4",
+             include_str!(
+-                "../../../../../experiments/name-handling/namespace-address-purpose/8.4.20/stdout.bin"
++                "../../../../../rust/tcl-registry/tests/data/source_contract_vectors/namespace-address-purpose/8.4.20/stdout.bin"
+             ),
+         ),
+         (
+             "tcl8.5",
+             include_str!(
+-                "../../../../../experiments/name-handling/namespace-address-purpose/8.5.19/stdout.bin"
++                "../../../../../rust/tcl-registry/tests/data/source_contract_vectors/namespace-address-purpose/8.5.19/stdout.bin"
+             ),
+         ),
+         (
+             "tcl8.6",
+             include_str!(
+-                "../../../../../experiments/name-handling/namespace-address-purpose/8.6.18/stdout.bin"
++                "../../../../../rust/tcl-registry/tests/data/source_contract_vectors/namespace-address-purpose/8.6.18/stdout.bin"
+             ),
+         ),
+         (
+             "tcl9.0",
+             include_str!(
+-                "../../../../../experiments/name-handling/namespace-address-purpose/9.0.4/stdout.bin"
++                "../../../../../rust/tcl-registry/tests/data/source_contract_vectors/namespace-address-purpose/9.0.4/stdout.bin"
+             ),
+         ),
+         (
+             "tcl9.1",
+             include_str!(
+-                "../../../../../experiments/name-handling/namespace-address-purpose/9.1.0/stdout.bin"
++                "../../../../../rust/tcl-registry/tests/data/source_contract_vectors/namespace-address-purpose/9.1.0/stdout.bin"
+             ),
+         ),
+     ] {
+--- runtime/rust/tests/native_namespace_command_query.rs
++++ runtime/rust/tests/native_namespace_command_query.rs
+@@ -66,15 +66,15 @@
+ #[test]
+ fn namespace_command_queries_match_original_portable_source_reports() {
+     let source = include_bytes!(
+-        "../../../experiments/name-handling/namespace-command-query/input-portable.tcl"
++        "../../../rust/tcl-registry/tests/data/source_contract_vectors/namespace-command-query/input-portable.tcl"
+     );
+     for (environment, expected) in [
+-        ("tcl8.4", include_bytes!("../../../experiments/name-handling/namespace-command-query/portable/8.4.20/stdout.bin").as_slice()),
+-        ("tcl8.5", include_bytes!("../../../experiments/name-handling/namespace-command-query/portable/8.5.19/stdout.bin").as_slice()),
+-        ("tcl8.6", include_bytes!("../../../experiments/name-handling/namespace-command-query/portable/8.6.18/stdout.bin").as_slice()),
+-        ("tcl9.0", include_bytes!("../../../experiments/name-handling/namespace-command-query/portable/9.0.4/stdout.bin").as_slice()),
+-        ("tcl9.1", include_bytes!("../../../experiments/name-handling/namespace-command-query/portable/9.1.0/stdout.bin").as_slice()),
+-        ("jim", include_bytes!("../../../experiments/name-handling/namespace-command-query/portable/jim/stdout.bin").as_slice()),
++        ("tcl8.4", include_bytes!("../../../rust/tcl-registry/tests/data/source_contract_vectors/namespace-command-query/portable/8.4.20/stdout.bin").as_slice()),
++        ("tcl8.5", include_bytes!("../../../rust/tcl-registry/tests/data/source_contract_vectors/namespace-command-query/portable/8.5.19/stdout.bin").as_slice()),
++        ("tcl8.6", include_bytes!("../../../rust/tcl-registry/tests/data/source_contract_vectors/namespace-command-query/portable/8.6.18/stdout.bin").as_slice()),
++        ("tcl9.0", include_bytes!("../../../rust/tcl-registry/tests/data/source_contract_vectors/namespace-command-query/portable/9.0.4/stdout.bin").as_slice()),
++        ("tcl9.1", include_bytes!("../../../rust/tcl-registry/tests/data/source_contract_vectors/namespace-command-query/portable/9.1.0/stdout.bin").as_slice()),
++        ("jim", include_bytes!("../../../rust/tcl-registry/tests/data/source_contract_vectors/namespace-command-query/portable/jim/stdout.bin").as_slice()),
+     ] {
+         let host = Rc::new(CaptureHost { native: NativeHost::new(), stdout: RefCell::new(Vec::new()), stderr: RefCell::new(Vec::new()) });
+         let mut interp = Interp::with_native_core(host.clone(),
+@@ -180,9 +180,9 @@
+ fn namespace_origin_original_c84() {
+     compare_reports(
+         "tcl8.4",
+-        include_bytes!("../../../experiments/name-handling/namespace-origin-query/input.tcl"),
+-        include_bytes!(
+-            "../../../experiments/name-handling/namespace-origin-query/8.4.20/stdout.bin"
++        include_bytes!("../../../rust/tcl-registry/tests/data/source_contract_vectors/namespace-origin-query/input.tcl"),
++        include_bytes!(
++            "../../../rust/tcl-registry/tests/data/source_contract_vectors/namespace-origin-query/8.4.20/stdout.bin"
+         ),
+         37,
+     );
+@@ -191,17 +191,17 @@
+ #[test]
+ fn namespace_helper_root_original_c84() {
+     compare_reports("tcl8.4",
+-        include_bytes!("../../../experiments/name-handling/namespace-origin-query/helper-root-input.tcl"),
+-        include_bytes!("../../../experiments/name-handling/namespace-origin-query/helper-root/8.4.20/stdout.bin"), 5);
++        include_bytes!("../../../rust/tcl-registry/tests/data/source_contract_vectors/namespace-origin-query/helper-root-input.tcl"),
++        include_bytes!("../../../rust/tcl-registry/tests/data/source_contract_vectors/namespace-origin-query/helper-root/8.4.20/stdout.bin"), 5);
+ }
+ 
+ #[test]
+ fn namespace_origin_original_c85() {
+     compare_reports(
+         "tcl8.5",
+-        include_bytes!("../../../experiments/name-handling/namespace-origin-query/input.tcl"),
+-        include_bytes!(
+-            "../../../experiments/name-handling/namespace-origin-query/8.5.19/stdout.bin"
++        include_bytes!("../../../rust/tcl-registry/tests/data/source_contract_vectors/namespace-origin-query/input.tcl"),
++        include_bytes!(
++            "../../../rust/tcl-registry/tests/data/source_contract_vectors/namespace-origin-query/8.5.19/stdout.bin"
+         ),
+         37,
+     );
+@@ -210,17 +210,17 @@
+ #[test]
+ fn namespace_helper_root_original_c85() {
+     compare_reports("tcl8.5",
+-        include_bytes!("../../../experiments/name-handling/namespace-origin-query/helper-root-input.tcl"),
+-        include_bytes!("../../../experiments/name-handling/namespace-origin-query/helper-root/8.5.19/stdout.bin"), 5);
++        include_bytes!("../../../rust/tcl-registry/tests/data/source_contract_vectors/namespace-origin-query/helper-root-input.tcl"),
++        include_bytes!("../../../rust/tcl-registry/tests/data/source_contract_vectors/namespace-origin-query/helper-root/8.5.19/stdout.bin"), 5);
+ }
+ 
+ #[test]
+ fn namespace_origin_original_c86() {
+     compare_reports(
+         "tcl8.6",
+-        include_bytes!("../../../experiments/name-handling/namespace-origin-query/input.tcl"),
+-        include_bytes!(
+-            "../../../experiments/name-handling/namespace-origin-query/8.6.18/stdout.bin"
++        include_bytes!("../../../rust/tcl-registry/tests/data/source_contract_vectors/namespace-origin-query/input.tcl"),
++        include_bytes!(
++            "../../../rust/tcl-registry/tests/data/source_contract_vectors/namespace-origin-query/8.6.18/stdout.bin"
+         ),
+         37,
+     );
+@@ -229,17 +229,17 @@
+ #[test]
+ fn namespace_helper_root_original_c86() {
+     compare_reports("tcl8.6",
+-        include_bytes!("../../../experiments/name-handling/namespace-origin-query/helper-root-input.tcl"),
+-        include_bytes!("../../../experiments/name-handling/namespace-origin-query/helper-root/8.6.18/stdout.bin"), 5);
++        include_bytes!("../../../rust/tcl-registry/tests/data/source_contract_vectors/namespace-origin-query/helper-root-input.tcl"),
++        include_bytes!("../../../rust/tcl-registry/tests/data/source_contract_vectors/namespace-origin-query/helper-root/8.6.18/stdout.bin"), 5);
+ }
+ 
+ #[test]
+ fn namespace_origin_original_c90() {
+     compare_reports(
+         "tcl9.0",
+-        include_bytes!("../../../experiments/name-handling/namespace-origin-query/input.tcl"),
+-        include_bytes!(
+-            "../../../experiments/name-handling/namespace-origin-query/9.0.4/stdout.bin"
++        include_bytes!("../../../rust/tcl-registry/tests/data/source_contract_vectors/namespace-origin-query/input.tcl"),
++        include_bytes!(
++            "../../../rust/tcl-registry/tests/data/source_contract_vectors/namespace-origin-query/9.0.4/stdout.bin"
+         ),
+         37,
+     );
+@@ -248,17 +248,17 @@
+ #[test]
+ fn namespace_helper_root_original_c90() {
+     compare_reports("tcl9.0",
+-        include_bytes!("../../../experiments/name-handling/namespace-origin-query/helper-root-input.tcl"),
+-        include_bytes!("../../../experiments/name-handling/namespace-origin-query/helper-root/9.0.4/stdout.bin"), 5);
++        include_bytes!("../../../rust/tcl-registry/tests/data/source_contract_vectors/namespace-origin-query/helper-root-input.tcl"),
++        include_bytes!("../../../rust/tcl-registry/tests/data/source_contract_vectors/namespace-origin-query/helper-root/9.0.4/stdout.bin"), 5);
+ }
+ 
+ #[test]
+ fn namespace_origin_original_c91() {
+     compare_reports(
+         "tcl9.1",
+-        include_bytes!("../../../experiments/name-handling/namespace-origin-query/input.tcl"),
+-        include_bytes!(
+-            "../../../experiments/name-handling/namespace-origin-query/9.1.0/stdout.bin"
++        include_bytes!("../../../rust/tcl-registry/tests/data/source_contract_vectors/namespace-origin-query/input.tcl"),
++        include_bytes!(
++            "../../../rust/tcl-registry/tests/data/source_contract_vectors/namespace-origin-query/9.1.0/stdout.bin"
+         ),
+         37,
+     );
+@@ -267,16 +267,16 @@
+ #[test]
+ fn namespace_helper_root_original_c91() {
+     compare_reports("tcl9.1",
+-        include_bytes!("../../../experiments/name-handling/namespace-origin-query/helper-root-input.tcl"),
+-        include_bytes!("../../../experiments/name-handling/namespace-origin-query/helper-root/9.1.0/stdout.bin"), 5);
++        include_bytes!("../../../rust/tcl-registry/tests/data/source_contract_vectors/namespace-origin-query/helper-root-input.tcl"),
++        include_bytes!("../../../rust/tcl-registry/tests/data/source_contract_vectors/namespace-origin-query/helper-root/9.1.0/stdout.bin"), 5);
+ }
+ 
+ #[test]
+ fn namespace_origin_original_jim() {
+     compare_reports(
+         "jim",
+-        include_bytes!("../../../experiments/name-handling/namespace-origin-query/input.tcl"),
+-        include_bytes!("../../../experiments/name-handling/namespace-origin-query/jim/stdout.bin"),
++        include_bytes!("../../../rust/tcl-registry/tests/data/source_contract_vectors/namespace-origin-query/input.tcl"),
++        include_bytes!("../../../rust/tcl-registry/tests/data/source_contract_vectors/namespace-origin-query/jim/stdout.bin"),
+         37,
+     );
+ }
+@@ -286,10 +286,10 @@
+     compare_reports(
+         "jim",
+         include_bytes!(
+-            "../../../experiments/name-handling/namespace-origin-query/helper-root-input.tcl"
+-        ),
+-        include_bytes!(
+-            "../../../experiments/name-handling/namespace-origin-query/helper-root/jim/stdout.bin"
++            "../../../rust/tcl-registry/tests/data/source_contract_vectors/namespace-origin-query/helper-root-input.tcl"
++        ),
++        include_bytes!(
++            "../../../rust/tcl-registry/tests/data/source_contract_vectors/namespace-origin-query/helper-root/jim/stdout.bin"
+         ),
+         5,
+     );
+@@ -298,162 +298,162 @@
+ #[test]
+ fn namespace_which_string_observer_c84() {
+     compare_reports("tcl8.4",
+-        include_bytes!("../../../experiments/name-handling/runtime-command-query-string-observer/which.tcl"),
+-        include_bytes!("../../../experiments/name-handling/runtime-command-query-string-observer/which/8.4.20/stdout.bin"), 33);
++        include_bytes!("../../../rust/tcl-registry/tests/data/source_contract_vectors/runtime-command-query-string-observer/which.tcl"),
++        include_bytes!("../../../rust/tcl-registry/tests/data/source_contract_vectors/runtime-command-query-string-observer/which/8.4.20/stdout.bin"), 33);
+ }
+ 
+ #[test]
+ fn namespace_origin_string_observer_c84() {
+     compare_reports("tcl8.4",
+-        include_bytes!("../../../experiments/name-handling/runtime-command-query-string-observer/origin.tcl"),
+-        include_bytes!("../../../experiments/name-handling/runtime-command-query-string-observer/origin/8.4.20/stdout.bin"), 37);
++        include_bytes!("../../../rust/tcl-registry/tests/data/source_contract_vectors/runtime-command-query-string-observer/origin.tcl"),
++        include_bytes!("../../../rust/tcl-registry/tests/data/source_contract_vectors/runtime-command-query-string-observer/origin/8.4.20/stdout.bin"), 37);
+ }
+ 
+ #[test]
+ fn namespace_helper_root_string_observer_c84() {
+     compare_reports("tcl8.4",
+-        include_bytes!("../../../experiments/name-handling/runtime-command-query-string-observer/helper-root.tcl"),
+-        include_bytes!("../../../experiments/name-handling/runtime-command-query-string-observer/helper-root/8.4.20/stdout.bin"), 5);
++        include_bytes!("../../../rust/tcl-registry/tests/data/source_contract_vectors/runtime-command-query-string-observer/helper-root.tcl"),
++        include_bytes!("../../../rust/tcl-registry/tests/data/source_contract_vectors/runtime-command-query-string-observer/helper-root/8.4.20/stdout.bin"), 5);
+ }
+ 
+ #[test]
+ fn namespace_which_string_observer_c85() {
+     compare_reports("tcl8.5",
+-        include_bytes!("../../../experiments/name-handling/runtime-command-query-string-observer/which.tcl"),
+-        include_bytes!("../../../experiments/name-handling/runtime-command-query-string-observer/which/8.5.19/stdout.bin"), 33);
++        include_bytes!("../../../rust/tcl-registry/tests/data/source_contract_vectors/runtime-command-query-string-observer/which.tcl"),
++        include_bytes!("../../../rust/tcl-registry/tests/data/source_contract_vectors/runtime-command-query-string-observer/which/8.5.19/stdout.bin"), 33);
+ }
+ 
+ #[test]
+ fn namespace_origin_string_observer_c85() {
+     compare_reports("tcl8.5",
+-        include_bytes!("../../../experiments/name-handling/runtime-command-query-string-observer/origin.tcl"),
+-        include_bytes!("../../../experiments/name-handling/runtime-command-query-string-observer/origin/8.5.19/stdout.bin"), 37);
++        include_bytes!("../../../rust/tcl-registry/tests/data/source_contract_vectors/runtime-command-query-string-observer/origin.tcl"),
++        include_bytes!("../../../rust/tcl-registry/tests/data/source_contract_vectors/runtime-command-query-string-observer/origin/8.5.19/stdout.bin"), 37);
+ }
+ 
+ #[test]
+ fn namespace_helper_root_string_observer_c85() {
+     compare_reports("tcl8.5",
+-        include_bytes!("../../../experiments/name-handling/runtime-command-query-string-observer/helper-root.tcl"),
+-        include_bytes!("../../../experiments/name-handling/runtime-command-query-string-observer/helper-root/8.5.19/stdout.bin"), 5);
++        include_bytes!("../../../rust/tcl-registry/tests/data/source_contract_vectors/runtime-command-query-string-observer/helper-root.tcl"),
++        include_bytes!("../../../rust/tcl-registry/tests/data/source_contract_vectors/runtime-command-query-string-observer/helper-root/8.5.19/stdout.bin"), 5);
+ }
+ 
+ #[test]
+ fn namespace_which_string_observer_c86() {
+     compare_reports("tcl8.6",
+-        include_bytes!("../../../experiments/name-handling/runtime-command-query-string-observer/which.tcl"),
+-        include_bytes!("../../../experiments/name-handling/runtime-command-query-string-observer/which/8.6.18/stdout.bin"), 33);
++        include_bytes!("../../../rust/tcl-registry/tests/data/source_contract_vectors/runtime-command-query-string-observer/which.tcl"),
++        include_bytes!("../../../rust/tcl-registry/tests/data/source_contract_vectors/runtime-command-query-string-observer/which/8.6.18/stdout.bin"), 33);
+ }
+ 
+ #[test]
+ fn namespace_origin_string_observer_c86() {
+     compare_reports("tcl8.6",
+-        include_bytes!("../../../experiments/name-handling/runtime-command-query-string-observer/origin.tcl"),
+-        include_bytes!("../../../experiments/name-handling/runtime-command-query-string-observer/origin/8.6.18/stdout.bin"), 37);
++        include_bytes!("../../../rust/tcl-registry/tests/data/source_contract_vectors/runtime-command-query-string-observer/origin.tcl"),
++        include_bytes!("../../../rust/tcl-registry/tests/data/source_contract_vectors/runtime-command-query-string-observer/origin/8.6.18/stdout.bin"), 37);
+ }
+ 
+ #[test]
+ fn namespace_helper_root_string_observer_c86() {
+     compare_reports("tcl8.6",
+-        include_bytes!("../../../experiments/name-handling/runtime-command-query-string-observer/helper-root.tcl"),
+-        include_bytes!("../../../experiments/name-handling/runtime-command-query-string-observer/helper-root/8.6.18/stdout.bin"), 5);
++        include_bytes!("../../../rust/tcl-registry/tests/data/source_contract_vectors/runtime-command-query-string-observer/helper-root.tcl"),
++        include_bytes!("../../../rust/tcl-registry/tests/data/source_contract_vectors/runtime-command-query-string-observer/helper-root/8.6.18/stdout.bin"), 5);
+ }
+ 
+ #[test]
+ fn namespace_which_string_observer_c90() {
+     compare_reports("tcl9.0",
+-        include_bytes!("../../../experiments/name-handling/runtime-command-query-string-observer/which.tcl"),
+-        include_bytes!("../../../experiments/name-handling/runtime-command-query-string-observer/which/9.0.4/stdout.bin"), 33);
++        include_bytes!("../../../rust/tcl-registry/tests/data/source_contract_vectors/runtime-command-query-string-observer/which.tcl"),
++        include_bytes!("../../../rust/tcl-registry/tests/data/source_contract_vectors/runtime-command-query-string-observer/which/9.0.4/stdout.bin"), 33);
+ }
+ 
+ #[test]
+ fn namespace_origin_string_observer_c90() {
+     compare_reports("tcl9.0",
+-        include_bytes!("../../../experiments/name-handling/runtime-command-query-string-observer/origin.tcl"),
+-        include_bytes!("../../../experiments/name-handling/runtime-command-query-string-observer/origin/9.0.4/stdout.bin"), 37);
++        include_bytes!("../../../rust/tcl-registry/tests/data/source_contract_vectors/runtime-command-query-string-observer/origin.tcl"),
++        include_bytes!("../../../rust/tcl-registry/tests/data/source_contract_vectors/runtime-command-query-string-observer/origin/9.0.4/stdout.bin"), 37);
+ }
+ 
+ #[test]
+ fn namespace_helper_root_string_observer_c90() {
+     compare_reports("tcl9.0",
+-        include_bytes!("../../../experiments/name-handling/runtime-command-query-string-observer/helper-root.tcl"),
+-        include_bytes!("../../../experiments/name-handling/runtime-command-query-string-observer/helper-root/9.0.4/stdout.bin"), 5);
++        include_bytes!("../../../rust/tcl-registry/tests/data/source_contract_vectors/runtime-command-query-string-observer/helper-root.tcl"),
++        include_bytes!("../../../rust/tcl-registry/tests/data/source_contract_vectors/runtime-command-query-string-observer/helper-root/9.0.4/stdout.bin"), 5);
+ }
+ 
+ #[test]
+ fn namespace_which_string_observer_c91() {
+     compare_reports("tcl9.1",
+-        include_bytes!("../../../experiments/name-handling/runtime-command-query-string-observer/which.tcl"),
+-        include_bytes!("../../../experiments/name-handling/runtime-command-query-string-observer/which/9.1.0/stdout.bin"), 33);
++        include_bytes!("../../../rust/tcl-registry/tests/data/source_contract_vectors/runtime-command-query-string-observer/which.tcl"),
++        include_bytes!("../../../rust/tcl-registry/tests/data/source_contract_vectors/runtime-command-query-string-observer/which/9.1.0/stdout.bin"), 33);
+ }
+ 
+ #[test]
+ fn namespace_origin_string_observer_c91() {
+     compare_reports("tcl9.1",
+-        include_bytes!("../../../experiments/name-handling/runtime-command-query-string-observer/origin.tcl"),
+-        include_bytes!("../../../experiments/name-handling/runtime-command-query-string-observer/origin/9.1.0/stdout.bin"), 37);
++        include_bytes!("../../../rust/tcl-registry/tests/data/source_contract_vectors/runtime-command-query-string-observer/origin.tcl"),
++        include_bytes!("../../../rust/tcl-registry/tests/data/source_contract_vectors/runtime-command-query-string-observer/origin/9.1.0/stdout.bin"), 37);
+ }
+ 
+ #[test]
+ fn namespace_helper_root_string_observer_c91() {
+     compare_reports("tcl9.1",
+-        include_bytes!("../../../experiments/name-handling/runtime-command-query-string-observer/helper-root.tcl"),
+-        include_bytes!("../../../experiments/name-handling/runtime-command-query-string-observer/helper-root/9.1.0/stdout.bin"), 5);
++        include_bytes!("../../../rust/tcl-registry/tests/data/source_contract_vectors/runtime-command-query-string-observer/helper-root.tcl"),
++        include_bytes!("../../../rust/tcl-registry/tests/data/source_contract_vectors/runtime-command-query-string-observer/helper-root/9.1.0/stdout.bin"), 5);
+ }
+ 
+ #[test]
+ fn namespace_which_string_observer_jim() {
+     compare_reports("jim",
+-        include_bytes!("../../../experiments/name-handling/runtime-command-query-string-observer/which.tcl"),
+-        include_bytes!("../../../experiments/name-handling/runtime-command-query-string-observer/which/jim/stdout.bin"), 33);
++        include_bytes!("../../../rust/tcl-registry/tests/data/source_contract_vectors/runtime-command-query-string-observer/which.tcl"),
++        include_bytes!("../../../rust/tcl-registry/tests/data/source_contract_vectors/runtime-command-query-string-observer/which/jim/stdout.bin"), 33);
+ }
+ 
+ #[test]
+ fn namespace_origin_string_observer_jim() {
+     compare_reports("jim",
+-        include_bytes!("../../../experiments/name-handling/runtime-command-query-string-observer/origin.tcl"),
+-        include_bytes!("../../../experiments/name-handling/runtime-command-query-string-observer/origin/jim/stdout.bin"), 37);
++        include_bytes!("../../../rust/tcl-registry/tests/data/source_contract_vectors/runtime-command-query-string-observer/origin.tcl"),
++        include_bytes!("../../../rust/tcl-registry/tests/data/source_contract_vectors/runtime-command-query-string-observer/origin/jim/stdout.bin"), 37);
+ }
+ 
+ #[test]
+ fn namespace_helper_root_string_observer_jim() {
+     compare_reports("jim",
+-        include_bytes!("../../../experiments/name-handling/runtime-command-query-string-observer/helper-root.tcl"),
+-        include_bytes!("../../../experiments/name-handling/runtime-command-query-string-observer/helper-root/jim/stdout.bin"), 5);
++        include_bytes!("../../../rust/tcl-registry/tests/data/source_contract_vectors/runtime-command-query-string-observer/helper-root.tcl"),
++        include_bytes!("../../../rust/tcl-registry/tests/data/source_contract_vectors/runtime-command-query-string-observer/helper-root/jim/stdout.bin"), 5);
+ }
+ 
+ #[test]
+ fn alias_registration_guest_nul_original_c84() {
+     compare_reports("tcl8.4",
+-        include_bytes!("../../../experiments/name-handling/namespace-origin-query/alias-registration-nul/input.tcl"),
+-        include_bytes!("../../../experiments/name-handling/namespace-origin-query/alias-registration-nul/8.4.20/stdout.bin"), 18);
++        include_bytes!("../../../rust/tcl-registry/tests/data/source_contract_vectors/namespace-origin-query/alias-registration-nul/input.tcl"),
++        include_bytes!("../../../rust/tcl-registry/tests/data/source_contract_vectors/namespace-origin-query/alias-registration-nul/8.4.20/stdout.bin"), 18);
+ }
+ 
+ #[test]
+ fn alias_registration_guest_nul_original_c85() {
+     compare_reports("tcl8.5",
+-        include_bytes!("../../../experiments/name-handling/namespace-origin-query/alias-registration-nul/input.tcl"),
+-        include_bytes!("../../../experiments/name-handling/namespace-origin-query/alias-registration-nul/8.5.19/stdout.bin"), 18);
++        include_bytes!("../../../rust/tcl-registry/tests/data/source_contract_vectors/namespace-origin-query/alias-registration-nul/input.tcl"),
++        include_bytes!("../../../rust/tcl-registry/tests/data/source_contract_vectors/namespace-origin-query/alias-registration-nul/8.5.19/stdout.bin"), 18);
+ }
+ 
+ #[test]
+ fn alias_registration_guest_nul_original_c86() {
+     compare_reports("tcl8.6",
+-        include_bytes!("../../../experiments/name-handling/namespace-origin-query/alias-registration-nul/input.tcl"),
+-        include_bytes!("../../../experiments/name-handling/namespace-origin-query/alias-registration-nul/8.6.18/stdout.bin"), 18);
++        include_bytes!("../../../rust/tcl-registry/tests/data/source_contract_vectors/namespace-origin-query/alias-registration-nul/input.tcl"),
++        include_bytes!("../../../rust/tcl-registry/tests/data/source_contract_vectors/namespace-origin-query/alias-registration-nul/8.6.18/stdout.bin"), 18);
+ }
+ 
+ #[test]
+ fn alias_registration_guest_nul_original_c90() {
+     compare_reports("tcl9.0",
+-        include_bytes!("../../../experiments/name-handling/namespace-origin-query/alias-registration-nul/input.tcl"),
+-        include_bytes!("../../../experiments/name-handling/namespace-origin-query/alias-registration-nul/9.0.4/stdout.bin"), 18);
++        include_bytes!("../../../rust/tcl-registry/tests/data/source_contract_vectors/namespace-origin-query/alias-registration-nul/input.tcl"),
++        include_bytes!("../../../rust/tcl-registry/tests/data/source_contract_vectors/namespace-origin-query/alias-registration-nul/9.0.4/stdout.bin"), 18);
+ }
+ 
+ #[test]
+ fn alias_registration_guest_nul_original_c91() {
+     compare_reports("tcl9.1",
+-        include_bytes!("../../../experiments/name-handling/namespace-origin-query/alias-registration-nul/input.tcl"),
+-        include_bytes!("../../../experiments/name-handling/namespace-origin-query/alias-registration-nul/9.1.0/stdout.bin"), 18);
++        include_bytes!("../../../rust/tcl-registry/tests/data/source_contract_vectors/namespace-origin-query/alias-registration-nul/input.tcl"),
++        include_bytes!("../../../rust/tcl-registry/tests/data/source_contract_vectors/namespace-origin-query/alias-registration-nul/9.1.0/stdout.bin"), 18);
+ }
+ 
+ #[test]
+@@ -462,10 +462,10 @@
+     compare_reports_with_setup(
+         "jim",
+         include_bytes!(
+-            "../../../experiments/name-handling/namespace-origin-query/alias-registration-nul/input.tcl"
+-        ),
+-        include_bytes!(
+-            "../../../experiments/name-handling/namespace-origin-query/alias-registration-nul/jim/stdout.bin"
++            "../../../rust/tcl-registry/tests/data/source_contract_vectors/namespace-origin-query/alias-registration-nul/input.tcl"
++        ),
++        include_bytes!(
++            "../../../rust/tcl-registry/tests/data/source_contract_vectors/namespace-origin-query/alias-registration-nul/jim/stdout.bin"
+         ),
+         18,
+         tcl_runtime::cmd_binary::install,
+@@ -477,10 +477,10 @@
+     compare_reports(
+         "tcl8.4",
+         include_bytes!(
+-            "../../../experiments/name-handling/runtime-retained-import-source/input.tcl"
+-        ),
+-        include_bytes!(
+-            "../../../experiments/name-handling/runtime-retained-import-source/8.4.20/stdout.bin"
++            "../../../rust/tcl-registry/tests/data/source_contract_vectors/runtime-retained-import-source/input.tcl"
++        ),
++        include_bytes!(
++            "../../../rust/tcl-registry/tests/data/source_contract_vectors/runtime-retained-import-source/8.4.20/stdout.bin"
+         ),
+         1,
+     );
+@@ -491,10 +491,10 @@
+     compare_reports(
+         "tcl8.5",
+         include_bytes!(
+-            "../../../experiments/name-handling/runtime-retained-import-source/input.tcl"
+-        ),
+-        include_bytes!(
+-            "../../../experiments/name-handling/runtime-retained-import-source/8.5.19/stdout.bin"
++            "../../../rust/tcl-registry/tests/data/source_contract_vectors/runtime-retained-import-source/input.tcl"
++        ),
++        include_bytes!(
++            "../../../rust/tcl-registry/tests/data/source_contract_vectors/runtime-retained-import-source/8.5.19/stdout.bin"
+         ),
+         1,
+     );
+@@ -505,10 +505,10 @@
+     compare_reports(
+         "tcl8.6",
+         include_bytes!(
+-            "../../../experiments/name-handling/runtime-retained-import-source/input.tcl"
+-        ),
+-        include_bytes!(
+-            "../../../experiments/name-handling/runtime-retained-import-source/8.6.18/stdout.bin"
++            "../../../rust/tcl-registry/tests/data/source_contract_vectors/runtime-retained-import-source/input.tcl"
++        ),
++        include_bytes!(
++            "../../../rust/tcl-registry/tests/data/source_contract_vectors/runtime-retained-import-source/8.6.18/stdout.bin"
+         ),
+         1,
+     );
+@@ -519,10 +519,10 @@
+     compare_reports(
+         "tcl9.0",
+         include_bytes!(
+-            "../../../experiments/name-handling/runtime-retained-import-source/input.tcl"
+-        ),
+-        include_bytes!(
+-            "../../../experiments/name-handling/runtime-retained-import-source/9.0.4/stdout.bin"
++            "../../../rust/tcl-registry/tests/data/source_contract_vectors/runtime-retained-import-source/input.tcl"
++        ),
++        include_bytes!(
++            "../../../rust/tcl-registry/tests/data/source_contract_vectors/runtime-retained-import-source/9.0.4/stdout.bin"
+         ),
+         1,
+     );
+@@ -533,10 +533,10 @@
+     compare_reports(
+         "tcl9.1",
+         include_bytes!(
+-            "../../../experiments/name-handling/runtime-retained-import-source/input.tcl"
+-        ),
+-        include_bytes!(
+-            "../../../experiments/name-handling/runtime-retained-import-source/9.1.0/stdout.bin"
++            "../../../rust/tcl-registry/tests/data/source_contract_vectors/runtime-retained-import-source/input.tcl"
++        ),
++        include_bytes!(
++            "../../../rust/tcl-registry/tests/data/source_contract_vectors/runtime-retained-import-source/9.1.0/stdout.bin"
+         ),
+         1,
+     );
+@@ -547,10 +547,10 @@
+     compare_reports(
+         "jim",
+         include_bytes!(
+-            "../../../experiments/name-handling/runtime-retained-import-source/input.tcl"
+-        ),
+-        include_bytes!(
+-            "../../../experiments/name-handling/runtime-retained-import-source/jim/stdout.bin"
++            "../../../rust/tcl-registry/tests/data/source_contract_vectors/runtime-retained-import-source/input.tcl"
++        ),
++        include_bytes!(
++            "../../../rust/tcl-registry/tests/data/source_contract_vectors/runtime-retained-import-source/jim/stdout.bin"
+         ),
+         1,
+     );
+@@ -559,43 +559,43 @@
+ #[test]
+ fn alias_registration_guest_nul_format_original_jim() {
+     compare_reports("jim",
+-        include_bytes!("../../../experiments/name-handling/namespace-origin-query/jim-alias-format-nul/input.tcl"),
+-        include_bytes!("../../../experiments/name-handling/namespace-origin-query/jim-alias-format-nul/stdout.bin"), 11);
++        include_bytes!("../../../rust/tcl-registry/tests/data/source_contract_vectors/namespace-origin-query/jim-alias-format-nul/input.tcl"),
++        include_bytes!("../../../rust/tcl-registry/tests/data/source_contract_vectors/namespace-origin-query/jim-alias-format-nul/stdout.bin"), 11);
+ }
+ 
+ #[test]
+ fn alias_registration_records_original_c84() {
+     compare_reports("tcl8.4",
+-        include_bytes!("../../../experiments/name-handling/namespace-origin-query/alias-registration-records/input.tcl"),
+-        include_bytes!("../../../experiments/name-handling/namespace-origin-query/alias-registration-records/8.4.20/stdout.bin"), 26);
++        include_bytes!("../../../rust/tcl-registry/tests/data/source_contract_vectors/namespace-origin-query/alias-registration-records/input.tcl"),
++        include_bytes!("../../../rust/tcl-registry/tests/data/source_contract_vectors/namespace-origin-query/alias-registration-records/8.4.20/stdout.bin"), 26);
+ }
+ 
+ #[test]
+ fn alias_registration_records_original_c85() {
+     compare_reports("tcl8.5",
+-        include_bytes!("../../../experiments/name-handling/namespace-origin-query/alias-registration-records/input.tcl"),
+-        include_bytes!("../../../experiments/name-handling/namespace-origin-query/alias-registration-records/8.5.19/stdout.bin"), 26);
++        include_bytes!("../../../rust/tcl-registry/tests/data/source_contract_vectors/namespace-origin-query/alias-registration-records/input.tcl"),
++        include_bytes!("../../../rust/tcl-registry/tests/data/source_contract_vectors/namespace-origin-query/alias-registration-records/8.5.19/stdout.bin"), 26);
+ }
+ 
+ #[test]
+ fn alias_registration_records_original_c86() {
+     compare_reports("tcl8.6",
+-        include_bytes!("../../../experiments/name-handling/namespace-origin-query/alias-registration-records/input.tcl"),
+-        include_bytes!("../../../experiments/name-handling/namespace-origin-query/alias-registration-records/8.6.18/stdout.bin"), 26);
++        include_bytes!("../../../rust/tcl-registry/tests/data/source_contract_vectors/namespace-origin-query/alias-registration-records/input.tcl"),
++        include_bytes!("../../../rust/tcl-registry/tests/data/source_contract_vectors/namespace-origin-query/alias-registration-records/8.6.18/stdout.bin"), 26);
+ }
+ 
+ #[test]
+ fn alias_registration_records_original_c90() {
+     compare_reports("tcl9.0",
+-        include_bytes!("../../../experiments/name-handling/namespace-origin-query/alias-registration-records/input.tcl"),
+-        include_bytes!("../../../experiments/name-handling/namespace-origin-query/alias-registration-records/9.0.4/stdout.bin"), 26);
++        include_bytes!("../../../rust/tcl-registry/tests/data/source_contract_vectors/namespace-origin-query/alias-registration-records/input.tcl"),
++        include_bytes!("../../../rust/tcl-registry/tests/data/source_contract_vectors/namespace-origin-query/alias-registration-records/9.0.4/stdout.bin"), 26);
+ }
+ 
+ #[test]
+ fn alias_registration_records_original_c91() {
+     compare_reports("tcl9.1",
+-        include_bytes!("../../../experiments/name-handling/namespace-origin-query/alias-registration-records/input.tcl"),
+-        include_bytes!("../../../experiments/name-handling/namespace-origin-query/alias-registration-records/9.1.0/stdout.bin"), 26);
++        include_bytes!("../../../rust/tcl-registry/tests/data/source_contract_vectors/namespace-origin-query/alias-registration-records/input.tcl"),
++        include_bytes!("../../../rust/tcl-registry/tests/data/source_contract_vectors/namespace-origin-query/alias-registration-records/9.1.0/stdout.bin"), 26);
+ }
+ 
+ #[test]
+@@ -604,44 +604,44 @@
+         (
+             "tcl8.4",
+             include_bytes!(
+-                "../../../experiments/name-handling/rename-error-reporting/tcl8.4.20/stdout.bin"
++                "../../../rust/tcl-registry/tests/data/source_contract_vectors/rename-error-reporting/tcl8.4.20/stdout.bin"
+             ),
+         ),
+         (
+             "tcl8.5",
+             include_bytes!(
+-                "../../../experiments/name-handling/rename-error-reporting/tcl8.5.19/stdout.bin"
++                "../../../rust/tcl-registry/tests/data/source_contract_vectors/rename-error-reporting/tcl8.5.19/stdout.bin"
+             ),
+         ),
+         (
+             "tcl8.6",
+             include_bytes!(
+-                "../../../experiments/name-handling/rename-error-reporting/tcl8.6.18/stdout.bin"
++                "../../../rust/tcl-registry/tests/data/source_contract_vectors/rename-error-reporting/tcl8.6.18/stdout.bin"
+             ),
+         ),
+         (
+             "tcl9.0",
+             include_bytes!(
+-                "../../../experiments/name-handling/rename-error-reporting/tcl9.0.4/stdout.bin"
++                "../../../rust/tcl-registry/tests/data/source_contract_vectors/rename-error-reporting/tcl9.0.4/stdout.bin"
+             ),
+         ),
+         (
+             "tcl9.1",
+             include_bytes!(
+-                "../../../experiments/name-handling/rename-error-reporting/tcl9.1.0/stdout.bin"
++                "../../../rust/tcl-registry/tests/data/source_contract_vectors/rename-error-reporting/tcl9.1.0/stdout.bin"
+             ),
+         ),
+         (
+             "jim",
+             include_bytes!(
+-                "../../../experiments/name-handling/rename-error-reporting/jim/stdout.bin"
++                "../../../rust/tcl-registry/tests/data/source_contract_vectors/rename-error-reporting/jim/stdout.bin"
+             ),
+         ),
+     ];
+     for &(environment, expected) in cases {
+         compare_reports_with_setup(
+             environment,
+-            include_bytes!("../../../experiments/name-handling/rename-error-reporting/input.tcl"),
++            include_bytes!("../../../rust/tcl-registry/tests/data/source_contract_vectors/rename-error-reporting/input.tcl"),
+             expected,
+             6,
+             |interp| {
+@@ -656,14 +656,14 @@
+ #[test]
+ fn fresh_namespace_object_lifetimes_match_original_c_releases() {
+     let source = include_bytes!(
+-        "../../../experiments/name-handling/results/original-fresh-dying-namespace-20261015/trace-add/probe.tcl"
++        "../../../rust/tcl-registry/tests/data/source_contract_vectors/results/original-fresh-dying-namespace-20261015/trace-add/probe.tcl"
+     );
+     for (environment, expected) in [
+-        ("tcl8.4", include_bytes!("../../../experiments/name-handling/results/original-fresh-dying-namespace-20261015/trace-add/8-4-20.stdout").as_slice()),
+-        ("tcl8.5", include_bytes!("../../../experiments/name-handling/results/original-fresh-dying-namespace-20261015/trace-add/8-5-19.stdout").as_slice()),
+-        ("tcl8.6", include_bytes!("../../../experiments/name-handling/results/original-fresh-dying-namespace-20261015/trace-add/8-6-18.stdout").as_slice()),
+-        ("tcl9.0", include_bytes!("../../../experiments/name-handling/results/original-fresh-dying-namespace-20261015/trace-add/9-0-4.stdout").as_slice()),
+-        ("tcl9.1", include_bytes!("../../../experiments/name-handling/results/original-fresh-dying-namespace-20261015/trace-add/9-1-0.stdout").as_slice()),
++        ("tcl8.4", include_bytes!("../../../rust/tcl-registry/tests/data/source_contract_vectors/results/original-fresh-dying-namespace-20261015/trace-add/8-4-20.stdout").as_slice()),
++        ("tcl8.5", include_bytes!("../../../rust/tcl-registry/tests/data/source_contract_vectors/results/original-fresh-dying-namespace-20261015/trace-add/8-5-19.stdout").as_slice()),
++        ("tcl8.6", include_bytes!("../../../rust/tcl-registry/tests/data/source_contract_vectors/results/original-fresh-dying-namespace-20261015/trace-add/8-6-18.stdout").as_slice()),
++        ("tcl9.0", include_bytes!("../../../rust/tcl-registry/tests/data/source_contract_vectors/results/original-fresh-dying-namespace-20261015/trace-add/9-0-4.stdout").as_slice()),
++        ("tcl9.1", include_bytes!("../../../rust/tcl-registry/tests/data/source_contract_vectors/results/original-fresh-dying-namespace-20261015/trace-add/9-1-0.stdout").as_slice()),
+     ] {
+         let host = Rc::new(CaptureHost {
+             native: NativeHost::new(),
+--- runtime/rust/tests/native_variable_array_modes.rs
++++ runtime/rust/tests/native_variable_array_modes.rs
+@@ -25,15 +25,15 @@
+ #[test]
+ fn variable_arity_and_array_name_modes_match_original_oracles() {
+     let source = include_bytes!(
+-        "../../../experiments/name-handling/results/native-variable-array-modes/conformance.tcl"
++        "../../../rust/tcl-registry/tests/data/source_contract_vectors/results/native-variable-array-modes/conformance.tcl"
+     );
+     for (environment, expected) in [
+-        ("tcl8.4", include_bytes!("../../../experiments/name-handling/results/native-variable-array-modes/c-8.4.20/conformance-stdout.txt").as_slice()),
+-        ("tcl8.5", include_bytes!("../../../experiments/name-handling/results/native-variable-array-modes/c-8.5.19/conformance-stdout.txt").as_slice()),
+-        ("tcl8.6", include_bytes!("../../../experiments/name-handling/results/native-variable-array-modes/c-8.6.18/conformance-stdout.txt").as_slice()),
+-        ("tcl9.0", include_bytes!("../../../experiments/name-handling/results/native-variable-array-modes/c-9.0.4/conformance-stdout.txt").as_slice()),
+-        ("tcl9.1", include_bytes!("../../../experiments/name-handling/results/native-variable-array-modes/c-9.1.0/conformance-stdout.txt").as_slice()),
+-        ("jim", include_bytes!("../../../experiments/name-handling/results/native-variable-array-modes/jim-5bac7c9/conformance-stdout.txt").as_slice()),
++        ("tcl8.4", include_bytes!("../../../rust/tcl-registry/tests/data/source_contract_vectors/results/native-variable-array-modes/c-8.4.20/conformance-stdout.txt").as_slice()),
++        ("tcl8.5", include_bytes!("../../../rust/tcl-registry/tests/data/source_contract_vectors/results/native-variable-array-modes/c-8.5.19/conformance-stdout.txt").as_slice()),
++        ("tcl8.6", include_bytes!("../../../rust/tcl-registry/tests/data/source_contract_vectors/results/native-variable-array-modes/c-8.6.18/conformance-stdout.txt").as_slice()),
++        ("tcl9.0", include_bytes!("../../../rust/tcl-registry/tests/data/source_contract_vectors/results/native-variable-array-modes/c-9.0.4/conformance-stdout.txt").as_slice()),
++        ("tcl9.1", include_bytes!("../../../rust/tcl-registry/tests/data/source_contract_vectors/results/native-variable-array-modes/c-9.1.0/conformance-stdout.txt").as_slice()),
++        ("jim", include_bytes!("../../../rust/tcl-registry/tests/data/source_contract_vectors/results/native-variable-array-modes/jim-5bac7c9/conformance-stdout.txt").as_slice()),
+     ] {
+         let mut interp = Interp::with_native_core(
+             Rc::new(NativeHost::new()),
+@@ -53,37 +53,37 @@
+         (
+             "tcl8.4",
+             include_str!(
+-                "../../../experiments/name-handling/results/native-variable-array-modes/c-8.4.20/extra-arity-stdout.txt"
++                "../../../rust/tcl-registry/tests/data/source_contract_vectors/results/native-variable-array-modes/c-8.4.20/extra-arity-stdout.txt"
+             ),
+         ),
+         (
+             "tcl8.5",
+             include_str!(
+-                "../../../experiments/name-handling/results/native-variable-array-modes/c-8.5.19/extra-arity-stdout.txt"
++                "../../../rust/tcl-registry/tests/data/source_contract_vectors/results/native-variable-array-modes/c-8.5.19/extra-arity-stdout.txt"
+             ),
+         ),
+         (
+             "tcl8.6",
+             include_str!(
+-                "../../../experiments/name-handling/results/native-variable-array-modes/c-8.6.18/extra-arity-stdout.txt"
++                "../../../rust/tcl-registry/tests/data/source_contract_vectors/results/native-variable-array-modes/c-8.6.18/extra-arity-stdout.txt"
+             ),
+         ),
+         (
+             "tcl9.0",
+             include_str!(
+-                "../../../experiments/name-handling/results/native-variable-array-modes/c-9.0.4/extra-arity-stdout.txt"
++                "../../../rust/tcl-registry/tests/data/source_contract_vectors/results/native-variable-array-modes/c-9.0.4/extra-arity-stdout.txt"
+             ),
+         ),
+         (
+             "tcl9.1",
+             include_str!(
+-                "../../../experiments/name-handling/results/native-variable-array-modes/c-9.1.0/extra-arity-stdout.txt"
++                "../../../rust/tcl-registry/tests/data/source_contract_vectors/results/native-variable-array-modes/c-9.1.0/extra-arity-stdout.txt"
+             ),
+         ),
+         (
+             "jim",
+             include_str!(
+-                "../../../experiments/name-handling/results/native-variable-array-modes/jim-5bac7c9/extra-arity-stdout.txt"
++                "../../../rust/tcl-registry/tests/data/source_contract_vectors/results/native-variable-array-modes/jim-5bac7c9/extra-arity-stdout.txt"
+             ),
+         ),
+     ] {
+@@ -127,37 +127,37 @@
+         (
+             "tcl8.4",
+             include_str!(
+-                "../../../experiments/name-handling/array-mode-validation/regression-vectors/c-8.4.20.tsv"
++                "../../../rust/tcl-registry/tests/data/source_contract_vectors/array-mode-validation/regression-vectors/c-8.4.20.tsv"
+             ),
+         ),
+         (
+             "tcl8.5",
+             include_str!(
+-                "../../../experiments/name-handling/array-mode-validation/regression-vectors/c-8.5.19.tsv"
++                "../../../rust/tcl-registry/tests/data/source_contract_vectors/array-mode-validation/regression-vectors/c-8.5.19.tsv"
+             ),
+         ),
+         (
+             "tcl8.6",
+             include_str!(
+-                "../../../experiments/name-handling/array-mode-validation/regression-vectors/c-8.6.18.tsv"
++                "../../../rust/tcl-registry/tests/data/source_contract_vectors/array-mode-validation/regression-vectors/c-8.6.18.tsv"
+             ),
+         ),
+         (
+             "tcl9.0",
+             include_str!(
+-                "../../../experiments/name-handling/array-mode-validation/regression-vectors/c-9.0.4.tsv"
++                "../../../rust/tcl-registry/tests/data/source_contract_vectors/array-mode-validation/regression-vectors/c-9.0.4.tsv"
+             ),
+         ),
+         (
+             "tcl9.1",
+             include_str!(
+-                "../../../experiments/name-handling/array-mode-validation/regression-vectors/c-9.1.0.tsv"
++                "../../../rust/tcl-registry/tests/data/source_contract_vectors/array-mode-validation/regression-vectors/c-9.1.0.tsv"
+             ),
+         ),
+         (
+             "jim",
+             include_str!(
+-                "../../../experiments/name-handling/array-mode-validation/regression-vectors/jim-5bac7c9.tsv"
++                "../../../rust/tcl-registry/tests/data/source_contract_vectors/array-mode-validation/regression-vectors/jim-5bac7c9.tsv"
+             ),
+         ),
+     ] {
+--- runtime/rust/tests/native_array_search_unset.rs
++++ runtime/rust/tests/native_array_search_unset.rs
+@@ -19,15 +19,15 @@
+ 
+ #[test]
+ fn compiled_array_pair_counts_match_original_oracles() {
+-    let source = include_bytes!("../../../experiments/name-handling/results/runtime-array-search-var132-current/conformance.tcl");
++    let source = include_bytes!("../../../rust/tcl-registry/tests/data/source_contract_vectors/results/runtime-array-search-var132-current/conformance.tcl");
+     for (environment, expected) in [
+         (
+             "tcl8.6",
+-            include_bytes!("../../../experiments/name-handling/results/runtime-array-search-var132-current/c-8.6.18.stdout.txt").as_slice(),
++            include_bytes!("../../../rust/tcl-registry/tests/data/source_contract_vectors/results/runtime-array-search-var132-current/c-8.6.18.stdout.txt").as_slice(),
+         ),
+         (
+             "tcl9.0",
+-            include_bytes!("../../../experiments/name-handling/results/runtime-array-search-var132-current/c-9.0.4.stdout.txt").as_slice(),
++            include_bytes!("../../../rust/tcl-registry/tests/data/source_contract_vectors/results/runtime-array-search-var132-current/c-9.0.4.stdout.txt").as_slice(),
+         ),
+     ] {
+         let mut interp = runtime(environment);
+@@ -44,7 +44,7 @@
+ #[test]
+ fn original_var_13_2_retires_the_selected_search() {
+     let mut interp = runtime("tcl8.6");
+-    let source = include_bytes!("../../../experiments/name-handling/results/runtime-array-search-var132-current/original-body.tcl");
++    let source = include_bytes!("../../../rust/tcl-registry/tests/data/source_contract_vectors/results/runtime-array-search-var132-current/original-body.tcl");
+     assert_eq!(interp.eval_str(source), Code::Error);
+     assert_eq!(interp.result_bytes(), b"couldn't find search \"s-1-a\"");
+     assert_eq!(interp.eval_str(b"set ::errorCode"), Code::Ok);
+--- runtime/rust/tests/native_namespace_query_bases.rs
++++ runtime/rust/tests/native_namespace_query_bases.rs
+@@ -11,15 +11,15 @@
+ #[test]
+ fn namespace_queries_match_original_source_reports() {
+     let source = include_bytes!(
+-        "../../../experiments/name-handling/variable-namespace-query-bases/result-input.tcl"
++        "../../../rust/tcl-registry/tests/data/source_contract_vectors/variable-namespace-query-bases/result-input.tcl"
+     );
+     for (environment, expected) in [
+-        ("tcl8.4", include_bytes!("../../../experiments/name-handling/variable-namespace-query-bases/84/result.stdout.bin").as_slice()),
+-        ("tcl8.5", include_bytes!("../../../experiments/name-handling/variable-namespace-query-bases/85/result.stdout.bin").as_slice()),
+-        ("tcl8.6", include_bytes!("../../../experiments/name-handling/variable-namespace-query-bases/86/result.stdout.bin").as_slice()),
+-        ("tcl9.0", include_bytes!("../../../experiments/name-handling/variable-namespace-query-bases/90/result.stdout.bin").as_slice()),
+-        ("tcl9.1", include_bytes!("../../../experiments/name-handling/variable-namespace-query-bases/91/result.stdout.bin").as_slice()),
+-        ("jim", include_bytes!("../../../experiments/name-handling/variable-namespace-query-bases/jim/result.stdout.bin").as_slice()),
++        ("tcl8.4", include_bytes!("../../../rust/tcl-registry/tests/data/source_contract_vectors/variable-namespace-query-bases/84/result.stdout.bin").as_slice()),
++        ("tcl8.5", include_bytes!("../../../rust/tcl-registry/tests/data/source_contract_vectors/variable-namespace-query-bases/85/result.stdout.bin").as_slice()),
++        ("tcl8.6", include_bytes!("../../../rust/tcl-registry/tests/data/source_contract_vectors/variable-namespace-query-bases/86/result.stdout.bin").as_slice()),
++        ("tcl9.0", include_bytes!("../../../rust/tcl-registry/tests/data/source_contract_vectors/variable-namespace-query-bases/90/result.stdout.bin").as_slice()),
++        ("tcl9.1", include_bytes!("../../../rust/tcl-registry/tests/data/source_contract_vectors/variable-namespace-query-bases/91/result.stdout.bin").as_slice()),
++        ("jim", include_bytes!("../../../rust/tcl-registry/tests/data/source_contract_vectors/variable-namespace-query-bases/jim/result.stdout.bin").as_slice()),
+     ] {
+         let mut interp = Interp::with_native_core(
+             Rc::new(NativeHost::new()),
+--- rust/tcl-lsp-core/src/references.rs
++++ rust/tcl-lsp-core/src/references.rs
+@@ -6725,15 +6725,15 @@
+ 
+         const POSITIVE: &str = include_str!(concat!(
+             env!("CARGO_MANIFEST_DIR"),
+-            "/../../experiments/name-handling/patterns/composed-callback-prefix/probes/positive.tcl"
++            "/../tcl-registry/tests/data/source_contract_vectors/patterns/composed-callback-prefix/probes/positive.tcl"
+         ));
+         const UNKNOWN_WRITER: &str = include_str!(concat!(
+             env!("CARGO_MANIFEST_DIR"),
+-            "/../../experiments/name-handling/patterns/composed-callback-prefix/probes/unknown-writer.tcl"
++            "/../tcl-registry/tests/data/source_contract_vectors/patterns/composed-callback-prefix/probes/unknown-writer.tcl"
+         ));
+         const PRIVATE_POSITIVE: &str = include_str!(concat!(
+             env!("CARGO_MANIFEST_DIR"),
+-            "/../../experiments/name-handling/patterns/composed-callback-prefix/fixtures/private-positive.tcl"
++            "/../tcl-registry/tests/data/source_contract_vectors/patterns/composed-callback-prefix/fixtures/private-positive.tcl"
+         ));
+ 
+         fn analyse_source(source: &str, release: &str) -> AnalysisResult {
+--- rust/tcl-syntax/src/event_handler.rs
++++ rust/tcl-syntax/src/event_handler.rs
+@@ -284,22 +284,22 @@
+     fn default_head_geometry_matches_original_custom_commands() {
+         let captures = [
+             include_str!(
+-                "../../../experiments/name-handling/syntax-event-head-geometry/8.4.20/stdout.bin"
+-            ),
+-            include_str!(
+-                "../../../experiments/name-handling/syntax-event-head-geometry/8.5.19/stdout.bin"
+-            ),
+-            include_str!(
+-                "../../../experiments/name-handling/syntax-event-head-geometry/8.6.18/stdout.bin"
+-            ),
+-            include_str!(
+-                "../../../experiments/name-handling/syntax-event-head-geometry/9.0.4/stdout.bin"
+-            ),
+-            include_str!(
+-                "../../../experiments/name-handling/syntax-event-head-geometry/9.1.0/stdout.bin"
+-            ),
+-            include_str!(
+-                "../../../experiments/name-handling/syntax-event-head-geometry/jim/stdout.bin"
++                "../../tcl-registry/tests/data/source_contract_vectors/syntax-event-head-geometry/8.4.20/stdout.bin"
++            ),
++            include_str!(
++                "../../tcl-registry/tests/data/source_contract_vectors/syntax-event-head-geometry/8.5.19/stdout.bin"
++            ),
++            include_str!(
++                "../../tcl-registry/tests/data/source_contract_vectors/syntax-event-head-geometry/8.6.18/stdout.bin"
++            ),
++            include_str!(
++                "../../tcl-registry/tests/data/source_contract_vectors/syntax-event-head-geometry/9.0.4/stdout.bin"
++            ),
++            include_str!(
++                "../../tcl-registry/tests/data/source_contract_vectors/syntax-event-head-geometry/9.1.0/stdout.bin"
++            ),
++            include_str!(
++                "../../tcl-registry/tests/data/source_contract_vectors/syntax-event-head-geometry/jim/stdout.bin"
+             ),
+         ];
+         for capture in captures {
+--- rust/tcl-syntax/src/naming/native.rs
++++ rust/tcl-syntax/src/naming/native.rs
+@@ -3877,46 +3877,46 @@
+             (
+                 TclVersion::V8_4,
+                 include_str!(
+-                    "../../../../experiments/name-handling/results/runtime-c86-real-suites/retired-namespace-variable-diagnostic-question/capture-01/8.4.20/stdout.txt"
++                    "../../../tcl-registry/tests/data/source_contract_vectors/results/runtime-c86-real-suites/retired-namespace-variable-diagnostic-question/capture-01/8.4.20/stdout.txt"
+                 ),
+                 include_str!(
+-                    "../../../../experiments/name-handling/results/runtime-c86-real-suites/retired-namespace-variable-diagnostic-question/capture-02/8.4.20/stdout.txt"
++                    "../../../tcl-registry/tests/data/source_contract_vectors/results/runtime-c86-real-suites/retired-namespace-variable-diagnostic-question/capture-02/8.4.20/stdout.txt"
+                 ),
+             ),
+             (
+                 TclVersion::V8_5,
+                 include_str!(
+-                    "../../../../experiments/name-handling/results/runtime-c86-real-suites/retired-namespace-variable-diagnostic-question/capture-01/8.5.19/stdout.txt"
++                    "../../../tcl-registry/tests/data/source_contract_vectors/results/runtime-c86-real-suites/retired-namespace-variable-diagnostic-question/capture-01/8.5.19/stdout.txt"
+                 ),
+                 include_str!(
+-                    "../../../../experiments/name-handling/results/runtime-c86-real-suites/retired-namespace-variable-diagnostic-question/capture-02/8.5.19/stdout.txt"
++                    "../../../tcl-registry/tests/data/source_contract_vectors/results/runtime-c86-real-suites/retired-namespace-variable-diagnostic-question/capture-02/8.5.19/stdout.txt"
+                 ),
+             ),
+             (
+                 TclVersion::V8_6,
+                 include_str!(
+-                    "../../../../experiments/name-handling/results/runtime-c86-real-suites/retired-namespace-variable-diagnostic-question/capture-01/8.6.18/stdout.txt"
++                    "../../../tcl-registry/tests/data/source_contract_vectors/results/runtime-c86-real-suites/retired-namespace-variable-diagnostic-question/capture-01/8.6.18/stdout.txt"
+                 ),
+                 include_str!(
+-                    "../../../../experiments/name-handling/results/runtime-c86-real-suites/retired-namespace-variable-diagnostic-question/capture-02/8.6.18/stdout.txt"
++                    "../../../tcl-registry/tests/data/source_contract_vectors/results/runtime-c86-real-suites/retired-namespace-variable-diagnostic-question/capture-02/8.6.18/stdout.txt"
+                 ),
+             ),
+             (
+                 TclVersion::V9_0,
+                 include_str!(
+-                    "../../../../experiments/name-handling/results/runtime-c86-real-suites/retired-namespace-variable-diagnostic-question/capture-01/9.0.4/stdout.txt"
++                    "../../../tcl-registry/tests/data/source_contract_vectors/results/runtime-c86-real-suites/retired-namespace-variable-diagnostic-question/capture-01/9.0.4/stdout.txt"
+                 ),
+                 include_str!(
+-                    "../../../../experiments/name-handling/results/runtime-c86-real-suites/retired-namespace-variable-diagnostic-question/capture-02/9.0.4/stdout.txt"
++                    "../../../tcl-registry/tests/data/source_contract_vectors/results/runtime-c86-real-suites/retired-namespace-variable-diagnostic-question/capture-02/9.0.4/stdout.txt"
+                 ),
+             ),
+             (
+                 TclVersion::V9_1,
+                 include_str!(
+-                    "../../../../experiments/name-handling/results/runtime-c86-real-suites/retired-namespace-variable-diagnostic-question/capture-01/9.1.0/stdout.txt"
++                    "../../../tcl-registry/tests/data/source_contract_vectors/results/runtime-c86-real-suites/retired-namespace-variable-diagnostic-question/capture-01/9.1.0/stdout.txt"
+                 ),
+                 include_str!(
+-                    "../../../../experiments/name-handling/results/runtime-c86-real-suites/retired-namespace-variable-diagnostic-question/capture-02/9.1.0/stdout.txt"
++                    "../../../tcl-registry/tests/data/source_contract_vectors/results/runtime-c86-real-suites/retired-namespace-variable-diagnostic-question/capture-02/9.1.0/stdout.txt"
+                 ),
+             ),
+         ];
+--- rust/tcl-syntax/src/naming/tcloo_link.rs
++++ rust/tcl-syntax/src/naming/tcloo_link.rs
+@@ -70,13 +70,13 @@
+             (
+                 TclVersion::V9_0,
+                 include_str!(
+-                    "../../../../experiments/name-handling/tcloo-linked-source/publication-followon/9.0.4/stdout.bin"
++                    "../../../tcl-registry/tests/data/source_contract_vectors/tcloo-linked-source/publication-followon/9.0.4/stdout.bin"
+                 ),
+             ),
+             (
+                 TclVersion::V9_1,
+                 include_str!(
+-                    "../../../../experiments/name-handling/tcloo-linked-source/publication-followon/9.1.0/stdout.bin"
++                    "../../../tcl-registry/tests/data/source_contract_vectors/tcloo-linked-source/publication-followon/9.1.0/stdout.bin"
+                 ),
+             ),
+         ] {
+--- rust/tcl-compiler/src/analyser/diagnostics/tests.rs
++++ rust/tcl-compiler/src/analyser/diagnostics/tests.rs
+@@ -13469,7 +13469,7 @@
+ #[test]
+ fn tcltest_oracle_program_keeps_missing_reads_and_setup_completion() {
+     let source =
+-        include_str!("../../../../../experiments/name-handling/tcltest-shared-frame/probe.tcl");
++        include_str!("../../../../tcl-registry/tests/data/source_contract_vectors/tcltest-shared-frame/probe.tcl");
+     for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+         let result = crate::provider_fixtures::analyse(
+             source,
+--- rust/tcl-compiler/src/analyser/types/original_linked_member.rs
++++ rust/tcl-compiler/src/analyser/types/original_linked_member.rs
+@@ -512,13 +512,13 @@
+             (
+                 "tcl9.0",
+                 include_str!(
+-                    "../../../../../experiments/name-handling/tcloo-linked-source/class-delegate/9.0.4/stdout.bin"
++                    "../../../../tcl-registry/tests/data/source_contract_vectors/tcloo-linked-source/class-delegate/9.0.4/stdout.bin"
+                 ),
+             ),
+             (
+                 "tcl9.1",
+                 include_str!(
+-                    "../../../../../experiments/name-handling/tcloo-linked-source/class-delegate/9.1.0/stdout.bin"
++                    "../../../../tcl-registry/tests/data/source_contract_vectors/tcloo-linked-source/class-delegate/9.1.0/stdout.bin"
+                 ),
+             ),
+         ] {
+--- rust/tcl-compiler/src/registry_invocation/source_structure.rs
++++ rust/tcl-compiler/src/registry_invocation/source_structure.rs
+@@ -4814,7 +4814,7 @@
+     fn logical_source_words_keep_complete_receiver_catalogue_vectors_and_current_inputs() {
+         let source = include_str!(concat!(
+             env!("CARGO_MANIFEST_DIR"),
+-            "/../../experiments/name-handling/patterns/composed-callback-prefix/probes/positive.tcl"
++            "/../tcl-registry/tests/data/source_contract_vectors/patterns/composed-callback-prefix/probes/positive.tcl"
+         ));
+         let mut analysis = crate::analyser::Analyser::new().analyse(source, "tcl");
+         let offset = u32::try_from(source.find("after idle $cb").unwrap()).unwrap();
+@@ -4987,7 +4987,7 @@
+         // docs/design/analysis/name-resolution-proofs/original-registry-header-advice.md
+         let source = include_str!(concat!(
+             env!("CARGO_MANIFEST_DIR"),
+-            "/../../experiments/name-handling/patterns/composed-callback-prefix/probes/positive.tcl"
++            "/../tcl-registry/tests/data/source_contract_vectors/patterns/composed-callback-prefix/probes/positive.tcl"
+         ));
+         let analysis = original_selector_analysis(source);
+         let input = analysis.resolved_input.as_ref().unwrap();
+@@ -6667,7 +6667,7 @@
+ 
+     const PRIVATE: &str = include_str!(concat!(
+         env!("CARGO_MANIFEST_DIR"),
+-        "/../../experiments/name-handling/patterns/composed-callback-prefix/fixtures/private-positive.tcl"
++        "/../tcl-registry/tests/data/source_contract_vectors/patterns/composed-callback-prefix/fixtures/private-positive.tcl"
+     ));
+     const WRITER: &str = "interp alias {} ::write {} ::set\noo::class create C {method setup {} {::write slot value}}";
+ 
+--- rust/tcl-compiler/src/command_binding/original_name_value.rs
++++ rust/tcl-compiler/src/command_binding/original_name_value.rs
+@@ -2240,7 +2240,7 @@
+     #[test]
+     fn logical_conditional_receiver_point_names_keep_source_only_authority() {
+         let source = include_str!(
+-            "../../../../experiments/name-handling/patterns/composed-callback-prefix/probes/positive.tcl"
++            "../../../tcl-registry/tests/data/source_contract_vectors/patterns/composed-callback-prefix/probes/positive.tcl"
+         );
+         let analysis = crate::analyser::Analyser::new().analyse(source, "tcl");
+         let owner = analysis.resolved_input.as_ref().unwrap();
+@@ -2498,7 +2498,7 @@
+     #[test]
+     fn logical_source_command_vectors_keep_genuine_conditional_receiver_geometry() {
+         let source = include_str!(
+-            "../../../../experiments/name-handling/patterns/composed-callback-prefix/probes/positive.tcl"
++            "../../../tcl-registry/tests/data/source_contract_vectors/patterns/composed-callback-prefix/probes/positive.tcl"
+         );
+         let analysis = crate::analyser::Analyser::new().analyse(source, "tcl");
+         let input = analysis.resolved_input.as_ref().unwrap();
+--- rust/tcl-compiler/src/command_binding/source_catalogue_advice.rs
++++ rust/tcl-compiler/src/command_binding/source_catalogue_advice.rs
+@@ -318,7 +318,7 @@
+     };
+ 
+     const SOURCE: &str = include_str!(
+-        "../../../../experiments/name-handling/patterns/composed-callback-prefix/probes/positive.tcl"
++        "../../../tcl-registry/tests/data/source_contract_vectors/patterns/composed-callback-prefix/probes/positive.tcl"
+     );
+ 
+     fn analyse(source: &str, release: &str) -> AnalysisResult {
+--- rust/tcl-cmd-core/src/clock.rs
++++ rust/tcl-cmd-core/src/clock.rs
+@@ -1840,7 +1840,7 @@
+             bce: b"BCE".to_vec(),
+         };
+         let mut compared = 0;
+-        for row in include_str!("../../../experiments/name-handling/results/runtime-c86-real-suites/get-date-fields-question/capture-01/8.6.18/values/stdout.txt").lines() {
++        for row in include_str!("../../tcl-registry/tests/data/source_contract_vectors/results/runtime-c86-real-suites/get-date-fields-question/capture-01/8.6.18/values/stdout.txt").lines() {
+             if !row.starts_with("ROW ") { continue; }
+             let words = tcl_syntax::list::split_native_list_bytes(row.as_bytes(), protocol).unwrap();
+             if words[3].as_ref() != b"0" || words[1].as_ref() == b"empty-tzdata" { continue; }
+--- rust/tcl-vm/src/interp/native_variable_query_tests.rs
++++ rust/tcl-vm/src/interp/native_variable_query_tests.rs
+@@ -6,7 +6,7 @@
+     let mut vm = crate::native_fixture::interpreter(profile);
+     let completion = vm
+         .try_eval_source(include_str!(
+-            "../../../../experiments/name-handling/variable-namespace-query-bases/result-input.tcl"
++            "../../../tcl-registry/tests/data/source_contract_vectors/variable-namespace-query-bases/result-input.tcl"
+         ))
+         .unwrap();
+     assert!(completion.code.is_ok(), "{engine}: {:?}", completion.result);
+--- rust/tcl-vm/src/interp/native_namespace_origin_tests.rs
++++ rust/tcl-vm/src/interp/native_namespace_origin_tests.rs
+@@ -61,9 +61,9 @@
+         #[test]
+         fn $test() {
+             compare($engine, include_bytes!(concat!("../../../../experiments/name-handling/namespace-origin-query/", $provider, "/stdout.bin")),
+-                include_str!("../../../../experiments/name-handling/namespace-origin-query/input.tcl"),37);
++                include_str!("../../../tcl-registry/tests/data/source_contract_vectors/namespace-origin-query/input.tcl"),37);
+             compare($engine, include_bytes!(concat!("../../../../experiments/name-handling/namespace-origin-query/helper-root/", $provider, "/stdout.bin")),
+-                include_str!("../../../../experiments/name-handling/namespace-origin-query/helper-root-input.tcl"),5);
++                include_str!("../../../tcl-registry/tests/data/source_contract_vectors/namespace-origin-query/helper-root-input.tcl"),5);
+         }
+     };
+ }
+--- rust/tcl-vm/src/interp/native_namespace_command_query_tests.rs
++++ rust/tcl-vm/src/interp/native_namespace_command_query_tests.rs
+@@ -23,7 +23,7 @@
+     );
+     let completion = vm
+         .try_eval_source(include_str!(
+-            "../../../../experiments/name-handling/namespace-command-query/input-portable.tcl"
++            "../../../tcl-registry/tests/data/source_contract_vectors/namespace-command-query/input-portable.tcl"
+         ))
+         .unwrap();
+     assert!(completion.code.is_ok(), "{engine}: {:?}", completion.result);
+--- rust/tcl-vm/src/interp/native_alias_registration_tests.rs
++++ rust/tcl-vm/src/interp/native_alias_registration_tests.rs
+@@ -22,7 +22,7 @@
+         Box::new(Output(Rc::clone(&output))),
+     );
+     let input = include_str!(
+-        "../../../../experiments/name-handling/namespace-origin-query/alias-registration-records/input.tcl"
++        "../../../tcl-registry/tests/data/source_contract_vectors/namespace-origin-query/alias-registration-records/input.tcl"
+     );
+     let completion = vm.try_eval_source(input).unwrap_or_else(|error| {
+         panic!(
+--- rust/tcl-vm/src/interp/native_error_variables.rs
++++ rust/tcl-vm/src/interp/native_error_variables.rs
+@@ -1104,7 +1104,7 @@
+      {
+         let mut vm = native_vm("tcl8.4");
+         let original = include_str!(
+-            "../../../../experiments/name-handling/results/c84-execution-environment-error-name-objects/capture02/execution.stdout"
++            "../../../tcl-registry/tests/data/source_contract_vectors/results/c84-execution-environment-error-name-objects/capture02/execution.stdout"
+         );
+         let fields = original
+             .lines()
+@@ -1197,7 +1197,7 @@
+         vm.adopt_native_interp_result(Value::int(777)).unwrap();
+         assert!(vm.publish_c84_error_command_info(b" INFO").unwrap());
+         let original = include_str!(
+-            "../../../../experiments/name-handling/results/c84-execution-environment-error-name-objects/capture02/execution.stdout"
++            "../../../tcl-registry/tests/data/source_contract_vectors/results/c84-execution-environment-error-name-objects/capture02/execution.stdout"
+         );
+         for phase in [
+             "after-seed-default-append",
+@@ -1378,7 +1378,7 @@
+     fn c84_string_setter_probe(vm: &mut Vm, _args: &[Value]) -> Completion<Value> {
+         let mode = C84_STRING_SETTER_MODE.with(std::cell::Cell::get);
+         let rows = include_str!(
+-            "../../../../experiments/name-handling/results/c84-original-global-string-error-code/capture01/execution.stdout"
++            "../../../tcl-registry/tests/data/source_contract_vectors/results/c84-original-global-string-error-code/capture01/execution.stdout"
+         );
+         let row = rows
+             .lines()
+@@ -1453,7 +1453,7 @@
+             }
+             let completion = vm.eval_source("N::p").unwrap();
+             let rows = include_str!(
+-                "../../../../experiments/name-handling/results/c84-original-global-string-error-code/capture01/execution.stdout"
++                "../../../tcl-registry/tests/data/source_contract_vectors/results/c84-original-global-string-error-code/capture01/execution.stdout"
+             );
+             let row = rows
+                 .lines()
+--- rust/tcl-vm/src/interp/native_jim_lookup/global_error_code_tests.rs
++++ rust/tcl-vm/src/interp/native_jim_lookup/global_error_code_tests.rs
+@@ -212,7 +212,7 @@
+ #[test]
+ fn catch_try_quiet_global_capture_matches_original_reached_message_and_options() {
+     const CAPTURE: &str = include_str!(
+-        "../../../../../experiments/name-handling/results/jim-catch-try-quiet-global-capture/capture03/execution.stdout"
++        "../../../../tcl-registry/tests/data/source_contract_vectors/results/jim-catch-try-quiet-global-capture/capture03/execution.stdout"
+     );
+     fn unhex(text: &str) -> Vec<u8> {
+         text.as_bytes()
+--- rust/tcl-vm/src/cmd_try/jim_reached_message_tests.rs
++++ rust/tcl-vm/src/cmd_try/jim_reached_message_tests.rs
+@@ -4,7 +4,7 @@
+ use tcl_syntax::native_string::NativeStringProtocol;
+ 
+ const ORIGINAL: &str = include_str!(
+-    "../../../../experiments/name-handling/results/jim-try-reached-message-getters/capture07/execution.stdout"
++    "../../../tcl-registry/tests/data/source_contract_vectors/results/jim-try-reached-message-getters/capture07/execution.stdout"
+ );
+ fn jim() -> Vm {
+     let mut vm = crate::native_fixture::interpreter_with_scripted_libraries(
+--- rust/tcl-vm/tests/native_variable_declaration.rs
++++ rust/tcl-vm/tests/native_variable_declaration.rs
+@@ -24,55 +24,55 @@
+         (
+             "tcl8.4",
+             include_str!(
+-                "../../../experiments/name-handling/results/native-variable-array-modes/c-8.4.20/stdout.txt"
++                "../../tcl-registry/tests/data/source_contract_vectors/results/native-variable-array-modes/c-8.4.20/stdout.txt"
+             ),
+             include_str!(
+-                "../../../experiments/name-handling/results/native-variable-array-modes/c-8.4.20/extra-arity-stdout.txt"
++                "../../tcl-registry/tests/data/source_contract_vectors/results/native-variable-array-modes/c-8.4.20/extra-arity-stdout.txt"
+             ),
+         ),
+         (
+             "tcl8.5",
+             include_str!(
+-                "../../../experiments/name-handling/results/native-variable-array-modes/c-8.5.19/stdout.txt"
++                "../../tcl-registry/tests/data/source_contract_vectors/results/native-variable-array-modes/c-8.5.19/stdout.txt"
+             ),
+             include_str!(
+-                "../../../experiments/name-handling/results/native-variable-array-modes/c-8.5.19/extra-arity-stdout.txt"
++                "../../tcl-registry/tests/data/source_contract_vectors/results/native-variable-array-modes/c-8.5.19/extra-arity-stdout.txt"
+             ),
+         ),
+         (
+             "tcl8.6",
+             include_str!(
+-                "../../../experiments/name-handling/results/native-variable-array-modes/c-8.6.18/stdout.txt"
++                "../../tcl-registry/tests/data/source_contract_vectors/results/native-variable-array-modes/c-8.6.18/stdout.txt"
+             ),
+             include_str!(
+-                "../../../experiments/name-handling/results/native-variable-array-modes/c-8.6.18/extra-arity-stdout.txt"
++                "../../tcl-registry/tests/data/source_contract_vectors/results/native-variable-array-modes/c-8.6.18/extra-arity-stdout.txt"
+             ),
+         ),
+         (
+             "tcl9.0",
+             include_str!(
+-                "../../../experiments/name-handling/results/native-variable-array-modes/c-9.0.4/stdout.txt"
++                "../../tcl-registry/tests/data/source_contract_vectors/results/native-variable-array-modes/c-9.0.4/stdout.txt"
+             ),
+             include_str!(
+-                "../../../experiments/name-handling/results/native-variable-array-modes/c-9.0.4/extra-arity-stdout.txt"
++                "../../tcl-registry/tests/data/source_contract_vectors/results/native-variable-array-modes/c-9.0.4/extra-arity-stdout.txt"
+             ),
+         ),
+         (
+             "tcl9.1",
+             include_str!(
+-                "../../../experiments/name-handling/results/native-variable-array-modes/c-9.1.0/stdout.txt"
++                "../../tcl-registry/tests/data/source_contract_vectors/results/native-variable-array-modes/c-9.1.0/stdout.txt"
+             ),
+             include_str!(
+-                "../../../experiments/name-handling/results/native-variable-array-modes/c-9.1.0/extra-arity-stdout.txt"
++                "../../tcl-registry/tests/data/source_contract_vectors/results/native-variable-array-modes/c-9.1.0/extra-arity-stdout.txt"
+             ),
+         ),
+         (
+             "jim",
+             include_str!(
+-                "../../../experiments/name-handling/results/native-variable-array-modes/jim-5bac7c9/stdout.txt"
++                "../../tcl-registry/tests/data/source_contract_vectors/results/native-variable-array-modes/jim-5bac7c9/stdout.txt"
+             ),
+             include_str!(
+-                "../../../experiments/name-handling/results/native-variable-array-modes/jim-5bac7c9/extra-arity-stdout.txt"
++                "../../tcl-registry/tests/data/source_contract_vectors/results/native-variable-array-modes/jim-5bac7c9/extra-arity-stdout.txt"
+             ),
+         ),
+     ] {
+--- rust/tcl-registry/src/native_compilation/namespace_which_tests.rs
++++ rust/tcl-registry/src/native_compilation/namespace_which_tests.rs
+@@ -24,7 +24,7 @@
+ #[test]
+ fn original_which_shapes_match_retained_compiler_choice_boundaries() {
+     let input =
+-        include_str!("../../../../experiments/name-handling/namespace-which-compiler/input.tcl");
++        include_str!("../../tests/data/source_contract_vectors/namespace-which-compiler/input.tcl");
+     let (_, cases) = input.split_once("foreach {label source} {\n").unwrap();
+     let (cases, _) = cases.split_once("\n} {").unwrap();
+     let cases = tcl_syntax::list::split_list(cases).unwrap();
+@@ -32,19 +32,19 @@
+     for version in TclVersion::ALL {
+         let classification = match version {
+             TclVersion::V8_4 => include_str!(
+-                "../../../../experiments/name-handling/namespace-which-compiler/8.4.20/classification.txt"
++                "../../tests/data/source_contract_vectors/namespace-which-compiler/8.4.20/classification.txt"
+             ),
+             TclVersion::V8_5 => include_str!(
+-                "../../../../experiments/name-handling/namespace-which-compiler/8.5.19/classification.txt"
++                "../../tests/data/source_contract_vectors/namespace-which-compiler/8.5.19/classification.txt"
+             ),
+             TclVersion::V8_6 => include_str!(
+-                "../../../../experiments/name-handling/namespace-which-compiler/8.6.18/classification.txt"
++                "../../tests/data/source_contract_vectors/namespace-which-compiler/8.6.18/classification.txt"
+             ),
+             TclVersion::V9_0 => include_str!(
+-                "../../../../experiments/name-handling/namespace-which-compiler/9.0.4/classification.txt"
++                "../../tests/data/source_contract_vectors/namespace-which-compiler/9.0.4/classification.txt"
+             ),
+             TclVersion::V9_1 => include_str!(
+-                "../../../../experiments/name-handling/namespace-which-compiler/9.1.0/classification.txt"
++                "../../tests/data/source_contract_vectors/namespace-which-compiler/9.1.0/classification.txt"
+             ),
+         };
+         let dialect = InvocationDialect::for_version(version);

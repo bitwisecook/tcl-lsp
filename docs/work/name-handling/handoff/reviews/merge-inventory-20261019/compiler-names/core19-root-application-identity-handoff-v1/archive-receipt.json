@@ -1,0 +1,30 @@
+{
+  "utc": "2026-10-23T09:02:08.151033+00:00",
+  "status": "Root-ready static handoff only; actual integration/identity/protocol/typing UNRUN",
+  "archive_sha256": "cecc68828514de85c8db11aef9787e3be4e7514b0bfda8a4bddec713729a1fde",
+  "files": [
+    {
+      "path": "ROOT-COMMANDS.txt",
+      "sha256": "bc8a29de2945f80e1c26e845e0831f645b37dce2404ddcda8d196d16a5c3e05c"
+    },
+    {
+      "path": "compiler-static-peer.json",
+      "sha256": "e32aa4e8ca87b6a5dfa33673187bc791fae758e51dc388d86b4d5be890369bf2"
+    },
+    {
+      "path": "exact31-paths.nul",
+      "sha256": "cc3ec3e86130341c9c06e15aa4984e2bfb0dab0e49778af0316db6f5bc09e919"
+    },
+    {
+      "path": "prepare_actual_identity.py",
+      "sha256": "988c17818a9960ed124a122d5a6f8023d37ef5ccd9df044b249c74a3bd1989a3"
+    },
+    {
+      "path": "static-preflight.json",
+      "sha256": "4f11c0d9c45db06139bbd9bd4cc0c74b91f89a49028a69d5602baf0342b7a5b0"
+    }
+  ],
+  "roundtrip": true,
+  "source": "Manifest9e8c/combined402f,19components31paths66proposed. All31 current before hashes/pins rechecked08:59; adapter requires actual committed SHA then existing full reviewed verification twice. No future identity/GO/Cargo/Git executed by Names.",
+  "peer_sha256": "e32aa4e8ca87b6a5dfa33673187bc791fae758e51dc388d86b4d5be890369bf2"
+}

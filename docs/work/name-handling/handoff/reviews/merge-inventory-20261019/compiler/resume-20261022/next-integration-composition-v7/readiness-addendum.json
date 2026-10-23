@@ -1,0 +1,26 @@
+{
+  "manifest_sha256": "e68b8fe945d84f46b028beb22350f6c8f51c227ebeb2577c65eee180b197abb4",
+  "combined_patch_sha256": "a242806bbf7c40d784635ea87f95761af715d771ba10a45cad5613c66bc14126",
+  "status": "FROZEN off-tree26components62paths/proposed95; source46 actual; no typing/runtime",
+  "format_receipt_sha256": "cf74ca1d35905a38c8030e0446a020f4f56957cd643c6516bc231cab07286d9b",
+  "excluded": [
+    "alias86ebb admissibility/genuineLogical UNRUN",
+    "VMLint31 notready atfreeze",
+    "nestedv1 HELD ambiguity",
+    "Jim authored v1/v2 HELD debt gaps"
+  ],
+  "new_scope": [
+    "LSPretainedImage/failurecontext",
+    "Jim authoredv4 production8 +new3controltarget",
+    "nestedsourcev2 source-onlyintake",
+    "N17 firstgatepuretrace",
+    "existingreviewed19+13mechanicalstylefragments"
+  ],
+  "counts": {
+    "components": 26,
+    "batch_paths": 62,
+    "proposed_cumulative": 95
+  },
+  "new_overlap": "Only2 same-site purelogs propagation original87/2637, exactrow24thenN17; specpinsfragmentorder/hashes",
+  "testing": "All combined typing/runtime/newcontrols UNRUN; parentfailedmeasurements notacceptance"
+}

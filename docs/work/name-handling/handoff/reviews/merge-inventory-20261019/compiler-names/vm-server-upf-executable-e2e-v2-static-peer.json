@@ -1,0 +1,21 @@
+{
+  "utc": "2026-10-23T09:18:59.391301+00:00",
+  "status": "CLEAR bounded independent test efficacy/authority/static types; Rusttyping/serverruntime UNRUN",
+  "patch_sha256": "c1095135e69422bf0652f5b233cfc40c15291bd1d8e48454ba28ecc02eb8117d",
+  "checks": [
+    "independent exact current before/final join",
+    "zero-fuzz/nooffset fullpatch apply",
+    "append-only entire preexisting spec_packs.rs bytes unchanged",
+    "v1\u2192v2 adds only lines, no removed assertions/deadlines/order; bodyresolver test byte-identical",
+    "pinned1.99.1 edition2024 rustfmtcheckPASS",
+    "exact16 shipped arityslot roster equals15 tableentries+feedthrough; bodyresolver17thslot remains separate"
+  ],
+  "efficacy": [
+    "Production Lsp launcher and bundled upf pack discovery, no custom/mock host/registry. Actual diagnostics/tokens queried after original ready/settle methods.",
+    "Zero-consumption: repeated option or feedthrough followed by nextflag must both be decorators; default1/no-hook consumes the next option and cannot satisfy these positional assertions.",
+    "One-consumption: all15 TRUE positions must be enumMember and FT must be property; production option projection uses consumed value indices, so constantConsume0 cannot satisfy these value assertions.",
+    "Bodyresolver: unknown command warnings and set/function tokens at exact inner lines for plain and option-shifted last body; ordinary create_power_domain -elements data excludes both warnings and function tokens. Fixedbodyindex or missing body role cannot pass both positives.",
+    "Original97 direct hook calls remain separately required and are not replaced by server tests."
+  ],
+  "limits": "Static efficacy argument only; actual producer availability/host hook answers and server configuration remain unmeasured until tests run. No Cargo/Git/GO/canonical source. Existing30second waits unchanged; no success synthesis, deadline increase, fake host or metadata-only acceptance."
+}

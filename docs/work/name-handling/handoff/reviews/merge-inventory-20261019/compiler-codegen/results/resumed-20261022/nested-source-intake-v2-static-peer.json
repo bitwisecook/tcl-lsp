@@ -1,0 +1,14 @@
+{
+  "utc": "2026-10-23T09:12:03.131773+00:00",
+  "reviewer_role": "compiler-codegen",
+  "status": "Bounded delta static CLEAR; untyped/unrun",
+  "patch_sha256": "a3817823940d0a958384deb23a3c3931d52eda15e7fdfa88625f798a8fe61aca",
+  "after_sha256": "f61298b62f775360f98af0e522f0c54ce1ae9369585fc8fb0e5aa019f135354f",
+  "predecessor": "v1 508d is HELD, superseded; CCG previousv1 static review did not identify duplicate-geometry availability risk",
+  "delta": "Existing commands exact same geometry now returns old tokens() terminally, including ambiguousNone or later Native/refusal authority; only absent existing geometry searches source_commands. No broad source fallback on old refusal. Predicates byte-identical to original matching geometry, old Native words unchanged. All previous actualparent owner/input/config/registry/everycompiler-alternative gates and new factorial controls remain unchanged.",
+  "checks": [
+    "Independent prospectivea74 copy zero-fuzz ->f612 exactfinal",
+    "Pinned edition2024 fmtidempotent"
+  ],
+  "limits": "Static only; no typing/runtime/actual positive or current canonical application."
+}

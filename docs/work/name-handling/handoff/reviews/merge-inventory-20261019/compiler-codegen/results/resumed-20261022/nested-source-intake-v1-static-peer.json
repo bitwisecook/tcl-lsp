@@ -1,0 +1,24 @@
+{
+  "utc": "2026-10-23T09:09:21.756703+00:00",
+  "reviewer_role": "compiler-codegen",
+  "status": "Bounded static CLEAR against prospective core19; untyped/unrun",
+  "patch_sha256": "508debb83afcc7b25f13526a4a7ae62c175cf9467e5bcb8a773afe693df11241",
+  "prospective_base_sha256": "a74be0bbd080fb633a92672a32a90a107236afa8b84cec7ddd4001c16c89b8c5",
+  "proposed_sha256": "08197a298ba250e9c2bf56efd7a4df0bc7866e7f6b76e210df0e57bcd1a17111",
+  "independent_checks": [
+    "Exact core19withoutalias base matches manifest",
+    "Independent zero-fuzz copied apply reaches exact after hash",
+    "Pinned rustfmt idempotent"
+  ],
+  "findings": [
+    "Intake discovers only actual parent.nested_bindings retained proofs after parent analysis-owner check; original_recorded_command authenticates vector/source/config; exact offset comparison retains original geometry. Assigning same proof to reconstructed identical carrier is checked by retained original_compiler_syntax_alternatives, not fabricated authority.",
+    "Every compiler visit remains required; empty/missing/foreign owner/fullinput/registry/config/source origins reject inside alternatives. Source_commands is separate from commands; Native tokens()/words() unchanged. Source tokens lookup matches exact words/argv/text + originalwords and requires all matching carriers equal, not first-only ambiguity suppression.",
+    "source_schema still reruns every alternative AuthoredSimulation lookup and unanimous selected layout; capture/matches_analysis realm/request/retainedowner guards untouched. No Normal/runtime/Native/effect admission grant.",
+    "Combined inventory cap failclosed above65536 prevents source intake bypassing original bound. Child traversal unchanged.",
+    "New actual factorial nested expression controls preserve Native wordsNone, source expression positive, foreign equal-source analysis and stale source negatives. Existing tests/assertions unchanged; premise actuals unrun."
+  ],
+  "limits": [
+    "No currentcanonical apply claim; proposal base is prospectivecore19 a74, canonical source46 is9987.",
+    "No Cargo/type/runtime or proof the new positive is available; original finite minify must run after typing."
+  ]
+}

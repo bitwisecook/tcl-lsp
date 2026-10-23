@@ -1,0 +1,26 @@
+{
+  "utc": "2026-10-23T09:24:46.591646+00:00",
+  "status": "STATICCLEAR candidateonly; actualsource46/897b unchanged; no typing/runtime/GO",
+  "manifest_sha256": "4da29a53c7edab1c281712b63f4d38bf1864ecd0abad1d6376e303a2ba37311b",
+  "combined_patch_sha256": "0eb5f90afe884f1248043d668992237c8b7756d3627c9ce95cb90c0d3603bb04",
+  "counts": {
+    "components": 29,
+    "batch_paths": 88,
+    "proposed_cumulative": 121,
+    "new_test_function_names_static": 9
+  },
+  "format_receipt_sha256": "bd2b5ea84a4c59b92aacd35e5125f6d0938cd2bf8d77bcef4dabb9323898cc49",
+  "candidate_map_sha256": "a514d3e079d8e93cc17616fc74072e2b0f8f1147bc56009b76d5a72228e689ab",
+  "names_peer_sha256": "31739dce2ab03fbd2e0fec465ac3bb46ec9186b42177e21137ed5fdd159770f8",
+  "ccg_peer_sha256": "3bf2dcae8cbc4f1cc6d2d53dd28206ae865637b2cbbcd1859cd088e566a557ee",
+  "preservation": "all26v7 componentpins exact; VM25only plusUPFv2 plusadditiveLogicalalias, originalNativealiasbyteidentical",
+  "excluded": [
+    "alias86ebb originalcase replacement HELD",
+    "VMfull31 held6structuralpaths",
+    "nestedv1/Jimv1-v2 held"
+  ],
+  "cleanup": "temporarytracecomponents must be removed by exactreviewed laterinverse after evidence; this is notreleasecandidate clean tree",
+  "typing": false,
+  "runtime": false,
+  "rootGO": false
+}
