@@ -2400,34 +2400,19 @@ impl Analyser {
         } = *form;
         let context = self.analysis_context();
         let mask = Some(context.context().authoring_query());
-        let selected_body_idx = member.indices_for_call_in(args, mask, ArgRole::Body).next();
-        #[cfg(debug_assertions)]
-        if ctx.grammar.family == tcl_registry::definer::DefinerFamily::JimClass
-            && std::env::var_os("TCL_LSP_TRACE_JIM_SOURCE_OWNER").is_some()
-        {
-            eprintln!(
-                "JIM_SOURCE_OWNER stage=jim.member.body_role args={} tokens={} selected={:?}",
-                args.len(),
-                arg_tokens.len(),
-                selected_body_idx
-            );
-        }
-        let Some(body_idx) = selected_body_idx else {
+        let Some(body_idx) = crate::registry_invocation::source_structure::trace_jim_source_option(
+            "member.body_role",
+            member.indices_for_call_in(args, mask, ArgRole::Body).next(),
+        ) else {
             return;
         };
         let Some(body_text) = args.get(body_idx).cloned() else {
             return;
         };
-        let body_tok = arg_tokens.get(body_idx).copied();
-        #[cfg(debug_assertions)]
-        if ctx.grammar.family == tcl_registry::definer::DefinerFamily::JimClass
-            && std::env::var_os("TCL_LSP_TRACE_JIM_SOURCE_OWNER").is_some()
-        {
-            eprintln!(
-                "JIM_SOURCE_OWNER stage=jim.member.body_token selected={:?}",
-                body_tok.map(|token| (token.kind, token.span))
-            );
-        }
+        let body_tok = crate::registry_invocation::source_structure::trace_jim_source_option(
+            "member.body_token",
+            arg_tokens.get(body_idx).copied(),
+        );
         let name_idx = member.indices_for_call_in(args, mask, ArgRole::Name).next();
         let params_idx = member
             .indices_for_call_in(args, mask, ArgRole::ParamList)
