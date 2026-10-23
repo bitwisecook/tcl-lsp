@@ -11270,6 +11270,7 @@ fn authored_receiver_form_does_not_require_native_procedure_acceptance() {
     );
 }
 
+#[cfg(test)]
 fn assert_original_trace_computed_receivers(
     registry: &crate::CommandRegistry,
     dialect: crate::InvocationDialect,
