@@ -223,72 +223,90 @@ impl OriginalNamespaceEdits<'_> {
             return Ok(());
         }
         if let SignatureSourceNameInput::OriginalVariableRoot(root) = input {
-            let name = root.name_span().ok_or_else(|| {
-                self.refusal(
-                    Some(span),
-                    "the lexical variable has no authentic original name extent",
-                )
-            })?;
-            let member = tcl_syntax::naming::native_written_namespace_member_extent(
-                self.symbol.policy().recipe(),
-                current,
-                root.bytes(),
-                wanted,
-            )
-            .ok_or_else(|| {
-                self.refusal(
-                    Some(span),
-                    "the lexical variable does not write the selected namespace component",
-                )
-            })?;
-            let raw = self.image.bytes().get(name.as_range()).ok_or_else(|| {
-                self.refusal(
-                    Some(span),
-                    "the lexical variable name is outside its source image",
-                )
-            })?;
-            let extent = tcl_syntax::backslash::native_source_literal_extent(
-                raw,
-                self.image.channel(),
-                root.policy().string_protocol(),
-                member,
-            )
-            .ok_or_else(|| {
-                self.refusal(
-                    Some(span),
-                    "the namespace component crosses a native source unit boundary",
-                )
-            })?;
-            let mut after = std::str::from_utf8(raw)
-                .map_err(|_| self.refusal(Some(span), "the editor variable source is not Unicode"))?
-                .to_owned();
-            after.replace_range(extent, self.new_tail);
-            let produced = tcl_syntax::backslash::native_source_literal_bytes(
-                after.as_bytes(),
-                self.image.channel(),
-                root.policy().string_protocol(),
-            )
-            .map_err(|_| {
-                self.refusal(
-                    Some(span),
-                    "the replacement variable name has no source channel recipe",
-                )
-            })?;
-            if produced.as_ref() != bytes {
-                return Err(self.refusal(
-                    Some(span),
-                    "the replacement changes unrelated lexical variable units",
-                ));
-            }
-            let edit = crate::original_name_edit::original_variable_root_name_edit(&self.image,root,&after)
-                .ok_or_else(|| self.refusal(Some(span), "the replacement changes lexical variable delimiters or its root/index boundary"))?;
-            self.roots.push((edit.span(), edit.text().to_owned()));
+            self.record_variable_root(root, current, span, wanted, &bytes)?;
         } else {
             if input.original_static_list_container().is_none() {
                 return Err(self.refusal(Some(span), "the namespace is supplied by a readonly computed value with no original editable container"));
             }
             self.requests.push((input.clone(), bytes.into()));
         }
+        Ok(())
+    }
+
+    fn record_variable_root(
+        &mut self,
+        root: &tcl_compiler::signature_scan::variable_name::SignatureSourceVariableRoot,
+        current: NativeNameContext<'_>,
+        span: Span,
+        wanted: NativeNameContext<'_>,
+        bytes: &[u8],
+    ) -> Result<(), RenameRefusal> {
+        let name = root.name_span().ok_or_else(|| {
+            self.refusal(
+                Some(span),
+                "the lexical variable has no authentic original name extent",
+            )
+        })?;
+        let member = tcl_syntax::naming::native_written_namespace_member_extent(
+            self.symbol.policy().recipe(),
+            current,
+            root.bytes(),
+            wanted,
+        )
+        .ok_or_else(|| {
+            self.refusal(
+                Some(span),
+                "the lexical variable does not write the selected namespace component",
+            )
+        })?;
+        let raw = self.image.bytes().get(name.as_range()).ok_or_else(|| {
+            self.refusal(
+                Some(span),
+                "the lexical variable name is outside its source image",
+            )
+        })?;
+        let extent = tcl_syntax::backslash::native_source_literal_extent(
+            raw,
+            self.image.channel(),
+            root.policy().string_protocol(),
+            member,
+        )
+        .ok_or_else(|| {
+            self.refusal(
+                Some(span),
+                "the namespace component crosses a native source unit boundary",
+            )
+        })?;
+        let mut after = std::str::from_utf8(raw)
+            .map_err(|_| self.refusal(Some(span), "the editor variable source is not Unicode"))?
+            .to_owned();
+        after.replace_range(extent, self.new_tail);
+        let produced = tcl_syntax::backslash::native_source_literal_bytes(
+            after.as_bytes(),
+            self.image.channel(),
+            root.policy().string_protocol(),
+        )
+        .map_err(|_| {
+            self.refusal(
+                Some(span),
+                "the replacement variable name has no source channel recipe",
+            )
+        })?;
+        if produced.as_ref() != bytes {
+            return Err(self.refusal(
+                Some(span),
+                "the replacement changes unrelated lexical variable units",
+            ));
+        }
+        let edit =
+            crate::original_name_edit::original_variable_root_name_edit(&self.image, root, &after)
+                .ok_or_else(|| {
+                    self.refusal(
+                Some(span),
+                "the replacement changes lexical variable delimiters or its root/index boundary",
+            )
+                })?;
+        self.roots.push((edit.span(), edit.text().to_owned()));
         Ok(())
     }
 }

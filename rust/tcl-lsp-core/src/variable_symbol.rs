@@ -240,32 +240,8 @@ pub(crate) fn select_navigation<'a>(
     if let Some(template) = alias_template_at_offset(source, analysis, config, offset) {
         return ControlFlow::Break(Some(NavigationVariable::Alias(Box::new(template))));
     }
-    if let Some(advice) = analysis.logical_variable_scope_advice(
-        &tcl_lexer::SourceImage::document(source),
-        config,
-        offset,
-    ) {
-        // Original variable roots retain syntax independently of Native table symbols.
-        if let Some(reference) =
-            crate::source_structure::original_variable_reference_at(source, analysis, offset)
-        {
-            return if advice.variable_definition(reference.root).is_some() {
-                ControlFlow::Continue(())
-            } else {
-                ControlFlow::Break(None)
-            };
-        }
-        if analysis
-            .original_variable_root_in_source(
-                &tcl_lexer::SourceImage::document(source),
-                config,
-                offset,
-            )
-            .is_some()
-        {
-            return ControlFlow::Break(None);
-        }
-        return ControlFlow::Continue(());
+    if let Some(decision) = logical_navigation_disposition(source, analysis, config, offset) {
+        return decision.map_break(|()| None);
     }
     if analysis.allows_lexical_declaration_advice() {
         return selected.map_break(|selected| selected.map(NavigationVariable::Original));
@@ -325,6 +301,42 @@ pub(crate) fn select_navigation<'a>(
             }))
         }
     }
+}
+
+fn logical_navigation_disposition(
+    source: &str,
+    analysis: &AnalysisResult,
+    config: tcl_lexer::LexerConfig,
+    offset: u32,
+) -> Option<ControlFlow<()>> {
+    if let Some(advice) = analysis.logical_variable_scope_advice(
+        &tcl_lexer::SourceImage::document(source),
+        config,
+        offset,
+    ) {
+        // Original variable roots retain syntax independently of Native table symbols.
+        if let Some(reference) =
+            crate::source_structure::original_variable_reference_at(source, analysis, offset)
+        {
+            return Some(if advice.variable_definition(reference.root).is_some() {
+                ControlFlow::Continue(())
+            } else {
+                ControlFlow::Break(())
+            });
+        }
+        if analysis
+            .original_variable_root_in_source(
+                &tcl_lexer::SourceImage::document(source),
+                config,
+                offset,
+            )
+            .is_some()
+        {
+            return Some(ControlFlow::Break(()));
+        }
+        return Some(ControlFlow::Continue(()));
+    }
+    None
 }
 
 fn logical_formal_navigation(
