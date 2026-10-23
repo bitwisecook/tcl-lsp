@@ -1,0 +1,59 @@
+{
+  "head": "a8e7bc7a0d368bbaab5bd1676a0383ad2b837130",
+  "argv": [
+    "rustc",
+    "--edition",
+    "2024",
+    "--crate-name",
+    "zz_authenticated_direct_perfprobe",
+    "-C",
+    "opt-level=0",
+    "-C",
+    "debuginfo=0",
+    "-C",
+    "debug-assertions=on",
+    "-C",
+    "overflow-checks=on",
+    "-L",
+    "dependency=/workspace/tcl-lsp-perf-latest/target/debug/deps",
+    "--extern",
+    "tcl_compiler=/workspace/tcl-lsp-perf-latest/target/debug/deps/libtcl_compiler-69985a5938e13168.rlib",
+    "--extern",
+    "tcl_lexer=/workspace/tcl-lsp-perf-latest/target/debug/deps/libtcl_lexer-ff172cc3515b8ad8.rlib",
+    "-L",
+    "native=/workspace/tcl-lsp-perf-latest/target/debug/build/tcl-host-c-abi-a743493def30a82f/out",
+    "-L",
+    "native=/workspace/tcl-lsp-perf-latest/target/debug/build/ring-837e1730851bfe0c/out",
+    "/workspace/tcl-lsp-perf-latest/rust/tcl-compiler/examples/zz_authenticated_perfprobe.rs",
+    "-o",
+    "/tmp/zz_authenticated_direct_perfprobe"
+  ],
+  "probe_source_sha256": "c8fea9f3df182412a134a4b4f07b51307e541733100e37731a6871b5ac84f137",
+  "libraries": {
+    "tcl_compiler": {
+      "path": "/workspace/tcl-lsp-perf-latest/target/debug/deps/libtcl_compiler-69985a5938e13168.rlib",
+      "sha256": "d16646fde5b12adbb97348bd59a7fa5c609a6cc7f9e2decc35536e28632aec71"
+    },
+    "tcl_lexer": {
+      "path": "/workspace/tcl-lsp-perf-latest/target/debug/deps/libtcl_lexer-ff172cc3515b8ad8.rlib",
+      "sha256": "fdf419f7809568fbcad35e5a3d776e16528432406661bb1d84f3fb276c27b102"
+    }
+  },
+  "status": "direct public API smoke; not full corpus/control acceptance",
+  "results": [
+    {
+      "label": "hosted-mixed",
+      "extra_env": {
+        "ZZ_DIALECT": "f5-irules"
+      },
+      "paths": [
+        "/tmp/zz_genuine_hosted_probe.tcl"
+      ],
+      "exit": 101,
+      "wall_s": 23.923160076141357
+    }
+  ],
+  "build_exit": 0,
+  "binary_sha256": "5e6d34cfd2187aa09558878a760a185f5621cbb1a2c38ad5d54474b75712a859",
+  "executable_removed": true
+}

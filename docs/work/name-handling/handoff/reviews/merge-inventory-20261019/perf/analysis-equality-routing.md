@@ -163,3 +163,10 @@ binary hashes; executable removed. This is actual corpus-source evidence,
 independent of the source_graph.rs lib-test type error. No new private
 refusal stage is attributed without tracing. A tiny genuine hosted public
 control is being measured separately; full proof remains unavailable.
+
+The tiny genuine hosted control also returns CurrentOwnerUnavailable for all3
+pairs through the normal a8e7 public API. Exact37-byte source, binary/library
+hashes and removed-executable receipt are in direct-genuine-hosted/. The
+normal-artifact audit confirms Cargo fresh:false, current root path and a
+different compiler hash from0322. This is not assumed to be the same private
+refusal stage as the older trace; a new stage requires a current diagnostic.

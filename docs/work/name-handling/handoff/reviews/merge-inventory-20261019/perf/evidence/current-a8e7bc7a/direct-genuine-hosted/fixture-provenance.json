@@ -1,0 +1,8 @@
+{
+  "source": "same37-byte literal as analyser/authenticated_report.rs genuine_hosted_event_report_retains_a_separate_actual_domain",
+  "sha256": "8763c29580688cfe9c5b410deb9dc9a5c9d65e366f96609cb71521e12551704e",
+  "bytes": 37,
+  "original_temp_path": "/tmp/zz_genuine_hosted_probe.tcl",
+  "literal": "when HTTP_REQUEST { set value VALUE }",
+  "temporary_source_and_executable_removed": true
+}

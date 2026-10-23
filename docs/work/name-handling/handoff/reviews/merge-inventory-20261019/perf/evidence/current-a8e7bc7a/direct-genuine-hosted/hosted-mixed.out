@@ -1,0 +1,8 @@
+REPORT label="/tmp/zz_genuine_hosted_probe.tcl" old1_ms=14202 new_ms=3903 old2_ms=5597 old_old=Unavailable(CurrentOwnerUnavailable) old_new=Unavailable(CurrentOwnerUnavailable) new_old=Unavailable(CurrentOwnerUnavailable) strict_old_old=false strict_old_new=false strict_new_old=false pass=false
+REPORT_SUMMARY inputs=1 failed=1
+
+thread 'main' (20380) panicked at /workspace/tcl-lsp-perf-latest/rust/tcl-compiler/examples/zz_authenticated_perfprobe.rs:108:5:
+assertion `left == right` failed: every complete report pair must be Equal; Different and Unavailable fail
+  left: 1
+ right: 0
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace

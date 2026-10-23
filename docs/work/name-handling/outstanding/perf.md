@@ -2,7 +2,7 @@
 
 Area: Analysis and SpecTcl pack-load performance.
 
-Last updated: 2026-10-23 13:16 UTC
+Last updated: 2026-10-23 13:21 UTC
 
 ## Resume
 
@@ -39,8 +39,11 @@ old1/new/old2 pairs for cookbook_http_collect.irul are still
 Unavailable(CurrentOwnerUnavailable), strict Eq false separately. Exact
 normal Cargo libraries/source/executable hashes are retained in direct-smoke/;
 build exit0, executable removed. This is distinct from the lib-test typing
-blocker. A production smoke of the tiny genuine hosted control is running to
-separate basic issuance from this actual corpus fixture; no outcome yet.
+blocker. The tiny genuine hosted control also FAILS all3 pairs with the same
+CurrentOwnerUnavailable. Both completed normal-library smokes have their
+executables/sources removed. normal-artifact-audit.json confirms current
+Cargo fresh:false and a different compiler hash from0322; no stale reuse
+is inferred. Exact37-byte control fixture/provenance is retained.
 
 Current jobs:
 - /tmp/perf-run-a8e7.log, session51915 COMPLETE/FAILED: upstream test literal type blocks the
