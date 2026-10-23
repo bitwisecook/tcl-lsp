@@ -1,0 +1,221 @@
+--- a/rust/tcl-compiler/src/command_binding/package_target_survey.rs
++++ b/rust/tcl-compiler/src/command_binding/package_target_survey.rs
+@@ -144,7 +144,7 @@
+             origin: Arc::clone(origin),
+             input: input.clone(),
+             _words: Arc::from(command.words.clone()),
+-            namespaces: namespaces,
++            namespaces,
+             subject: subject.map(str::to_owned),
+             _advice: Arc::clone(advice),
+             _layouts: layouts,
+--- a/rust/tcl-compiler/src/analyser/diagnostics/proven.rs
++++ b/rust/tcl-compiler/src/analyser/diagnostics/proven.rs
+@@ -584,7 +584,7 @@
+         let original_proven_spans = original
+             .supplemental_literals()
+             .iter()
+-            .filter_map(|(ordinal, _)| original.word(*ordinal).map(|word| word.span()))
++            .filter_map(|(ordinal, _)| original.word(*ordinal).map(tcl_lexer::NativeWord::span))
+             .collect::<Vec<_>>();
+         let at_proven = |code: DiagCode, span: Span| {
+             PROVEN_CODES.contains(&code)
+--- a/rust/tcl-compiler/src/analyser/types/logical_procedures.rs
++++ b/rust/tcl-compiler/src/analyser/types/logical_procedures.rs
+@@ -355,7 +355,7 @@
+             .values()
+             .chain(
+                 self.original_procedure_declarations()
+-                    .map(|declaration| declaration.metadata()),
++                    .map(crate::signature_scan::original_name::SourceDeclarationMetadata::metadata),
+             )
+             .chain(
+                 self.logical_source_procedure_declarations()
+--- a/rust/tcl-compiler/src/analyser/types/logical_members.rs
++++ b/rust/tcl-compiler/src/analyser/types/logical_members.rs
+@@ -1094,7 +1094,7 @@
+             .values()
+             .chain(
+                 self.original_class_declarations()
+-                    .map(|declaration| declaration.metadata()),
++                    .map(crate::signature_scan::original_name::SourceDeclarationMetadata::metadata),
+             )
+             .chain(
+                 self.logical_class_declarations
+--- a/rust/tcl-compiler/src/analyser/types.rs
++++ b/rust/tcl-compiler/src/analyser/types.rs
+@@ -2120,7 +2120,7 @@
+ }
+ 
+ /// Whether this body belongs to the surrounding interpreter's source walk.
+-/// This is independent of lambda context and TclOO lookup/callability axes.
++/// This is independent of lambda context and `TclOO` lookup/callability axes.
+ #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+ pub(super) enum InterpreterSourceBody {
+     Enclosing,
+--- a/rust/tcl-compiler/src/analyser/variable_alias_templates.rs
++++ b/rust/tcl-compiler/src/analyser/variable_alias_templates.rs
+@@ -49,7 +49,7 @@
+         };
+         let source_templates = source_declarations
+             .iter()
+-            .filter_map(|declaration| declaration.template_source())
++            .filter_map(super::super::registry_invocation::declaration_assistance::OriginalLogicalAliasDeclaration::template_source)
+             .filter(|source| source.matches_source(image, input))
+             .collect::<Vec<_>>();
+         let mut anchors = self.original_alias_source_anchors();
+@@ -90,7 +90,7 @@
+             let mut candidates = self
+                 .original_variable_alias_receipts
+                 .iter()
+-                .chain(source_templates.iter().map(|source| source.relation()))
++                .chain(source_templates.iter().map(super::super::registry_invocation::declaration_assistance::OriginalLogicalAliasTemplateSource::relation))
+                 .filter(|alias| {
+                     alias.frame() == &frame
+                         && alias.invocation_offset() <= anchor.span.start()
+--- a/rust/tcl-compiler/src/cfg_builder/global_write_info.rs
++++ b/rust/tcl-compiler/src/cfg_builder/global_write_info.rs
+@@ -1529,7 +1529,7 @@
+                 if matches!(body_namespace, ExecutionNamespace::RuntimeSelected) {
+                     *opaque = true;
+                     continue;
+-                };
++                }
+                 walk(body, semantics, &body_namespace, names, opaque, depth + 1);
+             }
+         }
+--- a/rust/tcl-compiler/src/compilation_unit.rs
++++ b/rust/tcl-compiler/src/compilation_unit.rs
+@@ -2077,7 +2077,7 @@
+             original_lattice_callback_admission: None,
+             source_metadata_input: source_metadata_input.cloned(),
+             source_config: config,
+-            name: name.into(),
++            name,
+             body_id: None,
+             cfg,
+             ssa,
+--- a/rust/tcl-compiler/src/dataflow_graph.rs
++++ b/rust/tcl-compiler/src/dataflow_graph.rs
+@@ -350,7 +350,10 @@
+             continue;
+         }
+         let symbol = *cell;
+-        let cell_display = current_cell.map_or_else(String::new, |cell| cell.compatibility_name());
++        let cell_display = current_cell.map_or_else(
++            String::new,
++            super::var_resolve::cell_key::VariableCellKey::compatibility_name,
++        );
+         let var_name = ssa.var_name(symbol);
+         let ssa_key = Some((symbol, *version));
+         nodes.push(DataFlowNode {
+@@ -383,8 +386,10 @@
+                     use_site.phi_version,
+                 );
+                 edge.to_symbol = Some(use_site.variable);
+-                edge.to_cell =
+-                    receiving_cell.map_or_else(String::new, |cell| cell.compatibility_name());
++                edge.to_cell = receiving_cell.map_or_else(
++                    String::new,
++                    super::var_resolve::cell_key::VariableCellKey::compatibility_name,
++                );
+                 edge
+             } else {
+                 DataFlowEdge::direct(
+--- a/rust/tcl-compiler/src/deferred_writes/supplied.rs
++++ b/rust/tcl-compiler/src/deferred_writes/supplied.rs
+@@ -439,7 +439,10 @@
+                 .map(|index| arguments.literal_at(index))
+                 .collect::<Option<Vec<_>>>();
+             literals.and_then(|literals| {
+-                match arguments.dialect().and_then(|dialect| dialect.family()) {
++                match arguments
++                    .dialect()
++                    .and_then(tcl_registry::InvocationDialect::family)
++                {
+                     Some(tcl_dialect::model::Family::Jim) => {
+                         Some(tcl_syntax::list::concat_values_jim(literals))
+                     }
+--- a/rust/tcl-compiler/src/native_lowering/original_invocations.rs
++++ b/rust/tcl-compiler/src/native_lowering/original_invocations.rs
+@@ -74,7 +74,7 @@
+                 && tokens
+                     .source_binding
+                     .as_ref()
+-                    .and_then(|binding| binding.original_recorded_command())
++                    .and_then(super::super::command_binding::SourceInvocationBinding::original_recorded_command)
+                     .is_some_and(|(command, _)| command.span == invoke.source.span)
+         }))
+     }
+--- a/rust/tcl-compiler/src/parsing/syntax/red.rs
++++ b/rust/tcl-compiler/src/parsing/syntax/red.rs
+@@ -382,7 +382,12 @@
+                 SyntaxElement::Node(node) => node.collect_lexer_tokens(out),
+             }
+         }
+-        let trailing_width: u32 = self.green.trailing.iter().map(|t| t.width()).sum();
++        let trailing_width: u32 = self
++            .green
++            .trailing
++            .iter()
++            .map(super::green::GreenTrivia::width)
++            .sum();
+         let mut offset =
+             self.tree.base_offset + self.full_start + self.green.full_width() - trailing_width;
+         for trivia in &self.green.trailing {
+--- a/rust/tcl-compiler/src/registry_invocation/source_name_roles.rs
++++ b/rust/tcl-compiler/src/registry_invocation/source_name_roles.rs
+@@ -199,7 +199,7 @@
+                 tcl_registry::InvocationWord::Literal(head),
+                 &arguments,
+             ),
+-            dialect.and_then(|dialect| dialect.authoring_query()),
++            dialect.and_then(tcl_registry::InvocationDialect::authoring_query),
+         )
+         .resolved()?;
+     let facts = Box::new(invocation.facts());
+--- a/rust/tcl-compiler/src/registry_invocation/source_structure/source_load/frontier.rs
++++ b/rust/tcl-compiler/src/registry_invocation/source_structure/source_load/frontier.rs
+@@ -40,7 +40,7 @@
+         self.kernel.point()
+     }
+     /// Raw path assignments before this cut's actual handler head. This omits
+-    /// the current SourceLoad barrier, never a preceding opaque/write barrier.
++    /// the current `SourceLoad` barrier, never a preceding opaque/write barrier.
+     /// Physical filename and genuine imported global homes remain host-owned;
+     /// no runtime value, local-cell import or child-return continuity is granted.
+     #[must_use]
+--- a/rust/tcl-compiler/src/registry_invocation/source_structure/project_class_cards.rs
++++ b/rust/tcl-compiler/src/registry_invocation/source_structure/project_class_cards.rs
+@@ -465,7 +465,7 @@
+             .class_declaration()
+             .name_input()
+             .native_input()
+-            .map(|input| input.policy());
++            .map(crate::signature_scan::name_value::SignatureSourceNameInput::policy);
+         let local = OriginalProjectClassCards::capture(analysis)?;
+         return finish(
+             class,
+@@ -574,7 +574,7 @@
+             .class_declaration()
+             .name_input()
+             .native_input()
+-            .map(|input| input.policy());
++            .map(crate::signature_scan::name_value::SignatureSourceNameInput::policy);
+         let constructor_body = class
+             .constructor_body
+             .as_ref()
+--- a/rust/tcl-compiler/src/signature_scan/formal_parameters.rs
++++ b/rust/tcl-compiler/src/signature_scan/formal_parameters.rs
+@@ -179,7 +179,10 @@
+             let name = fields.first()?;
+             if fields.len() != 1 + usize::from(parameter.default.is_some())
+                 || name.value() != parameter.name
+-                || fields.get(1).map(|field| field.value()) != parameter.default.as_deref()
++                || fields
++                    .get(1)
++                    .map(tcl_syntax::word_rules::OriginalSourceListElement::value)
++                    != parameter.default.as_deref()
+             {
+                 return None;
+             }

@@ -1,0 +1,576 @@
+{
+  "prepared_utc": "2026-10-23T01:24:36.298115+00:00",
+  "status": "OFFTREE mechanical-only candidate; no canonical apply/build/queue; no measured Clippy reduction",
+  "current_primary_diagnostics": 512,
+  "proposed_diagnostic_edits": 19,
+  "paths": [
+    {
+      "path": "rust/tcl-compiler/src/command_binding/package_target_survey.rs",
+      "before_sha256": "6661bda25ae1b72fd7835b8238bf455b3b7b6290f2c342e03cfe76a59e5f9c51",
+      "after_sha256": "907b1f0ebf396a9e2d5eb51601486792c95f9502eb511d7fe8c4d9dce9ed6009"
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/diagnostics/proven.rs",
+      "before_sha256": "0a8cf2e907535f8184c60471fc14c68638c4ddb1787d279cfe20a4a3382f636a",
+      "after_sha256": "2d658a41b41c2634d5c09eb0ca59ae377b576477fcb8c5d9ad7e569c942bfab7"
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/types/logical_procedures.rs",
+      "before_sha256": "e682f6a735c831c38835cd0cd05357ada47abad43fa4c44479c0e00fd04ecc15",
+      "after_sha256": "9ae88cc812b894d4d37d74687023c73fc5726e45189b22770a4728d23e2f0fc0"
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/types/logical_members.rs",
+      "before_sha256": "51ccf8794483a55c29316b6a100a11da08581c1eda3a4cf22b1042a041ff6709",
+      "after_sha256": "c0897ecc955091e300e87e1fa1a7884202cd16f149a6367186f484cd80b9bfa6"
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/types.rs",
+      "before_sha256": "838f96035b5d5c7a08707e0e82bb0b960919dc37a20de6d921164e8b8acfcfe2",
+      "after_sha256": "3820e42a7a1ba41d8764ae582c7ed0024c1c132805fe51080262161117ab6e57"
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/variable_alias_templates.rs",
+      "before_sha256": "35acd70d5008ec92d9810ba546513a0cffee9be0fb9db113723547ef0f99bde3",
+      "after_sha256": "5cd29be4537f1cf5e26c1bb0fd7df3338f8efb01413905abcdb9f967341ac257"
+    },
+    {
+      "path": "rust/tcl-compiler/src/cfg_builder/global_write_info.rs",
+      "before_sha256": "20c49eca3a6800e7451a5315b9dbda0cc2eaadaa6a1d27634d7af6b690079297",
+      "after_sha256": "a8f5800438702c0f636aea551379bcc065297577395794ce49fb37eb4a09e89b"
+    },
+    {
+      "path": "rust/tcl-compiler/src/compilation_unit.rs",
+      "before_sha256": "7eb7a987c0c1b9fc56e7b5b1c456b7e9a1988a910c102837cdb1844a35697a83",
+      "after_sha256": "0d87f0397383b7373361dd3a8cee8ec69a1e99b05a355af6d2ddd21697240b25"
+    },
+    {
+      "path": "rust/tcl-compiler/src/dataflow_graph.rs",
+      "before_sha256": "6b6b6082416e5a1df0217baccf370175fc64fc6e5b6cc50e64ba01f703f3be3c",
+      "after_sha256": "313bca5a013a4b081cea22742ef15fc803b3c4f3fd304ee0d5b3342d70626977"
+    },
+    {
+      "path": "rust/tcl-compiler/src/deferred_writes/supplied.rs",
+      "before_sha256": "5f4cbed63a3202a94364c4c66c1fe9568d5ff09128e99bd42eebe390c0a146cf",
+      "after_sha256": "74c3def7314d8eccf937da6534ea5da3e97aa3a96c5536be6a3c4fe5afa0d3e5"
+    },
+    {
+      "path": "rust/tcl-compiler/src/native_lowering/original_invocations.rs",
+      "before_sha256": "66f3a71832d3707d599f3f7ec884bf58c3b5de82eca8de0a05880caab91d0654",
+      "after_sha256": "3a3e8e1b66937a7570c61fa9e46a82dd84b187b56001e33f96a08239e1c72a4e"
+    },
+    {
+      "path": "rust/tcl-compiler/src/parsing/syntax/red.rs",
+      "before_sha256": "ee58028f1135a81d18922d01ff13f477fb04ff856767096f5c5bc085d4ecb619",
+      "after_sha256": "48230b24a639a04b427ee727479c829a6d72a0985d1688e2176df2838fce311d"
+    },
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation/source_name_roles.rs",
+      "before_sha256": "8ba442342c60c1d64ba71341536d9f12bb59817a869234fbfafa2243f67c0005",
+      "after_sha256": "e858bfaab6141a86753cc0ca336ced288c1af02b0dddc1abe69ae5c945945d7a"
+    },
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation/source_structure/source_load/frontier.rs",
+      "before_sha256": "142ade2a74744c30bb8e2ff7a1321550673dea9a7ed9e861e2cf4712db803188",
+      "after_sha256": "d6e4d51457ca70224106958ff58da57e7d860160f46688fba231fa994446accf"
+    },
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation/source_structure/project_class_cards.rs",
+      "before_sha256": "d5d5330b8dec76956096a11dd08a6886dad7583b81283b0ca2dc4140ee52ee27",
+      "after_sha256": "e83e6e85f2e32396b9ee135f3ee05a2da8e520a62dc034febcd82490ab9ca057"
+    },
+    {
+      "path": "rust/tcl-compiler/src/signature_scan/formal_parameters.rs",
+      "before_sha256": "bb2952106d08d5485edfddebcb21da794442822e6a519c92ead121efac544d5b",
+      "after_sha256": "20e4a3a1d359a2fa0ce3142b08110f539c0cc566f77cf966ff9c9b1543594664"
+    }
+  ],
+  "patch_sha256": "f0f7d52ac8a38e3cfc39db6f7e24295b7ddf32e02bee09ea428537ea2b4e0f9c",
+  "scope": "Current exact diagnostic source lines only. Method closures excluding higher-ranked schema queries; field shorthand/borrow/comment/ProcedureId clone/semicolon mechanical edits. No function/type/frame/semantic/execution/allow/test/assertion change.",
+  "historical_draft": {
+    "sha256": "bf901f821485cea04f6998016c17275cd7ef88dcf3c6d4e3f9d252d23f75537b",
+    "exact_before_matches": 72,
+    "total_paths": 78,
+    "policy": "Not replayed; independent current-primary edits",
+    "applicability": [
+      {
+        "path": "rust/tcl-compiler/src/analyser/bounds_checks/source_index.rs",
+        "exact_before_current": true
+      },
+      {
+        "path": "rust/tcl-compiler/src/analyser/class_hierarchy.rs",
+        "exact_before_current": true
+      },
+      {
+        "path": "rust/tcl-compiler/src/analyser/class_hierarchy/original_metadata.rs",
+        "exact_before_current": true
+      },
+      {
+        "path": "rust/tcl-compiler/src/analyser/commands.rs",
+        "exact_before_current": true
+      },
+      {
+        "path": "rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs",
+        "exact_before_current": true
+      },
+      {
+        "path": "rust/tcl-compiler/src/analyser/diagnostics/proven.rs",
+        "exact_before_current": true
+      },
+      {
+        "path": "rust/tcl-compiler/src/analyser/diagnostics/security/source_credentials.rs",
+        "exact_before_current": true
+      },
+      {
+        "path": "rust/tcl-compiler/src/analyser/diagnostics/security/source_patterns.rs",
+        "exact_before_current": true
+      },
+      {
+        "path": "rust/tcl-compiler/src/analyser/diagnostics/security/source_template.rs",
+        "exact_before_current": true
+      },
+      {
+        "path": "rust/tcl-compiler/src/analyser/diagnostics/usage.rs",
+        "exact_before_current": true
+      },
+      {
+        "path": "rust/tcl-compiler/src/analyser/diagnostics/usage/source_channel.rs",
+        "exact_before_current": true
+      },
+      {
+        "path": "rust/tcl-compiler/src/analyser/diagnostics/var_command.rs",
+        "exact_before_current": true
+      },
+      {
+        "path": "rust/tcl-compiler/src/analyser/handlers.rs",
+        "exact_before_current": true
+      },
+      {
+        "path": "rust/tcl-compiler/src/analyser/input.rs",
+        "exact_before_current": true
+      },
+      {
+        "path": "rust/tcl-compiler/src/analyser/param_traits.rs",
+        "exact_before_current": true
+      },
+      {
+        "path": "rust/tcl-compiler/src/analyser/per_item.rs",
+        "exact_before_current": true
+      },
+      {
+        "path": "rust/tcl-compiler/src/analyser/types.rs",
+        "exact_before_current": true
+      },
+      {
+        "path": "rust/tcl-compiler/src/analyser/types/logical_members.rs",
+        "exact_before_current": true
+      },
+      {
+        "path": "rust/tcl-compiler/src/analyser/types/original_linked_member.rs",
+        "exact_before_current": true
+      },
+      {
+        "path": "rust/tcl-compiler/src/analyser/utils.rs",
+        "exact_before_current": true
+      },
+      {
+        "path": "rust/tcl-compiler/src/analyser/variable_alias_templates.rs",
+        "exact_before_current": true
+      },
+      {
+        "path": "rust/tcl-compiler/src/auto_path_eval/source_expression.rs",
+        "exact_before_current": true
+      },
+      {
+        "path": "rust/tcl-compiler/src/cfg_builder/global_write_info.rs",
+        "exact_before_current": true
+      },
+      {
+        "path": "rust/tcl-compiler/src/cfg_builder/mod.rs",
+        "exact_before_current": true
+      },
+      {
+        "path": "rust/tcl-compiler/src/command_binding.rs",
+        "exact_before_current": false
+      },
+      {
+        "path": "rust/tcl-compiler/src/command_binding/source_declared_command/logical_lambda.rs",
+        "exact_before_current": true
+      },
+      {
+        "path": "rust/tcl-compiler/src/command_binding/source_transition_advice.rs",
+        "exact_before_current": false
+      },
+      {
+        "path": "rust/tcl-compiler/src/command_binding/source_transition_advice/body_effects.rs",
+        "exact_before_current": false
+      },
+      {
+        "path": "rust/tcl-compiler/src/command_binding/source_transition_advice/logical_lambda_formatting.rs",
+        "exact_before_current": true
+      },
+      {
+        "path": "rust/tcl-compiler/src/compilation_unit.rs",
+        "exact_before_current": true
+      },
+      {
+        "path": "rust/tcl-compiler/src/connection_scope.rs",
+        "exact_before_current": true
+      },
+      {
+        "path": "rust/tcl-compiler/src/dataflow_graph.rs",
+        "exact_before_current": true
+      },
+      {
+        "path": "rust/tcl-compiler/src/dynamic_names.rs",
+        "exact_before_current": true
+      },
+      {
+        "path": "rust/tcl-compiler/src/executable_ir.rs",
+        "exact_before_current": true
+      },
+      {
+        "path": "rust/tcl-compiler/src/increment_rewrite.rs",
+        "exact_before_current": true
+      },
+      {
+        "path": "rust/tcl-compiler/src/inlining/heads.rs",
+        "exact_before_current": true
+      },
+      {
+        "path": "rust/tcl-compiler/src/inlining/mod.rs",
+        "exact_before_current": true
+      },
+      {
+        "path": "rust/tcl-compiler/src/interprocedural.rs",
+        "exact_before_current": true
+      },
+      {
+        "path": "rust/tcl-compiler/src/interprocedural/transfer.rs",
+        "exact_before_current": true
+      },
+      {
+        "path": "rust/tcl-compiler/src/interval_bounds.rs",
+        "exact_before_current": true
+      },
+      {
+        "path": "rust/tcl-compiler/src/ir_helpers.rs",
+        "exact_before_current": true
+      },
+      {
+        "path": "rust/tcl-compiler/src/ir_helpers/materialized_footprint.rs",
+        "exact_before_current": true
+      },
+      {
+        "path": "rust/tcl-compiler/src/irules_checks.rs",
+        "exact_before_current": true
+      },
+      {
+        "path": "rust/tcl-compiler/src/lambda_literal.rs",
+        "exact_before_current": true
+      },
+      {
+        "path": "rust/tcl-compiler/src/lib.rs",
+        "exact_before_current": true
+      },
+      {
+        "path": "rust/tcl-compiler/src/memory_ssa.rs",
+        "exact_before_current": true
+      },
+      {
+        "path": "rust/tcl-compiler/src/object_types.rs",
+        "exact_before_current": true
+      },
+      {
+        "path": "rust/tcl-compiler/src/object_types/original_collection_sources.rs",
+        "exact_before_current": true
+      },
+      {
+        "path": "rust/tcl-compiler/src/optimiser/propagation.rs",
+        "exact_before_current": true
+      },
+      {
+        "path": "rust/tcl-compiler/src/parsing/spectcl_source/original_word.rs",
+        "exact_before_current": true
+      },
+      {
+        "path": "rust/tcl-compiler/src/parsing/syntax/red.rs",
+        "exact_before_current": true
+      },
+      {
+        "path": "rust/tcl-compiler/src/place_bridge.rs",
+        "exact_before_current": true
+      },
+      {
+        "path": "rust/tcl-compiler/src/realm.rs",
+        "exact_before_current": true
+      },
+      {
+        "path": "rust/tcl-compiler/src/regex_source.rs",
+        "exact_before_current": true
+      },
+      {
+        "path": "rust/tcl-compiler/src/registry_invocation.rs",
+        "exact_before_current": false
+      },
+      {
+        "path": "rust/tcl-compiler/src/registry_invocation/original_procedure_call.rs",
+        "exact_before_current": true
+      },
+      {
+        "path": "rust/tcl-compiler/src/registry_invocation/source_name_roles.rs",
+        "exact_before_current": true
+      },
+      {
+        "path": "rust/tcl-compiler/src/registry_invocation/source_reference_candidates.rs",
+        "exact_before_current": true
+      },
+      {
+        "path": "rust/tcl-compiler/src/registry_invocation/source_schema_queries.rs",
+        "exact_before_current": false
+      },
+      {
+        "path": "rust/tcl-compiler/src/registry_invocation/source_scoped_body.rs",
+        "exact_before_current": true
+      },
+      {
+        "path": "rust/tcl-compiler/src/registry_invocation/source_structure/package_target_survey.rs",
+        "exact_before_current": true
+      },
+      {
+        "path": "rust/tcl-compiler/src/retained_key_map.rs",
+        "exact_before_current": false
+      },
+      {
+        "path": "rust/tcl-compiler/src/sccp.rs",
+        "exact_before_current": true
+      },
+      {
+        "path": "rust/tcl-compiler/src/signature_scan/walker.rs",
+        "exact_before_current": true
+      },
+      {
+        "path": "rust/tcl-compiler/src/slot_allocation.rs",
+        "exact_before_current": true
+      },
+      {
+        "path": "rust/tcl-compiler/src/ssa.rs",
+        "exact_before_current": true
+      },
+      {
+        "path": "rust/tcl-compiler/src/table_value_provenance.rs",
+        "exact_before_current": true
+      },
+      {
+        "path": "rust/tcl-compiler/src/taint.rs",
+        "exact_before_current": true
+      },
+      {
+        "path": "rust/tcl-compiler/src/unit_scope.rs",
+        "exact_before_current": true
+      },
+      {
+        "path": "rust/tcl-compiler/src/uri_split.rs",
+        "exact_before_current": true
+      },
+      {
+        "path": "rust/tcl-compiler/src/value_provenance.rs",
+        "exact_before_current": true
+      },
+      {
+        "path": "rust/tcl-compiler/src/value_transfer.rs",
+        "exact_before_current": true
+      },
+      {
+        "path": "rust/tcl-compiler/src/var_escape/cfg_propagation/walker.rs",
+        "exact_before_current": true
+      },
+      {
+        "path": "rust/tcl-compiler/src/var_escape/helpers.rs",
+        "exact_before_current": true
+      },
+      {
+        "path": "rust/tcl-compiler/src/var_escape/walker.rs",
+        "exact_before_current": true
+      },
+      {
+        "path": "rust/tcl-compiler/src/variable_bindings.rs",
+        "exact_before_current": true
+      },
+      {
+        "path": "rust/tcl-compiler/src/word_subst.rs",
+        "exact_before_current": true
+      },
+      {
+        "path": "rust/tcl-compiler/src/world_state_ssa.rs",
+        "exact_before_current": true
+      }
+    ]
+  },
+  "skipped": [
+    {
+      "id": 13,
+      "reason": "higher-ranked schema query deferred"
+    },
+    {
+      "id": 21,
+      "reason": "higher-ranked schema query deferred"
+    },
+    {
+      "id": 23,
+      "reason": "higher-ranked schema query deferred"
+    },
+    {
+      "id": 28,
+      "reason": "after first cfg(test), excluded"
+    },
+    {
+      "id": 29,
+      "reason": "after first cfg(test), excluded"
+    },
+    {
+      "id": 30,
+      "reason": "after first cfg(test), excluded"
+    },
+    {
+      "id": 34,
+      "reason": "higher-ranked schema query deferred"
+    },
+    {
+      "id": 41,
+      "reason": "higher-ranked schema query deferred"
+    },
+    {
+      "id": 43,
+      "reason": "higher-ranked schema query deferred"
+    },
+    {
+      "id": 44,
+      "reason": "higher-ranked schema query deferred"
+    },
+    {
+      "id": 45,
+      "reason": "higher-ranked schema query deferred"
+    },
+    {
+      "id": 48,
+      "reason": "higher-ranked schema query deferred"
+    },
+    {
+      "id": 50,
+      "reason": "after first cfg(test), excluded"
+    },
+    {
+      "id": 59,
+      "reason": "after first cfg(test), excluded"
+    },
+    {
+      "id": 74,
+      "reason": "higher-ranked schema query deferred"
+    },
+    {
+      "id": 75,
+      "reason": "after first cfg(test), excluded"
+    },
+    {
+      "id": 87,
+      "reason": "after first cfg(test), excluded"
+    },
+    {
+      "id": 122,
+      "reason": "higher-ranked schema query deferred"
+    },
+    {
+      "id": 149,
+      "reason": "higher-ranked schema query deferred"
+    },
+    {
+      "id": 199,
+      "reason": "after first cfg(test), excluded"
+    },
+    {
+      "id": 266,
+      "reason": "after first cfg(test), excluded"
+    },
+    {
+      "id": 267,
+      "reason": "after first cfg(test), excluded"
+    },
+    {
+      "id": 268,
+      "reason": "after first cfg(test), excluded"
+    },
+    {
+      "id": 314,
+      "reason": "higher-ranked schema query deferred"
+    },
+    {
+      "id": 315,
+      "reason": "after first cfg(test), excluded"
+    },
+    {
+      "id": 333,
+      "reason": "after first cfg(test), excluded"
+    },
+    {
+      "id": 367,
+      "reason": "after first cfg(test), excluded"
+    },
+    {
+      "id": 368,
+      "reason": "higher-ranked schema query deferred"
+    },
+    {
+      "id": 371,
+      "reason": "higher-ranked schema query deferred"
+    },
+    {
+      "id": 382,
+      "reason": "after first cfg(test), excluded"
+    },
+    {
+      "id": 383,
+      "reason": "after first cfg(test), excluded"
+    },
+    {
+      "id": 384,
+      "reason": "after first cfg(test), excluded"
+    },
+    {
+      "id": 385,
+      "reason": "after first cfg(test), excluded"
+    },
+    {
+      "id": 386,
+      "reason": "after first cfg(test), excluded"
+    },
+    {
+      "id": 405,
+      "reason": "after first cfg(test), excluded"
+    },
+    {
+      "id": 459,
+      "reason": "after first cfg(test), excluded"
+    },
+    {
+      "id": 483,
+      "reason": "after first cfg(test), excluded"
+    },
+    {
+      "id": 484,
+      "reason": "after first cfg(test), excluded"
+    },
+    {
+      "id": 485,
+      "reason": "after first cfg(test), excluded"
+    },
+    {
+      "id": 487,
+      "reason": "after first cfg(test), excluded"
+    }
+  ],
+  "apply_check_exit": 0,
+  "rustfmt": "pinned1.99.1 all changed off-tree files parsed/formatted; canonical untouched",
+  "validation": "Typing/Clippy UNRUN. All512 primary findings pending actual Clippy. Formatting reviewed separately.",
+  "sequence": "After fixedproduct49 and root peer review only; do not refresh49"
+}

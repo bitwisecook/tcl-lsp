@@ -1,0 +1,55 @@
+{
+  "frozen_utc": "2026-10-23T01:38:24.802803+00:00",
+  "status": "OFFTREE immutable prepared14v2 protocol; independent review pending; no runtime or typing acceptance",
+  "policy": "Do not edit these frozen members. Later review/enrichment must use separate route file.",
+  "source17_manifest_sha256": "0392557671118a5c916e4fb9cdfa2c919d40c57abf40344c32c2fac41b2cc3de",
+  "members": [
+    {
+      "path": "guarded-cargo.py.txt",
+      "bytes": 2966,
+      "sha256": "a386c6028470e95469b99ce0aad8560f81c48b7a9fe075dd8cec41bfcd8ebba8"
+    },
+    {
+      "path": "launch.py.txt",
+      "bytes": 4770,
+      "sha256": "8447c209edcb7844ad5e7080181be20ae436a116f92e42f1e0599136373bdde2"
+    },
+    {
+      "path": "plan.json",
+      "bytes": 6797,
+      "sha256": "23dd4d5228b13b595cac009f3ec6b931431c2626cf497623b66ce3193ff877a3"
+    },
+    {
+      "path": "preflight-refusal.json",
+      "bytes": 275,
+      "sha256": "086562a2dad72d16d69dcf09698e28568b29c8841ceeee5d4efc2c9edee71f9b"
+    },
+    {
+      "path": "readiness.json",
+      "bytes": 1678,
+      "sha256": "8b0e7157d237de35c87dd9fa51f7cb05653d2affcf3b9bffc1ea0a85366a6b82"
+    },
+    {
+      "path": "run.sh.txt",
+      "bytes": 128,
+      "sha256": "d0ef3f424312afb4c64fbe58341b353c9c19a7d1335b2c689835a79beaa10c7a"
+    },
+    {
+      "path": "runtime-watchdog.py.txt",
+      "bytes": 9776,
+      "sha256": "80af195fce4690d872580d175342398054d8c973553fbde09287433cbcd9046d"
+    },
+    {
+      "path": "source17-manifest.json",
+      "bytes": 4715,
+      "sha256": "0392557671118a5c916e4fb9cdfa2c919d40c57abf40344c32c2fac41b2cc3de"
+    },
+    {
+      "path": "suite.py.txt",
+      "bytes": 14024,
+      "sha256": "99acb6dade6e8ebdbe30040ff8027335666cdf65ea0abf8c8ddc76207108aeb6"
+    }
+  ],
+  "raw_rust_c_sources": false,
+  "source_runtime_untouched": true
+}

@@ -1,0 +1,172 @@
+{
+  "created_utc": "2026-10-23T01:27:07Z",
+  "status": "OFFTREE composition only; untyped/unrun; no typing/runtime/performance acceptance",
+  "canonical_identity": {
+    "head": "94ae34ae9b795d297750e4638fe1d6c1cdc98cf5",
+    "named_product": "3b1a750be",
+    "candidate_source_paths_identical_between_head_and_named_product": true
+  },
+  "shadow_path": "/tmp/five-cleared-candidate-composition-20261023T012644Z/shadow",
+  "composition": {
+    "components": [
+      {
+        "name": "compiler-authenticated-report-capture-v7",
+        "source_patch": "/tmp/compiler-authenticated-report-capture-v7/proposal.patch",
+        "patch_sha256": "2351e4cf48adf9d66ddfaa75661e01e4ffc8bc405b4c61e6f1bac4e3dc5cbc8b",
+        "strip": 1,
+        "paths": [
+          "rust/tcl-compiler/src/analyser/authenticated_report.rs",
+          "rust/tcl-compiler/src/analyser/authenticated_report/body_correspondence.rs",
+          "rust/tcl-compiler/src/analyser/authenticated_report/field_comparison.rs",
+          "rust/tcl-compiler/src/analyser/diagnostic_subject.rs",
+          "rust/tcl-compiler/src/analyser/diagnostics.rs",
+          "rust/tcl-compiler/src/analyser/mod.rs",
+          "rust/tcl-compiler/src/analyser/state.rs",
+          "rust/tcl-compiler/src/command_binding/retained_source.rs",
+          "rust/tcl-compiler/src/command_binding/source_transition_advice/source_procedure.rs",
+          "rust/tcl-compiler/src/compilation_unit/optimiser_source_owner.rs",
+          "rust/tcl-compiler/src/object_types.rs",
+          "rust/tcl-compiler/src/object_types/authenticated_report.rs",
+          "rust/tcl-compiler/src/object_types/logical_source_candidates.rs"
+        ],
+        "peer_receipts": [
+          "/tmp/compiler-authenticated-report-capture-v7/receipt.json"
+        ]
+      },
+      {
+        "name": "lsp-wasm-source-view-unpin-v1",
+        "source_patch": "/tmp/lsp-wasm-source-view-unpin-v1/proposal.patch",
+        "patch_sha256": "763f9c9dd0193628857c039a483797d66283e93736fcbf2e7bfe50f18e6b3c49",
+        "strip": 0,
+        "paths": [
+          "rust/tcl-lsp-server/src/readonly_reference_reports/source_views.rs"
+        ],
+        "peer_receipts": [
+          "/tmp/lsp-wasm-source-view-unpin-v1/receipt.json",
+          "/tmp/lsp-wasm-source-view-unpin-v1/names-peer-review.json"
+        ]
+      },
+      {
+        "name": "compiler-spectcl-corpus-trait-depth-v1",
+        "source_patch": "/tmp/compiler-spectcl-corpus-trait-depth-v1/proposal.patch",
+        "patch_sha256": "735d71b4370e4aedf97382269d9c49e44497bbf6b9ced93bb2b03fd1d22b7c78",
+        "strip": 1,
+        "paths": [
+          "rust/tcl-spectcl/tests/spec_corpus.rs"
+        ],
+        "peer_receipts": [
+          "/tmp/compiler-spectcl-corpus-trait-depth-v1/diagnosis.json",
+          "/tmp/compiler-spectcl-corpus-trait-depth-v1/names-peer-review.json"
+        ]
+      },
+      {
+        "name": "vm-runtime-c84-compile-producer-v3",
+        "source_patch": "/tmp/vm-runtime-c84-compile-producer-20261023T0104Z/compile-publication-fix-v3.patch",
+        "patch_sha256": "c12f266ecb683b2029513163c13dfa10ff12312c946210c51070f59d404edde8",
+        "strip": 1,
+        "paths": [
+          "runtime/rust/src/interp.rs"
+        ],
+        "peer_receipts": [
+          "/tmp/vm-runtime-c84-compile-producer-20261023T0104Z/fix-v3-receipt.json"
+        ]
+      },
+      {
+        "name": "ccg-hosted-abi-candidate-v3",
+        "source_patch": "/tmp/ccg-hosted-abi-candidate/v3/proposal.patch",
+        "patch_sha256": "b23e060b06893c0f597213d11b4d5defc5facbe3e6a7afe234d6fc1a5af80acd",
+        "strip": 1,
+        "paths": [
+          "rust/tcl-compiler/tests/wasm_real_link.rs"
+        ],
+        "peer_receipts": [
+          "/tmp/ccg-hosted-abi-candidate/v3/review-receipt.json"
+        ]
+      }
+    ],
+    "expected_component_count": 5,
+    "expected_distinct_paths": 17,
+    "excluded": [
+      "cmdcore/Compilerlint candidates",
+      "float16a",
+      "BPF81f",
+      "VM new observer be669",
+      "probes/untoggle"
+    ]
+  },
+  "combined_patch": {
+    "path": "/tmp/five-cleared-candidate-composition-20261023T012644Z/combined.patch",
+    "sha256": "b086f3de5ecd79fc9d245e9dd000a807f83c223ffc5e5c8c41db32905ba4386f",
+    "bytes": 90084,
+    "apply_check": "PASS: fresh file-copy shadow, patch --fuzz=0 -p1",
+    "reproduces_composed_final_hashes": true
+  },
+  "canonical_before_sha256": {
+    "runtime/rust/src/interp.rs": "abe76cef6c84e0a96cb8bd6cfe85b595e08df6f9f7b6131385721aa303cc227d",
+    "rust/tcl-compiler/src/analyser/authenticated_report.rs": null,
+    "rust/tcl-compiler/src/analyser/authenticated_report/body_correspondence.rs": null,
+    "rust/tcl-compiler/src/analyser/authenticated_report/field_comparison.rs": null,
+    "rust/tcl-compiler/src/analyser/diagnostic_subject.rs": "3cc924569d825b4e5b399b6f89384c70e93235068892bd4bcf6156706b358c2e",
+    "rust/tcl-compiler/src/analyser/diagnostics.rs": "058c540c510fd84032265302b50b8bc872c102581a5720de263eb4e04c21c7f1",
+    "rust/tcl-compiler/src/analyser/mod.rs": "9550ef401ee80f594f253ba736691453649a4c9c0b3b1a6014f56ea7c51f2e53",
+    "rust/tcl-compiler/src/analyser/state.rs": "43883e216d0a50c89ebc568c5b78b3d36f0fc7bfb7ee17e6fbbc8a064ee875ed",
+    "rust/tcl-compiler/src/command_binding/retained_source.rs": "4d34f256a857290482d3b48d064645b41afd93b870dd729c512e49b7f1fba1a6",
+    "rust/tcl-compiler/src/command_binding/source_transition_advice/source_procedure.rs": "3e2177ed83ba187555ce1a3711f1759cd075d39cb4f7346b1f7208c16572c697",
+    "rust/tcl-compiler/src/compilation_unit/optimiser_source_owner.rs": "97bdc8d2b8da3854bd76c6216598af45416d5b1b0eb639e21a0dadec31156a6b",
+    "rust/tcl-compiler/src/object_types.rs": "28ea3229204b2bb3da61a80def8612efb4d07d37bd797cdcab3125e4ebb85abe",
+    "rust/tcl-compiler/src/object_types/authenticated_report.rs": null,
+    "rust/tcl-compiler/src/object_types/logical_source_candidates.rs": "3893c509904c7ef411fd213add9c52ee6904423ae36ad526831d249634e89c1f",
+    "rust/tcl-compiler/tests/wasm_real_link.rs": "ff2d3a6cf4925491ee916591c30234a7c7b0f60ab21f9b2db0ee9cf088433645",
+    "rust/tcl-lsp-server/src/readonly_reference_reports/source_views.rs": "d8aeeba10c3ee218531deffa0111213dcabdda437a849fffbabf780c4965124d",
+    "rust/tcl-spectcl/tests/spec_corpus.rs": "424dee1ed6468ce0a7e6d6f5051e8e5bc600e7029f2e46cae86194b50c01548b"
+  },
+  "composed_final_sha256": {
+    "runtime/rust/src/interp.rs": "580d73c054dab8c309ef977572f74c6ba0f6c7febbc206d3dc3f3ff52f8ec398",
+    "rust/tcl-compiler/src/analyser/authenticated_report.rs": "94757f7ccb8bffc22b503476f4c5951fc54fdac9318b95bdef0c0b08b188afed",
+    "rust/tcl-compiler/src/analyser/authenticated_report/body_correspondence.rs": "dbd29b45aac469912a26fd186013403ec197ee88850b560551e039a3f0f20449",
+    "rust/tcl-compiler/src/analyser/authenticated_report/field_comparison.rs": "a2469d752fdde34d9af37470f97b5d1614678ae043b2fae7befaec5589ef3eb0",
+    "rust/tcl-compiler/src/analyser/diagnostic_subject.rs": "607f13c3a49db923b82026f99e1992fa24d3d016426cba2aa3795c719f1a9eb3",
+    "rust/tcl-compiler/src/analyser/diagnostics.rs": "f9881885a30575ad2a5cbfe10ac867b72ca6e16f2402a1ae852652eeb19ee086",
+    "rust/tcl-compiler/src/analyser/mod.rs": "01624f36d846c6a3a980ebc57121d27c7fd8a37bfa28904040698b9ea0cfdf43",
+    "rust/tcl-compiler/src/analyser/state.rs": "ecba537a5e51ee375f34587e0bd82a0ce2f14fa60b7fb1c9dea86ed9f1dc0ce6",
+    "rust/tcl-compiler/src/command_binding/retained_source.rs": "b98a368f62e619ed4d2878843af1c6cbf742f0905af7f07d25569a8135061e74",
+    "rust/tcl-compiler/src/command_binding/source_transition_advice/source_procedure.rs": "05815c97d867964a1c10aef183a6449d5eb5f3df5251c3868edc1ddde23d4ef2",
+    "rust/tcl-compiler/src/compilation_unit/optimiser_source_owner.rs": "ec86b02ea0504c7d812adbe6ebf3c563512dad7b83b4f7b0652f27b73d962500",
+    "rust/tcl-compiler/src/object_types.rs": "42bd4ed50b0f5cbef2b67eec0904efa016470c789d2d2273e8db8d7430abe3d2",
+    "rust/tcl-compiler/src/object_types/authenticated_report.rs": "7bf19fe591eff32db05840557feee8b9b9d5d523b3070cb46177f493a266a248",
+    "rust/tcl-compiler/src/object_types/logical_source_candidates.rs": "955ca4821e509d0d27be51484e21d58878df22a1bf437dd015aba023d41c1c68",
+    "rust/tcl-compiler/tests/wasm_real_link.rs": "2646564a28a740bb3cc7e488ac8a4b4b109bf6f4ff5cab1914b24d5a62ed67dc",
+    "rust/tcl-lsp-server/src/readonly_reference_reports/source_views.rs": "151c4869840da62605eac7ed1077e00293cf31ecef7e4f543dd5814e5d4802ee",
+    "rust/tcl-spectcl/tests/spec_corpus.rs": "68ceb946570a53f4dd1cf1e037c67ffc76db0da2ac9c1b70c8d2128a3c453db5"
+  },
+  "independent_combined_check_sha256": {
+    "runtime/rust/src/interp.rs": "580d73c054dab8c309ef977572f74c6ba0f6c7febbc206d3dc3f3ff52f8ec398",
+    "rust/tcl-compiler/src/analyser/authenticated_report.rs": "94757f7ccb8bffc22b503476f4c5951fc54fdac9318b95bdef0c0b08b188afed",
+    "rust/tcl-compiler/src/analyser/authenticated_report/body_correspondence.rs": "dbd29b45aac469912a26fd186013403ec197ee88850b560551e039a3f0f20449",
+    "rust/tcl-compiler/src/analyser/authenticated_report/field_comparison.rs": "a2469d752fdde34d9af37470f97b5d1614678ae043b2fae7befaec5589ef3eb0",
+    "rust/tcl-compiler/src/analyser/diagnostic_subject.rs": "607f13c3a49db923b82026f99e1992fa24d3d016426cba2aa3795c719f1a9eb3",
+    "rust/tcl-compiler/src/analyser/diagnostics.rs": "f9881885a30575ad2a5cbfe10ac867b72ca6e16f2402a1ae852652eeb19ee086",
+    "rust/tcl-compiler/src/analyser/mod.rs": "01624f36d846c6a3a980ebc57121d27c7fd8a37bfa28904040698b9ea0cfdf43",
+    "rust/tcl-compiler/src/analyser/state.rs": "ecba537a5e51ee375f34587e0bd82a0ce2f14fa60b7fb1c9dea86ed9f1dc0ce6",
+    "rust/tcl-compiler/src/command_binding/retained_source.rs": "b98a368f62e619ed4d2878843af1c6cbf742f0905af7f07d25569a8135061e74",
+    "rust/tcl-compiler/src/command_binding/source_transition_advice/source_procedure.rs": "05815c97d867964a1c10aef183a6449d5eb5f3df5251c3868edc1ddde23d4ef2",
+    "rust/tcl-compiler/src/compilation_unit/optimiser_source_owner.rs": "ec86b02ea0504c7d812adbe6ebf3c563512dad7b83b4f7b0652f27b73d962500",
+    "rust/tcl-compiler/src/object_types.rs": "42bd4ed50b0f5cbef2b67eec0904efa016470c789d2d2273e8db8d7430abe3d2",
+    "rust/tcl-compiler/src/object_types/authenticated_report.rs": "7bf19fe591eff32db05840557feee8b9b9d5d523b3070cb46177f493a266a248",
+    "rust/tcl-compiler/src/object_types/logical_source_candidates.rs": "955ca4821e509d0d27be51484e21d58878df22a1bf437dd015aba023d41c1c68",
+    "rust/tcl-compiler/tests/wasm_real_link.rs": "2646564a28a740bb3cc7e488ac8a4b4b109bf6f4ff5cab1914b24d5a62ed67dc",
+    "rust/tcl-lsp-server/src/readonly_reference_reports/source_views.rs": "151c4869840da62605eac7ed1077e00293cf31ecef7e4f543dd5814e5d4802ee",
+    "rust/tcl-spectcl/tests/spec_corpus.rs": "68ceb946570a53f4dd1cf1e037c67ffc76db0da2ac9c1b70c8d2128a3c453db5"
+  },
+  "rustfmt": {
+    "status": "not run; pinned rustfmt 1.99.1 unavailable (rustfmt/rustup absent from PATH and /workspace/naming-toolchains/bin/rustfmt absent)"
+  },
+  "docs_archive": {
+    "directory": "docs/work/name-handling/handoff/reviews/merge-inventory-20261019/coordinator-20261023/five-cleared-candidate-composition",
+    "patch_gzip": "combined.patch.gz",
+    "patch_gzip_sha256": "446bbc1ffb08b56a084fe398e68c8cdaceb018570fc86a3e382aaf83837b05e4",
+    "patch_gzip_bytes": 19097,
+    "decompressed_patch_sha256": "b086f3de5ecd79fc9d245e9dd000a807f83c223ffc5e5c8c41db32905ba4386f",
+    "manifest_text": "manifest.txt"
+  }
+}

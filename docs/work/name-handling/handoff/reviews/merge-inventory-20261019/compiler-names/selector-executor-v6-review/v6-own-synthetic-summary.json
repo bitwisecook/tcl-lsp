@@ -1,0 +1,138 @@
+{
+  "module_sha256": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811",
+  "cases": [
+    {
+      "complete": true,
+      "stop_reason": null,
+      "elapsed_seconds": 0.356471007,
+      "exit_code": 0,
+      "group_empty_before_parent_reap": true,
+      "retained_bytes": 24,
+      "artifact_unchanged": true,
+      "parent_waitid_wnowait": {
+        "si_pid": 216161,
+        "si_code": 1,
+        "si_status": 0
+      },
+      "group_scan_attempts": 2,
+      "consecutive_complete_empty_group_scans": 2,
+      "last_group_scan": {
+        "members": [],
+        "vanished_pids": [],
+        "complete": true
+      },
+      "case": "fast"
+    },
+    {
+      "complete": false,
+      "stop_reason": "owned_group_live_after_parent_exit",
+      "elapsed_seconds": 1.16601529,
+      "exit_code": 0,
+      "group_empty_before_parent_reap": true,
+      "retained_bytes": 7,
+      "artifact_unchanged": true,
+      "parent_waitid_wnowait": {
+        "si_pid": 216162,
+        "si_code": 1,
+        "si_status": 0
+      },
+      "group_scan_attempts": 4,
+      "consecutive_complete_empty_group_scans": 2,
+      "last_group_scan": {
+        "members": [],
+        "vanished_pids": [],
+        "complete": true
+      },
+      "case": "silent_child"
+    },
+    {
+      "complete": false,
+      "stop_reason": "selector_timeout",
+      "elapsed_seconds": 1.147855609,
+      "exit_code": -2,
+      "group_empty_before_parent_reap": true,
+      "retained_bytes": 0,
+      "artifact_unchanged": true,
+      "parent_waitid_wnowait": {
+        "si_pid": 216164,
+        "si_code": 2,
+        "si_status": 2
+      },
+      "group_scan_attempts": 2,
+      "consecutive_complete_empty_group_scans": 2,
+      "last_group_scan": {
+        "members": [],
+        "vanished_pids": [],
+        "complete": true
+      },
+      "case": "closedpipes_liveparent"
+    },
+    {
+      "complete": false,
+      "stop_reason": "aggregate_log_cap_exceeded",
+      "elapsed_seconds": 0.645679141,
+      "exit_code": 0,
+      "group_empty_before_parent_reap": true,
+      "retained_bytes": 1024,
+      "artifact_unchanged": true,
+      "parent_waitid_wnowait": {
+        "si_pid": 216165,
+        "si_code": 1,
+        "si_status": 0
+      },
+      "group_scan_attempts": 2,
+      "consecutive_complete_empty_group_scans": 2,
+      "last_group_scan": {
+        "members": [],
+        "vanished_pids": [],
+        "complete": true
+      },
+      "case": "cap"
+    },
+    {
+      "complete": true,
+      "stop_reason": null,
+      "elapsed_seconds": 0.393250878,
+      "exit_code": 7,
+      "group_empty_before_parent_reap": true,
+      "retained_bytes": 14,
+      "artifact_unchanged": true,
+      "parent_waitid_wnowait": {
+        "si_pid": 216166,
+        "si_code": 1,
+        "si_status": 7
+      },
+      "group_scan_attempts": 2,
+      "consecutive_complete_empty_group_scans": 2,
+      "last_group_scan": {
+        "members": [],
+        "vanished_pids": [],
+        "complete": true
+      },
+      "case": "nonzero"
+    },
+    {
+      "complete": true,
+      "stop_reason": null,
+      "elapsed_seconds": 0.822842616,
+      "exit_code": 0,
+      "group_empty_before_parent_reap": true,
+      "retained_bytes": 12,
+      "artifact_unchanged": true,
+      "parent_waitid_wnowait": {
+        "si_pid": 216167,
+        "si_code": 1,
+        "si_status": 0
+      },
+      "group_scan_attempts": 3,
+      "consecutive_complete_empty_group_scans": 2,
+      "last_group_scan": {
+        "members": [],
+        "vanished_pids": [],
+        "complete": true
+      },
+      "case": "injected_incomplete_scan"
+    }
+  ],
+  "scope": "own Python synthetic children only; no Cargo/runtime/compiler tests"
+}

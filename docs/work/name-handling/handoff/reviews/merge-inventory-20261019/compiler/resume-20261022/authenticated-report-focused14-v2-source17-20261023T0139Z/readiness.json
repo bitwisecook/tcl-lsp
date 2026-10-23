@@ -1,0 +1,30 @@
+{
+  "prepared_utc": "2026-10-23T01:36:23.263714+00:00",
+  "status": "OFFTREE PREPARED, no Cargo, no queue, no integration, no rootGO file",
+  "predecessor_v1_immutable": true,
+  "files": {
+    "guarded-cargo.py": "a386c6028470e95469b99ce0aad8560f81c48b7a9fe075dd8cec41bfcd8ebba8",
+    "launch.py": "8447c209edcb7844ad5e7080181be20ae436a116f92e42f1e0599136373bdde2",
+    "plan.json": "23dd4d5228b13b595cac009f3ec6b931431c2626cf497623b66ce3193ff877a3",
+    "run.sh": "d0ef3f424312afb4c64fbe58341b353c9c19a7d1335b2c689835a79beaa10c7a",
+    "runtime-watchdog.py": "80af195fce4690d872580d175342398054d8c973553fbde09287433cbcd9046d",
+    "source17-manifest.json": "0392557671118a5c916e4fb9cdfa2c919d40c57abf40344c32c2fac41b2cc3de",
+    "suite.py": "99acb6dade6e8ebdbe30040ff8027335666cdf65ea0abf8c8ddc76207108aeb6"
+  },
+  "root_go_schema": {
+    "plan_sha256": "exact plan.json SHA",
+    "source17_manifest_sha256": "exact source17-manifest.json SHA",
+    "approved_integrated_head": "actual integrated exact17 HEAD; later docs-only descendants permitted",
+    "compiler49_final_receipt": "real completed original49 final.json",
+    "compiler49_final_sha256": "exact final.json SHA"
+  },
+  "guard_changes": [
+    "exact named17 final+original baseline hash binding, all other product equal3b1",
+    "sealed real completed49 originalplan/36selectors49actual/stable source/provider/artifact/no logcap before rootGO",
+    "allow only docs commits after exact root integratedHEAD; no silent source refresh",
+    "fresh all-source/provider/artifact manifests and existing180s runtime watchdog/disk/log guards unchanged"
+  ],
+  "runtime_controls": 14,
+  "filters": 2,
+  "all_unrun": true
+}

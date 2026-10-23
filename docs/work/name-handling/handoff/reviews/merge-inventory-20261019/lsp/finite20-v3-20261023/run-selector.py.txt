@@ -1,0 +1,50 @@
+import hashlib,json,os,pathlib,re,signal,subprocess,sys,time
+artifact,selector,receipt=sys.argv[1:];root=pathlib.Path('/tmp/lsp-folder-minify-current20-v3')
+def sha(path):
+ digest=hashlib.sha256()
+ with pathlib.Path(path).open('rb') as source:
+  for chunk in iter(lambda:source.read(1024*1024),b''): digest.update(chunk)
+ return digest.hexdigest()
+before=sha(artifact);started=time.monotonic();log_path=root/(receipt+'.log');remaining=20_000_000
+wanted=re.compile(rb'test |test result:|running |panicked|FAILED|assert|left|right|expected|error|warning|overflow|aborted|signal|ANALYSER_PHASE|DIAGNOSTIC_PHASE|ORIGINAL_FUNCTION_LATTICE_ACCEPT|FOLDER_CONTEXT_|^ *[0-9]+ *\||^ +["|=^]')
+# Keep the direct child unreaped until draining ends: its PID pins group ownership.
+deadline=started+180
+timed_out=False;drain_complete=False;pending=b''
+with log_path.open('wb') as output:
+ p=subprocess.Popen([artifact,selector,'--exact','--nocapture','--test-threads=1'],stdout=subprocess.PIPE,stderr=subprocess.STDOUT,start_new_session=True)
+ import selectors
+ os.set_blocking(p.stdout.fileno(),False)
+ monitor=selectors.DefaultSelector();monitor.register(p.stdout,selectors.EVENT_READ)
+ def retain(line):
+  global remaining
+  if remaining and wanted.search(line):
+   data=line[:min(remaining,8000)];output.write(data);output.flush();remaining-=len(data)
+ eof=False
+ while True:
+  exited=os.waitid(os.P_PID,p.pid,os.WEXITED|os.WNOHANG|os.WNOWAIT) is not None
+  if eof and exited:
+   drain_complete=True;break
+  left=deadline-time.monotonic()
+  if left<=0:
+   timed_out=True;break
+  for key,_ in monitor.select(min(left,0.1)):
+   chunk=os.read(key.fd,65536)
+   if not chunk:
+    eof=True;monitor.unregister(p.stdout)
+    if pending:retain(pending);pending=b''
+   else:
+    parts=(pending+chunk).split(b'\n')
+    for line in parts[:-1]:retain(line+b'\n')
+    pending=parts[-1][:8000]
+ if timed_out:
+  # waitid(WNOWAIT) retained our direct child, preventing PID/group reuse.
+  try:os.killpg(p.pid,signal.SIGKILL)
+  except ProcessLookupError:pass
+  if pending:retain(pending)
+ monitor.close();p.stdout.close()
+ code=p.wait()
+text=log_path.read_text(errors='replace');after=sha(artifact)
+passed=code==0 and drain_complete and not timed_out and before==after and 'running 1 test' in text and 'test result: ok. 1 passed; 0 failed' in text
+row={'selector':selector,'artifact':artifact,'artifact_before_sha256':before,'artifact_after_sha256':after,'exit_code':code,'timed_out':timed_out,'drain_complete':drain_complete,'budget_seconds':180,'seconds':round(time.monotonic()-started,2),'passed':passed,'log_sha256':sha(log_path)}
+row['diagnostic_environment']={key:os.environ.get(key)for key in ['TCL_LSP_TRACE_SOURCE_PHASES','TCL_LSP_TRACE_ORIGINAL_FUNCTION_LATTICE']}
+(root/(receipt+'.json')).write_text(json.dumps(row,indent=2)+'\n');print(json.dumps(row));sys.exit(0 if passed else 1)

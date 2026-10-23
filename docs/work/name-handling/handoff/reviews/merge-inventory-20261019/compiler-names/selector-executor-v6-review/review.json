@@ -1,0 +1,23 @@
+{
+  "utc": "2026-10-23T01:52:08Z",
+  "verdict": "CLEAR bounded executor static + own six synthetic process cases; integrated suite API static CLEAR only",
+  "executor_sha256": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811",
+  "executor": "/tmp/compiler-n13-focused-successor-v6/guarded-exec.py",
+  "integrated": "/tmp/compiler-n13-focused-successor-v6-integrated",
+  "actual_counterexample": "v4 c6fd complete=true0.05384sec while owned silentchild aliveS; held. v5 ordinary case fixed but vanished PID treated as othergroup, held. v6 any vanished PID makes scan inconclusive; two completeempty scans required before parentreap",
+  "synthetic_evidence": "v6-own-synthetic-summary.json and six exact process receipts",
+  "findings": [
+    "Actual Popen child PID/start ticks/ownPG captured even rapid exit because waitidWNOWAIT retains zombie; both stdout and stderr EOF required",
+    "Parent retained through group scan/cleanup, same starttick checked before killpg; INT/TERM/KILL escalation bounded, incomplete cleanup cannot complete",
+    "vanished PID resets consecutive empty-complete count; own injected first incomplete scan required3total scans; scan permission/parse failures exceptionfailclosed",
+    "Monotonic deadline established before Popen, checked even both pipes closed while parent alive; own closedpipes case timedout failclosed",
+    "Raw stdout/stderr independently drained, aggregate cap retainedexact1024 in owncontrol, overflow failclosed; artifact beforeafter hashes and actual disk paths/floor retained",
+    "Integrated API fixed180sec/20MiB/2GiB and exact argv/no shell; sole actual artifact path passed; suite validates started/summary/selected and process completion/group/stop, source/provider/artifact/disk/cap and nonzero/warnings failure",
+    "No need duplicate scan-field checks outside sealed exact module; module derives groupempty from two completeempty scans, complete incorporates it"
+  ],
+  "limits": [
+    "Own Python synthetic children only; no compiler/Tcl/runtime/Cargo or suite execution",
+    "Monotonic pre-Popen timer proved; no independent interruptible blocked-Popen watchdog test",
+    "Whole integrated seals/launcher lock/source/provider/build protocol remain Luna/root review and rootGO authority"
+  ]
+}

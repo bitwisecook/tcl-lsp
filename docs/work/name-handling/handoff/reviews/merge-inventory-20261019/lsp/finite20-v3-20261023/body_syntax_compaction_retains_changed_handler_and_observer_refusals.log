@@ -1,0 +1,3 @@
+running 1 test
+test minify::original::tests::body_syntax_compaction_retains_changed_handler_and_observer_refusals ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 3500 filtered out; finished in 15.90s

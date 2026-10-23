@@ -1,0 +1,37 @@
+--- rust/tcl-compiler/src/command_binding/original_literal_argv_rewrite.rs
++++ rust/tcl-compiler/src/command_binding/original_literal_argv_rewrite.rs
+@@ -344,6 +344,8 @@
+         return false;
+     };
+     let opposite = match op {
++        BinOp::Eq => BinOp::Ne,
++        BinOp::Ne => BinOp::Eq,
+         BinOp::StrEq => BinOp::StrNe,
+         BinOp::StrNe => BinOp::StrEq,
+         BinOp::In => BinOp::Ni,
+@@ -1053,6 +1055,10 @@
+         for (source, candidate) in [
+             ("if {!($a eq \"x\")} {}", "$a ne\"x\""),
+             ("if {!($a ne \"x\")} {}", "$a eq\"x\""),
++            ("if {!($a == $b)} {}", "$a!=$b"),
++            ("if {!($a != $b)} {}", "$a==$b"),
++            ("set a 1; set b 2; expr {!($a == $b)}", "$a!=$b"),
++            ("set a 1; set b 2; expr {!($a != $b)}", "$a==$b"),
+             ("if {!($a in $b)} {}", "$a ni$b"),
+             ("if {!($a ni $b)} {}", "$a in$b"),
+         ] {
+@@ -1070,6 +1076,14 @@
+         for (source, candidate) in [
+             ("if {!($a eq \"x\")} {}", "$a ne\"y\""),
+             ("if {!($a eq $b)} {}", "$b ne$a"),
++            ("if {!($a == $b)} {}", "$b!=$a"),
++            ("if {!($a == 1)} {}", "$a!=2"),
++            ("proc expr args {}; expr {!($a == $b)}", "$a!=$b"),
++            ("unknown_mutation; expr {!($a == $b)}", "$a!=$b"),
++            (
++                "trace add execution expr enter callback; expr {!($a == $b)}",
++                "$a!=$b",
++            ),
+             ("if {!($a < $b)} {}", "$a >= $b"),
+             ("if {!($a && $b)} {}", "!$a||!$b"),
+             ("proc if args {}; if {!($a eq $b)} {}", "$a ne$b"),

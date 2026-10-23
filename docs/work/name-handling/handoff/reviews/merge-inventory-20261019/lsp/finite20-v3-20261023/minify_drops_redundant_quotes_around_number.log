@@ -1,0 +1,8 @@
+running 1 test
+test minify_drops_redundant_quotes_around_number ... 
+thread 'minify_drops_redundant_quotes_around_number' (214887) panicked at rust/tcl-lsp-core/tests/lsp_core_residual.rs:737:5:
+assertion `left == right` failed
+  left: "puts \"42\""
+ right: "puts 42"
+FAILED
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 48 filtered out; finished in 2.10s

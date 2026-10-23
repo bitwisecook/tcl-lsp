@@ -1,0 +1,55 @@
+{
+  "utc": "2026-10-23T01:36:42.324386+00:00",
+  "status": "COMPLETE EDIT GROUP ONLY; final whole20guards PENDING",
+  "expected": 2,
+  "completed": 2,
+  "passed": 1,
+  "failed": [
+    "minify_strips_comments_and_collapses_whitespace_factorial"
+  ],
+  "build_exit": "0 0",
+  "source_scope": "Exact selector source pin and complete source/provider initial seals are retained in finite20-v3-server-group-partial-20261023. Final source/provider guards PENDING.",
+  "artifacts_unchanged": true,
+  "files": [
+    {
+      "path": "lsp_edit_workspace-build.log",
+      "bytes": 158,
+      "sha256": "9502a509171cc4e307fa0e77119725f59ff86997bd55c0a5433bbcb0f2f95d32"
+    },
+    {
+      "path": "lsp_edit_workspace-build.exit",
+      "bytes": 4,
+      "sha256": "0ccdb5a77ba5bf7687f2565a8ed97dfb9c1af45503c496fb646312239fab5101"
+    },
+    {
+      "path": "lsp_edit_workspace-artifact.txt",
+      "bytes": 97,
+      "sha256": "55bfe534ff242e822959aa3e5fd85f84492ce4c49f05f41d98b51da92dc8492e"
+    },
+    {
+      "path": "selector-source-pin-check.json",
+      "bytes": 1518,
+      "sha256": "35beb30624b1d3e4eb1fa57b4baeffa9bf1e9f0f608be1fc52971462d46cb637"
+    },
+    {
+      "path": "minify_strips_comments_and_collapses_whitespace_factorial.json",
+      "bytes": 726,
+      "sha256": "a34864ac84956480c0cc891d24bd4a1549d5b3c4f5f84d9fb2458265c8898684"
+    },
+    {
+      "path": "minify_strips_comments_and_collapses_whitespace_factorial.log",
+      "bytes": 575,
+      "sha256": "7d8f75011ced3089384d08c2442a51ef47a39633bcea9c985688c0114f5c05e8"
+    },
+    {
+      "path": "minify_preserves_string_and_expr_results.json",
+      "bytes": 706,
+      "sha256": "71fd4928542f684e50af3c157f6591cbd9a59d9a7d86fa6f1e1ae8882010cce1"
+    },
+    {
+      "path": "minify_preserves_string_and_expr_results.log",
+      "bytes": 163,
+      "sha256": "c8fb559312aebaae1c0bcce9ae7a70a42415f83e05e26e231329ecc31067a50d"
+    }
+  ]
+}

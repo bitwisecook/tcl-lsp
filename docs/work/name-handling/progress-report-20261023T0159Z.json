@@ -1,0 +1,76 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-23T01:59:50.923073+00:00",
+  "scheduled_report_utc": "2026-10-23T01:55:37+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-23T02:25:37+00:00",
+  "change_since_previous_report": [
+    "01:25cycle normal-pushedbeddcb8cdfdd9614f81ee0c5f2ab6c0bfef9298b at01:26:10, active94ae34ae9, freshdepth1workfetch/FF/rebase/productdiff0; progress-report-20261023T0125Z/freshness+dsk10.8GB. Next01:55reminder94785rearmed.",
+    "Currentstylecandidatesofftreecmdcore19 across7paths a1f20973 peerf19e3d7b and compiler19mechanicaledits16pathsf0f7d52a peer50233a85. ActualcurrentCompiler512/VM182/cmdcore19 Cargo errorinstancesstillunmeasuredafterfixes; noreductionclaimed. No structuralproductionframes/noallows/assertchanges.",
+    "VMnoTommath16v1MUSTNOTRUN falsezeroWreceipt; correctedimmutablev2plan8c1bd504 runner ea9cf1e7 helpera647, peer555886e9CLEAR. Requirespostsemanticinterp580d73c0 and actualfreshCargofeatures[]/nohave_tommath; noengineflavorswitch, original16exactnotcovered19/11, first7notclosure. FullTommathpostfix4 peerCLEAR stillunqueued.",
+    "Source/test/providerHOLD docsCLEAR all5rolesparallel(noexternalduplicates). ExternalBIGIP18:08/perf21:00/completedtriage19:57headersstale,usernotified,ownerheadersunchanged. Fullperfproof/realm-interproceduralpatchstillWITHHELD.",
+    "Cyclemustfreshdepth1workfetch/FF; fullWIPexcludezzprobes; agenttable/freshness/officialwriter/disk; freshfetch/rebase/normalpush+productequality; rearm02:25:37. NoPR/merge/tag/release/targetcleanup, all8F/verified0unchanged.",
+    "Finite20 closed01:37:29 exact20/15PASS5FAIL/no timeout, source/executablesstable; missingfinalprovideraftermeansNOguardedadmission. Separatenew01:42fingerprintall3464providersbyteequalinitialSHA4a81e119 doesnotretroactivelyrepair. Sourcecapturewritesfilebeforeprinting; lostoldUIstdio maycauseBrokenPipe/ORshortcircuit but stderrnotretainedcauseunknown.",
+    "PassedobservationsCore8allPASS; completedEdit2 1PASS1FAIL (factorial), not2PASS. Nestedbodysourcepurposegatedat3existingruntime-envelopeconsumers; authoritativecompiledtokenpurposeunmeasured/no declarationfallback. Exact5failureobservationsarchivedunchangedassertions.",
+    "NumericEq/Neinversionv2cfef16f6 peercompiler51671a57CLEAR, usesC8.6 actualsharedopcodegetter/order/NaN/stringfallback; 144manualpairs5C+JimPASS; Rustexecutionunrun. Rootauthorizesadding6thcomponentto18pathpost49composition (no38styles).",
+    "Correctedfmt: original17v1runtime580 alreadypassesownerRust2021. Rootuniform2024checkv2waswrongandnotrepositoryproof; preservedandpubliclycorrected. v3correctedownermanifesteditions16x2024+runtime2021 all17PASS, onlyCCGtestformatted4d487875; combined173bceeb. VMexistingplansretain580, nohashrefresh.",
+    "Compiler49 v7 rootGO/start01:59Z: immutable plan0cb62fcd/manifest23b393e2, fixed product3b1 with docs descendants only. Pinned actual Cargo no-run artifacts and direct parent-owned per-selector180s timers, two complete process-group scans, bounded cleanup, durable logs,20MiB/2GiB/source/provider guards. No Cargo runtime verdict yet. Old v3/v5/v6 integrated runners superseded and must not run.",
+    "Post49 exact18 component composition v4 ready, manifest269b0b42 combined9fdee598: reportv7,WASMUnpin,SpecTcl256,VM C84 c12f/580,CCG ABI test9d3d,numericcfef. Freshshadow zero-fuzz;17 priorfinals unchanged. Owner-edition17 priorPASS; complete18 format audit in progress. No integration/type/runtime; no38style/float/BPF/probe components.",
+    "CI5206 still active; connector first30 at01:54 reports7success17failure4running2skipped; completeness unknown. New main1/heavy failures await decoding. Exact scoped runtime16/wasm7/WASI3 baselineP2F remain separate; main4/Spec E0275 and browser E0277 pending sourcebatch. No duplicate/cancel/rerun."
+  ],
+  "committed": [
+    "94ae34ae9b795d297750e4638fe1d6c1cdc98cf5"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Complete guarded compiler49 exact run before source batch; integrate peer-cleared exact18 then type and report14, followed by finite VM/LSP/host controls under sole build lock.",
+    "Resolve actual remaining recursive minify syntax purposes without relaxing runtime/source guards; classify current CI newly completed failures.",
+    "Establish zero exact PASS-to-FAIL against origin/rust and all sectionF gates; external authenticated perf full old/mixed proof remains required."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-22T18:08:00+00:00",
+    "perf": "2026-10-22T21:00:00+00:00",
+    "review-triage": "2026-10-22T19:57:30+00:00"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "Compiler49 v7 rootGO launched01:59Z; actual build/selector results pending. LSP20 observed15/5 missing final provider receipt prevents guarded admission; separate later3464providers match does not repair. Exact18 batch off-tree only. AllF/strict/fullbaseline/perf gates open. External stale owner headers reported; no takeover/PR/merge/release.",
+  "disk_free_bytes": 10673774592,
+  "baseline_ci_run": 39816429638,
+  "baseline_ci_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731"
+}

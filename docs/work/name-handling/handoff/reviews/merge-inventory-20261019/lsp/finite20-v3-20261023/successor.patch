@@ -1,0 +1,146 @@
+--- v2/check-source-pins.py
++++ v3/check-source-pins.py
+@@ -1,7 +1,7 @@
+ from pathlib import Path
+ import hashlib,json,sys
+-root=Path('/workspace/naming-migration-active/tcl-lsp');plan=json.load(open('/tmp/lsp-folder-minify-current20-v2/plan.json'));rows=[]
++root=Path('/workspace/naming-migration-active/tcl-lsp');plan=json.load(open('/tmp/lsp-folder-minify-current20-v3/plan.json'));rows=[]
+ for row in plan['source_pins']:
+  p=root/row['path'];got=hashlib.sha256(p.read_bytes()).hexdigest() if p.exists() else None;rows.append({**row,'actual':got,'matches':got==row['sha256']})
+-Path('/tmp/lsp-folder-minify-current20-v2/selector-source-pin-check.json').write_text(json.dumps(rows,indent=2)+'\n')
++Path('/tmp/lsp-folder-minify-current20-v3/selector-source-pin-check.json').write_text(json.dumps(rows,indent=2)+'\n')
+ print(json.dumps({'all_selector_source_pins_match':all(row['matches']for row in rows)}));sys.exit(0 if all(row['matches']for row in rows)else 1)
+--- v2/run.sh
++++ v3/run.sh
+@@ -3,16 +3,16 @@
+ set -uo pipefail
+ cd /workspace/naming-migration-active/tcl-lsp
+ source /tmp/tcl-lsp-naming-env.sh
+-export NH_VALIDATION_DIR=/tmp/lsp-folder-minify-current20-v2/validation
++export NH_VALIDATION_DIR=/tmp/lsp-folder-minify-current20-v3/validation
+ exec 9>/tmp/tcl-lsp-naming-build.lock
+ if ! flock -n 9; then printf '%s\n' "build lock busy; no queue" >&2; exit 95; fi
+ any_failed=0
+-if ! python3 /tmp/lsp-folder-minify-current20-v2/check-source-pins.py; then exit 96; fi
+-printf '%s\n' "FOLDER_MINIFY_CURRENT20_LOCK_CLAIMED $(date -u +%FT%TZ)" > /tmp/lsp-folder-minify-current20-v2/start.txt
+-git rev-parse HEAD > /tmp/lsp-folder-minify-current20-v2/head.txt
+-{ printf 'shell_stack_kib='; ulimit -s; printf 'rust_min_stack=%s\n' "${RUST_MIN_STACK-unset}"; } > /tmp/lsp-folder-minify-current20-v2/stack.txt
++if ! python3 /tmp/lsp-folder-minify-current20-v3/check-source-pins.py; then exit 96; fi
++printf '%s\n' "FOLDER_MINIFY_CURRENT20_LOCK_CLAIMED $(date -u +%FT%TZ)" > /tmp/lsp-folder-minify-current20-v3/start.txt
++git rev-parse HEAD > /tmp/lsp-folder-minify-current20-v3/head.txt
++{ printf 'shell_stack_kib='; ulimit -s; printf 'rust_min_stack=%s\n' "${RUST_MIN_STACK-unset}"; } > /tmp/lsp-folder-minify-current20-v3/stack.txt
+ manifest() { python3 docs/work/name-handling/validation-tools/capture-inputs.py "$1"; }
+-if ! manifest /tmp/lsp-folder-minify-current20-v2/source-before.json || ! python3 /tmp/lsp-folder-minify-current20-v2/providers.py /tmp/lsp-folder-minify-current20-v2/providers-before.json; then exit 97; fi
++if ! manifest /tmp/lsp-folder-minify-current20-v3/source-before.json || ! python3 /tmp/lsp-folder-minify-current20-v3/providers.py /tmp/lsp-folder-minify-current20-v3/providers-before.json; then exit 97; fi
+ for group in server_lib core_lib lsp_edit_workspace minify_residual lsp_core_residual; do
+  target_disk_path=${CARGO_TARGET_DIR:?actual Cargo target required}
+  while [[ ! -e $target_disk_path ]]; do target_disk_path=$(dirname "$target_disk_path"); done
+@@ -24,19 +24,19 @@
+  artifact_name=$target
+  if [[ $group == server_lib ]]; then package=tcl-lsp-server; target=--lib; target_args=(--lib); artifact_name=tcl_lsp_server; fi
+  if [[ $group == core_lib ]]; then target=--lib; target_args=(--lib); artifact_name=tcl_lsp_core; fi
+- cargo test --locked -p "$package" "${target_args[@]}" --no-run --message-format=json 2>&1 | python3 /tmp/lsp-folder-minify-current20-v2/collect-build.py "/tmp/lsp-folder-minify-current20-v2/$group-build.log" "/tmp/lsp-folder-minify-current20-v2/$group-artifact.txt" "$artifact_name"
++ cargo test --locked -p "$package" "${target_args[@]}" --no-run --message-format=json 2>&1 | python3 /tmp/lsp-folder-minify-current20-v3/collect-build.py "/tmp/lsp-folder-minify-current20-v3/$group-build.log" "/tmp/lsp-folder-minify-current20-v3/$group-artifact.txt" "$artifact_name"
+  statuses=("${PIPESTATUS[@]}")
+- printf '%s\n' "${statuses[*]}" > "/tmp/lsp-folder-minify-current20-v2/$group-build.exit"
++ printf '%s\n' "${statuses[*]}" > "/tmp/lsp-folder-minify-current20-v3/$group-build.exit"
+  if (( statuses[0] != 0 || statuses[1] != 0 )); then any_failed=1; break; fi
+- artifact=$(cat "/tmp/lsp-folder-minify-current20-v2/$group-artifact.txt")
++ artifact=$(cat "/tmp/lsp-folder-minify-current20-v3/$group-artifact.txt")
+  while IFS= read -r selector; do
+   label=${selector##*::}
+-  if ! python3 /tmp/lsp-folder-minify-current20-v2/run-selector.py "$artifact" "$selector" "$label"; then any_failed=1; fi
+- done < <(python3 -c 'import json,sys; print("\n".join(row["selector"] for row in json.load(open("/tmp/lsp-folder-minify-current20-v2/plan.json"))["selectors"] if row["package"] == sys.argv[1] and row["target"] == sys.argv[2]))' "$package" "$target")
++  if ! python3 /tmp/lsp-folder-minify-current20-v3/run-selector.py "$artifact" "$selector" "$label"; then any_failed=1; fi
++ done < <(python3 -c 'import json,sys; print("\n".join(row["selector"] for row in json.load(open("/tmp/lsp-folder-minify-current20-v3/plan.json"))["selectors"] if row["package"] == sys.argv[1] and row["target"] == sys.argv[2]))' "$package" "$target")
+ done
+-if ! manifest /tmp/lsp-folder-minify-current20-v2/source-after.json || ! python3 /tmp/lsp-folder-minify-current20-v2/providers.py /tmp/lsp-folder-minify-current20-v2/providers-after.json; then any_failed=1; fi
+-if ! cmp -s /tmp/lsp-folder-minify-current20-v2/source-before.json /tmp/lsp-folder-minify-current20-v2/source-after.json || ! cmp -s /tmp/lsp-folder-minify-current20-v2/providers-before.json /tmp/lsp-folder-minify-current20-v2/providers-after.json; then printf '%s\n' 'INPUT_DRIFT: no guarded result admission' > /tmp/lsp-folder-minify-current20-v2/input-drift.txt; any_failed=1; fi
+-if ! python3 /tmp/lsp-folder-minify-current20-v2/summarize.py; then any_failed=1; fi
++if ! manifest /tmp/lsp-folder-minify-current20-v3/source-after.json || ! python3 /tmp/lsp-folder-minify-current20-v3/providers.py /tmp/lsp-folder-minify-current20-v3/providers-after.json; then any_failed=1; fi
++if ! cmp -s /tmp/lsp-folder-minify-current20-v3/source-before.json /tmp/lsp-folder-minify-current20-v3/source-after.json || ! cmp -s /tmp/lsp-folder-minify-current20-v3/providers-before.json /tmp/lsp-folder-minify-current20-v3/providers-after.json; then printf '%s\n' 'INPUT_DRIFT: no guarded result admission' > /tmp/lsp-folder-minify-current20-v3/input-drift.txt; any_failed=1; fi
++if ! python3 /tmp/lsp-folder-minify-current20-v3/summarize.py; then any_failed=1; fi
+ # No target/executable cleanup; fresh artifacts remain retained.
+-printf '%s\n' "FOLDER_MINIFY_CURRENT20_LOCK_RELEASED $(date -u +%FT%TZ)" > /tmp/lsp-folder-minify-current20-v2/finished.txt
++printf '%s\n' "FOLDER_MINIFY_CURRENT20_LOCK_RELEASED $(date -u +%FT%TZ)" > /tmp/lsp-folder-minify-current20-v3/finished.txt
+ exit "$any_failed"
+--- v2/summarize.py
++++ v3/summarize.py
+@@ -1,6 +1,6 @@
+ from pathlib import Path
+ import json,sys
+-root=Path('/tmp/lsp-folder-minify-current20-v2');rows=json.loads((root/'plan.json').read_text())['selectors'];results=[]
++root=Path('/tmp/lsp-folder-minify-current20-v3');rows=json.loads((root/'plan.json').read_text())['selectors'];results=[]
+ for row in rows:
+  path=root/(row['selector'].split('::')[-1]+'.json')
+  if not path.exists():results.append({'selector':row['selector'],'passed':False,'missing_receipt':True});continue
+--- v2/run-selector.py
++++ v3/run-selector.py
+@@ -1,5 +1,5 @@
+ import hashlib,json,os,pathlib,re,signal,subprocess,sys,time
+-artifact,selector,receipt=sys.argv[1:];root=pathlib.Path('/tmp/lsp-folder-minify-current20-v2')
++artifact,selector,receipt=sys.argv[1:];root=pathlib.Path('/tmp/lsp-folder-minify-current20-v3')
+ def sha(path):
+  digest=hashlib.sha256()
+  with pathlib.Path(path).open('rb') as source:
+@@ -7,25 +7,44 @@
+  return digest.hexdigest()
+ before=sha(artifact);started=time.monotonic();log_path=root/(receipt+'.log');remaining=20_000_000
+ wanted=re.compile(rb'test |test result:|running |panicked|FAILED|assert|left|right|expected|error|warning|overflow|aborted|signal|ANALYSER_PHASE|DIAGNOSTIC_PHASE|ORIGINAL_FUNCTION_LATTICE_ACCEPT|FOLDER_CONTEXT_|^ *[0-9]+ *\||^ +["|=^]')
+-# A separate process drains the child pipe even after the retained log cap.
++# Keep the direct child unreaped until draining ends: its PID pins group ownership.
++deadline=started+180
++timed_out=False;drain_complete=False;pending=b''
+ with log_path.open('wb') as output:
+  p=subprocess.Popen([artifact,selector,'--exact','--nocapture','--test-threads=1'],stdout=subprocess.PIPE,stderr=subprocess.STDOUT,start_new_session=True)
+- import threading
+- def drain():
++ import selectors
++ os.set_blocking(p.stdout.fileno(),False)
++ monitor=selectors.DefaultSelector();monitor.register(p.stdout,selectors.EVENT_READ)
++ def retain(line):
+   global remaining
+-  for line in p.stdout:
+-   if remaining and wanted.search(line):
+-    data=line[:min(remaining,8000)];output.write(data);output.flush();remaining-=len(data)
+- collector=threading.Thread(target=drain);collector.start();timed_out=False
+- try: code=p.wait(timeout=180)
+- except subprocess.TimeoutExpired:
+-  timed_out=True
+-  try: os.killpg(p.pid,signal.SIGKILL)
+-  except ProcessLookupError: pass
+-  code=p.wait()
+- collector.join()
++  if remaining and wanted.search(line):
++   data=line[:min(remaining,8000)];output.write(data);output.flush();remaining-=len(data)
++ eof=False
++ while True:
++  exited=os.waitid(os.P_PID,p.pid,os.WEXITED|os.WNOHANG|os.WNOWAIT) is not None
++  if eof and exited:
++   drain_complete=True;break
++  left=deadline-time.monotonic()
++  if left<=0:
++   timed_out=True;break
++  for key,_ in monitor.select(min(left,0.1)):
++   chunk=os.read(key.fd,65536)
++   if not chunk:
++    eof=True;monitor.unregister(p.stdout)
++    if pending:retain(pending);pending=b''
++   else:
++    parts=(pending+chunk).split(b'\n')
++    for line in parts[:-1]:retain(line+b'\n')
++    pending=parts[-1][:8000]
++ if timed_out:
++  # waitid(WNOWAIT) retained our direct child, preventing PID/group reuse.
++  try:os.killpg(p.pid,signal.SIGKILL)
++  except ProcessLookupError:pass
++  if pending:retain(pending)
++ monitor.close();p.stdout.close()
++ code=p.wait()
+ text=log_path.read_text(errors='replace');after=sha(artifact)
+-passed=code==0 and not timed_out and before==after and 'running 1 test' in text and 'test result: ok. 1 passed; 0 failed' in text
+-row={'selector':selector,'artifact':artifact,'artifact_before_sha256':before,'artifact_after_sha256':after,'exit_code':code,'timed_out':timed_out,'budget_seconds':180,'seconds':round(time.monotonic()-started,2),'passed':passed,'log_sha256':sha(log_path)}
++passed=code==0 and drain_complete and not timed_out and before==after and 'running 1 test' in text and 'test result: ok. 1 passed; 0 failed' in text
++row={'selector':selector,'artifact':artifact,'artifact_before_sha256':before,'artifact_after_sha256':after,'exit_code':code,'timed_out':timed_out,'drain_complete':drain_complete,'budget_seconds':180,'seconds':round(time.monotonic()-started,2),'passed':passed,'log_sha256':sha(log_path)}
+ row['diagnostic_environment']={key:os.environ.get(key)for key in ['TCL_LSP_TRACE_SOURCE_PHASES','TCL_LSP_TRACE_ORIGINAL_FUNCTION_LATTICE']}
+ (root/(receipt+'.json')).write_text(json.dumps(row,indent=2)+'\n');print(json.dumps(row));sys.exit(0 if passed else 1)

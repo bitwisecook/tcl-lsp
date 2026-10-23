@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+# Prepared only. Requires explicit coordinator window clearance.
+set -uo pipefail
+cd /workspace/naming-migration-active/tcl-lsp
+source /tmp/tcl-lsp-naming-env.sh
+export NH_VALIDATION_DIR=/tmp/lsp-folder-minify-current20-v3/validation
+exec 9>/tmp/tcl-lsp-naming-build.lock
+if ! flock -n 9; then printf '%s\n' "build lock busy; no queue" >&2; exit 95; fi
+any_failed=0
+if ! python3 /tmp/lsp-folder-minify-current20-v3/check-source-pins.py; then exit 96; fi
+printf '%s\n' "FOLDER_MINIFY_CURRENT20_LOCK_CLAIMED $(date -u +%FT%TZ)" > /tmp/lsp-folder-minify-current20-v3/start.txt
+git rev-parse HEAD > /tmp/lsp-folder-minify-current20-v3/head.txt
+{ printf 'shell_stack_kib='; ulimit -s; printf 'rust_min_stack=%s\n' "${RUST_MIN_STACK-unset}"; } > /tmp/lsp-folder-minify-current20-v3/stack.txt
+manifest() { python3 docs/work/name-handling/validation-tools/capture-inputs.py "$1"; }
+if ! manifest /tmp/lsp-folder-minify-current20-v3/source-before.json || ! python3 /tmp/lsp-folder-minify-current20-v3/providers.py /tmp/lsp-folder-minify-current20-v3/providers-before.json; then exit 97; fi
+for group in server_lib core_lib lsp_edit_workspace minify_residual lsp_core_residual; do
+ target_disk_path=${CARGO_TARGET_DIR:?actual Cargo target required}
+ while [[ ! -e $target_disk_path ]]; do target_disk_path=$(dirname "$target_disk_path"); done
+ available_bytes=$(df -B1 --output=avail "$target_disk_path" | tail -1 | tr -d ' ')
+ if (( available_bytes < 2300000000 )); then printf '%s\n' "insufficient free disk: $available_bytes" >&2; any_failed=1; break; fi
+ package=tcl-lsp-core
+ target=$group
+ target_args=(--test "$target")
+ artifact_name=$target
+ if [[ $group == server_lib ]]; then package=tcl-lsp-server; target=--lib; target_args=(--lib); artifact_name=tcl_lsp_server; fi
+ if [[ $group == core_lib ]]; then target=--lib; target_args=(--lib); artifact_name=tcl_lsp_core; fi
+ cargo test --locked -p "$package" "${target_args[@]}" --no-run --message-format=json 2>&1 | python3 /tmp/lsp-folder-minify-current20-v3/collect-build.py "/tmp/lsp-folder-minify-current20-v3/$group-build.log" "/tmp/lsp-folder-minify-current20-v3/$group-artifact.txt" "$artifact_name"
+ statuses=("${PIPESTATUS[@]}")
+ printf '%s\n' "${statuses[*]}" > "/tmp/lsp-folder-minify-current20-v3/$group-build.exit"
+ if (( statuses[0] != 0 || statuses[1] != 0 )); then any_failed=1; break; fi
+ artifact=$(cat "/tmp/lsp-folder-minify-current20-v3/$group-artifact.txt")
+ while IFS= read -r selector; do
+  label=${selector##*::}
+  if ! python3 /tmp/lsp-folder-minify-current20-v3/run-selector.py "$artifact" "$selector" "$label"; then any_failed=1; fi
+ done < <(python3 -c 'import json,sys; print("\n".join(row["selector"] for row in json.load(open("/tmp/lsp-folder-minify-current20-v3/plan.json"))["selectors"] if row["package"] == sys.argv[1] and row["target"] == sys.argv[2]))' "$package" "$target")
+done
+if ! manifest /tmp/lsp-folder-minify-current20-v3/source-after.json || ! python3 /tmp/lsp-folder-minify-current20-v3/providers.py /tmp/lsp-folder-minify-current20-v3/providers-after.json; then any_failed=1; fi
+if ! cmp -s /tmp/lsp-folder-minify-current20-v3/source-before.json /tmp/lsp-folder-minify-current20-v3/source-after.json || ! cmp -s /tmp/lsp-folder-minify-current20-v3/providers-before.json /tmp/lsp-folder-minify-current20-v3/providers-after.json; then printf '%s\n' 'INPUT_DRIFT: no guarded result admission' > /tmp/lsp-folder-minify-current20-v3/input-drift.txt; any_failed=1; fi
+if ! python3 /tmp/lsp-folder-minify-current20-v3/summarize.py; then any_failed=1; fi
+# No target/executable cleanup; fresh artifacts remain retained.
+printf '%s\n' "FOLDER_MINIFY_CURRENT20_LOCK_RELEASED $(date -u +%FT%TZ)" > /tmp/lsp-folder-minify-current20-v3/finished.txt
+exit "$any_failed"

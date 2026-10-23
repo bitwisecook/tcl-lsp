@@ -1,0 +1,304 @@
+{
+  "status": "IMMUTABLE PREPARED ONLY; no Cargo GO. Requires coherent host/kernel consumer typing and explicit coordinator slot",
+  "scope": "20 exact count-one selectors in five Cargo targets: frozen original13 unmodified; Core2; four additional historical minify P2Fs dedup factorial; one separately labelled existing nested-positive",
+  "oracle_policy": "require and hash all five pinned C toolchains and Jim before/after; tests retain original configuration and assertions; no optional missing-provider admission",
+  "selectors": [
+    {
+      "package": "tcl-lsp-server",
+      "target": "--lib",
+      "selector": "original_document_metadata_tests::folder_context_exact_inputs_keep_compiler_report_available",
+      "expected_tests": 1,
+      "features": [
+        "6 internal observations before final assertion",
+        "actual per-folder dialect_for_open and resolved config expected values",
+        "full input/current analysis/CU/compiler availability",
+        "attribution only, not publisher/protocol completion"
+      ],
+      "source_path": "rust/tcl-lsp-server/src/original_document_metadata_tests.rs"
+    },
+    {
+      "target": "--lib",
+      "selector": "minify::tests::expr_string_and_membership_inversion_still_applies",
+      "expected_tests": 1,
+      "features": [
+        "four corrected eq/ne/in/ni inversion spacing expectations; no inversion removal"
+      ],
+      "source_path": "rust/tcl-lsp-core/src/minify.rs",
+      "package": "tcl-lsp-core"
+    },
+    {
+      "target": "--lib",
+      "selector": "minify::tests::keeps_word_operator_spacing",
+      "expected_tests": 1,
+      "features": [
+        "corrected required before-eq gap and removable eq-to-variable gap"
+      ],
+      "source_path": "rust/tcl-lsp-core/src/minify.rs",
+      "package": "tcl-lsp-core"
+    },
+    {
+      "target": "--lib",
+      "selector": "minify::original::tests::native_syntax_compaction_uses_selected_original_expression_gaps",
+      "expected_tests": 1,
+      "features": [
+        "safe arithmetic/read/function gaps",
+        "runtime-error expression retained semantically",
+        "malformed expression unchanged",
+        "execution observer blocks expression compaction"
+      ],
+      "source_path": "rust/tcl-lsp-core/src/minify/original.rs",
+      "package": "tcl-lsp-core"
+    },
+    {
+      "target": "--lib",
+      "selector": "minify::original::tests::original_syntax_compaction_keeps_opaque_words_nested_scripts_and_expansion",
+      "expected_tests": 1,
+      "features": [
+        "six profiles",
+        "opaque literal units and data spaces",
+        "nested scripts",
+        "exact expansion boundaries",
+        "idempotence"
+      ],
+      "source_path": "rust/tcl-lsp-core/src/minify/original.rs",
+      "package": "tcl-lsp-core"
+    },
+    {
+      "target": "--lib",
+      "selector": "minify::original::tests::original_minifier_declines_stale_images_full_configuration_changes_and_malformed_tail",
+      "expected_tests": 1,
+      "features": [
+        "stale complete source refusal",
+        "full lexer-config change refusal",
+        "malformed tail unchanged/incomplete"
+      ],
+      "source_path": "rust/tcl-lsp-core/src/minify/original.rs",
+      "package": "tcl-lsp-core"
+    },
+    {
+      "target": "--lib",
+      "selector": "minify::original::tests::original_minifier_holds_custom_profile_and_registry_instead_of_resolving_its_label",
+      "expected_tests": 1,
+      "features": [
+        "actual custom profile and exact registry",
+        "no dialect-label re-resolution",
+        "unchanged naming refusal"
+      ],
+      "source_path": "rust/tcl-lsp-core/src/minify/original.rs",
+      "package": "tcl-lsp-core"
+    },
+    {
+      "target": "lsp_edit_workspace",
+      "selector": "minify_strips_comments_and_collapses_whitespace_factorial",
+      "expected_tests": 1,
+      "features": [
+        "original unchanged exact Default output assertion"
+      ],
+      "source_path": "rust/tcl-lsp-core/tests/lsp_edit_workspace.rs",
+      "package": "tcl-lsp-core"
+    },
+    {
+      "target": "lsp_edit_workspace",
+      "selector": "minify_preserves_string_and_expr_results",
+      "expected_tests": 1,
+      "features": [
+        "original unchanged exact Default output assertion"
+      ],
+      "source_path": "rust/tcl-lsp-core/tests/lsp_edit_workspace.rs",
+      "package": "tcl-lsp-core"
+    },
+    {
+      "target": "minify_residual",
+      "selector": "expr_comparison_inversion_string_equal",
+      "expected_tests": 1,
+      "features": [
+        "corrected safe-gap ne expectation, original inversion retained"
+      ],
+      "source_path": "rust/tcl-lsp-core/tests/minify_residual.rs",
+      "package": "tcl-lsp-core"
+    },
+    {
+      "target": "minify_residual",
+      "selector": "expr_comparison_inversion_membership",
+      "expected_tests": 1,
+      "features": [
+        "corrected safe-gap ni expectation, braced list data retained"
+      ],
+      "source_path": "rust/tcl-lsp-core/tests/minify_residual.rs",
+      "package": "tcl-lsp-core"
+    },
+    {
+      "target": "minify_residual",
+      "selector": "default_minify_compacts_expression_gaps_and_preserves_oracle_results",
+      "expected_tests": 1,
+      "features": [
+        "five pinned C profiles plus Jim",
+        "outer expression plus nested expr/script gaps together",
+        "actual minifier output",
+        "before/after interpreter stdout+stderr",
+        "idempotence"
+      ],
+      "source_path": "rust/tcl-lsp-core/tests/minify_residual.rs",
+      "package": "tcl-lsp-core"
+    },
+    {
+      "target": "minify_residual",
+      "selector": "native_word_operators_remove_safe_gaps_without_changing_tokens_or_data",
+      "expected_tests": 1,
+      "features": [
+        "five pinned C profiles plus Jim",
+        "operator to variable and closing-paren to operator",
+        "eq/ne/in/ni and supported lt profiles",
+        "literal internal spaces retained",
+        "actual output before/after interpreters",
+        "idempotence"
+      ],
+      "source_path": "rust/tcl-lsp-core/tests/minify_residual.rs",
+      "package": "tcl-lsp-core"
+    },
+    {
+      "package": "tcl-lsp-core",
+      "target": "--lib",
+      "selector": "minify::original::tests::body_syntax_compaction_retains_changed_handler_and_observer_refusals",
+      "expected_tests": 1,
+      "source_path": "rust/tcl-lsp-core/src/minify/original.rs",
+      "coverage_kind": "Separate ownership/unavailable controls; not part of frozen original13"
+    },
+    {
+      "package": "tcl-lsp-core",
+      "target": "--lib",
+      "selector": "minify::original::tests::original_minifier_refuses_unavailable_context_with_retained_source_and_input",
+      "expected_tests": 1,
+      "requires_patch_sha256": "3ca50ee0a376f4989beee829d90199badcdef48fa3e03c6eae68341a5155fca3",
+      "source_path": "rust/tcl-lsp-core/src/minify/original.rs",
+      "coverage_kind": "Separate ownership/unavailable controls; not part of frozen original13"
+    },
+    {
+      "package": "tcl-lsp-core",
+      "target": "lsp_core_residual",
+      "selector": "minify_drops_redundant_quotes_around_number",
+      "expected_tests": 1,
+      "source_path": "rust/tcl-lsp-core/tests/lsp_core_residual.rs",
+      "coverage_kind": "Exact CI5203 baseline PASS\u2192CI5205 shard3 FAIL; current output unrun",
+      "historical_raw_block_sha256": "d8d605c8952fdf2831b48a958e51960008f5d18d48a5411246f539857c4ee8a1",
+      "area": "Minify original literal word syntax"
+    },
+    {
+      "package": "tcl-lsp-core",
+      "target": "lsp_core_residual",
+      "selector": "minify_expr_comparison_inversion_in_value_context_is_safe",
+      "expected_tests": 1,
+      "source_path": "rust/tcl-lsp-core/tests/lsp_core_residual.rs",
+      "coverage_kind": "Exact CI5203 baseline PASS\u2192CI5205 shard3 FAIL; current output unrun",
+      "historical_raw_block_sha256": "58c8765d09bff9428afe7c8fe30f948232b8572a2dc5c49d647297b6713f0d65",
+      "area": "Minify numeric equality inversion"
+    },
+    {
+      "package": "tcl-lsp-core",
+      "target": "lsp_core_residual",
+      "selector": "minify_preserves_expr_membership_braced_list",
+      "expected_tests": 1,
+      "source_path": "rust/tcl-lsp-core/tests/lsp_core_residual.rs",
+      "coverage_kind": "Exact CI5203 baseline PASS\u2192CI5205 shard3 FAIL; current output unrun",
+      "historical_raw_block_sha256": "0871b9b4239dfd812f32a0fabef93b57a5f0966cc34ca276b062445889b3d609",
+      "area": "Minify obsolete spacing expectation"
+    },
+    {
+      "package": "tcl-lsp-core",
+      "target": "lsp_core_residual",
+      "selector": "minify_switch_regexp_case_list_preserved",
+      "expected_tests": 1,
+      "source_path": "rust/tcl-lsp-core/tests/lsp_core_residual.rs",
+      "coverage_kind": "Exact CI5203 baseline PASS\u2192CI5205 shard3 FAIL; current output unrun",
+      "historical_raw_block_sha256": "33510d784ba6204e04fa2fe3f0d023da3b54b5374783692214ae596e76588309",
+      "area": "Minify switch case-list syntax"
+    },
+    {
+      "package": "tcl-lsp-core",
+      "target": "lsp_core_residual",
+      "selector": "minify_recurses_into_nested_braced_bodies",
+      "expected_tests": 1,
+      "source_path": "rust/tcl-lsp-core/tests/lsp_core_residual.rs",
+      "coverage_kind": "Additional existing enabled positive coverage; ABSENT historical exact39 P2F roster",
+      "features": [
+        "exact original nested proc/while output assertion unchanged"
+      ]
+    }
+  ],
+  "optional_n15_followup_not_in_base": [
+    "minify_compact_isolated_refuses_proc_renaming_and_preserves_result",
+    "minify_compact_isolated_refuses_local_and_proc_names_together"
+  ],
+  "limits": "full source/provider manifests, actual Cargo JSON executable per current target, executable hashes before/after, inherited stack,180s per selector, draining20MB logs, global flock over entire build/run; >=2.3GB before each build; no cleanup",
+  "plan_source_confirmation": "all12 selector function names uniquely found in assigned current target sources; runtime exact one-test count remains enforced",
+  "provider_change": "Capture actual post-repair Jim executable; old minify154210 provider seal intentionally not reused. Jim patchlevel0.84-9-g5bac7c9 is required by native output controls.",
+  "original13_plan_sha256": "1e0c2d2a03b4b4993002f644d31b391bf6f2a9cf76fb7bbf46f70e385e0e0f6b",
+  "core2_plan_sha256": "f73a6f59a93504ef8c9bd6f39b40e947860a0be4d6628de9cc496d43b8ec0fc7",
+  "historical_minify_failure_count": 5,
+  "historical_minify_named_overlap_original13": 1,
+  "additional_historical_minify_count": 4,
+  "source_pins": [
+    {
+      "path": "rust/tcl-lsp-core/src/minify.rs",
+      "sha256": "0cc2fca3b02ad57997d5d175dbdf94600979ba62f5305e9f8384bbce93dbe392"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/minify/original.rs",
+      "sha256": "f884671b83a57578b6c6e314c66c1cb3bce6fb6ca59c4b64f821af1e382902e3"
+    },
+    {
+      "path": "rust/tcl-lsp-core/tests/lsp_core_residual.rs",
+      "sha256": "be15d4278db166724bcc7a644e2da740244d2f6388cec6aa42c9b6291adb03bc"
+    },
+    {
+      "path": "rust/tcl-lsp-core/tests/lsp_edit_workspace.rs",
+      "sha256": "1886fedcb411ecd26c538f8a1b0b197662d868bc4088ac5b6a5f6e3c1722b65b"
+    },
+    {
+      "path": "rust/tcl-lsp-core/tests/minify_residual.rs",
+      "sha256": "af7db1140f0a8495e7a55e282396cda92ceae0bff8c2b789c9d72c3ff9f72e22"
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/original_document_metadata_tests.rs",
+      "sha256": "3b230a91b7f848a82e80d348b6a076fef0b3cec4aa77a2b2dd47deec60827df2"
+    }
+  ],
+  "source_pin_policy": "Exact recorded selector source hashes must match before run; any future mismatch is terminal and needs explicit reviewed successor, never silent refresh. Other code changes receive complete run source guards.",
+  "expected_total": 20,
+  "groups": [
+    {
+      "package": "tcl-lsp-server",
+      "target": "--lib",
+      "expected_tests": 1
+    },
+    {
+      "package": "tcl-lsp-core",
+      "target": "--lib",
+      "expected_tests": 8
+    },
+    {
+      "package": "tcl-lsp-core",
+      "target": "lsp_edit_workspace",
+      "expected_tests": 2
+    },
+    {
+      "package": "tcl-lsp-core",
+      "target": "minify_residual",
+      "expected_tests": 4
+    },
+    {
+      "package": "tcl-lsp-core",
+      "target": "lsp_core_residual",
+      "expected_tests": 5
+    }
+  ],
+  "ni_expectation_correction": {
+    "decision": "docs/work/name-handling/handoff/reviews/resume-20261017-diagnosis/user-decisions-20261022T1317Z.json",
+    "proposal_sha256": "3872fb6edea1e5a25f02ed26008477ab323dacffabb09bfc18007b3bb8f59627",
+    "old_fixture_sha256": "7cbf5c5aba1110a93957cef75e365e47e7c715f5d7848dbfd6e9598014be590c",
+    "current_fixture_sha256": "be15d4278db166724bcc7a644e2da740244d2f6388cec6aa42c9b6291adb03bc",
+    "coordinator_checkpoint": "551aa7d7a48ff186d8246b18ecb2585295e35b79",
+    "change": "one expected removable ni-to-brace whitespace; original source, selector, assertion and list data remain; permanent delimiter/C Tcl/Jim version comment; decision provenance here only"
+  },
+  "acceptance": "All20 exact-one current Cargo artifact results and unchanged inherited180s stack/budgets/assertions, full sources/providers/executables, no zero-test/filter alias admission. No broad37 replacement or generic N13 closure."
+}

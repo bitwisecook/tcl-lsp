@@ -1,0 +1,17 @@
+{
+  "selector": "minify::original::tests::original_minifier_refuses_unavailable_context_with_retained_source_and_input",
+  "artifact": "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/tcl_lsp_core-15c44a715e01e5f9",
+  "artifact_before_sha256": "90549205f407594ede334e9ecfe5282a90efb38ebf728fee0f156f4eae92a2ad",
+  "artifact_after_sha256": "90549205f407594ede334e9ecfe5282a90efb38ebf728fee0f156f4eae92a2ad",
+  "exit_code": 0,
+  "timed_out": false,
+  "drain_complete": true,
+  "budget_seconds": 180,
+  "seconds": 1.72,
+  "passed": true,
+  "log_sha256": "8a0b274ccbdf8a6f61b22ba291ece4bacbf744bd2508e05db631893a582b5ba1",
+  "diagnostic_environment": {
+    "TCL_LSP_TRACE_SOURCE_PHASES": null,
+    "TCL_LSP_TRACE_ORIGINAL_FUNCTION_LATTICE": null
+  }
+}

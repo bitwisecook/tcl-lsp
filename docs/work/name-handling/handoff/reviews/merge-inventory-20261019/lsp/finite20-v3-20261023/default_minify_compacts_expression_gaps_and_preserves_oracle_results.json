@@ -1,0 +1,17 @@
+{
+  "selector": "default_minify_compacts_expression_gaps_and_preserves_oracle_results",
+  "artifact": "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/minify_residual-b96bab3e22e81bb6",
+  "artifact_before_sha256": "93d7e542a43b5ef89ba230b0972b987a699269a4d3cdd741429d2b4a198255dd",
+  "artifact_after_sha256": "93d7e542a43b5ef89ba230b0972b987a699269a4d3cdd741429d2b4a198255dd",
+  "exit_code": 101,
+  "timed_out": false,
+  "drain_complete": true,
+  "budget_seconds": 180,
+  "seconds": 6.84,
+  "passed": false,
+  "log_sha256": "de1485120f55e31e5117115429bf6435978e1a2214151860162e49a375e81f80",
+  "diagnostic_environment": {
+    "TCL_LSP_TRACE_SOURCE_PHASES": null,
+    "TCL_LSP_TRACE_ORIGINAL_FUNCTION_LATTICE": null
+  }
+}

@@ -1,0 +1,21 @@
+import json,pathlib,re,sys
+log_path,artifact_path,target=sys.argv[1:]
+remaining=20_000_000
+wanted=re.compile(r'Compiling|Finished|warning|error|-->|^ *[0-9]+ *\||^ +["|=^]')
+artifacts=set()
+with open(log_path,'wb') as log:
+ for raw in sys.stdin.buffer:
+  try: row=json.loads(raw)
+  except (ValueError,TypeError): text=raw.decode(errors='replace')
+  else:
+   if row.get('reason')=='compiler-artifact' and row.get('target',{}).get('name')==target and row.get('profile',{}).get('test') and row.get('executable'):
+    artifacts.add(row['executable'])
+   text=row.get('message',{}).get('rendered','') if row.get('reason')=='compiler-message' else ''
+  if remaining and wanted.search(text):
+   data=text.encode()[:remaining];log.write(data);log.flush();remaining-=len(data)
+if len(artifacts)==1:
+ pathlib.Path(artifact_path).write_text(next(iter(artifacts))+'\n')
+else:
+ pathlib.Path(artifact_path).write_text('')
+ print(f'expected one test artifact for {target}, found {len(artifacts)}',file=sys.stderr)
+ sys.exit(1)

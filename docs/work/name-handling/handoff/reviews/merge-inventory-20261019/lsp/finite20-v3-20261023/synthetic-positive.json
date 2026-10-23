@@ -1,0 +1,17 @@
+{
+  "selector": "synthetic::case",
+  "artifact": "/tmp/lsp-folder-minify-current20-v3/synthetic/positive.py",
+  "artifact_before_sha256": "429f3185af6df3da8b5f55e329b7f4495a11700a32c7620d7010e8ac9bc39582",
+  "artifact_after_sha256": "429f3185af6df3da8b5f55e329b7f4495a11700a32c7620d7010e8ac9bc39582",
+  "exit_code": 0,
+  "timed_out": false,
+  "drain_complete": true,
+  "budget_seconds": 180,
+  "seconds": 0.05,
+  "passed": true,
+  "log_sha256": "f838015d9e43b1627ed3bd999e1eff857a97a7b935f3a715fd6ff3920ecc9ae8",
+  "diagnostic_environment": {
+    "TCL_LSP_TRACE_SOURCE_PHASES": null,
+    "TCL_LSP_TRACE_ORIGINAL_FUNCTION_LATTICE": null
+  }
+}

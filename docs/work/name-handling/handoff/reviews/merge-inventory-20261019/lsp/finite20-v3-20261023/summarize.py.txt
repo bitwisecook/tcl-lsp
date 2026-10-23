@@ -1,0 +1,13 @@
+from pathlib import Path
+import json,sys
+root=Path('/tmp/lsp-folder-minify-current20-v3');rows=json.loads((root/'plan.json').read_text())['selectors'];results=[]
+for row in rows:
+ path=root/(row['selector'].split('::')[-1]+'.json')
+ if not path.exists():results.append({'selector':row['selector'],'passed':False,'missing_receipt':True});continue
+ result=json.loads(path.read_text());result['selector_matches_plan']=result['selector']==row['selector'];results.append(result)
+def unchanged(name):
+ a=root/(name+'-before.json');b=root/(name+'-after.json')
+ return a.exists()and b.exists()and a.read_bytes()==b.read_bytes()
+status={'expected_exact_tests':20,'planned_exact_tests':len(rows),'results':results,'source_unchanged':unchanged('source'),'providers_unchanged':unchanged('providers')}
+status['passed']=len(rows)==20 and len({row['selector']for row in rows})==20 and all(row.get('passed')and row.get('selector_matches_plan')for row in results)and status['source_unchanged']and status['providers_unchanged']
+(root/'result.json').write_text(json.dumps(status,indent=2)+'\n');print(json.dumps({k:v for k,v in status.items()if k!='results'}));sys.exit(0 if status['passed']else 1)

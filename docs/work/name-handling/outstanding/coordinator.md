@@ -2,7 +2,7 @@
 
 Area: routing, snapshots, status documents, release gate.
 
-Last updated: 2026-10-23T01:25:37.178502+00:00
+Last updated: 2026-10-23T01:59:50.820213+00:00
 
 ## In progress
 
@@ -413,3 +413,18 @@ Six-package all-target typing is PASS on3b1a750 with0errors/0warnings,6542source
 - Rootsource/test/provider HOLD; nextfixedproduct49beforepost49candidatebatch(reportAPI,2compilefixes,VMsemanticfix,CCGtestABI). No newCargobuildqueues/manualtargetcleanup. Actualmetadata0W scopedtyping; allreleaseF andverified0 stayopen.
 - 01:24:20 CI5206 connectorfirstpage30jobs7success13failure8in_progress2skip; completenessnotproved bywrapper. Main1/2/3/5,heavy,e2epartitionsactive; main4compileblocked. Latestfreshdepth1workfetchconfirms7b53d5056remote, publisherFFnext.
 - Current18cmdcoremechanical lintfixesinprep; compiler512currentprimarydiagnosticsconfirmedfromactualANSIlog, mechanicalonlysubsetinprep. No codeintegration/Cargoqueue. VM16protocolreviewcaughtfalsezero-warningclaim inheritedoverwrite; v1notauthorizedforrun, immutablecorrectedv2required.
+
+### Current cycle and routing (01:55 UTC)
+
+- 01:25cycle normal-pushedbeddcb8cdfdd9614f81ee0c5f2ab6c0bfef9298b at01:26:10, active94ae34ae9, freshdepth1workfetch/FF/rebase/productdiff0; progress-report-20261023T0125Z/freshness+dsk10.8GB. Next01:55reminder94785rearmed.
+- Currentstylecandidatesofftreecmdcore19 across7paths a1f20973 peerf19e3d7b and compiler19mechanicaledits16pathsf0f7d52a peer50233a85. ActualcurrentCompiler512/VM182/cmdcore19 Cargo errorinstancesstillunmeasuredafterfixes; noreductionclaimed. No structuralproductionframes/noallows/assertchanges.
+- VMnoTommath16v1MUSTNOTRUN falsezeroWreceipt; correctedimmutablev2plan8c1bd504 runner ea9cf1e7 helpera647, peer555886e9CLEAR. Requirespostsemanticinterp580d73c0 and actualfreshCargofeatures[]/nohave_tommath; noengineflavorswitch, original16exactnotcovered19/11, first7notclosure. FullTommathpostfix4 peerCLEAR stillunqueued.
+- Source/test/providerHOLD docsCLEAR all5rolesparallel(noexternalduplicates). ExternalBIGIP18:08/perf21:00/completedtriage19:57headersstale,usernotified,ownerheadersunchanged. Fullperfproof/realm-interproceduralpatchstillWITHHELD.
+- Cyclemustfreshdepth1workfetch/FF; fullWIPexcludezzprobes; agenttable/freshness/officialwriter/disk; freshfetch/rebase/normalpush+productequality; rearm02:25:37. NoPR/merge/tag/release/targetcleanup, all8F/verified0unchanged.
+- Finite20 closed01:37:29 exact20/15PASS5FAIL/no timeout, source/executablesstable; missingfinalprovideraftermeansNOguardedadmission. Separatenew01:42fingerprintall3464providersbyteequalinitialSHA4a81e119 doesnotretroactivelyrepair. Sourcecapturewritesfilebeforeprinting; lostoldUIstdio maycauseBrokenPipe/ORshortcircuit but stderrnotretainedcauseunknown.
+- PassedobservationsCore8allPASS; completedEdit2 1PASS1FAIL (factorial), not2PASS. Nestedbodysourcepurposegatedat3existingruntime-envelopeconsumers; authoritativecompiledtokenpurposeunmeasured/no declarationfallback. Exact5failureobservationsarchivedunchangedassertions.
+- NumericEq/Neinversionv2cfef16f6 peercompiler51671a57CLEAR, usesC8.6 actualsharedopcodegetter/order/NaN/stringfallback; 144manualpairs5C+JimPASS; Rustexecutionunrun. Rootauthorizesadding6thcomponentto18pathpost49composition (no38styles).
+- Correctedfmt: original17v1runtime580 alreadypassesownerRust2021. Rootuniform2024checkv2waswrongandnotrepositoryproof; preservedandpubliclycorrected. v3correctedownermanifesteditions16x2024+runtime2021 all17PASS, onlyCCGtestformatted4d487875; combined173bceeb. VMexistingplansretain580, nohashrefresh.
+- Compiler49 v7 rootGO/start01:59Z: immutable plan0cb62fcd/manifest23b393e2, fixed product3b1 with docs descendants only. Pinned actual Cargo no-run artifacts and direct parent-owned per-selector180s timers, two complete process-group scans, bounded cleanup, durable logs,20MiB/2GiB/source/provider guards. No Cargo runtime verdict yet. Old v3/v5/v6 integrated runners superseded and must not run.
+- Post49 exact18 component composition v4 ready, manifest269b0b42 combined9fdee598: reportv7,WASMUnpin,SpecTcl256,VM C84 c12f/580,CCG ABI test9d3d,numericcfef. Freshshadow zero-fuzz;17 priorfinals unchanged. Owner-edition17 priorPASS; complete18 format audit in progress. No integration/type/runtime; no38style/float/BPF/probe components.
+- CI5206 still active; connector first30 at01:54 reports7success17failure4running2skipped; completeness unknown. New main1/heavy failures await decoding. Exact scoped runtime16/wasm7/WASI3 baselineP2F remain separate; main4/Spec E0275 and browser E0277 pending sourcebatch. No duplicate/cancel/rerun.

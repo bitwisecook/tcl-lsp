@@ -1,0 +1,106 @@
+{
+  "utc": "2026-10-23T01:34:54.704563+00:00",
+  "status": "COMPLETE CORE GROUP ONLY; final whole20guards PENDING",
+  "expected": 8,
+  "completed": 8,
+  "passed": 8,
+  "failed": 0,
+  "build_exit": "0 0",
+  "files": [
+    {
+      "path": "core_lib-build.log",
+      "bytes": 1107,
+      "sha256": "d2701c2ed64df46d5da354aab16724eb0269c894ae5bc6c5ff8d7ad23a70ff20"
+    },
+    {
+      "path": "core_lib-build.exit",
+      "bytes": 4,
+      "sha256": "0ccdb5a77ba5bf7687f2565a8ed97dfb9c1af45503c496fb646312239fab5101"
+    },
+    {
+      "path": "core_lib-artifact.txt",
+      "bytes": 91,
+      "sha256": "f53ed937ed3d14b8ba08f12bdb534c9544d58e6b1e673f405ef4a2aa0464ee57"
+    },
+    {
+      "path": "expr_string_and_membership_inversion_still_applies.json",
+      "bytes": 726,
+      "sha256": "29f1554e601dbcce6c8be5ba617e2d9ca4e36a2ad1fd4d9374b53326cec0806c"
+    },
+    {
+      "path": "expr_string_and_membership_inversion_still_applies.log",
+      "bytes": 191,
+      "sha256": "58235505bdf16753047fd1e78f646dba4d6a0f589901e29ca6a851c16dd3884b"
+    },
+    {
+      "path": "keeps_word_operator_spacing.json",
+      "bytes": 704,
+      "sha256": "4d42893c2bcea6d17d9fa0aee31efc13102fc24d15c532519274b9843d2e15cf"
+    },
+    {
+      "path": "keeps_word_operator_spacing.log",
+      "bytes": 169,
+      "sha256": "48f54f9bc9d7e2f2c0572244c2b9c0d0513f6f2da142e76548751079fe41ae6a"
+    },
+    {
+      "path": "native_syntax_compaction_uses_selected_original_expression_gaps.json",
+      "bytes": 749,
+      "sha256": "90847dac26b0147f653e76fb9f056c7926dba241bbe58a3d07d5bfb5a10c7aa6"
+    },
+    {
+      "path": "native_syntax_compaction_uses_selected_original_expression_gaps.log",
+      "bytes": 214,
+      "sha256": "d4b9a20b1fa7ce4016603af1ad94635500d7f177481fb75d7d4ac1249a56a5be"
+    },
+    {
+      "path": "original_syntax_compaction_keeps_opaque_words_nested_scripts_and_expansion.json",
+      "bytes": 761,
+      "sha256": "d06699b51c49fcbfaa2d83fab0e599bc07e3cc8386f0430c6ec36b22bfa75e8b"
+    },
+    {
+      "path": "original_syntax_compaction_keeps_opaque_words_nested_scripts_and_expansion.log",
+      "bytes": 226,
+      "sha256": "54c2b61d99304ca9f954842dd6a22aa39fe1af98e75ed2508823ef8076ea737b"
+    },
+    {
+      "path": "original_minifier_declines_stale_images_full_configuration_changes_and_malformed_tail.json",
+      "bytes": 771,
+      "sha256": "001fed1ea68ddde21003cf22c7124e072c87166af96d82c8a51fe387013f4b7a"
+    },
+    {
+      "path": "original_minifier_declines_stale_images_full_configuration_changes_and_malformed_tail.log",
+      "bytes": 236,
+      "sha256": "cd5721bf85b0a7ff06ff8757ec74212d7f98e586987a1134091ff7304f65d881"
+    },
+    {
+      "path": "original_minifier_holds_custom_profile_and_registry_instead_of_resolving_its_label.json",
+      "bytes": 767,
+      "sha256": "173acce85a20e06eefe7e8b40bf6f928bbd3f1990c35df94ce7a3247e4403425"
+    },
+    {
+      "path": "original_minifier_holds_custom_profile_and_registry_instead_of_resolving_its_label.log",
+      "bytes": 232,
+      "sha256": "f26b7b76dd64718b1e42f8133afd600b11cef9ce03c09875a3dba3a4d5d49fcc"
+    },
+    {
+      "path": "body_syntax_compaction_retains_changed_handler_and_observer_refusals.json",
+      "bytes": 753,
+      "sha256": "aacbd45ff3a6331a94d27cf2e7e9136a1bd669bf28dab67f4cff21264043439f"
+    },
+    {
+      "path": "body_syntax_compaction_retains_changed_handler_and_observer_refusals.log",
+      "bytes": 219,
+      "sha256": "aa3f39bb63997e37c54acf2f89513c6bb62d0584121f3992485d3b08c68b6b37"
+    },
+    {
+      "path": "original_minifier_refuses_unavailable_context_with_retained_source_and_input.json",
+      "bytes": 761,
+      "sha256": "eb7de7e4c3491f30268f9621611eb6fb2731265f303e0126916a079682c2989d"
+    },
+    {
+      "path": "original_minifier_refuses_unavailable_context_with_retained_source_and_input.log",
+      "bytes": 226,
+      "sha256": "8a0b274ccbdf8a6f61b22ba291ece4bacbf744bd2508e05db631893a582b5ba1"
+    }
+  ]
+}

@@ -2,11 +2,40 @@
 
 Area: tcl-vm, runtime/rust, tcl-spectcl, tcl-spec-studio: SpecTcl execution and acceptance.
 
-Last updated: 2026-10-23T01:25:10.866837+00:00 (exact16 v2 receipt fix; v1 MUST NOT RUN; review pending)
+Last updated: 2026-10-23T01:36:02.806087+00:00 (compositionv3 interp580d confirmed; existing reviewed plans exact; no Cargo)
 
 Maintained by the vm-runtime agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## Resume
+
+Corrected composition v3 independently confirmed: runtime interp bytes are
+EXACTLY original semantic candidate580d73c0, actual edition2021 format no-op.
+Existing reviewed full4v1 plan0a255221 and noTom16v2 plan8c1bd504 already
+pin these bytes; no VM plan successor is needed. Composition v3 overlay
+changes only CCG test formatting. Evidence
+`/tmp/vm-runtime-composition-v3-pin-confirmation.json`. Both phases remain
+unrun/unqueued pending root post49 source integration/typing and explicit GO.
+
+
+Independent VM formatter review corrected root's all17 edition2024 assumption:
+runtime Cargo.toml declares2021. Formatted v2 interpccf8705b FAILS actual2021
+check; original c12f semantic candidate580d73c0 PASSES pinned edition2021
+check exit0. No VM formatter repair is needed. Root withdrew v2 runtime choice;
+Luna prepares v3 composition from v1 with actual per-crate editions. Existing
+VM plans remain immutable/unrun with580d pin; no newplans until corrected v3
+bytes/hash confirmed. Receipt `/tmp/vm-runtime-composition-edition-review-20261023.json`.
+No canonical formatter/source application, Cargo or queue.
+
+
+Exact16 v2 peer review clear (`555886e9`), no actual acceptance. Root's pinned
+rustfmt check found c12f266e semantic candidate interp580d73c0 requires
+formatting. Coordination checks owns immutable formatted composition+overlay;
+VM requested final bytes/hash to independently prove formatter-only delta.
+The later independent edition review above supersedes the initial assumption.
+New full4/noTom16 successors will pin that final interp hash; current plans
+remain immutable/unrun, no source apply or Cargo. LSP20 then fixed49 precede
+root source batch; no build queue.
+
 
 Exact16 v1 MUST NOT RUN: independent CCG review found inherited final
 zero_warning_claim=True overriding the preceding False despite the intentional

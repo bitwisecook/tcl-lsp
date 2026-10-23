@@ -1,0 +1,8 @@
+running 1 test
+test minify_expr_comparison_inversion_in_value_context_is_safe ... 
+thread 'minify_expr_comparison_inversion_in_value_context_is_safe' (214894) panicked at rust/tcl-lsp-core/tests/lsp_core_residual.rs:778:5:
+assertion `left == right` failed
+  left: "set a 1;set b 2;puts [expr {!($a==$b)}]"
+ right: "set a 1;set b 2;puts [expr {$a!=$b}]"
+FAILED
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 48 filtered out; finished in 5.71s

@@ -1,0 +1,8 @@
+running 1 test
+test minify_switch_regexp_case_list_preserved ... 
+thread 'minify_switch_regexp_case_list_preserved' (214907) panicked at rust/tcl-lsp-core/tests/lsp_core_residual.rs:766:5:
+assertion `left == right` failed
+  left: "switch -regexp $x {\n  {^a} {puts 1}\n  default {puts 2}\n}"
+ right: "switch -regexp $x {{^a} {puts 1} default {puts 2}}"
+FAILED
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 48 filtered out; finished in 1.83s

@@ -1,0 +1,14 @@
+set count 0
+foreach pair {{1 2} {1 1} {01 1} {1.0 1} {foo bar} {foo foo} {NaN NaN} {Inf Inf} {-Inf Inf} {9007199254740993 9007199254740992} {é é} {{} {}}} {
+ set a [lindex $pair 0]
+ set b [lindex $pair 1]
+ foreach expressions {{{!($a == $b)} {$a != $b}} {{!($a != $b)} {$a == $b}}} {
+  set original [lindex $expressions 0]
+  set proposed [lindex $expressions 1]
+  set beforeCode [catch {expr $original} before]
+  set afterCode [catch {expr $proposed} after]
+  if {$beforeCode != $afterCode || $before ne $after} {error [list mismatch $pair $original $beforeCode $before $afterCode $after]}
+  incr count
+ }
+}
+puts [list PASS $count]

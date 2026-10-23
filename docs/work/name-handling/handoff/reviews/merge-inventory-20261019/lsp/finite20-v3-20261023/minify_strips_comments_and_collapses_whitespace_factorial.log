@@ -1,0 +1,8 @@
+running 1 test
+test minify_strips_comments_and_collapses_whitespace_factorial ... 
+thread 'minify_strips_comments_and_collapses_whitespace_factorial' (214448) panicked at rust/tcl-lsp-core/tests/lsp_edit_workspace.rs:274:5:
+assertion `left == right` failed
+  left: "proc fact {n} {if {$n <= 1} { return 1 };return [expr {$n * [fact [expr {$n - 1}]]}]};puts [fact 5]"
+ right: "proc fact {n} {if {$n<=1} {return 1};return [expr {$n*[fact [expr {$n-1}]]}]};puts [fact 5]"
+FAILED
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 36 filtered out; finished in 6.91s

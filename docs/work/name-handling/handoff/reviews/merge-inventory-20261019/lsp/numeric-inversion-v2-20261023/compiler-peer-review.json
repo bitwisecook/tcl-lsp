@@ -1,0 +1,32 @@
+{
+  "utc": "2026-10-23T01:42:56.544986+00:00",
+  "reviewer": "compiler",
+  "patch_sha256": "cfef16f65175dd4abe609bfaf507653bca7f857cb6b3cc7a5448a4cd11007574",
+  "before_sha256": "d434352bf316d364b7f1fbf06a34934b539f88632d6a769ea1aaf656e03b0fce",
+  "after_sha256": "acc8dbfce9bf18dcc1165f722f6ab47d5a00b37cdaabeb5b2c2035282d6037b6",
+  "verdict": "BOUNDED STATIC CLEAR; actual Rust typing/runtime UNRUN",
+  "scope": [
+    "Two numeric equality complement match arms Eq->Ne/Ne->Eq added beside existing string/membership arms; only API comment corrected; additive existing positive/negative vectors",
+    "Existing authentic source/input/config/current registry/native word ownership/braced group/checked profile parser/selected handler/observer gates unchanged",
+    "Original binary operands must retain same leaf kind/text/variable name/token coordinates, each same operand remains once and same left/right order; commands and arbitrary AST restructuring refused",
+    "No ordered numeric comparison inversion, DeMorgan transformation, operand swap/change or assertion weakening"
+  ],
+  "semantic_evidence": {
+    "c_source": "/workspace/naming-toolchains/tmp/tcl8.6.18/generic/tclExecute.c",
+    "c_source_sha256": "2a29cf5e54d1b2ac4ddf56a6f38556bbfb9c8e8913800377c84a6f0bb8caa491",
+    "lines": "6125-6209",
+    "observed": "INST_EQ and INST_NEQ share same value pointers and numeric getter order/string fallback. NaN produces only NEQ true. Comparison conversion is ==MP_EQ versus !=MP_EQ. Both return Boolean; outer ! complements defined Boolean. No extra failing getter is introduced/removed for a non-Boolean comparison result.",
+    "manual_oracle": "LSP actual144/144 (24 each C8.4/8.5/8.6/9.0/9.1/Jim), includes finite/NaN/Inf/string/large integers; finite semantic evidence only, not Rust producer integration proof"
+  },
+  "checks": [
+    "Exact source before/final hashes",
+    "Exact v1->v2 solely stale API doc correction, v1 frozen",
+    "Canonical read-only git apply --check --whitespace=error -p0 exits0",
+    "Compiler independently ran pinned1.99.1 rustfmt --check --edition2024 --config skip_children=true on off-tree proposed.txt, exit0; no Cargo"
+  ],
+  "limits": [
+    "Rust producer positive/refusal controls and original failed minify selector remain UNRUN",
+    "Finite20 observed15PASS5FAIL has missing final provider-after so no admission",
+    "No report14/composite17/49 protocol refresh or source integration authorised by review"
+  ]
+}

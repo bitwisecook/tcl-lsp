@@ -1,0 +1,58 @@
+{
+  "argv": [
+    "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python3",
+    "-c",
+    "print(\"scancontrol\")"
+  ],
+  "artifact": "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python3",
+  "artifact_sha256_after": "fa67443527ed9647f760d807e2a38f26340757123e643c4639cf273ed15d5ea7",
+  "artifact_sha256_before": "fa67443527ed9647f760d807e2a38f26340757123e643c4639cf273ed15d5ea7",
+  "artifact_unchanged": true,
+  "cap_bytes": 1024,
+  "cleanup_signals": [],
+  "complete": true,
+  "consecutive_complete_empty_group_scans": 2,
+  "cwd": "/tmp",
+  "deadline_seconds": 3,
+  "disk_floor_bytes": 2147483648,
+  "disk_paths": [
+    "/workspace",
+    "/tmp",
+    "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python3",
+    "/tmp/names-exec-v6-7sju4_xr/injected_incomplete_scan",
+    "/tmp/names-exec-v6-7sju4_xr/injected_incomplete_scan",
+    "/tmp/names-exec-v6-7sju4_xr/injected_incomplete_scan"
+  ],
+  "elapsed_seconds": 0.822842616,
+  "ended_utc": "2026-10-23T01:50:59.707671+00:00",
+  "exit_code": 0,
+  "group_empty_before_parent_reap": true,
+  "group_scan_attempts": 3,
+  "last_group_scan": {
+    "complete": true,
+    "members": [],
+    "vanished_pids": []
+  },
+  "minimum_free_bytes": 4465901568,
+  "owned_live_group_members": [],
+  "parent_exit_observed_monotonic_ns": 44918695805409,
+  "parent_waitid_wnowait": {
+    "si_code": 1,
+    "si_pid": 216167,
+    "si_status": 0
+  },
+  "pid": 216167,
+  "pid_start_ticks": 4491866,
+  "process_group": 216167,
+  "retained_bytes": 12,
+  "spawn_return_monotonic_ns": 44918668376578,
+  "spawn_return_utc": "2026-10-23T01:50:58.887307+00:00",
+  "stderr": "/tmp/names-exec-v6-7sju4_xr/injected_incomplete_scan/stderr",
+  "stderr_bytes": 0,
+  "stdout": "/tmp/names-exec-v6-7sju4_xr/injected_incomplete_scan/stdout",
+  "stdout_bytes": 12,
+  "stop_reason": null,
+  "timer_armed_before_spawn": true,
+  "timer_armed_monotonic_ns": 44918665946277,
+  "timer_armed_utc": "2026-10-23T01:50:58.884877+00:00"
+}

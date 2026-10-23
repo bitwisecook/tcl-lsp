@@ -1,0 +1,515 @@
+{
+  "archived_utc": "2026-10-23T01:38:05.973109+00:00",
+  "run_path": "/tmp/lsp-folder-minify-current20-v3",
+  "head": "b19ab38c7a0ecb1fa4f600c7f5dd1b7e556e7955",
+  "expected_exact_tests": 20,
+  "completed": 20,
+  "passed": 15,
+  "failed": [
+    "minify_strips_comments_and_collapses_whitespace_factorial",
+    "default_minify_compacts_expression_gaps_and_preserves_oracle_results",
+    "minify_drops_redundant_quotes_around_number",
+    "minify_expr_comparison_inversion_in_value_context_is_safe",
+    "minify_switch_regexp_case_list_preserved"
+  ],
+  "missing": [],
+  "source_unchanged": true,
+  "providers_unchanged": false,
+  "artifacts_unchanged": true,
+  "all_passed_guarded": false,
+  "files": [
+    {
+      "original": "/tmp/lsp-folder-minify-current20-v3/body_syntax_compaction_retains_changed_handler_and_observer_refusals.json",
+      "archive": "body_syntax_compaction_retains_changed_handler_and_observer_refusals.json",
+      "bytes": 753,
+      "sha256": "aacbd45ff3a6331a94d27cf2e7e9136a1bd669bf28dab67f4cff21264043439f"
+    },
+    {
+      "original": "/tmp/lsp-folder-minify-current20-v3/body_syntax_compaction_retains_changed_handler_and_observer_refusals.log",
+      "archive": "body_syntax_compaction_retains_changed_handler_and_observer_refusals.log",
+      "bytes": 219,
+      "sha256": "aa3f39bb63997e37c54acf2f89513c6bb62d0584121f3992485d3b08c68b6b37"
+    },
+    {
+      "original": "/tmp/lsp-folder-minify-current20-v3/check-source-pins.py",
+      "archive": "check-source-pins.py.txt",
+      "bytes": 632,
+      "sha256": "5baf26277da1f8b5ad26c4c7259197890b649fd35b4d77a353da13711f44db4d"
+    },
+    {
+      "original": "/tmp/lsp-folder-minify-current20-v3/collect-build.py",
+      "archive": "collect-build.py.txt",
+      "bytes": 1012,
+      "sha256": "76c690585d22185516cebe5a7c701deef467b91f9f4bee5b36dccefa6f48ec9a"
+    },
+    {
+      "original": "/tmp/lsp-folder-minify-current20-v3/core_lib-artifact.txt",
+      "archive": "core_lib-artifact.txt",
+      "bytes": 91,
+      "sha256": "f53ed937ed3d14b8ba08f12bdb534c9544d58e6b1e673f405ef4a2aa0464ee57"
+    },
+    {
+      "original": "/tmp/lsp-folder-minify-current20-v3/core_lib-build.exit",
+      "archive": "core_lib-build.exit",
+      "bytes": 4,
+      "sha256": "0ccdb5a77ba5bf7687f2565a8ed97dfb9c1af45503c496fb646312239fab5101"
+    },
+    {
+      "original": "/tmp/lsp-folder-minify-current20-v3/core_lib-build.log",
+      "archive": "core_lib-build.log",
+      "bytes": 1107,
+      "sha256": "d2701c2ed64df46d5da354aab16724eb0269c894ae5bc6c5ff8d7ad23a70ff20"
+    },
+    {
+      "original": "/tmp/lsp-folder-minify-current20-v3/default_minify_compacts_expression_gaps_and_preserves_oracle_results.json",
+      "archive": "default_minify_compacts_expression_gaps_and_preserves_oracle_results.json",
+      "bytes": 734,
+      "sha256": "bd354b2a5f086a21a63113fc075743c6cfc1cea7e6dc997cd86a5525ba388162"
+    },
+    {
+      "original": "/tmp/lsp-folder-minify-current20-v3/default_minify_compacts_expression_gaps_and_preserves_oracle_results.log",
+      "archive": "default_minify_compacts_expression_gaps_and_preserves_oracle_results.log",
+      "bytes": 349,
+      "sha256": "de1485120f55e31e5117115429bf6435978e1a2214151860162e49a375e81f80"
+    },
+    {
+      "original": "/tmp/lsp-folder-minify-current20-v3/expr_comparison_inversion_membership.json",
+      "archive": "expr_comparison_inversion_membership.json",
+      "bytes": 699,
+      "sha256": "db8604c0d0fa2202768fde4a528cae5698e166fca6bf465eab9f58cde15e5070"
+    },
+    {
+      "original": "/tmp/lsp-folder-minify-current20-v3/expr_comparison_inversion_membership.log",
+      "archive": "expr_comparison_inversion_membership.log",
+      "bytes": 159,
+      "sha256": "5962f00d747a023db6d0e83180d3a4ceac3bbbbc0293d2b87416a920583d72ea"
+    },
+    {
+      "original": "/tmp/lsp-folder-minify-current20-v3/expr_comparison_inversion_string_equal.json",
+      "archive": "expr_comparison_inversion_string_equal.json",
+      "bytes": 701,
+      "sha256": "e0a37011926a28ead8cea478a1e90656f4c4ec921a86b25d2f8341e20dd73cf0"
+    },
+    {
+      "original": "/tmp/lsp-folder-minify-current20-v3/expr_comparison_inversion_string_equal.log",
+      "archive": "expr_comparison_inversion_string_equal.log",
+      "bytes": 161,
+      "sha256": "9130cf5ee8136244114228f9412dbec8d2b9296073cbe247feed569c85709fec"
+    },
+    {
+      "original": "/tmp/lsp-folder-minify-current20-v3/expr_string_and_membership_inversion_still_applies.json",
+      "archive": "expr_string_and_membership_inversion_still_applies.json",
+      "bytes": 726,
+      "sha256": "29f1554e601dbcce6c8be5ba617e2d9ca4e36a2ad1fd4d9374b53326cec0806c"
+    },
+    {
+      "original": "/tmp/lsp-folder-minify-current20-v3/expr_string_and_membership_inversion_still_applies.log",
+      "archive": "expr_string_and_membership_inversion_still_applies.log",
+      "bytes": 191,
+      "sha256": "58235505bdf16753047fd1e78f646dba4d6a0f589901e29ca6a851c16dd3884b"
+    },
+    {
+      "original": "/tmp/lsp-folder-minify-current20-v3/finished.txt",
+      "archive": "finished.txt",
+      "bytes": 59,
+      "sha256": "61f8ca09104ef4f4562d2b9abe2c8aed90230cbf551c0024b6dd2261dd640b67"
+    },
+    {
+      "original": "/tmp/lsp-folder-minify-current20-v3/folder_context_exact_inputs_keep_compiler_report_available.json",
+      "archive": "folder_context_exact_inputs_keep_compiler_report_available.json",
+      "bytes": 755,
+      "sha256": "8741fb8d7573bc70149e2bbfe5e692e39d9c2c5f11bed0898fd7119c78cc1338"
+    },
+    {
+      "original": "/tmp/lsp-folder-minify-current20-v3/folder_context_exact_inputs_keep_compiler_report_available.log",
+      "archive": "folder_context_exact_inputs_keep_compiler_report_available.log",
+      "bytes": 1729,
+      "sha256": "f60e3febc2bde1177bd14892ab0731d10ebe2bbfd47a634bb1a6977047f57550"
+    },
+    {
+      "original": "/tmp/lsp-folder-minify-current20-v3/head.txt",
+      "archive": "head.txt",
+      "bytes": 41,
+      "sha256": "03c7857107724a3dba9bf270f453758b1a97905d317c1fd24d55235dee1abd43"
+    },
+    {
+      "original": "/tmp/lsp-folder-minify-current20-v3/immutable-manifest.json",
+      "archive": "immutable-manifest.json",
+      "bytes": 611,
+      "sha256": "f5dac8a29ffbc8f3bd9bfdcd210240b1307736d2756f1a3d6ac7a84c4e432947"
+    },
+    {
+      "original": "/tmp/lsp-folder-minify-current20-v3/input-drift.txt",
+      "archive": "input-drift.txt",
+      "bytes": 41,
+      "sha256": "cdeb7f39fa8078c2154712e73a7a742aec3e1e8edf74af7a3f400477cb9e6cd1"
+    },
+    {
+      "original": "/tmp/lsp-folder-minify-current20-v3/keeps_word_operator_spacing.json",
+      "archive": "keeps_word_operator_spacing.json",
+      "bytes": 704,
+      "sha256": "4d42893c2bcea6d17d9fa0aee31efc13102fc24d15c532519274b9843d2e15cf"
+    },
+    {
+      "original": "/tmp/lsp-folder-minify-current20-v3/keeps_word_operator_spacing.log",
+      "archive": "keeps_word_operator_spacing.log",
+      "bytes": 169,
+      "sha256": "48f54f9bc9d7e2f2c0572244c2b9c0d0513f6f2da142e76548751079fe41ae6a"
+    },
+    {
+      "original": "/tmp/lsp-folder-minify-current20-v3/launch.txt",
+      "archive": "launch.txt",
+      "bytes": 51,
+      "sha256": "408892cc80f2bd5a178f8a2390d9cc73d2fc3550ddbe177a1393f6d05202364e"
+    },
+    {
+      "original": "/tmp/lsp-folder-minify-current20-v3/lsp_core_residual-artifact.txt",
+      "archive": "lsp_core_residual-artifact.txt",
+      "bytes": 96,
+      "sha256": "613825727947a0eaebc4b29b1cb705cf35b22e49e2a22fbf4b3eaffba88af4a3"
+    },
+    {
+      "original": "/tmp/lsp-folder-minify-current20-v3/lsp_core_residual-build.exit",
+      "archive": "lsp_core_residual-build.exit",
+      "bytes": 4,
+      "sha256": "0ccdb5a77ba5bf7687f2565a8ed97dfb9c1af45503c496fb646312239fab5101"
+    },
+    {
+      "original": "/tmp/lsp-folder-minify-current20-v3/lsp_core_residual-build.log",
+      "archive": "lsp_core_residual-build.log",
+      "bytes": 157,
+      "sha256": "65e94404069954f4594465c68442aec72bfb588d650403f8a99de87e718b4483"
+    },
+    {
+      "original": "/tmp/lsp-folder-minify-current20-v3/lsp_edit_workspace-artifact.txt",
+      "archive": "lsp_edit_workspace-artifact.txt",
+      "bytes": 97,
+      "sha256": "55bfe534ff242e822959aa3e5fd85f84492ce4c49f05f41d98b51da92dc8492e"
+    },
+    {
+      "original": "/tmp/lsp-folder-minify-current20-v3/lsp_edit_workspace-build.exit",
+      "archive": "lsp_edit_workspace-build.exit",
+      "bytes": 4,
+      "sha256": "0ccdb5a77ba5bf7687f2565a8ed97dfb9c1af45503c496fb646312239fab5101"
+    },
+    {
+      "original": "/tmp/lsp-folder-minify-current20-v3/lsp_edit_workspace-build.log",
+      "archive": "lsp_edit_workspace-build.log",
+      "bytes": 158,
+      "sha256": "9502a509171cc4e307fa0e77119725f59ff86997bd55c0a5433bbcb0f2f95d32"
+    },
+    {
+      "original": "/tmp/lsp-folder-minify-current20-v3/minify_drops_redundant_quotes_around_number.json",
+      "archive": "minify_drops_redundant_quotes_around_number.json",
+      "bytes": 711,
+      "sha256": "908d476d605e5fd0afcf216d45f764b5fb75bde71f1cef801968b238770cfb85"
+    },
+    {
+      "original": "/tmp/lsp-folder-minify-current20-v3/minify_drops_redundant_quotes_around_number.log",
+      "archive": "minify_drops_redundant_quotes_around_number.log",
+      "bytes": 374,
+      "sha256": "f1754fc1e97d8701a0434d7c0de7f981448e223a546926cea5593b10a8b66bf2"
+    },
+    {
+      "original": "/tmp/lsp-folder-minify-current20-v3/minify_expr_comparison_inversion_in_value_context_is_safe.json",
+      "archive": "minify_expr_comparison_inversion_in_value_context_is_safe.json",
+      "bytes": 724,
+      "sha256": "19338984d5c9645e3d5348a1c982f9fa05f58d51cbbba8c88c5e8b17e44c6c27"
+    },
+    {
+      "original": "/tmp/lsp-folder-minify-current20-v3/minify_expr_comparison_inversion_in_value_context_is_safe.log",
+      "archive": "minify_expr_comparison_inversion_in_value_context_is_safe.log",
+      "bytes": 459,
+      "sha256": "0f279f9ef750f7b023b780f23efe3729574b3ae50c2ecc0892b7f7ab588fc91c"
+    },
+    {
+      "original": "/tmp/lsp-folder-minify-current20-v3/minify_preserves_expr_membership_braced_list.json",
+      "archive": "minify_preserves_expr_membership_braced_list.json",
+      "bytes": 709,
+      "sha256": "0fb6e591825b4a21ba7611353241b957d4c17f42b3f7a79dd6767b1cb0e32b12"
+    },
+    {
+      "original": "/tmp/lsp-folder-minify-current20-v3/minify_preserves_expr_membership_braced_list.log",
+      "archive": "minify_preserves_expr_membership_braced_list.log",
+      "bytes": 167,
+      "sha256": "30d2f09913766702abb7f1041c029f2a27c3c7909917f3827e9bb53afc4cdee6"
+    },
+    {
+      "original": "/tmp/lsp-folder-minify-current20-v3/minify_preserves_string_and_expr_results.json",
+      "archive": "minify_preserves_string_and_expr_results.json",
+      "bytes": 706,
+      "sha256": "71fd4928542f684e50af3c157f6591cbd9a59d9a7d86fa6f1e1ae8882010cce1"
+    },
+    {
+      "original": "/tmp/lsp-folder-minify-current20-v3/minify_preserves_string_and_expr_results.log",
+      "archive": "minify_preserves_string_and_expr_results.log",
+      "bytes": 163,
+      "sha256": "c8fb559312aebaae1c0bcce9ae7a70a42415f83e05e26e231329ecc31067a50d"
+    },
+    {
+      "original": "/tmp/lsp-folder-minify-current20-v3/minify_recurses_into_nested_braced_bodies.json",
+      "archive": "minify_recurses_into_nested_braced_bodies.json",
+      "bytes": 706,
+      "sha256": "45c0928aa880a0629a3f99dd35a0cf446a91d6fc0d261f1e5bb6ac9999f741a8"
+    },
+    {
+      "original": "/tmp/lsp-folder-minify-current20-v3/minify_recurses_into_nested_braced_bodies.log",
+      "archive": "minify_recurses_into_nested_braced_bodies.log",
+      "bytes": 164,
+      "sha256": "f06510153079af3741498b94d560511c4d9777e9ff3534a06669dd6648b2033c"
+    },
+    {
+      "original": "/tmp/lsp-folder-minify-current20-v3/minify_residual-artifact.txt",
+      "archive": "minify_residual-artifact.txt",
+      "bytes": 94,
+      "sha256": "d7943b0a22eaaec3b59dc157604a4246d6fcc985b076bce959a3536693fea6f9"
+    },
+    {
+      "original": "/tmp/lsp-folder-minify-current20-v3/minify_residual-build.exit",
+      "archive": "minify_residual-build.exit",
+      "bytes": 4,
+      "sha256": "0ccdb5a77ba5bf7687f2565a8ed97dfb9c1af45503c496fb646312239fab5101"
+    },
+    {
+      "original": "/tmp/lsp-folder-minify-current20-v3/minify_residual-build.log",
+      "archive": "minify_residual-build.log",
+      "bytes": 157,
+      "sha256": "2ef8ecf3705864e5fb8c43cabca862a21b2d5d9acfbbf1efa6b7e0a14c9ef20f"
+    },
+    {
+      "original": "/tmp/lsp-folder-minify-current20-v3/minify_strips_comments_and_collapses_whitespace_factorial.json",
+      "archive": "minify_strips_comments_and_collapses_whitespace_factorial.json",
+      "bytes": 726,
+      "sha256": "a34864ac84956480c0cc891d24bd4a1549d5b3c4f5f84d9fb2458265c8898684"
+    },
+    {
+      "original": "/tmp/lsp-folder-minify-current20-v3/minify_strips_comments_and_collapses_whitespace_factorial.log",
+      "archive": "minify_strips_comments_and_collapses_whitespace_factorial.log",
+      "bytes": 575,
+      "sha256": "7d8f75011ced3089384d08c2442a51ef47a39633bcea9c985688c0114f5c05e8"
+    },
+    {
+      "original": "/tmp/lsp-folder-minify-current20-v3/minify_switch_regexp_case_list_preserved.json",
+      "archive": "minify_switch_regexp_case_list_preserved.json",
+      "bytes": 708,
+      "sha256": "33b1854cdc5f43c98dd99db9c09c3bc07a671852fa595a498b2f134c8fccce9a"
+    },
+    {
+      "original": "/tmp/lsp-folder-minify-current20-v3/minify_switch_regexp_case_list_preserved.log",
+      "archive": "minify_switch_regexp_case_list_preserved.log",
+      "bytes": 459,
+      "sha256": "85eabecac8f2de516bb51c42b58fa589bfe6557751499d80e047405ca753bfa8"
+    },
+    {
+      "original": "/tmp/lsp-folder-minify-current20-v3/native_syntax_compaction_uses_selected_original_expression_gaps.json",
+      "archive": "native_syntax_compaction_uses_selected_original_expression_gaps.json",
+      "bytes": 749,
+      "sha256": "90847dac26b0147f653e76fb9f056c7926dba241bbe58a3d07d5bfb5a10c7aa6"
+    },
+    {
+      "original": "/tmp/lsp-folder-minify-current20-v3/native_syntax_compaction_uses_selected_original_expression_gaps.log",
+      "archive": "native_syntax_compaction_uses_selected_original_expression_gaps.log",
+      "bytes": 214,
+      "sha256": "d4b9a20b1fa7ce4016603af1ad94635500d7f177481fb75d7d4ac1249a56a5be"
+    },
+    {
+      "original": "/tmp/lsp-folder-minify-current20-v3/native_word_operators_remove_safe_gaps_without_changing_tokens_or_data.json",
+      "archive": "native_word_operators_remove_safe_gaps_without_changing_tokens_or_data.json",
+      "bytes": 735,
+      "sha256": "38d259250d79d1cba67f115da441977cdefd684f2855c22aa023fe4324452fff"
+    },
+    {
+      "original": "/tmp/lsp-folder-minify-current20-v3/native_word_operators_remove_safe_gaps_without_changing_tokens_or_data.log",
+      "archive": "native_word_operators_remove_safe_gaps_without_changing_tokens_or_data.log",
+      "bytes": 195,
+      "sha256": "e0f3b34001e5aa333c82176a9bdbf5d5809d594dbefcfda66a75ce06c2eea8ef"
+    },
+    {
+      "original": "/tmp/lsp-folder-minify-current20-v3/original_minifier_declines_stale_images_full_configuration_changes_and_malformed_tail.json",
+      "archive": "original_minifier_declines_stale_images_full_configuration_changes_and_malformed_tail.json",
+      "bytes": 771,
+      "sha256": "001fed1ea68ddde21003cf22c7124e072c87166af96d82c8a51fe387013f4b7a"
+    },
+    {
+      "original": "/tmp/lsp-folder-minify-current20-v3/original_minifier_declines_stale_images_full_configuration_changes_and_malformed_tail.log",
+      "archive": "original_minifier_declines_stale_images_full_configuration_changes_and_malformed_tail.log",
+      "bytes": 236,
+      "sha256": "cd5721bf85b0a7ff06ff8757ec74212d7f98e586987a1134091ff7304f65d881"
+    },
+    {
+      "original": "/tmp/lsp-folder-minify-current20-v3/original_minifier_holds_custom_profile_and_registry_instead_of_resolving_its_label.json",
+      "archive": "original_minifier_holds_custom_profile_and_registry_instead_of_resolving_its_label.json",
+      "bytes": 767,
+      "sha256": "173acce85a20e06eefe7e8b40bf6f928bbd3f1990c35df94ce7a3247e4403425"
+    },
+    {
+      "original": "/tmp/lsp-folder-minify-current20-v3/original_minifier_holds_custom_profile_and_registry_instead_of_resolving_its_label.log",
+      "archive": "original_minifier_holds_custom_profile_and_registry_instead_of_resolving_its_label.log",
+      "bytes": 232,
+      "sha256": "f26b7b76dd64718b1e42f8133afd600b11cef9ce03c09875a3dba3a4d5d49fcc"
+    },
+    {
+      "original": "/tmp/lsp-folder-minify-current20-v3/original_minifier_refuses_unavailable_context_with_retained_source_and_input.json",
+      "archive": "original_minifier_refuses_unavailable_context_with_retained_source_and_input.json",
+      "bytes": 761,
+      "sha256": "eb7de7e4c3491f30268f9621611eb6fb2731265f303e0126916a079682c2989d"
+    },
+    {
+      "original": "/tmp/lsp-folder-minify-current20-v3/original_minifier_refuses_unavailable_context_with_retained_source_and_input.log",
+      "archive": "original_minifier_refuses_unavailable_context_with_retained_source_and_input.log",
+      "bytes": 226,
+      "sha256": "8a0b274ccbdf8a6f61b22ba291ece4bacbf744bd2508e05db631893a582b5ba1"
+    },
+    {
+      "original": "/tmp/lsp-folder-minify-current20-v3/original_syntax_compaction_keeps_opaque_words_nested_scripts_and_expansion.json",
+      "archive": "original_syntax_compaction_keeps_opaque_words_nested_scripts_and_expansion.json",
+      "bytes": 761,
+      "sha256": "d06699b51c49fcbfaa2d83fab0e599bc07e3cc8386f0430c6ec36b22bfa75e8b"
+    },
+    {
+      "original": "/tmp/lsp-folder-minify-current20-v3/original_syntax_compaction_keeps_opaque_words_nested_scripts_and_expansion.log",
+      "archive": "original_syntax_compaction_keeps_opaque_words_nested_scripts_and_expansion.log",
+      "bytes": 226,
+      "sha256": "54c2b61d99304ca9f954842dd6a22aa39fe1af98e75ed2508823ef8076ea737b"
+    },
+    {
+      "original": "/tmp/lsp-folder-minify-current20-v3/plan.json",
+      "archive": "plan.json",
+      "bytes": 13263,
+      "sha256": "5f582661500d9b2ef1da3d298461c74a0449587bab74ad6b6192af54bcaa2f73"
+    },
+    {
+      "original": "/tmp/lsp-folder-minify-current20-v3/providers-before.json",
+      "archive": "providers-before.json",
+      "bytes": 498685,
+      "sha256": "4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b"
+    },
+    {
+      "original": "/tmp/lsp-folder-minify-current20-v3/providers.py",
+      "archive": "providers.py.txt",
+      "bytes": 676,
+      "sha256": "5b01d95b0e919dc8aa16048c663003fbaa708d2f1e970408ef3c14fe47eeacd8"
+    },
+    {
+      "original": "/tmp/lsp-folder-minify-current20-v3/readiness.json",
+      "archive": "readiness.json",
+      "bytes": 1536,
+      "sha256": "022665d9285eb18d846d25ea5204f6a2aa6efb4e23e5fe195beb044495dd47e4"
+    },
+    {
+      "original": "/tmp/lsp-folder-minify-current20-v3/result.json",
+      "archive": "result.json",
+      "bytes": 16886,
+      "sha256": "03d5d901ec7b73b8430c54ef6be2dfb639b792f665475469699328435e857f87"
+    },
+    {
+      "original": "/tmp/lsp-folder-minify-current20-v3/run-selector.py",
+      "archive": "run-selector.py.txt",
+      "bytes": 2864,
+      "sha256": "6a1629a9f73b3238baebde8928cc1d55f7c334455da8e7867496f495ffd46c47"
+    },
+    {
+      "original": "/tmp/lsp-folder-minify-current20-v3/run.sh",
+      "archive": "run.sh.txt",
+      "bytes": 3770,
+      "sha256": "2cf982440cb963eb363b98c378696198745f1bd620eb843e47d1f21fe94352fb"
+    },
+    {
+      "original": "/tmp/lsp-folder-minify-current20-v3/selector-source-pin-check.json",
+      "archive": "selector-source-pin-check.json",
+      "bytes": 1518,
+      "sha256": "35beb30624b1d3e4eb1fa57b4baeffa9bf1e9f0f608be1fc52971462d46cb637"
+    },
+    {
+      "original": "/tmp/lsp-folder-minify-current20-v3/server_lib-artifact.txt",
+      "archive": "server_lib-artifact.txt",
+      "bytes": 93,
+      "sha256": "a8bee0151529734109acbb9cce95b7cb545737e5bd7e9660a944cef7049d0819"
+    },
+    {
+      "original": "/tmp/lsp-folder-minify-current20-v3/server_lib-build.exit",
+      "archive": "server_lib-build.exit",
+      "bytes": 4,
+      "sha256": "0ccdb5a77ba5bf7687f2565a8ed97dfb9c1af45503c496fb646312239fab5101"
+    },
+    {
+      "original": "/tmp/lsp-folder-minify-current20-v3/server_lib-build.log",
+      "archive": "server_lib-build.log",
+      "bytes": 2426,
+      "sha256": "64a6b06796e2b019b1f03e1afbc258b53dd83c558225769f2998c82d56886abc"
+    },
+    {
+      "original": "/tmp/lsp-folder-minify-current20-v3/source-after.json",
+      "archive": "source-after.json",
+      "bytes": 6659346,
+      "sha256": "ef6b9f695c0105fc8d879fbac5a555495570652848e72a64caaca2da92cf150a"
+    },
+    {
+      "original": "/tmp/lsp-folder-minify-current20-v3/source-before.json",
+      "archive": "source-before.json",
+      "bytes": 6659346,
+      "sha256": "ef6b9f695c0105fc8d879fbac5a555495570652848e72a64caaca2da92cf150a"
+    },
+    {
+      "original": "/tmp/lsp-folder-minify-current20-v3/stack.txt",
+      "archive": "stack.txt",
+      "bytes": 42,
+      "sha256": "f3a1b6db18e2e9863c9642b5e444602c30089ff884a8fd87d45b1b41e19da0b3"
+    },
+    {
+      "original": "/tmp/lsp-folder-minify-current20-v3/start.txt",
+      "archive": "start.txt",
+      "bytes": 58,
+      "sha256": "f6d351baf5e0f139a78c4432436f24fe4c952683d675f285cf70b13c775dfaaa"
+    },
+    {
+      "original": "/tmp/lsp-folder-minify-current20-v3/successor.patch",
+      "archive": "successor.patch",
+      "bytes": 11280,
+      "sha256": "4b0135c3323cf0bdc4d2df927bd70b280b690a21a5691cc9ad60ae0371194747"
+    },
+    {
+      "original": "/tmp/lsp-folder-minify-current20-v3/summarize.py",
+      "archive": "summarize.py.txt",
+      "bytes": 1180,
+      "sha256": "ef556a5b01d48ecd6bcf6d42b60db1a86d78b25bfee00be4f67c2c50ec3c1940"
+    },
+    {
+      "original": "/tmp/lsp-folder-minify-current20-v3/synthetic-eof-livechild.json",
+      "archive": "synthetic-eof-livechild.json",
+      "bytes": 648,
+      "sha256": "74ce6d840113921fdc13696a2e408e65a00122c80593e5b3a637a14e45cac462"
+    },
+    {
+      "original": "/tmp/lsp-folder-minify-current20-v3/synthetic-eof-livechild.log",
+      "archive": "synthetic-eof-livechild.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "original": "/tmp/lsp-folder-minify-current20-v3/synthetic-inherited-pipe.json",
+      "archive": "synthetic-inherited-pipe.json",
+      "bytes": 648,
+      "sha256": "46913cf59a76d8a8ed98c2f0f00f4a22e3db4f67e33ffd3211bda81d8de41023"
+    },
+    {
+      "original": "/tmp/lsp-folder-minify-current20-v3/synthetic-inherited-pipe.log",
+      "archive": "synthetic-inherited-pipe.log",
+      "bytes": 51,
+      "sha256": "f838015d9e43b1627ed3bd999e1eff857a97a7b935f3a715fd6ff3920ecc9ae8"
+    },
+    {
+      "original": "/tmp/lsp-folder-minify-current20-v3/synthetic-positive.json",
+      "archive": "synthetic-positive.json",
+      "bytes": 642,
+      "sha256": "aa35ae85619b76f76e145d88436ef47aed7fd81d03076b0e6fa0d66e41d02955"
+    },
+    {
+      "original": "/tmp/lsp-folder-minify-current20-v3/synthetic-positive.log",
+      "archive": "synthetic-positive.log",
+      "bytes": 51,
+      "sha256": "f838015d9e43b1627ed3bd999e1eff857a97a7b935f3a715fd6ff3920ecc9ae8"
+    }
+  ],
+  "scope": "Exact20 finite folder/minifier selectors only; no native15, protocol D2, section F or zero-P2F whole-baseline admission."
+}

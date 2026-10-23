@@ -1,0 +1,32 @@
+{
+  "utc": "2026-10-23T01:42:06.103684+00:00",
+  "status": "NEW POSTRUN DIAGNOSIS ONLY; original final provider guard remains missing/failed; no retroactive run admission",
+  "initial_path": "/tmp/lsp-folder-minify-current20-v3/providers-before.json",
+  "diagnostic_path": "/tmp/lsp-finite20-postrun-providers-20261023T0143Z.json",
+  "initial_count": 3464,
+  "diagnostic_count": 3464,
+  "byte_identical": true,
+  "initial_sha256": "4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b",
+  "diagnostic_sha256": "4a81e119d5fe53bc9206e93c092ea2b5d463f74758aa9771ddd18def498abf7b",
+  "added": [],
+  "removed": [],
+  "changed": [],
+  "original_cause": "UNKNOWN; no durable original stderr/stdout recovered",
+  "durable_inspection": {
+    "run_directory_stdout_stderr": "No durable stdout/stderr transcript found among complete top-level run files; run.sh has no run-wide log redirection",
+    "launch_txt": "runner_pid=205972 started_utc=2026-10-23T00:53:44Z\n",
+    "validation_directory_files": [],
+    "original_process_fd": "Original script closed; live inherited file descriptors unavailable",
+    "root_exec_session": "Root reports session48965 Unknownprocess; original output unrecoverable"
+  },
+  "hypothesis": {
+    "status": "CONSISTENT UNPROVEN",
+    "mechanism": "capture-inputs.py writes complete manifest, then prints its summary. BrokenPipe during that print or process stdout flush could return nonzero after a valid source-after write. run.sh if !manifest || !providers short-circuits on manifest failure, leaving providers-after absent. No original stderr or exit receipt distinguishes this from another post-write manifest failure or final provider failure."
+  },
+  "observed_original": {
+    "source_after_equals_before": true,
+    "providers_after_exists": false,
+    "finished": "FOLDER_MINIFY_CURRENT20_LOCK_RELEASED 2026-10-23T01:37:29Z\n",
+    "guard_admission": false
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "selector": "minify::original::tests::body_syntax_compaction_retains_changed_handler_and_observer_refusals",
+  "artifact": "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/tcl_lsp_core-15c44a715e01e5f9",
+  "artifact_before_sha256": "90549205f407594ede334e9ecfe5282a90efb38ebf728fee0f156f4eae92a2ad",
+  "artifact_after_sha256": "90549205f407594ede334e9ecfe5282a90efb38ebf728fee0f156f4eae92a2ad",
+  "exit_code": 0,
+  "timed_out": false,
+  "drain_complete": true,
+  "budget_seconds": 180,
+  "seconds": 16.6,
+  "passed": true,
+  "log_sha256": "aa3f39bb63997e37c54acf2f89513c6bb62d0584121f3992485d3b08c68b6b37",
+  "diagnostic_environment": {
+    "TCL_LSP_TRACE_SOURCE_PHASES": null,
+    "TCL_LSP_TRACE_ORIGINAL_FUNCTION_LATTICE": null
+  }
+}

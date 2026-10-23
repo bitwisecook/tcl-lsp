@@ -1,0 +1,154 @@
+[
+  {
+    "id": 4,
+    "path": "rust/tcl-compiler/src/command_binding/package_target_survey.rs",
+    "line": 147,
+    "lint": "redundant field names in struct initialization",
+    "old": "namespaces: namespaces,",
+    "new": "namespaces,"
+  },
+  {
+    "id": 40,
+    "path": "rust/tcl-compiler/src/analyser/diagnostics/proven.rs",
+    "line": 587,
+    "lint": "redundant closure",
+    "old": "|word| word.span()",
+    "new": "tcl_lexer::NativeWord::span"
+  },
+  {
+    "id": 83,
+    "path": "rust/tcl-compiler/src/analyser/types/logical_procedures.rs",
+    "line": 358,
+    "lint": "redundant closure",
+    "old": "|declaration| declaration.metadata()",
+    "new": "crate::signature_scan::original_name::SourceDeclarationMetadata::metadata"
+  },
+  {
+    "id": 85,
+    "path": "rust/tcl-compiler/src/analyser/types/logical_members.rs",
+    "line": 1097,
+    "lint": "redundant closure",
+    "old": "|declaration| declaration.metadata()",
+    "new": "crate::signature_scan::original_name::SourceDeclarationMetadata::metadata"
+  },
+  {
+    "id": 86,
+    "path": "rust/tcl-compiler/src/analyser/types.rs",
+    "line": 2123,
+    "lint": "item in documentation is missing backticks",
+    "old": "TclOO",
+    "new": "`TclOO`"
+  },
+  {
+    "id": 89,
+    "path": "rust/tcl-compiler/src/analyser/variable_alias_templates.rs",
+    "line": 52,
+    "lint": "redundant closure",
+    "old": "|declaration| declaration.template_source()",
+    "new": "super::super::registry_invocation::declaration_assistance::OriginalLogicalAliasDeclaration::template_source"
+  },
+  {
+    "id": 91,
+    "path": "rust/tcl-compiler/src/analyser/variable_alias_templates.rs",
+    "line": 93,
+    "lint": "redundant closure",
+    "old": "|source| source.relation()",
+    "new": "super::super::registry_invocation::declaration_assistance::OriginalLogicalAliasTemplateSource::relation"
+  },
+  {
+    "id": 104,
+    "path": "rust/tcl-compiler/src/cfg_builder/global_write_info.rs",
+    "line": 1532,
+    "lint": "unnecessary semicolon",
+    "old": "};",
+    "new": "}"
+  },
+  {
+    "id": 230,
+    "path": "rust/tcl-compiler/src/compilation_unit.rs",
+    "line": 2080,
+    "lint": "useless conversion to the same type: `std::string::String`",
+    "old": "name: name.into(),",
+    "new": "name,"
+  },
+  {
+    "id": 247,
+    "path": "rust/tcl-compiler/src/dataflow_graph.rs",
+    "line": 353,
+    "lint": "redundant closure",
+    "old": "|cell| cell.compatibility_name()",
+    "new": "super::var_resolve::cell_key::VariableCellKey::compatibility_name"
+  },
+  {
+    "id": 248,
+    "path": "rust/tcl-compiler/src/dataflow_graph.rs",
+    "line": 387,
+    "lint": "redundant closure",
+    "old": "|cell| cell.compatibility_name()",
+    "new": "super::var_resolve::cell_key::VariableCellKey::compatibility_name"
+  },
+  {
+    "id": 251,
+    "path": "rust/tcl-compiler/src/deferred_writes/supplied.rs",
+    "line": 442,
+    "lint": "redundant closure",
+    "old": "|dialect| dialect.family()",
+    "new": "tcl_registry::InvocationDialect::family"
+  },
+  {
+    "id": 334,
+    "path": "rust/tcl-compiler/src/native_lowering/original_invocations.rs",
+    "line": 77,
+    "lint": "redundant closure",
+    "old": "|binding| binding.original_recorded_command()",
+    "new": "super::super::command_binding::SourceInvocationBinding::original_recorded_command"
+  },
+  {
+    "id": 355,
+    "path": "rust/tcl-compiler/src/parsing/syntax/red.rs",
+    "line": 385,
+    "lint": "redundant closure",
+    "old": "|t| t.width()",
+    "new": "super::green::GreenTrivia::width"
+  },
+  {
+    "id": 366,
+    "path": "rust/tcl-compiler/src/registry_invocation/source_name_roles.rs",
+    "line": 202,
+    "lint": "redundant closure",
+    "old": "|dialect| dialect.authoring_query()",
+    "new": "tcl_registry::InvocationDialect::authoring_query"
+  },
+  {
+    "id": 373,
+    "path": "rust/tcl-compiler/src/registry_invocation/source_structure/source_load/frontier.rs",
+    "line": 43,
+    "lint": "item in documentation is missing backticks",
+    "old": "SourceLoad",
+    "new": "`SourceLoad`"
+  },
+  {
+    "id": 378,
+    "path": "rust/tcl-compiler/src/registry_invocation/source_structure/project_class_cards.rs",
+    "line": 468,
+    "lint": "redundant closure",
+    "old": "|input| input.policy()",
+    "new": "crate::signature_scan::name_value::SignatureSourceNameInput::policy"
+  },
+  {
+    "id": 379,
+    "path": "rust/tcl-compiler/src/registry_invocation/source_structure/project_class_cards.rs",
+    "line": 577,
+    "lint": "redundant closure",
+    "old": "|input| input.policy()",
+    "new": "crate::signature_scan::name_value::SignatureSourceNameInput::policy"
+  },
+  {
+    "id": 422,
+    "path": "rust/tcl-compiler/src/signature_scan/formal_parameters.rs",
+    "line": 182,
+    "lint": "redundant closure",
+    "old": "|field| field.value()",
+    "new": "tcl_syntax::word_rules::OriginalSourceListElement::value"
+  }
+]

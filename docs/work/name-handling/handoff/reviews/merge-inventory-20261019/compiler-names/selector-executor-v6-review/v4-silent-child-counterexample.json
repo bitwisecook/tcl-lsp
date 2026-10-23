@@ -1,0 +1,9 @@
+{
+  "receipt_dir": "/tmp/names-exec-v4-silent-9_nqhhzz",
+  "complete": true,
+  "stop_reason": null,
+  "elapsed_seconds": 0.053843785,
+  "silent_descendant_pid": 215940,
+  "descendant_state_after_completion": "S",
+  "safety": "synthetic own child auto exits after3seconds; no compiler/runtime/Cargo"
+}

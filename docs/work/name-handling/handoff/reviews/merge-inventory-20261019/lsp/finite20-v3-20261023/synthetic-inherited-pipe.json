@@ -1,0 +1,17 @@
+{
+  "selector": "synthetic::case",
+  "artifact": "/tmp/lsp-folder-minify-current20-v3/synthetic/inherited-pipe.py",
+  "artifact_before_sha256": "9b7f4b0749bf2dc0ee5dbdb209c7330cd475eaae989706b6da399f238a9f2172",
+  "artifact_after_sha256": "9b7f4b0749bf2dc0ee5dbdb209c7330cd475eaae989706b6da399f238a9f2172",
+  "exit_code": 0,
+  "timed_out": true,
+  "drain_complete": false,
+  "budget_seconds": 180,
+  "seconds": 0.3,
+  "passed": false,
+  "log_sha256": "f838015d9e43b1627ed3bd999e1eff857a97a7b935f3a715fd6ff3920ecc9ae8",
+  "diagnostic_environment": {
+    "TCL_LSP_TRACE_SOURCE_PHASES": null,
+    "TCL_LSP_TRACE_ORIGINAL_FUNCTION_LATTICE": null
+  }
+}

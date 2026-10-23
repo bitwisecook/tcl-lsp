@@ -1,0 +1,49 @@
+{
+  "argv": [
+    "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python3",
+    "-c",
+    "import os,time; p=os.fork();\nif p==0:\n os.close(1);os.close(2);time.sleep(3);os._exit(0)\nelse:\n print(p,flush=True);os._exit(0)\n"
+  ],
+  "artifact": "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python3",
+  "artifact_sha256_after": "fa67443527ed9647f760d807e2a38f26340757123e643c4639cf273ed15d5ea7",
+  "artifact_sha256_before": "fa67443527ed9647f760d807e2a38f26340757123e643c4639cf273ed15d5ea7",
+  "artifact_unchanged": true,
+  "cap_bytes": 20971520,
+  "cleanup_signals": [],
+  "complete": true,
+  "cwd": "/tmp",
+  "deadline_seconds": 5,
+  "disk_floor_bytes": 2147483648,
+  "disk_paths": [
+    "/workspace",
+    "/tmp",
+    "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python3",
+    "/tmp/names-exec-v4-silent-9_nqhhzz",
+    "/tmp/names-exec-v4-silent-9_nqhhzz",
+    "/tmp/names-exec-v4-silent-9_nqhhzz"
+  ],
+  "elapsed_seconds": 0.053843785,
+  "ended_utc": "2026-10-23T01:49:12.040619+00:00",
+  "exit_code": 0,
+  "minimum_free_bytes": 4466499584,
+  "parent_exit_observed_monotonic_ns": 44811789149333,
+  "parent_waitid_wnowait": {
+    "si_code": 1,
+    "si_pid": 215939,
+    "si_status": 0
+  },
+  "pid": 215939,
+  "pid_start_ticks": 4481176,
+  "process_group": 215939,
+  "retained_bytes": 7,
+  "spawn_return_monotonic_ns": 44811769170222,
+  "spawn_return_utc": "2026-10-23T01:49:11.988099+00:00",
+  "stderr": "/tmp/names-exec-v4-silent-9_nqhhzz/stderr",
+  "stderr_bytes": 0,
+  "stdout": "/tmp/names-exec-v4-silent-9_nqhhzz/stdout",
+  "stdout_bytes": 7,
+  "stop_reason": null,
+  "timer_armed_before_spawn": true,
+  "timer_armed_monotonic_ns": 44811767861481,
+  "timer_armed_utc": "2026-10-23T01:49:11.986800+00:00"
+}

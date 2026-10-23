@@ -1,0 +1,97 @@
+[
+  {
+    "complete": true,
+    "stop_reason": null,
+    "elapsed_seconds": 0.067435124,
+    "exit_code": 0,
+    "group_empty_before_parent_reap": true,
+    "retained_bytes": 63,
+    "artifact_unchanged": true,
+    "parent_waitid_wnowait": {
+      "si_pid": 216011,
+      "si_code": 1,
+      "si_status": 0
+    },
+    "cleanup_signals": [],
+    "case": "fast"
+  },
+  {
+    "complete": false,
+    "stop_reason": "owned_group_live_after_parent_exit",
+    "elapsed_seconds": 0.34314111,
+    "exit_code": 0,
+    "group_empty_before_parent_reap": true,
+    "retained_bytes": 7,
+    "artifact_unchanged": true,
+    "parent_waitid_wnowait": {
+      "si_pid": 216012,
+      "si_code": 1,
+      "si_status": 0
+    },
+    "cleanup_signals": [
+      {
+        "signal": "SIGINT",
+        "monotonic_ns": 44857304086864
+      }
+    ],
+    "case": "silent_child"
+  },
+  {
+    "complete": false,
+    "stop_reason": "selector_timeout",
+    "elapsed_seconds": 0.817131559,
+    "exit_code": -2,
+    "group_empty_before_parent_reap": true,
+    "retained_bytes": 0,
+    "artifact_unchanged": true,
+    "parent_waitid_wnowait": {
+      "si_pid": 216014,
+      "si_code": 2,
+      "si_status": 2
+    },
+    "cleanup_signals": [
+      {
+        "signal": "SIGINT",
+        "monotonic_ns": 44858171269802
+      }
+    ],
+    "case": "closedpipes_liveparent"
+  },
+  {
+    "complete": false,
+    "stop_reason": "aggregate_log_cap_exceeded",
+    "elapsed_seconds": 0.062288082,
+    "exit_code": -2,
+    "group_empty_before_parent_reap": true,
+    "retained_bytes": 1024,
+    "artifact_unchanged": true,
+    "parent_waitid_wnowait": {
+      "si_pid": 216015,
+      "si_code": 2,
+      "si_status": 2
+    },
+    "cleanup_signals": [
+      {
+        "signal": "SIGINT",
+        "monotonic_ns": 44858517502359
+      }
+    ],
+    "case": "cap"
+  },
+  {
+    "complete": true,
+    "stop_reason": null,
+    "elapsed_seconds": 0.06512773,
+    "exit_code": 7,
+    "group_empty_before_parent_reap": true,
+    "retained_bytes": 14,
+    "artifact_unchanged": true,
+    "parent_waitid_wnowait": {
+      "si_pid": 216016,
+      "si_code": 1,
+      "si_status": 7
+    },
+    "cleanup_signals": [],
+    "case": "nonzero"
+  }
+]

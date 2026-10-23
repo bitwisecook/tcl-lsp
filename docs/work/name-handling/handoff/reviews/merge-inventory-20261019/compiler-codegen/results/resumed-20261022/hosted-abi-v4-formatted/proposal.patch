@@ -1,0 +1,190 @@
+--- a/rust/tcl-compiler/tests/wasm_real_link.rs
++++ b/rust/tcl-compiler/tests/wasm_real_link.rs
+@@ -128,7 +128,46 @@
+ /// `fd_write` iovec/result at `0x190008`/`0x190010` — all above the emitted
+ /// module's data at `0x100000` and below the runtime's data at `0x200000`.
+ /// `query` must be WAT-literal-safe (no `"` or `\`).
+-fn bootstrap_wat(query: &str) -> String {
++#[derive(Clone, Copy, Debug, PartialEq, Eq)]
++enum TopAbi {
++    Void,
++    Completion,
++}
++
++fn top_abi(output: &tcl_compiler::codegen::wasm::WasmCompilation) -> TopAbi {
++    let expected = match &output.plan {
++        WasmCodegenPlan::General { .. } => TopAbi::Void,
++        WasmCodegenPlan::GenericInvoke { .. } => TopAbi::Completion,
++        other => panic!("unexpected hosted entry plan: {other:?}"),
++    };
++    let tops = output
++        .module
++        .functions
++        .iter()
++        .filter(|function| function.name == "::top")
++        .collect::<Vec<_>>();
++    assert_eq!(tops.len(), 1, "hosted plan must define exactly one ::top");
++    let top = tops[0];
++    assert!(top.exported, "hosted ::top must be exported");
++    assert!(top.params.is_empty(), "::top takes no arguments");
++    match expected {
++        TopAbi::Void => assert!(top.results.is_empty(), "general ::top must return void"),
++        TopAbi::Completion => assert!(
++            top.results.len() == 3 && top.results.iter().all(|result| result.wat_name() == "i32"),
++            "semantic ::top must return code, result and options"
++        ),
++    }
++    expected
++}
++
++fn bootstrap_wat(query: &str, top_abi: TopAbi) -> String {
++    let (top_results, run_top) = match top_abi {
++        TopAbi::Void => ("", "    (call $top)"),
++        TopAbi::Completion => (
++            " (result i32 i32 i32)",
++            "    (call $top)\n    (local.set $top_options)\n    (local.set $top_result)\n    (local.set $top_code)\n    (call $rel (local.get $top_result))\n    (call $rel (local.get $top_options))\n    (if (i32.ne (local.get $top_code) (i32.const 0)) (then unreachable))",
++        ),
++    };
+     let create = CodegenAbiImportId::RuntimeCreateInterp.descriptor().name;
+     let set_current = CodegenAbiImportId::RuntimeSetCurrentInterp
+         .descriptor()
+@@ -144,14 +183,15 @@
+   (import "tcl" "tcl_eval" (func $eval (param i32) (result i32)))
+   (import "tcl" "{object_release}" (func $rel (param i32)))
+   (import "tcl" "Tcl_GetStringFromObj" (func $getstr (param i32 i32) (result i32)))
+-  (import "user" "::top" (func $top))
++  (import "user" "::top" (func $top{top_results}))
+   (import "wasi_snapshot_preview1" "fd_write" (func $fd_write (param i32 i32 i32 i32) (result i32)))
+   (export "memory" (memory 0))
+   (func (export "_start")
+     (local $interp i32) (local $result i32) (local $strptr i32) (local $len i32)
++    (local $top_code i32) (local $top_result i32) (local $top_options i32)
+     (local.set $interp (call $create))
+     (call $setcur (local.get $interp))
+-    (call $top)                                                                       ;; run the emitted program
++{run_top}
+     (local.set $result (call $eval (call $box (i32.const 0x180000) (i32.const {qlen})))) ;; eval the query
+     (local.set $strptr (call $getstr (local.get $result) (i32.const 0x190000)))
+     (local.set $len (i32.load (i32.const 0x190000)))
+@@ -436,10 +476,21 @@
+     program: &str,
+     query: &str,
+ ) -> String {
++    run_link_bytes_with_top_abi(runtime, tag, user_bytes, program, query, TopAbi::Void)
++}
++
++fn run_link_bytes_with_top_abi(
++    runtime: &Path,
++    tag: &str,
++    user_bytes: &[u8],
++    program: &str,
++    query: &str,
++    top_abi: TopAbi,
++) -> String {
+     let user = scratch(&format!("tcl_real_link_user_{tag}.wasm"));
+     let boot = scratch(&format!("tcl_real_link_boot_{tag}.wat"));
+     write_linked(runtime, &user, user_bytes, program);
+-    std::fs::write(&boot, bootstrap_wat(query)).expect("write bootstrap");
++    std::fs::write(&boot, bootstrap_wat(query, top_abi)).expect("write bootstrap");
+ 
+     let out = Command::new("wasmtime")
+         .arg("run")
+@@ -645,9 +696,12 @@
+     };
+ 
+     // (program run by `::top`, the query the bootstrap then evaluates, expected).
++    // The single literal command uses the completion-returning generic plan.
++    assert_eq!(
++        run_real_link_literal(&runtime, "mixed0", "set x 42\n", "set x"),
++        "42"
++    );
+     let cases = [
+-        // A bare variable set, read back.
+-        ("set x 42\n", "set x", "42"),
+         // A proc defined and called: frame push + parameter binding + `return` +
+         // string interpolation + command substitution — all pure, so it runs on
+         // the wasm build (no `expr`/numeric tower, no host capabilities).
+@@ -664,11 +718,27 @@
+     ];
+     for (index, (program, query, expected)) in cases.into_iter().enumerate() {
+         assert_eq!(
+-            run_real_link(&runtime, &format!("mixed{index}"), program, query),
++            run_real_link(&runtime, &format!("mixed{}", index + 1), program, query),
+             expected,
+             "program {program:?}, query {query:?}"
+         );
+     }
++}
++
++/// Run one literal command through the completion-returning generic plan,
++/// then query the same interpreter through the matching hosted entry ABI.
++fn run_real_link_literal(runtime: &Path, tag: &str, program: &str, query: &str) -> String {
++    let registry = CommandRegistry::build_default();
++    let unit = CompilationUnit::build_for_dialect(program, &registry, false, "tcl9.0");
++    let mut output = compile_wasm(&unit, &registry, WasmCompileOptions::runtime_linked());
++    assert!(
++        matches!(output.plan, WasmCodegenPlan::GenericInvoke { .. }),
++        "literal command must select the whole-function generic argv: {:?}",
++        output.plan
++    );
++    let abi = top_abi(&output);
++    assert_eq!(abi, TopAbi::Completion);
++    run_link_bytes_with_top_abi(runtime, tag, &output.to_bytes(), program, query, abi)
+ }
+ 
+ /// A module states the ABI and the intrinsic table it was emitted against in
+@@ -688,18 +758,19 @@
+         let registry = CommandRegistry::build_default();
+         let unit = CompilationUnit::build_for_dialect(program, &registry, false, "tcl9.0");
+         let mut output = compile_wasm(&unit, &registry, WasmCompileOptions::runtime_linked());
++        let abi = top_abi(&output);
+         edit(
+             output
+                 .manifest
+                 .as_mut()
+                 .expect("the emitter states a manifest"),
+         );
+-        output.to_bytes()
++        (output.to_bytes(), abi)
+     };
+ 
+     // The runtime's own statement is the table this checkout's compiler keyed
+     // against: the honest module agrees with it and links.
+-    let honest = compile(|_| {});
++    let (honest, honest_abi) = compile(|_| {});
+     assert_eq!(check_manifest(&runtime, &honest), Ok(()));
+     let identity = common::wasm_link::runtime_identity(&runtime);
+     assert_eq!(
+@@ -707,12 +778,20 @@
+         tcl_registry::intrinsic_table_hash()
+     );
+     assert_eq!(
+-        run_link_bytes(&runtime, "manifest_control", &honest, program, "set x"),
++        run_link_bytes_with_top_abi(
++            &runtime,
++            "manifest_control",
++            &honest,
++            program,
++            "set x",
++            honest_abi,
++        ),
+         "42"
+     );
+ 
+     // A module keyed against another intrinsic table is refused, naming both.
+-    let foreign = compile(|manifest| manifest.intrinsic_table_hash[0] ^= 1);
++    let (foreign, foreign_abi) = compile(|manifest| manifest.intrinsic_table_hash[0] ^= 1);
++    assert_eq!(foreign_abi, honest_abi);
+     match check_manifest(&runtime, &foreign) {
+         Err(LinkRefusal::Disagrees {
+             field: ManifestField::IntrinsicTableHash,
+@@ -726,7 +805,8 @@
+     }
+ 
+     // So is one emitted for another ABI, and one that states nothing.
+-    let other_abi = compile(|manifest| manifest.abi_version ^= 1);
++    let (other_abi, other_top_abi) = compile(|manifest| manifest.abi_version ^= 1);
++    assert_eq!(other_top_abi, honest_abi);
+     assert!(matches!(
+         check_manifest(&runtime, &other_abi),
+         Err(LinkRefusal::Disagrees {

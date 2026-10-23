@@ -1,0 +1,63 @@
+{
+  "argv": [
+    "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python3",
+    "-c",
+    "import os,time;os.close(1);os.close(2);time.sleep(5)"
+  ],
+  "artifact": "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python3",
+  "artifact_sha256_after": "fa67443527ed9647f760d807e2a38f26340757123e643c4639cf273ed15d5ea7",
+  "artifact_sha256_before": "fa67443527ed9647f760d807e2a38f26340757123e643c4639cf273ed15d5ea7",
+  "artifact_unchanged": true,
+  "cap_bytes": 1024,
+  "cleanup_signals": [
+    {
+      "monotonic_ns": 44916810868848,
+      "signal": "SIGINT"
+    }
+  ],
+  "complete": false,
+  "consecutive_complete_empty_group_scans": 2,
+  "cwd": "/tmp",
+  "deadline_seconds": 0.3,
+  "disk_floor_bytes": 2147483648,
+  "disk_paths": [
+    "/workspace",
+    "/tmp",
+    "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python3",
+    "/tmp/names-exec-v6-7sju4_xr/closedpipes_liveparent",
+    "/tmp/names-exec-v6-7sju4_xr/closedpipes_liveparent",
+    "/tmp/names-exec-v6-7sju4_xr/closedpipes_liveparent"
+  ],
+  "elapsed_seconds": 1.147855609,
+  "ended_utc": "2026-10-23T01:50:57.628583+00:00",
+  "exit_code": -2,
+  "group_empty_before_parent_reap": true,
+  "group_scan_attempts": 2,
+  "last_group_scan": {
+    "complete": true,
+    "members": [],
+    "vanished_pids": []
+  },
+  "minimum_free_bytes": 4465926144,
+  "owned_live_group_members": [],
+  "parent_exit_observed_monotonic_ns": 44917063848789,
+  "parent_waitid_wnowait": {
+    "si_code": 2,
+    "si_pid": 216164,
+    "si_status": 2
+  },
+  "pid": 216164,
+  "pid_start_ticks": 4491626,
+  "process_group": 216164,
+  "retained_bytes": 0,
+  "spawn_return_monotonic_ns": 44916265828808,
+  "spawn_return_utc": "2026-10-23T01:50:56.484759+00:00",
+  "stderr": "/tmp/names-exec-v6-7sju4_xr/closedpipes_liveparent/stderr",
+  "stderr_bytes": 0,
+  "stdout": "/tmp/names-exec-v6-7sju4_xr/closedpipes_liveparent/stdout",
+  "stdout_bytes": 0,
+  "stop_reason": "selector_timeout",
+  "timer_armed_before_spawn": true,
+  "timer_armed_monotonic_ns": 44916261846914,
+  "timer_armed_utc": "2026-10-23T01:50:56.480779+00:00"
+}

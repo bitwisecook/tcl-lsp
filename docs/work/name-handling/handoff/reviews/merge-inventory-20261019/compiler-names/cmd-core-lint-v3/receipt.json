@@ -51,7 +51,7 @@
   "rustfmt": "1.99.1 edition2024 skip_children=true syntax/format completed; no compiler typecheck",
   "successor_reason": "v2longhelpername increased formatter wrapping; v3short private helper preserves all original callsite bytes",
   "current_pins_match": true,
-  "peer_review": "requested compiler_resume; pending",
+  "peer_review": "compiler bounded static CLEAR f19e3d7bf7f9e5daf0b9be819c9f69f583c08d248af81b3420477dc58ce622ef; no build/apply",
   "too_many_lines_static": "CI108 body lines minus8 moved closure executable lines =>100 at existing threshold; actual Clippy unrun",
   "v1": "f8bf6efa8c632aa743bfe0b5866388f0ea251417bdd78bc9c797a4a7ffbc8be4 mechanical18 only",
   "v2": "44898cf7 held: longer helper name reformatted assertions and risked too_many_lines"

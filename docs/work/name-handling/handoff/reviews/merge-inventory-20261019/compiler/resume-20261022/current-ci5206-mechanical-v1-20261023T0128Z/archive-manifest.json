@@ -1,0 +1,37 @@
+{
+  "members": [
+    {
+      "path": "compiler-cmdcore-v3-peer-review.json",
+      "bytes": 1205,
+      "sha256": "f19e3d7bf7f9e5daf0b9be819c9f69f583c08d248af81b3420477dc58ce622ef"
+    },
+    {
+      "path": "current512-primary-inventory.json",
+      "bytes": 96683,
+      "sha256": "48a07e984baefc3654e1ce9e961b7001841233dd596f11c503a4db41acfb2406"
+    },
+    {
+      "path": "diagnostic-edits.json",
+      "bytes": 4855,
+      "sha256": "b9c043a746a04146bee2216e4ea7757ea171dd8f33abac12f7232e633683924f"
+    },
+    {
+      "path": "names-peer-review.json",
+      "bytes": 1414,
+      "sha256": "50233a85aaaeea168be2567479d942ef5ba12900c12f6a7e014a739196b17d6d"
+    },
+    {
+      "path": "proposal.patch",
+      "bytes": 10177,
+      "sha256": "f0f7d52ac8a38e3cfc39db6f7e24295b7ddf32e02bee09ea428537ea2b4e0f9c"
+    },
+    {
+      "path": "receipt.json",
+      "bytes": 18292,
+      "sha256": "e475c5e26457c0c273fd87c2974c0a52aa1350d86ac8f9c997d735d568ce4398"
+    }
+  ],
+  "status": "OFFTREE bounded static CLEAR; no actual Clippy/typing/test acceptance",
+  "canonical_product_unchanged": true,
+  "no_raw_rust_sources": true
+}

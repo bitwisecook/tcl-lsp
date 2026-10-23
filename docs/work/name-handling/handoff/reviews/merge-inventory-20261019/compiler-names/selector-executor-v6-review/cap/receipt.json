@@ -1,0 +1,63 @@
+{
+  "argv": [
+    "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python3",
+    "-c",
+    "import os;os.write(1,b\"x\"*4096)"
+  ],
+  "artifact": "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python3",
+  "artifact_sha256_after": "fa67443527ed9647f760d807e2a38f26340757123e643c4639cf273ed15d5ea7",
+  "artifact_sha256_before": "fa67443527ed9647f760d807e2a38f26340757123e643c4639cf273ed15d5ea7",
+  "artifact_unchanged": true,
+  "cap_bytes": 1024,
+  "cleanup_signals": [
+    {
+      "monotonic_ns": 44917712423124,
+      "signal": "SIGINT"
+    }
+  ],
+  "complete": false,
+  "consecutive_complete_empty_group_scans": 2,
+  "cwd": "/tmp",
+  "deadline_seconds": 3,
+  "disk_floor_bytes": 2147483648,
+  "disk_paths": [
+    "/workspace",
+    "/tmp",
+    "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python3",
+    "/tmp/names-exec-v6-7sju4_xr/cap",
+    "/tmp/names-exec-v6-7sju4_xr/cap",
+    "/tmp/names-exec-v6-7sju4_xr/cap"
+  ],
+  "elapsed_seconds": 0.645679141,
+  "ended_utc": "2026-10-23T01:50:58.373502+00:00",
+  "exit_code": 0,
+  "group_empty_before_parent_reap": true,
+  "group_scan_attempts": 2,
+  "last_group_scan": {
+    "complete": true,
+    "members": [],
+    "vanished_pids": []
+  },
+  "minimum_free_bytes": 4465917952,
+  "owned_live_group_members": [],
+  "parent_exit_observed_monotonic_ns": 44917722409252,
+  "parent_waitid_wnowait": {
+    "si_code": 1,
+    "si_pid": 216165,
+    "si_status": 0
+  },
+  "pid": 216165,
+  "pid_start_ticks": 4491751,
+  "process_group": 216165,
+  "retained_bytes": 1024,
+  "spawn_return_monotonic_ns": 44917521515803,
+  "spawn_return_utc": "2026-10-23T01:50:57.740446+00:00",
+  "stderr": "/tmp/names-exec-v6-7sju4_xr/cap/stderr",
+  "stderr_bytes": 0,
+  "stdout": "/tmp/names-exec-v6-7sju4_xr/cap/stdout",
+  "stdout_bytes": 4096,
+  "stop_reason": "aggregate_log_cap_exceeded",
+  "timer_armed_before_spawn": true,
+  "timer_armed_monotonic_ns": 44917508960933,
+  "timer_armed_utc": "2026-10-23T01:50:57.727907+00:00"
+}

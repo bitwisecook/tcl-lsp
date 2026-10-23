@@ -1,0 +1,17 @@
+{
+  "selector": "synthetic::case",
+  "artifact": "/tmp/lsp-folder-minify-current20-v3/synthetic/eof-livechild.py",
+  "artifact_before_sha256": "8af532804ca93ddd07e590efdecca6a92b2a751ac6d3d8991452b2a08add2c54",
+  "artifact_after_sha256": "8af532804ca93ddd07e590efdecca6a92b2a751ac6d3d8991452b2a08add2c54",
+  "exit_code": -9,
+  "timed_out": true,
+  "drain_complete": false,
+  "budget_seconds": 180,
+  "seconds": 0.3,
+  "passed": false,
+  "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "diagnostic_environment": {
+    "TCL_LSP_TRACE_SOURCE_PHASES": null,
+    "TCL_LSP_TRACE_ORIGINAL_FUNCTION_LATTICE": null
+  }
+}

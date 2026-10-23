@@ -1,0 +1,42 @@
+{
+  "status": "IMMUTABLE PREPARED ONLY; no Cargo/test selector execution",
+  "patch_sha256": "4b0135c3323cf0bdc4d2df927bd70b280b690a21a5691cc9ad60ae0371194747",
+  "run_selector_sha256": "6a1629a9f73b3238baebde8928cc1d55f7c334455da8e7867496f495ffd46c47",
+  "plan_byte_identical": true,
+  "plan_sha256": "5f582661500d9b2ef1da3d298461c74a0449587bab74ad6b6192af54bcaa2f73",
+  "deadline": "One original180s total selector deadline includes direct child and pipe EOF. WNOWAIT preserves unreaped child PID ownership through optional group kill; no poll/wait reaping before kill. Timeout/incomplete cannot PASS. No daemon drain threads or unbounded post-child join. Final wait only reaps the terminated owned child.",
+  "retained": "v2 nonblocking lock/actual target disk floor; unchanged selectors/assertions/source pins/log cap/providers/180s",
+  "syntax": {
+    "python_ast": "PASS",
+    "bash_n_exit": 0
+  },
+  "synthetic": {
+    "only_copied_harness_budget_seconds": 0.3,
+    "production_budget_seconds": 180,
+    "rows": [
+      {
+        "case": "positive",
+        "exit": 0,
+        "passed": true,
+        "timed_out": false,
+        "seconds": 0.05
+      },
+      {
+        "case": "eof-livechild",
+        "exit": 1,
+        "passed": false,
+        "timed_out": true,
+        "seconds": 0.3
+      },
+      {
+        "case": "inherited-pipe",
+        "exit": 1,
+        "passed": false,
+        "timed_out": true,
+        "seconds": 0.3
+      }
+    ]
+  },
+  "source_pin_refresh": "NONE",
+  "native_controls": "Distinct unchanged"
+}

@@ -1,0 +1,12 @@
+{
+  "status": "OFF TREE, no Cargo/apply",
+  "path": "rust/tcl-compiler/src/command_binding/original_literal_argv_rewrite.rs",
+  "before_sha256": "d434352bf316d364b7f1fbf06a34934b539f88632d6a769ea1aaf656e03b0fce",
+  "proposed_sha256": "acc8dbfce9bf18dcc1165f722f6ab47d5a00b37cdaabeb5b2c2035282d6037b6",
+  "patch_sha256": "cfef16f65175dd4abe609bfaf507653bca7f857cb6b3cc7a5448a4cd11007574",
+  "scope": "Add Eq/Ne boolean complements with original expression leaf/token coordinate, selected handler/source/input/currentness/observer guards unchanged",
+  "actual_failure": "minify_expr_comparison_inversion_in_value_context_is_safe current finite20: !($a==$b) retained instead of $a!=$b",
+  "test_changes": "Existing owner positive roster gains Eq/Ne conditional and value contexts; existing negative roster gains swapped/changed leaves plus changed expr handler/unknown/observer. No assertion removed.",
+  "validation": "Pinned1.99.1 rustfmt PASS; read-only apply check PASS; retained C5+Jim144/144 manual expression checks PASS; compiler bounded static peer CLEAR51671a57; Rust typing/runtime UNRUN",
+  "successor": "v1 immutable; v2 only additionally corrects stale API doc string/membership to equality/membership, per compiler peer"
+}

@@ -1,0 +1,2 @@
+shell_stack_kib=8192
+rust_min_stack=unset

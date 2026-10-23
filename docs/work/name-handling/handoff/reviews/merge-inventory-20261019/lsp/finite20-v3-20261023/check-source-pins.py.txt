@@ -1,0 +1,7 @@
+from pathlib import Path
+import hashlib,json,sys
+root=Path('/workspace/naming-migration-active/tcl-lsp');plan=json.load(open('/tmp/lsp-folder-minify-current20-v3/plan.json'));rows=[]
+for row in plan['source_pins']:
+ p=root/row['path'];got=hashlib.sha256(p.read_bytes()).hexdigest() if p.exists() else None;rows.append({**row,'actual':got,'matches':got==row['sha256']})
+Path('/tmp/lsp-folder-minify-current20-v3/selector-source-pin-check.json').write_text(json.dumps(rows,indent=2)+'\n')
+print(json.dumps({'all_selector_source_pins_match':all(row['matches']for row in rows)}));sys.exit(0 if all(row['matches']for row in rows)else 1)
