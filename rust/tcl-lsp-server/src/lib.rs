@@ -39444,13 +39444,12 @@ mod tests {
                 DocumentState::new(source.to_owned(), "unknown-tcl-policy".to_owned())
                     .with_language_id("tcl".to_owned()),
             );
-        assert_eq!(
+        assert!(
             backend
                 .original_declaration_documents(&base)
                 .await
                 .unwrap()
-                .len(),
-            0
+                .is_empty()
         );
         for dialect in ["tcl8.6", "tcl9.1", "jimtcl", "f5-irules"] {
             let document = DocumentState::new(source.to_owned(), dialect.to_owned())
@@ -39621,12 +39620,11 @@ mod tests {
 
         let duplicate = Uri::from_str("file:///original-reference-duplicate.tcl").unwrap();
         register(&backend, &duplicate, source).await;
-        assert_eq!(
+        assert!(
             Box::pin(backend.reference_locations(&consumer, &document, &analysis, position, false))
                 .await
                 .unwrap()
-                .len(),
-            0
+                .is_empty()
         );
     }
 
@@ -39660,28 +39658,25 @@ mod tests {
             line: 0,
             character: 2,
         };
-        assert_eq!(
+        assert!(
             Box::pin(backend.reference_locations(&consumer, &document, &analysis, position, true))
                 .await
                 .unwrap()
-                .len(),
-            0
+                .is_empty()
         );
-        assert_eq!(
+        assert!(
             backend
                 .resolve_workspace_symbols(&consumer, &document.text, &analysis, position)
                 .await
                 .unwrap()
-                .len(),
-            0
+                .is_empty()
         );
-        assert_eq!(
+        assert!(
             backend
                 .cross_document_definition(&consumer, &document.text, position, &analysis)
                 .await
                 .unwrap()
-                .len(),
-            0
+                .is_empty()
         );
         assert!(
             backend
@@ -39738,35 +39733,32 @@ mod tests {
         assert!(parents[0].data.is_some());
         let mut unissued = item.clone();
         unissued.data = None;
-        assert_eq!(
+        assert!(
             backend
                 .type_hierarchy_walk(unissued, false)
                 .await
                 .unwrap()
                 .unwrap()
-                .len(),
-            0
+                .is_empty()
         );
         let mut foreign = item.clone();
         foreign.uri = base.clone();
-        assert_eq!(
+        assert!(
             backend
                 .type_hierarchy_walk(foreign, false)
                 .await
                 .unwrap()
                 .unwrap()
-                .len(),
-            0
+                .is_empty()
         );
         register(&backend, &child, &format!("# changed\n{child_source}")).await;
-        assert_eq!(
+        assert!(
             backend
                 .type_hierarchy_walk(item, false)
                 .await
                 .unwrap()
                 .unwrap()
-                .len(),
-            0
+                .is_empty()
         );
     }
 
@@ -40142,13 +40134,12 @@ info exists ::N::v\uD800";
             .unwrap();
         assert_eq!(references.len(), 1);
         assert_eq!(references[0].uri, first);
-        assert_eq!(
+        assert!(
             backend
                 .cross_document_variable_definition(&first, source, position, &analysis,)
                 .await
                 .unwrap()
-                .len(),
-            0
+                .is_empty()
         );
         assert!(
             backend
@@ -40164,13 +40155,12 @@ info exists ::N::v\uD800";
             .unwrap();
         assert!(hover.value.contains("1 `namespace eval` block"));
         assert!(hover.value.contains("1 other reference(s)"));
-        assert_eq!(
+        assert!(
             backend
                 .resolve_original_indexed_locations(vec![retained.clone()])
                 .await
                 .unwrap()
-                .len(),
-            0
+                .is_empty()
         );
 
         // Equal source geometry does not make another selected dialect current.
@@ -40178,21 +40168,19 @@ info exists ::N::v\uD800";
             second.clone(),
             DocumentState::new(source.to_owned(), "tcl9.0".to_owned()),
         );
-        assert_eq!(
+        assert!(
             backend
                 .resolve_original_indexed_locations(vec![retained])
                 .await
                 .unwrap()
-                .len(),
-            0
+                .is_empty()
         );
-        assert_eq!(
+        assert!(
             backend
                 .cross_document_variable_definition(&first, source, position, &analysis,)
                 .await
                 .unwrap()
-                .len(),
-            0
+                .is_empty()
         );
         assert_eq!(
             backend
@@ -40414,12 +40402,11 @@ namespace exists n\uD800";
                 .unwrap(),
             std::ops::ControlFlow::Break(None)
         ));
-        assert_eq!(
+        assert!(
             Box::pin(backend.compute_definition(&consumer, position))
                 .await
                 .unwrap()
-                .len(),
-            0
+                .is_empty()
         );
         assert!(matches!(
             Box::pin(backend.original_method_hover_at(
@@ -40703,13 +40690,12 @@ info exists ::N::v\uD800";
                 assert_eq!(names[0].slot().simple.as_bytes(), expected, "{source}");
             }
         }
-        assert_eq!(
+        assert!(
             defined_original_commands(
                 "oo::class create Old {}",
                 tcl_lsp_core::profile_for_dialect("tcl8.4"),
             )
-            .len(),
-            0
+            .is_empty()
         );
     }
 
@@ -41501,7 +41487,7 @@ info exists ::N::v\uD800";
         let inherited = compute_inherited_requires(&index, &util, &[], None);
         assert_eq!(inherited, vec!["Tk".to_owned()]);
         // The entry file itself inherits nothing.
-        assert_eq!(compute_inherited_requires(&index, &app, &[], None).len(), 0);
+        assert!(compute_inherited_requires(&index, &app, &[], None).is_empty());
     }
 
     #[test]
@@ -41514,10 +41500,7 @@ info exists ::N::v\uD800";
         let other = Uri::from_file_path("/proj/other.tcl").unwrap();
         let index = ws_index(&[(&main, "package require Tk\n"), (&other, "proc o {} {}\n")]);
         // Auto mode: other.tcl is not sourced by main, so it inherits nothing.
-        assert_eq!(
-            compute_inherited_requires(&index, &other, &[], Some(&root)).len(),
-            0
-        );
+        assert!(compute_inherited_requires(&index, &other, &[], Some(&root)).is_empty());
         // Explicit entry point: other.tcl inherits main.tcl's Tk.
         let entries = vec!["main.tcl".to_owned()];
         let inherited = compute_inherited_requires(&index, &other, &entries, Some(&root));
@@ -41676,7 +41659,7 @@ info exists ::N::v\uD800";
             &[(&deflib(), "proc libtest {a b c} { return 1 }\n")],
         );
         assert_eq!(settled.resolved.len(), 1, "still resolves: {settled:?}");
-        assert_eq!(arity_codes(&analysis, &settled).len(), 0);
+        assert!(arity_codes(&analysis, &settled).is_empty());
     }
 
     #[test]
@@ -41775,7 +41758,7 @@ info exists ::N::v\uD800";
             "`buried` at global scope reaches `::buried`, which nothing \
              defines — tclsh: `invalid command name \"buried\"`: {settled:?}",
         );
-        assert_eq!(arity_codes(&analysis, &settled).len(), 0);
+        assert!(arity_codes(&analysis, &settled).is_empty());
     }
 
     /// **FN guard.** A command nothing in the workspace defines still does not
@@ -41887,7 +41870,7 @@ info exists ::N::v\uD800";
             "`namespace unknown` must widen to dynamic providers",
         );
         assert!(settled.resolved.is_empty(), "{settled:?}");
-        assert_eq!(arity_codes(&analysis, &settled).len(), 0);
+        assert!(arity_codes(&analysis, &settled).is_empty());
     }
 
     /// **TN — a `{*}`-expanded call.** The true argument count is a runtime
@@ -42352,7 +42335,7 @@ info exists ::N::v\uD800";
             None,
             tcl_lsp_core::package_resolver::PackagePrefer::default(),
         );
-        assert_eq!(got.placed.len(), 0);
+        assert!(got.placed.is_empty());
         assert!(!got.unresolvable_source);
         assert!(got.is_empty());
     }
@@ -42613,10 +42596,7 @@ info exists ::N::v\uD800";
         assert_eq!(data["kind"], "analysisContextUnavailable");
         assert_eq!(data["environment"], "tcl9.0");
         assert_eq!(data["overlay"], u64::MAX);
-        assert_eq!(
-            lift_report("", &core_policy::apply(Vec::new(), &open_policy())).len(),
-            0
-        );
+        assert!(lift_report("", &core_policy::apply(Vec::new(), &open_policy())).is_empty());
     }
 
     fn has_code(diags: &[tower_lsp_server::ls_types::Diagnostic], code: &str) -> bool {
@@ -45380,12 +45360,11 @@ info exists ::N::v\uD800";
             .await
             .unwrap();
         set_callback_project_advice(&backend, false).await;
-        assert_eq!(
+        assert!(
             callback_pull_report(&backend, &caller, source)
                 .await
                 .unwrap()
-                .len(),
-            0
+                .is_empty()
         );
         set_callback_project_advice(&backend, true).await;
         assert_eq!(
@@ -45415,12 +45394,11 @@ info exists ::N::v\uD800";
         register_callback_source(&backend, &caller, current_source)
             .await
             .unwrap();
-        assert_eq!(
+        assert!(
             callback_pull_report(&backend, &caller, current_source)
                 .await
                 .unwrap()
-                .len(),
-            0
+                .is_empty()
         );
         let stale = backend
             .project_callback_diagnostics_if(true, current_source, &old_analysis, &HashSet::new())
@@ -45465,13 +45443,12 @@ info exists ::N::v\uD800";
             let cache = backend.pull_diag_cache.lock().await;
             callback_source_wire_diagnostics(&cache.get(&caller).unwrap().diagnostics)
         };
-        assert_eq!(pushed.len(), 0);
-        assert_eq!(
+        assert!(pushed.is_empty());
+        assert!(
             callback_pull_report(&backend, &caller, source)
                 .await
                 .unwrap()
-                .len(),
-            0
+                .is_empty()
         );
         let analysis = backend
             .analysis_for(&caller, Arc::from(source), "tcl8.6".to_owned())
@@ -46456,7 +46433,7 @@ info exists ::N::v\uD800";
         let source = "proc file {args} {}; lappend auto_path [file join /ROOT leaf]";
         let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl8.6");
         assert_ne!(analysis.auto_path_entries.len(), 0);
-        assert_eq!(document_auto_path_dirs(&uri, &analysis).len(), 0);
+        assert!(document_auto_path_dirs(&uri, &analysis).is_empty());
     }
 
     /// A *relative* `auto_path` entry
@@ -53101,7 +53078,7 @@ proc p {} {
         backend.scan_workspace_folders().await.unwrap();
 
         let index = backend.workspace_index.read().await;
-        assert_eq!(index.classes_named("::IconList").len(), 0);
+        assert!(index.classes_named("::IconList").is_empty());
         assert_eq!(index.classes_named("::Kept").len(), 1);
         drop(index);
         std::fs::remove_dir_all(&root).ok();
@@ -58544,23 +58521,21 @@ proc p {} {
             .unwrap()
             .expect("current original library declaration hover");
         assert!(hover.value.contains("Rbc_ActiveLegend"), "{hover:?}");
-        assert_eq!(
+        assert!(
             backend
                 .autoload_definition(&app, &format!("{source} "), position, &analysis)
                 .await
                 .unwrap()
-                .len(),
-            0
+                .is_empty()
         );
         let mut missing = analysis.as_ref().clone();
         missing.resolved_input = None;
-        assert_eq!(
+        assert!(
             backend
                 .autoload_definition(&app, source, position, &missing)
                 .await
                 .unwrap()
-                .len(),
-            0
+                .is_empty()
         );
         assert!(
             backend
@@ -58569,13 +58544,12 @@ proc p {} {
                 .unwrap()
                 .is_none()
         );
-        assert_eq!(
+        assert!(
             backend
                 .autoload_definition(&app, source, Position::new(0, 17), &analysis)
                 .await
                 .unwrap()
-                .len(),
-            0
+                .is_empty()
         );
     }
 
@@ -62698,7 +62672,7 @@ proc p {} {
             .await
             .unwrap();
         assert_eq!(candidates.fallback_hits.len(), 1);
-        assert_eq!(candidates.indexed_hits.len(), 0);
+        assert!(candidates.indexed_hits.is_empty());
         assert_eq!(
             store.reads.load(Ordering::SeqCst),
             0,
@@ -67361,17 +67335,17 @@ mod retained_class_family_receiver_tests {
             core_workspace_index::WorkspaceIndex::from_documents([("file:///other.tcl", &other)]);
         let itcl_classes = itcl_index.classes_named("::C");
         let other_classes = other_index.classes_named("::C");
-        assert_eq!(
-            Backend::classmethod_dispatch_names(&itcl_classes, &[], "make", true, nominal).len(),
-            0
+        assert!(
+            Backend::classmethod_dispatch_names(&itcl_classes, &[], "make", true, nominal)
+                .is_empty()
         );
         assert_eq!(
             Backend::classmethod_dispatch_names(&other_classes, &[], "make", true, nominal),
             vec!["::C".to_owned()]
         );
-        assert_eq!(
-            Backend::classmethod_dispatch_names(&other_classes, &[], "make", false, nominal).len(),
-            0
+        assert!(
+            Backend::classmethod_dispatch_names(&other_classes, &[], "make", false, nominal)
+                .is_empty()
         );
         let mut missing = other;
         missing.resolved_input = None;
@@ -67381,9 +67355,8 @@ mod retained_class_family_receiver_tests {
         )]);
         let unknown = unknown_index.classes_named("::C");
         assert_eq!(unknown[0].definer_family(), None);
-        assert_eq!(
-            Backend::classmethod_dispatch_names(&unknown, &[], "make", true, nominal).len(),
-            0
+        assert!(
+            Backend::classmethod_dispatch_names(&unknown, &[], "make", true, nominal).is_empty()
         );
     }
 }
@@ -67637,7 +67610,7 @@ mod pack_configuration_publication_tests {
             },
             "speclib requested 1.0 {\ncommand requested::call {\narity 0\n}\n}\n".to_owned(),
         )]));
-        assert_eq!(packs.load_errors.len(), 0);
+        assert!(packs.load_errors.is_empty());
         let mut publication = PackConfigurationPublication {
             options,
             configured_sources: vec![vec![source_path]],
@@ -67799,7 +67772,7 @@ mod pack_configuration_input_gate_tests {
             ),
             std::slice::from_ref(&diagnostic)
         );
-        assert_eq!(
+        assert!(
             backend
                 .diagnostic_publisher
                 .with_pack_notices(
@@ -67813,10 +67786,9 @@ mod pack_configuration_input_gate_tests {
                     },
                     Vec::new()
                 )
-                .len(),
-            0
+                .is_empty()
         );
-        assert_eq!(
+        assert!(
             backend
                 .diagnostic_publisher
                 .with_pack_notices(
@@ -67830,11 +67802,10 @@ mod pack_configuration_input_gate_tests {
                     },
                     Vec::new()
                 )
-                .len(),
-            0
+                .is_empty()
         );
         let replacement = Arc::new(tcl_spectcl::PackSet::default());
-        assert_eq!(
+        assert!(
             backend
                 .diagnostic_publisher
                 .with_pack_notices(
@@ -67848,11 +67819,10 @@ mod pack_configuration_input_gate_tests {
                     },
                     Vec::new()
                 )
-                .len(),
-            0
+                .is_empty()
         );
         let other_registry = backend.registry_for_dialect("tcl9.0").await;
-        assert_eq!(
+        assert!(
             backend
                 .diagnostic_publisher
                 .with_pack_notices(
@@ -67866,12 +67836,11 @@ mod pack_configuration_input_gate_tests {
                     },
                     Vec::new()
                 )
-                .len(),
-            0
+                .is_empty()
         );
         std::fs::write(&path, "speclib changed 1.0 {}\n")
             .expect("change the actual provider source");
-        assert_eq!(
+        assert!(
             backend
                 .diagnostic_publisher
                 .with_pack_notices(
@@ -67885,8 +67854,7 @@ mod pack_configuration_input_gate_tests {
                     },
                     Vec::new()
                 )
-                .len(),
-            0
+                .is_empty()
         );
         std::fs::remove_file(path).expect("remove the temporary pack source");
     }
@@ -67996,7 +67964,7 @@ mod native_cross_document_snapshot_tests {
             assert_eq!(current.text, document.text);
             assert_eq!(current.version, document.version);
         }
-        assert_eq!(
+        assert!(
             backend
                 .original_definition_locations_for_snapshot(
                     (caller, document, generation),
@@ -68006,8 +67974,7 @@ mod native_cross_document_snapshot_tests {
                 )
                 .await
                 .unwrap()
-                .len(),
-            0
+                .is_empty()
         );
     }
 }
@@ -68187,6 +68154,6 @@ mod original_method_final_source_batch_tests {
             .resolve_current_declaration_locations(caller, vec![target], epoch)
             .await
             .unwrap();
-        assert_eq!(stale.len(), 0);
+        assert!(stale.is_empty());
     }
 }

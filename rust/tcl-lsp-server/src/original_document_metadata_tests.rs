@@ -226,19 +226,17 @@ fn unindexed_tokens_refuse_withdrawn_source_metadata_and_availability() {
     )
     .resolved_input;
     for refused in [&missing, &unavailable_generation, &stale, &foreign] {
-        assert_eq!(unindexed_semantic_tokens(source, refused).data.len(), 0);
-        assert_eq!(
+        assert!(unindexed_semantic_tokens(source, refused).data.is_empty());
+        assert!(
             unindexed_semantic_tokens_for_range(source, refused, Some(whole_source_range(source)))
                 .data
-                .len(),
-            0
+                .is_empty()
         );
     }
-    assert_eq!(
+    assert!(
         unindexed_semantic_tokens("metadata_read changed", &analysis)
             .data
-            .len(),
-        0
+            .is_empty()
     );
 }
 
@@ -606,7 +604,7 @@ async fn closed_disk_index_keeps_workspace_roles_and_withdraws_changed_pack() {
         .batch_reindex_from_disk(std::slice::from_ref(&uri))
         .await
         .unwrap();
-    assert_eq!(index_reads(&backend, "::retained", &uri).await.len(), 0);
+    assert!(index_reads(&backend, "::retained", &uri).await.is_empty());
     std::fs::remove_dir_all(root).unwrap();
 }
 
@@ -639,7 +637,7 @@ async fn startup_index_and_factory_reindex_keep_checked_document_roles() {
     install_workspace_read_pack(&backend, 2, false).await;
     backend.invalidate_diag_inputs();
     reindex_unopened_factory_consumers(&handles, &affected).await;
-    assert_eq!(index_reads(&backend, "::retained", &uri).await.len(), 0);
+    assert!(index_reads(&backend, "::retained", &uri).await.is_empty());
     std::fs::remove_dir_all(root).unwrap();
 }
 
@@ -752,7 +750,7 @@ async fn workspace_index_seed_refuses_stale_and_withdrawn_source_owners() {
         .unwrap();
     assert!(unavailable.analysis.analysis_context_unavailable.is_some());
     assert!(unavailable.analysis.resolved_input.is_none());
-    assert_eq!(unavailable.analysis.command_invocations.len(), 0);
+    assert!(unavailable.analysis.command_invocations.is_empty());
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -929,7 +927,7 @@ async fn optimise_document_keeps_workspace_roles_and_refuses_unavailable_input()
         .unwrap()
         .unwrap();
     assert_eq!(refused["source"], source);
-    assert_eq!(refused["optimisations"].as_array().unwrap().len(), 0);
+    assert!(refused["optimisations"].as_array().unwrap().is_empty());
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -989,9 +987,12 @@ async fn document_symbols_keep_the_resource_input_and_withdraw_unavailable_overl
             .any(|symbol| symbol.name == "selected_outline"
                 && symbol.kind == CoreSymbolKind::Function)
     );
-    assert_eq!(
-        backend.db_document_symbols(&sibling).await.unwrap().len(),
-        0
+    assert!(
+        backend
+            .db_document_symbols(&sibling)
+            .await
+            .unwrap()
+            .is_empty()
     );
 
     backend
@@ -1013,7 +1014,7 @@ async fn document_symbols_keep_the_resource_input_and_withdraw_unavailable_overl
             .set_spec_pack_key(&mut *db)
             .to(u64::MAX - 393);
     }
-    assert_eq!(backend.db_document_symbols(&uri).await.unwrap().len(), 0);
+    assert!(backend.db_document_symbols(&uri).await.unwrap().is_empty());
     assert!(
         backend
             .db_document_symbols(&sibling)
