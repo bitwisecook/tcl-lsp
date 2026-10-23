@@ -125,6 +125,7 @@ pub(crate) use source_scoped_body::{
     OriginalSourceScriptBodyOrigin, declared_source_script_bodies_for,
     original_source_scoped_bodies, original_written_script_body_is_empty,
 };
+pub(crate) mod source_schema_queries;
 mod source_taint;
 mod source_taint_arguments;
 pub use source_taint::HostedSourceTaintContext;
@@ -673,7 +674,7 @@ pub(crate) fn logical_structured_invocation_with_metadata_context(
     // retains generic IR instead of borrowing a definitive Switch topology.
     if source_roles
         .as_ref()
-        .is_some_and(|roles| roles.selection_unknown())
+        .is_some_and(StructuredSourceRoles::selection_unknown)
     {
         return None;
     }

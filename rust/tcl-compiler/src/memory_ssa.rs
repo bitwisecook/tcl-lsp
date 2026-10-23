@@ -976,7 +976,7 @@ pub(crate) fn has_wildcard_aliasing_with_metadata_context(
 ) -> bool {
     ssa.point_contexts
         .as_ref()
-        .is_some_and(|points| points.has_unknown_source_arguments())
+        .is_some_and(super::variable_bindings::PointResolveContexts::has_unknown_source_arguments)
         || ssa
             .blocks
             .values()

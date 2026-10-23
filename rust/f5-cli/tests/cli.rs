@@ -390,7 +390,7 @@ fn mutating_queries_require_faithful_named_and_structured_donors() {
         (
             "--name",
             format!("donor={}", donor.display()),
-            r#"rename("/Common/old", $donor.ltm.pool[].full-path)"#,
+            r#"rename("/Common/old", first($donor.ltm.pool[].full-path))"#,
             Some(donor.as_path()),
         ),
         (
@@ -434,7 +434,7 @@ fn query_archive_file_donors_keep_original_bytes_before_mutation() {
         for (name, bytes) in [
             (
                 "config/bigip.conf",
-                b"ltm pool /Common/old { description old }\n".as_slice(),
+                b"ltm pool /Common/old {\n    description old\n}\n".as_slice(),
             ),
             ("etc/donor", donor),
         ] {

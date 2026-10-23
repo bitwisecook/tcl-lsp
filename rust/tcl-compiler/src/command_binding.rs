@@ -4600,6 +4600,78 @@ fn command_world_closed_on_normal_return(
     }
 }
 
+fn deferred_source_frame(
+    root: &DeferredSourceBody,
+    branch: &mut ModuleCommandBindings,
+    parent: &crate::var_resolve::ResolveContext,
+) -> crate::var_resolve::VariableExecutionFrame {
+    use crate::var_resolve::VariableExecutionFrame;
+    let frame = if root.receiver_method {
+        VariableExecutionFrame::ReceiverMethod {
+            identity: source_activation_name(
+                root.source_origin.as_ref(),
+                &root.identity,
+                root.implementation_generation,
+            ),
+        }
+    } else if let Some(event) = &root.event {
+        let mut entry = crate::connection_scope::event_resolve_context(event);
+        entry.invocation_dialect = branch.baseline.dialect;
+        entry.source_read_configuration = parent.source_read_configuration;
+        entry.namespace_cells = parent.namespace_cells.clone();
+        let frame = if entry.dynamic_bindings {
+            VariableExecutionFrame::Unknown
+        } else if entry.global_frame() {
+            VariableExecutionFrame::Global
+        } else {
+            VariableExecutionFrame::Procedure {
+                namespace: root.namespace.clone(),
+                identity: source_activation_name(
+                    root.source_origin.as_ref(),
+                    &root.identity,
+                    root.implementation_generation,
+                ),
+            }
+        };
+        branch.source_variables = Arc::new(entry.in_frame(&frame));
+        branch.variable_frame = frame.clone();
+        frame
+    } else {
+        VariableExecutionFrame::Procedure {
+            namespace: root.namespace.clone(),
+            identity: source_activation_name(
+                root.source_origin.as_ref(),
+                &root.identity,
+                root.implementation_generation,
+            ),
+        }
+    };
+    if root.receiver_method {
+        frame
+    } else {
+        frame.with_namespace_identity(root.namespace_key.clone())
+    }
+}
+
+fn initial_source_interpretation_state(
+    image: &tcl_lexer::SourceImage,
+    config: tcl_lexer::LexerConfig,
+    registry: &CommandRegistry,
+    options: SourceAnalysisOptions<'_>,
+) -> ModuleCommandBindings {
+    let mut state = ModuleCommandBindings::initial_with_options(registry, options, Some(config));
+    state.current_source_origin = Some(Arc::new(match options.source_point_entry {
+        Some(parent) => SourceOriginId::from_kind(SourceOriginKind::InheritedPoint {
+            parent: parent.source_origin(),
+            source: image.clone(),
+        }),
+        None => SourceOriginId::authored_image(image.clone()),
+    }));
+    state.ordinary_literal_pool =
+        literal_object_pool::SourceOrdinaryLiteralPool::at_entry(&state, options);
+    state
+}
+
 fn source_frame_namespace(frame: &crate::var_resolve::VariableExecutionFrame) -> &str {
     use crate::var_resolve::VariableExecutionFrame;
     match frame.layout() {
@@ -6357,7 +6429,7 @@ impl SourceConditionalHandlerNormal {
     ) -> bool {
         state.baseline.source_point_entry.as_ref() == Some(&self.entry)
             && context.body_entry == SourceBodyEntryPurpose::Conditional
-            && context.compilation == Default::default()
+            && context.compilation == NativeCompilationContext::default()
             && self.config == context.config
             && self.words == native.words
             && self.operation == facts.operation
@@ -6473,7 +6545,7 @@ impl SourceOutcomes {
             return;
         };
         if context.body_entry != SourceBodyEntryPurpose::Conditional
-            || context.compilation != Default::default()
+            || context.compilation != NativeCompilationContext::default()
             || normal.baseline.native_entry.is_some()
             || normal.source_step_observed()
             || normal.source_execution_observed(None)
@@ -7118,17 +7190,7 @@ impl SourceCommandBindings {
             lexer_config: Some(config),
             ..Self::default()
         };
-        let mut state =
-            ModuleCommandBindings::initial_with_options(registry, options, Some(config));
-        state.current_source_origin = Some(Arc::new(match options.source_point_entry {
-            Some(parent) => SourceOriginId::from_kind(SourceOriginKind::InheritedPoint {
-                parent: parent.source_origin(),
-                source: image.clone(),
-            }),
-            None => SourceOriginId::authored_image(image.clone()),
-        }));
-        state.ordinary_literal_pool =
-            literal_object_pool::SourceOrdinaryLiteralPool::at_entry(&state, options);
+        let mut state = initial_source_interpretation_state(image, config, registry, options);
         bindings
             .root_origin
             .clone_from(&state.current_source_origin);
@@ -7367,7 +7429,6 @@ impl SourceCommandBindings {
         registry: &CommandRegistry,
         after_load: bool,
     ) {
-        use crate::var_resolve::VariableExecutionFrame;
         if root.future_frame.is_some() {
             self.walk_future_body(root, incoming, config, registry);
             return;
@@ -7375,51 +7436,7 @@ impl SourceCommandBindings {
         let mut branch = boxed_source_branch(incoming);
         branch.current_source_origin.clone_from(&root.source_origin);
         let parent = Arc::clone(&branch.source_variables);
-        let frame = if root.receiver_method {
-            VariableExecutionFrame::ReceiverMethod {
-                identity: source_activation_name(
-                    root.source_origin.as_ref(),
-                    &root.identity,
-                    root.implementation_generation,
-                ),
-            }
-        } else if let Some(event) = &root.event {
-            let mut entry = crate::connection_scope::event_resolve_context(event);
-            entry.invocation_dialect = branch.baseline.dialect;
-            entry.source_read_configuration = parent.source_read_configuration;
-            entry.namespace_cells = parent.namespace_cells.clone();
-            let frame = if entry.dynamic_bindings {
-                VariableExecutionFrame::Unknown
-            } else if entry.global_frame() {
-                VariableExecutionFrame::Global
-            } else {
-                VariableExecutionFrame::Procedure {
-                    namespace: root.namespace.clone(),
-                    identity: source_activation_name(
-                        root.source_origin.as_ref(),
-                        &root.identity,
-                        root.implementation_generation,
-                    ),
-                }
-            };
-            branch.source_variables = Arc::new(entry.in_frame(&frame));
-            branch.variable_frame = frame.clone();
-            frame
-        } else {
-            VariableExecutionFrame::Procedure {
-                namespace: root.namespace.clone(),
-                identity: source_activation_name(
-                    root.source_origin.as_ref(),
-                    &root.identity,
-                    root.implementation_generation,
-                ),
-            }
-        };
-        let frame = if root.receiver_method {
-            frame
-        } else {
-            frame.with_namespace_identity(root.namespace_key.clone())
-        };
+        let frame = deferred_source_frame(root, &mut branch, &parent);
         seed_deferred_inputs(&mut branch, root, &frame, registry);
         if let Some((parent, argument, script)) = &root.executed_script {
             self.record_executed_script(parent.clone(), *argument, script.clone(), None, None);
@@ -8194,7 +8211,9 @@ impl SourceCommandBindings {
                 .iter_mut()
                 .map(|(_, binding)| binding),
         ) {
-            binding.original_analysis_owner = self.original_analysis_owner.clone();
+            binding
+                .original_analysis_owner
+                .clone_from(&self.original_analysis_owner);
             binding.original_source_operand_attachment = None;
         }
         if let Some(binding) = &mut tokens.source_binding {
@@ -8580,45 +8599,10 @@ impl SourceCommandBindings {
         // Physical Direct parsing is independent of lexical prefix recovery and
         // unentered declaration previews. Only the actual baseline entry can
         // select it; explicitly authored advice remains its separate route.
-        if self.declaration_preview_depth == 0
-            && context.compilation.mode
-                == tcl_registry::native_compilation::NativeCompilationMode::Direct
-            && let Some(entry) = state.baseline.native_entry.as_deref()
+        if let Some(failed) =
+            self.prepare_direct_source_parse(image, base, state, context, config, source.len())
         {
-            use tcl_registry::native_compilation::NativeDirectScriptParseEntry;
-            match context.compilation.direct_script_parse_entry(entry) {
-                Some(NativeDirectScriptParseEntry::CommandAtTime) => {}
-                Some(NativeDirectScriptParseEntry::WholeScript) => {
-                    match tcl_lexer::jim_script_syntax_tokens(image, config) {
-                        Ok(syntax) if syntax.missing.is_none() => {}
-                        Ok(_syntax_error) => {
-                            compiled_preflight::materialise_error_storage(state, context.registry);
-                            let failed = SourceOutcomes::invocation(
-                                state,
-                                tcl_registry::completion_route::InvocationCompletionRoute::Tcl(
-                                    tcl_registry::completion::CompletionCode::Error,
-                                ),
-                            );
-                            self.record_unrepresented_source_entry(state, context);
-                            self.record_runtime_coverage(
-                                state.current_source_origin.as_ref(),
-                                base,
-                                source.len(),
-                                &failed,
-                            );
-                            return failed;
-                        }
-                        Err(_) => {
-                            self.record_unrepresented_source_entry(state, context);
-                            return opaque_source_invocation(state);
-                        }
-                    }
-                }
-                None => {
-                    self.record_unrepresented_source_entry(state, context);
-                    return opaque_source_invocation(state);
-                }
-            }
+            return failed;
         }
         let depth = context.depth;
         let mut prepared = Box::<PreparedSourceChunk>::default();
@@ -8698,6 +8682,58 @@ impl SourceCommandBindings {
             &outcomes,
         );
         outcomes
+    }
+
+    fn prepare_direct_source_parse(
+        &mut self,
+        image: &tcl_lexer::SourceImage,
+        base: u32,
+        state: &mut ModuleCommandBindings,
+        context: &SourceExecutionContext<'_>,
+        config: tcl_lexer::LexerConfig,
+        source_len: usize,
+    ) -> Option<SourceOutcomes> {
+        if self.declaration_preview_depth == 0
+            && context.compilation.mode
+                == tcl_registry::native_compilation::NativeCompilationMode::Direct
+            && let Some(entry) = state.baseline.native_entry.as_deref()
+        {
+            use tcl_registry::native_compilation::NativeDirectScriptParseEntry;
+            match context.compilation.direct_script_parse_entry(entry) {
+                Some(NativeDirectScriptParseEntry::CommandAtTime) => {}
+                Some(NativeDirectScriptParseEntry::WholeScript) => {
+                    match tcl_lexer::jim_script_syntax_tokens(image, config) {
+                        Ok(syntax) if syntax.missing.is_none() => {}
+                        Ok(_syntax_error) => {
+                            compiled_preflight::materialise_error_storage(state, context.registry);
+                            let failed = SourceOutcomes::invocation(
+                                state,
+                                tcl_registry::completion_route::InvocationCompletionRoute::Tcl(
+                                    tcl_registry::completion::CompletionCode::Error,
+                                ),
+                            );
+                            self.record_unrepresented_source_entry(state, context);
+                            self.record_runtime_coverage(
+                                state.current_source_origin.as_ref(),
+                                base,
+                                source_len,
+                                &failed,
+                            );
+                            return Some(failed);
+                        }
+                        Err(_) => {
+                            self.record_unrepresented_source_entry(state, context);
+                            return Some(opaque_source_invocation(state));
+                        }
+                    }
+                }
+                None => {
+                    self.record_unrepresented_source_entry(state, context);
+                    return Some(opaque_source_invocation(state));
+                }
+            }
+        }
+        None
     }
 
     fn walk_source_segments(
@@ -11614,9 +11650,8 @@ impl SourceCommandBindings {
             native,
             state,
             &script,
-            &frame,
+            (context.body_entry == SourceBodyEntryPurpose::Selected).then_some(&frame),
             Some(&namespace_key),
-            context.body_entry,
         );
         let realm = evaluated_script_realm(
             lambda.lambda_argument..lambda.lambda_argument + 1,
@@ -11659,9 +11694,8 @@ impl SourceCommandBindings {
         native: SourceNativeInvocation<'_>,
         state: &ModuleCommandBindings,
         script: &ExecutedScriptSource,
-        frame: &crate::var_resolve::VariableExecutionFrame,
+        frame: Option<&crate::var_resolve::VariableExecutionFrame>,
         namespace: Option<&SourceNamespaceKey>,
-        entry: SourceBodyEntryPurpose,
     ) {
         let parent = CommandAllocationSite {
             source: Arc::clone(state.current_source_origin.as_ref().unwrap()),
@@ -11678,7 +11712,7 @@ impl SourceCommandBindings {
             parent,
             lambda.lambda_argument,
             script.clone(),
-            (entry == SourceBodyEntryPurpose::Selected).then_some(frame),
+            frame,
             namespace,
         );
     }
@@ -12892,6 +12926,37 @@ fn source_binding_projection(
     source_binding_projection_in(state, head, namespace, CommandTargetLookup::WithFallback)
 }
 
+fn source_binding_targets(
+    state: &ModuleCommandBindings,
+    selection: logical_prefix::LogicalPrefixResolution,
+) -> Vec<SourceCommandTarget> {
+    selection
+        .targets
+        .into_iter()
+        .map(|target| {
+            let logical_original_prefix = selection
+                .prefixes
+                .get(&target)
+                .cloned()
+                .flatten()
+                .filter(|_| !target.prepended.is_empty());
+            SourceCommandTarget {
+                runtime_implementation_generation: state
+                    .runtime_implementation_generation(target.token.as_ref()),
+                command: target.command,
+                prepended: target.prepended,
+                original_prepended: None,
+                logical_original_prefix,
+                registry_backed: target.registry_backed,
+                kind: target.kind,
+                identity: target.token,
+                implementation_generation: target.implementation_generation,
+                implementation_allocation: target.implementation_allocation,
+            }
+        })
+        .collect()
+}
+
 fn source_binding_projection_in(
     state: &ModuleCommandBindings,
     head: &str,
@@ -12979,31 +13044,7 @@ fn source_binding_projection_in(
         frozen_written_names: None,
         frozen_head_object: None,
         method_prefix_arguments: Vec::new(),
-        targets: selection
-            .targets
-            .into_iter()
-            .map(|target| {
-                let logical_original_prefix = selection
-                    .prefixes
-                    .get(&target)
-                    .cloned()
-                    .flatten()
-                    .filter(|_| !target.prepended.is_empty());
-                SourceCommandTarget {
-                    runtime_implementation_generation: state
-                        .runtime_implementation_generation(target.token.as_ref()),
-                    command: target.command,
-                    prepended: target.prepended,
-                    original_prepended: None,
-                    logical_original_prefix,
-                    registry_backed: target.registry_backed,
-                    kind: target.kind,
-                    identity: target.token,
-                    implementation_generation: target.implementation_generation,
-                    implementation_allocation: target.implementation_allocation,
-                }
-            })
-            .collect(),
+        targets: source_binding_targets(state, selection),
         may_be_absent,
         unknown: state.target_may_be_unknown(head, namespace)
             || (!head.starts_with("::")
@@ -14734,19 +14775,7 @@ impl ModuleCommandBindings {
                 matches!(namespace, crate::ir::ExecutionNamespace::RuntimeSelected)
                     && crate::ir_helpers::requires_runtime_command_namespace(script, registry)
             });
-        let mut procedure_bodies: BTreeSet<String> = module
-            .procedures
-            .values()
-            .map(|procedure| procedure.qualified_name.clone())
-            .collect();
-        for discarded_module in &discarded.modules {
-            procedure_bodies.extend(
-                discarded_module
-                    .procedures
-                    .values()
-                    .map(|procedure| procedure.qualified_name.clone()),
-            );
-        }
+        let procedure_bodies = retained_procedure_names(module, &discarded);
         let mut state = Self {
             opaque_domain: opaque_binding_mutation || options.unknown_entry,
             opaque_binding_mutation: opaque_binding_mutation || options.unknown_entry,
@@ -16710,6 +16739,26 @@ struct DiscardedProcedureHistory {
 /// provenance can distinguish a readable discarded body from a genuinely
 /// unavailable one. Readable bodies are lowered and walked like every retained
 /// procedure body; only an unreadable history widens the whole command domain.
+fn retained_procedure_names(
+    module: &Module,
+    discarded: &DiscardedProcedureHistory,
+) -> BTreeSet<String> {
+    let mut procedure_bodies: BTreeSet<String> = module
+        .procedures
+        .values()
+        .map(|procedure| procedure.qualified_name.clone())
+        .collect();
+    for discarded_module in &discarded.modules {
+        procedure_bodies.extend(
+            discarded_module
+                .procedures
+                .values()
+                .map(|procedure| procedure.qualified_name.clone()),
+        );
+    }
+    procedure_bodies
+}
+
 fn discarded_procedure_history(
     module: &Module,
     registry: &CommandRegistry,

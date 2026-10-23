@@ -335,10 +335,7 @@ impl Lowerer<'_> {
                 Some((source, namespace))
             });
             let script = if let Some((source, entered_namespace)) = entered {
-                let previous = std::mem::replace(&mut self.suppress_proc_register, true);
-                let script = self.lower_executed_script_in_context(source, &entered_namespace);
-                self.suppress_proc_register = previous;
-                script
+                self.lower_possible_executed_body(source, &entered_namespace)
             } else {
                 // Conditional source advice is retained separately. An absent
                 // entered inventory provides no executable statements.
@@ -380,6 +377,17 @@ impl Lowerer<'_> {
             conditions,
         }));
         Some(region)
+    }
+
+    fn lower_possible_executed_body(
+        &mut self,
+        source: crate::command_binding::ExecutedScriptSource,
+        namespace: &crate::command_binding::SourceNamespaceKey,
+    ) -> Script {
+        let previous = std::mem::replace(&mut self.suppress_proc_register, true);
+        let script = self.lower_executed_script_in_context(source, namespace);
+        self.suppress_proc_register = previous;
+        script
     }
 
     fn conditional_body_source(

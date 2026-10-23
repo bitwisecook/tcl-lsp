@@ -27,7 +27,7 @@ use tcl_lexer::{LexerConfig, SourceImage, Span};
 
 enum DeclarationSource<'a> {
     Occurrence(&'a SignatureSourceVariableOccurrence),
-    ConditionalAlias(OriginalVariableAliasTemplate),
+    ConditionalAlias(Box<OriginalVariableAliasTemplate>),
 }
 
 /// A genuine current variable declaration joined to its original source symbol.
@@ -134,7 +134,7 @@ impl AnalysisResult {
         }
         Some(OriginalVariableSourceDeclaration {
             span,
-            source: DeclarationSource::ConditionalAlias(first),
+            source: DeclarationSource::ConditionalAlias(Box::new(first)),
         })
     }
 }

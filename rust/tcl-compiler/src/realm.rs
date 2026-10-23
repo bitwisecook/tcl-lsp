@@ -999,7 +999,7 @@ pub fn document_realm_bindings_for_module(
     let retained = module.retained_source_bindings.as_deref()?;
     let bindings = retained.positioned_for_module(module, registry)?;
     let mut realm = realm_from_source_bindings(bindings.clone(), registry);
-    realm.source_input = module.source_metadata_input.clone();
+    realm.source_input.clone_from(&module.source_metadata_input);
     Some(realm)
 }
 

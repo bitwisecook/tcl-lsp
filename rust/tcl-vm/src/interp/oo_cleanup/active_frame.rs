@@ -220,19 +220,18 @@ impl OriginalOoCallExit {
         if let Err(error) = original.check(vm) {
             retain_error(vm, &error);
         }
-        match (call, namespace) {
-            (Some(call), Some(namespace)) => Some(Self {
+        if let (Some(call), Some(namespace)) = (call, namespace) {
+            Some(Self {
                 original: original.saved(),
                 call,
                 namespace,
                 method: None,
                 procedure_only: true,
-            }),
-            _ => {
-                let error = original.refuse(vm, "original procedure entry activation");
-                retain_error(vm, &error);
-                None
-            }
+            })
+        } else {
+            let error = original.refuse(vm, "original procedure entry activation");
+            retain_error(vm, &error);
+            None
         }
     }
 

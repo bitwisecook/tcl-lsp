@@ -4,7 +4,12 @@
 
 //! Conditional decoded lambda source phases for readonly formatting roles.
 
-use super::*;
+use super::{
+    AdviceGraph, AdviceInvocation, AdviceInvocationContext, AdviceNamingPolicy, Arc, BTreeMap,
+    BTreeSet, NativeWord, OriginalSourceCommandTransitionAdvice,
+    OriginalSourceTransitionAdviceTape, SourceCommandTransitionObligation, body_effects,
+    logical_navigation, source_class,
+};
 
 /// A configured lambda field with actual parent graph and distinct source origin.
 /// No Document root, entered frame, Native interpretation or edit is issued.

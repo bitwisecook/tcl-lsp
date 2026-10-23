@@ -84,7 +84,7 @@ fn decomposition(
     effective: &crate::registry_invocation::EffectiveCommandWords,
     ctx: TraceCtx<'_>,
 ) -> Option<Decomposition> {
-    let metadata = ctx.metadata()?;
+    let metadata = ctx.metadata()?.context();
     let binding = tokens.source_binding.as_ref()?;
     let values = crate::registry_invocation::frozen_argument_words(tokens, effective);
     let values = values
@@ -209,7 +209,7 @@ struct TraceCtx<'a> {
 }
 
 impl<'a> TraceCtx<'a> {
-    fn metadata(self) -> Option<Option<crate::registry_invocation::InvocationMetadataContext<'a>>> {
+    fn metadata(self) -> Option<crate::registry_invocation::InvocationMetadataSelection<'a>> {
         if self
             .cfg
             .metadata_context
@@ -218,10 +218,7 @@ impl<'a> TraceCtx<'a> {
         {
             return None;
         }
-        self.cfg
-            .metadata_context
-            .metadata_context(self.registry)
-            .map(crate::registry_invocation::InvocationMetadataSelection::context)
+        self.cfg.metadata_context.metadata_context(self.registry)
     }
 
     fn tokens(self) -> Option<&'a crate::ir::CommandTokens> {
@@ -266,7 +263,7 @@ impl<'a> TraceCtx<'a> {
         let invocation =
             crate::registry_invocation::normal_transfer_invocation_with_metadata_context(
                 self.registry,
-                self.metadata()?,
+                self.metadata()?.context(),
                 tokens,
             )?;
         let state = self
@@ -308,7 +305,7 @@ fn diagnostic_words(
     Option<Decomposition>,
 )> {
     use crate::registry_invocation::InvocationWordOrigin;
-    let metadata = ctx.metadata()?;
+    let metadata = ctx.metadata()?.context();
     if !ctx.cfg.metadata_context.is_standalone()
         && tokens
             .source_binding

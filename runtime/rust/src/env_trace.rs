@@ -311,8 +311,12 @@ mod tests {
         counters::reset();
         {
             let host = MapHost::new(&[("HOME", "/root"), ("KEPT", "k")]);
-            let mut interp = Interp::with_host(host.clone());
-            interp.set_runtime_version(release);
+            let mut interp = Interp::with_native_core(
+                host.clone(),
+                crate::environment::profile_for_dialect(release.dialect_name()),
+                tcl_registry::special_vars::NativeBootstrapInputs::default(),
+            )
+            .expect("the selected C release has an original native birth plan");
             body(&mut interp, &host);
         }
         assert_eq!(counters::finalize(), 0, "leaked objects");

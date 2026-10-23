@@ -6549,6 +6549,7 @@ impl Interp {
                     ),
                 )
             })?;
+        let installs_environment = allocations.contains(&V::Environment);
         for variable in allocations {
             scope
                 .currency()
@@ -6711,6 +6712,11 @@ impl Interp {
                 .currency()
                 .ensure_current_or_refuse()
                 .map_err(|first| self.refuse_native_execution(first))?;
+        }
+        // The selected native birth plan owns this array and its host trace.
+        // Install only after all original roots have been published successfully.
+        if installs_environment && !self.is_safe.get() && !self.stores_confined.get() {
+            self.arm_env_trace();
         }
         self.install_native_error_variable_traces_checked()?;
         scope

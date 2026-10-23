@@ -94,7 +94,17 @@ impl Lowerer<'_> {
             declared.insert(context);
             self.retain_installed_body(installed, original_declaration);
         }
-        for card in logical_cards {
+        self.retain_original_logical_bodies(logical_cards);
+        self.retain_original_native_bodies(native_cards);
+        self.suppress_proc_register = previous;
+        self.module_source_bindings = self.exchange_boxed_source_bindings(enclosing);
+    }
+
+    fn retain_original_logical_bodies(
+        &mut self,
+        cards: Vec<std::sync::Arc<crate::command_binding::OriginalLogicalProcedureBody>>,
+    ) {
+        for card in cards {
             let already_retained = self
                 .module
                 .procedures
@@ -106,10 +116,16 @@ impl Lowerer<'_> {
                         && procedure.params_raw == card.parameters_text()
                 });
             if !already_retained {
-                self.retain_original_logical_body(card);
+                self.retain_original_logical_body(&card);
             }
         }
-        for card in native_cards {
+    }
+
+    fn retain_original_native_bodies(
+        &mut self,
+        cards: Vec<std::sync::Arc<crate::command_binding::OriginalNativeProcedureBody>>,
+    ) {
+        for card in cards {
             let already_retained =
                 self.module
                     .original_source_procedure_bodies()
@@ -121,16 +137,14 @@ impl Lowerer<'_> {
                             && card.parameters_text() == Some(procedure.params_raw.as_str())
                     });
             if !already_retained {
-                self.retain_original_native_body(card);
+                self.retain_original_native_body(&card);
             }
         }
-        self.suppress_proc_register = previous;
-        self.module_source_bindings = self.exchange_boxed_source_bindings(enclosing);
     }
 
     fn retain_original_native_body(
         &mut self,
-        card: std::sync::Arc<crate::command_binding::OriginalNativeProcedureBody>,
+        card: &std::sync::Arc<crate::command_binding::OriginalNativeProcedureBody>,
     ) {
         let Some(input) = self.module.source_metadata_input.as_ref() else {
             return;
@@ -169,7 +183,7 @@ impl Lowerer<'_> {
                     span.start(),
                     &namespace,
                     super::source_body_syntax::SourceBodySyntaxOwner::Native(
-                        std::sync::Arc::clone(&card),
+                        std::sync::Arc::clone(card),
                     ),
                 )
             });
@@ -203,7 +217,7 @@ impl Lowerer<'_> {
 
     fn retain_original_logical_body(
         &mut self,
-        card: std::sync::Arc<crate::command_binding::OriginalLogicalProcedureBody>,
+        card: &std::sync::Arc<crate::command_binding::OriginalLogicalProcedureBody>,
     ) {
         let Some(input) = self.module.source_metadata_input.as_ref() else {
             return;
@@ -237,7 +251,7 @@ impl Lowerer<'_> {
                     span.start(),
                     &namespace,
                     super::source_body_syntax::SourceBodySyntaxOwner::Logical(
-                        std::sync::Arc::clone(&card),
+                        std::sync::Arc::clone(card),
                     ),
                 )
             });

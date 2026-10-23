@@ -2063,7 +2063,7 @@ impl<'r> Lowerer<'r> {
         let mut lowerer = Self::with_config(registry, module.lexer_config)
             .with_resolved_analysis_input(input.clone());
         lowerer.set_source_analysis_options(module.source_entry.options());
-        lowerer.source = source.to_owned();
+        source.clone_into(&mut lowerer.source);
         lowerer.source_channel = module.source.channel();
         lowerer.source_bindings = Some(positioned.clone().into());
         lowerer.structured_source_parent = Some(Box::new(parent.clone()));
@@ -3648,11 +3648,11 @@ impl<'r> Lowerer<'r> {
             .binding
             .as_ref()
             .map(|_| Box::new(self.cmd_tokens(seg)));
-        let shape = lowered
-            .binding
-            .is_some()
-            .then(|| self.invocation_shape(seg))
-            .unwrap_or_default();
+        let shape = if lowered.binding.is_some() {
+            self.invocation_shape(seg)
+        } else {
+            tcl_registry::release_compilation::InvocationShape::default()
+        };
         if let Some(binding) = lowered.binding
             && let Some(sites) = self.command_binding_site_stack.last_mut()
         {
@@ -3846,8 +3846,8 @@ impl<'r> Lowerer<'r> {
                 })
                 .filter(|target| target.registry_backed);
             if target
-                .filter(|target| target.prepended.is_empty())
-                .is_none()
+                .as_ref()
+                .is_none_or(|target| !target.prepended.is_empty())
             {
                 return Lowered(self.lower_default_boxed(seg, namespace));
             }
@@ -6062,17 +6062,7 @@ impl<'r> Lowerer<'r> {
                     continue;
                 }
             };
-            let effective = statement_words(&self.cmd_tokens(seg), self.config);
-            let words: Vec<_> = effective
-                .iter()
-                .map(|word| word.as_registry_word())
-                .collect();
-            let frame = MemberFrame::of_row(
-                call.grammar,
-                call.grammar
-                    .member_row(0, InvocationArguments::structured(&words), None)
-                    .as_ref(),
-            );
+            let frame = self.member_frame_for_segment(call, seg);
             self.extract_one_member(
                 MemberExtraction {
                     call,
@@ -6087,6 +6077,20 @@ impl<'r> Lowerer<'r> {
                 namespace,
             );
         }
+    }
+
+    fn member_frame_for_segment(&self, call: &DefinerCall, seg: &SegmentedCommand) -> MemberFrame {
+        let effective = statement_words(&self.cmd_tokens(seg), self.config);
+        let words: Vec<_> = effective
+            .iter()
+            .map(|word| word.as_registry_word())
+            .collect();
+        MemberFrame::of_row(
+            call.grammar,
+            call.grammar
+                .member_row(0, InvocationArguments::structured(&words), None)
+                .as_ref(),
+        )
     }
 
     /// Recurse into a wrapper's block form with the wrapper prefixed onto
@@ -7442,7 +7446,7 @@ impl Lowerer<'_> {
     /// compiling a runtime procedure target cannot drift from ordinary module
     /// lowering.
     pub(crate) fn finish_module(mut self, source: &str) -> Module {
-        self.source = source.to_owned();
+        source.clone_into(&mut self.source);
         self.module.source =
             tcl_lexer::SourceImage::from_bytes(source.as_bytes(), self.source_channel);
         // Surface namespace import / export directives onto the module for

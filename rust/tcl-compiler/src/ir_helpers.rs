@@ -1615,6 +1615,7 @@ pub(crate) type EmbeddedHeadResolver<'a> = &'a dyn Fn(&str) -> Option<ResolvedEm
 /// Observes a completed command and whether expression control may skip it.
 pub(crate) type EmbeddedCommandObserver<'a> = &'a dyn Fn(&[CommandWord], bool);
 
+#[derive(Clone, Copy)]
 struct SubstitutionWalkContext<'a> {
     config: LexerConfig,
     registry: &'a CommandRegistry,

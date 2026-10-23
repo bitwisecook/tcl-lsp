@@ -7,8 +7,8 @@ use super::{
 use tcl_registry::frame_effect::{FrameArgLayout, FrameArgumentResolution};
 
 enum LogicalFrameSourceArguments {
-    Layout(ResolvedStatementInvocation),
-    Source(super::source_structure::OriginalRegistryWords),
+    Layout(Box<ResolvedStatementInvocation>),
+    Source(Box<super::source_structure::OriginalRegistryWords>),
 }
 
 pub(crate) struct OriginalLogicalFrameInvocation {
@@ -261,7 +261,7 @@ fn logical_source_frame_invocation(
             )
         })?;
     Some(OriginalLogicalFrameInvocation {
-        selected: LogicalFrameSourceArguments::Source(words),
+        selected: LogicalFrameSourceArguments::Source(Box::new(words)),
         layout,
         arguments,
         offset,
@@ -310,7 +310,7 @@ pub(crate) fn original_logical_frame_invocation_with_metadata_context(
             ))
         })?;
     Some(OriginalLogicalFrameInvocation {
-        selected: LogicalFrameSourceArguments::Layout(selected),
+        selected: LogicalFrameSourceArguments::Layout(Box::new(selected)),
         layout,
         arguments,
         offset,

@@ -1021,8 +1021,7 @@ Use braces: {{ \u{2026} }}"
             {
                 continue;
             }
-            let fixes = self
-                .w114_original_unwrap_fix(word, selected, substitution)
+            let fixes = Self::w114_original_unwrap_fix(word, selected, substitution)
                 .into_iter()
                 .collect();
             self.result.diagnostics.push(
@@ -1100,10 +1099,10 @@ Use braces: {{ \u{2026} }}"
         }
         let content = word.content_span().ok()?;
         let text = std::str::from_utf8(word.image().bytes().get(content.as_range())?).ok()?;
-        let context = self.original_expression_parser_context()?;
+        let parser_context = self.original_expression_parser_context()?;
         let original = tcl_syntax::expr::substitution::OriginalSourceExpression::capture(
             text,
-            &context,
+            &parser_context,
             word.config(),
         )?;
         original
@@ -1122,7 +1121,6 @@ Use braces: {{ \u{2026} }}"
     }
 
     fn w114_original_unwrap_fix(
-        &self,
         outer: &tcl_lexer::NativeWord,
         inner: &crate::analyser::diagnostic_registry::OriginalDiagnosticInvocation,
         span: tcl_lexer::Span,
@@ -1190,10 +1188,11 @@ Use braces: {{ \u{2026} }}"
             return;
         }
         let trimmed = expr_text.trim();
-        let Some(context) = self.original_expression_parser_context() else {
+        let Some(parser_context) = self.original_expression_parser_context() else {
             return;
         };
-        let parsed = tcl_syntax::expr::parser::parse_expr_with_syntax_context(trimmed, &context);
+        let parsed =
+            tcl_syntax::expr::parser::parse_expr_with_syntax_context(trimmed, &parser_context);
         // ``ExprNode::Raw`` means the expression was unparseable.
         if matches!(parsed, ExprNode::Raw { .. }) {
             return;
@@ -1223,7 +1222,9 @@ Use braces: {{ \u{2026} }}"
         let config = word.config();
         let Some(original_expression) =
             tcl_syntax::expr::substitution::OriginalSourceExpression::capture(
-                trimmed, &context, config,
+                trimmed,
+                &parser_context,
+                config,
             )
         else {
             return;
@@ -1799,7 +1800,7 @@ fn walk_string_eq_ne(
             walk_string_eq_ne(right, original, found, depth + 1);
             if matches!(op, BinOp::Eq | BinOp::Ne) && eq_ne_compares_as_strings(left, right) {
                 let span = original.and_then(|owner| owner.binary_operator_span(node));
-                found.push((*op, span.map(|span| span.start())));
+                found.push((*op, span.map(tcl_lexer::Span::start)));
             }
         }
         ExprNode::Unary { operand, .. } => walk_string_eq_ne(operand, original, found, depth + 1),

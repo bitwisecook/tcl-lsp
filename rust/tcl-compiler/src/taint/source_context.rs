@@ -217,6 +217,7 @@ impl<'a> TaintSourceContext<'a> {
 
 /// Independently reusable source-lattice inputs. The retained context owns
 /// metadata selection; argument and result obligations remain separate.
+#[derive(Clone, Copy)]
 pub(crate) struct TaintPropagationInputs<'a> {
     pub(crate) registry: &'a CommandRegistry,
     pub(crate) rendered_props: Option<

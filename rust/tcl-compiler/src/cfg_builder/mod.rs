@@ -1316,9 +1316,10 @@ impl<'a> CfgBuilder<'a> {
         leaves_the_procedure: bool,
         barrier_reason: &str,
     ) -> Vec<Statement> {
-        let mut barrier = scripts.iter().fold(false, |unknown, script| {
-            crate::ssa::nested_writes(script, self.registry, &mut written) || unknown
-        });
+        let mut barrier = false;
+        for script in scripts {
+            barrier |= crate::ssa::nested_writes(script, self.registry, &mut written);
+        }
         let mut unseen = false;
         for script in scripts {
             crate::ir::for_each_statement(script, &mut |inner| {
@@ -2396,55 +2397,7 @@ impl<'a> CfgBuilder<'a> {
             self.ensure_goto(&tail, &exit, None);
         }
 
-        // Seed the function's interner in block-creation order (by `BlockId`),
-        // so the frozen interner's ids match the ones the builder stamped into
-        // every terminator / loop node / exception edge.
-        let mut func = Function::new(name, &entry);
-        func.metadata_context = self.command_classes.metadata.clone();
-        func.namespace_context =
-            script
-                .namespace_context
-                .clone()
-                .or_else(|| match &self.invocation_namespace {
-                    crate::ir::ExecutionNamespace::SourceContext(key) => {
-                        Some(Box::new(key.clone()))
-                    }
-                    _ => None,
-                });
-        func.executed_source.clone_from(&script.executed_source);
-        func.implicit_math_invocations = std::mem::take(&mut self.implicit_math_invocations);
-        func.expression_preparations = std::mem::take(&mut self.expression_preparations);
-        func.statement_sources = std::mem::take(&mut self.statement_sources);
-        func.source_may_calls = std::mem::take(&mut self.source_may_calls);
-        func.terminator_sources = std::mem::take(&mut self.terminator_sources);
-        func.native_compilation_failure
-            .clone_from(&script.native_compilation_failure);
-        func.native_compilation_admission =
-            crate::native_compilation_admission::retained_script_admission(script);
-        let mut ordered: Vec<(BlockId, &String)> =
-            self.block_ids.iter().map(|(n, id)| (*id, n)).collect();
-        ordered.sort_by_key(|(id, _)| *id);
-        for (_, n) in &ordered {
-            func.intern_block((*n).clone());
-        }
-
-        func.blocks = self
-            .blocks
-            .drain()
-            .map(|(k, mb)| {
-                let id = func
-                    .block_id(&k)
-                    .unwrap_or_else(|| panic!("frozen block {k} not interned"));
-                (
-                    id,
-                    Block {
-                        name: mb.name,
-                        statements: mb.statements,
-                        terminator: mb.terminator,
-                    },
-                )
-            })
-            .collect();
+        let mut func = self.freeze_function_blocks(name, &entry, script);
 
         func.loop_nodes = std::mem::take(&mut self.loop_nodes)
             .into_iter()
@@ -2507,6 +2460,60 @@ impl<'a> CfgBuilder<'a> {
         func.caller_frame_barrier = self.caller_frame_barrier;
         func.declared_frame_effects = self.command_bindings.declared_frame_effects();
         func.alias_observed_vars = std::mem::take(&mut self.alias_observed_vars);
+        func
+    }
+
+    fn freeze_function_blocks(&mut self, name: &str, entry: &str, script: &Script) -> Function {
+        // Seed the function's interner in block-creation order (by `BlockId`),
+        // so the frozen interner's ids match the ones the builder stamped into
+        // every terminator / loop node / exception edge.
+        let mut func = Function::new(name, entry);
+        func.metadata_context = self.command_classes.metadata.clone();
+        func.namespace_context =
+            script
+                .namespace_context
+                .clone()
+                .or_else(|| match &self.invocation_namespace {
+                    crate::ir::ExecutionNamespace::SourceContext(key) => {
+                        Some(Box::new(key.clone()))
+                    }
+                    _ => None,
+                });
+        func.executed_source.clone_from(&script.executed_source);
+        func.implicit_math_invocations = std::mem::take(&mut self.implicit_math_invocations);
+        func.expression_preparations = std::mem::take(&mut self.expression_preparations);
+        func.statement_sources = std::mem::take(&mut self.statement_sources);
+        func.source_may_calls = std::mem::take(&mut self.source_may_calls);
+        func.terminator_sources = std::mem::take(&mut self.terminator_sources);
+        func.native_compilation_failure
+            .clone_from(&script.native_compilation_failure);
+        func.native_compilation_admission =
+            crate::native_compilation_admission::retained_script_admission(script);
+        let mut ordered: Vec<(BlockId, &String)> =
+            self.block_ids.iter().map(|(n, id)| (*id, n)).collect();
+        ordered.sort_by_key(|(id, _)| *id);
+        for (_, n) in &ordered {
+            func.intern_block((*n).clone());
+        }
+
+        func.blocks = self
+            .blocks
+            .drain()
+            .map(|(k, mb)| {
+                let id = func
+                    .block_id(&k)
+                    .unwrap_or_else(|| panic!("frozen block {k} not interned"));
+                (
+                    id,
+                    Block {
+                        name: mb.name,
+                        statements: mb.statements,
+                        terminator: mb.terminator,
+                    },
+                )
+            })
+            .collect();
+
         func
     }
 

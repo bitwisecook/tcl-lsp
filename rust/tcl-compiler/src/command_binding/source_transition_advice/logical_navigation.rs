@@ -382,15 +382,15 @@ pub(super) fn external_header_candidates(
     written: &[u8],
     candidates: &[ByteCommandSlot],
 ) -> Option<Vec<ByteCommandSlot>> {
-    external_header_candidates_at_selected(graph, graph.lookup_head_key(written)?, candidates)
+    external_header_candidates_at_selected(graph, &graph.lookup_head_key(written)?, candidates)
 }
 
 fn external_header_candidates_at_selected(
     graph: &AdviceGraph,
-    selected: ByteCommandSlot,
+    selected: &ByteCommandSlot,
     candidates: &[ByteCommandSlot],
 ) -> Option<Vec<ByteCommandSlot>> {
-    if graph.cells.contains_key(&selected) {
+    if graph.cells.contains_key(selected) {
         return None;
     }
     Some(
@@ -762,7 +762,7 @@ impl super::AdviceInvocationContext<'_> {
                     external_header_candidates: graph
                         .lookup_logical_head_key(namespace, head.value().as_bytes())
                         .and_then(|selected| {
-                            external_header_candidates_at_selected(graph, selected, &candidates)
+                            external_header_candidates_at_selected(graph, &selected, &candidates)
                         }),
                     candidates,
                     appended,
@@ -844,12 +844,13 @@ impl OriginalSourceTransitionAdviceTape {
         original: &[NativeWord],
     ) -> Option<OriginalLogicalVariableWords> {
         let head = original.first()?;
-        let held = self
+        let retained = self
             .logical_variable_words
             .get(&head.span().start())?
             .as_ref()?;
-        held.matches_original_source_words(head.image(), input, original)
-            .then(|| held.clone())
+        retained
+            .matches_original_source_words(head.image(), input, original)
+            .then(|| retained.clone())
     }
 
     pub(super) fn merge_logical_navigation(

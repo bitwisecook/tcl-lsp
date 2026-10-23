@@ -1,7 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! Existing Logical source-point history for an explicitly hypothetical target survey,
 //! and the survey-scoped Logical conditional source control that produces it.
-use super::*;
+use super::{
+    Arc, BindingKind, CommandAllocationSite, ModuleCommandBindings, NamespaceKeyQuery,
+    OriginalCompilationLookupAdvice, OriginalSourceCommandTransitionAdvice,
+    PreparedSourceNativeInvocation, SourceCommandBindings, SourceCommandTarget,
+    SourceCommandTransitionObligation, SourceExecutionContext, SourceNamespaceKey, SourceOriginId,
+    SourceOutcomes, SourceScriptOperands, compiled_invocation, original_site_operand_layout_advice,
+    prepare_source_native_invocation, source_binding_projection, source_body_context_boxed,
+};
 
 /// Immutable source-model premise, never a package database/provision result.
 #[derive(Debug, Clone)]
@@ -277,20 +284,20 @@ fn logical_survey_dispatch<'a>(
         if facts.frame_effect.is_some() || !facts.arg_roles_complete {
             return None;
         }
-        let branches = match tcl_registry::case_bodies::script_body_flow_in_registry(
-            context.registry,
-            &facts,
-            invocation.arguments(),
-        ) {
-            tcl_registry::script_body_flow::ScriptBodyFlow::Conditional(branches) => {
+        let branches =
+            if let tcl_registry::script_body_flow::ScriptBodyFlow::Conditional(branches) =
+                tcl_registry::case_bodies::script_body_flow_in_registry(
+                    context.registry,
+                    &facts,
+                    invocation.arguments(),
+                )
+            {
                 schema.clause_plan()?.defect.is_none().then_some(())?;
                 Some(branches)
-            }
-            _ => {
+            } else {
                 logical_survey_quiet_operation(&facts).then_some(())?;
                 None
-            }
-        };
+            };
         (facts.native_compilation, branches)
     };
     Some(Box::new(LogicalSurveyDispatch {

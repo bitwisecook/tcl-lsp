@@ -349,17 +349,15 @@ fn array_op_after_trace(
     }
     // Per-runtime: `array set` (its per-element write traces must fail the
     // command), `array for` (iterates a body), and the unknown-subcommand message.
-    match sub {
-        // Unreachable from `cmd_array` (every `ARRAY_SUBS` name is handled
-        // above or by the shared core); the registered `::tcl::array::*`
-        // entry points pass canonical names.
-        other => err(tcl_cmd_core::ensemble::unknown_subcommand_message(
-            ARRAY_SUBS,
-            other.as_bytes(),
-            true,
-            b"::tcl::array",
-        )),
-    }
+    // Unreachable from `cmd_array` (every `ARRAY_SUBS` name is handled
+    // above or by the shared core); the registered `::tcl::array::*`
+    // entry points pass canonical names.
+    err(tcl_cmd_core::ensemble::unknown_subcommand_message(
+        ARRAY_SUBS,
+        sub.as_bytes(),
+        true,
+        b"::tcl::array",
+    ))
 }
 
 fn original_bytes(

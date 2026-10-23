@@ -106,13 +106,12 @@ impl Vm {
             target_frame
                 .check(self, &original_names)
                 .map_err(|error| crate::command::completion_from_cmd_error(self, error))?;
-            let result = (|| {
+            (|| {
                 self.link_upvar_bytes(target_level, &bytes, &local_bytes)
                     .map_err(|error| self.original_jim_link_failure(error, &bytes, &local_bytes))?;
                 self.attach_original_jim_link(&local_bytes, target_level, other)?;
                 self.retain_original_jim_link_local(local, &local_bytes, &original_names)
-            })();
-            result
+            })()
         })();
         original_names
             .finish(self)
@@ -152,7 +151,7 @@ impl Vm {
                 };
                 return self.link_original_c_variable_objects(target, level, None, &original);
             }
-            let result = (|| {
+            (|| {
                 self.add_link_bytes(local, level, &bytes)
                     .map_err(|error| self.original_jim_link_failure(error, &bytes, local))?;
                 self.attach_original_jim_link(local, level, target)?;
@@ -160,8 +159,7 @@ impl Vm {
                     self.retain_original_jim_link_local(target, &bytes, &original_names)?;
                 }
                 Ok(())
-            })();
-            result
+            })()
         })();
         original_names
             .finish(self)

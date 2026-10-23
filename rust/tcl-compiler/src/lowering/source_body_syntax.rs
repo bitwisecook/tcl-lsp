@@ -283,6 +283,84 @@ impl Lowerer<'_> {
             .or_else(|| self.source.get(range))
     }
 
+    fn source_syntax_tokens(
+        &mut self,
+        segments: &[SegmentedCommand],
+        image: &tcl_lexer::SourceImage,
+        purpose: SourcePurpose,
+    ) -> Option<(Vec<CommandTokens>, Vec<tcl_registry::InvocationFacts>)> {
+        let mut tokens = Vec::new();
+        let mut grammar = Vec::new();
+        for segment in segments {
+            if segment.is_partial || segment.texts.is_empty() {
+                return None;
+            }
+            let original = self.cmd_tokens(segment);
+            if original.synthetic.is_some()
+                || !original.original_words_match_argv_text()
+                || !original.words().iter().all(|word| {
+                    matches!(
+                        word,
+                        crate::ir::WordExpr::Literal { .. }
+                            | crate::ir::WordExpr::BracedLiteral { .. }
+                    )
+                })
+                || original
+                    .source_binding
+                    .as_ref()?
+                    .proved_execution_target()
+                    .is_some()
+            {
+                return None;
+            }
+            let written = crate::registry_invocation::original_native_compiler_words(
+                image,
+                original.words(),
+                original.words().first()?.source().span.start(),
+                self.config,
+            )?;
+            if written.iter().any(|word| word.group().expand) {
+                return None;
+            }
+            let binding = original.source_binding.as_ref()?;
+            let facts = match purpose {
+                SourcePurpose::NativeDeclaration => {
+                    let input = self.metadata_input.as_ref()?;
+                    binding
+                        .original_native_source_words(&original, input, self.registry)?
+                        .with_source_schema(
+                            input.borrowed_context_registry(),
+                            generic_call_schema_facts,
+                        )??
+                }
+                SourcePurpose::LogicalDeclaration => {
+                    let input = self.metadata_input.as_ref()?;
+                    binding
+                        .original_logical_source_words(&original, input, self.registry)?
+                        .with_source_schema(
+                            input.borrowed_context_registry(),
+                            generic_call_schema_facts,
+                        )??
+                }
+                SourcePurpose::AuthoredDeclaration => {
+                    let scope = binding
+                        .original_authored_scalar_body_scope(&original, self.registry)
+                        .or_else(|| {
+                            binding.original_authored_source_body_scope_for_name_roles(
+                                &original,
+                                self.registry,
+                            )
+                        })?;
+                    scope.matches_module(&self.module).then_some(())?;
+                    scope.with_source_schema(&original, self.registry, generic_call_schema_facts)?
+                }
+            };
+            tokens.push(original);
+            grammar.push(facts);
+        }
+        Some((tokens, grammar))
+    }
+
     fn source_syntax_request(
         &mut self,
         text: &str,
@@ -353,80 +431,7 @@ impl Lowerer<'_> {
             tcl_lexer::SourceSegmentationPurpose::NestedScript,
         )?;
         let (tokens, grammar) = self.in_word_space(text, offset, |lowerer| {
-            let mut tokens = Vec::new();
-            let mut grammar = Vec::new();
-            for segment in &segments {
-                if segment.is_partial || segment.texts.is_empty() {
-                    return None;
-                }
-                let original = lowerer.cmd_tokens(segment);
-                if original.synthetic.is_some()
-                    || !original.original_words_match_argv_text()
-                    || !original.words().iter().all(|word| {
-                        matches!(
-                            word,
-                            crate::ir::WordExpr::Literal { .. }
-                                | crate::ir::WordExpr::BracedLiteral { .. }
-                        )
-                    })
-                    || original
-                        .source_binding
-                        .as_ref()?
-                        .proved_execution_target()
-                        .is_some()
-                {
-                    return None;
-                }
-                let written = crate::registry_invocation::original_native_compiler_words(
-                    image,
-                    original.words(),
-                    original.words().first()?.source().span.start(),
-                    lowerer.config,
-                )?;
-                if written.iter().any(|word| word.group().expand) {
-                    return None;
-                }
-                let binding = original.source_binding.as_ref()?;
-                let facts = match purpose {
-                    SourcePurpose::NativeDeclaration => {
-                        let input = lowerer.metadata_input.as_ref()?;
-                        binding
-                            .original_native_source_words(&original, input, lowerer.registry)?
-                            .with_source_schema(
-                                input.borrowed_context_registry(),
-                                generic_call_schema_facts,
-                            )??
-                    }
-                    SourcePurpose::LogicalDeclaration => {
-                        let input = lowerer.metadata_input.as_ref()?;
-                        binding
-                            .original_logical_source_words(&original, input, lowerer.registry)?
-                            .with_source_schema(
-                                input.borrowed_context_registry(),
-                                generic_call_schema_facts,
-                            )??
-                    }
-                    SourcePurpose::AuthoredDeclaration => {
-                        let scope = binding
-                            .original_authored_scalar_body_scope(&original, lowerer.registry)
-                            .or_else(|| {
-                                binding.original_authored_source_body_scope_for_name_roles(
-                                    &original,
-                                    lowerer.registry,
-                                )
-                            })?;
-                        scope.matches_module(&lowerer.module).then_some(())?;
-                        scope.with_source_schema(
-                            &original,
-                            lowerer.registry,
-                            generic_call_schema_facts,
-                        )?
-                    }
-                };
-                tokens.push(original);
-                grammar.push(facts);
-            }
-            Some((tokens, grammar))
+            lowerer.source_syntax_tokens(&segments, image, purpose)
         })?;
         let calls = segments
             .iter()

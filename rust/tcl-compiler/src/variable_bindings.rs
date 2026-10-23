@@ -5708,7 +5708,7 @@ mod tests {
     fn trace_callbacks_follow_operation_and_exact_element_address() {
         use tcl_registry::TraceOperation::{Read, Unset, Write};
         let registry = CommandRegistry::build_default();
-        let mut state = ResolveContext::for_function("::f");
+        let state = ResolveContext::for_function("::f");
         assert!(resolve_literal_access("a(k)", &state, false, &registry, Write).observed);
         assert!(!resolve_literal_access("a(j)", &state, false, &registry, Write).observed);
         assert!(!resolve_literal_access("a(k)", &state, false, &registry, Read).observed);
@@ -5723,7 +5723,7 @@ mod tests {
     fn braced_substitution_preserves_literal_element_and_dollar_name() {
         use tcl_registry::TraceOperation::Read;
         let registry = CommandRegistry::build_default();
-        let mut state = ResolveContext::for_function("::f");
+        let state = ResolveContext::for_function("::f");
         let literal =
             crate::var_resolve::resolve_substitution_access("${a($i)}", &state, &registry, Read);
         assert_eq!(

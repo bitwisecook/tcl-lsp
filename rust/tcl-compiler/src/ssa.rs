@@ -1056,11 +1056,11 @@ impl<'a> OriginalAnalysisSsaDefinition<'a> {
     }
 }
 
-fn original_written_source_variable_name<'a>(
-    words: &'a crate::registry_invocation::source_structure::OriginalRegistryWords,
+fn original_written_source_variable_name(
+    words: &crate::registry_invocation::source_structure::OriginalRegistryWords,
     written: usize,
     span: tcl_lexer::Span,
-) -> Option<&'a str> {
+) -> Option<&str> {
     let mut selected = words
         .origins()
         .iter()

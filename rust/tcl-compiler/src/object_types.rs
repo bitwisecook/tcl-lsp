@@ -1042,8 +1042,8 @@ fn returning_procs(cu: &CompilationUnit) -> HashMap<ProcedureId, String> {
 
 /// Advisory factory classes, retaining an unknown return-path residual.
 /// These flow candidates never populate the strict returned-object type map.
-fn returning_proc_candidates<'a>(
-    cu: &'a CompilationUnit,
+fn returning_proc_candidates(
+    cu: &CompilationUnit,
     registry: &CommandRegistry,
     source_analysis: Option<&crate::analyser::AnalysisResult>,
 ) -> HashMap<ProcedureId, String> {
@@ -1115,8 +1115,8 @@ fn returning_methods(cu: &CompilationUnit) -> HashMap<ProcedureId, &str> {
 /// regardless of scope, VTA's field-based object-insensitive economy) and the
 /// join is set union.  Highlight-only and union-imprecise, matching the rest of
 /// this module.
-fn propagate_object_flow<'a>(
-    cu: &'a CompilationUnit,
+fn propagate_object_flow(
+    cu: &CompilationUnit,
     registry: &CommandRegistry,
     returns: &HashMap<ProcedureId, String>,
     sink: &mut FactSink,
@@ -1589,7 +1589,7 @@ fn scan_assign_edges(
                         .coordinates
                         .get(&MethodCoordinate {
                             class_label: class.clone(),
-                            member_label: method.to_owned(),
+                            member_label: method.clone(),
                             kind: MethodKind::Method,
                         })
                         .into_iter()

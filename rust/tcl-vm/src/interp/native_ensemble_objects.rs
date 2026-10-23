@@ -257,7 +257,6 @@ impl Vm {
     }
 
     pub(super) fn native_original_ensemble_table_plan(
-        &self,
         configuration: tcl_registry::native_ensemble::NativeEnsembleConfigurationProtocol,
         def: &EnsembleDef,
         exports: &[NameBytes],
@@ -312,7 +311,7 @@ impl Vm {
                     .transpose()?,
             );
         }
-        let plan = self.native_original_ensemble_table_plan(configuration, def, names);
+        let plan = Self::native_original_ensemble_table_plan(configuration, def, names);
         let lookup = |index: usize| {
             def.originals.map.as_ref().and_then(|role| {
                 role.inspect(|root| {

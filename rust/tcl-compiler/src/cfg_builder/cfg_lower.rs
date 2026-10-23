@@ -493,7 +493,6 @@ impl CfgBuilder<'_> {
 
     pub(super) fn lower_for(&mut self, stmt: &Statement, block_name: &str) -> Option<String> {
         let Statement::For {
-            span,
             init,
             init_span,
             condition,
@@ -617,20 +616,30 @@ impl CfgBuilder<'_> {
             }
         }
 
+        self.retain_for_loop_node(stmt, block_name, &init_tail, &end_block);
+
+        Some(end_block)
+    }
+
+    fn retain_for_loop_node(
+        &mut self,
+        stmt: &Statement,
+        block_name: &str,
+        init_tail: &str,
+        end_block: &str,
+    ) {
         let entry_block = self.bid(block_name);
-        let start = self.bid(&init_tail);
+        let start = self.bid(init_tail);
         self.loop_nodes.insert(
-            end_block.clone(),
+            end_block.to_owned(),
             LoopNode {
                 executed_source: self.current_source.clone(),
                 entry_block,
                 start,
-                span: *span,
+                span: stmt.span(),
                 statement: stmt.clone(),
             },
         );
-
-        Some(end_block)
     }
 
     /// Record the loop `stmt`, which starts in `block_name` and leaves to

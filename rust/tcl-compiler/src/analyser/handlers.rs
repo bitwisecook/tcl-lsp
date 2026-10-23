@@ -7159,7 +7159,7 @@ impl Analyser {
                 let next = self.manufacturer_next_call(&override_def, &lexical)?;
                 let arguments = next.original_direct_argument_words()?;
                 let (name_arg, body_arg) =
-                    self.manufacturer_word_positions(&override_def, builtin, &arguments)?;
+                    Self::manufacturer_word_positions(&override_def, builtin, &arguments)?;
                 let body_argument = usize::from(builtin.definition_body_at?).checked_sub(1)?;
                 let prologue = arguments.get(body_argument)?;
                 overrides.insert(
@@ -10184,7 +10184,6 @@ impl Analyser {
     /// Original formal arguments supplying the selected manufacturer's name
     /// and body roles. Unrepresented or transformed contributions refuse.
     fn manufacturer_word_positions(
-        &self,
         original: &super::types::OriginalSourceMethodNameBody<'_>,
         builtin: &tcl_registry::definer::ManufacturerMethod,
         arguments: &[&tcl_lexer::NativeWord],
@@ -10209,11 +10208,11 @@ impl Analyser {
             return None;
         }
         let word = original.body_word();
-        let content = word.content_span().ok()?;
-        let body = word.image().try_text().ok()?.get(content.as_range())?;
+        let body_span = word.content_span().ok()?;
+        let body = word.image().try_text().ok()?.get(body_span.as_range())?;
         crate::segmenter::segment_commands_with_offset_and_config(
             body,
-            content.start(),
+            body_span.start(),
             tcl_lexer::SourceSegmentationPurpose::NestedScript.config(word.config()),
         )
         .into_iter()

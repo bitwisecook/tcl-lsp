@@ -239,7 +239,7 @@ check-vscode-test-partitions: ## Verify VS Code partition manifest and workflow 
 .PHONY: release release-tag release-zed-version release-sums
 .PHONY: release-perf release-notes-perf release-verify release-prepare release-rust-tag
 # Rust runtime port
-.PHONY: runtime-rust-test runtime-rust-test-no-tommath runtime-rust-lint zed-query-check vm-test vm-lint
+.PHONY: runtime-rust-test runtime-rust-test-no-tommath runtime-rust-test-no-tommath-capability runtime-rust-lint zed-query-check vm-test vm-lint
 # Screenshots
 .PHONY: screenshot screenshots clean-screenshots
 # Cleanup
@@ -2817,14 +2817,9 @@ RUNTIME_RUST_DIR := $(ROOT)runtime/rust
 #
 # `--locked` keeps CI and a checkout resolving the identical dependency graph.
 #
-# TCL_TOMMATH_DIR is passed EXPLICITLY, never left to the build script's
-# fallback: without libtommath `build.rs` prints a `cargo:warning` and builds
-# with the bignum backend disabled, which un-registers `expr` (and the
-# `::tcl::mathfunc`/`mathop` ensembles) entirely. The suite still runs and can
-# still be green — while silently covering far less than it appears to, the
-# same trap issue #1542 documents for the real link. `ensure-tcl90-reference`
-# fetches the tree; if it is genuinely absent the build's own warning is the
-# loud part, so the variable is only exported when the directory exists.
+# The semantic suite requires the actual TomMath source backend. Missing sources
+# are a failure; the separate no-TomMath capability gate tests deliberate absence.
+# TCL_TOMMATH_DIR is passed explicitly to the build script.
 #
 # `--features engine` builds the runtime's engine of the extension interface
 # (`src/engine.rs`) and runs its tests (`tests/engine.rs`) beside the rest.
@@ -2832,24 +2827,16 @@ runtime-rust-test: ## Run the Rust runtime port's cargo test (leak round-trip + 
 	@set -eu; \
 	tommath="$${TCL_TOMMATH_DIR:-$(ROOT)tmp/tcl9.0.4/libtommath}"; \
 	if [ ! -f "$$tommath/tommath.h" ]; then \
-		echo "WARNING: no libtommath at $$tommath — the numeric tower (and"; \
-		echo "         therefore 'expr') will be DISABLED in this run."; \
-		echo "         Fetch it with: make ensure-tcl90-reference"; \
-		tommath=""; \
+		echo "ERROR: semantic runtime tests require libtommath at $$tommath" >&2; \
+		echo "Fetch it with: make ensure-tcl90-reference" >&2; \
+		exit 1; \
 	fi; \
 	cd $(RUNTIME_RUST_DIR) && TCL_TOMMATH_DIR="$$tommath" cargo test --locked --features engine
 
-# The companion no-bignum gate. `runtime-rust-test` above exists precisely
-# because CI's own fetch step means the standalone suite ALWAYS builds with
-# `have_tommath` set — the degraded fallback build.rs takes when libtommath's
-# source is absent (no bignum tower, and `expr`/`if`/the `mathfunc`/`mathop`
-# ensembles un-registered, since control flow needs `expr` to evaluate a
-# condition) had never once been compiled, let alone tested, in CI. Two real
-# bugs were found in exactly that fallback by running it by hand (a
-# `read_double` that widened every bignum to infinity, and an `incr` that
-# bypassed the read-trace chokepoint) — this target is what stops that
-# regressing silently again. Tests whose subject is `expr`/`if` are
-# `#[cfg(have_tommath)]`-gated so they compile out here; everything else runs.
+# The optional whole-suite no-TomMath run retains every semantic assertion.
+# CI uses the capability target below: original scalar-cache tests have explicit
+# missing-bignum refusal branches, and the dedicated refusal control verifies
+# that unavailable arithmetic cannot mutate its original numeric input.
 #
 # Forcing absence takes two things, per `locate_libtommath()` in build.rs:
 # unset $$TCL_TOMMATH_DIR (never pass it, unlike the target above) AND make
@@ -2878,6 +2865,38 @@ runtime-rust-test-no-tommath: ## Run the Rust runtime port's cargo test with lib
 	fi; \
 	unset TCL_TOMMATH_DIR; \
 	cd $(RUNTIME_RUST_DIR) && cargo test --locked
+
+runtime-rust-test-no-tommath-capability: ## Test original scalar caches and missing-bignum refusal with strict actual TomMath absence
+	@set -eu; \
+	tommath_dir="$(ROOT)tmp/tcl9.0.4/libtommath"; \
+	hidden="$${tommath_dir}.hidden-for-no-tommath-test"; \
+	if [ -e "$$hidden" ] || [ -L "$$hidden" ]; then echo "ERROR: existing hidden TomMath tree: $$hidden" >&2; exit 1; fi; \
+	moved=false; \
+	roster=""; \
+	restore() { \
+		if [ -n "$$roster" ]; then rm -f "$$roster"; fi; \
+		if [ "$$moved" = true ]; then \
+			if [ -e "$$tommath_dir" ] || [ -L "$$tommath_dir" ]; then echo "ERROR: TomMath path reappeared; retained original at $$hidden" >&2; return 1; fi; \
+			mv "$$hidden" "$$tommath_dir"; \
+		fi; \
+	}; \
+	trap restore EXIT INT TERM HUP; \
+	if [ -d "$$tommath_dir" ]; then \
+		mv "$$tommath_dir" "$$hidden"; \
+		moved=true; \
+	fi; \
+	unset TCL_TOMMATH_DIR; \
+	export TCL_RUNTIME_EXPECT_NO_TOMMATH=1; \
+	cd $(RUNTIME_RUST_DIR); \
+	roster=$$(mktemp); \
+	cargo test --locked --lib typed_value::tests:: -- --list > "$$roster"; \
+	test "$$(grep -c '^typed_value::tests::.*: test$$' "$$roster")" -eq 17; \
+	cargo test --locked --lib typed_value::native_number_tests::missing_bignum_backend_refuses_before_lossy_numeric_mutation -- --exact --list > "$$roster"; \
+	test "$$(grep -c '^typed_value::native_number_tests::missing_bignum_backend_refuses_before_lossy_numeric_mutation: test$$' "$$roster")" -eq 1; \
+	rm "$$roster"; \
+	roster=""; \
+	cargo test --locked --lib typed_value::tests::; \
+	cargo test --locked --lib typed_value::native_number_tests::missing_bignum_backend_refuses_before_lossy_numeric_mutation -- --exact
 
 runtime-rust-lint: ## Rust runtime port: cargo fmt --check + locked clippy -D warnings
 	cd $(RUNTIME_RUST_DIR) && cargo fmt --check && cargo clippy --locked --all-targets --features engine -- $(CLIPPY_LINT_FLAGS)

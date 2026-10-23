@@ -1703,6 +1703,7 @@ pub fn source_registry_words_in_definition_body_at(
     offset: u32,
     parent: &super::source_scoped_body::OriginalSourceScriptBody,
 ) -> Option<OriginalRegistryWords> {
+    use super::source_scoped_body::OriginalSourceDefinitionMemberDisposition as Disposition;
     let config = analysis.body_lexer_config?;
     let input = analysis.resolved_input.as_ref()?;
     (config == input.lexer_config()).then_some(())?;
@@ -1751,7 +1752,6 @@ pub fn source_registry_words_in_definition_body_at(
         config,
     )?;
     (selected.as_slice() == original).then_some(())?;
-    use super::source_scoped_body::OriginalSourceDefinitionMemberDisposition as Disposition;
     match members.script_body_disposition(&context, original) {
         Disposition::Unavailable => None,
         Disposition::CompleteNonMember => source_registry_words(source, analysis, &segment)

@@ -156,6 +156,60 @@ impl OriginalHostedProcedureBody {
                 .all(|word| word.image() == image && word.config() == input.lexer_config())
     }
 }
+fn hosted_declaration_row_matches(
+    row: &super::declaration_layout::DeclarationLayoutObservation,
+    input: &ResolvedAnalysisInput,
+) -> bool {
+    !(row.config != input.lexer_config()
+        || row.snapshot.realm != tcl_dialect::model::InvocationRealm::RuleLoader
+        || row.snapshot.state.baseline.vendor_source_input.as_ref() != Some(input)
+        || row.snapshot.state.baseline.native_entry.is_some()
+        || !matches!(
+            row.entry.as_ref(),
+            super::declaration_layout::OriginalDiagnosticFrameEntry::RootScript {
+                frame: crate::var_resolve::VariableExecutionFrame::Global,
+                ..
+            }
+        )
+        || !row.namespace.is_root())
+}
+
+fn matching_hosted_body_source(
+    alternatives: &[SourceRuleDeclarationCandidate],
+    declaration: &tcl_registry::events::IrulesTopLevelDeclaration,
+    command: &str,
+    site: &CommandAllocationSite,
+    image: &SourceImage,
+    content: Span,
+    registry: &tcl_registry::CommandRegistry,
+) -> Option<ExecutedScriptSource> {
+    let mut source = None;
+    for alternative in alternatives {
+        if &alternative.declaration != declaration
+            || !alternative.target.registry_backed
+            || !alternative.target.prepended.is_empty()
+            || registry
+                .get(&alternative.target.command)
+                .map(|spec| spec.descriptor_key().label())
+                != Some(command)
+        {
+            continue;
+        }
+        let body = alternative.body.as_ref()?;
+        if body.origin != site.source
+            || body.base() != content.start()
+            || body.text.bytes() != image.bytes().get(content.as_range())?
+        {
+            return None;
+        }
+        if source.as_ref().is_some_and(|previous| previous != body) {
+            return None;
+        }
+        source = Some(body.clone());
+    }
+    source
+}
+
 impl SourceCommandBindings {
     /// Exact hosted declaration alternatives retain their original scope and
     /// words. A source declaration does not establish a successful installation.
@@ -203,19 +257,7 @@ impl SourceCommandBindings {
         )?;
         let mut agreed = None;
         for row in rows {
-            if row.config != input.lexer_config()
-                || row.snapshot.realm != tcl_dialect::model::InvocationRealm::RuleLoader
-                || row.snapshot.state.baseline.vendor_source_input.as_ref() != Some(input)
-                || row.snapshot.state.baseline.native_entry.is_some()
-                || !matches!(
-                    row.entry.as_ref(),
-                    super::declaration_layout::OriginalDiagnosticFrameEntry::RootScript {
-                        frame: crate::var_resolve::VariableExecutionFrame::Global,
-                        ..
-                    }
-                )
-                || !row.namespace.is_root()
-            {
+            if !hosted_declaration_row_matches(row, input) {
                 return None;
             }
             let mut tokens = super::declaration_preview::declaration_tokens(site, row)?;
@@ -295,37 +337,22 @@ impl SourceCommandBindings {
                 tcl_syntax::naming::vendor_source_formal_extents(policy, &parameter_word)?;
             let body_word = original.get(body_index.checked_add(1)?)?;
             let content = body_word.content_span().ok()?;
-            let mut source = None;
-            for alternative in alternatives {
-                if alternative.declaration != declaration
-                    || !alternative.target.registry_backed
-                    || !alternative.target.prepended.is_empty()
-                    || registry
-                        .get(&alternative.target.command)
-                        .map(|spec| spec.descriptor_key().label())
-                        != Some(metadata.shape().command())
-                {
-                    continue;
-                }
-                let body = alternative.body.as_ref()?;
-                if body.origin != site.source
-                    || body.base() != content.start()
-                    || body.text.bytes() != image.bytes().get(content.as_range())?
-                {
-                    return None;
-                }
-                if source.as_ref().is_some_and(|previous| previous != body) {
-                    return None;
-                }
-                source = Some(body.clone());
-            }
+            let source = matching_hosted_body_source(
+                alternatives,
+                &declaration,
+                metadata.shape().command(),
+                site,
+                image,
+                content,
+                registry,
+            )?;
             let card = OriginalHostedProcedureBody {
                 site: site.clone(),
                 input: input.clone(),
                 words: Arc::from(original),
                 declaration,
                 alternatives: alternatives.to_vec(),
-                source: source?,
+                source,
                 namespace: row.namespace.clone(),
                 name,
                 parameters,

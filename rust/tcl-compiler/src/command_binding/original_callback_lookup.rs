@@ -151,7 +151,7 @@ impl SourceInvocationBinding {
     ) -> Option<OriginalCallbackPrefix> {
         let invocation =
             crate::registry_invocation::original_callback_invocation(registry, tokens)?;
-        self.original_callback_prefix_from_invocation(tokens, written, registry, invocation)
+        self.original_callback_prefix_from_invocation(tokens, written, registry, &invocation)
     }
 
     /// Retain the same original callback using the caller's complete context.
@@ -173,7 +173,7 @@ impl SourceInvocationBinding {
             tokens,
             written,
             context.commands(),
-            invocation,
+            &invocation,
         )
     }
 
@@ -182,7 +182,7 @@ impl SourceInvocationBinding {
         tokens: &crate::ir::CommandTokens,
         written: usize,
         registry: &tcl_registry::CommandRegistry,
-        invocation: crate::registry_invocation::ResolvedStatementInvocation,
+        invocation: &crate::registry_invocation::ResolvedStatementInvocation,
     ) -> Option<OriginalCallbackPrefix> {
         if tokens.source_binding.as_ref() != Some(self) {
             return None;
@@ -203,7 +203,7 @@ impl SourceInvocationBinding {
         }
         let scope = invocation.facts.script_lookup_scope(argument)?;
         let appended = invocation.facts.command_prefix_arity(argument);
-        let prefix = original_callback_input(self, tokens, &invocation, argument)?;
+        let prefix = original_callback_input(self, tokens, invocation, argument)?;
         if !prefix.is_current(&self.variable_context) {
             return None;
         }

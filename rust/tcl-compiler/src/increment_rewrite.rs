@@ -120,6 +120,7 @@ pub(crate) fn assess_increment_rewrite(
     )
 }
 
+#[derive(Clone, Copy)]
 struct SelectionContext<'a> {
     registry: &'a CommandRegistry,
     metadata: Option<InvocationMetadataContext<'a>>,

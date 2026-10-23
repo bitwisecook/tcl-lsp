@@ -157,7 +157,7 @@ impl super::CommandBindingRealm {
         {
             let Some(fields) = card
                 .formal_topology()
-                .and_then(|topology| topology.original_name_fields())
+                .and_then(super::super::command_binding::formal_topology::OriginalFormalTopology::original_name_fields)
             else {
                 continue;
             };

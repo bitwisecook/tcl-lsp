@@ -1128,6 +1128,7 @@ fn selected_frame_context(
     }
 }
 
+#[derive(Clone, Copy)]
 struct LogicalFrameScan<'a> {
     tokens: &'a CommandTokens,
     current: FrameContext,

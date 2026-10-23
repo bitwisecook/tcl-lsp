@@ -64,9 +64,9 @@ impl Vm {
         value: Value,
     ) -> Result<(), Completion<Value>> {
         if !self.uses_c84_global_error_info()
-            || !self
+            || self
                 .native_c_variable_name_protocol()
-                .is_some_and(|protocol| protocol.version() == tcl_dialect::TclVersion::V8_4)
+                .is_none_or(|protocol| protocol.version() != tcl_dialect::TclVersion::V8_4)
         {
             return Err(self.refuse_host_command(
                 "actual C8.4 CString global error-code setter unavailable".into(),
@@ -1693,9 +1693,9 @@ impl Vm {
         value: Value,
     ) -> Result<Value, Completion<Value>> {
         if !self.uses_c84_global_error_info()
-            || !self
+            || self
                 .native_c_variable_name_protocol()
-                .is_some_and(|protocol| protocol.version() == tcl_dialect::TclVersion::V8_4)
+                .is_none_or(|protocol| protocol.version() != tcl_dialect::TclVersion::V8_4)
         {
             return Err(self.refuse_host_command("actual C8.4 original error-name setter".into()));
         }
@@ -1714,9 +1714,9 @@ impl Vm {
         source: Value,
     ) -> Result<Value, Completion<Value>> {
         if !self.uses_c84_global_error_info()
-            || !self
+            || self
                 .native_c_variable_name_protocol()
-                .is_some_and(|protocol| protocol.version() == tcl_dialect::TclVersion::V8_4)
+                .is_none_or(|protocol| protocol.version() != tcl_dialect::TclVersion::V8_4)
         {
             return Err(self.refuse_host_command("actual C8.4 original error-name append".into()));
         }

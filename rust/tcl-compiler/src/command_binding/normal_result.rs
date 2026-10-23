@@ -652,11 +652,10 @@ mod tests {
         let source = "proc answer {} {return 42}; proc f {} {return [answer]}; return ROOT";
         let tokens = scoped_procedure_tokens(source);
         let binding = tokens.source_binding.as_ref().unwrap();
-        let state = &binding
+        binding
             .lookup_state
             .as_ref()
-            .expect("genuine conditional source point")
-            .state;
+            .expect("genuine conditional source point");
         assert_eq!(
             binding.runtime_reachability(),
             super::super::SourceRuntimeReachability::Conditional

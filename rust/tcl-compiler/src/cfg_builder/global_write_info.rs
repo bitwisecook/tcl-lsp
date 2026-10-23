@@ -500,104 +500,127 @@ fn insert_source_write(
     }
 }
 
+fn logical_alias_targets_global(
+    alias: &tcl_registry::VariableCellAliasTransition,
+    dialect: Option<tcl_registry::InvocationDialect>,
+) -> Option<bool> {
+    if let tcl_registry::VariableAliasTarget::CallerSelectedFrame { frame, .. } = &alias.target {
+        let level = match frame {
+            tcl_registry::CallerFrameSelection::DefaultCaller => {
+                Some(tcl_registry::FrameLevel::Relative(1))
+            }
+            tcl_registry::CallerFrameSelection::Explicit(level) => {
+                tcl_registry::FrameLevel::parse_for_dialect(level.literal()?, dialect?)
+            }
+        }?;
+        return Some(level.is_global_frame());
+    }
+    Some(true)
+}
+
+// Hashes select buckets; each retained authenticated slot still decides equality.
+type SourceAliasBucket = Vec<(
+    crate::signature_scan::variable_symbol::SignatureSourceVariableSlot,
+    Vec<crate::signature_scan::variable_symbol::SignatureSourceVariableOccurrence>,
+)>;
+
+fn logical_body_source_writes(
+    body: &Script,
+    semantics: &GlobalWriteSemantics<'_>,
+) -> Option<Vec<crate::signature_scan::variable_symbol::SignatureSourceVariableOccurrence>> {
+    use crate::signature_scan::variable_symbol::SignatureSourceVariableSlot;
+    let module = semantics.module?;
+    if module.has_dynamic_trace
+        || !module.traced_commands.is_empty()
+        || module.has_dynamic_variable_trace
+        || !module.traced_variables.is_empty()
+    {
+        return None;
+    }
+    let realm = semantics.logical_realm.as_ref()?;
+    let operands =
+        crate::registry_invocation::source_structure::OriginalLogicalVariableOperands::borrowing(
+            module,
+            semantics.registry,
+            realm,
+        );
+    let commands = operands.body_commands(body)?;
+    let mut aliases: HashMap<u64, SourceAliasBucket> = HashMap::new();
+    let mut writes = Vec::new();
+    for tokens in &commands {
+        if crate::registry_invocation::original_logical_procedure_calls_for_module(
+            tokens,
+            module,
+            semantics.registry,
+        )
+        .is_some()
+        {
+            continue;
+        }
+        let operation = operands.operation(tokens)?;
+        let (_, declared) = semantics.logical_footprint(tokens)?;
+        for alias in declared {
+            let local = operands.alias_local_slot(tokens, &alias)?;
+            if !logical_alias_targets_global(&alias, operation.dialect)? {
+                continue;
+            }
+            let target = operands.alias_source_place(tokens, &alias)?;
+            let hash = std::hash::BuildHasher::hash_one(aliases.hasher(), &local);
+            let bucket = aliases.entry(hash).or_default();
+            let position = bucket.iter().position(|(slot, _)| slot == &local);
+            let targets = if let Some(position) = position {
+                &mut bucket[position].1
+            } else {
+                bucket.push((local, Vec::new()));
+                &mut bucket.last_mut().expect("inserted alias slot").1
+            };
+            insert_source_write(targets, target.clone());
+            if alias.writes_value {
+                insert_source_write(&mut writes, target);
+            }
+        }
+    }
+    for tokens in &commands {
+        if crate::registry_invocation::original_logical_procedure_calls_for_module(
+            tokens,
+            module,
+            semantics.registry,
+        )
+        .is_some()
+        {
+            continue;
+        }
+        let (projection, _) = semantics.logical_footprint(tokens)?;
+        if projection.opaque_variable_frame {
+            return None;
+        }
+        for (written, form) in operands.write_arguments(tokens)? {
+            let place = operands.argument_source_place(tokens, written, form)?;
+            match place.symbol().slot() {
+                local @ SignatureSourceVariableSlot::Local { .. } => {
+                    if let Some(bucket) =
+                        aliases.get(&std::hash::BuildHasher::hash_one(aliases.hasher(), local))
+                        && let Some((_, targets)) = bucket.iter().find(|(slot, _)| slot == local)
+                    {
+                        for target in targets {
+                            insert_source_write(&mut writes, target.clone());
+                        }
+                    }
+                }
+                SignatureSourceVariableSlot::C { .. } | SignatureSourceVariableSlot::Jim(_) => {
+                    insert_source_write(&mut writes, place);
+                }
+            }
+        }
+    }
+    Some(writes)
+}
+
 fn own_logical_body_global_writes(
     body: &Script,
     semantics: &GlobalWriteSemantics<'_>,
 ) -> GlobalWriteInfo {
-    use crate::signature_scan::variable_symbol::{
-        SignatureSourceVariableOccurrence, SignatureSourceVariableSlot,
-    };
-    let inventory = || -> Option<Vec<SignatureSourceVariableOccurrence>> {
-        let module = semantics.module?;
-        if module.has_dynamic_trace
-            || !module.traced_commands.is_empty()
-            || module.has_dynamic_variable_trace
-            || !module.traced_variables.is_empty()
-        {
-            return None;
-        }
-        let realm = semantics.logical_realm.as_ref()?;
-        let operands = crate::registry_invocation::source_structure::OriginalLogicalVariableOperands::borrowing(
-            module, semantics.registry, realm,
-        );
-        let commands = operands.body_commands(body)?;
-        let mut aliases: HashMap<
-            SignatureSourceVariableSlot,
-            Vec<SignatureSourceVariableOccurrence>,
-        > = HashMap::new();
-        let mut writes = Vec::new();
-        for tokens in &commands {
-            if crate::registry_invocation::original_logical_procedure_calls_for_module(
-                tokens,
-                module,
-                semantics.registry,
-            )
-            .is_some()
-            {
-                continue;
-            }
-            let operation = operands.operation(tokens)?;
-            let (_, declared) = semantics.logical_footprint(tokens)?;
-            for alias in declared {
-                let local = operands.alias_local_slot(tokens, &alias)?;
-                if let tcl_registry::VariableAliasTarget::CallerSelectedFrame { frame, .. } =
-                    &alias.target
-                {
-                    let level = match frame {
-                        tcl_registry::CallerFrameSelection::DefaultCaller => {
-                            Some(tcl_registry::FrameLevel::Relative(1))
-                        }
-                        tcl_registry::CallerFrameSelection::Explicit(level) => {
-                            tcl_registry::FrameLevel::parse_for_dialect(
-                                level.literal()?,
-                                operation.dialect?,
-                            )
-                        }
-                    }?;
-                    if !level.is_global_frame() {
-                        // The caller-frame owner retains these separate effects.
-                        continue;
-                    }
-                }
-                let target = operands.alias_source_place(tokens, &alias)?;
-                insert_source_write(aliases.entry(local).or_default(), target.clone());
-                if alias.writes_value {
-                    insert_source_write(&mut writes, target);
-                }
-            }
-        }
-        for tokens in &commands {
-            if crate::registry_invocation::original_logical_procedure_calls_for_module(
-                tokens,
-                module,
-                semantics.registry,
-            )
-            .is_some()
-            {
-                continue;
-            }
-            let (projection, _) = semantics.logical_footprint(tokens)?;
-            if projection.opaque_variable_frame {
-                return None;
-            }
-            for (written, form) in operands.write_arguments(tokens)? {
-                let place = operands.argument_source_place(tokens, written, form)?;
-                match place.symbol().slot() {
-                    local @ SignatureSourceVariableSlot::Local { .. } => {
-                        if let Some(targets) = aliases.get(local) {
-                            for target in targets {
-                                insert_source_write(&mut writes, target.clone());
-                            }
-                        }
-                    }
-                    SignatureSourceVariableSlot::C { .. } | SignatureSourceVariableSlot::Jim(_) => {
-                        insert_source_write(&mut writes, place);
-                    }
-                }
-            }
-        }
-        Some(writes)
-    }();
+    let inventory = logical_body_source_writes(body, semantics);
     let Some(writes) = inventory else {
         return GlobalWriteInfo {
             opaque_global_frame: true,
@@ -846,9 +869,9 @@ fn record_selected_global_body(
             )
         };
         let selected_global = |selection| match selection {
-            ResolvedFrameBodySelection::Current => in_global_frame,
+            ResolvedFrameBodySelection::Current
+            | ResolvedFrameBodySelection::Selected(FrameLevel::Relative(0)) => in_global_frame,
             ResolvedFrameBodySelection::Selected(FrameLevel::Absolute(0)) => true,
-            ResolvedFrameBodySelection::Selected(FrameLevel::Relative(0)) => in_global_frame,
             ResolvedFrameBodySelection::Selected(
                 FrameLevel::Relative(_) | FrameLevel::Absolute(_) | FrameLevel::Dynamic,
             ) => false,

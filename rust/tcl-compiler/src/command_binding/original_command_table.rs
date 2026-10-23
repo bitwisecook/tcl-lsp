@@ -13,6 +13,19 @@ use tcl_registry::{
     TransitionSubject,
 };
 
+enum CatalogueCandidate<'a> {
+    Absent,
+    Present((&'a String, &'a String)),
+}
+impl<'a> CatalogueCandidate<'a> {
+    fn row(self) -> Option<(&'a String, &'a String)> {
+        match self {
+            Self::Absent => None,
+            Self::Present(row) => Some(row),
+        }
+    }
+}
+
 // Fixed Registry descriptors are independently authored baseline metadata.
 // C registration and Jim's flat global table use different naming purposes;
 // neither projection manufactures an original source operand or native entry.
@@ -1726,80 +1739,98 @@ impl ModuleCommandBindings {
                 );
             }
             NativeNameProtocol::C(_) => {
-                use tcl_syntax::naming::{CommandLookupBase, NativeCommandNamespaceRoute};
-                #[derive(Clone)]
-                enum LookupScope<'a> {
-                    Current(&'a SignatureNamespaceScope),
-                    Path(&'a SourceNamespaceKey),
-                }
-                let selected = recipe
-                    .command_lookup_projection(scope.context()?, bytes)
-                    .ok()?;
-                let absolute = selected.namespace_route() == NativeCommandNamespaceRoute::Root;
-                if !absolute && self.unknown_lookup_namespaces.contains(current) {
-                    return None;
-                }
-                let local = (!absolute).then(|| selected.slot().clone());
-                let occupied = |slot: &tcl_core_types::ByteCommandSlot| {
-                    self.original_command_key_for_slot(slot, policy)
-                        .and_then(|key| self.original_bindings_for_key(&key))
-                        .is_some_and(|bindings| {
-                            !bindings.is_empty() && !bindings.contains(&MayBinding::Missing)
-                        })
-                };
-                // An occupied current cell stops lookup before path uncertainty.
-                if let Some(local) = &local
-                    && occupied(local)
-                {
-                    return Some(vec![vec![local.clone()]]);
-                }
-                let uses_paths = selected.lookup_uses_namespace_path().ok()?;
-                if uses_paths && self.unknown_namespace_paths.contains(current) {
-                    return None;
-                }
-                let empty = BTreeSet::from([Vec::new()]);
-                for path in self.namespace_paths.get(current).unwrap_or(&empty) {
-                    let path_scopes: Vec<_> = path.iter().map(LookupScope::Path).collect();
-                    let mut slots = Vec::new();
-                    for base in selected
-                        .lookup_bases(LookupScope::Current(&scope), &path_scopes)
-                        .ok()?
-                    {
-                        let (slot, stopped) = match base {
-                            CommandLookupBase::Context(LookupScope::Current(selected)) => (
-                                recipe
-                                    .command_lookup_slot(selected.context()?, bytes)
-                                    .ok()?,
-                                false,
-                            ),
-                            CommandLookupBase::Context(LookupScope::Path(namespace)) => {
-                                if !self.namespaces.contains(namespace) {
-                                    continue;
-                                }
-                                let selected = query.world().scope(namespace, policy)?;
-                                let slot = recipe
-                                    .command_lookup_slot(selected.context()?, bytes)
-                                    .ok()?;
-                                let stopped = occupied(&slot);
-                                (slot, stopped)
-                            }
-                            CommandLookupBase::Root => (
-                                recipe
-                                    .command_lookup_slot(NativeNameContext::root(), bytes)
-                                    .ok()?,
-                                false,
-                            ),
-                        };
-                        if !slots.contains(&slot) {
-                            slots.push(slot);
+                paths = self.original_c_command_slot_paths(
+                    current, bytes, policy, recipe, &query, &scope,
+                )?;
+            }
+        }
+        Some(paths)
+    }
+
+    fn original_c_command_slot_paths(
+        &self,
+        current: &SourceNamespaceKey,
+        bytes: &[u8],
+        policy: tcl_syntax::naming::NamePolicyProtocol,
+        recipe: tcl_syntax::naming::NativeNameProtocol,
+        query: &super::source_command_world::OriginalSourceCommandQuery<'_>,
+        scope: &SignatureNamespaceScope,
+    ) -> Option<Vec<Vec<tcl_core_types::ByteCommandSlot>>> {
+        use tcl_syntax::naming::{
+            CommandLookupBase, NativeCommandNamespaceRoute, NativeNameContext,
+        };
+        #[derive(Clone)]
+        enum LookupScope<'a> {
+            Current(&'a SignatureNamespaceScope),
+            Path(&'a SourceNamespaceKey),
+        }
+        let selected = recipe
+            .command_lookup_projection(scope.context()?, bytes)
+            .ok()?;
+        let absolute = selected.namespace_route() == NativeCommandNamespaceRoute::Root;
+        if !absolute && self.unknown_lookup_namespaces.contains(current) {
+            return None;
+        }
+        let local = (!absolute).then(|| selected.slot().clone());
+        let occupied = |slot: &tcl_core_types::ByteCommandSlot| {
+            self.original_command_key_for_slot(slot, policy)
+                .and_then(|key| self.original_bindings_for_key(&key))
+                .is_some_and(|bindings| {
+                    !bindings.is_empty() && !bindings.contains(&MayBinding::Missing)
+                })
+        };
+        // An occupied current cell stops lookup before path uncertainty.
+        if let Some(local) = &local
+            && occupied(local)
+        {
+            return Some(vec![vec![local.clone()]]);
+        }
+        let uses_paths = selected.lookup_uses_namespace_path().ok()?;
+        if uses_paths && self.unknown_namespace_paths.contains(current) {
+            return None;
+        }
+        let empty = BTreeSet::from([Vec::new()]);
+        let mut paths = Vec::new();
+        for path in self.namespace_paths.get(current).unwrap_or(&empty) {
+            let path_scopes: Vec<_> = path.iter().map(LookupScope::Path).collect();
+            let mut slots = Vec::new();
+            for base in selected
+                .lookup_bases(LookupScope::Current(scope), &path_scopes)
+                .ok()?
+            {
+                let (slot, stopped) = match base {
+                    CommandLookupBase::Context(LookupScope::Current(selected)) => (
+                        recipe
+                            .command_lookup_slot(selected.context()?, bytes)
+                            .ok()?,
+                        false,
+                    ),
+                    CommandLookupBase::Context(LookupScope::Path(namespace)) => {
+                        if !self.namespaces.contains(namespace) {
+                            continue;
                         }
-                        if stopped {
-                            break;
-                        }
+                        let selected = query.world().scope(namespace, policy)?;
+                        let slot = recipe
+                            .command_lookup_slot(selected.context()?, bytes)
+                            .ok()?;
+                        let stopped = occupied(&slot);
+                        (slot, stopped)
                     }
-                    paths.push(slots);
+                    CommandLookupBase::Root => (
+                        recipe
+                            .command_lookup_slot(NativeNameContext::root(), bytes)
+                            .ok()?,
+                        false,
+                    ),
+                };
+                if !slots.contains(&slot) {
+                    slots.push(slot);
+                }
+                if stopped {
+                    break;
                 }
             }
+            paths.push(slots);
         }
         Some(paths)
     }
@@ -1846,6 +1877,49 @@ impl ModuleCommandBindings {
             .collect()
     }
 
+    fn original_imported_catalogue_candidate<'a>(
+        &'a self,
+        implementations: &[&'a MayBinding],
+        policy: tcl_syntax::naming::NamePolicyProtocol,
+        index: Option<&'a RegistryAdviceSlotIndex>,
+    ) -> Option<CatalogueCandidate<'a>> {
+        let mut imported_name = None;
+        for binding in implementations {
+            let MayBinding::Target(target) = binding else {
+                continue;
+            };
+            if !target.registry_backed
+                || target.kind != BindingKind::Builtin
+                || !target.prepended.is_empty()
+                || imported_name.is_some_and(|name| name != target.command)
+            {
+                return None;
+            }
+            imported_name = Some(target.command.as_str());
+        }
+        let Some(name) = imported_name else {
+            return Some(CatalogueCandidate::Absent);
+        };
+        let origin = original_registry_metadata_slot(policy, name)?;
+        let candidate = if let Some(index) = index {
+            index
+                .slots
+                .get(&origin)?
+                .as_ref()
+                .map(|(metadata, name)| (metadata, name))
+        } else {
+            let mut candidates = self.baseline.catalogue_commands.iter().filter(|(name, _)| {
+                original_registry_metadata_slot(policy, name).as_ref() == Some(&origin)
+            });
+            let first = candidates.next();
+            if candidates.next().is_some() {
+                return None;
+            }
+            first
+        };
+        Some(candidate.map_or(CatalogueCandidate::Absent, CatalogueCandidate::Present))
+    }
+
     fn original_catalogue_path_candidate(
         &self,
         current: &SourceNamespaceKey,
@@ -1890,41 +1964,13 @@ impl ModuleCommandBindings {
                 }
             }
             if candidate.is_none() {
-                let mut imported_name = None;
-                for binding in &implementations {
-                    let MayBinding::Target(target) = binding else {
-                        continue;
-                    };
-                    if !target.registry_backed
-                        || target.kind != BindingKind::Builtin
-                        || !target.prepended.is_empty()
-                        || imported_name.is_some_and(|name| name != target.command)
-                    {
-                        return None;
-                    }
-                    imported_name = Some(target.command.as_str());
-                }
-                if let Some(name) = imported_name {
-                    let origin = original_registry_metadata_slot(policy, name)?;
-                    candidate = if let Some(index) = &index {
-                        index
-                            .slots
-                            .get(&origin)?
-                            .as_ref()
-                            .map(|(metadata, name)| (metadata, name))
-                    } else {
-                        let mut candidates =
-                            self.baseline.catalogue_commands.iter().filter(|(name, _)| {
-                                original_registry_metadata_slot(policy, name).as_ref()
-                                    == Some(&origin)
-                            });
-                        let first = candidates.next();
-                        if candidates.next().is_some() {
-                            return None;
-                        }
-                        first
-                    };
-                }
+                candidate = self
+                    .original_imported_catalogue_candidate(
+                        &implementations,
+                        policy,
+                        index.as_deref(),
+                    )?
+                    .row();
             }
             match classify_catalogue_source_cell_with(
                 &implementations,

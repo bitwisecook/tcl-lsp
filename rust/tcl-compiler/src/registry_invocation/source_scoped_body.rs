@@ -1203,7 +1203,7 @@ impl OriginalSourceDefinitionMemberRegion {
             .source
             .dialect()
             .and_then(tcl_registry::InvocationDialect::authored_name_policy)
-            .map(|policy| policy.string_protocol());
+            .map(tcl_syntax::naming::NamePolicyProtocol::string_protocol);
         let references = indices
             .into_iter()
             .map(|index| {
@@ -1694,8 +1694,10 @@ fn source_lambda_body(
     words: &super::source_structure::OriginalRegistryWords,
     context: &ContextRegistry,
 ) -> Option<ScriptBodyGeometry> {
-    let selected =
-        words.with_source_schema(context, |schema| schema.authored_source_lambda_call())??;
+    let selected = words.with_source_schema(
+        context,
+        crate::registry_invocation::source_schema_queries::lambda_call,
+    )??;
     let word = words
         .operands()
         .get(selected.lambda_argument)?

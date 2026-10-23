@@ -143,7 +143,9 @@ pub(super) fn scan(
         let dispatch = resolve_scan_dispatch(&cmd, ctx);
         let mut selected_texts = cmd.texts.clone();
         if let Some(dispatch) = &dispatch {
-            selected_texts[0] = dispatch.canonical_command.to_owned();
+            dispatch
+                .canonical_command
+                .clone_into(&mut selected_texts[0]);
         }
         let texts = &selected_texts;
         let argv = &cmd.argv;

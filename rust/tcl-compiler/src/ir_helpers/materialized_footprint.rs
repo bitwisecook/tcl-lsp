@@ -248,7 +248,7 @@ pub(crate) fn footprint_command_words(
             if word.source_available
                 && let Some(value) = value.as_registry_word().literal()
             {
-                word.text = value.to_owned();
+                value.clone_into(&mut word.text);
                 word.substituted = false;
             }
             word

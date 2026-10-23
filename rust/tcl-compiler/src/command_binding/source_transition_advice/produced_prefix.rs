@@ -371,7 +371,7 @@ impl AdviceInvocationContext<'_> {
                     .cloned()
                     .or_else(|| self.schema_advice(invocation, graph, schema))?,
             );
-            let selected = self.selected_prefix_arguments(invocation.arguments, graph)?;
+            let selected = Self::selected_prefix_arguments(invocation.arguments, graph)?;
             let target = self.selected_prefix_target(
                 &producer,
                 selected,
@@ -447,11 +447,10 @@ impl AdviceInvocationContext<'_> {
         if native.iter().any(|word| word.group().expand) {
             return None;
         }
-        self.selected_prefix_arguments(&written, graph)
+        Self::selected_prefix_arguments(&written, graph)
     }
 
     fn selected_prefix_arguments(
-        &self,
         written: &[SourceAdviceWord],
         graph: &AdviceGraph,
     ) -> Option<SelectedPrefixWords> {

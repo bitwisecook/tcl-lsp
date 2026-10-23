@@ -132,6 +132,84 @@ impl OriginalSourceConstructorBodyAttempt {
     }
 }
 
+fn capture_constructor_member(
+    class: &OriginalSourceClassDeclaration,
+    grammar: &tcl_registry::definer::DefinitionBodyGrammar,
+    region: &crate::registry_invocation::OriginalSourceDefinitionMemberRegion,
+    words: &[NativeWord],
+    constructor: &mut Option<(
+        OriginalSourceDefinitionMemberScriptBody,
+        OriginalSourceConstructorBodyDisposition,
+    )>,
+) -> Option<()> {
+    let member = region.member_keyword(words)?;
+    // Only Registry-classified ordinary deferred methods and one actual
+    // own constructor are covered. Relations, wrappers, initialisers and
+    // all other effects need independent MRO/configuration coverage.
+    let is_constructor = grammar.source_special_member_kind(member)
+        == Some(DefinitionSpecialMemberKind::Constructor);
+    if !is_constructor
+        && grammar.construction_member_effect(member)
+            != MemberConstructionEffect::DeferredInstanceMethod
+    {
+        return None;
+    }
+    if member.kind != MemberKind::Flat || member.optional_argument.is_some() {
+        return None;
+    }
+    let expected = member
+        .arg_roles
+        .iter()
+        .map(|(index, _)| usize::from(*index) + 2)
+        .max()?;
+    if words.len() != expected || words.iter().any(|word| word.group().expand) {
+        return None;
+    }
+    let values = words
+        .iter()
+        .map(tcl_syntax::word_rules::original_static_word_unicode_value)
+        .collect::<Option<Vec<_>>>()?;
+    let mut bodies = region.script_bodies(words)?.into_iter();
+    let body = bodies.next()?;
+    bodies.next().is_none().then_some(())?;
+    let row = body.member_row()?;
+    if row.receiver != tcl_registry::definer::MemberReceiver::Instance {
+        return None;
+    }
+    let body_value = values.get(body.argument().checked_add(1)?)?;
+    match grammar.source_member_formal_validation_applicability(member, Some(body_value))? {
+        SourceFormalValidationApplicability::Required => {
+            for (ordinal, role) in member.arg_roles {
+                if *role == tcl_registry::ArgRole::ParamList {
+                    let parameters =
+                        std::str::from_utf8(values.get(usize::from(*ordinal) + 1)?).ok()?;
+                    tcl_syntax::formal_params::parse_formal_parameters_in(
+                        parameters,
+                        class.factory().dialect().parameter_grammar()?,
+                    )
+                    .ok()?;
+                }
+            }
+        }
+        SourceFormalValidationApplicability::SkippedRemovedLifecycle => {}
+    }
+    if is_constructor {
+        if constructor.is_some() || !body.complete_original_commands()?.is_empty() {
+            return None;
+        }
+        let disposition = match grammar.native_lifecycle_body_disposition(member, body_value)? {
+            NativeLifecycleBodyDisposition::Removed => {
+                OriginalSourceConstructorBodyDisposition::ExplicitlyRemoved
+            }
+            NativeLifecycleBodyDisposition::Retained => {
+                OriginalSourceConstructorBodyDisposition::CommandFreeRetainedBody
+            }
+        };
+        *constructor = Some((body, disposition));
+    }
+    Some(())
+}
+
 pub(super) fn capture(
     class: &OriginalSourceClassDeclaration,
     analysis: &AnalysisResult,
@@ -182,71 +260,7 @@ pub(super) fn capture(
     let members = region.complete_original_commands()?;
     let mut constructor = None;
     for words in &members {
-        let member = region.member_keyword(words)?;
-        // Only Registry-classified ordinary deferred methods and one actual
-        // own constructor are covered. Relations, wrappers, initialisers and
-        // all other effects need independent MRO/configuration coverage.
-        let is_constructor = grammar.source_special_member_kind(member)
-            == Some(DefinitionSpecialMemberKind::Constructor);
-        if !is_constructor
-            && grammar.construction_member_effect(member)
-                != MemberConstructionEffect::DeferredInstanceMethod
-        {
-            return None;
-        }
-        if member.kind != MemberKind::Flat || member.optional_argument.is_some() {
-            return None;
-        }
-        let expected = member
-            .arg_roles
-            .iter()
-            .map(|(index, _)| usize::from(*index) + 2)
-            .max()?;
-        if words.len() != expected || words.iter().any(|word| word.group().expand) {
-            return None;
-        }
-        let values = words
-            .iter()
-            .map(tcl_syntax::word_rules::original_static_word_unicode_value)
-            .collect::<Option<Vec<_>>>()?;
-        let mut bodies = region.script_bodies(words)?.into_iter();
-        let body = bodies.next()?;
-        bodies.next().is_none().then_some(())?;
-        let row = body.member_row()?;
-        if row.receiver != tcl_registry::definer::MemberReceiver::Instance {
-            return None;
-        }
-        let body_value = values.get(body.argument().checked_add(1)?)?;
-        match grammar.source_member_formal_validation_applicability(member, Some(body_value))? {
-            SourceFormalValidationApplicability::Required => {
-                for (ordinal, role) in member.arg_roles {
-                    if *role == tcl_registry::ArgRole::ParamList {
-                        let parameters =
-                            std::str::from_utf8(values.get(usize::from(*ordinal) + 1)?).ok()?;
-                        tcl_syntax::formal_params::parse_formal_parameters_in(
-                            parameters,
-                            class.factory().dialect().parameter_grammar()?,
-                        )
-                        .ok()?;
-                    }
-                }
-            }
-            SourceFormalValidationApplicability::SkippedRemovedLifecycle => {}
-        }
-        if is_constructor {
-            if constructor.is_some() || !body.complete_original_commands()?.is_empty() {
-                return None;
-            }
-            let disposition = match grammar.native_lifecycle_body_disposition(member, body_value)? {
-                NativeLifecycleBodyDisposition::Removed => {
-                    OriginalSourceConstructorBodyDisposition::ExplicitlyRemoved
-                }
-                NativeLifecycleBodyDisposition::Retained => {
-                    OriginalSourceConstructorBodyDisposition::CommandFreeRetainedBody
-                }
-            };
-            constructor = Some((body, disposition));
-        }
+        capture_constructor_member(class, grammar, &region, words, &mut constructor)?;
     }
     // Positive complete own-member coverage cannot supply an inherited or
     // default body when no explicit constructor was present.

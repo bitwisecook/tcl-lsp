@@ -135,10 +135,8 @@ impl<'a> BoundsMetadataContext<'a> {
                 }
                 roles
                     .into_iter()
-                    .filter_map(|(ordinal, found)| {
-                        (found == role)
-                            .then(|| usize::from(ordinal) + schema.semantics.argument_offset)
-                    })
+                    .filter(|(_, found)| *found == role)
+                    .map(|(ordinal, _)| usize::from(ordinal) + schema.semantics.argument_offset)
                     .collect()
             }
         }

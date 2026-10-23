@@ -141,14 +141,14 @@ impl<'a> OriginalLogicalVariableOperands<'a> {
         tokens: &CommandTokens,
         alias: &tcl_registry::VariableCellAliasTransition,
     ) -> Option<crate::signature_scan::variable_symbol::SignatureSourceVariableSlot> {
+        use crate::registry_invocation::DeclarationVariableAliasPurpose as Purpose;
+        use tcl_registry::VariableAliasTarget as Target;
         let operation = self.operation(tokens)?;
         let written = operation
             .effective
             .written_argument(alias.local.argument_index()?)?;
         let (_, input, scope) = self.original_argument(tokens, written)?;
         let frame = scope.local_frame()?;
-        use crate::registry_invocation::DeclarationVariableAliasPurpose as Purpose;
-        use tcl_registry::VariableAliasTarget as Target;
         let purpose = match alias.target {
             Target::Global { .. } => Purpose::Global,
             Target::CurrentNamespace { .. } => Purpose::NamespaceVariable,

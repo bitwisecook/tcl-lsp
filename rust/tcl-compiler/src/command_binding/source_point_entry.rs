@@ -223,6 +223,9 @@ impl OriginalSourcePointEntry {
         &self,
         context: &tcl_registry::model::ContextRegistry,
     ) -> Option<Arc<super::source_transition_advice::OriginalSourcePointAdviceGraph>> {
+        static MEMOS: OnceLock<
+            Mutex<super::AllocationMemoTable<SourcePointPayload, SourcePointGraphMemo>>,
+        > = OnceLock::new();
         let retained = self.input().borrowed_context_registry();
         if context.context() != retained.context()
             || context.commands().snapshot().semantic_key()
@@ -235,9 +238,6 @@ impl OriginalSourcePointEntry {
         }
         // This cache is attached to the actual live payload, outside its full
         // Eq/Hash. The mutex is released before recursive source preparation.
-        static MEMOS: OnceLock<
-            Mutex<super::AllocationMemoTable<SourcePointPayload, SourcePointGraphMemo>>,
-        > = OnceLock::new();
         let memo = {
             MEMOS
                 .get_or_init(|| Mutex::new(super::AllocationMemoTable::default()))
@@ -319,18 +319,18 @@ impl OriginalSourcePointEntry {
             .values()
             .cloned()
             .collect();
-        entry.trusted_source_modules = self
-            .payload
-            .snapshot
-            .state
-            .baseline
+        entry
             .trusted_source_modules
-            .clone();
+            .clone_from(&self.payload.snapshot.state.baseline.trusted_source_modules);
         let baseline = &self.payload.snapshot.state.baseline;
         entry.invocation_realm = self.payload.snapshot.realm;
         entry.execution_name_policy = baseline.execution_name_policy;
-        entry.logical_source_input = baseline.logical_source_input.clone();
-        entry.vendor_source_input = baseline.vendor_source_input.clone();
+        entry
+            .logical_source_input
+            .clone_from(&baseline.logical_source_input);
+        entry
+            .vendor_source_input
+            .clone_from(&baseline.vendor_source_input);
         entry.invocation_dialect = baseline.dialect;
         entry.compilation_scope = self.payload.compilation_scope;
         entry.source_point_entry = Some(self.clone());
@@ -394,11 +394,13 @@ impl OriginalSourcePointEntry {
             && state.baseline.invocation_realm == self.payload.snapshot.realm
             && context.realm == self.payload.snapshot.realm
             && context.body_entry == super::SourceBodyEntryPurpose::Conditional
-            && context.compilation == Default::default()
+            && context.compilation
+                == tcl_registry::native_compilation::NativeCompilationContext::default()
             && context.compilation_snapshot.is_none()
             && context.selected_compilation.is_none()
             && context.original_variable_compilation.is_none()
-            && state.baseline.native_compilation == Default::default()
+            && state.baseline.native_compilation
+                == tcl_registry::native_compilation::NativeCompilationContext::default()
             && state.baseline.native_entry.is_none()
             && state.baseline.hosted_execution_context.is_none()
             && state.baseline.compiled_variable_provider.is_none()

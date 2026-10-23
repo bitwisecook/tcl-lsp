@@ -692,6 +692,11 @@ fn statement_candidates(
     out
 }
 
+type BoundsValueFacts<'a, S1, S3> = (
+    &'a HashMap<ValueKey, LatticeValue, S1>,
+    (&'a SccpResult, &'a HashMap<ValueKey, TypeLattice, S3>),
+);
+
 /// Interpreter and registry evidence used by interval bounds queries.
 #[derive(Clone, Copy)]
 pub struct BoundsSemantics<'a> {
@@ -751,10 +756,7 @@ where
 pub fn find_interval_bounds_resolved<S1, S2, S3>(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
-    values: (
-        &HashMap<ValueKey, LatticeValue, S1>,
-        (&SccpResult, &HashMap<ValueKey, TypeLattice, S3>),
-    ),
+    values: BoundsValueFacts<'_, S1, S3>,
     executable: &std::collections::HashSet<BlockId, S2>,
     characters: Option<StringCharacterModel>,
     numbers: NumberSyntax,
@@ -786,10 +788,7 @@ where
 pub fn find_interval_bounds_in_release<S1, S2, S3>(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
-    (values, (sccp, types)): (
-        &HashMap<ValueKey, LatticeValue, S1>,
-        (&SccpResult, &HashMap<ValueKey, TypeLattice, S3>),
-    ),
+    (values, (sccp, types)): BoundsValueFacts<'_, S1, S3>,
     executable: &std::collections::HashSet<BlockId, S2>,
     release: BoundsRelease,
     semantics: BoundsSemantics<'_>,
@@ -1359,10 +1358,7 @@ where
 pub fn find_divide_by_zero_with_entered_operands<S1, S2, S3>(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
-    (values, facts): (
-        &HashMap<ValueKey, LatticeValue, S1>,
-        (&SccpResult, &HashMap<ValueKey, TypeLattice, S3>),
-    ),
+    (values, facts): BoundsValueFacts<'_, S1, S3>,
     executable: &std::collections::HashSet<BlockId, S2>,
     numbers: NumberSyntax,
     semantics: BoundsSemantics<'_>,
@@ -1508,10 +1504,7 @@ fn collect_lowered_divzero<S>(
 fn find_divide_by_zero_impl<S1, S2, S3>(
     cfg: &CfgFunction,
     ssa: &SsaFunction,
-    (values, (sccp, types)): (
-        &HashMap<ValueKey, LatticeValue, S1>,
-        (&SccpResult, &HashMap<ValueKey, TypeLattice, S3>),
-    ),
+    (values, (sccp, types)): BoundsValueFacts<'_, S1, S3>,
     executable: &std::collections::HashSet<BlockId, S2>,
     numbers: NumberSyntax,
     grammar: tcl_dialect::LexerGrammar,

@@ -310,10 +310,10 @@ impl OriginalSourceConditionalContinuation {
         parent: &crate::analyser::AnalysisResult,
         child: &crate::analyser::AnalysisResult,
     ) -> Option<OriginalSourceConditionalRegionSet> {
+        static MEMO: OnceLock<Mutex<Vec<Weak<RegionSetPayload>>>> = OnceLock::new();
         if !self.matches_parent_analysis(parent) || !self.matches_child_analysis(child) {
             return None;
         }
-        static MEMO: OnceLock<Mutex<Vec<Weak<RegionSetPayload>>>> = OnceLock::new();
         let memo = MEMO.get_or_init(|| Mutex::new(Vec::new()));
         let find = |entries: &mut Vec<Weak<RegionSetPayload>>| {
             entries.retain(|entry| entry.strong_count() != 0);
@@ -1084,6 +1084,7 @@ impl OriginalSourceConditionalRegion {
         region_analysis: &crate::analyser::AnalysisResult,
         completed: &OriginalSourceConditionalOutcome,
     ) -> Option<OriginalSourceConditionalOutcome> {
+        static MEMO: OnceLock<Mutex<Vec<Weak<ThroughRegionOutcome>>>> = OnceLock::new();
         if !self.matches_dependencies(parent_prefix, first_child_prefix)
             || !self.matches_region_analysis(region_analysis)
             || !completed.matches_prefix_analysis(region_analysis)
@@ -1091,7 +1092,6 @@ impl OriginalSourceConditionalRegion {
         {
             return None;
         }
-        static MEMO: OnceLock<Mutex<Vec<Weak<ThroughRegionOutcome>>>> = OnceLock::new();
         let memo = MEMO.get_or_init(|| Mutex::new(Vec::new()));
         let find = |entries: &mut Vec<Weak<ThroughRegionOutcome>>| {
             entries.retain(|entry| entry.strong_count() != 0);

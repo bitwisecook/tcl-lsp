@@ -906,8 +906,7 @@ pub(crate) struct OriginalSourceTransitionAdviceTape {
     logical_math: BTreeMap<u32, Option<OriginalLogicalMathFunctionOccurrence>>,
     logical_absolute_navigation: BTreeMap<u32, Option<OriginalLogicalAbsoluteCommandCandidate>>,
     logical_body_words: BTreeMap<u32, Option<logical_word_geometry::OriginalLogicalBodyWords>>,
-    logical_callbacks:
-        BTreeMap<u32, Option<(Arc<[NativeWord]>, Vec<OriginalLogicalCallbackCandidates>)>>,
+    logical_callbacks: LogicalSourceCallbacks,
     class_publications: Option<OriginalSourceClassPublications>,
     display_publications:
         Option<crate::registry_invocation::source_structure::OriginalProjectClassCells>,
@@ -921,6 +920,9 @@ pub(crate) struct OriginalSourceTransitionAdviceTape {
         )>,
     >,
 }
+
+type LogicalSourceCallbacks =
+    BTreeMap<u32, Option<(Arc<[NativeWord]>, Vec<OriginalLogicalCallbackCandidates>)>>;
 
 /// A represented refusal is authoritative for this conditional source purpose.
 /// Only an unrepresented site can consult a separate declaration-source owner.
@@ -1337,81 +1339,69 @@ impl OriginalSourceTransitionAdviceTape {
     }
 
     fn extend_inventory(&mut self, other: Self) {
-        for (offset, declaration) in other.conditional_procedure_declarations {
-            source_class::merge_receipt(
-                &mut self.conditional_procedure_declarations,
-                offset,
-                declaration,
-            );
-        }
-        for (offset, phase) in other.decoded_lambda_phases {
-            source_class::merge_receipt(&mut self.decoded_lambda_phases, offset, phase);
-        }
-        for (offset, call) in other.native_procedure_calls {
-            source_class::merge_receipt(&mut self.native_procedure_calls, offset, call);
-        }
-        for (offset, call) in other.logical_procedure_calls {
-            source_class::merge_receipt(&mut self.logical_procedure_calls, offset, call);
-        }
-        for (offset, reference) in other.logical_name_references {
-            source_class::merge_receipt(&mut self.logical_name_references, offset, reference);
-        }
-        for (offset, operation) in other.logical_ensemble_transition_receipts {
-            source_class::merge_receipt(
-                &mut self.logical_ensemble_transition_receipts,
-                offset,
-                operation,
-            );
-        }
-        for (offset, prefix) in other.arity_prefixes {
-            source_class::merge_receipt(&mut self.arity_prefixes, offset, prefix);
-        }
+        merge_receipt_inventory(
+            &mut self.conditional_procedure_declarations,
+            other.conditional_procedure_declarations,
+        );
+        merge_receipt_inventory(&mut self.decoded_lambda_phases, other.decoded_lambda_phases);
+        merge_receipt_inventory(
+            &mut self.native_procedure_calls,
+            other.native_procedure_calls,
+        );
+        merge_receipt_inventory(
+            &mut self.logical_procedure_calls,
+            other.logical_procedure_calls,
+        );
+        merge_receipt_inventory(
+            &mut self.logical_name_references,
+            other.logical_name_references,
+        );
+        merge_receipt_inventory(
+            &mut self.logical_ensemble_transition_receipts,
+            other.logical_ensemble_transition_receipts,
+        );
+        merge_receipt_inventory(&mut self.arity_prefixes, other.arity_prefixes);
         self.logical_procedure_catalogue_refusals
             .extend(other.logical_procedure_catalogue_refusals);
-        for (offset, receipt) in other.native_procedure_may_commands {
-            source_class::merge_receipt(&mut self.native_procedure_may_commands, offset, receipt);
-        }
-        for (offset, receipt) in other.logical_callbacks {
-            source_class::merge_receipt(&mut self.logical_callbacks, offset, receipt);
-        }
-        for (offset, receipt) in other.logical_variable_words {
-            source_class::merge_receipt(&mut self.logical_variable_words, offset, receipt);
-        }
-        for (offset, occurrence) in other.logical_math {
-            source_class::merge_receipt(&mut self.logical_math, offset, occurrence);
-        }
+        merge_receipt_inventory(
+            &mut self.native_procedure_may_commands,
+            other.native_procedure_may_commands,
+        );
+        merge_receipt_inventory(&mut self.logical_callbacks, other.logical_callbacks);
+        merge_receipt_inventory(
+            &mut self.logical_variable_words,
+            other.logical_variable_words,
+        );
+        merge_receipt_inventory(&mut self.logical_math, other.logical_math);
         for (offset, candidate) in other.logical_navigation {
             self.merge_logical_navigation(offset, candidate);
         }
-        for (offset, candidate) in other.logical_absolute_navigation {
-            source_class::merge_receipt(&mut self.logical_absolute_navigation, offset, candidate);
-        }
-        for (offset, receipt) in other.logical_body_words {
-            source_class::merge_receipt(&mut self.logical_body_words, offset, receipt);
-        }
-        for (offset, scope) in other.logical_summary_scopes {
-            source_class::merge_receipt(&mut self.logical_summary_scopes, offset, scope);
-        }
-        for (offset, card) in other.logical_procedure_bodies {
-            source_class::merge_receipt(&mut self.logical_procedure_bodies, offset, card);
-        }
-        for (span, scope) in other.logical_variable_scopes {
-            source_class::merge_receipt(&mut self.logical_variable_scopes, span, scope);
-        }
-        for (offset, receipt) in other.conditional_case_syntax {
-            source_class::merge_receipt(&mut self.conditional_case_syntax, offset, receipt);
-        }
-        for (offset, receipt) in other.body_catalogue {
-            source_class::merge_receipt(&mut self.body_catalogue, offset, receipt);
-        }
-        for (offset, receipt) in other.member_catalogue {
-            source_class::merge_receipt(&mut self.member_catalogue, offset, receipt);
-        }
+        merge_receipt_inventory(
+            &mut self.logical_absolute_navigation,
+            other.logical_absolute_navigation,
+        );
+        merge_receipt_inventory(&mut self.logical_body_words, other.logical_body_words);
+        merge_receipt_inventory(
+            &mut self.logical_summary_scopes,
+            other.logical_summary_scopes,
+        );
+        merge_receipt_inventory(
+            &mut self.logical_procedure_bodies,
+            other.logical_procedure_bodies,
+        );
+        merge_receipt_inventory(
+            &mut self.logical_variable_scopes,
+            other.logical_variable_scopes,
+        );
+        merge_receipt_inventory(
+            &mut self.conditional_case_syntax,
+            other.conditional_case_syntax,
+        );
+        merge_receipt_inventory(&mut self.body_catalogue, other.body_catalogue);
+        merge_receipt_inventory(&mut self.member_catalogue, other.member_catalogue);
         self.scanned_procedure_declarations
             .extend(other.scanned_procedure_declarations);
-        for (offset, receipt) in other.class_instance_calls {
-            source_class::merge_receipt(&mut self.class_instance_calls, offset, receipt);
-        }
+        merge_receipt_inventory(&mut self.class_instance_calls, other.class_instance_calls);
         for (offset, targets) in other.callback_targets {
             for (prefix, target) in targets {
                 self.merge_callback_target(offset, prefix, target);
@@ -1422,20 +1412,14 @@ impl OriginalSourceTransitionAdviceTape {
                 self.merge_class_reference(offset, input, receipt);
             }
         }
-        for (offset, receipt) in other.configured_classes {
-            source_class::merge_receipt(&mut self.configured_classes, offset, receipt);
-        }
+        merge_receipt_inventory(&mut self.configured_classes, other.configured_classes);
         self.advice.extend(other.advice);
         self.represented.extend(other.represented);
         self.registry_barriers.extend(other.registry_barriers);
         self.interpreter_bodies.extend(other.interpreter_bodies);
         self.interpreter_paths.extend(other.interpreter_paths);
-        for (offset, receipt) in other.authored_jim_classes {
-            source_class::merge_receipt(&mut self.authored_jim_classes, offset, receipt);
-        }
-        for (offset, receipt) in other.authored_jim_calls {
-            source_class::merge_receipt(&mut self.authored_jim_calls, offset, receipt);
-        }
+        merge_receipt_inventory(&mut self.authored_jim_classes, other.authored_jim_classes);
+        merge_receipt_inventory(&mut self.authored_jim_calls, other.authored_jim_calls);
         self.extend_class_inventory(other.class_declarations, other.constructor_calls);
         self.extend_class_proc_calls(other.class_proc_calls);
         for (_, facets) in other.class_declaration_facets {
@@ -1443,9 +1427,7 @@ impl OriginalSourceTransitionAdviceTape {
                 self.retain_class_declaration_facet(facet);
             }
         }
-        for (offset, receipt) in other.registered_factories {
-            source_class::merge_receipt(&mut self.registered_factories, offset, receipt);
-        }
+        merge_receipt_inventory(&mut self.registered_factories, other.registered_factories);
         for (offset, receipt) in other.registered_instances {
             self.registered_instances
                 .entry(offset)
@@ -1481,6 +1463,15 @@ impl OriginalSourceTransitionAdviceTape {
         }
     }
 }
+fn merge_receipt_inventory<K: Ord, T: PartialEq>(
+    entries: &mut BTreeMap<K, Option<T>>,
+    other: BTreeMap<K, Option<T>>,
+) {
+    for (offset, receipt) in other {
+        source_class::merge_receipt(entries, offset, receipt);
+    }
+}
+
 #[derive(Clone)]
 struct AdviceGraph {
     native_baseline: bool,
@@ -2611,7 +2602,7 @@ impl AdviceInvocationContext<'_> {
         if schema.semantics.procedure_definition.is_none()
             && schema.authored_source_procedure_arguments().is_some()
         {
-            self.apply_source_lookup_residual_effects(graph, invocation, schema);
+            Self::apply_source_lookup_residual_effects(graph, invocation, schema);
         }
         Some(inventory)
     }

@@ -20,6 +20,12 @@ use tcl_registry::{
     model::ContextRegistry,
 };
 
+type SourceClassDeclarationOwner<'a> = (
+    &'a Arc<crate::registry_invocation::OriginalSourceScriptBody>,
+    SourceCommandTransitionObligation,
+    Option<&'a Arc<crate::command_binding::OriginalDeclaredLogicalBodyContext>>,
+);
+
 /// Exact original selected definer and naming operand, without a runtime class.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OriginalSourceClassDeclaration {
@@ -715,11 +721,7 @@ impl AdviceInvocationContext<'_> {
         graph: &AdviceGraph,
         invocation: AdviceInvocation<'_>,
         schema: &tcl_registry::ResolvedInvocation<'_, '_>,
-        owner: Option<(
-            &Arc<crate::registry_invocation::OriginalSourceScriptBody>,
-            SourceCommandTransitionObligation,
-            Option<&Arc<crate::command_binding::OriginalDeclaredLogicalBodyContext>>,
-        )>,
+        owner: Option<SourceClassDeclarationOwner<'_>>,
     ) -> Option<SourceClassDeclarationFacet> {
         // naming.source.original-class-constructor-call
 

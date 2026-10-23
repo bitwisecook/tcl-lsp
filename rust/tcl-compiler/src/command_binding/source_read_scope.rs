@@ -156,6 +156,41 @@ impl SourceReadScope {
     }
 }
 
+fn logical_prefix_inputs_match(
+    target: &super::SourceCommandTarget,
+    source: &crate::analyser::ResolvedAnalysisInput,
+    advice: &OriginalSourceCommandTransitionAdvice,
+    prefix_len: usize,
+) -> bool {
+    let Some(inputs) = target.original_logical_prepended_source_inputs(
+        source,
+        advice.site().source.source_image(),
+        source.lexer_config(),
+    ) else {
+        return false;
+    };
+    let captured = advice.arguments().iter().filter(|word| {
+        matches!(
+            word.origin,
+            crate::registry_invocation::InvocationWordOrigin::BindingPrefix(_)
+        )
+    });
+    if inputs.len() != prefix_len
+        || inputs
+            .iter()
+            .zip(captured)
+            .any(|(input, word)| match word.input.as_ref() {
+                Some(crate::command_binding::SourceAdviceNameInput::Logical(original)) => {
+                    original != input
+                }
+                _ => true,
+            })
+    {
+        return false;
+    }
+    true
+}
+
 /// Conditional original source advice cannot override an actually selected target.
 pub(crate) fn source_targets_match_advice(
     context: &ContextRegistry,
@@ -204,30 +239,7 @@ pub(crate) fn source_targets_match_advice(
         if !prefix.is_empty()
             && let Some(source) = advice.logical_source_input()
         {
-            let Some(inputs) = target.original_logical_prepended_source_inputs(
-                source,
-                advice.site().source.source_image(),
-                source.lexer_config(),
-            ) else {
-                return false;
-            };
-            let captured = advice.arguments().iter().filter(|word| {
-                matches!(
-                    word.origin,
-                    crate::registry_invocation::InvocationWordOrigin::BindingPrefix(_)
-                )
-            });
-            if inputs.len() != prefix.len()
-                || inputs
-                    .iter()
-                    .zip(captured)
-                    .any(|(input, word)| match word.input.as_ref() {
-                        Some(crate::command_binding::SourceAdviceNameInput::Logical(original)) => {
-                            original != input
-                        }
-                        _ => true,
-                    })
-            {
+            if !logical_prefix_inputs_match(target, source, advice, prefix.len()) {
                 return false;
             }
             continue;

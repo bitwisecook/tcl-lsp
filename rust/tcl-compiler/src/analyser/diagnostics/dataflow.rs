@@ -1376,7 +1376,7 @@ is renamed or deleted in this file."
             )?;
             fields
                 .iter()
-                .map(|field| field.name())
+                .map(crate::signature_scan::formal_parameters::OriginalSourceFormalName::name)
                 .eq(ir_proc.params.iter().map(String::as_bytes))
                 .then_some(fields)
         };
@@ -1470,10 +1470,9 @@ is renamed or deleted in this file."
                 continue;
             }
             // Quoted source keywords are positional protocol markers.
-            if param_sources
-                .get(idx)
-                .is_some_and(|source| source.quoted_marker())
-            {
+            if param_sources.get(idx).is_some_and(
+                crate::signature_scan::formal_parameters::OriginalSourceFormalName::quoted_marker,
+            ) {
                 continue;
             }
             let any_live = fu.def_use.chains.iter().any(|(key, chain)| {
@@ -1527,7 +1526,7 @@ is renamed or deleted in this file."
                     DiagCode::W214,
                     param_sources
                         .get(idx)
-                        .and_then(|source| source.source_span())
+                        .and_then(crate::signature_scan::formal_parameters::OriginalSourceFormalName::source_span)
                         .unwrap_or(ir_proc.span),
                     message,
                     Severity::Hint,
@@ -4906,7 +4905,10 @@ impl<'a> SourceMatcherLayout<'a> {
             ArgRole, native_compilation::SuccessfulHandlerSpec,
             variable_output::NativeVariableOutputSpec,
         };
-        let facts = words.with_source_schema(context, |schema| schema.facts())?;
+        let facts = words.with_source_schema(
+            context,
+            crate::registry_invocation::source_schema_queries::facts,
+        )?;
         let SuccessfulHandlerSpec::ConditionalVariableOperands(protocol) =
             facts.successful_handler?
         else {

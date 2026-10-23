@@ -2522,7 +2522,7 @@ impl Analyser {
                 let mut child =
                     super::types::Scope::new(super::types::ScopeKind::Namespace, &segment);
                 child.body_span = Some(tcl_lexer::Span::new(0, end));
-                child.naming_scope = naming_scope.clone();
+                child.naming_scope.clone_from(&naming_scope);
                 let parent = super::scope::scope_at_mut(&mut self.result.global_scope, &base)
                     .expect("seed scope path is self-built");
                 parent.children.push(child);

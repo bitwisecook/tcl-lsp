@@ -264,13 +264,10 @@ impl SourceCommandBindings {
 
     fn assignment_conversion_failure(
         &mut self,
-        index: usize,
         run: &mut AssignmentRun<'_>,
         state: &mut ModuleCommandBindings,
         context: SourceExecutionContext<'_>,
     ) -> Option<SourceOutcomes> {
-        #[cfg(not(test))]
-        let _ = index;
         let closed = run.list_effects_closed(state, context);
         self.record_object_callback_effects(state, run.input.segment.span.start(), closed);
         if !closed {
@@ -328,7 +325,7 @@ impl SourceCommandBindings {
         state: &mut ModuleCommandBindings,
         context: SourceExecutionContext<'_>,
     ) -> SourceOutcomes {
-        if let Some(failure) = self.assignment_conversion_failure(index, run, state, context) {
+        if let Some(failure) = self.assignment_conversion_failure(run, state, context) {
             return failure;
         }
         let argument_context = source_argument_context_boxed(

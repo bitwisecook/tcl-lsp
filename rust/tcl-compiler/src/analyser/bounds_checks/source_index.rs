@@ -24,7 +24,7 @@ pub(in crate::analyser) fn original_index_diagnostics(
     // naming.diagnostic.registry-source-ownership
 
     let Some(selected) = original
-        .with_schema(|schema| schema.authored_source_index_bounds())
+        .with_schema(crate::registry_invocation::source_schema_queries::index_bounds)
         .flatten()
     else {
         return Vec::new();
@@ -112,7 +112,7 @@ fn list_indices(
             let Ok(index) = usize::try_from(index) else {
                 return Vec::new();
             };
-            list = values[index].clone();
+            list.clone_from(&values[index]);
         }
     }
     Vec::new()

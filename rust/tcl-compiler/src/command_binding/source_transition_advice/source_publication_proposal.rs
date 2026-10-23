@@ -100,6 +100,17 @@ fn original_plan(
     })
 }
 
+fn has_executable_source_part(word: &NativeWord) -> bool {
+    word.executable_parts().all_parts().any(|part| {
+        matches!(
+            part.part,
+            tcl_lexer::ExecutablePart::Command { .. }
+                | tcl_lexer::ExecutablePart::Expression { .. }
+                | tcl_lexer::ExecutablePart::ParseError(_)
+        )
+    })
+}
+
 fn generated_requirements(
     template: &SourceImage,
     config: LexerConfig,
@@ -196,16 +207,7 @@ fn generated_requirements(
                     .map(|words| (words, false)),
             );
         } else if roles.iter().any(|(_, role)| role.has_script_timing())
-            || native.iter().any(|word| {
-                word.executable_parts().all_parts().any(|part| {
-                    matches!(
-                        part.part,
-                        tcl_lexer::ExecutablePart::Command { .. }
-                            | tcl_lexer::ExecutablePart::Expression { .. }
-                            | tcl_lexer::ExecutablePart::ParseError(_)
-                    )
-                })
-            })
+            || native.iter().any(has_executable_source_part)
         {
             return None;
         }
