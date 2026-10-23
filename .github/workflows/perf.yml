@@ -50,7 +50,7 @@ on:
         required: true
         type: choice
         default: standard
-        options: [standard, paired, runtime-diagnostics]
+        options: [standard, paired, runtime-diagnostics, runtime-fulltom-diagnostics]
       runtime_sha:
         description: Exact full work commit SHA for temporary runtime diagnostics
         required: false
@@ -81,7 +81,7 @@ jobs:
   # trigger and catches a hand-edited SVG or a results file committed without
   # re-rendering, long before `rust_release.sh verify` would at tag time.
   graphs-current:
-    if: inputs.mode != 'paired' && inputs.mode != 'runtime-diagnostics'
+    if: inputs.mode != 'paired' && inputs.mode != 'runtime-diagnostics' && inputs.mode != 'runtime-fulltom-diagnostics'
     runs-on: ubuntu-26.04
     timeout-minutes: 5
     steps:
@@ -102,7 +102,7 @@ jobs:
   benchmark:
     # Not on PRs — see the `pull_request` trigger comment. Nothing `needs:` this
     # job, so a job-level skip costs no downstream status.
-    if: github.event_name != 'pull_request' && inputs.mode != 'paired' && inputs.mode != 'runtime-diagnostics'
+    if: github.event_name != 'pull_request' && inputs.mode != 'paired' && inputs.mode != 'runtime-diagnostics' && inputs.mode != 'runtime-fulltom-diagnostics'
     runs-on: ubuntu-26.04
     timeout-minutes: 60
     permissions:
@@ -484,5 +484,121 @@ jobs:
         with:
           name: runtime-diagnostics-${{ inputs.runtime_sha }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/runtime-diagnostics-output
+          if-no-files-found: error
+          retention-days: 30
+
+  # Temporary WORK-only failure inventory. Never carry this diagnostic to release.
+  runtime-fulltom-diagnostics:
+    if: github.event_name == 'workflow_dispatch' && inputs.mode == 'runtime-fulltom-diagnostics' && github.ref == 'refs/heads/work'
+    runs-on: ubuntu-26.04
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    env:
+      CARGO_INCREMENTAL: "0"
+      CARGO_PROFILE_DEV_DEBUG: "0"
+      CARGO_BUILD_JOBS: "2"
+      CARGO_TERM_COLOR: never
+      RUST_BACKTRACE: short
+    steps:
+      - name: Checkout exact work revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.runtime_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Install Rust
+        uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
+        with:
+          toolchain: stable
+          build-warnings: deny
+          cache: false
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2.87.28
+        with:
+          tool: nextest@0.9.148
+      - name: Validate revision and record original source
+        env:
+          EXPECTED_WORK_SHA: ${{ inputs.runtime_sha }}
+          OUT: ${{ runner.temp }}/runtime-fulltom-output
+        run: |
+          set -euo pipefail
+          mkdir "$OUT"
+          [[ "$EXPECTED_WORK_SHA" =~ ^[0-9a-fA-F]{40}$ ]]
+          test "$(git rev-parse HEAD)" = "${EXPECTED_WORK_SHA,,}"
+          test "${EXPECTED_WORK_SHA,,}" = "$GITHUB_SHA"
+          test -z "$(git status --porcelain)"
+          git rev-parse HEAD > "$OUT/source-commit.txt"
+          git status --porcelain > "$OUT/git-before.txt"
+          git ls-files -z | sort -z | xargs -0 sha256sum > "$OUT/tracked-source-before.sha256"
+          cargo --version > "$OUT/cargo-version.txt"
+          rustc -vV > "$OUT/rustc-version.txt"
+          cargo nextest --version > "$OUT/nextest-version.txt"
+          python3 --version > "$OUT/python-version.txt"
+          printf '%s\n' '${{ github.run_id }}' '${{ github.run_attempt }}' '${{ runner.os }}' '${{ runner.arch }}' > "$OUT/job.txt"
+          printf '%s\n' 'DIAGNOSTIC ONLY: original standalone lib/integration tests, actual selected roster authoritative. nextest excludes doctests. No full cargo-test gate acceptance or waiver.' > "$OUT/coverage.txt"
+      - name: Fetch the Tcl 9.0.4 source (libtommath)
+        run: |
+          set -euo pipefail
+          .claude/skills/fetch-tcl-source/fetch_tcl_source.sh 9.0
+          test -f tmp/tcl9.0.4/libtommath/tommath.h
+      - name: Capture complete isolated original runtime inventory
+        env:
+          CARGO_TARGET_DIR: ${{ runner.temp }}/runtime-fulltom-target
+          OUT: ${{ runner.temp }}/runtime-fulltom-output
+        run: |
+          set -euo pipefail
+          unset TCL_RUNTIME_EXPECT_NO_TOMMATH
+          export TCL_TOMMATH_DIR="$GITHUB_WORKSPACE/tmp/tcl9.0.4/libtommath"
+          test ! -e "$CARGO_TARGET_DIR"
+          for mount in "$GITHUB_WORKSPACE" "$RUNNER_TEMP"; do
+            test "$(df -PB1 "$mount" | awk 'NR==2 {print $4}')" -ge 2147483648
+          done
+          find "$TCL_TOMMATH_DIR" -type f -print0 | sort -z | xargs -0 sha256sum > "$OUT/tommath-before.sha256"
+          printf '%s\n' '[profile.default]' 'slow-timeout = { period = "60s", terminate-after = 3 }' > "$OUT/nextest.toml"
+          cargo nextest list --locked --manifest-path runtime/rust/Cargo.toml --features engine --config-file "$OUT/nextest.toml" --message-format json > "$OUT/selected.json" 2> "$OUT/build.stderr"
+          for output in "$CARGO_TARGET_DIR"/debug/build/tcl-runtime-*/output; do
+            test -f "$output"
+            grep -F 'cargo:rustc-cfg=have_tommath' "$output"
+            printf '\nBUILD_OUTPUT %s\n' "$output" >> "$OUT/backend-output.txt"
+            cat "$output" >> "$OUT/backend-output.txt"
+          done
+          # The capture validates every selected terminal and owns the bash,
+          # nextest and tee descendants. Full JSON retains actual panic text;
+          # console markers remain bounded by the existing 20MB capture cap.
+          export OUT
+          set +e
+          python3 scripts/dev/nextest-terminal-capture.py --selected-json "$OUT/selected.json" --output-dir "$OUT/terminal" --console-cap 20000000 -- bash -o pipefail -c '
+            cargo nextest run --locked --manifest-path runtime/rust/Cargo.toml --features engine --config-file "$OUT/nextest.toml" --no-fail-fast --message-format libtest-json-plus --message-format-version 0.1 2> >( (ulimit -f 10240; exec tee "$OUT/nextest.stderr") >&2) | (ulimit -f 10240; exec tee "$OUT/nextest.raw.jsonl")
+          '
+          result=$?
+          set -e
+          printf '%s\n' "$result" > "$OUT/capture-exit.txt"
+          incomplete=0
+          for raw in "$OUT/nextest.raw.jsonl" "$OUT/nextest.stderr"; do
+            if [[ ! -f "$raw" ]] || [[ "$(stat -c %s "$raw")" -ge 10485760 ]]; then
+              incomplete=1
+            fi
+          done
+          printf '%s\n' "$incomplete" > "$OUT/raw-capture-incomplete.txt"
+          # Each raw tee file is capped at10MiB; hitting a cap is an incomplete
+          # diagnostic, never an ordinary passing outcome. Original assertions
+          # and every selected nonignored test remain unchanged.
+          find "$TCL_TOMMATH_DIR" -type f -print0 | sort -z | xargs -0 sha256sum > "$OUT/tommath-after.sha256"
+          cmp "$OUT/tommath-before.sha256" "$OUT/tommath-after.sha256"
+          sha256sum -c "$OUT/tracked-source-before.sha256" > "$OUT/source-after.txt"
+          git status --porcelain > "$OUT/git-after.txt"
+          test ! -s "$OUT/git-after.txt"
+          if [[ "$incomplete" == 1 ]]; then
+            echo "::error::raw capture missing or reached its cap; diagnostic incomplete"
+            exit 125
+          fi
+          exit "$result"
+      - name: Upload full diagnostic evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: runtime-fulltom-diagnostics-${{ inputs.runtime_sha }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/runtime-fulltom-output
           if-no-files-found: error
           retention-days: 30
