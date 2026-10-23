@@ -668,48 +668,8 @@ fn select_at_offset(
             ControlFlow::Continue(())
         };
     }
-    let mut own_declarations = analysis
-        .original_object_configurations()
-        .flat_map(|configuration| {
-            configuration
-                .members()
-                .declarations()
-                .map(move |method| (configuration.target(), method))
-        })
-        .filter(|(_, method)| {
-            method
-                .declaration()
-                .static_occurrence()
-                .is_some_and(|declaration| {
-                    declaration
-                        .name_input()
-                        .span()
-                        .as_range()
-                        .contains(&(offset as usize))
-                })
-        });
-    if let Some((configuration, method)) = own_declarations.next() {
-        if own_declarations.next().is_some() {
-            return ControlFlow::Break(None);
-        }
-        let Some(declaration) = method.declaration().static_occurrence() else {
-            return ControlFlow::Break(None);
-        };
-        let Some((image, config)) = consumer_currency(analysis) else {
-            return ControlFlow::Break(None);
-        };
-        return ControlFlow::Break(Some(own_query(
-            configuration,
-            method,
-            (
-                SignatureSourceNameInput::OriginalWord(declaration.name_input().clone()),
-                declaration.name_input().span(),
-            ),
-            true,
-            None,
-            false,
-            (image, config),
-        )));
+    if let ControlFlow::Break(selected) = select_own_declaration(analysis, offset) {
+        return ControlFlow::Break(selected);
     }
     let mut declarations = analysis
         .original_class_declarations()
@@ -784,6 +744,56 @@ fn select_at_offset(
         },
     );
     selected
+}
+
+fn select_own_declaration(
+    analysis: &AnalysisResult,
+    offset: u32,
+) -> ControlFlow<Option<OriginalMethodQuery>> {
+    let mut own_declarations = analysis
+        .original_object_configurations()
+        .flat_map(|configuration| {
+            configuration
+                .members()
+                .declarations()
+                .map(move |method| (configuration.target(), method))
+        })
+        .filter(|(_, method)| {
+            method
+                .declaration()
+                .static_occurrence()
+                .is_some_and(|declaration| {
+                    declaration
+                        .name_input()
+                        .span()
+                        .as_range()
+                        .contains(&(offset as usize))
+                })
+        });
+    if let Some((configuration, method)) = own_declarations.next() {
+        if own_declarations.next().is_some() {
+            return ControlFlow::Break(None);
+        }
+        let Some(declaration) = method.declaration().static_occurrence() else {
+            return ControlFlow::Break(None);
+        };
+        let Some((image, config)) = consumer_currency(analysis) else {
+            return ControlFlow::Break(None);
+        };
+        return ControlFlow::Break(Some(own_query(
+            configuration,
+            method,
+            (
+                SignatureSourceNameInput::OriginalWord(declaration.name_input().clone()),
+                declaration.name_input().span(),
+            ),
+            true,
+            None,
+            false,
+            (image, config),
+        )));
+    }
+    ControlFlow::Continue(())
 }
 
 /// Retain authentic selector occurrences for workspace readonly reference

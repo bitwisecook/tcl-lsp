@@ -316,19 +316,7 @@ fn command_context_with_args(
     let at_new_word = cursor.is_empty_boundary();
     let active_param = u32::try_from(cursor.word_index().checked_sub(1)?).ok()?;
     let arg_token_count = cursor.written_word_count().saturating_sub(1);
-    let policy = tcl_registry::InvocationDialect::of_profile(profile).authored_name_policy();
-    let name_key = policy.and_then(|policy| {
-        tcl_compiler::signature_scan::scope::SignatureSourceNameKey::from_original_native_word(
-            head,
-            tcl_syntax::word_rules::WordValueRules::from_config(&local_config),
-            policy,
-        )
-    });
-    let command = name_key
-        .as_ref()
-        .and_then(|key| key.display())
-        .unwrap_or(head.try_text().ok()?)
-        .to_owned();
+    let command = signature_command_name(head, profile, local_config)?;
     let mut source_words = None;
     let mut argument_count = arg_token_count;
     let mut active_parameter = active_param;
@@ -349,16 +337,13 @@ fn command_context_with_args(
         identities.stamp_original_tokens(&mut original);
         let effective = tcl_compiler::registry_invocation::effective_command_words(&original);
         #[cfg(debug_assertions)]
-        if std::env::var_os("TCL_LSP_TRACE_INCOMPLETE_HEADER").is_some() {
-            eprintln!(
-                "SIGNATURE_HEADER cursor={} stage=command site={} written={} effective={} binding={}",
-                cursor_offset,
-                head_offset,
-                segment.argv.len(),
-                effective.is_some(),
-                original.source_binding.is_some()
-            );
-        }
+        trace_signature_command_header(
+            cursor_offset,
+            head_offset,
+            segment.argv.len(),
+            effective.is_some(),
+            original.source_binding.is_some(),
+        );
         if let Some(effective) = effective {
             let wanted = usize::try_from(active_param).ok()?.checked_add(1)?;
             active_parameter = crate::original_invocation::effective_argument_at(
@@ -375,14 +360,7 @@ fn command_context_with_args(
         }
         let selected = crate::original_invocation::source_registry_words(source, analysis, segment);
         #[cfg(debug_assertions)]
-        if std::env::var_os("TCL_LSP_TRACE_INCOMPLETE_HEADER").is_some() {
-            eprintln!(
-                "SIGNATURE_HEADER cursor={} stage=selected site={} available={}",
-                cursor_offset,
-                head_offset,
-                selected.is_some()
-            );
-        }
+        trace_signature_selected_header(cursor_offset, head_offset, selected.is_some());
         if let Some(selected) = selected {
             let wanted = usize::try_from(active_param).ok()?.checked_add(1)?;
             active_parameter =
@@ -404,6 +382,53 @@ fn command_context_with_args(
         argument_count,
         active_parameter,
     })
+}
+
+#[cfg(debug_assertions)]
+fn trace_signature_command_header(
+    cursor_offset: u32,
+    head_offset: u32,
+    written: usize,
+    effective: bool,
+    binding: bool,
+) {
+    if std::env::var_os("TCL_LSP_TRACE_INCOMPLETE_HEADER").is_some() {
+        eprintln!(
+            "SIGNATURE_HEADER cursor={} stage=command site={} written={} effective={} binding={}",
+            cursor_offset, head_offset, written, effective, binding
+        );
+    }
+}
+
+#[cfg(debug_assertions)]
+fn trace_signature_selected_header(cursor_offset: u32, head_offset: u32, available: bool) {
+    if std::env::var_os("TCL_LSP_TRACE_INCOMPLETE_HEADER").is_some() {
+        eprintln!(
+            "SIGNATURE_HEADER cursor={} stage=selected site={} available={}",
+            cursor_offset, head_offset, available
+        );
+    }
+}
+
+fn signature_command_name(
+    head: &tcl_lexer::NativeWord,
+    profile: &'static tcl_dialect::DialectProfile,
+    local_config: tcl_lexer::LexerConfig,
+) -> Option<String> {
+    let policy = tcl_registry::InvocationDialect::of_profile(profile).authored_name_policy();
+    let name_key = policy.and_then(|policy| {
+        tcl_compiler::signature_scan::scope::SignatureSourceNameKey::from_original_native_word(
+            head,
+            tcl_syntax::word_rules::WordValueRules::from_config(&local_config),
+            policy,
+        )
+    });
+    let command = name_key
+        .as_ref()
+        .and_then(|key| key.display())
+        .unwrap_or(head.try_text().ok()?)
+        .to_owned();
+    Some(command)
 }
 
 /// Render signature help for a `command subcommand` form.
