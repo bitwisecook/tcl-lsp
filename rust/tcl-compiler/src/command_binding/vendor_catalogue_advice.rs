@@ -170,6 +170,32 @@ impl VendorCatalogueSourceCandidate {
         self.registry == registry.snapshot().semantic_key()
     }
 }
+#[cfg(test)]
+fn vendor_candidate_option<T>(stage: &str, value: Option<T>) -> Option<T> {
+    if value.is_none() && std::env::var_os("TCL_LSP_TRACE_REMOTE_FIRST_OPERAND").is_some() {
+        eprintln!("VENDOR_SOURCE_CANDIDATE_REFUSAL stage={stage}");
+    }
+    value
+}
+
+#[cfg(not(test))]
+fn vendor_candidate_option<T>(_: &str, value: Option<T>) -> Option<T> {
+    value
+}
+
+#[cfg(test)]
+fn vendor_candidate_rejection(stage: &str, value: bool) -> bool {
+    if value && std::env::var_os("TCL_LSP_TRACE_REMOTE_FIRST_OPERAND").is_some() {
+        eprintln!("VENDOR_SOURCE_CANDIDATE_REFUSAL stage={stage}");
+    }
+    value
+}
+
+#[cfg(not(test))]
+fn vendor_candidate_rejection(_: &str, value: bool) -> bool {
+    value
+}
+
 impl SourceInvocationBinding {
     pub(crate) fn original_vendor_catalogue_source_candidate(
         &self,
@@ -178,41 +204,70 @@ impl SourceInvocationBinding {
         original: &[NativeWord],
         registry: &CommandRegistry,
     ) -> Option<VendorCatalogueSourceCandidate> {
-        let site = self.invocation_site()?;
-        if tokens.source_binding.as_ref() != Some(self)
-            || self.original_lexer_config_for_tokens(tokens)? != head.lexer_config()
-            || site.source.source_image() != head.source_image()
-            || original.first() != Some(head.original_word())
-            || original.iter().any(|word| word.group().expand)
-            || crate::registry_invocation::original_native_compiler_words(
-                head.source_image(),
-                tokens.words(),
-                site.offset,
-                head.lexer_config(),
+        let site = vendor_candidate_option("invocation_site", self.invocation_site())?;
+        if vendor_candidate_rejection(
+            "foreign_token_binding",
+            tokens.source_binding.as_ref() != Some(self),
+        ) || vendor_candidate_rejection(
+            "different_lexer_config",
+            vendor_candidate_option(
+                "lexer_config",
+                self.original_lexer_config_for_tokens(tokens),
+            )? != head.lexer_config(),
+        ) || vendor_candidate_rejection(
+            "different_source_image",
+            site.source.source_image() != head.source_image(),
+        ) || vendor_candidate_rejection(
+            "different_original_head",
+            original.first() != Some(head.original_word()),
+        ) || vendor_candidate_rejection(
+            "expanded_original_word",
+            original.iter().any(|word| word.group().expand),
+        ) || vendor_candidate_rejection(
+            "different_original_vector",
+            vendor_candidate_option(
+                "original_word_vector",
+                crate::registry_invocation::original_native_compiler_words(
+                    head.source_image(),
+                    tokens.words(),
+                    site.offset,
+                    head.lexer_config(),
+                ),
             )?
             .as_slice()
-                != original
-        {
+                != original,
+        ) {
             return None;
         }
-        let command =
-            std::str::from_utf8(head.literal_units(VendorSourceNamePurpose::CommandHead)?).ok()?;
-        let snapshot = self.lookup_state.as_ref()?;
+        let command = std::str::from_utf8(vendor_candidate_option(
+            "literal_command_head",
+            head.literal_units(VendorSourceNamePurpose::CommandHead),
+        )?)
+        .ok()?;
+        let snapshot = vendor_candidate_option("lookup_state", self.lookup_state.as_ref())?;
         let state = &snapshot.state;
         let registry_key = registry.snapshot().semantic_key();
-        if state.current_source_origin.as_ref() != Some(&site.source)
-            || state.baseline.registry_snapshot.as_ref() != Some(&registry_key)
-            || (state
+        if vendor_candidate_rejection(
+            "different_source_origin",
+            state.current_source_origin.as_ref() != Some(&site.source),
+        ) || vendor_candidate_rejection(
+            "different_registry_generation",
+            state.baseline.registry_snapshot.as_ref() != Some(&registry_key),
+        ) || vendor_candidate_rejection(
+            "native_world_without_hosted_owner",
+            state
                 .baseline
                 .execution_name_policy
                 .and_then(tcl_syntax::naming::ExecutionNamePolicy::native_recipe)
                 .is_some()
-                && !state.hosted_rule_loader_world())
-        {
+                && !state.hosted_rule_loader_world(),
+        ) {
             return None;
         }
-        let (command, paths, obligations) =
-            state.vendor_catalogue_source_candidate(&self.lookup_namespace_key, command)?;
+        let (command, paths, obligations) = vendor_candidate_option(
+            "table_classifier",
+            state.vendor_catalogue_source_candidate(&self.lookup_namespace_key, command),
+        )?;
         Some(VendorCatalogueSourceCandidate {
             head: head.clone(),
             original: original.to_vec(),
@@ -313,7 +368,7 @@ impl super::ModuleCommandBindings {
         use super::original_command_table::{CatalogueSourceCell, classify_catalogue_source_cell};
         use VendorCatalogueSourceObligation as Obligation;
         let SourceNamespaceKey::Authored(namespace) = current else {
-            return None;
+            return vendor_candidate_option("namespace_not_authored", None);
         };
         if !command.is_ascii()
             || command.as_bytes().contains(&0)
@@ -330,7 +385,7 @@ impl super::ModuleCommandBindings {
                 .keys()
                 .any(|key| matches!(key, SourceCommandKey::Slot { .. }))
         {
-            return None;
+            return vendor_candidate_option("table_has_slot", None);
         }
         let mut obligations = vec![Obligation::AuthoredSourceCoordinates];
         if self.has_opaque_domain() || self.baseline.unknown_entry {
