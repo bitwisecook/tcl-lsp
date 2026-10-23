@@ -21293,11 +21293,11 @@ mod tests {
     }
 
     #[test]
-    fn active_original_command_keeps_client_data_until_dispatch_releases_its_handle() {
+    fn active_public_command_replacement_retires_client_data_before_dispatch_releases_its_handle() {
         // naming.embedding.original-host-publication-and-fact-transport
 
-        // This tests this adapter's documented active Rc lifetime separately
-        // from C Tcl's callback timing.
+        // Public replacement runs deleteProc before returning; an active handle
+        // retains only the command allocation (Tcl8.6.18 tclBasic.c:2414,3277).
         leak_free(|interpreter| {
             interpreter.set_runtime_version(tcl_dialect::TclVersion::V8_6);
             let state = retirement_state(interpreter, 0);
@@ -21318,13 +21318,13 @@ mod tests {
             assert_eq!(interpreter.dispatch(&[word.as_ptr()]), Code::Ok);
             assert_eq!(
                 active_calls.get(),
-                0,
-                "clientData stayed live inside the actual call"
+                1,
+                "public replacement retired clientData inside the actual call"
             );
             assert_eq!(
                 calls.get(),
                 1,
-                "dispatch released the last original command handle"
+                "the original delete procedure ran exactly once"
             );
             assert_ne!(
                 interpreter.resolve_cmd_token(b"retiring").unwrap(),
