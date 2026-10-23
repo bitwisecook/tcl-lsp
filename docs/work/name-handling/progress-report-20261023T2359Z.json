@@ -1,0 +1,79 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-23T23:59:52.527296+00:00",
+  "scheduled_report_utc": "2026-10-23T23:55:37+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-24T00:25:37+00:00",
+  "change_since_previous_report": [
+    "Published reviewed source WORK06564c5c4868eaee30da5e4c70688d70a4aa4223 and clean5bfbd3685f10c0951cd2eb57edf64ad39fca6ceb after fresh depth1 fetch/rebase preserving external2a07ae415. Product fixes first WORK; release-only documentation cleanup omits process/evidence. No PR, merge, tag or publication.",
+    "Recorded explicit user decisions235040: retain four public Instruction booleans with exactly the existing documented struct_excessive_bools exception; do not apply public flag-type migration. Numeric success fixture now explicitly clears errno once per dialect after profile selection. Independent review5073b46b verifies all original vectors/assertions/refusal cases unchanged; production errno semantics untouched. Actual new fixture rerun pending.",
+    "Fresh startup40039934183 exactb52 strictserver builds0warnings644.177s; typical cold tokens pass but original30second scan fails. Exact runner tclIndex now retained and sealed,7347B SHAe7620c3c. Tcl8.4 walk10.318s+diagnostics2.182s, Tcl8.5 walk10.242s+diagnostics2.363s; third walk starts before cleanup. Source125491/provider2256/deps21500/system330/tools7 sealed. Both Context original assertions pass with three round0 settled reconciliations and no Cancelled/nonsettlement warning in this run; no global race or cross-host speedup claim.",
+    "Fresh Jim40039939854 original7=5PASS2FAIL, all21 guards pass. First-class false absence now passes under conservative unclosed-world Unknown guard; method diagnostic and nested receipt remain failures. New conflict facets observe existing strict merge without changing equality or issuing authority. Source-backed Jim namespace finding retained for genuine method-wrapper implementation.",
+    "Fresh Spec40039944940 original11=9PASS2FAIL; O129 and allfour native ASCII controls pass. Separate Native1 now compiles and executes without warnings, first42 positive fails, later supplemental iterations unreached. Allthree builds fresh and sealed, twenty owned processes complete; no cause inferred from static source ownership repair. Private first-decline observer under independent review.",
+    "Fresh compiler40039942570 library builds0warnings243.63s and selects original Native test, then strict owned executor refuses Python argv0/Rust artifact mismatch before spawn. All58+3+2 effectiveUNRUN despite raw first-row RUNNING. Full125491 source/provider10202/deps21500/tools19 seal; no functional test outcome. Minimal repair preserves strict88125 executor/filter and every roster/budget, separately checks Rust Cargo-ledger bytes before/after and actual child terminal/exit. Root and LSP independently clear static process contract; actual child rerun remains required.",
+    "Fresh strict40039947393 exactb52: DB requested all-target/all-feature command passes0warnings; Core21 assert_is_empty findings and Server93unique (51large_futures,42too_many_lines),94emissions. Full125491 source and tools sealed; direct wait/EOF only, no independent empty process-tree seal. Core21 equivalent typed-empty-array assertions are committed after root inverse/type/format review, unchanged result expressions once and unchanged case/message strength. Direct diagnostics172 extracted into private80/81/28-line functions after independent whole-file inverse; actual new typing/lint checks pending.",
+    "Fresh runtime40039936892 original3=1PASS2FAIL; numeric Jim retains ERANGE before the approved fixture change, append times out after529/1035 rows with506 remaining. Separate14 baseline cases allFAIL and stackSIGABRT, every isolated process complete/sameELF/source/provider seals; independent assessmentf1f0725f. Environment host sync, final lappend upvar array trace and UTF16 surrogate replacement need source fixes. Guard failures follow actual namespace/profile mutations; prior before-mutation shorthand was wrong and corrected. Shared guard contract conflict is separately held for user decision.",
+    "Native formatter40039950003 original812 passes byte-exact through archive and independently loaded image; allfour commands exit0/emptystderr,62ZIP members/source125491/provider843/tools/owned groups sealed. Independent root peer a4a0ef17 confirms exact archive dc67 and image b381. Earlier44b and future builds are not admitted; bootstrap stderr retained, no wholebuild0warning claim. Pair admission and Rust updater test remain open.",
+    "Clean CI40039952540 on a26 continues: latest complete API page56jobs shows18success,3failure,20inprogress,14queued,1skipped. Required rust-check fails23 compiler lints (8parameter Option syntax,10 compilation-unit storage/borrow,5 report Option syntax); assigned owners prepare exact fixes. WASM real-link has7 actual failures, and browser host reaches empty pack hover/source/symbol/autoload then rename collision-world refusal. Raw closed logs retained, no missing-as-pass or blanket refusal accepted.",
+    "Complete origin/rust24312 named nextestPASS comparison staysUNKNOWN; separate runtime998 baseline still602retainedPASS14PASS-to-FAIL382UNKNOWN. Allfive oldcleanccf nextest shards+heavy are now independently log-checked UNRUN from the old unused native_source warning before listing, with shard1 metadata upload a secondary failure. No old test results inferred from build failures.",
+    "Complete cargo fmt --all --check passes exact clean a26 in82.772s/zerooutput/empty owned group. Later carries have pinned format checks, final shipping tip still requires full gates. Whole release11015-path census has0missing/0known task-process markers and no new broad marker text; contextual audit identifies two additional status phrases, removed clean-only after source-backed peer. Remaining generic markers are explicitly not a full semantic certification.",
+    "External perf header23:49 fresh, no duplicate owner. Its current22 API controls pass BOTH and clean6 lexer586 passes BOTH; corpus still building and current server gates remain failed BOTH. No optimisation or realm patch accepted/forwarded. BIGIP header13:17 remains over60minutes stale, user notified, owned implementation reported complete; dependency blockers routed to compiler/runtime/LSP. Reviewtriage owner complete.",
+    "Below2GiB free disk, all local Cargo/rustc builds remain stopped; no target or young executable deletion. Six-hour target remains missed. SectionF, full required green checks, no baseline PASS-to-FAIL and accepted Tcl corpus performance remain mandatory before the authorised PR."
+  ],
+  "committed": [
+    "e599fa5ab83335d36ddc0cfde3b3eeb27ee98033"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Publish23:55 WIP/report and rearm00:25 reminder; preserve concurrent external source.",
+    "Integrate peer-cleared stack and compiler lint/source-pin repairs; finish private Native and startup stage diagnosis, then rerun closed diagnostic modes with exact source pins.",
+    "Fix actual runtime environment/trace/surrogate failures, compiler ILX/RBS/SH/ReadFlow producers, Jim method/nested owners and Spec derived folds.",
+    "Complete all required native/browser/WASI/editor/generated/sectionF gates, full baseline join and accepted Tcl performance; finish full release documentation/comments audit and final format/rust-check/prep-pr before PR."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-23T13:17Z",
+    "perf": "2026-10-23 23:49 UTC",
+    "review-triage": "2026-10-22T19:57:30Z"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "Actual narrow Jim gains, DB pass, Context2 pass and exact C84 original812 pass are recorded with limits. No sectionF/admission/fullgreen/zero-regression/performance gate closes. Compiler cases remainUNRUN; runtime14 and stack failure persist; new policy decision pending for guard contract.",
+  "disk_free_bytes": 1886375936,
+  "baseline_ci_run": 39816429638,
+  "baseline_ci_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731"
+}

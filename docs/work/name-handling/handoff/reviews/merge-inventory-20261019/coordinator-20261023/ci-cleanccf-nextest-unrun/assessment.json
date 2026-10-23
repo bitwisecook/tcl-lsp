@@ -1,0 +1,63 @@
+{
+  "utc": "2026-10-23T23:39:14.462031+00:00",
+  "run": 40027192497,
+  "source": "ccf2e97b8b4bcec87c77e6f1289c61e64022cbec",
+  "jobs": [
+    {
+      "job_id": 120666930561,
+      "connector_log_sha256": "d1e6299b7d3215c7791ca5cb545ee739a059bd8d91536d8745e35171a47f52e7",
+      "connector_log_bytes": 62592,
+      "local_raw": "/tmp/cleanccf-nextest-log-120666930561.txt",
+      "actual_failure": "tcl-compiler unused native_source warning denied before test listing/execution",
+      "test_execution": "UNRUN",
+      "secondary_metadata_upload_failure": false
+    },
+    {
+      "job_id": 120666930804,
+      "connector_log_sha256": "8a41f3c334edd8357eaaede3cbc954c44c431b5e6c71286a0e7bf0c057a0d283",
+      "connector_log_bytes": 98342,
+      "local_raw": "/tmp/cleanccf-nextest-log-120666930804.txt",
+      "actual_failure": "tcl-compiler unused native_source warning denied before test listing/execution",
+      "test_execution": "UNRUN",
+      "secondary_metadata_upload_failure": false
+    },
+    {
+      "job_id": 120666930822,
+      "connector_log_sha256": "5e62edebba894b0bca2b33ebd2cc6006c8ce8b83e8073480ae110462a9cc21cd",
+      "connector_log_bytes": 111530,
+      "local_raw": "/tmp/cleanccf-nextest-log-120666930822.txt",
+      "actual_failure": "tcl-compiler unused native_source warning denied before test listing/execution",
+      "test_execution": "UNRUN",
+      "secondary_metadata_upload_failure": false
+    },
+    {
+      "job_id": 120666930861,
+      "connector_log_sha256": "0b4d31d940a897f9b3036700e8aca597e453f99d50c8c90a9b38dfecd9ad5c5d",
+      "connector_log_bytes": 112100,
+      "local_raw": "/tmp/cleanccf-nextest-log-120666930861.txt",
+      "actual_failure": "tcl-compiler unused native_source warning denied before test listing/execution",
+      "test_execution": "UNRUN",
+      "secondary_metadata_upload_failure": false
+    },
+    {
+      "job_id": 120666930882,
+      "connector_log_sha256": "0209f1b96b68a234bd70e31733f71be739187c9b76277fc60a600c6aec66f580",
+      "connector_log_bytes": 107796,
+      "local_raw": "/tmp/cleanccf-nextest-log-120666930882.txt",
+      "actual_failure": "tcl-compiler unused native_source warning denied before test listing/execution",
+      "test_execution": "UNRUN",
+      "secondary_metadata_upload_failure": true
+    },
+    {
+      "job_id": 120666930903,
+      "connector_log_sha256": "a3fe10238af29794f6edb6e32f082354bbbf022851115e4456daf4ef7fb6dd20",
+      "connector_log_bytes": 97139,
+      "local_raw": "/tmp/cleanccf-nextest-log-120666930903.txt",
+      "actual_failure": "tcl-compiler unused native_source warning denied before test listing/execution",
+      "test_execution": "UNRUN",
+      "secondary_metadata_upload_failure": false
+    }
+  ],
+  "scope": "All five broad nextest shards plus heavy: job logs confirm compilation stops before tests, not named test failures. Later source correction is not a rerun result. Main24312 baseline remainsUNKNOWN. Standalone runtime suite separately executes and has its own14regressions.",
+  "artifact_download_attempt": "Direct artifact fallback failed on blob redirect; no artifact contents/terminal records authenticated. Connector decoded job logs used; no artifact admission."
+}

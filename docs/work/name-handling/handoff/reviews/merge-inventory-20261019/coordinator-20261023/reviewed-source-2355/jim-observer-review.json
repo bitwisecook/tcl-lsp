@@ -1,0 +1,19 @@
+{
+  "utc": "2026-10-23T23:49:15.082731+00:00",
+  "patch_sha256": "311ccb51fa4eb25894cde2311496624366f32a7dbc25b71574c6114009b8faa0",
+  "manifest_sha256": "22f334e44ff0c02c08bad7a46899481d144b686396a3927af8b0afa8f810c2dc",
+  "static_review": "CLEAR WORK-only",
+  "copied_roundtrip_zero_output": true,
+  "full_original_two_files_inverse": true,
+  "pinned_fmt2024": true,
+  "scope": [
+    "One cfg(debug_assertions) pre-merge call; unchanged merge_receipt_inventory arguments, order and behavior.",
+    "Logger immediately returns unless existing Jim flag present; borrowed map iteration only; no clone, mutation, issuer, cache, lookup, hook or receipt requested.",
+    "Facet comparisons use retained original fields and bool formatting, including parent/purpose/owner context; no full source text Debug dump.",
+    "Temporary logger cannot enter CLEAN. Extra equality/logging cost exists only enableddebug observer, no performance or functional result claimed."
+  ],
+  "limits": [
+    "Actual Rust typing and new trace UNRUN; cannot conclude why final nested receipt is absent yet.",
+    "No change to existing equality, ambiguity poisoning, test assertions or Native/Logical authority."
+  ]
+}

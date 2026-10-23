@@ -1,0 +1,35 @@
+{
+  "utc": "2026-10-23T23:41:21.172045+00:00",
+  "rows": [
+    {
+      "lane": "work",
+      "source": "0f4b8e1991a49ec67478d6bbae49f1d96a0dd915",
+      "patch_sha256": "2070b3b4d36d716829b2dc76307477415323c24c0e7cde544deb1fe4c4ec31bb",
+      "before_sha256": "48ce998f37c6df1c0bede826618d0c12c2c3e855d7fb860f15a04622a173be33",
+      "after_sha256": "95eee64a2df8e3640608e40a2fbea093d77eee2babcb752f82a8f561dd5e9bbe",
+      "copied_roundtrip_zero_output": true,
+      "independent_full_file_inverse_after_fmt": true
+    },
+    {
+      "lane": "clean",
+      "source": "51da6b61cae2a959c5b333473a122bb54581576b",
+      "patch_sha256": "fbcc5465bd8c5f1a5b4bfe95e7db26d6b27d2f5b362217bd4de2d31fef0aa7c6",
+      "before_sha256": "96948081dad0faed7cf0a3404ed909d4a3d7d094f8675d8e21cad18d3c1879cb",
+      "after_sha256": "82d0c4b79028677e37d753653659a364eb333692984b3c671e6cc2c1ffd046c4",
+      "copied_roundtrip_zero_output": true,
+      "independent_full_file_inverse_after_fmt": true
+    }
+  ],
+  "static_review": "CLEAR",
+  "findings": [
+    "Pure path constructor contains exact original field expressions and evaluation order; no new query/lock/await/heapallocation.",
+    "Tcl continuation is exact original branch with workspace receipt assigned at identical point before fallible final result. Caller-owned slot keeps receipt lifetime through error unwind.",
+    "All original explicit Box pins, provider lock temporary, guards/error variants, pass/rewrite owner and final pack-notice assembly retained. F5/suppression branches unchanged.",
+    "DecodeReport is already Copy. Shared DiagInputs and DiagJob references already cross awaits in original capture_job/capture_diagnostic_pass; this does not introduce an otherwise unproven Analyser Sync requirement.",
+    "No tests/assertions/allow rows or published/proposal functions changed; whole-file inverse independently byte exact."
+  ],
+  "limits": [
+    "No local Cargo/type/test/future-frame/Clippy/performance run; no actual lint or functional closure claimed.",
+    "Existing inputs/job/pass remain caller-owned; helper captures references and is awaited inline without new box. Current shipping compile and direct/push diagnostic controls still required."
+  ]
+}

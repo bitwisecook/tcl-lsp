@@ -1,0 +1,20 @@
+{
+  "utc": "2026-10-23T23:33:25.694756+00:00",
+  "source": "a26ab0ffd2b1dc1681710dbf14e518025545ec33",
+  "after_source": "a26ab0ffd2b1dc1681710dbf14e518025545ec33",
+  "argv": [
+    "cargo",
+    "fmt",
+    "--all",
+    "--check"
+  ],
+  "read_only": true,
+  "exit": 0,
+  "stop": null,
+  "elapsed_seconds": 82.77233606699156,
+  "bytes": 0,
+  "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "process_group_remaining": [],
+  "formatted_claim": true,
+  "no_build_or_target_deletion": true
+}

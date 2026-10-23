@@ -2,19 +2,39 @@
 
 Area: standalone runtime, tcl-vm, SpecTcl and Studio.
 
-Last updated: 2026-10-23T23:30:01.813517+00:00
+Last updated: 2026-10-23T23:46:19.929405+00:00
 
 ## Resume
 
-23:29 UTC fresh wave ACTUAL b52ff0b6c7ef223da6b920031be4d6b314346311:
-runtime focused3+separate14+stack1 run40039936892/job120708383217 and C84 original812
-run40039950003/job120708423833 currentlycheckout. Source expected fullGitmembership
-125491 +key13runtime/key10C84 pinned under /tmp/vm-runtime-actual-40039936892 and
-/tmp/vm-c84-actual-40039950003; no test/native outcome yet. Root integrated both
-protocols WORKadf9 then SH fix beforefreshsource.
-Own monitor+artifact/source/provider/lifecycle joins, native812 admission remains
-unmodified/unproven, numericfixturepolicy still USERPENDING/noassumption.
-No local builds/deletions; workspace1.92GB/tmp1.67GB below2GiB.
+LATEST ACTUAL b52ff0b6c7ef223da6b920031be4d6b314346311 runtime run40039936892/
+job120708383217 completeFAIL/uploadPASS,artifact12539605964 ZIP27140166
+SHA18517b30811f097671af057202060503087ad8122e691af502128b66ba428904.
+/tmp/vm-runtime-actual-40039936892/receipt.json SHAd42d9988c11b8a7156228a5ad7f327233484b8457584cfc3566186f0a1a51fcd.
+All84memberCRC/streamSHA/125491strictsource+fullGitmembership/key13/TomMath/gitclean
+PASS. Original3closed1P2F:PublicC6.476688346PASS,numericJim15.728825655FAIL same
+pre/posterrno34(USERPENDING),append180.00991836TIMEOUT529completed0..528,
+last5298.6construct/no pin;506remain/Jimunreached.96/96samplegroupscomplete.
+Separatebaseline14 ALL14FAIL(exit101); stack1 SIGABRT-6 stackoverflow2.4577s.
+All15closedknown/completeowned180/timer/2emptyPG/hash; samehostedELF8aec9525,
+no ELFbytesuploaded. Fullpanicpayloads analysis/supplemental-outcomes.json.
+Rootdelegated existing CompilerProof stack+2initialguards; thisrole envtrace10,
+lappend/regsub/C84. Allassertions/1035/180 unchanged, no localbuild. Fullshared
+semantic gate remains red; no performance/isolated acceptance.
+C84 run40039950003/job120708423833 SUCCESS,artifact12539375964 ZIP5539802
+SHAa01b9f403fc3cf90e87551217bf2c9efcbdfcd485d81e8f5ec13e1d6a11076b1.
+/tmp/vm-c84-actual-40039950003/receipt.json SHAcd4c09825ab0cfed2f0b5f63ee22d6e667179f5b783914bc1aea368d5e5afde3.
+All62members/125491strictsource+fullGitmembership/key10/provider843/tools/
+ownedprocesses complete. Unchangedoriginalarchive+dlopenimage812 bothcc19 exact,
+4originalcommands exit0/EMPTYstderr. Bootstrapwarnings36414bytes retainedseparately.
+Exact NEWarchive dc67eba353eeb83cbfb9ce5e0f6ff52972297374799156c09cef1ac06cc5cfff,
+header824fdc76/config33d929ab,imageb381688d8da3cee9d558eef7a38503980a10635782a28f56141c7e5bc503892f,
+probe6e920dd8. Rootindependentactualpeer CLEAR a4a0ef17 root-peer-c84-b52-v1/review.json.
+NOcoverageofolder44b/futurea26provider byconfig/sourceagreement, NOadmission/Rust
+formattertestclaim. MismatchcauseUNKNOWN; all75currentarobjectbodySHA joinprovider,
+allpopulatedartimestamps/uid/gid0 thusNOTobservedtimestampcause. Build-inputjoins
+4bd6dbd7/arobjectmetadata40bb3fef retained; GCC15.2.0-16ubuntu1 ELF86471103.
+AwaitsamepairactualCI/provider comparison; no fallback/widenedwhitelist. LargeJSONs
+ZIP-only,originalZIP bytes retained. NumericfixturepolicyUSERPENDING/noassumption.
 
 LATEST actual2d8 focused40034879796/job120691788852 CLOSEDFAIL/uploadSUCCESS,
 artifact12536843298 ZIP27000201 SHA8efcc8488c2835773a21e777cdc06c986486c4eea9523b8090c65f2bf0aed2af,

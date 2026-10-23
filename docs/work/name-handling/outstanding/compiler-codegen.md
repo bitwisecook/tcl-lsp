@@ -2,11 +2,15 @@
 
 Area: compile_service, codegen, compiled_preflight, tcl-spectcl install.rs, review N17.
 
-Last updated: 2026-10-23T23:30:35.018171+00:00 (ACTIVE; fresh Spec40039944940 sourceb52ff0b6/job120708407132 checkout; original11+Native1 UNRUN; previous actual2d8 ALL10 8P2F/catchP)
+Last updated: 2026-10-23T23:41:00.087713+00:00 (ACTIVE; Spec40039944940/b52 checkout+Rust+providers PASS/original driver in progress; direct diagnostics extraction frozen root peer pending)
 
 Maintained by the compiler-codegen agent. Update when an obligation changes and at least every30minutes while active. Results below are preparation or bounded diagnostic evidence; audit admissions remain unchanged.
 
 ## Resume
+
+**23:40 direct diagnostics extraction frozen for root review.** Root reserved `produce_direct_diagnostic_report`172 and necessary private helpers only; currentpublished/proposal functions remain coordinator-owned. WORK `/tmp/ccg-direct-diagnostics-length-work-v1` patch2070b3b4d36d716829b2dc76307477415323c24c0e7cde544deb1fe4c4ec31bb manifest2f4c20f0bdfffbddfca4bd2d94a72b45569a71b7ff24c8f896201441c8a19162 base7064a690 file48ce998f→95eee64a. CLEAN corresponding-clean-v1 patchfbcc5465bd8c5f1a5b4bfe95e7db26d6b27d2f5b362217bd4de2d31fef0aa7c6 manifest3b280b2432248c18a503a432ac0cc45107e572cd3c4d397efe84f1aa82cfe9a6 basea26ab file96948081→82d0c4b7. Caller/async Tcl continuation/purepathconstructor fullphysical spans80/81/28 all<100. Outer mutable workspace_sources remains caller-owned and assigned before the same fallible result extraction, preserving clone/drop on error. DecodeReport Copy read, no newclone/take. Original Boxpins/await/lock/query/guard/currentness/error and F5/suppression/notice assembly retained; whole beforefile byte-exact reconstruction by inlining helpers and returning final? to caller, all tests/assertallows/otherfunctions exact. Copiesfwdrevfwd0/fmt2024 bothPASS; root peer/type/Clippy/runtime pending, no future-size or performance claim. No canonical edits.
+
+Fresh Spec at23:38 checkout/Rust/Tclprovider bootstrap PASS, original driver stepinprogress (job120708407132); all source assertions/outcomes pending until authentic artifact. Compiler sole owner of separate actual ReadFlow foreign-card regression repair: source-origin/sharedsnapshot alone do not prove same compilation after memo hit; existing issued original_analysis_owner Arc must be retained/joined. My Native/source-driver files disjoint; no duplicate authoring or changed assertions.
 
 **23:30 fresh actual wave.** Root pushed WORKb52ff0b6c7ef223da6b920031be4d6b314346311/CLEANa26ab0ffd2b1dc1681710dbf14e518025545ec33 and dispatched Spec40039944940/job120708407132. At23:30 checkoutinprogress; originalALL10+catch1 and separateNative1 remainUNRUN. Full fresh-source purpose correction/Arc owner annotation/supplemental sourcepin are integrated with original assertions/budgets/guards intact. Own ZIP-only actual triage; no local builds or further dispatch. Startup system-provider V2 is integrated, historical oldsystembytes remain unsealed.
 

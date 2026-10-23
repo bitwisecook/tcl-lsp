@@ -1,0 +1,17 @@
+{
+  "utc": "2026-10-23T23:50:52.264759+00:00",
+  "source": "b52ff0b6c7ef223da6b920031be4d6b314346311",
+  "run_id": 40039942570,
+  "actual_assessment": "/tmp/compiler-original63-40039942570/assessment.json",
+  "actual_assessment_sha256": "72685084b630ccedf1b069b755eefe3d53f0d85b0057349043c72ae85d0c4a50",
+  "status": "Strict fresh compilerlib0WBUILD PASS; exactfirstNative35listingPASS; owned transport refuses argv0/artifact mismatch BEFOREtestspawn. AllNative3/SH2/original58UNRUN.",
+  "independent_source_provider_dependency_tool_seals": true,
+  "selected_elf": "e8a45d7e202a26f44127b18ccd953a81d90b0f3bb95cbc103e2c300901bedbbe",
+  "transport_repair": "/workspace/naming-proof-storage/compiler-original58-transport-artifact-repair-v1",
+  "transport_repair_patch_sha256": "0c35e0290086aedaa0a8f65bc5559bd8ca8cee858d9066a881fa47a24901c738",
+  "transport_repair_manifest_sha256": "f47b269af9bc43fe29292f5a254b4ca069cd7e430d2821d4bd445dabef8c9897",
+  "peer_status": "PENDING independentLSP/rootprocess review; no native childlifecycle run",
+  "existing_readflow_owner_repair": "Integrated WORK0f4b8e199/CLEAN51da6b61 independentpeerb26de306, separate originalconformance selector protocol integrated0f9e30785 peer4f647fc7; unexecuted inb52.",
+  "external_report_owner22_controls": "Prior external bothPASS remains separate evidence, not thisrun or canonicalfullcorpus acceptance.",
+  "full_corpus_resource_status": "Original1000deep bothOLD/NEW OOM; completecomparisonunaccepted. Depth/stack/assertions unchanged."
+}

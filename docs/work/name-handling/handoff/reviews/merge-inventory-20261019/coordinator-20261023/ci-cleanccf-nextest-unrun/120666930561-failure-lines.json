@@ -1,0 +1,18 @@
+[
+  {
+    "line": 606,
+    "text": "2026-10-23T21:32:59.0022597Z warning: unused variable: `native_source`"
+  },
+  {
+    "line": 630,
+    "text": "2026-10-23T21:33:39.4771864Z error: `tcl-compiler` (lib) generated 1 warning (run `cargo fix --lib -p tcl-compiler` to apply 1 suggestion)"
+  },
+  {
+    "line": 631,
+    "text": "2026-10-23T21:33:39.4801349Z error: warnings are denied by `build.warnings` configuration"
+  },
+  {
+    "line": 633,
+    "text": "2026-10-23T21:33:41.9649899Z error: command `/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo '--color=always' test --no-run --message-format json-render-diagnostics --package tcl-irule-test --package f5-cli --package tcl-fuzz --all-features` exited with code 101"
+  }
+]

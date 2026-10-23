@@ -1,0 +1,22 @@
+{
+  "decided_utc": "2026-10-23T23:50:40Z",
+  "source": "User explicit replies to pending instruction lint-policy and numeric fixture-precondition questions",
+  "decisions": {
+    "instruction_public_boolean_flags": {
+      "choice": "Keep flag API; allow this one documented exception",
+      "meaning": "Retain the four independent public boolean Instruction fields. Authorise only the documented struct_excessive_bools exception on tcl-bytecode Instruction. Do not apply the alternative public flag-type API migration or create any wider lint allowance.",
+      "current_location": "rust/tcl-bytecode/src/lib.rs:1353",
+      "current_attribute": "#[allow(clippy::struct_excessive_bools)] // independent per-instruction flags, not a state machine"
+    },
+    "numeric_test_errno_precondition": {
+      "choice": "Use explicit zero-errno precondition",
+      "meaning": "The success fixture explicitly starts each dialect with errno zero. Preserve every original semantic assertion and the separate seeded ERANGE-refusal checks. Do not reset errno in production conversion/runtime code or change the supported Jim refusal semantics."
+    }
+  },
+  "unchanged": [
+    "All functional changes first work; release carries cleanup only",
+    "Zero warnings and all sectionF/complete zero baseline pass-to-fail/performance gates before PR",
+    "Fail-closed ownership/native/currentness guards",
+    "No assertion weakening; new decisions do not waive fullTom semantics or noTom capability gate"
+  ]
+}

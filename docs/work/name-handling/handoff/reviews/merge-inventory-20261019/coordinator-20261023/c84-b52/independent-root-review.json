@@ -1,0 +1,31 @@
+{
+  "utc": "2026-10-23T23:43:54.030070+00:00",
+  "run": 40039950003,
+  "source": "b52ff0b6c7ef223da6b920031be4d6b314346311",
+  "zip_sha256": "a01b9f403fc3cf90e87551217bf2c9efcbdfcd485d81e8f5ec13e1d6a11076b1",
+  "artifact": 12539375964,
+  "source_paths": 125491,
+  "critical_source_blobs_verified": 10,
+  "provider_paths": 843,
+  "members_hashed": 62,
+  "owned_processes_verified": 14,
+  "original_archive812": "PASS",
+  "original_loaded812": "PASS",
+  "native_build": {
+    "archive_sha256": "dc67eba353eeb83cbfb9ce5e0f6ff52972297374799156c09cef1ac06cc5cfff",
+    "config_sha256": "33d929abbd1102f01624ca3aa217af1bcdc7e6023be2ea094e82e5228f8880e9",
+    "header_sha256": "824fdc7632335682f70066a013b655b176b5539b194e85f8b5ccddb1815bcccf",
+    "image_sha256": "b381688d8da3cee9d558eef7a38503980a10635782a28f56141c7e5bc503892f",
+    "original_observations_sha256": "cc19ad501bb96674935c4dd855ec055b3095b97673f1dca64f5cdc8a06a6929c",
+    "probe_executable_sha256": "6e920dd85a7de738463313be1fe801e60b2777d01e545b61624255d2b2120889",
+    "probe_source_sha256": "2c1e656d0a1bdc6a86f84a08a8601cb414eef16ce7f53ec9b1d882c99f91ff6e",
+    "scope": "Exact existing original C84 archive and independently dlopened image observations only; no Rust loader/test/admission-table pass or authority for another build."
+  },
+  "bootstrap_stderr_bytes": 36414,
+  "scope": "Independent root read of retained ZIP and exact current Git blobs. Fresh API metadata independently confirms ZIP digest/size and requested source. No native byte execution locally.",
+  "limits": [
+    "Proof applies only to exact dc67 archive and b381 loaded image; no authority for older44b/futurebuilds.",
+    "No admission-table change or Rust loader/updater test pass. GCC bootstrap stderr remains retained; empty stderr claim is only exact four experiment commands.",
+    "Original observations are conformance fixtures, not full runtime/semantic/performance acceptance."
+  ]
+}

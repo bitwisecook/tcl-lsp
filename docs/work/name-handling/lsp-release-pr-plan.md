@@ -50,33 +50,53 @@ The six-hour target passed at14:56UTC with required gates still red. Work and
 the reduced release branch remain separate; no PR is open. Current detailed
 outcomes and owner routing live in `current-state.md` and `outstanding/`.
 
-The latest shipping client passed cold tokens, then failed its unchanged
-30-second workspace scan barrier while origin/rust completed the protocol.
-Fresh editor runs show Context diagnostic refusals followed by document and
-server liveness failures. The heavy shard has16 confirmed baseline pass-to-fail
-cases; the complete baseline join remains unknown. The last complete frozen
-SpecTcl performance comparison also has one pass-to-fail. These block release.
+The latest executed startup on2d8 passes cold tokens in124.536ms but fails
+the unchanged30-second workspace barrier. Analysis of one system tclIndex
+alone takes21.011seconds for Tcl8.4; Tcl8.5 starts without completing before
+shutdown. Context's two original assertions pass, but16Cancelled rounds and a
+nonsettlement warning remain. The old capture did not seal those actual system
+inputs; the fresh driver seals and retains them and identifies the internal
+analysis phase and cancellation reason. This needs a producer fix and a fresh
+successful protocol run, not a larger budget or skipped Tcl release.
 
-The shared13 targeted build closed at16:54UTC with six Rust typing errors and
-no runtime tests reached. Narrow repairs are independently reviewed and now
-committed on both work and the release branch. Remaining strict compiler
-refactors are reviewed in small components and composed against exact source
-pins; their intended lint coverage is not a measured green Clippy result.
+Fresh7-mode diagnostics were dispatched at23:29 on exact WORK
+`b52ff0b6c7ef223da6b920031be4d6b314346311`; full CI including native build
+proof runs on clean `a26ab0ffd2b1dc1681710dbf14e518025545ec33`
+([CI40039952540](https://github.com/bitwisecook/tcl-lsp/actions/runs/40039952540)).
+Keep these immutable source identities distinct from subsequent repairs.
+The active documentation checkout has frozen older product bytes and must not
+be built or reported as the shipping source. All functional changes first land
+in the publisher's `work`, then reviewed counterparts carry to release.
 
-1. Finish reviewed source composition on work and carry the same functional
-   changes through release cleanup. Mirror the committed product into the
-   active diagnostic tree and issue its actual HEAD/tree identity.
-2. Run the original six compiler controls and seven WASM regressions under the
-   reviewed cache-only successor. Require current selected build artifacts,
-   zero warnings, unchanged assertions and complete final seals.
-3. Execute the original N17/SpecTcl checks and freshly built server diagnostics.
-   Locate the first startup/Context refusal and make narrow work-branch fixes;
-   retain all supported positives, conservative refusals and original budgets.
-4. Complete all functional workstreams and exact shipping gates below. Obtain
-   the full origin/rust inventory join and accepted Tcl/SpecTcl performance.
-5. Finish the repository-wide documentation/comment audit, generated drift,
-   formatting, packaging and clean squash-tree verification. Open the PR only
-   when every acceptance condition holds.
+Actually observed gains are narrow: DB's requested strict all-target/all-feature
+command passes without warnings; O129 folding and the older Jim class case
+pass. Core4 and Server131 old lint findings require fresh measurement after
+later fixes. Spec's original derived42/xy still fail; Jim method and nested-body
+ownership remain unresolved. Runtime append times out, numeric Jim retains
+ERANGE, and the separate fullTom baseline has14PASS-to-FAIL plus382unknown.
+The main24312namedPASS baseline comparison remains unknown. No full required
+CI, sectionF or Tcl corpus performance gate passes yet.
+
+1. Authenticate the current7diagnostic runs and clean CI without canceling
+   healthy runs. Preserve failures, resource stops and unreached tests. Required
+   source pins now pass before dispatch; actual source/provider/artifact and
+   process seals remain necessary when interpreting results.
+2. Fix the measured startup/cancellation producers, compiler ILX/RBS/SH and
+   ReadFlow owner failures, Jim method/nested-world ownership, Spec derived
+   execution and runtime baseline regressions/stack failure. Keep all original
+   assertions, currentness and fail-closed guards; handle unanswered new policy
+   questions only when the user's decision arrives.
+3. Complete strict Core/Server checks and every required native, browser,
+   WASI, editor, generated and SpecTcl gate on the integrated shipping tree.
+   Reconcile every selected baseline identity; unknown is not pass.
+4. Finish the existing perf owner's complete authenticated old/mixed Tcl
+   corpus and client proof. Accept no optimisation or realm patch before its
+   actual proof; then measure the final shipping source under the recorded
+   latency/cancellation/memory contract. Dedicated iRules timing alone is waived.
+5. Complete repository-wide documentation/comment cleanup and generated drift,
+   retain test-consumed fixtures, run final formatting/rust-check/prep-pr and
+   packaging, then verify the squash tree matches the validated product.
+   Open the already-authorised PR only after every acceptance condition holds.
 
 ## Functional workstreams and owners
 

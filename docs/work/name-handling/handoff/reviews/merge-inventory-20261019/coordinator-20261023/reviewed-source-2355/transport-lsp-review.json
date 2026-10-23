@@ -1,0 +1,20 @@
+{
+  "utc": "2026-10-23T23:56:08.298221+00:00",
+  "status": "INDEPENDENT_STATIC_PROCESS_SOURCE_COPY_CLEAR",
+  "patch_sha256": "0c35e0290086aedaa0a8f65bc5559bd8ca8cee858d9066a881fa47a24901c738",
+  "manifest_sha256": "f47b269af9bc43fe29292f5a254b4ca069cd7e430d2821d4bd445dabef8c9897",
+  "exact_base": "0f9e307853b7d75f382f8f962c8544859068423c",
+  "checks": [
+    "Full patch, real owner88125 and exact table-filter source reviewed; all pinned owner/filter/roster bytes authenticated against base Git.",
+    "Five authored changes reconstruct full final AST, eight unrelated helpers identical, copied forward/reverse/forward zero output and exact whole hashes.",
+    "Prewrap exact Rust argv0 selected-artifact identity required; owner artifact changes only for four wrapped prefixes to actual outer Python. Direct unwrapped list/build contracts unchanged.",
+    "Filter inherits owned process group, exact child argv/cwd/env, forwards ordinary stderr/stdout and exact exit including signal; caller requires child/outer status agreement and exact original libtest terminal.",
+    "Rust ELF fresh Cargo-ledger SHA checked before and after each operation; process receipt appended before after-hash refusal; original final artifact/source/tool/protocol seals retained.",
+    "Original full180 prespawn, process group/cap/floor/timer/terminal/assertion/roster/env/order guards unchanged. Actual-AST ownerpredicate/hashfixture controls209f7727 read; no child run repeated."
+  ],
+  "correction": "Prior ReadFlow additive protocol peer4f647fc7 preserved the inherited Rust-artifact/Python-argv0 mismatch in its stub; it did not prove real executor preflight. This review checks the real explicit-artifact predicate and records the distinct outer and child evidence.",
+  "limits": [
+    "Owner artifact receipt seals Python path before/after, not an independently observed /proc Rust executable image. Rust child identity relies on exact pinned filter argv, per-row before/after fresh Cargo ELF hash, unchanged filter/tools, lifecycle and terminal guards.",
+    "No local child/native/build execution; actual hosted outcomes still required; all prior functional failures remain."
+  ]
+}

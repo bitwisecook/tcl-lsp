@@ -1,0 +1,41 @@
+{
+  "created_utc": "2026-10-23T23:39:43.355478+00:00",
+  "run": 40039950003,
+  "job": 120708423833,
+  "artifact": 12539375964,
+  "source": "b52ff0b6c7ef223da6b920031be4d6b314346311",
+  "zip_sha256": "a01b9f403fc3cf90e87551217bf2c9efcbdfcd485d81e8f5ec13e1d6a11076b1",
+  "zip_bytes": 5539802,
+  "member_count": 62,
+  "source_count": 125491,
+  "provider_file_count": 843,
+  "source_provider_tools_guards": true,
+  "original_archive_and_loaded_812": {
+    "archive": {
+      "exit": 0,
+      "rows": 812,
+      "sha256": "cc19ad501bb96674935c4dd855ec055b3095b97673f1dca64f5cdc8a06a6929c",
+      "stderr_bytes": 0
+    },
+    "loaded": {
+      "exit": 0,
+      "rows": 812,
+      "sha256": "cc19ad501bb96674935c4dd855ec055b3095b97673f1dca64f5cdc8a06a6929c",
+      "stderr_bytes": 0
+    }
+  },
+  "native_build": {
+    "archive_sha256": "dc67eba353eeb83cbfb9ce5e0f6ff52972297374799156c09cef1ac06cc5cfff",
+    "config_sha256": "33d929abbd1102f01624ca3aa217af1bcdc7e6023be2ea094e82e5228f8880e9",
+    "header_sha256": "824fdc7632335682f70066a013b655b176b5539b194e85f8b5ccddb1815bcccf",
+    "image_sha256": "b381688d8da3cee9d558eef7a38503980a10635782a28f56141c7e5bc503892f",
+    "original_observations_sha256": "cc19ad501bb96674935c4dd855ec055b3095b97673f1dca64f5cdc8a06a6929c",
+    "probe_executable_sha256": "6e920dd85a7de738463313be1fe801e60b2777d01e545b61624255d2b2120889",
+    "probe_source_sha256": "2c1e656d0a1bdc6a86f84a08a8601cb414eef16ce7f53ec9b1d882c99f91ff6e",
+    "scope": "Exact existing original C84 archive and independently dlopened image observations only; no Rust loader/test/admission-table pass or authority for another build."
+  },
+  "complete_native_experiment": true,
+  "analysis_sha256": "ae0359c11ab0bb2e60eedcb586cb413e15aecbfdc280d4910d3392cf33cf191d",
+  "inventory_sha256": "f09f48c74ffe8fdc202169066a7ade87875f099a513540cea5f58aa724b11556",
+  "scope": "Original native812 only. Exact dc67 archive observed, not earlier44b0 or any future build. No admission-table/Rust formatter-test/fullTom semantic or performance claim. Original retained ZIP bytes; no native executable loaded here."
+}

@@ -1,0 +1,44 @@
+{
+  "utc": "2026-10-23T23:57:31.159591+00:00",
+  "status": "SOURCE_BACKED_NAMESPACE_CORRECTION_NO_EXECUTION",
+  "run": 40039939854,
+  "provider_join": {
+    "providers-before.json": {
+      "/home/runner/work/_temp/jim-source-provider/jim-namespace.c": {
+        "sha256": "22bb6fb5fcea8ce8ec7e3eecbfe5ebd5ee290b9b725101ff4e4a1c0e9abed7f3",
+        "symlink": null
+      },
+      "/home/runner/work/_temp/jim-source-provider/jim.c": {
+        "sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+        "symlink": null
+      },
+      "/home/runner/work/_temp/jim-source-provider/oo.tcl": {
+        "sha256": "42f6b0150881a8d286c1ee9a9b30bdf1b06cf39850c576d9dfc104ef3c0eeef5",
+        "symlink": null
+      }
+    },
+    "providers-after.json": {
+      "/home/runner/work/_temp/jim-source-provider/jim-namespace.c": {
+        "sha256": "22bb6fb5fcea8ce8ec7e3eecbfe5ebd5ee290b9b725101ff4e4a1c0e9abed7f3",
+        "symlink": null
+      },
+      "/home/runner/work/_temp/jim-source-provider/jim.c": {
+        "sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+        "symlink": null
+      },
+      "/home/runner/work/_temp/jim-source-provider/oo.tcl": {
+        "sha256": "42f6b0150881a8d286c1ee9a9b30bdf1b06cf39850c576d9dfc104ef3c0eeef5",
+        "symlink": null
+      }
+    }
+  },
+  "source_windows": {
+    "jim.c:4332-4357": "JimUpdateProcNamespace derives stored proc nsObj from qualified complete command name",
+    "jim.c:14443-14467": "Jim_ProcCoreCommand calls JimQualifyName then JimCreateCommand then JimUpdateProcNamespace",
+    "jim.c:11955-11960": "JimCallProcedure creates new callframe using cmd->u.proc.nsObj, not caller frame nsObj",
+    "jim.c:4103-4128": "JimQualifyName prefixes current creation namespace unless absolute command name",
+    "oo.tcl:57-69": "method creator creates complete classname+space+method wrapper proc, then evals captured body in that wrapper"
+  },
+  "conclusion": "For root class Point and simple member who, the generated wrapper proc Point who carries empty/root namespace independent of invoking caller namespace. The broad definer.rs comment that Jim method namespace current is callers is contradicted by this pinned C path for the actual 0.84 provider. For qualified/colon-bearing values the stored proc namespace must follow whole published name through shared owner, not class display.",
+  "limits": "Read-only pinned source, no new C/Tcl/native execution, no runtime entry/body dispatch grant. Root fixed input/source factory and overwritten vars/prelude/command-world guards still required."
+}

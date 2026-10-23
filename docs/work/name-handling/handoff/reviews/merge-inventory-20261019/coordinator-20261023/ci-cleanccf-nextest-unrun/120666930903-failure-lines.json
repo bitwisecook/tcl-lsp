@@ -1,0 +1,18 @@
+[
+  {
+    "line": 978,
+    "text": "2026-10-23T21:37:30.9377867Z warning: unused variable: `native_source`"
+  },
+  {
+    "line": 986,
+    "text": "2026-10-23T21:37:30.9536206Z error: `tcl-compiler` (lib) generated 1 warning (run `cargo fix --lib -p tcl-compiler` to apply 1 suggestion)"
+  },
+  {
+    "line": 987,
+    "text": "2026-10-23T21:37:30.9561328Z error: warnings are denied by `build.warnings` configuration"
+  },
+  {
+    "line": 989,
+    "text": "2026-10-23T21:37:31.3716516Z error: command `/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo '--color=always' test --no-run --message-format json-render-diagnostics --workspace --exclude tcl-irule-test --exclude f5-cli --exclude tcl-lsp-server --exclude tcl-fuzz --exclude tcl-engine-wasm --lib --bins --test apm --test gtm --test deploy --test diagnostics --test elf --test maps --test observability --test templates --test compile_verbs --test body_command_dis_oracle --test command_resolution_conformance --test command_segmenter --test complexity_guard --test fp_depth --test inlining --test inlining_interproc_residual --test native_arithmetic_conformance --test optimiser --test optimiser_codegen_residual --test optimiser_depth --test release_units --test side_effects_binding --test signature_scan --test taint --test tcl_expr_eval --test type_propagation --test var_escape_residual2 --test pkga_e2e --test event_emission --test object_refs --test script_bearing_args --test edge_structural --test authoring_dialect_completion --test call_hierarchy --test hover_residual --test lsp_core_residual --test lsp_edit_workspace --test lsp_lens_links_symbols --test name_resolution --test oo_mro_parity --test selection_range --test file_analysis_corpus --test interned_gc --test manifest_env_drift --test bigip_display_kinds --test detect_dialect --test registry_commands --test containment_e2e --test families_e2e --test spectcl_ports --test versions --test eda_loadables --test pack_formatting --test package_specs --test workspace_packs --test config_adapters --test body_execution_conformance --test variable_containers_conformance --test script_errors --test c_error_paths_e2e --test cmd_control_e2e --test cmd_math_expr_e2e --test cmd_oo_e2e --test command_traces_e2e --test coro_error_trace_e2e --test cross_interp_alias_e2e --test cross_version_info_surface_e2e --test cross_version_lset_e2e --test embed_api_e2e --test error_info_text_e2e --test legacy_variable_traces_e2e --test literal_index_encoding_e2e --test tclsh_parity_e2e --test mathfunc_derivation_e2e --test namespace_surface_e2e --test release_running_bytecode_e2e --test release_number_semantics_e2e --test rename_return_source_e2e --test return_code_boundary_e2e --test run_script --test tricky_resolution_e2e --test uplevel_coro_e2e --test variable_name_resolution_e2e --test variable_trace_semantics_e2e --test word_value_resolution_e2e --test package_protocol_oracle --all-features` exited with code 101"
+  }
+]

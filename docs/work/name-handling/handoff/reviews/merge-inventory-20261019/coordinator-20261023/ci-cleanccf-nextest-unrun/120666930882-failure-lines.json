@@ -1,0 +1,26 @@
+[
+  {
+    "line": 1176,
+    "text": "2026-10-23T21:35:15.6250344Z warning: unused variable: `native_source`"
+  },
+  {
+    "line": 1187,
+    "text": "2026-10-23T21:35:15.6615264Z error: `tcl-compiler` (lib) generated 1 warning (run `cargo fix --lib -p tcl-compiler` to apply 1 suggestion)"
+  },
+  {
+    "line": 1188,
+    "text": "2026-10-23T21:35:15.6644656Z error: warnings are denied by `build.warnings` configuration"
+  },
+  {
+    "line": 1190,
+    "text": "2026-10-23T21:35:16.1661312Z error: command `/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo '--color=always' test --no-run --message-format json-render-diagnostics --workspace --exclude tcl-irule-test --exclude f5-cli --exclude tcl-lsp-server --exclude tcl-fuzz --exclude tcl-engine-wasm --lib --bins --all-features` exited with code 101"
+  },
+  {
+    "line": 1266,
+    "text": "2026-10-23T21:35:17.3496403Z ##[error]No files were found with the provided path: /home/runner/work/_temp/rust-tests-metadata.json. No artifacts will be uploaded."
+  },
+  {
+    "line": 1298,
+    "text": "2026-10-23T21:35:17.5310568Z ##[warning]No files were found with the provided path: /home/runner/work/_temp/nextest-capture-shard-1-5. No artifacts will be uploaded."
+  }
+]

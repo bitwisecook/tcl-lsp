@@ -1,0 +1,60 @@
+{
+  "source": "b52ff0b6c7ef223da6b920031be4d6b314346311",
+  "zip_sha256": "18517b30811f097671af057202060503087ad8122e691af502128b66ba428904",
+  "all84member_crc_streams_checked": true,
+  "all15_supplement_exact_argv_raw_stream_hashes_and_owned_terminals_independently_checked": true,
+  "source125491_final_seal_pass": true,
+  "source_cached_git_joins": {
+    "runtime/rust/src/interp.rs": "f8f930c6d317f340242e0adc71605ced8b9bb81c51583fd873c8100d9a472a14",
+    "runtime/rust/src/namespace.rs": "9be0b03535a4fb61ba7f15a995c20a2b98533b059d3388165e9b41c5c928a4ee",
+    "runtime/rust/src/cmd_control.rs": "d42651c2976f146d0a421264b8ff8807bf90ba8f5c1b03f8d03b4ce9ce816587",
+    "runtime/rust/src/interp/native_body_artifact.rs": "a3f0a615e13f8bb317705638ce900a5172801b4ba0e543b052fadf87a0025a43",
+    "runtime/rust/src/interp/native_operation_currency.rs": "28ec3e2ab3fd7fbac1bef6865aa7be7ea9e3eb0aa05b01f3bae92fbb905f8bca",
+    "runtime/rust/src/interp/stock_ensembles.rs": "f8ae00ce87d459f2c33a92d41676cce0aab7f76ed13f51e2cf045afbd5076a8b",
+    "rust/tcl-registry/src/native_each_compilation.rs": "7f479886060537083875c5684a21a035749d43de94dc4477c5710ef7926157e1"
+  },
+  "provider_beforeafter_identical": true,
+  "same_hosted_elf_sha256": "8aec9525360a245041c88fa9503f9f37e51f67cbd9392ab93f175012b153c8e2",
+  "ELF_bytes_uploaded": false,
+  "scope": "Isolated14 baseline FAIL plus separate stackABORT; original3 distinct. Hosted executable hash joined, no independent uploaded ELF bytes. No functional acceptance.",
+  "reviewed_rows": [
+    {
+      "selector": "interp::tests::a_shadowing_definition_drops_the_guard_only_for_calls_from_its_namespace",
+      "status": "FAIL",
+      "exit_code": 101,
+      "seconds": 2.2121544,
+      "raw_stderr_sha256": "9f4ec600077400040ba0fe779e64a86b6f48f4846adb146e2cc161ea1a46cdd5",
+      "ended_utc": "2026-10-23T23:40:37.924579+00:00"
+    },
+    {
+      "selector": "interp::tests::an_unrelated_mutation_keeps_the_guard_and_a_rebinding_drops_it",
+      "status": "FAIL",
+      "exit_code": 101,
+      "seconds": 4.087865979,
+      "raw_stderr_sha256": "a28f608d2bf4a946457c686d65830f46a49096d6ae629f21b8f957a66879cb7e",
+      "ended_utc": "2026-10-23T23:40:42.153564+00:00"
+    },
+    {
+      "selector": "interp::tests::deeply_nested_foreach_reaches_the_explicit_host_evaluation_limit",
+      "status": "ABORT",
+      "exit_code": -6,
+      "seconds": 2.457725581,
+      "raw_stderr_sha256": "143ec01d7cf9cf8a2665023274c45ff1d3d7a80d4b532efea4c3198b41be9452",
+      "ended_utc": "2026-10-23T23:40:44.751950+00:00"
+    }
+  ],
+  "source_findings": {
+    "guard_order_correction": "23048 is after set_runtime_version(V8_6); earlier unrelated-command mutation assertion23032 passed.23107 is after creating namespace ns and a shadowing proc, before selecting ns.",
+    "guard_same_API_conflict": "namespace_child_birth_and_export_clear_use_the_shared_lookup_revision21982 prepares CommandEnvironment through prepare_command_guard and checks same check_command_guard; unrelated child birth by register_builtin must stale. Original shadowing test uses same domains/identity/issuer/checker from GLOBAL and requires preservation after child birth by namespace eval. Both unchanged global command generations remain attested. No separate raw-domain API is involved.",
+    "guard_owner": "namespace.ensure_child4240 advances shared lookup revision; Interp.synchronise_command_environment_guards3632 invalidates three entire domains. Namespace creation has no retained host-vs-guest mutation-purpose discriminator at this owner.",
+    "profile_repin_source": "install_pin invokes refresh_stock_ensembles. That routine deletes actual old extracted worker registrations and empty private namespaces, then installs replacement families; namespace teardown/birth advances shared lookup revision independently of Interpreter-domain pin invalidation. No blindly refreshed revision or borrowed unrelated-command attestation is safe.",
+    "possible_directions_not_implemented": [
+      "Preserve strict shared-domain policy: old positive test expectations conflict and cannot be claimed passing without an authorized contract/test change.",
+      "Introduce a distinct genuinely scoped named-binding guard contract and adapt consumers/tests explicitly; current identical public API does not carry that distinction.",
+      "An explicit host-vs-guest publication invalidation policy would be a new distinction, not already recorded by ensure_child; no text/name/test-case special casing is acceptable."
+    ],
+    "stack_path": "DefaultV9.0 ScriptCode compile_native_each returns Generic before visiting body. Repeated original-body artifact execution invokes generic command\u2192dispatch\u2192bound worker\u2192each_loop\u2192original body. Existing eval/codegen/native-dispatch128 guards unchanged; rawSIGABRT gives no reached depth/frame measurement.",
+    "stack_proposal": "/tmp/compiler-proof-runtime-body-stack-v1 separates original body setup from recursive execution while retaining exact owners in heap storage; independent peer pending; causal stack closure UNRUN."
+  },
+  "execution": "Read-only source and Python/archive/static checks only; no Cargo/native execution."
+}

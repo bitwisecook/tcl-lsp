@@ -1,0 +1,18 @@
+[
+  {
+    "line": 1167,
+    "text": "2026-10-23T21:34:28.6141226Z warning: unused variable: `native_source`"
+  },
+  {
+    "line": 1178,
+    "text": "2026-10-23T21:34:28.6493660Z error: `tcl-compiler` (lib) generated 1 warning (run `cargo fix --lib -p tcl-compiler` to apply 1 suggestion)"
+  },
+  {
+    "line": 1179,
+    "text": "2026-10-23T21:34:28.6501839Z error: warnings are denied by `build.warnings` configuration"
+  },
+  {
+    "line": 1181,
+    "text": "2026-10-23T21:34:31.8312230Z error: command `/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo '--color=always' test --no-run --message-format json-render-diagnostics --workspace --exclude tcl-irule-test --exclude f5-cli --exclude tcl-lsp-server --exclude tcl-fuzz --exclude tcl-engine-wasm --lib --bins --test architecture --test firewall --test report --test capability --test loader_lifecycle --test profiles --test socket_filter --test xdp --test integration --test x509_only --test explorer_gui --test pkg_build --test pkg_verbs --test spec_verbs --test cfg --test checks --test codegen_integration --test differential_codegen --test differential_incremental --test inlining_rename --test irules_spec_examples_self_consistent --test optimiser_coverage --test pipeline_coverage --test real_job_fixtures --test recovery_positions --test tcl_namespace_probe --test unused_var_tricky_features --test var_escape_cfg_catch --test var_escape_cfg_tree_arms --test var_escape_typeinfer --test wasm_codegen --test wasm_execute --test wasm_real_link --test completion --test doors_e2e --test factory --test sandbox_isolation --test model_version_set --test package_version_oracle --test bug_repro --test are_tokenizer_consistency --test command_prefix_integration --test datagroup_residual --test force_import_shadow_consumers --test lsp_providers --test mathfunc_and_word_recognition --test minify_residual --test semantic_tokens_residual --test stub_arg_roles --test early_cutoff --test memory_growth --test nullable_repeat --test bigip_object_query --test dialect_profile --test registry_sweep --test sslictcl_pack --test tcl91_dialect --test mobile_layout --test schema_coverage --test web_contract --test ambient_environment_floor --test codegen_stamps --test eda_environment_packs --test environment_registration --test golden_packs --test surface_roster_trust --test workspace_trust --test variable_resolution_conformance --test builtins_e2e --test cmd_event_e2e --test command_mutation_deopt_e2e --test cross_version_escapes_e2e --test dict_canonicalisation_parity --test opcode_c_parity --test opcode_catch_parity --test safe_interp_e2e --test step_trace_inline_e2e --test variable_container_models --test tailcall_uplevel_e2e --test memory_alias_graph --test jim_name_resolution_conformance --test library_bootstrap_presence --test native_byte_literals --test native_variable_declaration --all-features` exited with code 101"
+  }
+]

@@ -1,0 +1,139 @@
+{
+  "utc": "2026-10-23T23:46:20.435755+00:00",
+  "status": "ACTUAL_FRESH_COMPILERLIB_STRICT_BUILD_0W_PASS_TEST_TRANSPORT_PRESPAWN_REFUSAL_ALL_SELECTED_UNRUN",
+  "run_id": 40039942570,
+  "job_id": 120708400584,
+  "artifact_id": 12539407215,
+  "source_commit": "b52ff0b6c7ef223da6b920031be4d6b314346311",
+  "zip_sha256": "907eb63ac8b059a348472833cdcdd4e6739bf744e3e17a08a0a8f6c4fe0f2f8a",
+  "zip_bytes": 11192903,
+  "first_error": "ValueError('argv[0] must be the explicit existing artifact')",
+  "independently_recomputed_seals": {
+    "source_equal": true,
+    "source_entries": 125491,
+    "providers_equal": true,
+    "providers_entries": 10202,
+    "dependencies_equal": true,
+    "dependency_entries": 21500,
+    "tools_equal": true,
+    "tools_entries": 19,
+    "selected_test_artifact_reported_unchanged": true,
+    "selected_artifact_sha256": "e8a45d7e202a26f44127b18ccd953a81d90b0f3bb95cbc103e2c300901bedbbe",
+    "strict_compilerlib_build_0warnings_0errors": true,
+    "debug_assertions": true,
+    "overflow_checks": true
+  },
+  "effective_outcomes": {
+    "original58": {
+      "UNRUN": 58
+    },
+    "separateNative3": {
+      "UNRUN": 3
+    },
+    "separateSH2": {
+      "UNRUN": 2
+    }
+  },
+  "raw_outcomes": {
+    "original58 UNRUN": 58,
+    "supplemental-native35 RUNNING": 1,
+    "supplemental-native35 UNRUN": 2,
+    "supplemental-sh21 UNRUN": 2
+  },
+  "raw_running_is_not_execution": "First Native35 row state set RUNNING before execute; owner rejected argv0/artifact before spawn. No test process/transport summary/stdout/stderr exists; all functional cases effectively UNRUN.",
+  "source_pins": {
+    "rust/tcl-compiler/src/shimmer/hints.rs": "7d070d676bf3ee48dfce1f8ffe59fe2c8aef2cfde0660c0a3414cf01beb851e1",
+    "rust/tcl-compiler/src/shimmer/use_site.rs": "3a1e96540b003f0bc6a4257816decb23c493c179814b1ba50b414a4a8d61abce",
+    "rust/tcl-compiler/src/shimmer/commit.rs": "bddae8076596052c843b81f344b89174ae659540a8bf69c7e7c43c2591d9e0c6",
+    "rust/tcl-compiler/src/command_binding/generated_procedures.rs": "e3fc7afcb96322c4a7d1e249d1f5d53baaec6132f75be92d843b549772eb6e3c",
+    "docs/work/name-handling/validation-tools/compiler-original58-diagnostics.py": "274850cfb7408adc21157e7fa5795dd41a84803736ddfaee7fe2fe5417e30157",
+    "docs/work/name-handling/validation-tools/compiler-original58-table-filter.py": "44f950671a170b963c5375a3841a03fea5b46e23db54805c84cacd2b0e552844"
+  },
+  "closed_process_lifecycles": [
+    {
+      "argv": [
+        "/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo",
+        "fetch",
+        "--locked",
+        "--target",
+        "x86_64-unknown-linux-gnu"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "elapsed_seconds": 3.903788052,
+      "timer_armed_before_spawn": true,
+      "artifact_unchanged": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "minimum_free_bytes": 75812052992,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo",
+        "test",
+        "--locked",
+        "-p",
+        "tcl-compiler",
+        "--lib",
+        "--no-run",
+        "--message-format=json",
+        "-j",
+        "2"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "elapsed_seconds": 243.62896151,
+      "timer_armed_before_spawn": true,
+      "artifact_unchanged": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "minimum_free_bytes": 74005946368,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-ec3e9e55ba9eec6c",
+        "--list",
+        "--format",
+        "terse"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "elapsed_seconds": 0.467929915,
+      "timer_armed_before_spawn": true,
+      "artifact_unchanged": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "minimum_free_bytes": 74288009216,
+      "stop_reason": null
+    },
+    {
+      "argv": [
+        "/home/runner/work/_temp/compiler58-target/debug/deps/tcl_compiler-ec3e9e55ba9eec6c",
+        "analyser::authenticated_report::capture_controls::native_dispatch_first_16_declarations_keep_actual_report_owners",
+        "--exact",
+        "--list",
+        "--format",
+        "terse"
+      ],
+      "complete": true,
+      "exit_code": 0,
+      "elapsed_seconds": 0.459150826,
+      "timer_armed_before_spawn": true,
+      "artifact_unchanged": true,
+      "group_empty_before_parent_reap": true,
+      "consecutive_complete_empty_group_scans": 2,
+      "minimum_free_bytes": 74287013888,
+      "stop_reason": null
+    }
+  ],
+  "cause": "Log wrapper replaces argv0 with sealed Python but passes Rust child executable as owner artifact_path. Existing88125 correctly refuses this mismatch before spawn.",
+  "required_repair": "Keep88125 and filter byte contract; separately seal actual outerPython and underlying selected fresh Cargo ELF per case while preserving inherited group, exactselector, full180,20MiB,2GiB and actual childstatus/originalterminal proof.",
+  "limits": [
+    "Not a compiler-wide Clippy or full workspace gate. Only fresh selected compiler library built and listed.",
+    "No Native35 actual capture, SH private stage, ILX/RBS current verdict or other original58 test result.",
+    "ReadFlow issuer repair is later-source; neither its regression selector nor repair is in b52 run.",
+    "Prior69644P/6F/interrupted+unrun remains prior-source evidence only."
+  ]
+}

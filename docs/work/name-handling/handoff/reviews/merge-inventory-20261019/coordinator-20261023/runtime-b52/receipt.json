@@ -1,0 +1,79 @@
+{
+  "created_utc": "2026-10-23T23:44:08.065139+00:00",
+  "source": "b52ff0b6c7ef223da6b920031be4d6b314346311",
+  "run": 40039936892,
+  "job": 120708383217,
+  "artifact": 12539605964,
+  "zip_bytes": 27140166,
+  "zip_sha256": "18517b30811f097671af057202060503087ad8122e691af502128b66ba428904",
+  "all84_members_crc_stream_sha_checked": true,
+  "small_extracted_bytes": 780823,
+  "source_manifest_count": 125491,
+  "key_git_blob_joins": 13,
+  "original3": [
+    {
+      "name": "tcl-runtime::tcl_runtime$interp::tests::active_public_command_replacement_retires_client_data_before_dispatch_releases_its_handle",
+      "status": "ok",
+      "exec_time": 6.4766883459999995,
+      "reason": null
+    },
+    {
+      "name": "tcl-runtime::tcl_runtime$builtins::tests::native_expression_and_increment_follow_selected_numeric_towers",
+      "status": "failed",
+      "exec_time": 15.728825655,
+      "reason": null
+    },
+    {
+      "name": "tcl-runtime::tcl_runtime$cmd_string::native_append_tests::native_append_preserves_every_measured_primary_storage_and_identity_window",
+      "status": "failed",
+      "exec_time": 180.00991836,
+      "reason": "time limit exceeded"
+    }
+  ],
+  "original3_complete": true,
+  "append_progress": {
+    "marker_count": 2117,
+    "completed_rows": 529,
+    "completed_indexes": "0..528",
+    "completed_by_profile": {
+      "tcl8.4": 189,
+      "tcl8.5": 189,
+      "tcl8.6": 151
+    },
+    "last_marker": {
+      "row": 529,
+      "profile": "tcl8.6",
+      "phase": "construct"
+    },
+    "remaining_including_started": 506,
+    "scope": "Original1035/180 instrumented diagnostic still fails. Lastmarker only identifies reachedphase, not dominant hotspot/crosshost causality."
+  },
+  "constructor_timing_markers": 336,
+  "constructor_samples": 96,
+  "constructor_complete_samples": 96,
+  "constructor_partial_samples": 0,
+  "constructor_parser_errors": [],
+  "supplemental_counts": {
+    "baseline14": {
+      "FAIL": 14
+    },
+    "stack_abort1": {
+      "ABORT": 1
+    }
+  },
+  "supplemental_closed_complete": true,
+  "supplemental_validation_errors": [],
+  "same_hosted_elf_sha256": "8aec9525360a245041c88fa9503f9f37e51f67cbd9392ab93f175012b153c8e2",
+  "independent_uploaded_ELF_bytes": false,
+  "analysis_sha256": {
+    "append-progress.json": "c40b6b85b999d0b4daeba2e9e9d2b710eacfc7af5354eb2c7608a8e2567658ec",
+    "archive-members.json": "46bdb7305ffeaba8113145726e23a5575ef25366909004135ff2289155a8e24f",
+    "constructor-stages.json": "9cf68590e89945abe5a3cb00ee287954e2b79ac3fff3856331439cb23572eed7",
+    "inventory.json": "bf169919556679766d843c1ea4160edec994e98a760816780032daeb07400b4d",
+    "original-outcomes.json": "41419e47267cbcd4314854dd11e9dd35c61a185621c36f41b1bbb507818a6680",
+    "source-git-join.json": "f9efad77628b049c2e3824432cae67aa66485da86c214dd309883ed7d1f6a7c5",
+    "supplemental-outcomes.json": "018f4acc50eedb1d01f1d7902380e22d8977e7634b35b136de23f40ad95c4c36",
+    "unknown.json": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570"
+  },
+  "scope": "Original3 isolated diagnostic1P2F, separate14baselineFAIL and isolatedstackSIGABRT. Allclosed known outcomes are not semantic/performance acceptance; original sharedprocessgate still red. Numeric ambientERANGE policy USERPENDING. Supplemental ownedprocess bytes/state/hash guards authenticated; executableSHA hosted-beforeafter only, ELFbytes absent."
+}

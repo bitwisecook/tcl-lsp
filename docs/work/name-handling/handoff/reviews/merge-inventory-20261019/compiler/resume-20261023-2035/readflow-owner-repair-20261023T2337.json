@@ -1,0 +1,24 @@
+{
+  "utc": "2026-10-23T23:37:08.521025+00:00",
+  "status": "SOURCE REPAIR INDEPENDENTLY CLEAR; ACTUAL REGRESSION/WHOLE CORPUS PENDING",
+  "actual_failure_note": "docs/work/name-handling/handoff/reviews/merge-inventory-20261019/perf/readflow-owner-failure.md",
+  "original_unchanged_test": "command_binding::generated_procedures::original_native_body_tests::original_read_card_requires_its_actual_vector_origin_and_snapshot",
+  "source_cause": "memo-hit source interpretations deliberately share source origin/snapshots but reissue original-analysis attachment Arc; ReadFlow body cards lacked that actual issuer identity and accepted a foreign compilation with identical source geometry",
+  "proposal": "/workspace/naming-proof-storage/compiler-readflow-actual-owner-repair-v2",
+  "patch_sha256": "cc4fcea66f779f835e82715c3a4c30236368a2649b67d2a35d085f21b412374f",
+  "work_manifest_sha256": "ea8dd78aecf839016f6941abe2579fe842f0c331c5194cfe8ede2eb9ad45a420",
+  "clean_manifest_sha256": "e0eb0120ae514b4c0c639b4b105abc513631747c8eb3c69f099dee0a65cfbf7e",
+  "independent_peer": "/tmp/lsp-peer-readflow-actual-owner-v2/review.json",
+  "independent_peer_sha256": "b26de306f64138cbe5527fdec2650f998734d9ba27e85048ff17d8cde191bfe4",
+  "source_audit_sha256": "3dc86940518e24f7e7d54b11bba08d228a16578deca1c321057503db3efd21ba",
+  "repair": "Retain existing genuine issuing Arc on private ReadFlow recipe, guard issuer.matches existing bindings/full input, require actual token binding owner Arc identity before all unchanged original metadata/vector/span/frame/snapshot guards",
+  "preserved": [
+    "All original positive/negative assertions and entire test modules",
+    "Original Source recipe path",
+    "Exact genuine lowering\u2192same original source inventory\u2192final top/nested token stamping",
+    "Native entry/Normal/effects/body-entry/callability remain separate",
+    "No source bytes/display/synthetic nonce substitute; no new owner minted",
+    "Copied exact forward/reverse/forward and pinnedfmt2 pass"
+  ],
+  "actual_status": "Original failing regression is outside original58/Native3/SH2, needs separate authentic rerun; new b52 run40039942570 does not contain this repair or that added selector. Genuine Spec O129 and all current corpus/equality/performance obligations remain open."
+}

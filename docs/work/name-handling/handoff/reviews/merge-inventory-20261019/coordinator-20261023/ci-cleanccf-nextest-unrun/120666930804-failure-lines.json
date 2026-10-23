@@ -1,0 +1,18 @@
+[
+  {
+    "line": 994,
+    "text": "2026-10-23T21:35:55.6117007Z warning: unused variable: `native_source`"
+  },
+  {
+    "line": 1002,
+    "text": "2026-10-23T21:35:55.6205343Z error: `tcl-compiler` (lib) generated 1 warning (run `cargo fix --lib -p tcl-compiler` to apply 1 suggestion)"
+  },
+  {
+    "line": 1003,
+    "text": "2026-10-23T21:35:55.6206727Z error: warnings are denied by `build.warnings` configuration"
+  },
+  {
+    "line": 1005,
+    "text": "2026-10-23T21:36:06.2168388Z error: command `/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo '--color=always' test --no-run --message-format json-render-diagnostics --workspace --exclude tcl-irule-test --exclude f5-cli --exclude tcl-lsp-server --exclude tcl-fuzz --exclude tcl-engine-wasm --lib --bins --test hardening --test loops --test integration --test value_transfers_cli --test alias_scoping --test codegen --test codegen_golden --test compiler_analysis_residual --test compiler_residual --test core_analyses --test dialect_threading --test differential_word_expr --test entry_contract_abstention --test intervals --test irules_event_context --test phi_undef_memo --test regex_source_oracle --test value_transfer_witnesses --test var_escape_cfg --test doors --test resolve_args --test differential_boundaries --test f5_lexical_conformance --test parse_expr --test parse_lexer --test bigip_code_actions --test docstring --test file_ops_bigip_residual --test references_rename --test references_residual --test semantic_tokens --test compiler_check_corpus --test dialect_seam --test overlay_generations --test collating_names_oracle --test dos_bounds --test lazy_alt_backref --test nocase_posix_class --test precision_oracle --test z_anchor --test dialect_oracle --test provider_relation --test snapshot --test const_fold_e2e --test reference_doc --test render_sweep --test disabled_command_wording --test export --test i6_security_floor --test jim_document --test jim_generation_zero --test jim_own_surface --test jim_seed_after_publish --test pack_is_real_tcl --test pack_torture --test roster_reload_static_view --test golden --test expr_parser_coverage --test channel_output --test static_extensions --test top_level_e2e --test cmd_collections_e2e --test cmd_coro_e2e --test cmd_info_prefix_e2e --test cmd_string_e2e --test command_resolution_conformance --test cross_interp_reentry_e2e --test cross_version_expr_surface_e2e --test cross_version_numerals_e2e --test element_recovery_traces_e2e --test encoding_e2e --test env_host_sync_e2e --test expanded_invoke_e2e --test expr_surface_e2e --test integer_argument_reads_e2e --test namespace_colon_runs_e2e --test native_compilation_conformance --test numeric_tower_e2e --test opcode_dispatch_coverage --test package_coro_e2e --test regexp_e2e --test switch_integer_e2e --test wasm_coro_e2e --test word_parts_owner_e2e --test static_name_consumers --test name_lookup_issue_witnesses --all-features` exited with code 101"
+  }
+]

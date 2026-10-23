@@ -1,0 +1,30 @@
+{
+  "utc": "2026-10-23T23:47:57.006701+00:00",
+  "rows": [
+    {
+      "lane": "work",
+      "patch_sha256": "36286fcbf6e6213d0b684d77076d5a3ed9c6ddaa282a8c4e9875a244330e0ee8",
+      "manifest_sha256": "7c498fbed17298a90cd1264d782dd2a62fe8f662c11bf591518a896f6a091928",
+      "exact21_inverse_to_original": true,
+      "rustfmt2024": true
+    },
+    {
+      "lane": "clean",
+      "patch_sha256": "36286fcbf6e6213d0b684d77076d5a3ed9c6ddaa282a8c4e9875a244330e0ee8",
+      "manifest_sha256": "7c498fbed17298a90cd1264d782dd2a62fe8f662c11bf591518a896f6a091928",
+      "exact21_inverse_to_original": true,
+      "rustfmt2024": true
+    }
+  ],
+  "static_review": "CLEAR",
+  "facts": [
+    "All21 actual-return expressions are Vec of RenameEdit/DocumentSymbol/LspRange/TypeHierarchyItem, each existing type derives Debug/PartialEq/Eq.",
+    "assert_eq borrows both operands; it does not move the edits local. Returned temporary expression remains evaluated once in same assertion.",
+    "Vector equality with a zero-length typed array tests exact emptiness; no element equality executes for either empty success or length-mismatched failure.",
+    "No diagnosed assertion has custom message; other assertions and messages are untouched. Fully qualified zero-array type follows actual compiler help, avoiding new ambiguous empty inference."
+  ],
+  "limits": [
+    "No Cargo/type/Clippy/runtime result. New strict run must reach both integration test targets.",
+    "Formatting successor changes whitespace only; preserved V3 source/patch remain immutable."
+  ]
+}

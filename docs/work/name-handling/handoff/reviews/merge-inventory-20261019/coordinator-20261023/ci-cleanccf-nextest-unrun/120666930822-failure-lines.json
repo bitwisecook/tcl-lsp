@@ -1,0 +1,18 @@
+[
+  {
+    "line": 1162,
+    "text": "2026-10-23T21:34:42.3753621Z warning: unused variable: `native_source`"
+  },
+  {
+    "line": 1173,
+    "text": "2026-10-23T21:34:42.4086597Z error: `tcl-compiler` (lib) generated 1 warning (run `cargo fix --lib -p tcl-compiler` to apply 1 suggestion)"
+  },
+  {
+    "line": 1174,
+    "text": "2026-10-23T21:34:42.4136257Z error: warnings are denied by `build.warnings` configuration"
+  },
+  {
+    "line": 1176,
+    "text": "2026-10-23T21:34:42.7946185Z error: command `/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/cargo '--color=always' test --no-run --message-format json-render-diagnostics --workspace --exclude tcl-irule-test --exclude f5-cli --exclude tcl-lsp-server --exclude tcl-fuzz --exclude tcl-engine-wasm --lib --bins --test certs --test render_arch --test composition --test kernel_attach --test kernel_codegen --test kernel_load --test differential --test model --test ucs --test cli --test analyser --test caller_frame_effects --test codegen_depth --test dataflow --test differential_group --test differential_segment --test dispatch_proof_architecture --test fix_safety --test mro_lattice_adversarial --test per_item_corpus --test resolution_rewrite_oracles --test slot_allocation --test span_char_boundaries --test taint_depth --test text_utils --test wasm_api_architecture --test wasm_tiers --test walker --test lexer_depth --test code_actions_depth --test command_table_mutation --test completion_residual --test folding --test formatting_engine_residual --test formatting_keywords --test hover_completion --test inlay_hints --test lsp_navigation --test class_factory_fixpoint --test file_decls_corpus --test project_diagnostics_corpus --test reg_test --test analyser_hooks --test differential_fold --test keyword_abbreviations --test library_axis --test registry --test spec_pack_provenance --test spectcl_pack --test tcltest_specs --test value_transfers --test option_row_editing --test pack_store --test spectcl_roundtrip --test eval_loader --test jim_surface_roster --test pack_source_e2e --test spec_corpus --test spectcl_dialect_analysis --test registry_pack_drift --test command_resolution_conformance --test execution_resolution_conformance --test expr_parser --test expr_parser_depth --test namespace_op_conformance --test capability --test cmd_thread_e2e --test cross_version_command_surface_e2e --test cross_version_vars_e2e --test language_e2e --test package_diagnostics_e2e --test regexp_cmd_corpus --test selected_frame_coroutines --test tcltest_load --test name_lookup_issue_witnesses --test formal_slot_identity --test native_mathfunc_bootstrap --all-features` exited with code 101"
+  }
+]

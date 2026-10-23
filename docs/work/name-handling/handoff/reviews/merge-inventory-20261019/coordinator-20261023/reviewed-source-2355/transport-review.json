@@ -1,0 +1,19 @@
+{
+  "utc": "2026-10-23T23:50:26.237812+00:00",
+  "patch_sha256": "0c35e0290086aedaa0a8f65bc5559bd8ca8cee858d9066a881fa47a24901c738",
+  "manifest_sha256": "f47b269af9bc43fe29292f5a254b4ca069cd7e430d2821d4bd445dabef8c9897",
+  "static_process_review": "CLEAR",
+  "copied_roundtrip_zero_output": true,
+  "actual_execute_AST_fake_owner_controls": "PASS4wrapped/wrongchild/list/fullbudget",
+  "facts": [
+    "Strict owned executor and entire pinned transport filter bytes remain unchanged.",
+    "Outer process artifact now matches actual Python argv0; original childargv0 must match selected Cargo Rust executable before wrapping.",
+    "Each test row independently seals fresh Cargo-ledger Rust executable before and after owned operation; failures retain process receipt before after-seal verification.",
+    "Existing filter child-status vs outer exit and exact one-test terminal validation remain mandatory, together with original fullsource/tool/Python/filter/final artifact seals.",
+    "No case/env/order/target/budget/log cap/disk floor/process tree guard is weakened."
+  ],
+  "limits": [
+    "Fake owner controls execute only Python AST; they spawn no test/native process and do not prove actual hosted execution.",
+    "Separate outer Python receipt must not be described as Rust artifact seal; per-row selected_test_artifact and child outcome remain required."
+  ]
+}

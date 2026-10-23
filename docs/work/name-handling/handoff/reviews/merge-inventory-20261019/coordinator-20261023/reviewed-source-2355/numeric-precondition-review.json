@@ -1,0 +1,31 @@
+{
+  "utc": "2026-10-23T23:54:54.217401+00:00",
+  "rows": [
+    {
+      "lane": "work",
+      "patch_sha256": "fe36d0da11287ed1b75590c2d241377f620545851fcf3181b3b992f8710a1917",
+      "manifest_sha256": "6435b3ee3699bf42e61fafde0e40fb81a380612baed807ac01a8df632a0aaff4",
+      "copied_roundtrip_zero_output": true,
+      "full_original_inverse": true,
+      "pinned_fmt2021": true
+    },
+    {
+      "lane": "clean",
+      "patch_sha256": "fcdfb61d6d99ae75241b945a57d3531d1f8ab12c9496f5e4e627a61cb847e979",
+      "manifest_sha256": "ac21c4012ab7444cd9a1a94396396ecf87835995afd82d73b8946421942b60fc",
+      "copied_roundtrip_zero_output": true,
+      "full_original_inverse": true,
+      "pinned_fmt2021": true
+    }
+  ],
+  "static_review": "CLEAR under explicit user decision",
+  "facts": [
+    "Exactly one test-only explicit NumericEnvironment reset per dialect after profile selection and before success vectors.",
+    "Concrete host ABI reset writes only current-thread errno=0; unavailable provider remains an explicit precondition failure.",
+    "All original semantic assertions/vectors/order and separate zero/ERANGE seeded oracle and refusal tests byte unchanged.",
+    "No production converter/default/native admission/reset policy change."
+  ],
+  "limits": [
+    "Actual new success fixture execution UNRUN; user choice does not make runtime or capability gates green."
+  ]
+}
