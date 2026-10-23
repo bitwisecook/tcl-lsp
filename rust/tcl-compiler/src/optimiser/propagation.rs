@@ -149,8 +149,8 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
             top_level_extra_escaping,
         );
     }
-    for (qname, fu) in &cu.procedures {
-        let Some(proc) = cu.ir_module.procedures.get(qname) else {
+    for (qname, proc) in cu.ir_module.original_source_procedure_bodies() {
+        let Some(fu) = cu.function_for_body(Some(*qname)) else {
             n17_live_trace!("decline=propagation-procedure-missing name={qname:?}");
             continue;
         };

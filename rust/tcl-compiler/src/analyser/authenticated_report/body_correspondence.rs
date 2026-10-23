@@ -783,6 +783,55 @@ mod owner_controls {
         }
     }
 
+    fn assert_alias_body_field_changes_are_unavailable(
+        left: &super::super::AuthenticatedAnalysisReport,
+        mut right: super::super::AuthenticatedAnalysisReport,
+        purpose: ReportDeclarationPurpose,
+    ) {
+        let index = right
+            .capture
+            .as_ref()
+            .unwrap()
+            .bodies
+            .bodies
+            .iter()
+            .position(|body| body.declaration_purpose == Some(purpose))
+            .expect("the genuine original declaration purpose remains present");
+        let original_role = right.capture.as_ref().unwrap().bodies.bodies[index].role;
+        right.capture.as_mut().unwrap().bodies.bodies[index].role =
+            ReportBodyRole::Named(ProcedureBodyKind::Named);
+        assert!(matches!(
+            left.compare(&right),
+            super::super::AnalysisReportComparison::Unavailable(_)
+        ));
+        right.capture.as_mut().unwrap().bodies.bodies[index].role = original_role;
+        let changed_purpose = match purpose {
+            ReportDeclarationPurpose::NativeSource => ReportDeclarationPurpose::LogicalSource,
+            ReportDeclarationPurpose::LogicalSource => ReportDeclarationPurpose::NativeSource,
+            _ => panic!("this control requires its actual Native or Logical source purpose"),
+        };
+        right.capture.as_mut().unwrap().bodies.bodies[index].declaration_purpose =
+            Some(changed_purpose);
+        assert!(matches!(
+            left.compare(&right),
+            super::super::AnalysisReportComparison::Unavailable(_)
+        ));
+        right.capture.as_mut().unwrap().bodies.bodies[index].declaration_purpose = Some(purpose);
+        let original_extent = right.capture.as_ref().unwrap().bodies.bodies[index].declaration;
+        assert!(original_extent.start() < original_extent.end());
+        right.capture.as_mut().unwrap().bodies.bodies[index].declaration =
+            Span::empty(original_extent.start());
+        assert!(matches!(
+            left.compare(&right),
+            super::super::AnalysisReportComparison::Unavailable(_)
+        ));
+        right.capture.as_mut().unwrap().bodies.bodies[index].declaration = original_extent;
+        assert_eq!(
+            left.compare(&right),
+            super::super::AnalysisReportComparison::Equal
+        );
+    }
+
     #[test]
     fn original_aliases_keep_both_actual_roles_at_the_shared_declaration() {
         let source = include_str!("../../../tests/data/name-consumers/aliases.tcl");
@@ -796,25 +845,44 @@ mod owner_controls {
             .current_capture()
             .expect("independent original alias diagnostics CU")
             .bodies;
-        let named = a
+        let declaration = a
             .bodies
             .iter()
             .find(|body| {
-                matches!(body.role, ReportBodyRole::Named(ProcedureBodyKind::Named))
+                matches!(
+                    body.role,
+                    ReportBodyRole::Unit(ProcedureBodyKind::OriginalDeclaration)
+                ) && body.declaration_purpose == Some(ReportDeclarationPurpose::NativeSource)
                     && a.bodies.iter().any(|other| {
                         matches!(
                             other.role,
-                            ReportBodyRole::Unit(ProcedureBodyKind::NamespaceScript)
-                        ) && body.site.is_some()
+                            ReportBodyRole::Unit(ProcedureBodyKind::Installed)
+                        ) && other.declaration_purpose.is_none()
+                            && body.site.is_some()
                             && body.site == other.site
-                            && body.declaration == other.declaration
                     })
             })
-            .expect("actual Named and NamespaceScript owners at one original declaration");
+            .expect("actual NativeSource declaration and Installed owners at one original site");
+        assert_eq!(a.bodies.len(), 3);
+        assert_eq!(b.bodies.len(), 3);
+        assert_eq!(declaration.declaration, Span::new(227, 256));
+        let other = a
+            .bodies
+            .iter()
+            .find(|body| {
+                body.site == declaration.site
+                    && matches!(
+                        body.role,
+                        ReportBodyRole::Unit(ProcedureBodyKind::Installed)
+                    )
+            })
+            .unwrap();
+        assert_eq!(other.declaration, Span::new(241, 256));
+        assert_ne!(declaration.declaration, other.declaration);
         let joined = a
             .bodies
             .iter()
-            .filter(|body| body.site == named.site && body.declaration == named.declaration)
+            .filter(|body| body.site == declaration.site)
             .collect::<Vec<_>>();
         assert_eq!(
             joined.len(),
@@ -837,6 +905,11 @@ mod owner_controls {
         assert_eq!(
             left.compare(&right),
             super::super::AnalysisReportComparison::Equal
+        );
+        assert_alias_body_field_changes_are_unavailable(
+            &left,
+            right,
+            ReportDeclarationPurpose::NativeSource,
         );
     }
 
@@ -867,25 +940,46 @@ mod owner_controls {
             .current_capture()
             .expect("independent original alias diagnostics CU")
             .bodies;
-        let named = a
+        let declaration = a
             .bodies
             .iter()
             .find(|body| {
-                matches!(body.role, ReportBodyRole::Named(ProcedureBodyKind::Named))
+                matches!(
+                    body.role,
+                    ReportBodyRole::Unit(ProcedureBodyKind::OriginalDeclaration)
+                ) && body.declaration_purpose == Some(ReportDeclarationPurpose::LogicalSource)
                     && a.bodies.iter().any(|other| {
                         matches!(
                             other.role,
                             ReportBodyRole::Unit(ProcedureBodyKind::NamespaceScript)
-                        ) && body.site.is_some()
+                        ) && other.declaration_purpose.is_none()
+                            && body.site.is_some()
                             && body.site == other.site
-                            && body.declaration == other.declaration
                     })
             })
-            .expect("actual Named and NamespaceScript owners at one original declaration");
+            .expect(
+                "actual LogicalSource declaration and NamespaceScript owners at one original site",
+            );
+        assert_eq!(a.bodies.len(), 2);
+        assert_eq!(b.bodies.len(), 2);
+        assert_eq!(declaration.declaration, Span::new(42, 54));
+        let other = a
+            .bodies
+            .iter()
+            .find(|body| {
+                body.site == declaration.site
+                    && matches!(
+                        body.role,
+                        ReportBodyRole::Unit(ProcedureBodyKind::NamespaceScript)
+                    )
+            })
+            .unwrap();
+        assert_eq!(other.declaration, Span::new(24, 55));
+        assert_ne!(declaration.declaration, other.declaration);
         let joined = a
             .bodies
             .iter()
-            .filter(|body| body.site == named.site && body.declaration == named.declaration)
+            .filter(|body| body.site == declaration.site)
             .collect::<Vec<_>>();
         assert_eq!(
             joined.len(),
@@ -908,6 +1002,11 @@ mod owner_controls {
         assert_eq!(
             left.compare(&right),
             super::super::AnalysisReportComparison::Equal
+        );
+        assert_alias_body_field_changes_are_unavailable(
+            &left,
+            right,
+            ReportDeclarationPurpose::LogicalSource,
         );
     }
 
