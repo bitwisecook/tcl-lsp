@@ -60,3 +60,28 @@ The compiler and server already declare256. The owned irules crate now uses
 256 too; this is a compiler trait-evaluation limit, with no lint allowance or
 changed runtime behavior. Fresh strict irules library+tests verification passes with zero warnings;
 `irules-clippy-20261023.json` retains the source hashes and exact command.
+
+## Original remote call nested in setter substitution
+
+Current production-library probe and ILX16 expose a further API gap. Same
+actual `Analyser::new().analyse(source, "f5-irules")` input, with constructor
+`set h [ILX::init p e]` and later `ILX::notify $h m` in one handler:
+
+| First remote source | Compiler associations | Consumer source target |
+| --- | --- | --- |
+| `ILX::call $h m` | 1 current, exact vector join | p/e |
+| `set reply [ILX::call $h m]` | 0 | unavailable |
+| `ILX::call $h m [HTTP::uri]` | 1 current, exact vector join | p/e |
+| `set reply [ILX::call $h m [HTTP::uri]]` | 0 | unavailable |
+
+The genuine invocation/method vectors exist in all four cases. The missing
+relation is in the compiler producer, not the consumer join. ILX16's standard
+`rule_source` uses the fourth form; first-site navigation assertions remain
+unchanged. Raw exact command/source/output:
+`nested-ilx-owner-probe-20261023.txt.gz`.
+
+Compiler must supply the genuine nested invocation's constructor/setter/read
+association under its own analysis, preserving all obligations and withdrawal
+for the later notify. The outer reply assignment must not erase a source read
+inside its RHS before that read is considered. No consumer syntax walk,
+variable-name inference, recreated argument receipt or runtime handle target.

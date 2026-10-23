@@ -1,0 +1,53 @@
+{
+  "source_base": "4ada2d58 plus exact source patch, committed d71e826d",
+  "plan": {
+    "cargo": [
+      "test",
+      "--locked",
+      "-p",
+      "f5-xc",
+      "-p",
+      "xtask",
+      "--lib",
+      "--bins",
+      "--no-run",
+      "--message-format=json"
+    ],
+    "runs": [
+      {
+        "target": "f5_xc",
+        "args": [
+          "--nocapture",
+          "--test-threads=1"
+        ]
+      },
+      {
+        "target": "xtask",
+        "args": [
+          "gen_editor_configs::tests::committed_files_match_generated_regions",
+          "gen_editor_configs::tests::a_stale_dialect_list_is_regenerated",
+          "gen_editor_configs::tests::every_declared_region_is_written_by_its_render",
+          "--exact",
+          "--nocapture",
+          "--test-threads=1"
+        ]
+      }
+    ],
+    "log": "/workspace/scratch/bigip-20261023/xc-editor-final.log"
+  },
+  "exit": 0,
+  "xc_library": {
+    "passed": 31,
+    "failed": 0,
+    "seconds": 71.95
+  },
+  "editor_config_comparisons": {
+    "passed": 3,
+    "failed": 0,
+    "seconds": 190.9
+  },
+  "warnings": 0,
+  "executables_deleted": true,
+  "raw_sha256": "9320c643da4eaf05e62ea049723566cd60ad1353fb33e6c5a1dd753bb99451ec",
+  "scope": "Exact selected tests, no ignored rows or expected-file changes. Other editor hosts/repository release gates remain open."
+}

@@ -2,7 +2,7 @@
 
 Area: editors/, BIG-IP/F5 crates and LSP modules.
 
-Last updated: 2026-10-23T12:22Z
+Last updated: 2026-10-23T12:31Z
 
 Maintained by the bigip-lsp agent. Keep this snapshot and Resume current, and
 push at least every 30 minutes and after each finished item. Full unit table:
@@ -46,6 +46,13 @@ prior receipts below describe their original source, not the new integrated tip.
    repro and contract; finish owned code/evidence and update final notes.
 
 ## Blocked (on whom, and what is needed)
+
+- Compiler nested remote source: exact standard ILX16 source uses
+  set reply [ILX::call $h m [HTTP::uri]]. Compiler supplies0 associations
+  there, but1 current card/exact consumer vector join for the flat call,
+  with or without the later HTTP getter operand. Genuine method vectors exist.
+  Minimal four-case production probe/contract added to
+  bigip-lsp/source-owner-blockers-20261023.md; no local walker or fallback.
 
 - Generic minifier/compiler/performance owner: unchanged500-level aggressive
   minifier case did not return in634s; child externally stopped, classification
@@ -271,3 +278,14 @@ CI5206 product3b1 heavy job120175508112 completed: 354 exact outcomes,312PASS42F
   explain-flow5 now active; do not rebuild its f5-query binary yet. Closed raw
   Compiler/Core/CLI prefixes, all11 artifact hashes and source equivalence are
   archived via bigip-lsp/native-partial-20261023.json.
+
+- Fresh full f5-xc library31/31PASS; the exact three editor generated-region
+  comparison tests3/3PASS190.90s. No expected data changed; both test exes
+  deleted. Receipt bigip-lsp/xc-editor-final-20261023.json.
+- Original simulation tests now naturally reproduce NativePreflightRequired,
+  not just a probe timeout; no interruption there. Full explain-flow3PASS/2FAIL
+ 278.56s (two tshark tests early-return because tshark absent). F5 pull unit
+ 1/1PASS0.43s. ILX16 active and reaches assertions, no longer all diagnostic
+ barriers: nested setter-RHS source association is missing.
+- Corrected CLI/library run89483 active; original f5-query consumers are done.
+  Gens build99672 closed0 after31+3PASS.
