@@ -306,8 +306,7 @@ impl NativeLiteralPool {
             world,
             table,
             protocol,
-            namespace,
-            source_namespace,
+            (namespace, source_namespace),
             context,
             &mut effect,
             None,
@@ -320,12 +319,12 @@ impl NativeLiteralPool {
         world: &Rc<RefCell<NativeLiteralWorld>>,
         table: &LiteralTable,
         protocol: Option<NativeStringProtocol>,
-        namespace: NsId,
-        source_namespace: &ByteNamespacePath,
+        namespace: (NsId, &ByteNamespacePath),
         context: Option<&NativeLiteralContext>,
         mut effect: impl FnMut(NativeLiteralEffect<'_>) -> Result<(), NativeLiteralUnavailable>,
         original: Option<&OriginalLiteralCallbacks<'_>>,
     ) -> Result<Rc<Self>, NativeLiteralUnavailable> {
+        let (namespace, source_namespace) = namespace;
         let protocol = protocol.ok_or(NativeLiteralUnavailable(
             "native literal constructor issuer is unavailable",
         ))?;

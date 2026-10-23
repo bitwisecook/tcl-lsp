@@ -157,7 +157,10 @@ fn original_authored_operand_retainer_precedes_native_compound_backing_retiremen
         },
         &|error| {
             retained_before_drop.set(first_view.value().native_object_is_live());
-            owner.retain(&mut vm.borrow_mut(), &error.clone().into());
+            crate::interp::original_authored_operands::OriginalAuthoredOperandScope::retain(
+                &mut vm.borrow_mut(),
+                &error.clone().into(),
+            );
         },
     );
     assert!(reached.is_err());
@@ -195,7 +198,12 @@ fn original_authored_operand_successful_formatter_frame_change_stops_cache_adopt
             }
             owner.current_for_value(&mut vm.borrow_mut(), actual)
         },
-        &|error| owner.retain(&mut vm.borrow_mut(), &error.clone().into()),
+        &|error| {
+            crate::interp::original_authored_operands::OriginalAuthoredOperandScope::retain(
+                &mut vm.borrow_mut(),
+                &error.clone().into(),
+            )
+        },
     );
     assert!(reached.is_err());
     assert!(mutated.get());
@@ -232,7 +240,10 @@ fn original_string_intrinsic_root_header_failure_is_retained_before_child_backin
             },
             &|error| {
                 retained_while_live.set(child_view.value().native_object_is_live());
-                original.retain(&mut vm.borrow_mut(), &error.clone().into());
+                crate::interp::original_authored_operands::OriginalAuthoredOperandScope::retain(
+                    &mut vm.borrow_mut(),
+                    &error.clone().into(),
+                );
             },
         );
     assert!(reached.is_err());

@@ -119,6 +119,67 @@ impl Vm {
         Ok(())
     }
 
+    fn duplicate_original_jim_namespace_key(
+        &mut self,
+        scope: &NativeOperationScope,
+        entered: &OriginalLookup,
+        original: &Value,
+        incoming: &[u8],
+    ) -> Result<Value, CmdError> {
+        let context = self.native_jim_object_context()?;
+        let numeric = OriginalNumericOps::in_original_scope(self, scope)?;
+        let namespace =
+            entered
+                .jim_namespace_original()
+                .ok_or(ValueError::CommandProtocolUnavailable(
+                    "original Jim key namespace header",
+                ))?;
+        let protocol = tcl_syntax::native_string::NativeStringProtocol::Jim084;
+        let duplicate = UnownedJimKey(Some(
+            namespace
+                .duplicate_native_object_checked(
+                    protocol,
+                    &mut || numeric.current_for_value(namespace),
+                    &mut |value| numeric.string(value, protocol),
+                    &mut |error| numeric.retain_failure(error),
+                )?
+                .into_native_unowned_lifetime(),
+        ));
+        let append = numeric
+            .dialect()
+            .native_object_append_protocol(None)
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "original Jim key CString append issuer",
+            ))?;
+        let mut check = || {
+            for value in [namespace, original, duplicate.value()] {
+                if let Err(error) = numeric.current_for_value(value) {
+                    numeric.retain_failure(&error);
+                    return Err(OriginalNumericOps::value_unwind());
+                }
+            }
+            Ok(())
+        };
+        for part in [b"::".as_slice(), tcl_core_types::c_string_extent(incoming)] {
+            let reached = tcl_cmd_core::native_append::append_unshared_jim_cstring(
+                &crate::value::VmAppendObjects,
+                append.recipe(),
+                duplicate.value(),
+                part,
+                &mut check,
+            );
+            if let Err(error) = reached {
+                let error = CmdError::from(error);
+                numeric.retain_failure(&error);
+                return Err(error);
+            }
+        }
+        check()?;
+        duplicate.value().bind_native_jim_context(&context)?;
+        check()?;
+        Ok(duplicate.promote())
+    }
+
     pub(crate) fn original_jim_publication_key(
         &mut self,
         original: &Value,
@@ -164,55 +225,7 @@ impl Vm {
         let key = match construction {
             NativeJimNamespaceConstruction::RetainOriginal => original.clone(),
             NativeJimNamespaceConstruction::DuplicateNamespaceAndAppend => {
-                let context = self.native_jim_object_context()?;
-                let numeric = OriginalNumericOps::in_original_scope(self, &scope)?;
-                let namespace = entered.jim_namespace_original().ok_or(
-                    ValueError::CommandProtocolUnavailable("original Jim key namespace header"),
-                )?;
-                let protocol = tcl_syntax::native_string::NativeStringProtocol::Jim084;
-                let duplicate = UnownedJimKey(Some(
-                    namespace
-                        .duplicate_native_object_checked(
-                            protocol,
-                            &mut || numeric.current_for_value(namespace),
-                            &mut |value| numeric.string(value, protocol),
-                            &mut |error| numeric.retain_failure(error),
-                        )?
-                        .into_native_unowned_lifetime(),
-                ));
-                let append = numeric
-                    .dialect()
-                    .native_object_append_protocol(None)
-                    .ok_or(ValueError::CommandProtocolUnavailable(
-                        "original Jim key CString append issuer",
-                    ))?;
-                let mut check = || {
-                    for value in [namespace, original, duplicate.value()] {
-                        if let Err(error) = numeric.current_for_value(value) {
-                            numeric.retain_failure(&error);
-                            return Err(OriginalNumericOps::value_unwind());
-                        }
-                    }
-                    Ok(())
-                };
-                for part in [b"::".as_slice(), tcl_core_types::c_string_extent(&incoming)] {
-                    let reached = tcl_cmd_core::native_append::append_unshared_jim_cstring(
-                        &crate::value::VmAppendObjects,
-                        append.recipe(),
-                        duplicate.value(),
-                        part,
-                        &mut check,
-                    );
-                    if let Err(error) = reached {
-                        let error = CmdError::from(error);
-                        numeric.retain_failure(&error);
-                        return Err(error);
-                    }
-                }
-                check()?;
-                duplicate.value().bind_native_jim_context(&context)?;
-                check()?;
-                duplicate.promote()
+                self.duplicate_original_jim_namespace_key(&scope, &entered, original, &incoming)?
             }
             NativeJimNamespaceConstruction::FreshString => {
                 let incoming = entered.read(self)?;

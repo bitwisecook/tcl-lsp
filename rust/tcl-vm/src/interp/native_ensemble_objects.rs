@@ -59,6 +59,67 @@ impl Vm {
             .is_some_and(|exports| !exports.is_empty())
     }
 
+    fn original_ensemble_invocation_list(
+        prefix: &Value,
+        selected: OriginalEnsembleInvocation<'_>,
+        always_copy: bool,
+        protocol: tcl_syntax::native_string::NativeStringProtocol,
+    ) -> Result<Value, ValueError> {
+        if always_copy || selected.original_word_count == 2 {
+            prefix.native_list_copy(protocol)
+        } else {
+            let members = prefix.native_object_list_elements(protocol)?;
+            let mut words = members.to_vec();
+            words.extend_from_slice(selected.parameters);
+            words.extend_from_slice(selected.arguments);
+            Ok(Value::native_list_constructor(words, protocol))
+        }
+    }
+
+    fn original_ensemble_target_missing(
+        &mut self,
+        original_names: &super::native_name_consumers::OriginalNameConsumerScope,
+        namespace: super::NsId,
+        lookup: super::NsId,
+        words: &[Value],
+        default_target: bool,
+    ) -> Result<bool, tcl_core_types::Completion<Value>> {
+        let selected_current = self.native_namespace_token_has_owner(namespace);
+        if let Err(error) = original_names.require(
+            self,
+            selected_current,
+            "selected original ensemble invocation namespace",
+        ) {
+            return Err(crate::command::completion_from_cmd_error(self, error));
+        }
+        let missing = if default_target {
+            let bytes = match original_names.read(self, &words[0]) {
+                Ok(bytes) => bytes,
+                Err(error) => {
+                    return Err(crate::command::completion_from_cmd_error(self, error));
+                }
+            };
+            let selected_current = self.native_namespace_token_has_owner(namespace);
+            if let Err(error) = original_names.require(
+                self,
+                selected_current,
+                "selected original ensemble namespace after head getter",
+            ) {
+                return Err(crate::command::completion_from_cmd_error(self, error));
+            }
+            match self.resolve_command_bytes_checked(lookup, &bytes, true) {
+                Ok(selected) => selected.is_none(),
+                Err(error) => return Err(self.refuse_host_command(error.to_string())),
+            }
+        } else {
+            false
+        };
+        if let Err(error) = original_names.check(self) {
+            return Err(crate::command::completion_from_cmd_error(self, error));
+        }
+        Ok(missing)
+    }
+
     pub(super) fn invoke_original_ensemble_prefix(
         &mut self,
         prefix: Value,
@@ -75,15 +136,6 @@ impl Vm {
                 }
             };
         let reached = (|| {
-            let OriginalEnsembleInvocation {
-                namespace,
-                parameters,
-                arguments,
-                original_word_count,
-                usage,
-                default_target,
-            } = selected;
-
             let dialect = self.actual_native_invocation_dialect();
             let Some(dispatch) = dialect.native_ensemble_dispatch_protocol() else {
                 return (
@@ -98,20 +150,14 @@ impl Vm {
                 );
             };
             let protocol = recipe.protocol();
-            let invocation = if dispatch.always_copy_prefix || original_word_count == 2 {
-                match prefix.native_list_copy(protocol) {
-                    Ok(copy) => copy,
-                    Err(error) => return (self.refuse_host_command(error.to_string()), false),
-                }
-            } else {
-                let members = match prefix.native_object_list_elements(protocol) {
-                    Ok(members) => members,
-                    Err(error) => return (self.refuse_host_command(error.to_string()), false),
-                };
-                let mut words = members.to_vec();
-                words.extend_from_slice(parameters);
-                words.extend_from_slice(arguments);
-                Value::native_list_constructor(words, protocol)
+            let invocation = match Self::original_ensemble_invocation_list(
+                &prefix,
+                selected,
+                dispatch.always_copy_prefix,
+                protocol,
+            ) {
+                Ok(invocation) => invocation,
+                Err(error) => return (self.refuse_host_command(error.to_string()), false),
             };
             let members = match invocation.native_object_list_elements(protocol) {
                 Ok(members) => members,
@@ -129,67 +175,33 @@ impl Vm {
                 .collect();
             if dispatch.always_copy_prefix {
                 words.extend(
-                    parameters
+                    selected
+                        .parameters
                         .iter()
-                        .chain(arguments)
+                        .chain(selected.arguments)
                         .map(|word| word.native_lifetime_lease().into_value()),
                 );
             }
             let lookup = if dispatch.use_ensemble_namespace {
-                namespace
+                selected.namespace
             } else {
                 super::ROOT_NS
             };
-            let selected_current = self.native_namespace_token_has_owner(namespace);
-            if let Err(error) = original_names.require(
-                self,
-                selected_current,
-                "selected original ensemble invocation namespace",
+            let missing = match self.original_ensemble_target_missing(
+                &original_names,
+                selected.namespace,
+                lookup,
+                &words,
+                selected.default_target,
             ) {
-                return (
-                    crate::command::completion_from_cmd_error(self, error),
-                    false,
-                );
-            }
-            let missing = if default_target {
-                let bytes = match original_names.read(self, &words[0]) {
-                    Ok(bytes) => bytes,
-                    Err(error) => {
-                        return (
-                            crate::command::completion_from_cmd_error(self, error),
-                            false,
-                        );
-                    }
-                };
-                let selected_current = self.native_namespace_token_has_owner(namespace);
-                if let Err(error) = original_names.require(
-                    self,
-                    selected_current,
-                    "selected original ensemble namespace after head getter",
-                ) {
-                    return (
-                        crate::command::completion_from_cmd_error(self, error),
-                        false,
-                    );
-                }
-                match self.resolve_command_bytes_checked(lookup, &bytes, true) {
-                    Ok(selected) => selected.is_none(),
-                    Err(error) => return (self.refuse_host_command(error.to_string()), false),
-                }
-            } else {
-                false
+                Ok(missing) => missing,
+                Err(completion) => return (completion, false),
             };
-            if let Err(error) = original_names.check(self) {
-                return (
-                    crate::command::completion_from_cmd_error(self, error),
-                    false,
-                );
-            }
             let result = self.invoke_command_value_internal_at(
                 lookup,
                 &words[0],
                 &words[1..],
-                usage,
+                selected.usage,
                 tcl_registry::command_lookup::CommandLookupOrigin::EnsembleInvocation,
             );
             drop(words);

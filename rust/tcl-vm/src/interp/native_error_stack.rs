@@ -73,9 +73,11 @@ impl NativeErrorStack {
         let protocol = self.protocol.ok_or(ValueError::CommandProtocolUnavailable(
             "native error-context owner",
         ))?;
-        let context = context.capture_native_error_context(protocol)?;
-        self.replace(&[tag, context]);
-        Ok(self.metadata.begin_inner((), ()))
+        let captured = context.capture_native_error_context(protocol)?;
+        self.replace(&[tag, captured]);
+        let reached = self.metadata.begin_inner((), ());
+        drop(context);
+        Ok(reached)
     }
     /// `TclGetInnerContext` reuses its own List header and retains original stack operands.
     pub(super) fn begin_instruction(

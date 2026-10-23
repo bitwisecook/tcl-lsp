@@ -1360,10 +1360,7 @@ fn restore_pending_package_error(
     };
     vm.take_error_info();
     if let Some(info) = carried {
-        let bytes = match package_operand_bytes(vm, &info) {
-            Ok(bytes) => bytes,
-            Err(refused) => return Err(refused),
-        };
+        let bytes = package_operand_bytes(vm, &info)?;
         if !bytes.is_empty() {
             vm.seed_error_info_original(&info, &bytes);
         }

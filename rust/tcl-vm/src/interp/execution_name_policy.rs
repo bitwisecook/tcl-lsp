@@ -173,13 +173,17 @@ impl Vm {
             body(self).map_err(CmdError::from_execution_refusal)
         })();
         if let Err(first) = &reached {
-            original.retain(self, first);
+            crate::interp::original_authored_operands::OriginalAuthoredOperandScope::retain(
+                self, first,
+            );
         }
         // Retain callback-caused current/physical failure before parking its
         // selection; mandatory restorations always run on the original target.
         let before_cleanup = original.check(self);
         if let Err(first) = &before_cleanup {
-            original.retain(self, first);
+            crate::interp::original_authored_operands::OriginalAuthoredOperandScope::retain(
+                self, first,
+            );
         }
         let reached = saved
             .in_original(self, |vm| {

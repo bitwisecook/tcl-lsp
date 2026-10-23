@@ -3875,34 +3875,7 @@ impl Vm {
         }
     }
 
-    /// Unwind one proc activation `act`: on error add its `(procedure "name" line
-    /// N)` errorInfo frame, pop the call-frame + namespace, apply
-    /// `TclUpdateReturnInfo` (a proc boundary decrements a carried `-code`/`-level`
-    /// return), and on error log the caller's `invoked from
-    /// within "…"` frame. Mutates `c` in place. Split out of [`Vm::unwind`].
-    fn unwind_proc_frame(
-        &mut self,
-        act: &Frame,
-        acts: &[Frame],
-        c: &mut Completion<Value>,
-        oo_exit: Option<(
-            &crate::interp::oo_cleanup::OriginalOoCallExit,
-            &crate::interp::oo_cleanup::OriginalOoCleanup,
-        )>,
-    ) {
-        self.release_native_procedure_execution();
-        if !self.check_oo_proc_exit(oo_exit) {
-            return;
-        }
-        // C's `InterpProcNR2` proc epilogue (`tclProc.c:1864`): a proc body that
-        // reaches its boundary with a bare `break`/`continue` — i.e. a
-        // `break`/`continue` or `return -level 0 -code break` that produced
-        // `TCL_BREAK`/`TCL_CONTINUE` directly, *not* a `return -code break` that
-        // the level-decrement below turns into break — is transformed into the
-        // error `invoked "break" outside of a loop` with errorcode
-        // `TCL RESULT UNEXPECTED`.  Done before the `(procedure …)` frame is
-        // appended so the error is logged with the proc's trace, exactly as C's
-        // `errorProc` does after the transform.
+    fn settle_unexpected_proc_completion(&mut self, act: &Frame, c: &mut Completion<Value>) {
         if matches!(c.code, Code::Break | Code::Continue) {
             let word = if c.code == Code::Break {
                 "break"
@@ -3932,6 +3905,37 @@ impl Vm {
             *c = crate::command::completion_from_cmd_error(self, error);
             self.seed_unexpected_completion_error(message.as_bytes());
         }
+    }
+
+    /// Unwind one proc activation `act`: on error add its `(procedure "name" line
+    /// N)` errorInfo frame, pop the call-frame + namespace, apply
+    /// `TclUpdateReturnInfo` (a proc boundary decrements a carried `-code`/`-level`
+    /// return), and on error log the caller's `invoked from
+    /// within "…"` frame. Mutates `c` in place. Split out of [`Vm::unwind`].
+    fn unwind_proc_frame(
+        &mut self,
+        act: &Frame,
+        acts: &[Frame],
+        c: &mut Completion<Value>,
+        oo_exit: Option<(
+            &crate::interp::oo_cleanup::OriginalOoCallExit,
+            &crate::interp::oo_cleanup::OriginalOoCleanup,
+        )>,
+    ) {
+        self.release_native_procedure_execution();
+        if !self.check_oo_proc_exit(oo_exit) {
+            return;
+        }
+        // C's `InterpProcNR2` proc epilogue (`tclProc.c:1864`): a proc body that
+        // reaches its boundary with a bare `break`/`continue` — i.e. a
+        // `break`/`continue` or `return -level 0 -code break` that produced
+        // `TCL_BREAK`/`TCL_CONTINUE` directly, *not* a `return -code break` that
+        // the level-decrement below turns into break — is transformed into the
+        // error `invoked "break" outside of a loop` with errorcode
+        // `TCL RESULT UNEXPECTED`.  Done before the `(procedure …)` frame is
+        // appended so the error is logged with the proc's trace, exactly as C's
+        // `errorProc` does after the transform.
+        self.settle_unexpected_proc_completion(act, c);
         if !self.check_oo_proc_exit(oo_exit) {
             return;
         }
@@ -9091,52 +9095,7 @@ impl Vm {
             };
         }
         match instr.op {
-            Op::INVOKE_STK1 | Op::INVOKE_STK4 => {
-                let argc = usize::try_from(imm0(instr)).unwrap_or(0);
-                if f.stack.len() < argc || argc == 0 {
-                    return Tick::Return(err("invoke: stack underflow"));
-                }
-                let words = crate::NativeListItems::invocation_view(Rc::new(
-                    f.stack.split_off(f.stack.len() - argc),
-                ));
-                let entered = f.take_entered_command();
-                // How the release compiles this command where the VM runs it
-                // (C's compiled `catch`/`try`/`for`/`switch`/`dict`): only in
-                // a procedure body where its form requires one, and only where
-                // the words it binds name the frame's compiled locals.
-                let release_compiled = instr.release_compiled.filter(|compiled| {
-                    (f.is_proc || !compiled.in_procedure_only)
-                        && self.frame_compiled_locals_named(compiled.frame_local_words, &words)
-                });
-                self.pending.release_compiled = release_compiled;
-                // A top-level statement's own command runs with no other
-                // command active; a command nested in its words does not.
-                self.pending.top_level_invocation = self.pending.bottom_activation
-                    && f.script_command
-                        .and_then(|start| f.asm.instructions.get(start))
-                        .is_none_or(|start| start.source_cmd_text == instr.source_cmd_text);
-                let dispatched = self.dispatch_words_with_entered(f, &words, entered.as_ref());
-                self.pending.top_level_invocation = false;
-                self.pending.release_compiled = None;
-                match dispatched {
-                    Ok(Some(call)) => return call,
-                    Ok(None) => {}
-                    Err(c) => {
-                        if c.code == Code::Error {
-                            let (cmd_text, line, enclosing) = logged_command(instr);
-                            let msg = c.result.string_bytes();
-                            self.log_command_with_enclosing(
-                                &cmd_text,
-                                invoke_inner_context(self, instr, &words, &cmd_text),
-                                &enclosing,
-                                &msg,
-                                line,
-                            );
-                        }
-                        return Tick::Return(c);
-                    }
-                }
-            }
+            Op::INVOKE_STK1 | Op::INVOKE_STK4 => return self.tick_invoke_stack(f, instr),
 
             Op::INVOKE_EXPANDED => {
                 let marker = f.expand_markers.pop().unwrap_or(f.stack.len());
@@ -9228,6 +9187,54 @@ impl Vm {
             Op::TCLOO_NEXT_LIST => try_op!(self.tcloo_next_list(f, false)),
             Op::TCLOO_NEXT_CLASS_LIST => try_op!(self.tcloo_next_list(f, true)),
             _ => return self.tick_instruction(f, asm, instr),
+        }
+        Tick::Continue
+    }
+
+    fn tick_invoke_stack(&mut self, f: &mut Frame, instr: &Instruction) -> Tick {
+        let argc = usize::try_from(imm0(instr)).unwrap_or(0);
+        if f.stack.len() < argc || argc == 0 {
+            return Tick::Return(err("invoke: stack underflow"));
+        }
+        let words = crate::NativeListItems::invocation_view(Rc::new(
+            f.stack.split_off(f.stack.len() - argc),
+        ));
+        let entered = f.take_entered_command();
+        // How the release compiles this command where the VM runs it
+        // (C's compiled `catch`/`try`/`for`/`switch`/`dict`): only in
+        // a procedure body where its form requires one, and only where
+        // the words it binds name the frame's compiled locals.
+        let release_compiled = instr.release_compiled.filter(|compiled| {
+            (f.is_proc || !compiled.in_procedure_only)
+                && self.frame_compiled_locals_named(compiled.frame_local_words, &words)
+        });
+        self.pending.release_compiled = release_compiled;
+        // A top-level statement's own command runs with no other
+        // command active; a command nested in its words does not.
+        self.pending.top_level_invocation = self.pending.bottom_activation
+            && f.script_command
+                .and_then(|start| f.asm.instructions.get(start))
+                .is_none_or(|start| start.source_cmd_text == instr.source_cmd_text);
+        let dispatched = self.dispatch_words_with_entered(f, &words, entered.as_ref());
+        self.pending.top_level_invocation = false;
+        self.pending.release_compiled = None;
+        match dispatched {
+            Ok(Some(call)) => return call,
+            Ok(None) => {}
+            Err(c) => {
+                if c.code == Code::Error {
+                    let (cmd_text, line, enclosing) = logged_command(instr);
+                    let msg = c.result.string_bytes();
+                    self.log_command_with_enclosing(
+                        &cmd_text,
+                        invoke_inner_context(self, instr, &words, &cmd_text),
+                        &enclosing,
+                        &msg,
+                        line,
+                    );
+                }
+                return Tick::Return(c);
+            }
         }
         Tick::Continue
     }
@@ -9393,8 +9400,7 @@ impl Vm {
             Err(error) => return Err(crate::command::completion_from_cmd_error(self, error)),
         };
         let reached = self.dispatch_words_entry_at_in_original_scope(
-            f,
-            words,
+            (&mut *f, words),
             entered,
             context,
             usage,
@@ -9406,8 +9412,7 @@ impl Vm {
 
     fn dispatch_words_entry_at_in_original_scope(
         &mut self,
-        f: &mut Frame,
-        words: &crate::NativeListItems,
+        invocation: (&mut Frame, &crate::NativeListItems),
         entered: Option<&EnteredCommand>,
         context: &crate::interp::namespace_context::NamespaceExecutionContext,
         usage: &[crate::command::NativeArgumentUsageRewrite],
@@ -9415,6 +9420,7 @@ impl Vm {
         original_scope: &NativeOperationScope,
     ) -> Result<Option<Tick>, Completion<Value>> {
         use tcl_registry::native_ensemble_rewrite::EnsembleRewriteResetEvent as Event;
+        let (f, words) = invocation;
         if ordinary {
             self.reset_native_ensemble_rewrite(Event::BeforeOrdinaryLookup)?;
         }
@@ -9441,8 +9447,14 @@ impl Vm {
                 leave_owner: None,
                 step_scopes: 0,
             };
-            let reached =
-                self.dispatch_words_inner(f, words, None, entered, context, usage, original_scope);
+            let reached = self.dispatch_words_inner(
+                (&mut *f, words),
+                None,
+                entered,
+                context,
+                usage,
+                original_scope,
+            );
             return self.settle_traced_word_dispatch(f, ctx, reached);
         }
         self.dispatch_words_traced(f, words, entered, context, usage, original_scope)
@@ -9772,8 +9784,7 @@ impl Vm {
             &[]
         };
         let dispatched = self.dispatch_words_inner(
-            f,
-            words,
+            (&mut *f, words),
             Some(&sidecar),
             entered,
             context,
@@ -10117,14 +10128,14 @@ impl Vm {
 
     fn dispatch_words_inner(
         &mut self,
-        f: &mut Frame,
-        words: &crate::NativeListItems,
+        invocation: (&mut Frame, &crate::NativeListItems),
         sidecar_handle: Option<&CommandSidecarHandle>,
         entered: Option<&EnteredCommand>,
         context: &crate::interp::namespace_context::NamespaceExecutionContext,
         usage: &[crate::command::NativeArgumentUsageRewrite],
         original_scope: &NativeOperationScope,
     ) -> Result<Option<Tick>, Completion<Value>> {
+        let (f, words) = invocation;
         let original = &words[0];
         let selected = if let Some(entered) = entered {
             let key = entered.sidecar.key().and_then(|key| match key {
@@ -10623,7 +10634,10 @@ impl Vm {
         usage: &[crate::command::NativeArgumentUsageRewrite],
         origin: tcl_registry::command_lookup::CommandLookupOrigin,
     ) -> Completion<Value> {
-        self.invoke_command_value_entry_at(&context, original, arguments, usage, origin, true)
+        let reached =
+            self.invoke_command_value_entry_at(&context, original, arguments, usage, origin, true);
+        drop(context);
+        reached
     }
 
     pub(crate) fn invoke_command_value_internal_at(
@@ -10652,7 +10666,10 @@ impl Vm {
         usage: &[crate::command::NativeArgumentUsageRewrite],
         origin: tcl_registry::command_lookup::CommandLookupOrigin,
     ) -> Completion<Value> {
-        self.invoke_command_value_entry_at(&context, original, arguments, usage, origin, false)
+        let reached =
+            self.invoke_command_value_entry_at(&context, original, arguments, usage, origin, false);
+        drop(context);
+        reached
     }
 
     fn prepare_command_value_entry(
@@ -10703,8 +10720,7 @@ impl Vm {
         };
         let reached = self.invoke_command_value_entry_at_in_original_scope(
             context,
-            original,
-            arguments,
+            (original, arguments),
             usage,
             origin,
             ordinary,
@@ -10716,13 +10732,13 @@ impl Vm {
     fn invoke_command_value_entry_at_in_original_scope(
         &mut self,
         context: &crate::interp::namespace_context::NamespaceExecutionContext,
-        original: &Value,
-        arguments: &[Value],
+        invocation: (&Value, &[Value]),
         usage: &[crate::command::NativeArgumentUsageRewrite],
         origin: tcl_registry::command_lookup::CommandLookupOrigin,
         ordinary: bool,
         original_scope: &NativeOperationScope,
     ) -> Completion<Value> {
+        let (original, arguments) = invocation;
         let (key, usage_revision) =
             match self.prepare_command_value_entry(context, original, ordinary) {
                 Ok(key) => key,
@@ -11420,106 +11436,14 @@ impl Vm {
             drop(retired);
             return crate::command::completion_from_cmd_error(self, error);
         }
-        let result = (|| {
-            match command {
-                Command::Builtin(bf) => {
-                    let saved = std::mem::replace(&mut self.native_invocation.sidecar, sidecar);
-                    let res = bf(self, argv);
-                    self.native_invocation.sidecar = saved;
-                    self.settle_native_invoke(res)
-                }
-                Command::Native(cmd) => {
-                    let saved = std::mem::replace(&mut self.native_invocation.sidecar, sidecar);
-                    let res = cmd.invoke(self, argv);
-                    self.native_invocation.sidecar = saved;
-                    self.settle_native_invoke(res)
-                }
-                Command::Proc(p) => {
-                    match self.early_procedure_activation(&p, argv) {
-                        Ok(Some(result)) => return result,
-                        Ok(None) => {}
-                        Err(error) => return error,
-                    }
-                    let p = match self.ensure_proc_ready_in(p, sidecar.as_ref(), sidecar_handle) {
-                        Ok(proc) => proc,
-                        Err(error) => {
-                            return crate::command::completion_from_tcl_error(self, error);
-                        }
-                    };
-                    match self.enter_proc(&p.proc, &p.body, original, argv) {
-                        Ok(()) => {
-                            self.install_native_procedure_binding(p.declaration_binding);
-                            self.run_activation(Box::new(Frame::new(p.body, true)))
-                        }
-                        Err(c) => c,
-                    }
-                }
-                Command::CallerAlias(original_prefix) => {
-                    let target = match original_prefix.native_object_list_elements(
-                        tcl_syntax::native_string::NativeStringProtocol::Jim084,
-                    ) {
-                        Ok(target) => target,
-                        Err(error) => {
-                            return crate::command::completion_from_cmd_error(self, error.into());
-                        }
-                    };
-                    let mut full: Vec<Value> = target.as_ref().clone();
-                    full.extend_from_slice(argv);
-                    let usage = self.alias_usage_rewrites_value(original, target.len(), usage);
-                    self.invoke_alias_words_with_usage(
-                        self.cur_interp(),
-                        &full,
-                        tcl_registry::AliasTargetLookup::CallerNamespace,
-                        &usage,
-                    )
-                }
-                Command::Alias { words: target, .. } => {
-                    // Target resolves in the GLOBAL namespace, caller's frame kept
-                    // — see the `dispatch_words` Alias arm for the tclsh pins.
-                    let mut full: Vec<Value> = (*target).clone();
-                    full.extend_from_slice(argv);
-                    let here = self.cur_interp();
-                    let usage = self.alias_usage_rewrites_value(original, target.len(), usage);
-                    self.invoke_alias_words_with_usage(
-                        here,
-                        &full,
-                        tcl_registry::AliasTargetLookup::Global,
-                        &usage,
-                    )
-                }
-                // Cross-interp alias: switch to the target interp and run the words
-                // there.  Identical to the bytecode path — a cross-interp alias
-                // works from a native re-entry (coroutine resume, `lsort
-                // -command`, `invoke_command`), unlike C Tcl's shared C stack,
-                // where the same re-entry raises `cannot invoke parent-interp
-                // alias: C stack busy`.
-                Command::CrossAlias {
-                    target: target_interp,
-                    words: target,
-                    original_jim_prefix,
-                    ..
-                } => {
-                    if let Some(prefix) = original_jim_prefix {
-                        self.invoke_original_jim_parent_alias(target_interp, &prefix, argv)
-                    } else {
-                        let mut full: Vec<Value> = (*target).clone();
-                        full.extend_from_slice(argv);
-                        let usage = self.alias_usage_rewrites_value(original, target.len(), usage);
-                        self.invoke_alias_words_with_usage(
-                            target_interp,
-                            &full,
-                            tcl_registry::AliasTargetLookup::Global,
-                            &usage,
-                        )
-                    }
-                }
-                Command::ChildInterp(child) => self.dispatch_child(original, child, argv),
-                Command::Ensemble(e) => self.dispatch_ensemble("", &e, argv),
-                Command::Object(key) => crate::cmd_oo::oo_dispatch(self, key, original, argv),
-                // Miss fallback chain (see `dispatch_words`): `namespace unknown`
-                // handler first, then the plain `unknown` proc, then a hard error.
-            }
-        })();
+        let result = self.invoke_selected_command_worker(
+            original,
+            command,
+            argv,
+            sidecar,
+            sidecar_handle,
+            usage,
+        );
         self.leave_native_usage_scope(usage_scope);
         self.restore_native_handler_metadata(saved_handler);
         let completion = self
@@ -11532,6 +11456,115 @@ impl Vm {
         let retired = std::mem::replace(&mut self.native_invocation.arguments, previous_arguments);
         drop(retired);
         completion
+    }
+
+    fn invoke_selected_command_worker(
+        &mut self,
+        original: &Value,
+        command: Command,
+        argv: &[Value],
+        sidecar: Option<CommandSidecarKey>,
+        sidecar_handle: Option<&CommandSidecarHandle>,
+        usage: &[crate::command::NativeArgumentUsageRewrite],
+    ) -> Completion<Value> {
+        match command {
+            Command::Builtin(bf) => {
+                let saved = std::mem::replace(&mut self.native_invocation.sidecar, sidecar);
+                let res = bf(self, argv);
+                self.native_invocation.sidecar = saved;
+                self.settle_native_invoke(res)
+            }
+            Command::Native(cmd) => {
+                let saved = std::mem::replace(&mut self.native_invocation.sidecar, sidecar);
+                let res = cmd.invoke(self, argv);
+                self.native_invocation.sidecar = saved;
+                self.settle_native_invoke(res)
+            }
+            Command::Proc(p) => {
+                match self.early_procedure_activation(&p, argv) {
+                    Ok(Some(result)) => return result,
+                    Ok(None) => {}
+                    Err(error) => return error,
+                }
+                let p = match self.ensure_proc_ready_in(p, sidecar.as_ref(), sidecar_handle) {
+                    Ok(proc) => proc,
+                    Err(error) => {
+                        return crate::command::completion_from_tcl_error(self, error);
+                    }
+                };
+                match self.enter_proc(&p.proc, &p.body, original, argv) {
+                    Ok(()) => {
+                        self.install_native_procedure_binding(p.declaration_binding);
+                        self.run_activation(Box::new(Frame::new(p.body, true)))
+                    }
+                    Err(c) => c,
+                }
+            }
+            Command::CallerAlias(original_prefix) => {
+                let target = match original_prefix.native_object_list_elements(
+                    tcl_syntax::native_string::NativeStringProtocol::Jim084,
+                ) {
+                    Ok(target) => target,
+                    Err(error) => {
+                        return crate::command::completion_from_cmd_error(self, error.into());
+                    }
+                };
+                let mut full: Vec<Value> = target.as_ref().clone();
+                full.extend_from_slice(argv);
+                let usage = self.alias_usage_rewrites_value(original, target.len(), usage);
+                self.invoke_alias_words_with_usage(
+                    self.cur_interp(),
+                    &full,
+                    tcl_registry::AliasTargetLookup::CallerNamespace,
+                    &usage,
+                )
+            }
+            Command::Alias { words: target, .. } => {
+                // Target resolves in the GLOBAL namespace, caller's frame kept
+                // — see the `dispatch_words` Alias arm for the tclsh pins.
+                let mut full: Vec<Value> = (*target).clone();
+                full.extend_from_slice(argv);
+                let here = self.cur_interp();
+                let usage = self.alias_usage_rewrites_value(original, target.len(), usage);
+                self.invoke_alias_words_with_usage(
+                    here,
+                    &full,
+                    tcl_registry::AliasTargetLookup::Global,
+                    &usage,
+                )
+            }
+            // Cross-interp alias: switch to the target interp and run the words
+            // there.  Identical to the bytecode path — a cross-interp alias
+            // works from a native re-entry (coroutine resume, `lsort
+            // -command`, `invoke_command`), unlike C Tcl's shared C stack,
+            // where the same re-entry raises `cannot invoke parent-interp
+            // alias: C stack busy`.
+            Command::CrossAlias {
+                target: target_interp,
+                words: target,
+                original_jim_prefix,
+                ..
+            } => {
+                if let Some(prefix) = original_jim_prefix {
+                    self.invoke_original_jim_parent_alias(target_interp, &prefix, argv)
+                } else {
+                    let mut full: Vec<Value> = (*target).clone();
+                    full.extend_from_slice(argv);
+                    let usage = self.alias_usage_rewrites_value(original, target.len(), usage);
+                    self.invoke_alias_words_with_usage(
+                        target_interp,
+                        &full,
+                        tcl_registry::AliasTargetLookup::Global,
+                        &usage,
+                    )
+                }
+            }
+            Command::ChildInterp(child) => self.dispatch_child(original, child, argv),
+            Command::Ensemble(e) => self.dispatch_ensemble("", &e, argv),
+            Command::Object(key) => crate::cmd_oo::oo_dispatch(self, key, original, argv),
+            // Miss fallback chain (see `dispatch_words`): `namespace unknown`
+            // handler first, then the plain `unknown` proc, then a hard error.
+        }
     }
 
     /// Run a `TclOO` method body: enter the proc activation, link the object's

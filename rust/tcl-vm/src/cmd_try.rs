@@ -824,6 +824,98 @@ fn select_original_jim_try_prefix(
     }
 }
 
+fn run_try_body(
+    vm: &mut Vm,
+    args: &[Value],
+    jim: bool,
+    compiled: bool,
+    original: Option<&crate::interp::native_name_consumers::OriginalNameConsumerScope>,
+    usage: &str,
+) -> Completion<Value> {
+    if jim
+        && let Err(error) = vm.reset_original_jim_global_error_code()
+        && vm.refused_completion().is_some()
+    {
+        return error;
+    }
+    let jim_prefix = match select_original_jim_try_prefix(vm, args, original, usage) {
+        Ok(prefix) => prefix,
+        Err(error) => return error,
+    };
+    let rest_args = &args[jim_prefix.map_or(0, |prefix| prefix.script_at)..];
+    let Some((body, rest)) = rest_args.split_first() else {
+        return crate::command::native_wrong_arguments_message(vm, usage);
+    };
+    let (handlers, finally, deferred_clauses) = if jim {
+        (Vec::new(), None, Some(rest.to_vec()))
+    } else {
+        match parse_clauses(vm, rest, None, None) {
+            Ok((handlers, finally)) => (handlers, finally, None),
+            Err(error) => return error,
+        }
+    };
+    let plan = Rc::new(TryPlan {
+        handlers,
+        finally,
+        jim,
+        deferred_clauses,
+        jim_prefix,
+        ignored_body: false,
+        body_error_code: None,
+        compiled,
+    });
+    if let Some(original) = &original
+        && let Err(error) = original.current_for_value(vm, body)
+    {
+        return crate::command::completion_from_cmd_error(vm, error);
+    }
+    let prepared = vm.prepare_script_commands_value(body);
+    if let Some(original) = &original
+        && let Err(error) = original.check(vm)
+    {
+        return crate::command::completion_from_cmd_error(vm, error);
+    }
+    match prepared {
+        Ok(prepared) if prepared.prefix.is_some() => {
+            vm.pending.try_phase = Some(TryReq {
+                script: prepared.prefix.expect("checked above"),
+                state: TryState {
+                    plan,
+                    phase: TryPhase::Body,
+                    fatal_tail: prepared.fatal_tail,
+                },
+            });
+            ok(Value::empty())
+        }
+        Ok(prepared) => {
+            let body_completion = prepared
+                .fatal_tail
+                .map_or_else(|| ok(Value::empty()), |tail| vm.raise_fatal_tail(tail));
+            match advance_after_body(vm, &plan, body_completion) {
+                TryOutcome::Push(req) => {
+                    vm.pending.try_phase = Some(*req);
+                    ok(Value::empty())
+                }
+                TryOutcome::Deliver(c) => c,
+            }
+        }
+        Err(error) => advance_try_parse_error(vm, &plan, error),
+    }
+}
+
+fn advance_try_parse_error(vm: &mut Vm, plan: &Rc<TryPlan>, error: TclError) -> Completion<Value> {
+    // Parse failures follow the normal body-error path so registered handlers
+    // and `finally` still run before the completion is delivered.
+    let completion = crate::command::completion_from_tcl_error(vm, error);
+    match advance_after_body(vm, plan, completion) {
+        TryOutcome::Push(req) => {
+            vm.pending.try_phase = Some(*req);
+            ok(Value::empty())
+        }
+        TryOutcome::Deliver(completion) => completion,
+    }
+}
+
 /// `try body ?handler ...? ?finally script?` — structured exception handling.
 ///
 /// Parses and validates the grammar synchronously (unchanged), then defers the
@@ -849,91 +941,7 @@ fn cmd_try(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     } else {
         None
     };
-    let reached = (|| {
-        if jim
-            && let Err(error) = vm.reset_original_jim_global_error_code()
-            && vm.refused_completion().is_some()
-        {
-            return error;
-        }
-        let jim_prefix = match select_original_jim_try_prefix(vm, args, original.as_ref(), USAGE) {
-            Ok(prefix) => prefix,
-            Err(error) => return error,
-        };
-        let rest_args = &args[jim_prefix.map_or(0, |prefix| prefix.script_at)..];
-        let Some((body, rest)) = rest_args.split_first() else {
-            return crate::command::native_wrong_arguments_message(vm, USAGE);
-        };
-        let (handlers, finally, deferred_clauses) = if jim {
-            (Vec::new(), None, Some(rest.to_vec()))
-        } else {
-            match parse_clauses(vm, rest, None, None) {
-                Ok((handlers, finally)) => (handlers, finally, None),
-                Err(error) => return error,
-            }
-        };
-        let plan = Rc::new(TryPlan {
-            handlers,
-            finally,
-            jim,
-            deferred_clauses,
-            jim_prefix,
-            ignored_body: false,
-            body_error_code: None,
-            compiled,
-        });
-        if let Some(original) = &original
-            && let Err(error) = original.current_for_value(vm, body)
-        {
-            return crate::command::completion_from_cmd_error(vm, error);
-        }
-        let prepared = vm.prepare_script_commands_value(body);
-        if let Some(original) = &original
-            && let Err(error) = original.check(vm)
-        {
-            return crate::command::completion_from_cmd_error(vm, error);
-        }
-        match prepared {
-            Ok(prepared) if prepared.prefix.is_some() => {
-                vm.pending.try_phase = Some(TryReq {
-                    script: prepared.prefix.expect("checked above"),
-                    state: TryState {
-                        plan,
-                        phase: TryPhase::Body,
-                        fatal_tail: prepared.fatal_tail,
-                    },
-                });
-                ok(Value::empty())
-            }
-            Ok(prepared) => {
-                let body_completion = prepared
-                    .fatal_tail
-                    .map_or_else(|| ok(Value::empty()), |tail| vm.raise_fatal_tail(tail));
-                match advance_after_body(vm, &plan, body_completion) {
-                    TryOutcome::Push(req) => {
-                        vm.pending.try_phase = Some(*req);
-                        ok(Value::empty())
-                    }
-                    TryOutcome::Deliver(c) => c,
-                }
-            }
-            // A body parse error is a regular runtime error, subject to the same
-            // `on error`/`trap`/`finally` handling as any other body error: its
-            // `Err(TclError)` becomes a plain `Completion{Error}` fed through
-            // `advance_after_body`'s handler matching, not returned as a hard
-            // failure that skips it (try-body-parse-error tclsh-pinned test).
-            Err(error) => {
-                let completion = crate::command::completion_from_tcl_error(vm, error);
-                match advance_after_body(vm, &plan, completion) {
-                    TryOutcome::Push(req) => {
-                        vm.pending.try_phase = Some(*req);
-                        ok(Value::empty())
-                    }
-                    TryOutcome::Deliver(c) => c,
-                }
-            }
-        }
-    })();
+    let reached = run_try_body(vm, args, jim, compiled, original.as_ref(), USAGE);
     if let Some(original) = original
         && let Err(error) = original.finish(vm)
     {

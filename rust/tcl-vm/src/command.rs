@@ -670,15 +670,19 @@ pub(crate) struct OriginalLambdaDefinition {
     pub(crate) activation_preflight_complete: bool,
 }
 
-/// Manufacture the actual temporary lambda declaration from original list
-/// elements. The caller retains its returned binding independently of the
-/// original publication handle and owns cleanup on every completion path. This is not
-/// an assertion about native C commandless lambda cache storage.
-pub(crate) fn build_lambda_proc(
+struct PreparedLambdaDeclaration {
+    parts: Vec<Value>,
+    parameter_grammar: tcl_dialect::ParameterGrammar,
+    body: Value,
+    parameters: Vec<Param>,
+    has_args: bool,
+}
+
+/// Read and validate the lambda declaration before it is published.
+fn prepare_lambda_declaration(
     vm: &mut Vm,
     lambda: &Value,
-    call_identity: Vec<Value>,
-) -> Result<OriginalLambdaDefinition, Completion<Value>> {
+) -> Result<PreparedLambdaDeclaration, Completion<Value>> {
     let Some(protocol) = vm.native_invocation_dialect().native_string_protocol() else {
         return Err(vm.refuse_host_command("native lambda list producer is unavailable".into()));
     };
@@ -733,6 +737,31 @@ pub(crate) fn build_lambda_proc(
             return Err(error);
         }
     };
+    Ok(PreparedLambdaDeclaration {
+        parts,
+        parameter_grammar,
+        body,
+        parameters: params_vec,
+        has_args,
+    })
+}
+
+/// Manufacture the actual temporary lambda declaration from original list
+/// elements. The caller retains its returned binding independently of the
+/// original publication handle and owns cleanup on every completion path. This is not
+/// an assertion about native C commandless lambda cache storage.
+pub(crate) fn build_lambda_proc(
+    vm: &mut Vm,
+    lambda: &Value,
+    call_identity: Vec<Value>,
+) -> Result<OriginalLambdaDefinition, Completion<Value>> {
+    let PreparedLambdaDeclaration {
+        parts,
+        parameter_grammar,
+        body,
+        parameters: params_vec,
+        has_args,
+    } = prepare_lambda_declaration(vm, lambda)?;
     let activation_preflight_complete = vm.uses_native_jim_lookup();
     let usage_name = activation_preflight_complete
         .then(|| vec![Value::string("apply"), Value::string("lambdaExpr")]);
@@ -1602,19 +1631,39 @@ fn cmd_interp(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         Ok(name) => name,
         Err(error) => return completion_from_cmd_error(vm, error),
     };
+    interp_command(vm, sub, rest)
+}
+
+fn interp_alias_command(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
+    match rest {
+        [path, name] => vm.interpreter_alias_query_original(path, name),
+        [path, name, empty] => vm.interpreter_alias_delete_original(path, name, empty),
+        [src_path, src_cmd, target_path, target @ ..] if !target.is_empty() => {
+            vm.interp_alias_create(src_path, src_cmd, target_path, target.to_vec())
+        }
+        _ => native_wrong_arguments_message(
+            vm,
+            "wrong # args: should be \"interp alias srcPath srcCmd ?targetPath targetCmd ?arg ...??\"",
+        ),
+    }
+}
+
+fn interp_exists(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
+    match rest {
+        [] => ok(Value::int(1)),
+        [path] => match vm.resolve_interp_path_original(path) {
+            Ok(_) => ok(Value::bool(true)),
+            Err(error) if vm.execution_refusal.is_some() => error,
+            Err(_) => ok(Value::bool(false)),
+        },
+        _ => native_wrong_arguments_message(vm, "wrong # args: should be \"interp exists ?path?\""),
+    }
+}
+
+fn interp_command(vm: &mut Vm, sub: &str, rest: &[Value]) -> Completion<Value> {
     match sub {
         "create" => interp_create_cmd(vm, rest),
-        "alias" => match rest {
-            [path, name] => vm.interpreter_alias_query_original(path, name),
-            [path, name, empty] => vm.interpreter_alias_delete_original(path, name, empty),
-            [src_path, src_cmd, target_path, target @ ..] if !target.is_empty() => {
-                vm.interp_alias_create(src_path, src_cmd, target_path, target.to_vec())
-            }
-            _ => native_wrong_arguments_message(
-                vm,
-                "wrong # args: should be \"interp alias srcPath srcCmd ?targetPath targetCmd ?arg ...??\"",
-            ),
-        },
+        "alias" => interp_alias_command(vm, rest),
         "target" => match rest {
             [path, name] => vm.interpreter_alias_target_original(path, name),
             _ => native_wrong_arguments_message(
@@ -1630,18 +1679,7 @@ fn cmd_interp(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
                 "wrong # args: should be \"interp aliases ?path?\"",
             ),
         },
-        "exists" => match rest {
-            [] => ok(Value::int(1)),
-            [path] => match vm.resolve_interp_path_original(path) {
-                Ok(_) => ok(Value::bool(true)),
-                Err(error) if vm.execution_refusal.is_some() => error,
-                Err(_) => ok(Value::bool(false)),
-            },
-            _ => native_wrong_arguments_message(
-                vm,
-                "wrong # args: should be \"interp exists ?path?\"",
-            ),
-        },
+        "exists" => interp_exists(vm, rest),
         // interp eval path arg ?arg ...? — empty path is the current interp
         // (evaluate like `eval`); a named path routes into that child.
         "eval" => interp_eval_cmd(vm, rest),
@@ -2085,93 +2123,88 @@ pub(crate) fn cmd_authored_rule_proc(vm: &mut Vm, args: &[Value]) -> Completion<
     completion
 }
 
-fn define_procedure(
+struct PreparedProcedureBody {
+    body: Value,
+    statics: Option<Rc<crate::vars::StaticVariables>>,
+    parameters: Vec<Param>,
+    has_args: bool,
+}
+
+fn prepare_procedure_before_name(
     vm: &mut Vm,
     args: &[Value],
-    execution_namespace: Option<NsId>,
-) -> Completion<Value> {
-    use tcl_registry::native_procedure::{
-        NativeProcedureDefinitionSelection, ProcedureDefinitionResult,
-    };
-    let words = vec![tcl_registry::InvocationWord::Dynamic; args.len()];
-    let dialect = vm.native_invocation_dialect();
-    let arguments = tcl_registry::InvocationArguments::structured(&words).with_dialect(dialect);
-    let NativeProcedureDefinitionSelection::Valid(definition) =
-        tcl_registry::native_procedure::select_native_procedure_definition(arguments)
-    else {
-        let usage = tcl_registry::native_procedure::NativeProcedureDefinitionSpec::Core
-            .usage(Some(dialect))
-            .unwrap_or("proc name args body");
-        return native_wrong_args(vm, usage);
-    };
-    let name = &args[definition.name_at];
-    let params = &args[definition.parameters_at];
-    let body_text = &args[definition.body_at];
-    let Some(creation) = tcl_registry::native_procedure::procedure_activation_protocol(
-        vm.actual_native_invocation_dialect(),
-    ) else {
-        return completion_from_cmd_error(
-            vm,
-            tcl_syntax::value::ValueError::CommandProtocolUnavailable(
-                "original procedure definition order",
-            )
-            .into(),
-        );
-    };
-    let prepared = if creation.definition_formals_precede_name() {
-        let body = match vm.capture_procedure_declaration_body(params, body_text) {
-            Ok(body) => body,
-            Err(error) => return completion_from_cmd_error(vm, error),
-        };
-        let statics = match definition
-            .statics_at
-            .map(|index| vm.prepare_procedure_statics_value(&args[index]))
-            .transpose()
-        {
-            Ok(statics) => statics,
-            Err(error) => return error,
-        };
-        let parameters = match parse_params_value(vm, params, b"") {
-            Ok(parameters) => parameters,
-            Err(error) => return error,
-        };
-        Some((body, statics, parameters))
-    } else {
-        None
-    };
-    let written = match vm.native_name_operand_bytes_checked(name) {
-        Ok(bytes) => bytes,
-        Err(error) => {
-            return completion_from_cmd_error(vm, error);
-        }
-    };
-    if let Err(completion) = validate_procedure_publication_name(vm, &written) {
-        return completion;
+    params: &Value,
+    body_text: &Value,
+    statics_at: Option<usize>,
+    formals_precede_name: bool,
+) -> Result<Option<PreparedProcedureBody>, Completion<Value>> {
+    if !formals_precede_name {
+        return Ok(None);
     }
-    let Some(parameter_grammar) = vm.native_invocation_dialect().parameter_grammar() else {
-        return err("native parameter grammar is not selected");
-    };
-    let (body, statics, (params_vec, has_args)) = if let Some(prepared) = prepared {
-        prepared
-    } else {
-        let body = match vm.capture_procedure_declaration_body(params, body_text) {
-            Ok(body) => body,
-            Err(error) => return completion_from_cmd_error(vm, error),
-        };
-        let statics = match definition
-            .statics_at
-            .map(|index| vm.prepare_procedure_statics_value(&args[index]))
-            .transpose()
-        {
-            Ok(statics) => statics,
-            Err(error) => return error,
-        };
-        let parameters = match parse_params_value(vm, params, &written) {
-            Ok(parameters) => parameters,
-            Err(error) => return error,
-        };
-        (body, statics, parameters)
-    };
+    let body = vm
+        .capture_procedure_declaration_body(params, body_text)
+        .map_err(|error| completion_from_cmd_error(vm, error))?;
+    let statics = statics_at
+        .map(|index| vm.prepare_procedure_statics_value(&args[index]))
+        .transpose()?;
+    let (parameters, has_args) = parse_params_value(vm, params, b"")?;
+    Ok(Some(PreparedProcedureBody {
+        body,
+        statics,
+        parameters,
+        has_args,
+    }))
+}
+
+fn prepare_procedure_after_name(
+    vm: &mut Vm,
+    args: &[Value],
+    params: &Value,
+    body_text: &Value,
+    statics_at: Option<usize>,
+    written: &[u8],
+) -> Result<PreparedProcedureBody, Completion<Value>> {
+    let body = vm
+        .capture_procedure_declaration_body(params, body_text)
+        .map_err(|error| completion_from_cmd_error(vm, error))?;
+    let statics = statics_at
+        .map(|index| vm.prepare_procedure_statics_value(&args[index]))
+        .transpose()?;
+    let (parameters, has_args) = parse_params_value(vm, params, written)?;
+    Ok(PreparedProcedureBody {
+        body,
+        statics,
+        parameters,
+        has_args,
+    })
+}
+
+struct ProcedurePublication<'a> {
+    name: &'a Value,
+    params: &'a Value,
+    written: Rc<[u8]>,
+    body: Value,
+    statics: Option<Rc<crate::vars::StaticVariables>>,
+    parameters: Vec<Param>,
+    has_args: bool,
+    parameter_grammar: tcl_dialect::ParameterGrammar,
+    execution_namespace: Option<NsId>,
+    result: tcl_registry::native_procedure::ProcedureDefinitionResult,
+}
+
+fn publish_procedure(vm: &mut Vm, input: ProcedurePublication<'_>) -> Completion<Value> {
+    let ProcedurePublication {
+        name,
+        params,
+        written,
+        body,
+        statics,
+        parameters,
+        has_args,
+        parameter_grammar,
+        execution_namespace,
+        result,
+    } = input;
     let (reg_name, slot, ns_id) = match vm.native_procedure_publication(&written) {
         Ok(publication) => publication,
         Err(error) => return vm.refuse_host_command(error.to_string()),
@@ -2199,13 +2232,12 @@ fn define_procedure(
                 path: namespace,
                 token: ns_id,
             },
-            params: params_vec,
+            params: parameters,
             parameter_grammar,
             has_args,
             native_jim_namespace: None,
             native_parameters: (parameter_grammar == tcl_dialect::ParameterGrammar::Jim)
                 .then(|| params.clone()),
-
             native_header,
             statics,
             body: None,
@@ -2216,10 +2248,101 @@ fn define_procedure(
         },
         report,
     );
-    ok(match definition.result {
-        ProcedureDefinitionResult::Empty => Value::empty(),
-        ProcedureDefinitionResult::NameArgument => name.clone(),
+    ok(match result {
+        tcl_registry::native_procedure::ProcedureDefinitionResult::Empty => Value::empty(),
+        tcl_registry::native_procedure::ProcedureDefinitionResult::NameArgument => name.clone(),
     })
+}
+
+fn define_procedure(
+    vm: &mut Vm,
+    args: &[Value],
+    execution_namespace: Option<NsId>,
+) -> Completion<Value> {
+    use tcl_registry::native_procedure::NativeProcedureDefinitionSelection;
+    let words = vec![tcl_registry::InvocationWord::Dynamic; args.len()];
+    let dialect = vm.native_invocation_dialect();
+    let arguments = tcl_registry::InvocationArguments::structured(&words).with_dialect(dialect);
+    let NativeProcedureDefinitionSelection::Valid(definition) =
+        tcl_registry::native_procedure::select_native_procedure_definition(arguments)
+    else {
+        let usage = tcl_registry::native_procedure::NativeProcedureDefinitionSpec::Core
+            .usage(Some(dialect))
+            .unwrap_or("proc name args body");
+        return native_wrong_args(vm, usage);
+    };
+    let name = &args[definition.name_at];
+    let params = &args[definition.parameters_at];
+    let body_text = &args[definition.body_at];
+    let Some(creation) = tcl_registry::native_procedure::procedure_activation_protocol(
+        vm.actual_native_invocation_dialect(),
+    ) else {
+        return completion_from_cmd_error(
+            vm,
+            tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "original procedure definition order",
+            )
+            .into(),
+        );
+    };
+    let prepared = match prepare_procedure_before_name(
+        vm,
+        args,
+        params,
+        body_text,
+        definition.statics_at,
+        creation.definition_formals_precede_name(),
+    ) {
+        Ok(prepared) => prepared,
+        Err(error) => return error,
+    };
+    let written = match vm.native_name_operand_bytes_checked(name) {
+        Ok(bytes) => bytes,
+        Err(error) => {
+            return completion_from_cmd_error(vm, error);
+        }
+    };
+    if let Err(completion) = validate_procedure_publication_name(vm, &written) {
+        return completion;
+    }
+    let Some(parameter_grammar) = vm.native_invocation_dialect().parameter_grammar() else {
+        return err("native parameter grammar is not selected");
+    };
+    let prepared = match prepared {
+        Some(prepared) => prepared,
+        None => match prepare_procedure_after_name(
+            vm,
+            args,
+            params,
+            body_text,
+            definition.statics_at,
+            &written,
+        ) {
+            Ok(prepared) => prepared,
+            Err(error) => return error,
+        },
+    };
+    let PreparedProcedureBody {
+        body,
+        statics,
+        parameters,
+        has_args,
+    } = prepared;
+    publish_procedure(
+        vm,
+        ProcedurePublication {
+            name,
+            params,
+            written,
+            body,
+            statics,
+            parameters,
+            has_args,
+            parameter_grammar,
+            execution_namespace,
+            result: definition.result,
+        },
+    )
 }
 
 /// Reach native header getters only when the original compiler needs them.
@@ -3226,6 +3349,127 @@ fn cmd_continue(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     Completion::new(Code::Continue, Value::empty(), Value::empty())
 }
 
+fn finish_catch_preparation(
+    vm: &mut Vm,
+    prepared: Result<crate::interp::PreparedScript, TclError>,
+    script: &Value,
+    resvar: Option<&Value>,
+    optvar: Option<&Value>,
+    ignored_codes: u64,
+    evaluates_word: bool,
+) -> Completion<Value> {
+    match prepared {
+        Ok(prepared) if prepared.prefix.is_some() => {
+            vm.pending.catch = Some(crate::exec::CatchReq {
+                script: prepared
+                    .prefix
+                    .expect("checked above")
+                    .with_source_location(script.source_location()),
+                resvar: resvar.map(|v| (*v).clone()),
+                optvar: optvar.map(|v| (*v).clone()),
+                fatal_tail: prepared.fatal_tail,
+                ignored_codes,
+                evaluates_word,
+            });
+            ok(Value::empty())
+        }
+        Ok(prepared) => {
+            let comp = prepared.fatal_tail.map_or_else(
+                || ok(Value::empty()),
+                |tail| vm.raise_script_parse_failure(tail, script.source_location()),
+            );
+            vm.finish_catch(comp, resvar, optvar, ignored_codes)
+        }
+        // A body that fails to *parse* is itself a catchable error: run the
+        // epilogue directly with the parse-error completion (no body to execute).
+        Err(e) => {
+            let comp = completion_from_tcl_error(vm, e);
+            vm.finish_catch(comp, resvar, optvar, ignored_codes)
+        }
+    }
+}
+
+fn run_catch_body(
+    vm: &mut Vm,
+    args: &[Value],
+    dialect: tcl_registry::InvocationDialect,
+    evaluates_word: bool,
+    original: Option<&crate::interp::native_name_consumers::OriginalNameConsumerScope>,
+) -> Completion<Value> {
+    let selection = if let Some(original) = &original {
+        let reached = tcl_registry::catch_invocation::select_native_jim_catch_invocation(
+            args.len(),
+            dialect,
+            |index| original.read(vm, &args[index]).map(|bytes| bytes.to_vec()),
+        );
+        if let Err(error) = original.check(vm) {
+            return crate::command::completion_from_cmd_error(vm, error);
+        }
+        match reached {
+            Ok(selection) => selection,
+            Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+        }
+    } else {
+        match tcl_registry::catch_invocation::select_original_catch_invocation(
+            args.len(),
+            dialect,
+            |index| {
+                vm.native_name_operand_bytes_checked(&args[index])
+                    .map(|bytes| bytes.to_vec())
+            },
+        ) {
+            Ok(selection) => selection,
+            Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+        }
+    };
+    let selected = match selection {
+        tcl_registry::catch_invocation::CatchInvocationSelection::Valid(selected) => selected,
+        _ if dialect.completion_options_policy()
+            == Some(tcl_registry::CompletionOptionsPolicy::Legacy) =>
+        {
+            return native_wrong_arguments_message(
+                vm,
+                "wrong # args: should be \"catch command ?varName?\"",
+            );
+        }
+        _ => {
+            return native_wrong_arguments_message(
+                vm,
+                "wrong # args: should be \"catch script ?resultVarName? ?optionVarName?\"",
+            );
+        }
+    };
+    let script = &args[selected.script_at];
+    let resvar = selected.result_var_at.map(|index| &args[index]);
+    let optvar = selected.options_var_at.map(|index| &args[index]);
+    // Defer the body to the *explicit* stack so a `yield` inside it stays
+    // yieldable: compile it and hand it to the trampoline via
+    // the pending catch request. A catch frame runs the body and its completion — of any
+    // code — is absorbed by `finish_catch` (which binds the result/options vars
+    // and yields the status code). Mirrors `cmd_eval`'s pending request, but
+    // catch's completion is caught rather than propagated.
+    if let Some(original) = &original
+        && let Err(error) = original.current_for_value(vm, script)
+    {
+        return crate::command::completion_from_cmd_error(vm, error);
+    }
+    let prepared = vm.prepare_script_commands_value(script);
+    if let Some(original) = &original
+        && let Err(error) = original.check(vm)
+    {
+        return crate::command::completion_from_cmd_error(vm, error);
+    }
+    finish_catch_preparation(
+        vm,
+        prepared,
+        script,
+        resvar,
+        optvar,
+        selected.ignored_codes,
+        evaluates_word,
+    )
+}
+
 /// `catch script ?resultVarName? ?optionsVarName?`.
 fn cmd_catch(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     // A compiled `catch` whose script is not a literal evaluates it as a
@@ -3256,100 +3500,7 @@ fn cmd_catch(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     } else {
         None
     };
-    let reached = (|| {
-        let selection = if let Some(original) = &original {
-            let reached = tcl_registry::catch_invocation::select_native_jim_catch_invocation(
-                args.len(),
-                dialect,
-                |index| original.read(vm, &args[index]).map(|bytes| bytes.to_vec()),
-            );
-            if let Err(error) = original.check(vm) {
-                return crate::command::completion_from_cmd_error(vm, error);
-            }
-            match reached {
-                Ok(selection) => selection,
-                Err(error) => return crate::command::completion_from_cmd_error(vm, error),
-            }
-        } else {
-            match tcl_registry::catch_invocation::select_original_catch_invocation(
-                args.len(),
-                dialect,
-                |index| {
-                    vm.native_name_operand_bytes_checked(&args[index])
-                        .map(|bytes| bytes.to_vec())
-                },
-            ) {
-                Ok(selection) => selection,
-                Err(error) => return crate::command::completion_from_cmd_error(vm, error),
-            }
-        };
-        let selected = match selection {
-            tcl_registry::catch_invocation::CatchInvocationSelection::Valid(selected) => selected,
-            _ if dialect.completion_options_policy()
-                == Some(tcl_registry::CompletionOptionsPolicy::Legacy) =>
-            {
-                return native_wrong_arguments_message(
-                    vm,
-                    "wrong # args: should be \"catch command ?varName?\"",
-                );
-            }
-            _ => {
-                return native_wrong_arguments_message(
-                    vm,
-                    "wrong # args: should be \"catch script ?resultVarName? ?optionVarName?\"",
-                );
-            }
-        };
-        let script = &args[selected.script_at];
-        let resvar = selected.result_var_at.map(|index| &args[index]);
-        let optvar = selected.options_var_at.map(|index| &args[index]);
-        // Defer the body to the *explicit* stack so a `yield` inside it stays
-        // yieldable: compile it and hand it to the trampoline via
-        // the pending catch request. A catch frame runs the body and its completion — of any
-        // code — is absorbed by `finish_catch` (which binds the result/options vars
-        // and yields the status code). Mirrors `cmd_eval`'s pending request, but
-        // catch's completion is caught rather than propagated.
-        if let Some(original) = &original
-            && let Err(error) = original.current_for_value(vm, script)
-        {
-            return crate::command::completion_from_cmd_error(vm, error);
-        }
-        let prepared = vm.prepare_script_commands_value(script);
-        if let Some(original) = &original
-            && let Err(error) = original.check(vm)
-        {
-            return crate::command::completion_from_cmd_error(vm, error);
-        }
-        match prepared {
-            Ok(prepared) if prepared.prefix.is_some() => {
-                vm.pending.catch = Some(crate::exec::CatchReq {
-                    script: prepared
-                        .prefix
-                        .expect("checked above")
-                        .with_source_location(script.source_location()),
-                    resvar: resvar.map(|v| (*v).clone()),
-                    optvar: optvar.map(|v| (*v).clone()),
-                    fatal_tail: prepared.fatal_tail,
-                    ignored_codes: selected.ignored_codes,
-                    evaluates_word,
-                });
-                ok(Value::empty())
-            }
-            Ok(prepared) => {
-                let comp = prepared.fatal_tail.map_or_else(
-                    || ok(Value::empty()),
-                    |tail| vm.raise_script_parse_failure(tail, script.source_location()),
-                );
-                vm.finish_catch(comp, resvar, optvar, selected.ignored_codes)
-            }
-            // A body that fails to *parse* is itself a catchable error: run the
-            // epilogue directly with the parse-error completion (no body to execute).
-            Err(e) => {
-                let comp = completion_from_tcl_error(vm, e);
-                vm.finish_catch(comp, resvar, optvar, selected.ignored_codes)
-            }
-        }
-    })();
+    let reached = run_catch_body(vm, args, dialect, evaluates_word, original.as_ref());
     if let Some(original) = original
         && let Err(error) = original.finish(vm)
     {
@@ -3420,6 +3571,34 @@ impl Vm {
                 },
             )
         };
+        let error = self.completion_error_options(comp, code, level)?;
+        let rows = shared_options::plan_with_origin(
+            self.runtime_version(),
+            code,
+            level,
+            comp.option_origin,
+            &carried,
+            error.as_ref(),
+        );
+        Ok(Value::list(
+            rows.into_iter()
+                .flat_map(|(key, value)| {
+                    let value = match value {
+                        OptionValue::Integer(value) => Value::int(value),
+                        OptionValue::Value(value) => value,
+                    };
+                    [Value::from_string_bytes(key), value]
+                })
+                .collect(),
+        ))
+    }
+
+    fn completion_error_options(
+        &mut self,
+        comp: &Completion<Value>,
+        code: Code,
+        level: i64,
+    ) -> Result<Option<ErrorOptions<Value>>, TclError> {
         let active_error = code == Code::Error && comp.code == Code::Error && level == 0;
         let error = if code == Code::Error {
             let error_code = Some(resolved_error_code(self, comp)?);
@@ -3449,25 +3628,7 @@ impl Vm {
         } else {
             None
         };
-        let rows = shared_options::plan_with_origin(
-            self.runtime_version(),
-            code,
-            level,
-            comp.option_origin,
-            &carried,
-            error.as_ref(),
-        );
-        Ok(Value::list(
-            rows.into_iter()
-                .flat_map(|(key, value)| {
-                    let value = match value {
-                        OptionValue::Integer(value) => Value::int(value),
-                        OptionValue::Value(value) => value,
-                    };
-                    [Value::from_string_bytes(key), value]
-                })
-                .collect(),
-        ))
+        Ok(error)
     }
 
     fn merged_completion_options_snapshot(
