@@ -1,0 +1,41 @@
+{
+  "capture_utc": "2026-10-23T03:24:55Z",
+  "run_id": 39879737945,
+  "endpoint": "GET /repos/bitwisecook/tcl-lsp/actions/runs/39879737945/jobs?per_page=100",
+  "capture_method": "gh api stdout redirected to file; raw bytes preserved, no terminal LF; base64 round-trip verified",
+  "raw_response_bytes": 97178,
+  "raw_response_sha256": "d2ed4bcd5cde1bb50c589a3b3bbc095714af167b48c721bedfc9ce3bf68aca81",
+  "base64_bytes": 129572,
+  "base64_sha256": "b654c55c4efb293ef5bdb71f545d4ee83e97717df6c79daad7662b3705076d5f",
+  "base64_roundtrip_exact": true,
+  "total_count": 31,
+  "returned": 31,
+  "complete": true,
+  "counts": {
+    "completed_failure": 19,
+    "completed_skipped": 2,
+    "completed_success": 7,
+    "in_progress_null": 3
+  },
+  "comparison_to_0256": {
+    "status_same": true,
+    "new_ids": [],
+    "removed_ids": [],
+    "changed_ids": []
+  },
+  "in_progress_jobs": [
+    {
+      "id": 120175508527,
+      "name": "rust-tests-shard (2/5)"
+    },
+    {
+      "id": 120175508624,
+      "name": "rust-tests-shard (5/5)"
+    },
+    {
+      "id": 120178740998,
+      "name": "lsp-e2e-partition (1/3)"
+    }
+  ],
+  "completeness_note": "REST endpoint returned total_count 31 and 31 rows; connector wrapper first-page response was 30 only."
+}

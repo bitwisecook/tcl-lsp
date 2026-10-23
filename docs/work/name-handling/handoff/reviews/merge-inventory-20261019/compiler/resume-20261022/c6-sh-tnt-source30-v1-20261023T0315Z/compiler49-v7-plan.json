@@ -1,0 +1,463 @@
+{
+  "assertion_policy": "Original sources/assertions unchanged; unexpected count including zero is terminal. No broad unfiltered lib. Every selector via current Cargo under same frozen artifact/source/provider guards, no direct old executable.",
+  "build_protocol": "Each package build uses direct absolute pinned Cargo binary as argv[0] and artifact_path, with the existing --locked -p <package> --lib --no-run --message-format=json flags unchanged; 3600s build-only supervisor deadline, aggregate durable 20MiB cap, 2GiB mount floor. Compilation remains outside the per-selector 180s timer.",
+  "diagnostic_policy": "N13 point env only on N13 source-point/frontier rows. Existing original-command-table and ZZ probes only on exact immediate-body/import diagnostics. Existing RBS trace env only on the three original RBS tests. BPF phase env only on its exact existing observer. No product probes or assertions added.",
+  "expected_filters": 36,
+  "expected_selected": 49,
+  "guards": "Whole-suite exclusive lock; full local source/fixture/Cargo inputs and current Rust diff seals; provider wrappers/workers/Rust tools/transitive shared binaries before/after; per-package pinned absolute Cargo --no-run JSON artifact capture supervised by reviewed direct-exec executor in same guarded command, exact target/profile/manifest and no stale fallback; every selected binary is direct child of supervisor with waitid(WNOWAIT), two complete empty owned-process-group scans, and bounded deadline; durable per-process stdout/stderr drains, aggregate per-process 20MiB cap; 2GiB disk floor aborts only the exact owned process group; preserve artifacts and never clean outputs.",
+  "head_policy": "source_commit remains fixed at 3b1a750be337993a85ec533d84546e1d827dd9a8; current HEAD must descend from it; all intervening commit paths and tracked working-tree delta must be confined to docs/work/name-handling; no product refresh",
+  "log_capture_protocol": "Per-selector supervisor drains both pipes concurrently to exclusive durable files; combined retained bytes never exceed 20MiB; disk floor monitored while process is owned; UI reads only after completion. Cargo no-run output is drained to separate capped stdout/stderr JSON files in the same guarded invocation.",
+  "original35_reconstruction": {
+    "completed_first_two": "20261022T232255.302907Z; both failures; not a final whole35 verdict",
+    "partial_receipt": "/tmp/compiler-postbatch-remaining33-v1/protocol-receipt.json",
+    "partial_remaining_plan": "/tmp/compiler-postbatch-remaining33-v1/plan.json",
+    "predecessor_plan": "/tmp/compiler-postbatch-focused-v2/plan.json",
+    "predecessor_sha256": "ac0de417c4c8f4ee093050b1531bf84634d31c05d232a6263bafd83d5bb57355"
+  },
+  "package_builds": [
+    {
+      "artifact_policy": "require exactly one matching current compiler-artifact JSON event from this invocation; hash and record it; no stale fallback",
+      "cargo_argv": [
+        "/workspace/.rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/bin/cargo",
+        "test",
+        "--locked",
+        "-p",
+        "tcl-compiler",
+        "--lib",
+        "--no-run",
+        "--message-format=json"
+      ],
+      "cargo_argv0_policy": "absolute rustup toolchain Cargo binary, directly execed and hashed; no rustup shim",
+      "filter_count": 35,
+      "manifest_path": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/Cargo.toml",
+      "package": "tcl-compiler",
+      "profile_test_required": true,
+      "requested_cargo_argv": [
+        "/workspace/.rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/bin/cargo",
+        "test",
+        "--locked",
+        "-p",
+        "tcl-compiler",
+        "--lib",
+        "--no-run",
+        "--message-format=json"
+      ],
+      "target_kind": [
+        "lib"
+      ],
+      "target_name": "tcl_compiler"
+    },
+    {
+      "artifact_policy": "require exactly one matching current compiler-artifact JSON event from this invocation; hash and record it; no stale fallback",
+      "cargo_argv": [
+        "/workspace/.rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/bin/cargo",
+        "test",
+        "--locked",
+        "-p",
+        "bpf-tcl-ir",
+        "--lib",
+        "--no-run",
+        "--message-format=json"
+      ],
+      "cargo_argv0_policy": "absolute rustup toolchain Cargo binary, directly execed and hashed; no rustup shim",
+      "filter_count": 1,
+      "manifest_path": "/workspace/naming-migration-active/tcl-lsp/rust/bpf-tcl-ir/Cargo.toml",
+      "package": "bpf-tcl-ir",
+      "profile_test_required": true,
+      "requested_cargo_argv": [
+        "/workspace/.rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/bin/cargo",
+        "test",
+        "--locked",
+        "-p",
+        "bpf-tcl-ir",
+        "--lib",
+        "--no-run",
+        "--message-format=json"
+      ],
+      "target_kind": [
+        "lib"
+      ],
+      "target_name": "bpf_tcl_ir"
+    }
+  ],
+  "predecessor_plan_sha256": "0989a2d00fdc18d962a67f049a2d211b0bee58884644599154347bd3d577c9f1",
+  "predecessor_v3_plan_sha256": "fe1dbd0bd24d3741a20b0a1bae56bbc89dd2609b83cae620be1e4263e834e75d",
+  "predecessor_v4_plan_sha256": "4a7719efd84f5f3599b80ce3384941d7e47cd9875d37a1aa4518fd9bdff76d4a",
+  "predecessor_v6_plan_sha256": "635f43005282d1ba3c021f13f30aaba704151aa1ad8c2643fc7ce1cc334b4444",
+  "prepared_utc": "2026-10-23T00:36:07Z",
+  "previous_partial_receipt": "/tmp/compiler-focused/20261022T224200.215874Z",
+  "required_filters": [
+    {
+      "env": {},
+      "exact": true,
+      "expected_selected": 1,
+      "label": "g4-regress-conditional_expression_template_retains_grammar_without_actual_entry",
+      "selector": "command_binding::conditional_expression_tests::conditional_expression_template_retains_grammar_without_actual_entry",
+      "source": "rust/tcl-compiler/src/command_binding/conditional_expression_tests.rs"
+    },
+    {
+      "env": {},
+      "exact": true,
+      "expected_selected": 1,
+      "label": "g4-regress-declaration_layout_keeps_its_original_table_without_a_compiler_visit",
+      "selector": "command_binding::declaration_layout::tests::declaration_layout_keeps_its_original_table_without_a_compiler_visit",
+      "source": "rust/tcl-compiler/src/command_binding/declaration_layout.rs"
+    },
+    {
+      "env": {},
+      "exact": true,
+      "expected_selected": 1,
+      "label": "g4-regress-scoped_nested_normalisation_keeps_original_world_frame_and_source",
+      "selector": "command_binding::expression_preparation::tests::scoped_nested_normalisation_keeps_original_world_frame_and_source",
+      "source": "rust/tcl-compiler/src/command_binding/expression_preparation.rs"
+    },
+    {
+      "env": {},
+      "exact": true,
+      "expected_selected": 1,
+      "label": "g4-regress-selected_nested_normalisation_projects_actual_operand_and_command_source",
+      "selector": "command_binding::expression_preparation::tests::selected_nested_normalisation_projects_actual_operand_and_command_source",
+      "source": "rust/tcl-compiler/src/command_binding/expression_preparation.rs"
+    },
+    {
+      "env": {},
+      "exact": true,
+      "expected_selected": 1,
+      "label": "g4-regress-scoped_lifecycle_coverage_keeps_declared_issuer_frame_and_original_source",
+      "selector": "command_binding::lifecycle_advice::tests::scoped_lifecycle_coverage_keeps_declared_issuer_frame_and_original_source",
+      "source": "rust/tcl-compiler/src/command_binding/lifecycle_advice.rs"
+    },
+    {
+      "env": {},
+      "exact": true,
+      "expected_selected": 1,
+      "label": "g4-regress-scoped_procedure_equivalence_keeps_independent_world_and_completion_obligations",
+      "selector": "command_binding::normal_result::tests::scoped_procedure_equivalence_keeps_independent_world_and_completion_obligations",
+      "source": "rust/tcl-compiler/src/command_binding/normal_result.rs"
+    },
+    {
+      "env": {
+        "TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE": "1",
+        "ZZ_PROBE_OPAQUE": "1"
+      },
+      "exact": true,
+      "expected_selected": 1,
+      "label": "g4-regress-original_immediate_body_namespace_keeps_actual_native_conditional_and_error_prefix",
+      "selector": "command_binding::original_body_namespace::tests::original_immediate_body_namespace_keeps_actual_native_conditional_and_error_prefix",
+      "source": "rust/tcl-compiler/src/command_binding/original_body_namespace.rs"
+    },
+    {
+      "env": {
+        "TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE": "1",
+        "ZZ_PROBE_OPAQUE": "1"
+      },
+      "exact": true,
+      "expected_selected": 1,
+      "label": "g4-regress-original_namespace_import_keeps_the_source_declaration_allocation",
+      "selector": "command_binding::source_command_world::tests::original_namespace_import_keeps_the_source_declaration_allocation",
+      "source": "rust/tcl-compiler/src/command_binding/source_command_world.rs"
+    },
+    {
+      "env": {},
+      "exact": true,
+      "expected_selected": 1,
+      "label": "actual_compiler_syntax_owner",
+      "purpose": "unrun new candidate control; not a replacement for original regressions",
+      "selector": "command_binding::compiler_inventory::original_inline_control_source_tests::original_compiler_syntax_keeps_the_actual_input_and_vector_owner"
+    },
+    {
+      "env": {
+        "TCL_LSP_TRACE_N13_POINT": "1"
+      },
+      "exact": false,
+      "expected_selected": 3,
+      "label": "n13_region_controls",
+      "purpose": "new actual conditional continuation/region owner/restoration/refusal controls, not replacement original assertions",
+      "selector": "command_binding::conditional_source::region::controls::"
+    },
+    {
+      "env": {
+        "TCL_LSP_TRACE_N13_POINT": "1"
+      },
+      "exact": false,
+      "expected_selected": 2,
+      "label": "n13_region_sequential_controls",
+      "purpose": "new actual conditional continuation/region owner/restoration/refusal controls, not replacement original assertions",
+      "selector": "command_binding::conditional_source::region::sequential_controls::"
+    },
+    {
+      "env": {
+        "TCL_LSP_TRACE_N13_POINT": "1",
+        "TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE": "1",
+        "ZZ_PROBE_OPAQUE": "1"
+      },
+      "exact": true,
+      "expected_selected": 1,
+      "label": "n13_failed_allocator_source_point",
+      "purpose": "Actual previous failing source-point producer before allocator assertions; unchangedassertion",
+      "selector": "command_binding::source_point_entry::tests::source_point_allocator_compares_same_owner_actual_point_snapshots"
+    },
+    {
+      "env": {
+        "TCL_LSP_TRACE_N13_POINT": "1"
+      },
+      "exact": false,
+      "expected_roster": [
+        "registry_invocation::source_structure::source_load::frontier::controls::finite_root_and_namespace_cuts_retain_actual_kernel_plans",
+        "registry_invocation::source_structure::source_load::frontier::controls::declared_procedure_and_deferred_package_body_keep_conditional_association_debts",
+        "registry_invocation::source_structure::source_load::frontier::controls::association_receipts_refuse_foreign_parent_and_unavailable_or_changed_input",
+        "registry_invocation::source_structure::source_load::frontier::controls::unsupported_decode_dynamic_path_and_later_held_load_remain_unknown",
+        "registry_invocation::source_structure::source_load::frontier::controls::independently_selected_enclosing_body_is_not_an_association_only_frontier",
+        "registry_invocation::source_structure::source_load::frontier::controls::region_cut_rejoins_the_exact_view_and_refuses_equal_byte_foreign_region",
+        "registry_invocation::source_structure::source_load::frontier::controls::replayed_frontier_transfers_only_the_exact_prefix_command_debt",
+        "registry_invocation::source_structure::source_load::frontier::controls::whole_scope_join_refuses_a_stripped_region_but_keeps_full_child_views",
+        "registry_invocation::source_structure::source_load::frontier::controls::path_prefix_is_cut_before_the_actual_head_and_refuses_foreign_owner",
+        "registry_invocation::source_structure::source_load::frontier::controls::region_path_inventory_uses_only_its_actual_remaining_commands",
+        "registry_invocation::source_structure::source_load::frontier::controls::inherited_path_prefix_retains_exact_source_namespace_home"
+      ],
+      "expected_selected": 11,
+      "label": "n13_frontier11_v2",
+      "purpose": "Versioned v2 roster: original8 current frontier controls plus three path-adapter controls; exact Names-reviewed selector roster, no prefix count inferred.",
+      "selector": "registry_invocation::source_structure::source_load::frontier::controls::"
+    },
+    {
+      "env": {
+        "TCL_LSP_TRACE_N13_POINT": "1"
+      },
+      "exact": true,
+      "expected_selected": 1,
+      "label": "n13_finite_cut_withdrawal",
+      "purpose": "Actualnewfinitecut owner vswithdrawnplan control",
+      "selector": "command_binding::conditional_source::finite_cut_controls::a_genuine_point_cannot_replace_a_withdrawn_finite_plan"
+    },
+    {
+      "env": {
+        "TCL_LSP_TRACE_N13_POINT": "1"
+      },
+      "exact": true,
+      "expected_selected": 1,
+      "label": "n13_source_entry_reborrow_unavailable_extra",
+      "purpose": "Same54e substantive control required by original frozen55; actual module is outside tests prefix, independently verified canonical source1150",
+      "selector": "command_binding::source_point_entry::unavailable_entry_reborrow_controls::source_entry_reborrow_refuses_unavailable_ordinary_and_unknown_history"
+    },
+    {
+      "env": {
+        "TCL_LSP_TRACE_N13_POINT": "1"
+      },
+      "exact": true,
+      "expected_selected": 1,
+      "label": "n13_conditional_region_purpose_refuses_a_genuine_whole_child",
+      "purpose": "new purpose refusal proves legitimate opposite positive first",
+      "selector": "command_binding::source_transition_advice::source_point::conditional_region_purpose_controls::conditional_region_purpose_refuses_a_genuine_whole_child"
+    },
+    {
+      "env": {
+        "TCL_LSP_TRACE_N13_POINT": "1"
+      },
+      "exact": true,
+      "expected_selected": 1,
+      "label": "n13_complete_program_purpose_refuses_a_genuine_conditional_region",
+      "purpose": "new purpose refusal proves legitimate opposite positive first",
+      "selector": "command_binding::source_transition_advice::source_point::conditional_region_purpose_controls::complete_program_purpose_refuses_a_genuine_conditional_region"
+    },
+    {
+      "env": {
+        "TCL_LSP_TRACE_N13_POINT": "1"
+      },
+      "exact": true,
+      "expected_selected": 1,
+      "label": "n13_foreign_completed_region",
+      "purpose": "new independently genuine child/region chains refuse byte-equal foreign completed outcome",
+      "selector": "command_binding::conditional_source::region::foreign_completed_region_controls::return_outcome_refuses_a_byte_equal_foreign_completed_region_owner"
+    },
+    {
+      "env": {
+        "TCL_LSP_TRACE_N13_POINT": "1"
+      },
+      "exact": true,
+      "expected_selected": 1,
+      "label": "n13_region_declaration_dependency",
+      "purpose": "new09e9/bc9 genuine region positive issuer and exact child declaration dependency; byte-equal fresh child refuses",
+      "selector": "command_binding::conditional_source::region::declaration_dependency_controls::region_call_joins_only_the_actual_completed_child_declaration_owner"
+    },
+    {
+      "env": {},
+      "exact": true,
+      "expected_selected": 1,
+      "label": "lsp-owner-guard-body_syntax_inventory_cannot_borrow_an_equal_foreign_analysis",
+      "purpose": "New current body request/borrower/unavailable/inversion leaf/version controls justified by latest body code change; original50 retained",
+      "selector": "registry_invocation::source_structure::original_body_syntax::tests::body_syntax_inventory_cannot_borrow_an_equal_foreign_analysis"
+    },
+    {
+      "env": {},
+      "exact": true,
+      "expected_selected": 1,
+      "label": "lsp-owner-guard-equal_source_and_same_realm_do_not_replace_body_inventory_request",
+      "purpose": "New current body request/borrower/unavailable/inversion leaf/version controls justified by latest body code change; original50 retained",
+      "selector": "analyser::types::original_body_syntax_request_tests::equal_source_and_same_realm_do_not_replace_body_inventory_request"
+    },
+    {
+      "env": {},
+      "exact": true,
+      "expected_selected": 1,
+      "label": "lsp-owner-guard-original_boolean_inversion_retains_leaf_and_dispatch_owners",
+      "purpose": "New current body request/borrower/unavailable/inversion leaf/version controls justified by latest body code change; original50 retained",
+      "selector": "command_binding::original_literal_argv_rewrite::tests::original_boolean_inversion_retains_leaf_and_dispatch_owners"
+    },
+    {
+      "env": {},
+      "exact": true,
+      "expected_selected": 1,
+      "label": "lsp-owner-guard-original_boolean_inversion_checks_leaf_token_coordinates",
+      "purpose": "New current body request/borrower/unavailable/inversion leaf/version controls justified by latest body code change; original50 retained",
+      "selector": "command_binding::original_literal_argv_rewrite::tests::original_boolean_inversion_checks_leaf_token_coordinates"
+    },
+    {
+      "env": {},
+      "exact": true,
+      "expected_selected": 1,
+      "label": "lsp-owner-guard-original_boolean_inversion_retains_selected_version_floor",
+      "purpose": "New current body request/borrower/unavailable/inversion leaf/version controls justified by latest body code change; original50 retained",
+      "selector": "command_binding::original_literal_argv_rewrite::tests::original_boolean_inversion_retains_selected_version_floor"
+    },
+    {
+      "env": {},
+      "exact": true,
+      "expected_selected": 1,
+      "label": "authored_simulation_structure_positive",
+      "purpose": "New AuthoredSimulation positive; keeps source purpose and explicitly lacks native frame.",
+      "selector": "registry_invocation::authored_simulation_structure_controls::authored_simulation_case_structure_retains_source_purpose_without_native_frame"
+    },
+    {
+      "env": {},
+      "exact": true,
+      "expected_selected": 1,
+      "label": "authored_simulation_structure_refusal",
+      "purpose": "New AuthoredSimulation refusal for unknown, shadowed, and dynamic source.",
+      "selector": "registry_invocation::authored_simulation_structure_controls::authored_simulation_case_structure_refuses_unknown_shadowed_and_dynamic_source"
+    },
+    {
+      "env": {
+        "TCL_LSP_TRACE_N13_POINT": "1"
+      },
+      "exact": true,
+      "expected_selected": 1,
+      "label": "nested_source_point_positive",
+      "purpose": "Nested point observer, no Normal/native grants.",
+      "selector": "command_binding::source_transition_advice::source_point::nested_source_point_controls::nested_namespace_point_uses_the_selected_body_graph_without_normal_or_native_grants"
+    },
+    {
+      "env": {
+        "TCL_LSP_TRACE_N13_POINT": "1"
+      },
+      "exact": true,
+      "expected_selected": 1,
+      "label": "inherited_source_selection_positive",
+      "purpose": "Positive inherited selection retaining names without native compiler admission.",
+      "selector": "command_binding::source_point_entry::tests::inherited_source_selection_retains_names_without_native_compiler_admission"
+    },
+    {
+      "env": {
+        "TCL_LSP_TRACE_BPF_PHASE": "1"
+      },
+      "exact": true,
+      "expected_selected": 1,
+      "label": "bpf_existing_phase_observer",
+      "package": "bpf-tcl-ir",
+      "purpose": "Existing observer only; original assertion unchanged.",
+      "selector": "source::phase::tests::losing_a_selected_command_never_proves_an_empty_policy_or_map_inventory",
+      "source": "rust/bpf-tcl-ir/src/source/phase.rs"
+    },
+    {
+      "env": {},
+      "exact": true,
+      "expected_selected": 1,
+      "label": "fp_rbs_15_all_break_switch_not_a_proc_terminator",
+      "purpose": "unchanged original confirmed baseline pass-to-fail, actual assertion preserved",
+      "selector": "analyser::diagnostics::fp::rbs::fp_rbs_15_all_break_switch_not_a_proc_terminator"
+    },
+    {
+      "env": {},
+      "exact": true,
+      "expected_selected": 1,
+      "label": "fp_rbs_15_while1_break_in_opaque_switch_exits_loop",
+      "purpose": "unchanged original confirmed baseline pass-to-fail, actual assertion preserved",
+      "selector": "analyser::diagnostics::fp::rbs::fp_rbs_15_while1_break_in_opaque_switch_exits_loop"
+    },
+    {
+      "env": {},
+      "exact": true,
+      "expected_selected": 1,
+      "label": "fp_rbs_15_all_exiting_opaque_switch_is_a_terminator",
+      "purpose": "unchanged original confirmed baseline pass-to-fail, actual assertion preserved",
+      "selector": "analyser::diagnostics::tests::fp_rbs_15_all_exiting_opaque_switch_is_a_terminator"
+    },
+    {
+      "env": {},
+      "exact": true,
+      "expected_selected": 1,
+      "label": "ilx_intrinsic_conditional_refuses_source_effect_and_transition_overrides",
+      "purpose": "ILX v3 real conditional producer/refusal control; original assertion unchanged.",
+      "selector": "registry_invocation::source_remote_first_operand::tests::intrinsic_conditional_refuses_source_effect_and_transition_overrides",
+      "source": "rust/tcl-compiler/src/registry_invocation/source_remote_first_operand.rs"
+    },
+    {
+      "env": {},
+      "exact": true,
+      "expected_selected": 1,
+      "label": "ilx_first_remote_operand_retains_exact_source_owners_and_stops_at_the_call",
+      "purpose": "ILX v3 first remote operand positive and opaque-call stop control; original assertion unchanged.",
+      "selector": "registry_invocation::source_remote_first_operand::tests::first_remote_operand_retains_exact_source_owners_and_stops_at_the_call",
+      "source": "rust/tcl-compiler/src/registry_invocation/source_remote_first_operand.rs"
+    },
+    {
+      "env": {},
+      "exact": true,
+      "expected_selected": 1,
+      "label": "ilx_first_remote_operand_preserves_supported_true_same_frame_source_body",
+      "purpose": "ILX v3 same-frame source-body positive; original assertion unchanged.",
+      "selector": "registry_invocation::source_remote_first_operand::tests::first_remote_operand_preserves_supported_true_same_frame_source_body",
+      "source": "rust/tcl-compiler/src/registry_invocation/source_remote_first_operand.rs"
+    },
+    {
+      "env": {},
+      "exact": true,
+      "expected_selected": 1,
+      "label": "ilx_first_remote_operand_withdraws_opaque_observer_write_and_foreign_body_paths",
+      "purpose": "ILX v3 opaque observer/write/foreign-body refusal control; original assertion unchanged.",
+      "selector": "registry_invocation::source_remote_first_operand::tests::first_remote_operand_withdraws_opaque_observer_write_and_foreign_body_paths",
+      "source": "rust/tcl-compiler/src/registry_invocation/source_remote_first_operand.rs"
+    }
+  ],
+  "required_source_patch_sha256": "75559b93a95ab6131ea49e1f50a1233fe4da237bd901fbf99451095447c970d9",
+  "roster_proof": "Frontier v2 is the previous exact8 roster plus three current path_adapter tests; expected count 11, explicit roster. Other selectors copied or named exactly from tracked source and receipts.",
+  "runtime_scope": "each direct selected libtest executable; timer armed before Popen; compilation excluded; per-selector 180 seconds",
+  "runtime_seconds": 180,
+  "scope": "Full original35 selected-test set reconstructed from original focused-v2 plan plus remaining33 predecessor and its first2 completed G4 tests; adds exact original RBS3, current AuthoredSimulation2, nested-point1, inherited-selection1, BPF observer1, and exactly four ILX v3 producer/refusal controls. The original45 rows/counts/guards remain unchanged.",
+  "selector_protocol": "For each filter, exact argv is [actual_executable, selector, optional --exact, --nocapture, --test-threads=1]; preserve all36 rows/order and count49. Runtime timer covers selected executable, excludes build and roster listing.",
+  "source_basis": "Versioned source provenance successor: v1 source baseline ac584008611f8bc86fa0ee15c65d297714d379ca (descended from 32433f2e599); integrated current product commit 3b1a750be337993a85ec533d84546e1d827dd9a8. Post-v1 product delta is exactly registry_invocation.rs + source_remote_first_operand.rs (ILX) and two LSP server files; full runtime source/provider/artifact/input seals still captured before/after. No selector or source pin is inferred from that delta.",
+  "source_commit": "3b1a750be337993a85ec533d84546e1d827dd9a8",
+  "source_provenance_successor": {
+    "baseline_ancestry_anchor": "32433f2e599",
+    "current_commit": "3b1a750be337993a85ec533d84546e1d827dd9a8",
+    "new_test_inventory": [
+      "registry_invocation::source_remote_first_operand::tests::intrinsic_conditional_refuses_source_effect_and_transition_overrides",
+      "registry_invocation::source_remote_first_operand::tests::first_remote_operand_retains_exact_source_owners_and_stops_at_the_call",
+      "registry_invocation::source_remote_first_operand::tests::first_remote_operand_preserves_supported_true_same_frame_source_body",
+      "registry_invocation::source_remote_first_operand::tests::first_remote_operand_withdraws_opaque_observer_write_and_foreign_body_paths"
+    ],
+    "new_tests_exactly_four": true,
+    "post_predecessor_source_paths": [
+      "rust/tcl-compiler/src/registry_invocation.rs",
+      "rust/tcl-compiler/src/registry_invocation/source_remote_first_operand.rs",
+      "rust/tcl-lsp-server/src/lib.rs",
+      "rust/tcl-lsp-server/src/readonly_reference_reports/source_views.rs"
+    ],
+    "predecessor_commit": "ac584008611f8bc86fa0ee15c65d297714d379ca",
+    "predecessor_plan_sha256": "29c10dfbf1bea1022263c6e7cdbd05c4833fec3e856985b063d38ccd6ead82fd",
+    "version": "v2"
+  },
+  "status": "OFFTREE V7 PROTOCOL SUCCESSOR PREPARED; exact36 filters/49 selected, source fixed at3b1; no Cargo/queue; root GO required; direct Cargo build supervisor delegates to reviewed v6 guarded executor.",
+  "version": "v7",
+  "watchdog_protocol": "v6: compile once per package with current Cargo --no-run --message-format=json, capture exact actual executable, then execute selectors directly in frozen plan order; supervisor arms each 180s deadline before spawn and retains exact child via waitid(WNOWAIT) until both pipes reach EOF and two consecutive complete /proc scans prove owned process group empty. Inconclusive scans retry; live descendants trigger owned-group cleanup. No proc-tree discovery or missed fast-child admission."
+}

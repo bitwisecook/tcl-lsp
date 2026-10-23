@@ -1,0 +1,14 @@
+{
+  "prepared_utc": "2026-10-23T03:19:01.354303+00:00",
+  "status": "OFFTREE RBS exact3/3 ready; peerpending; noGO/Cargo",
+  "plan_sha256": "92d35f0d57259d9530bde4fcfdad71e680d80be9f40f7a98e083ca6017ecd12c",
+  "runner_input_manifest_sha256": "57c4075d3fb7add49373bad0abf4924c0a19bf56897971303fdd1915c5d1e0af",
+  "launcher_sha256": "796cfa3c7f83094d366e56b94f217e3e0aa86e6d1f3c75ef033f67a2dd3c0673",
+  "source30_manifest_sha256": "417688c7ba2d60771f39625ef756a05e5bc6b05a0d5e1ddf73c63ff463eefebb",
+  "checks": "AST4PASS; actualnoGO refusalPASS; same88125 guards/fullsource/provider/currentCargoJSONartifact/validfailed49auth; original3selectors/assertions untouched",
+  "exact_env": {
+    "TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS": "1",
+    "TCL_LSP_TRACE_N13_POINT": "1",
+    "ZZ_PROBE_LOWER": "1"
+  }
+}

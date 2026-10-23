@@ -1,0 +1,74 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-23T03:25:37.282743+00:00",
+  "scheduled_report_utc": "2026-10-23T03:25:37+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-23T03:55:37+00:00",
+  "change_since_previous_report": [
+    "Seven-package source30 all-target typecheck completed03:09:05 PASS, Cargo0/0errors/0warnings with allsource/provider/HEAD/GO/lifecycle guards valid; compile-only, no runtime/strictlint/sectionF/audit admission. First environment-setup failure before rustc preserved separately. Full52payloads losslessarchive and closure receipt recorded.",
+    "Scheduled02:55 report wrote02:57; fullWIP snapshotfb058 created03:08:46 withoutmoving strictcheckHEAD, guardedfastforward aftercheckclosure, normalpush ef78e65b03:13:27 afterfreshdepth1fetch/rebase; productdiffzero. No checkout/reset/stash. Current03:25 cycle reports actualtime.",
+    "Frozenreport14v6 actualrunning aftertypecheck; exact14 controls/90fields12subjects and actualfailed-valid49prerequisite proof preserved. Diagnostics11 andbody5 ready; alloriginal assertions/budgets/strictguards retained.",
+    "Compiler-codegen BPF ownership investigation separates generatedeffect-marker missingowners from laterSocketFilter/pass contract mismatch; no unsafe marker elision/identity donation. LateroriginalC6SH/TNT13tests prepared, peerpending.",
+    "ExternalBIGIP/perf/reviewtriage headers remainstale, usernotified/no takeover. FullcurrentCI/host/perf/strict/zero-P2F gates remainopen.",
+    "CurrentCI5206 complete31jobroster03:16 unchanged7success19fail3running2skip; remainingrunning main2/main5/native1. Newlyfinished main3 frombefore02:56 requires exactlogcomparison, assignedcoordinationchecks. CurrentCIstilloldproduct3b1, no source30hostedrun.",
+    "CurrentCI5206 main3 exact3897unique=3015PASS882FAIL with882 identical failure-summary repeats deduped,1unnamedSKIPunknown; actualrust5203 exact856PASS-to-FAIL,2468matchedPASS,547current-onlyPASS26current-onlyFAIL. Older3b1source only; no current30runtimeinference.",
+    "VM role recovered; full4/noTom16/Spec66 frozeninputs/sourcepins3/3/12 reverified withoutlaunch. Current66/UPF/hooks/reload/hostproofs remainopen.",
+    "Exactmain3 routes deliveredtoowners: compiler574, iRules11, explorer36, registry3,spec-hooks12; CCG BPF21/CLI2; VM142/vm-cli1/cshim13/SpecTcl2/studio1; LSPcore36/db2. Current-only failures retainedseparately; no commoncause inferred. Main3exactlogSHA21536fc3, provenancebase64/gzipverified.",
+    "Exactintegration3 originaltaint/optimiser/upvar representative protocol prepared because existinglib49/11 hasnoexactintegrationoverlap; SpecTcl originalworkspacepacks2/studio1 protocol prepared because current66 excludes them. Staticpeer reviews pending, noGO/run/canonicalsource changes."
+  ],
+  "committed": [
+    "fb058365ca8f7c485f83c53c8162efad4013aefd"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Finish actual authenticatedreport14 then run exact11 G4/N13/ILX andbody5 diagnostic selectors withfreshcurrentartifacts underrootlock; route firstactualrefusals toowners.",
+    "Execute VMfull4/codegen3/native15/SpecTcl66/currentnoTom16 under root build lock, preserving original budgets/counts and actual source identity.",
+    "Close exact origin/rust baseline regressions and allsectionF shipping gates; external perf full all-old/mixed authenticated proof required before patch acceptance."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-22T18:08:00+00:00",
+    "perf": "2026-10-22T21:00:00+00:00",
+    "review-triage": "2026-10-22T19:57:30+00:00"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "Productsource30 4d4ab9e6 typedPASS0W at03:09:05, notruntimevalidated. Report14 actualinprogress. Old3b1 guarded49 measured19PASS30FAIL allguardsvalid0W. No validatedunits/Fboxes/zero-P2F/host/perf acceptance, externalheadersstale; noPR/merge/release.",
+  "disk_free_bytes": 10542354432,
+  "baseline_ci_run": 39816429638,
+  "baseline_ci_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731"
+}

@@ -1,0 +1,189 @@
+{
+  "captured_utc": "2026-10-23T03:17:22Z",
+  "run_id": 39879737945,
+  "source_head": "5a4182dfefc483b6446085bdabd9a1f7620e6a96",
+  "job_id": 120175508606,
+  "job_name": "rust-tests-shard (3/5)",
+  "job_status_at_complete": "completed/failure",
+  "log_source": "GitHub workflow job logs connector decoded-text structuredContent",
+  "log_base64_file": "job-120175508606.decoded-content.log.b64",
+  "log_gzip_file": "job-120175508606.decoded-content.log.gz",
+  "log_input_bytes": 4276004,
+  "log_sha256": "21536fc3eb8e45f2ce2155598a43ca3932f46cada27f36a54635165b4542d53d",
+  "log_utf8_bom": true,
+  "log_ends_lf": true,
+  "log_under_20MiB_cap": true,
+  "base64_roundtrip_exact": true,
+  "gzip_decompress_exact": true,
+  "run_phase": "test execution; not build/list failure",
+  "start_lines": [
+    {
+      "source_line": 1347,
+      "text": "2026-10-23T00:59:19.6679065Z     Starting 3897 tests across 97 binaries (1 test and 43 binaries skipped)"
+    }
+  ],
+  "summary_lines": [
+    {
+      "source_line": 41877,
+      "text": "2026-10-23T02:26:44.9961446Z      Summary [5245.330s] 3897 tests run: 3015 passed (4 slow), 882 failed, 1 skipped"
+    }
+  ],
+  "unique_named_outcomes": 3897,
+  "unique_counts": {
+    "PASS": 3015,
+    "FAIL": 882
+  },
+  "repeated_reporter_rows_deduplicated": 882,
+  "duplicate_status_conflicts": [],
+  "reporter_ordinals": {
+    "unique": 3897,
+    "minimum": 1,
+    "maximum": 3897
+  },
+  "unattributed_skip_note": "Nextest summary reports one skipped test, but no named SKIP row was parsed; preserve as one unnamed skip/unknown. Start line additionally says one test and 43 binaries skipped; skipped identities were not enumerated here.",
+  "baseline": {
+    "path": "coordinator-20261022/origin-rust-ci-5203-named-log-outcomes-20261022.json",
+    "run": {
+      "id": 39816429638,
+      "number": 5203,
+      "ref": "rust",
+      "head_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731"
+    },
+    "record_count": 24312,
+    "sha256": "8f0640329c7c60180099d61fe5c2d58ff13b76230b6046ef169f610b3ffa7a58",
+    "status": "all PASS"
+  },
+  "exact_binary_selector_join": {
+    "comparison_helper": "coordinator-20261022/baseline-exact-comparator-20261022/ci5203_exact_selector_compare.py",
+    "comparison_helper_sha256": "65cb36e14d9145039546e4b5a0b0de02b01e9feb749bc05f2d846d7c3625eaf2",
+    "matched_passes": 2468,
+    "regressions_pass_to_fail": 856,
+    "missing_current_unknown": 20988,
+    "current_only_passes": 547,
+    "current_only_nonpass": 26,
+    "duplicates": 0,
+    "join_archive": "main3-exact-baseline-join.json.gz"
+  },
+  "package_buckets": {
+    "bigip-report-gen-rust": {
+      "baseline_pass_matched": 7
+    },
+    "bpf-tcl": {
+      "baseline_pass_matched": 11,
+      "baseline_pass_to_fail": 21
+    },
+    "f5-xc": {
+      "baseline_pass_matched": 22,
+      "current_pass_no_baseline": 9
+    },
+    "tcl-cli": {
+      "baseline_pass_to_fail": 2,
+      "baseline_pass_matched": 9,
+      "current_pass_no_baseline": 1
+    },
+    "tcl-cmd-core": {
+      "baseline_pass_matched": 180,
+      "current_pass_no_baseline": 76
+    },
+    "tcl-compiler": {
+      "baseline_pass_matched": 529,
+      "baseline_pass_to_fail": 574,
+      "current_fail_no_baseline": 3,
+      "current_pass_no_baseline": 2
+    },
+    "tcl-cshim": {
+      "baseline_pass_matched": 75,
+      "current_pass_no_baseline": 12,
+      "baseline_pass_to_fail": 13
+    },
+    "tcl-explorer": {
+      "baseline_pass_matched": 78,
+      "current_pass_no_baseline": 21,
+      "baseline_pass_to_fail": 36,
+      "current_fail_no_baseline": 7
+    },
+    "tcl-f5mku": {
+      "baseline_pass_matched": 6
+    },
+    "tcl-host-c-abi": {
+      "current_pass_no_baseline": 3
+    },
+    "tcl-irules": {
+      "baseline_pass_to_fail": 11,
+      "baseline_pass_matched": 4
+    },
+    "tcl-lexer": {
+      "baseline_pass_matched": 43
+    },
+    "tcl-lsp-core": {
+      "baseline_pass_matched": 243,
+      "baseline_pass_to_fail": 36,
+      "current_pass_no_baseline": 3,
+      "current_fail_no_baseline": 2
+    },
+    "tcl-lsp-db": {
+      "baseline_pass_matched": 3,
+      "baseline_pass_to_fail": 2
+    },
+    "tcl-pkg": {
+      "baseline_pass_matched": 2
+    },
+    "tcl-registry": {
+      "baseline_pass_matched": 138,
+      "current_pass_no_baseline": 3,
+      "baseline_pass_to_fail": 3
+    },
+    "tcl-runtime-api": {
+      "baseline_pass_matched": 48,
+      "current_pass_no_baseline": 46
+    },
+    "tcl-sandbox": {
+      "baseline_pass_matched": 13,
+      "current_pass_no_baseline": 2
+    },
+    "tcl-spec-hooks": {
+      "baseline_pass_matched": 40,
+      "baseline_pass_to_fail": 12,
+      "current_pass_no_baseline": 1
+    },
+    "tcl-spec-studio": {
+      "baseline_pass_matched": 29,
+      "baseline_pass_to_fail": 1,
+      "current_pass_no_baseline": 1
+    },
+    "tcl-spectcl": {
+      "baseline_pass_matched": 27,
+      "baseline_pass_to_fail": 2
+    },
+    "tcl-sslictcl": {
+      "baseline_pass_matched": 5
+    },
+    "tcl-syntax": {
+      "current_pass_no_baseline": 351,
+      "baseline_pass_matched": 410,
+      "current_fail_no_baseline": 4
+    },
+    "tcl-test-support": {
+      "current_pass_no_baseline": 5,
+      "current_fail_no_baseline": 1,
+      "baseline_pass_matched": 8
+    },
+    "tcl-vm": {
+      "baseline_pass_matched": 534,
+      "baseline_pass_to_fail": 142,
+      "current_fail_no_baseline": 9,
+      "current_pass_no_baseline": 11
+    },
+    "tcl-vm-cli": {
+      "baseline_pass_matched": 4,
+      "baseline_pass_to_fail": 1
+    }
+  },
+  "failure_routing": "Route by failed package/test-binary families only; do not infer assertion causes from names. tcl-lsp-core/db to LSP; tcl-vm/vm-cli/cshim to VM runtime; tcl-compiler/irules/explorer/registry/spec-hooks/spec-studio/spectcl to compiler owners; bpf-tcl/tcl-cli to compiler-codegen; remaining test-support/syntax families to coordinator for ownership assignment.",
+  "limits": [
+    "The 20,988 missing baseline selectors are simply not observed in this shard and remain unknown/unrun.",
+    "The 547 current-only PASS and 26 current-only FAIL do not join to the baseline identities.",
+    "This job slice is not a whole-suite or release-gate result.",
+    "Failure names/counts are routing evidence only; assertion causes are not assigned."
+  ]
+}

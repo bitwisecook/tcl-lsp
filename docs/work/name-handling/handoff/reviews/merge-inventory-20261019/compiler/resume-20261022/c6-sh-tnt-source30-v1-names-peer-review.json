@@ -1,0 +1,17 @@
+{
+  "utc": "2026-10-23T03:16:12.906068+00:00",
+  "reviewer": "compiler-names",
+  "status": "BOUNDED STATIC CLEAR; prepared only/no GO/Cargo/execution",
+  "plan_sha256": "c9aa3ed256cf4998711ce85ab03d5f4578b41b2edefd3cca80925873fb265e37",
+  "manifest_sha256": "9a048fa76f63dd91d91a6dbce7a24c0aa83bdb336c823035f3cb9ed9cdc74f0a",
+  "launcher_sha256": "f9c0a12d4dd704eef513254936c31285010b8fb9599eea9464a57ec648c11310",
+  "checks": [
+    "All sealed input pins match; AST4 parse.",
+    "Current original source contains7 fp_sh_21 and6 fp_tnt_03 test functions; original family substring filters exact=false retained.",
+    "Diff against reviewed diagnostics11 suite only paths/startup2-13/terminal2-13/timer field; auth, source30, currentCargoJSON artifact, per-row expected selected/start/summary, source/provider/process/disk seals unchanged.",
+    "No source or assertion changes; original positive and refusal assertions retained."
+  ],
+  "limits": [
+    "Neither actual selector nor build executed by reviewer; no runtime/performance acceptance."
+  ]
+}

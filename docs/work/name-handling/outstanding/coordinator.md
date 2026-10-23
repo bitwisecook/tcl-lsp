@@ -2,7 +2,7 @@
 
 Area: routing, snapshots, status documents, release gate.
 
-Last updated: 2026-10-23T02:57:04.860345+00:00
+Last updated: 2026-10-23T03:25:37.125607+00:00
 
 ## In progress
 
@@ -464,3 +464,22 @@ Six-package all-target typing is PASS on3b1a750 with0errors/0warnings,6542source
 - All8reviewF boxes and auditverified0 unchanged. User2256 full authenticated perf proof still unrun/all-old mixed required, realm/interprocedural patch withheld; user2231 stop-afteropaque retained. External BIGIP/perf/completedreviewtriage headers remain over60min stale, usernotified, no duplicate/takeover.
 - Source/test/provider HOLD until currenttypingclosure; docs CLEAR, no executable/target cleanup. Nextcycle must rearm03:25:37 after normalpublish; scheduled02:55 report/freshness/disk records actual write time, snapshotcommit/push immediately after strictHEAD check if stillrunning.
 - Complete31-job CI5206 roster freshly read02:56 remains {'success': 7, 'failure': 19, 'in_progress': 3, 'skipped': 2}; source3b1 data only, no newsource30 CI dispatch. Freshdepth1workfetch/FF seespublished8e36418cc, no external product delta.
+
+### Typecheck closure and deferred WIP completion (23 Oct03:14 UTC)
+
+- Source30 seven-package all-target check attempt2 PASS at03:09:05.737179Z, Cargo0/0errors/0warnings; source/provider/HEAD/GO and lifecycle guards valid. Attempt1 environment setup failed before rustc, preserved separately. Final `/tmp/name-handling-seven-package-check-v4-source30/runs/20261023T025300.957867Z/final.json`; full archive assigned to coordination checks. No runtime or release admission.
+- Scheduled02:55 report wrote02:57; full WIP commit-tree snapshotfb058 created03:08:46 while activeHEAD stayed4d4 duringcheck. After checkclosure, guarded ref fast-forward tofb058, with worktree/index left in place. Publisher freshdepth1fetch/rebase normal-pushed ef78e65b825c169546760600f447ba4b20e3cec8 at03:13:27, productdiffzero. Next03:25:37 reminder41040 armed. Deferred update completed, no checkout/reset/stash.
+- Frozen report14v6 rootGO e07f03715b75ade56424a92930d65d66724406eabc3ecf2af5c1ee6eda189290, actual launcher nowactive; exact14 controls and prior49failed-but-valid provenance retained. Source/test/provider HOLD through runs; docsCLEAR.
+
+### Current cycle and routing (03:25 UTC)
+
+- Seven-package source30 all-target typecheck completed03:09:05 PASS, Cargo0/0errors/0warnings with allsource/provider/HEAD/GO/lifecycle guards valid; compile-only, no runtime/strictlint/sectionF/audit admission. First environment-setup failure before rustc preserved separately. Full52payloads losslessarchive and closure receipt recorded.
+- Scheduled02:55 report wrote02:57; fullWIP snapshotfb058 created03:08:46 withoutmoving strictcheckHEAD, guardedfastforward aftercheckclosure, normalpush ef78e65b03:13:27 afterfreshdepth1fetch/rebase; productdiffzero. No checkout/reset/stash. Current03:25 cycle reports actualtime.
+- Frozenreport14v6 actualrunning aftertypecheck; exact14 controls/90fields12subjects and actualfailed-valid49prerequisite proof preserved. Diagnostics11 andbody5 ready; alloriginal assertions/budgets/strictguards retained.
+- Compiler-codegen BPF ownership investigation separates generatedeffect-marker missingowners from laterSocketFilter/pass contract mismatch; no unsafe marker elision/identity donation. LateroriginalC6SH/TNT13tests prepared, peerpending.
+- ExternalBIGIP/perf/reviewtriage headers remainstale, usernotified/no takeover. FullcurrentCI/host/perf/strict/zero-P2F gates remainopen.
+- CurrentCI5206 complete31jobroster03:16 unchanged7success19fail3running2skip; remainingrunning main2/main5/native1. Newlyfinished main3 frombefore02:56 requires exactlogcomparison, assignedcoordinationchecks. CurrentCIstilloldproduct3b1, no source30hostedrun.
+- CurrentCI5206 main3 exact3897unique=3015PASS882FAIL with882 identical failure-summary repeats deduped,1unnamedSKIPunknown; actualrust5203 exact856PASS-to-FAIL,2468matchedPASS,547current-onlyPASS26current-onlyFAIL. Older3b1source only; no current30runtimeinference.
+- VM role recovered; full4/noTom16/Spec66 frozeninputs/sourcepins3/3/12 reverified withoutlaunch. Current66/UPF/hooks/reload/hostproofs remainopen.
+- Exactmain3 routes deliveredtoowners: compiler574, iRules11, explorer36, registry3,spec-hooks12; CCG BPF21/CLI2; VM142/vm-cli1/cshim13/SpecTcl2/studio1; LSPcore36/db2. Current-only failures retainedseparately; no commoncause inferred. Main3exactlogSHA21536fc3, provenancebase64/gzipverified.
+- Exactintegration3 originaltaint/optimiser/upvar representative protocol prepared because existinglib49/11 hasnoexactintegrationoverlap; SpecTcl originalworkspacepacks2/studio1 protocol prepared because current66 excludes them. Staticpeer reviews pending, noGO/run/canonicalsource changes.

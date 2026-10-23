@@ -1,0 +1,19 @@
+{
+  "utc": "2026-10-23T02:58:03.517260+00:00",
+  "status": "BOUNDED STATIC CLEAR; no execution/GO/Cargo",
+  "reviewer": "compiler-names",
+  "plan_sha256": "4a3f2a6ca28622df267c03e0975f67bd2234ec72c9f5a5da3d08acf41202c5d8",
+  "runner_manifest_sha256": "509f1863668e8f8e30b9313749167a5a9f87166446a814ddeba391cb57487f3a",
+  "launcher_sha256": "9a84d01781a2e33361b7a854833d12a96134319148ac5c6d5546d3c23f675cd7",
+  "checks": [
+    "Every sealed manifest input hash matches; four Python ASTs parse.",
+    "Exact11 unique existing tests, 4G4 unconditional cfg(test) trace sites, 3N13 env and4ILX env correctly passed.",
+    "Diff against report14v6 confirms source/predecessor authentication, fresh current CargoJSON artifact capture and all runtime/source/provider/process/disk/artifact gates unchanged; only paths/messages/count11 and timer field label differ.",
+    "Executor exact88125 sealed; explicit complete/stop_reason/group_empty checks and180s/20MiB/2GiB preserved.",
+    "Roster terminal failure counts remain accepted evidence only when process/count/source/provider/artifact guards pass; assertions unchanged."
+  ],
+  "limits": [
+    "Static protocol review only; no no-GO launcher rerun needed or performed.",
+    "No root GO, source application, typecheck or runtime acceptance."
+  ]
+}

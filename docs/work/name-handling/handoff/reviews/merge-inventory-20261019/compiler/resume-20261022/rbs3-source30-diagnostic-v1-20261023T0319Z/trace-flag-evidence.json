@@ -1,0 +1,39 @@
+{
+  "env": {
+    "TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS": "1",
+    "TCL_LSP_TRACE_N13_POINT": "1",
+    "ZZ_PROBE_LOWER": "1"
+  },
+  "evidence": [
+    {
+      "flag": "TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS",
+      "sites": [
+        "registry_invocation/source_structure.rs:20",
+        "registry_invocation/native_compilation_source.rs:18",
+        "command_binding/source_transition_advice/body_effects.rs:19"
+      ],
+      "purpose": "Actual readonly source realm/input/registry/child inventory and Native compilation guards, existing cfgtest trace only."
+    },
+    {
+      "flag": "TCL_LSP_TRACE_N13_POINT",
+      "sites": [
+        "command_binding/source_transition_advice/source_point.rs:135",
+        "command_binding/source_transition_advice/source_point.rs:260",
+        "command_binding/source_transition_advice/source_point.rs:328"
+      ],
+      "purpose": "Actual source-advice graph/current sourcepoint/completion refusal flags; no source reconstruction."
+    },
+    {
+      "flag": "ZZ_PROBE_LOWER",
+      "sites": [
+        "analyser/diagnostics/dataflow.rs:2055",
+        "cfg_builder/mod.rs:1680",
+        "cfg_builder/mod.rs:1805"
+      ],
+      "purpose": "Existing ZZ_W210 source-read presence alternatives and CFG call/embedded opaque barrier facts."
+    }
+  ],
+  "source_prefix": "rust/tcl-compiler/src/",
+  "prior_actual49": "All3 env{}; all3 missingW210 failures, no current innertrace cause established.",
+  "limits": "No source probes added; flags may emit only where actual existing pipeline reaches their sites; absence of trace not a successful proof; logs cap20MiB,180s unchanged."
+}

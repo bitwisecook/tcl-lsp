@@ -1,0 +1,221 @@
+{
+  "utc": "2026-10-23T03:20:31.259394+00:00",
+  "role": "vm-runtime",
+  "status": "read-only recovery readiness; no runner/provider/lock/Git/Cargo/test execution",
+  "protocols": [
+    {
+      "directory": "/tmp/vm-runtime-c84-catch4-postfix-v2-lifecycle",
+      "manifest_sha256": "d82d4452a82f3f13fb93e5bc321d05fe59e54c4e3470f1776f909fada11cbf41",
+      "plan_sha256": "a2c5f45550ec77a9983e89052c16fa323c188fdba88e7c72d31534d1a0cdae24",
+      "inputs": [
+        {
+          "path": "/tmp/vm-runtime-c84-catch4-postfix-v2-lifecycle/run.sh",
+          "matches": true,
+          "sha256": "d63a1f93bf659c4aefdb6dae4fea47f0534fbd7b32f0b98d760d6717ac0cad54"
+        },
+        {
+          "path": "/tmp/vm-runtime-c84-catch4-postfix-v2-lifecycle/run.py",
+          "matches": true,
+          "sha256": "94f68b03ffed84063fdec1c97ae821c7c050e882de793ee564c13ccf736c4b09"
+        },
+        {
+          "path": "/tmp/vm-runtime-c84-catch4-postfix-v2-lifecycle/launch.py",
+          "matches": true,
+          "sha256": "f858fdec5dfc028fc6d16df3a9e89ddf64a6c54941bb4911dec260f5534b1fa2"
+        },
+        {
+          "path": "/tmp/vm-runtime-c84-catch4-postfix-v2-lifecycle/guarded-exec.py",
+          "matches": true,
+          "sha256": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811"
+        },
+        {
+          "path": "/tmp/vm-runtime-c84-catch4-postfix-v2-lifecycle/provider-chain.py",
+          "matches": true,
+          "sha256": "a647bf8699e1eecebce0702d01d11206f4d8a1a7d09f6661afd9ef928a52a5d9"
+        },
+        {
+          "path": "/tmp/vm-runtime-c84-catch4-postfix-v2-lifecycle/observer-proposal.patch",
+          "matches": true,
+          "sha256": "c0c5ad46b1ccd296f57f08bd579718b019842bf6b25cf29c0381497018b94b16"
+        },
+        {
+          "path": "/tmp/vm-runtime-c84-catch4-postfix-v2-lifecycle/semantic-fix.patch",
+          "matches": true,
+          "sha256": "c12f266ecb683b2029513163c13dfa10ff12312c946210c51070f59d404edde8"
+        },
+        {
+          "path": "/tmp/vm-runtime-c84-catch4-postfix-v2-lifecycle/full_tommath4-plan.json",
+          "matches": true,
+          "sha256": "a2c5f45550ec77a9983e89052c16fa323c188fdba88e7c72d31534d1a0cdae24"
+        },
+        {
+          "path": "/tmp/tcl-lsp-naming-env.sh",
+          "matches": true,
+          "sha256": "9d33ccdba049a778482244c60a8206cd62fc503db55227b7c6cf87645c932f29"
+        }
+      ],
+      "source_pins_match": 3,
+      "expected_selected": 4,
+      "root_go_absent": true,
+      "status": "frozen input/source pins and AST match; unrun and not queued"
+    },
+    {
+      "directory": "/tmp/vm-runtime-ci5206-notommath16-v3-lifecycle",
+      "manifest_sha256": "4e8a30b937843ce95f4d460065c2702a67b190909c41068a744c0b646c03207d",
+      "plan_sha256": "3cb1decbfd88acfa79516b7dd327467ab19aa5a2c77a0d0f82b4f97ef5f4638e",
+      "inputs": [
+        {
+          "path": "/tmp/vm-runtime-ci5206-notommath16-v3-lifecycle/run.sh",
+          "matches": true,
+          "sha256": "18f6c450149d5acabe325ad55ea7e2bf39499794565a54545cb27c26202a4b03"
+        },
+        {
+          "path": "/tmp/vm-runtime-ci5206-notommath16-v3-lifecycle/run.py",
+          "matches": true,
+          "sha256": "9910987b8718cbd4cccdd3fcc9f04269194c9de93de445783c6a2b6db9fb6d4a"
+        },
+        {
+          "path": "/tmp/vm-runtime-ci5206-notommath16-v3-lifecycle/launch.py",
+          "matches": true,
+          "sha256": "589baca478685ff9fd98c47b963158d19cb06573ca54d51e00f2f2f367b61fbc"
+        },
+        {
+          "path": "/tmp/vm-runtime-ci5206-notommath16-v3-lifecycle/guarded-exec.py",
+          "matches": true,
+          "sha256": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811"
+        },
+        {
+          "path": "/tmp/vm-runtime-ci5206-notommath16-v3-lifecycle/provider-chain.py",
+          "matches": true,
+          "sha256": "a647bf8699e1eecebce0702d01d11206f4d8a1a7d09f6661afd9ef928a52a5d9"
+        },
+        {
+          "path": "/tmp/vm-runtime-ci5206-notommath16-v3-lifecycle/observer-proposal.patch",
+          "matches": true,
+          "sha256": "c0c5ad46b1ccd296f57f08bd579718b019842bf6b25cf29c0381497018b94b16"
+        },
+        {
+          "path": "/tmp/vm-runtime-ci5206-notommath16-v3-lifecycle/semantic-fix.patch",
+          "matches": true,
+          "sha256": "c12f266ecb683b2029513163c13dfa10ff12312c946210c51070f59d404edde8"
+        },
+        {
+          "path": "/tmp/vm-runtime-ci5206-notommath16-v3-lifecycle/no_tommath16-plan.json",
+          "matches": true,
+          "sha256": "3cb1decbfd88acfa79516b7dd327467ab19aa5a2c77a0d0f82b4f97ef5f4638e"
+        },
+        {
+          "path": "/tmp/tcl-lsp-naming-env.sh",
+          "matches": true,
+          "sha256": "9d33ccdba049a778482244c60a8206cd62fc503db55227b7c6cf87645c932f29"
+        }
+      ],
+      "source_pins_match": 3,
+      "expected_selected": 16,
+      "root_go_absent": true,
+      "status": "frozen input/source pins and AST match; unrun and not queued"
+    },
+    {
+      "directory": "/tmp/vm-spectcl-c1c2-exact66-v3",
+      "manifest_sha256": "daed36181e9c079cbfd2d16e9bd06e0131777d57de8a5a63aca79710d2d471eb",
+      "plan_sha256": "97db5508c30d32f8439cda7747f44ff197b22357a5606711afe4347cab5d3ab6",
+      "inputs": [
+        {
+          "path": "/tmp/vm-spectcl-c1c2-exact66-v3/suite.py",
+          "matches": true,
+          "sha256": "d53f4642a3d6c9a1e3f5d98cdece95cd1659eafeceef3748fbb0ec1ee8f41ff4"
+        },
+        {
+          "path": "/tmp/vm-spectcl-c1c2-exact66-v3/launch.py",
+          "matches": true,
+          "sha256": "6631186d942d34701228b60cf977535a7c8d8c73b0849f6df30c262c78c61e36"
+        },
+        {
+          "path": "/tmp/vm-spectcl-c1c2-exact66-v3/run.sh",
+          "matches": true,
+          "sha256": "4782e2149bb0fbc5a6b53dc56d51df4095099f35c584fb2f7f7861bdf60172bd"
+        },
+        {
+          "path": "/tmp/vm-spectcl-c1c2-exact66-v3/plan.json",
+          "matches": true,
+          "sha256": "97db5508c30d32f8439cda7747f44ff197b22357a5606711afe4347cab5d3ab6"
+        },
+        {
+          "path": "/tmp/vm-spectcl-c1c2-exact66-v3/guarded-exec.py",
+          "matches": true,
+          "sha256": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811"
+        },
+        {
+          "path": "/tmp/vm-spectcl-c1c2-exact66-v3/providers.py",
+          "matches": true,
+          "sha256": "ba6a8be84fe9024c29c710b8fa1c7e445086c627957f5e7197efaf828e17b2ac"
+        },
+        {
+          "path": "/tmp/vm-spectcl-c1c2-exact66-v3/provider-chain.py",
+          "matches": true,
+          "sha256": "a647bf8699e1eecebce0702d01d11206f4d8a1a7d09f6661afd9ef928a52a5d9"
+        },
+        {
+          "path": "/tmp/tcl-lsp-naming-env.sh",
+          "matches": true,
+          "sha256": "9d33ccdba049a778482244c60a8206cd62fc503db55227b7c6cf87645c932f29"
+        },
+        {
+          "path": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/validation-tools/capture-inputs.py",
+          "matches": true,
+          "sha256": "2d3a1cf8aa341d5c4b829be6616a407d516163b52878ebb0cee874040e507474"
+        },
+        {
+          "path": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/validation-tools/_paths.py",
+          "matches": true,
+          "sha256": "f82d76f6ee9434a98ede16693364988373bf68137d0e5800d8839404385b3a0c"
+        },
+        {
+          "path": "/workspace/.rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/bin/cargo",
+          "matches": true,
+          "sha256": "a670e02cfa39ac2e53f77a2d911ca1fc9e2c479b0603ec956625be1daf24e3af"
+        }
+      ],
+      "source_pins_match": 12,
+      "expected_selected": 66,
+      "root_go_absent": true,
+      "status": "frozen input/source pins and AST match; unrun and not queued"
+    }
+  ],
+  "typing_receipt": {
+    "cargo_binary_sha256": "a670e02cfa39ac2e53f77a2d911ca1fc9e2c479b0603ec956625be1daf24e3af",
+    "cargo_exit_code": 0,
+    "finished_utc": "2026-10-23T03:09:05.737179+00:00",
+    "guard_valid": true,
+    "head": "4d4ab9e6a7d3b141ce55f16b8ca98f462e609e57",
+    "head_stable": true,
+    "overall_exit": 0,
+    "plan_sha256": "04e0d02aeb3ef2c63e8cbc063ed3be4cb2f426c785c1624164d7b6a400ecbb0f",
+    "process_receipt_sha256": "56054be22e158d44bdfae718f89b33847c56ce3f8b9f5dbd7abdecbe88c3883e",
+    "providers_stable": true,
+    "root_go_sha256": "bcdc8b565c1277d09fda919cb4d060e27f934a7b48a5e7454ab667f8801a5455",
+    "root_go_stable": true,
+    "scope": "seven-package all-target compile check only; no runtime/test claim",
+    "selected_packages": [
+      "tcl-compiler",
+      "tcl-lsp-core",
+      "tcl-lsp-db",
+      "tcl-lsp-server",
+      "tcl-vm",
+      "tcl-fuzz",
+      "tcl-spectcl"
+    ],
+    "source_stable": true,
+    "status": "PASS",
+    "warning_free_json_stderr_stdout": true
+  },
+  "typing_is_runtime_acceptance": false,
+  "remaining_C1_C2": [
+    "Original catch postfix4 actual runtime evidence outstanding; prior full5 remains4PASS1FAIL",
+    "Exact66 Jim34(original26+8) and EDA/Jim six32 unrun; older17 failure cause narrative stale after proc346d and Jimclass11 integrated",
+    "Mandatory test-spectcl-compat pack evaluation/fold/corpus executable checks remain separately scoped; syntax parse alone insufficient",
+    "Production hooks including17 UPF slots and reload/generation/environment/worker coherence require current source evidence;66 cannot close all C1-C2",
+    "Native/browser loading and source-closed/class/import context paths plus cold/warm/reload memory remain host/perf acceptance gaps"
+  ],
+  "do_not_expand": "No speculative Jim/VM repairs, no general parity, no duplicate root/CCG/report14 or external agents"
+}

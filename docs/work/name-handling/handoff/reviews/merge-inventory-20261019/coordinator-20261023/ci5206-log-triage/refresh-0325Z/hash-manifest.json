@@ -1,0 +1,17 @@
+{
+  "created_utc": "2026-10-23T03:25:08Z",
+  "files": {
+    "capture-receipt.json": {
+      "bytes": 1252,
+      "sha256": "c4bfd2ee368e32584602cee5b16c4821b1517aef4d0b3934a1e839ade82e0871"
+    },
+    "jobs-response.raw.json": {
+      "bytes": 97178,
+      "sha256": "d2ed4bcd5cde1bb50c589a3b3bbc095714af167b48c721bedfc9ce3bf68aca81"
+    },
+    "jobs-response.raw.json.b64": {
+      "bytes": 129572,
+      "sha256": "b654c55c4efb293ef5bdb71f545d4ee83e97717df6c79daad7662b3705076d5f"
+    }
+  }
+}

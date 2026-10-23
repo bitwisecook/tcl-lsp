@@ -1,0 +1,157 @@
+{
+  "utc": "2026-10-23T03:15:23.377056+00:00",
+  "status": "preparation only; no runtime claim/runner/GO/Cargo/source/Git",
+  "typing": {
+    "status": "PASS zero warnings",
+    "finished_utc": "2026-10-23T03:09:05.737179+00:00",
+    "head": "4d4ab9e6a7d3b141ce55f16b8ca98f462e609e57",
+    "receipt_sha256": "94e8c119c7f57fb72a7b759a108bd1b50f3b94dfa7868c68200498bff47e2e93",
+    "all_seals": true,
+    "scope": "seven-package all-target compile only"
+  },
+  "dispatch_order": "root report14 then exact11 including ILX then body5; later controls only after Native15 root allocation",
+  "ilx_triage": [
+    {
+      "trace": "absent all REMOTE_FIRST_OPERAND",
+      "meaning": "inspect exact test/env/build artifact first; ingress current_analysis/hosted context can refuse before first print; absence does not prove no compiler visit"
+    },
+    {
+      "trace": "body-inventory count=0",
+      "meaning": "actual source-variable advice/home or source/config/context/registry join failed; no manufactured body, declaration fallback, or empty-complete claim"
+    },
+    {
+      "trace": "body-owner/command-words/command-summary/vendor-source-kind/vendor-word-currentness",
+      "meaning": "route compiler authentic body/token/metadata ownership; preserve exact original compiler snapshot"
+    },
+    {
+      "trace": "setter-eligibility/setter variable/key/constructor stages",
+      "meaning": "route actual source summary/bind/constructor identity; do not grant runtime write or Native handle"
+    },
+    {
+      "trace": "continuity",
+      "meaning": "actual intervening source operation withdraws reachability; inspect original source operation, do not rescue after opaque"
+    },
+    {
+      "trace": "remote-barrier calls=0 bindings=N",
+      "meaning": "first remote predicate failed after existing reads; identify actual binding/read key/family/arity from retained trace/source; no later notify rescue"
+    },
+    {
+      "trace": "remote-barrier calls=1",
+      "meaning": "first association captured; verify original test still demands exactly one and no later notify, and all source owners/debts retained"
+    }
+  ],
+  "coarse_guard_review": {
+    "allowed": "only genuine Fresh SemanticStructure: irrelevant global Salsa revision exempt; exact same retained revision Salsa\u2192Indexed publication advance",
+    "retained": [
+      "source bytes and document revision/version",
+      "URI generation",
+      "dialect and resolution generations",
+      "actual path/provider admission and final lease",
+      "backing deletion state",
+      "full original input and source analysis match",
+      "configuration snapshot",
+      "analyser input epoch",
+      "class factory generation"
+    ],
+    "strict_other_purposes": [
+      "Database",
+      "ReadonlyComplete",
+      "ConditionalSourceRegion"
+    ],
+    "forbidden": [
+      "Pending\u2192ready donation",
+      "Indexed\u2192Salsa downgrade",
+      "equal-byte source ABA revision donation",
+      "semantic binding/runtime/Native/Normal authority from syntax purpose"
+    ]
+  },
+  "coarse_runtime_triage": [
+    "Separate build/list/runtime/guard failures and exact original selector outcomes. Missing/unreached remains unknown.",
+    "ContentModified: existing final matcher can legitimately reject source/input/provider/config/URI drift. No trace means exact rejected predicate remains unknown; do not attribute all41 to revision.",
+    "If DB-write positive fails, inspect genuine fresh purpose and retained actual input/provider joins. If Salsa\u2192Indexed positive fails, compare held same revision/version/admission and actual phase.",
+    "Any negative control success for stale carrier is regression: stop repair admission and route exact selector to LSP/currentness owner.",
+    "Assert output shape/token encoding separately after current carrier succeeds; coarse Syntax never promises semantic binding/native resolution."
+  ],
+  "later_original_controls": [
+    {
+      "package": "tcl-lsp-server",
+      "target": "--lib",
+      "selector": "readonly_reference_reports::coarse_semantic_source_tests::coarse_tokens_retain_actual_configured_input_and_final_source_owner",
+      "exact": true,
+      "expected_selected": 1
+    },
+    {
+      "package": "tcl-lsp-server",
+      "target": "--lib",
+      "selector": "readonly_reference_reports::coarse_semantic_source_tests::coarse_source_keeps_its_inputs_across_an_unrelated_database_write",
+      "exact": true,
+      "expected_selected": 1
+    },
+    {
+      "package": "tcl-lsp-server",
+      "target": "--lib",
+      "selector": "readonly_reference_reports::coarse_semantic_source_tests::coarse_source_keeps_its_own_revision_when_the_index_finishes",
+      "exact": true,
+      "expected_selected": 1
+    },
+    {
+      "package": "tcl-lsp-server",
+      "target": "--lib",
+      "selector": "readonly_reference_reports::coarse_semantic_source_tests::coarse_tokens_refuse_changed_actual_resource_config_without_epoch_donation",
+      "exact": true,
+      "expected_selected": 1
+    },
+    {
+      "package": "tcl-lsp-server",
+      "target": "--lib",
+      "selector": "readonly_reference_reports::coarse_semantic_source_tests::coarse_source_keeps_factory_and_original_virtual_provider_receipts",
+      "exact": true,
+      "expected_selected": 1
+    },
+    {
+      "package": "tcl-lsp-server",
+      "target": "--lib",
+      "selector": "readonly_reference_reports::coarse_semantic_source_tests::closed_path_admission_is_not_an_open_source_publication_receipt",
+      "exact": true,
+      "expected_selected": 1
+    },
+    {
+      "package": "tcl-lsp-server",
+      "target": "--lib",
+      "selector": "readonly_reference_reports::coarse_semantic_source_tests::unresolved_document_dialect_cannot_issue_coarse_input",
+      "exact": true,
+      "expected_selected": 1
+    },
+    {
+      "package": "tcl-lsp-server",
+      "target": "--lib",
+      "selector": "tests::semantic_tokens_full_serves_a_well_defined_tier_when_indexed",
+      "exact": true,
+      "expected_selected": 1
+    },
+    {
+      "package": "tcl-lsp-server",
+      "target": "--lib",
+      "selector": "tests::semantic_tokens_do_not_wait_for_did_open_index_seed_1854",
+      "exact": true,
+      "expected_selected": 1
+    }
+  ],
+  "later_ilx_controls": [
+    {
+      "package": "tcl-compiler",
+      "target": "--lib",
+      "selector": "registry_invocation::source_remote_first_operand::tests::first_remote_operand_preserves_supported_true_same_frame_source_body",
+      "exact": true,
+      "expected_selected": 1
+    },
+    {
+      "package": "tcl-compiler",
+      "target": "--lib",
+      "selector": "registry_invocation::source_remote_first_operand::tests::first_remote_operand_withdraws_opaque_observer_write_and_foreign_body_paths",
+      "exact": true,
+      "expected_selected": 1
+    }
+  ],
+  "runtime_status": "all listed later controls UNRUN under source30; existing original assertions unchanged"
+}

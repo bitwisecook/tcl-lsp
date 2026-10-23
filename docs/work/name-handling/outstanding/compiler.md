@@ -2,13 +2,24 @@
 
 Area: Lowering, C6 fresh builders, iRules RuleLoader realm, itcl/snit, OO.
 
-Last updated: 2026-10-23T02:56:11.573274+00:00 (report14v6-source30 prepared, peer pending; actual49 COMPLETE19PASS30FAIL0W)
+Last updated: 2026-10-23T03:19:30.561425+00:00 (RBS3 exact existing trace protocol ready; noGO/Cargo; source30 checkPASS0W/report14 pendingactualreceipt)
 
 Maintained by the compiler agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 Full change notes: `docs/work/name-handling/handoff/reviews/merge-inventory-20261019/sol-49-NOTES.md`.
 
 ## Resume
+
+**RBS original3 trace slot prepared only:** `/tmp/compiler-rbs3-source30-diagnostic-v1`, plan92d35f0d57259d9530bde4fcfdad71e680d80be9f40f7a98e083ca6017ecd12c/inputmanifest57c4075d3fb7add49373bad0abf4924c0a19bf56897971303fdd1915c5d1e0af/launcher796cfa3c7f83094d366e56b94f217e3e0aa86e6d1f3c75ef033f67a2dd3c0673. Actual49 exact3selector/assertion/count1each unchanged. Exactenv TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS=1,TCL_LSP_TRACE_N13_POINT=1,ZZ_PROBE_LOWER=1, all existing source sites inventoried in trace-flag-evidence.json (readonlysource/Nativechildguards,actualsourcepointgraph,ZZ_W210 readpresence+CFGbarriers). No probes added; old22:42 attribution not currentproof. Same source30/currentfreshCargoJSONartifact/authcompleted-valid-failed49/executor88125/180s20MiB2GiB/fullseals. AST4/actualnoGOrefusalPASS; namespeer requested. Frozen archive `compiler/resume-20261022/rbs3-source30-diagnostic-v1-20261023T0319Z`; root laterGO only, no queue/Cargo/source/Git bycompiler.
+
+
+**C6 later protocol peer CLEAR:** Names receiptc9cbcc65e3fe545c53f1b373d7b42a1b2939659505a98a459975a50a78d3c0d7 retained via separate `compiler/resume-20261022/c6-sh-tnt-source30-v1-names-peer-review.json`; original2filters13tests/current30 strict protocol remains frozen/unlaunched. BPF context transport design review to CCG/root documents minimal RuntimeSelected wrapper seam but canonical context alone cannot replace stripped Native bindings or prove map/accept barrier absence; no source patch proposed.
+
+
+**Current source30 compile check actual PASS0W:** Root seven-package all-target check finished2026-10-23T03:09:05.737179Z, `/tmp/name-handling-seven-package-check-v4-source30/runs/20261023T025300.957867Z/final.json`: exit0/guardvalid/headstable/source/provider/rootGOstable and warningfreeJSON/stdout/stderr. ExactHEAD4d4ab9e6a7d3b141ce55f16b8ca98f462e609e57. Compile-only; no runtime/Clippy/sectionF acceptance. Root launching frozen report14v6; no completed actual report14 receipt observed here, runtime remains unmeasured until receipt.
+
+**Original C6 SH21/TNT03 later slot prepared only:** `/tmp/compiler-c6-sh-tnt-source30-v1`, planc9aa3ed256cf4998711ce85ab03d5f4578b41b2edefd3cca80925873fb265e37/inputmanifest9a048fa76f63dd91d91a6dbce7a24c0aa83bdb336c823035f3cb9ed9cdc74f0a/launcherf9c0a12d4dd704eef513254936c31285010b8fb9599eea9464a57ec648c11310. Exactly2 original family substrings fp_sh_21/7 and fp_tnt_03/6=13tests, exact=false unchanged, all original source assertions preserved. Current source roster13 names recorded; neither selected by actual49. Same source30map417688/current pinned CargoJSON artifact and88125 lifecycle180s/20MiB/2GiB/fullseals/completed-valid-failed49auth. AST4/actualnoGOrefusalPASS. Names peer requested. Frozen archive `compiler/resume-20261022/c6-sh-tnt-source30-v1-20261023T0315Z`. No GO/run/queue/Cargo/source/Git mutations. Diagnostic11 names peer staticCLEAR71f56533 archived separately without changing frozen protocol archive.
+
 
 **Existing diagnostic11 protocol ready OFFTREE/unlaunched:** `/tmp/compiler-source30-diagnostics-v1`, plan4a3f2a6ca28622df267c03e0975f67bd2234ec72c9f5a5da3d08acf41202c5d8/inputmanifest509f1863668e8f8e30b9313749167a5a9f87166446a814ddeba391cb57487f3a/launcher9a84d01781a2e33361b7a854833d12a96134319148ac5c6d5546d3c23f675cd7.11exactfilters11existingtests=4G4+3N13+4ILX (includes genuine passing effectoverride refusal). Flags TCL_LSP_TRACE_N13_POINT=1 / TCL_LSP_TRACE_REMOTE_FIRST_OPERAND=1; G4 existing cfgtest output. Fresh actual current CargoJSON no-run artifact, same88125guard/180s/20MiB/2GiB/full source30/provider/artifact/process seals and completed-valid-failed49 authentication. AST4/noGO refusalPASS; names bounded peer requested. Original assertions unchanged, no speculative repairs/Native grants. Frozen archive `compiler/resume-20261022/source30-diagnostic11-v1-20261023T0257Z`; no launch/queue/Cargo.
 

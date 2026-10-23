@@ -1,0 +1,78 @@
+{
+  "utc": "2026-10-23T03:25:05.798339+00:00",
+  "status": "static only; independent review pending; no GO/run",
+  "files": [
+    {
+      "path": "/tmp/vm-spectcl-original3-v1/preparation-receipt.txt",
+      "sha256": "54d46cfb4b4f8a58302b509987f39528fee4f425560d6d2da572719d31426a06",
+      "bytes": 1121,
+      "blob": "blobs/54d46cfb4b4f8a58302b509987f39528fee4f425560d6d2da572719d31426a06.gz"
+    },
+    {
+      "path": "/tmp/vm-spectcl-original3-v1/runner-input-manifest.json",
+      "sha256": "983980d169a94dc3b7426ab45f71e4f1ae400fe4c9843236aa96de9880569269",
+      "bytes": 1554,
+      "blob": "blobs/983980d169a94dc3b7426ab45f71e4f1ae400fe4c9843236aa96de9880569269.gz"
+    },
+    {
+      "path": "/tmp/vm-spectcl-original3-v1/suite.py",
+      "sha256": "a8f55f6a9132765f1505ce8a74deab2d4346f9b86dbe693dd7bc2f4ed8d4d61b",
+      "bytes": 11058,
+      "blob": "blobs/a8f55f6a9132765f1505ce8a74deab2d4346f9b86dbe693dd7bc2f4ed8d4d61b.gz"
+    },
+    {
+      "path": "/tmp/vm-spectcl-original3-v1/run.sh",
+      "sha256": "a5f91a09ec5ad60f5a5df2155f4619918d1c88f453760c9038cd6bff743830ac",
+      "bytes": 175,
+      "blob": "blobs/a5f91a09ec5ad60f5a5df2155f4619918d1c88f453760c9038cd6bff743830ac.gz"
+    },
+    {
+      "path": "/tmp/vm-spectcl-original3-v1/launch.py",
+      "sha256": "85e65c6ca26963b01b2ea7562a8fd6032129fff931342cc0e6a4da322feeb800",
+      "bytes": 2289,
+      "blob": "blobs/85e65c6ca26963b01b2ea7562a8fd6032129fff931342cc0e6a4da322feeb800.gz"
+    },
+    {
+      "path": "/tmp/vm-spectcl-original3-v1/provider-chain.py",
+      "sha256": "a647bf8699e1eecebce0702d01d11206f4d8a1a7d09f6661afd9ef928a52a5d9",
+      "bytes": 2324,
+      "blob": "blobs/a647bf8699e1eecebce0702d01d11206f4d8a1a7d09f6661afd9ef928a52a5d9.gz"
+    },
+    {
+      "path": "/tmp/vm-spectcl-original3-v1/providers.py",
+      "sha256": "ba6a8be84fe9024c29c710b8fa1c7e445086c627957f5e7197efaf828e17b2ac",
+      "bytes": 2286,
+      "blob": "blobs/ba6a8be84fe9024c29c710b8fa1c7e445086c627957f5e7197efaf828e17b2ac.gz"
+    },
+    {
+      "path": "/tmp/vm-spectcl-original3-v1/guarded-exec.py",
+      "sha256": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811",
+      "bytes": 13109,
+      "blob": "blobs/88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811.gz"
+    },
+    {
+      "path": "/tmp/vm-spectcl-original3-v1/source30-manifest.json",
+      "sha256": "42283b17fefac868402519ed3b5642378bc864f2f92505c69bad1b68c9819ade",
+      "bytes": 9011,
+      "blob": "blobs/42283b17fefac868402519ed3b5642378bc864f2f92505c69bad1b68c9819ade.gz"
+    },
+    {
+      "path": "/tmp/vm-spectcl-original3-v1/plan.json",
+      "sha256": "9ec3e617adb7bc03a76dbdc1c784c8ff9b5112a0cc953a6a8e0337b8b2c666c8",
+      "bytes": 9945,
+      "blob": "blobs/9ec3e617adb7bc03a76dbdc1c784c8ff9b5112a0cc953a6a8e0337b8b2c666c8.gz"
+    },
+    {
+      "path": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-spectcl/tests/workspace_packs.rs",
+      "sha256": "f6c4edb4a2af225557daafa651cf681e06e657ddda6d41026c6c855d0dab366e",
+      "bytes": 33231,
+      "blob": "blobs/f6c4edb4a2af225557daafa651cf681e06e657ddda6d41026c6c855d0dab366e.gz"
+    },
+    {
+      "path": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-spec-studio/tests/spectcl_ports.rs",
+      "sha256": "9b7472985681d56fba6dd09bb0757cf15118fb943d9a755348717425d67a7c89",
+      "bytes": 45639,
+      "blob": "blobs/9b7472985681d56fba6dd09bb0757cf15118fb943d9a755348717425d67a7c89.gz"
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "observed_utc": "2026-10-23T03:17:34.171022+00:00",
+  "scope": "bounded design review only; no patch/type/runtime/Cargo",
+  "minimal_transport": "Public sibling runtime-selected+CfgContext wrapper calling private build_cfg_function_with_upvars_inner at cfg_builder/mod.rs4209; RuntimeSelected fallback, canonical context from actual module, false widening, exact config. Existing4105 label-exact namespace wrong for synthetic BPF label. Preserve actual script retained SourceContext override.",
+  "currentness": "BpfSourceScript::prepare_function phase.rs192 checks matches_module before actual fixed transformation pipeline; SourceBpfModuleContext source_bpf_command.rs36-60 matches retainedArc/source/config/registry/positioning, not script coverage/effects.",
+  "blocker": "BPF source.rs664-680 discards all Native command bindings/sites/requirements/evaluated-body facts. CfgBuilder original_tokens_for_statement542 only actual script unanimous sites; OriginalProcedureSummaryOwners::calls summary_candidates54 requires tokens.source_binding. Missing calls source_upvar_effects750 => opaqueArguments/unresolvable/OPAQUE_SCRIPT. Canonical context transport alone cannot prove absence of GlobalFrameScript for BPF map/accept.",
+  "preserve": "No span/text-based original token donation, no dropping barriers/new allowlists. Actual typed DSL selection and source/procedure/Native facts are separate. embedded_subst_extras1761 ORs existing opaque causes independently.",
+  "result": "Transport API design is bounded and conservative; proposed precision benefit blocked pending authentic exact operation effect carrier, no new architecture proposed."
+}

@@ -1,0 +1,10 @@
+Bounded closure receipt: seven-package source30 all-target typecheck
+Captured UTC: 2026-10-23T03:15:08.837015+00:00
+
+The v4 source30 protocol and both attempts are archived losslessly in `seven-package-source30-typecheck-v4/`. Archive manifest SHA256: `620854a73f4a366a86127baa3b4dde9482333846acc46a76831ac87517de593d`. It contains 52 gzipped protocol/attempt/launcher files; every payload decompressed byte-for-byte to its original SHA256 and byte count.
+
+Attempt 1 (`runs/20261023T025047.806155Z`) is kept separate as setup failure: the direct pinned Cargo process exited 101 in 0.38 seconds because it could not execute `rustc -vV` (`No such file or directory`, never executed). Cargo compilation did not start; this was not a compiler finding. Its guarded process completed, but the final attempt status is FAIL. Launcher transcript records `overall=1` and `LOCK_RELEASED`.
+
+Attempt 2 (`runs/20261023T025300.957867Z`) completed 2026-10-23T03:09:05Z with PASS: guarded seven-package `cargo check --locked --keep-going --all-targets --message-format=json`, exit 0, `build-finished: true`, no compiler diagnostics, no build-script warnings, no stdout/stderr warnings, and no malformed JSON-channel output. `source_stable`, `providers_stable`, `head_stable`, `root_go_stable`, and `guard_valid` are true. Launcher exit is 0, input pins are stable, and its durable transcript records `COMPLETE ... overall=0` followed by `LOCK_RELEASED`. The run captured the approved integrated head `4d4ab9e6a7d3b141ce55f16b8ca98f462e609e57`; source30 manifest and all seven selected packages are pinned in the archived plan and final receipt.
+
+This is all-target typecheck evidence only. It makes no runtime, test, ABI, performance, section-F, or release-acceptance claim. The first setup failure remains separately visible and is not folded into the successful second attempt.

@@ -1,0 +1,11 @@
+# CI5206 roster refresh and job 120175508606 outcome join
+
+Captured 2026-10-23 03:16:34 UTC using the complete REST jobs endpoint for run 39879737945, source head 5a4182dfefc483b6446085bdabd9a1f7620e6a96. The response contains 31/31 rows (7 success, 19 failure, 3 in progress, 2 skipped) and matches the 02:56 roster statuses/IDs exactly. Raw CLI stdout and base64 round-trip plus hashes are in refresh-0316Z/. The GitHub connector wrapper returned only 30 rows, so it is not the completeness source.
+
+Only newly requested job log 120175508606 (rust-tests-shard (3/5)) is classified here. The connector supplied decoded UTF-8 at 03:17:22 UTC. The 4,276,004-byte log, including its BOM and service-provided terminal LF, is under the 20 MiB cap. The base64 copy was decoded without appending bytes; gzip decompression and base64 round-trip both compare byte-for-byte with that decoded content.
+
+The log records 3,897 unique named outcomes: 3,015 PASS and 882 FAIL. Another 882 failure lines repeat the first reporter entries in the final summary with no outcome conflicts; they are retained as duplicate-line metadata, not counted as extra tests. Nextest reports one skipped test, but no named SKIP row is present. Its start line says 3,897 tests across 97 binaries, with one test and 43 binaries skipped. Summary duration: 5,245.330 seconds.
+
+The existing CI5203 exact-selector comparator joined this shard to the canonical 24,312-PASS origin/rust ledger (ledger SHA-256 8f0640329c7c60180099d61fe5c2d58ff13b76230b6046ef169f610b3ffa7a58): 2,468 matched PASS, 856 baseline PASS-to-current FAIL, 20,988 baseline rows missing from this shard (unknown/unobserved), 547 current-only PASS, and 26 current-only FAIL. The 26 current-only failures remain separate from regressions. No assertion cause or whole-suite verdict is inferred.
+
+main3-classification.json groups failures by package/test family for routing, and main3-fail-selectors.txt preserves every unique named failing selector. Route tcl-lsp-core/db to LSP; tcl-vm/vm-cli/cshim to VM runtime; tcl-compiler/irules/explorer/registry/spec-hooks/spec-studio to compiler owners; bpf-tcl/tcl-cli to compiler-codegen. Route tcl-spectcl, tcl-syntax, and tcl-test-support to the coordinator for ownership assignment. These are package routes only, not asserted causes.

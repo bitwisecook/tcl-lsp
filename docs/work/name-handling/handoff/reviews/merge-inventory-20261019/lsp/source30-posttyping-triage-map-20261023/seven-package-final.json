@@ -1,0 +1,27 @@
+{
+  "cargo_binary_sha256": "a670e02cfa39ac2e53f77a2d911ca1fc9e2c479b0603ec956625be1daf24e3af",
+  "cargo_exit_code": 0,
+  "finished_utc": "2026-10-23T03:09:05.737179+00:00",
+  "guard_valid": true,
+  "head": "4d4ab9e6a7d3b141ce55f16b8ca98f462e609e57",
+  "head_stable": true,
+  "overall_exit": 0,
+  "plan_sha256": "04e0d02aeb3ef2c63e8cbc063ed3be4cb2f426c785c1624164d7b6a400ecbb0f",
+  "process_receipt_sha256": "56054be22e158d44bdfae718f89b33847c56ce3f8b9f5dbd7abdecbe88c3883e",
+  "providers_stable": true,
+  "root_go_sha256": "bcdc8b565c1277d09fda919cb4d060e27f934a7b48a5e7454ab667f8801a5455",
+  "root_go_stable": true,
+  "scope": "seven-package all-target compile check only; no runtime/test claim",
+  "selected_packages": [
+    "tcl-compiler",
+    "tcl-lsp-core",
+    "tcl-lsp-db",
+    "tcl-lsp-server",
+    "tcl-vm",
+    "tcl-fuzz",
+    "tcl-spectcl"
+  ],
+  "source_stable": true,
+  "status": "PASS",
+  "warning_free_json_stderr_stdout": true
+}

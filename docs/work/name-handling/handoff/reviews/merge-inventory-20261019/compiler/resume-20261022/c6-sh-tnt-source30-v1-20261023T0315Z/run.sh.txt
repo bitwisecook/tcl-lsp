@@ -1,0 +1,4 @@
+#!/bin/bash
+set -u
+source /tmp/tcl-lsp-naming-env.sh
+exec python3 /tmp/compiler-c6-sh-tnt-source30-v1/suite.py "$1"

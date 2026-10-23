@@ -1,0 +1,13 @@
+{
+  "inputs": {
+    "/tmp/compiler-c6-provider-manifest.py": "5eff9d653c4f464a48fe1a4633656a97512b817ae03a0d29de9f0c33f6f8340e",
+    "/tmp/compiler-n13-focused-successor-v7-integrated/guarded-cargo.py": "b51ae1f339dbe4b1ae88603c5cf4fae608fd7234c821121b8ce0fc400b05a319",
+    "/tmp/compiler-n13-focused-successor-v7-integrated/guarded-exec.py": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811",
+    "/tmp/compiler-n13-focused-successor-v7-integrated/launch.py": "bd9f92d2207b3b97266429e3c5725a5c2c3a2fc8317047015d094ea97f2ef9ce",
+    "/tmp/compiler-n13-focused-successor-v7-integrated/plan.json": "0cb62fcdba2a9f24e5578ada9123e8fe9e195a1e7cd0f0cb1479ea2a19542313",
+    "/tmp/compiler-n13-focused-successor-v7-integrated/run.sh": "f4b3f6704516f92e586a4fa040ce44d2b572e1d300f84453f379eb4535805a67",
+    "/tmp/compiler-n13-focused-successor-v7-integrated/suite.py": "ff4861c7d1fb2230f6cdba89161ca56210dcb9b594737ea29a60f510bbab2bbd",
+    "/tmp/tcl-lsp-naming-env.sh": "9d33ccdba049a778482244c60a8206cd62fc503db55227b7c6cf87645c932f29"
+  },
+  "version": "v7"
+}

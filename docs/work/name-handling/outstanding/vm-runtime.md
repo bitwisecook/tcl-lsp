@@ -2,11 +2,66 @@
 
 Area: tcl-vm, runtime/rust, tcl-spectcl, tcl-spec-studio: SpecTcl execution and acceptance.
 
-Last updated: 2026-10-23T02:50:30.128749+00:00 (sevenpackagev4source30 peer CLEAR; no run/Cargo/queue)
+Last updated: 2026-10-23T03:25Z (originalSpecTcl3 immutable protocol prepared; independent review pending; original assertions/source unchanged; noGO/run/queue)
 
 Maintained by the vm-runtime agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## Resume
+
+Root-requested bounded originalSpecTcl3 v1 prepared off-tree under
+`/tmp/vm-spectcl-original3-v1/`: plan9ec3e617, suitea8f55f6a,
+launcher85e65c6c, manifest983980d1, executor88125. Exact originals are
+workspace_packs::{a_manifest_that_places_nothing_does_not_lift_its_pack,
+a_warm_cache_produces_the_identical_load} and studio spectcl_ports::
+every_port_loads_and_matches_its_shipped_spec. Fresh Cargo JSON joins exact
+package/manifest/target/test artifact; full roster guards15/12 precede only
+three exact selectors.32sourcepins retain source30 and2original testfiles.
+Originalmain3 --all-features intent retained with explicit per-package
+unification limitation. Modern66 lifecycle/fullsource/provider/strict0W/
+180s/3600build/20MiB/2GiB/rootGO guards unchanged; no unrelated green gate.
+AST/source-roster/input checks only, no runner/GO/provider/lock/Cargo/test.
+Independent peer review pending (coordination message failed thread limit;
+root asked to route). CCG asked about studio dependency/artifact scheduling.
+No new source/tests/assumptions/family closure. Lossless protocol+original
+source snapshots: `vm-runtime/protocols/spectcl-original3-v1/manifest.txt`.
+
+
+Newly closed oldproduct3b1 CI5206main3 exact join routes159 owned P2F:
+VM142, cshim13, SpecTcl2, studio1 and VM-CLI1; nine baseline-absent VM FAIL
+remain separate UNKNOWNs. Studio `every_port_loads_and_matches_its_shipped_spec`
+is VM-owned, correcting support's compiler grouping. Current full4/noTom16/
+Spec66 select ZERO of these exact workspace identities: standalone runtime
+cases cannot substitute for VM, and Jim/EDA66 omits workspace_packs/studio.
+Current source30 outcomes remain unrun; no cause follows from outcomes alone.
+First uncovered original pack controls are workspace_packs' manifest-nothing
+and warm-cache tests plus studio's every-port shipped-spec test. Original CLI
+nested-error, cshim byte/error and layout, and retained namespace test are
+bounded representatives beyond4/16/66; seven exact suggested controls are
+recorded without creating a runner. Existing old representative19 contains
+16 of159 exact selectors, but its historical protocol has no current lifecycle
+GO and must not be run. CCG's catch-body preflight witness remains reserved.
+All159 baseline gaps stay OPEN; one representative cannot close a family.
+Evidence `vm-runtime/ci5206-main3-current-plan-routing-20261023.txt` records
+all exact identities/provenance and separate nine newFAILs. No source edits,
+runner preparation, Cargo, GO, queue or general parity expansion.
+
+
+Recovered VM role: actual seven-package source30 all-target check closed
+03:09:05Z PASS Cargo0/0warnings, full source/provider/HEAD/GO/lifecycle guards
+valid on4d4ab9e6/tree9259245b. This is typing only, no runtime acceptance.
+Read-only recovery rechecked every frozen full4v2/noTom16v3/Spec66v3 manifest
+input, AST and all3/3/12 canonical source pins; all match, rootGO absent,
+READY/unrun/NOTQUEUED. Executor88125/helpera647 unchanged; no protocol churn.
+Evidence `vm-runtime/protocols/recovery-readiness-20261023T0320Z.txt`.
+Root report14v6-source30 owns the current slot; no VM Cargo/queue/provider/
+lock/source/target operation. C84semantic580 is integrated but full4 unrun;
+old full5 remains4PASS1FAIL. Exact66 covers originalJim26+8 additions and
+sixJim/EDA32, with old17 cause stale after trustedproc346d/Jimclass11 source
+fixes. No current Jim failure measured or speculative duplicate repair.
+C.1–C.2 still require current compatibility/pack-fold/corpus, live hooks,
+UPF17, reload/environment/worker and shipped host evidence beyond this66;
+performance/source-closed/class context gates retain their owning roles.
+
 
 Seven-package v4source30 immediate bounded peer CLEAR: plan04e0d02a,
 suite8c4e9bf0, launcher22650900, manifest7eeb5147, executor88125.

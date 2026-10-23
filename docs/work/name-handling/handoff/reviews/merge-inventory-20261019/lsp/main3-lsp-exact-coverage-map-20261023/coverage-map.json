@@ -1,0 +1,781 @@
+{
+  "utc": "2026-10-23T03:23:31.735747+00:00",
+  "scope": "CI5206 old-product main3 LSP38/db2/syntax4 exact failures only, not source30 outcomes",
+  "source_log_sha256": "21536fc3eb8e45f2ce2155598a43ca3932f46cada27f36a54635165b4542d53d",
+  "counts": {
+    "P2F": 38,
+    "new FAIL without baseline": 6
+  },
+  "exact_overlap": {
+    "native15": 0,
+    "body5": 1,
+    "diagnostic11_including_ILX": 0,
+    "later11": 0
+  },
+  "records": [
+    {
+      "binary_id": "tcl-lsp-core::authoring_dialect_completion",
+      "selector": "a_body_with_no_grammar_falls_back_to_ordinary_completion",
+      "baseline_join": "P2F",
+      "exact_current_protocols": [],
+      "coverage": "missing exact original representative",
+      "family_route": "authoring_dialect_completion",
+      "original_panic": "2026-10-23T01:19:44.8356571Z     thread 'a_body_with_no_grammar_falls_back_to_ordinary_completion' (20603) panicked at rust/tcl-lsp-core/tests/authoring_dialect_completion.rs:142:5:",
+      "observed_evidence": [
+        "2026-10-23T01:19:44.8356571Z     thread 'a_body_with_no_grammar_falls_back_to_ordinary_completion' (20603) panicked at rust/tcl-lsp-core/tests/authoring_dialect_completion.rs:142:5:"
+      ],
+      "first_refusal": "unproven unless explicit original evidence states it; names/counts do not identify producer rejection"
+    },
+    {
+      "binary_id": "tcl-lsp-core::hover_residual",
+      "selector": "residual_hover_option_word_of_command",
+      "baseline_join": "P2F",
+      "exact_current_protocols": [],
+      "coverage": "missing exact original representative",
+      "family_route": "hover_residual",
+      "original_panic": "2026-10-23T01:20:01.3134443Z     thread 'residual_hover_option_word_of_command' (20686) panicked at rust/tcl-lsp-core/tests/hover_residual.rs:407:54:",
+      "observed_evidence": [
+        "2026-10-23T01:20:01.3134443Z     thread 'residual_hover_option_word_of_command' (20686) panicked at rust/tcl-lsp-core/tests/hover_residual.rs:407:54:"
+      ],
+      "first_refusal": "unproven unless explicit original evidence states it; names/counts do not identify producer rejection"
+    },
+    {
+      "binary_id": "tcl-lsp-core::hover_residual",
+      "selector": "residual_hover_regexp_literal_pattern_notes_no_metacharacters",
+      "baseline_join": "P2F",
+      "exact_current_protocols": [],
+      "coverage": "missing exact original representative",
+      "family_route": "hover_residual",
+      "original_panic": "2026-10-23T01:20:01.4874430Z     thread 'residual_hover_regexp_literal_pattern_notes_no_metacharacters' (20690) panicked at rust/tcl-lsp-core/tests/hover_residual.rs:293:48:",
+      "observed_evidence": [
+        "2026-10-23T01:20:01.4874430Z     thread 'residual_hover_regexp_literal_pattern_notes_no_metacharacters' (20690) panicked at rust/tcl-lsp-core/tests/hover_residual.rs:293:48:"
+      ],
+      "first_refusal": "unproven unless explicit original evidence states it; names/counts do not identify producer rejection"
+    },
+    {
+      "binary_id": "tcl-lsp-core::hover_residual",
+      "selector": "residual_hover_regexp_pattern_anchors_and_class",
+      "baseline_join": "P2F",
+      "exact_current_protocols": [],
+      "coverage": "missing exact original representative",
+      "family_route": "hover_residual",
+      "original_panic": "2026-10-23T01:20:01.9184377Z     thread 'residual_hover_regexp_pattern_anchors_and_class' (20692) panicked at rust/tcl-lsp-core/tests/hover_residual.rs:266:48:",
+      "observed_evidence": [
+        "2026-10-23T01:20:01.9184377Z     thread 'residual_hover_regexp_pattern_anchors_and_class' (20692) panicked at rust/tcl-lsp-core/tests/hover_residual.rs:266:48:"
+      ],
+      "first_refusal": "unproven unless explicit original evidence states it; names/counts do not identify producer rejection"
+    },
+    {
+      "binary_id": "tcl-lsp-core::lsp_core_residual",
+      "selector": "inline_command_substitution_value_standalone",
+      "baseline_join": "P2F",
+      "exact_current_protocols": [],
+      "coverage": "missing exact original representative",
+      "family_route": "lsp_core_residual",
+      "original_panic": "2026-10-23T01:20:10.1586270Z     thread 'inline_command_substitution_value_standalone' (20741) panicked at rust/tcl-lsp-core/tests/lsp_core_residual.rs:308:5:",
+      "observed_evidence": [
+        "2026-10-23T01:20:10.1586270Z     thread 'inline_command_substitution_value_standalone' (20741) panicked at rust/tcl-lsp-core/tests/lsp_core_residual.rs:308:5:",
+        "2026-10-23T01:20:10.1587172Z     assertion `left == right` failed",
+        "2026-10-23T01:20:10.1587410Z       left: None",
+        "2026-10-23T01:20:10.1587641Z      right: Some(\"set y [list 1 2]\")"
+      ],
+      "first_refusal": "unproven unless explicit original evidence states it; names/counts do not identify producer rejection"
+    },
+    {
+      "binary_id": "tcl-lsp-core::lsp_core_residual",
+      "selector": "inline_declines_when_reassigned_later",
+      "baseline_join": "P2F",
+      "exact_current_protocols": [],
+      "coverage": "missing exact original representative",
+      "family_route": "lsp_core_residual",
+      "original_panic": "2026-10-23T01:20:12.6368992Z     thread 'inline_declines_when_reassigned_later' (20751) panicked at rust/tcl-lsp-core/tests/lsp_core_residual.rs:349:5:",
+      "observed_evidence": [
+        "2026-10-23T01:20:12.6368992Z     thread 'inline_declines_when_reassigned_later' (20751) panicked at rust/tcl-lsp-core/tests/lsp_core_residual.rs:349:5:",
+        "2026-10-23T01:20:12.6370374Z     assertion failed: inline(\"set x 1\\nputs $x\\nset x 2\", 0).is_none()"
+      ],
+      "first_refusal": "unproven unless explicit original evidence states it; names/counts do not identify producer rejection"
+    },
+    {
+      "binary_id": "tcl-lsp-core::lsp_core_residual",
+      "selector": "minify_drops_redundant_quotes_around_number",
+      "baseline_join": "P2F",
+      "exact_current_protocols": [],
+      "coverage": "missing exact original representative",
+      "family_route": "lsp_core_residual",
+      "original_panic": "2026-10-23T01:20:15.7284498Z     thread 'minify_drops_redundant_quotes_around_number' (20766) panicked at rust/tcl-lsp-core/tests/lsp_core_residual.rs:737:5:",
+      "observed_evidence": [
+        "2026-10-23T01:20:15.7284498Z     thread 'minify_drops_redundant_quotes_around_number' (20766) panicked at rust/tcl-lsp-core/tests/lsp_core_residual.rs:737:5:",
+        "2026-10-23T01:20:15.7285529Z     assertion `left == right` failed",
+        "2026-10-23T01:20:15.7285843Z       left: \"puts \\\"42\\\"\"",
+        "2026-10-23T01:20:15.7286108Z      right: \"puts 42\""
+      ],
+      "first_refusal": "unproven unless explicit original evidence states it; names/counts do not identify producer rejection"
+    },
+    {
+      "binary_id": "tcl-lsp-core::lsp_core_residual",
+      "selector": "minify_expr_comparison_inversion_in_value_context_is_safe",
+      "baseline_join": "P2F",
+      "exact_current_protocols": [],
+      "coverage": "missing exact original representative",
+      "family_route": "lsp_core_residual",
+      "original_panic": "2026-10-23T01:20:16.4698251Z     thread 'minify_expr_comparison_inversion_in_value_context_is_safe' (20768) panicked at rust/tcl-lsp-core/tests/lsp_core_residual.rs:778:5:",
+      "observed_evidence": [
+        "2026-10-23T01:20:16.4698251Z     thread 'minify_expr_comparison_inversion_in_value_context_is_safe' (20768) panicked at rust/tcl-lsp-core/tests/lsp_core_residual.rs:778:5:",
+        "2026-10-23T01:20:16.4699048Z     assertion `left == right` failed",
+        "2026-10-23T01:20:16.4699423Z       left: \"set a 1;set b 2;puts [expr {!($a==$b)}]\"",
+        "2026-10-23T01:20:16.4699805Z      right: \"set a 1;set b 2;puts [expr {$a!=$b}]\""
+      ],
+      "first_refusal": "unproven unless explicit original evidence states it; names/counts do not identify producer rejection"
+    },
+    {
+      "binary_id": "tcl-lsp-core::lsp_core_residual",
+      "selector": "minify_switch_regexp_case_list_preserved",
+      "baseline_join": "P2F",
+      "exact_current_protocols": [],
+      "coverage": "missing exact original representative",
+      "family_route": "lsp_core_residual",
+      "original_panic": "2026-10-23T01:20:18.5118809Z     thread 'minify_switch_regexp_case_list_preserved' (20784) panicked at rust/tcl-lsp-core/tests/lsp_core_residual.rs:766:5:",
+      "observed_evidence": [
+        "2026-10-23T01:20:18.5118809Z     thread 'minify_switch_regexp_case_list_preserved' (20784) panicked at rust/tcl-lsp-core/tests/lsp_core_residual.rs:766:5:",
+        "2026-10-23T01:20:18.5119557Z     assertion `left == right` failed",
+        "2026-10-23T01:20:18.5120055Z       left: \"switch -regexp $x {\\n  {^a} {puts 1}\\n  default {puts 2}\\n}\"",
+        "2026-10-23T01:20:18.5120597Z      right: \"switch -regexp $x {{^a} {puts 1} default {puts 2}}\""
+      ],
+      "first_refusal": "unproven unless explicit original evidence states it; names/counts do not identify producer rejection"
+    },
+    {
+      "binary_id": "tcl-lsp-core::lsp_core_residual",
+      "selector": "st_diff_appends_a_single_token_via_provider",
+      "baseline_join": "P2F",
+      "exact_current_protocols": [],
+      "coverage": "missing exact original representative",
+      "family_route": "lsp_core_residual",
+      "original_panic": "2026-10-23T01:20:18.6954112Z     thread 'st_diff_appends_a_single_token_via_provider' (20786) panicked at rust/tcl-lsp-core/tests/lsp_core_residual.rs:641:5:",
+      "observed_evidence": [
+        "2026-10-23T01:20:18.6954112Z     thread 'st_diff_appends_a_single_token_via_provider' (20786) panicked at rust/tcl-lsp-core/tests/lsp_core_residual.rs:641:5:",
+        "2026-10-23T01:20:18.6983954Z     assertion `left == right` failed: append deletes nothing: TokenEdit { start: 5, delete_count: 5, data: [0, 4, 1, 2, 0, 0, 2, 1, 4, 0] }",
+        "2026-10-23T01:20:18.7013668Z       left: 5",
+        "2026-10-23T01:20:18.7043487Z      right: 0"
+      ],
+      "first_refusal": "unproven unless explicit original evidence states it; names/counts do not identify producer rejection"
+    },
+    {
+      "binary_id": "tcl-lsp-core::lsp_edit_workspace",
+      "selector": "linked_editing_links_namespace_relative_self_call",
+      "baseline_join": "P2F",
+      "exact_current_protocols": [],
+      "coverage": "missing exact original representative",
+      "family_route": "lsp_edit_workspace",
+      "original_panic": "2026-10-23T01:20:22.3544527Z     thread 'linked_editing_links_namespace_relative_self_call' (20808) panicked at rust/tcl-lsp-core/tests/lsp_edit_workspace.rs:880:10:",
+      "observed_evidence": [
+        "2026-10-23T01:20:22.3544527Z     thread 'linked_editing_links_namespace_relative_self_call' (20808) panicked at rust/tcl-lsp-core/tests/lsp_edit_workspace.rs:880:10:"
+      ],
+      "first_refusal": "unproven unless explicit original evidence states it; names/counts do not identify producer rejection"
+    },
+    {
+      "binary_id": "tcl-lsp-core::lsp_edit_workspace",
+      "selector": "minify_compact_isolated_refuses_proc_renaming_and_preserves_result",
+      "baseline_join": "new FAIL without baseline",
+      "exact_current_protocols": [],
+      "coverage": "missing exact original representative",
+      "family_route": "lsp_edit_workspace",
+      "original_panic": "2026-10-23T01:20:25.3484512Z     thread 'minify_compact_isolated_refuses_proc_renaming_and_preserves_result' (20818) panicked at rust/tcl-lsp-core/tests/lsp_edit_workspace.rs:412:5:",
+      "observed_evidence": [
+        "2026-10-23T01:20:25.3484512Z     thread 'minify_compact_isolated_refuses_proc_renaming_and_preserves_result' (20818) panicked at rust/tcl-lsp-core/tests/lsp_edit_workspace.rs:412:5:",
+        "2026-10-23T01:20:25.3513960Z     assertion `left == right` failed",
+        "2026-10-23T01:20:25.3544036Z       left: \"proc fact {n} {if {$n <= 1} { return 1 };return [expr {$n * [fact [expr {$n - 1}]]}]};puts [fact 5]\"",
+        "2026-10-23T01:20:25.3574105Z      right: \"proc fact {n} {if {$n<=1} {return 1};return [expr {$n*[fact [expr {$n-1}]]}]};puts [fact 5]\""
+      ],
+      "first_refusal": "unproven unless explicit original evidence states it; names/counts do not identify producer rejection"
+    },
+    {
+      "binary_id": "tcl-lsp-core::lsp_edit_workspace",
+      "selector": "minify_strips_comments_and_collapses_whitespace_factorial",
+      "baseline_join": "P2F",
+      "exact_current_protocols": [
+        "body5"
+      ],
+      "coverage": "exact selector",
+      "family_route": "lsp_edit_workspace",
+      "original_panic": "2026-10-23T01:20:30.5794415Z     thread 'minify_strips_comments_and_collapses_whitespace_factorial' (20843) panicked at rust/tcl-lsp-core/tests/lsp_edit_workspace.rs:274:5:",
+      "observed_evidence": [
+        "2026-10-23T01:20:30.5794415Z     thread 'minify_strips_comments_and_collapses_whitespace_factorial' (20843) panicked at rust/tcl-lsp-core/tests/lsp_edit_workspace.rs:274:5:",
+        "2026-10-23T01:20:30.5833997Z     assertion `left == right` failed",
+        "2026-10-23T01:20:30.5843984Z       left: \"proc fact {n} {if {$n <= 1} { return 1 };return [expr {$n * [fact [expr {$n - 1}]]}]};puts [fact 5]\"",
+        "2026-10-23T01:20:30.5873704Z      right: \"proc fact {n} {if {$n<=1} {return 1};return [expr {$n*[fact [expr {$n-1}]]}]};puts [fact 5]\""
+      ],
+      "first_refusal": "unproven unless explicit original evidence states it; names/counts do not identify producer rejection"
+    },
+    {
+      "binary_id": "tcl-lsp-core::lsp_lens_links_symbols",
+      "selector": "actions_demorgan_rewrite_on_expression_selection",
+      "baseline_join": "P2F",
+      "exact_current_protocols": [],
+      "coverage": "missing exact original representative",
+      "family_route": "lsp_lens_links_symbols",
+      "original_panic": "2026-10-23T01:20:36.8114374Z     thread 'actions_demorgan_rewrite_on_expression_selection' (20891) panicked at rust/tcl-lsp-core/tests/lsp_lens_links_symbols.rs:1094:17:",
+      "observed_evidence": [
+        "2026-10-23T01:20:36.8114374Z     thread 'actions_demorgan_rewrite_on_expression_selection' (20891) panicked at rust/tcl-lsp-core/tests/lsp_lens_links_symbols.rs:1094:17:"
+      ],
+      "first_refusal": "unproven unless explicit original evidence states it; names/counts do not identify producer rejection"
+    },
+    {
+      "binary_id": "tcl-lsp-core::lsp_lens_links_symbols",
+      "selector": "actions_extract_proc_on_selection_is_well_formed",
+      "baseline_join": "P2F",
+      "exact_current_protocols": [],
+      "coverage": "missing exact original representative",
+      "family_route": "lsp_lens_links_symbols",
+      "original_panic": "2026-10-23T01:20:38.6444543Z     thread 'actions_extract_proc_on_selection_is_well_formed' (20895) panicked at rust/tcl-lsp-core/tests/lsp_lens_links_symbols.rs:1031:10:",
+      "observed_evidence": [
+        "2026-10-23T01:20:38.6444543Z     thread 'actions_extract_proc_on_selection_is_well_formed' (20895) panicked at rust/tcl-lsp-core/tests/lsp_lens_links_symbols.rs:1031:10:"
+      ],
+      "first_refusal": "unproven unless explicit original evidence states it; names/counts do not identify producer rejection"
+    },
+    {
+      "binary_id": "tcl-lsp-core::lsp_lens_links_symbols",
+      "selector": "links_literal_file_join_source_resolves",
+      "baseline_join": "P2F",
+      "exact_current_protocols": [],
+      "coverage": "missing exact original representative",
+      "family_route": "lsp_lens_links_symbols",
+      "original_panic": "2026-10-23T01:20:41.8964349Z     thread 'links_literal_file_join_source_resolves' (20936) panicked at rust/tcl-lsp-core/tests/lsp_lens_links_symbols.rs:753:5:",
+      "observed_evidence": [
+        "2026-10-23T01:20:41.8964349Z     thread 'links_literal_file_join_source_resolves' (20936) panicked at rust/tcl-lsp-core/tests/lsp_lens_links_symbols.rs:753:5:",
+        "2026-10-23T01:20:41.8993931Z     assertion `left == right` failed: []",
+        "2026-10-23T01:20:41.9023800Z       left: 0",
+        "2026-10-23T01:20:41.9053764Z      right: 1"
+      ],
+      "first_refusal": "unproven unless explicit original evidence states it; names/counts do not identify producer rejection"
+    },
+    {
+      "binary_id": "tcl-lsp-core::lsp_lens_links_symbols",
+      "selector": "symbols_oo_configurable_emits_property",
+      "baseline_join": "P2F",
+      "exact_current_protocols": [],
+      "coverage": "missing exact original representative",
+      "family_route": "lsp_lens_links_symbols",
+      "original_panic": "2026-10-23T01:20:45.1341450Z     thread 'symbols_oo_configurable_emits_property' (20968) panicked at rust/tcl-lsp-core/tests/lsp_lens_links_symbols.rs:385:23:",
+      "observed_evidence": [
+        "2026-10-23T01:20:45.1341450Z     thread 'symbols_oo_configurable_emits_property' (20968) panicked at rust/tcl-lsp-core/tests/lsp_lens_links_symbols.rs:385:23:"
+      ],
+      "first_refusal": "unproven unless explicit original evidence states it; names/counts do not identify producer rejection"
+    },
+    {
+      "binary_id": "tcl-lsp-core::lsp_lens_links_symbols",
+      "selector": "tp_a_single_set_constant_propagates_into_the_join",
+      "baseline_join": "P2F",
+      "exact_current_protocols": [],
+      "coverage": "missing exact original representative",
+      "family_route": "lsp_lens_links_symbols",
+      "original_panic": "2026-10-23T01:20:47.0437988Z     thread 'tp_a_single_set_constant_propagates_into_the_join' (20978) panicked at rust/tcl-lsp-core/tests/lsp_lens_links_symbols.rs:858:5:",
+      "observed_evidence": [
+        "2026-10-23T01:20:47.0437988Z     thread 'tp_a_single_set_constant_propagates_into_the_join' (20978) panicked at rust/tcl-lsp-core/tests/lsp_lens_links_symbols.rs:858:5:",
+        "2026-10-23T01:20:47.0438621Z     assertion `left == right` failed: []",
+        "2026-10-23T01:20:47.0438870Z       left: 0",
+        "2026-10-23T01:20:47.0439028Z      right: 1"
+      ],
+      "first_refusal": "unproven unless explicit original evidence states it; names/counts do not identify producer rejection"
+    },
+    {
+      "binary_id": "tcl-lsp-core::lsp_lens_links_symbols",
+      "selector": "tp_info_script_based_paths_resolve_through_the_source_graph_evaluator",
+      "baseline_join": "P2F",
+      "exact_current_protocols": [],
+      "coverage": "missing exact original representative",
+      "family_route": "lsp_lens_links_symbols",
+      "original_panic": "2026-10-23T01:20:47.1394310Z     thread 'tp_info_script_based_paths_resolve_through_the_source_graph_evaluator' (20980) panicked at rust/tcl-lsp-core/tests/lsp_lens_links_symbols.rs:849:5:",
+      "observed_evidence": [
+        "2026-10-23T01:20:47.1394310Z     thread 'tp_info_script_based_paths_resolve_through_the_source_graph_evaluator' (20980) panicked at rust/tcl-lsp-core/tests/lsp_lens_links_symbols.rs:849:5:",
+        "2026-10-23T01:20:47.1423802Z     assertion `left == right` failed: []",
+        "2026-10-23T01:20:47.1453546Z       left: 0",
+        "2026-10-23T01:20:47.1483544Z      right: 1"
+      ],
+      "first_refusal": "unproven unless explicit original evidence states it; names/counts do not identify producer rejection"
+    },
+    {
+      "binary_id": "tcl-lsp-core::name_resolution",
+      "selector": "class_commands_follow_each_invocations_namespace_path_before_kind_selection",
+      "baseline_join": "new FAIL without baseline",
+      "exact_current_protocols": [],
+      "coverage": "missing exact original representative",
+      "family_route": "name_resolution",
+      "original_panic": "2026-10-23T01:20:51.1864417Z     thread 'class_commands_follow_each_invocations_namespace_path_before_kind_selection' (20988) panicked at rust/tcl-lsp-core/tests/name_resolution.rs:1457:18:",
+      "observed_evidence": [
+        "2026-10-23T01:20:51.1864417Z     thread 'class_commands_follow_each_invocations_namespace_path_before_kind_selection' (20988) panicked at rust/tcl-lsp-core/tests/name_resolution.rs:1457:18:"
+      ],
+      "first_refusal": "unproven unless explicit original evidence states it; names/counts do not identify producer rejection"
+    },
+    {
+      "binary_id": "tcl-lsp-core::name_resolution",
+      "selector": "itcl_class_proc_dispatch::fp_a_shadowing_proc_wins_over_the_class_proc",
+      "baseline_join": "P2F",
+      "exact_current_protocols": [],
+      "coverage": "missing exact original representative",
+      "family_route": "name_resolution",
+      "original_panic": "2026-10-23T01:20:53.4324462Z     thread 'itcl_class_proc_dispatch::fp_a_shadowing_proc_wins_over_the_class_proc' (21015) panicked at rust/tcl-lsp-core/tests/name_resolution.rs:626:9:",
+      "observed_evidence": [
+        "2026-10-23T01:20:53.4324462Z     thread 'itcl_class_proc_dispatch::fp_a_shadowing_proc_wins_over_the_class_proc' (21015) panicked at rust/tcl-lsp-core/tests/name_resolution.rs:626:9:",
+        "2026-10-23T01:20:53.4354591Z     assertion `left == right` failed: the shadowing proc's declaration + the `::app` call \u2014 not the class proc, and not the global call that still reaches the class proc",
+        "2026-10-23T01:20:53.4383783Z       left: []",
+        "2026-10-23T01:20:53.4393759Z      right: [5, 6]"
+      ],
+      "first_refusal": "unproven unless explicit original evidence states it; names/counts do not identify producer rejection"
+    },
+    {
+      "binary_id": "tcl-lsp-core::name_resolution",
+      "selector": "itcl_class_proc_dispatch::fn_to_tp_the_class_resolver_pre_empts_a_global_namespace_proc",
+      "baseline_join": "P2F",
+      "exact_current_protocols": [],
+      "coverage": "missing exact original representative",
+      "family_route": "name_resolution",
+      "original_panic": "2026-10-23T01:20:54.7644570Z     thread 'itcl_class_proc_dispatch::fn_to_tp_the_class_resolver_pre_empts_a_global_namespace_proc' (21013) panicked at rust/tcl-lsp-core/tests/name_resolution.rs:602:9:",
+      "observed_evidence": [
+        "2026-10-23T01:20:54.7644570Z     thread 'itcl_class_proc_dispatch::fn_to_tp_the_class_resolver_pre_empts_a_global_namespace_proc' (21013) panicked at rust/tcl-lsp-core/tests/name_resolution.rs:602:9:",
+        "2026-10-23T01:20:54.7654162Z     assertion `left == right` failed: go-to-definition from global reaches the plain proc",
+        "2026-10-23T01:20:54.7654681Z       left: []",
+        "2026-10-23T01:20:54.7654906Z      right: [0]"
+      ],
+      "first_refusal": "unproven unless explicit original evidence states it; names/counts do not identify producer rejection"
+    },
+    {
+      "binary_id": "tcl-lsp-core::name_resolution",
+      "selector": "itcl_class_proc_dispatch::tp_every_dispatch_spelling_is_a_reference",
+      "baseline_join": "P2F",
+      "exact_current_protocols": [],
+      "coverage": "missing exact original representative",
+      "family_route": "name_resolution",
+      "original_panic": "2026-10-23T01:20:56.5814543Z     thread 'itcl_class_proc_dispatch::tp_every_dispatch_spelling_is_a_reference' (21025) panicked at rust/tcl-lsp-core/tests/name_resolution.rs:464:9:",
+      "observed_evidence": [
+        "2026-10-23T01:20:56.5814543Z     thread 'itcl_class_proc_dispatch::tp_every_dispatch_spelling_is_a_reference' (21025) panicked at rust/tcl-lsp-core/tests/name_resolution.rs:464:9:",
+        "2026-10-23T01:20:56.5844237Z     assertion `left == right` failed: decl + bare sibling + self-qualified + namespace-relative + absolute + global-relative",
+        "2026-10-23T01:20:56.5873791Z       left: [2]",
+        "2026-10-23T01:20:56.5903794Z      right: [2, 3, 4, 6, 8, 9]"
+      ],
+      "first_refusal": "unproven unless explicit original evidence states it; names/counts do not identify producer rejection"
+    },
+    {
+      "binary_id": "tcl-lsp-core::name_resolution",
+      "selector": "itcl_class_proc_dispatch::tp_references_from_the_call_site_match_the_declaration",
+      "baseline_join": "P2F",
+      "exact_current_protocols": [],
+      "coverage": "missing exact original representative",
+      "family_route": "name_resolution",
+      "original_panic": "2026-10-23T01:20:58.0004561Z     thread 'itcl_class_proc_dispatch::tp_references_from_the_call_site_match_the_declaration' (21027) panicked at rust/tcl-lsp-core/tests/name_resolution.rs:476:9:",
+      "observed_evidence": [
+        "2026-10-23T01:20:58.0004561Z     thread 'itcl_class_proc_dispatch::tp_references_from_the_call_site_match_the_declaration' (21027) panicked at rust/tcl-lsp-core/tests/name_resolution.rs:476:9:",
+        "2026-10-23T01:20:58.0033890Z     assertion `left == right` failed",
+        "2026-10-23T01:20:58.0063767Z       left: []",
+        "2026-10-23T01:20:58.0093655Z      right: [2]"
+      ],
+      "first_refusal": "unproven unless explicit original evidence states it; names/counts do not identify producer rejection"
+    },
+    {
+      "binary_id": "tcl-lsp-core::name_resolution",
+      "selector": "namespace_scoped_class_dispatch::tn_a_wildcard_import_is_not_followed",
+      "baseline_join": "P2F",
+      "exact_current_protocols": [],
+      "coverage": "missing exact original representative",
+      "family_route": "name_resolution",
+      "original_panic": "2026-10-23T01:21:10.2304654Z     thread 'namespace_scoped_class_dispatch::tn_a_wildcard_import_is_not_followed' (21082) panicked at rust/tcl-lsp-core/tests/name_resolution.rs:1384:9:",
+      "observed_evidence": [
+        "2026-10-23T01:21:10.2304654Z     thread 'namespace_scoped_class_dispatch::tn_a_wildcard_import_is_not_followed' (21082) panicked at rust/tcl-lsp-core/tests/name_resolution.rs:1384:9:",
+        "2026-10-23T01:21:10.2334285Z     assertion `left == right` failed: declaration only \u2014 the wildcard-import model is out of scope (#1027)",
+        "2026-10-23T01:21:10.2363736Z       left: [2, 8]",
+        "2026-10-23T01:21:10.2393780Z      right: [2]"
+      ],
+      "first_refusal": "unproven unless explicit original evidence states it; names/counts do not identify producer rejection"
+    },
+    {
+      "binary_id": "tcl-lsp-core::name_resolution",
+      "selector": "pkgindex_dir::fp_other_undefined_var_in_pkgindex_still_fires",
+      "baseline_join": "P2F",
+      "exact_current_protocols": [],
+      "coverage": "missing exact original representative",
+      "family_route": "name_resolution",
+      "original_panic": "2026-10-23T01:21:22.7706951Z     thread 'pkgindex_dir::fp_other_undefined_var_in_pkgindex_still_fires' (21134) panicked at rust/tcl-lsp-core/tests/name_resolution.rs:1004:9:",
+      "observed_evidence": [
+        "2026-10-23T01:21:22.7706951Z     thread 'pkgindex_dir::fp_other_undefined_var_in_pkgindex_still_fires' (21134) panicked at rust/tcl-lsp-core/tests/name_resolution.rs:1004:9:"
+      ],
+      "first_refusal": "unproven unless explicit original evidence states it; names/counts do not identify producer rejection"
+    },
+    {
+      "binary_id": "tcl-lsp-core::oo_mro_parity",
+      "selector": "a_locally_declared_method_is_unchanged_by_the_shared_walk",
+      "baseline_join": "P2F",
+      "exact_current_protocols": [],
+      "coverage": "missing exact original representative",
+      "family_route": "oo_mro_parity",
+      "original_panic": "2026-10-23T01:21:24.2454301Z     thread 'a_locally_declared_method_is_unchanged_by_the_shared_walk' (21140) panicked at rust/tcl-lsp-core/tests/oo_mro_parity.rs:224:5:",
+      "observed_evidence": [
+        "2026-10-23T01:21:24.2454301Z     thread 'a_locally_declared_method_is_unchanged_by_the_shared_walk' (21140) panicked at rust/tcl-lsp-core/tests/oo_mro_parity.rs:224:5:",
+        "2026-10-23T01:21:24.2483815Z     assertion `left == right` failed",
+        "2026-10-23T01:21:24.2513586Z       left: []",
+        "2026-10-23T01:21:24.2513828Z      right: [1]"
+      ],
+      "first_refusal": "unproven unless explicit original evidence states it; names/counts do not identify producer rejection"
+    },
+    {
+      "binary_id": "tcl-lsp-core::oo_mro_parity",
+      "selector": "declaration_side_query_agrees_with_the_call_site_query",
+      "baseline_join": "P2F",
+      "exact_current_protocols": [],
+      "coverage": "missing exact original representative",
+      "family_route": "oo_mro_parity",
+      "original_panic": "2026-10-23T01:21:26.0532230Z     thread 'declaration_side_query_agrees_with_the_call_site_query' (21144) panicked at rust/tcl-lsp-core/tests/oo_mro_parity.rs:180:5:",
+      "observed_evidence": [
+        "2026-10-23T01:21:26.0532230Z     thread 'declaration_side_query_agrees_with_the_call_site_query' (21144) panicked at rust/tcl-lsp-core/tests/oo_mro_parity.rs:180:5:",
+        "2026-10-23T01:21:26.0533163Z     assertion `left == right` failed: find-references must be direction-independent",
+        "2026-10-23T01:21:26.0533907Z       left: [1, 5]",
+        "2026-10-23T01:21:26.0534219Z      right: []"
+      ],
+      "first_refusal": "unproven unless explicit original evidence states it; names/counts do not identify producer rejection"
+    },
+    {
+      "binary_id": "tcl-lsp-core::oo_mro_parity",
+      "selector": "idx53_a_readable_sibling_class_keeps_its_method_checks",
+      "baseline_join": "P2F",
+      "exact_current_protocols": [],
+      "coverage": "missing exact original representative",
+      "family_route": "oo_mro_parity",
+      "original_panic": "2026-10-23T01:21:26.1370581Z     thread 'idx53_a_readable_sibling_class_keeps_its_method_checks' (21146) panicked at rust/tcl-lsp-core/tests/oo_mro_parity.rs:660:5:",
+      "observed_evidence": [
+        "2026-10-23T01:21:26.1370581Z     thread 'idx53_a_readable_sibling_class_keeps_its_method_checks' (21146) panicked at rust/tcl-lsp-core/tests/oo_mro_parity.rs:660:5:"
+      ],
+      "first_refusal": "unproven unless explicit original evidence states it; names/counts do not identify producer rejection"
+    },
+    {
+      "binary_id": "tcl-lsp-core::oo_mro_parity",
+      "selector": "idx53_reflectively_installed_members_abstain_instead_of_warning",
+      "baseline_join": "P2F",
+      "exact_current_protocols": [],
+      "coverage": "missing exact original representative",
+      "family_route": "oo_mro_parity",
+      "original_panic": "2026-10-23T01:21:26.4194900Z     thread 'idx53_reflectively_installed_members_abstain_instead_of_warning' (21148) panicked at rust/tcl-lsp-core/tests/oo_mro_parity.rs:622:5:",
+      "observed_evidence": [
+        "2026-10-23T01:21:26.4194900Z     thread 'idx53_reflectively_installed_members_abstain_instead_of_warning' (21148) panicked at rust/tcl-lsp-core/tests/oo_mro_parity.rs:622:5:"
+      ],
+      "first_refusal": "unproven unless explicit original evidence states it; names/counts do not identify producer rejection"
+    },
+    {
+      "binary_id": "tcl-lsp-core::oo_mro_parity",
+      "selector": "idx96_a_metaclass_made_class_resolves_its_spliced_inherited_method",
+      "baseline_join": "P2F",
+      "exact_current_protocols": [],
+      "coverage": "missing exact original representative",
+      "family_route": "oo_mro_parity",
+      "original_panic": "2026-10-23T01:21:27.3255785Z     thread 'idx96_a_metaclass_made_class_resolves_its_spliced_inherited_method' (21153) panicked at rust/tcl-lsp-core/tests/oo_mro_parity.rs:529:9:",
+      "observed_evidence": [
+        "2026-10-23T01:21:27.3255785Z     thread 'idx96_a_metaclass_made_class_resolves_its_spliced_inherited_method' (21153) panicked at rust/tcl-lsp-core/tests/oo_mro_parity.rs:529:9:"
+      ],
+      "first_refusal": "unproven unless explicit original evidence states it; names/counts do not identify producer rejection"
+    },
+    {
+      "binary_id": "tcl-lsp-core::oo_mro_parity",
+      "selector": "idx97_next_resolves_through_a_metaclass_made_chain",
+      "baseline_join": "P2F",
+      "exact_current_protocols": [],
+      "coverage": "missing exact original representative",
+      "family_route": "oo_mro_parity",
+      "original_panic": "2026-10-23T01:21:27.9266564Z     thread 'idx97_next_resolves_through_a_metaclass_made_chain' (21156) panicked at rust/tcl-lsp-core/tests/oo_mro_parity.rs:580:5:",
+      "observed_evidence": [
+        "2026-10-23T01:21:27.9266564Z     thread 'idx97_next_resolves_through_a_metaclass_made_chain' (21156) panicked at rust/tcl-lsp-core/tests/oo_mro_parity.rs:580:5:",
+        "2026-10-23T01:21:27.9267525Z     assertion `left == right` failed: `next` must reach FocusableWidget::GetSpecs: []",
+        "2026-10-23T01:21:27.9303699Z       left: []",
+        "2026-10-23T01:21:27.9353580Z      right: [13]"
+      ],
+      "first_refusal": "unproven unless explicit original evidence states it; names/counts do not identify producer rejection"
+    },
+    {
+      "binary_id": "tcl-lsp-core::oo_mro_parity",
+      "selector": "idx55_a_literal_foreach_oo_define_installer_reaches_the_real_classes",
+      "baseline_join": "P2F",
+      "exact_current_protocols": [],
+      "coverage": "missing exact original representative",
+      "family_route": "oo_mro_parity",
+      "original_panic": "2026-10-23T01:21:28.0977028Z     thread 'idx55_a_literal_foreach_oo_define_installer_reaches_the_real_classes' (21151) panicked at rust/tcl-lsp-core/tests/oo_mro_parity.rs:479:9:",
+      "observed_evidence": [
+        "2026-10-23T01:21:28.0977028Z     thread 'idx55_a_literal_foreach_oo_define_installer_reaches_the_real_classes' (21151) panicked at rust/tcl-lsp-core/tests/oo_mro_parity.rs:479:9:"
+      ],
+      "first_refusal": "unproven unless explicit original evidence states it; names/counts do not identify producer rejection"
+    },
+    {
+      "binary_id": "tcl-lsp-core::oo_mro_parity",
+      "selector": "initialize_block_variables_do_not_leak_between_sibling_classes",
+      "baseline_join": "P2F",
+      "exact_current_protocols": [],
+      "coverage": "missing exact original representative",
+      "family_route": "oo_mro_parity",
+      "original_panic": "2026-10-23T01:21:28.6590414Z     thread 'initialize_block_variables_do_not_leak_between_sibling_classes' (21158) panicked at rust/tcl-lsp-core/tests/oo_mro_parity.rs:393:5:",
+      "observed_evidence": [
+        "2026-10-23T01:21:28.6590414Z     thread 'initialize_block_variables_do_not_leak_between_sibling_classes' (21158) panicked at rust/tcl-lsp-core/tests/oo_mro_parity.rs:393:5:",
+        "2026-10-23T01:21:28.6591465Z     assertion `left == right` failed",
+        "2026-10-23T01:21:28.6591875Z       left: []",
+        "2026-10-23T01:21:28.6592170Z      right: [3]"
+      ],
+      "first_refusal": "unproven unless explicit original evidence states it; names/counts do not identify producer rejection"
+    },
+    {
+      "binary_id": "tcl-lsp-core::oo_mro_parity",
+      "selector": "my_call_to_an_inherited_method_resolves_in_all_three_providers",
+      "baseline_join": "P2F",
+      "exact_current_protocols": [],
+      "coverage": "missing exact original representative",
+      "family_route": "oo_mro_parity",
+      "original_panic": "2026-10-23T01:21:29.4879490Z     thread 'my_call_to_an_inherited_method_resolves_in_all_three_providers' (21163) panicked at rust/tcl-lsp-core/tests/oo_mro_parity.rs:202:5:",
+      "observed_evidence": [
+        "2026-10-23T01:21:29.4879490Z     thread 'my_call_to_an_inherited_method_resolves_in_all_three_providers' (21163) panicked at rust/tcl-lsp-core/tests/oo_mro_parity.rs:202:5:",
+        "2026-10-23T01:21:29.4880409Z     assertion `left == right` failed",
+        "2026-10-23T01:21:29.4880769Z       left: []",
+        "2026-10-23T01:21:29.4881004Z      right: [1]"
+      ],
+      "first_refusal": "unproven unless explicit original evidence states it; names/counts do not identify producer rejection"
+    },
+    {
+      "binary_id": "tcl-lsp-core::oo_mro_parity",
+      "selector": "my_call_to_a_mixin_provided_method_resolves_in_all_three_providers",
+      "baseline_join": "P2F",
+      "exact_current_protocols": [],
+      "coverage": "missing exact original representative",
+      "family_route": "oo_mro_parity",
+      "original_panic": "2026-10-23T01:21:29.5368160Z     thread 'my_call_to_a_mixin_provided_method_resolves_in_all_three_providers' (21161) panicked at rust/tcl-lsp-core/tests/oo_mro_parity.rs:149:5:",
+      "observed_evidence": [
+        "2026-10-23T01:21:29.5368160Z     thread 'my_call_to_a_mixin_provided_method_resolves_in_all_three_providers' (21161) panicked at rust/tcl-lsp-core/tests/oo_mro_parity.rs:149:5:",
+        "2026-10-23T01:21:29.5369161Z     assertion `left == right` failed: definition already walked the MRO and must keep doing so",
+        "2026-10-23T01:21:29.5369711Z       left: []",
+        "2026-10-23T01:21:29.5369942Z      right: [1]"
+      ],
+      "first_refusal": "unproven unless explicit original evidence states it; names/counts do not identify producer rejection"
+    },
+    {
+      "binary_id": "tcl-lsp-core::oo_mro_parity",
+      "selector": "self_wrapped_mixin_is_a_class_reference_in_all_three_providers",
+      "baseline_join": "P2F",
+      "exact_current_protocols": [],
+      "coverage": "missing exact original representative",
+      "family_route": "oo_mro_parity",
+      "original_panic": "2026-10-23T01:21:30.9795979Z     thread 'self_wrapped_mixin_is_a_class_reference_in_all_three_providers' (21172) panicked at rust/tcl-lsp-core/tests/oo_mro_parity.rs:340:5:",
+      "observed_evidence": [
+        "2026-10-23T01:21:30.9795979Z     thread 'self_wrapped_mixin_is_a_class_reference_in_all_three_providers' (21172) panicked at rust/tcl-lsp-core/tests/oo_mro_parity.rs:340:5:",
+        "2026-10-23T01:21:30.9796919Z     assertion `left == right` failed: declaration + self-mixin usage + plain-mixin usage",
+        "2026-10-23T01:21:30.9797438Z       left: [0, 7]",
+        "2026-10-23T01:21:30.9797733Z      right: [0, 4, 7]"
+      ],
+      "first_refusal": "unproven unless explicit original evidence states it; names/counts do not identify producer rejection"
+    },
+    {
+      "binary_id": "tcl-lsp-core::oo_mro_parity",
+      "selector": "next_inside_a_constructor_resolves_in_all_three_providers",
+      "baseline_join": "P2F",
+      "exact_current_protocols": [],
+      "coverage": "missing exact original representative",
+      "family_route": "oo_mro_parity",
+      "original_panic": "2026-10-23T01:21:31.9139598Z     thread 'next_inside_a_constructor_resolves_in_all_three_providers' (21168) panicked at rust/tcl-lsp-core/tests/oo_mro_parity.rs:281:5:",
+      "observed_evidence": [
+        "2026-10-23T01:21:31.9139598Z     thread 'next_inside_a_constructor_resolves_in_all_three_providers' (21168) panicked at rust/tcl-lsp-core/tests/oo_mro_parity.rs:281:5:",
+        "2026-10-23T01:21:31.9140464Z     assertion `left == right` failed",
+        "2026-10-23T01:21:31.9140867Z       left: []",
+        "2026-10-23T01:21:31.9141173Z      right: [1]"
+      ],
+      "first_refusal": "unproven unless explicit original evidence states it; names/counts do not identify producer rejection"
+    },
+    {
+      "binary_id": "tcl-syntax",
+      "selector": "expr::parser::checked::tests::legacy_bare_dollar_is_a_literal_without_variable_lookup",
+      "baseline_join": "new FAIL without baseline",
+      "exact_current_protocols": [],
+      "coverage": "missing exact original representative",
+      "family_route": "tcl-syntax",
+      "original_panic": "2026-10-23T01:25:30.6546143Z     thread 'expr::parser::checked::tests::legacy_bare_dollar_is_a_literal_without_variable_lookup' (22380) panicked at rust/tcl-syntax/src/expr/checked.rs:1182:9:",
+      "observed_evidence": [
+        "2026-10-23T01:25:30.6546143Z     thread 'expr::parser::checked::tests::legacy_bare_dollar_is_a_literal_without_variable_lookup' (22380) panicked at rust/tcl-syntax/src/expr/checked.rs:1182:9:",
+        "2026-10-23T01:25:30.6547140Z     assertion failed: matches!(parse_expr_bytes_checked_with_context(b\"$\", &legacy),"
+      ],
+      "first_refusal": "unproven unless explicit original evidence states it; names/counts do not identify producer rejection"
+    },
+    {
+      "binary_id": "tcl-syntax",
+      "selector": "expr::parser::tests::all_expression_ingress_keeps_selected_reference_roots_and_close_rules",
+      "baseline_join": "new FAIL without baseline",
+      "exact_current_protocols": [],
+      "coverage": "missing exact original representative",
+      "family_route": "tcl-syntax",
+      "original_panic": "2026-10-23T01:25:30.7695179Z     thread 'expr::parser::tests::all_expression_ingress_keeps_selected_reference_roots_and_close_rules' (22406) panicked at rust/tcl-syntax/src/expr/parser.rs:936:25:",
+      "observed_evidence": [
+        "2026-10-23T01:25:30.7695179Z     thread 'expr::parser::tests::all_expression_ingress_keeps_selected_reference_roots_and_close_rules' (22406) panicked at rust/tcl-syntax/src/expr/parser.rs:936:25:",
+        "2026-10-23T01:25:30.7696227Z     assertion `left == right` failed",
+        "2026-10-23T01:25:30.7696496Z       left: false",
+        "2026-10-23T01:25:30.7696851Z      right: true"
+      ],
+      "first_refusal": "unproven unless explicit original evidence states it; names/counts do not identify producer rejection"
+    },
+    {
+      "binary_id": "tcl-syntax",
+      "selector": "expr::substitution::proposed_expression_argument_source_tests::leaf_argument_proposals_keep_original_source_delimiters_and_variable_geometry",
+      "baseline_join": "new FAIL without baseline",
+      "exact_current_protocols": [],
+      "coverage": "missing exact original representative",
+      "family_route": "tcl-syntax",
+      "original_panic": "2026-10-23T01:25:31.1224994Z     thread 'expr::substitution::proposed_expression_argument_source_tests::leaf_argument_proposals_keep_original_source_delimiters_and_variable_geometry' (22560) panicked at rust/tcl-syntax/src/expr/substitution.rs:1478:13:",
+      "observed_evidence": [
+        "2026-10-23T01:25:31.1224994Z     thread 'expr::substitution::proposed_expression_argument_source_tests::leaf_argument_proposals_keep_original_source_delimiters_and_variable_geometry' (22560) panicked at rust/tcl-syntax/src/expr/substitution.rs:1478:13:",
+        "2026-10-23T01:25:31.1254077Z     assertion `left == right` failed",
+        "2026-10-23T01:25:31.1283777Z       left: None",
+        "2026-10-23T01:25:31.1313763Z      right: Some(\"${name}\")"
+      ],
+      "first_refusal": "unproven unless explicit original evidence states it; names/counts do not identify producer rejection"
+    },
+    {
+      "binary_id": "tcl-syntax",
+      "selector": "native_variable_words::authored_compound_root_tests::modern_source_root_keeps_authored_c86_and_native_preparation_distinct",
+      "baseline_join": "new FAIL without baseline",
+      "exact_current_protocols": [],
+      "coverage": "missing exact original representative",
+      "family_route": "tcl-syntax",
+      "original_panic": "2026-10-23T01:25:33.0764808Z     thread 'native_variable_words::authored_compound_root_tests::modern_source_root_keeps_authored_c86_and_native_preparation_distinct' (23283) panicked at rust/tcl-syntax/src/native_variable_words.rs:527:54:",
+      "observed_evidence": [
+        "2026-10-23T01:25:33.0764808Z     thread 'native_variable_words::authored_compound_root_tests::modern_source_root_keeps_authored_c86_and_native_preparation_distinct' (23283) panicked at rust/tcl-syntax/src/native_variable_words.rs:527:54:"
+      ],
+      "first_refusal": "unproven unless explicit original evidence states it; names/counts do not identify producer rejection"
+    },
+    {
+      "binary_id": "tcl-lsp-db::interned_gc",
+      "selector": "interned_slots_stay_bounded_across_an_edit_session",
+      "baseline_join": "P2F",
+      "exact_current_protocols": [],
+      "coverage": "missing exact original representative",
+      "family_route": "interned_gc",
+      "original_panic": "2026-10-23T02:26:41.1443852Z     thread 'interned_slots_stay_bounded_across_an_edit_session' (21199) panicked at rust/tcl-lsp-db/tests/interned_gc.rs:374:9:",
+      "observed_evidence": [
+        "2026-10-23T02:26:41.1443852Z     thread 'interned_slots_stay_bounded_across_an_edit_session' (21199) panicked at rust/tcl-lsp-db/tests/interned_gc.rs:374:9:"
+      ],
+      "first_refusal": "unproven unless explicit original evidence states it; names/counts do not identify producer rejection"
+    },
+    {
+      "binary_id": "tcl-lsp-db::interned_gc",
+      "selector": "raising_input_durability_disables_the_collector",
+      "baseline_join": "P2F",
+      "exact_current_protocols": [],
+      "coverage": "missing exact original representative",
+      "family_route": "interned_gc",
+      "original_panic": "2026-10-23T02:26:44.9925495Z     thread 'raising_input_durability_disables_the_collector' (21203) panicked at rust/tcl-lsp-db/tests/interned_gc.rs:408:9:",
+      "observed_evidence": [
+        "2026-10-23T02:26:44.9925495Z     thread 'raising_input_durability_disables_the_collector' (21203) panicked at rust/tcl-lsp-db/tests/interned_gc.rs:408:9:"
+      ],
+      "first_refusal": "unproven unless explicit original evidence states it; names/counts do not identify producer rejection"
+    }
+  ],
+  "limits": [
+    "Only exact binary/selector/target identity counts as coverage. Similar feature names are not equivalent.",
+    "Native15 and later coarse controls exercise source ownership/currency obligations but do not directly rerun any of these44 original identities. ILX diagnostic11 has no exact overlap.",
+    "Only factorial is exact-covered by body5; its actual source30 result remains separate from old CI.",
+    "Existing source30 numeric Eq/Ne change is a candidate for value-context inversion, not runtime evidence or scheduled exact coverage.",
+    "No shared cause is inferred from counts. No new runner/GO/Cargo/source changes."
+  ],
+  "missing_representative_families": [
+    "authoring_dialect_completion",
+    "hover_residual",
+    "interned_gc",
+    "lsp_core_residual",
+    "lsp_edit_workspace",
+    "lsp_lens_links_symbols",
+    "name_resolution",
+    "oo_mro_parity",
+    "tcl-syntax"
+  ],
+  "missing_priority_original_representatives": [
+    {
+      "binary_id": "tcl-lsp-core::authoring_dialect_completion",
+      "selector": "a_body_with_no_grammar_falls_back_to_ordinary_completion",
+      "reason": "original first-refusal representative missing exact coverage; obtain actual assertion/gate facts before repair",
+      "observed_original_panic": "2026-10-23T01:19:44.8356571Z     thread 'a_body_with_no_grammar_falls_back_to_ordinary_completion' (20603) panicked at rust/tcl-lsp-core/tests/authoring_dialect_completion.rs:142:5:"
+    },
+    {
+      "binary_id": "tcl-lsp-core::hover_residual",
+      "selector": "residual_hover_option_word_of_command",
+      "reason": "original first-refusal representative missing exact coverage; obtain actual assertion/gate facts before repair",
+      "observed_original_panic": "2026-10-23T01:20:01.3134443Z     thread 'residual_hover_option_word_of_command' (20686) panicked at rust/tcl-lsp-core/tests/hover_residual.rs:407:54:"
+    },
+    {
+      "binary_id": "tcl-lsp-db::interned_gc",
+      "selector": "interned_slots_stay_bounded_across_an_edit_session",
+      "reason": "original first-refusal representative missing exact coverage; obtain actual assertion/gate facts before repair",
+      "observed_original_panic": "2026-10-23T02:26:41.1443852Z     thread 'interned_slots_stay_bounded_across_an_edit_session' (21199) panicked at rust/tcl-lsp-db/tests/interned_gc.rs:374:9:"
+    },
+    {
+      "binary_id": "tcl-lsp-db::interned_gc",
+      "selector": "raising_input_durability_disables_the_collector",
+      "reason": "original first-refusal representative missing exact coverage; obtain actual assertion/gate facts before repair",
+      "observed_original_panic": "2026-10-23T02:26:44.9925495Z     thread 'raising_input_durability_disables_the_collector' (21203) panicked at rust/tcl-lsp-db/tests/interned_gc.rs:408:9:"
+    },
+    {
+      "binary_id": "tcl-lsp-core::lsp_core_residual",
+      "selector": "inline_command_substitution_value_standalone",
+      "reason": "original first-refusal representative missing exact coverage; obtain actual assertion/gate facts before repair",
+      "observed_original_panic": "2026-10-23T01:20:10.1586270Z     thread 'inline_command_substitution_value_standalone' (20741) panicked at rust/tcl-lsp-core/tests/lsp_core_residual.rs:308:5:"
+    },
+    {
+      "binary_id": "tcl-lsp-core::lsp_edit_workspace",
+      "selector": "linked_editing_links_namespace_relative_self_call",
+      "reason": "original first-refusal representative missing exact coverage; obtain actual assertion/gate facts before repair",
+      "observed_original_panic": "2026-10-23T01:20:22.3544527Z     thread 'linked_editing_links_namespace_relative_self_call' (20808) panicked at rust/tcl-lsp-core/tests/lsp_edit_workspace.rs:880:10:"
+    },
+    {
+      "binary_id": "tcl-lsp-core::lsp_lens_links_symbols",
+      "selector": "actions_demorgan_rewrite_on_expression_selection",
+      "reason": "original first-refusal representative missing exact coverage; obtain actual assertion/gate facts before repair",
+      "observed_original_panic": "2026-10-23T01:20:36.8114374Z     thread 'actions_demorgan_rewrite_on_expression_selection' (20891) panicked at rust/tcl-lsp-core/tests/lsp_lens_links_symbols.rs:1094:17:"
+    },
+    {
+      "binary_id": "tcl-lsp-core::name_resolution",
+      "selector": "class_commands_follow_each_invocations_namespace_path_before_kind_selection",
+      "reason": "original first-refusal representative missing exact coverage; obtain actual assertion/gate facts before repair",
+      "observed_original_panic": "2026-10-23T01:20:51.1864417Z     thread 'class_commands_follow_each_invocations_namespace_path_before_kind_selection' (20988) panicked at rust/tcl-lsp-core/tests/name_resolution.rs:1457:18:"
+    },
+    {
+      "binary_id": "tcl-lsp-core::oo_mro_parity",
+      "selector": "a_locally_declared_method_is_unchanged_by_the_shared_walk",
+      "reason": "original first-refusal representative missing exact coverage; obtain actual assertion/gate facts before repair",
+      "observed_original_panic": "2026-10-23T01:21:24.2454301Z     thread 'a_locally_declared_method_is_unchanged_by_the_shared_walk' (21140) panicked at rust/tcl-lsp-core/tests/oo_mro_parity.rs:224:5:"
+    },
+    {
+      "binary_id": "tcl-syntax",
+      "selector": "expr::parser::checked::tests::legacy_bare_dollar_is_a_literal_without_variable_lookup",
+      "reason": "original first-refusal representative missing exact coverage; obtain actual assertion/gate facts before repair",
+      "observed_original_panic": "2026-10-23T01:25:30.6546143Z     thread 'expr::parser::checked::tests::legacy_bare_dollar_is_a_literal_without_variable_lookup' (22380) panicked at rust/tcl-syntax/src/expr/checked.rs:1182:9:"
+    },
+    {
+      "binary_id": "tcl-syntax",
+      "selector": "expr::parser::tests::all_expression_ingress_keeps_selected_reference_roots_and_close_rules",
+      "reason": "original first-refusal representative missing exact coverage; obtain actual assertion/gate facts before repair",
+      "observed_original_panic": "2026-10-23T01:25:30.7695179Z     thread 'expr::parser::tests::all_expression_ingress_keeps_selected_reference_roots_and_close_rules' (22406) panicked at rust/tcl-syntax/src/expr/parser.rs:936:25:"
+    },
+    {
+      "binary_id": "tcl-syntax",
+      "selector": "expr::substitution::proposed_expression_argument_source_tests::leaf_argument_proposals_keep_original_source_delimiters_and_variable_geometry",
+      "reason": "original first-refusal representative missing exact coverage; obtain actual assertion/gate facts before repair",
+      "observed_original_panic": "2026-10-23T01:25:31.1224994Z     thread 'expr::substitution::proposed_expression_argument_source_tests::leaf_argument_proposals_keep_original_source_delimiters_and_variable_geometry' (22560) panicked at rust/tcl-syntax/src/expr/substitution.rs:1478:13:"
+    },
+    {
+      "binary_id": "tcl-syntax",
+      "selector": "native_variable_words::authored_compound_root_tests::modern_source_root_keeps_authored_c86_and_native_preparation_distinct",
+      "reason": "original first-refusal representative missing exact coverage; obtain actual assertion/gate facts before repair",
+      "observed_original_panic": "2026-10-23T01:25:33.0764808Z     thread 'native_variable_words::authored_compound_root_tests::modern_source_root_keeps_authored_c86_and_native_preparation_distinct' (23283) panicked at rust/tcl-syntax/src/native_variable_words.rs:527:54:"
+    },
+    {
+      "binary_id": "tcl-lsp-core::lsp_core_residual",
+      "selector": "minify_drops_redundant_quotes_around_number",
+      "reason": "distinct original minify failure; body5 factorial is not equivalent; numeric inversion has integrated candidate but no exact current scheduled runtime control"
+    },
+    {
+      "binary_id": "tcl-lsp-core::lsp_core_residual",
+      "selector": "minify_expr_comparison_inversion_in_value_context_is_safe",
+      "reason": "distinct original minify failure; body5 factorial is not equivalent; numeric inversion has integrated candidate but no exact current scheduled runtime control"
+    },
+    {
+      "binary_id": "tcl-lsp-core::lsp_core_residual",
+      "selector": "minify_switch_regexp_case_list_preserved",
+      "reason": "distinct original minify failure; body5 factorial is not equivalent; numeric inversion has integrated candidate but no exact current scheduled runtime control"
+    }
+  ]
+}

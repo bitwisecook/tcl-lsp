@@ -1,0 +1,31 @@
+{
+  "capture_utc": "2026-10-23T03:16:34Z",
+  "run_id": 39879737945,
+  "endpoint": "GET /repos/bitwisecook/tcl-lsp/actions/runs/39879737945/jobs?per_page=100",
+  "capture_method": "gh api CLI stdout redirected directly to a file; raw response file has no terminal LF; base64 round-trip exact",
+  "raw_response_file": "jobs-response.raw.json",
+  "raw_response_bytes": 97178,
+  "raw_response_sha256": "d2ed4bcd5cde1bb50c589a3b3bbc095714af167b48c721bedfc9ce3bf68aca81",
+  "base64_file": "jobs-response.raw.json.b64",
+  "base64_bytes": 129572,
+  "base64_sha256": "b654c55c4efb293ef5bdb71f545d4ee83e97717df6c79daad7662b3705076d5f",
+  "base64_roundtrip_exact": true,
+  "total_count": 31,
+  "returned": 31,
+  "complete": true,
+  "counts": {
+    "completed_failure": 19,
+    "completed_skipped": 2,
+    "completed_success": 7,
+    "in_progress_null": 3
+  },
+  "prior_snapshot": "../ci5206-complete-roster-0256.json",
+  "prior_status_snapshot_exactly_matches": true,
+  "new_ids": [],
+  "removed_ids": [],
+  "changed_ids": [],
+  "connector_wrapper_note": "The GitHub connector returned 30 jobs (first-page wrapper limitation); this raw REST response returned the complete 31/31.",
+  "limitations": [
+    "This is job metadata only; no named-test outcome is inferred from job states."
+  ]
+}

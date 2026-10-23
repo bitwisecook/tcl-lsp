@@ -1,0 +1,33 @@
+G4 / recursive-body diagnostic first-refusal checklist v1
+
+Scope: read actual sealed finite11 and body5 receipts only. No runner, source modification, expectation inversion, or repair authorization. Source30 seven-package all-target check passed 0 errors/0 warnings at 2026-10-23T03:09:05Z with stable guards; diagnostic runtime results still pending.
+
+Evidence admission before interpretation
+- Identify exact plan, root GO, current CargoJSON artifact, source/provider/artifact seals, raw stdout/stderr hashes, process complete, no stop_reason, owned group empty before reap, pre-spawn timer, mount floor, no output cap, exact started/selected/summary counts. A missing/partial/aborted trace is unknown, never an assertion outcome or zero compiler visits.
+- Record selector, profile, original assertion and first actual panic location. Later assertions are unexecuted until reached. Keep failures distinct from process/protocol failures and 0-warning typing.
+
+G4 conditional expression (finite11 row1)
+- Join G4_NORMAL_FACT label=conditional-expression with subsequent G4_NORMAL_BASIS same label/ordinal. Retain attached/frame/reached/purpose/owner/lookup/compiler, native_entry/source_input/opaque/unclosed, normal_value/completes/observations verbatim.
+- Determine whether original_normal_result is Some and which matching basis supplies it. normal_possible/result and complete_normally are independent facts. No native_entry gate is implied by the getter; Reached is actual compiler visitation, not blanket Native or Normal authority.
+- If basis.matches=false, preserve that refusal and identify equality input; do not use result bytes from the foreign basis. If no emitted fact, first panic/earlier return determines only where execution stopped.
+
+G4 procedure (finite11 row2)
+- Original first negative is !original_invocation_completes_normally, not NormalResult-None. Join scoped-procedure fact/basis. A totality grant requires a matching complete_normally basis; Some result alone cannot establish it.
+- Preserve exact source and actual source purpose. Current trace does not emit raw producer abrupt variants; if matching totality still conflicts with original assertion, report the missing producer fact rather than infer policy or change the expectation.
+
+G4 nested frames (finite11 rows3/4)
+- Read G4_WRONG_FRAME original/mutated/equal and attached_original/attached_mutated before judging the negative. If original already Global, mutation is equal and no distinguishable wrong-frame control was established; do not invert assertion.
+- The source30 strict attachment guard independently rejects receiver != tokens.source_binding. original/mutated normalisation_frame is measured AFTER that composed guard, so its refusal cannot prove the pre-guard cause. Record original/mutated equality independently.
+- Compare nested-original/nested-mutated Normal facts only within the same selector/profile/source snapshot. No frame widening or receiver-token proof borrowing.
+
+Recursive body (body5)
+- Start with ORIGINAL_BODY_SYNTAX_CANDIDATE. duplicate or neither matching summary can prevent script retention before token tracing. Absence of token traces may also mean missing source_binding; the diagnostic does not label that earlier branch. Keep it unknown instead of inventing tokens.
+- Join ORIGINAL_BODY_SYNTAX + _RUNTIME + optional _COMPILER by offset WITHIN a single candidate/profile/body; offsets alone are not globally unique. The current diagnostic lacks explicit candidate IDs, so ambiguous repeated offsets must remain ambiguous.
+- Read attachment, syntax, compiler_words/state, owner/dialect/protocol first. Missing actual syntax or attachment forbids source reconstruction and declaration-first metadata fallback.
+- Then compare source_purpose/compiler_purpose/compiler_source_closed against runtime closed/unobserved/handler/target/names. Authentic source-only grammar with runtime closure false identifies a purpose barrier; it does not justify granting runtime Native/Normal/quiet/current handler authority.
+- If compiler_source_closed=false, record actual compiler opaque/unclosed/step/observers_quiet/targets/unknown/may_absent. Do not waive name effects, observer or currentness debt because the source text looks simple.
+- Keep script retention, word compaction and final expression-gap gates distinct: the inventory has all three runtime-envelope filters. A positive token trace alone does not establish every later path.
+- Changed-handler/observer and foreign-analysis tests remain negative controls. Accept no candidate repair that substitutes declaration snapshot for the actual later command snapshot (changed-if-after-proc negative), broadens arity, donates Native/Normal, or changes assertions.
+
+Report shape
+selector/profile; admitted receipt IDs; first assertion; exact trace facts; first demonstrated refusal; later unknowns; narrowly proposed next fact/producer seam. Separate proven cause from plausible shared namespace completion debt. No performance conclusion from instrumented tests.

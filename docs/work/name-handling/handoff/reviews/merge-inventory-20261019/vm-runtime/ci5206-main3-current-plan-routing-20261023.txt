@@ -1,0 +1,1889 @@
+{
+  "utc": "2026-10-23T03:23:10.832648+00:00",
+  "status": "routing only; no cause inferred, no source/runner/Cargo/GO",
+  "old_CI_source": {
+    "schema": "nextest-human-reporter-observed-identities-v1",
+    "run": {
+      "number": 5206,
+      "id": 39879737945,
+      "ref": "work",
+      "head_sha": "5a4182dfefc483b6446085bdabd9a1f7620e6a96",
+      "job_id": 120175508606,
+      "job_name": "rust-tests-shard (3/5)"
+    },
+    "log_sha256": "21536fc3eb8e45f2ce2155598a43ca3932f46cada27f36a54635165b4542d53d"
+  },
+  "comparison_identity": [
+    "binary_id",
+    "selector"
+  ],
+  "owned_P2F_counts": {
+    "tcl-cshim": 13,
+    "tcl-spec-studio": 1,
+    "tcl-spectcl": 2,
+    "tcl-vm-cli": 1,
+    "tcl-vm": 142
+  },
+  "owned_P2F_total": 159,
+  "baseline_absent_counts": {
+    "tcl-vm": 9
+  },
+  "current_full4_noTom16_Spec66_exact_matches": 0,
+  "coverage_limit": "Standalone runtime4/16 have different binary identities from workspaceVM142; Jim34+EDA/Jim32 do not include workspace_packs or studio. No semantic/family coverage substituted for exact selector coverage. Source30 runtime unrun.",
+  "ownership_correction": "tcl-spec-studio::spectcl_ports every_port_loads_and_matches_its_shipped_spec belongs vm-runtime, not compiler",
+  "uncovered_needed_original_controls": [
+    {
+      "key": {
+        "binary_id": "tcl-spec-studio::spectcl_ports",
+        "selector": "every_port_loads_and_matches_its_shipped_spec"
+      },
+      "reason": "direct C1 pack staging/cache/manifest or authoring shipped-spec baseline loss; exact66 Jim/EDA targets do not select this original test",
+      "priority": "first uncovered pack controls"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-spectcl::workspace_packs",
+        "selector": "a_manifest_that_places_nothing_does_not_lift_its_pack"
+      },
+      "reason": "direct C1 pack staging/cache/manifest or authoring shipped-spec baseline loss; exact66 Jim/EDA targets do not select this original test",
+      "priority": "first uncovered pack controls"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-spectcl::workspace_packs",
+        "selector": "a_warm_cache_produces_the_identical_load"
+      },
+      "reason": "direct C1 pack staging/cache/manifest or authoring shipped-spec baseline loss; exact66 Jim/EDA targets do not select this original test",
+      "priority": "first uncovered pack controls"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm-cli::script_errors",
+        "selector": "a_nested_error_logs_each_level_the_release_evaluates"
+      },
+      "reason": "original release-sensitive CLI error propagation baseline loss; standalone runtime full4 cannot substitute for workspace VM/CLI path",
+      "priority": "original VM/CLI error control"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-cshim::pkga_e2e",
+        "selector": "results_and_errors_match_c_tcl_byte_for_byte"
+      },
+      "reason": "original bridge byte/error-code contract; representative observation cannot close its family",
+      "priority": "bounded representative baseline control"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-cshim",
+        "selector": "obj::tests::the_declared_prefix_is_the_layout_the_header_declares"
+      },
+      "reason": "original C ABI physical layout contract; representative observation cannot close its family",
+      "priority": "bounded representative baseline control"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::namespace_surface_e2e",
+        "selector": "a_command_deleted_from_a_retained_frame_reports_its_own_namespace"
+      },
+      "reason": "original retained namespace lookup/retirement baseline control; representative observation cannot close its family",
+      "priority": "bounded representative baseline control"
+    }
+  ],
+  "existing_roster_overlap": 16,
+  "older_roster_limit": "Existing representative19 selectors may guide bounded future allocation; old protocol is not a currently approved lifecycle/source30 GO. Do not run it or build a new runner without need/root allocation.",
+  "reserved_CCG_witness": {
+    "binary_id": "tcl-vm::cmd_control_e2e",
+    "selector": "a_catch_body_write_is_visible_after_the_catch",
+    "owner": "compiler-codegen; exclude duplicate scheduling"
+  },
+  "rows": [
+    {
+      "key": {
+        "binary_id": "tcl-cshim",
+        "selector": "doors::tests::a_command_the_c_code_created_is_published_before_the_script_that_calls_it"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": true,
+      "current_raw_LF_line": 24360
+    },
+    {
+      "key": {
+        "binary_id": "tcl-cshim",
+        "selector": "doors::tests::a_value_read_is_a_new_object_that_outlives_later_calls"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": true,
+      "current_raw_LF_line": 24399
+    },
+    {
+      "key": {
+        "binary_id": "tcl-cshim",
+        "selector": "load::tests::a_failing_entry_point_is_the_error_load_reports_and_can_be_tried_again"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": true,
+      "current_raw_LF_line": 24446
+    },
+    {
+      "key": {
+        "binary_id": "tcl-cshim",
+        "selector": "obj::tests::the_declared_prefix_is_the_layout_the_header_declares"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": true,
+      "current_raw_LF_line": 24503
+    },
+    {
+      "key": {
+        "binary_id": "tcl-cshim",
+        "selector": "tests::a_c_command_returning_break_is_a_break_completion"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": true,
+      "current_raw_LF_line": 24542
+    },
+    {
+      "key": {
+        "binary_id": "tcl-cshim",
+        "selector": "tests::a_code_that_is_not_a_return_carries_no_options_whatever_the_evaluation_left"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 24618
+    },
+    {
+      "key": {
+        "binary_id": "tcl-cshim",
+        "selector": "tests::a_command_an_engine_runs_without_a_door_reaches_no_variable"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 24580
+    },
+    {
+      "key": {
+        "binary_id": "tcl-cshim",
+        "selector": "tests::an_evaluation_that_did_not_end_in_a_return_leaves_no_options_for_a_later_one"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 24655
+    },
+    {
+      "key": {
+        "binary_id": "tcl-cshim",
+        "selector": "tests::deleting_a_command_reaches_the_engine_and_runs_the_delete_proc"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": true,
+      "current_raw_LF_line": 24691
+    },
+    {
+      "key": {
+        "binary_id": "tcl-cshim::pkga_e2e",
+        "selector": "client_data_and_delete_procs_work_across_calls"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 24727
+    },
+    {
+      "key": {
+        "binary_id": "tcl-cshim::pkga_e2e",
+        "selector": "load_through_the_host_bridge_defines_the_commands"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 24769
+    },
+    {
+      "key": {
+        "binary_id": "tcl-cshim::pkga_e2e",
+        "selector": "results_and_errors_match_c_tcl_byte_for_byte"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": true,
+      "current_raw_LF_line": 24807
+    },
+    {
+      "key": {
+        "binary_id": "tcl-cshim::pkga_e2e",
+        "selector": "the_same_vectors_run_through_the_host_load_bridge"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 24904
+    },
+    {
+      "key": {
+        "binary_id": "tcl-spec-studio::spectcl_ports",
+        "selector": "every_port_loads_and_matches_its_shipped_spec"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": true,
+      "current_raw_LF_line": 29864
+    },
+    {
+      "key": {
+        "binary_id": "tcl-spectcl::workspace_packs",
+        "selector": "a_manifest_that_places_nothing_does_not_lift_its_pack"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": true,
+      "current_raw_LF_line": 30235
+    },
+    {
+      "key": {
+        "binary_id": "tcl-spectcl::workspace_packs",
+        "selector": "a_warm_cache_produces_the_identical_load"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": true,
+      "current_raw_LF_line": 30336
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm-cli::script_errors",
+        "selector": "a_nested_error_logs_each_level_the_release_evaluates"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": true,
+      "current_raw_LF_line": 41693
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::c_error_paths_e2e",
+        "selector": "error_stack_inner_names_the_failing_instruction"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 31345
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::c_error_paths_e2e",
+        "selector": "execution_trace_errors_name_the_trace"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 31385
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::c_error_paths_e2e",
+        "selector": "lsort_comparator_error_logs_the_callback"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 31425
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::c_error_paths_e2e",
+        "selector": "regsub_command_error_logs_the_callback"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 31469
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::c_error_paths_e2e",
+        "selector": "sourced_file_frames_and_returns"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 31512
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_control_e2e",
+        "selector": "a_catch_body_write_is_visible_after_the_catch"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 31557
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_control_e2e",
+        "selector": "a_deferred_parse_error_is_raised_before_the_activation_is_torn_down"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 31596
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_control_e2e",
+        "selector": "a_multi_command_catch_body_discards_all_but_its_last_result"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 31635
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_control_e2e",
+        "selector": "a_procedure_body_that_does_not_parse_raises_on_entry_not_at_definition"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 31673
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_control_e2e",
+        "selector": "a_top_level_catch_is_not_inlined"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 31711
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_control_e2e",
+        "selector": "an_inlined_catch_still_catches"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 31749
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_control_e2e",
+        "selector": "an_unpinnable_term_logs_no_frame_rather_than_a_wrong_one"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 31787
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_control_e2e",
+        "selector": "catch_and_nested_try_decline_dynamic_phase_words"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 31825
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_control_e2e",
+        "selector": "catch_declines_unbraced_script_body"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 31864
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_control_e2e",
+        "selector": "catch_destinations_that_need_resolving_are_not_inlined"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 31902
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_control_e2e",
+        "selector": "catch_returns_its_code_wherever_it_sits"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 31940
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_control_e2e",
+        "selector": "deeply_nested_command_substitution_is_unaffected"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 31980
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_control_e2e",
+        "selector": "eval_executes_prefix_before_fatal_tail"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 32056
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_control_e2e",
+        "selector": "for_runtime_arity"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 32094
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_control_e2e",
+        "selector": "for_runtime_body_error_adds_frame"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 32133
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_control_e2e",
+        "selector": "foreach_in_package_ifneeded_logs_invocation_before_loader_frame"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 32180
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_control_e2e",
+        "selector": "foreach_lmap_runtime_arity"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 32218
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_control_e2e",
+        "selector": "foreach_lmap_runtime_empty_varlist"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 32256
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_control_e2e",
+        "selector": "foreach_lmap_runtime_explicit_error_info_logs_invocation"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 32294
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_control_e2e",
+        "selector": "foreach_runtime_body_error_adds_frame"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 32334
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_control_e2e",
+        "selector": "foreach_runtime_var_write_failure"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 32374
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_control_e2e",
+        "selector": "if_runtime_grammar_errors"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 32416
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_control_e2e",
+        "selector": "literal_catch_executes_complete_prefix_before_later_parse_error"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 32457
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_control_e2e",
+        "selector": "literal_catch_multicommand_proc_body_executes_in_order"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 32495
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_control_e2e",
+        "selector": "literal_catch_preserves_braced_first_and_last_words"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 32533
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_control_e2e",
+        "selector": "literal_catch_replays_only_the_stale_nested_command_after_mutation"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 32571
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_control_e2e",
+        "selector": "literal_catch_reports_incomplete_body_before_substitution_side_effects"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 32609
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_control_e2e",
+        "selector": "multiline_catch_epilogue_does_not_replay_the_enclosing_command"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 32648
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_control_e2e",
+        "selector": "nested_catch_try_binds_result_and_options_variables"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 32686
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_control_e2e",
+        "selector": "nested_catch_try_multicommand_phases_preserve_results"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 32762
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_control_e2e",
+        "selector": "nested_try_executes_complete_phase_prefix_before_later_parse_error"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 32801
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_control_e2e",
+        "selector": "nested_try_handler_declines_dynamic_set_target"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 32839
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_control_e2e",
+        "selector": "switch_error_paths"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 32887
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_control_e2e",
+        "selector": "switch_runtime_matchvar_write_failure"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 32937
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_control_e2e",
+        "selector": "tailcalled_each_loop_retains_its_entered_error_invocation"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 32976
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_control_e2e",
+        "selector": "throw_command"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 33016
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_control_e2e",
+        "selector": "try_add_during_replaces_existing"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 33054
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_control_e2e",
+        "selector": "try_add_during_replaces_in_nested_chain"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 33092
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_control_e2e",
+        "selector": "try_dash_fallthrough"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 33132
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_control_e2e",
+        "selector": "try_grammar_errors"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 33173
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_control_e2e",
+        "selector": "try_handler_throws_chains_during"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 33211
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_control_e2e",
+        "selector": "try_handler_type_resolves_like_tcl_get_index_from_obj"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 33250
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_control_e2e",
+        "selector": "try_handler_var_bind_failure_chains_during"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 33288
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_control_e2e",
+        "selector": "try_on_code_out_of_int_range"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 33327
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_control_e2e",
+        "selector": "try_trap_bad_pattern_list"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 33367
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_control_e2e",
+        "selector": "try_trap_errorcode_prefix"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 33405
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_control_e2e",
+        "selector": "try_trap_no_match_propagates"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 33443
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_control_e2e",
+        "selector": "while_runtime_arity"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 33481
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_control_e2e",
+        "selector": "while_runtime_error_adds_body_frame"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 33522
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_math_expr_e2e",
+        "selector": "a_comment_only_expression_is_the_empty_expression"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 33564
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_math_expr_e2e",
+        "selector": "expr_read_trace_fires_on_operand"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 33636
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_math_expr_e2e",
+        "selector": "expr_runtime_operand_type_errors"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 33682
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_math_expr_e2e",
+        "selector": "expr_stk_dynamic_evaluation"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": true,
+      "current_raw_LF_line": 33766
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_math_expr_e2e",
+        "selector": "expr_stk_rejects_an_unparsable_expression"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 33726
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_math_expr_e2e",
+        "selector": "mathop_invoked_name_via_namespace_path"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 33844
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_oo_e2e",
+        "selector": "private_instance_variable_on_a_class_matches_var_29_3"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 33937
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_oo_e2e",
+        "selector": "private_instance_variable_on_an_object_matches_var_29_6"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 33979
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_oo_e2e",
+        "selector": "retained_and_recreated_tcloo_commands_have_distinct_identity"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 34028
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_oo_e2e",
+        "selector": "retained_tcloo_self_destroy_retires_the_exact_command_token"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 34070
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_oo_e2e",
+        "selector": "tcl_oo_package_and_version_vars"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 34117
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_oo_e2e",
+        "selector": "tip558_configurable_configure_get_set_list"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": true,
+      "current_raw_LF_line": 34156
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_oo_e2e",
+        "selector": "tip558_configurable_inheritance_and_next"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 34192
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_oo_e2e",
+        "selector": "tip558_configurable_kind_readable_and_writable"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 34226
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_oo_e2e",
+        "selector": "tip558_configurable_not_on_plain_class"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 34265
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_oo_e2e",
+        "selector": "tip558_configurable_per_object_property"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 34299
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_oo_e2e",
+        "selector": "tip558_configurable_property_abbreviates"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 34333
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::command_traces_e2e",
+        "selector": "native_invoke_uses_the_post_enter_trace_owner_snapshot"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 34451
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::command_traces_e2e",
+        "selector": "vectors_match_real_tclsh"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 34491
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::command_traces_e2e",
+        "selector": "vm_matches_the_pinned_trace_vectors"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": true,
+      "current_raw_LF_line": 34528
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cross_interp_alias_e2e",
+        "selector": "vectors_match_real_tclsh"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": true,
+      "current_raw_LF_line": 34647
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cross_interp_alias_e2e",
+        "selector": "vm_matches_the_pinned_cross_interp_alias_vectors"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 34684
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cross_version_info_surface_e2e",
+        "selector": "representation_reports_the_value_as_each_release_does"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 34723
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cross_version_info_surface_e2e",
+        "selector": "tcloo_info_ensembles_follow_the_selected_release"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 34761
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cross_version_info_surface_e2e",
+        "selector": "tcloo_info_vectors_match_real_tclsh_when_available"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 34802
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::embed_api_e2e",
+        "selector": "an_inlined_loop_dispatches_nothing_and_so_is_not_charged"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 34850
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::embed_api_e2e",
+        "selector": "native_mathfunc_identity_survives_rename_and_hide_expose_across_profiles"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 34893
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::embed_api_e2e",
+        "selector": "retain_commands_reduces_the_table_to_a_whitelist"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 34928
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::literal_index_encoding_e2e",
+        "selector": "a_literal_index_reads_as_the_release_compiles_it"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 35081
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::mathfunc_derivation_e2e",
+        "selector": "expr_canonicalises_a_preserved_integer"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 35124
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::mathfunc_derivation_e2e",
+        "selector": "tip745_functions_are_gated_to_tcl91"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 35164
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::namespace_surface_e2e",
+        "selector": "a_command_deleted_from_a_retained_frame_reports_its_own_namespace"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": true,
+      "current_raw_LF_line": 35206
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::namespace_surface_e2e",
+        "selector": "a_deferred_namespace_is_unpublished_for_every_caller"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 35254
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::namespace_surface_e2e",
+        "selector": "a_deferred_teardown_keeps_tcl_hash_order"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 35302
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::namespace_surface_e2e",
+        "selector": "a_relative_namespace_eval_enters_the_retained_child"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 35356
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::namespace_surface_e2e",
+        "selector": "a_renamed_tcloo_root_still_gates_by_its_registry_identity"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 35396
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::namespace_surface_e2e",
+        "selector": "a_suspended_coroutine_releases_its_retained_namespace_on_completion"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 35446
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::namespace_surface_e2e",
+        "selector": "an_active_child_defers_while_its_parent_tears_down"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 35496
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::namespace_surface_e2e",
+        "selector": "command_delete_traces_wait_for_the_last_activation"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 35546
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::namespace_surface_e2e",
+        "selector": "ensemble_default_target_miss_names_the_rewritten_subcommand"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 35613
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::namespace_surface_e2e",
+        "selector": "ensemble_unknown_deleted_seeds_the_handler_errorinfo_frame"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 35657
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::namespace_surface_e2e",
+        "selector": "ensemble_unknown_exceptional_codes_and_malformed_results_match_c"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 35698
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::namespace_surface_e2e",
+        "selector": "inscope_and_apply_frames_defer_their_own_deletion"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 35754
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::namespace_surface_e2e",
+        "selector": "retained_and_recreated_namespace_variables_have_distinct_cells"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 35840
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::namespace_surface_e2e",
+        "selector": "retained_command_rename_mutates_the_exact_token_table"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 35878
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::release_number_semantics_e2e",
+        "selector": "doubles_overflow_and_divide_by_zero_per_release"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 35938
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::release_number_semantics_e2e",
+        "selector": "expr_syntax_errors_per_release"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 35979
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::release_number_semantics_e2e",
+        "selector": "integers_wrap_at_64_bits_on_8_4"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 36019
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::release_number_semantics_e2e",
+        "selector": "math_functions_follow_the_release"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 36059
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::release_number_semantics_e2e",
+        "selector": "operand_errors_per_release"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 36099
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::release_number_semantics_e2e",
+        "selector": "string_bytelength_counts_internal_utf8"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 36141
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::release_number_semantics_e2e",
+        "selector": "string_follows_the_release"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 36183
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::release_running_bytecode_e2e",
+        "selector": "running_bytecode_sees_a_command_table_change_as_its_release_does"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 36230
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::rename_return_source_e2e",
+        "selector": "source_settles_a_return_and_records_where_an_error_occurred"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 36268
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::run_script",
+        "selector": "a_proc_runs_the_body_the_compiler_emitted_for_it"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 36316
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::run_script",
+        "selector": "a_value_position_catch_inlines_only_a_single_command_body"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 36355
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::run_script",
+        "selector": "an_inlined_catch_body_expands_a_star_word"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 36396
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::run_script",
+        "selector": "an_inlined_catch_body_keeps_the_braces_that_belong_to_its_script"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 36436
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::run_script",
+        "selector": "an_inlined_catch_body_substitutes_its_command_name"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 36476
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::run_script",
+        "selector": "autoloader_installs_unknown_and_reports_miss"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 36517
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::run_script",
+        "selector": "break_continue_reject_arguments"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 36558
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::run_script",
+        "selector": "encoding_command"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 36610
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::run_script",
+        "selector": "inline_cmd_subst_review_fixes"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 36660
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::run_script",
+        "selector": "loop_body_redefining_continue_is_honoured"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 36709
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::run_script",
+        "selector": "multiline_cmd_subst_in_assignment_keeps_all_args"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 36756
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::run_script",
+        "selector": "nan_operand_error_wording"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 36801
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::run_script",
+        "selector": "raw_backslash_cr_is_data_not_a_line_continuation"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 36844
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::run_script",
+        "selector": "set_inline_cmd_subst"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 36883
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::run_script",
+        "selector": "string_map_three_args_bad_option"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 36931
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::run_script",
+        "selector": "subst_backslash_escapes_handle_multibyte_and_hex"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 36972
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::run_script",
+        "selector": "tailcall_exec_trace_timing_and_ownership"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 37017
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::run_script",
+        "selector": "the_inline_catch_needs_a_braced_body_that_is_only_one_command"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 37057
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::run_script",
+        "selector": "the_proc_command_that_runs_is_the_one_whose_body_is_installed"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 37097
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::tclsh_parity_e2e",
+        "selector": "the_vm_reads_each_script_as_each_tclsh_does"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 37158
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::variable_name_resolution_e2e",
+        "selector": "release_invariant_vectors_hold_at_every_release"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 41290
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::variable_name_resolution_e2e",
+        "selector": "vectors_match_real_tclsh"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 41132
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::variable_name_resolution_e2e",
+        "selector": "vm_matches_the_pinned_variable_name_vectors"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 41168
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::variable_trace_semantics_e2e",
+        "selector": "alias_wrappers_begin_a_fresh_completion_option_scope"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 41208
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::variable_trace_semantics_e2e",
+        "selector": "array_for_tracks_structural_revision_and_read_trace_deletion"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 41250
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::variable_trace_semantics_e2e",
+        "selector": "array_operation_reference_preserves_same_binding_recreation"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 41328
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::variable_trace_semantics_e2e",
+        "selector": "array_trace_resolution_distinguishes_direct_and_linked_elements"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 41371
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::variable_trace_semantics_e2e",
+        "selector": "array_trace_resolution_handles_undefined_scalar_and_alias_cells"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 41413
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::variable_trace_semantics_e2e",
+        "selector": "unset_element_miss_kind_survives_parent_mutation_in_its_callback"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 41455
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::variable_trace_semantics_e2e",
+        "selector": "unset_from_an_active_write_trace_fires_the_taken_unset_list"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 41493
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::variable_trace_semantics_e2e",
+        "selector": "unsetting_a_trace_only_array_element_fires_then_reports_it_missing"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 41567
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::variable_trace_semantics_e2e",
+        "selector": "vectors_match_real_tclsh"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 41531
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::variable_trace_semantics_e2e",
+        "selector": "vm_matches_the_pinned_trace_vectors"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 41651
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::variable_trace_semantics_e2e",
+        "selector": "whole_array_unset_retargets_live_alias_and_preserves_const_error"
+      },
+      "confirmed": "baselinePASS/oldCI5206main3FAIL",
+      "current_source_outcome": "UNRUN/UNKNOWN",
+      "current_plan_exact_coverage": [],
+      "older_representative19_selector_only": false,
+      "current_raw_LF_line": 41608
+    }
+  ],
+  "baseline_absent_unknown": [
+    {
+      "binary_id": "tcl-vm::cmd_control_e2e",
+      "selector": "dynamic_controls_preserve_the_configured_procedure_recursion_limit"
+    },
+    {
+      "binary_id": "tcl-vm::cmd_control_e2e",
+      "selector": "native_option_loop_breaks_through_an_aliased_if"
+    },
+    {
+      "binary_id": "tcl-vm::command_traces_e2e",
+      "selector": "command_trace_rename_and_retirement_match_all_five_native_engines"
+    },
+    {
+      "binary_id": "tcl-vm::command_traces_e2e",
+      "selector": "jim_command_traces_are_explicitly_unsupported"
+    },
+    {
+      "binary_id": "tcl-vm::cross_interp_alias_e2e",
+      "selector": "jim_c_style_interpreter_alias_surfaces_are_explicitly_unsupported"
+    },
+    {
+      "binary_id": "tcl-vm::cross_interp_alias_e2e",
+      "selector": "jim_child_handle_aliases_keep_original_parent_lookup_and_retirement"
+    },
+    {
+      "binary_id": "tcl-vm::embed_api_e2e",
+      "selector": "variable_embedding_returns_original_trace_host_cause_and_preserves_prior_effects"
+    },
+    {
+      "binary_id": "tcl-vm::legacy_variable_traces_e2e",
+      "selector": "jim_variable_trace_surfaces_are_explicitly_unsupported"
+    },
+    {
+      "binary_id": "tcl-vm::legacy_variable_traces_e2e",
+      "selector": "vectors_match_all_five_pinned_tclshs"
+    }
+  ],
+  "baseline_gate_limit": "All159 exact losses remain open pending current-source actual results; representative positives never close unsampled rows. General VM parity remains parked; this ledger records confirmed release baseline debt only."
+}

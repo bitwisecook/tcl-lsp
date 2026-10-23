@@ -2,11 +2,13 @@
 
 Area: command_binding.rs (except the C6 hunks), command_binding/compiled_invocation.rs, source name lookup, analyser scope/commands, nested lookups, W210 pkgIndex entry plumbing.
 
-Last updated: 2026-10-23T02:33:29Z
+Last updated: 2026-10-23T03:15:46Z
 
 Maintained by the compiler-names agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## In progress (resumed in /workspace/naming-migration-active/tcl-lsp; g4 first)
+
+**Source30 typing closed / actual diagnostic trace next:** root actual seven-package all-target check PASS0errors0warnings03:09:05Z with all guards stable. Report14v6 running, then finite11 G4/N13/ILX and body5v3. Source/test/provider HOLD, no own Cargo/Git/GO. Off-tree `trace-first-refusal-v1/checklist.txt` records exact trace joins, original first assertions, frame mutation equality before judgment, source-only versus runtime envelope boundaries and ambiguous/missing trace handling. Body5 peer review corrected zero-selected and substring-start gaps; finalv3 receipt fb9f849c statically CLEAR. Next: join admitted actual traces to first refusal, preserve all original assertions and report unobserved producer facts separately. Typing success is not runtime or performance acceptance.
 
 **Actual49 G4 later failures / diagnostic ready:** rows1..8 now1PASS7FAIL with authentic Reached compiler visits; declaration layout passes, others stop at later strict assertions. Rows1/6 Normal-result/completion negatives, rows3/4 mutated-frame negatives, lifecycle Reached-vs-Conditional eligibility, module conditional observation absence and namespace import child-completion debt remain separate. No expectation inversion. Frozen test-only `g4-normal-frame-diagnostic-v1/proposal.patch.txt` SHA d1d26cc86e131a44e88a2045dfd5b41f5852c2c2ef5afa90cc6260e18c828d1c logs actual private Normal basis/source-purpose and original/mutated/attached frame equality in exactly four existing tests, all assertions unchanged. Compiler peer CLEAR SHA94f4424cec592ede1203b50e391af1475bb77eee0b4c7cd0707e896f5af4828f; untyped/unrun/not applied. Separate three-line fail-closed owner join `nested-normalisation-binding-v1` SHA08f24d0948751a1e3fe5d910cb4dc310d82c15b0595e969cb9a107c2d8818f49 also compiler peer static CLEAR, but no claim it cures actual frame negatives until facts show original and mutated differ. Current49 unchanged; root owns later probe slot.
 

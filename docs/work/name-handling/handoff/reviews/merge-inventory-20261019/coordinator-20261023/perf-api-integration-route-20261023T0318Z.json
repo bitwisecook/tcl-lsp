@@ -1,0 +1,22 @@
+{
+  "utc": "2026-10-23T03:18:15.611769+00:00",
+  "role": "perf",
+  "owner_header_unchanged": "2026-10-22 21:00 UTC",
+  "source_product": "4d4ab9e6a7d3b141ce55f16b8ca98f462e609e57",
+  "published_work": "ef78e65b825c169546760600f447ba4b20e3cec8",
+  "decision": "docs/work/name-handling/handoff/reviews/resume-20261017-diagnosis/user-decisions-20261022T2256Z.json",
+  "status": "API integrated and guarded seven-package all-target typing PASS, focused14 controls actuallyrunning; full perf acceptance still blocked",
+  "typecheck_evidence": "seven-package-source30-typecheck-v4/archive-manifest.json",
+  "typecheck_final_sha256": "94e8c119c7f57fb72a7b759a108bd1b50f3b94dfa7868c68200498bff47e2e93",
+  "report14_protocol": "/tmp/compiler-authenticated-report-focused14-v6-source30",
+  "report14_plan_sha256": "32a68999acfdb065a9abcb92b135649b1f32a02d98fd6c832d41f8ba739e4329",
+  "report14_runtime_status": "IN_PROGRESS; no result yet",
+  "unblock_after_controls": "Use authenticated full-report API according to recorded2256 decision; run complete current all-old and mixed proofs, source-owner correspondence current/unique/complete. Preserve strict global/runtime Eq and count gates. Do not accept/forward realm/interprocedural patch before actual complete proof.",
+  "unproven": [
+    "focused14 runtime",
+    "complete current all-old/mixed equality",
+    "performance shipping contract",
+    "patch acceptance"
+  ],
+  "no_duplicate_external_role": true
+}

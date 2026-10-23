@@ -1,0 +1,18 @@
+{
+  "version": "rbs3-source30-diagnostic-v1",
+  "inputs": {
+    "/tmp/compiler-rbs3-source30-diagnostic-v1/run.sh": "881d0af82c7d87e381446a51e541236f1e59ae54a6c23df243896f70e89d2112",
+    "/tmp/compiler-rbs3-source30-diagnostic-v1/suite.py": "7d02ef00d115450ad62b05434f2419852d94379697de1d31163f88726289f8fc",
+    "/tmp/compiler-rbs3-source30-diagnostic-v1/guarded-cargo.py": "a7b5368bac7941041808711196c12e3dbaee26366a4b45f0f27bc436c3587b7a",
+    "/tmp/compiler-rbs3-source30-diagnostic-v1/guarded-exec.py": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811",
+    "/tmp/compiler-rbs3-source30-diagnostic-v1/launch.py": "796cfa3c7f83094d366e56b94f217e3e0aa86e6d1f3c75ef033f67a2dd3c0673",
+    "/tmp/compiler-rbs3-source30-diagnostic-v1/plan.json": "92d35f0d57259d9530bde4fcfdad71e680d80be9f40f7a98e083ca6017ecd12c",
+    "/tmp/compiler-rbs3-source30-diagnostic-v1/source30-manifest.json": "417688c7ba2d60771f39625ef756a05e5bc6b05a0d5e1ddf73c63ff463eefebb",
+    "/tmp/compiler-rbs3-source30-diagnostic-v1/compiler49-v7-plan.json": "0cb62fcdba2a9f24e5578ada9123e8fe9e195a1e7cd0f0cb1479ea2a19542313",
+    "/tmp/compiler-rbs3-source30-diagnostic-v1/compiler49-v7-root-go.raw.json": "dfccc034a58f8113839424c11d3a9f0862e8109caec0d20a259b556a32cfd3f2",
+    "/tmp/compiler-rbs3-source30-diagnostic-v1/compiler49-v7-root-go.receipt.json": "af205325983a17dba1b51104fe0b10609fde9232eac35c238b15cbf5c7f06b6d",
+    "/tmp/compiler-rbs3-source30-diagnostic-v1/compiler49-v7-runner-input-manifest.json": "23b393e24a7ba9c37388bdd517d4c1d95af45e965d67ce63744ec8f6d3916b48",
+    "/tmp/compiler-c6-provider-manifest.py": "5eff9d653c4f464a48fe1a4633656a97512b817ae03a0d29de9f0c33f6f8340e",
+    "/tmp/tcl-lsp-naming-env.sh": "9d33ccdba049a778482244c60a8206cd62fc503db55227b7c6cf87645c932f29"
+  }
+}

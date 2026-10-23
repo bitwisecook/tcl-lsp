@@ -1,0 +1,164 @@
+{
+  "observed_utc": "2026-10-23T03:22:54.533725+00:00",
+  "current_job": 120175508606,
+  "current_source": "5a4182dfefc483b6446085bdabd9a1f7620e6a96 (old product3b1; source30 not measured)",
+  "scope": "bounded family/outcome clustering; no source assertion cause inferred",
+  "compiler_baseline_pass_to_fail": 574,
+  "compiler_new_without_baseline_fail": 3,
+  "family_counts": {
+    "tcl-compiler::taint": 214,
+    "tcl-compiler::optimiser": 64,
+    "tcl-compiler::inlining": 55,
+    "tcl-compiler::var_escape_residual2": 51,
+    "tcl-compiler::inlining_interproc_residual": 45,
+    "tcl-compiler::type_propagation": 39,
+    "tcl-compiler::optimiser_codegen_residual": 30,
+    "tcl-compiler::fp_depth": 25,
+    "tcl-compiler::optimiser_depth": 15,
+    "tcl-compiler::tcl_expr_eval": 14,
+    "tcl-compiler::side_effects_binding": 12,
+    "tcl-compiler::complexity_guard": 6,
+    "tcl-compiler::release_units": 3,
+    "tcl-compiler::command_resolution_conformance": 1
+  },
+  "top5_count": 429,
+  "coverage": "Actual49+diagnostic11+RBS3 target tcl-compiler lib unit selectors, while these574 compiler P2F are integration binaries across14families. No direct identity coverage; semantic family overlap is not acceptance. Existing C6 SH/TNT separately prepared does not cover these integration identities.",
+  "representative_original_baseline_failures_missing_finite_coverage": [
+    {
+      "key": {
+        "binary_id": "tcl-compiler::taint",
+        "selector": "dangerous_sinks::eval_sink"
+      },
+      "reason": "current_fail",
+      "baseline_record": {
+        "job": "rust-tests-shard-3",
+        "package": "tcl-compiler",
+        "binary_label_as_rendered": "taint",
+        "selector": "dangerous_sinks::eval_sink",
+        "status": "PASS",
+        "reporter_ordinal": 832,
+        "reporter_total": 3331,
+        "binary_id": "tcl-compiler::taint"
+      },
+      "current_record": {
+        "binary_id": "tcl-compiler::taint",
+        "selector": "dangerous_sinks::eval_sink",
+        "status": "FAIL",
+        "original_status": "FAIL",
+        "reporter_ordinal": 921,
+        "reporter_total": 3897,
+        "seconds_as_rendered": "0.416s",
+        "source_line": 12707
+      }
+    },
+    {
+      "key": {
+        "binary_id": "tcl-compiler::optimiser",
+        "selector": "a_braced_expr_word_with_no_nested_write_still_folds"
+      },
+      "reason": "current_fail",
+      "baseline_record": {
+        "job": "rust-tests-shard-3",
+        "package": "tcl-compiler",
+        "binary_label_as_rendered": "optimiser",
+        "selector": "a_braced_expr_word_with_no_nested_write_still_folds",
+        "status": "PASS",
+        "reporter_ordinal": 496,
+        "reporter_total": 3331,
+        "binary_id": "tcl-compiler::optimiser"
+      },
+      "current_record": {
+        "binary_id": "tcl-compiler::optimiser",
+        "selector": "a_braced_expr_word_with_no_nested_write_still_folds",
+        "status": "FAIL",
+        "original_status": "FAIL",
+        "reporter_ordinal": 584,
+        "reporter_total": 3897,
+        "seconds_as_rendered": "0.822s",
+        "source_line": 8077
+      }
+    },
+    {
+      "key": {
+        "binary_id": "tcl-compiler::var_escape_residual2",
+        "selector": "cu_catch_literal_body_threads_its_upvar"
+      },
+      "reason": "current_fail",
+      "baseline_record": {
+        "job": "rust-tests-shard-3",
+        "package": "tcl-compiler",
+        "binary_label_as_rendered": "var_escape_residual2",
+        "selector": "cu_catch_literal_body_threads_its_upvar",
+        "status": "PASS",
+        "reporter_ordinal": 1311,
+        "reporter_total": 3331,
+        "binary_id": "tcl-compiler::var_escape_residual2"
+      },
+      "current_record": {
+        "binary_id": "tcl-compiler::var_escape_residual2",
+        "selector": "cu_catch_literal_body_threads_its_upvar",
+        "status": "FAIL",
+        "original_status": "FAIL",
+        "reporter_ordinal": 1401,
+        "reporter_total": 3897,
+        "seconds_as_rendered": "0.343s",
+        "source_line": 22407
+      }
+    }
+  ],
+  "new_without_baseline": [
+    {
+      "key": {
+        "binary_id": "tcl-compiler::inlining_interproc_residual",
+        "selector": "protective_proc_index_missing_key_retains_literal_possible_name_arguments"
+      },
+      "current_record": {
+        "binary_id": "tcl-compiler::inlining_interproc_residual",
+        "selector": "protective_proc_index_missing_key_retains_literal_possible_name_arguments",
+        "status": "FAIL",
+        "original_status": "FAIL",
+        "reporter_ordinal": 561,
+        "reporter_total": 3897,
+        "seconds_as_rendered": "0.417s",
+        "source_line": 7463
+      },
+      "reason": "current_nonpass_without_baseline"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-compiler::inlining_interproc_residual",
+        "selector": "protective_proc_index_unions_every_colliding_parameter_and_default_read"
+      },
+      "current_record": {
+        "binary_id": "tcl-compiler::inlining_interproc_residual",
+        "selector": "protective_proc_index_unions_every_colliding_parameter_and_default_read",
+        "status": "FAIL",
+        "original_status": "FAIL",
+        "reporter_ordinal": 564,
+        "reporter_total": 3897,
+        "seconds_as_rendered": "0.548s",
+        "source_line": 7579
+      },
+      "reason": "current_nonpass_without_baseline"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-compiler::type_propagation",
+        "selector": "concat_string_results_do_not_donate_list_representations"
+      },
+      "current_record": {
+        "binary_id": "tcl-compiler::type_propagation",
+        "selector": "concat_string_results_do_not_donate_list_representations",
+        "status": "FAIL",
+        "original_status": "FAIL",
+        "reporter_ordinal": 1364,
+        "reporter_total": 3897,
+        "seconds_as_rendered": "0.461s",
+        "source_line": 21001
+      },
+      "reason": "current_nonpass_without_baseline"
+    }
+  ],
+  "recommendation": "Retain3 representative originals for a later root-selected guarded slot only if current source30 diagnostics do not identify common producers. No extra runner prepared, no Cargo/GO/source.",
+  "limits": "Outcomes establish regression identities only; actual per-test assertion traces not yet inspected. Do not infer common root cause or alter assertions."
+}
