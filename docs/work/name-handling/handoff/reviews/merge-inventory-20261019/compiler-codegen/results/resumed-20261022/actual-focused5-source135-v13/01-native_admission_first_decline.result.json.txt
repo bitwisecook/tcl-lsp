@@ -1,0 +1,160 @@
+{
+  "actual_selected": 1,
+  "argv": [
+    "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/cmd_control_e2e-98c1b67654ce4554",
+    "a_catch_body_write_is_visible_after_the_catch",
+    "--exact",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "artifact": {
+    "captured_from_current_cargo_event": true,
+    "cargo_event": {
+      "executable": "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/cmd_control_e2e-98c1b67654ce4554",
+      "features": [
+        "default",
+        "js-clock",
+        "test-support"
+      ],
+      "filenames": [
+        "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/cmd_control_e2e-98c1b67654ce4554"
+      ],
+      "fresh": false,
+      "manifest_path": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-vm/Cargo.toml",
+      "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-vm#0.1.0",
+      "profile": {
+        "debug_assertions": true,
+        "debuginfo": 0,
+        "opt_level": "0",
+        "overflow_checks": true,
+        "test": true
+      },
+      "reason": "compiler-artifact",
+      "target": {
+        "crate_types": [
+          "bin"
+        ],
+        "doc": false,
+        "doctest": false,
+        "edition": "2024",
+        "kind": [
+          "test"
+        ],
+        "name": "cmd_control_e2e",
+        "src_path": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-vm/tests/cmd_control_e2e.rs",
+        "test": true
+      }
+    },
+    "manifest_path": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-vm/Cargo.toml",
+    "mtime_ns": 1792755299666609864,
+    "package": "tcl-vm",
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-vm#0.1.0",
+    "path": "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/cmd_control_e2e-98c1b67654ce4554",
+    "profile": {
+      "debug_assertions": true,
+      "debuginfo": 0,
+      "opt_level": "0",
+      "overflow_checks": true,
+      "test": true
+    },
+    "sha256": "578365d7d1f1f68ff12b2948729364ba21a915868c92ea31a664470001abf2b0",
+    "size": 121829376,
+    "stderr_sha256": "427d7092f689a0d05b9b9a5a427b261c8400c86b436d5f9449fde54ddb55c39b",
+    "stdout_sha256": "f120c5af2d14458c21c9ee6703f3d159e04e6a535401932bc3e6a22bc1662dc9",
+    "target_kind": [
+      "test"
+    ],
+    "target_name": "cmd_control_e2e"
+  },
+  "artifact_stable": true,
+  "exit_code": 101,
+  "expected_names": [
+    "a_catch_body_write_is_visible_after_the_catch"
+  ],
+  "expected_selected": 1,
+  "index": 1,
+  "label": "native_admission_first_decline",
+  "log_at_cap": false,
+  "package": "tcl-vm",
+  "process": {
+    "argv": [
+      "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/cmd_control_e2e-98c1b67654ce4554",
+      "a_catch_body_write_is_visible_after_the_catch",
+      "--exact",
+      "--nocapture",
+      "--test-threads=1"
+    ],
+    "artifact": "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/cmd_control_e2e-98c1b67654ce4554",
+    "artifact_sha256_after": "578365d7d1f1f68ff12b2948729364ba21a915868c92ea31a664470001abf2b0",
+    "artifact_sha256_before": "578365d7d1f1f68ff12b2948729364ba21a915868c92ea31a664470001abf2b0",
+    "artifact_unchanged": true,
+    "cap_bytes": 20971520,
+    "cleanup_signals": [],
+    "complete": true,
+    "consecutive_complete_empty_group_scans": 2,
+    "cwd": "/workspace/naming-migration-active/tcl-lsp",
+    "deadline_seconds": 180,
+    "disk_floor_bytes": 2147483648,
+    "disk_paths": [
+      "/workspace",
+      "/tmp",
+      "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/cmd_control_e2e-98c1b67654ce4554",
+      "/tmp/ccg-focused5-source135-typed-v13-runs/20261023T111540.435450Z",
+      "/tmp/ccg-focused5-source135-typed-v13-runs/20261023T111540.435450Z",
+      "/tmp/ccg-focused5-source135-typed-v13-runs/20261023T111540.435450Z"
+    ],
+    "elapsed_seconds": 16.29659605,
+    "ended_utc": "2026-10-23T11:52:55.180177+00:00",
+    "exit_code": 101,
+    "group_empty_before_parent_reap": true,
+    "group_scan_attempts": 7,
+    "last_group_scan": {
+      "complete": true,
+      "members": [],
+      "vanished_pids": []
+    },
+    "minimum_free_bytes": 2332733440,
+    "owned_live_group_members": [],
+    "parent_exit_observed_monotonic_ns": 81032372678740,
+    "parent_waitid_wnowait": {
+      "si_code": 1,
+      "si_pid": 405712,
+      "si_status": 101
+    },
+    "pid": 405712,
+    "pid_start_ticks": 8101868,
+    "process_group": 405712,
+    "retained_bytes": 2196,
+    "spawn_return_monotonic_ns": 81018696943605,
+    "spawn_return_utc": "2026-10-23T11:52:38.916114+00:00",
+    "stderr": "/tmp/ccg-focused5-source135-typed-v13-runs/20261023T111540.435450Z/01-native_admission_first_decline.stderr",
+    "stderr_bytes": 1943,
+    "stdout": "/tmp/ccg-focused5-source135-typed-v13-runs/20261023T111540.435450Z/01-native_admission_first_decline.stdout",
+    "stdout_bytes": 253,
+    "stop_reason": null,
+    "timer_armed_before_spawn": true,
+    "timer_armed_monotonic_ns": 81018664697204,
+    "timer_armed_utc": "2026-10-23T11:52:38.883842+00:00"
+  },
+  "providers_stable": null,
+  "selected_names": [
+    "a_catch_body_write_is_visible_after_the_catch"
+  ],
+  "selector": "a_catch_body_write_is_visible_after_the_catch",
+  "source_provider_scope": "group before/after; pending until final.json",
+  "source_stable": null,
+  "started_counts": [
+    1
+  ],
+  "stderr_sha256": "24f98874e1a482d27fc5bfb9eb3a53c7445530b1270b139058a1d23da8f79f96",
+  "stdout_sha256": "00ee325d96977d7f1491a027bcd037781f9961d0cea74d8b24afec45c7815356",
+  "summaries": [
+    [
+      "FAILED",
+      "0",
+      "1",
+      "0"
+    ]
+  ],
+  "warnings": false
+}

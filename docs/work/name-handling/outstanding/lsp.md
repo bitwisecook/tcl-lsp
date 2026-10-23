@@ -1,6 +1,6 @@
 # Outstanding work: lsp agent
 
-Current status 2026-10-23T11:26:03Z: actualreleaseCI new RUSTSEC-2026-0385 ctutils0.4.3 blocker: off-tree precise0.4.4 lockproposal3ded960e ready8affected/12workspaces. All8actual Cargo update-only exit0 underprivatecopies/home/index; onlyversion+checksum changed, otherpackages/deps/metadata unchanged,4unaffectedlocks and12WORKbeforepins retained. Namespeerpending; actualpostbatchcargo-deny-all UNRUN. Source135v13typingPASS remains scoped; startupUPF4 materializedplan54c16a18/inputs b133079c butGOabsent/runtimeUNRUN. Rootsoleintegration/buildsourceHOLD.
+Current status 2026-10-23T11:59:33Z: exactbaselinefcb shippingartifact discoveryclosed21/21GitHubruns,9build-capableartifactrosters+10peeledreleasetags. No retainedtrue--release nativeexe found; CI5203 exeprofileci only,7releaseperf runsretainreportsnotbinaries, latestv2.2.5 isdifferentcommit3b5eba8a. Baselineworkflowalready supportsroot native_release_build_proof. Read-onlydiscovery/noGit/historyfetch/dispatch/build. Shippingmetricsprotocol4a24923f preparedUNRUN; true-releasepair+browser/package/memoryscope remainOPEN.
 
 
 
@@ -63,13 +63,13 @@ Prepared separate Core1 ownership/refusal phase `/tmp/lsp-body-guard-core1/run.s
 
 Area: tcl-lsp-core, tcl-lsp-db and tcl-lsp-server (generic providers, server, WASM/WASI hosts).
 
-Last updated: 2026-10-23T11:26:03Z
+Last updated: 2026-10-23T11:59:33Z
 
 Maintained by the lsp agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## Resume
 
-Latest resume pointer 2026-10-23T11:26:03Z: `lsp/ctutils044-lock-update-20261023/manifest.json` gives8lockpatch/pins and12workspace coverage; awaitNamespeer thenrootbatch withheldserver62. Do notapplyindependently orclaimcargo-denygreen. StartupUPF4 /tmp/lsp-startup-upf4-source135-typed-v13 readyrootallocation; noGO/Cargo/runtime fromthisrole.
+Latest resume pointer 2026-10-23T11:59:33Z: lsp/baseline-release-artifact-discovery-20261023/discovery.json hascompleteexactcommitrun/artifactscope+actualbaselineworkflowblob8de4c6c8. Rootdispatchesnativeproofonexactbaseline ifneeded; no branch/rusthistorywrite. Do notsubstituteCIprofile12441329895 orreleasedv2.2.5binary. LatencyprotocolREADME retainscontractbounds/noinventedmemoryceiling; candidateartifact+finalsourcebindingspending.
 
 
 

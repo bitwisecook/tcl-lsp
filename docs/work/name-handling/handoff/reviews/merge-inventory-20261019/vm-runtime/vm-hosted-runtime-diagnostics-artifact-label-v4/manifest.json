@@ -1,0 +1,10 @@
+{
+  "utc": "2026-10-23T12:01:06.606365+00:00",
+  "path": "docs/work/name-handling/validation-tools/runtime-diagnostics.py",
+  "before_sha256": "e3f19d1fcda4b159888e8b5d25c663abc5e0f84fe221c5c1d5369b9fa51d8aa7",
+  "after_sha256": "7d241b22f553cf75fa21f535476c46939874f73aa5c867fdd1b6be04d273bac6",
+  "patch_sha256": "c96d157547996157259383d2c931047eefcd2add87814adc9972dc2a8a762d7e",
+  "actual_failure": "hosted39948671056 all16ran1PASS15FAIL; artifactupload rejects colon filenames; no artifact retained",
+  "scope": "only outputlabel replaces colon with underscore; exactselectors/argv/assertions/rawcontents/receipts unchanged",
+  "status": "offtree WORK-only successor, runtimeunrun"
+}

@@ -1,0 +1,15 @@
+{
+  "actual_utc": "2026-10-23T11:57:09Z",
+  "archive_sha256": "c2b5452c0d98be7404530b3f857f96f01e781c0a721bad6fc878060feef0ae81",
+  "roundtrip_verified": true,
+  "files": {
+    "README.txt": "c420555c65d92afeec463d04f4f8baf18d92e783e91ec68de3e4d949386815e8",
+    "artifact-snapshot.json": "43152821a09fb01f6b9afdac500dda6070feac1215e90d10eac2f07d0a1613c7",
+    "guarded-exec.py": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811",
+    "input-pins.json": "b79532ae9251cee77a31411d0b6f5324b5a50b72d2a06c633f66b59251669fd2",
+    "manifest.json": "4a24923fbfbf8739b02144ea34c0ec2179b4bde237d2b2692ac89e3ba6c31889",
+    "measure.py": "fd27ec7bc27d3202669cbd00408a9c9620f6e0aa5c2e8adccba4ef93939fb536",
+    "worker.py": "1390769e32f5eb1ff120d598841fb24e93db24e8ddcf9ad84aaeb5c96261077d"
+  },
+  "status": "UNRUN; baselineartifactisCIprofile/candidatepending; realshippingpair+hostscopesopen"
+}

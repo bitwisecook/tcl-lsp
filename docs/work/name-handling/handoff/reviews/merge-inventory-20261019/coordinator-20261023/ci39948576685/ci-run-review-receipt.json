@@ -1,0 +1,191 @@
+{
+  "schema": "candidate-ci-run-observation-v1",
+  "run_id": 39948576685,
+  "candidate_sha": "c611d8bd716e9ae3719bfc0beeedd8f24b53e64e",
+  "dispatch_receipt": "/tmp/naming-candidate-second-dispatch.json",
+  "baseline": {
+    "run": 39816429638,
+    "head_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731",
+    "named_records_path": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/coordinator-20261022/origin-rust-ci-5203-named-log-outcomes-20261022.json",
+    "named_records_sha256": "8f0640329c7c60180099d61fe5c2d58ff13b76230b6046ef169f610b3ffa7a58",
+    "comparator_sha256": "65cb36e14d9145039546e4b5a0b0de02b01e9feb749bc05f2d846d7c3625eaf2"
+  },
+  "artifact_capture": {
+    "available_rust_terminal_bundles": [
+      "rust-tests-terminal-2-5",
+      "rust-tests-terminal-3-5",
+      "rust-tests-terminal-4-5",
+      "rust-tests-terminal-5-5",
+      "rust-tests-heavy-terminal"
+    ],
+    "missing_expected": [
+      "rust-tests-terminal-1-5",
+      "lsp-e2e-result-1-3",
+      "lsp-e2e-result-2-3",
+      "lsp-e2e-result-3-3"
+    ],
+    "available_rust_bundles_have_terminal_jsonl": false,
+    "bundle_summary": "All five available bundles have nextest_exit 101, invalid selected listing JSON, and missing_terminal roster unavailable.",
+    "partial_normalization": "/tmp/naming-ci39948576685-partial-normalization",
+    "partial_normalization_counts": {
+      "matched_passes": 0,
+      "regressions": 0,
+      "unknown": 24312,
+      "extra_current_passes": 0,
+      "unmatched_current_nonpass": 0
+    },
+    "normalization_complete": false
+  },
+  "job_root_causes": [
+    "rust-check: five clippy empty_line_after_doc_comments errors at rust/tcl-cmd-core/src/string/native_compiled.rs lines 28,93,115,147,184",
+    "multiple compile jobs: six tcl-compiler warnings denied under build.warnings=deny",
+    "runtime-rust-tests: 107 named failures in 2147-test binary before non-unwinding panic at src/frame/member_materialisation_tests.rs:107 (left None, right Some([86]))",
+    "rust-tests-shard-1: Cargo metadata artifact absent; nextest skipped; terminal upload missing files",
+    "lsp-e2e archive failure prevented all three e2e result artifacts"
+  ],
+  "raw_logs": [
+    {
+      "path": "raw-logs/build-tcl-lsp-server-120397294313.log.txt",
+      "bytes": 68171,
+      "sha256": "8c7601639d6c7a68bb92ca33993f8f76bf30ab037c393adf93da60c74a4b9d8c"
+    },
+    {
+      "path": "raw-logs/lsp-e2e-120398126359.log.txt",
+      "bytes": 3400,
+      "sha256": "fceec6960ab9e4e924995ce59b64e1600eacea442eca928b33840a51d33635eb"
+    },
+    {
+      "path": "raw-logs/lsp-e2e-archive-120397294466.log.txt",
+      "bytes": 122651,
+      "sha256": "e8f9982d3784402dce47686d4bdb7dd6bec37f5ee31e7261f6e59230179f27af"
+    },
+    {
+      "path": "raw-logs/lsp-server-wasi-120397294526.log.txt",
+      "bytes": 87607,
+      "sha256": "956cbcb6bdfe43372a61c2966ffcde070ec5c3fe789854a280d38b327ad51b45"
+    },
+    {
+      "path": "raw-logs/lsp-server-wasm-120397294716.log.txt",
+      "bytes": 81537,
+      "sha256": "9bf1a7029ba702faed55e10ea5626c63e0fd36bac1ba8f6dbad1893bdd237a27"
+    },
+    {
+      "path": "raw-logs/pr-gate-120399236559.log.txt",
+      "bytes": 3081,
+      "sha256": "46df259089c81f443339ef8c2eb66e3d7f929148494c20a2eee5d10aca20329a"
+    },
+    {
+      "path": "raw-logs/python-120397294459.log.txt",
+      "bytes": 77028,
+      "sha256": "d4e31c6c127f8c4385eb83e19fdf932859db06f7c48c74eb1779db06efccd88e"
+    },
+    {
+      "path": "raw-logs/runtime-rust-tests-120397294399.log.txt",
+      "bytes": 207039,
+      "sha256": "7fb998ded2619e316ff2b4d56e5fb4c3b583d0f5a05d764e80bb7ed5bec6e209"
+    },
+    {
+      "path": "raw-logs/rust-check-120397294309.log.txt",
+      "bytes": 101651,
+      "sha256": "5a199356a96547dc9c99cdc928a9c30dbd0e8d2118b05dd6c0a6bfb6603b8137"
+    },
+    {
+      "path": "raw-logs/rust-tests-120399053767.log.txt",
+      "bytes": 4618,
+      "sha256": "beae32e2a4b89c6650958d30433125c27b3a31ca4753256397c4f7256b0a4c88"
+    },
+    {
+      "path": "raw-logs/rust-tests-doctest-120397294363.log.txt",
+      "bytes": 90312,
+      "sha256": "b3ace54d7bf7ca6359d189fa10d48ecd29d89d5f64541f05e25b80371d6cf9dd"
+    },
+    {
+      "path": "raw-logs/rust-tests-heavy-120397294551.log.txt",
+      "bytes": 78065,
+      "sha256": "0457eb999310e640ce83ad49925658b53941c410f142ca3c3de760168ec88c53"
+    },
+    {
+      "path": "raw-logs/rust-tests-shard-1-5-120397294691.log.txt",
+      "bytes": 152386,
+      "sha256": "a5ed130bdedc85645065d1987a7f426b74a410e0949ef38aa35e3967217398fa"
+    },
+    {
+      "path": "raw-logs/rust-tests-shard-2-5-120397294681.log.txt",
+      "bytes": 157288,
+      "sha256": "6522ff07c5286b998ea06516f9af5d77a6bbb61331323f2de37b6857d6641011"
+    },
+    {
+      "path": "raw-logs/rust-tests-shard-3-5-120397294777.log.txt",
+      "bytes": 137378,
+      "sha256": "b271d9e5cf9e2119f75e5ef8daa08ae31577751a6336eed11ac8133c9157017d"
+    },
+    {
+      "path": "raw-logs/rust-tests-shard-4-5-120397294826.log.txt",
+      "bytes": 157033,
+      "sha256": "f60b9f883e2e91cdbd747484a9067664de8e9ff932281fc705d85851a186d025"
+    },
+    {
+      "path": "raw-logs/rust-tests-shard-5-5-120397294608.log.txt",
+      "bytes": 155604,
+      "sha256": "a7c9884a31f289645314d670a6a781320ba27897c8fa3d2338f7765e8dde5dba"
+    },
+    {
+      "path": "raw-logs/spectcl-compat-120397294625.log.txt",
+      "bytes": 73209,
+      "sha256": "0e7469ad035f6a463d8f28ccf22f586e36f5674ff6965699364747142943c1f7"
+    },
+    {
+      "path": "raw-logs/test-ext-120400207741.log.txt",
+      "bytes": 15042,
+      "sha256": "30fe34896bbe16c86ec1c5a1b812c3a15064aec525fc99165f9b4e0ee250cf97"
+    },
+    {
+      "path": "raw-logs/test-ext-web-120397294328.log.txt",
+      "bytes": 97483,
+      "sha256": "82c8a9c692d3c413ef04f98ebe25bca005c38573e809513313ada49b014d9645"
+    },
+    {
+      "path": "raw-logs/wasm-real-link-120397294336.log.txt",
+      "bytes": 88224,
+      "sha256": "2a0d0fd5f4ec99ad317fc910f05e734acc3540a7b2462224e8b2980548843693"
+    }
+  ],
+  "raw_artifacts": [
+    {
+      "path": "raw-artifacts/rust-tests-heavy-listing.zip",
+      "bytes": 174,
+      "sha256": "1a6744b63efe1f839bcbfee70f0d35c8a9e3086d0159bc6533dc22e6e1f2d4e8"
+    },
+    {
+      "path": "raw-artifacts/rust-tests-heavy-terminal.zip",
+      "bytes": 3957,
+      "sha256": "e2262975f5b6d80c81eb3c9372ef2ed9777334ed56b62ef6dc18f95c5432ddaa"
+    },
+    {
+      "path": "raw-artifacts/rust-tests-listing-5-5.zip",
+      "bytes": 152,
+      "sha256": "fce9f67a1d4ee95caed2d853f4d5617edc8deca02508de5e0c6bb8390f52c84c"
+    },
+    {
+      "path": "raw-artifacts/rust-tests-terminal-2-5.zip",
+      "bytes": 6246,
+      "sha256": "2d70ca9a17691a4838d0b0ff2b5410b11043f1184bfb3b6c6a177f155c429847"
+    },
+    {
+      "path": "raw-artifacts/rust-tests-terminal-3-5.zip",
+      "bytes": 6247,
+      "sha256": "73c063be484078f7d7538c8d7bb5831546f5520617151fac006e6432edacf240"
+    },
+    {
+      "path": "raw-artifacts/rust-tests-terminal-4-5.zip",
+      "bytes": 5957,
+      "sha256": "205b82db696d5c4d1efc4f80789636ffbf7a6b50db4c333dc3394c9708ef9fec"
+    },
+    {
+      "path": "raw-artifacts/rust-tests-terminal-5-5.zip",
+      "bytes": 6195,
+      "sha256": "61fc28a85ba58f7d865e0a46cd2736baaa2c52b796adb91a8a42dc8487aba7c4"
+    }
+  ],
+  "scope": "Observation only; incomplete captures cannot establish zero regressions or a CI pass."
+}

@@ -1,0 +1,963 @@
+﻿2026-10-23T11:47:43.0828275Z Current runner version: '2.338.0'
+2026-10-23T11:47:43.0854878Z ##[group]Runner Image Provisioner
+2026-10-23T11:47:43.0855780Z Hosted Compute Agent
+2026-10-23T11:47:43.0856398Z Version: 20261012.601
+2026-10-23T11:47:43.0857187Z Commit: f3dc54e1fb89da6852db922499a0233137369e1d
+2026-10-23T11:47:43.0857915Z Build Date: 2026-10-12T17:48:21Z
+2026-10-23T11:47:43.0858638Z Worker ID: {e1e61861-5dde-4334-9325-54de0c78861e}
+2026-10-23T11:47:43.0859397Z Region: southcentralus
+2026-10-23T11:47:43.0859990Z Cloud: Azure
+2026-10-23T11:47:43.0860977Z ##[endgroup]
+2026-10-23T11:47:43.0863295Z ##[group]Operating System
+2026-10-23T11:47:43.0863947Z Ubuntu
+2026-10-23T11:47:43.0864579Z 26.04.1
+2026-10-23T11:47:43.0865099Z LTS
+2026-10-23T11:47:43.0865651Z ##[endgroup]
+2026-10-23T11:47:43.0866329Z ##[group]Runner Image
+2026-10-23T11:47:43.0866942Z Image: ubuntu-26.04
+2026-10-23T11:47:43.0867608Z Version: 20261012.163.1
+2026-10-23T11:47:43.0868848Z Included Software: https://github.com/actions/runner-images/blob/ubuntu26/20261012.163/images/ubuntu/Ubuntu2604-Readme.md
+2026-10-23T11:47:43.0870620Z Image Release: https://github.com/actions/runner-images/releases/tag/ubuntu26%2F20261012.163
+2026-10-23T11:47:43.0871578Z ##[endgroup]
+2026-10-23T11:47:43.0873254Z ##[group]GITHUB_TOKEN Permissions
+2026-10-23T11:47:43.0876045Z Contents: read
+2026-10-23T11:47:43.0876853Z Metadata: read
+2026-10-23T11:47:43.0877423Z ##[endgroup]
+2026-10-23T11:47:43.0879810Z Secret source: Actions
+2026-10-23T11:47:43.0880822Z Cache mode: write
+2026-10-23T11:47:43.0882127Z Prepare workflow directory
+2026-10-23T11:47:43.1235875Z Prepare all required actions
+2026-10-23T11:47:43.1287909Z Getting action download info
+2026-10-23T11:47:43.4311598Z Download action repository 'actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1' (SHA:3d3c42e5aac5ba805825da76410c181273ba90b1)
+2026-10-23T11:47:43.5343303Z Download action repository 'actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f' (SHA:ecabd13d1c56bd1345c230e542e9144811ad706f)
+2026-10-23T11:47:43.7198724Z Download action repository 'actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9' (SHA:cf430e030ddbb5b0abf93d22962f4752f3646cd9)
+2026-10-23T11:47:44.2967966Z Getting action download info
+2026-10-23T11:47:44.4078447Z Download action repository 'Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6' (SHA:6323deb102c322ba6fcbdcafc7e3dddab59af2b6)
+2026-10-23T11:47:44.9396114Z Complete job name: Paired small / linux
+2026-10-23T11:47:45.0372779Z ##[group]Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+2026-10-23T11:47:45.0374662Z with:
+2026-10-23T11:47:45.0375574Z   ref: fcb7927f02b5395753247b322fdd7be87ae5c731
+2026-10-23T11:47:45.0376764Z   path: baseline
+2026-10-23T11:47:45.0377678Z   persist-credentials: false
+2026-10-23T11:47:45.0378736Z   repository: bitwisecook/tcl-lsp
+2026-10-23T11:47:45.0388206Z   token: ***
+2026-10-23T11:47:45.0389073Z   ssh-strict: true
+2026-10-23T11:47:45.0389963Z   ssh-user: git
+2026-10-23T11:47:45.0390803Z   clean: true
+2026-10-23T11:47:45.0391740Z   sparse-checkout-cone-mode: true
+2026-10-23T11:47:45.0482745Z   fetch-depth: 1
+2026-10-23T11:47:45.0484817Z   fetch-tags: false
+2026-10-23T11:47:45.0486413Z   show-progress: true
+2026-10-23T11:47:45.0487908Z   lfs: false
+2026-10-23T11:47:45.0489284Z   submodules: false
+2026-10-23T11:47:45.0490930Z   set-safe-directory: true
+2026-10-23T11:47:45.0492914Z   allow-unsafe-pr-checkout: false
+2026-10-23T11:47:45.0495311Z ##[endgroup]
+2026-10-23T11:47:45.1726204Z Syncing repository: bitwisecook/tcl-lsp
+2026-10-23T11:47:45.1731122Z ##[group]Getting Git version info
+2026-10-23T11:47:45.1734256Z Working directory is '/home/runner/work/tcl-lsp/tcl-lsp/baseline'
+2026-10-23T11:47:45.1738620Z [command]/usr/bin/git version
+2026-10-23T11:47:45.1740726Z git version 2.55.0
+2026-10-23T11:47:45.1786807Z ##[endgroup]
+2026-10-23T11:47:45.1805464Z Temporarily overriding HOME='/home/runner/work/_temp/46e31c8f-699f-4d91-851e-18e1b69e61d9' before making global git config changes
+2026-10-23T11:47:45.1809962Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-23T11:47:45.1814417Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/tcl-lsp/tcl-lsp/baseline
+2026-10-23T11:47:45.1849449Z ##[group]Determining repository object format
+2026-10-23T11:47:45.1852982Z ##[endgroup]
+2026-10-23T11:47:45.1855793Z ##[group]Initializing the repository
+2026-10-23T11:47:45.1858739Z [command]/usr/bin/git init /home/runner/work/tcl-lsp/tcl-lsp/baseline
+2026-10-23T11:47:45.2005046Z hint: Using 'master' as the name for the initial branch. This default branch name
+2026-10-23T11:47:45.2014451Z hint: will change to "main" in Git 3.0. To configure the initial branch name
+2026-10-23T11:47:45.2024591Z hint: to use in all of your new repositories, which will suppress this warning,
+2026-10-23T11:47:45.2027704Z hint: call:
+2026-10-23T11:47:45.2029319Z hint:
+2026-10-23T11:47:45.2031105Z hint: 	git config --global init.defaultBranch <name>
+2026-10-23T11:47:45.2034166Z hint:
+2026-10-23T11:47:45.2036049Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+2026-10-23T11:47:45.2038937Z hint: 'development'. The just-created branch can be renamed via this command:
+2026-10-23T11:47:45.2041239Z hint:
+2026-10-23T11:47:45.2043049Z hint: 	git branch -m <name>
+2026-10-23T11:47:45.2044714Z hint:
+2026-10-23T11:47:45.2046749Z hint: Disable this message with "git config set advice.defaultBranchName false"
+2026-10-23T11:47:45.2050146Z Initialized empty Git repository in /home/runner/work/tcl-lsp/tcl-lsp/baseline/.git/
+2026-10-23T11:47:45.2057264Z [command]/usr/bin/git remote add origin https://github.com/bitwisecook/tcl-lsp
+2026-10-23T11:47:45.2109671Z ##[endgroup]
+2026-10-23T11:47:45.2111345Z ##[group]Disabling automatic garbage collection
+2026-10-23T11:47:45.2113492Z [command]/usr/bin/git config --local gc.auto 0
+2026-10-23T11:47:45.2160763Z ##[endgroup]
+2026-10-23T11:47:45.2164511Z ##[group]Setting up auth
+2026-10-23T11:47:45.2166587Z Removing SSH command configuration
+2026-10-23T11:47:45.2169270Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-23T11:47:45.2218931Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-23T11:47:45.2708996Z Removing HTTP extra header
+2026-10-23T11:47:45.2716527Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-23T11:47:45.2751969Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-23T11:47:45.3025635Z Removing includeIf entries pointing to credentials config files
+2026-10-23T11:47:45.3030525Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-23T11:47:45.3066548Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-23T11:47:45.3354803Z [command]/usr/bin/git config --file /home/runner/work/_temp/git-credentials-ffa07208-f449-447f-9f4b-68decd5010c2.config http.https://github.com/.extraheader AUTHORIZATION: basic ***
+2026-10-23T11:47:45.3411959Z [command]/usr/bin/git config --local includeIf.gitdir:/home/runner/work/tcl-lsp/tcl-lsp/baseline/.git.path /home/runner/work/_temp/git-credentials-ffa07208-f449-447f-9f4b-68decd5010c2.config
+2026-10-23T11:47:45.3460458Z [command]/usr/bin/git config --local includeIf.gitdir:/home/runner/work/tcl-lsp/tcl-lsp/baseline/.git/worktrees/*.path /home/runner/work/_temp/git-credentials-ffa07208-f449-447f-9f4b-68decd5010c2.config
+2026-10-23T11:47:45.3501677Z [command]/usr/bin/git config --local includeIf.gitdir:/github/workspace/baseline/.git.path /github/runner_temp/git-credentials-ffa07208-f449-447f-9f4b-68decd5010c2.config
+2026-10-23T11:47:45.3535030Z [command]/usr/bin/git config --local includeIf.gitdir:/github/workspace/baseline/.git/worktrees/*.path /github/runner_temp/git-credentials-ffa07208-f449-447f-9f4b-68decd5010c2.config
+2026-10-23T11:47:45.3566381Z ##[endgroup]
+2026-10-23T11:47:45.3568397Z ##[group]Fetching the repository
+2026-10-23T11:47:45.3572805Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin fcb7927f02b5395753247b322fdd7be87ae5c731
+2026-10-23T11:47:50.1379326Z From https://github.com/bitwisecook/tcl-lsp
+2026-10-23T11:47:50.1387228Z  * branch            fcb7927f02b5395753247b322fdd7be87ae5c731 -> FETCH_HEAD
+2026-10-23T11:47:50.1394500Z [command]/usr/bin/git rev-parse --verify --quiet fcb7927f02b5395753247b322fdd7be87ae5c731^{object}
+2026-10-23T11:47:50.1416644Z fcb7927f02b5395753247b322fdd7be87ae5c731
+2026-10-23T11:47:50.1421667Z ##[endgroup]
+2026-10-23T11:47:50.1422486Z ##[group]Determining the checkout info
+2026-10-23T11:47:50.1425887Z ##[endgroup]
+2026-10-23T11:47:50.1426634Z [command]/usr/bin/git sparse-checkout disable
+2026-10-23T11:47:50.1479875Z [command]/usr/bin/git config --local --unset-all extensions.worktreeConfig
+2026-10-23T11:47:50.1515920Z ##[group]Checking out the ref
+2026-10-23T11:47:50.1516562Z [command]/usr/bin/git checkout --progress --force fcb7927f02b5395753247b322fdd7be87ae5c731
+2026-10-23T11:47:50.8388522Z Note: switching to 'fcb7927f02b5395753247b322fdd7be87ae5c731'.
+2026-10-23T11:47:50.8389077Z 
+2026-10-23T11:47:50.8389471Z You are in 'detached HEAD' state. You can look around, make experimental
+2026-10-23T11:47:50.8390365Z changes and commit them, and you can discard any commits you make in this
+2026-10-23T11:47:50.8391252Z state without impacting any branches by switching back to a branch.
+2026-10-23T11:47:50.8391725Z 
+2026-10-23T11:47:50.8392043Z If you want to create a new branch to retain commits you create, you may
+2026-10-23T11:47:50.8393113Z do so (now or later) by using -c with the switch command. Example:
+2026-10-23T11:47:50.8393701Z 
+2026-10-23T11:47:50.8393886Z   git switch -c <new-branch-name>
+2026-10-23T11:47:50.8394262Z 
+2026-10-23T11:47:50.8394497Z Or undo this operation with:
+2026-10-23T11:47:50.8394776Z 
+2026-10-23T11:47:50.8394926Z   git switch -
+2026-10-23T11:47:50.8395134Z 
+2026-10-23T11:47:50.8395521Z Turn off this advice by setting config variable advice.detachedHead to false
+2026-10-23T11:47:50.8396080Z 
+2026-10-23T11:47:50.8397030Z HEAD is now at fcb7927 tclvm: nested-error errorInfo levels per release; lsp: the first workspace query's scan budget (#2487)
+2026-10-23T11:47:50.8414313Z ##[endgroup]
+2026-10-23T11:47:50.8467162Z [command]/usr/bin/git log -1 --format=%H
+2026-10-23T11:47:50.8495636Z fcb7927f02b5395753247b322fdd7be87ae5c731
+2026-10-23T11:47:50.8504854Z ##[group]Removing auth
+2026-10-23T11:47:50.8505359Z Removing SSH command configuration
+2026-10-23T11:47:50.8508565Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-23T11:47:50.8540736Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-23T11:47:50.8836858Z Removing HTTP extra header
+2026-10-23T11:47:50.8841824Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-23T11:47:50.8882079Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-23T11:47:50.9170611Z Removing includeIf entries pointing to credentials config files
+2026-10-23T11:47:50.9174347Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-23T11:47:50.9201901Z includeif.gitdir:/home/runner/work/tcl-lsp/tcl-lsp/baseline/.git.path
+2026-10-23T11:47:50.9203441Z includeif.gitdir:/home/runner/work/tcl-lsp/tcl-lsp/baseline/.git/worktrees/*.path
+2026-10-23T11:47:50.9204931Z includeif.gitdir:/github/workspace/baseline/.git.path
+2026-10-23T11:47:50.9206582Z includeif.gitdir:/github/workspace/baseline/.git/worktrees/*.path
+2026-10-23T11:47:50.9224919Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/tcl-lsp/tcl-lsp/baseline/.git.path
+2026-10-23T11:47:50.9252893Z /home/runner/work/_temp/git-credentials-ffa07208-f449-447f-9f4b-68decd5010c2.config
+2026-10-23T11:47:50.9265033Z [command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/tcl-lsp/tcl-lsp/baseline/.git.path \/home\/runner\/work\/_temp\/git\-credentials\-ffa07208\-f449\-447f\-9f4b\-68decd5010c2\.config
+2026-10-23T11:47:50.9306729Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/tcl-lsp/tcl-lsp/baseline/.git/worktrees/*.path
+2026-10-23T11:47:50.9336947Z /home/runner/work/_temp/git-credentials-ffa07208-f449-447f-9f4b-68decd5010c2.config
+2026-10-23T11:47:50.9349693Z [command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/tcl-lsp/tcl-lsp/baseline/.git/worktrees/*.path \/home\/runner\/work\/_temp\/git\-credentials\-ffa07208\-f449\-447f\-9f4b\-68decd5010c2\.config
+2026-10-23T11:47:50.9391539Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/baseline/.git.path
+2026-10-23T11:47:50.9436864Z /github/runner_temp/git-credentials-ffa07208-f449-447f-9f4b-68decd5010c2.config
+2026-10-23T11:47:50.9454666Z [command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/baseline/.git.path \/github\/runner_temp\/git\-credentials\-ffa07208\-f449\-447f\-9f4b\-68decd5010c2\.config
+2026-10-23T11:47:50.9490440Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/baseline/.git/worktrees/*.path
+2026-10-23T11:47:50.9517129Z /github/runner_temp/git-credentials-ffa07208-f449-447f-9f4b-68decd5010c2.config
+2026-10-23T11:47:50.9525676Z [command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/baseline/.git/worktrees/*.path \/github\/runner_temp\/git\-credentials\-ffa07208\-f449\-447f\-9f4b\-68decd5010c2\.config
+2026-10-23T11:47:50.9567784Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-23T11:47:50.9848143Z Removing credentials config '/home/runner/work/_temp/git-credentials-ffa07208-f449-447f-9f4b-68decd5010c2.config'
+2026-10-23T11:47:50.9859316Z ##[endgroup]
+2026-10-23T11:47:51.0132884Z ##[group]Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+2026-10-23T11:47:51.0133303Z with:
+2026-10-23T11:47:51.0133534Z   ref: c611d8bd716e9ae3719bfc0beeedd8f24b53e64e
+2026-10-23T11:47:51.0133828Z   path: candidate
+2026-10-23T11:47:51.0134050Z   persist-credentials: false
+2026-10-23T11:47:51.0134315Z   repository: bitwisecook/tcl-lsp
+2026-10-23T11:47:51.0136978Z   token: ***
+2026-10-23T11:47:51.0137179Z   ssh-strict: true
+2026-10-23T11:47:51.0137379Z   ssh-user: git
+2026-10-23T11:47:51.0137568Z   clean: true
+2026-10-23T11:47:51.0137781Z   sparse-checkout-cone-mode: true
+2026-10-23T11:47:51.0138034Z   fetch-depth: 1
+2026-10-23T11:47:51.0138267Z   fetch-tags: false
+2026-10-23T11:47:51.0138472Z   show-progress: true
+2026-10-23T11:47:51.0138679Z   lfs: false
+2026-10-23T11:47:51.0138864Z   submodules: false
+2026-10-23T11:47:51.0139070Z   set-safe-directory: true
+2026-10-23T11:47:51.0139319Z   allow-unsafe-pr-checkout: false
+2026-10-23T11:47:51.0139581Z ##[endgroup]
+2026-10-23T11:47:51.0986607Z Syncing repository: bitwisecook/tcl-lsp
+2026-10-23T11:47:51.0992813Z ##[group]Getting Git version info
+2026-10-23T11:47:51.0993529Z Working directory is '/home/runner/work/tcl-lsp/tcl-lsp/candidate'
+2026-10-23T11:47:51.1046905Z [command]/usr/bin/git version
+2026-10-23T11:47:51.1093989Z git version 2.55.0
+2026-10-23T11:47:51.1116114Z ##[endgroup]
+2026-10-23T11:47:51.1127164Z Temporarily overriding HOME='/home/runner/work/_temp/04d337ef-f8a3-4d8c-a0d1-f2e3f2465d28' before making global git config changes
+2026-10-23T11:47:51.1128569Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-23T11:47:51.1132495Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/tcl-lsp/tcl-lsp/candidate
+2026-10-23T11:47:51.1170977Z ##[group]Determining repository object format
+2026-10-23T11:47:51.1172940Z ##[endgroup]
+2026-10-23T11:47:51.1173615Z ##[group]Initializing the repository
+2026-10-23T11:47:51.1177180Z [command]/usr/bin/git init /home/runner/work/tcl-lsp/tcl-lsp/candidate
+2026-10-23T11:47:51.1238513Z hint: Using 'master' as the name for the initial branch. This default branch name
+2026-10-23T11:47:51.1244714Z hint: will change to "main" in Git 3.0. To configure the initial branch name
+2026-10-23T11:47:51.1247282Z hint: to use in all of your new repositories, which will suppress this warning,
+2026-10-23T11:47:51.1247874Z hint: call:
+2026-10-23T11:47:51.1248222Z hint:
+2026-10-23T11:47:51.1248631Z hint: 	git config --global init.defaultBranch <name>
+2026-10-23T11:47:51.1249105Z hint:
+2026-10-23T11:47:51.1249555Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+2026-10-23T11:47:51.1250657Z hint: 'development'. The just-created branch can be renamed via this command:
+2026-10-23T11:47:51.1251583Z hint:
+2026-10-23T11:47:51.1251968Z hint: 	git branch -m <name>
+2026-10-23T11:47:51.1252667Z hint:
+2026-10-23T11:47:51.1253188Z hint: Disable this message with "git config set advice.defaultBranchName false"
+2026-10-23T11:47:51.1253952Z Initialized empty Git repository in /home/runner/work/tcl-lsp/tcl-lsp/candidate/.git/
+2026-10-23T11:47:51.1255499Z [command]/usr/bin/git remote add origin https://github.com/bitwisecook/tcl-lsp
+2026-10-23T11:47:51.1297117Z ##[endgroup]
+2026-10-23T11:47:51.1297750Z ##[group]Disabling automatic garbage collection
+2026-10-23T11:47:51.1301422Z [command]/usr/bin/git config --local gc.auto 0
+2026-10-23T11:47:51.1338433Z ##[endgroup]
+2026-10-23T11:47:51.1339020Z ##[group]Setting up auth
+2026-10-23T11:47:51.1339462Z Removing SSH command configuration
+2026-10-23T11:47:51.1345763Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-23T11:47:51.1384300Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-23T11:47:51.1703008Z Removing HTTP extra header
+2026-10-23T11:47:51.1708445Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-23T11:47:51.1762106Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-23T11:47:51.2057147Z Removing includeIf entries pointing to credentials config files
+2026-10-23T11:47:51.2063443Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-23T11:47:51.2097211Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-23T11:47:51.2381917Z [command]/usr/bin/git config --file /home/runner/work/_temp/git-credentials-12f6c93f-c0bf-48ef-b562-e85093333ea5.config http.https://github.com/.extraheader AUTHORIZATION: basic ***
+2026-10-23T11:47:51.2420434Z [command]/usr/bin/git config --local includeIf.gitdir:/home/runner/work/tcl-lsp/tcl-lsp/candidate/.git.path /home/runner/work/_temp/git-credentials-12f6c93f-c0bf-48ef-b562-e85093333ea5.config
+2026-10-23T11:47:51.2453293Z [command]/usr/bin/git config --local includeIf.gitdir:/home/runner/work/tcl-lsp/tcl-lsp/candidate/.git/worktrees/*.path /home/runner/work/_temp/git-credentials-12f6c93f-c0bf-48ef-b562-e85093333ea5.config
+2026-10-23T11:47:51.2490037Z [command]/usr/bin/git config --local includeIf.gitdir:/github/workspace/candidate/.git.path /github/runner_temp/git-credentials-12f6c93f-c0bf-48ef-b562-e85093333ea5.config
+2026-10-23T11:47:51.2522619Z [command]/usr/bin/git config --local includeIf.gitdir:/github/workspace/candidate/.git/worktrees/*.path /github/runner_temp/git-credentials-12f6c93f-c0bf-48ef-b562-e85093333ea5.config
+2026-10-23T11:47:51.2552745Z ##[endgroup]
+2026-10-23T11:47:51.2553348Z ##[group]Fetching the repository
+2026-10-23T11:47:51.2560232Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin c611d8bd716e9ae3719bfc0beeedd8f24b53e64e
+2026-10-23T11:47:57.9702913Z From https://github.com/bitwisecook/tcl-lsp
+2026-10-23T11:47:57.9703626Z  * branch            c611d8bd716e9ae3719bfc0beeedd8f24b53e64e -> FETCH_HEAD
+2026-10-23T11:47:57.9713980Z [command]/usr/bin/git rev-parse --verify --quiet c611d8bd716e9ae3719bfc0beeedd8f24b53e64e^{object}
+2026-10-23T11:47:57.9743224Z c611d8bd716e9ae3719bfc0beeedd8f24b53e64e
+2026-10-23T11:47:57.9749035Z ##[endgroup]
+2026-10-23T11:47:57.9749747Z ##[group]Determining the checkout info
+2026-10-23T11:47:57.9750479Z ##[endgroup]
+2026-10-23T11:47:57.9754245Z [command]/usr/bin/git sparse-checkout disable
+2026-10-23T11:47:57.9797334Z [command]/usr/bin/git config --local --unset-all extensions.worktreeConfig
+2026-10-23T11:47:57.9828239Z ##[group]Checking out the ref
+2026-10-23T11:47:57.9833780Z [command]/usr/bin/git checkout --progress --force c611d8bd716e9ae3719bfc0beeedd8f24b53e64e
+2026-10-23T11:47:58.9983689Z Updating files:  92% (10164/10973)
+2026-10-23T11:47:59.0028369Z Updating files:  93% (10205/10973)
+2026-10-23T11:47:59.0072977Z Updating files:  94% (10315/10973)
+2026-10-23T11:47:59.0109148Z Updating files:  95% (10425/10973)
+2026-10-23T11:47:59.0146428Z Updating files:  96% (10535/10973)
+2026-10-23T11:47:59.0180619Z Updating files:  97% (10644/10973)
+2026-10-23T11:47:59.0240159Z Updating files:  98% (10754/10973)
+2026-10-23T11:47:59.0396430Z Updating files:  99% (10864/10973)
+2026-10-23T11:47:59.0397487Z Updating files: 100% (10973/10973)
+2026-10-23T11:47:59.0398023Z Updating files: 100% (10973/10973), done.
+2026-10-23T11:47:59.0522601Z Note: switching to 'c611d8bd716e9ae3719bfc0beeedd8f24b53e64e'.
+2026-10-23T11:47:59.0523297Z 
+2026-10-23T11:47:59.0523745Z You are in 'detached HEAD' state. You can look around, make experimental
+2026-10-23T11:47:59.0524597Z changes and commit them, and you can discard any commits you make in this
+2026-10-23T11:47:59.0525324Z state without impacting any branches by switching back to a branch.
+2026-10-23T11:47:59.0525757Z 
+2026-10-23T11:47:59.0526339Z If you want to create a new branch to retain commits you create, you may
+2026-10-23T11:47:59.0527021Z do so (now or later) by using -c with the switch command. Example:
+2026-10-23T11:47:59.0527422Z 
+2026-10-23T11:47:59.0527576Z   git switch -c <new-branch-name>
+2026-10-23T11:47:59.0527790Z 
+2026-10-23T11:47:59.0527907Z Or undo this operation with:
+2026-10-23T11:47:59.0528095Z 
+2026-10-23T11:47:59.0528196Z   git switch -
+2026-10-23T11:47:59.0528334Z 
+2026-10-23T11:47:59.0528564Z Turn off this advice by setting config variable advice.detachedHead to false
+2026-10-23T11:47:59.0528898Z 
+2026-10-23T11:47:59.0529110Z HEAD is now at c611d8b Repair release cleanup and update advisory lockfiles
+2026-10-23T11:47:59.0553472Z ##[endgroup]
+2026-10-23T11:47:59.0602692Z [command]/usr/bin/git log -1 --format=%H
+2026-10-23T11:47:59.0633401Z c611d8bd716e9ae3719bfc0beeedd8f24b53e64e
+2026-10-23T11:47:59.0642964Z ##[group]Removing auth
+2026-10-23T11:47:59.0643260Z Removing SSH command configuration
+2026-10-23T11:47:59.0646930Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-23T11:47:59.0681185Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-23T11:47:59.0980376Z Removing HTTP extra header
+2026-10-23T11:47:59.0985405Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-23T11:47:59.1019346Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-23T11:47:59.1308070Z Removing includeIf entries pointing to credentials config files
+2026-10-23T11:47:59.1311310Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-23T11:47:59.1340926Z includeif.gitdir:/home/runner/work/tcl-lsp/tcl-lsp/candidate/.git.path
+2026-10-23T11:47:59.1342589Z includeif.gitdir:/home/runner/work/tcl-lsp/tcl-lsp/candidate/.git/worktrees/*.path
+2026-10-23T11:47:59.1343757Z includeif.gitdir:/github/workspace/candidate/.git.path
+2026-10-23T11:47:59.1344728Z includeif.gitdir:/github/workspace/candidate/.git/worktrees/*.path
+2026-10-23T11:47:59.1351605Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/tcl-lsp/tcl-lsp/candidate/.git.path
+2026-10-23T11:47:59.1377101Z /home/runner/work/_temp/git-credentials-12f6c93f-c0bf-48ef-b562-e85093333ea5.config
+2026-10-23T11:47:59.1386523Z [command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/tcl-lsp/tcl-lsp/candidate/.git.path \/home\/runner\/work\/_temp\/git\-credentials\-12f6c93f\-c0bf\-48ef\-b562\-e85093333ea5\.config
+2026-10-23T11:47:59.1421547Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/tcl-lsp/tcl-lsp/candidate/.git/worktrees/*.path
+2026-10-23T11:47:59.1444531Z /home/runner/work/_temp/git-credentials-12f6c93f-c0bf-48ef-b562-e85093333ea5.config
+2026-10-23T11:47:59.1453059Z [command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/tcl-lsp/tcl-lsp/candidate/.git/worktrees/*.path \/home\/runner\/work\/_temp\/git\-credentials\-12f6c93f\-c0bf\-48ef\-b562\-e85093333ea5\.config
+2026-10-23T11:47:59.1487910Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/candidate/.git.path
+2026-10-23T11:47:59.1515150Z /github/runner_temp/git-credentials-12f6c93f-c0bf-48ef-b562-e85093333ea5.config
+2026-10-23T11:47:59.1524359Z [command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/candidate/.git.path \/github\/runner_temp\/git\-credentials\-12f6c93f\-c0bf\-48ef\-b562\-e85093333ea5\.config
+2026-10-23T11:47:59.1566130Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/candidate/.git/worktrees/*.path
+2026-10-23T11:47:59.1589221Z /github/runner_temp/git-credentials-12f6c93f-c0bf-48ef-b562-e85093333ea5.config
+2026-10-23T11:47:59.1597752Z [command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/candidate/.git/worktrees/*.path \/github\/runner_temp\/git\-credentials\-12f6c93f\-c0bf\-48ef\-b562\-e85093333ea5\.config
+2026-10-23T11:47:59.1631925Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-23T11:47:59.1915750Z Removing credentials config '/home/runner/work/_temp/git-credentials-12f6c93f-c0bf-48ef-b562-e85093333ea5.config'
+2026-10-23T11:47:59.1926967Z ##[endgroup]
+2026-10-23T11:47:59.2117490Z ##[group]Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+2026-10-23T11:47:59.2117899Z with:
+2026-10-23T11:47:59.2118133Z   ref: c611d8bd716e9ae3719bfc0beeedd8f24b53e64e
+2026-10-23T11:47:59.2118445Z   path: harness
+2026-10-23T11:47:59.2118656Z   persist-credentials: false
+2026-10-23T11:47:59.2118912Z   repository: bitwisecook/tcl-lsp
+2026-10-23T11:47:59.2121505Z   token: ***
+2026-10-23T11:47:59.2121716Z   ssh-strict: true
+2026-10-23T11:47:59.2121923Z   ssh-user: git
+2026-10-23T11:47:59.2122114Z   clean: true
+2026-10-23T11:47:59.2122563Z   sparse-checkout-cone-mode: true
+2026-10-23T11:47:59.2122824Z   fetch-depth: 1
+2026-10-23T11:47:59.2123022Z   fetch-tags: false
+2026-10-23T11:47:59.2123237Z   show-progress: true
+2026-10-23T11:47:59.2123443Z   lfs: false
+2026-10-23T11:47:59.2123625Z   submodules: false
+2026-10-23T11:47:59.2123832Z   set-safe-directory: true
+2026-10-23T11:47:59.2124086Z   allow-unsafe-pr-checkout: false
+2026-10-23T11:47:59.2124350Z ##[endgroup]
+2026-10-23T11:47:59.2954957Z Syncing repository: bitwisecook/tcl-lsp
+2026-10-23T11:47:59.2973680Z ##[group]Getting Git version info
+2026-10-23T11:47:59.2977978Z Working directory is '/home/runner/work/tcl-lsp/tcl-lsp/harness'
+2026-10-23T11:47:59.3010609Z [command]/usr/bin/git version
+2026-10-23T11:47:59.3070738Z git version 2.55.0
+2026-10-23T11:47:59.3096385Z ##[endgroup]
+2026-10-23T11:47:59.3107876Z Temporarily overriding HOME='/home/runner/work/_temp/8b59f4e0-42fd-43a5-906d-17fe95baa370' before making global git config changes
+2026-10-23T11:47:59.3108822Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-23T11:47:59.3113752Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/tcl-lsp/tcl-lsp/harness
+2026-10-23T11:47:59.3161681Z ##[group]Determining repository object format
+2026-10-23T11:47:59.3164532Z ##[endgroup]
+2026-10-23T11:47:59.3165183Z ##[group]Initializing the repository
+2026-10-23T11:47:59.3169338Z [command]/usr/bin/git init /home/runner/work/tcl-lsp/tcl-lsp/harness
+2026-10-23T11:47:59.3217638Z hint: Using 'master' as the name for the initial branch. This default branch name
+2026-10-23T11:47:59.3218897Z hint: will change to "main" in Git 3.0. To configure the initial branch name
+2026-10-23T11:47:59.3220135Z hint: to use in all of your new repositories, which will suppress this warning,
+2026-10-23T11:47:59.3221045Z hint: call:
+2026-10-23T11:47:59.3221587Z hint:
+2026-10-23T11:47:59.3222511Z hint: 	git config --global init.defaultBranch <name>
+2026-10-23T11:47:59.3223387Z hint:
+2026-10-23T11:47:59.3224170Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+2026-10-23T11:47:59.3225764Z hint: 'development'. The just-created branch can be renamed via this command:
+2026-10-23T11:47:59.3226779Z hint:
+2026-10-23T11:47:59.3227458Z hint: 	git branch -m <name>
+2026-10-23T11:47:59.3228050Z hint:
+2026-10-23T11:47:59.3228775Z hint: Disable this message with "git config set advice.defaultBranchName false"
+2026-10-23T11:47:59.3229960Z Initialized empty Git repository in /home/runner/work/tcl-lsp/tcl-lsp/harness/.git/
+2026-10-23T11:47:59.3234196Z [command]/usr/bin/git remote add origin https://github.com/bitwisecook/tcl-lsp
+2026-10-23T11:47:59.3277594Z ##[endgroup]
+2026-10-23T11:47:59.3278437Z ##[group]Disabling automatic garbage collection
+2026-10-23T11:47:59.3280802Z [command]/usr/bin/git config --local gc.auto 0
+2026-10-23T11:47:59.3321300Z ##[endgroup]
+2026-10-23T11:47:59.3321920Z ##[group]Setting up auth
+2026-10-23T11:47:59.3322678Z Removing SSH command configuration
+2026-10-23T11:47:59.3328827Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-23T11:47:59.3365505Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-23T11:47:59.3679852Z Removing HTTP extra header
+2026-10-23T11:47:59.3686965Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-23T11:47:59.3739076Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-23T11:47:59.4018670Z Removing includeIf entries pointing to credentials config files
+2026-10-23T11:47:59.4025077Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-23T11:47:59.4061113Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-23T11:47:59.4344905Z [command]/usr/bin/git config --file /home/runner/work/_temp/git-credentials-2a157f86-287c-404f-9da2-aaa6d97c262a.config http.https://github.com/.extraheader AUTHORIZATION: basic ***
+2026-10-23T11:47:59.4387521Z [command]/usr/bin/git config --local includeIf.gitdir:/home/runner/work/tcl-lsp/tcl-lsp/harness/.git.path /home/runner/work/_temp/git-credentials-2a157f86-287c-404f-9da2-aaa6d97c262a.config
+2026-10-23T11:47:59.4420293Z [command]/usr/bin/git config --local includeIf.gitdir:/home/runner/work/tcl-lsp/tcl-lsp/harness/.git/worktrees/*.path /home/runner/work/_temp/git-credentials-2a157f86-287c-404f-9da2-aaa6d97c262a.config
+2026-10-23T11:47:59.4454224Z [command]/usr/bin/git config --local includeIf.gitdir:/github/workspace/harness/.git.path /github/runner_temp/git-credentials-2a157f86-287c-404f-9da2-aaa6d97c262a.config
+2026-10-23T11:47:59.4491149Z [command]/usr/bin/git config --local includeIf.gitdir:/github/workspace/harness/.git/worktrees/*.path /github/runner_temp/git-credentials-2a157f86-287c-404f-9da2-aaa6d97c262a.config
+2026-10-23T11:47:59.4522855Z ##[endgroup]
+2026-10-23T11:47:59.4523243Z ##[group]Fetching the repository
+2026-10-23T11:47:59.4529870Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin c611d8bd716e9ae3719bfc0beeedd8f24b53e64e
+2026-10-23T11:48:06.0532594Z From https://github.com/bitwisecook/tcl-lsp
+2026-10-23T11:48:06.0533318Z  * branch            c611d8bd716e9ae3719bfc0beeedd8f24b53e64e -> FETCH_HEAD
+2026-10-23T11:48:06.0544326Z [command]/usr/bin/git rev-parse --verify --quiet c611d8bd716e9ae3719bfc0beeedd8f24b53e64e^{object}
+2026-10-23T11:48:06.0572831Z c611d8bd716e9ae3719bfc0beeedd8f24b53e64e
+2026-10-23T11:48:06.0577077Z ##[endgroup]
+2026-10-23T11:48:06.0577504Z ##[group]Determining the checkout info
+2026-10-23T11:48:06.0578203Z ##[endgroup]
+2026-10-23T11:48:06.0584373Z [command]/usr/bin/git sparse-checkout disable
+2026-10-23T11:48:06.0631635Z [command]/usr/bin/git config --local --unset-all extensions.worktreeConfig
+2026-10-23T11:48:06.0668249Z ##[group]Checking out the ref
+2026-10-23T11:48:06.0672573Z [command]/usr/bin/git checkout --progress --force c611d8bd716e9ae3719bfc0beeedd8f24b53e64e
+2026-10-23T11:48:07.0835018Z Updating files:  93% (10233/10973)
+2026-10-23T11:48:07.0879192Z Updating files:  94% (10315/10973)
+2026-10-23T11:48:07.0915603Z Updating files:  95% (10425/10973)
+2026-10-23T11:48:07.0952441Z Updating files:  96% (10535/10973)
+2026-10-23T11:48:07.0987525Z Updating files:  97% (10644/10973)
+2026-10-23T11:48:07.1047048Z Updating files:  98% (10754/10973)
+2026-10-23T11:48:07.1204610Z Updating files:  99% (10864/10973)
+2026-10-23T11:48:07.1205173Z Updating files: 100% (10973/10973)
+2026-10-23T11:48:07.1205641Z Updating files: 100% (10973/10973), done.
+2026-10-23T11:48:07.1330730Z Note: switching to 'c611d8bd716e9ae3719bfc0beeedd8f24b53e64e'.
+2026-10-23T11:48:07.1331264Z 
+2026-10-23T11:48:07.1331609Z You are in 'detached HEAD' state. You can look around, make experimental
+2026-10-23T11:48:07.1332628Z changes and commit them, and you can discard any commits you make in this
+2026-10-23T11:48:07.1333428Z state without impacting any branches by switching back to a branch.
+2026-10-23T11:48:07.1333886Z 
+2026-10-23T11:48:07.1334191Z If you want to create a new branch to retain commits you create, you may
+2026-10-23T11:48:07.1335407Z do so (now or later) by using -c with the switch command. Example:
+2026-10-23T11:48:07.1335872Z 
+2026-10-23T11:48:07.1336046Z   git switch -c <new-branch-name>
+2026-10-23T11:48:07.1336335Z 
+2026-10-23T11:48:07.1336505Z Or undo this operation with:
+2026-10-23T11:48:07.1336795Z 
+2026-10-23T11:48:07.1336933Z   git switch -
+2026-10-23T11:48:07.1337137Z 
+2026-10-23T11:48:07.1337483Z Turn off this advice by setting config variable advice.detachedHead to false
+2026-10-23T11:48:07.1337982Z 
+2026-10-23T11:48:07.1338315Z HEAD is now at c611d8b Repair release cleanup and update advisory lockfiles
+2026-10-23T11:48:07.1363075Z ##[endgroup]
+2026-10-23T11:48:07.1408889Z [command]/usr/bin/git log -1 --format=%H
+2026-10-23T11:48:07.1436509Z c611d8bd716e9ae3719bfc0beeedd8f24b53e64e
+2026-10-23T11:48:07.1448914Z ##[group]Removing auth
+2026-10-23T11:48:07.1449305Z Removing SSH command configuration
+2026-10-23T11:48:07.1449736Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-23T11:48:07.1482671Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-23T11:48:07.1776271Z Removing HTTP extra header
+2026-10-23T11:48:07.1780606Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-23T11:48:07.1820119Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-23T11:48:07.2109899Z Removing includeIf entries pointing to credentials config files
+2026-10-23T11:48:07.2114055Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-23T11:48:07.2147112Z includeif.gitdir:/home/runner/work/tcl-lsp/tcl-lsp/harness/.git.path
+2026-10-23T11:48:07.2147802Z includeif.gitdir:/home/runner/work/tcl-lsp/tcl-lsp/harness/.git/worktrees/*.path
+2026-10-23T11:48:07.2148775Z includeif.gitdir:/github/workspace/harness/.git.path
+2026-10-23T11:48:07.2149732Z includeif.gitdir:/github/workspace/harness/.git/worktrees/*.path
+2026-10-23T11:48:07.2158397Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/tcl-lsp/tcl-lsp/harness/.git.path
+2026-10-23T11:48:07.2184791Z /home/runner/work/_temp/git-credentials-2a157f86-287c-404f-9da2-aaa6d97c262a.config
+2026-10-23T11:48:07.2194638Z [command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/tcl-lsp/tcl-lsp/harness/.git.path \/home\/runner\/work\/_temp\/git\-credentials\-2a157f86\-287c\-404f\-9da2\-aaa6d97c262a\.config
+2026-10-23T11:48:07.2231565Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/tcl-lsp/tcl-lsp/harness/.git/worktrees/*.path
+2026-10-23T11:48:07.2256302Z /home/runner/work/_temp/git-credentials-2a157f86-287c-404f-9da2-aaa6d97c262a.config
+2026-10-23T11:48:07.2265727Z [command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/tcl-lsp/tcl-lsp/harness/.git/worktrees/*.path \/home\/runner\/work\/_temp\/git\-credentials\-2a157f86\-287c\-404f\-9da2\-aaa6d97c262a\.config
+2026-10-23T11:48:07.2301968Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/harness/.git.path
+2026-10-23T11:48:07.2328858Z /github/runner_temp/git-credentials-2a157f86-287c-404f-9da2-aaa6d97c262a.config
+2026-10-23T11:48:07.2338602Z [command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/harness/.git.path \/github\/runner_temp\/git\-credentials\-2a157f86\-287c\-404f\-9da2\-aaa6d97c262a\.config
+2026-10-23T11:48:07.2373983Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/harness/.git/worktrees/*.path
+2026-10-23T11:48:07.2397054Z /github/runner_temp/git-credentials-2a157f86-287c-404f-9da2-aaa6d97c262a.config
+2026-10-23T11:48:07.2405944Z [command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/harness/.git/worktrees/*.path \/github\/runner_temp\/git\-credentials\-2a157f86\-287c\-404f\-9da2\-aaa6d97c262a\.config
+2026-10-23T11:48:07.2472103Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-23T11:48:07.2758154Z Removing credentials config '/home/runner/work/_temp/git-credentials-2a157f86-287c-404f-9da2-aaa6d97c262a.config'
+2026-10-23T11:48:07.2768034Z ##[endgroup]
+2026-10-23T11:48:07.3050887Z ##[group]Run actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f
+2026-10-23T11:48:07.3051384Z with:
+2026-10-23T11:48:07.3051584Z   toolchain: stable
+2026-10-23T11:48:07.3051802Z   cache-key: paired-perf
+2026-10-23T11:48:07.3052034Z   build-warnings: deny
+2026-10-23T11:48:07.3052468Z   cache: true
+2026-10-23T11:48:07.3052665Z   cache-on-failure: true
+2026-10-23T11:48:07.3052881Z   cache-bin: true
+2026-10-23T11:48:07.3053093Z   cache-provider: github
+2026-10-23T11:48:07.3053318Z   cache-all-crates: false
+2026-10-23T11:48:07.3053559Z   cache-workspace-crates: false
+2026-10-23T11:48:07.3053801Z   cache-save-if: true
+2026-10-23T11:48:07.3054007Z   cache-targets: true
+2026-10-23T11:48:07.3054205Z   matcher: true
+2026-10-23T11:48:07.3054391Z   override: true
+2026-10-23T11:48:07.3054780Z ##[endgroup]
+2026-10-23T11:48:07.3123839Z ##[start-action display=Unbork mac;id=__actions-rust-lang_setup-rust-toolchain.__run]
+2026-10-23T11:48:07.3142935Z ##[end-action id=__actions-rust-lang_setup-rust-toolchain.__run;outcome=skipped;conclusion=skipped;duration_ms=0]
+2026-10-23T11:48:07.3183048Z ##[start-action display=Run : construct rustup command line;id=__actions-rust-lang_setup-rust-toolchain.flags]
+2026-10-23T11:48:07.3221769Z ##[group]Run : construct rustup command line
+2026-10-23T11:48:07.3222161Z [36;1m: construct rustup command line[0m
+2026-10-23T11:48:07.3222880Z [36;1mecho "targets=$(for t in ${_srt_targets//,/ }; do echo -n ' --target' $t; done)" >> $GITHUB_OUTPUT[0m
+2026-10-23T11:48:07.3223577Z [36;1mecho "components=$(for c in ${_srt_components//,/ }; do echo -n ' --component' $c; done)" >> $GITHUB_OUTPUT[0m
+2026-10-23T11:48:07.3224079Z [36;1mecho "downgrade=" >> $GITHUB_OUTPUT[0m
+2026-10-23T11:48:07.3396649Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2026-10-23T11:48:07.3397064Z env:
+2026-10-23T11:48:07.3397269Z   _srt_targets: 
+2026-10-23T11:48:07.3397489Z   _srt_components: 
+2026-10-23T11:48:07.3397713Z ##[endgroup]
+2026-10-23T11:48:07.3550610Z ##[end-action id=__actions-rust-lang_setup-rust-toolchain.flags;outcome=success;conclusion=success;duration_ms=36]
+2026-10-23T11:48:07.3557299Z ##[start-action display=Setting Environment Variables;id=__actions-rust-lang_setup-rust-toolchain.__run_2]
+2026-10-23T11:48:07.3587060Z ##[group]Run if [[ ! -v CARGO_INCREMENTAL ]]; then
+2026-10-23T11:48:07.3587436Z [36;1mif [[ ! -v CARGO_INCREMENTAL ]]; then[0m
+2026-10-23T11:48:07.3587761Z [36;1m  echo "CARGO_INCREMENTAL=0" >> $GITHUB_ENV[0m
+2026-10-23T11:48:07.3588055Z [36;1mfi[0m
+2026-10-23T11:48:07.3588282Z [36;1mif [[ ! -v CARGO_PROFILE_DEV_DEBUG ]]; then[0m
+2026-10-23T11:48:07.3588616Z [36;1m  echo "CARGO_PROFILE_DEV_DEBUG=0" >> $GITHUB_ENV[0m
+2026-10-23T11:48:07.3588913Z [36;1mfi[0m
+2026-10-23T11:48:07.3589128Z [36;1mif [[ ! -v CARGO_TERM_COLOR ]]; then[0m
+2026-10-23T11:48:07.3589458Z [36;1m  echo "CARGO_TERM_COLOR=always" >> $GITHUB_ENV[0m
+2026-10-23T11:48:07.3589748Z [36;1mfi[0m
+2026-10-23T11:48:07.3589952Z [36;1mif [[ ! -v RUST_BACKTRACE ]]; then[0m
+2026-10-23T11:48:07.3590259Z [36;1m  echo "RUST_BACKTRACE=short" >> $GITHUB_ENV[0m
+2026-10-23T11:48:07.3590539Z [36;1mfi[0m
+2026-10-23T11:48:07.3590800Z [36;1mif [[ ( ! -v RUSTFLAGS ) && $_srt_NEW_RUSTFLAGS != "" ]]; then[0m
+2026-10-23T11:48:07.3591198Z [36;1m  echo "RUSTFLAGS=$_srt_NEW_RUSTFLAGS" >> $GITHUB_ENV[0m
+2026-10-23T11:48:07.3591507Z [36;1mfi[0m
+2026-10-23T11:48:07.3591819Z [36;1mif [[ ( ! -v CARGO_BUILD_WARNINGS ) && $_srt_CARGO_BUILD_WARNINGS != "" ]]; then[0m
+2026-10-23T11:48:07.3592619Z [36;1m  echo "CARGO_BUILD_WARNINGS=$_srt_CARGO_BUILD_WARNINGS" >> $GITHUB_ENV[0m
+2026-10-23T11:48:07.3592995Z [36;1mfi[0m
+2026-10-23T11:48:07.3593215Z [36;1m# Enable faster sparse index on nightly[0m
+2026-10-23T11:48:07.3593575Z [36;1m# The value is ignored on stable and causes no problems[0m
+2026-10-23T11:48:07.3594115Z [36;1m# https://internals.rust-lang.org/t/call-for-testing-cargo-sparse-registry/16862[0m
+2026-10-23T11:48:07.3594884Z [36;1mif [[ ! -v CARGO_UNSTABLE_SPARSE_REGISTRY ]]; then[0m
+2026-10-23T11:48:07.3595288Z [36;1m  echo "CARGO_UNSTABLE_SPARSE_REGISTRY=true" >> $GITHUB_ENV[0m
+2026-10-23T11:48:07.3595627Z [36;1mfi[0m
+2026-10-23T11:48:07.3595885Z [36;1mif [[ ! -v CARGO_REGISTRIES_CRATES_IO_PROTOCOL ]]; then[0m
+2026-10-23T11:48:07.3596306Z [36;1m  echo "CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse" >> $GITHUB_ENV[0m
+2026-10-23T11:48:07.3596664Z [36;1mfi[0m
+2026-10-23T11:48:07.3655034Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2026-10-23T11:48:07.3655369Z env:
+2026-10-23T11:48:07.3655560Z   _srt_NEW_RUSTFLAGS: 
+2026-10-23T11:48:07.3655828Z   _srt_CARGO_BUILD_WARNINGS: deny
+2026-10-23T11:48:07.3656074Z ##[endgroup]
+2026-10-23T11:48:07.3750594Z ##[end-action id=__actions-rust-lang_setup-rust-toolchain.__run_2;outcome=success;conclusion=success;duration_ms=19]
+2026-10-23T11:48:07.3769656Z ##[start-action display=Install Rust Problem Matcher;id=__actions-rust-lang_setup-rust-toolchain.__run_3]
+2026-10-23T11:48:07.3790909Z ##[group]Run echo "::add-matcher::/home/runner/work/_actions/actions-rust-lang/setup-rust-toolchain/ecabd13d1c56bd1345c230e542e9144811ad706f/rust.json"
+2026-10-23T11:48:07.3791988Z [36;1mecho "::add-matcher::/home/runner/work/_actions/actions-rust-lang/setup-rust-toolchain/ecabd13d1c56bd1345c230e542e9144811ad706f/rust.json"[0m
+2026-10-23T11:48:07.3851541Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2026-10-23T11:48:07.3851889Z env:
+2026-10-23T11:48:07.3852082Z   CARGO_INCREMENTAL: 0
+2026-10-23T11:48:07.3852542Z   CARGO_PROFILE_DEV_DEBUG: 0
+2026-10-23T11:48:07.3852786Z   CARGO_TERM_COLOR: always
+2026-10-23T11:48:07.3853017Z   RUST_BACKTRACE: short
+2026-10-23T11:48:07.3853247Z   CARGO_BUILD_WARNINGS: deny
+2026-10-23T11:48:07.3853492Z   CARGO_UNSTABLE_SPARSE_REGISTRY: true
+2026-10-23T11:48:07.3853786Z   CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
+2026-10-23T11:48:07.3854081Z ##[endgroup]
+2026-10-23T11:48:07.3962079Z ##[end-action id=__actions-rust-lang_setup-rust-toolchain.__run_3;outcome=success;conclusion=success;duration_ms=19]
+2026-10-23T11:48:07.3965658Z ##[start-action display=Install rustup, if needed;id=__actions-rust-lang_setup-rust-toolchain.__run_4]
+2026-10-23T11:48:07.3982129Z ##[group]Run if ! command -v rustup &> /dev/null ; then
+2026-10-23T11:48:07.3982885Z [36;1mif ! command -v rustup &> /dev/null ; then[0m
+2026-10-23T11:48:07.3983534Z [36;1m  curl --proto '=https' --tlsv1.2 --retry 10 --retry-connrefused -fsSL "https://sh.rustup.rs" | sh -s -- --default-toolchain none -y[0m
+2026-10-23T11:48:07.3984127Z [36;1m[0m
+2026-10-23T11:48:07.3984392Z [36;1m  # Resolve the correct CARGO_HOME path depending on OS[0m
+2026-10-23T11:48:07.3984761Z [36;1m  if [[ "$RUNNER_OS" == "Windows" ]]; then[0m
+2026-10-23T11:48:07.3985183Z [36;1m    echo "${CARGO_HOME:-$USERPROFILE/.cargo}/bin" | sed 's|/|\\|g' >> $GITHUB_PATH[0m
+2026-10-23T11:48:07.3985597Z [36;1m  else[0m
+2026-10-23T11:48:07.3985866Z [36;1m    echo "${CARGO_HOME:-$HOME/.cargo}/bin" >> $GITHUB_PATH[0m
+2026-10-23T11:48:07.3986191Z [36;1m  fi[0m
+2026-10-23T11:48:07.3986377Z [36;1mfi[0m
+2026-10-23T11:48:07.4044820Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2026-10-23T11:48:07.4045161Z env:
+2026-10-23T11:48:07.4045349Z   CARGO_INCREMENTAL: 0
+2026-10-23T11:48:07.4045575Z   CARGO_PROFILE_DEV_DEBUG: 0
+2026-10-23T11:48:07.4045812Z   CARGO_TERM_COLOR: always
+2026-10-23T11:48:07.4046038Z   RUST_BACKTRACE: short
+2026-10-23T11:48:07.4046260Z   CARGO_BUILD_WARNINGS: deny
+2026-10-23T11:48:07.4046507Z   CARGO_UNSTABLE_SPARSE_REGISTRY: true
+2026-10-23T11:48:07.4046807Z   CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
+2026-10-23T11:48:07.4047090Z   RUNNER_OS: Linux
+2026-10-23T11:48:07.4047297Z ##[endgroup]
+2026-10-23T11:48:07.4139042Z ##[end-action id=__actions-rust-lang_setup-rust-toolchain.__run_4;outcome=success;conclusion=success;duration_ms=17]
+2026-10-23T11:48:07.4144223Z ##[start-action display=rustup toolchain install stable;id=__actions-rust-lang_setup-rust-toolchain.__run_5]
+2026-10-23T11:48:07.4161909Z ##[group]Run # Check if value is set
+2026-10-23T11:48:07.4162559Z [36;1m# Check if value is set[0m
+2026-10-23T11:48:07.4162844Z [36;1mif [[ -n "$_srt_rust_src_dir" ]][0m
+2026-10-23T11:48:07.4163119Z [36;1mthen[0m
+2026-10-23T11:48:07.4163357Z [36;1m  # If value is set the directory must exist[0m
+2026-10-23T11:48:07.4163682Z [36;1m  if [[ -d "$_srt_rust_src_dir" ]][0m
+2026-10-23T11:48:07.4163949Z [36;1m  then[0m
+2026-10-23T11:48:07.4164157Z [36;1m    cd "$_srt_rust_src_dir"[0m
+2026-10-23T11:48:07.4164401Z [36;1m  else[0m
+2026-10-23T11:48:07.4164706Z [36;1m    echo "'rust-src-dir' does not point to an existing directory" >&2[0m
+2026-10-23T11:48:07.4165177Z [36;1m    echo "The value of 'rust-src-dir' is: ${_srt_rust_src_dir}" >&2[0m
+2026-10-23T11:48:07.4165530Z [36;1m    exit 1[0m
+2026-10-23T11:48:07.4165739Z [36;1m  fi[0m
+2026-10-23T11:48:07.4166074Z [36;1mfi[0m
+2026-10-23T11:48:07.4166416Z [36;1mif [[ -z "$_srt_toolchain" && ( -f "rust-toolchain" || -f "rust-toolchain.toml") ]][0m
+2026-10-23T11:48:07.4166823Z [36;1mthen[0m
+2026-10-23T11:48:07.4167081Z [36;1m  # Install the toolchain as specified in the file[0m
+2026-10-23T11:48:07.4167499Z [36;1m  # rustup show is the old way that implicitly installed a toolchain[0m
+2026-10-23T11:48:07.4167927Z [36;1m  # rustup toolchain install is the new explicit way[0m
+2026-10-23T11:48:07.4168393Z [36;1m  # https://github.com/rust-lang/rustup/issues/3635#issuecomment-2343511297[0m
+2026-10-23T11:48:07.4168896Z [36;1m  rustup show active-toolchain || rustup toolchain install[0m
+2026-10-23T11:48:07.4169268Z [36;1m  if [[ -n $_srt_components ]]; then[0m
+2026-10-23T11:48:07.4169596Z [36;1m    rustup component add ${_srt_components//,/ }[0m
+2026-10-23T11:48:07.4169895Z [36;1m  fi[0m
+2026-10-23T11:48:07.4170107Z [36;1m  if [[ -n $_srt_targets ]]; then[0m
+2026-10-23T11:48:07.4170408Z [36;1m    rustup target add ${_srt_targets//,/ }[0m
+2026-10-23T11:48:07.4170684Z [36;1m  fi[0m
+2026-10-23T11:48:07.4170864Z [36;1melse[0m
+2026-10-23T11:48:07.4171075Z [36;1m  if [[ -z "$_srt_toolchain" ]][0m
+2026-10-23T11:48:07.4171328Z [36;1m  then[0m
+2026-10-23T11:48:07.4171535Z [36;1m    _srt_toolchain=stable[0m
+2026-10-23T11:48:07.4171775Z [36;1m  fi[0m
+2026-10-23T11:48:07.4172130Z [36;1m  rustup toolchain install ${_srt_toolchain//,/ }  --profile minimal --no-self-update[0m
+2026-10-23T11:48:07.4172847Z [36;1m  # Take the last element from the list[0m
+2026-10-23T11:48:07.4173159Z [36;1m  if [[ "$_srt_override" == "true" ]][0m
+2026-10-23T11:48:07.4173424Z [36;1m  then[0m
+2026-10-23T11:48:07.4173660Z [36;1m    rustup override set ${_srt_toolchain//*,/ }[0m
+2026-10-23T11:48:07.4173951Z [36;1m  fi[0m
+2026-10-23T11:48:07.4174130Z [36;1mfi[0m
+2026-10-23T11:48:07.4232446Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2026-10-23T11:48:07.4232801Z env:
+2026-10-23T11:48:07.4233003Z   CARGO_INCREMENTAL: 0
+2026-10-23T11:48:07.4233234Z   CARGO_PROFILE_DEV_DEBUG: 0
+2026-10-23T11:48:07.4233468Z   CARGO_TERM_COLOR: always
+2026-10-23T11:48:07.4233696Z   RUST_BACKTRACE: short
+2026-10-23T11:48:07.4233912Z   CARGO_BUILD_WARNINGS: deny
+2026-10-23T11:48:07.4234156Z   CARGO_UNSTABLE_SPARSE_REGISTRY: true
+2026-10-23T11:48:07.4234449Z   CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
+2026-10-23T11:48:07.4234727Z   _srt_toolchain: stable
+2026-10-23T11:48:07.4234944Z   _srt_targets: 
+2026-10-23T11:48:07.4235139Z   _srt_components: 
+2026-10-23T11:48:07.4235340Z   _srt_override: true
+2026-10-23T11:48:07.4235547Z   _srt_rust_src_dir: 
+2026-10-23T11:48:07.4235745Z ##[endgroup]
+2026-10-23T11:48:07.6351652Z info: syncing channel updates for stable-x86_64-unknown-linux-gnu
+2026-10-23T11:48:07.8516981Z info: latest update on 2026-10-15 for version 1.99.1 (58cf8f9c3 2026-10-13)
+2026-10-23T11:48:07.8670993Z info: removing previous version of component rustfmt
+2026-10-23T11:48:07.8691768Z info: removing previous version of component clippy
+2026-10-23T11:48:07.8707010Z info: removing previous version of component cargo
+2026-10-23T11:48:07.8770192Z info: removing previous version of component rust-std
+2026-10-23T11:48:07.8818412Z info: removing previous version of component rustc
+2026-10-23T11:48:07.8879534Z info: downloading 5 components
+2026-10-23T11:48:16.6033533Z 
+2026-10-23T11:48:16.6103587Z   stable-x86_64-unknown-linux-gnu updated - rustc 1.99.1 (58cf8f9c3 2026-10-13) (from rustc 1.99.0 (b940084d7 2026-09-28))
+2026-10-23T11:48:16.6104107Z 
+2026-10-23T11:48:16.6375817Z info: override toolchain for /home/runner/work/tcl-lsp/tcl-lsp set to stable-x86_64-unknown-linux-gnu
+2026-10-23T11:48:16.6401936Z ##[end-action id=__actions-rust-lang_setup-rust-toolchain.__run_5;outcome=success;conclusion=success;duration_ms=9225]
+2026-10-23T11:48:16.6407360Z ##[start-action display=Print installed versions;id=__actions-rust-lang_setup-rust-toolchain.versions]
+2026-10-23T11:48:16.6434356Z ##[group]Run echo "rustc-version=$(rustc --version)" >> $GITHUB_OUTPUT
+2026-10-23T11:48:16.6435043Z [36;1mecho "rustc-version=$(rustc --version)" >> $GITHUB_OUTPUT[0m
+2026-10-23T11:48:16.6435443Z [36;1m_srt_VERBOSE=$(rustc --version --verbose)[0m
+2026-10-23T11:48:16.6435755Z [36;1mecho "$_srt_VERBOSE"[0m
+2026-10-23T11:48:16.6436074Z [36;1mecho "cargo-version=$(cargo --version)" >> $GITHUB_OUTPUT[0m
+2026-10-23T11:48:16.6436437Z [36;1mcargo --version --verbose[0m
+2026-10-23T11:48:16.6436774Z [36;1mecho "rustup-version=$(rustup --version)" >> $GITHUB_OUTPUT[0m
+2026-10-23T11:48:16.6437129Z [36;1mrustup --version[0m
+2026-10-23T11:48:16.6437352Z [36;1m[0m
+2026-10-23T11:48:16.6437766Z [36;1m_srt_DATE=$(echo "$_srt_VERBOSE" | sed -ne 's/^commit-date: \(20[0-9][0-9]\)-\([01][0-9]\)-\([0-3][0-9]\)$/\1\2\3/p')[0m
+2026-10-23T11:48:16.6438341Z [36;1m_srt_HASH=$(echo "$_srt_VERBOSE" | sed -ne 's/^commit-hash: //p')[0m
+2026-10-23T11:48:16.6438833Z [36;1mecho "cachekey=$(echo $_srt_DATE$_srt_HASH | head -c12)" >> $GITHUB_OUTPUT[0m
+2026-10-23T11:48:16.6497245Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2026-10-23T11:48:16.6497598Z env:
+2026-10-23T11:48:16.6497798Z   CARGO_INCREMENTAL: 0
+2026-10-23T11:48:16.6498043Z   CARGO_PROFILE_DEV_DEBUG: 0
+2026-10-23T11:48:16.6498291Z   CARGO_TERM_COLOR: always
+2026-10-23T11:48:16.6498520Z   RUST_BACKTRACE: short
+2026-10-23T11:48:16.6498741Z   CARGO_BUILD_WARNINGS: deny
+2026-10-23T11:48:16.6498999Z   CARGO_UNSTABLE_SPARSE_REGISTRY: true
+2026-10-23T11:48:16.6499293Z   CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
+2026-10-23T11:48:16.6499573Z ##[endgroup]
+2026-10-23T11:48:16.6811304Z rustc 1.99.1 (58cf8f9c3 2026-10-13)
+2026-10-23T11:48:16.6812074Z binary: rustc
+2026-10-23T11:48:16.6812777Z commit-hash: 58cf8f9c35b355199727627d07ae34a4e2846d67
+2026-10-23T11:48:16.6813360Z commit-date: 2026-10-13
+2026-10-23T11:48:16.6813778Z host: x86_64-unknown-linux-gnu
+2026-10-23T11:48:16.6814193Z release: 1.99.1
+2026-10-23T11:48:16.6814555Z LLVM version: 23.1.1
+2026-10-23T11:48:16.7149814Z cargo 1.99.1 (5f94df478 2026-08-27)
+2026-10-23T11:48:16.7150332Z release: 1.99.1
+2026-10-23T11:48:16.7150679Z commit-hash: 5f94df4789f005f9a352888e8355ffc645b7ed0e
+2026-10-23T11:48:16.7151088Z commit-date: 2026-08-27
+2026-10-23T11:48:16.7151367Z host: x86_64-unknown-linux-gnu
+2026-10-23T11:48:16.7151664Z libgit2: 1.9.6 (sys:0.21.0 vendored)
+2026-10-23T11:48:16.7152088Z libcurl: 8.21.0-DEV (sys:0.4.90+curl-8.21.0 vendored ssl:OpenSSL/3.6.3)
+2026-10-23T11:48:16.7152899Z ssl: OpenSSL 3.6.3 9 Jun 2026
+2026-10-23T11:48:16.7153226Z os: Ubuntu 26.4.0 (resolute) [64-bit]
+2026-10-23T11:48:16.7188832Z info: This is the version for the rustup toolchain manager, not the rustc compiler.
+2026-10-23T11:48:16.7267672Z info: the currently active `rustc` version is `rustc 1.99.1 (58cf8f9c3 2026-10-13)`
+2026-10-23T11:48:16.7307800Z info: This is the version for the rustup toolchain manager, not the rustc compiler.
+2026-10-23T11:48:16.7308649Z rustup 1.29.1 (d95a37b6a 2026-08-13)
+2026-10-23T11:48:16.7383660Z info: the currently active `rustc` version is `rustc 1.99.1 (58cf8f9c3 2026-10-13)`
+2026-10-23T11:48:16.7475323Z ##[end-action id=__actions-rust-lang_setup-rust-toolchain.versions;outcome=success;conclusion=success;duration_ms=106]
+2026-10-23T11:48:16.7478103Z ##[start-action display=Downgrade registry access protocol when needed;id=__actions-rust-lang_setup-rust-toolchain.__run_6]
+2026-10-23T11:48:16.7496944Z ##[group]Run # Not all versions support setting CARGO_REGISTRIES_CRATES_IO_PROTOCOL
+2026-10-23T11:48:16.7497509Z [36;1m# Not all versions support setting CARGO_REGISTRIES_CRATES_IO_PROTOCOL[0m
+2026-10-23T11:48:16.7498040Z [36;1m# On versions 1.66, 1.67, and 1.68.0-nightly the value "sparse" is still unstable.[0m
+2026-10-23T11:48:16.7498603Z [36;1m# https://github.com/dtolnay/rust-toolchain/pull/69#discussion_r1107268108[0m
+2026-10-23T11:48:16.7499168Z [36;1m# If we detect an incompatible value, set it to "git" which is always supported.[0m
+2026-10-23T11:48:16.7499922Z [36;1mif [[ "rustc 1.99.1 (58cf8f9c3 2026-10-13)" =~ ^rustc\ (1\.6[67]\.|1\.68\.0-nightly) && "${CARGO_REGISTRIES_CRATES_IO_PROTOCOL}" == "sparse" ]]; then[0m
+2026-10-23T11:48:16.7500722Z [36;1m  echo "Downgrade cargo registry protocol to git"[0m
+2026-10-23T11:48:16.7501140Z [36;1m  echo "CARGO_REGISTRIES_CRATES_IO_PROTOCOL=git" >> $GITHUB_ENV[0m
+2026-10-23T11:48:16.7501499Z [36;1mfi[0m
+2026-10-23T11:48:16.7558968Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2026-10-23T11:48:16.7559317Z env:
+2026-10-23T11:48:16.7559508Z   CARGO_INCREMENTAL: 0
+2026-10-23T11:48:16.7559736Z   CARGO_PROFILE_DEV_DEBUG: 0
+2026-10-23T11:48:16.7559970Z   CARGO_TERM_COLOR: always
+2026-10-23T11:48:16.7560205Z   RUST_BACKTRACE: short
+2026-10-23T11:48:16.7560434Z   CARGO_BUILD_WARNINGS: deny
+2026-10-23T11:48:16.7560704Z   CARGO_UNSTABLE_SPARSE_REGISTRY: true
+2026-10-23T11:48:16.7560992Z   CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
+2026-10-23T11:48:16.7561272Z ##[endgroup]
+2026-10-23T11:48:16.7644375Z ##[end-action id=__actions-rust-lang_setup-rust-toolchain.__run_6;outcome=success;conclusion=success;duration_ms=16]
+2026-10-23T11:48:16.7646639Z ##[start-action display=Setup Rust Caching;id=__actions-rust-lang_setup-rust-toolchain.__Swatinem_rust-cache]
+2026-10-23T11:48:16.7698915Z ##[group]Run Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6
+2026-10-23T11:48:16.7699295Z with:
+2026-10-23T11:48:16.7699489Z   cache-on-failure: true
+2026-10-23T11:48:16.7699708Z   cache-bin: true
+2026-10-23T11:48:16.7699914Z   cache-provider: github
+2026-10-23T11:48:16.7700145Z   cache-all-crates: false
+2026-10-23T11:48:16.7700381Z   cache-workspace-crates: false
+2026-10-23T11:48:16.7700623Z   cache-targets: true
+2026-10-23T11:48:16.7700826Z   save-if: true
+2026-10-23T11:48:16.7701022Z   key: paired-perf
+2026-10-23T11:48:16.7701225Z   prefix-key: v0-rust
+2026-10-23T11:48:16.7701433Z   add-job-id-key: true
+2026-10-23T11:48:16.7701666Z   add-rust-environment-hash-key: true
+2026-10-23T11:48:16.7701928Z   lookup-only: false
+2026-10-23T11:48:16.7702132Z   cmd-format: {0}
+2026-10-23T11:48:16.7702753Z env:
+2026-10-23T11:48:16.7702973Z   CARGO_INCREMENTAL: 0
+2026-10-23T11:48:16.7703200Z   CARGO_PROFILE_DEV_DEBUG: 0
+2026-10-23T11:48:16.7703436Z   CARGO_TERM_COLOR: always
+2026-10-23T11:48:16.7703668Z   RUST_BACKTRACE: short
+2026-10-23T11:48:16.7703887Z   CARGO_BUILD_WARNINGS: deny
+2026-10-23T11:48:16.7704134Z   CARGO_UNSTABLE_SPARSE_REGISTRY: true
+2026-10-23T11:48:16.7704423Z   CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
+2026-10-23T11:48:16.7704702Z ##[endgroup]
+2026-10-23T11:48:19.2523416Z Error: The process '/home/runner/.cargo/bin/cargo' failed with exit code 101
+2026-10-23T11:48:19.2524571Z     at ExecState._setResult (file:///home/runner/work/_actions/Swatinem/rust-cache/6323deb102c322ba6fcbdcafc7e3dddab59af2b6/dist/cleanup-BWEbZ6YT.js:29888:25)
+2026-10-23T11:48:19.2525770Z     at ExecState.CheckComplete (file:///home/runner/work/_actions/Swatinem/rust-cache/6323deb102c322ba6fcbdcafc7e3dddab59af2b6/dist/cleanup-BWEbZ6YT.js:29871:18)
+2026-10-23T11:48:19.2527103Z     at ChildProcess.<anonymous> (file:///home/runner/work/_actions/Swatinem/rust-cache/6323deb102c322ba6fcbdcafc7e3dddab59af2b6/dist/cleanup-BWEbZ6YT.js:29767:27)
+2026-10-23T11:48:19.2528260Z     at ChildProcess.emit (node:events:514:28)
+2026-10-23T11:48:19.2528631Z     at maybeClose (node:internal/child_process:1141:16)
+2026-10-23T11:48:19.2529068Z     at ChildProcess._handle.onexit (node:internal/child_process:306:5) {
+2026-10-23T11:48:19.2529539Z   commandFailed: {
+2026-10-23T11:48:19.2529985Z     command: 'cargo metadata --all-features --format-version 1 --no-deps',
+2026-10-23T11:48:19.2530930Z     stderr: '\x1B[1m\x1B[91merror\x1B[0m: could not find `Cargo.toml` in `/home/runner/work/tcl-lsp/tcl-lsp` or any parent directory\n'
+2026-10-23T11:48:19.2531680Z   }
+2026-10-23T11:48:19.2531931Z }
+2026-10-23T11:48:19.2588825Z ##[group]Cache Configuration
+2026-10-23T11:48:19.2589531Z Cache Provider:
+2026-10-23T11:48:19.2590214Z     github
+2026-10-23T11:48:19.2605960Z Workspaces:
+2026-10-23T11:48:19.2606350Z     /home/runner/work/tcl-lsp/tcl-lsp
+2026-10-23T11:48:19.2607170Z Cache Paths:
+2026-10-23T11:48:19.2607550Z     /home/runner/.cargo/bin
+2026-10-23T11:48:19.2607995Z     /home/runner/.cargo/.crates.toml
+2026-10-23T11:48:19.2608379Z     /home/runner/.cargo/.crates2.json
+2026-10-23T11:48:19.2608669Z     /home/runner/.cargo/registry
+2026-10-23T11:48:19.2608927Z     /home/runner/.cargo/git
+2026-10-23T11:48:19.2609205Z     /home/runner/work/tcl-lsp/tcl-lsp/target
+2026-10-23T11:48:19.2609495Z Restore Key:
+2026-10-23T11:48:19.2609819Z     v0-rust-paired-perf-paired-benchmark-Linux-x64-9c09dd5e
+2026-10-23T11:48:19.2610173Z Cache Key:
+2026-10-23T11:48:19.2610521Z     v0-rust-paired-perf-paired-benchmark-Linux-x64-9c09dd5e-8146883e
+2026-10-23T11:48:19.2610921Z .. Prefix:
+2026-10-23T11:48:19.2611189Z   - v0-rust-paired-perf-paired-benchmark-Linux-x64
+2026-10-23T11:48:19.2611533Z .. Environment considered:
+2026-10-23T11:48:19.2611772Z   - Rust Versions:
+2026-10-23T11:48:19.2612137Z     - 1.99.1 x86_64-unknown-linux-gnu 58cf8f9c35b355199727627d07ae34a4e2846d67
+2026-10-23T11:48:19.2612940Z   - CARGO_BUILD_WARNINGS
+2026-10-23T11:48:19.2613389Z   - CARGO_INCREMENTAL
+2026-10-23T11:48:19.2613843Z   - CARGO_PROFILE_DEV_DEBUG
+2026-10-23T11:48:19.2614392Z   - CARGO_REGISTRIES_CRATES_IO_PROTOCOL
+2026-10-23T11:48:19.2614952Z   - CARGO_TERM_COLOR
+2026-10-23T11:48:19.2615404Z   - CARGO_UNSTABLE_SPARSE_REGISTRY
+2026-10-23T11:48:19.2615916Z   - RUST_BACKTRACE
+2026-10-23T11:48:19.2616337Z .. Lockfiles considered:
+2026-10-23T11:48:19.2616919Z   - /home/runner/work/tcl-lsp/tcl-lsp/baseline/.cargo/config.toml
+2026-10-23T11:48:19.2617722Z   - /home/runner/work/tcl-lsp/tcl-lsp/baseline/rust-toolchain.toml
+2026-10-23T11:48:19.2618785Z   - /home/runner/work/tcl-lsp/tcl-lsp/baseline/rust/tcl-lsp-server-wasi/.cargo/config.toml
+2026-10-23T11:48:19.2619948Z   - /home/runner/work/tcl-lsp/tcl-lsp/candidate/.cargo/config.toml
+2026-10-23T11:48:19.2620828Z   - /home/runner/work/tcl-lsp/tcl-lsp/candidate/rust-toolchain.toml
+2026-10-23T11:48:19.2621913Z   - /home/runner/work/tcl-lsp/tcl-lsp/candidate/rust/tcl-lsp-server-wasi/.cargo/config.toml
+2026-10-23T11:48:19.2623215Z   - /home/runner/work/tcl-lsp/tcl-lsp/harness/.cargo/config.toml
+2026-10-23T11:48:19.2624050Z   - /home/runner/work/tcl-lsp/tcl-lsp/harness/rust-toolchain.toml
+2026-10-23T11:48:19.2625017Z   - /home/runner/work/tcl-lsp/tcl-lsp/harness/rust/tcl-lsp-server-wasi/.cargo/config.toml
+2026-10-23T11:48:19.2626065Z ##[endgroup]
+2026-10-23T11:48:19.2626263Z 
+2026-10-23T11:48:19.2626435Z ... Restoring cache ...
+2026-10-23T11:48:19.4221145Z Cache hit for: v0-rust-paired-perf-paired-benchmark-Linux-x64-9c09dd5e-8146883e
+2026-10-23T11:48:19.7442844Z Received 1172 of 1172 (100.0%), 0.0 MBs/sec
+2026-10-23T11:48:19.7443340Z Cache Size: ~0 MB (1172 B)
+2026-10-23T11:48:19.7468395Z [command]/usr/bin/tar -xf /home/runner/work/_temp/08f474a5-a9b7-4609-9fe6-24130e118c2b/cache.tzst -P -C /home/runner/work/tcl-lsp/tcl-lsp --use-compress-program unzstd
+2026-10-23T11:48:19.7552563Z Cache restored successfully
+2026-10-23T11:48:19.7555940Z Restored from cache key "v0-rust-paired-perf-paired-benchmark-Linux-x64-9c09dd5e-8146883e" full match: true.
+2026-10-23T11:48:19.7680109Z ##[end-action id=__actions-rust-lang_setup-rust-toolchain.__Swatinem_rust-cache;outcome=success;conclusion=success;duration_ms=3003]
+2026-10-23T11:48:19.7738624Z ##[group]Run set -euo pipefail
+2026-10-23T11:48:19.7738979Z [36;1mset -euo pipefail[0m
+2026-10-23T11:48:19.7739428Z [36;1mpython3 -c 'import sys; assert sys.version_info >= (3, 11), sys.version; print(sys.version)'[0m
+2026-10-23T11:48:19.7739983Z [36;1mfor rev in "$BASELINE_SHA" "$CANDIDATE_SHA" "$HARNESS_SHA"; do[0m
+2026-10-23T11:48:19.7740369Z [36;1m  [[ "$rev" =~ ^[0-9a-fA-F]{40}$ ]][0m
+2026-10-23T11:48:19.7740649Z [36;1mdone[0m
+2026-10-23T11:48:19.7740899Z [36;1m[[ "${BASELINE_SHA,,}" != "${CANDIDATE_SHA,,}" ]][0m
+2026-10-23T11:48:19.7741393Z [36;1m[[ "$(git -C baseline rev-parse HEAD | tr '[:upper:]' '[:lower:]')" == "${BASELINE_SHA,,}" ]][0m
+2026-10-23T11:48:19.7742005Z [36;1m[[ "$(git -C candidate rev-parse HEAD | tr '[:upper:]' '[:lower:]')" == "${CANDIDATE_SHA,,}" ]][0m
+2026-10-23T11:48:19.7743093Z [36;1m[[ "$(git -C harness rev-parse HEAD | tr '[:upper:]' '[:lower:]')" == "${HARNESS_SHA,,}" ]][0m
+2026-10-23T11:48:19.7743543Z [36;1mrustc --version[0m
+2026-10-23T11:48:19.7743827Z [36;1mcargo --version[0m
+2026-10-23T11:48:19.7744061Z [36;1mrustc -vV[0m
+2026-10-23T11:48:19.7802653Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2026-10-23T11:48:19.7803007Z env:
+2026-10-23T11:48:19.7803205Z   CARGO_INCREMENTAL: 0
+2026-10-23T11:48:19.7803443Z   CARGO_PROFILE_DEV_DEBUG: 0
+2026-10-23T11:48:19.7803699Z   CARGO_TERM_COLOR: always
+2026-10-23T11:48:19.7803946Z   RUST_BACKTRACE: short
+2026-10-23T11:48:19.7804178Z   CARGO_BUILD_WARNINGS: deny
+2026-10-23T11:48:19.7804430Z   CARGO_UNSTABLE_SPARSE_REGISTRY: true
+2026-10-23T11:48:19.7804746Z   CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
+2026-10-23T11:48:19.7805042Z   CACHE_ON_FAILURE: true
+2026-10-23T11:48:19.7805317Z   BASELINE_SHA: fcb7927f02b5395753247b322fdd7be87ae5c731
+2026-10-23T11:48:19.7805711Z   CANDIDATE_SHA: c611d8bd716e9ae3719bfc0beeedd8f24b53e64e
+2026-10-23T11:48:19.7806093Z   HARNESS_SHA: c611d8bd716e9ae3719bfc0beeedd8f24b53e64e
+2026-10-23T11:48:19.7806401Z ##[endgroup]
+2026-10-23T11:48:19.7992926Z 3.14.4 (main, Aug 20 2026, 10:41:58) [GCC 15.2.0]
+2026-10-23T11:48:19.8226428Z rustc 1.99.1 (58cf8f9c3 2026-10-13)
+2026-10-23T11:48:19.8321483Z cargo 1.99.1 (5f94df478 2026-08-27)
+2026-10-23T11:48:19.8429760Z rustc 1.99.1 (58cf8f9c3 2026-10-13)
+2026-10-23T11:48:19.8430555Z binary: rustc
+2026-10-23T11:48:19.8431162Z commit-hash: 58cf8f9c35b355199727627d07ae34a4e2846d67
+2026-10-23T11:48:19.8431801Z commit-date: 2026-10-13
+2026-10-23T11:48:19.8432120Z host: x86_64-unknown-linux-gnu
+2026-10-23T11:48:19.8432965Z release: 1.99.1
+2026-10-23T11:48:19.8433353Z LLVM version: 23.1.1
+2026-10-23T11:48:19.8474214Z ##[group]Run python3 harness/scripts/perf/fetch_corpus.py \
+2026-10-23T11:48:19.8474689Z [36;1mpython3 harness/scripts/perf/fetch_corpus.py \[0m
+2026-10-23T11:48:19.8475232Z [36;1m  --manifest harness/scripts/perf/MANIFEST.toml --scope "$SCOPE" --dest "$CORPUS"[0m
+2026-10-23T11:48:19.8475737Z [36;1mpython3 harness/scripts/perf/fetch_corpus.py \[0m
+2026-10-23T11:48:19.8476271Z [36;1m  --manifest harness/scripts/perf/MANIFEST.toml --scope "$SCOPE" --dest "$CORPUS" --verify-only[0m
+2026-10-23T11:48:19.8534299Z shell: /usr/bin/bash -e {0}
+2026-10-23T11:48:19.8534562Z env:
+2026-10-23T11:48:19.8534755Z   CARGO_INCREMENTAL: 0
+2026-10-23T11:48:19.8534989Z   CARGO_PROFILE_DEV_DEBUG: 0
+2026-10-23T11:48:19.8535232Z   CARGO_TERM_COLOR: always
+2026-10-23T11:48:19.8535479Z   RUST_BACKTRACE: short
+2026-10-23T11:48:19.8535713Z   CARGO_BUILD_WARNINGS: deny
+2026-10-23T11:48:19.8535973Z   CARGO_UNSTABLE_SPARSE_REGISTRY: true
+2026-10-23T11:48:19.8536323Z   CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
+2026-10-23T11:48:19.8536623Z   CACHE_ON_FAILURE: true
+2026-10-23T11:48:19.8536850Z   SCOPE: small
+2026-10-23T11:48:19.8537109Z   CORPUS: /home/runner/work/_temp/paired-perf/corpus
+2026-10-23T11:48:19.8537451Z ##[endgroup]
+2026-10-23T11:48:33.5534547Z fetched  georgtree/SpiceGenTcl @ b6ee79b5e711
+2026-10-23T11:48:33.5535151Z fetched  georgtree/argparse @ 139d695c9012
+2026-10-23T11:48:33.5535696Z fetched  georgtree/extexpr @ 1d53317eb9a7
+2026-10-23T11:48:33.5536198Z fetched  georgtree/ruff @ b63da69eed62
+2026-10-23T11:48:33.5536697Z fetched  georgtree/tcl_tools @ 6be5470f73d8
+2026-10-23T11:48:33.5537196Z fetched  georgtree/tclinterp @ ccd894bbcf75
+2026-10-23T11:48:33.5537637Z fetched  georgtree/tclmeasure @ 648b0ccf18de
+2026-10-23T11:48:33.5537995Z fetched  georgtree/tclopt @ ff9a56074272
+2026-10-23T11:48:33.5538228Z 
+2026-10-23T11:48:33.5538504Z scope=small repos=8 corpus_revision=1 source files=113 (*.tcl, *.irule, *.tmsh)
+2026-10-23T11:48:33.6361322Z ok       georgtree/SpiceGenTcl @ b6ee79b5e711
+2026-10-23T11:48:33.6362456Z ok       georgtree/argparse @ 139d695c9012
+2026-10-23T11:48:33.6363211Z ok       georgtree/extexpr @ 1d53317eb9a7
+2026-10-23T11:48:33.6363876Z ok       georgtree/ruff @ b63da69eed62
+2026-10-23T11:48:33.6364945Z ok       georgtree/tcl_tools @ 6be5470f73d8
+2026-10-23T11:48:33.6365546Z ok       georgtree/tclinterp @ ccd894bbcf75
+2026-10-23T11:48:33.6365972Z ok       georgtree/tclmeasure @ 648b0ccf18de
+2026-10-23T11:48:33.6366401Z ok       georgtree/tclopt @ ff9a56074272
+2026-10-23T11:48:33.6366661Z 
+2026-10-23T11:48:33.6366980Z scope=small repos=8 corpus_revision=1 source files=113 (*.tcl, *.irule, *.tmsh)
+2026-10-23T11:48:33.6499030Z ##[group]Run python3 harness/scripts/perf/paired_bench.py \
+2026-10-23T11:48:33.6499876Z [36;1mpython3 harness/scripts/perf/paired_bench.py \[0m
+2026-10-23T11:48:33.6500652Z [36;1m  --baseline-root baseline --candidate-root candidate \[0m
+2026-10-23T11:48:33.6501397Z [36;1m  --harness-root harness --corpus "$CORPUS" \[0m
+2026-10-23T11:48:33.6502459Z [36;1m  --baseline-sha "$BASELINE_SHA" --candidate-sha "$CANDIDATE_SHA" \[0m
+2026-10-23T11:48:33.6503340Z [36;1m  --scope "$SCOPE" --work "$WORK/$SCOPE" --out "$OUT" \[0m
+2026-10-23T11:48:33.6504088Z [36;1m  --bench-deadline 1800 --build-deadline 2700[0m
+2026-10-23T11:48:33.6592103Z shell: /usr/bin/bash -e {0}
+2026-10-23T11:48:33.6592879Z env:
+2026-10-23T11:48:33.6593244Z   CARGO_INCREMENTAL: 0
+2026-10-23T11:48:33.6593673Z   CARGO_PROFILE_DEV_DEBUG: 0
+2026-10-23T11:48:33.6594121Z   CARGO_TERM_COLOR: always
+2026-10-23T11:48:33.6594545Z   RUST_BACKTRACE: short
+2026-10-23T11:48:33.6594944Z   CARGO_BUILD_WARNINGS: deny
+2026-10-23T11:48:33.6595463Z   CARGO_UNSTABLE_SPARSE_REGISTRY: true
+2026-10-23T11:48:33.6596007Z   CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
+2026-10-23T11:48:33.6596537Z   CACHE_ON_FAILURE: true
+2026-10-23T11:48:33.6596942Z   RUSTUP_TOOLCHAIN: stable
+2026-10-23T11:48:33.6597441Z   BASELINE_SHA: fcb7927f02b5395753247b322fdd7be87ae5c731
+2026-10-23T11:48:33.6598112Z   CANDIDATE_SHA: c611d8bd716e9ae3719bfc0beeedd8f24b53e64e
+2026-10-23T11:48:33.6598680Z   SCOPE: small
+2026-10-23T11:48:33.6599132Z   CORPUS: /home/runner/work/_temp/paired-perf/corpus
+2026-10-23T11:48:33.6599774Z   WORK: /home/runner/work/_temp/paired-perf/work
+2026-10-23T11:48:33.6600408Z   OUT: /home/runner/work/_temp/paired-perf/output/small
+2026-10-23T11:48:33.6600943Z ##[endgroup]
+2026-10-23T12:03:53.5502502Z ##[error]Process completed with exit code 1.
+2026-10-23T12:03:53.5555498Z ##[group]Run if [[ -f "$SUMMARY" ]]; then cat "$SUMMARY" >> "$GITHUB_STEP_SUMMARY"; fi
+2026-10-23T12:03:53.5556086Z [36;1mif [[ -f "$SUMMARY" ]]; then cat "$SUMMARY" >> "$GITHUB_STEP_SUMMARY"; fi[0m
+2026-10-23T12:03:53.5657009Z shell: /usr/bin/bash -e {0}
+2026-10-23T12:03:53.5657302Z env:
+2026-10-23T12:03:53.5657510Z   CARGO_INCREMENTAL: 0
+2026-10-23T12:03:53.5657787Z   CARGO_PROFILE_DEV_DEBUG: 0
+2026-10-23T12:03:53.5658051Z   CARGO_TERM_COLOR: always
+2026-10-23T12:03:53.5658297Z   RUST_BACKTRACE: short
+2026-10-23T12:03:53.5658537Z   CARGO_BUILD_WARNINGS: deny
+2026-10-23T12:03:53.5658807Z   CARGO_UNSTABLE_SPARSE_REGISTRY: true
+2026-10-23T12:03:53.5659125Z   CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
+2026-10-23T12:03:53.5659453Z   CACHE_ON_FAILURE: true
+2026-10-23T12:03:53.5659819Z   SUMMARY: /home/runner/work/_temp/paired-perf/output/small/comparison.md
+2026-10-23T12:03:53.5660229Z ##[endgroup]
+2026-10-23T12:03:53.5794527Z ##[group]Run actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+2026-10-23T12:03:53.5794964Z with:
+2026-10-23T12:03:53.5795315Z   name: paired-perf-linux-small-c611d8bd716e9ae3719bfc0beeedd8f24b53e64e
+2026-10-23T12:03:53.5795790Z   path: /home/runner/work/_temp/paired-perf/output/small
+2026-10-23T12:03:53.5796128Z   if-no-files-found: warn
+2026-10-23T12:03:53.5796371Z   retention-days: 30
+2026-10-23T12:03:53.5796606Z   compression-level: 6
+2026-10-23T12:03:53.5796833Z   overwrite: false
+2026-10-23T12:03:53.5797064Z   include-hidden-files: false
+2026-10-23T12:03:53.5797316Z   archive: true
+2026-10-23T12:03:53.5797518Z env:
+2026-10-23T12:03:53.5797721Z   CARGO_INCREMENTAL: 0
+2026-10-23T12:03:53.5797954Z   CARGO_PROFILE_DEV_DEBUG: 0
+2026-10-23T12:03:53.5798202Z   CARGO_TERM_COLOR: always
+2026-10-23T12:03:53.5798637Z   RUST_BACKTRACE: short
+2026-10-23T12:03:53.5798880Z   CARGO_BUILD_WARNINGS: deny
+2026-10-23T12:03:53.5799140Z   CARGO_UNSTABLE_SPARSE_REGISTRY: true
+2026-10-23T12:03:53.5799470Z   CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
+2026-10-23T12:03:53.5799767Z   CACHE_ON_FAILURE: true
+2026-10-23T12:03:53.5799999Z ##[endgroup]
+2026-10-23T12:03:53.7643704Z With the provided path, there will be 7 files uploaded
+2026-10-23T12:03:53.7682927Z Artifact name is valid!
+2026-10-23T12:03:53.7712972Z Root directory input is valid!
+2026-10-23T12:03:54.0357244Z Uploading artifact: paired-perf-linux-small-c611d8bd716e9ae3719bfc0beeedd8f24b53e64e.zip
+2026-10-23T12:03:54.0397757Z Beginning upload of artifact content to blob storage
+2026-10-23T12:03:54.2397454Z Uploaded bytes 8793
+2026-10-23T12:03:54.2870887Z Finished uploading artifact content to blob storage!
+2026-10-23T12:03:54.2872527Z SHA256 digest of uploaded artifact is 8a34f15d3353559f0aa0ff002e5fc262ddf31a5fde84b6dfb29ee2fe17f1a5de
+2026-10-23T12:03:54.2873822Z Finalizing artifact upload
+2026-10-23T12:03:54.8362502Z Artifact paired-perf-linux-small-c611d8bd716e9ae3719bfc0beeedd8f24b53e64e successfully finalized. Artifact ID 12500247315
+2026-10-23T12:03:54.8364603Z Artifact paired-perf-linux-small-c611d8bd716e9ae3719bfc0beeedd8f24b53e64e has been successfully uploaded! Final size is 8793 bytes. Artifact ID is 12500247315
+2026-10-23T12:03:54.8366749Z Artifact download URL: https://github.com/bitwisecook/tcl-lsp/actions/runs/39948582553/artifacts/12500247315
+2026-10-23T12:03:54.8697052Z Post job cleanup.
+2026-10-23T12:03:54.8700836Z ##[start-action display=Setup Rust Caching;id=__e13540fd-515f-4fc9-ae5d-b196a5f7b90e.__Swatinem_rust-cache]
+2026-10-23T12:03:54.8749845Z Post job cleanup.
+2026-10-23T12:03:55.0058583Z Cache up-to-date.
+2026-10-23T12:03:55.0192461Z ##[end-action id=__e13540fd-515f-4fc9-ae5d-b196a5f7b90e.__Swatinem_rust-cache;outcome=success;conclusion=success;duration_ms=149]
+2026-10-23T12:03:55.0321151Z Post job cleanup.
+2026-10-23T12:03:55.1219724Z [command]/usr/bin/git version
+2026-10-23T12:03:55.1280656Z git version 2.55.0
+2026-10-23T12:03:55.1320168Z Temporarily overriding HOME='/home/runner/work/_temp/e7976fe9-67f4-4ab2-8145-fbc6423186b8' before making global git config changes
+2026-10-23T12:03:55.1321677Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-23T12:03:55.1325876Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/tcl-lsp/tcl-lsp/harness
+2026-10-23T12:03:55.1367708Z Removing SSH command configuration
+2026-10-23T12:03:55.1374911Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-23T12:03:55.1415339Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-23T12:03:55.1834299Z Removing HTTP extra header
+2026-10-23T12:03:55.1837282Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-23T12:03:55.1905517Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-23T12:03:55.2250633Z Removing includeIf entries pointing to credentials config files
+2026-10-23T12:03:55.2257879Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-23T12:03:55.2309450Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-23T12:03:55.2822840Z Post job cleanup.
+2026-10-23T12:03:55.3740785Z [command]/usr/bin/git version
+2026-10-23T12:03:55.3804750Z git version 2.55.0
+2026-10-23T12:03:55.3844442Z Temporarily overriding HOME='/home/runner/work/_temp/3c1ba817-cd8f-4258-ab8e-c69a914249d4' before making global git config changes
+2026-10-23T12:03:55.3845829Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-23T12:03:55.3849274Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/tcl-lsp/tcl-lsp/candidate
+2026-10-23T12:03:55.3888463Z Removing SSH command configuration
+2026-10-23T12:03:55.3895387Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-23T12:03:55.3934723Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-23T12:03:55.4254431Z Removing HTTP extra header
+2026-10-23T12:03:55.4285385Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-23T12:03:55.4332591Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-23T12:03:55.4697683Z Removing includeIf entries pointing to credentials config files
+2026-10-23T12:03:55.4699108Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-23T12:03:55.4745480Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-23T12:03:55.5249356Z Post job cleanup.
+2026-10-23T12:03:55.6196117Z [command]/usr/bin/git version
+2026-10-23T12:03:55.6227112Z git version 2.55.0
+2026-10-23T12:03:55.6282878Z Temporarily overriding HOME='/home/runner/work/_temp/68a29fd2-9b66-4c93-b74b-20f334a52477' before making global git config changes
+2026-10-23T12:03:55.6284550Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-23T12:03:55.6295562Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/tcl-lsp/tcl-lsp/baseline
+2026-10-23T12:03:55.6346862Z Removing SSH command configuration
+2026-10-23T12:03:55.6356747Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-23T12:03:55.6415742Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-23T12:03:55.6896355Z Removing HTTP extra header
+2026-10-23T12:03:55.6904866Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-23T12:03:55.6983793Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-23T12:03:55.7313616Z Removing includeIf entries pointing to credentials config files
+2026-10-23T12:03:55.7315040Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-23T12:03:55.7349468Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-23T12:03:55.7787259Z Cleaning up orphan processes
+

@@ -1,0 +1,10 @@
+{
+  "utc": "2026-10-23T12:02:48.647194+00:00",
+  "path": "docs/work/name-handling/validation-tools/runtime-diagnostics.py",
+  "before_sha256": "7d241b22f553cf75fa21f535476c46939874f73aa5c867fdd1b6be04d273bac6",
+  "after_sha256": "8c84f5b1328038c8a1deffcfa62e92a070ccd7b42493312ba34d0d3a0a9e077c",
+  "patch_sha256": "b2b3498675e1af86b3219af20f6d660e82c864c64d9b2aeeb87d3e0b5c907dca",
+  "application_order": "apply reviewed label-only v4 c96d1575 first; this v5 is console-only append",
+  "scope": "root-authorized bounded FIRSTASSERTION max8lines/4096bytes perfailedrow; console bytes deducted same20MiBbudget; selection/assertions/raw contents unchanged",
+  "status": "offtree WORK-only, no execution"
+}

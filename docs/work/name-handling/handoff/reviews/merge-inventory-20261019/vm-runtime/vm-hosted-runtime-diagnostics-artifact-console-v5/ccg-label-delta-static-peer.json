@@ -1,0 +1,13 @@
+{
+  "utc": "2026-10-23T12:01:52.692091+00:00",
+  "status": "STATIC_CLEAR_ROOT_VERIFY_PUBLISHED_BEFORE",
+  "patch_sha256": "c96d157547996157259383d2c931047eefcd2add87814adc9972dc2a8a762d7e",
+  "reviewed_frozen_v2_before_and_proposedafter_exact": true,
+  "only_one_outputlabel_expression_changed": true,
+  "all16_artifact_labels_unique_and_prohibited_characters_absent": true,
+  "selector_argv_json_raw_content_assertions_budgets_unchanged": true,
+  "actual_prior_hosted": "16 console classifications, upload failed, no raw artifact; no assertion diagnosis possible",
+  "review_correction": "prior static peer missed upload-artifact prohibited colon in selector-derived filenames",
+  "current_publisher_path_absent_in_peer_view": "Root must verify published exactbefore e3f19d1f before applying",
+  "no_source_cargo_dispatch": true
+}

@@ -1,0 +1,10 @@
+{
+  "utc": "2026-10-23T11:56:14.847608+00:00",
+  "path": "runtime/rust/src/frame/member_materialisation_tests.rs",
+  "before_sha256": "309e615dc4b92598dcd2dff5aec98c0edd77f556683646efadd7149dafc89994",
+  "after_sha256": "aab80872841327d13626ee2101166e1d387d7e47a8f1c149910356cbd02670f9",
+  "patch_sha256": "6e302c2c6ee2d19352174e2f84fa457889714473e117d7dd4e995fc1f8be1e11",
+  "scope": "test callback uses actual separate-element storage API; identical Some(V) assertion and allcallback/order/counts retained; no product/native/currentness/grant change",
+  "actual_failure": "CI76c7 job120386569196 callback var_get(a(k)) returnedNone and externC panicaborted",
+  "status": "offtree proposal only; typing/runtimeUNRUN; no integration"
+}

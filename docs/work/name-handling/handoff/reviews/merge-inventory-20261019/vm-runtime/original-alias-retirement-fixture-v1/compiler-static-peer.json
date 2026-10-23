@@ -1,0 +1,12 @@
+{
+  "utc": "2026-10-23T12:03:58.681252+00:00",
+  "verdict": "bounded static CLEAR",
+  "patch_sha256": "6e302c2c6ee2d19352174e2f84fa457889714473e117d7dd4e995fc1f8be1e11",
+  "checks": [
+    "independent exact current workpins/zero-fuzz-nooffset copied apply/finals/pinnedownerfmt PASS",
+    "single test getter changes combined text passed to root-only API into existing explicit element API",
+    "actual a(k)=V fixture remains; same borrowed obj bytes assertion/refcounts/callbacks/control unchanged",
+    "var_get_elem uses existing native name protocol/current namespace/captured byte receiver and literal key; no production API change"
+  ],
+  "limits": "No shared edits/Cargo/typing/runtime; original controls remain required; Native diagnostic WORK-only"
+}

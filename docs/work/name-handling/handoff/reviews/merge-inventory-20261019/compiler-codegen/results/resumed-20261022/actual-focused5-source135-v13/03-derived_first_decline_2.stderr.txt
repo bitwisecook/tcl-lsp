@@ -1,0 +1,25 @@
+ZZ_NATIVE_PREFLIGHT_ASSESSMENT base=0 source_len=33880 mode=BytecodeObject frame=ProcedureCode preview_depth=0 possible_error=false native_entry_unavailable=false failure=false visits=1 children=0
+ZZ_NATIVE_EMITTER_ADMISSION function=::top dependency_refusal=false cfg_admission_required=None cfg_failure=false presented_failure=false
+
+ZZ_NATIVE_ADMISSION_INPUT kind=procedure_bytes source_len=33880 entry=true profile_matches=Some(true) physical_point=true logical_policy=true closed=Some(true) frame=Some(Procedure) current_namespace=Some(35) namespaces=Some(33) preflight=NotRequired instructions=7 procedure_body=false
+ZZ_NATIVE_PREFLIGHT_ASSESSMENT base=13 source_len=49 mode=BytecodeObject frame=ProcedureCode preview_depth=0 possible_error=false native_entry_unavailable=false failure=false visits=3 children=0
+N17G3 inventory named=0 lowerings=2 analysed_named=0 analysed_body=2 carried_installed=0 top_statements=1
+N17G3 body store=lowering id=ProcedureId { scope: 2, ordinal: 0 } owned=true kind=Installed label="::installed-body#0" span=Span { start: 13, end: 62 } original=false original_same_body=false analysis=true body_id_rejoin=true
+N17G3 body store=lowering id=ProcedureId { scope: 2, ordinal: 1 } owned=true kind=OriginalDeclaration label="::p" span=Span { start: 0, end: 62 } original=true original_same_body=true analysis=true body_id_rejoin=true
+N17G2 dialect=tcl8.4 call="vendor::f x y" original-p-count=0 retained-input=true exact-metadata=true host=true
+ZZ_NATIVE_PREFLIGHT_ASSESSMENT base=13 source_len=49 mode=BytecodeObject frame=ProcedureCode preview_depth=0 possible_error=false native_entry_unavailable=false failure=false visits=3 children=0
+N17G3 inventory named=0 lowerings=2 analysed_named=0 analysed_body=2 carried_installed=0 top_statements=1
+N17G3 body store=lowering id=ProcedureId { scope: 4, ordinal: 0 } owned=true kind=Installed label="::installed-body#0" span=Span { start: 13, end: 62 } original=false original_same_body=false analysis=true body_id_rejoin=true
+N17G3 body store=lowering id=ProcedureId { scope: 4, ordinal: 1 } owned=true kind=OriginalDeclaration label="::p" span=Span { start: 0, end: 62 } original=true original_same_body=true analysis=true body_id_rejoin=true
+N17G2 dialect=tcl8.5 call="vendor::f x y" original-p-count=0 retained-input=true exact-metadata=true host=true
+ZZ_NATIVE_PREFLIGHT_ASSESSMENT base=13 source_len=49 mode=BytecodeObject frame=ProcedureCode preview_depth=0 possible_error=false native_entry_unavailable=false failure=false visits=3 children=0
+N17G3 inventory named=0 lowerings=2 analysed_named=0 analysed_body=2 carried_installed=0 top_statements=1
+N17G3 body store=lowering id=ProcedureId { scope: 6, ordinal: 0 } owned=true kind=Installed label="::installed-body#0" span=Span { start: 13, end: 62 } original=false original_same_body=false analysis=true body_id_rejoin=true
+N17G3 body store=lowering id=ProcedureId { scope: 6, ordinal: 1 } owned=true kind=OriginalDeclaration label="::p" span=Span { start: 0, end: 62 } original=true original_same_body=true analysis=true body_id_rejoin=true
+N17G2 dialect=tcl8.6 call="vendor::f x y" original-p-count=0 retained-input=true exact-metadata=true host=true
+
+thread 'a_derived_body_runs_under_the_release_the_call_is_analysed_under' (406209) panicked at rust/tcl-spectcl/tests/pack_source_e2e.rs:485:9:
+assertion `left == right` failed: tcl8.6
+  left: None
+ right: Some("xy")
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace

@@ -1,0 +1,13 @@
+{
+  "utc": "2026-10-23T12:03:41.513491+00:00",
+  "status": "STATIC_CLEAR",
+  "patch_sha256": "b2b3498675e1af86b3219af20f6d660e82c864c64d9b2aeeb87d3e0b5c907dca",
+  "exact_reviewed_v4_before_proposedafter": true,
+  "only_console_reporting_block_changed": true,
+  "budget": "status plus max4096UTF8byte snippet measured before printing, deducted same remaining20MiB pool; refuse before printing if budget insufficient",
+  "finite_controls": "panic7lines/no_panic_fallback/multibyte10000 all snippetbytes<=4096",
+  "selector_status_rawfiles_process_lifecycle_and_assertions_unchanged": true,
+  "limitation": "FIRSTASSERTION header uses first7 raw lines when no panicked-at line exists; this fallback is diagnostic text, not proof an assertion occurred. SIGNAL/protocol classification remains authoritative.",
+  "owner_pinned_python_checks": "PASS as reported; prior helper typed controls inherited",
+  "no_source_cargo_dispatch": true
+}

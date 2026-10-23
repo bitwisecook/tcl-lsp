@@ -1,0 +1,18 @@
+{
+  "observed_utc": "2026-10-23T12:04:32.523452+00:00",
+  "run_id": 39948671056,
+  "job_id": 120397502535,
+  "head_sha": "b96c2ca5b6259f15db1004bd2532db54b0c3cbfa",
+  "status": "completed",
+  "conclusion": "failure",
+  "actual_console_rows": {
+    "PASS": 1,
+    "FAIL": 15
+  },
+  "capture_exit": 1,
+  "artifact_upload": "FAILED forbidden colon in test-label filenames",
+  "artifact_count": 0,
+  "raw_assertions_available": false,
+  "whole_raw_guard_verification": false,
+  "runtime_claim_limit": "all16 printed runtime statuses, not rawassertion/archive/fullguard acceptance"
+}

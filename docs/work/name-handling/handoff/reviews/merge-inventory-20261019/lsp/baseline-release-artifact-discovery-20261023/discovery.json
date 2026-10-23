@@ -1,0 +1,581 @@
+{
+  "actual_utc": "2026-10-23 11:59:14 UTC",
+  "kind": "Normalized read-only GitHub structured API discovery; not raw HTTP byte capture",
+  "head_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731",
+  "head_query_total": 21,
+  "head_query_returned": 21,
+  "complete_run_roster": [
+    {
+      "id": 39931245231,
+      "name": "Performance",
+      "event": "schedule",
+      "head_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731",
+      "head_branch": "rust",
+      "created_at": "2026-10-23T09:21:17Z",
+      "conclusion": "success"
+    },
+    {
+      "id": 39816429638,
+      "name": "CI",
+      "event": "workflow_dispatch",
+      "head_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731",
+      "head_branch": "rust",
+      "created_at": "2026-10-22T16:44:07Z",
+      "conclusion": "failure"
+    },
+    {
+      "id": 39755254010,
+      "name": "Performance",
+      "event": "schedule",
+      "head_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731",
+      "head_branch": "rust",
+      "created_at": "2026-10-22T09:25:05Z",
+      "conclusion": "success"
+    },
+    {
+      "id": 39576449688,
+      "name": "Performance",
+      "event": "schedule",
+      "head_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731",
+      "head_branch": "rust",
+      "created_at": "2026-10-21T09:22:28Z",
+      "conclusion": "success"
+    },
+    {
+      "id": 39401049852,
+      "name": "OpenSSF Scorecard",
+      "event": "schedule",
+      "head_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731",
+      "head_branch": "rust",
+      "created_at": "2026-10-20T09:29:32Z",
+      "conclusion": "success"
+    },
+    {
+      "id": 39400621697,
+      "name": "Performance",
+      "event": "schedule",
+      "head_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731",
+      "head_branch": "rust",
+      "created_at": "2026-10-20T09:25:58Z",
+      "conclusion": "success"
+    },
+    {
+      "id": 39263804233,
+      "name": "CodeQL",
+      "event": "schedule",
+      "head_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731",
+      "head_branch": "rust",
+      "created_at": "2026-10-19T13:51:54Z",
+      "conclusion": "success"
+    },
+    {
+      "id": 39233646484,
+      "name": "Performance",
+      "event": "schedule",
+      "head_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731",
+      "head_branch": "rust",
+      "created_at": "2026-10-19T09:55:14Z",
+      "conclusion": "success"
+    },
+    {
+      "id": 39232134543,
+      "name": "cache-cleanup",
+      "event": "schedule",
+      "head_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731",
+      "head_branch": "rust",
+      "created_at": "2026-10-19T09:42:55Z",
+      "conclusion": "success"
+    },
+    {
+      "id": 39118961886,
+      "name": "pip in /rust/bigip-report-gen/python - Update #1634039961",
+      "event": "dynamic",
+      "head_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731",
+      "head_branch": "rust",
+      "created_at": "2026-10-18T10:22:01Z",
+      "conclusion": "success"
+    },
+    {
+      "id": 39118961052,
+      "name": "cargo in /., /editors/zed, /runtime/rust, /rust/bigip-query-wasm, /rust/bigip-report-gen/python, /rust/bigip-report-gen/wasm, /rust/tcl-explorer-wasm, /rust/tcl-lsp-server-wasi, /rust/tcl-lsp-server-wasm, /rust/tcl-spec-studio-wasm, /rust/tcl-vm-wasm, /rust/zed-query-check - Update #1634039878",
+      "event": "dynamic",
+      "head_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731",
+      "head_branch": "rust",
+      "created_at": "2026-10-18T10:22:01Z",
+      "conclusion": "failure"
+    },
+    {
+      "id": 39118960522,
+      "name": "npm_and_yarn in /rust/bigip-report-gen/frontend - Update #1634039885",
+      "event": "dynamic",
+      "head_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731",
+      "head_branch": "rust",
+      "created_at": "2026-10-18T10:22:00Z",
+      "conclusion": "success"
+    },
+    {
+      "id": 39118960554,
+      "name": "npm_and_yarn in /rust/tcl-spec-studio/web - Update #1634039881",
+      "event": "dynamic",
+      "head_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731",
+      "head_branch": "rust",
+      "created_at": "2026-10-18T10:22:00Z",
+      "conclusion": "success"
+    },
+    {
+      "id": 39118948646,
+      "name": "gradle in /editors/jetbrains - Update #1634039068",
+      "event": "dynamic",
+      "head_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731",
+      "head_branch": "rust",
+      "created_at": "2026-10-18T10:21:49Z",
+      "conclusion": "success"
+    },
+    {
+      "id": 39118948696,
+      "name": "npm_and_yarn in /editors/vscode - Update #1634039066",
+      "event": "dynamic",
+      "head_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731",
+      "head_branch": "rust",
+      "created_at": "2026-10-18T10:21:49Z",
+      "conclusion": "success"
+    },
+    {
+      "id": 39118948694,
+      "name": "github_actions in /. - Update #1634039064",
+      "event": "dynamic",
+      "head_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731",
+      "head_branch": "rust",
+      "created_at": "2026-10-18T10:21:49Z",
+      "conclusion": "success"
+    },
+    {
+      "id": 39113065383,
+      "name": "Performance",
+      "event": "schedule",
+      "head_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731",
+      "head_branch": "rust",
+      "created_at": "2026-10-18T08:51:30Z",
+      "conclusion": "success"
+    },
+    {
+      "id": 39017862453,
+      "name": "Performance",
+      "event": "schedule",
+      "head_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731",
+      "head_branch": "rust",
+      "created_at": "2026-10-17T08:34:16Z",
+      "conclusion": "success"
+    },
+    {
+      "id": 38927177768,
+      "name": "Deploy GitHub Pages (BIG-IP report + compiler explorer + spec studio)",
+      "event": "push",
+      "head_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731",
+      "head_branch": "rust",
+      "created_at": "2026-10-16T15:50:29Z",
+      "conclusion": "success"
+    },
+    {
+      "id": 38927177325,
+      "name": "CI",
+      "event": "push",
+      "head_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731",
+      "head_branch": "rust",
+      "created_at": "2026-10-16T15:50:29Z",
+      "conclusion": "success"
+    },
+    {
+      "id": 38927177415,
+      "name": "OpenSSF Scorecard",
+      "event": "push",
+      "head_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731",
+      "head_branch": "rust",
+      "created_at": "2026-10-16T15:50:29Z",
+      "conclusion": "success"
+    }
+  ],
+  "build_capable_artifact_rosters": [
+    {
+      "run_id": 39931245231,
+      "workflow": "Performance",
+      "artifacts": [
+        {
+          "id": 12492570833,
+          "name": "perf-ci-fcb7927f02b5",
+          "digest": "sha256:2398565d800bd0f342a35f79032058ce822e3252c976bb5a9c86e50f3f0c322c",
+          "bytes": 82758,
+          "expired": false,
+          "head_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731"
+        }
+      ]
+    },
+    {
+      "run_id": 39816429638,
+      "workflow": "CI",
+      "artifacts": [
+        {
+          "id": 12444315266,
+          "name": "rust-tests-listing-5-5",
+          "digest": "sha256:1f5a40fa5408b89e4037bed703fad2d25564296dd5f07a65a020f4f0cac12333",
+          "bytes": 571387,
+          "expired": false,
+          "head_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731"
+        },
+        {
+          "id": 12443796846,
+          "name": "rust-tests-listing-2-5",
+          "digest": "sha256:c788b4db4983c1eec145c5a5bbe154d8c622cf7c01a049890a0e4f6c99954153",
+          "bytes": 729855,
+          "expired": false,
+          "head_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731"
+        },
+        {
+          "id": 12443791591,
+          "name": "rust-tests-listing-4-5",
+          "digest": "sha256:fa85c1ddee433b5d522331ab4365ab0e39e1bac9fb1c19a4f7d3c724be75d88b",
+          "bytes": 397455,
+          "expired": false,
+          "head_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731"
+        },
+        {
+          "id": 12443671581,
+          "name": "rust-tests-listing-1-5",
+          "digest": "sha256:6258e36312b762b7875c45b99651e3d6ea3f27caf98dfe7101be4166b2671a89",
+          "bytes": 983446,
+          "expired": false,
+          "head_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731"
+        },
+        {
+          "id": 12443610076,
+          "name": "vscode-test-partition-one",
+          "digest": "sha256:4556a8301bf9c3b6e1305d3988994a5a759d9fa6995ed3f870d7db55b0f2c097",
+          "bytes": 63597,
+          "expired": false,
+          "head_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731"
+        },
+        {
+          "id": 12443410816,
+          "name": "lsp-e2e-result-1-3",
+          "digest": "sha256:9b1c88bc03f9f2b5a5cfc21b26e3121a1e51162ac0eeb9e3366ee47026f37649",
+          "bytes": 337708,
+          "expired": false,
+          "head_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731"
+        },
+        {
+          "id": 12443326005,
+          "name": "vscode-test-partition-two",
+          "digest": "sha256:9f1cd05e43b9592f5699c0934b367fc676f657b410f41853f421bedbc1227651",
+          "bytes": 51995,
+          "expired": false,
+          "head_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731"
+        },
+        {
+          "id": 12443166615,
+          "name": "lsp-e2e-result-2-3",
+          "digest": "sha256:bc5e5a64df864da4907f288e936bd92dc23aff4c82a8fe92eb12e3d8651e2aaf",
+          "bytes": 338742,
+          "expired": false,
+          "head_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731"
+        },
+        {
+          "id": 12443151823,
+          "name": "rust-tests-listing-3-5",
+          "digest": "sha256:12a5727d9c452c45df51d0573324d90a13a7d5a051937c48f9e1b3ca44ebf06e",
+          "bytes": 456740,
+          "expired": false,
+          "head_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731"
+        },
+        {
+          "id": 12442588342,
+          "name": "vscode-test-partition-three",
+          "digest": "sha256:243f1340c4616e8f13779543feaffd86ea2d63a33227fbf166f9ebe8a87c3b4f",
+          "bytes": 105018,
+          "expired": false,
+          "head_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731"
+        },
+        {
+          "id": 12442364284,
+          "name": "rust-tests-metadata",
+          "digest": "sha256:ef67a60fcdb38073d5b5c0b18e73fc63a8ca98ff5e654d21c25a286bc5b538e1",
+          "bytes": 243114,
+          "expired": false,
+          "head_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731"
+        },
+        {
+          "id": 12442099106,
+          "name": "vscode-test-multi-folder",
+          "digest": "sha256:a2fe79568c4266ef61ccc89c6974e5b63ee386c324b0d086c2b1fef3e4e6070e",
+          "bytes": 4276,
+          "expired": false,
+          "head_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731"
+        },
+        {
+          "id": 12441683916,
+          "name": "lsp-e2e-proof",
+          "digest": "sha256:7f5fb6f31a9f196a76d926a535f1e205db45b28b481f534d9cce80d8e2533fb4",
+          "bytes": 1318560,
+          "expired": false,
+          "head_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731"
+        },
+        {
+          "id": 12441674789,
+          "name": "lsp-e2e-result-3-3",
+          "digest": "sha256:50d73f31198e4d858c133859653183f872a71069a94df1b4dcddd6ef3f260ddb",
+          "bytes": 338984,
+          "expired": false,
+          "head_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731"
+        },
+        {
+          "id": 12441349583,
+          "name": "lsp-e2e-archive",
+          "digest": "sha256:d3d5f011206e5be7164888275e87ce6876307cc4c520f38dfab873c0421147f4",
+          "bytes": 274329941,
+          "expired": false,
+          "head_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731"
+        },
+        {
+          "id": 12441329895,
+          "name": "tcl-lsp-server-release",
+          "digest": "sha256:2c5ed6e7abd1a59a9bf6915a5f575bae52e7646fee16cf51ac33cafe7abb0b4b",
+          "bytes": 21046824,
+          "expired": false,
+          "head_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731"
+        }
+      ]
+    },
+    {
+      "run_id": 39755254010,
+      "workflow": "Performance",
+      "artifacts": [
+        {
+          "id": 12416152103,
+          "name": "perf-ci-fcb7927f02b5",
+          "digest": "sha256:2fd79842ae5789e01ce9428873e31b1dd33e5ad480c2d9f1dce803102bf2aed4",
+          "bytes": 81313,
+          "expired": false,
+          "head_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731"
+        }
+      ]
+    },
+    {
+      "run_id": 39576449688,
+      "workflow": "Performance",
+      "artifacts": [
+        {
+          "id": 12335330648,
+          "name": "perf-ci-fcb7927f02b5",
+          "digest": "sha256:de1448f6be11c03ccdcf5126d6148794c6a36c31398118c9795b8d5dfe131485",
+          "bytes": 82706,
+          "expired": false,
+          "head_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731"
+        }
+      ]
+    },
+    {
+      "run_id": 39400621697,
+      "workflow": "Performance",
+      "artifacts": [
+        {
+          "id": 12254759300,
+          "name": "perf-ci-fcb7927f02b5",
+          "digest": "sha256:4818d5151abb3cfa41e7dcd0390f94abc55546923a8087c9feacccdb7055e3e6",
+          "bytes": 82730,
+          "expired": false,
+          "head_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731"
+        }
+      ]
+    },
+    {
+      "run_id": 39233646484,
+      "workflow": "Performance",
+      "artifacts": [
+        {
+          "id": 12177104230,
+          "name": "perf-ci-fcb7927f02b5",
+          "digest": "sha256:44517ff5d45873acd86323386b60260f5233c9d0913d577a503de85a09da9786",
+          "bytes": 82071,
+          "expired": false,
+          "head_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731"
+        }
+      ]
+    },
+    {
+      "run_id": 39113065383,
+      "workflow": "Performance",
+      "artifacts": [
+        {
+          "id": 12131850803,
+          "name": "perf-ci-fcb7927f02b5",
+          "digest": "sha256:361f458556416ee6f2dfb5d30e82d112c57e08d8d45786883c69ccd2e782cbc6",
+          "bytes": 82000,
+          "expired": false,
+          "head_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731"
+        }
+      ]
+    },
+    {
+      "run_id": 39017862453,
+      "workflow": "Performance",
+      "artifacts": [
+        {
+          "id": 12096155042,
+          "name": "perf-ci-fcb7927f02b5",
+          "digest": "sha256:0136c802c61973818cbc94995baf7f77a71a78456be085c23cdde07f5161a4ab",
+          "bytes": 82087,
+          "expired": false,
+          "head_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731"
+        }
+      ]
+    },
+    {
+      "run_id": 38927177325,
+      "workflow": "CI",
+      "artifacts": []
+    }
+  ],
+  "latest_ten_releases_peeled": [
+    {
+      "tag": "v2.2.5",
+      "tag_object": "fe2ad7f5b331d4a4d46298cd961efa17e12800ac",
+      "peeled_type": "commit",
+      "commit": "3b5eba8aed44b8faec026aa7fdbe79c266948711"
+    },
+    {
+      "tag": "v2.2.4",
+      "tag_object": "344fc4e73fe609aefd343e7f1b68e65092493a22",
+      "peeled_type": "commit",
+      "commit": "46213feee71e554f8163a436246df91084699f8b"
+    },
+    {
+      "tag": "v2.2.3",
+      "tag_object": "9c692d5fc65bae6248080c15a6f630b7ba817f22",
+      "peeled_type": "commit",
+      "commit": "ee405faf2dddd8c14a3864c3c3100dda4de08f0b"
+    },
+    {
+      "tag": "v2.2.2",
+      "tag_object": "4018c64709a701771129b29d526ba0d1ec9215cc",
+      "peeled_type": "commit",
+      "commit": "06a5e3451f1bf0ad2d91c5a258950037468658dc"
+    },
+    {
+      "tag": "v2.2.1",
+      "tag_object": "e3b4dc24d8180094112dcd4244df7ed20d32f4d6",
+      "peeled_type": "commit",
+      "commit": "45196df18b389ac55ef20ac69f727cbb7ca66960"
+    },
+    {
+      "tag": "v2.2.0",
+      "tag_object": "0ae055763684ba5fa76916760c03ca7dee3e46b6",
+      "peeled_type": "commit",
+      "commit": "1747d08993525f4d10b50e71e44f20a1c3c6e910"
+    },
+    {
+      "tag": "v2.1.24",
+      "tag_object": "6b765ef3c87097834f8fc0f3552722b6fd609693",
+      "peeled_type": "commit",
+      "commit": "bef136a5c06d97e13ff83384a769753e031ccab8"
+    },
+    {
+      "tag": "v2.1.23",
+      "tag_object": "eedfc04fef72b9277c87ab92431ef6834c739bbc",
+      "peeled_type": "commit",
+      "commit": "b31d4e01e29fec598be1fda438dc3b653043fe5e"
+    },
+    {
+      "tag": "v2.1.22",
+      "tag_object": "60e2bac68c937ed545b959ec46b12ef4d78aad11",
+      "peeled_type": "commit",
+      "commit": "9e68368809b45c52feb265409a9ed34c64500865"
+    },
+    {
+      "tag": "v2.1.21",
+      "tag_object": "ca96040333bf60e05d94e8275235bae0b430b8f0",
+      "peeled_type": "commit",
+      "commit": "ca63ddb763ee56a5355cc385201fc6685a9e8ea2"
+    }
+  ],
+  "exact_baseline_workflow_profile_sources": [
+    {
+      "path": ".github/workflows/ci.yml",
+      "blob_sha": "8de4c6c8a26ba62c39e0f29d629b2d61154721f3",
+      "source_commit": "fcb7927f02b5395753247b322fdd7be87ae5c731",
+      "relevant_lines": [
+        {
+          "line": 31,
+          "text": "      native_release_build_proof:"
+        },
+        {
+          "line": 38,
+          "text": "  group: ${{ github.workflow }}-${{ github.event_name == 'workflow_dispatch' && inputs.native_release_build_proof && !startsWith(github.ref, 'refs/tags/v') && 'native-release-proof' || 'ordinary' }}-${{ github.ref }}"
+        },
+        {
+          "line": 575,
+          "text": "        run: cargo build -p tcl-lsp-server --profile ci"
+        },
+        {
+          "line": 581,
+          "text": "          name: tcl-lsp-server-release"
+        },
+        {
+          "line": 582,
+          "text": "          path: target/ci/tcl-lsp-server"
+        },
+        {
+          "line": 762,
+          "text": "          name: tcl-lsp-server-release"
+        },
+        {
+          "line": 942,
+          "text": "          name: tcl-lsp-server-release"
+        },
+        {
+          "line": 2807,
+          "text": "  build-server-matrix:"
+        },
+        {
+          "line": 2809,
+          "text": "    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.native_release_build_proof)"
+        },
+        {
+          "line": 2929,
+          "text": "              cargo build -p \"$PACKAGE\" --release --target \"$TARGET\""
+        },
+        {
+          "line": 2978,
+          "text": "              cargo build -p \"$PACKAGE\" --release --target \"$TARGET\""
+        },
+        {
+          "line": 3002,
+          "text": "          cargo build -p \"${{ matrix.program.package }}\" --release --target \"$t\""
+        },
+        {
+          "line": 3042,
+          "text": "          name: server-bins-${{ matrix.platform.id }}-${{ matrix.program.id }}"
+        }
+      ]
+    },
+    {
+      "path": ".github/workflows/perf.yml",
+      "blob_sha": "dabeeace879ecf64982fd1aa1be4aa3d24f4fbd7",
+      "source_commit": "fcb7927f02b5395753247b322fdd7be87ae5c731",
+      "relevant_lines": [
+        {
+          "line": 104,
+          "text": "        run: cargo build -p tcl-lsp-server --release"
+        },
+        {
+          "line": 255,
+          "text": "            scripts/perf/ci-results"
+        },
+        {
+          "line": 256,
+          "text": "            scripts/perf/ci-graphs"
+        }
+      ]
+    }
+  ],
+  "conclusion": "No retained true-release native baseline executable found in complete exact-commit run roster/build-capable artifact lists or latest ten release tags; existing workflow supports root native_release_build_proof dispatch. CIprofile executable and release perf reports are not shipping executable substitutes.",
+  "dispatch_or_build_executed": false
+}

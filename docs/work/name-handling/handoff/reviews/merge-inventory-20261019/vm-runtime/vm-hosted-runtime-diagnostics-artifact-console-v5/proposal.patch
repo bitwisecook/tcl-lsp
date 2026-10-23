@@ -1,0 +1,37 @@
+--- a/docs/work/name-handling/validation-tools/runtime-diagnostics.py
++++ b/docs/work/name-handling/validation-tools/runtime-diagnostics.py
+@@ -392,7 +392,33 @@
+         results.append(row)
+         save(str(prefix) + ".result.json", row)
+         save(out / "results.json", results)
+-        print(f"DIAGNOSTIC {i}/16 {status}", flush=True)
++        report = f"DIAGNOSTIC {i}/16 {status}\n"
++        if status != "PASS":
++            lines = text.splitlines()
++            first = next(
++                (j for j, line in enumerate(lines) if "panicked at" in line), 0
++            )
++            snippet = (
++                f"FIRSTASSERTION {i}/16 {name}\n"
++                + "\n".join(lines[first : first + 7])
++                + "\n"
++            )
++            report += snippet.encode("utf-8")[:4096].decode("utf-8", errors="ignore")
++        report_bytes = len(report.encode("utf-8"))
++        require(
++            report_bytes < remaining,
++            "aggregate budget exhausted before console receipt",
++        )
++        remaining -= report_bytes
++        save(
++            out / "aggregate-log.json",
++            {
++                "cap_bytes": CAP,
++                "remaining_bytes": remaining,
++                "console_report_bytes_last_row": report_bytes,
++            },
++        )
++        print(report, end="", flush=True)
+         require(lifecycle(r), "lifecycle stop; no unsafe continuation")
+         require(remaining > 0, "aggregate log cap exhausted")
+     require(len(results) == 16, "original16 incomplete")

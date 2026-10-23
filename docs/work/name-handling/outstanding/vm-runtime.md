@@ -2,11 +2,39 @@
 
 Area: tcl-vm, runtime/rust, tcl-spectcl, tcl-spec-studio: SpecTcl execution and acceptance.
 
-Last updated: 2026-10-23T11:48:08.159063+00:00 (hostedv2dispatch422/no runtime; exactv3envcontextfix staticCLEAR/root handoff)
+Last updated: 2026-10-23T12:04:32.542269+00:00 (hosted16ran1PASS15FAIL/artifactuploadfailed; labelv4+consolev5 staticCLEAR/root handoff)
 
 Maintained by the vm-runtime agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## Resume
+
+Root accepted freshv5 hosteddispatch12:06:15 exact WORKa8e7bc7a.
+Actualrun39950833444/runtimejob120404591918 now checkoutRUNNING, setupPASS;
+other3perfjobscorrectlySKIPPED. No currentbuild/test completion inferred.
+V4label+V5console fixes are included; actualoriginal16firstassertions/artifact
+pending. Separate fatalaliasfixture6e302c2c compilerstaticCLEAR a480ca88 is
+already WORKa8e7 perroot; keepsoriginalSome(V)/allcallback/refcount asserts,
+uses separate-elementAPIinsteadroot-onlygetter; typing/runtimeUNRUN.
+Root now mirrors reviewedproduct to active afterfocused5closed; no VMsource/
+Cargo/GO/Git/dispatch. Monitor GitHub only; priorrun1PASS15FAIL artifactlost
+and priorv2HTTP422 remain explicit historicalfailures, no gatewaiver.
+
+Hosted39948671056/workb96c2ca5 actually CLOSED: captureexit1, console
+original16=1PASS15FAIL (catchPASS); upload-artifact FAILED colon-containing
+outputfilenames. No artifacts retained, rawassertiondetails unavailable; no
+whole rawguard/archive acceptance inferred. Root/Codegen/VM staticreviews
+missed uploader filename restriction; report honestly, not semanticfailure.
+Lossless completedjoblog/summary owned hosted-runtime-diagnostic-run39948671056.
+Root authorized consolefallback and no riskycheckoutoptimization.
+
+Ordered WORK-only fixes ready/staticCLEAR: labelv4 c96d1575 e3f19→7d241,
+peer8f49eda2, sanitizes colon in outputfilename only (selectors/argv/JSONexact).
+Then consolev5 b2b34986 7d241→8c84f5b1, peeraf39573b, prints failingrow
+FIRSTASSERTION marker+7actualrawlines <=4096bytes; allconsolebytes deducted
+same20MiBremaining. No-panic fallback is rawdiagnostic, not assertionproof;
+SIGNAL/protocolstatus preserved. Ruff/ty/PyrightSTANDARD1file0E0W PASS.
+Root has exactpatches/peers forpublish+freshworkSHA dispatch; no active edit,
+Cargo/Git/dispatch byVM. Originalfirstcauses remain pending rerun rawcapture.
 
 Root published v3contextfix on WORKb96c2ca5 and accepted diagnosticdispatch.
 Actual Performance run39948671056 created11:48:23 on exactb96c2ca5, event

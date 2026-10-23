@@ -1,0 +1,129 @@
+{
+  "all5_direct_child_timers_valid": true,
+  "all_artifacts_retained": true,
+  "artifact_stable": true,
+  "build_artifacts": {
+    "tcl-spectcl": {
+      "captured_from_current_cargo_event": true,
+      "cargo_event": {
+        "executable": "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/pack_source_e2e-626cf81c5174631c",
+        "features": [],
+        "filenames": [
+          "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/pack_source_e2e-626cf81c5174631c"
+        ],
+        "fresh": false,
+        "manifest_path": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-spectcl/Cargo.toml",
+        "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-spectcl#0.1.0",
+        "profile": {
+          "debug_assertions": true,
+          "debuginfo": 0,
+          "opt_level": "0",
+          "overflow_checks": true,
+          "test": true
+        },
+        "reason": "compiler-artifact",
+        "target": {
+          "crate_types": [
+            "bin"
+          ],
+          "doc": false,
+          "doctest": false,
+          "edition": "2024",
+          "kind": [
+            "test"
+          ],
+          "name": "pack_source_e2e",
+          "src_path": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-spectcl/tests/pack_source_e2e.rs",
+          "test": true
+        }
+      },
+      "manifest_path": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-spectcl/Cargo.toml",
+      "mtime_ns": 1792756345365777000,
+      "package": "tcl-spectcl",
+      "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-spectcl#0.1.0",
+      "path": "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/pack_source_e2e-626cf81c5174631c",
+      "profile": {
+        "debug_assertions": true,
+        "debuginfo": 0,
+        "opt_level": "0",
+        "overflow_checks": true,
+        "test": true
+      },
+      "sha256": "6781b0daa5951748143281b1112748a58b45207858bd2685a6233d3c512fa9ec",
+      "size": 155742960,
+      "stderr_sha256": "76f4efc119ebfa1a07c3dabda79f74222420bac251d76863758b2caf038f0247",
+      "stdout_sha256": "1ee374e732e3f648fb87c7d931bab1a4f1f49f56fe63496a3a47a4d63c5d38aa",
+      "target_kind": [
+        "test"
+      ],
+      "target_name": "pack_source_e2e"
+    },
+    "tcl-vm": {
+      "captured_from_current_cargo_event": true,
+      "cargo_event": {
+        "executable": "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/cmd_control_e2e-98c1b67654ce4554",
+        "features": [
+          "default",
+          "js-clock",
+          "test-support"
+        ],
+        "filenames": [
+          "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/cmd_control_e2e-98c1b67654ce4554"
+        ],
+        "fresh": false,
+        "manifest_path": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-vm/Cargo.toml",
+        "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-vm#0.1.0",
+        "profile": {
+          "debug_assertions": true,
+          "debuginfo": 0,
+          "opt_level": "0",
+          "overflow_checks": true,
+          "test": true
+        },
+        "reason": "compiler-artifact",
+        "target": {
+          "crate_types": [
+            "bin"
+          ],
+          "doc": false,
+          "doctest": false,
+          "edition": "2024",
+          "kind": [
+            "test"
+          ],
+          "name": "cmd_control_e2e",
+          "src_path": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-vm/tests/cmd_control_e2e.rs",
+          "test": true
+        }
+      },
+      "manifest_path": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-vm/Cargo.toml",
+      "mtime_ns": 1792755299666609864,
+      "package": "tcl-vm",
+      "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-vm#0.1.0",
+      "path": "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/cmd_control_e2e-98c1b67654ce4554",
+      "profile": {
+        "debug_assertions": true,
+        "debuginfo": 0,
+        "opt_level": "0",
+        "overflow_checks": true,
+        "test": true
+      },
+      "sha256": "578365d7d1f1f68ff12b2948729364ba21a915868c92ea31a664470001abf2b0",
+      "size": 121829376,
+      "stderr_sha256": "427d7092f689a0d05b9b9a5a427b261c8400c86b436d5f9449fde54ddb55c39b",
+      "stdout_sha256": "f120c5af2d14458c21c9ee6703f3d159e04e6a535401932bc3e6a22bc1662dc9",
+      "target_kind": [
+        "test"
+      ],
+      "target_name": "cmd_control_e2e"
+    }
+  },
+  "finished_utc": "2026-10-23T11:55:32.457319+00:00",
+  "overall_exit": 1,
+  "providers_stable": true,
+  "results": 5,
+  "root_go_sha256": "73772e21771f6a090f2c241494c8f3ff87ce55679877b58dc21c20dff704e4c0",
+  "selected": 5,
+  "source_count": 100408,
+  "source_stable": true
+}

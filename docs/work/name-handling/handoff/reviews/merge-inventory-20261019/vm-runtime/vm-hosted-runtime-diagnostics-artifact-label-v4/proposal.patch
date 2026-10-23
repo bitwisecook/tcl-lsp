@@ -1,0 +1,11 @@
+--- a/docs/work/name-handling/validation-tools/runtime-diagnostics.py
++++ b/docs/work/name-handling/validation-tools/runtime-diagnostics.py
+@@ -345,7 +345,7 @@
+             and not git("status", "--porcelain=v1", "--untracked-files=all"),
+             "source/clean guard failed",
+         )
+-        prefix = out / (f"{i:02d}-" + name)
++        prefix = out / (f"{i:02d}-" + name.replace(":", "_"))
+         argv = [str(exe), name, "--exact", "--nocapture", "--test-threads=1"]
+         save(str(prefix) + ".argv.json", argv)
+         r = execute(argv, prefix, exe, 180)

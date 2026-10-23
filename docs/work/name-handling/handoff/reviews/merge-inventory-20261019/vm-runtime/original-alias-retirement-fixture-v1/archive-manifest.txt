@@ -1,0 +1,3 @@
+a480ca88ebefb9f47ad5a7173cd6817df215c6db88f4708ba5ea093a372e0124  compiler-static-peer.json
+01a79c83ff9a6a51dd162f5f8b937b2565e14edbed7cacc177fbc46b1d284076  manifest.json
+6e302c2c6ee2d19352174e2f84fa457889714473e117d7dd4e995fc1f8be1e11  proposal.patch

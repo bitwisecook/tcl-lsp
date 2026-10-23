@@ -1,0 +1,11 @@
+
+running 1 test
+test a_catch_body_write_is_visible_after_the_catch ... FAILED
+
+failures:
+
+failures:
+    a_catch_body_write_is_visible_after_the_catch
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 113 filtered out; finished in 13.51s
+

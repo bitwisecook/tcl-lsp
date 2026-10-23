@@ -1,0 +1,23 @@
+ZZ_NATIVE_PREFLIGHT_ASSESSMENT base=0 source_len=33880 mode=BytecodeObject frame=ProcedureCode preview_depth=0 possible_error=false native_entry_unavailable=false failure=false visits=1 children=0
+ZZ_NATIVE_EMITTER_ADMISSION function=::top dependency_refusal=false cfg_admission_required=None cfg_failure=false presented_failure=false
+
+ZZ_NATIVE_ADMISSION_INPUT kind=procedure_bytes source_len=33880 entry=true profile_matches=Some(true) physical_point=true logical_policy=true closed=Some(true) frame=Some(Procedure) current_namespace=Some(35) namespaces=Some(33) preflight=NotRequired instructions=7 procedure_body=false
+ZZ_NATIVE_PREFLIGHT_ASSESSMENT base=13 source_len=33 mode=BytecodeObject frame=ProcedureCode preview_depth=0 possible_error=false native_entry_unavailable=false failure=false visits=2 children=0
+N17G_LIVE propagation-entry procedures=0
+N17G_LIVE substitution-inventory-entry
+N17G_LIVE gate=substitution-metadata present=true
+N17G_LIVE gate=substitution-original-inventory present=true
+N17G_LIVE substitution-inventory-entry
+N17G_LIVE gate=substitution-metadata present=true
+N17G_LIVE gate=substitution-original-inventory present=true
+N17G_LIVE substitution-visit span=Span { start: 0, end: 47 }
+N17G_LIVE substitution-inventory-entry
+N17G_LIVE gate=substitution-metadata present=true
+N17G_LIVE gate=substitution-original-inventory present=true
+N17G_LIVE substitution-count count=0
+
+thread 'a_pack_file_folds_a_call_site_in_the_optimiser' (406253) panicked at rust/tcl-spectcl/tests/pack_source_e2e.rs:188:9:
+assertion `left == right` failed: DSL 1
+  left: []
+ right: ["5"]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace

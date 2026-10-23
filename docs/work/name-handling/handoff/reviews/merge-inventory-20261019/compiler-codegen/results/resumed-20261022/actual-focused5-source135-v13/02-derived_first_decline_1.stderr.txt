@@ -1,0 +1,43 @@
+ZZ_NATIVE_PREFLIGHT_ASSESSMENT base=0 source_len=24 mode=BytecodeObject frame=ScriptCode preview_depth=0 possible_error=false native_entry_unavailable=false failure=false visits=1 children=0
+ZZ_NATIVE_EMITTER_ADMISSION function=::top dependency_refusal=false cfg_admission_required=None cfg_failure=false presented_failure=false
+ZZ_NATIVE_EMITTER_ADMISSION function=::top dependency_refusal=false cfg_admission_required=None cfg_failure=false presented_failure=false
+
+ZZ_NATIVE_ADMISSION_INPUT kind=script_text source_len=24 entry=true profile_matches=Some(true) physical_point=true logical_policy=true closed=Some(true) frame=Some(Global) current_namespace=Some(0) namespaces=Some(34) preflight=NotRequired instructions=8 procedure_body=false
+ZZ_NATIVE_PREFLIGHT_ASSESSMENT base=0 source_len=0 mode=BytecodeObject frame=ScriptCode preview_depth=0 possible_error=false native_entry_unavailable=false failure=false visits=0 children=0
+ZZ_NATIVE_EMITTER_ADMISSION function=::top dependency_refusal=false cfg_admission_required=None cfg_failure=false presented_failure=false
+ZZ_NATIVE_EMITTER_ADMISSION function=::top dependency_refusal=false cfg_admission_required=None cfg_failure=false presented_failure=false
+ZZ_NATIVE_EMITTER_ADMISSION function=::top dependency_refusal=false cfg_admission_required=None cfg_failure=false presented_failure=false
+ZZ_NATIVE_EMITTER_ADMISSION function=::top dependency_refusal=false cfg_admission_required=None cfg_failure=false presented_failure=false
+
+ZZ_NATIVE_ADMISSION_INPUT kind=script_bytes source_len=0 entry=true profile_matches=Some(true) physical_point=true logical_policy=true closed=Some(true) frame=Some(Namespace) current_namespace=Some(34) namespaces=Some(35) preflight=NotRequired instructions=2 procedure_body=false
+ZZ_NATIVE_PREFLIGHT_ASSESSMENT base=0 source_len=34 mode=BytecodeObject frame=ScriptCode preview_depth=0 possible_error=false native_entry_unavailable=false failure=false visits=1 children=0
+ZZ_NATIVE_EMITTER_ADMISSION function=::top dependency_refusal=false cfg_admission_required=None cfg_failure=false presented_failure=false
+ZZ_NATIVE_EMITTER_ADMISSION function=::top dependency_refusal=false cfg_admission_required=None cfg_failure=false presented_failure=false
+
+ZZ_NATIVE_ADMISSION_INPUT kind=script_text source_len=34 entry=true profile_matches=Some(true) physical_point=true logical_policy=true closed=Some(true) frame=Some(Global) current_namespace=Some(0) namespaces=Some(35) preflight=NotRequired instructions=6 procedure_body=false
+ZZ_NATIVE_PREFLIGHT_ASSESSMENT base=0 source_len=12 mode=BytecodeObject frame=ScriptCode preview_depth=0 possible_error=false native_entry_unavailable=false failure=false visits=1 children=0
+ZZ_NATIVE_EMITTER_ADMISSION function=::top dependency_refusal=false cfg_admission_required=None cfg_failure=false presented_failure=false
+ZZ_NATIVE_EMITTER_ADMISSION function=::top dependency_refusal=false cfg_admission_required=None cfg_failure=false presented_failure=false
+
+ZZ_NATIVE_ADMISSION_INPUT kind=script_text source_len=12 entry=true profile_matches=Some(true) physical_point=true logical_policy=true closed=Some(true) frame=Some(Global) current_namespace=Some(0) namespaces=Some(35) preflight=NotRequired instructions=4 procedure_body=false
+ZZ_NATIVE_PREFLIGHT_ASSESSMENT base=0 source_len=13 mode=BytecodeObject frame=ProcedureCode preview_depth=0 possible_error=false native_entry_unavailable=false failure=false visits=1 children=0
+ZZ_NATIVE_EMITTER_ADMISSION function=::top dependency_refusal=false cfg_admission_required=None cfg_failure=false presented_failure=false
+ZZ_NATIVE_EMITTER_ADMISSION function=::top dependency_refusal=false cfg_admission_required=None cfg_failure=false presented_failure=false
+
+ZZ_NATIVE_ADMISSION_INPUT kind=procedure_bytes source_len=13 entry=true profile_matches=Some(true) physical_point=true logical_policy=true closed=Some(true) frame=Some(Procedure) current_namespace=Some(34) namespaces=Some(35) preflight=NotRequired instructions=5 procedure_body=false
+ZZ_NATIVE_PREFLIGHT_ASSESSMENT base=0 source_len=33880 mode=BytecodeObject frame=ProcedureCode preview_depth=0 possible_error=false native_entry_unavailable=false failure=false visits=1 children=0
+ZZ_NATIVE_EMITTER_ADMISSION function=::top dependency_refusal=false cfg_admission_required=None cfg_failure=false presented_failure=false
+
+ZZ_NATIVE_ADMISSION_INPUT kind=procedure_bytes source_len=33880 entry=true profile_matches=Some(true) physical_point=true logical_policy=true closed=Some(true) frame=Some(Procedure) current_namespace=Some(35) namespaces=Some(33) preflight=NotRequired instructions=7 procedure_body=false
+ZZ_NATIVE_PREFLIGHT_ASSESSMENT base=13 source_len=48 mode=BytecodeObject frame=ProcedureCode preview_depth=0 possible_error=false native_entry_unavailable=false failure=false visits=3 children=0
+N17G3 inventory named=0 lowerings=2 analysed_named=0 analysed_body=2 carried_installed=0 top_statements=1
+N17G3 body store=lowering id=ProcedureId { scope: 7, ordinal: 0 } owned=true kind=Installed label="::installed-body#0" span=Span { start: 13, end: 61 } original=false original_same_body=false analysis=true body_id_rejoin=true
+N17G3 body store=lowering id=ProcedureId { scope: 7, ordinal: 1 } owned=true kind=OriginalDeclaration label="::p" span=Span { start: 0, end: 61 } original=true original_same_body=true analysis=true body_id_rejoin=true
+N17G2 dialect=tcl9.0 call="vendor::f 21" original-p-count=0 retained-input=true exact-metadata=true host=true
+
+thread 'a_reference_body_answers_through_the_host_as_the_procedure_does' (406058) panicked at rust/tcl-spectcl/tests/pack_source_e2e.rs:393:9:
+assertion `left == right` failed: proc vendor::f {x} {expr {$x * 2}}
+vendor::f 21
+  left: None
+ right: Some("42")
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
