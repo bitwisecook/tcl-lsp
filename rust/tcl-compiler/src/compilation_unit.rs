@@ -3690,7 +3690,7 @@ struct RetainedModuleFacts<'a> {
     command_mutations: crate::command_binding::ModuleCommandMutations,
     proc_binding_trust: crate::command_binding::ProcBindingTrustProjection,
     analysis_context: crate::value_transfer::AnalysisContextKey,
-    cfg_context: Option<&'a CfgContext>,
+    cfg_context: Option<&'a PreparedCfgContext>,
     call_site_constants: crate::unit_scope::CallSiteEvidence,
     linkage: tcl_registry::Traits,
     extra_callers: Vec<crate::unit_scope::ExtraCallSiteScanContext>,
@@ -4681,9 +4681,7 @@ impl CompilationUnit {
             optimiser_source_owner::OriginalSourceBuildIngress::RetainedEntry
         };
 
-        let UnitBuildOptions {
-            registry, dialect, ..
-        } = options;
+        let UnitBuildOptions { dialect, .. } = options;
         #[cfg(any(test, debug_assertions))]
         let mut phase_trace = SourcePipelineTrace::new("unit", source.len());
         #[cfg(any(test, debug_assertions))]
@@ -4942,7 +4940,7 @@ impl CompilationUnit {
                 // generated lambda body contributes trivial lattices instead of
                 // a deep (and slow) analysis.
                 let body_bytes = proc.span.end().saturating_sub(proc.span.start()) as usize;
-                let (original_declaration_body, declaration_body, mut entry_context) =
+                let (original_declaration_body, _, entry_context) =
                     body_unit_entry_context(ir_module, registry, id, proc, &cfg);
                 let memoised = memoized_body_unit(
                     &mut cache,
