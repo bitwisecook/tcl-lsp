@@ -2,7 +2,7 @@
 
 Area: Analysis and SpecTcl pack-load performance.
 
-Last updated: 2026-10-23 14:17 UTC
+Last updated: 2026-10-23 14:44 UTC
 
 ## Resume
 
@@ -35,10 +35,23 @@ Active commands (build/run/delete executables in one command):
 - /tmp/perf-owned-typing-repair-compiler.log, session68715, Python25478:
   clean six-file no-switch compiler-filter build at canonical6e729fe9 in
   /workspace/tcl-lsp-owned. Receipts: evidence/current-6e729fe9-clean6/.
+  It now reaches3 upstream VM typing failures; Cargo waits for its already
+  running compiler job to finish, preserving completed dependency codegen.
+  The owner repair0747a2a5 is already on work. Automatic retry session28812,
+  /tmp/perf-clean6-after-vm-repair.log, validates that errors are exactly the
+  three known VM paths, preserves all failed receipts, fetches/checks out
+  current work with the identical six-file diff, then rebuilds/runs/cleans the
+  original filters. Unexpected errors or a changed perf diff stop that retry.
+  No current source is changed while a builder still uses it.
 - /tmp/perf-spectcl-a8e7.log, session2241: opt1 eval_loader/golden_packs
   build COMPLETE with zero warnings, debug/overflow assertions on, separate
-  target-spectcl-opt1. Runtime still waits for
-  /tmp/perf-a8e7-server-finished. Release only when other heavy work is quiet.
+  target-spectcl-opt1. Runtime is RUNNING on reserved CPU cores2,3; all compiler roots and the
+  pending canonical retry use cores0,1 (quota4, allowed5). The same masks,
+  original2 test threads, assertions and budgets apply to both modes.
+  /tmp/perf-partition-spec-cpus.log, session39125, records every prior mask
+  and restores the exact roots after all4 SpecTcl runs and executable cleanup.
+  cpu-partition.json is the receipt. New eval_loader has21/28 passing so far,
+  no final suite comparison yet.
 
 The quiet server window is COMPLETE. Both original180s cases/modes ran with
 compiler builders/watcher stopped; all8 exact owned processes were resumed

@@ -1,0 +1,35 @@
+from pathlib import Path
+import hashlib,json,os,subprocess,time
+root=Path('/workspace/tcl-lsp-owned'); pid=25478
+old=Path('/workspace/tcl-lsp-work/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/perf/evidence/current-6e729fe9-clean6/crate-tests-default')
+def proc_start():
+ p=Path('/proc')/str(pid)/'stat';s=p.read_text();v=s[s.rfind(')')+2:].split();return int(v[19]),v[0]
+start,_=proc_start()
+while True:
+ try:
+  current,state=proc_start()
+  if current!=start or state=='Z':break
+ except FileNotFoundError:break
+ time.sleep(5)
+messages=[]
+for line in (old/'tests-compiler-build.jsonl').read_text().splitlines():
+ r=json.loads(line)
+ if r.get('reason')=='compiler-message' and r['message']['level']=='error':messages.append(r['message'])
+assert messages,'No VM typing failure observed; stop automatic retry and inspect the finished proof'
+allowed={'rust/tcl-vm/src/cmd_binary.rs','rust/tcl-vm/src/exec.rs','rust/tcl-vm/src/interp/native_namespace_names.rs'}
+for m in messages:
+ primary=[s['file_name'] for s in m['spans'] if s['is_primary']]
+ assert primary and all(p in allowed for p in primary),(m['message'],primary)
+receipt={'previous_head':subprocess.check_output(['git','rev-parse','HEAD'],cwd=root,text=True).strip(),'errors':[m['message'] for m in messages],'cause':'Upstream VM extraction typing errors; canonical owner repair0747a2a5 is already on work. Build failed before tests; preserve original receipts, then rebase unchanged six-file perf edits and retry.','old_rust_diff_sha256':hashlib.sha256(subprocess.check_output(['git','diff','--','rust'],cwd=root)).hexdigest(),'started_unix':time.time()}
+(old/'canonical-vm-retry.json').write_text(json.dumps(receipt,indent=2)+'\n')
+subprocess.run(['git','fetch','origin','work'],cwd=root,check=True)
+subprocess.run(['git','switch','--detach','origin/work'],cwd=root,check=True)
+head=subprocess.check_output(['git','rev-parse','HEAD'],cwd=root,text=True).strip()
+receipt['new_head']=head
+receipt['new_rust_diff_sha256']=hashlib.sha256(subprocess.check_output(['git','diff','--','rust'],cwd=root)).hexdigest()
+assert receipt['old_rust_diff_sha256']==receipt['new_rust_diff_sha256'],'Perf-owned edits changed across VM repair'
+(old/'canonical-vm-retry.json').write_text(json.dumps(receipt,indent=2)+'\n')
+evidence=old.parents[1]/('current-'+head[:8]+'-clean6')/'crate-tests-default'
+argv=['python3','/workspace/tcl-lsp-publish/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/perf/tools/run_crate_proofs.py','.', '--stage','compiler','--opt-level','0','--evidence-dir',str(evidence)]
+print('Canonical VM typing repair included; retry',head,evidence,flush=True)
+raise SystemExit(subprocess.run(argv,cwd=root,env=os.environ.copy()).returncode)

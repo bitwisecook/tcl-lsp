@@ -1,0 +1,10 @@
+{
+  "status": "Current6e build reaches3 upstream VM typing failures; Cargo waits for its already-running normal compiler job to finish. No tests run. Owner repair0747a2a5 is already canonical; the automatic retry waits for full cleanup then checks out current work preserving identical six-file diff.",
+  "errors": [
+    "cannot find value `recipe` in this scope",
+    "module `object_materialization` is private",
+    "missing generics for struct `JimScriptLocation`"
+  ],
+  "canonical_repair": "0747a2a5a7bbc5dc68660f0315e6c62591b5c187",
+  "full_build_finished": false
+}

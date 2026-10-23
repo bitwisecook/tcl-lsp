@@ -1,0 +1,8 @@
+{
+  "reason": "diagnostic refusal trace before long compiler filters, same complete tests/assertions/modes",
+  "interrupted_waiting_watcher": 21695,
+  "binary_not_ready_and_no_tests_started": true,
+  "old_script_sha256": "5c78417596b0474701f9808b682611628b43f5be3dd342ff51e17baf1a8588d4",
+  "new_script_sha256": "a7bb4725937751fc1e5252e9759d64a9483cc76d0586bcf8b1c021c90bf54b50",
+  "timestamp_unix": 1792764980.4490833
+}

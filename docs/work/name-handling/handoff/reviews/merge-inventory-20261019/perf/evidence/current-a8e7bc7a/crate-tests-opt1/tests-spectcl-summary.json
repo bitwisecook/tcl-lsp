@@ -1,6 +1,7 @@
 {
   "spectcl/eval_loader/new": {
-    "status": "pending"
+    "status": "running",
+    "log": "tests-spectcl-eval_loader-new.out"
   },
   "spectcl/eval_loader/old": {
     "status": "pending"

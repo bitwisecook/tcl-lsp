@@ -1,6 +1,6 @@
 # perf agent notes: Analyser and SpecTcl
 
-Last updated: 2026-10-23 14:17 UTC
+Last updated: 2026-10-23 14:44 UTC
 
 **Latest-source retry running at a8e7bc7a plus published test fix; no perf production code landed.** The
 upstream functional repair changes procedure visitation/hosted event issuance
@@ -212,3 +212,13 @@ are inclusive and must not be summed again. This trace was contended after
 builders resumed, so it is diagnostic only and does not locate the quiet
 original timeout in index/query. Full raw trace/source/artifact/cleanup and
 observations are current-a8e7bc7a/workspace-symbol-source-phase-trace/.
+
+SpecTcl opt1 runtime is now active on reserved cores2,3; compiler/control
+roots and the canonical clean6 retry use cores0,1 (CPU quota4). Both modes
+retain the same2 threads, original assertions and budgets. The guard restores
+original masks after all4 runs and executable cleanup. New eval_loader has
+21/28 completed passes so far; no complete comparison is claimed. Current
+clean6 build reaches3 VM typing errors already repaired by owner0747a2a5.
+It preserves in-flight compiler codegen, then the checked automatic retry
+updates to canonical work with the identical six-file perf diff. Neither
+main perf patch is proven/landed; main16 controls still build.

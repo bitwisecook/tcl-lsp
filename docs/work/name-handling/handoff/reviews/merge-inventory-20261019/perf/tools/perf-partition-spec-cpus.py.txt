@@ -1,0 +1,66 @@
+from pathlib import Path
+import json,os,time
+base=Path('/workspace/tcl-lsp-work/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/perf/evidence/current-a8e7bc7a/crate-tests-opt1')
+out=base/'cpu-partition.json';allowed=sorted(os.sched_getaffinity(0));assert len(allowed)>=4
+compiler=set(allowed[:2]);spectcl=set(allowed[2:4]);roots={21559:compiler,26478:compiler,25478:compiler,16094:spectcl}
+for p in Path('/proc').iterdir():
+ if not p.name.isdigit():continue
+ try:
+  if (p/'comm').read_text().strip().startswith('python') and b'perf-clean6-after-vm-repair.py' in (p/'cmdline').read_bytes():roots[int(p.name)]=compiler
+ except OSError:pass
+assert len(roots)==5,roots
+record={'started_unix':time.time(),'quota':Path('/sys/fs/cgroup/cpu.max').read_text().strip(),'compiler_cpus':sorted(compiler),'spectcl_cpus':sorted(spectcl),'original_allowed_cpus':allowed,'assertions_and_budgets_unchanged':True,'roots':{},'threads':[]}
+def write():out.write_text(json.dumps(record,indent=2)+'\n')
+def info(pid):
+ p=Path('/proc')/str(pid);s=(p/'stat').read_text();v=s[s.rfind(')')+2:].split();return {'pid':pid,'ppid':int(v[1]),'state':v[0],'start_ticks':int(v[19]),'argv':(p/'cmdline').read_bytes().replace(b'\0',b' ').decode()}
+def tree(pid):
+ result=[pid]
+ for p in Path('/proc').iterdir():
+  if not p.name.isdigit():continue
+  try:
+   r=info(int(p.name))
+   if r['ppid']==pid:result+=tree(r['pid'])
+  except FileNotFoundError:pass
+ return result
+def set_tree(pid,cpus,save):
+ for child in tree(pid):
+  try:
+   threads=list((Path('/proc')/str(child)/'task').iterdir())
+  except FileNotFoundError:continue
+  for t in threads:
+   tid=int(t.name)
+   try:
+    if save:record['threads'].append({'tid':tid,'original_cpus':sorted(os.sched_getaffinity(tid)),'start_ticks':info(tid)['start_ticks']})
+    os.sched_setaffinity(tid,cpus)
+   except ProcessLookupError:pass
+   except FileNotFoundError:pass
+try:
+ for pid,cpus in roots.items():
+  r=info(pid);assert r['argv'].startswith('python3 ') and r['state']!='Z',r
+  record['roots'][str(pid)]=r|{'original_cpus':sorted(os.sched_getaffinity(pid)),'assigned_cpus':sorted(cpus)}
+  set_tree(pid,cpus,True)
+ write()
+ for pid,cpus in roots.items():assert os.sched_getaffinity(pid)==cpus
+ record['enabled_unix']=time.time();write()
+ Path('/tmp/perf-a8e7-server-finished').touch()
+ print('SpecTcl runtime released: cores',sorted(spectcl),'compiler work',sorted(compiler),flush=True)
+ while True:
+  state=json.loads((base/'tests-spectcl-summary.json').read_text())
+  if len(state)==4 and all('returncode' in r for r in state.values()):
+   exes=[]
+   for line in (base/'tests-spectcl-build.jsonl').read_text().splitlines():
+    r=json.loads(line)
+    if r.get('reason')=='compiler-artifact' and r.get('executable'):exes.append(Path(r['executable']))
+   if all(not p.exists() for p in exes):break
+  time.sleep(5)
+ record['test_summary']=state;record['tests_and_cleanup_finished_unix']=time.time();write()
+finally:
+ restored=[]
+ for pid,r in record['roots'].items():
+  try:
+   if info(int(pid))['start_ticks']==r['start_ticks']:
+    set_tree(int(pid),set(r['original_cpus']),False);restored.append(int(pid))
+  except FileNotFoundError:pass
+  except ProcessLookupError:pass
+ record['restored_roots']=restored;record['finished_unix']=time.time();write()
+ print('CPU masks restored',restored,flush=True)

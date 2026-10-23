@@ -1,0 +1,445 @@
+{
+  "started_unix": 1792765716.9124532,
+  "quota": "800000 200000",
+  "compiler_cpus": [
+    0,
+    1
+  ],
+  "spectcl_cpus": [
+    2,
+    3
+  ],
+  "original_allowed_cpus": [
+    0,
+    1,
+    2,
+    3,
+    4
+  ],
+  "assertions_and_budgets_unchanged": true,
+  "roots": {
+    "21559": {
+      "pid": 21559,
+      "ppid": 21550,
+      "state": "S",
+      "start_ticks": 5650752,
+      "argv": "python3 /tmp/perf-run-a8e7-test-slice.py ",
+      "original_cpus": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "assigned_cpus": [
+        0,
+        1
+      ]
+    },
+    "26478": {
+      "pid": 26478,
+      "ppid": 26475,
+      "state": "S",
+      "start_ticks": 5928002,
+      "argv": "python3 /tmp/perf-watch-compiler-trace-first.py ",
+      "original_cpus": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "assigned_cpus": [
+        0,
+        1
+      ]
+    },
+    "25478": {
+      "pid": 25478,
+      "ppid": 25277,
+      "state": "S",
+      "start_ticks": 5828428,
+      "argv": "python3 /workspace/tcl-lsp-publish/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/perf/tools/run_crate_proofs.py . --stage compiler --opt-level 0 --evidence-dir /workspace/tcl-lsp-work/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/perf/evidence/current-6e729fe9-clean6/crate-tests-default ",
+      "original_cpus": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "assigned_cpus": [
+        0,
+        1
+      ]
+    },
+    "16094": {
+      "pid": 16094,
+      "ppid": 16090,
+      "state": "S",
+      "start_ticks": 5210362,
+      "argv": "python3 /workspace/tcl-lsp-work/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/perf/tools/run_crate_proofs.py . --stage spectcl --opt-level 1 --target-dir /workspace/tcl-lsp-perf-latest/target-spectcl-opt1 --wait-before-tests /tmp/perf-a8e7-server-finished --evidence-dir /workspace/tcl-lsp-work/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/perf/evidence/current-a8e7bc7a/crate-tests-opt1 ",
+      "original_cpus": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "assigned_cpus": [
+        2,
+        3
+      ]
+    },
+    "27317": {
+      "pid": 27317,
+      "ppid": 27313,
+      "state": "S",
+      "start_ticks": 5992791,
+      "argv": "python3 /tmp/perf-clean6-after-vm-repair.py ",
+      "original_cpus": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "assigned_cpus": [
+        0,
+        1
+      ]
+    }
+  },
+  "threads": [
+    {
+      "tid": 21559,
+      "original_cpus": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "start_ticks": 5650752
+    },
+    {
+      "tid": 21594,
+      "original_cpus": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "start_ticks": 5651655
+    },
+    {
+      "tid": 21607,
+      "original_cpus": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "start_ticks": 5652385
+    },
+    {
+      "tid": 24241,
+      "original_cpus": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "start_ticks": 5755432
+    },
+    {
+      "tid": 24242,
+      "original_cpus": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "start_ticks": 5755433
+    },
+    {
+      "tid": 27117,
+      "original_cpus": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "start_ticks": 5968489
+    },
+    {
+      "tid": 24248,
+      "original_cpus": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "start_ticks": 5755488
+    },
+    {
+      "tid": 24249,
+      "original_cpus": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "start_ticks": 5755515
+    },
+    {
+      "tid": 24250,
+      "original_cpus": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "start_ticks": 5755515
+    },
+    {
+      "tid": 26436,
+      "original_cpus": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "start_ticks": 5926495
+    },
+    {
+      "tid": 26438,
+      "original_cpus": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "start_ticks": 5926496
+    },
+    {
+      "tid": 27373,
+      "original_cpus": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "start_ticks": 5999919
+    },
+    {
+      "tid": 27118,
+      "original_cpus": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "start_ticks": 5968542
+    },
+    {
+      "tid": 27119,
+      "original_cpus": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "start_ticks": 5968548
+    },
+    {
+      "tid": 27120,
+      "original_cpus": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "start_ticks": 5968548
+    },
+    {
+      "tid": 26478,
+      "original_cpus": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "start_ticks": 5928002
+    },
+    {
+      "tid": 25478,
+      "original_cpus": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "start_ticks": 5828428
+    },
+    {
+      "tid": 25501,
+      "original_cpus": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "start_ticks": 5828713
+    },
+    {
+      "tid": 25506,
+      "original_cpus": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "start_ticks": 5829272
+    },
+    {
+      "tid": 25508,
+      "original_cpus": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "start_ticks": 5829443
+    },
+    {
+      "tid": 26967,
+      "original_cpus": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "start_ticks": 5938394
+    },
+    {
+      "tid": 27369,
+      "original_cpus": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "start_ticks": 5998671
+    },
+    {
+      "tid": 26968,
+      "original_cpus": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "start_ticks": 5938397
+    },
+    {
+      "tid": 26969,
+      "original_cpus": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "start_ticks": 5938404
+    },
+    {
+      "tid": 26970,
+      "original_cpus": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "start_ticks": 5938404
+    },
+    {
+      "tid": 27370,
+      "original_cpus": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "start_ticks": 5998672
+    },
+    {
+      "tid": 27371,
+      "original_cpus": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "start_ticks": 5998683
+    },
+    {
+      "tid": 27372,
+      "original_cpus": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "start_ticks": 5998684
+    },
+    {
+      "tid": 16094,
+      "original_cpus": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "start_ticks": 5210362
+    },
+    {
+      "tid": 27317,
+      "original_cpus": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "start_ticks": 5992791
+    }
+  ],
+  "enabled_unix": 1792765721.8682084
+}
