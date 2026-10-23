@@ -1,0 +1,17 @@
+{
+  "status": "PASS exact17preserved+2new component scope and reproduced union",
+  "predecessor_manifest_sha256": "00eb07075ddae83e0708b994f55b001c83bf30456d2213b8fa00e6e5fde9fdb6",
+  "manifest_sha256": "9e8c047703fb3df93d34f6ba4cac8398d45d81c509d157c89c6c14fb3a7b9ba0",
+  "preserved_component_patch_pins_exact": 17,
+  "new_component_count": 2,
+  "only_changed_or_new_final_paths": [
+    "rust/tcl-compiler/src/codegen/emitter/generate.rs",
+    "rust/tcl-compiler/src/command_binding.rs",
+    "rust/tcl-compiler/src/command_binding/compiled_preflight.rs",
+    "rust/tcl-spectcl/tests/support/derived_first_decline.rs"
+  ],
+  "changed_batch_paths": 31,
+  "candidate_cumulative_paths": 66,
+  "same_site_union": "Preserve whole importchild log then whole Native-v2 log at assessment and require_provider. Original assessment query once/timingdrop/refusal and possible_error/locals writes unchanged. Identical debug-only track_caller attr dedup once, both component fragment provenance retained. All other collisions refuse.",
+  "late_binding": "Explicit reviewed predecessor manifestpath+SHA passed to composer. Future typingbuilder requires explicit new reviewed candidate-map path+SHA and actual integrated product tuple, no fakePASS/defaultlatest."
+}

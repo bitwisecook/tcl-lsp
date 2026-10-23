@@ -1,0 +1,23 @@
+{
+  "utc": "2026-10-23T08:18:34.664416+00:00",
+  "status": "FROZEN off-tree builder/template; CCG peer PENDING; no actualnewproduct/v10plan/GO/build",
+  "preparation_manifest_sha256": "1dbd29cbb77789a647f50b212015c774c5aa229b461aa9eb4d3dab986df2cf84",
+  "builder_sha256": "3a19d8002e479874d5d1ef55294fa4b4fde34d13a67f9393acab3e43e6329d51",
+  "archive_sha256": "144961c34617fec35e02f3f3cf2be1cba9252857e14cb1f6b5abe184282f46c8",
+  "archive_files": {
+    "README.md": "d9e68da40a3ba8a62ce0de67efdb217a4457accad6cd148ddee7b7b0c7d29e2b",
+    "actual-identity-required-schema.json": "a34231c65c93c1cd343e9c0753ac406b33047dc0ddee97485be1c74602b6e313",
+    "builder.py": "3a19d8002e479874d5d1ef55294fa4b4fde34d13a67f9393acab3e43e6329d51",
+    "guarded-exec.py.template.txt": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811",
+    "launch.py.template.txt": "879b4c65b573effa93973cf804167d2081b178a466efcdf43f14b1a88897c9b6",
+    "plan.template.json": "e96db3f9ae9069d1fe83c58dfe30f6ae6558cf96acd4b197b50b324a4388b46e",
+    "policy.json": "df3b46946e991de956f0c6429e098fb5705d9c8b7f5d7672abec45a3b0a7b4d3",
+    "preparation-manifest.json": "1dbd29cbb77789a647f50b212015c774c5aa229b461aa9eb4d3dab986df2cf84",
+    "run.sh.template.txt": "ad51c19824a1755520fedb71d5cc45ceb8463854f233a5d8dab75b138d2a5110",
+    "static-checks.json": "f764eae3a6b086389fe57af9fbe0652b502a1968209c77428c4a4bfeaea5aaaa",
+    "suite.py.template.txt": "455d9c800e9bc39d118a7b8eccf1ad8c3220c858e0c28c7b4df9919d06440b8f"
+  },
+  "checks": "AST3/noargumentrefusalexit2 only; suite/launcher/run.sh normalization exactlyoldv9 bytes except version/path/concretecount; old8argv/env/88125/0W/wholeparent/source/provider/GO/HEAD guards retained. No Git/positiveverification/materialization executed.",
+  "binding": "Requires explicit root-reviewedcandidate manifest path+SHA and ACTUAL committed identity schema; independently proves actualHEAD/tree/fullcumulative baseline+final blobs/worktree/index/exact regeneratedpatchscope/intermediatehistory/docsonlydescendants/sourcecollectormembership twice beforefreshv10plan/inputmanifest. Counts derive rootpinnedcandidate+actualmap, never invented.",
+  "limits": "Candidate map notactualidentity/typeproof. No Cargo/Gitmutation/GO/lock/queue/launcher inbuilder. Oldv9immutable andprioractual8PASS0W source46 only; rootfutureidentity+reviewthenbuilderneeded. Normalownerv3test-positive separate/unrun."
+}

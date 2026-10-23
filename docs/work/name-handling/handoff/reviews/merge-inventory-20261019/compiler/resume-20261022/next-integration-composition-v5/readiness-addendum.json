@@ -1,0 +1,21 @@
+{
+  "status": "Frozen core19 candidate, union peers pending; actual source46 unchanged",
+  "utc": "2026-10-23T08:23:43.654063+00:00",
+  "manifest_sha256": "9e8c047703fb3df93d34f6ba4cac8398d45d81c509d157c89c6c14fb3a7b9ba0",
+  "combined_patch_sha256": "402fbd345325d6f4da17231b0266be92c0700b01a6a70c4eb83df55d21a144c2",
+  "candidate_map_sha256": "dc604fa00ffcfe3ba070f1b181a93101e8437e236275c1934ca9d67549d86e7e",
+  "owner_edition_fmt_sha256": "bb6de98d7fa3364c69630003aee0dec5d854af34618a296af6afaf05e63bbbd4",
+  "delta_sha256": "2cf94f60b4b18ab97e3cee51b555465151ddc1eb796b877960fbc0730a22508c",
+  "counts": {
+    "component_count": 19,
+    "changed_batch_paths": 31,
+    "proposed_cumulative_vs_3b1_paths": 66,
+    "actual_current_product_paths": 46
+  },
+  "scope": "All17 v4 component pins includingNormalv3 EXACT plus Nativeentryv2 1eae0d85 and N17bodycensusf02cb3d2 only. Alias EXCLUDED, nativev1 held, no additional fixtures/fixes/policy.",
+  "explicit_unions": "After original assessment query whole priorimportchild log then wholeNativev2 log beforeoriginaltimingdrop/refusal. Inrequire_provider wholepriorimportchild log then wholeNativev2log before originalflag/local writes. Identical debug-onlytrack_caller attribute dedups once. Allcomponentfragment hashes recorded, no query/guard/assertion change.",
+  "temporary_cleanup": "Every pure diagnostic, INCLUDING test-only N17 census (the generic component cleanup wording is superseded here), is temporary measurement output to remove/review before release. N17 oldcleanup inverse must refuse changedfile; version exact inverse only afteractual measurement. Retain meaningful controls/oracles/results, never replay stale inverse.",
+  "readiness": "All19 exactcurrent standalone/combined zero-fuzz/nooffset applies/finalhashes PASS; all31ownereditionfmt checksPASS. Newtwofileunion Names/CCG peers pending; alltyping/runtime/finite controls/lifetime/perf unrun.",
+  "actual_product": "897b4f9bfd27ffe9cf5e5dc67d14476a90ee26e6/tree0b11e3a05ee26ca70bbe001244d05c5ab9004f30/f7568b84 source46",
+  "late_binding": "Composer requires exact reviewedv4 manifestpath+SHA00eb; futuretypingbuilder requires explicitly reviewed newcandidate-map path+SHA and actual integrated tuple, no defaultlatest/futurePASS. No source/Cargo/Git/GO/providerwrites."
+}

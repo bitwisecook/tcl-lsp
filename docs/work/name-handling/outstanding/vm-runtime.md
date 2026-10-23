@@ -2,11 +2,23 @@
 
 Area: tcl-vm, runtime/rust, tcl-spectcl, tcl-spec-studio: SpecTcl execution and acceptance.
 
-Last updated: 2026-10-23T08:11:54.342816+00:00 (native-entry diagnostic v1 held; debug-onlyv2 compiler peer pending, excluded from composition)
+Last updated: 2026-10-23T08:23:49.176457+00:00 (original hook2 active under root20770; runtime rows pending, readonly monitor)
 
 Maintained by the vm-runtime agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## Resume
+
+Original pack hook2 actual root20770 launch active with GO3551bc42;
+launcher082133.820810Z, suite082153.905914Z under
+`/tmp/ccg-pack-hook-exact2-v1-runs/`. First fresh Cargo JSON artifact exists;
+no runtime row outcome yet. Positive test covers original DSL1 then2.0 loader,
+production slot/host installation, dialect registry and optimiser fold5, then
+cross-version result equality; early FAIL can leave later segments unmeasured.
+Hostless test separately clears host and requires no fold. No modified assertions.
+Prepared fullarchive helper a85890fe remains unexecuted until final2, finished
+launcher and rootparent20770 observedclosed+LOCK_RELEASED. Direct3 failed, so
+hook2 outcome cannot itself authorize N17cleanup. Native15 next remains root
+allocation only; no VM Cargo/GO/Git/source/provider changes. SourceHOLD.
 
 Native-entry diagnostic v1 patch379bbd27 is HISTORICAL HOLD because its
 unconditional track_caller changes release attribution scope. Independent3

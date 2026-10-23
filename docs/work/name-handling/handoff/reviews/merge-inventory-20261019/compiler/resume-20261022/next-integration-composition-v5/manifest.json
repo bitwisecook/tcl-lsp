@@ -1,0 +1,3119 @@
+{
+  "schema": "offtree-next-integration-candidate-composition-v5",
+  "approved_current_product_head": "897b4f9bfd27ffe9cf5e5dc67d14476a90ee26e6",
+  "approved_current_product_tree": "0b11e3a05ee26ca70bbe001244d05c5ab9004f30",
+  "source46_manifest_path": "/tmp/naming-source46-repaired-manifest.json",
+  "source46_manifest_sha256": "f7568b8400f5f3c0b9af0e2181e0539a81e6a42c8a19ab8a0f677a667beca9b7",
+  "current46_final_hashes": "all46 independently match canonical files now",
+  "source_hold": "Root sole integration/Cargo/Git/GO; no canonical writes; runtime queue must close before root scope decision",
+  "components": [
+    {
+      "id": "normal-owner-v3",
+      "patch_path": "/tmp/compiler-names-normal-source-analysis-owner-v3/proposal.patch",
+      "patch_sha256": "6cecfd10cce96fe822f142502213a76e79b29f3f6841dc77f6b03281fe7ccbfb",
+      "header_normalization_only": false,
+      "category": "functional-test-positive-successor",
+      "static_peer_receipt_sha256": "f590488c6d860f55e5e0498f5c417be46c2b932d080e4d3f2524bab0450a08a6",
+      "independent_apply": "zero-fuzz/no-offset PASS against exact current file",
+      "files": [
+        {
+          "path": "rust/tcl-compiler/src/command_binding/source_transition_advice.rs",
+          "before_sha256": "5279406d35d53ae4a8ce8747fddc5ed62e436d975ccc1dda1c5d6dcfc183b2ca",
+          "after_sha256": "1dcbf9fdef03f736114f3cc9f7ae451fefcebe2076a5f218a01f5d804ee9a49b"
+        },
+        {
+          "path": "rust/tcl-compiler/src/command_binding/source_point_entry.rs",
+          "before_sha256": "846b1bd533a8ee9463667b8280bb5046058cc20adf785806bae4462312b28914",
+          "after_sha256": "49759660f682d684cd6eb0af642a3a2061bcfeecd10e78f3f24b62a64d978bc6"
+        },
+        {
+          "path": "rust/tcl-compiler/src/command_binding/source_transition_advice/source_point.rs",
+          "before_sha256": "99e5c752d1f0ab16db787a40f0acb5f81113db0b8ea645b01afc501bf6277718",
+          "after_sha256": "7ba30f437330b56f9ff570d4ce6b75bfc8dbad77e94c156e9e5ca9d194bb0687"
+        }
+      ],
+      "testing_gaps": "Rust typing, original/new finite controls and runtime acceptance UNRUN",
+      "cleanup": "No temporary implementation cleanup beyond repository release-ledger policy; fixture admissibility remains explicitly reviewed."
+    },
+    {
+      "id": "empty-installed-v1",
+      "patch_path": "/tmp/compiler-names-report-empty-installed-v1/proposal.patch",
+      "patch_sha256": "ede9ac69462f5f30f1068b866c14276aabc9db57aff7f7ada3ee0c5491d5c308",
+      "header_normalization_only": false,
+      "category": "functional",
+      "static_peer_receipt_sha256": "ef7db97f04cdf9df67be8863bda8fb04b359e9c03fe13354946e15934e3f7a55",
+      "independent_apply": "zero-fuzz/no-offset PASS against exact current file",
+      "files": [
+        {
+          "path": "rust/tcl-compiler/src/analyser/authenticated_report/body_correspondence.rs",
+          "before_sha256": "20c93448f12ead53845dbc18596552190bc814a67c27bf23bdea1f3b262ec9ef",
+          "after_sha256": "72d1f6faae6a119e28a0b4dad761a9bb494dbabe4a3ba3fc508cf17a16394f13"
+        }
+      ],
+      "testing_gaps": "Rust typing, original/new finite controls and runtime acceptance UNRUN",
+      "cleanup": "No temporary implementation cleanup beyond repository release-ledger policy; fixture admissibility remains explicitly reviewed."
+    },
+    {
+      "id": "jim-canonical-v4",
+      "patch_path": "/tmp/vm-jim-core-canonical-identity-v4/proposal.patch",
+      "patch_sha256": "eca80f8b0fe57e0dfaa7a73fb8fbbb29d9cd6680dee080234353cb83aedc351b",
+      "header_normalization_only": false,
+      "category": "functional",
+      "static_peer_receipt_sha256": "6824c3f4292aa6516a4394872957a593853244c9bf0ac2ae57dab3e51639e2d3",
+      "independent_apply": "zero-fuzz/no-offset PASS against exact current file",
+      "files": [
+        {
+          "path": "rust/tcl-registry/src/native_procedure.rs",
+          "before_sha256": "d809c352af7979774f3adeb26c7591db0b347ab0dec8346b04a8c3f32de7dba0",
+          "after_sha256": "c30a329197ea1a15459779ce9e51e37adf1a45435487d4685f4d72793d848d9f"
+        },
+        {
+          "path": "rust/tcl-spectcl/src/core_surfaces.rs",
+          "before_sha256": "0e3c59a6f06b6e528a5e65e1f7b0f75266e08877c838e79ac2a56e4a703cb81b",
+          "after_sha256": "c02db70c577b169f50306edf7316ea3cb8b3644f7551f3707912afa622b175a7"
+        },
+        {
+          "path": "rust/tcl-spectcl/tests/jim_core_metadata_identity.rs",
+          "before_sha256": null,
+          "after_sha256": "db445c8b9b99e90bc33770968ae17e1738cefb5f1508d25ddd701a3cadd86a11"
+        }
+      ],
+      "testing_gaps": "Rust typing, original/new finite controls and runtime acceptance UNRUN",
+      "cleanup": "No temporary implementation cleanup beyond repository release-ledger policy; fixture admissibility remains explicitly reviewed."
+    },
+    {
+      "id": "var-helper-v2",
+      "patch_path": "/tmp/compiler-names-var-escape-fixture-owner-v2/proposal.patch",
+      "patch_sha256": "3a1086448a5268ea69980e8090303fc0acd0a4af4f0f80b58f84efbe4bef6150",
+      "header_normalization_only": false,
+      "category": "fixture",
+      "static_peer_receipt_sha256": "c8e76156da40aced3cbdd6c299e6d90114910ad10c76075292659617c5e83b5e",
+      "independent_apply": "zero-fuzz/no-offset PASS against exact current file",
+      "files": [
+        {
+          "path": "rust/tcl-compiler/tests/var_escape_residual2.rs",
+          "before_sha256": "e28c072c20f632f279a19a37c968a487d8f5c29488f086a38c231b36a0f0acd0",
+          "after_sha256": "28a8947d3b965ea61df7a858b440d967ba77102f7c3455c17fea222647de5265"
+        }
+      ],
+      "testing_gaps": "Rust typing, original/new finite controls and runtime acceptance UNRUN",
+      "cleanup": "No temporary implementation cleanup beyond repository release-ledger policy; fixture admissibility remains explicitly reviewed."
+    },
+    {
+      "id": "g4-supplement-v2",
+      "patch_path": "/tmp/compiler-names-g4-supplement-fixture-purpose-v2/proposal.patch",
+      "patch_sha256": "874d5f493c5a22d101017b3bd08e872686693b31f78aaa1fd56043159224a062",
+      "header_normalization_only": false,
+      "category": "fixture",
+      "static_peer_receipt_sha256": "9e2c5ea7abf8e2909340f19eeb6fe5d8525ea27be06a156cc3faa9f62d8e0c7b",
+      "independent_apply": "zero-fuzz/no-offset PASS against exact current file",
+      "files": [
+        {
+          "path": "rust/tcl-compiler/src/command_binding/lifecycle_advice.rs",
+          "before_sha256": "c53d12e8b2484b91d8fd07f9663933e06914bfb7b9f5fe9682ccdf269197526c",
+          "after_sha256": "3cce1b63fa86b28003a3ecadd485f50c40cbf25d6c3339437d9ba38efddb5e3a"
+        },
+        {
+          "path": "rust/tcl-compiler/src/command_binding/original_body_namespace.rs",
+          "before_sha256": "4b805dac6b5d194b70e97895696516bc77f4958c612c78ec9d37542bbf0d1cd0",
+          "after_sha256": "0fbf50914918c88a764301a137b304b11588a112a2a7d0422a6d1bc71211d1a8"
+        }
+      ],
+      "testing_gaps": "Rust typing, original/new finite controls and runtime acceptance UNRUN",
+      "cleanup": "No temporary implementation cleanup beyond repository release-ledger policy; fixture admissibility remains explicitly reviewed."
+    },
+    {
+      "id": "bpf-row30-v1",
+      "patch_path": "/tmp/ccg-bpf-row30-fixture-verdict-v1/proposal.patch",
+      "patch_sha256": "d1a3b85cde149918ed3730e82d7909a335b63cd8e5bd608c87d04a54793fd2d8",
+      "header_normalization_only": false,
+      "category": "fixture",
+      "static_peer_receipt_sha256": "0a3b6cf91f60298479e5b07fdc99bc80fc5ce4e7f3a045397b1596185614cff9",
+      "independent_apply": "zero-fuzz/no-offset PASS against exact current file",
+      "files": [
+        {
+          "path": "rust/bpf-tcl-ir/src/source/phase.rs",
+          "before_sha256": "c3882a6a6e3cf2d2dac487fe0692f329fd0d9a45ff9e8864fbabe3745b240f27",
+          "after_sha256": "c3c96c3770e34d7ee4ce23b4fa2a6edc53b6217f30869184ee7be4e164712125"
+        }
+      ],
+      "testing_gaps": "Rust typing, original/new finite controls and runtime acceptance UNRUN",
+      "cleanup": "No temporary implementation cleanup beyond repository release-ledger policy; fixture admissibility remains explicitly reviewed."
+    },
+    {
+      "id": "bom-fixture-v1",
+      "patch_path": "/tmp/lsp-quote-bom-skip-fixture-v1/proposal.patch",
+      "patch_sha256": "c00a8a7db8aa2bd02d26822f993aea05cfdbbe4c2a0113b22853ea00958ca36f",
+      "header_normalization_only": true,
+      "category": "fixture",
+      "static_peer_receipt_sha256": "38cd3cf456e525b4e115a93bcb6f1f794f6f3787c7705a1c7c5a6573e174b5fc",
+      "independent_apply": "zero-fuzz/no-offset PASS against exact current file",
+      "files": [
+        {
+          "path": "rust/tcl-lsp-core/src/minify/original.rs",
+          "before_sha256": "b1c96a8ea640b46e36142e74d696c1efb497bb37f8c3ebecd26821732988a88e",
+          "after_sha256": "c6618f019d845f61afad591ec33d821f90a877ebfb8f315d45455d02ae9d6469"
+        }
+      ],
+      "testing_gaps": "Rust typing, original/new finite controls and runtime acceptance UNRUN",
+      "cleanup": "No temporary implementation cleanup beyond repository release-ledger policy; fixture admissibility remains explicitly reviewed."
+    },
+    {
+      "id": "nested-census-v4",
+      "patch_path": "/tmp/compiler-names-body-nested-compiler-census-v4/proposal.patch",
+      "patch_sha256": "c1d9cc066f36d0998fccd57533528b5432bd16409999fe45042b5eef75814189",
+      "header_normalization_only": false,
+      "category": "pure-diagnostic",
+      "static_peer_receipt_sha256": "f0d3d3e848c5133c85e57befc6d5cd477d8e6da4715445d6726bc1ef6577604f",
+      "independent_apply": "zero-fuzz/no-offset PASS against exact current file",
+      "files": [
+        {
+          "path": "rust/tcl-compiler/src/command_binding/compiler_inventory.rs",
+          "before_sha256": "f7f002827b34344f097811d18f15b632aded31795246ed0a3a8cb935a6af216a",
+          "after_sha256": "c133fd7d875308c534e92fa7b120104f7922a1be283f9cfca4beace8b1e21cd4"
+        },
+        {
+          "path": "rust/tcl-compiler/src/command_binding/retained_source.rs",
+          "before_sha256": "6def128ba1ca8481473ec7e1679911cabe7b153130199e814e11d50b1891ebd0",
+          "after_sha256": "c10645790239f8f412d1138206bd45c8862273209957df0360715a2a93cc14e3"
+        },
+        {
+          "path": "rust/tcl-compiler/src/registry_invocation/source_structure/original_body_syntax.rs",
+          "before_sha256": "9987de839106c8d77f1435668f73e2dfa041e5fab2ee70ea49754cbc9584e6b6",
+          "after_sha256": "a74be0bbd080fb633a92672a32a90a107236afa8b84cec7ddd4001c16c89b8c5"
+        }
+      ],
+      "testing_gaps": "Rust typing, original/new finite controls and runtime acceptance UNRUN",
+      "cleanup": "Remove temporary pure traces/env-gated output before release; retain meaningful controls/oracles. No removal of existing assertions."
+    },
+    {
+      "id": "hosted-event-v1",
+      "patch_path": "/tmp/compiler-report-hosted-event-trace-v1/proposal.patch",
+      "patch_sha256": "0d761360891944deb912766ecced45460f7b3da10c4d2aad185f7c816bf53662",
+      "header_normalization_only": false,
+      "category": "pure-diagnostic",
+      "static_peer_receipt_sha256": "dc285d8cd71eaee455b59a7213c2265ed730711449c3c04532e4be2bfcd40123",
+      "independent_apply": "zero-fuzz/no-offset PASS against exact current file",
+      "files": [
+        {
+          "path": "rust/tcl-compiler/src/analyser/authenticated_report/body_correspondence.rs",
+          "before_sha256": "20c93448f12ead53845dbc18596552190bc814a67c27bf23bdea1f3b262ec9ef",
+          "after_sha256": "df35c8a771b88f7e5f92aa29b6eeca69ed99be691b61ca39d75cdecfbb480a62"
+        },
+        {
+          "path": "rust/tcl-compiler/src/lowering/mod.rs",
+          "before_sha256": "063f341c17bc9a2b8ffd03f883e47809e63bb7a5fd6279ff0a5971fb1ba5e351",
+          "after_sha256": "3f5f16e9f4059dc4ae61fcfe5f92465878ac599aebfd4616a1ceb44d4d894ed8"
+        }
+      ],
+      "testing_gaps": "Rust typing, original/new finite controls and runtime acceptance UNRUN",
+      "cleanup": "Remove temporary pure traces/env-gated output before release; retain meaningful controls/oracles. No removal of existing assertions."
+    },
+    {
+      "id": "ilx-words-v1",
+      "patch_path": "/tmp/compiler-ilx-registry-word-stage-diagnostic-v1/proposal.patch",
+      "patch_sha256": "deb1a18caf9c62b77d23d1a8de43639f3fd1495762f3a06134c170fc066172af",
+      "header_normalization_only": false,
+      "category": "pure-diagnostic",
+      "static_peer_receipt_sha256": "1a16bcd48a4a81e96ddfb5b1ac055995595f2cc906550423d5fe2d31384a2182",
+      "independent_apply": "zero-fuzz/no-offset PASS against exact current file",
+      "files": [
+        {
+          "path": "rust/tcl-compiler/src/registry_invocation/source_structure.rs",
+          "before_sha256": "449d7cc65b838ac5890cc96a9f011e4d577448721966e3b7789842c7d3db6875",
+          "after_sha256": "ba6f4583192b96329dc8f58c9cdb1d64a615b428a694ef363e82d5f4a335eb5a"
+        },
+        {
+          "path": "rust/tcl-compiler/src/registry_invocation/conditional_vendor_metadata.rs",
+          "before_sha256": "16d15d0055e127742034a7e2e47e7581f6f6d5581e042684e536a7ea3c1b2972",
+          "after_sha256": "76deae95d773da6c54d46e806f42cc96210076633b2ad83d409cb5311d9fd6ed"
+        }
+      ],
+      "testing_gaps": "Rust typing, original/new finite controls and runtime acceptance UNRUN",
+      "cleanup": "Remove temporary pure traces/env-gated output before release; retain meaningful controls/oracles. No removal of existing assertions."
+    },
+    {
+      "id": "sh-producer-v1",
+      "patch_path": "/tmp/compiler-sh21-producer-stage-diagnostic-v1/proposal.patch",
+      "patch_sha256": "26f151be61dc66217c2537812b5b2f7d577d845df5fd1f6b30c47f596628a398",
+      "header_normalization_only": false,
+      "category": "pure-diagnostic",
+      "static_peer_receipt_sha256": "c8e76156da40aced3cbdd6c299e6d90114910ad10c76075292659617c5e83b5e",
+      "independent_apply": "zero-fuzz/no-offset PASS against exact current file",
+      "files": [
+        {
+          "path": "rust/tcl-compiler/src/shimmer/use_site.rs",
+          "before_sha256": "921633cfbc1e1e51a2a432cb611fc9055a87d2d313a4860f096ffb29bfe260a8",
+          "after_sha256": "91d84d164afa915660ec7fdf048ddc95bd83f41dd1f561bc23fdaf5334cd0c70"
+        },
+        {
+          "path": "rust/tcl-compiler/src/analyser/diagnostics/fp/sh.rs",
+          "before_sha256": "c68659b159c7109b51c9a07f7536b69d2551c03638c8036947b4eb8bf3b6a873",
+          "after_sha256": "f4900d2953af9d958c6f35e4b9aee280aac8cda082a2f9b337712dee9755243f"
+        }
+      ],
+      "testing_gaps": "Rust typing, original/new finite controls and runtime acceptance UNRUN",
+      "cleanup": "Remove temporary pure traces/env-gated output before release; retain meaningful controls/oracles. No removal of existing assertions."
+    },
+    {
+      "id": "rbs-read-v1",
+      "patch_path": "/tmp/compiler-rbs-declared-read-stage-diagnostic-v1/proposal.patch",
+      "patch_sha256": "1c6a788999471ed68d9f592af009b7895191cec1af8ade1d7b01f6fbda694c73",
+      "header_normalization_only": false,
+      "category": "pure-diagnostic",
+      "static_peer_receipt_sha256": "8ef561cbfe90469fe4b3062caa88745ede9264ec456e11f417a6eb3b8839e3bc",
+      "independent_apply": "zero-fuzz/no-offset PASS against exact current file",
+      "files": [
+        {
+          "path": "rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs",
+          "before_sha256": "75e692fbba7f452e3e1422a470bbc0c1b4bbe8214c2bcb9e7ab1841f63fc7d13",
+          "after_sha256": "9bd5b2a656a09f2454562f874909de623575faa29784bd151147011249a1249f"
+        },
+        {
+          "path": "rust/tcl-compiler/src/script_binds.rs",
+          "before_sha256": "47f424ab367030b737ca70ccc6680cf4ff11cec312059506796301ad88bf90d1",
+          "after_sha256": "3da13e3b4637b495e36a1b6ee3c3a87542273ddb7c46cd785689916daf6c18ee"
+        }
+      ],
+      "testing_gaps": "Rust typing, original/new finite controls and runtime acceptance UNRUN",
+      "cleanup": "Remove temporary pure traces/env-gated output before release; retain meaningful controls/oracles. No removal of existing assertions."
+    },
+    {
+      "id": "exprfold-v6",
+      "patch_path": "/tmp/ccg-row24-first-refusal-v6/proposal.patch",
+      "patch_sha256": "e72aec5239c8c8922424b5ad541960c3a8f5f230a80acf812e1be0578e35f57b",
+      "header_normalization_only": false,
+      "category": "pure-diagnostic",
+      "static_peer_receipt_sha256": "c7e89236c8b3932dfbe39f221a14b01b3cd8d0bc806176d6dd5829ecdf436974",
+      "independent_apply": "zero-fuzz/no-offset PASS against exact current file",
+      "files": [
+        {
+          "path": "rust/tcl-compiler/src/optimiser/propagation.rs",
+          "before_sha256": "b623c6273111c4ad176a2528bf7b6fd41c4a6c13f02f5a30711a86fb62ae7bab",
+          "after_sha256": "66a083ed27362a7cd1121e43ec5df08414d93db9feb4cd0689c7caed98f5ed55"
+        },
+        {
+          "path": "rust/tcl-compiler/src/optimiser/mod.rs",
+          "before_sha256": "e137aa9b3adf0b16d45ddb5476b013f8f74916014eaa69f300b7f7de7669dae5",
+          "after_sha256": "df2c1c502b4c3cea949ea9c2050ba4881ecd4c5220b4a13654a379ca0483b6cc"
+        }
+      ],
+      "testing_gaps": "Rust typing, original/new finite controls and runtime acceptance UNRUN",
+      "cleanup": "Remove temporary pure traces/env-gated output before release; retain meaningful controls/oracles. No removal of existing assertions."
+    },
+    {
+      "id": "taint-ingress-v1",
+      "patch_path": "/tmp/compiler-taint-cu-ingress-diagnostic-v1/proposal.patch",
+      "patch_sha256": "4a1d659dbc7049f18730e517614acc8970967b7485476f0b9461872de5c2cfda",
+      "header_normalization_only": false,
+      "category": "pure-diagnostic",
+      "static_peer_receipt_sha256": "c93ac1ac26fdb5691e1f0eca97becea1fdbd76e661abd261bb86b0ea16971d25",
+      "independent_apply": "zero-fuzz/no-offset PASS against exact current file",
+      "files": [
+        {
+          "path": "rust/tcl-compiler/src/taint.rs",
+          "before_sha256": "6ad178394b614b18d4a7c226d19079793a14f6c51fd28e53c27fac1ac9059126",
+          "after_sha256": "913867c6bd1611181be077925507ad3400b660a9c6e91bc1af65ad29931581a6"
+        }
+      ],
+      "testing_gaps": "Rust typing, original/new finite controls and runtime acceptance UNRUN",
+      "cleanup": "Remove temporary pure traces/env-gated output before release; retain meaningful controls/oracles. No removal of existing assertions."
+    },
+    {
+      "id": "import-child-v1",
+      "patch_path": "/tmp/compiler-names-import-child-outcome-trace-v1/proposal.patch",
+      "patch_sha256": "7dff4cd9e6b9a093936d33fa5c91d9fcf81d45b4302d2e1f21862ed87e3e278b",
+      "header_normalization_only": false,
+      "category": "pure-diagnostic-root-scope-review",
+      "static_peer_receipt_sha256": "485638eb6ebcbc12cc8018c478cd902ba2851a1236280601ade8e70f79e9d08f",
+      "independent_apply": "zero-fuzz/no-offset PASS against exact current file",
+      "files": [
+        {
+          "path": "rust/tcl-compiler/src/command_binding.rs",
+          "before_sha256": "8207fff06e00e6a11434372505672b447a644bfe8b49df1667367f82fbaa9baf",
+          "after_sha256": "9083e1ab7d2fc2463cd1c46d978f047feb6c06b84cba4e51025383adec466fb0"
+        },
+        {
+          "path": "rust/tcl-compiler/src/command_binding/compiled_preflight.rs",
+          "before_sha256": "a6f3d97e7707bd87ae77771bf5417cd0002ce24e8061a65d77db6436ba630acf",
+          "after_sha256": "55808f4424e88c9c960bd9ad13038d0f996bc634d1f67ff61b77e6001b863446"
+        },
+        {
+          "path": "rust/tcl-compiler/src/command_binding/compiled_preflight/original_preparation.rs",
+          "before_sha256": "9dd13a0d92df2e73d786e2d092b20084d2f14483cf6e90ce7dd595225d3ce10e",
+          "after_sha256": "84bdfae2c09b87a5ccace6c5fc0de1469120e5213cee30973366427aaa1a3fdd"
+        }
+      ],
+      "testing_gaps": "Rust typing, original/new finite controls and runtime acceptance UNRUN",
+      "cleanup": "Remove temporary pure traces/env-gated output before release; retain meaningful controls/oracles. No removal of existing assertions."
+    },
+    {
+      "id": "readonly-route-v1",
+      "patch_path": "/tmp/compiler-names-readonly-source-role-route-trace-v1/proposal.patch",
+      "patch_sha256": "fd55fed4c1f0217283474f760358fc8839d959aaa32bf3c4e8901b1d422674af",
+      "header_normalization_only": false,
+      "category": "pure-diagnostic",
+      "static_peer_receipt_sha256": "64029ba0711373ce55324fce90bdd3de49a5eafc538edf31c994b559f1e58014",
+      "independent_apply": "zero-fuzz/no-offset PASS against exact current file",
+      "files": [
+        {
+          "path": "rust/tcl-compiler/src/registry_invocation/source_structure.rs",
+          "before_sha256": "449d7cc65b838ac5890cc96a9f011e4d577448721966e3b7789842c7d3db6875",
+          "after_sha256": "61b25cb99ad86e9899d0062bf7e182e8927f658bc9b4453942c42800576f23ea"
+        }
+      ],
+      "testing_gaps": "Rust typing, original/new finite controls and runtime acceptance UNRUN",
+      "cleanup": "Remove temporary pure traces/env-gated output before release; retain meaningful controls/oracles. No removal of existing assertions."
+    },
+    {
+      "id": "jim-constructor-cell-v1",
+      "patch_path": "/tmp/compiler-jim-constructor-cell-stage-diagnostic-v1/proposal.patch",
+      "patch_sha256": "62f85b91bc4b3090e01611663279401b677179950781ee168aea72c47d5c56d0",
+      "header_normalization_only": false,
+      "category": "pure-diagnostic",
+      "static_peer_receipt_sha256": "712374857cdd296c10f3f79cf2f29cb44577f1942476895c0606689c0ffe69ec",
+      "independent_apply": "zero-fuzz/no-offset PASS against exact current file",
+      "files": [
+        {
+          "path": "rust/tcl-compiler/src/command_binding/source_transition_advice/source_class.rs",
+          "before_sha256": "f3385c2252428f29f17d99570b7ebfc51d5c1e383e0d75449ce3d087e3597d92",
+          "after_sha256": "501b45e5763a3029cc8b48069cd121121d89d83f93902c70cc2e5c41de8b71b1"
+        }
+      ],
+      "testing_gaps": "Rust typing, original/new finite controls and runtime acceptance UNRUN",
+      "cleanup": "Remove temporary pure traces/env-gated output before release; retain meaningful controls/oracles. No removal of existing assertions."
+    },
+    {
+      "id": "native-entry-v2",
+      "patch_path": "/tmp/ccg-native-entry-first-refusal-v2/proposal.patch",
+      "patch_sha256": "1eae0d85bf86767986e4dddb3fdf5139b94b2406707ac56f77115e333de0e167",
+      "header_normalization_only": false,
+      "category": "pure-diagnostic",
+      "static_peer_receipt_sha256": "e40511be522c090f1e6dac667c1da6e983a6b48352ae164100fc7739cb5d1463",
+      "independent_apply": "zero-fuzz/no-offset PASS against exact current file",
+      "files": [
+        {
+          "path": "rust/tcl-compiler/src/command_binding/compiled_preflight.rs",
+          "before_sha256": "a6f3d97e7707bd87ae77771bf5417cd0002ce24e8061a65d77db6436ba630acf",
+          "after_sha256": "f7ec27f266ea076d91214ad4147e1af6fcf702f5f73b524b1d937b7b7aded6b5"
+        },
+        {
+          "path": "rust/tcl-compiler/src/command_binding.rs",
+          "before_sha256": "8207fff06e00e6a11434372505672b447a644bfe8b49df1667367f82fbaa9baf",
+          "after_sha256": "542e8310a0860fb70355a56b51dc63b455accf2b0f4df1dddb9029ac858ddf3f"
+        },
+        {
+          "path": "rust/tcl-compiler/src/codegen/emitter/generate.rs",
+          "before_sha256": "79469f4282cc8a48eeddb96c4f93f8f5cfc5e0b10837eda32ccb8130552c924b",
+          "after_sha256": "be8a043c4290aa3e2904855831058f04275ecab56c22ccbbd296abecb3a8887f"
+        }
+      ],
+      "testing_gaps": "Rust typing, original/new finite controls and runtime acceptance UNRUN",
+      "cleanup": "Remove temporary pure traces/env-gated output before release; retain meaningful controls/oracles. No removal of existing assertions."
+    },
+    {
+      "id": "n17-body-census-v1",
+      "patch_path": "/tmp/ccg-n17-body-inventory-observer-v1/proposal.patch",
+      "patch_sha256": "f02cb3d29c62db96a8687863c7e7cb30e4626e9b89c02e1e9b5e5360016ddcc4",
+      "header_normalization_only": false,
+      "category": "test-pure-diagnostic",
+      "static_peer_receipt_sha256": "83fbff0ac1aca5fbeee89e030c3442c91f970403ca7eec34ee27f0fae32fadfc",
+      "independent_apply": "zero-fuzz/no-offset PASS against exact current file",
+      "files": [
+        {
+          "path": "rust/tcl-spectcl/tests/support/derived_first_decline.rs",
+          "before_sha256": "6f430e9f4ef863ba559714749f5eddec5f09f07abe549dbb654c7a33d5f07bc1",
+          "after_sha256": "e3ab2ab0c6f6559a5e4d40d19abbf20425101ab8d8ea4b368115f7ab052de002"
+        }
+      ],
+      "testing_gaps": "Rust typing, original/new finite controls and runtime acceptance UNRUN",
+      "cleanup": "No temporary implementation cleanup beyond repository release-ledger policy; fixture admissibility remains explicitly reviewed."
+    }
+  ],
+  "variants": [
+    {
+      "id": "core19-without-alias",
+      "status": "candidate overlay only; root integration scope NOT approved",
+      "component_count": 19,
+      "path_count": 31,
+      "combined_patch": "/tmp/compiler-next-integration-composition-v5/core19-without-alias.patch",
+      "combined_patch_sha256": "402fbd345325d6f4da17231b0266be92c0700b01a6a70c4eb83df55d21a144c2",
+      "files": [
+        {
+          "path": "rust/bpf-tcl-ir/src/source/phase.rs",
+          "before_sha256": "c3882a6a6e3cf2d2dac487fe0692f329fd0d9a45ff9e8864fbabe3745b240f27",
+          "after_sha256": "c3c96c3770e34d7ee4ce23b4fa2a6edc53b6217f30869184ee7be4e164712125",
+          "owners": [
+            "bpf-row30-v1"
+          ],
+          "edits": [
+            {
+              "owner": "bpf-row30-v1",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                462,
+                463
+              ],
+              "before_fragment_sha256": "afd3c1cdfd7e204f9d2d33af142d167c8873bd1faf3748fe28329c04b0a53705",
+              "after_fragment_sha256": "0466113dad90142e63a5a6497bdab0e62743fd42ed5409d4b71cb308d08cdaa7"
+            }
+          ]
+        },
+        {
+          "path": "rust/tcl-compiler/src/analyser/authenticated_report/body_correspondence.rs",
+          "before_sha256": "20c93448f12ead53845dbc18596552190bc814a67c27bf23bdea1f3b262ec9ef",
+          "after_sha256": "87007e03fdc87754b27247a398ccaa030877e91809f14ad8840b563dd6f4b57a",
+          "owners": [
+            "empty-installed-v1",
+            "hosted-event-v1"
+          ],
+          "edits": [
+            {
+              "owner": "empty-installed-v1",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                130,
+                130
+              ],
+              "before_fragment_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "after_fragment_sha256": "5104b787cb7515ae7a421e62d0ab6f52becc367cc1b90eb0e509286c45348fc5"
+            },
+            {
+              "owner": "empty-installed-v1",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                143,
+                143
+              ],
+              "before_fragment_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "after_fragment_sha256": "5104b787cb7515ae7a421e62d0ab6f52becc367cc1b90eb0e509286c45348fc5"
+            },
+            {
+              "owner": "empty-installed-v1",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                151,
+                151
+              ],
+              "before_fragment_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "after_fragment_sha256": "5104b787cb7515ae7a421e62d0ab6f52becc367cc1b90eb0e509286c45348fc5"
+            },
+            {
+              "owner": "empty-installed-v1",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                171,
+                171
+              ],
+              "before_fragment_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "after_fragment_sha256": "5104b787cb7515ae7a421e62d0ab6f52becc367cc1b90eb0e509286c45348fc5"
+            },
+            {
+              "owner": "hosted-event-v1",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                239,
+                244
+              ],
+              "before_fragment_sha256": "77ec138e28d6167de1e9a094dd7fb88aa7257c9ec26f51f03118d12950ec5c62",
+              "after_fragment_sha256": "15ec8614256b8b69bfd3422a822e75f418e55b349faf6fabe5e467920ad6114e"
+            },
+            {
+              "owner": "hosted-event-v1",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                246,
+                248
+              ],
+              "before_fragment_sha256": "0aebec00952bc78834f41271a2704945b211fea8e29513f9115bceb5b3e93731",
+              "after_fragment_sha256": "de7c68c81afe4880deade46e6585b60a678a72c881c654bdf7cbff64a1229fa7"
+            },
+            {
+              "owner": "hosted-event-v1",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                251,
+                253
+              ],
+              "before_fragment_sha256": "eaf50231188494e6a566e74f203ecc2b735beef1258aa04fd425d4cf55fdb484",
+              "after_fragment_sha256": "3fbc4a665f766c9cd5af2a43ee69dea7fca0f84e86289ad4a08555a50be153b1"
+            },
+            {
+              "owner": "empty-installed-v1",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                394,
+                394
+              ],
+              "before_fragment_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "after_fragment_sha256": "35630fa73b8242b5e257e3a7fbd32dab4c72ddb3130cd1d2a66daf29d50c6b33"
+            },
+            {
+              "owner": "empty-installed-v1",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                416,
+                417
+              ],
+              "before_fragment_sha256": "a959762593aa35ed42835393d9aa94418c2d723fe5c7c6eb5d7ec65d98740c50",
+              "after_fragment_sha256": "b28001482445ff4a7a730b9a7d8da54db2fe8698164f9117df5f332bf66e6b83"
+            },
+            {
+              "owner": "empty-installed-v1",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                422,
+                422
+              ],
+              "before_fragment_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "after_fragment_sha256": "85f63e637080a7883d1682d6172e0a6d8de60a97c55267bd874eb31e69f50539"
+            },
+            {
+              "owner": "empty-installed-v1",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                609,
+                609
+              ],
+              "before_fragment_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "after_fragment_sha256": "6070ab00c22122178ad34ed05d1ed3aa2afa774554c65fdf0e6845fc8df63b74"
+            }
+          ]
+        },
+        {
+          "path": "rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs",
+          "before_sha256": "75e692fbba7f452e3e1422a470bbc0c1b4bbe8214c2bcb9e7ab1841f63fc7d13",
+          "after_sha256": "9bd5b2a656a09f2454562f874909de623575faa29784bd151147011249a1249f",
+          "owners": [
+            "rbs-read-v1"
+          ],
+          "edits": [
+            {
+              "owner": "rbs-read-v1",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                30,
+                30
+              ],
+              "before_fragment_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "after_fragment_sha256": "303d48b670a7176e655ee8d82537088fe92423a037e3062edb221f546bcb42f3"
+            },
+            {
+              "owner": "rbs-read-v1",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                1688,
+                1688
+              ],
+              "before_fragment_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "after_fragment_sha256": "9673ffbceb6d0ca4390a7ea17872dd85a4d66e7b9814a6acc63e84f888090168"
+            },
+            {
+              "owner": "rbs-read-v1",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                1694,
+                1694
+              ],
+              "before_fragment_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "after_fragment_sha256": "1b9888cd1565d7ea11d657994af411cc3b6f414ad9f6b6489755239377a11872"
+            },
+            {
+              "owner": "rbs-read-v1",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                1696,
+                1698
+              ],
+              "before_fragment_sha256": "dd8c47969feb092ff1a258916c5da8216cc6547b3fd531f6a24eb6e89ede5380",
+              "after_fragment_sha256": "e3bdb43427bc03846105f0e5d5fe9987bb7a04dff974730c875f5bbca79107ba"
+            },
+            {
+              "owner": "rbs-read-v1",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                1705,
+                1707
+              ],
+              "before_fragment_sha256": "9cc3b44e2fdd1341cfd027b8320235d3c05dce116179f7ca915d651ee5f14199",
+              "after_fragment_sha256": "d14b16b954ed2a3d3a02af976a3182a2965bc099e63afd073792a23d4109f1f8"
+            },
+            {
+              "owner": "rbs-read-v1",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                1714,
+                1719
+              ],
+              "before_fragment_sha256": "9b2625b8ae5f383e4899e93b02b178fb7ab6cc2e43ce03d0d1b9836bc8977b7f",
+              "after_fragment_sha256": "ebdfd14451740e6c410dd3473a3be9d1569d0817910c646c096060fb0d75f10f"
+            },
+            {
+              "owner": "rbs-read-v1",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                1720,
+                1730
+              ],
+              "before_fragment_sha256": "4b26c639aa7bef5c9f6ecca54e54bc7e47bc348b351fb433d6a8abfba47e2e1f",
+              "after_fragment_sha256": "e2bd23787aadaf69f97be4393f0f61c1a358eb0ed4c3e712a039c93dd6e9942a"
+            },
+            {
+              "owner": "rbs-read-v1",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                1742,
+                1746
+              ],
+              "before_fragment_sha256": "e8627a5e7f77734376abd5d81943d940efba4a0f46f2368ba067ed450e19c27c",
+              "after_fragment_sha256": "67fab4a62ab39ea1d4f0ef6164aed3b8e32ea1db62aa0063081eee797621e867"
+            },
+            {
+              "owner": "rbs-read-v1",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                1747,
+                1750
+              ],
+              "before_fragment_sha256": "e679ff1a1d3678af2f1f0907c14e0638ff91ff1d81b6414d5b2bc2dfc930a465",
+              "after_fragment_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            },
+            {
+              "owner": "rbs-read-v1",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                1771,
+                1781
+              ],
+              "before_fragment_sha256": "40c2557ed8fa679467c083ec05451c7acc9a7a116eb4c5d4238db418165d8be2",
+              "after_fragment_sha256": "1c174c85624266ab59e0f71047517c1131cd4077c8c43134b072f0496b8d2f67"
+            },
+            {
+              "owner": "rbs-read-v1",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                1979,
+                1979
+              ],
+              "before_fragment_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "after_fragment_sha256": "e7aab9e3879999b6a2d9ccbdfbba02c5cb0489957b785c8224a107a406132af0"
+            }
+          ]
+        },
+        {
+          "path": "rust/tcl-compiler/src/analyser/diagnostics/fp/sh.rs",
+          "before_sha256": "c68659b159c7109b51c9a07f7536b69d2551c03638c8036947b4eb8bf3b6a873",
+          "after_sha256": "f4900d2953af9d958c6f35e4b9aee280aac8cda082a2f9b337712dee9755243f",
+          "owners": [
+            "sh-producer-v1"
+          ],
+          "edits": [
+            {
+              "owner": "sh-producer-v1",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                1411,
+                1411
+              ],
+              "before_fragment_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "after_fragment_sha256": "fbd852344f17fce20cf1c8280829a989fa93f9bbccb96ff6e5a330d454d15e8e"
+            }
+          ]
+        },
+        {
+          "path": "rust/tcl-compiler/src/codegen/emitter/generate.rs",
+          "before_sha256": "79469f4282cc8a48eeddb96c4f93f8f5cfc5e0b10837eda32ccb8130552c924b",
+          "after_sha256": "be8a043c4290aa3e2904855831058f04275ecab56c22ccbbd296abecb3a8887f",
+          "owners": [
+            "native-entry-v2"
+          ],
+          "edits": [
+            {
+              "owner": "native-entry-v2",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                1237,
+                1237
+              ],
+              "before_fragment_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "after_fragment_sha256": "4bae57cb808743472dbabc2033740ad53f6501909cf69d5f7b8559633f696b9e"
+            }
+          ]
+        },
+        {
+          "path": "rust/tcl-compiler/src/command_binding.rs",
+          "before_sha256": "8207fff06e00e6a11434372505672b447a644bfe8b49df1667367f82fbaa9baf",
+          "after_sha256": "bf1d57676ffc38e30a061724acb2f23fe81de0de86f573e07de72facdc93fc01",
+          "owners": [
+            "import-child-v1",
+            "native-entry-v2"
+          ],
+          "edits": [
+            {
+              "owner": "import-child-v1",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                6599,
+                6599
+              ],
+              "before_fragment_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "after_fragment_sha256": "e5c5efdff018b5c7ae424911a7aca0d39144c584bfe634ab3f973e288d8d1b49"
+            },
+            {
+              "owner": "import-child-v1",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                9109,
+                9109
+              ],
+              "before_fragment_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "after_fragment_sha256": "fba5812fd19279c42a476859b26328b3a10b728d64c6ba80cf6601a63f433aea"
+            },
+            {
+              "owner": "import-child-v1",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                9117,
+                9117
+              ],
+              "before_fragment_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "after_fragment_sha256": "badaa9e36f03e1d8fcabd38614e3099f92be21020e8830a09abacc2be97285c4"
+            },
+            {
+              "owner": "import-child-v1",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                9171,
+                9171
+              ],
+              "before_fragment_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "after_fragment_sha256": "97773e094c359c8109b05b975274fb05314f150cad39afb73fe0e827b632d21c"
+            },
+            {
+              "owner": "import-child-v1",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                9178,
+                9178
+              ],
+              "before_fragment_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "after_fragment_sha256": "62c58cbd7c4f3cc72479777a276bd2bf1ff5035dd4294700128d3f7022436503"
+            },
+            {
+              "owner": "import-child-v1",
+              "merged_owners": [
+                "import-child-v1",
+                "native-entry-v2"
+              ],
+              "original_insert_fragments": [
+                {
+                  "owner": "import-child-v1",
+                  "after_fragment_sha256": "346a952f68946602b4b820390331a84e3c9e79ce29b047ba673798f0ac62325f"
+                },
+                {
+                  "owner": "native-entry-v2",
+                  "after_fragment_sha256": "33221846cc6835e67369aeee1b327ff93144bee4c2a59a79a1182945d84dd2ab"
+                }
+              ],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                9215,
+                9215
+              ],
+              "before_fragment_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "after_fragment_sha256": "fadbc30376d6e23dd03f8638aaf60c080e9b6a63edd1ccbf2db0d03cc35a42a9"
+            }
+          ]
+        },
+        {
+          "path": "rust/tcl-compiler/src/command_binding/compiled_preflight.rs",
+          "before_sha256": "a6f3d97e7707bd87ae77771bf5417cd0002ce24e8061a65d77db6436ba630acf",
+          "after_sha256": "6b521cc3a79734cba48e2c5d0b32f17d7c04f08387d5a72c5e6ffe24406c260f",
+          "owners": [
+            "import-child-v1",
+            "native-entry-v2"
+          ],
+          "edits": [
+            {
+              "owner": "import-child-v1",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                297,
+                297
+              ],
+              "before_fragment_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "after_fragment_sha256": "2d745cdc2c0864813a422cf7c0136d629f881f9614792767a9b6eafa506ad51e"
+            },
+            {
+              "owner": "import-child-v1",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [
+                "native-entry-v2"
+              ],
+              "original_lines_zero_based_half_open": [
+                432,
+                432
+              ],
+              "before_fragment_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "after_fragment_sha256": "d28c4ec67726f8e5dd771b5e5a68d525ee6dc49332d2824fa9b18c6999d463b5"
+            },
+            {
+              "owner": "import-child-v1",
+              "merged_owners": [
+                "import-child-v1",
+                "native-entry-v2"
+              ],
+              "original_insert_fragments": [
+                {
+                  "owner": "import-child-v1",
+                  "after_fragment_sha256": "1c20247e2fa2bd4d9dbe82e3981dc262fb81af7955c60ecb35563b2d46c89d54"
+                },
+                {
+                  "owner": "native-entry-v2",
+                  "after_fragment_sha256": "fb6800550251f5f333e94f4361e75848f279dde63e2cb55e224f6cd5bdf4b323"
+                }
+              ],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                433,
+                433
+              ],
+              "before_fragment_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "after_fragment_sha256": "845dfed2e1c7939ba58dbe35eb51b266dec02d392982805940c701e96099f5c1"
+            }
+          ]
+        },
+        {
+          "path": "rust/tcl-compiler/src/command_binding/compiled_preflight/original_preparation.rs",
+          "before_sha256": "9dd13a0d92df2e73d786e2d092b20084d2f14483cf6e90ce7dd595225d3ce10e",
+          "after_sha256": "84bdfae2c09b87a5ccace6c5fc0de1469120e5213cee30973366427aaa1a3fdd",
+          "owners": [
+            "import-child-v1"
+          ],
+          "edits": [
+            {
+              "owner": "import-child-v1",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                913,
+                914
+              ],
+              "before_fragment_sha256": "b579e227b41ff01f27ddca7c0a0ee465c4ad73c0c01f65268788ae44b3655366",
+              "after_fragment_sha256": "b6110964cfc138a64ceae87ea541b3bc904ec31030e14360985b192d6cf8e748"
+            }
+          ]
+        },
+        {
+          "path": "rust/tcl-compiler/src/command_binding/compiler_inventory.rs",
+          "before_sha256": "f7f002827b34344f097811d18f15b632aded31795246ed0a3a8cb935a6af216a",
+          "after_sha256": "c133fd7d875308c534e92fa7b120104f7922a1be283f9cfca4beace8b1e21cd4",
+          "owners": [
+            "nested-census-v4"
+          ],
+          "edits": [
+            {
+              "owner": "nested-census-v4",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                8,
+                8
+              ],
+              "before_fragment_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "after_fragment_sha256": "47ed515e17e3a1bf2693bc9c22b9c761bdebb4a22a39db566eb7af19d34a103b"
+            },
+            {
+              "owner": "nested-census-v4",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                233,
+                233
+              ],
+              "before_fragment_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "after_fragment_sha256": "9578561c577f8dea658951d6ad28e5a52946a6c54eb72c5fc18ad6e1edbdc556"
+            },
+            {
+              "owner": "nested-census-v4",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                241,
+                254
+              ],
+              "before_fragment_sha256": "c40c092b127ce617c34041cb06a81da8efeab7f94038372e5a2d61f752b6e9df",
+              "after_fragment_sha256": "6aba7e8e61f5637ff10a5b401e83060918291b226d6041f17c2f41bdde16ee4d"
+            },
+            {
+              "owner": "nested-census-v4",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                259,
+                260
+              ],
+              "before_fragment_sha256": "b01bfcc7ea3e3a164f5229f43d5b0fda3807c31dc393f0bf70b7ccf01ced9a5b",
+              "after_fragment_sha256": "be1f8001ba24b569592839c34991b10f009e8c9ba6f42bca2da56f09e7e8195a"
+            },
+            {
+              "owner": "nested-census-v4",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                267,
+                268
+              ],
+              "before_fragment_sha256": "7e34675cd6a116b24d811757a7c0af24f53276cc5f21d2db8cacfc2b7cf3c438",
+              "after_fragment_sha256": "7594a12b8b2c8312b95d1395a5048ac8aa3646d3b46ad24284cfb78da8b3388e"
+            },
+            {
+              "owner": "nested-census-v4",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                270,
+                271
+              ],
+              "before_fragment_sha256": "22a454603b7574c6ab78e56f67d928cd7402448c60a32d43594178390fd2dd01",
+              "after_fragment_sha256": "604e66022ddef67e7b56f6a90f219871b7254755542e3e1e46f805c8271508ce"
+            },
+            {
+              "owner": "nested-census-v4",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                275,
+                277
+              ],
+              "before_fragment_sha256": "46ecb3360437f875fd4a923dea3fae0a199b790fc899b7d9cf29c667c45d5345",
+              "after_fragment_sha256": "e8a5865ac113ec84576c120e793bc44f60ca59764848cfa057e1e49b627f3db2"
+            },
+            {
+              "owner": "nested-census-v4",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                289,
+                294
+              ],
+              "before_fragment_sha256": "5e27719fc1c54fcb391d64e9493f5dc4b9b08f10e4ff079d9c4f5f22b6b30f40",
+              "after_fragment_sha256": "420d0420606c9414857914e4d5c11900065f80662c67fbc521a83a4c87d9bec1"
+            },
+            {
+              "owner": "nested-census-v4",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                295,
+                303
+              ],
+              "before_fragment_sha256": "a831f976c863e3a61a3b69667470df18adae30c904f2e6bdbdd9e3f4d86206da",
+              "after_fragment_sha256": "ff5ccc3b09ec7f0a3a7656c87dcc164961cf1359e0b596efeb7363be67ab811e"
+            },
+            {
+              "owner": "nested-census-v4",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                305,
+                309
+              ],
+              "before_fragment_sha256": "394e24808ab6615fbe74847ff3d8f217f49c926a5b8aefd5baf8acb137ff290d",
+              "after_fragment_sha256": "29f5843196437c08677b12ba7bca942f52213820cdfbacd1d51730fd1e3d8b58"
+            },
+            {
+              "owner": "nested-census-v4",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                310,
+                316
+              ],
+              "before_fragment_sha256": "bbae44a57e60890fc629ca635851a65165229f2c363d4a55c1c1e9d2eb2d2457",
+              "after_fragment_sha256": "0f44c01e77946a188a0c01f4eeda13d234e4394e4b2fa166f915cabb6ac2d046"
+            },
+            {
+              "owner": "nested-census-v4",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                318,
+                323
+              ],
+              "before_fragment_sha256": "1939e53cffcb396e538dab97057fe3249620ae4971010c19e9e4b5cf097f73b2",
+              "after_fragment_sha256": "e78dc554744a40dfe653a426b7cf9717a3b6c9b22d8416c200ead5c12c634315"
+            }
+          ]
+        },
+        {
+          "path": "rust/tcl-compiler/src/command_binding/lifecycle_advice.rs",
+          "before_sha256": "c53d12e8b2484b91d8fd07f9663933e06914bfb7b9f5fe9682ccdf269197526c",
+          "after_sha256": "3cce1b63fa86b28003a3ecadd485f50c40cbf25d6c3339437d9ba38efddb5e3a",
+          "owners": [
+            "g4-supplement-v2"
+          ],
+          "edits": [
+            {
+              "owner": "g4-supplement-v2",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                425,
+                425
+              ],
+              "before_fragment_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "after_fragment_sha256": "b80079ed0c253acd4250ef97e17293f6560f273460583dfe990e9f8d8007f8a2"
+            }
+          ]
+        },
+        {
+          "path": "rust/tcl-compiler/src/command_binding/original_body_namespace.rs",
+          "before_sha256": "4b805dac6b5d194b70e97895696516bc77f4958c612c78ec9d37542bbf0d1cd0",
+          "after_sha256": "0fbf50914918c88a764301a137b304b11588a112a2a7d0422a6d1bc71211d1a8",
+          "owners": [
+            "g4-supplement-v2"
+          ],
+          "edits": [
+            {
+              "owner": "g4-supplement-v2",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                287,
+                287
+              ],
+              "before_fragment_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "after_fragment_sha256": "4a3d360dce4b9cd1eac69f09d9eb550681da93644e062f8e7d4c98d455447b0f"
+            },
+            {
+              "owner": "g4-supplement-v2",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                450,
+                450
+              ],
+              "before_fragment_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "after_fragment_sha256": "b6b3bbe1fd33eba3d1329395ee7225d8391687f1ac1eea9b47cb0b87913d2215"
+            },
+            {
+              "owner": "g4-supplement-v2",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                464,
+                472
+              ],
+              "before_fragment_sha256": "5ecf4b5498406084c2e791e627580638b1e2675afef63d14a4167b960e099dea",
+              "after_fragment_sha256": "7bae35284a4285e7ae2f9bf2f018ed80675815fbee7de3763ca52a39edf41edf"
+            }
+          ]
+        },
+        {
+          "path": "rust/tcl-compiler/src/command_binding/retained_source.rs",
+          "before_sha256": "6def128ba1ca8481473ec7e1679911cabe7b153130199e814e11d50b1891ebd0",
+          "after_sha256": "c10645790239f8f412d1138206bd45c8862273209957df0360715a2a93cc14e3",
+          "owners": [
+            "nested-census-v4"
+          ],
+          "edits": [
+            {
+              "owner": "nested-census-v4",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                420,
+                420
+              ],
+              "before_fragment_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "after_fragment_sha256": "059357da287b609c021bd17c5b0296c35b81ef56948888c536bc3e9bb8993187"
+            }
+          ]
+        },
+        {
+          "path": "rust/tcl-compiler/src/command_binding/source_point_entry.rs",
+          "before_sha256": "846b1bd533a8ee9463667b8280bb5046058cc20adf785806bae4462312b28914",
+          "after_sha256": "49759660f682d684cd6eb0af642a3a2061bcfeecd10e78f3f24b62a64d978bc6",
+          "owners": [
+            "normal-owner-v3"
+          ],
+          "edits": [
+            {
+              "owner": "normal-owner-v3",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                251,
+                251
+              ],
+              "before_fragment_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "after_fragment_sha256": "3537bf4d3e6a007b8c01f78675c29794706f9924268c55d34e477823b3d58683"
+            }
+          ]
+        },
+        {
+          "path": "rust/tcl-compiler/src/command_binding/source_transition_advice.rs",
+          "before_sha256": "5279406d35d53ae4a8ce8747fddc5ed62e436d975ccc1dda1c5d6dcfc183b2ca",
+          "after_sha256": "1dcbf9fdef03f736114f3cc9f7ae451fefcebe2076a5f218a01f5d804ee9a49b",
+          "owners": [
+            "normal-owner-v3"
+          ],
+          "edits": [
+            {
+              "owner": "normal-owner-v3",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                3094,
+                3094
+              ],
+              "before_fragment_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "after_fragment_sha256": "2aaa5cfc03c0d4c1024effd91cf534281e3ee9ca150000d94dd265bc9dc44313"
+            },
+            {
+              "owner": "normal-owner-v3",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                3164,
+                3165
+              ],
+              "before_fragment_sha256": "4370fe23822f38efd1b0e216a3928a54607fca031f89d86b12e89c2611d98fa7",
+              "after_fragment_sha256": "f07de73c2662ccf2ae546a77f7f22496e70be3b93529d645f3726c235152f35c"
+            },
+            {
+              "owner": "normal-owner-v3",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                3166,
+                3166
+              ],
+              "before_fragment_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "after_fragment_sha256": "bd45abe1b9bb790f69e24939be11bdf0854c3cb2b953d8281482fcd730d62984"
+            },
+            {
+              "owner": "normal-owner-v3",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                3171,
+                3171
+              ],
+              "before_fragment_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "after_fragment_sha256": "cbd17639ced5ae0b48ee73f5e904d70ca98db8b7e91fc7fb3199aa9919e588e5"
+            },
+            {
+              "owner": "normal-owner-v3",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                3449,
+                3449
+              ],
+              "before_fragment_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "after_fragment_sha256": "a742d6df5f4ed28fdafb89c9e59f99014f8a99e00171903bb7093276da860f7f"
+            }
+          ]
+        },
+        {
+          "path": "rust/tcl-compiler/src/command_binding/source_transition_advice/source_class.rs",
+          "before_sha256": "f3385c2252428f29f17d99570b7ebfc51d5c1e383e0d75449ce3d087e3597d92",
+          "after_sha256": "501b45e5763a3029cc8b48069cd121121d89d83f93902c70cc2e5c41de8b71b1",
+          "owners": [
+            "jim-constructor-cell-v1"
+          ],
+          "edits": [
+            {
+              "owner": "jim-constructor-cell-v1",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                611,
+                612
+              ],
+              "before_fragment_sha256": "eef74ed1c6e653cb4abd1dfffa6c769a1c41fa3fe7b55bcf6661431567190de8",
+              "after_fragment_sha256": "942a2d613a59c36c1c6b715a3914408a6e91627b967718e2ff15eaae91b543a5"
+            },
+            {
+              "owner": "jim-constructor-cell-v1",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                620,
+                621
+              ],
+              "before_fragment_sha256": "f004090e1f4711a3ff10da882794792f23532785f9b7c366d1612096f5b91708",
+              "after_fragment_sha256": "bc81020a95f3a8d99e1771723160ffb4513d48bd222a586050d3dc0f1b97ae15"
+            },
+            {
+              "owner": "jim-constructor-cell-v1",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                1020,
+                1021
+              ],
+              "before_fragment_sha256": "4072116062375a5491abd9bfe604ecc071897339fc39d887bf9e34ef2d4be987",
+              "after_fragment_sha256": "1a3b1f7ba2510b06b7376faf8b0a596925d94a74437be4eecb4fc6f367fff2f2"
+            },
+            {
+              "owner": "jim-constructor-cell-v1",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                1023,
+                1024
+              ],
+              "before_fragment_sha256": "8eb89af9061922dd9b7404ad033143933294266ecc5ddeaa7868a028add90440",
+              "after_fragment_sha256": "b483ebc41638882fefd0871b2871145866031a46467e36568aa1f8618aa971a8"
+            }
+          ]
+        },
+        {
+          "path": "rust/tcl-compiler/src/command_binding/source_transition_advice/source_point.rs",
+          "before_sha256": "99e5c752d1f0ab16db787a40f0acb5f81113db0b8ea645b01afc501bf6277718",
+          "after_sha256": "7ba30f437330b56f9ff570d4ce6b75bfc8dbad77e94c156e9e5ca9d194bb0687",
+          "owners": [
+            "normal-owner-v3"
+          ],
+          "edits": [
+            {
+              "owner": "normal-owner-v3",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                466,
+                469
+              ],
+              "before_fragment_sha256": "31a108d45f8a113bdec4a385705032ceb8022f366cf94f9cdfecebc138eea69b",
+              "after_fragment_sha256": "db5f2a5b87a982c698ffc35da33fcd90861a03cdfaa696faaeb05b4531db39e2"
+            },
+            {
+              "owner": "normal-owner-v3",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                568,
+                568
+              ],
+              "before_fragment_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "after_fragment_sha256": "7e4c106c2dc7ac734abeaa7915efc51f4991f53f5bcfd1ec48ecde5353be7a44"
+            },
+            {
+              "owner": "normal-owner-v3",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                570,
+                570
+              ],
+              "before_fragment_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "after_fragment_sha256": "d418d2f5ce4e0d6c897f1594bc5588083e9e4c59a3d47287652abcf5e02cec2f"
+            },
+            {
+              "owner": "normal-owner-v3",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                615,
+                615
+              ],
+              "before_fragment_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "after_fragment_sha256": "77b66e65842c8fb2e9d7c614329f4396d55f21b7109f5950a2efb837af7f96d5"
+            }
+          ]
+        },
+        {
+          "path": "rust/tcl-compiler/src/lowering/mod.rs",
+          "before_sha256": "063f341c17bc9a2b8ffd03f883e47809e63bb7a5fd6279ff0a5971fb1ba5e351",
+          "after_sha256": "3f5f16e9f4059dc4ae61fcfe5f92465878ac599aebfd4616a1ceb44d4d894ed8",
+          "owners": [
+            "hosted-event-v1"
+          ],
+          "edits": [
+            {
+              "owner": "hosted-event-v1",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                4732,
+                4732
+              ],
+              "before_fragment_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "after_fragment_sha256": "6429dc92a604856fea4ad70571c56d16e4b4b81e004bf8b16cb7bbf0b4c1e457"
+            },
+            {
+              "owner": "hosted-event-v1",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                4741,
+                4767
+              ],
+              "before_fragment_sha256": "4b9c9c46ada7e06dbb65f0dd4d44e39b617d901acb9cd33074ff33c0369afeb5",
+              "after_fragment_sha256": "a03d1851bdfdb2cdb3e2eec32d58aa04a5728be8ca239b61a01cf346c5ae8559"
+            },
+            {
+              "owner": "hosted-event-v1",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                4771,
+                4776
+              ],
+              "before_fragment_sha256": "177930acb27406a1ac23b36372c00b64f2ae4cea6fb24def88c192d7d4ec01d9",
+              "after_fragment_sha256": "9b27ea5581ee4f831317bd53443d32c84fa3717a35637e4aa90d509632b4f3a1"
+            },
+            {
+              "owner": "hosted-event-v1",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                4777,
+                4779
+              ],
+              "before_fragment_sha256": "e7fba6b238ba681c3df83e497cff1cfc69efe9f05a608dada460efb5b5c437e0",
+              "after_fragment_sha256": "699e8f0560d9af66d5e1ee7de7efc5200c89e4c7d5440a2d269dc5a4ec9669a1"
+            },
+            {
+              "owner": "hosted-event-v1",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                4783,
+                4787
+              ],
+              "before_fragment_sha256": "d00ab2d39aec408d5f1c82bd7c309c3340d44f1265c99d5274f02ee7d4ade103",
+              "after_fragment_sha256": "00b12c0bff13b09c1965ca06ff70c54a5fc94ec237eadd1206036acc097fac5a"
+            },
+            {
+              "owner": "hosted-event-v1",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                4800,
+                4804
+              ],
+              "before_fragment_sha256": "8aa42328472a253b95ab52f6e4ce0e31203aa8d8c91b0fa133040efcea400a25",
+              "after_fragment_sha256": "55a67aa1cf22cbb0a1743b7d1ea5f404457e5c64f4ece9768968a5a747754e4b"
+            }
+          ]
+        },
+        {
+          "path": "rust/tcl-compiler/src/optimiser/mod.rs",
+          "before_sha256": "e137aa9b3adf0b16d45ddb5476b013f8f74916014eaa69f300b7f7de7669dae5",
+          "after_sha256": "df2c1c502b4c3cea949ea9c2050ba4881ecd4c5220b4a13654a379ca0483b6cc",
+          "owners": [
+            "exprfold-v6"
+          ],
+          "edits": [
+            {
+              "owner": "exprfold-v6",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                414,
+                414
+              ],
+              "before_fragment_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "after_fragment_sha256": "40568de43c34add67c42135670b75ef2d2ed28d826547db4bce324c32c42b7ef"
+            },
+            {
+              "owner": "exprfold-v6",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                416,
+                416
+              ],
+              "before_fragment_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "after_fragment_sha256": "884d4f87c0d4fe9099b1f8702b3c8698e74e88c092e48584cf4e033cf53ff5e6"
+            },
+            {
+              "owner": "exprfold-v6",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                418,
+                418
+              ],
+              "before_fragment_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "after_fragment_sha256": "9316807fe073ba37a43573d86700ae9616f582b6bcb38d76e83d38cbb453165b"
+            },
+            {
+              "owner": "exprfold-v6",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                423,
+                423
+              ],
+              "before_fragment_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "after_fragment_sha256": "4f1296061533cbc6e9fef298d1c479d5058e5f01e219dd33ae364a7dd5d6f4f8"
+            },
+            {
+              "owner": "exprfold-v6",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                425,
+                425
+              ],
+              "before_fragment_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "after_fragment_sha256": "b456285a4b6ffa144afa1e76f65355117672d82877f90e3e068e2df6fdfcfdfe"
+            }
+          ]
+        },
+        {
+          "path": "rust/tcl-compiler/src/optimiser/propagation.rs",
+          "before_sha256": "b623c6273111c4ad176a2528bf7b6fd41c4a6c13f02f5a30711a86fb62ae7bab",
+          "after_sha256": "66a083ed27362a7cd1121e43ec5df08414d93db9feb4cd0689c7caed98f5ed55",
+          "owners": [
+            "exprfold-v6"
+          ],
+          "edits": [
+            {
+              "owner": "exprfold-v6",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                78,
+                78
+              ],
+              "before_fragment_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "after_fragment_sha256": "1826801c22b95ae0ede2fa4a2bebf58393009649edc7a8b407c7c8cdf95ef7b7"
+            },
+            {
+              "owner": "exprfold-v6",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                87,
+                87
+              ],
+              "before_fragment_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "after_fragment_sha256": "4974f16c67dc5623a322da595c1ed7255ce7c380487510c9b48554c19345e206"
+            },
+            {
+              "owner": "exprfold-v6",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                1690,
+                1690
+              ],
+              "before_fragment_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "after_fragment_sha256": "728ee1549542f855920abc085d42f4a36be07f1ec7e7dc1e1e7cdfc649b560d7"
+            },
+            {
+              "owner": "exprfold-v6",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                1697,
+                1697
+              ],
+              "before_fragment_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "after_fragment_sha256": "e7abd639837bb1ffee4c88b0dccd802f4634cf40c622f84bba613d3e91bdaf06"
+            },
+            {
+              "owner": "exprfold-v6",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                1722,
+                1722
+              ],
+              "before_fragment_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "after_fragment_sha256": "7e9a4b5c5f85e2745dfc65c2f43bd2674017bb4be55f3392cf68fe8e5c7f0103"
+            },
+            {
+              "owner": "exprfold-v6",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                1827,
+                1827
+              ],
+              "before_fragment_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "after_fragment_sha256": "84d685162d93b305be6943cf43f6d8282fdb2c54740d67301839f41cceca7c73"
+            },
+            {
+              "owner": "exprfold-v6",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                1868,
+                1868
+              ],
+              "before_fragment_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "after_fragment_sha256": "c5331d4ab94b4a61a5e801ba73ddc00ec425f754f41c782336ca834eda0cf3f4"
+            },
+            {
+              "owner": "exprfold-v6",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                2585,
+                2585
+              ],
+              "before_fragment_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "after_fragment_sha256": "2b59b0072399be82f6df44e044ac0f20df1a3cdff05dfe4851b07971c5accdc1"
+            },
+            {
+              "owner": "exprfold-v6",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                2586,
+                2586
+              ],
+              "before_fragment_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "after_fragment_sha256": "85662f11027fe22cd84a9e9ef403d0b39c86aa744eb74e8f4c06dc32aeba098b"
+            },
+            {
+              "owner": "exprfold-v6",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                2587,
+                2587
+              ],
+              "before_fragment_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "after_fragment_sha256": "c63522c903fcf345c7bf7515f3a4b0349b785cd53ad9f03569f18073c64096b1"
+            },
+            {
+              "owner": "exprfold-v6",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                2595,
+                2595
+              ],
+              "before_fragment_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "after_fragment_sha256": "52df13e7265819124c089f054e2cda773ef3636143e04e5363ad5879f05d326f"
+            },
+            {
+              "owner": "exprfold-v6",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                2606,
+                2606
+              ],
+              "before_fragment_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "after_fragment_sha256": "ddd726e0448f1a708e2ef2602d6f82e089bdb250d9d8d8917a2dcd9f281148e7"
+            },
+            {
+              "owner": "exprfold-v6",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                2616,
+                2616
+              ],
+              "before_fragment_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "after_fragment_sha256": "a136ac53eee3302072fa08e876b7cd502a11ec7877c38ab6664f51f55051ee72"
+            },
+            {
+              "owner": "exprfold-v6",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                2635,
+                2635
+              ],
+              "before_fragment_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "after_fragment_sha256": "bbd73a658e30e7c4404f01861f120ba270d8b11062a20d023124935d71f0db4a"
+            },
+            {
+              "owner": "exprfold-v6",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                2637,
+                2637
+              ],
+              "before_fragment_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "after_fragment_sha256": "57107f4d7c157bf38a59d0c9df9283a38c8f4838648ebcaf706ea4b8e5184d1f"
+            },
+            {
+              "owner": "exprfold-v6",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                2674,
+                2677
+              ],
+              "before_fragment_sha256": "f5b0e13634a80b43e4211fd5954155dc47d24cd3f820320ad37008a9878cdc2e",
+              "after_fragment_sha256": "079754d6e09e757327acab1a68e37310224e78b2f4538590012ee13b5eae5732"
+            }
+          ]
+        },
+        {
+          "path": "rust/tcl-compiler/src/registry_invocation/conditional_vendor_metadata.rs",
+          "before_sha256": "16d15d0055e127742034a7e2e47e7581f6f6d5581e042684e536a7ea3c1b2972",
+          "after_sha256": "76deae95d773da6c54d46e806f42cc96210076633b2ad83d409cb5311d9fd6ed",
+          "owners": [
+            "ilx-words-v1"
+          ],
+          "edits": [
+            {
+              "owner": "ilx-words-v1",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                4,
+                4
+              ],
+              "before_fragment_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "after_fragment_sha256": "4d21ff29a56bf31870827ea25f22d94e07f81102ab302225154164c56888cce6"
+            },
+            {
+              "owner": "ilx-words-v1",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                61,
+                67
+              ],
+              "before_fragment_sha256": "d0dfb6f4602007db90769751cec91a9525b2ac4deda111ee826ed6d5eede4ae1",
+              "after_fragment_sha256": "f61180bc9522cff0b7248537b0a64eabacc60e099509982866873a36b5fafeb2"
+            },
+            {
+              "owner": "ilx-words-v1",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                69,
+                73
+              ],
+              "before_fragment_sha256": "44e2b52df685a81c76832f447fd19488a65cf3dd77625d7b3d7db8e67a4decf6",
+              "after_fragment_sha256": "09a5c5bad6cbd1be00a09cfb1020a33a6b630daf33af85d9ca6d933a24ea621f"
+            },
+            {
+              "owner": "ilx-words-v1",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                88,
+                91
+              ],
+              "before_fragment_sha256": "232b979a0395731f971b4b211f29bae1e37205e0cfc67e4c7d911fafd85d02fd",
+              "after_fragment_sha256": "545e5d493605ebd9ada304487f2589ab68ff9e094a07fadee494119674ce1fd0"
+            },
+            {
+              "owner": "ilx-words-v1",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                93,
+                94
+              ],
+              "before_fragment_sha256": "39eebcaffd746c4bea8cb39ce2bf45370f26fcdbdbef0f2665b5224f18a153a1",
+              "after_fragment_sha256": "0d569ddcffe0b00fd7332347f2613af4e086dfbb512214d320073a79a557babd"
+            },
+            {
+              "owner": "ilx-words-v1",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                96,
+                101
+              ],
+              "before_fragment_sha256": "a6c7495f514316589db80868b9ab1f5ccbd4ca64b394b7e77623578bf8470303",
+              "after_fragment_sha256": "47f20f480fa66fa0a70040b42589e3c4f88f87001c3b4f473b28fff533cb0016"
+            },
+            {
+              "owner": "ilx-words-v1",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                104,
+                108
+              ],
+              "before_fragment_sha256": "a6ef8c1522dfe7eb544b622a7ca083a5a5a1d80175af76546973dcbb76a4f192",
+              "after_fragment_sha256": "bf3f8541d0c24dfc5de19fc896efba473684844a8bdc6d78f922b745bbb0c807"
+            },
+            {
+              "owner": "ilx-words-v1",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                109,
+                115
+              ],
+              "before_fragment_sha256": "bfe6ee09b7b0ce17864134edb4c0390a67a3efb75b505c1d14e67cf11edc1d7a",
+              "after_fragment_sha256": "7bc8914643437ec30899321f3ecba8440593def9474f9d8e6abdb61b9a17b61c"
+            },
+            {
+              "owner": "ilx-words-v1",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                116,
+                120
+              ],
+              "before_fragment_sha256": "d928b57331ac71323dc6e2899e382cbe6bf63c73efdaa48d36407b9bc577b807",
+              "after_fragment_sha256": "83fcc004413fac99644a980f4e3b19f5f8549443c23069fd88aba22ca5c85ee4"
+            },
+            {
+              "owner": "ilx-words-v1",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                129,
+                134
+              ],
+              "before_fragment_sha256": "b6fbc9d27cce188cbd8896a0489bad33fd5d89fc15b4d008fd194dde7da84975",
+              "after_fragment_sha256": "2f1e6ba30d279aaf78a58dcaeb085c4373a1396bb7ec9f003dc341323ff936da"
+            }
+          ]
+        },
+        {
+          "path": "rust/tcl-compiler/src/registry_invocation/source_structure.rs",
+          "before_sha256": "449d7cc65b838ac5890cc96a9f011e4d577448721966e3b7789842c7d3db6875",
+          "after_sha256": "b635db4427c6b54866ceacf65fbf9e3ae507af9f903986d2685d854c18071d40",
+          "owners": [
+            "ilx-words-v1",
+            "readonly-route-v1"
+          ],
+          "edits": [
+            {
+              "owner": "readonly-route-v1",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                138,
+                138
+              ],
+              "before_fragment_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "after_fragment_sha256": "37ad4733ae9632970dfb900b451617735364d13afd8be35956928f759f746fa9"
+            },
+            {
+              "owner": "readonly-route-v1",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                165,
+                165
+              ],
+              "before_fragment_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "after_fragment_sha256": "e9a0208788276920e29046aca87478828587c43d7f771aaf669d59b6dabd5d42"
+            },
+            {
+              "owner": "readonly-route-v1",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                173,
+                177
+              ],
+              "before_fragment_sha256": "318eaed4f713915e618565c87de00796c7685a410fcf0a1ae59c4727a1bea797",
+              "after_fragment_sha256": "5b6433836fd656ed1082c7d00fb5ee020014e94b7374d292b145d4649fd05745"
+            },
+            {
+              "owner": "ilx-words-v1",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                1941,
+                1942
+              ],
+              "before_fragment_sha256": "ca8206ea3430e85de535c9323fd482aac9ca2f8b989168c53afb4745811b7691",
+              "after_fragment_sha256": "b0d8e3d0f99ded54b80064655367c47b15e75558d870584ef854a22ccaa5cce8"
+            },
+            {
+              "owner": "ilx-words-v1",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                1949,
+                1950
+              ],
+              "before_fragment_sha256": "6796288544f1e7b5f36c91a3f855fe94f5a7d25d168f387bfd5b8979b9bc7440",
+              "after_fragment_sha256": "3ce5694dc143e3fa01ee4b4aa08ecf50aa8df724dbbb27aa366f3220b457cf0d"
+            },
+            {
+              "owner": "readonly-route-v1",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                1965,
+                1965
+              ],
+              "before_fragment_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "after_fragment_sha256": "81275424ad40ec8ee56c45768c66aaaf6e6647c57b8928f6306baa9d5c5f46d8"
+            },
+            {
+              "owner": "ilx-words-v1",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                1965,
+                1966
+              ],
+              "before_fragment_sha256": "457a5cefd76bf2c9e6be9e4c521f687c5135432aec232ec5be931c0c6bbe703f",
+              "after_fragment_sha256": "3c9db0fa087903993ee55c80b7edcb7fc4386a058ae1c269d244a67a87be86cc"
+            },
+            {
+              "owner": "readonly-route-v1",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                1966,
+                1966
+              ],
+              "before_fragment_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "after_fragment_sha256": "66c649da70952aeebfc3b1967b79c42ff1692a850d64daa1596cb05283ee8c1b"
+            },
+            {
+              "owner": "readonly-route-v1",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                1978,
+                1979
+              ],
+              "before_fragment_sha256": "634ffb463d56d8494ef442799f4c70f4e706b4c610edbe8c5a1bfc1c390b35eb",
+              "after_fragment_sha256": "f69129e4a9c73856f8aeec07307397216513e84d16df32de3ad00cea372d0fad"
+            },
+            {
+              "owner": "readonly-route-v1",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                1989,
+                1990
+              ],
+              "before_fragment_sha256": "0c5ad55f8a0af0bcfb3ca7d9fa52f8b58b065a5642fe288887b73bfa9bddff5e",
+              "after_fragment_sha256": "45ccf41dcd3bc0daea27ef1d2c7b9e482c346a562daa4303eef7f9153dfeb68b"
+            },
+            {
+              "owner": "ilx-words-v1",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                1995,
+                1996
+              ],
+              "before_fragment_sha256": "a4cb47ed9f70d1754f71bb64a0df862f044ceff19aa0971c06a495ca6c35b633",
+              "after_fragment_sha256": "5cb3dd1176d97d1302688e6341e80ef28dc05f5474a6639b8cd77f1f523e05e2"
+            },
+            {
+              "owner": "ilx-words-v1",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                2007,
+                2008
+              ],
+              "before_fragment_sha256": "9ceba4dc5f55bb07ffcfe0ba489897a6b29f050412866257b6116768cfb83c16",
+              "after_fragment_sha256": "fa71c22f0c4c41093a286a4e6ab4c2763ddf74abe90d94c43ac029bde270bcdc"
+            },
+            {
+              "owner": "readonly-route-v1",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                2013,
+                2020
+              ],
+              "before_fragment_sha256": "9006b9d3a00669a2467034f678e6077cc6349f943e4fd6007e8dbb25f4edd372",
+              "after_fragment_sha256": "e0eae7d4574fd6bccec7be860aecbe747d0923ec7c5652748dbc49962c8c0466"
+            },
+            {
+              "owner": "readonly-route-v1",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                2022,
+                2024
+              ],
+              "before_fragment_sha256": "bcf0f2a4267312eb08a9171cf18277db509b4369fd96863daf434bec48079c71",
+              "after_fragment_sha256": "3e0e77f326a3db3ba80bd4a62c0c3073822956145897da0e19a897183a5bb392"
+            },
+            {
+              "owner": "readonly-route-v1",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                2026,
+                2028
+              ],
+              "before_fragment_sha256": "cada739e48274b2d4e3d4ea4d8240a8040b16e9893fdc8272b69acc6d0a2c056",
+              "after_fragment_sha256": "05d086da89089b4ca0f91fd884a79802109f9ced657356007ee75c88d1c69ca4"
+            },
+            {
+              "owner": "ilx-words-v1",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                2225,
+                2226
+              ],
+              "before_fragment_sha256": "2a9a68b7dc67f3ef218912f2f4dd8cc0ce4b7bb48540ba12d016c65ddde20abf",
+              "after_fragment_sha256": "5f9099c66537238c39fbf15a61141f2e5f28e0efcfff79efa56c08ddcaf16ac1"
+            },
+            {
+              "owner": "ilx-words-v1",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                2229,
+                2230
+              ],
+              "before_fragment_sha256": "f824b2d55dafcd94508eaa864175fd3ce12733270bac344474a86ecf1bf73700",
+              "after_fragment_sha256": "44467609b8eba48c945af2cbf56a56db0ba611cdd5fa251bdee466a129bf03fc"
+            },
+            {
+              "owner": "ilx-words-v1",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                2231,
+                2235
+              ],
+              "before_fragment_sha256": "190fa2a0e35ea2da6e9301eeb4c2ac1b537e14dfca5550c72ba66f3d7d9c994a",
+              "after_fragment_sha256": "55c8b8358df2a467680869d3d7506b96a6b902f9dd7f65764a9dcf657692550a"
+            },
+            {
+              "owner": "ilx-words-v1",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                2251,
+                2252
+              ],
+              "before_fragment_sha256": "6a4d29f33e6b7edff9d8c1fef74025cd769c8b100dfbf789f2a3648e3885931c",
+              "after_fragment_sha256": "cf8931832298d1c716190a1a3942ed579fff594ceb6ba72e48cdc006c449091d"
+            },
+            {
+              "owner": "readonly-route-v1",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                3956,
+                3960
+              ],
+              "before_fragment_sha256": "d69c2c5c11382c03b7fae913847ebb2a12376500f0e38d83e4b0f25aa7d5b8f1",
+              "after_fragment_sha256": "0d3c2c83f1a65992c21afbd92ad3c811e7cf8ac97be3634ac039abbceed6e6a3"
+            },
+            {
+              "owner": "readonly-route-v1",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                3984,
+                3985
+              ],
+              "before_fragment_sha256": "9d6cc85aa326eec3977cd71e5b931055ae44984afb7983ccb5d0b9150e386c7a",
+              "after_fragment_sha256": "467ae08a52690aaafff45c5880714d3e514b87ba966b0148b47e497f9e6c24ea"
+            },
+            {
+              "owner": "readonly-route-v1",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                3991,
+                3992
+              ],
+              "before_fragment_sha256": "f2f79d613d2be0f5ede0ccbec51472a219755e943cd6410f255225e5a7dfb91c",
+              "after_fragment_sha256": "b38d3e3649d36e3f4c6e16ec05000dbf6549db24c32668ffa7076650895b3712"
+            },
+            {
+              "owner": "readonly-route-v1",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                3994,
+                3997
+              ],
+              "before_fragment_sha256": "53d6d27760205cdb4fecc3897a517763ff208f6356f1875118f90264850025c1",
+              "after_fragment_sha256": "a86d76c1337f1cc7f6ad9ea5ee77119a1f9c41d74d8a436a512e171f2645fb67"
+            },
+            {
+              "owner": "ilx-words-v1",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                4696,
+                4697
+              ],
+              "before_fragment_sha256": "536f43e3d6ff9c1d49e4bc329ce110df26adcf7dfcdbbd43edc02da917788c4f",
+              "after_fragment_sha256": "991d670afbbb487f234b8f24beffc01a51f679ace4ac59780c9f44c2698fa2aa"
+            },
+            {
+              "owner": "ilx-words-v1",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                4703,
+                4704
+              ],
+              "before_fragment_sha256": "760ea45b716c8f6ae9fb86dac70dede81038dac8e2b647eeab2227631ac62dc1",
+              "after_fragment_sha256": "5d3643910dbeabcba2071f43c27714a0854109caf17c4c46346e48f4d99a0eee"
+            },
+            {
+              "owner": "ilx-words-v1",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                4713,
+                4715
+              ],
+              "before_fragment_sha256": "5d32c3d39a7eca6684e54c0700df666a867dea13d4df8f43af43c52fac69ae72",
+              "after_fragment_sha256": "3bb12eeea0248b2dfe7f79a789a6126aeeed718dbaa2d534995f5c3bac90b69c"
+            }
+          ]
+        },
+        {
+          "path": "rust/tcl-compiler/src/registry_invocation/source_structure/original_body_syntax.rs",
+          "before_sha256": "9987de839106c8d77f1435668f73e2dfa041e5fab2ee70ea49754cbc9584e6b6",
+          "after_sha256": "a74be0bbd080fb633a92672a32a90a107236afa8b84cec7ddd4001c16c89b8c5",
+          "owners": [
+            "nested-census-v4"
+          ],
+          "edits": [
+            {
+              "owner": "nested-census-v4",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                23,
+                23
+              ],
+              "before_fragment_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "after_fragment_sha256": "67f3cd6ac8ea611981b177f002aa43136c35428c2c9771be2c7cbf5d147db29a"
+            },
+            {
+              "owner": "nested-census-v4",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                77,
+                77
+              ],
+              "before_fragment_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "after_fragment_sha256": "a74510545ae83bc5ab92b37bc2aa2f6f4de198f21b666a09c5d8818d4c4dd039"
+            },
+            {
+              "owner": "nested-census-v4",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                116,
+                116
+              ],
+              "before_fragment_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "after_fragment_sha256": "157071b9a8206be8bd0f9c9d817544e269562281df58a0b604ad604b03bdc82e"
+            },
+            {
+              "owner": "nested-census-v4",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                161,
+                162
+              ],
+              "before_fragment_sha256": "13711110aff2c7fa3cc951e8f5dac4b38e29dd8174b5a0e1690e89a9784ab642",
+              "after_fragment_sha256": "7f8dc021ee0071d93e037c085fdb3ee7d626a3c7364c9f3db30c9b7d67453cbc"
+            },
+            {
+              "owner": "nested-census-v4",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                173,
+                175
+              ],
+              "before_fragment_sha256": "50032d9c8febf2841e7ba369772823443cc293d41c23f65c5cc88e42053f7f75",
+              "after_fragment_sha256": "c6ea3f7b42bcd660cf2c6488c40679178b1d6ab5c7700193fc6b229f9b33c2de"
+            },
+            {
+              "owner": "nested-census-v4",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                254,
+                255
+              ],
+              "before_fragment_sha256": "1d2118683e7b9eeedc92d805943cb8688b12db2de5d5c21e5936ed1196f082d2",
+              "after_fragment_sha256": "5a114b42bb862a367bd97acc9de553ced6fce517268aa4b1a3fb416023972125"
+            },
+            {
+              "owner": "nested-census-v4",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                257,
+                258
+              ],
+              "before_fragment_sha256": "be3b428ef3b5658533c78662f7d041ea7f8d7991fb4a8d7bcf00b17de3eec833",
+              "after_fragment_sha256": "4568c3d9d3bd5ced8c2413ecaf03c68c3e4062bf470c2ea27913cbc3eb81a7be"
+            },
+            {
+              "owner": "nested-census-v4",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                259,
+                260
+              ],
+              "before_fragment_sha256": "5cbce9d9f7b6d07adf1f317a8887ae480d9924d311b903219e9239d884980571",
+              "after_fragment_sha256": "22e262b85f6947864a0fe142cb9193ea4f77851809da27f00c810440fee10b6f"
+            },
+            {
+              "owner": "nested-census-v4",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                261,
+                262
+              ],
+              "before_fragment_sha256": "857aa7dc6ab87a934b2e785211bda781e1f886913b5b736caf286f978d2173fb",
+              "after_fragment_sha256": "985f81931b4d26b83f040161c0207183b1fcca8ef293939bd6350fe38c3d893e"
+            },
+            {
+              "owner": "nested-census-v4",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                263,
+                265
+              ],
+              "before_fragment_sha256": "ebeb5edaf02862790468ccd7f639e1be684816f491c4762466648fafc7477daf",
+              "after_fragment_sha256": "435955bc333e49dacf8888452e3c04e7f31883cda8174c94bf66960c8180cfdd"
+            },
+            {
+              "owner": "nested-census-v4",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                267,
+                269
+              ],
+              "before_fragment_sha256": "ef8237fe30e5749f85a6328790f9f98f7513067cf672635fd76df517e4d48bf9",
+              "after_fragment_sha256": "f1a64090551414bf11ad8fabd6217fd66bf3758212920e3b49842f9f6e5983bc"
+            },
+            {
+              "owner": "nested-census-v4",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                270,
+                277
+              ],
+              "before_fragment_sha256": "2e2e9ae0e09d7e2573cdb7b4cc3dc069055323e248e3bf6981871f66f938d2ae",
+              "after_fragment_sha256": "fd5636f57f38892869e81be440ea21022853ed463b340442a122cf759a10beba"
+            },
+            {
+              "owner": "nested-census-v4",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                279,
+                280
+              ],
+              "before_fragment_sha256": "0c96fb28ceac736b7a91941aa3a603078c6493ef1c802378dc0a8ca89ec914a0",
+              "after_fragment_sha256": "c9dc9688af1d05149d335f9d3c2b76a9918a86dc307c3a2e8f1ab7c610e54644"
+            },
+            {
+              "owner": "nested-census-v4",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                286,
+                287
+              ],
+              "before_fragment_sha256": "7080780d84478ccd809d54404b0496fb7e9d85d903bf0d1bb2aa59068b36069d",
+              "after_fragment_sha256": "164a205659c31a10567f1702adb75924bd5521262b05bb28301c7b027d4df843"
+            }
+          ]
+        },
+        {
+          "path": "rust/tcl-compiler/src/script_binds.rs",
+          "before_sha256": "47f424ab367030b737ca70ccc6680cf4ff11cec312059506796301ad88bf90d1",
+          "after_sha256": "3da13e3b4637b495e36a1b6ee3c3a87542273ddb7c46cd785689916daf6c18ee",
+          "owners": [
+            "rbs-read-v1"
+          ],
+          "edits": [
+            {
+              "owner": "rbs-read-v1",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                28,
+                28
+              ],
+              "before_fragment_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "after_fragment_sha256": "303d48b670a7176e655ee8d82537088fe92423a037e3062edb221f546bcb42f3"
+            },
+            {
+              "owner": "rbs-read-v1",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                406,
+                409
+              ],
+              "before_fragment_sha256": "bd590f1628ac55f39a486013c7403b54c7753416a128e020bbfa1affabd83cc9",
+              "after_fragment_sha256": "edffe3000e29383448aa161f223625b55cd1273800157ad6801fd8b9ed43b509"
+            },
+            {
+              "owner": "rbs-read-v1",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                416,
+                417
+              ],
+              "before_fragment_sha256": "8ebec7279fa8d872f2bb0ec876e50a769c9105fe9829c5f8626e7e12d84aa060",
+              "after_fragment_sha256": "be81c0d6e9249c1f21ee300c34d2cd51fedf62d797b18787c81f053ca4a21ac9"
+            },
+            {
+              "owner": "rbs-read-v1",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                418,
+                423
+              ],
+              "before_fragment_sha256": "6cf7c4d69378f5bd7a56686781d3b52f13ff5c3a061411b4bb8b12bc32c54043",
+              "after_fragment_sha256": "383776e2e2d37daca3f2ca0da1df344e2232e4e35cf4352dbe3758d78c7b99d5"
+            }
+          ]
+        },
+        {
+          "path": "rust/tcl-compiler/src/shimmer/use_site.rs",
+          "before_sha256": "921633cfbc1e1e51a2a432cb611fc9055a87d2d313a4860f096ffb29bfe260a8",
+          "after_sha256": "91d84d164afa915660ec7fdf048ddc95bd83f41dd1f561bc23fdaf5334cd0c70",
+          "owners": [
+            "sh-producer-v1"
+          ],
+          "edits": [
+            {
+              "owner": "sh-producer-v1",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                55,
+                55
+              ],
+              "before_fragment_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "after_fragment_sha256": "9fe064b02dc1349aa26df0557168040e87161dc9ed9bd81f01db101e1d571b3b"
+            },
+            {
+              "owner": "sh-producer-v1",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                391,
+                392
+              ],
+              "before_fragment_sha256": "1385c716e03c5f0f166038c4dd7f21ff12b4b138faa91c7f6ff12446c656c35b",
+              "after_fragment_sha256": "e2840845bb1522f9fc197c0dcc60381f6b3cbce938b4c7446e9c1f7c6c5ea978"
+            },
+            {
+              "owner": "sh-producer-v1",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                393,
+                394
+              ],
+              "before_fragment_sha256": "fdaeb89bebb09695d97210374d95b9d3649f4dbbff6ae5e62ef555957e003741",
+              "after_fragment_sha256": "3fd86314abd3cfab32d3836f2d29c29c85bc5526b325e7d60124022611cf4254"
+            },
+            {
+              "owner": "sh-producer-v1",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                398,
+                399
+              ],
+              "before_fragment_sha256": "d7aa2afcde3e21ae5b724cae08f6d98c470bfcc58c52a3f1863c37bcafb93d57",
+              "after_fragment_sha256": "34994d877b30be88a0e5eb344e6386ca0375c91ce8e8dfc06bd3feac49c55c41"
+            },
+            {
+              "owner": "sh-producer-v1",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                407,
+                407
+              ],
+              "before_fragment_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "after_fragment_sha256": "599d80b08847453899ec2b350f8207fe42a7d04c373d23b3305a1c8c3ba58b4a"
+            },
+            {
+              "owner": "sh-producer-v1",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                411,
+                414
+              ],
+              "before_fragment_sha256": "2ccc07561a8e439e2377ae4c6adcfc7d335e8032983d82981e7b254028ccd3f1",
+              "after_fragment_sha256": "94504cea3a0330ff9f519dfe4c429c8cb82d821f78fa630c4d9f198bde846d35"
+            },
+            {
+              "owner": "sh-producer-v1",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                418,
+                419
+              ],
+              "before_fragment_sha256": "140bd5e87d83e6b96561ecaa03f8c330b81e10b541a8b7d54589a99da9776867",
+              "after_fragment_sha256": "ec90a15c86cf5ea1fc6580515802723b6d76ed495530e845a3206b6284ccc976"
+            },
+            {
+              "owner": "sh-producer-v1",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                514,
+                521
+              ],
+              "before_fragment_sha256": "b7aeb4cae5054e8cf88629003a0be8dac0ae50ba251ad95b980bce1679b2a10d",
+              "after_fragment_sha256": "014425617993766368559336186eda93124b53cb9957900765799d51de8e06e4"
+            },
+            {
+              "owner": "sh-producer-v1",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                680,
+                680
+              ],
+              "before_fragment_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "after_fragment_sha256": "ecb70ea096a3a023b8f4404b5a2eff639f2ffdb4c977802ff21e6bf8d2710e8e"
+            },
+            {
+              "owner": "sh-producer-v1",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                688,
+                688
+              ],
+              "before_fragment_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "after_fragment_sha256": "bf710a76c177ab9b726b99a8d6dbdb6efc87a4200d79acda4b83dd850a55bc37"
+            },
+            {
+              "owner": "sh-producer-v1",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                689,
+                690
+              ],
+              "before_fragment_sha256": "dae7950665c706800fc05d181e09980e1d65fec9ad77a10dacfb1cdd67def0d1",
+              "after_fragment_sha256": "85e9bfe22699ceda6875c4dc116b7452d28483eeeb101a3cbbdda38c12fe1ebd"
+            },
+            {
+              "owner": "sh-producer-v1",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                725,
+                725
+              ],
+              "before_fragment_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "after_fragment_sha256": "3124ba9b78f033aedbf6b602e56b85364a66a146e0c34ab8dc30c3021cad0786"
+            },
+            {
+              "owner": "sh-producer-v1",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                759,
+                760
+              ],
+              "before_fragment_sha256": "17120242bb63cdac7cec63b8dd86842ef534684ebc899ca97db73c07575b1729",
+              "after_fragment_sha256": "5a7ddadb4d59447e2b4cd61d76b5f9cb8f2d791cd0060cd470c58dd4ee57a776"
+            },
+            {
+              "owner": "sh-producer-v1",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                762,
+                763
+              ],
+              "before_fragment_sha256": "27158649236b836fe857a11d64a0137a86b230d0e146e9e281269465ed3450b7",
+              "after_fragment_sha256": "bf6ef03da67bf19d604b5f3f34d0c8d7ec2a45328f14593b277d77dbb8049fe5"
+            },
+            {
+              "owner": "sh-producer-v1",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                786,
+                786
+              ],
+              "before_fragment_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "after_fragment_sha256": "2e89acae6f3f7f3b29d9aa3a07a4a873d1faf853d2b511789339018365ab23b6"
+            },
+            {
+              "owner": "sh-producer-v1",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                797,
+                797
+              ],
+              "before_fragment_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "after_fragment_sha256": "b510e1e151ecbede95c343205ed831c20e423225a64c9f6d36511cc392e1d8e5"
+            },
+            {
+              "owner": "sh-producer-v1",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                814,
+                815
+              ],
+              "before_fragment_sha256": "fdd1685287c6db470163f6fc936477056d809a58c8d129595bd37f08845a68dd",
+              "after_fragment_sha256": "2a321fb7c11cf3ac7903fd118de37cd397335775d7545a64c748ce93d5a56010"
+            },
+            {
+              "owner": "sh-producer-v1",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                826,
+                833
+              ],
+              "before_fragment_sha256": "55cc8fb628edb1fca135b8ded2cfb91f34d07fa5e4405751e37b393f7f023485",
+              "after_fragment_sha256": "78df792329cc254429acd6ab12781302bfba639b003079d89a653f6db41b8452"
+            }
+          ]
+        },
+        {
+          "path": "rust/tcl-compiler/src/taint.rs",
+          "before_sha256": "6ad178394b614b18d4a7c226d19079793a14f6c51fd28e53c27fac1ac9059126",
+          "after_sha256": "913867c6bd1611181be077925507ad3400b660a9c6e91bc1af65ad29931581a6",
+          "owners": [
+            "taint-ingress-v1"
+          ],
+          "edits": [
+            {
+              "owner": "taint-ingress-v1",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                3689,
+                3689
+              ],
+              "before_fragment_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "after_fragment_sha256": "a663eb6d8b75adf2caa8a0bb19046a978f301b994a3339dc0152a1315c206a9c"
+            },
+            {
+              "owner": "taint-ingress-v1",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                3696,
+                3696
+              ],
+              "before_fragment_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "after_fragment_sha256": "20997f7890f2e6dbc6339f3fbcf196da0b88a25316a69c0867c9887a76fa31fa"
+            },
+            {
+              "owner": "taint-ingress-v1",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                3699,
+                3702
+              ],
+              "before_fragment_sha256": "312d422d12f1ffb0f17e7bd6913151281adcb4a90fbb410a914bd373bf7d383b",
+              "after_fragment_sha256": "86999b688fb73dc1564fd550384c4a44f961d6fd4a4872af44539f4c4f1df1f1"
+            },
+            {
+              "owner": "taint-ingress-v1",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                3728,
+                3729
+              ],
+              "before_fragment_sha256": "4a436ba337b583107967ab00ba6c1249cc5afe4b9f514023ea9cc0e9e79bbc4f",
+              "after_fragment_sha256": "1020f70ea1fe7dbbcd09f6f338b760ceb1dec68206d5131d953bba236dce5bb4"
+            },
+            {
+              "owner": "taint-ingress-v1",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                3737,
+                3738
+              ],
+              "before_fragment_sha256": "6517164603ac4099ae322826da7e691c3d52a4d7e30cc70d0043a79e64cbf94e",
+              "after_fragment_sha256": "e54c1a377ad5bd82d9c96a36808d9d9786206a1d2359bbf37d8b6a3d2096d341"
+            }
+          ]
+        },
+        {
+          "path": "rust/tcl-compiler/tests/var_escape_residual2.rs",
+          "before_sha256": "e28c072c20f632f279a19a37c968a487d8f5c29488f086a38c231b36a0f0acd0",
+          "after_sha256": "28a8947d3b965ea61df7a858b440d967ba77102f7c3455c17fea222647de5265",
+          "owners": [
+            "var-helper-v2"
+          ],
+          "edits": [
+            {
+              "owner": "var-helper-v2",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                89,
+                89
+              ],
+              "before_fragment_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "after_fragment_sha256": "070f36817cb7faf660807db132d380e38f1b0ae73466000e293bb620346f2cda"
+            },
+            {
+              "owner": "var-helper-v2",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                92,
+                93
+              ],
+              "before_fragment_sha256": "12c4ab5b9641c47a81157fdfcecc5d3b0ecaf7339a0c048f78dda9cb0b67238d",
+              "after_fragment_sha256": "9be32eeacfaba127aaaf69d19664faea47233aa22f44f6a8d408b28ce0e10a14"
+            },
+            {
+              "owner": "var-helper-v2",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                97,
+                97
+              ],
+              "before_fragment_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "after_fragment_sha256": "aed86689ad81c59c84fc63fa45e6a4110bbff5a93b26e2f7570adc219f55b30c"
+            },
+            {
+              "owner": "var-helper-v2",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                98,
+                98
+              ],
+              "before_fragment_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "after_fragment_sha256": "bbe4468500aa24d4d3698f87b23cfd838fafc32590f7aec0aeed8edef1a95106"
+            },
+            {
+              "owner": "var-helper-v2",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                99,
+                100
+              ],
+              "before_fragment_sha256": "2068462162d846baeb8812243bb88076a606d3bdc855c5814c68afd656342f2f",
+              "after_fragment_sha256": "40de90cebfdfbce78c7834215f556e693f121de8aac9b274f2d08e9c3e0d74e2"
+            },
+            {
+              "owner": "var-helper-v2",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                101,
+                103
+              ],
+              "before_fragment_sha256": "0c1b2f27de2d9d51c3c248dab4c8b5c57a21045567fdfb6458716fbedce27546",
+              "after_fragment_sha256": "e5a7904d92100b25544ad7267d336e338b7f3a647e7ef3ff69e8813fedbf2b9a"
+            },
+            {
+              "owner": "var-helper-v2",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                105,
+                105
+              ],
+              "before_fragment_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "after_fragment_sha256": "687801e57f3f826b15014b8ed33d4ea8ee11f36af572dfae1848f10c4a07c88c"
+            },
+            {
+              "owner": "var-helper-v2",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                106,
+                107
+              ],
+              "before_fragment_sha256": "4568518e40e7224facd4ca3b6ad117b0eb410047b9139c7726b674dc98e635ed",
+              "after_fragment_sha256": "37d8c6f5ad7590a4bb6fdf9c7afebf5f60116c08cec4bc958aa401bc74156042"
+            },
+            {
+              "owner": "var-helper-v2",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                111,
+                112
+              ],
+              "before_fragment_sha256": "7fa7f4e6487d3c3f89426e5f024ad0c4c1ae4ef8336523d876ca5e91f7f4d4f1",
+              "after_fragment_sha256": "a4a473a331c8261717b072f84cc5c3b5679d6fe8da67a5efd8b2e84dccc696ac"
+            },
+            {
+              "owner": "var-helper-v2",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                120,
+                121
+              ],
+              "before_fragment_sha256": "1f784078f37f37612774144ae19899fa4f05d79229a9b9883415b108e271a92d",
+              "after_fragment_sha256": "97df9f0c8b120f7d78a1668249a90396b7a92b55544640714065b3216d7f3800"
+            },
+            {
+              "owner": "var-helper-v2",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                130,
+                131
+              ],
+              "before_fragment_sha256": "1f784078f37f37612774144ae19899fa4f05d79229a9b9883415b108e271a92d",
+              "after_fragment_sha256": "97df9f0c8b120f7d78a1668249a90396b7a92b55544640714065b3216d7f3800"
+            },
+            {
+              "owner": "var-helper-v2",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                139,
+                140
+              ],
+              "before_fragment_sha256": "d2e3c6e6a6a78a041c38fdcb141fe69f60d0e973541d6e5dd117f1b935543058",
+              "after_fragment_sha256": "3953456049886283d7a42f38f884d09616fad2347714b58d40d9ec7818184ef9"
+            }
+          ]
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/minify/original.rs",
+          "before_sha256": "b1c96a8ea640b46e36142e74d696c1efb497bb37f8c3ebecd26821732988a88e",
+          "after_sha256": "c6618f019d845f61afad591ec33d821f90a877ebfb8f315d45455d02ae9d6469",
+          "owners": [
+            "bom-fixture-v1"
+          ],
+          "edits": [
+            {
+              "owner": "bom-fixture-v1",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                899,
+                900
+              ],
+              "before_fragment_sha256": "a74e069c3d6922c6ba39e18e6367bdec7ccb2ea5c9992c64f8e5198d649904c2",
+              "after_fragment_sha256": "1f6c4dc0f1f598b0fec5167a9e107ea7afec2a96532e9bfc1f467b9c1fcb7a87"
+            }
+          ]
+        },
+        {
+          "path": "rust/tcl-registry/src/native_procedure.rs",
+          "before_sha256": "d809c352af7979774f3adeb26c7591db0b347ab0dec8346b04a8c3f32de7dba0",
+          "after_sha256": "c30a329197ea1a15459779ce9e51e37adf1a45435487d4685f4d72793d848d9f",
+          "owners": [
+            "jim-canonical-v4"
+          ],
+          "edits": [
+            {
+              "owner": "jim-canonical-v4",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                24,
+                24
+              ],
+              "before_fragment_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "after_fragment_sha256": "89c2a72ff4db0f1dd2194920f2bed5761f5534411f764074dba44440895a7e20"
+            },
+            {
+              "owner": "jim-canonical-v4",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                35,
+                36
+              ],
+              "before_fragment_sha256": "6875fcee88b9abdca6a78937567c0e5865b02e2173796ce2234d3b52e9dd3ffb",
+              "after_fragment_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            },
+            {
+              "owner": "jim-canonical-v4",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                37,
+                49
+              ],
+              "before_fragment_sha256": "e6ac2eb4712b0cf62b70810a4bf6534e01810966d86689bc37d77d52a6b4979e",
+              "after_fragment_sha256": "a865fd895495bc11f6a078b999cf04a1808935f4e465c83808ee64ee999304ef"
+            },
+            {
+              "owner": "jim-canonical-v4",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                51,
+                51
+              ],
+              "before_fragment_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "after_fragment_sha256": "c7d4771b8750b0b836fb91cf08a2b35b430fe75a2bab9747024c9d1048d15686"
+            },
+            {
+              "owner": "jim-canonical-v4",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                58,
+                59
+              ],
+              "before_fragment_sha256": "8687ee01128487bebe7be7988572e2fabe154120ed456437394462103c3df43f",
+              "after_fragment_sha256": "e96f875f66e5de123c2d6a8fe418467ba3b337c52c6f3492aa6f907ac1debbd9"
+            }
+          ]
+        },
+        {
+          "path": "rust/tcl-spectcl/src/core_surfaces.rs",
+          "before_sha256": "0e3c59a6f06b6e528a5e65e1f7b0f75266e08877c838e79ac2a56e4a703cb81b",
+          "after_sha256": "c02db70c577b169f50306edf7316ea3cb8b3644f7551f3707912afa622b175a7",
+          "owners": [
+            "jim-canonical-v4"
+          ],
+          "edits": [
+            {
+              "owner": "jim-canonical-v4",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                94,
+                95
+              ],
+              "before_fragment_sha256": "3badecffb11f3202ec701a59503ea1acda0548ee3a491d66cd43faaecec11ba4",
+              "after_fragment_sha256": "58ab995e215ab9679e58a955317b569050455d2b0d34dbb9384ca7a48b957eab"
+            },
+            {
+              "owner": "jim-canonical-v4",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                97,
+                97
+              ],
+              "before_fragment_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "after_fragment_sha256": "d023cd079b3ca3fe08982fbe0e1ed88d6e12829126b191ac0a1ab9a93c1e2700"
+            },
+            {
+              "owner": "jim-canonical-v4",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                119,
+                122
+              ],
+              "before_fragment_sha256": "a4146be2d6c9d8bcc87761b3597efe6474b4148ed4a1c51a6b2f5b4ba1dbe83e",
+              "after_fragment_sha256": "733ba488aab1f4dbd40265cf0c8bdb80b2d360ccae2ded9e250c228fb9f09934"
+            }
+          ]
+        },
+        {
+          "path": "rust/tcl-spectcl/tests/jim_core_metadata_identity.rs",
+          "before_sha256": null,
+          "after_sha256": "db445c8b9b99e90bc33770968ae17e1738cefb5f1508d25ddd701a3cadd86a11",
+          "owners": [
+            "jim-canonical-v4"
+          ],
+          "edits": [
+            {
+              "owner": "jim-canonical-v4",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                0,
+                0
+              ],
+              "before_fragment_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "after_fragment_sha256": "db445c8b9b99e90bc33770968ae17e1738cefb5f1508d25ddd701a3cadd86a11"
+            }
+          ]
+        },
+        {
+          "path": "rust/tcl-spectcl/tests/support/derived_first_decline.rs",
+          "before_sha256": "6f430e9f4ef863ba559714749f5eddec5f09f07abe549dbb654c7a33d5f07bc1",
+          "after_sha256": "e3ab2ab0c6f6559a5e4d40d19abbf20425101ab8d8ea4b368115f7ab052de002",
+          "owners": [
+            "n17-body-census-v1"
+          ],
+          "edits": [
+            {
+              "owner": "n17-body-census-v1",
+              "merged_owners": [],
+              "original_insert_fragments": [],
+              "same_edit_also": [],
+              "original_lines_zero_based_half_open": [
+                19,
+                19
+              ],
+              "before_fragment_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "after_fragment_sha256": "5b801eb7ae4a93712c9cc6d3ad7f7c0e3b05c1a791c5f3bc4abef6ae00b87f65"
+            }
+          ]
+        }
+      ],
+      "composition": "Exact independently applied current-base component line edits; nonempty changed ranges disjoint. At original replacement boundaries readonly pure-log insertion occurs before/after the original barrier query as authored, while ILX wraps that query once; introduced ILX binding log precedes introduced readonly barrier-result log. No authority-query reorder, offset or fuzz. Boundary trace union requires explicit peer review.",
+      "union_reapply": "zero-fuzz/no-offset exact final hashes PASS",
+      "format": "PENDING owner-edition check",
+      "alias_admissibility": "excluded"
+    }
+  ],
+  "excluded": [
+    "normal-owner-v1: HELD derived Eq regression",
+    "empty allocated a9c4: NOT APPLICABLE to actual Installed E003",
+    "Jim canonical v1/v2 HELD first-call/read purity; v3 doc predecessor",
+    "importcapture2f8d HELD/OFFTARGET: capture succeeds, child completion missing",
+    "Alias supported-domain fixture remains HELD admissibility/Logical positive UNRUN, excluded",
+    "row22 alternative positive fixture: pending diagnosis, excluded",
+    "Older Jim rows3/4 authored-receipt absence remains distinct; no repair/family conversion inferred from class1/2"
+  ],
+  "reviewed_predecessor_manifest_path": "/tmp/compiler-next-integration-composition-v4/manifest.json",
+  "predecessor_manifest_sha256": "00eb07075ddae83e0708b994f55b001c83bf30456d2213b8fa00e6e5fde9fdb6",
+  "explicit_same_site_union": "Two explicit same-site unions: command_binding original preflight assessment once, whole importchild log then Native log then original timingdrop/refusal; compiled_preflight require_provider whole importchild log then Native log then original possible_error=true/locals=None. Identical debug-only track_caller dedups once. Original fragment hashes retained; only named pair at these two paths admitted; all other collisions refuse.",
+  "peer_status": "New core19/command_binding nativepreflight+importchild union NOT YET REVIEWED; prior core17-v4 preservation and source_structure boundary peers inherited for unchanged bytes",
+  "testing": "All combined typing/runtime/finite controls UNRUN; existing completed product compiler58 40PASS18FAIL and LSP23 17PASS6FAIL are predecessor evidence only"
+}

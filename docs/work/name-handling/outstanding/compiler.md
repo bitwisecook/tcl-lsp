@@ -2,13 +2,15 @@
 
 Area: Lowering, C6 fresh builders, iRules RuleLoader realm, itcl/snit, OO.
 
-Last updated: 2026-10-23T08:13:38.388553+00:00 (nextcomposition WAITCCGN17freeze; Nativeentryv2 approved; v4/core17immutable/actualsource46HOLD)
+Last updated: 2026-10-23T08:24:31.102916+00:00 (v5core19 frozen31fmtPASS/proposed66; exacttwofileoverlap peerspending; actualsource46HOLD)
 
 Maintained by the compiler agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 Full change notes: `docs/work/name-handling/handoff/reviews/merge-inventory-20261019/sol-49-NOTES.md`.
 
 ## Resume
+
+**NEW v5/core19 frozen OFFTREE (not actual source66):** manifest9e8c047703fb3df93d34f6ba4cac8398d45d81c509d157c89c6c14fb3a7b9ba0 at `/tmp/compiler-next-integration-composition-v5/manifest.json`, combined402fbd345325d6f4da17231b0266be92c0700b01a6a70c4eb83df55d21a144c2. Exact19components/31changedbatchpaths/proposedcumulative66mapdc604fa00ffcfe3ba070f1b181a93101e8437e236275c1934ca9d67549d86e7e. All17 v4 patchpins includingNormalv3 preserved EXACT, adding only Nativev2 1eae0d85(peer e40511be) and N17testcensus f02cb3d2(peerNames83fbff0a), alias excluded. Standalone19+wholeunion zero-fuzz/nooffset apply/finalpinsPASS; all31ownereditionfmtPASSbb6de98d. Two deliberate purelog same-site unions: importchildlog beforeNativelog afteroriginalpreflightassessment andbeforeoriginaltimingdrop; likewise beforeoriginalrequire_provider possible_error/locals writes. Identical debugtrack_caller dedups once. Exactwholecomponentfragments preserved; no query/guard/order/assertion rewrites, Names+CCG newunion peers pending. Separate readiness/overlap patches and compressedshadow archive frozen, earlier v4/core17 unchanged. Allcombined typing/runtime/newcontrols/lifetime/perf unrun. Actualsource46/897b/tree0b11/f756 unchanged; rootsource/provider/Cargo/Git/GO HOLD through hook2/Native15 closure. Builder explicit reviewednewcandidate path+SHA thenactual integratedtuple, nofakecounts/HEAD/PASS. Alltemporary trace cleanup includingN17 observer requires exactversionedinverse afteractual measurement, never staleundo.
 
 **Next composition WAIT, no successor minted yet:** Root approves exact Nativeentry puretracev2 `1eae0d85bf86767986e4dddb3fdf5139b94b2406707ac56f77115e333de0e167` (compiler bounded staticpeer e40511be522c090f1e6dac667c1da6e983a6b48352ae164100fc7739cb5d1463); v1 unscopedtrackcaller remains held. Root explicitly waits possible CCG N17 fixture::p census-before-Named earlyreturn diagnostic freeze+peer before one new composition. All17 existing v4/core17 componentpins including Normalv3 stay exact, alias excluded, no admission/assertion/helper changes; calculate actual component/path/cumulative counts only once frozen scopes arrive. V4manifest00eb/patch956c/map79ec immutable and current source46/897b unchanged. Names typingbuilder remains explicit candidatepath+SHA latebound, no fictional futureidentity/PASS. Parent remaininghook2/Native15 runtimequeue must close before integration/GO. No source/Cargo/Git/provider writes.
 
