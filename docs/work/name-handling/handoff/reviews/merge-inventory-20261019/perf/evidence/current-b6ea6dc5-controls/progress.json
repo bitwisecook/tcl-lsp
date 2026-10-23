@@ -1,0 +1,63 @@
+{
+  "results": [
+    {
+      "label": "build-controls",
+      "argv": [
+        "cargo",
+        "test",
+        "--locked",
+        "-j2",
+        "-p",
+        "tcl-compiler",
+        "--lib",
+        "--no-run",
+        "--message-format=json"
+      ],
+      "exit": 0,
+      "wall_s": 7634.00307059288,
+      "warnings": 0,
+      "executables": {
+        "tcl_compiler": "/workspace/tcl-lsp-perf-latest/target-spectcl-opt1/debug/deps/tcl_compiler-4d0d220b10221392"
+      }
+    },
+    {
+      "label": "controls-list",
+      "argv": [
+        "/workspace/tcl-lsp-perf-latest/target-spectcl-opt1/debug/deps/tcl_compiler-4d0d220b10221392",
+        "authenticated_report",
+        "full_report_candidates_require_the_actual_diagnostic_output_realm",
+        "--list"
+      ],
+      "extra_env": {},
+      "exit": 0,
+      "wall_s": 0.14081358909606934
+    },
+    {
+      "label": "controls-new",
+      "argv": [
+        "/workspace/tcl-lsp-perf-latest/target-spectcl-opt1/debug/deps/tcl_compiler-4d0d220b10221392",
+        "authenticated_report",
+        "full_report_candidates_require_the_actual_diagnostic_output_realm",
+        "--test-threads=2"
+      ],
+      "extra_env": {},
+      "exit": 0,
+      "wall_s": 38.70502161979675
+    },
+    {
+      "label": "controls-old",
+      "argv": [
+        "/workspace/tcl-lsp-perf-latest/target-spectcl-opt1/debug/deps/tcl_compiler-4d0d220b10221392",
+        "authenticated_report",
+        "full_report_candidates_require_the_actual_diagnostic_output_realm",
+        "--test-threads=2"
+      ],
+      "extra_env": {
+        "ZZ_OLD_ENV": "1"
+      },
+      "exit": 0,
+      "wall_s": 67.32850337028503
+    }
+  ],
+  "updated_unix": 1792784392.4496617
+}

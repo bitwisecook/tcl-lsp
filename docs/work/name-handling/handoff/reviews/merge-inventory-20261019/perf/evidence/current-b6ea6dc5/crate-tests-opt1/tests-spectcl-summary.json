@@ -1,0 +1,14 @@
+{
+  "spectcl/eval_loader/new": {
+    "status": "pending"
+  },
+  "spectcl/eval_loader/old": {
+    "status": "pending"
+  },
+  "spectcl/golden_packs/new": {
+    "status": "pending"
+  },
+  "spectcl/golden_packs/old": {
+    "status": "pending"
+  }
+}

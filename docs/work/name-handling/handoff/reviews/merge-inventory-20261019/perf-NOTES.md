@@ -1,15 +1,22 @@
 # perf agent notes: Analyser and SpecTcl
 
-Last updated: 2026-10-23 19:36 UTC
+Last updated: 2026-10-23 19:41 UTC
 
-**Frozen b6ea6dc5 proof is running; six-file perf commit remains unlanded.**
-Both normal compiler libraries built with zero Rust warnings. The combined
-unit-test executable is still compiling; the clean6 unit-test compiler is held
-by the build-only memory guard. No runtime is paused. Clean6 lexer586/586
-passes both environment executions; the old variable is ignored without the
-switch. No fresh report/corpus or selected compiler/server/SpecTcl verdict yet.
-See outstanding/perf.md and current-b6ea6dc5/ for the current task snapshot.
-Historical failures and timings below retain their original source/profile.
+**Frozen b6ea6dc5 controls PASS; full corpus and crate proofs are running.**
+All16 authenticated report/actual-realm controls pass BOTH modes,38.705s new /
+67.329s old, with unchanged complete source seal and zero Rust warnings.
+The genuine hosted-event control now passes for both source head spellings.
+Both normal compiler libraries and the combined unit executable built cleanly;
+the build-only guard resumed the six-file compiler and exited.
+Switched lexer586/586 passes BOTH (4.427/2.879s); clean6 lexer586/586 passes
+BOTH (2.993/4.237s), zero warnings and executables removed. The old variable
+is ignored in the clean6 no-switch build. These are contended test durations,
+not latency benchmarks. Full corpus examples build after successful preflight;
+selected229 compiler tests are running. Server / SpecTcl builds have started
+with their original budgets held for the quiet window. No full corpus or
+complete selected-suite verdict yet; six-file perf code remains unlanded.
+See outstanding/perf.md for exact workers and evidence. Historical failures
+and timings below keep their original source/profile scope.
 
 ## Current0322 progress
 

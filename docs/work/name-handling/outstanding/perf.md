@@ -2,7 +2,7 @@
 
 Area: Analysis and SpecTcl pack-load performance.
 
-Last updated: 2026-10-23 19:36 UTC
+Last updated: 2026-10-23 19:41 UTC
 
 ## Resume
 
@@ -11,13 +11,20 @@ b6ea6dc5ebaa9589f6e1c1747875127fecdbb573. No perf production commit or full
 corpus acceptance exists. Keep the active Rust sources fixed until the jobs
 finish; later work commits are publication/rebase inputs, not this proof base.**
 
-Both normal compiler libraries are built with zero Rust warnings. Combined
-unit-test rustc40699 is still CPU-active; clean6 unit-test rustc40734 is held
-by the build-only memory guard until the combined executable is built or its
-build fails. No runtime test is paused. The guard resumes held rustc in finally.
-There is no fresh control, compiler-filter, corpus, server or SpecTcl verdict.
-Clean6 lexer586/586 PASS in BOTH environment executions, zero warnings, exe
-removed; the old variable is ignored in this no-switch source.
+Both normal compiler libraries and the combined unit-test executable built
+with zero Rust warnings. ALL16 report/actual-realm controls PASS BOTH modes
+(new38.705s, old67.329s), source seal unchanged and executable deleted. This
+proves the19936 hosted control repair on b6, including both when spellings.
+The build guard resumed clean6 rustc40734 and exited; no process remains held.
+Combined switched lexer586/586 PASS BOTH (4.427/2.879s), zero warnings, removed.
+Clean6 lexer586/586 PASS BOTH (2.993/4.237s), zero warnings, removed; the old
+variable is ignored in that no-switch source.
+
+Full corpus preflight has passed and its examples are building. Selected
+compiler229-case NEW run has started, including the exact original non-UTF8
+native-array control; complete BOTH-mode comparison remains pending. Server /
+SpecTcl builds have started and wait for the later quiet window. No full corpus,
+compiler-filter, server or SpecTcl acceptance is claimed yet.
 
 Active roots/logs (terminal handles lost at18:41; use PIDs/files):
 - Controls34585: /tmp/perf-b6-controls.log; current-b6ea6dc5-controls/.
@@ -53,7 +60,7 @@ lints route to compiler. No workspace-green claim or suppression.
 
 Latest necessary hosted repair19936eb9 compares source when and retained
 ::when through the existing rooted-key helper, preserving all guards; its
-original genuine control covers BOTH spellings. Fresh runtime proof is pending.
+original genuine control covers BOTH spellings. All16 current controls pass BOTH modes; full corpus remains pending.
 The earlier a3 build failures and retired ccd partial43 new tests remain
 preserved under their exact bases. No old run is represented as current proof.
 
