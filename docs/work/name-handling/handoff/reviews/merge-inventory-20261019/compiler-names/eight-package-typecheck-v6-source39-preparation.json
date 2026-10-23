@@ -1,0 +1,48 @@
+{
+  "utc": "2026-10-23T04:27:26.986410+00:00",
+  "role": "compiler-names",
+  "status": "OFFTREE prepared v6; independent peer and actual root final39 integration+GO pending",
+  "path": "/tmp/name-handling-eight-package-check-v6-source39",
+  "manifest_sha256": "0ef0cce382f8dca504a9dfedf3d7b5a1817013bb47723d5b4fdf2a182416bca9",
+  "plan_sha256": "403b858020dad0d33cbfd03e614b6444e7e6874cbb873c66499512347fabc972",
+  "runner_input_manifest_sha256": "5ff66afbce0e4443209407a35c8139796402c7ddf9fb964250cb1cba382b5a77",
+  "source39_manifest_sha256": "5a6a313720378b9325fed754c4fca3689330258de0bce881ce6f4d43f3a1ec97",
+  "old_v4_manifest_files_unchanged": true,
+  "old_v5_status": "held for inherited build overrides; no launch",
+  "changes": [
+    "Add bpf-tcl-ir eighth package --all-targets; candidate39 exact before/after source map from source30 and coordinator frozen21 map.",
+    "Pin suite.py itself in runner inputs; pin absolute Rustc and require recorded successful build environment/PATH.",
+    "Reject compiler flag/wrapper/target overrides in launcher/direct suite before lock.",
+    "Validate approved product HEAD/tree and all approved39 blobs; worktree product matches approved; all later commits docs/work/name-handling only.",
+    "Record monotonic actual before/pre-spawn/after HEADs; strict HEAD equality informational.",
+    "Executor, process guards, singlelock, full source/provider/GO seals and zero-warning diagnostic checks unchanged."
+  ],
+  "preflight": {
+    "absent_go_refusal": {
+      "exit": 2,
+      "stderr": "",
+      "stdout": "STOP: post-39 root GO absent; no runner or Cargo started\n"
+    },
+    "cargo_started": false,
+    "current_agent_environment_override_keys": [],
+    "environment_override_pure_controls": "PASS exact10+target-specific+required-known-env",
+    "executor_byte_identical": true,
+    "lock_acquired": false,
+    "packages": 8,
+    "pending": [
+      "Root verify exact final39 source/baselines plus all other product paths",
+      "Actual approved integrated HEAD/tree",
+      "Root GO exact plan/runner/source39 digests",
+      "CCG env/process and LSP docs-only HEAD invariant peers"
+    ],
+    "python_parse": "PASS3",
+    "source_rows": 39,
+    "status": "OFFTREE template; independent delta peers and root final39 verification/GO required",
+    "utc": "2026-10-23T04:26:40.019786+00:00"
+  },
+  "authority_limits": [
+    "No Cargo/build/Git/lock/GO/provider/canonical source actions.",
+    "Root must use actual final integrated product HEAD/tree; no fictional or composition-base identity.",
+    "CCG owns environment/process delta peer; LSP owns docs-only HEAD invariant peer."
+  ]
+}

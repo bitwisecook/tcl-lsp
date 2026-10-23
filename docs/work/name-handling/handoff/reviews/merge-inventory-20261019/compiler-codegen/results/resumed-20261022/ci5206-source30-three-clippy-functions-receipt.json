@@ -1,0 +1,39 @@
+{
+  "prepared_utc": "2026-10-23T04:23:16.670218+00:00",
+  "status": "OFFTREE source30 three-function Clippy candidate; static extraction only; peer pending; typing/Clippy/runtime UNRUN",
+  "patch_sha256": "684f27d791d1d7f8d9c6bcc71a6969c8171ade8680bdeca72412f6f8e92c7401",
+  "source_head": "4d4ab9e6a7d3b141ce55f16b8ca98f462e609e57",
+  "files": [
+    {
+      "path": "rust/tcl-compiler/src/optimiser/chain_fold.rs",
+      "before_sha256": "b60f7618836caa401313253df5fb63448ad7a2c44406b60f5fd09243c60880ed",
+      "after_sha256": "b6fd1433b4c9612ad16b4cc6ea1dbb9fcc457b9c7f2eabe6d785fe2bda0de839"
+    },
+    {
+      "path": "rust/tcl-compiler/src/optimiser/elimination.rs",
+      "before_sha256": "837e4a6397c085ea101f56aa965c5f6a5cf802f309c56f4ab72628601b26ed2a",
+      "after_sha256": "bfd12ca5418e074ca1b5e0cfe8c84fae9b4dd7b7c517fbb311db8f3c399c7ca7"
+    },
+    {
+      "path": "rust/tcl-compiler/src/optimiser/propagation.rs",
+      "before_sha256": "186b5fab282a14f65d04f6ecd8804c125d081b11e4651964a242ca32b82978c9",
+      "after_sha256": "b623c6273111c4ad176a2528bf7b6fd41c4a6c13f02f5a30711a86fb62ae7bab"
+    }
+  ],
+  "actual_ci5206": {
+    "job": 120175507991,
+    "published_head": "5a4182dfefc483b6446085bdabd9a1f7620e6a96",
+    "connector_log_sha256": "489505b6920928b562178bb99cf8d38a935df6eb37ec13fa73d34a3af0d5b95e",
+    "rows": [
+      "chain_fold.rs:577 too_many_lines 104/100",
+      "elimination.rs:981 too_many_lines 101/100",
+      "propagation.rs:316 too_many_lines 103/100"
+    ]
+  },
+  "checks": [
+    "current source matches all3 before hashes",
+    "zero-fuzz patch applies to independent shadow and matches all3 after hashes",
+    "pinned rustfmt 1.99.1 edition2024 on proposed three files"
+  ],
+  "scope": "Only extract unchanged protected-var observation, dead-store symbol/synthetic gate, and forward message formatting at original evaluation points; no condition, argument, ordering, assertion or allowance change. Source30 strict Clippy UNRUN; predicted size not closure."
+}

@@ -1,0 +1,12 @@
+{
+  "utc": "2026-10-23T04:31:45.593626+00:00",
+  "manifest_sha256": "394a403e85f8778b1366dd26dd4f87090b79febffb2c35302d1a5eb7a5a70b1f",
+  "gzip_payloads_verified": 178,
+  "actual_jim34_count": 34,
+  "passes": 21,
+  "failures": 13,
+  "source_provider_target_seals_equal": true,
+  "actual_artifact_hash_matches": true,
+  "direct_process_counts_status_exit_warning_guards_all34": true,
+  "scope": "Completed Jim34 target only; remaining32/full66 final guards pending; no whole-phase/release admission."
+}

@@ -1,0 +1,744 @@
+{
+  "schema": "compiler-next-batch-finite-design-v1",
+  "prepared_utc": "2026-10-23T04:22:23.116404+00:00",
+  "status": "FROZEN ROSTER/DESIGN ONLY, SOURCE UNBOUND; no runnable launcher/GO/Cargo/queue",
+  "root_final_integrated_product_sha": null,
+  "root_final_full_before_final_source_manifest": null,
+  "root_final_approved_integrated_head": null,
+  "source_binding_policy": "Wait for root exact final product+full composite manifest. Mint ONE explicit new runtime/typecheck protocol version; no source30 protocol edits, no arbitrary allowlist, exact full new pathmap vs product3b1 and all other product identical. Root approved integratedHEAD ancestor current with docs-only descendants. Verify full actual input inventory/providers/artifacts before/between/after.",
+  "typecheck8": {
+    "packages": [
+      "tcl-compiler",
+      "tcl-lsp-core",
+      "tcl-lsp-db",
+      "tcl-lsp-server",
+      "tcl-vm",
+      "tcl-fuzz",
+      "tcl-spectcl",
+      "bpf-tcl-ir"
+    ],
+    "cargo_argv": [
+      "/workspace/.rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/bin/cargo",
+      "check",
+      "--locked",
+      "--keep-going",
+      "--all-targets",
+      "--message-format=json",
+      "-p",
+      "tcl-compiler",
+      "-p",
+      "tcl-lsp-core",
+      "-p",
+      "tcl-lsp-db",
+      "-p",
+      "tcl-lsp-server",
+      "-p",
+      "tcl-vm",
+      "-p",
+      "tcl-fuzz",
+      "-p",
+      "tcl-spectcl",
+      "-p",
+      "bpf-tcl-ir"
+    ],
+    "deadline_seconds": 3600,
+    "required_before_selector_launch": "Actual complete valid same-new-product8packagealltarget check exit0,zero warnings across CargoJSON/buildscripts/stdout/stderr, source/provider/HEAD/GO stable, complete process/group seals. This compilegreen requirement is explicitrootrequest; it is not a green49/report/runtime prerequisite.",
+    "result": "UNRUN on next unintegrated product"
+  },
+  "groups": [
+    {
+      "name": "report14",
+      "required": true,
+      "roster_parent_path": "/tmp/compiler-authenticated-report-focused14-v6-source30/plan.json",
+      "roster_parent_sha256": "32a68999acfdb065a9abcb92b135649b1f32a02d98fd6c832d41f8ba739e4329",
+      "expected_filters": 2,
+      "expected_selected": 14,
+      "required_filters": [
+        {
+          "label": "authenticated_report13",
+          "selector": "analyser::authenticated_report::",
+          "exact": false,
+          "expected_selected": 13,
+          "env": {
+            "TCL_LSP_TRACE_AUTHENTICATED_REPORT": "1"
+          },
+          "package": "tcl-compiler",
+          "target_name": "tcl_compiler",
+          "target_kind": [
+            "lib"
+          ],
+          "artifact_key": "tcl-compiler:lib:tcl_compiler",
+          "group": "report14"
+        },
+        {
+          "label": "logical_current_realm1",
+          "selector": "object_types::logical_source_candidates::tests::full_report_candidates_require_the_actual_diagnostic_output_realm",
+          "exact": true,
+          "expected_selected": 1,
+          "env": {},
+          "package": "tcl-compiler",
+          "target_name": "tcl_compiler",
+          "target_kind": [
+            "lib"
+          ],
+          "artifact_key": "tcl-compiler:lib:tcl_compiler",
+          "group": "report14"
+        }
+      ]
+    },
+    {
+      "name": "diagnostic11-original",
+      "required": true,
+      "roster_parent_path": "/tmp/compiler-source30-diagnostics-v1/plan.json",
+      "roster_parent_sha256": "4a3f2a6ca28622df267c03e0975f67bd2234ec72c9f5a5da3d08acf41202c5d8",
+      "expected_filters": 11,
+      "expected_selected": 11,
+      "required_filters": [
+        {
+          "selector": "command_binding::conditional_expression_tests::conditional_expression_template_retains_grammar_without_actual_entry",
+          "expected_selected": 1,
+          "exact": true,
+          "env": {},
+          "label": "diagnostic01-conditional_expression_template_retains_grammar_without_actual_entry",
+          "package": "tcl-compiler",
+          "target_name": "tcl_compiler",
+          "target_kind": [
+            "lib"
+          ],
+          "artifact_key": "tcl-compiler:lib:tcl_compiler",
+          "group": "diagnostic11-original"
+        },
+        {
+          "selector": "command_binding::normal_result::tests::scoped_procedure_equivalence_keeps_independent_world_and_completion_obligations",
+          "expected_selected": 1,
+          "exact": true,
+          "env": {},
+          "label": "diagnostic02-scoped_procedure_equivalence_keeps_independent_world_and_completion_obligations",
+          "package": "tcl-compiler",
+          "target_name": "tcl_compiler",
+          "target_kind": [
+            "lib"
+          ],
+          "artifact_key": "tcl-compiler:lib:tcl_compiler",
+          "group": "diagnostic11-original"
+        },
+        {
+          "selector": "command_binding::expression_preparation::tests::scoped_nested_normalisation_keeps_original_world_frame_and_source",
+          "expected_selected": 1,
+          "exact": true,
+          "env": {},
+          "label": "diagnostic03-scoped_nested_normalisation_keeps_original_world_frame_and_source",
+          "package": "tcl-compiler",
+          "target_name": "tcl_compiler",
+          "target_kind": [
+            "lib"
+          ],
+          "artifact_key": "tcl-compiler:lib:tcl_compiler",
+          "group": "diagnostic11-original"
+        },
+        {
+          "selector": "command_binding::expression_preparation::tests::selected_nested_normalisation_projects_actual_operand_and_command_source",
+          "expected_selected": 1,
+          "exact": true,
+          "env": {},
+          "label": "diagnostic04-selected_nested_normalisation_projects_actual_operand_and_command_source",
+          "package": "tcl-compiler",
+          "target_name": "tcl_compiler",
+          "target_kind": [
+            "lib"
+          ],
+          "artifact_key": "tcl-compiler:lib:tcl_compiler",
+          "group": "diagnostic11-original"
+        },
+        {
+          "selector": "command_binding::conditional_source::region::controls::deep_return_uses_the_completed_chain_without_renewing_the_opaque_child_prefix",
+          "exact": true,
+          "expected_selected": 1,
+          "env": {
+            "TCL_LSP_TRACE_N13_POINT": "1"
+          },
+          "label": "diagnostic05-deep_return_uses_the_completed_chain_without_renewing_the_opaque_child_prefix",
+          "package": "tcl-compiler",
+          "target_name": "tcl_compiler",
+          "target_kind": [
+            "lib"
+          ],
+          "artifact_key": "tcl-compiler:lib:tcl_compiler",
+          "group": "diagnostic11-original"
+        },
+        {
+          "selector": "command_binding::conditional_source::region::sequential_controls::sequential_tail_returns_to_the_same_original_prefix_without_reanalysis",
+          "exact": true,
+          "expected_selected": 1,
+          "env": {
+            "TCL_LSP_TRACE_N13_POINT": "1"
+          },
+          "label": "diagnostic06-sequential_tail_returns_to_the_same_original_prefix_without_reanalysis",
+          "package": "tcl-compiler",
+          "target_name": "tcl_compiler",
+          "target_kind": [
+            "lib"
+          ],
+          "artifact_key": "tcl-compiler:lib:tcl_compiler",
+          "group": "diagnostic11-original"
+        },
+        {
+          "selector": "command_binding::source_transition_advice::source_point::conditional_region_purpose_controls::conditional_region_purpose_refuses_a_genuine_whole_child",
+          "exact": true,
+          "expected_selected": 1,
+          "env": {
+            "TCL_LSP_TRACE_N13_POINT": "1"
+          },
+          "label": "diagnostic07-conditional_region_purpose_refuses_a_genuine_whole_child",
+          "package": "tcl-compiler",
+          "target_name": "tcl_compiler",
+          "target_kind": [
+            "lib"
+          ],
+          "artifact_key": "tcl-compiler:lib:tcl_compiler",
+          "group": "diagnostic11-original"
+        },
+        {
+          "env": {
+            "TCL_LSP_TRACE_REMOTE_FIRST_OPERAND": "1"
+          },
+          "exact": true,
+          "expected_selected": 1,
+          "label": "diagnostic08-intrinsic_conditional_refuses_source_effect_and_transition_overrides",
+          "purpose": "ILX v3 real conditional producer/refusal control; original assertion unchanged.",
+          "selector": "registry_invocation::source_remote_first_operand::tests::intrinsic_conditional_refuses_source_effect_and_transition_overrides",
+          "source": "rust/tcl-compiler/src/registry_invocation/source_remote_first_operand.rs",
+          "package": "tcl-compiler",
+          "target_name": "tcl_compiler",
+          "target_kind": [
+            "lib"
+          ],
+          "artifact_key": "tcl-compiler:lib:tcl_compiler",
+          "group": "diagnostic11-original"
+        },
+        {
+          "env": {
+            "TCL_LSP_TRACE_REMOTE_FIRST_OPERAND": "1"
+          },
+          "exact": true,
+          "expected_selected": 1,
+          "label": "diagnostic09-first_remote_operand_retains_exact_source_owners_and_stops_at_the_call",
+          "purpose": "ILX v3 first remote operand positive and opaque-call stop control; original assertion unchanged.",
+          "selector": "registry_invocation::source_remote_first_operand::tests::first_remote_operand_retains_exact_source_owners_and_stops_at_the_call",
+          "source": "rust/tcl-compiler/src/registry_invocation/source_remote_first_operand.rs",
+          "package": "tcl-compiler",
+          "target_name": "tcl_compiler",
+          "target_kind": [
+            "lib"
+          ],
+          "artifact_key": "tcl-compiler:lib:tcl_compiler",
+          "group": "diagnostic11-original"
+        },
+        {
+          "env": {
+            "TCL_LSP_TRACE_REMOTE_FIRST_OPERAND": "1"
+          },
+          "exact": true,
+          "expected_selected": 1,
+          "label": "diagnostic10-first_remote_operand_preserves_supported_true_same_frame_source_body",
+          "purpose": "ILX v3 same-frame source-body positive; original assertion unchanged.",
+          "selector": "registry_invocation::source_remote_first_operand::tests::first_remote_operand_preserves_supported_true_same_frame_source_body",
+          "source": "rust/tcl-compiler/src/registry_invocation/source_remote_first_operand.rs",
+          "package": "tcl-compiler",
+          "target_name": "tcl_compiler",
+          "target_kind": [
+            "lib"
+          ],
+          "artifact_key": "tcl-compiler:lib:tcl_compiler",
+          "group": "diagnostic11-original"
+        },
+        {
+          "env": {
+            "TCL_LSP_TRACE_REMOTE_FIRST_OPERAND": "1"
+          },
+          "exact": true,
+          "expected_selected": 1,
+          "label": "diagnostic11-first_remote_operand_withdraws_opaque_observer_write_and_foreign_body_paths",
+          "purpose": "ILX v3 opaque observer/write/foreign-body refusal control; original assertion unchanged.",
+          "selector": "registry_invocation::source_remote_first_operand::tests::first_remote_operand_withdraws_opaque_observer_write_and_foreign_body_paths",
+          "source": "rust/tcl-compiler/src/registry_invocation/source_remote_first_operand.rs",
+          "package": "tcl-compiler",
+          "target_name": "tcl_compiler",
+          "target_kind": [
+            "lib"
+          ],
+          "artifact_key": "tcl-compiler:lib:tcl_compiler",
+          "group": "diagnostic11-original"
+        }
+      ]
+    },
+    {
+      "name": "new-owner-controls4",
+      "required": true,
+      "expected_filters": 4,
+      "expected_selected": 4,
+      "required_filters": [
+        {
+          "group": "new-owner-controls4",
+          "label": "g4-genuine-conditional",
+          "selector": "command_binding::normal_result::tests::scoped_procedure_equivalence_keeps_a_genuine_conditional_body_entry",
+          "exact": true,
+          "expected_selected": 1,
+          "env": {},
+          "package": "tcl-compiler",
+          "target_name": "tcl_compiler",
+          "target_kind": [
+            "lib"
+          ],
+          "artifact_key": "tcl-compiler:lib:tcl_compiler"
+        },
+        {
+          "group": "new-owner-controls4",
+          "label": "n13-quiet-variable",
+          "selector": "command_binding::source_transition_advice::source_point::quiet_variable_normal_graph_controls::normal_source_outcome_requires_actual_quiet_variable_effects",
+          "exact": true,
+          "expected_selected": 1,
+          "env": {
+            "TCL_LSP_TRACE_N13_POINT": "1"
+          },
+          "package": "tcl-compiler",
+          "target_name": "tcl_compiler",
+          "target_kind": [
+            "lib"
+          ],
+          "artifact_key": "tcl-compiler:lib:tcl_compiler"
+        },
+        {
+          "group": "new-owner-controls4",
+          "label": "n13-foreign-stale-owner",
+          "selector": "command_binding::source_transition_advice::source_point::quiet_variable_normal_graph_controls::normal_source_outcome_refuses_foreign_equal_source_and_changed_config",
+          "exact": true,
+          "expected_selected": 1,
+          "env": {
+            "TCL_LSP_TRACE_N13_POINT": "1"
+          },
+          "package": "tcl-compiler",
+          "target_name": "tcl_compiler",
+          "target_kind": [
+            "lib"
+          ],
+          "artifact_key": "tcl-compiler:lib:tcl_compiler"
+        },
+        {
+          "group": "new-owner-controls4",
+          "label": "ilx-vendor-dialect-refusals",
+          "selector": "registry_invocation::source_remote_first_operand::tests::vendor_source_effect_summary_keeps_native_dialect_unavailable",
+          "exact": true,
+          "expected_selected": 1,
+          "env": {
+            "TCL_LSP_TRACE_REMOTE_FIRST_OPERAND": "1"
+          },
+          "package": "tcl-compiler",
+          "target_name": "tcl_compiler",
+          "target_kind": [
+            "lib"
+          ],
+          "artifact_key": "tcl-compiler:lib:tcl_compiler"
+        }
+      ]
+    },
+    {
+      "name": "c6-sh21-tnt03-original",
+      "required": true,
+      "roster_parent_path": "/tmp/compiler-c6-sh-tnt-source30-v1/plan.json",
+      "roster_parent_sha256": "c9aa3ed256cf4998711ce85ab03d5f4578b41b2edefd3cca80925873fb265e37",
+      "expected_filters": 2,
+      "expected_selected": 13,
+      "required_filters": [
+        {
+          "label": "fp_sh_21",
+          "selector": "fp_sh_21",
+          "exact": false,
+          "expected_selected": 7,
+          "env": {},
+          "package": "tcl-compiler",
+          "target_name": "tcl_compiler",
+          "target_kind": [
+            "lib"
+          ],
+          "artifact_key": "tcl-compiler:lib:tcl_compiler",
+          "group": "c6-sh21-tnt03-original"
+        },
+        {
+          "label": "fp_tnt_03",
+          "selector": "fp_tnt_03",
+          "exact": false,
+          "expected_selected": 6,
+          "env": {},
+          "package": "tcl-compiler",
+          "target_name": "tcl_compiler",
+          "target_kind": [
+            "lib"
+          ],
+          "artifact_key": "tcl-compiler:lib:tcl_compiler",
+          "group": "c6-sh21-tnt03-original"
+        }
+      ]
+    },
+    {
+      "name": "rbs3-original-with-existing-traces",
+      "required": true,
+      "roster_parent_path": "/tmp/compiler-rbs3-source30-diagnostic-v1/plan.json",
+      "roster_parent_sha256": "92d35f0d57259d9530bde4fcfdad71e680d80be9f40f7a98e083ca6017ecd12c",
+      "expected_filters": 3,
+      "expected_selected": 3,
+      "required_filters": [
+        {
+          "env": {
+            "TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS": "1",
+            "TCL_LSP_TRACE_N13_POINT": "1",
+            "ZZ_PROBE_LOWER": "1"
+          },
+          "exact": true,
+          "expected_selected": 1,
+          "label": "fp_rbs_15_all_break_switch_not_a_proc_terminator",
+          "purpose": "unchanged original confirmed baseline pass-to-fail, actual assertion preserved",
+          "selector": "analyser::diagnostics::fp::rbs::fp_rbs_15_all_break_switch_not_a_proc_terminator",
+          "package": "tcl-compiler",
+          "target_name": "tcl_compiler",
+          "target_kind": [
+            "lib"
+          ],
+          "artifact_key": "tcl-compiler:lib:tcl_compiler",
+          "group": "rbs3-original-with-existing-traces"
+        },
+        {
+          "env": {
+            "TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS": "1",
+            "TCL_LSP_TRACE_N13_POINT": "1",
+            "ZZ_PROBE_LOWER": "1"
+          },
+          "exact": true,
+          "expected_selected": 1,
+          "label": "fp_rbs_15_while1_break_in_opaque_switch_exits_loop",
+          "purpose": "unchanged original confirmed baseline pass-to-fail, actual assertion preserved",
+          "selector": "analyser::diagnostics::fp::rbs::fp_rbs_15_while1_break_in_opaque_switch_exits_loop",
+          "package": "tcl-compiler",
+          "target_name": "tcl_compiler",
+          "target_kind": [
+            "lib"
+          ],
+          "artifact_key": "tcl-compiler:lib:tcl_compiler",
+          "group": "rbs3-original-with-existing-traces"
+        },
+        {
+          "env": {
+            "TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS": "1",
+            "TCL_LSP_TRACE_N13_POINT": "1",
+            "ZZ_PROBE_LOWER": "1"
+          },
+          "exact": true,
+          "expected_selected": 1,
+          "label": "fp_rbs_15_all_exiting_opaque_switch_is_a_terminator",
+          "purpose": "unchanged original confirmed baseline pass-to-fail, actual assertion preserved",
+          "selector": "analyser::diagnostics::tests::fp_rbs_15_all_exiting_opaque_switch_is_a_terminator",
+          "package": "tcl-compiler",
+          "target_name": "tcl_compiler",
+          "target_kind": [
+            "lib"
+          ],
+          "artifact_key": "tcl-compiler:lib:tcl_compiler",
+          "group": "rbs3-original-with-existing-traces"
+        }
+      ]
+    },
+    {
+      "name": "integration3-original",
+      "required": true,
+      "roster_parent_path": "/tmp/compiler-integration3-source30-v1/plan.json",
+      "roster_parent_sha256": "c735973c43e3b96da099f9554109bd5fc23b84469569cefb3e6958e8af24ec16",
+      "expected_filters": 3,
+      "expected_selected": 3,
+      "required_filters": [
+        {
+          "label": "taint-eval_sink",
+          "selector": "dangerous_sinks::eval_sink",
+          "package": "tcl-compiler",
+          "target_name": "taint",
+          "exact": true,
+          "expected_selected": 1,
+          "env": {},
+          "target_kind": [
+            "test"
+          ],
+          "artifact_key": "tcl-compiler:test:taint",
+          "group": "integration3-original"
+        },
+        {
+          "label": "optimiser-a_braced_expr_word_with_no_nested_write_still_folds",
+          "selector": "a_braced_expr_word_with_no_nested_write_still_folds",
+          "package": "tcl-compiler",
+          "target_name": "optimiser",
+          "exact": true,
+          "expected_selected": 1,
+          "env": {},
+          "target_kind": [
+            "test"
+          ],
+          "artifact_key": "tcl-compiler:test:optimiser",
+          "group": "integration3-original"
+        },
+        {
+          "label": "var_escape_residual2-cu_catch_literal_body_threads_its_upvar",
+          "selector": "cu_catch_literal_body_threads_its_upvar",
+          "package": "tcl-compiler",
+          "target_name": "var_escape_residual2",
+          "exact": true,
+          "expected_selected": 1,
+          "env": {},
+          "target_kind": [
+            "test"
+          ],
+          "artifact_key": "tcl-compiler:test:var_escape_residual2",
+          "group": "integration3-original"
+        }
+      ]
+    }
+  ],
+  "core_expected_filters": 25,
+  "core_expected_selected": 48,
+  "recommended_bpf_group": {
+    "name": "bpf6-selected-phase-controls",
+    "required": false,
+    "recommendation": "Include because selected next prefix integrates shared/caller BPF production changes; original row29 may reveal independent pass/SocketFilter fixture debt; preserve all assertions.",
+    "expected_filters": 6,
+    "expected_selected": 6,
+    "required_filters": [
+      {
+        "group": "bpf6-selected-phase-controls",
+        "label": "bpf-shared-closed_bpf_effects_keep_script_module_registry_and_config_current",
+        "selector": "ir::source_bpf_command::tests::closed_bpf_effects_keep_script_module_registry_and_config_current",
+        "exact": true,
+        "expected_selected": 1,
+        "env": {},
+        "package": "tcl-compiler",
+        "target_name": "tcl_compiler",
+        "target_kind": [
+          "lib"
+        ],
+        "artifact_key": "tcl-compiler:lib:tcl_compiler"
+      },
+      {
+        "group": "bpf6-selected-phase-controls",
+        "label": "bpf-shared-closed_bpf_effects_refuse_missing_selection_and_effectful_conditions",
+        "selector": "ir::source_bpf_command::tests::closed_bpf_effects_refuse_missing_selection_and_effectful_conditions",
+        "exact": true,
+        "expected_selected": 1,
+        "env": {},
+        "package": "tcl-compiler",
+        "target_name": "tcl_compiler",
+        "target_kind": [
+          "lib"
+        ],
+        "artifact_key": "tcl-compiler:lib:tcl_compiler"
+      },
+      {
+        "group": "bpf6-selected-phase-controls",
+        "label": "bpf-shared-closed_bpf_effects_refuse_over_budget_scalar_tree",
+        "selector": "ir::source_bpf_command::tests::closed_bpf_effects_refuse_over_budget_scalar_tree",
+        "exact": true,
+        "expected_selected": 1,
+        "env": {},
+        "package": "tcl-compiler",
+        "target_name": "tcl_compiler",
+        "target_kind": [
+          "lib"
+        ],
+        "artifact_key": "tcl-compiler:lib:tcl_compiler"
+      },
+      {
+        "group": "bpf6-selected-phase-controls",
+        "label": "bpf-phase-closed_bpf_effect_phase_accepts_static_socket_program_and_refuses_substitution",
+        "selector": "source::phase::tests::closed_bpf_effect_phase_accepts_static_socket_program_and_refuses_substitution",
+        "exact": true,
+        "expected_selected": 1,
+        "env": {
+          "TCL_LSP_TRACE_BPF_PHASE": "1"
+        },
+        "package": "bpf-tcl-ir",
+        "target_name": "bpf_tcl_ir",
+        "target_kind": [
+          "lib"
+        ],
+        "artifact_key": "bpf-tcl-ir:lib:bpf_tcl_ir"
+      },
+      {
+        "group": "bpf6-selected-phase-controls",
+        "label": "bpf-phase-losing_a_selected_command_never_proves_an_empty_policy_or_map_inventory",
+        "selector": "source::phase::tests::losing_a_selected_command_never_proves_an_empty_policy_or_map_inventory",
+        "exact": true,
+        "expected_selected": 1,
+        "env": {
+          "TCL_LSP_TRACE_BPF_PHASE": "1"
+        },
+        "package": "bpf-tcl-ir",
+        "target_name": "bpf_tcl_ir",
+        "target_kind": [
+          "lib"
+        ],
+        "artifact_key": "bpf-tcl-ir:lib:bpf_tcl_ir"
+      },
+      {
+        "group": "bpf6-selected-phase-controls",
+        "label": "bpf-phase-fixed_phase_preserves_mixed_template_origins_and_generated_operation_identity",
+        "selector": "source::phase::tests::fixed_phase_preserves_mixed_template_origins_and_generated_operation_identity",
+        "exact": true,
+        "expected_selected": 1,
+        "env": {
+          "TCL_LSP_TRACE_BPF_PHASE": "1"
+        },
+        "package": "bpf-tcl-ir",
+        "target_name": "bpf_tcl_ir",
+        "target_kind": [
+          "lib"
+        ],
+        "artifact_key": "bpf-tcl-ir:lib:bpf_tcl_ir"
+      }
+    ]
+  },
+  "with_bpf_expected_filters": 31,
+  "with_bpf_expected_selected": 54,
+  "package_builds_with_bpf": [
+    {
+      "artifact_key": "bpf-tcl-ir:lib:bpf_tcl_ir",
+      "package": "bpf-tcl-ir",
+      "target_kind": [
+        "lib"
+      ],
+      "target_name": "bpf_tcl_ir",
+      "manifest_path": "/workspace/naming-migration-active/tcl-lsp/rust/bpf-tcl-ir/Cargo.toml",
+      "cargo_argv": [
+        "/workspace/.rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/bin/cargo",
+        "test",
+        "--locked",
+        "-p",
+        "bpf-tcl-ir",
+        "--lib",
+        "--no-run",
+        "--message-format=json"
+      ],
+      "required_event": "exactly1 current invocation compiler-artifact, profile.test=true,targetname/kind/manifest exact, actual executable under pinned CARGO_TARGET_DIR; hash current file; no stale fallback",
+      "log_prefix": "build-bpf-tcl-ir-lib-bpf_tcl_ir"
+    },
+    {
+      "artifact_key": "tcl-compiler:lib:tcl_compiler",
+      "package": "tcl-compiler",
+      "target_kind": [
+        "lib"
+      ],
+      "target_name": "tcl_compiler",
+      "manifest_path": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/Cargo.toml",
+      "cargo_argv": [
+        "/workspace/.rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/bin/cargo",
+        "test",
+        "--locked",
+        "-p",
+        "tcl-compiler",
+        "--lib",
+        "--no-run",
+        "--message-format=json"
+      ],
+      "required_event": "exactly1 current invocation compiler-artifact, profile.test=true,targetname/kind/manifest exact, actual executable under pinned CARGO_TARGET_DIR; hash current file; no stale fallback",
+      "log_prefix": "build-tcl-compiler-lib-tcl_compiler"
+    },
+    {
+      "artifact_key": "tcl-compiler:test:optimiser",
+      "package": "tcl-compiler",
+      "target_kind": [
+        "test"
+      ],
+      "target_name": "optimiser",
+      "manifest_path": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/Cargo.toml",
+      "cargo_argv": [
+        "/workspace/.rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/bin/cargo",
+        "test",
+        "--locked",
+        "-p",
+        "tcl-compiler",
+        "--test",
+        "optimiser",
+        "--no-run",
+        "--message-format=json"
+      ],
+      "required_event": "exactly1 current invocation compiler-artifact, profile.test=true,targetname/kind/manifest exact, actual executable under pinned CARGO_TARGET_DIR; hash current file; no stale fallback",
+      "log_prefix": "build-tcl-compiler-test-optimiser"
+    },
+    {
+      "artifact_key": "tcl-compiler:test:taint",
+      "package": "tcl-compiler",
+      "target_kind": [
+        "test"
+      ],
+      "target_name": "taint",
+      "manifest_path": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/Cargo.toml",
+      "cargo_argv": [
+        "/workspace/.rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/bin/cargo",
+        "test",
+        "--locked",
+        "-p",
+        "tcl-compiler",
+        "--test",
+        "taint",
+        "--no-run",
+        "--message-format=json"
+      ],
+      "required_event": "exactly1 current invocation compiler-artifact, profile.test=true,targetname/kind/manifest exact, actual executable under pinned CARGO_TARGET_DIR; hash current file; no stale fallback",
+      "log_prefix": "build-tcl-compiler-test-taint"
+    },
+    {
+      "artifact_key": "tcl-compiler:test:var_escape_residual2",
+      "package": "tcl-compiler",
+      "target_kind": [
+        "test"
+      ],
+      "target_name": "var_escape_residual2",
+      "manifest_path": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/Cargo.toml",
+      "cargo_argv": [
+        "/workspace/.rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/bin/cargo",
+        "test",
+        "--locked",
+        "-p",
+        "tcl-compiler",
+        "--test",
+        "var_escape_residual2",
+        "--no-run",
+        "--message-format=json"
+      ],
+      "required_event": "exactly1 current invocation compiler-artifact, profile.test=true,targetname/kind/manifest exact, actual executable under pinned CARGO_TARGET_DIR; hash current file; no stale fallback",
+      "log_prefix": "build-tcl-compiler-test-var_escape_residual2"
+    }
+  ],
+  "test_runtime_guards": {
+    "guarded_executor_sha256": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811",
+    "selector_deadline_seconds": 180,
+    "cargo_no_run_deadline_seconds": 3600,
+    "combined_output_cap_bytes": 20971520,
+    "minimum_free_bytes_each_mount": 2147483648,
+    "lifecycle": "Parent directchild timerarmed before spawn; waitidWNOWAIT keeps parent until bothEOF and2complete emptygroup scans, then reap. No testdiscovery polling. Everyrow exact start/summaryselected/passed+failed/ignored0, warningsfalse; failuresdiagnostic allowed with aggregateexit1.",
+    "durability": "File-backed launcher/transcript and perbuild/perrow JSON/stdout/stderr/command/env/hash; group summaries exactcounts independently identifiable, finaloverall/launcherexit reconcile actualrows. Archive all complete bytes, no artifact/cachecleanup.",
+    "source_provider_artifact": "Fresh fullsource/input/provider/actualcurrentartifact seals before/between/after; allretained target artifacts stable at final. Exact callback/currentness/noopaque policies unchanged."
+  },
+  "prerequisite49": "Reuse immutable actual completedvalid49v7 plan0cb62fcd +final379bfb65/results54cce140/authenticated rawGOdfccc034 vs sortedreceiptGOaf205325 JSONequal. Validfailed19PASS30FAIL permitted; no allgreen prerequisite. Preserve same full row summary/0W/lifecycle/source/provider/artifact/launcher/GO checks from reviewedreport14v6.",
+  "readiness_gaps": [
+    "Root final composite/productSHA/approvedHEAD/fullbeforefinal map still pending; do not mint executionhashes yet.",
+    "Need bounded static peer of new group/target routing, then actual noGO refusal and AST checks once sourcebound protocol minted.",
+    "Core compilation needs one compilerlib actual executable plus three distinct integrationtarget executables; recommendedBPF adds one bpfIRlib executable. Key artifacts by(package,targetkind,targetname), never package alone; unique build logs and exact row routing.",
+    "Report captures still actual4current-owner failures; trace enabled but no semanticownerfix guessed; full90fields12subjects/fulloldmixedhosted/perf proof remain unavailable until authenticcompletecomparison.",
+    "BPFv5 allVarrefusal is intentional pending typedregister ownership; originalrow29 positive uses pass withSocketFilter (independent programtype mismatch) and may fail before originalselection-lossnegative. Do not relax assertions or count it as negative coverage.",
+    "LSP body/quote/caselist actual regressions remain ownerLSP separate protocols. Require those bind exact same finalproduct; this compilerdesign does not cover them.",
+    "Typing0W does not establish Clippy0W or release/sectionF/PR acceptance."
+  ],
+  "original_protocols_preserved": [
+    "report14v6-source30",
+    "diagnostic11-source30-v1",
+    "rbs3-source30-diagnostic-v1",
+    "c6-sh-tnt-source30-v1",
+    "integration3-source30-v1",
+    "completed49v7"
+  ]
+}

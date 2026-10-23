@@ -1,0 +1,148 @@
+{
+  "utc": "2026-10-23T04:30:01.925595+00:00",
+  "status": "currentJim34 target completed, fullphase stillrunning",
+  "run": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z",
+  "original26": {
+    "PASS": 15,
+    "FAIL": 11
+  },
+  "added8": {
+    "PASS": 6,
+    "FAIL": 2
+  },
+  "source_guard_equal": true,
+  "provider_guard_equal": true,
+  "failure_routes": [
+    {
+      "selector": "a_class_records_the_variables_its_dictionary_names",
+      "kind": "original",
+      "owner": "compiler",
+      "raw_stderr_path": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-10.stderr",
+      "raw_stderr_sha256": "b04eb65b2ec9de9f12dfec74bb9764549700cce3f52cefe116ffd8b894f58b0a",
+      "raw_stderr": "\nthread 'a_class_records_the_variables_its_dictionary_names' (260471) panicked at rust/tcl-spectcl/tests/jim_document.rs:253:9:\nassertion `left == right` failed: # tcl-dialect: jim\nclass Point {x 0 y 0}\nputs [Point new]\n\n  left: [(W123, \"Point\")]\n right: []\nnote: run with `RUST_BACKTRACE=1` environment variable to display a backtrace\n",
+      "status_exit_consistent": true,
+      "process_exit": 101
+    },
+    {
+      "selector": "a_method_body_sees_the_instance_variables_and_self",
+      "kind": "original",
+      "owner": "compiler",
+      "raw_stderr_path": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-15.stderr",
+      "raw_stderr_sha256": "3ccd7bba03355187b6459e9a206459d80784d3dd56f6db2b9e417de3df158ad0",
+      "raw_stderr": "\nthread 'a_method_body_sees_the_instance_variables_and_self' (260954) panicked at rust/tcl-spectcl/tests/jim_document.rs:322:9:\nthe body is walked: # tcl-dialect: jim\nclass Point {x 0 y 0}\nclass Point3 Point {z 0}\nPoint method norm {} { return [expr {abs($x) + abs($y)}] }\nPoint3 method who {} { not_a_command_anywhere $self $x $z }\n\nnote: run with `RUST_BACKTRACE=1` environment variable to display a backtrace\n",
+      "status_exit_consistent": true,
+      "process_exit": 101
+    },
+    {
+      "selector": "a_raw_two_word_proc_is_a_method_without_the_class_variables",
+      "kind": "original",
+      "owner": "compiler",
+      "raw_stderr_path": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-16.stderr",
+      "raw_stderr_sha256": "6ec19469a58b97ff61dc4e7ebcd1504284177076634ac1973623b2abadbda324",
+      "raw_stderr": "\nthread 'a_raw_two_word_proc_is_a_method_without_the_class_variables' (261033) panicked at rust/tcl-spectcl/tests/jim_document.rs:350:5:\nassertion failed: result.all_classes[\"::Point\"].methods.contains_key(\"move\")\nnote: run with `RUST_BACKTRACE=1` environment variable to display a backtrace\n",
+      "status_exit_consistent": true,
+      "process_exit": 101
+    },
+    {
+      "selector": "a_two_word_proc_written_before_its_class_is_a_method",
+      "kind": "original",
+      "owner": "compiler",
+      "raw_stderr_path": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-17.stderr",
+      "raw_stderr_sha256": "814e044593b41e639df98cc9f1b80eafecc30e0330e1304291f5ca41f63907d9",
+      "raw_stderr": "\nthread 'a_two_word_proc_written_before_its_class_is_a_method' (261143) panicked at rust/tcl-spectcl/tests/jim_document.rs:363:9:\nper_item=false\nnote: run with `RUST_BACKTRACE=1` environment variable to display a backtrace\n",
+      "status_exit_consistent": true,
+      "process_exit": 101
+    },
+    {
+      "selector": "a_method_body_can_construct_its_own_class",
+      "kind": "original",
+      "owner": "compiler",
+      "raw_stderr_path": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-18.stderr",
+      "raw_stderr_sha256": "34312609a1a9a3d7f5afbd1aa791a527267dc004829623665c9725657b3dd993",
+      "raw_stderr": "\nthread 'a_method_body_can_construct_its_own_class' (261207) panicked at rust/tcl-spectcl/tests/jim_document.rs:379:9:\nassertion `left == right` failed: # tcl-dialect: jim\nclass Point {x 0}\nPoint method clone {} { set copy [Point new]\n return [$copy clone] }\n\n  left: [(W123, \"Point\")]\n right: []\nnote: run with `RUST_BACKTRACE=1` environment variable to display a backtrace\n",
+      "status_exit_consistent": true,
+      "process_exit": 101
+    },
+    {
+      "selector": "an_object_is_typed_by_its_class_and_its_member_set_is_open",
+      "kind": "original",
+      "owner": "compiler",
+      "raw_stderr_path": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-19.stderr",
+      "raw_stderr_sha256": "abb02397ce351850dca2f639ec4ee5aea284281b5c4fa126e01aaed9f6ea3798",
+      "raw_stderr": "\nthread 'an_object_is_typed_by_its_class_and_its_member_set_is_open' (261342) panicked at rust/tcl-spectcl/tests/jim_document.rs:397:9:\nassertion `left == right` failed: # tcl-dialect: jim\nclass Point {x 0}\nproc {Point move} {dx} { return $dx }\nset p [Point new {x 5}]\nputs [$p move 1]\nputs [$p get x]\nputs [$p undeclared]\n\n  left: [(W123, \"Point\")]\n right: []\nnote: run with `RUST_BACKTRACE=1` environment variable to display a backtrace\n",
+      "status_exit_consistent": true,
+      "process_exit": 101
+    },
+    {
+      "selector": "a_two_element_proc_name_defines_a_two_word_command_in_every_dialect",
+      "kind": "original",
+      "owner": "compiler",
+      "raw_stderr_path": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-20.stderr",
+      "raw_stderr_sha256": "c52876bf06e98a862109eab883e9ed7f7d8d9d0fa19ae295e0e90e5d822692ba",
+      "raw_stderr": "\nthread 'a_two_element_proc_name_defines_a_two_word_command_in_every_dialect' (261449) panicked at rust/tcl-spectcl/tests/jim_document.rs:413:9:\nassertion `left == right` failed: jim: [(E002, \"{a b}\")]\n  left: [E002]\n right: [W123, E002]\nnote: run with `RUST_BACKTRACE=1` environment variable to display a backtrace\n",
+      "status_exit_consistent": true,
+      "process_exit": 101
+    },
+    {
+      "selector": "a_jim_program_draws_no_findings",
+      "kind": "original",
+      "owner": "compiler",
+      "raw_stderr_path": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-22.stderr",
+      "raw_stderr_sha256": "623bb01463b54890838cb3716a9551cb192a74cbde4abcc35c863e5c0a59874c",
+      "raw_stderr": "\nthread 'a_jim_program_draws_no_findings' (261691) panicked at rust/tcl-spectcl/tests/jim_document.rs:456:9:\nassertion `left == right` failed: # tcl-dialect: jim\nclass system {model \"\"}\nproc {system model} {} {{model \"\"}} {\n    return $model\n}\nloop i 0 3 { puts $i }\nsleep 0.1\nset s [system new]\nputs [$s model]\n\n  left: [(W307, \"$s\")]\n right: []\nnote: run with `RUST_BACKTRACE=1` environment variable to display a backtrace\n",
+      "status_exit_consistent": true,
+      "process_exit": 101
+    },
+    {
+      "selector": "the_same_program_under_tcl_is_rejected",
+      "kind": "original",
+      "owner": "compiler",
+      "raw_stderr_path": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-23.stderr",
+      "raw_stderr_sha256": "0ecc09216451a1e6776fb8bb409f75db69c2c4ceb673ab0dbbb4058e2541ecf4",
+      "raw_stderr": "\nthread 'the_same_program_under_tcl_is_rejected' (261897) panicked at rust/tcl-spectcl/tests/jim_document.rs:475:9:\nloop is Jim's, not Tcl's: [(W123, \"class\"), (E003, \"{\\n    return $model\\n}\"), (W307, \"$s\")]\nnote: run with `RUST_BACKTRACE=1` environment variable to display a backtrace\n",
+      "status_exit_consistent": true,
+      "process_exit": 101
+    },
+    {
+      "selector": "loop_is_flagged_under_tcl_and_accepted_under_jim",
+      "kind": "original",
+      "owner": "compiler",
+      "raw_stderr_path": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-24.stderr",
+      "raw_stderr_sha256": "548c1cacb265adfa55182c4bfe2208915cc9d586cdbb38ee881501a506f7845e",
+      "raw_stderr": "\nthread 'loop_is_flagged_under_tcl_and_accepted_under_jim' (261985) panicked at rust/tcl-spectcl/tests/jim_document.rs:493:5:\nassertion `left == right` failed: [(W123, \"loop\")]\n  left: 0\n right: 2\nnote: run with `RUST_BACKTRACE=1` environment variable to display a backtrace\n",
+      "status_exit_consistent": true,
+      "process_exit": 101
+    },
+    {
+      "selector": "a_tcl_document_has_no_jim_class",
+      "kind": "original",
+      "owner": "compiler",
+      "raw_stderr_path": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-25.stderr",
+      "raw_stderr_sha256": "556aa7f9651f9957c004d89f77b4a8b9562cf0412e37b9be009ab05594f082ec",
+      "raw_stderr": "\nthread 'a_tcl_document_has_no_jim_class' (262074) panicked at rust/tcl-spectcl/tests/jim_document.rs:523:5:\n[(W123, \"class\")]\nnote: run with `RUST_BACKTRACE=1` environment variable to display a backtrace\n",
+      "status_exit_consistent": true,
+      "process_exit": 101
+    },
+    {
+      "selector": "older_jim_retains_positive_logical_source_purpose_without_native_promotion",
+      "kind": "added8",
+      "owner": "compiler",
+      "raw_stderr_path": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-32.stderr",
+      "raw_stderr_sha256": "8c5dedaa02181d8206cadac1cfe05a823f31388fda0a0edd0a04af2ede3793b3",
+      "raw_stderr": "\nthread 'older_jim_retains_positive_logical_source_purpose_without_native_promotion' (262929) panicked at rust/tcl-spectcl/tests/jim_document.rs:545:10:\noriginal authored Jim source receipt\nnote: run with `RUST_BACKTRACE=1` environment variable to display a backtrace\n",
+      "status_exit_consistent": true,
+      "process_exit": 101
+    },
+    {
+      "selector": "nested_jim_headers_retain_the_authentic_conditional_source_parent",
+      "kind": "added8",
+      "owner": "compiler",
+      "raw_stderr_path": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-33.stderr",
+      "raw_stderr_sha256": "ba515fbc25612bd913df205018580777738cc175602f766bbdc442b121b821f8",
+      "raw_stderr": "\nthread 'nested_jim_headers_retain_the_authentic_conditional_source_parent' (263027) panicked at rust/tcl-spectcl/tests/jim_document.rs:545:10:\noriginal authored Jim source receipt\nnote: run with `RUST_BACKTRACE=1` environment variable to display a backtrace\n",
+      "status_exit_consistent": true,
+      "process_exit": 101
+    }
+  ],
+  "limit": "current actual failures supersede old17-only narrative; outcomes do not assign common producer cause. Compiler owns bounded source/class/context triage, VM no duplicate sourcefix. No wholeSpecTcl/phase closure."
+}

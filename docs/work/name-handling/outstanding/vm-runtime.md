@@ -2,11 +2,45 @@
 
 Area: tcl-vm, runtime/rust, tcl-spectcl, tcl-spec-studio: SpecTcl execution and acceptance.
 
-Last updated: 2026-10-23T04:24:36.218389+00:00 (root Spec66v4 RUNNING; actual partial 14PASS/2FAIL/16observed; firstclass W123 routed compiler, finalguards pending)
+Last updated: 2026-10-23T04:30:01.925595+00:00 (Spec66v4 RUNNING; Jim34closed21PASS13FAIL withtargetguards stable, original26=15/11 added8=6/2; after8b32started)
 
 Maintained by the vm-runtime agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## Resume
+
+CompletedJim34 target lossless checkpoint archive ready for root immediate
+push: `vm-runtime/runs/spec66-jim34-target-20261023T0430Z/manifest.txt`,
+SHA394a403e,178logicalfiles/154gzipblobs roundtrip verified. It includes all34
+raw stdout/stderr/process/admissions, freshbuild/roster/artifact/warnings,
+before/targetafter source+providers, immutable filteredresults34, exactprotocol/
+GO/launcher-start snapshots and12sourcepins. Original26=15PASS11FAIL,
+added8=6PASS2FAIL; targetsource/provider/artifactguards valid. Full66phase
+stillrunning, no finalphase/launcherclosure claim; external actualCargo
+binary is guarded/hash-referenced rather than duplicated as product evidence.
+
+
+Current Spec66v4 Jim34 target closed21PASS13FAIL with targetafter40940source
+and fullprovider equality; next Jim/EDA32 builds started, finalphase pending.
+Original26=15PASS11FAIL; added8=6PASS2FAIL. Original class/new, methods/
+two-word names and availability cases are distinct actual failures. Added
+olderJim purpose/nested-parent both fail source-receipt expectation545;
+compiler owns bounded current producer triage, no VM duplicatefix. Exact
+rawstderr/status-exit proof and routing receipt:
+`vm-runtime/spec66-current-jim34-target-20261023T0429Z.txt`.
+No stale old17 narrative, no wholeJim/SpecTcl admission; phase continues under
+root sourceHOLD/buildslot. VM monitors only, no runner/Cargo/GO/source action.
+
+
+Actual Spec66v4 Jim original26 now complete15PASS11FAIL; added8 first3PASS
+at04:27:37 gives29observed18PASS11FAIL. These are current outputs with
+strict summary/status/exit/count receipts, target/finalguard closure pending.
+Distinct current failures include class/new W123, method/two-word identities,
+Jim/Tcl availability and Tcl class-negative W123; compiler owns bounded
+producer triage with exact raw indices10/15–20/22–25. No VM duplicate fix,
+no class-wide or remaining-failure common-cause inference. Added class-source
+receipts passing do not themselves close original analyser positives.
+Remaining added5 and Jim/EDA32 still in progress; source HOLD/root slot retained.
+
 
 Spec66v4 checkpoint partial 2026-10-23T04:24:36.218389+00:00: 14PASS/2FAIL/16observed,
 all still Jim original selectors. First current failure is original

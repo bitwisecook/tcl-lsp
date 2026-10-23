@@ -1,0 +1,10 @@
+{
+  "utc": "2026-10-23T04:28:56.424670+00:00",
+  "lsp_focused_head_review": "/tmp/name-handling-eight-package-check-v7-source39/lsp-docs-head-peer-review.json",
+  "sha256": "026689ba70a8b01d78f66c80911ff238949b33a94f7d872ecf489d5fb8399eba",
+  "status": "CLEAR focused docs-only HEAD invariant; root owns v6\u2192v7 environment/process preservation and final source39 integration/GO",
+  "ccg_v6_env_process_review": "compiler-codegen/results/resumed-20261022/eight-package-source39-v6-static-peer-review.txt",
+  "ccg_v6_receipt_sha256": "f940faf308e0c6bddf41355169c2c97d5f891b34d45f45099de71f4716b321fd",
+  "cargo_started": false,
+  "go_minted": false
+}

@@ -2,13 +2,17 @@
 
 Area: Lowering, C6 fresh builders, iRules RuleLoader realm, itcl/snit, OO.
 
-Last updated: 2026-10-23T04:01:30.660873+00:00 (N13quiet variable refinementv4 peerCLEAR/preparedonly; original3+new2 controlsUNRUN; C5oracles20matches)
+Last updated: 2026-10-23T04:28:33.597423+00:00 (next-batch design31filters54tests; current Jim original failures under static triage; source HOLD)
 
 Maintained by the compiler agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 Full change notes: `docs/work/name-handling/handoff/reviews/merge-inventory-20261019/sol-49-NOTES.md`.
 
 ## Resume
+
+**Current next-batch readiness:** Frozen DESIGN ONLY `compiler/resume-20261022/next-batch-finite-design-v1`, plan98a46a6b7b2fd10c52fbcfdb2ea1c3276a01e46e2b1a4a2ffe8f91d87b406c7c. Root selected core48+BPF6=31filters54tests across five actual executables; independently joined LSP inventory23 with zero package/selector duplicates. Eight-package all-target typecheck including bpf-tcl-ir must complete0W before fresh selector runs. Exact final integrated product/full cumulative39 map/approved HEAD pending; no runnable launcher/GO or source30 protocol refresh. Original report14, diagnostic11, C6 SH/TNT, RBS3 and integration3 groups remain separately identifiable, original assertions unchanged; actual failed-valid49 allowed.
+
+**Actual Jim source30 diagnosis:** Spec66 original Jim class dictionary fixture fails W123 on Point in `[Point new]`; method-body fixture misses expected diagnostic from `not_a_command_anywhere`. Read original raw stderr/source; later VM-reported additional original failures are not yet individually attributed. Normal analyse installs actual result input/bodyconfig/realm before walking (state.rs2385–2415, walk2470), so no categorical missing-result-realm claim. Authored class ingress records source_name=None intentionally. Downstream member capture asks genuine constructor/source_class receipts; fallback class-name reporting is positively Logical-only. This is a concrete authority-gap candidate, not measured first refusal. No Native/class-name fallback, blanket cause, expectation changes, source writes or Cargo. Derived class/base/odd dictionary originals passing constrain diagnosis. Root source HOLD during Spec66.
 
 **N13 actual05–07 firstrefusal and narrowv4 candidate:** Actualsourcepointgraph closed; laternormalgraph has uncertain_operations1 after plainset suffixes resumedYES/afterDONE/childVALUE. `source_callback_retention=Absent` means no futurecallbackretention, not no activevartraces. Registryset already retainsTRACEworldeffects; no setEMPTYdescriptor was added. `/tmp/compiler-n13-quiet-variable-effect-v4/proposal.patch` SHA f961226fdd35d3bfd5c5e27e3315c78cc5e602f4dfe83062b5f4c74dc57aa90f,4compilerfiles, boundedCCGstaticCLEARf68bd2909ccf8efd9f5f7682e94311da87235b2e626a69c8142c43e77f3f6026. ONLYactualNormalSourceOutcomequery borrows sameSourceBindings/sourceOriginArc/baselineArc/fullimageconfig; everyactualoriginaldispatchpoint must matchcompletewords/currentregistrytarget/noopaque/noexecutionobserver. Existing exactVarWrite-only boundedtypedVariableStore/VariableTraces effects plus actualOriginalVariableInvocation scalarreceiver/noDynamic/observed and existingOriginalNormalValueWrite close applicablewritecallbacks. Unknownstate transition staysstrict in allotherpurposes; NormalGraph requirement unchanged, no Native/runtime/subject/Eq/newobserver grant.
 

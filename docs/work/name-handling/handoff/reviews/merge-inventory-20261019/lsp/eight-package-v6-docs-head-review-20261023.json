@@ -1,0 +1,20 @@
+{
+  "utc": "2026-10-23T04:28:15.892949+00:00",
+  "scope": "focused docs-only HEAD/product/source/provider invariant only; CCG independently owns env/process/pinning review",
+  "status": "successor requested; NOT CLEAR for allocation",
+  "pins": {
+    "plan.json": "403b858020dad0d33cbfd03e614b6444e7e6874cbb873c66499512347fabc972",
+    "suite.py": "f9bad36afb0443b1bb1add63e5e7cb0e62ff1bd44c79d4e445d1ef736c788930",
+    "source39-manifest.json": "5a6a313720378b9325fed754c4fca3689330258de0bce881ce6f4d43f3a1ec97",
+    "runner-input-manifest.json": "5ff66afbce0e4443209407a35c8139796402c7ddf9fb964250cb1cba382b5a77",
+    "manifest.json": "0ef0cce382f8dca504a9dfedf3d7b5a1817013bb47723d5b4fdf2a182416bca9"
+  },
+  "valid_static_findings": [
+    "GO exactapprovedHEAD/tree and all39 committedblob hashes required",
+    "Actual worktree product equals approved; other product equalsbase3b1; non-doc descendants/untracked refused",
+    "Actual initial\u2192prespawn\u2192postCargoHEAD ancestry required; source/provider/GO fullseals remain byteequal",
+    "head_stable correctly informational; docs-only WIP HEAD advance allowed"
+  ],
+  "gap": "Last source_view/head_after sample precedes full source/provider finalcaptures; needs final source_view afterward and monotonic postCargo\u2192final relation with both actualHEAD samples recorded",
+  "no_execution": "No Cargo/GO/lock/provider/source/Git mutation"
+}

@@ -1,0 +1,1492 @@
+{
+  "utc": "2026-10-23T04:30:35.096282+00:00",
+  "status": "completedJim34 target only; targetguardvalid; full66phase running/finalguard pending",
+  "original26": {
+    "PASS": 15,
+    "FAIL": 11
+  },
+  "added8": {
+    "PASS": 6,
+    "FAIL": 2
+  },
+  "target_total": {
+    "observed": 34,
+    "PASS": 21,
+    "FAIL": 13
+  },
+  "target_source_provider_artifact_guard_valid": true,
+  "fresh_actual_artifact": {
+    "event": {
+      "executable": "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/jim_document-acbc594af0aabe19",
+      "features": [],
+      "filenames": [
+        "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/jim_document-acbc594af0aabe19"
+      ],
+      "fresh": false,
+      "manifest_path": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-spectcl/Cargo.toml",
+      "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-spectcl#0.1.0",
+      "profile": {
+        "debug_assertions": true,
+        "debuginfo": 0,
+        "opt_level": "0",
+        "overflow_checks": true,
+        "test": true
+      },
+      "reason": "compiler-artifact",
+      "target": {
+        "crate_types": [
+          "bin"
+        ],
+        "doc": false,
+        "doctest": false,
+        "edition": "2024",
+        "kind": [
+          "test"
+        ],
+        "name": "jim_document",
+        "src_path": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-spectcl/tests/jim_document.rs",
+        "test": true
+      }
+    },
+    "path": "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/jim_document-acbc594af0aabe19",
+    "sha256": "7f3d81cfadb1fb8b05ee2c4355ca94a09d933e39c00deb33287f6e3bc14544a9"
+  },
+  "strict_status_count_exit_all34": true,
+  "build_warnings": [],
+  "files": [
+    {
+      "path": "run/before.providers-provider-chain.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/before.providers-provider-chain.json",
+      "sha256": "7761c05f15e4c1c4526ed2503f1c47082b3ea7a2b226eaf96e7818e51fcef31d",
+      "bytes": 46471,
+      "blob": "blobs/7761c05f15e4c1c4526ed2503f1c47082b3ea7a2b226eaf96e7818e51fcef31d.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/before.providers.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/before.providers.json",
+      "sha256": "0badd46e437fb76410ec8c3ac9ba34d002074cbe11eba2368c8486e918b41717",
+      "bytes": 1126070,
+      "blob": "blobs/0badd46e437fb76410ec8c3ac9ba34d002074cbe11eba2368c8486e918b41717.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/before.source.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/before.source.json",
+      "sha256": "1d7dbd509e2597f3dd48ac6703d198368ccb2ca3d6419f63f28f39a859c5921f",
+      "bytes": 6659899,
+      "blob": "blobs/1d7dbd509e2597f3dd48ac6703d198368ccb2ca3d6419f63f28f39a859c5921f.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/build-jim_document.artifact.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/build-jim_document.artifact.json",
+      "sha256": "a99b4ea80891ddb31e9a5b445525dce222aa3ed1d845721844f59f781b0873a8",
+      "bytes": 1192,
+      "blob": "blobs/a99b4ea80891ddb31e9a5b445525dce222aa3ed1d845721844f59f781b0873a8.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/build-jim_document.process.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/build-jim_document.process.json",
+      "sha256": "7b3dcfe392f98ffb48fe64c917872e526be89c86ea80fcda1c3a11fcc96cfbbf",
+      "bytes": 2376,
+      "blob": "blobs/7b3dcfe392f98ffb48fe64c917872e526be89c86ea80fcda1c3a11fcc96cfbbf.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/build-jim_document.stderr",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/build-jim_document.stderr",
+      "sha256": "0c2298325b602a1ff89ab2f7d12e46b27dd85886d65010033360efd214b2c38b",
+      "bytes": 444,
+      "blob": "blobs/0c2298325b602a1ff89ab2f7d12e46b27dd85886d65010033360efd214b2c38b.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/build-jim_document.stdout",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/build-jim_document.stdout",
+      "sha256": "5c3fa4f9f8751b96c52b4773313b92d01c95adb4162e8c473df9e9ccddf4e793",
+      "bytes": 130151,
+      "blob": "blobs/5c3fa4f9f8751b96c52b4773313b92d01c95adb4162e8c473df9e9ccddf4e793.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/build-jim_document.warnings.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/build-jim_document.warnings.json",
+      "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+      "bytes": 3,
+      "blob": "blobs/37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-00.process.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-00.process.json",
+      "sha256": "0d0cba44409fe25d30a7fe5d563e37f8e634c454a284f1cfd0b388dbfceec210",
+      "bytes": 2395,
+      "blob": "blobs/0d0cba44409fe25d30a7fe5d563e37f8e634c454a284f1cfd0b388dbfceec210.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-00.stderr",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-00.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "blob": "blobs/e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-00.stdout",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-00.stdout",
+      "sha256": "9e6efc368943950682bd995d518761d784a248c334c672762ae69a7876960e9f",
+      "bytes": 174,
+      "blob": "blobs/9e6efc368943950682bd995d518761d784a248c334c672762ae69a7876960e9f.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-00.summary-admission.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-00.summary-admission.json",
+      "sha256": "5d1b95060744ade501f2b433c7e648748f59fe6cbd311ee36e918ac54f5b72db",
+      "bytes": 2758,
+      "blob": "blobs/5d1b95060744ade501f2b433c7e648748f59fe6cbd311ee36e918ac54f5b72db.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-01.process.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-01.process.json",
+      "sha256": "44cf421bd4ec6deb87b8c70d3073252eeb2177f947b778b0ba7fb8782b55fa34",
+      "bytes": 2388,
+      "blob": "blobs/44cf421bd4ec6deb87b8c70d3073252eeb2177f947b778b0ba7fb8782b55fa34.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-01.stderr",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-01.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "blob": "blobs/e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-01.stdout",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-01.stdout",
+      "sha256": "93e20cb383899131591b8476a7547b60da7f09e5abaccd93e1c5e639dd981d6a",
+      "bytes": 166,
+      "blob": "blobs/93e20cb383899131591b8476a7547b60da7f09e5abaccd93e1c5e639dd981d6a.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-01.summary-admission.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-01.summary-admission.json",
+      "sha256": "74e2ea7badf85e7396921a0fc7de28527961b449e1be38c7bbdc13dd9f5ef027",
+      "bytes": 2751,
+      "blob": "blobs/74e2ea7badf85e7396921a0fc7de28527961b449e1be38c7bbdc13dd9f5ef027.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-02.process.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-02.process.json",
+      "sha256": "dd64a164388c7acfb1976deded957b54ffbbebe8cf028369fc30abd16a13ab18",
+      "bytes": 2409,
+      "blob": "blobs/dd64a164388c7acfb1976deded957b54ffbbebe8cf028369fc30abd16a13ab18.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-02.stderr",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-02.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "blob": "blobs/e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-02.stdout",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-02.stdout",
+      "sha256": "96077ee9c9478a9b06bbcb8af343c82cc39bd56df5074b73a0a43c9113d701b6",
+      "bytes": 187,
+      "blob": "blobs/96077ee9c9478a9b06bbcb8af343c82cc39bd56df5074b73a0a43c9113d701b6.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-02.summary-admission.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-02.summary-admission.json",
+      "sha256": "6a4c364fc33d1995617b43eed726e8d821fdcb430d4cfc42513a736a1c5abede",
+      "bytes": 2772,
+      "blob": "blobs/6a4c364fc33d1995617b43eed726e8d821fdcb430d4cfc42513a736a1c5abede.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-03.process.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-03.process.json",
+      "sha256": "fe3c93a352ac15b340647a0cfdc543511eb532d7445d3619287dc49838ed4fc8",
+      "bytes": 2375,
+      "blob": "blobs/fe3c93a352ac15b340647a0cfdc543511eb532d7445d3619287dc49838ed4fc8.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-03.stderr",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-03.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "blob": "blobs/e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-03.stdout",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-03.stdout",
+      "sha256": "717e7079059c8ad18e52109d82935ea9d65fcf92e8ea2ed8a9c9dd228f7ee636",
+      "bytes": 153,
+      "blob": "blobs/717e7079059c8ad18e52109d82935ea9d65fcf92e8ea2ed8a9c9dd228f7ee636.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-03.summary-admission.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-03.summary-admission.json",
+      "sha256": "0cc233bbcd2c02c3d1350b6bbf94be1c77b1f372df3ca9e4a5a7adfbc6c5a0ab",
+      "bytes": 2738,
+      "blob": "blobs/0cc233bbcd2c02c3d1350b6bbf94be1c77b1f372df3ca9e4a5a7adfbc6c5a0ab.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-04.process.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-04.process.json",
+      "sha256": "cabc9ecc5871d5b20f2de56403ae1466c2b574759eb117062a4782c4f85d7a49",
+      "bytes": 2389,
+      "blob": "blobs/cabc9ecc5871d5b20f2de56403ae1466c2b574759eb117062a4782c4f85d7a49.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-04.stderr",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-04.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "blob": "blobs/e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-04.stdout",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-04.stdout",
+      "sha256": "56789a5667c8005983100808f22243cf20d452063d7cd135386a86e63ad35177",
+      "bytes": 167,
+      "blob": "blobs/56789a5667c8005983100808f22243cf20d452063d7cd135386a86e63ad35177.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-04.summary-admission.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-04.summary-admission.json",
+      "sha256": "39894eaed2e0e54056aec8d0909c7a21c3a3e79e52e31b705db012f2a5330855",
+      "bytes": 2752,
+      "blob": "blobs/39894eaed2e0e54056aec8d0909c7a21c3a3e79e52e31b705db012f2a5330855.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-05.process.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-05.process.json",
+      "sha256": "455e7914b973a2a92416eb544a69f9d9d3da9a82b3e6dfeed03bab92168b3342",
+      "bytes": 2383,
+      "blob": "blobs/455e7914b973a2a92416eb544a69f9d9d3da9a82b3e6dfeed03bab92168b3342.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-05.stderr",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-05.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "blob": "blobs/e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-05.stdout",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-05.stdout",
+      "sha256": "5805c36c898d3971c8dedcc695eabd43798c6ad5b442f606864585e2ce21d2c2",
+      "bytes": 161,
+      "blob": "blobs/5805c36c898d3971c8dedcc695eabd43798c6ad5b442f606864585e2ce21d2c2.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-05.summary-admission.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-05.summary-admission.json",
+      "sha256": "38070d232d8f391271b36c93221f382d4c0387f72b0075f86fe1c04eb2fba7ae",
+      "bytes": 2746,
+      "blob": "blobs/38070d232d8f391271b36c93221f382d4c0387f72b0075f86fe1c04eb2fba7ae.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-06.process.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-06.process.json",
+      "sha256": "a8f103292c2b2b1bf1aecebbaab201f7c31d0e0c301bb7276c12968480b1f9db",
+      "bytes": 2384,
+      "blob": "blobs/a8f103292c2b2b1bf1aecebbaab201f7c31d0e0c301bb7276c12968480b1f9db.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-06.stderr",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-06.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "blob": "blobs/e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-06.stdout",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-06.stdout",
+      "sha256": "680f6050df03cb133e3a662bfcf184cea3350c988ebd10d318c40e18bc4d34a8",
+      "bytes": 162,
+      "blob": "blobs/680f6050df03cb133e3a662bfcf184cea3350c988ebd10d318c40e18bc4d34a8.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-06.summary-admission.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-06.summary-admission.json",
+      "sha256": "ce262dc29e0d67c5eb8c65954e439c91c33e370a29d94645eeebebcc387fc9f6",
+      "bytes": 2747,
+      "blob": "blobs/ce262dc29e0d67c5eb8c65954e439c91c33e370a29d94645eeebebcc387fc9f6.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-07.process.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-07.process.json",
+      "sha256": "2d47261583ddf8dcd8dd98e62eca74cdc69eb4a520d6bc88f7a14e9aa31f5083",
+      "bytes": 2396,
+      "blob": "blobs/2d47261583ddf8dcd8dd98e62eca74cdc69eb4a520d6bc88f7a14e9aa31f5083.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-07.stderr",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-07.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "blob": "blobs/e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-07.stdout",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-07.stdout",
+      "sha256": "26a8faf5f194650ee23f892636e7ea9775f43b41c8ec055261713005fe469b8e",
+      "bytes": 174,
+      "blob": "blobs/26a8faf5f194650ee23f892636e7ea9775f43b41c8ec055261713005fe469b8e.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-07.summary-admission.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-07.summary-admission.json",
+      "sha256": "06da853e34ea858634d0861b1d996239869a838fd067177caab499c2a882f4b0",
+      "bytes": 2759,
+      "blob": "blobs/06da853e34ea858634d0861b1d996239869a838fd067177caab499c2a882f4b0.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-08.process.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-08.process.json",
+      "sha256": "7cd3dd2f233f30df504c1d6f44c48f23da2012066b30bd18119a2d83cc7f8fae",
+      "bytes": 2397,
+      "blob": "blobs/7cd3dd2f233f30df504c1d6f44c48f23da2012066b30bd18119a2d83cc7f8fae.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-08.stderr",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-08.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "blob": "blobs/e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-08.stdout",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-08.stdout",
+      "sha256": "e4bdceca5576654b31697a83dec89e9258998362074331731fa29d69e2921456",
+      "bytes": 175,
+      "blob": "blobs/e4bdceca5576654b31697a83dec89e9258998362074331731fa29d69e2921456.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-08.summary-admission.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-08.summary-admission.json",
+      "sha256": "129564486a5ff983aad4d036f28b56ebf127449c7824853c73d7b4be27e2b678",
+      "bytes": 2760,
+      "blob": "blobs/129564486a5ff983aad4d036f28b56ebf127449c7824853c73d7b4be27e2b678.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-09.process.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-09.process.json",
+      "sha256": "9b43bdca40f7fb1ae6f0257567b6582f171544c961b69c629f5f8271af8bae7c",
+      "bytes": 2408,
+      "blob": "blobs/9b43bdca40f7fb1ae6f0257567b6582f171544c961b69c629f5f8271af8bae7c.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-09.stderr",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-09.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "blob": "blobs/e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-09.stdout",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-09.stdout",
+      "sha256": "527a53d224d7b4e0bb6b541da40e9901a7b677f41a44025ad426e987476855c8",
+      "bytes": 186,
+      "blob": "blobs/527a53d224d7b4e0bb6b541da40e9901a7b677f41a44025ad426e987476855c8.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-09.summary-admission.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-09.summary-admission.json",
+      "sha256": "9e150e7318bfeb312114d0eecaf3aaac2d01a098643560d0699623cb3a97d25e",
+      "bytes": 2771,
+      "blob": "blobs/9e150e7318bfeb312114d0eecaf3aaac2d01a098643560d0699623cb3a97d25e.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-10.process.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-10.process.json",
+      "sha256": "5f18ed93aaffd7028a6c3047cb525eeb8a4ec0d817816a0b2ef9a160905c751e",
+      "bytes": 2404,
+      "blob": "blobs/5f18ed93aaffd7028a6c3047cb525eeb8a4ec0d817816a0b2ef9a160905c751e.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-10.stderr",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-10.stderr",
+      "sha256": "b04eb65b2ec9de9f12dfec74bb9764549700cce3f52cefe116ffd8b894f58b0a",
+      "bytes": 336,
+      "blob": "blobs/b04eb65b2ec9de9f12dfec74bb9764549700cce3f52cefe116ffd8b894f58b0a.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-10.stdout",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-10.stdout",
+      "sha256": "45bd5fb7defc903e5d22799487bf64c2989d7588f8fa2078e2444649432c6eec",
+      "bytes": 261,
+      "blob": "blobs/45bd5fb7defc903e5d22799487bf64c2989d7588f8fa2078e2444649432c6eec.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-10.summary-admission.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-10.summary-admission.json",
+      "sha256": "e55cc1b1a2293d311fe3ecf79ddc4f0b19a61195369b10fad0f6f77894fc768c",
+      "bytes": 2779,
+      "blob": "blobs/e55cc1b1a2293d311fe3ecf79ddc4f0b19a61195369b10fad0f6f77894fc768c.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-11.process.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-11.process.json",
+      "sha256": "0ac9f25770abb11aed261eb741bcdff4302981225f9208d2f346f18c6ce0a511",
+      "bytes": 2392,
+      "blob": "blobs/0ac9f25770abb11aed261eb741bcdff4302981225f9208d2f346f18c6ce0a511.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-11.stderr",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-11.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "blob": "blobs/e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-11.stdout",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-11.stdout",
+      "sha256": "f803fb9d8cf4a2d8e2918397821e36acc11caffebbbbd2b6b4210592f513d647",
+      "bytes": 170,
+      "blob": "blobs/f803fb9d8cf4a2d8e2918397821e36acc11caffebbbbd2b6b4210592f513d647.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-11.summary-admission.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-11.summary-admission.json",
+      "sha256": "58ef5061a481170cbf2e84c2c441b09c46c88264e80b1b0af374832ad69495e1",
+      "bytes": 2755,
+      "blob": "blobs/58ef5061a481170cbf2e84c2c441b09c46c88264e80b1b0af374832ad69495e1.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-12.process.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-12.process.json",
+      "sha256": "a98fb6604a8f475bac4d8904d98dba5791f8d9d13cbf7dfe70a44d8456a56a65",
+      "bytes": 2404,
+      "blob": "blobs/a98fb6604a8f475bac4d8904d98dba5791f8d9d13cbf7dfe70a44d8456a56a65.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-12.stderr",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-12.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "blob": "blobs/e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-12.stdout",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-12.stdout",
+      "sha256": "7b2b9597d5d54e6374242b918078e2a2979da68e94a6747b5bce82745bdbc139",
+      "bytes": 182,
+      "blob": "blobs/7b2b9597d5d54e6374242b918078e2a2979da68e94a6747b5bce82745bdbc139.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-12.summary-admission.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-12.summary-admission.json",
+      "sha256": "fc37068d518363f31c358dbadc5bb7f8ed3936b173e8893727f0c53aa1d8e2ff",
+      "bytes": 2767,
+      "blob": "blobs/fc37068d518363f31c358dbadc5bb7f8ed3936b173e8893727f0c53aa1d8e2ff.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-13.process.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-13.process.json",
+      "sha256": "6ad18cc7a3d5eeb853880762dba6ebcadda18459c3c4c12c2e8d2d4c7c151b77",
+      "bytes": 2401,
+      "blob": "blobs/6ad18cc7a3d5eeb853880762dba6ebcadda18459c3c4c12c2e8d2d4c7c151b77.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-13.stderr",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-13.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "blob": "blobs/e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-13.stdout",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-13.stdout",
+      "sha256": "c549535c76e16f1e9beac844f2d33d730318019afe4b4cb3a666011f5c3fdc71",
+      "bytes": 179,
+      "blob": "blobs/c549535c76e16f1e9beac844f2d33d730318019afe4b4cb3a666011f5c3fdc71.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-13.summary-admission.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-13.summary-admission.json",
+      "sha256": "970a4556fc365730f66f2c434d826a30fcb13c54859491f3d7afca78f7a9e17e",
+      "bytes": 2764,
+      "blob": "blobs/970a4556fc365730f66f2c434d826a30fcb13c54859491f3d7afca78f7a9e17e.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-14.process.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-14.process.json",
+      "sha256": "d6f1dbbadfb9157a974255b39526d9c6af0a1db1daadfa026da0d42312160bbf",
+      "bytes": 2405,
+      "blob": "blobs/d6f1dbbadfb9157a974255b39526d9c6af0a1db1daadfa026da0d42312160bbf.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-14.stderr",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-14.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "blob": "blobs/e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-14.stdout",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-14.stdout",
+      "sha256": "b65d87616773edf83396b6e871197a885bdbe50e7d1a2336cdde6c07d200994e",
+      "bytes": 183,
+      "blob": "blobs/b65d87616773edf83396b6e871197a885bdbe50e7d1a2336cdde6c07d200994e.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-14.summary-admission.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-14.summary-admission.json",
+      "sha256": "1026cc4bf0e50f9eff4e5e5ad090a45f7d6c385991574c51be193199ecea2e14",
+      "bytes": 2768,
+      "blob": "blobs/1026cc4bf0e50f9eff4e5e5ad090a45f7d6c385991574c51be193199ecea2e14.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-15.process.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-15.process.json",
+      "sha256": "07c0615e40f7533d07ca027c7bcf301d034c9199ce174762fa4bb85c0ee160ed",
+      "bytes": 2404,
+      "blob": "blobs/07c0615e40f7533d07ca027c7bcf301d034c9199ce174762fa4bb85c0ee160ed.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-15.stderr",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-15.stderr",
+      "sha256": "3ccd7bba03355187b6459e9a206459d80784d3dd56f6db2b9e417de3df158ad0",
+      "bytes": 412,
+      "blob": "blobs/3ccd7bba03355187b6459e9a206459d80784d3dd56f6db2b9e417de3df158ad0.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-15.stdout",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-15.stdout",
+      "sha256": "48fd019d7718c28caf34ae629c884a7e54662685f4942e42fb1075c66463bb0a",
+      "bytes": 261,
+      "blob": "blobs/48fd019d7718c28caf34ae629c884a7e54662685f4942e42fb1075c66463bb0a.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-15.summary-admission.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-15.summary-admission.json",
+      "sha256": "b0375ff613e1b23e7e7dc9ec3715ee1139372c2fe6f71cbd262faaf60b5ae39d",
+      "bytes": 2779,
+      "blob": "blobs/b0375ff613e1b23e7e7dc9ec3715ee1139372c2fe6f71cbd262faaf60b5ae39d.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-16.process.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-16.process.json",
+      "sha256": "a43759198073efdbb450d34b36dc9e285ab846c5ca1767237cd7a55a816ad751",
+      "bytes": 2413,
+      "blob": "blobs/a43759198073efdbb450d34b36dc9e285ab846c5ca1767237cd7a55a816ad751.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-16.stderr",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-16.stderr",
+      "sha256": "6ec19469a58b97ff61dc4e7ebcd1504284177076634ac1973623b2abadbda324",
+      "bytes": 292,
+      "blob": "blobs/6ec19469a58b97ff61dc4e7ebcd1504284177076634ac1973623b2abadbda324.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-16.stdout",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-16.stdout",
+      "sha256": "9a1ed131630797e4f9019deda3664cfb2c1addde7cc64f40c078a0e7087313b4",
+      "bytes": 279,
+      "blob": "blobs/9a1ed131630797e4f9019deda3664cfb2c1addde7cc64f40c078a0e7087313b4.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-16.summary-admission.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-16.summary-admission.json",
+      "sha256": "03b80ecd14140be4d8eddeab58498d27cf093adf90f0bdb371a5dad5c3d90f53",
+      "bytes": 2788,
+      "blob": "blobs/03b80ecd14140be4d8eddeab58498d27cf093adf90f0bdb371a5dad5c3d90f53.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-17.process.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-17.process.json",
+      "sha256": "b7b686450555f3fe23eed6eda96e6f9390efa4ea8883d7fcd49e43a5e4bfaf3b",
+      "bytes": 2406,
+      "blob": "blobs/b7b686450555f3fe23eed6eda96e6f9390efa4ea8883d7fcd49e43a5e4bfaf3b.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-17.stderr",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-17.stderr",
+      "sha256": "814e044593b41e639df98cc9f1b80eafecc30e0330e1304291f5ca41f63907d9",
+      "bytes": 223,
+      "blob": "blobs/814e044593b41e639df98cc9f1b80eafecc30e0330e1304291f5ca41f63907d9.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-17.stdout",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-17.stdout",
+      "sha256": "43d2752918130ed512b2f449d32c50d51f1db2cfe1a548c4a6dbd73e4939aa2b",
+      "bytes": 265,
+      "blob": "blobs/43d2752918130ed512b2f449d32c50d51f1db2cfe1a548c4a6dbd73e4939aa2b.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-17.summary-admission.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-17.summary-admission.json",
+      "sha256": "5285d298cd1df87e6eb650011100f59a68f66a5cf78d30c9b55027840f82d171",
+      "bytes": 2781,
+      "blob": "blobs/5285d298cd1df87e6eb650011100f59a68f66a5cf78d30c9b55027840f82d171.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-18.process.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-18.process.json",
+      "sha256": "bfc8838135ceb4e6aee923a3c81354b2b3f4e34d987231f2ae456b9a93841d62",
+      "bytes": 2396,
+      "blob": "blobs/bfc8838135ceb4e6aee923a3c81354b2b3f4e34d987231f2ae456b9a93841d62.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-18.stderr",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-18.stderr",
+      "sha256": "34312609a1a9a3d7f5afbd1aa791a527267dc004829623665c9725657b3dd993",
+      "bytes": 375,
+      "blob": "blobs/34312609a1a9a3d7f5afbd1aa791a527267dc004829623665c9725657b3dd993.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-18.stdout",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-18.stdout",
+      "sha256": "44071e54473f54b269f7e56a24a74681d9e1db9117f72ffac1d3020e0f5721bb",
+      "bytes": 243,
+      "blob": "blobs/44071e54473f54b269f7e56a24a74681d9e1db9117f72ffac1d3020e0f5721bb.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-18.summary-admission.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-18.summary-admission.json",
+      "sha256": "41ad230d7b2a5369ebb0ad7ce5476675edf52a904710ab6fc20ef4ee0f2f7a90",
+      "bytes": 2771,
+      "blob": "blobs/41ad230d7b2a5369ebb0ad7ce5476675edf52a904710ab6fc20ef4ee0f2f7a90.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-19.process.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-19.process.json",
+      "sha256": "67ea3a8a5aae311e7e97e0607bae89437dc1892190a55a019e7dccdc6afac1f3",
+      "bytes": 2413,
+      "blob": "blobs/67ea3a8a5aae311e7e97e0607bae89437dc1892190a55a019e7dccdc6afac1f3.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-19.stderr",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-19.stderr",
+      "sha256": "abb02397ce351850dca2f639ec4ee5aea284281b5c4fa126e01aaed9f6ea3798",
+      "bytes": 439,
+      "blob": "blobs/abb02397ce351850dca2f639ec4ee5aea284281b5c4fa126e01aaed9f6ea3798.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-19.stdout",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-19.stdout",
+      "sha256": "621846483cd937e8a7030e741a66907964a6d938dd840e1ebd413efd415e031a",
+      "bytes": 277,
+      "blob": "blobs/621846483cd937e8a7030e741a66907964a6d938dd840e1ebd413efd415e031a.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-19.summary-admission.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-19.summary-admission.json",
+      "sha256": "450e1886c7aefe0415cbc91dbe8517946502feed1c62564283f4b960aef09f2b",
+      "bytes": 2788,
+      "blob": "blobs/450e1886c7aefe0415cbc91dbe8517946502feed1c62564283f4b960aef09f2b.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-20.process.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-20.process.json",
+      "sha256": "1c1d7a90231f2235c1d8f58319298e21fd33b18e65c609987c962a702ada4ef8",
+      "bytes": 2422,
+      "blob": "blobs/1c1d7a90231f2235c1d8f58319298e21fd33b18e65c609987c962a702ada4ef8.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-20.stderr",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-20.stderr",
+      "sha256": "c52876bf06e98a862109eab883e9ed7f7d8d9d0fa19ae295e0e90e5d822692ba",
+      "bytes": 316,
+      "blob": "blobs/c52876bf06e98a862109eab883e9ed7f7d8d9d0fa19ae295e0e90e5d822692ba.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-20.stdout",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-20.stdout",
+      "sha256": "a078e7f3c06787901491a1f071b260a90ba19427ead65758443782ac0b06a401",
+      "bytes": 296,
+      "blob": "blobs/a078e7f3c06787901491a1f071b260a90ba19427ead65758443782ac0b06a401.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-20.summary-admission.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-20.summary-admission.json",
+      "sha256": "ec1ea0d73ebcd7c386cf8438d8816d8d1096ba0040022c211d86e70332b8c82d",
+      "bytes": 2797,
+      "blob": "blobs/ec1ea0d73ebcd7c386cf8438d8816d8d1096ba0040022c211d86e70332b8c82d.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-21.process.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-21.process.json",
+      "sha256": "646d708a056fe8f06fee4d1f168956d0fd2a9120dcc553d98ccb20bf1e1a1d16",
+      "bytes": 2408,
+      "blob": "blobs/646d708a056fe8f06fee4d1f168956d0fd2a9120dcc553d98ccb20bf1e1a1d16.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-21.stderr",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-21.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "blob": "blobs/e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-21.stdout",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-21.stdout",
+      "sha256": "6f4117c23d2bc7029566a84bf778e87d456e18c0e8428d1ecb94a68c5d606883",
+      "bytes": 186,
+      "blob": "blobs/6f4117c23d2bc7029566a84bf778e87d456e18c0e8428d1ecb94a68c5d606883.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-21.summary-admission.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-21.summary-admission.json",
+      "sha256": "17c9bb9534806158fb4bd140cf85c14c64c00ee46ba803e5ef9f7b9e1002345f",
+      "bytes": 2771,
+      "blob": "blobs/17c9bb9534806158fb4bd140cf85c14c64c00ee46ba803e5ef9f7b9e1002345f.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-22.process.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-22.process.json",
+      "sha256": "86bc306943aa088a9bb44c6d6f5bb16309beaa6de8620ca66520e83acb7f08fa",
+      "bytes": 2386,
+      "blob": "blobs/86bc306943aa088a9bb44c6d6f5bb16309beaa6de8620ca66520e83acb7f08fa.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-22.stderr",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-22.stderr",
+      "sha256": "623bb01463b54890838cb3716a9551cb192a74cbde4abcc35c863e5c0a59874c",
+      "bytes": 425,
+      "blob": "blobs/623bb01463b54890838cb3716a9551cb192a74cbde4abcc35c863e5c0a59874c.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-22.stdout",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-22.stdout",
+      "sha256": "0972b0b27092f5da7fefd2654cc7aad05cde3f3cca4cd143e3fefff272c39ec9",
+      "bytes": 224,
+      "blob": "blobs/0972b0b27092f5da7fefd2654cc7aad05cde3f3cca4cd143e3fefff272c39ec9.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-22.summary-admission.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-22.summary-admission.json",
+      "sha256": "c8ef82e5b7f993b497b3e1d2629c4e7f4370f682022769019802deef23618420",
+      "bytes": 2761,
+      "blob": "blobs/c8ef82e5b7f993b497b3e1d2629c4e7f4370f682022769019802deef23618420.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-23.process.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-23.process.json",
+      "sha256": "02b0d8ab1bade0edd73b47074cdd6c890bab15654028c4914991c41ea64710bd",
+      "bytes": 2391,
+      "blob": "blobs/02b0d8ab1bade0edd73b47074cdd6c890bab15654028c4914991c41ea64710bd.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-23.stderr",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-23.stderr",
+      "sha256": "0ecc09216451a1e6776fb8bb409f75db69c2c4ceb673ab0dbbb4058e2541ecf4",
+      "bytes": 287,
+      "blob": "blobs/0ecc09216451a1e6776fb8bb409f75db69c2c4ceb673ab0dbbb4058e2541ecf4.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-23.stdout",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-23.stdout",
+      "sha256": "125005e05c9ee9d7c3b96ed4bdf42330b00c96ca508c0a9ab3a780788e912864",
+      "bytes": 238,
+      "blob": "blobs/125005e05c9ee9d7c3b96ed4bdf42330b00c96ca508c0a9ab3a780788e912864.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-23.summary-admission.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-23.summary-admission.json",
+      "sha256": "610826a5531a3108b54e544a74fae24e21603a9ea45b05855598dbdd34cd191b",
+      "bytes": 2766,
+      "blob": "blobs/610826a5531a3108b54e544a74fae24e21603a9ea45b05855598dbdd34cd191b.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-24.process.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-24.process.json",
+      "sha256": "699bb17b74eab57ba9835e3c088d7544f4d52c23d3df9e948c2522ff1fc405bc",
+      "bytes": 2402,
+      "blob": "blobs/699bb17b74eab57ba9835e3c088d7544f4d52c23d3df9e948c2522ff1fc405bc.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-24.stderr",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-24.stderr",
+      "sha256": "548c1cacb265adfa55182c4bfe2208915cc9d586cdbb38ee881501a506f7845e",
+      "bytes": 275,
+      "blob": "blobs/548c1cacb265adfa55182c4bfe2208915cc9d586cdbb38ee881501a506f7845e.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-24.stdout",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-24.stdout",
+      "sha256": "ae94334c58ea0ee29408a2f0ab409cd14a10da6b633ad51e0310e3f14e7d5ad6",
+      "bytes": 257,
+      "blob": "blobs/ae94334c58ea0ee29408a2f0ab409cd14a10da6b633ad51e0310e3f14e7d5ad6.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-24.summary-admission.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-24.summary-admission.json",
+      "sha256": "75b881efa106a34fcfde3b417c21a9b07bc7533578dfde95055d2cad15697a8f",
+      "bytes": 2777,
+      "blob": "blobs/75b881efa106a34fcfde3b417c21a9b07bc7533578dfde95055d2cad15697a8f.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-25.process.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-25.process.json",
+      "sha256": "3f5425099fae89e6dd49a6da7016d26e9d592541128d5c728cf25086bcce62a4",
+      "bytes": 2385,
+      "blob": "blobs/3f5425099fae89e6dd49a6da7016d26e9d592541128d5c728cf25086bcce62a4.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-25.stderr",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-25.stderr",
+      "sha256": "556aa7f9651f9957c004d89f77b4a8b9562cf0412e37b9be009ab05594f082ec",
+      "bytes": 205,
+      "blob": "blobs/556aa7f9651f9957c004d89f77b4a8b9562cf0412e37b9be009ab05594f082ec.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-25.stdout",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-25.stdout",
+      "sha256": "37d79314e501f033f5c04234bbc794647af7272f01a4260407fa34bc417efb01",
+      "bytes": 223,
+      "blob": "blobs/37d79314e501f033f5c04234bbc794647af7272f01a4260407fa34bc417efb01.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-25.summary-admission.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-25.summary-admission.json",
+      "sha256": "3737c7fde437260fd48c297340dd5400f79fe32a8398dad3a21464e69dbafcec",
+      "bytes": 2760,
+      "blob": "blobs/3737c7fde437260fd48c297340dd5400f79fe32a8398dad3a21464e69dbafcec.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-26.process.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-26.process.json",
+      "sha256": "dcd0be87f0c7fbe3f145f80bccf54953f32f8b405a6677a1c2a195f717d48ed5",
+      "bytes": 2414,
+      "blob": "blobs/dcd0be87f0c7fbe3f145f80bccf54953f32f8b405a6677a1c2a195f717d48ed5.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-26.stderr",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-26.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "blob": "blobs/e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-26.stdout",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-26.stdout",
+      "sha256": "6a8e9daaf9fc33f76326acfdfce20b2896dbcaca409647cca99f4f930bd0927a",
+      "bytes": 192,
+      "blob": "blobs/6a8e9daaf9fc33f76326acfdfce20b2896dbcaca409647cca99f4f930bd0927a.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-26.summary-admission.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-26.summary-admission.json",
+      "sha256": "6234fb04baec190b2d12c9c70d9d18eb485020d6cc9793893f7549958fff0c5c",
+      "bytes": 2777,
+      "blob": "blobs/6234fb04baec190b2d12c9c70d9d18eb485020d6cc9793893f7549958fff0c5c.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-27.process.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-27.process.json",
+      "sha256": "26b8a5798f8cb09ab9218f8064a0371b8e2fbbb96144b79606969bebb2ab11e3",
+      "bytes": 2414,
+      "blob": "blobs/26b8a5798f8cb09ab9218f8064a0371b8e2fbbb96144b79606969bebb2ab11e3.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-27.stderr",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-27.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "blob": "blobs/e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-27.stdout",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-27.stdout",
+      "sha256": "cc900ceeca1dfd69b4ddff08b69ea03e2a5e6d2cbc028e80c2e59a4a0c801d90",
+      "bytes": 192,
+      "blob": "blobs/cc900ceeca1dfd69b4ddff08b69ea03e2a5e6d2cbc028e80c2e59a4a0c801d90.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-27.summary-admission.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-27.summary-admission.json",
+      "sha256": "74388aa72045059a6cf7cd38e5c20164616622231ff5b5619383337fe67e15b8",
+      "bytes": 2777,
+      "blob": "blobs/74388aa72045059a6cf7cd38e5c20164616622231ff5b5619383337fe67e15b8.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-28.process.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-28.process.json",
+      "sha256": "68a328449ecb7c5b9a49e7fda405d12ed8f07543bd8a4f11f777713ee4dba6d7",
+      "bytes": 2409,
+      "blob": "blobs/68a328449ecb7c5b9a49e7fda405d12ed8f07543bd8a4f11f777713ee4dba6d7.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-28.stderr",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-28.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "blob": "blobs/e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-28.stdout",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-28.stdout",
+      "sha256": "e987bb9836243afee02253933141aee7666108aaf6851be5a2f97042c729e57f",
+      "bytes": 187,
+      "blob": "blobs/e987bb9836243afee02253933141aee7666108aaf6851be5a2f97042c729e57f.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-28.summary-admission.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-28.summary-admission.json",
+      "sha256": "9f9ebad0f0140bae212c990be6ee6b0d13c335fc1883eb6a8c84d58415799297",
+      "bytes": 2772,
+      "blob": "blobs/9f9ebad0f0140bae212c990be6ee6b0d13c335fc1883eb6a8c84d58415799297.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-29.process.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-29.process.json",
+      "sha256": "7c19912721117e238d1ae749a52943cf72027d1547181263e54fa01c97209e11",
+      "bytes": 2423,
+      "blob": "blobs/7c19912721117e238d1ae749a52943cf72027d1547181263e54fa01c97209e11.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-29.stderr",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-29.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "blob": "blobs/e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-29.stdout",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-29.stdout",
+      "sha256": "ffff6b2b18a72db756f3ad8670fe273defceb84701a7a5701bf8d86a17478644",
+      "bytes": 201,
+      "blob": "blobs/ffff6b2b18a72db756f3ad8670fe273defceb84701a7a5701bf8d86a17478644.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-29.summary-admission.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-29.summary-admission.json",
+      "sha256": "0deee4e6ca50537dac31813b8c0ba62b54a6dd63bf9827be7018ab0d3d232b53",
+      "bytes": 2786,
+      "blob": "blobs/0deee4e6ca50537dac31813b8c0ba62b54a6dd63bf9827be7018ab0d3d232b53.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-30.process.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-30.process.json",
+      "sha256": "11ea860f254c0ada14925c1993a2d96bcce9634015adeca52d9cc67e13b94642",
+      "bytes": 2416,
+      "blob": "blobs/11ea860f254c0ada14925c1993a2d96bcce9634015adeca52d9cc67e13b94642.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-30.stderr",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-30.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "blob": "blobs/e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-30.stdout",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-30.stdout",
+      "sha256": "8fa6494fd98105722ed006303eb8a3626015a9bbc86ff7e83d4523c76fd3da1f",
+      "bytes": 194,
+      "blob": "blobs/8fa6494fd98105722ed006303eb8a3626015a9bbc86ff7e83d4523c76fd3da1f.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-30.summary-admission.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-30.summary-admission.json",
+      "sha256": "f8c4d06176373467910660b478a2c68f8e4d6c3c86b801e2be87dfe7a1d0167f",
+      "bytes": 2779,
+      "blob": "blobs/f8c4d06176373467910660b478a2c68f8e4d6c3c86b801e2be87dfe7a1d0167f.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-31.process.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-31.process.json",
+      "sha256": "9068984ab282fb622ae76e2873ac4516c3de51f6f30d6cea2afc85aa832e6da2",
+      "bytes": 2431,
+      "blob": "blobs/9068984ab282fb622ae76e2873ac4516c3de51f6f30d6cea2afc85aa832e6da2.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-31.stderr",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-31.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "blob": "blobs/e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-31.stdout",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-31.stdout",
+      "sha256": "7df1e1d6c358429ac6ceccb785945c3ab6e98a1b4877010e927b03a8e2138739",
+      "bytes": 208,
+      "blob": "blobs/7df1e1d6c358429ac6ceccb785945c3ab6e98a1b4877010e927b03a8e2138739.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-31.summary-admission.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-31.summary-admission.json",
+      "sha256": "99e7fbf8728fd11419ff0e89b3d70fb0fafaacfdb5e8ec8afe90000db01d26ff",
+      "bytes": 2794,
+      "blob": "blobs/99e7fbf8728fd11419ff0e89b3d70fb0fafaacfdb5e8ec8afe90000db01d26ff.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-32.process.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-32.process.json",
+      "sha256": "7c58a528c80a0a58701426deb2a5aa67a35a9a6d4a14922e15ae10cfbc6b5c37",
+      "bytes": 2428,
+      "blob": "blobs/7c58a528c80a0a58701426deb2a5aa67a35a9a6d4a14922e15ae10cfbc6b5c37.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-32.stderr",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-32.stderr",
+      "sha256": "8c5dedaa02181d8206cadac1cfe05a823f31388fda0a0edd0a04af2ede3793b3",
+      "bytes": 268,
+      "blob": "blobs/8c5dedaa02181d8206cadac1cfe05a823f31388fda0a0edd0a04af2ede3793b3.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-32.stdout",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-32.stdout",
+      "sha256": "f67cc53fb1d7a87154dbfe19c3126a705be3aedc75c0e6a16d55dcca5ce1fc79",
+      "bytes": 309,
+      "blob": "blobs/f67cc53fb1d7a87154dbfe19c3126a705be3aedc75c0e6a16d55dcca5ce1fc79.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-32.summary-admission.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-32.summary-admission.json",
+      "sha256": "2e1d8ac211e86cccff80d3f979263351c44d1282a563a8eecdb8baf507ded433",
+      "bytes": 2803,
+      "blob": "blobs/2e1d8ac211e86cccff80d3f979263351c44d1282a563a8eecdb8baf507ded433.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-33.process.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-33.process.json",
+      "sha256": "afb0ca5ca74bef149477a2cb4ba769caef102fdb18009e601bd5dc1aade4dd33",
+      "bytes": 2419,
+      "blob": "blobs/afb0ca5ca74bef149477a2cb4ba769caef102fdb18009e601bd5dc1aade4dd33.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-33.stderr",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-33.stderr",
+      "sha256": "ba515fbc25612bd913df205018580777738cc175602f766bbdc442b121b821f8",
+      "bytes": 259,
+      "blob": "blobs/ba515fbc25612bd913df205018580777738cc175602f766bbdc442b121b821f8.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-33.stdout",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-33.stdout",
+      "sha256": "1fe2e195ea09ff705739f96c4f6f842183d8f093ee8e5582655931db356044a2",
+      "bytes": 291,
+      "blob": "blobs/1fe2e195ea09ff705739f96c4f6f842183d8f093ee8e5582655931db356044a2.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-33.summary-admission.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-33.summary-admission.json",
+      "sha256": "7a15c6c81b663899fac53741a954d21650fe44296c6db00fd35e339ff1c4106d",
+      "bytes": 2794,
+      "blob": "blobs/7a15c6c81b663899fac53741a954d21650fe44296c6db00fd35e339ff1c4106d.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-after.providers-provider-chain.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-after.providers-provider-chain.json",
+      "sha256": "7761c05f15e4c1c4526ed2503f1c47082b3ea7a2b226eaf96e7818e51fcef31d",
+      "bytes": 46471,
+      "blob": "blobs/7761c05f15e4c1c4526ed2503f1c47082b3ea7a2b226eaf96e7818e51fcef31d.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-after.providers.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-after.providers.json",
+      "sha256": "0badd46e437fb76410ec8c3ac9ba34d002074cbe11eba2368c8486e918b41717",
+      "bytes": 1126070,
+      "blob": "blobs/0badd46e437fb76410ec8c3ac9ba34d002074cbe11eba2368c8486e918b41717.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/jim_document-after.source.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/jim_document-after.source.json",
+      "sha256": "1d7dbd509e2597f3dd48ac6703d198368ccb2ca3d6419f63f28f39a859c5921f",
+      "bytes": 6659899,
+      "blob": "blobs/1d7dbd509e2597f3dd48ac6703d198368ccb2ca3d6419f63f28f39a859c5921f.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/roster-jim_document.process.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/roster-jim_document.process.json",
+      "sha256": "ec79d3d110ca27cc20c3ca454ab9a217519964bf451b47bc6e038f6e3ac04015",
+      "bytes": 2335,
+      "blob": "blobs/ec79d3d110ca27cc20c3ca454ab9a217519964bf451b47bc6e038f6e3ac04015.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/roster-jim_document.stderr",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/roster-jim_document.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "blob": "blobs/e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/roster-jim_document.stdout",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/roster-jim_document.stdout",
+      "sha256": "c433933739546def83647bf65760f3082fc3449e59aa62026a3dc2d56f1a5433",
+      "bytes": 2026,
+      "blob": "blobs/c433933739546def83647bf65760f3082fc3449e59aa62026a3dc2d56f1a5433.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/results-jim34-snapshot.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/results.json",
+      "sha256": "c4321aa5c7872c0d62a8db6f6991752670d4f60d148ab16cd1a77d97c40b9643",
+      "bytes": 202288,
+      "blob": "blobs/c4321aa5c7872c0d62a8db6f6991752670d4f60d148ab16cd1a77d97c40b9643.gz",
+      "scope": "filtered immutable completed34-only snapshot; original results file continues"
+    },
+    {
+      "path": "run/plan.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/plan.json",
+      "sha256": "8685f04a44c3f9f39d1528daddb205b46cc4f2a25f99e65c032052edca8093e6",
+      "bytes": 10399,
+      "blob": "blobs/8685f04a44c3f9f39d1528daddb205b46cc4f2a25f99e65c032052edca8093e6.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "run/go.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z/go.json",
+      "sha256": "26396d7569205cac18362620f3d2871a1fb1394f0165994a6ee7d865b30deb61",
+      "bytes": 646,
+      "blob": "blobs/26396d7569205cac18362620f3d2871a1fb1394f0165994a6ee7d865b30deb61.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "launcher-start-snapshot/launcher.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-launches/20261023T041728.453936Z/launcher.json",
+      "sha256": "e964db6c924dbc21b046fd8ec0f5892d5f1eb79aeaec93b310599665efea704e",
+      "bytes": 1721,
+      "blob": "blobs/e964db6c924dbc21b046fd8ec0f5892d5f1eb79aeaec93b310599665efea704e.gz",
+      "scope": "snapshot while full phase continues; not launcher final closure"
+    },
+    {
+      "path": "launcher-start-snapshot/launcher.transcript",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4-launches/20261023T041728.453936Z/launcher.transcript",
+      "sha256": "72dab1d84aba7208f4ddaaf18cb2f7b7254f0e6d4c78b8043876f313ec40913e",
+      "bytes": 392,
+      "blob": "blobs/72dab1d84aba7208f4ddaaf18cb2f7b7254f0e6d4c78b8043876f313ec40913e.gz",
+      "scope": "snapshot while full phase continues; not launcher final closure"
+    },
+    {
+      "path": "protocol/runner-input-manifest.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4/runner-input-manifest.json",
+      "sha256": "f25861dfe4ad982fefef543fc0a920ff0c885a0708e394c0b0d69891dc525ad8",
+      "bytes": 1448,
+      "blob": "blobs/f25861dfe4ad982fefef543fc0a920ff0c885a0708e394c0b0d69891dc525ad8.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "protocol-inputs/tmp/vm-spectcl-c1c2-exact66-v4/suite.py",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4/suite.py",
+      "sha256": "9b1346ed87ac884c17928202b7f89e6a1ed7ca6ec835f7bdcd0980c44c28ad4d",
+      "bytes": 11876,
+      "blob": "blobs/9b1346ed87ac884c17928202b7f89e6a1ed7ca6ec835f7bdcd0980c44c28ad4d.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "protocol-inputs/tmp/vm-spectcl-c1c2-exact66-v4/launch.py",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4/launch.py",
+      "sha256": "c8fc1baa7f6c8e6a72144c89d826de5aad9a273f11a8b7eba62dd8d584050b0f",
+      "bytes": 2295,
+      "blob": "blobs/c8fc1baa7f6c8e6a72144c89d826de5aad9a273f11a8b7eba62dd8d584050b0f.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "protocol-inputs/tmp/vm-spectcl-c1c2-exact66-v4/run.sh",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4/run.sh",
+      "sha256": "ad7d640d951bf1870205d5d913b1bd7de0720e86d784184a0ced441051a6c82c",
+      "bytes": 181,
+      "blob": "blobs/ad7d640d951bf1870205d5d913b1bd7de0720e86d784184a0ced441051a6c82c.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "protocol-inputs/tmp/vm-spectcl-c1c2-exact66-v4/plan.json",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4/plan.json",
+      "sha256": "97db5508c30d32f8439cda7747f44ff197b22357a5606711afe4347cab5d3ab6",
+      "bytes": 10399,
+      "blob": "blobs/97db5508c30d32f8439cda7747f44ff197b22357a5606711afe4347cab5d3ab6.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "protocol-inputs/tmp/vm-spectcl-c1c2-exact66-v4/guarded-exec.py",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4/guarded-exec.py",
+      "sha256": "88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811",
+      "bytes": 13109,
+      "blob": "blobs/88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "protocol-inputs/tmp/vm-spectcl-c1c2-exact66-v4/providers.py",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4/providers.py",
+      "sha256": "ba6a8be84fe9024c29c710b8fa1c7e445086c627957f5e7197efaf828e17b2ac",
+      "bytes": 2286,
+      "blob": "blobs/ba6a8be84fe9024c29c710b8fa1c7e445086c627957f5e7197efaf828e17b2ac.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "protocol-inputs/tmp/vm-spectcl-c1c2-exact66-v4/provider-chain.py",
+      "original": "/tmp/vm-spectcl-c1c2-exact66-v4/provider-chain.py",
+      "sha256": "a647bf8699e1eecebce0702d01d11206f4d8a1a7d09f6661afd9ef928a52a5d9",
+      "bytes": 2324,
+      "blob": "blobs/a647bf8699e1eecebce0702d01d11206f4d8a1a7d09f6661afd9ef928a52a5d9.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "protocol-inputs/tmp/tcl-lsp-naming-env.sh",
+      "original": "/tmp/tcl-lsp-naming-env.sh",
+      "sha256": "9d33ccdba049a778482244c60a8206cd62fc503db55227b7c6cf87645c932f29",
+      "bytes": 1042,
+      "blob": "blobs/9d33ccdba049a778482244c60a8206cd62fc503db55227b7c6cf87645c932f29.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "protocol-inputs/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/validation-tools/capture-inputs.py",
+      "original": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/validation-tools/capture-inputs.py",
+      "sha256": "2d3a1cf8aa341d5c4b829be6616a407d516163b52878ebb0cee874040e507474",
+      "bytes": 601,
+      "blob": "blobs/2d3a1cf8aa341d5c4b829be6616a407d516163b52878ebb0cee874040e507474.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "protocol-inputs/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/validation-tools/_paths.py",
+      "original": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/validation-tools/_paths.py",
+      "sha256": "f82d76f6ee9434a98ede16693364988373bf68137d0e5800d8839404385b3a0c",
+      "bytes": 576,
+      "blob": "blobs/f82d76f6ee9434a98ede16693364988373bf68137d0e5800d8839404385b3a0c.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "source/rust/tcl-spectcl/tests/jim_document.rs.txt",
+      "original": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-spectcl/tests/jim_document.rs",
+      "sha256": "15d878edcede03f7d3aa036bb2a1ad00b469858d4aa337ea913092e9d0bad015",
+      "bytes": 32523,
+      "blob": "blobs/15d878edcede03f7d3aa036bb2a1ad00b469858d4aa337ea913092e9d0bad015.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "source/rust/tcl-spectcl/tests/jim_own_surface.rs.txt",
+      "original": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-spectcl/tests/jim_own_surface.rs",
+      "sha256": "a62d6bc969db115c86037645002d8db95ac2120d3cad0dba2ef374c77278cc7e",
+      "bytes": 17681,
+      "blob": "blobs/a62d6bc969db115c86037645002d8db95ac2120d3cad0dba2ef374c77278cc7e.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "source/rust/tcl-spectcl/tests/jim_surface_roster.rs.txt",
+      "original": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-spectcl/tests/jim_surface_roster.rs",
+      "sha256": "3036edf6b49ba7fecfc27a9c18c2ccd52f1c5c5541cab17d6b1c424d17d6013e",
+      "bytes": 4953,
+      "blob": "blobs/3036edf6b49ba7fecfc27a9c18c2ccd52f1c5c5541cab17d6b1c424d17d6013e.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "source/rust/tcl-spectcl/tests/jim_generation_zero.rs.txt",
+      "original": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-spectcl/tests/jim_generation_zero.rs",
+      "sha256": "a0c768e3c230d654fb3bea26dea355e6f828d05138d79d98dcebea96f485d5a3",
+      "bytes": 3465,
+      "blob": "blobs/a0c768e3c230d654fb3bea26dea355e6f828d05138d79d98dcebea96f485d5a3.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "source/rust/tcl-spectcl/tests/jim_seed_after_publish.rs.txt",
+      "original": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-spectcl/tests/jim_seed_after_publish.rs",
+      "sha256": "a96d65c6f6b5d7343d6e1fa26e1e0c71c1bc7cdb6a85175d8da7f756c6fc94f3",
+      "bytes": 2877,
+      "blob": "blobs/a96d65c6f6b5d7343d6e1fa26e1e0c71c1bc7cdb6a85175d8da7f756c6fc94f3.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "source/rust/tcl-spectcl/tests/eda_loadables.rs.txt",
+      "original": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-spectcl/tests/eda_loadables.rs",
+      "sha256": "0a885f792deafee8d26c78cea2f339809fdd0184541058367fbe40eecafb43a3",
+      "bytes": 12129,
+      "blob": "blobs/0a885f792deafee8d26c78cea2f339809fdd0184541058367fbe40eecafb43a3.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "source/rust/tcl-spectcl/tests/eda_environment_packs.rs.txt",
+      "original": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-spectcl/tests/eda_environment_packs.rs",
+      "sha256": "0f978a1fa26ada20908d1776541a6b663c99048b4e67ca15893b5d0c362f2f9a",
+      "bytes": 13080,
+      "blob": "blobs/0f978a1fa26ada20908d1776541a6b663c99048b4e67ca15893b5d0c362f2f9a.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "source/rust/tcl-registry/src/cache.rs.txt",
+      "original": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-registry/src/cache.rs",
+      "sha256": "b6249777d87153f0b9b17561a1aaf6812a63e0098259b036fb75853499bbb38c",
+      "bytes": 37222,
+      "blob": "blobs/b6249777d87153f0b9b17561a1aaf6812a63e0098259b036fb75853499bbb38c.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "source/rust/tcl-registry/src/native_procedure.rs.txt",
+      "original": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-registry/src/native_procedure.rs",
+      "sha256": "d809c352af7979774f3adeb26c7591db0b347ab0dec8346b04a8c3f32de7dba0",
+      "bytes": 67488,
+      "blob": "blobs/d809c352af7979774f3adeb26c7591db0b347ab0dec8346b04a8c3f32de7dba0.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "source/rust/tcl-compiler/src/analyser/oo.rs.txt",
+      "original": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/analyser/oo.rs",
+      "sha256": "812b6b2ed0dfe48b8ed1096a43dac6bcd3e7aa2f599f220e3efb162f188f9151",
+      "bytes": 389655,
+      "blob": "blobs/812b6b2ed0dfe48b8ed1096a43dac6bcd3e7aa2f599f220e3efb162f188f9151.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "source/rust/tcl-compiler/src/registry_invocation/source_structure.rs.txt",
+      "original": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler/src/registry_invocation/source_structure.rs",
+      "sha256": "0b86e61998e0ca5365514d79a3b9ca5894b384595c2456ff934b10679e36bc23",
+      "bytes": 298441,
+      "blob": "blobs/0b86e61998e0ca5365514d79a3b9ca5894b384595c2456ff934b10679e36bc23.gz",
+      "scope": "completed stable target file"
+    },
+    {
+      "path": "source/rust/tcl-spectcl/src/core_surfaces.rs.txt",
+      "original": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-spectcl/src/core_surfaces.rs",
+      "sha256": "0e3c59a6f06b6e528a5e65e1f7b0f75266e08877c838e79ac2a56e4a703cb81b",
+      "bytes": 12067,
+      "blob": "blobs/0e3c59a6f06b6e528a5e65e1f7b0f75266e08877c838e79ac2a56e4a703cb81b.gz",
+      "scope": "completed stable target file"
+    }
+  ],
+  "external_inputs": [
+    {
+      "path": "/workspace/.rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/bin/cargo",
+      "sha256": "a670e02cfa39ac2e53f77a2d911ca1fc9e2c479b0603ec956625be1daf24e3af",
+      "scope": "provider executable retained externally and captured by full provider guard; not duplicated in archive"
+    }
+  ],
+  "archive_roundtrip_verified": true,
+  "full66_closure_claim": false,
+  "run": "/tmp/vm-spectcl-c1c2-exact66-v4-runs/20261023T041730.192321Z"
+}

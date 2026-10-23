@@ -1,0 +1,7 @@
+{
+  "status": "bounded static CLEAR",
+  "patch_sha256": "684f27d791d1d7f8d9c6bcc71a6969c8171ade8680bdeca72412f6f8e92c7401",
+  "exact3current_beforepins_and_zero_fuzz_afterhashes": true,
+  "scope": "Private helper extraction only. HashSet/String and fu-associated borrowed str lifetimes match current signatures; symbol/cell/synthetic guard preserves filtering and continuation; getter var_name is immutable interner read. Protected-variable policy/shortcircuit and exact diagnostic message bytes preserved. No assertions/fixtures/equality/authority/allowances changed.",
+  "limits": "No typing/Clippy/runtime; no measured too_many_lines closure; not in current21/39batch."
+}

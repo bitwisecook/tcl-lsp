@@ -1,0 +1,17 @@
+{
+  "utc": "2026-10-23T04:29:37.284444+00:00",
+  "role": "coordinator",
+  "protocol": "/tmp/name-handling-eight-package-check-v7-source39",
+  "plan_sha256": "18375e4085a31c2eca87c7955e3f18802504f4710acdc40e85cac897a690d846",
+  "runner_manifest_sha256": "285f7916f0500177e1e01b7864ad1c4686062eac4a7d00ebfcf6c22f604af612",
+  "source39_sha256": "5a6a313720378b9325fed754c4fca3689330258de0bce881ce6f4d43f3a1ec97",
+  "status": "CLEAR bounded static v6-to-v7 delta; actual product/head/GO/build pending",
+  "verified": [
+    "All runner inputs current",
+    "39 unique source candidates independently joined to composed21 shadow and current source30",
+    "All39 baseline hashes independently matched actual3b1 git blobs, including absent/new files",
+    "v6-v7 exact diff preserves env/process/executor logic and adds final source_view after full source/provider seals",
+    "CCG env/lifecycle peer f940faf3 and LSP finalHEAD peer026689ba retained"
+  ],
+  "limits": "No runtime/typing/current strict lint/admission; no GO minted; source/provider HOLD during Spec66."
+}

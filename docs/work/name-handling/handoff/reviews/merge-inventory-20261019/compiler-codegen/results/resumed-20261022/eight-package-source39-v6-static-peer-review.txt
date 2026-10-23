@@ -1,0 +1,12 @@
+Eight-package source39 typecheck v6 — bounded static peer review
+Reviewed UTC: 2026-10-23T04:27:25+00:00
+Verdict: CLEAR for protocol preparation; source39 final map/approved HEAD/GO and Cargo execution remain unverified.
+
+Frozen directory: /tmp/name-handling-eight-package-check-v6-source39
+Plan SHA256 403b858020dad0d33cbfd03e614b6444e7e6874cbb873c66499512347fabc972; source39 manifest SHA256 5a6a313720378b9325fed754c4fca3689330258de0bce881ce6f4d43f3a1ec97; runner-input manifest SHA256 5ff66afbce0e4443209407a35c8139796402c7ddf9fb964250cb1cba382b5a77; manifest SHA256 0ef0cce382f8dca504a9dfedf3d7b5a1817013bb47723d5b4fdf2a182416bca9. Reviewed executor byte-identical SHA256 88125bd5267ac897dda4b5f665872c5ae0ab9984b0f42a41edeadf718873d811.
+
+I verified every listed runner input hash, including suite.py, and every manifest file hash; Python AST parses pass. The source manifest lists 39 unique paths and the plan uses exact Cargo check --locked --keep-going --all-targets JSON argv for the previous seven packages plus bpf-tcl-ir. No root-go.json exists in the frozen directory.
+
+The v5 template was held because inherited RUSTFLAGS, CARGO_ENCODED_RUSTFLAGS, CARGO_TARGET_*_RUSTFLAGS, rustc wrappers/build overrides, target override and RUSTC_BOOTSTRAP could alter compiler identity or warning policy. V6 refuses the ten named exact overrides and target-pattern flags in both launcher and direct suite before lock/Cargo; it then sets and checks the pinned successful environment, absolute Rust 1.99.1 compiler hash and PATH prefix. The approved integration HEAD/tree, all39 integrated source hashes, 3b1 originals, per-commit docs-only descendants, worktree product identity and before/pre-spawn/after ancestry checks remain fail-closed while allowing docs-only HEAD advancement. The provider/source/GO snapshots, direct reviewed executor, Cargo output/warning parser and disk/output guards are retained from the prior checked protocol.
+
+This is a static template review. Root must still verify final source39 map and approved integrated HEAD/tree, supply exact GO, and run the check. No typecheck, zero-warning, package acceptance or Cargo execution is claimed here. No Git/Cargo/GO/provider/source action by this reviewer.

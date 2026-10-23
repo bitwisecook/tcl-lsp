@@ -1,0 +1,24 @@
+{
+  "utc": "2026-10-23T04:28:35.696826+00:00",
+  "status": "bounded static CLEAR for focused docs-only HEAD invariant",
+  "scope": "HEAD/tree/descendant/worktree/source/provider/final recording only; env/process audit remains CCG responsibility",
+  "pins": {
+    "plan.json": "18375e4085a31c2eca87c7955e3f18802504f4710acdc40e85cac897a690d846",
+    "suite.py": "0fbdf730db8aeadd321e0a967dcd8ac4b47a54aacf1198eb562f037d514e0299",
+    "source39-manifest.json": "5a6a313720378b9325fed754c4fca3689330258de0bce881ce6f4d43f3a1ec97",
+    "runner-input-manifest.json": "285f7916f0500177e1e01b7864ad1c4686062eac4a7d00ebfcf6c22f604af612",
+    "manifest.json": "1a8e489e46f659704fdaac7a9a4bb253bd1b6dac1602564b131cb172374a6c2e"
+  },
+  "checks": [
+    "Exact GOapproved integratedHEAD/tree and each of39 approved committedblob afterhashes required; no GO or fictionalHEAD exists.",
+    "At every source_view currentHEAD descends approved product and all intervening commits touch only docs/work/name-handling; approvedproduct worktree outside docs equal, all untracked non-doc paths refused.",
+    "Actual before\u2192preSpawn\u2192postCargo\u2192afterSeals HEAD samples require monotonic ancestry; each sample independently revalidates docs-only history and actual source39/product tree.",
+    "v7 final source_view now runs AFTER full source/provider finalcaptures; separate postCargo and finalactualHEAD files/fields recorded.",
+    "Fullsource/provider/GO seals remain equal; head_stable informational only so valid docs-only WIP commits do not abort compiler check.",
+    "Exact v6\u2192v7 delta inspected: final sampling+receipt and versionpaths only; AST and manifest file hashes verified; no runner/lock/Cargo/provider/source/Git mutation."
+  ],
+  "limits": [
+    "Static protocol review only; actual integrated product HEAD/tree and final rootGO must be supplied after root integration.",
+    "No typecheck/runtime/release acceptance."
+  ]
+}

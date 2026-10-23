@@ -1,0 +1,51 @@
+{
+  "utc": "2026-10-23T04:28:35.670887+00:00",
+  "role": "compiler-names",
+  "status": "OFFTREE v7 final-sampling successor; focused peers/root final39 integration+GO pending",
+  "path": "/tmp/name-handling-eight-package-check-v7-source39",
+  "manifest_sha256": "1a8e489e46f659704fdaac7a9a4bb253bd1b6dac1602564b131cb172374a6c2e",
+  "plan_sha256": "18375e4085a31c2eca87c7955e3f18802504f4710acdc40e85cac897a690d846",
+  "runner_input_manifest_sha256": "285f7916f0500177e1e01b7864ad1c4686062eac4a7d00ebfcf6c22f604af612",
+  "source39_manifest_sha256": "5a6a313720378b9325fed754c4fca3689330258de0bce881ce6f4d43f3a1ec97",
+  "old_v4_manifest_files_unchanged": true,
+  "old_v5_status": "held for inherited build overrides; no launch",
+  "changes": [
+    "Add bpf-tcl-ir eighth package --all-targets; candidate39 exact before/after source map from source30 and coordinator frozen21 map.",
+    "Pin suite.py itself in runner inputs; pin absolute Rustc and require recorded successful build environment/PATH.",
+    "Reject compiler flag/wrapper/target overrides in launcher/direct suite before lock.",
+    "Validate approved product HEAD/tree and all approved39 blobs; worktree product matches approved; all later commits docs/work/name-handling only.",
+    "Record monotonic actual before/pre-spawn/after HEADs; strict HEAD equality informational.",
+    "Executor, process guards, singlelock, full source/provider/GO seals and zero-warning diagnostic checks unchanged.",
+    "V7 authenticates actual final HEAD/product again after full source/provider captures; records post-Cargo and final HEAD with monotonic ancestry."
+  ],
+  "preflight": {
+    "absent_go_refusal": {
+      "exit": 2,
+      "stderr": "",
+      "stdout": "STOP: post-39 root GO absent; no runner or Cargo started\n"
+    },
+    "cargo_started": false,
+    "current_agent_environment_override_keys": [],
+    "environment_override_pure_controls": "PASS exact10+target-specific+required-known-env",
+    "executor_byte_identical": true,
+    "lock_acquired": false,
+    "packages": 8,
+    "pending": [
+      "Root verify exact final39 source/baselines plus all other product paths",
+      "Actual approved integrated HEAD/tree",
+      "Root GO exact plan/runner/source39 digests",
+      "CCG env/process and LSP docs-only HEAD invariant peers"
+    ],
+    "python_parse": "PASS3",
+    "source_rows": 39,
+    "status": "OFFTREE v7 successor; final HEAD sampling peer/root validation pending",
+    "utc": "2026-10-23T04:28:04.961275+00:00",
+    "v6_delta": "Final source_view after full source/provider captures, monotonic post-Cargo to final-after-seals HEAD, both recorded; no environment/process delta."
+  },
+  "authority_limits": [
+    "No Cargo/build/Git/lock/GO/provider/canonical source actions.",
+    "Root must use actual final integrated product HEAD/tree; no fictional or composition-base identity.",
+    "CCG owns environment/process delta peer; LSP owns docs-only HEAD invariant peer."
+  ],
+  "old_v6_status": "env/process static CLEAR but final HEAD sample preceded final captures; immutable superseded by v7"
+}

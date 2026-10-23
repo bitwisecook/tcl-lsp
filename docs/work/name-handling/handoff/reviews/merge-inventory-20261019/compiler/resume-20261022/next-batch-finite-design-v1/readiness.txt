@@ -1,0 +1,1 @@
+Frozen finite design only. Core:25filters48tests. RecommendBPF6 =>31filters54tests,5actualtest executables. Typecheck:8packages alltargets locked/keepgoing/JSON,3600s,zeroW. Sourceunbound until root exactfinal product/fullmanifest/approvedHEAD. No runnable launcher/rootGO/Cargo generated. Preserve all source30 protocols.

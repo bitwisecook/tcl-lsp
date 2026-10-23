@@ -1,0 +1,117 @@
+--- rust/tcl-compiler/src/optimiser/chain_fold.rs
++++ rust/tcl-compiler/src/optimiser/chain_fold.rs
+@@ -650,14 +650,7 @@
+     // The whole-module traced-variable fact is stored `::`-stripped (see
+     // `populate_variable_trace_facts`), so a `::`-qualified chain target is
+     // checked under that canonical spelling too.
+-    if writes.len() < 2
+-        || crate::variable_observation_names::variable_name_may_be_observed(
+-            protected,
+-            &var,
+-            false,
+-            crate::variable_observation_names::VariableProtectionPurpose::MixedSourceProtection,
+-        )
+-    {
++    if writes.len() < 2 || chain_target_is_protected(protected, &var) {
+         return None;
+     }
+     let var_word = tcl_syntax::word_rules::lexical_unicode_source_word(&var, semantics.config)?;
+@@ -702,6 +695,15 @@
+     }
+ 
+     Some(writes.len())
++}
++
++fn chain_target_is_protected(protected: &HashSet<String>, var: &str) -> bool {
++    crate::variable_observation_names::variable_name_may_be_observed(
++        protected,
++        var,
++        false,
++        crate::variable_observation_names::VariableProtectionPurpose::MixedSourceProtection,
++    )
+ }
+ 
+ fn render_chain_value(
+--- rust/tcl-compiler/src/optimiser/elimination.rs
++++ rust/tcl-compiler/src/optimiser/elimination.rs
+@@ -1091,23 +1091,9 @@
+         // global / upvar are visible in other scopes. Policy sets hold
+         // *base* names, so an element symbol (`a(k)`) checks its base too.
+ 
+-        let (cell_name, _) = &chain.key;
+-        let Some(symbol) = fu.def_use.symbol(&fu.ssa, *cell_name) else {
++        let Some(var) = dead_store_candidate_name(fu, chain) else {
+             continue;
+         };
+-        let Some(cell_name) = fu.ssa.cell_key(symbol) else {
+-            continue;
+-        };
+-        let var = fu.ssa.var_name(symbol);
+-        // A synthetic may-def (base refresh / element fan) is not a write
+-        // the user made — never an O109/O126 candidate.
+-        if fu.ssa.is_synthetic_def(
+-            &chain.definition.block,
+-            chain.definition.statement_index,
+-            cell_name,
+-        ) {
+-            continue;
+-        }
+         if dead_store_alias_observed(fu, chain, var, &raise_proof.scope_aliases, &call_by_name) {
+             continue;
+         }
+@@ -1133,6 +1119,25 @@
+     }
+ 
+     emit_dse_entries(ctx, fu, is_top_level, entries)
++}
++
++fn dead_store_candidate_name<'a>(
++    fu: &'a FunctionUnit,
++    chain: &crate::def_use::DefUseChain,
++) -> Option<&'a str> {
++    let (cell_name, _) = &chain.key;
++    let symbol = fu.def_use.symbol(&fu.ssa, *cell_name)?;
++    let cell_name = fu.ssa.cell_key(symbol)?;
++    // A synthetic may-def (base refresh / element fan) is not a write
++    // the user made — never an O109/O126 candidate.
++    if fu.ssa.is_synthetic_def(
++        &chain.definition.block,
++        chain.definition.statement_index,
++        cell_name,
++    ) {
++        return None;
++    }
++    Some(fu.ssa.var_name(symbol))
+ }
+ 
+ fn dead_store_alias_observed(
+--- rust/tcl-compiler/src/optimiser/propagation.rs
++++ rust/tcl-compiler/src/optimiser/propagation.rs
+@@ -391,11 +391,7 @@
+         if !is_value_safe_bare_word(&literal) {
+             continue;
+         }
+-        let message = if code == DiagCode::O102 {
+-            format!("Forward literal load of '{var_name}' from its single reaching definition")
+-        } else {
+-            format!("Inline the constant value of '{var_name}' proved at this read")
+-        };
++        let message = load_forward_message(code, var_name);
+         for use_site in &chain.uses {
+             if use_site.kind != UseKind::Operand {
+                 continue;
+@@ -442,6 +438,14 @@
+                 },
+             );
+         }
++    }
++}
++
++fn load_forward_message(code: DiagCode, var_name: &str) -> String {
++    if code == DiagCode::O102 {
++        format!("Forward literal load of '{var_name}' from its single reaching definition")
++    } else {
++        format!("Inline the constant value of '{var_name}' proved at this read")
+     }
+ }
+ 
