@@ -40,14 +40,16 @@ import org.eclipse.lsp4j.Diagnostic
 class TclLspDiagnostics : LspDiagnosticsSupport() {
 
     override fun getMessage(diagnostic: Diagnostic): String {
-        val code = codeOf(diagnostic) ?: return diagnostic.message
-        return "[$code] ${diagnostic.message}"
+        // The IDE handles Diagnostic.getMessage's changed return type in LSP4J 1.0 (263+).
+        val message = super.getMessage(diagnostic)
+        val code = codeOf(diagnostic) ?: return message
+        return "[$code] $message"
     }
 
     override fun getTooltip(diagnostic: Diagnostic): String {
         val code = codeOf(diagnostic)
         val rows = buildList {
-            add(StringUtil.escapeXmlEntities(diagnostic.message))
+            add(StringUtil.escapeXmlEntities(super.getMessage(diagnostic)))
             code?.let { add("<b>${StringUtil.escapeXmlEntities(it)}</b> — ${kindOf(it)}") }
             code?.let { c -> describe(c)?.let { add(StringUtil.escapeXmlEntities(it)) } }
             add(fixSummary(diagnostic))
