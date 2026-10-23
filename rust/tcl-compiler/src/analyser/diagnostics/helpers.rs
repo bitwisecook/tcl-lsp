@@ -1527,48 +1527,8 @@ fn collect_script_concat_writes(
             ) else {
                 continue;
             };
-            let tail = &words.arguments()[first..];
-            let values: Option<Vec<_>> = tail
-                .iter()
-                .map(crate::registry_invocation::EffectiveInvocationWord::literal_bytes)
-                .collect();
-            let script = if let Some(values) = values {
-                match words.dialect().and_then(|dialect| dialect.native_family) {
-                    Some(tcl_dialect::model::Family::Jim) => {
-                        tcl_syntax::list::concat_bytes_jim(values)
-                    }
-                    Some(
-                        tcl_dialect::model::Family::Tcl
-                        | tcl_dialect::model::Family::F5Tcl
-                        | tcl_dialect::model::Family::F5Irules,
-                    ) => tcl_syntax::list::concat_bytes(values),
-                    None => continue,
-                }
-            } else {
-                // Only the genuine braced first value supplies unchanged prefix
-                // text when later values are unknown; it is lexical suppression,
-                // not a completed write or an entered body.
-                let Some(word) = words
-                    .operands()
-                    .get(first)
-                    .and_then(Option::as_ref)
-                    .and_then(
-                        crate::registry_invocation::source_structure::OriginalOperandSource::word,
-                    )
-                    .filter(|word| word.group().kind == tcl_lexer::WordKind::Braced)
-                else {
-                    continue;
-                };
-                let Some(value) = tail
-                    .first()
-                    .and_then(crate::registry_invocation::EffectiveInvocationWord::literal_bytes)
-                else {
-                    continue;
-                };
-                if word.group().expand {
-                    continue;
-                }
-                value.to_vec()
+            let Some(script) = concatenated_script_value(&words, first) else {
+                continue;
             };
             let Ok(script) = std::str::from_utf8(&script) else {
                 continue;
@@ -1577,6 +1537,47 @@ fn collect_script_concat_writes(
         }
     }
     out
+}
+
+/// Form the effective script bytes from the same selected body suffix.
+/// Returns `None` whenever the source spelling cannot establish those bytes.
+fn concatenated_script_value(
+    words: &crate::registry_invocation::source_structure::OriginalRegistryWords,
+    first: usize,
+) -> Option<Vec<u8>> {
+    let tail = &words.arguments()[first..];
+    let values: Option<Vec<_>> = tail
+        .iter()
+        .map(crate::registry_invocation::EffectiveInvocationWord::literal_bytes)
+        .collect();
+    let script = if let Some(values) = values {
+        match words.dialect().and_then(|dialect| dialect.native_family) {
+            Some(tcl_dialect::model::Family::Jim) => tcl_syntax::list::concat_bytes_jim(values),
+            Some(
+                tcl_dialect::model::Family::Tcl
+                | tcl_dialect::model::Family::F5Tcl
+                | tcl_dialect::model::Family::F5Irules,
+            ) => tcl_syntax::list::concat_bytes(values),
+            None => return None,
+        }
+    } else {
+        // Only the genuine braced first value supplies unchanged prefix text
+        // when later values are unknown; this is lexical suppression only.
+        let word = words
+            .operands()
+            .get(first)
+            .and_then(Option::as_ref)
+            .and_then(crate::registry_invocation::source_structure::OriginalOperandSource::word)
+            .filter(|word| word.group().kind == tcl_lexer::WordKind::Braced)?;
+        let value = tail
+            .first()
+            .and_then(crate::registry_invocation::EffectiveInvocationWord::literal_bytes)?;
+        if word.group().expand {
+            return None;
+        }
+        value.to_vec()
+    };
+    Some(script)
 }
 
 /// `dict with` / `dict update` key-aware suppression: record the dict-var

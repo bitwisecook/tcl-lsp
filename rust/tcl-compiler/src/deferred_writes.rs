@@ -693,8 +693,7 @@ impl Scan<'_> {
                         self.module,
                         self.registry,
                     ),
-                    Some(metadata),
-                    config,
+                    (Some(metadata), config),
                 ),
                 None => own_frame_global_writes_standalone(
                     body,

@@ -173,8 +173,7 @@ impl super::SourceInvocationBinding {
             input,
             advice.words,
             advice.site,
-            name.clone(),
-            value.clone(),
+            (name.clone(), value.clone()),
             registry,
         )
     }

@@ -198,7 +198,38 @@ impl OriginalLogicalMathFunctionOccurrence {
     }
 }
 
+#[derive(Clone, Copy)]
+struct LogicalMathSource<'a> {
+    namespace: &'a ByteNamespacePath,
+    document: &'a Option<super::logical_navigation::OriginalLogicalDocumentWords>,
+    input: &'a ResolvedAnalysisInput,
+}
+
 impl AdviceInvocationContext<'_> {
+    fn logical_math_parent_is_current(
+        &self,
+        parent: &OriginalSourceCommandTransitionAdvice,
+        schema: &tcl_registry::ResolvedInvocation<'_, '_>,
+        input: &ResolvedAnalysisInput,
+    ) -> bool {
+        parent.logical_source_input() == Some(input)
+            && parent.matches_source(self.origin.source_image(), self.config)
+            && parent.matches_context(self.context)
+            && schema.facts().arity_accepts_frozen_arguments() == Some(true)
+            && schema.semantics.body_kind == tcl_registry::BodyKind::Plain
+            && schema.semantics.frame_effect.is_none()
+            && !schema.semantics.traits.intersects(
+                tcl_registry::traits::FRAME_REACH_TRAITS | tcl_registry::Traits::DEFERS_BODY,
+            )
+            && !parent
+                .original_words()
+                .iter()
+                .any(|word| word.group().expand)
+            && schema.semantics.body_interpreter.resolve_with(|ordinal| {
+                std::str::from_utf8(parent.arguments().get(ordinal)?.value.as_deref()?).ok()
+            }) == tcl_registry::world_effect::InterpreterScope::Current
+    }
+
     pub(super) fn retain_logical_math_functions(
         &self,
         tape: &mut OriginalSourceTransitionAdviceTape,
@@ -214,23 +245,7 @@ impl AdviceInvocationContext<'_> {
         let Some(namespace) = graph.logical_namespace.as_ref() else {
             return;
         };
-        if parent.logical_source_input() != Some(input)
-            || !parent.matches_source(self.origin.source_image(), self.config)
-            || !parent.matches_context(self.context)
-            || schema.facts().arity_accepts_frozen_arguments() != Some(true)
-            || schema.semantics.body_kind != tcl_registry::BodyKind::Plain
-            || schema.semantics.frame_effect.is_some()
-            || schema.semantics.traits.intersects(
-                tcl_registry::traits::FRAME_REACH_TRAITS | tcl_registry::Traits::DEFERS_BODY,
-            )
-            || parent
-                .original_words()
-                .iter()
-                .any(|word| word.group().expand)
-            || schema.semantics.body_interpreter.resolve_with(|ordinal| {
-                std::str::from_utf8(parent.arguments().get(ordinal)?.value.as_deref()?).ok()
-            }) != tcl_registry::world_effect::InterpreterScope::Current
-        {
+        if !self.logical_math_parent_is_current(parent, schema, input) {
             return;
         }
         let document = if let Some(scope) = parent.logical_source_scope() {
@@ -309,56 +324,78 @@ impl AdviceInvocationContext<'_> {
             else {
                 continue;
             };
-            for ordinal in 0..expression.function_calls().len() {
-                let Some(name) = tcl_registry::mathfunc::OriginalSourceFunctionName::capture(
-                    Arc::clone(&expression),
-                    ordinal,
-                ) else {
-                    continue;
-                };
-                let Some(start) = extent.start().checked_add(name.offset()) else {
-                    continue;
-                };
-                let Some(end) = u32::try_from(name.function().len())
-                    .ok()
-                    .and_then(|width| start.checked_add(width))
-                else {
-                    continue;
-                };
-                let coordinates = super::logical_navigation::logical_coordinates(
-                    graph,
+            self.retain_logical_math_expression_functions(
+                tape,
+                graph,
+                parent,
+                (argument, effective_argument),
+                (&expression, extent),
+                LogicalMathSource {
                     namespace,
-                    name.relative_source_name(),
-                );
-                let excluded_headers = coordinates
-                    .iter()
-                    .flatten()
-                    .filter(|coordinate| {
-                        graph
-                            .cells
-                            .get(*coordinate)
-                            .is_some_and(|cell| !matches!(cell, AdviceCell::Shadowed))
-                    })
-                    .cloned()
-                    .collect();
-                let occurrence = OriginalLogicalMathFunctionOccurrence {
-                    parent: Arc::new(parent.clone()),
-                    original: argument.original.clone(),
-                    document: document.clone(),
-                    effective_argument,
-                    name,
-                    span: Span::new(start, end),
-                    namespace: namespace.clone(),
-                    coordinates,
-                    excluded_headers,
-                    earlier_unknown_mutations: !graph.uncertain_operations.is_empty(),
-                    operand_obligations: expression.has_opaque_or_substitution_operands(),
-                };
-                let occurrence = occurrence
-                    .matches_source(self.origin.source_image(), input)
-                    .then_some(occurrence);
-                super::source_class::merge_receipt(&mut tape.logical_math, start, occurrence);
-            }
+                    document: &document,
+                    input,
+                },
+            );
+        }
+    }
+    fn retain_logical_math_expression_functions(
+        &self,
+        tape: &mut OriginalSourceTransitionAdviceTape,
+        graph: &AdviceGraph,
+        parent: &OriginalSourceCommandTransitionAdvice,
+        (argument, effective_argument): (&super::SourceAdviceWord, usize),
+        (expression, extent): (&Arc<tcl_syntax::expr::OriginalSourceExpression>, Span),
+        source: LogicalMathSource<'_>,
+    ) {
+        for ordinal in 0..expression.function_calls().len() {
+            let Some(name) = tcl_registry::mathfunc::OriginalSourceFunctionName::capture(
+                Arc::clone(expression),
+                ordinal,
+            ) else {
+                continue;
+            };
+            let Some(start) = extent.start().checked_add(name.offset()) else {
+                continue;
+            };
+            let Some(end) = u32::try_from(name.function().len())
+                .ok()
+                .and_then(|width| start.checked_add(width))
+            else {
+                continue;
+            };
+            let coordinates = super::logical_navigation::logical_coordinates(
+                graph,
+                source.namespace,
+                name.relative_source_name(),
+            );
+            let excluded_headers = coordinates
+                .iter()
+                .flatten()
+                .filter(|coordinate| {
+                    graph
+                        .cells
+                        .get(*coordinate)
+                        .is_some_and(|cell| !matches!(cell, AdviceCell::Shadowed))
+                })
+                .cloned()
+                .collect();
+            let occurrence = OriginalLogicalMathFunctionOccurrence {
+                parent: Arc::new(parent.clone()),
+                original: argument.original.clone(),
+                document: source.document.clone(),
+                effective_argument,
+                name,
+                span: Span::new(start, end),
+                namespace: source.namespace.clone(),
+                coordinates,
+                excluded_headers,
+                earlier_unknown_mutations: !graph.uncertain_operations.is_empty(),
+                operand_obligations: expression.has_opaque_or_substitution_operands(),
+            };
+            let occurrence = occurrence
+                .matches_source(self.origin.source_image(), source.input)
+                .then_some(occurrence);
+            super::source_class::merge_receipt(&mut tape.logical_math, start, occurrence);
         }
     }
 }

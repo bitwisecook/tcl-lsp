@@ -2690,21 +2690,25 @@ fn original_source_return_operand<'a>(
 /// Retain possible assignments and unanimous returned scalar names for one
 /// actual body. Source return advice remains independent of completion and
 /// dispatch closure.
-fn seed_factory_maps(
+struct FactoryBodyFacts {
+    names: HashSet<String>,
+    assigns: FxHashMap<String, BodyFrameId>,
+    returns: Vec<bool>,
+    returned_variables: Vec<Option<String>>,
+}
+
+fn collect_factory_body_facts(
     qname: BodyFrameId,
     fu: &crate::compilation_unit::FunctionUnit,
     module: &crate::ir::Module,
+    context: &tcl_registry::model::ContextRegistry,
     nominal_result: &impl Fn(
         &crate::ir::WordExpr,
         Option<&crate::ir::CommandTokens>,
     ) -> (bool, Option<BodyFrameId>),
-    maps: &mut FactoryMaps,
+    returned_callees: &mut FxHashMap<BodyFrameId, FxHashSet<BodyFrameId>>,
     config: tcl_lexer::LexerConfig,
-) {
-    let Some(input) = module.source_metadata_input.as_ref() else {
-        return;
-    };
-    let context = input.borrowed_context_registry();
+) -> FactoryBodyFacts {
     let mut names = HashSet::new();
     let mut amap = FxHashMap::default();
     let mut returns = Vec::new();
@@ -2755,10 +2759,7 @@ fn seed_factory_maps(
                 let (object, callee) = nominal_result(&word, stmt.tokens());
                 returns.push(object);
                 if let Some(callee) = callee {
-                    maps.returned_callees
-                        .entry(qname)
-                        .or_default()
-                        .insert(callee);
+                    returned_callees.entry(qname).or_default().insert(callee);
                 }
             }
             for assignment in assignments {
@@ -2786,15 +2787,49 @@ fn seed_factory_maps(
             });
             returns.push(object);
             if let Some(callee) = callee {
-                maps.returned_callees
-                    .entry(qname)
-                    .or_default()
-                    .insert(callee);
+                returned_callees.entry(qname).or_default().insert(callee);
             }
         } else if block.terminator.is_none() {
             returns.push(false);
         }
     }
+    FactoryBodyFacts {
+        names,
+        assigns: amap,
+        returns,
+        returned_variables,
+    }
+}
+
+fn seed_factory_maps(
+    qname: BodyFrameId,
+    fu: &crate::compilation_unit::FunctionUnit,
+    module: &crate::ir::Module,
+    nominal_result: &impl Fn(
+        &crate::ir::WordExpr,
+        Option<&crate::ir::CommandTokens>,
+    ) -> (bool, Option<BodyFrameId>),
+    maps: &mut FactoryMaps,
+    config: tcl_lexer::LexerConfig,
+) {
+    let Some(input) = module.source_metadata_input.as_ref() else {
+        return;
+    };
+    let context = input.borrowed_context_registry();
+    let FactoryBodyFacts {
+        names,
+        assigns: amap,
+        returns,
+        returned_variables,
+    } = collect_factory_body_facts(
+        qname,
+        fu,
+        module,
+        context,
+        nominal_result,
+        &mut maps.returned_callees,
+        config,
+    );
     maps.factory_locals.insert(qname, names);
     maps.assigns.insert(qname, amap);
     let advisory_variable = returned_variables

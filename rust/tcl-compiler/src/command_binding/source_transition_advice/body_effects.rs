@@ -335,7 +335,7 @@ impl AdviceInvocationContext<'_> {
                     self.retain_original_body_command_catalogue(
                         tape,
                         graph,
-                        super::OriginalSourceCatalogueBody::Member(Arc::clone(&body)),
+                        &super::OriginalSourceCatalogueBody::Member(Arc::clone(&body)),
                         body.original_words(),
                     );
                     let mut branch = graph.clone();
@@ -438,7 +438,7 @@ impl AdviceInvocationContext<'_> {
             self.retain_original_body_command_catalogue(
                 tape,
                 &after_conditions,
-                super::OriginalSourceCatalogueBody::Script(Arc::new(body)),
+                &super::OriginalSourceCatalogueBody::Script(Arc::new(body)),
                 invocation.native,
             );
         }
@@ -448,7 +448,7 @@ impl AdviceInvocationContext<'_> {
         &self,
         tape: &mut OriginalSourceTransitionAdviceTape,
         graph: &AdviceGraph,
-        body: super::OriginalSourceCatalogueBody,
+        body: &super::OriginalSourceCatalogueBody,
         original: &[NativeWord],
     ) {
         let mut branch = graph.clone();

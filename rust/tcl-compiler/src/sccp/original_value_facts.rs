@@ -1026,12 +1026,12 @@ fn widen_unrepresented_statement(
     positioned: bool,
 ) -> bool {
     let mut changed = false;
-    let keys: Vec<ValueKey> = if !positioned {
-        values.keys().copied().collect()
-    } else {
+    let keys: Vec<ValueKey> = if positioned {
         // Exact reads after an unrepresented store have no contents
         // version. Earlier SSA versions remain immutable evidence.
         Vec::new()
+    } else {
+        values.keys().copied().collect()
     };
     for k in keys {
         if k.1 != 0 && set_value(values, k, &LatticeValue::Overdefined) {

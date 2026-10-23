@@ -300,19 +300,7 @@ impl SourceCommandBindings {
                 policy,
             );
             name.root_procedure_coordinate()?;
-            if !metadata.shape().roles_complete() || metadata.shape().argument_offset() != 0 {
-                return None;
-            }
-            let mut parameter_roles = metadata
-                .shape()
-                .roles()
-                .iter()
-                .filter(|(_, role)| *role == tcl_registry::ArgRole::ParamList)
-                .map(|(index, _)| usize::from(*index));
-            let parameter_index = parameter_roles.next()?;
-            if parameter_roles.next().is_some() {
-                return None;
-            }
+            let parameter_index = hosted_parameter_index(&metadata)?;
             let parameter_word = original.get(parameter_index.checked_add(1)?)?.clone();
             let parameters =
                 tcl_syntax::naming::vendor_source_formal_extents(policy, &parameter_word)?;
@@ -349,6 +337,25 @@ impl SourceCommandBindings {
         }
         agreed
     }
+}
+
+fn hosted_parameter_index(
+    metadata: &crate::registry_invocation::OriginalConditionalVendorRegistryMetadata,
+) -> Option<usize> {
+    if !metadata.shape().roles_complete() || metadata.shape().argument_offset() != 0 {
+        return None;
+    }
+    let mut parameter_roles = metadata
+        .shape()
+        .roles()
+        .iter()
+        .filter(|(_, role)| *role == tcl_registry::ArgRole::ParamList)
+        .map(|(index, _)| usize::from(*index));
+    let parameter_index = parameter_roles.next()?;
+    if parameter_roles.next().is_some() {
+        return None;
+    }
+    Some(parameter_index)
 }
 
 fn hosted_declaration_shape(

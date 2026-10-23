@@ -352,8 +352,7 @@ impl SourceScan<'_> {
                 self.module,
                 self.registry,
             ),
-            Some(context.metadata),
-            config,
+            (Some(context.metadata), config),
         );
         self.out.any |= writes.opaque_global_frame;
         for name in writes.names {

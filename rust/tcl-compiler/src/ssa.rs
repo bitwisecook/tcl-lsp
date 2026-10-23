@@ -2990,24 +2990,34 @@ enum SsaVariableIdentity {
 }
 
 // Buckets retain full authenticated identities; hashes never decide equality.
-struct SsaIdentityBuckets<V> {
-    buckets: FxHashMap<u64, Vec<(SsaVariableIdentity, V)>>,
+struct SsaIdentityBuckets<V, S = rustc_hash::FxBuildHasher> {
+    buckets: HashMap<u64, Vec<(SsaVariableIdentity, V)>, S>,
 }
 
-impl<V> Default for SsaIdentityBuckets<V> {
+impl<V, S: Default> Default for SsaIdentityBuckets<V, S> {
     fn default() -> Self {
         Self {
-            buckets: FxHashMap::default(),
+            buckets: HashMap::with_hasher(S::default()),
         }
     }
 }
 
-impl<V> SsaIdentityBuckets<V> {
+impl<V, S: std::hash::BuildHasher> SsaIdentityBuckets<V, S> {
     fn contains_key(&self, key: &SsaVariableIdentity) -> bool {
         let hash = std::hash::BuildHasher::hash_one(self.buckets.hasher(), key);
         self.buckets
             .get(&hash)
             .is_some_and(|bucket| bucket.iter().any(|(stored, _)| stored == key))
+    }
+
+    fn insert(&mut self, key: SsaVariableIdentity, value: V) {
+        let hash = std::hash::BuildHasher::hash_one(self.buckets.hasher(), &key);
+        let bucket = self.buckets.entry(hash).or_default();
+        if let Some((_, stored_value)) = bucket.iter_mut().find(|(stored, _)| stored == &key) {
+            *stored_value = value;
+        } else {
+            bucket.push((key, value));
+        }
     }
 
     fn iter(&self) -> impl Iterator<Item = (&SsaVariableIdentity, &V)> {
@@ -3018,7 +3028,7 @@ impl<V> SsaIdentityBuckets<V> {
     }
 }
 
-impl<V: Default> SsaIdentityBuckets<V> {
+impl<V: Default, S: std::hash::BuildHasher> SsaIdentityBuckets<V, S> {
     fn or_default(&mut self, key: SsaVariableIdentity) -> &mut V {
         let hash = std::hash::BuildHasher::hash_one(self.buckets.hasher(), &key);
         let bucket = self.buckets.entry(hash).or_default();
@@ -3033,6 +3043,32 @@ impl<V: Default> SsaIdentityBuckets<V> {
     }
 }
 
+impl<V, S> FromIterator<(SsaVariableIdentity, V)> for SsaIdentityBuckets<V, S>
+where
+    S: std::hash::BuildHasher + Default,
+{
+    fn from_iter<T: IntoIterator<Item = (SsaVariableIdentity, V)>>(iter: T) -> Self {
+        let mut result = Self::default();
+        for (key, value) in iter {
+            result.insert(key, value);
+        }
+        result
+    }
+}
+
+impl<V, S> IntoIterator for SsaIdentityBuckets<V, S> {
+    type Item = (SsaVariableIdentity, V);
+    type IntoIter = std::iter::Flatten<
+        std::collections::hash_map::IntoValues<u64, Vec<(SsaVariableIdentity, V)>>,
+    >;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.buckets.into_values().flatten()
+    }
+}
+
+type SsaVisibleIdentities = SsaIdentityBuckets<(), std::collections::hash_map::RandomState>;
+type SsaVisibleVersions = SsaIdentityBuckets<Version, std::collections::hash_map::RandomState>;
 type SsaIdentitySet = SsaIdentityBuckets<()>;
 type SsaDefinitionSites = SsaIdentityBuckets<FxHashSet<BlockId>>;
 
@@ -6680,8 +6716,8 @@ enum RenamePhase {
 struct RenameOutputs {
     phi_versions: HashMap<BlockId, HashMap<SsaVariableIdentity, Version>>,
     phi_incoming: HashMap<BlockId, HashMap<SsaVariableIdentity, HashMap<BlockId, Version>>>,
-    entry_versions: HashMap<BlockId, HashMap<SsaVariableIdentity, Version>>,
-    exit_versions: HashMap<BlockId, HashMap<SsaVariableIdentity, Version>>,
+    entry_versions: HashMap<BlockId, SsaVisibleVersions>,
+    exit_versions: HashMap<BlockId, SsaVisibleVersions>,
     stmt_infos: HashMap<BlockId, Vec<SsaStatement>>,
     source_may_effects: HashMap<(BlockId, usize), SourceMaySsaCall>,
     /// The versions live at each call to a command the module cannot see.
@@ -7741,12 +7777,11 @@ fn assemble_ssa_blocks(
 
         // Intern the entry / exit version maps (built identity-keyed during the
         // walk) onto the persisted [`Symbol`]-keyed block.
-        let intern_versions =
-            |interner: &mut VarInterner, m: HashMap<SsaVariableIdentity, Version>| {
-                m.into_iter()
-                    .map(|(name, ver)| (interner.intern_identity(&name), ver))
-                    .collect::<HashMap<Symbol, Version>>()
-            };
+        let intern_versions = |interner: &mut VarInterner, m: SsaVisibleVersions| {
+            m.into_iter()
+                .map(|(name, ver)| (interner.intern_identity(&name), ver))
+                .collect::<HashMap<Symbol, Version>>()
+        };
         let entry_v = intern_versions(interner, out.entry_versions.remove(bn).unwrap_or_default());
         let exit_v = intern_versions(interner, out.exit_versions.remove(bn).unwrap_or_default());
 
@@ -7807,8 +7842,9 @@ impl<'a> RenameWalk<'a> {
         for id in func.blocks.keys() {
             out.phi_versions.insert(*id, HashMap::new());
             out.phi_incoming.insert(*id, HashMap::new());
-            out.entry_versions.insert(*id, HashMap::new());
-            out.exit_versions.insert(*id, HashMap::new());
+            out.entry_versions
+                .insert(*id, SsaVisibleVersions::default());
+            out.exit_versions.insert(*id, SsaVisibleVersions::default());
             out.stmt_infos.insert(*id, Vec::new());
         }
         Self {
@@ -7871,12 +7907,19 @@ impl<'a> RenameWalk<'a> {
         self.push_identity(&SsaVariableIdentity::Location(var.clone()))
     }
 
-    fn visible_versions(&self, block: BlockId) -> HashMap<SsaVariableIdentity, Version> {
-        let mut visible: HashSet<_> = self.stacks.keys().cloned().collect();
-        visible.extend(self.out.phi_versions[&block].keys().cloned());
+    fn visible_versions(&self, block: BlockId) -> SsaVisibleVersions {
+        let mut visible: SsaVisibleIdentities = self
+            .stacks
+            .keys()
+            .cloned()
+            .map(|identity| (identity, ()))
+            .collect();
+        for identity in self.out.phi_versions[&block].keys().cloned() {
+            visible.or_default(identity);
+        }
         visible
             .into_iter()
-            .filter_map(|identity| {
+            .filter_map(|(identity, ())| {
                 let version = self.top_identity(&identity);
                 (version > 0).then_some((identity, version))
             })

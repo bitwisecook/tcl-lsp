@@ -370,45 +370,7 @@ impl Analyser {
                 }
             }
         }
-        for mut hit in hits {
-            let Some(ordinal) = arg_tokens.iter().position(|token| token.span == hit.span) else {
-                continue;
-            };
-            let Some(subject) = original.subject(
-                super::super::diagnostic_registry::RegistrySourceDiagnosticKind::LiteralArgument,
-                Some(ordinal),
-            ) else {
-                continue;
-            };
-            let Some(word) = original.word(ordinal) else {
-                continue;
-            };
-            hit.span = word.span();
-            if original.written_index(ordinal).is_none() {
-                hit.fixes.clear();
-            }
-            hit.fixes.retain_mut(|fix| {
-                let Some(new_text) = tcl_syntax::word_rules::lexical_unicode_source_word(
-                    &fix.new_text,
-                    word.config(),
-                ) else {
-                    return false;
-                };
-                fix.span = word.span();
-                fix.new_text = new_text;
-                true
-            });
-            self.result.diagnostics.push(
-                crate::analyser::types::Diagnostic::new(
-                    DiagCode::W127,
-                    hit.span,
-                    hit.message,
-                    Severity::Warning,
-                )
-                .with_fixes(hit.fixes)
-                .with_subject(subject),
-            );
-        }
+        self.emit_w127_hits(original, arg_tokens, hits);
     }
 
     /// Buffer a W137 site when a **valid** closed argument value is
@@ -515,6 +477,16 @@ impl Analyser {
             hits.extend(w127_domain_hits(&occurrence, self.grammar().numbers));
             hook_hits.extend(w141_hook_hit(&occurrence));
         }
+        self.emit_w127_hits(original, arg_tokens, hits);
+        self.emit_w141_hits(original, arg_tokens, hook_hits);
+    }
+
+    fn emit_w127_hits(
+        &mut self,
+        original: &super::super::diagnostic_registry::OriginalDiagnosticInvocation,
+        arg_tokens: &[tcl_lexer::Token],
+        hits: Vec<W127Hit>,
+    ) {
         for mut hit in hits {
             let Some(ordinal) = arg_tokens.iter().position(|token| token.span == hit.span) else {
                 continue;
@@ -554,7 +526,15 @@ impl Analyser {
                 .with_subject(subject),
             );
         }
-        for mut hit in hook_hits {
+    }
+
+    fn emit_w141_hits(
+        &mut self,
+        original: &super::super::diagnostic_registry::OriginalDiagnosticInvocation,
+        arg_tokens: &[tcl_lexer::Token],
+        hits: Vec<W127Hit>,
+    ) {
+        for mut hit in hits {
             let Some(ordinal) = arg_tokens.iter().position(|token| token.span == hit.span) else {
                 continue;
             };
