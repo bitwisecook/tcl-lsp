@@ -9,6 +9,15 @@ use super::{
     CommandRegistry, CommandTokens, InvocationMetadataContext, LogicalStructuredInvocation,
 };
 
+macro_rules! n17_source_trace {
+    ($($arg:tt)*) => {
+        #[cfg(debug_assertions)]
+        if std::env::var("TCL_LSP_TRACE_N17_FOLD").as_deref() == Ok("first-gate-v1") {
+            eprintln!("N17_SOURCE {}", format_args!($($arg)*));
+        }
+    };
+}
+
 pub(crate) enum SourceStructuredInvocation {
     Logical(Box<LogicalStructuredInvocation>),
     Hosted(Box<HostedStructuredInvocation>),
@@ -133,17 +142,33 @@ pub(crate) fn original_native_source_structured_invocation(
     context: InvocationMetadataContext<'_>,
     tokens: &CommandTokens,
 ) -> Option<SourceStructuredInvocation> {
-    let input = context.source_analysis_input()?;
+    n17_source_trace!(
+        "native-structure entry span={:?}",
+        tokens.words().first().map(|word| word.source().span)
+    );
+    let input = context.source_analysis_input().or_else(|| {
+        n17_source_trace!("decline=native-structure-input");
+        None
+    })?;
     if input.has_logical_source_name_context()
         || input.has_hosted_source_name_context()
         || !context.matches_registry(registry)
     {
+        n17_source_trace!("decline=native-structure-context");
         return None;
     }
     let words = tokens
         .source_binding
-        .as_ref()?
-        .original_native_source_words(tokens, input, registry)?;
+        .as_ref()
+        .or_else(|| {
+            n17_source_trace!("decline=native-structure-binding");
+            None
+        })?
+        .original_native_source_words(tokens, input, registry)
+        .or_else(|| {
+            n17_source_trace!("decline=native-structure-words");
+            None
+        })?;
     if !matches!(
         words.source(),
         super::source_structure::OriginalRegistrySource::SourceTransitions(_)
@@ -152,6 +177,7 @@ pub(crate) fn original_native_source_structured_invocation(
         .iter()
         .any(|word| matches!(word, crate::ir::WordExpr::Expand { .. }))
     {
+        n17_source_trace!("decline=native-structure-purpose-or-expansion");
         return None;
     }
     if words
@@ -160,12 +186,16 @@ pub(crate) fn original_native_source_structured_invocation(
         .enumerate()
         .any(|(written, origin)| *origin != super::InvocationWordOrigin::Written(written))
     {
+        n17_source_trace!("decline=native-structure-origin");
         return None;
     }
-    let (descriptor, hook, source_roles, case_bodies) =
-        words.with_source_schema(input.borrowed_context_registry(), |schema| {
+    let (descriptor, hook, source_roles, case_bodies) = words
+        .with_source_schema(input.borrowed_context_registry(), |schema| {
             use tcl_registry::hooks::LoweringHookId;
-            let hook = schema.facts().lowering_hook?;
+            let hook = schema.facts().lowering_hook.or_else(|| {
+                n17_source_trace!("decline=native-structure-hook");
+                None
+            })?;
             if !matches!(
                 hook,
                 LoweringHookId::Set
@@ -181,12 +211,21 @@ pub(crate) fn original_native_source_structured_invocation(
                     | LoweringHookId::Try
             ) || schema.facts().arity_accepts_frozen_arguments() != Some(true)
             {
+                n17_source_trace!("decline=native-structure-hook-or-arity hook={hook:?}");
                 return None;
             }
-            let SourceBodyLayout { roles, case_bodies } =
-                source_body_layout(&words, input, schema)?;
+            let SourceBodyLayout { roles, case_bodies } = source_body_layout(&words, input, schema)
+                .or_else(|| {
+                    n17_source_trace!("decline=native-structure-body-layout hook={hook:?}");
+                    None
+                })?;
             Some((schema.descriptor_key(), hook, roles, case_bodies))
+        })
+        .or_else(|| {
+            n17_source_trace!("decline=native-structure-schema");
+            None
         })??;
+    n17_source_trace!("native-structure accepted hook={hook:?}");
     Some(SourceStructuredInvocation::NativeSource(Box::new(
         HostedStructuredInvocation {
             words,

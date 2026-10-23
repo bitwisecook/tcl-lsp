@@ -9,6 +9,15 @@ use crate::signature_scan::scope::{
 };
 use std::sync::Arc;
 
+macro_rules! n17_source_trace {
+    ($($arg:tt)*) => {
+        #[cfg(debug_assertions)]
+        if std::env::var("TCL_LSP_TRACE_N17_FOLD").as_deref() == Ok("first-gate-v1") {
+            eprintln!("N17_SOURCE {}", format_args!($($arg)*));
+        }
+    };
+}
+
 #[derive(Debug, Clone)]
 pub(crate) struct OriginalNativeSourceDeclaration {
     analysis_owner: Arc<crate::command_binding::OriginalSourceAnalysisOwner>,
@@ -624,19 +633,39 @@ impl OriginalNativeSourceCommand {
         registry: &tcl_registry::CommandRegistry,
     ) -> Option<crate::registry_invocation::source_structure::OriginalRegistryWords> {
         if !self.matches_tokens(tokens, input, registry) {
+            n17_source_trace!("decline=native-words-token-owner");
             return None;
         }
-        let offset = self.original.first()?.span().start();
+        let offset = self
+            .original
+            .first()
+            .or_else(|| {
+                n17_source_trace!("decline=native-words-original-head");
+                None
+            })?
+            .span()
+            .start();
         if self.owner.tape.blocks_registry_source(offset) {
+            n17_source_trace!("decline=native-words-registry-barrier offset={offset}");
             return None;
         }
         let advice = if let Some(advice) = self.owner.tape.body_catalogue(offset) {
+            n17_source_trace!("native-words body-catalogue offset={offset}");
             advice
         } else {
             match self.owner.tape.lookup(offset) {
-                super::OriginalSourceTransitionAdviceLookup::Advice(advice) => advice,
-                super::OriginalSourceTransitionAdviceLookup::Refused
-                | super::OriginalSourceTransitionAdviceLookup::Unrepresented => return None,
+                super::OriginalSourceTransitionAdviceLookup::Advice(advice) => {
+                    n17_source_trace!("native-words ordinary-advice offset={offset}");
+                    advice
+                }
+                super::OriginalSourceTransitionAdviceLookup::Refused => {
+                    n17_source_trace!("decline=native-words-advice-refused offset={offset}");
+                    return None;
+                }
+                super::OriginalSourceTransitionAdviceLookup::Unrepresented => {
+                    n17_source_trace!("decline=native-words-advice-unrepresented offset={offset}");
+                    return None;
+                }
             }
         };
         if advice.original_words() != self.original.as_ref()
@@ -651,6 +680,7 @@ impl OriginalNativeSourceCommand {
                     )
             })
         {
+            n17_source_trace!("decline=native-words-original-body-or-target offset={offset}");
             return None;
         }
         crate::registry_invocation::source_structure::source_transition_words_from_advice(
@@ -665,6 +695,10 @@ impl OriginalNativeSourceCommand {
             input.borrowed_context_registry(),
             advice.clone(),
         )
+        .or_else(|| {
+            n17_source_trace!("decline=native-words-advice-projection offset={offset}");
+            None
+        })
     }
 }
 impl crate::command_binding::SourceInvocationBinding {

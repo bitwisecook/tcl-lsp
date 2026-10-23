@@ -112,13 +112,20 @@ pub(super) fn report(
             }
         }
         for statement in &body.body.statements {
-            let Statement::AssignValue { name, tokens, .. } = statement else {
-                continue;
+            let category = match statement {
+                Statement::AssignValue { .. } => "AssignValue",
+                Statement::AssignConst { .. } => "AssignConst",
+                Statement::AssignExpr { .. } => "AssignExpr",
+                Statement::Call { .. } => "Call",
+                Statement::NativeCall { .. } => "NativeCall",
+                Statement::Barrier { .. } => "Barrier",
+                _ => "other",
             };
-            if name != "known" {
-                continue;
-            }
-            let Some(tokens) = tokens.as_ref() else {
+            eprintln!(
+                "N17G2 actual-parent category={category} span={:?}",
+                statement.span()
+            );
+            let Some(tokens) = statement.tokens() else {
                 eprintln!("N17G2 first-public-decline=parent-retained-tokens");
                 continue;
             };
