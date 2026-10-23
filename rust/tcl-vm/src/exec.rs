@@ -655,7 +655,7 @@ impl Frame {
     fn jim_evaluation_script_location(
         has_jim_script: bool,
         source_location: Option<&tcl_runtime_api::script_source_location::ScriptSourceLocation>,
-    ) -> Option<tcl_runtime_api::jim_error_stack::JimScriptLocation> {
+    ) -> Option<tcl_runtime_api::jim_error_stack::JimScriptLocation<Value>> {
         (!has_jim_script).then(|| tcl_runtime_api::jim_error_stack::JimScriptLocation {
             file: Value::string(source_location.map_or("", |location| location.file.as_str())),
             line: source_location.map_or(1, |location| location.line),

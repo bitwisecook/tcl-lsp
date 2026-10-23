@@ -540,6 +540,12 @@ impl Vm {
         target: Token,
         reference: Option<Token>,
     ) -> Result<(), CmdError> {
+        let recipe = dialect
+            .native_namespace_name_protocol()
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "native namespace-name object issuer",
+            ))?
+            .recipe();
         let selected_target = QueryNamespace::capture(self, namespace)?;
         let target_lifecycle = target.lifecycle();
         let target_observation = target.clone();
