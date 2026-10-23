@@ -310,29 +310,7 @@ fn context_aware_completions(
         ));
     }
     if !analysis.allows_lexical_declaration_advice() {
-        // A scoped body's operations (`top ` → `set`/`get`/…) under its
-        // retained original body receipt; a scoped head is not a registered
-        // command, so the registry selection below cannot reach it.
-        if let Some(command) = command_context_on_line(source, line, character, analysis)
-            && command.word_index == 1
-            && let Some(cmd) = command.head_text()
-            && let Some(env) = scoped_env_at(
-                analysis,
-                source,
-                line,
-                character,
-                &tcl_lexer::LineIndex::new(source),
-            )
-            && let Some(scoped) = env.command(&cmd)
-            && !scoped.subcommands.is_empty()
-        {
-            return Some(scoped_op_completions(
-                scoped,
-                partial,
-                analysis.resolved_input.as_ref()?.lexer_config(),
-            ));
-        }
-        return original_context::items(source, cursor, line, character, analysis, partial);
+        return nonlexical_context_completions(source, line, character, cursor, analysis, partial);
     }
     let command = command_context_on_line(source, line, character, analysis)?;
     let cmd = command.head_text()?;
@@ -489,18 +467,10 @@ pub fn completions(
     let Some(prefix) = word_prefix_at_position(source, line, character, analysis) else {
         return Vec::new();
     };
-    if crate::expr_context::source_expr_arg_context_at(
-        source,
-        analysis,
-        line,
-        character,
-        &line_index,
-    ) {
-        return math_function_completions(
-            current.registry(),
-            current.profile(),
-            &expression_function_partial_at_position(source, line, character),
-        );
+    if let Some(items) =
+        expression_completion_items(source, (line, character, &line_index), analysis, &current)
+    {
+        return items;
     }
     let Some(partial) = tcl_syntax::word_rules::original_word_cursor_literal_prefix(&prefix) else {
         return Vec::new();
@@ -519,56 +489,28 @@ pub fn completions(
         return original_word_completion_edits(source, line, &prefix, items);
     }
     if prefix.word_index() != 0 {
-        return original_word_completion_edits(
+        return noncommand_fuzzy_completion_items(
             source,
-            line,
+            (line, character, &line_index),
+            analysis,
+            registry,
+            profile,
             &prefix,
-            fuzzy_command_fallback(
-                source,
-                line,
-                character,
-                analysis,
-                registry,
-                profile,
-                &line_index,
-            ),
         );
     }
 
     // Definition bodies and document grammars have a closed member vocabulary;
     // the selected Registry owns both nesting and the permitted heads.
-    if let Some(registry) = registry {
-        let vocabulary = definition_grammar_at_position(
-            source,
-            line,
-            character,
-            &line_index,
-            analysis,
-            registry,
-        );
-        if crate::source_structure::SourceDefinitionGrammar::unavailable(&vocabulary).is_some() {
-            return Vec::new();
-        }
-        // A standalone root authoring projection may retain unavailable child
-        // traversal. It is not a selected nested body or an edit vocabulary.
-        if let Some(grammar) = crate::source_structure::SourceDefinitionGrammar::for_authoring(
-            &vocabulary,
-            source,
-            analysis,
-        ) {
-            return original_word_completion_edits(
-                source,
-                line,
-                &prefix,
-                grammar_member_completions(
-                    grammar,
-                    &partial,
-                    registry,
-                    current.config(),
-                    current.context().context(),
-                ),
-            );
-        }
+    if let Some(items) = definition_grammar_completion_items(
+        source,
+        (line, character, &line_index),
+        analysis,
+        registry,
+        &current,
+        &partial,
+        &prefix,
+    ) {
+        return items;
     }
 
     let usage = document_usage_counts(analysis);
@@ -576,33 +518,26 @@ pub fn completions(
     // The retained Registry selects the builtin advice, but a caller that
     // supplies no registry has asked for document symbols only; the builtin
     // list is never widened beyond what the caller opted into.
-    if let Some(registry) = registry.filter(|_| caller_registry.is_some()) {
-        // Tk commands are dialect-gated to Tcl/`tk` already, but they are also
-        // offered as package advice from ambient placement — the `tk` dialect (a
-        // `wish` document) or a `package require Tk` in this file.  Without
-        // that, a plain `.tcl` script must not be offered `button`/`pack`/… .
-        // Both halves are placement facts — the
-        // environment ships Tk ambient (`wish`), or this document required
-        // it. No `SpecSurface` bit and no environment *name* is consulted.
-        let tk_advice =
-            crate::document_floor::DocumentFloor::new(analysis, profile).advises_package("Tk");
-        let oo_frame = oo_frame_at(analysis, source, line, character, &line_index);
-        items.extend(builtin_completions(
-            registry, profile, &partial, &usage, tk_advice, analysis, oo_frame,
-        ));
-    }
+    extend_builtin_completion_items(
+        analysis,
+        registry.filter(|_| caller_registry.is_some()),
+        profile,
+        (source, line, character, &line_index),
+        &partial,
+        &usage,
+        &mut items,
+    );
     // Inside a scoped command environment (a `report::defstyle` style script),
     // offer its command heads (`top`, `data`, `columns`, …) alongside the
     // ordinary command/proc set — a style body uses both scoped and core
     // commands.  Deduped by label so a scoped name never doubles a core one.
-    if let Some(env) = scoped_env_at(analysis, source, line, character, &line_index) {
-        let present: FxHashSet<String> = items.iter().map(|i| i.label.clone()).collect();
-        for item in scoped_command_completions(env, &partial, current.config()) {
-            if !present.contains(&item.label) {
-                items.push(item);
-            }
-        }
-    }
+    extend_scoped_completion_items(
+        analysis,
+        (source, line, character, &line_index),
+        &partial,
+        &current,
+        &mut items,
+    );
     if let Some(index) = workspace {
         items.extend(original_workspace::items(
             source, cursor, analysis, index, &partial,
@@ -617,60 +552,14 @@ pub fn completions(
     // filter means they only surface once the user types `tcl-…`.
     let variable_references = original_variables::source_references(source, analysis, cursor)
         .unwrap_or_else(|| {
-            let image = tcl_lexer::SourceImage::document(source);
-            let Some(advice) =
-                analysis.logical_variable_scope_advice(&image, current.config(), cursor)
-            else {
-                return Vec::new();
-            };
-            let qualify_globals = crate::definition::global_vars_needing_qualification(&advice);
-            let mut candidates = Vec::new();
-            push_local_var_items(
-                &mut candidates,
-                visible_variable_names(&advice, ""),
-                qualify_globals.as_ref(),
-                VarEdit {
-                    start: None,
-                    end: 0,
-                    has_open_brace: false,
-                    config: current.config(),
-                },
-            );
-            candidates
-                .into_iter()
-                .map(|item| item.insert_text)
-                .collect()
+            fallback_completion_variable_references(source, analysis, cursor, &current)
         });
     let snippet_partial = snippet_partial_at_position(source, line, character);
     // `current_event` / `file_events` drive the iRules event templates'
     // top-level guard and duplicate-event decline. Only the canonical iRules
     // profile carries those templates, including its accepted aliases.
-    let (current_event, file_events) = if profile.is_irules() {
-        let facts = crate::irules_context::EventHandlerFacts::from_analysis(source, analysis);
-        facts.map_or_else(
-            || (None, Vec::new()),
-            |facts| (facts.enclosing_event(line), facts.file_events()),
-        )
-    } else {
-        (None, Vec::new())
-    };
-    let at_top_level = if analysis.allows_lexical_declaration_advice() {
-        current_event.is_none()
-    } else {
-        analysis
-            .body_lexer_config
-            .and_then(|config| {
-                crate::source_structure::SourceStructure::capture(source, Some(analysis), config)
-            })
-            .and_then(|structure| {
-                structure
-                    .scripts
-                    .into_iter()
-                    .filter(|(span, _)| span.start() <= cursor && cursor <= span.end())
-                    .min_by_key(|(span, _)| span.end() - span.start())
-            })
-            .is_some_and(|(_, depth)| depth == 0)
-    };
+    let (current_event, file_events) = completion_event_names(source, line, analysis, profile);
+    let at_top_level = completion_is_top_level(source, analysis, cursor, &current_event);
     items.extend(crate::snippets::snippet_completions(
         &crate::snippets::SnippetContext {
             profile,
@@ -682,17 +571,13 @@ pub fn completions(
         },
     ));
     // Preserve prefix matches before considering response-wide fuzzy candidates.
-    if items.is_empty() {
-        items = fuzzy_command_fallback(
-            source,
-            line,
-            character,
-            analysis,
-            registry,
-            profile,
-            &line_index,
-        );
-    }
+    fill_empty_completion_items(
+        &mut items,
+        (source, line, character, &line_index),
+        analysis,
+        registry,
+        profile,
+    );
     original_word_completion_edits(source, line, &prefix, items)
 }
 
@@ -1343,48 +1228,7 @@ fn original_method_candidate_items_with_own_at(
         tcl_syntax::naming::NamePolicyProtocol,
     )>::new();
     let mut items = Vec::new();
-    for candidate in own {
-        let input = &candidate.input;
-        // A private own name blocks the identical class candidate, even when
-        // its source reporting label or insertion spelling collides.
-        names.push((
-            tcl_core_types::NameBytes::from(input.bytes()),
-            input.policy(),
-        ));
-        if !candidate.exported
-            || !candidate
-                .metadata
-                .name_purpose()
-                .admits(input.policy().recipe(), input.bytes())
-        {
-            continue;
-        }
-        let declaration = candidate.metadata.declaration().original_word();
-        let Some(spelling) = tcl_syntax::backslash::native_literal_source_word(
-            input.bytes(),
-            declaration.image().channel(),
-            declaration.config(),
-            input.policy().string_protocol(),
-        ) else {
-            continue;
-        };
-        let label =
-            std::str::from_utf8(input.bytes()).map_or_else(|_| spelling.clone(), str::to_owned);
-        if !label.starts_with(partial) && !spelling.starts_with(partial) {
-            continue;
-        }
-        if let Some(item) = original_method_candidate_item(
-            analysis,
-            input.bytes(),
-            input.policy(),
-            label,
-            spelling,
-            edit_context,
-            "method — per-object declaration candidate",
-        ) {
-            items.push(item);
-        }
-    }
+    extend_original_own_method_items(analysis, partial, edit_context, own, &mut names, &mut items);
     for provider in providers {
         for method in provider
             .metadata()
@@ -1436,45 +1280,15 @@ fn original_method_candidate_items_with_own_at(
             names.push(key);
             items.push(item);
         }
-        if side == MemberSide::Instance
-            && let Some(properties) = provider.metadata().original_properties.properties(side)
-        {
-            for property in properties {
-                let key = property.declaration().name_input();
-                for name in property.accessor_methods() {
-                    // This is selected Registry-authored metadata, separate
-                    // from the property's counted name and native table state.
-                    let identity = (
-                        tcl_core_types::NameBytes::from(name.as_bytes()),
-                        key.policy(),
-                    );
-                    if names.contains(&identity) || !name.starts_with(partial) {
-                        continue;
-                    }
-                    let Some(spelling) = tcl_syntax::backslash::native_literal_source_word(
-                        name.as_bytes(),
-                        key.source_image().channel(),
-                        key.lexer_config(),
-                        key.policy().string_protocol(),
-                    ) else {
-                        continue;
-                    };
-                    let Some(item) = original_method_candidate_item(
-                        analysis,
-                        name.as_bytes(),
-                        key.policy(),
-                        (*name).to_owned(),
-                        spelling,
-                        edit_context,
-                        "method — property declaration candidate",
-                    ) else {
-                        continue;
-                    };
-                    names.push(identity);
-                    items.push(item);
-                }
-            }
-        }
+        extend_original_property_method_items(
+            analysis,
+            provider,
+            side,
+            partial,
+            edit_context,
+            &mut names,
+            &mut items,
+        );
     }
     items.sort_by(|left, right| left.label.cmp(&right.label));
     items
@@ -1652,24 +1466,7 @@ fn method_items(
             });
         }
     }
-    if bucket == MethodBucket::Instance {
-        for item in generated_property_method_items(analysis, registry, class_q) {
-            if seen.insert(item.label.clone()) {
-                items.push(item);
-            }
-        }
-    }
-    // The universal object method (present on every instance, never on a
-    // class command).
-    if bucket == MethodBucket::Instance && seen.insert("destroy".to_string()) {
-        items.push(CompletionItem {
-            label: "destroy".to_string(),
-            insert_text: "destroy".to_string(),
-            kind: CompletionKind::Function,
-            detail: Some("method — oo::object builtin".to_string()),
-            ..CompletionItem::default()
-        });
-    }
+    extend_generated_method_items(analysis, registry, class_q, bucket, &mut seen, &mut items);
     items.sort_by(|a, b| a.label.cmp(&b.label));
     Some(items)
 }
@@ -2587,118 +2384,9 @@ fn proc_completions(
     }
     let mut items = Vec::new();
     for (declaration, slot, policy) in names {
-        let proc_def = declaration.metadata();
-        let original = declaration.name_input();
-        let Some(spelling) = tcl_syntax::naming::native_command_source_word(
-            policy.recipe(),
-            slot,
-            original.source_image().channel(),
-            original.lexer_config(),
-        ) else {
-            continue;
-        };
-        let label =
-            if slot.simple == declaration.name().slot().simple && original.display().is_some() {
-                proc_def.name.clone()
-            } else {
-                slot.simple
-                    .try_utf8()
-                    .map_or_else(|_| spelling.clone(), str::to_owned)
-            };
-        let report =
-            String::from_utf8(tcl_syntax::naming::native_command_full_name_bytes(slot)).ok();
-        if !label.starts_with(partial)
-            && !report
-                .as_ref()
-                .is_some_and(|name| name.starts_with(partial))
-            && !spelling.starts_with(partial)
-        {
-            continue;
-        }
-        let count = usage
-            .get(&label)
-            .copied()
-            .max(report.as_ref().and_then(|name| usage.get(name)).copied())
-            .unwrap_or(0);
-        items.push(CompletionItem {
-            label: label.clone(),
-            insert_text: spelling,
-            kind: CompletionKind::Function,
-            detail: Some(proc_signature_str(proc_def)),
-            sort_text: Some(proc_sort_text(&label, count)),
-            is_snippet: false,
-            filter_text: None,
-            text_edit: None,
-            documentation: None,
-        });
+        push_native_proc_candidate(declaration, slot, policy, partial, usage, &mut items);
     }
-    if let Some(config) = analysis.body_lexer_config {
-        for declaration in analysis.original_vendor_procedure_declarations() {
-            let input = declaration.name_input();
-            let Some(spelling) =
-                crate::vendor_declaration::source_word(input, declaration.purpose(), config)
-            else {
-                continue;
-            };
-            let Some(label) = crate::vendor_declaration::source_label(input, declaration.purpose())
-            else {
-                continue;
-            };
-            if !label.starts_with(partial) && !spelling.starts_with(partial) {
-                continue;
-            }
-            let count = usage.get(&label).copied().unwrap_or(0);
-            items.push(CompletionItem {
-                label: label.clone(),
-                insert_text: spelling,
-                kind: CompletionKind::Function,
-                detail: Some(format!(
-                    "Source declaration: {}",
-                    proc_signature_str(declaration.metadata())
-                )),
-                sort_text: Some(proc_sort_text(&label, count)),
-                is_snippet: false,
-                filter_text: None,
-                text_edit: None,
-                documentation: None,
-            });
-        }
-    }
-    if analysis.allows_lexical_declaration_advice()
-        && let Some(config) = analysis.body_lexer_config
-    {
-        // Original Logical headers supply insertion data without Native publications.
-        for proc_def in analysis
-            .all_procs
-            .values()
-            .filter(|proc_def| proc_def.source_name.is_none())
-        {
-            let Some(declaration) = analysis.logical_source_procedure_declaration(proc_def) else {
-                continue;
-            };
-            let Some(name) = declaration.name() else {
-                continue;
-            };
-            let Some(spelling) = declaration.source_word(config) else {
-                continue;
-            };
-            if !name.starts_with(partial) && !spelling.starts_with(partial) {
-                continue;
-            }
-            let count = usage.get(name).copied().unwrap_or(0);
-            items.push(CompletionItem {
-                label: name.to_owned(),
-                insert_text: spelling,
-                kind: CompletionKind::Function,
-                detail: Some(proc_signature_str(declaration.metadata())),
-                sort_text: Some(proc_sort_text(name, count)),
-                is_snippet: false,
-                filter_text: None,
-                text_edit: None,
-                documentation: None,
-            });
-        }
-    }
+    extend_authored_proc_items(analysis, partial, usage, &mut items);
     items.sort_unstable_by(|left, right| {
         left.label
             .cmp(&right.label)
@@ -3138,6 +2826,519 @@ mod original_command_cursor_tests {
                 analysis.resolved_profile().unwrap()
             )
             .is_empty()
+        );
+    }
+}
+
+fn nonlexical_context_completions(
+    source: &str,
+    line: u32,
+    character: u32,
+    cursor: u32,
+    analysis: &AnalysisResult,
+    partial: &str,
+) -> Option<Vec<CompletionItem>> {
+    // A scoped body's operations (`top ` → `set`/`get`/…) under its
+    // retained original body receipt; a scoped head is not a registered
+    // command, so the registry selection below cannot reach it.
+    if let Some(command) = command_context_on_line(source, line, character, analysis)
+        && command.word_index == 1
+        && let Some(cmd) = command.head_text()
+        && let Some(env) = scoped_env_at(
+            analysis,
+            source,
+            line,
+            character,
+            &tcl_lexer::LineIndex::new(source),
+        )
+        && let Some(scoped) = env.command(&cmd)
+        && !scoped.subcommands.is_empty()
+    {
+        return Some(scoped_op_completions(
+            scoped,
+            partial,
+            analysis.resolved_input.as_ref()?.lexer_config(),
+        ));
+    }
+    original_context::items(source, cursor, line, character, analysis, partial)
+}
+
+fn extend_original_own_method_items(
+    analysis: &AnalysisResult,
+    partial: &str,
+    edit_context: OriginalMethodEditContext<'_, '_>,
+    own: &[crate::original_oo::OwnObjectMethodCandidate<'_>],
+    names: &mut Vec<(
+        tcl_core_types::NameBytes,
+        tcl_syntax::naming::NamePolicyProtocol,
+    )>,
+    items: &mut Vec<CompletionItem>,
+) {
+    for candidate in own {
+        let input = &candidate.input;
+        // A private own name blocks the identical class candidate, even when
+        // its source reporting label or insertion spelling collides.
+        names.push((
+            tcl_core_types::NameBytes::from(input.bytes()),
+            input.policy(),
+        ));
+        if !candidate.exported
+            || !candidate
+                .metadata
+                .name_purpose()
+                .admits(input.policy().recipe(), input.bytes())
+        {
+            continue;
+        }
+        let declaration = candidate.metadata.declaration().original_word();
+        let Some(spelling) = tcl_syntax::backslash::native_literal_source_word(
+            input.bytes(),
+            declaration.image().channel(),
+            declaration.config(),
+            input.policy().string_protocol(),
+        ) else {
+            continue;
+        };
+        let label =
+            std::str::from_utf8(input.bytes()).map_or_else(|_| spelling.clone(), str::to_owned);
+        if !label.starts_with(partial) && !spelling.starts_with(partial) {
+            continue;
+        }
+        if let Some(item) = original_method_candidate_item(
+            analysis,
+            input.bytes(),
+            input.policy(),
+            label,
+            spelling,
+            edit_context,
+            "method — per-object declaration candidate",
+        ) {
+            items.push(item);
+        }
+    }
+}
+
+fn extend_generated_method_items(
+    analysis: &AnalysisResult,
+    registry: Option<&CommandRegistry>,
+    class_q: &str,
+    bucket: crate::definition::MethodBucket,
+    seen: &mut FxHashSet<String>,
+    items: &mut Vec<CompletionItem>,
+) {
+    use crate::definition::MethodBucket;
+    if bucket == MethodBucket::Instance {
+        for item in generated_property_method_items(analysis, registry, class_q) {
+            if seen.insert(item.label.clone()) {
+                items.push(item);
+            }
+        }
+    }
+    // The universal object method (present on every instance, never on a
+    // class command).
+    if bucket == MethodBucket::Instance && seen.insert("destroy".to_string()) {
+        items.push(CompletionItem {
+            label: "destroy".to_string(),
+            insert_text: "destroy".to_string(),
+            kind: CompletionKind::Function,
+            detail: Some("method — oo::object builtin".to_string()),
+            ..CompletionItem::default()
+        });
+    }
+}
+
+fn extend_authored_proc_items(
+    analysis: &AnalysisResult,
+    partial: &str,
+    usage: &FxHashMap<String, usize>,
+    items: &mut Vec<CompletionItem>,
+) {
+    if let Some(config) = analysis.body_lexer_config {
+        for declaration in analysis.original_vendor_procedure_declarations() {
+            let input = declaration.name_input();
+            let Some(spelling) =
+                crate::vendor_declaration::source_word(input, declaration.purpose(), config)
+            else {
+                continue;
+            };
+            let Some(label) = crate::vendor_declaration::source_label(input, declaration.purpose())
+            else {
+                continue;
+            };
+            if !label.starts_with(partial) && !spelling.starts_with(partial) {
+                continue;
+            }
+            let count = usage.get(&label).copied().unwrap_or(0);
+            items.push(CompletionItem {
+                label: label.clone(),
+                insert_text: spelling,
+                kind: CompletionKind::Function,
+                detail: Some(format!(
+                    "Source declaration: {}",
+                    proc_signature_str(declaration.metadata())
+                )),
+                sort_text: Some(proc_sort_text(&label, count)),
+                is_snippet: false,
+                filter_text: None,
+                text_edit: None,
+                documentation: None,
+            });
+        }
+    }
+    if analysis.allows_lexical_declaration_advice()
+        && let Some(config) = analysis.body_lexer_config
+    {
+        // Original Logical headers supply insertion data without Native publications.
+        for proc_def in analysis
+            .all_procs
+            .values()
+            .filter(|proc_def| proc_def.source_name.is_none())
+        {
+            let Some(declaration) = analysis.logical_source_procedure_declaration(proc_def) else {
+                continue;
+            };
+            let Some(name) = declaration.name() else {
+                continue;
+            };
+            let Some(spelling) = declaration.source_word(config) else {
+                continue;
+            };
+            if !name.starts_with(partial) && !spelling.starts_with(partial) {
+                continue;
+            }
+            let count = usage.get(name).copied().unwrap_or(0);
+            items.push(CompletionItem {
+                label: name.to_owned(),
+                insert_text: spelling,
+                kind: CompletionKind::Function,
+                detail: Some(proc_signature_str(declaration.metadata())),
+                sort_text: Some(proc_sort_text(name, count)),
+                is_snippet: false,
+                filter_text: None,
+                text_edit: None,
+                documentation: None,
+            });
+        }
+    }
+}
+
+fn extend_builtin_completion_items(
+    analysis: &AnalysisResult,
+    registry: Option<&CommandRegistry>,
+    profile: &'static tcl_dialect::DialectProfile,
+    position: (&str, u32, u32, &tcl_lexer::LineIndex),
+    partial: &str,
+    usage: &FxHashMap<String, usize>,
+    items: &mut Vec<CompletionItem>,
+) {
+    let (source, line, character, line_index) = position;
+    if let Some(registry) = registry {
+        // Tk commands are dialect-gated to Tcl/`tk` already, but they are also
+        // offered as package advice from ambient placement — the `tk` dialect (a
+        // `wish` document) or a `package require Tk` in this file.  Without
+        // that, a plain `.tcl` script must not be offered `button`/`pack`/… .
+        // Both halves are placement facts — the
+        // environment ships Tk ambient (`wish`), or this document required
+        // it. No `SpecSurface` bit and no environment *name* is consulted.
+        let tk_advice =
+            crate::document_floor::DocumentFloor::new(analysis, profile).advises_package("Tk");
+        let oo_frame = oo_frame_at(analysis, source, line, character, line_index);
+        items.extend(builtin_completions(
+            registry, profile, partial, usage, tk_advice, analysis, oo_frame,
+        ));
+    }
+}
+
+fn extend_scoped_completion_items(
+    analysis: &AnalysisResult,
+    position: (&str, u32, u32, &tcl_lexer::LineIndex),
+    partial: &str,
+    current: &crate::original_context::CurrentSourceContext<'_>,
+    items: &mut Vec<CompletionItem>,
+) {
+    let (source, line, character, line_index) = position;
+    if let Some(env) = scoped_env_at(analysis, source, line, character, line_index) {
+        let present: FxHashSet<String> = items.iter().map(|i| i.label.clone()).collect();
+        for item in scoped_command_completions(env, partial, current.config()) {
+            if !present.contains(&item.label) {
+                items.push(item);
+            }
+        }
+    }
+}
+
+fn fallback_completion_variable_references(
+    source: &str,
+    analysis: &AnalysisResult,
+    cursor: u32,
+    current: &crate::original_context::CurrentSourceContext<'_>,
+) -> Vec<String> {
+    let image = tcl_lexer::SourceImage::document(source);
+    let Some(advice) = analysis.logical_variable_scope_advice(&image, current.config(), cursor)
+    else {
+        return Vec::new();
+    };
+    let qualify_globals = crate::definition::global_vars_needing_qualification(&advice);
+    let mut candidates = Vec::new();
+    push_local_var_items(
+        &mut candidates,
+        visible_variable_names(&advice, ""),
+        qualify_globals.as_ref(),
+        VarEdit {
+            start: None,
+            end: 0,
+            has_open_brace: false,
+            config: current.config(),
+        },
+    );
+    candidates
+        .into_iter()
+        .map(|item| item.insert_text)
+        .collect()
+}
+
+fn completion_event_names(
+    source: &str,
+    line: u32,
+    analysis: &AnalysisResult,
+    profile: &'static tcl_dialect::DialectProfile,
+) -> (Option<String>, Vec<String>) {
+    if profile.is_irules() {
+        let facts = crate::irules_context::EventHandlerFacts::from_analysis(source, analysis);
+        facts.map_or_else(
+            || (None, Vec::new()),
+            |facts| (facts.enclosing_event(line), facts.file_events()),
+        )
+    } else {
+        (None, Vec::new())
+    }
+}
+
+fn completion_is_top_level(
+    source: &str,
+    analysis: &AnalysisResult,
+    cursor: u32,
+    current_event: &Option<String>,
+) -> bool {
+    if analysis.allows_lexical_declaration_advice() {
+        current_event.is_none()
+    } else {
+        analysis
+            .body_lexer_config
+            .and_then(|config| {
+                crate::source_structure::SourceStructure::capture(source, Some(analysis), config)
+            })
+            .and_then(|structure| {
+                structure
+                    .scripts
+                    .into_iter()
+                    .filter(|(span, _)| span.start() <= cursor && cursor <= span.end())
+                    .min_by_key(|(span, _)| span.end() - span.start())
+            })
+            .is_some_and(|(_, depth)| depth == 0)
+    }
+}
+
+fn definition_grammar_completion_items(
+    source: &str,
+    position: (u32, u32, &tcl_lexer::LineIndex),
+    analysis: &AnalysisResult,
+    registry: Option<&CommandRegistry>,
+    current: &crate::original_context::CurrentSourceContext<'_>,
+    partial: &str,
+    prefix: &tcl_lexer::word_parts::WordCursorPrefix,
+) -> Option<Vec<CompletionItem>> {
+    let (line, character, line_index) = position;
+    if let Some(registry) = registry {
+        let vocabulary =
+            definition_grammar_at_position(source, line, character, line_index, analysis, registry);
+        if crate::source_structure::SourceDefinitionGrammar::unavailable(&vocabulary).is_some() {
+            return Some(Vec::new());
+        }
+        // A standalone root authoring projection may retain unavailable child
+        // traversal. It is not a selected nested body or an edit vocabulary.
+        if let Some(grammar) = crate::source_structure::SourceDefinitionGrammar::for_authoring(
+            &vocabulary,
+            source,
+            analysis,
+        ) {
+            return Some(original_word_completion_edits(
+                source,
+                line,
+                prefix,
+                grammar_member_completions(
+                    grammar,
+                    partial,
+                    registry,
+                    current.config(),
+                    current.context().context(),
+                ),
+            ));
+        }
+    }
+
+    None
+}
+
+fn expression_completion_items(
+    source: &str,
+    position: (u32, u32, &tcl_lexer::LineIndex),
+    analysis: &AnalysisResult,
+    current: &crate::original_context::CurrentSourceContext<'_>,
+) -> Option<Vec<CompletionItem>> {
+    let (line, character, line_index) = position;
+    if crate::expr_context::source_expr_arg_context_at(
+        source, analysis, line, character, line_index,
+    ) {
+        return Some(math_function_completions(
+            current.registry(),
+            current.profile(),
+            &expression_function_partial_at_position(source, line, character),
+        ));
+    }
+    None
+}
+
+fn noncommand_fuzzy_completion_items(
+    source: &str,
+    position: (u32, u32, &tcl_lexer::LineIndex),
+    analysis: &AnalysisResult,
+    registry: Option<&CommandRegistry>,
+    profile: &'static tcl_dialect::DialectProfile,
+    prefix: &tcl_lexer::word_parts::WordCursorPrefix,
+) -> Vec<CompletionItem> {
+    let (line, character, line_index) = position;
+    original_word_completion_edits(
+        source,
+        line,
+        prefix,
+        fuzzy_command_fallback(
+            source, line, character, analysis, registry, profile, line_index,
+        ),
+    )
+}
+
+fn extend_original_property_method_items(
+    analysis: &AnalysisResult,
+    provider: &tcl_compiler::signature_scan::original_name::SourceDeclarationMetadata<
+        tcl_compiler::analyser::ClassDef,
+    >,
+    side: tcl_compiler::analyser::types::MemberSide,
+    partial: &str,
+    edit_context: OriginalMethodEditContext<'_, '_>,
+    names: &mut Vec<(
+        tcl_core_types::NameBytes,
+        tcl_syntax::naming::NamePolicyProtocol,
+    )>,
+    items: &mut Vec<CompletionItem>,
+) {
+    use tcl_compiler::analyser::types::MemberSide;
+    if side == MemberSide::Instance
+        && let Some(properties) = provider.metadata().original_properties.properties(side)
+    {
+        for property in properties {
+            let key = property.declaration().name_input();
+            for name in property.accessor_methods() {
+                // This is selected Registry-authored metadata, separate
+                // from the property's counted name and native table state.
+                let identity = (
+                    tcl_core_types::NameBytes::from(name.as_bytes()),
+                    key.policy(),
+                );
+                if names.contains(&identity) || !name.starts_with(partial) {
+                    continue;
+                }
+                let Some(spelling) = tcl_syntax::backslash::native_literal_source_word(
+                    name.as_bytes(),
+                    key.source_image().channel(),
+                    key.lexer_config(),
+                    key.policy().string_protocol(),
+                ) else {
+                    continue;
+                };
+                let Some(item) = original_method_candidate_item(
+                    analysis,
+                    name.as_bytes(),
+                    key.policy(),
+                    (*name).to_owned(),
+                    spelling,
+                    edit_context,
+                    "method — property declaration candidate",
+                ) else {
+                    continue;
+                };
+                names.push(identity);
+                items.push(item);
+            }
+        }
+    }
+}
+
+fn push_native_proc_candidate(
+    declaration: &tcl_compiler::signature_scan::original_name::SourceDeclarationMetadata<
+        tcl_compiler::analyser::ProcDef,
+    >,
+    slot: &tcl_core_types::ByteCommandSlot,
+    policy: tcl_syntax::naming::NamePolicyProtocol,
+    partial: &str,
+    usage: &FxHashMap<String, usize>,
+    items: &mut Vec<CompletionItem>,
+) {
+    let proc_def = declaration.metadata();
+    let original = declaration.name_input();
+    let Some(spelling) = tcl_syntax::naming::native_command_source_word(
+        policy.recipe(),
+        slot,
+        original.source_image().channel(),
+        original.lexer_config(),
+    ) else {
+        return;
+    };
+    let label = if slot.simple == declaration.name().slot().simple && original.display().is_some() {
+        proc_def.name.clone()
+    } else {
+        slot.simple
+            .try_utf8()
+            .map_or_else(|_| spelling.clone(), str::to_owned)
+    };
+    let report = String::from_utf8(tcl_syntax::naming::native_command_full_name_bytes(slot)).ok();
+    if !label.starts_with(partial)
+        && !report
+            .as_ref()
+            .is_some_and(|name| name.starts_with(partial))
+        && !spelling.starts_with(partial)
+    {
+        return;
+    }
+    let count = usage
+        .get(&label)
+        .copied()
+        .max(report.as_ref().and_then(|name| usage.get(name)).copied())
+        .unwrap_or(0);
+    items.push(CompletionItem {
+        label: label.clone(),
+        insert_text: spelling,
+        kind: CompletionKind::Function,
+        detail: Some(proc_signature_str(proc_def)),
+        sort_text: Some(proc_sort_text(&label, count)),
+        is_snippet: false,
+        filter_text: None,
+        text_edit: None,
+        documentation: None,
+    });
+}
+
+fn fill_empty_completion_items(
+    items: &mut Vec<CompletionItem>,
+    position: (&str, u32, u32, &tcl_lexer::LineIndex),
+    analysis: &AnalysisResult,
+    registry: Option<&CommandRegistry>,
+    profile: &'static tcl_dialect::DialectProfile,
+) {
+    let (source, line, character, line_index) = position;
+    if items.is_empty() {
+        *items = fuzzy_command_fallback(
+            source, line, character, analysis, registry, profile, line_index,
         );
     }
 }
