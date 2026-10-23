@@ -76,6 +76,8 @@ use super::helpers::spans::{
 use super::{Optimisation, PassContext};
 use tcl_syntax::naming::whole_scalar_variable_reference_name;
 
+mod declared_body;
+
 /// Run the propagation pass across every function.
 ///
 /// Emits one `O100` per single-token `$var` argument that SCCP
@@ -134,6 +136,7 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
         };
         run_function(ctx, cu, fu, &proc.body, &namespace, &no_extra_escaping);
     }
+    declared_body::run(ctx, cu);
     // Load-forwarding runs a separate per-function pass on top
     // of the SCCP-based substitutions. It consults the def-use
     // chains directly and fires independently of the SCCP
