@@ -29,6 +29,7 @@ use tcl_core_types::VarId;
 use tcl_runtime_api::NativeExecutionError;
 use tcl_syntax::value::ValueError;
 
+#[derive(Clone, Copy)]
 pub(super) struct ElementRetirementPolicy {
     pub(super) preserve: bool,
     pub(super) table_holds: bool,
