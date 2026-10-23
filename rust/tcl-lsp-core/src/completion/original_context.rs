@@ -196,67 +196,7 @@ fn option_values(
 fn select(source: &str, analysis: &AnalysisResult, cursor: u32) -> Option<SelectedContext> {
     let current = crate::original_context::CurrentSourceContext::capture(source, analysis)?;
     if analysis.has_original_vendor_source_names() {
-        let (metadata, _) = crate::original_invocation::selected_vendor_registry_words_at(
-            source, analysis, cursor,
-        )?;
-        let shape = metadata.shape();
-        if shape
-            .original_words()
-            .iter()
-            .any(|word| word.group().expand)
-        {
-            return None;
-        }
-        let active = shape
-            .original_words()
-            .iter()
-            .enumerate()
-            .skip(1)
-            .find(|(_, word)| word.span().start() <= cursor && cursor <= word.span().end())
-            .map(|(index, _)| index - 1)
-            .or_else(|| {
-                crate::original_oo::instance_completion::completion_gap(
-                    source,
-                    shape.original_words().last()?.span().end(),
-                    cursor,
-                    current.config(),
-                )
-                .then_some(shape.original_words().len().checked_sub(1)?)
-            })?;
-        let arguments = shape
-            .original_words()
-            .iter()
-            .skip(1)
-            .map(|word| {
-                tcl_syntax::naming::vendor_source_literal_units(
-                    shape.original_head().policy(),
-                    word,
-                    tcl_syntax::naming::VendorSourceNamePurpose::SourceName,
-                )
-                .and_then(|bytes| std::str::from_utf8(bytes).ok())
-                .map(str::to_owned)
-            })
-            .collect();
-        let options = shape
-            .source_completion_options(
-                current.registry(),
-                tcl_compiler::registry_invocation::InvocationMetadataContext::for_source_input(
-                    current.registry(),
-                    analysis.resolved_input.as_ref()?,
-                    current.config(),
-                    Some(current.profile()),
-                )?,
-            )
-            .unwrap_or_default();
-        return Some(SelectedContext {
-            options,
-            spec: shape
-                .context()
-                .resolve_spec(current.registry(), shape.command())?
-                .clone(),
-            arguments,
-            active,
-        });
+        return select_vendor_context(source, analysis, cursor, &current);
     }
     let commands = crate::original_invocation::registry_commands_in_source(source, analysis)?;
     let (command, words) = commands
@@ -316,6 +256,74 @@ fn select(source: &str, analysis: &AnalysisResult, cursor: u32) -> Option<Select
     Some(SelectedContext {
         spec,
         options,
+        arguments,
+        active,
+    })
+}
+
+fn select_vendor_context(
+    source: &str,
+    analysis: &AnalysisResult,
+    cursor: u32,
+    current: &crate::original_context::CurrentSourceContext<'_>,
+) -> Option<SelectedContext> {
+    let (metadata, _) =
+        crate::original_invocation::selected_vendor_registry_words_at(source, analysis, cursor)?;
+    let shape = metadata.shape();
+    if shape
+        .original_words()
+        .iter()
+        .any(|word| word.group().expand)
+    {
+        return None;
+    }
+    let active = shape
+        .original_words()
+        .iter()
+        .enumerate()
+        .skip(1)
+        .find(|(_, word)| word.span().start() <= cursor && cursor <= word.span().end())
+        .map(|(index, _)| index - 1)
+        .or_else(|| {
+            crate::original_oo::instance_completion::completion_gap(
+                source,
+                shape.original_words().last()?.span().end(),
+                cursor,
+                current.config(),
+            )
+            .then_some(shape.original_words().len().checked_sub(1)?)
+        })?;
+    let arguments = shape
+        .original_words()
+        .iter()
+        .skip(1)
+        .map(|word| {
+            tcl_syntax::naming::vendor_source_literal_units(
+                shape.original_head().policy(),
+                word,
+                tcl_syntax::naming::VendorSourceNamePurpose::SourceName,
+            )
+            .and_then(|bytes| std::str::from_utf8(bytes).ok())
+            .map(str::to_owned)
+        })
+        .collect();
+    let options = shape
+        .source_completion_options(
+            current.registry(),
+            tcl_compiler::registry_invocation::InvocationMetadataContext::for_source_input(
+                current.registry(),
+                analysis.resolved_input.as_ref()?,
+                current.config(),
+                Some(current.profile()),
+            )?,
+        )
+        .unwrap_or_default();
+    Some(SelectedContext {
+        options,
+        spec: shape
+            .context()
+            .resolve_spec(current.registry(), shape.command())?
+            .clone(),
         arguments,
         active,
     })
