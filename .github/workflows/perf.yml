@@ -538,7 +538,7 @@ jobs:
           test -z "$(git status --porcelain)"
           git rev-parse HEAD > "$OUT/source-commit.txt"
           git status --porcelain > "$OUT/git-before.txt"
-          git ls-files -z | sort -z | xargs -0 sha256sum > "$OUT/tracked-source-before.sha256"
+          python3 scripts/dev/tracked-source-snapshot.py record "$OUT/tracked-source-before.json"
           cargo --version > "$OUT/cargo-version.txt"
           rustc -vV > "$OUT/rustc-version.txt"
           cargo nextest --version > "$OUT/nextest-version.txt"
@@ -745,7 +745,7 @@ jobs:
           printf '%s\n' "$incomplete" > "$OUT/raw-capture-incomplete.txt"
           find "$TCL_TOMMATH_DIR" -type f -print0 | sort -z | xargs -0 sha256sum > "$OUT/tommath-after.sha256"
           cmp "$OUT/tommath-before.sha256" "$OUT/tommath-after.sha256"
-          sha256sum -c "$OUT/tracked-source-before.sha256" > "$OUT/source-after.txt"
+          python3 scripts/dev/tracked-source-snapshot.py verify "$OUT/tracked-source-before.json" > "$OUT/source-after.json"
           git status --porcelain > "$OUT/git-after.txt"
           test ! -s "$OUT/git-after.txt"
           if [[ "$incomplete" == 1 ]]; then
@@ -813,7 +813,7 @@ jobs:
           test -z "$(git status --porcelain)"
           git rev-parse HEAD > "$OUT/source-commit.txt"
           git status --porcelain > "$OUT/git-before.txt"
-          git ls-files -z | sort -z | xargs -0 sha256sum > "$OUT/tracked-source-before.sha256"
+          python3 scripts/dev/tracked-source-snapshot.py record "$OUT/tracked-source-before.json"
           cargo --version > "$OUT/cargo-version.txt"
           cargo clippy --version > "$OUT/clippy-version.txt"
           rustc -vV > "$OUT/rustc-version.txt"
@@ -923,7 +923,7 @@ jobs:
           result=$?
           set -e
           printf '%s\n' "$result" > "$OUT/capture-exit.txt"
-          sha256sum -c "$OUT/tracked-source-before.sha256" > "$OUT/source-after.txt"
+          python3 scripts/dev/tracked-source-snapshot.py verify "$OUT/tracked-source-before.json" > "$OUT/source-after.json"
           sha256sum -c "$OUT/tools.sha256" > "$OUT/tools-after.txt"
           git status --porcelain > "$OUT/git-after.txt"
           test ! -s "$OUT/git-after.txt"
