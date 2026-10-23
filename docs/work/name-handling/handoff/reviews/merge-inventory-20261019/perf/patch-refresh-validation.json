@@ -1,22 +1,46 @@
 {
-  "base": "39b392963c652b3bc0d8ca95e387b2b00a225b25",
-  "clean_patch_apply_byte_exact": true,
-  "files": [
-    "rust/tcl-lexer/src/lib.rs",
-    "rust/tcl-lexer/src/parse_cut.rs",
-    "rust/tcl-lexer/src/source_map.rs",
-    "rust/tcl-compiler/src/parsing/spectcl_source/original_word.rs",
-    "rust/tcl-compiler/src/command_binding/original_name_value.rs",
-    "rust/tcl-compiler/src/command_binding/formal_call_advice.rs",
-    "rust/tcl-compiler/src/command_binding/incomplete_body_metadata.rs",
-    "rust/tcl-compiler/src/realm.rs",
-    "rust/tcl-compiler/src/interprocedural.rs"
-  ],
-  "patch_sha256": {
-    "perf-owned.patch": "504770a4994b51d6be668e40ee34870225d07a2fe88a88445fa03b2b0d461cea",
-    "perf-realm-interprocedural.patch": "5fbc15406e90649d34ef49776516f2839f4b49147d43cc2e5c84579fb4d5ec21"
-  },
-  "status": "UNPROVEN on this base; no compilation or semantic result implied",
-  "frozen_proof_base": "e4a01bbe",
-  "frozen_patches": "evidence/latest-e4a01bbe/proof-patches/"
+  "base": "f149597fc926b82a69590e475d091527dd82173e",
+  "status": "applicability/format only; semantic proof not implied",
+  "sets": [
+    {
+      "patches": [
+        "perf-owned.patch",
+        "perf-realm-interprocedural.patch"
+      ],
+      "files": [
+        "rust/tcl-compiler/src/command_binding/formal_call_advice.rs",
+        "rust/tcl-compiler/src/command_binding/incomplete_body_metadata.rs",
+        "rust/tcl-compiler/src/command_binding/original_name_value.rs",
+        "rust/tcl-compiler/src/interprocedural.rs",
+        "rust/tcl-compiler/src/parsing/spectcl_source/original_word.rs",
+        "rust/tcl-compiler/src/realm.rs",
+        "rust/tcl-lexer/src/parse_cut.rs",
+        "rust/tcl-lexer/src/source_map.rs"
+      ],
+      "apply": "PASS; ordered clean application",
+      "snapshot_bytes": "exact",
+      "rustfmt": "PASS",
+      "sha256": {
+        "perf-owned.patch": "a837e74e2d25b6a4e7b6ddb0f004b453092ee0e7994409b96e4a6cbb30d4ef5a",
+        "perf-realm-interprocedural.patch": "9a7fd2f2d05896659f116830d1faeabacd8382dad3e163147810a2fab36fd1d3"
+      }
+    },
+    {
+      "patches": [
+        "perf-analyser-images.patch",
+        "perf-analyser-segments.patch"
+      ],
+      "files": [
+        "rust/tcl-compiler/src/analyser/commands.rs",
+        "rust/tcl-compiler/src/analyser/diagnostics/validity.rs"
+      ],
+      "apply": "PASS; ordered clean application",
+      "snapshot_bytes": "exact",
+      "rustfmt": "PASS",
+      "sha256": {
+        "perf-analyser-images.patch": "eae7338e1a2ca0cfa26c78f0d4db8fe406c180a2942bfd22298ef95473cc64bf",
+        "perf-analyser-segments.patch": "8fd57bd7b601f1b13d574577aae0d348836584e98bc90d280980e9ef2019b371"
+      }
+    }
+  ]
 }

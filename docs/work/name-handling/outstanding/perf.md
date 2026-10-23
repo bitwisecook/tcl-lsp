@@ -2,27 +2,42 @@
 
 Area: Analysis and SpecTcl pack-load performance.
 
-Last updated: 2026-10-22 21:00 UTC
+Last updated: 2026-10-23 10:43 UTC
 
 ## Resume
 
-**BLOCKED on compiler/source-report ownership. No production commit.**
-Latest checked source is 39b39296 in /workspace/tcl-lsp-current, branch work,
-shallow/sparse. Full batch with temporary switches is applied in nine Rust
-files. Current all-old/mixed controls are complete; exact outcomes are in
-perf/evidence/current-39b39296/summary.json. Both E003 and aliases still fail
-whole AnalysisResult equality with optimization disabled. Current diagnostics
-Eq differs for E003 despite matching Debug; aliases diagnostics Eq agrees.
-Fresh build rebuilt all 28 local artifacts, zero warnings; only third-party
-caches were reused. Do not mask/normalize owners, drop subjects, compare only
-Debug, retry until equal, weaken assertions or change budgets.
+**Fresh current-source validation RUNNING; no production commit.**
+Latest frozen proof source is f149597fc926b82a69590e475d091527dd82173e in
+/workspace/tcl-lsp-perf-latest, an independent shallow checkout. AGENTS.md is
+byte-identical to the earlier proof guide. The FULL batch is applied in nine
+experimental Rust files, including temporary switches; both clean patches are
+refreshed against this exact commit. The residual images/segments drafts are
+also refreshed, unapplied and unproven, routed to compiler-names.
 
-The earlier aliases private machine trace at e4a01bbe identifies
-ObjectHandleFacts::analysis_report_eq (both admitted report sources None,
-raw facts unequal). No private helper trace was taken on 39b39296. Route
-through analysis-equality-routing.md; report comparison must preserve actual
-input/registry/source/body ownership and memo/Salsa cutoff/currentness semantics.
-Do not commit realm.rs or interprocedural.rs. Their patch is NOT proven/ready.
+The user2256 acceptance contract is authenticated complete-report comparison,
+separate from strict runtime/cache Eq. tools/authenticated_perfprobe.rs.txt
+requires Equal for old1/old2, old1/new AND new/old2. Different and Unavailable
+fail; strict runtime equality is recorded separately without alteration.
+Compiler authenticated-report controls run in both modes before the current
+smoke controls for E003, aliases and hosted source. Evidence is written under
+perf/evidence/current-f149597f/; RUNNING is not a successful result. No broad
+corpus/full proof or realm/interprocedural readiness is claimed yet.
+
+Runner PID/status: inspect /tmp/perf-run-latest.log and evidence progress.json.
+Build/run/delete happen in the same command. All new targets are isolated at
+/workspace/tcl-lsp-perf-latest/target, built from source without local artifact
+reuse. Source-before/after and artifact hashes will be retained. Use
+source /tmp/perf-env.sh and scripts/dev/agent-build-env.sh; preserved oracles
+are available through the proof checkout's tmp symlink.
+
+Prior confirmed comparison failures at 39b39296 and all historical corpus,
+crate, timing and timeout outcomes below remain evidence of those exact
+sources. Do not infer a latest-source verdict from them. Compiler changes on
+new work include the distinct report API and owner repairs; their actual
+latest controls determine whether the full proof can resume. Never normalize
+owners, omit fields, change global/runtime/cache Eq or weaken assertions.
+Do not commit realm.rs or interprocedural.rs or mark their patch proven
+without the required complete latest-source proof.
 
 ## Completed evidence
 

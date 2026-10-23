@@ -1,0 +1,40 @@
+// tcl-lsp — a language server and toolchain for Tcl
+// Copyright (C) 2026 James Deucker (bitwisecook)
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
+//! Complete ordered PackSet rendering, including notices and load errors.
+use std::sync::atomic::Ordering;
+
+fn load(old: bool) -> (u128, String) {
+    tcl_lexer::ZZ_OLD.store(old, Ordering::Relaxed);
+    tcl_compiler::realm::ZZ_NO_MEMO.store(old, Ordering::Relaxed);
+    let start = std::time::Instant::now();
+    let set = tcl_spectcl::bundled::load_embedded();
+    let ms = start.elapsed().as_millis();
+    tcl_lexer::ZZ_OLD.store(false, Ordering::Relaxed);
+    tcl_compiler::realm::ZZ_NO_MEMO.store(false, Ordering::Relaxed);
+    println!(
+        "PACKSET old={old} packs={} notices={} errors={}",
+        set.packs.len(),
+        set.notices.len(),
+        set.load_errors.len()
+    );
+    (ms, format!("{set:#?}"))
+}
+
+fn main() {
+    let (old1_ms, old1) = load(true);
+    let (new_ms, new) = load(false);
+    let (old2_ms, old2) = load(true);
+    let deterministic = old1 == old2;
+    let old_new = old1 == new;
+    let new_old = new == old2;
+    println!(
+        "PACKSET_COMPARISON old1_ms={old1_ms} new_ms={new_ms} old2_ms={old2_ms} lines={} deterministic={deterministic} old_new={old_new} new_old={new_old}",
+        new.lines().count()
+    );
+    assert!(
+        deterministic && old_new && new_old,
+        "every complete ordered PackSet rendering must agree"
+    );
+}

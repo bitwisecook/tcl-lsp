@@ -1,0 +1,112 @@
+// tcl-lsp — a language server and toolchain for Tcl
+// Copyright (C) 2026 James Deucker (bitwisecook)
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
+//! Reproduce the full perf batch through the separate authenticated report API.
+use std::sync::atomic::Ordering;
+use std::time::Instant;
+use tcl_compiler::analyser::Analyser;
+use tcl_compiler::analyser::{AnalysisReportComparison, AuthenticatedAnalysisReport};
+
+fn generate(kind: &str, n: usize) -> String {
+    let mut s = String::new();
+    match kind {
+        "calls" => {
+            s.push_str("proc p {a} {return $a}\n");
+            for _ in 0..n {
+                s.push_str("p 1\n");
+            }
+        }
+        "procs" => {
+            for i in 0..n {
+                s.push_str(&format!("proc capped_{i} {{}} {{}}\n"));
+            }
+        }
+        "sets" => {
+            for i in 0..n {
+                s.push_str(&format!("set v{i} {i}\n"));
+            }
+        }
+        "upvar" => {
+            s.push_str("proc inc {name} {upvar 1 $name v; incr v}\n");
+            for i in 0..n {
+                s.push_str(&format!(
+                    "proc c{i} {{}} {{set x{i} 1; inc x{i}; return $x{i}}}\nc{i}\n"
+                ));
+            }
+        }
+        _ => panic!("kind"),
+    }
+    s
+}
+
+fn analyse_mode(src: &str, dialect: &str, old: bool) -> (u128, AuthenticatedAnalysisReport) {
+    tcl_compiler::realm::ZZ_NO_MEMO.store(old, Ordering::Relaxed);
+    tcl_lexer::ZZ_OLD.store(old, Ordering::Relaxed);
+    let start = Instant::now();
+    let report = Analyser::new().analyse_for_report(src, dialect);
+    let ms = start.elapsed().as_millis();
+    tcl_compiler::realm::ZZ_NO_MEMO.store(false, Ordering::Relaxed);
+    tcl_lexer::ZZ_OLD.store(false, Ordering::Relaxed);
+    (ms, report)
+}
+
+fn run(src: &str, dialect: &str, label: &str) -> bool {
+    let (old1_ms, old1) = analyse_mode(src, dialect, true);
+    let (new_ms, new) = analyse_mode(src, dialect, false);
+    let (old2_ms, old2) = analyse_mode(src, dialect, true);
+    let old_old = old1.compare(&old2);
+    let old_new = old1.compare(&new);
+    let new_old = new.compare(&old2);
+    let equal = old_old == AnalysisReportComparison::Equal
+        && old_new == AnalysisReportComparison::Equal
+        && new_old == AnalysisReportComparison::Equal;
+    // Runtime/cache equality remains an independent observation, never rewritten.
+    println!(
+        "REPORT label={label:?} old1_ms={old1_ms} new_ms={new_ms} old2_ms={old2_ms} old_old={old_old:?} old_new={old_new:?} new_old={new_old:?} strict_old_old={} strict_old_new={} strict_new_old={} pass={equal}",
+        old1.analysis() == old2.analysis(),
+        old1.analysis() == new.analysis(),
+        new.analysis() == old2.analysis(),
+    );
+    equal
+}
+
+fn main() {
+    let args: Vec<String> = std::env::args().collect();
+    let dialect = std::env::var("ZZ_DIALECT").unwrap_or_else(|_| "tcl8.6".into());
+    let mut failed = 0;
+    let mut total = 0;
+    if args[1] == "files" {
+        for path in &args[2..] {
+            let src = std::fs::read_to_string(path).expect("read complete UTF-8 corpus input");
+            total += 1;
+            match std::panic::catch_unwind(|| run(&src, &dialect, path)) {
+                Ok(true) => {}
+                Ok(false) => failed += 1,
+                Err(_) => {
+                    println!("PANIC {path:?}");
+                    failed += 1;
+                }
+            }
+        }
+    } else {
+        for n in args[2]
+            .split(',')
+            .map(|value| value.parse::<usize>().unwrap())
+        {
+            total += 1;
+            if !run(
+                &generate(&args[1], n),
+                &dialect,
+                &format!("{}:{n}", args[1]),
+            ) {
+                failed += 1;
+            }
+        }
+    }
+    println!("REPORT_SUMMARY inputs={total} failed={failed}");
+    assert_eq!(
+        failed, 0,
+        "every complete report pair must be Equal; Different and Unavailable fail"
+    );
+}

@@ -8,7 +8,7 @@
  }
 
  // Derived preparation does not change the immutable retained interpretation.
-@@ -179,6 +180,21 @@
+@@ -187,6 +188,21 @@
      /// body for a secondary analysis. State snapshots share their allocation.
      pub(crate) fn source_bindings(&self) -> SourceCommandBindings {
          self.bindings.clone()
@@ -30,7 +30,7 @@
      }
 
      /// Borrow the retained inventory for syntax navigation in the same source
-@@ -282,7 +298,12 @@
+@@ -290,7 +306,12 @@
      /// Exact dispatch proof from the shared source interpreter.
      #[must_use]
      pub fn invocation_at_source(&self, head: &str, offset: u32) -> SourceInvocationBinding {
@@ -44,7 +44,7 @@
      }
 
      /// Original static naming producer from this realm's existing original
-@@ -335,8 +356,12 @@
+@@ -343,8 +364,12 @@
          tcl_lexer::NativeWord,
          crate::command_binding::CommandAllocationSite,
      )> {
@@ -59,7 +59,7 @@
      }
 
      /// Genuine whole original word and parent head under exact source currency.
-@@ -348,9 +373,12 @@
+@@ -356,9 +381,12 @@
          span: tcl_lexer::Span,
          config: tcl_lexer::LexerConfig,
      ) -> Option<(tcl_lexer::NativeWord, u32)> {
@@ -75,7 +75,7 @@
          if !self
              .source_input
              .as_ref()
-@@ -632,6 +660,8 @@
+@@ -640,6 +668,8 @@
              original_tokens: original_tokens::OriginalCommandTokenCache::default(),
              original_bindings: original_bindings::OriginalInvocationBindingCache::default(),
              source_advice: source_transition_advice::OriginalSourceTransitionAdviceCache::default(),
@@ -84,7 +84,7 @@
          };
          Some((script, realm))
      }
-@@ -1054,6 +1084,7 @@
+@@ -1072,6 +1102,7 @@
          original_tokens: original_tokens::OriginalCommandTokenCache::default(),
          original_bindings: original_bindings::OriginalInvocationBindingCache::default(),
          source_advice: source_transition_advice::OriginalSourceTransitionAdviceCache::default(),

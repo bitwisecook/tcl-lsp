@@ -1,0 +1,69 @@
+{
+  "head": "f149597fc926b82a69590e475d091527dd82173e",
+  "status": "read-only source inventory; no current performance/equality measurement",
+  "files": {
+    "rust/tcl-lsp-core/src/code_lens.rs": {
+      "sha256": "f2ef749338c2e5d37674b002ad0243af5787e4b12bae9cd9e10927b600c13c40",
+      "sites": [
+        {
+          "line": 154,
+          "source": "let report = logical_lens_reference_advice(lens.identity(), &documents);"
+        }
+      ]
+    },
+    "rust/tcl-lsp-core/src/code_lens/logical_source.rs": {
+      "sha256": "5f0f2cc9715ee0190800f95a82ab33f9e1ba10cadabbaf0c7ffe38c34e67e907",
+      "sites": [
+        {
+          "line": 164,
+          "source": "if !self.identity.is_current_in(documents)"
+        },
+        {
+          "line": 201,
+          "source": "identity.is_current_in(documents).then_some(())?;"
+        },
+        {
+          "line": 210,
+          "source": "let advice = crate::call_hierarchy::logical_incoming_from_inventory(call, documents)?;"
+        }
+      ]
+    },
+    "rust/tcl-lsp-core/src/call_hierarchy/logical_source.rs": {
+      "sha256": "53990efe79c9bb4bdcd93c3bd5325899c58639c46ea453c3b6c23b5c61ea9d67",
+      "sites": [
+        {
+          "line": 104,
+          "source": "let Some(inventory) = Inventory::capture(documents) else {"
+        },
+        {
+          "line": 394,
+          "source": "let Some(inventory) = Inventory::capture(documents) else {"
+        },
+        {
+          "line": 415,
+          "source": "}) && identity.is_current_in(documents)"
+        },
+        {
+          "line": 425,
+          "source": "}) && item.identity.is_current_in(documents)"
+        },
+        {
+          "line": 937,
+          "source": "let inventory = Inventory::capture(documents)?;"
+        },
+        {
+          "line": 982,
+          "source": "let mut inventory = Inventory::capture(documents)?;"
+        },
+        {
+          "line": 1065,
+          "source": "let mut inventory = Inventory::capture(documents)?;"
+        },
+        {
+          "line": 1070,
+          "source": "identity.is_current_in(documents).then_some(())?;"
+        }
+      ]
+    }
+  }
+}

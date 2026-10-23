@@ -1,12 +1,19 @@
 # perf agent notes: Analyser and SpecTcl
 
-Last updated: 2026-10-22 21:00 UTC
+Last updated: 2026-10-23 10:43 UTC
 
-**Blocked: no production code landed.** Fresh latest-work controls at 39b39296
-still fail complete AnalysisResult equality with every optimization disabled.
-The compiler/source-report owner must resolve the comparison boundary before
-the six-file commit or compiler patch can be called proven. No comparator,
-assertion, budget, currentness guard or source authority was weakened.
+**Latest proof refresh in progress; no production code landed.** The independent
+f149597f checkout contains the full switched batch. Clean six/two-file patches
+and routed residual drafts are refreshed against that exact source; formatting
+and byte-exact switch reconstruction pass. This is applicability evidence,
+not semantic acceptance.
+
+The coordinator-recorded user2256 contract accepts the distinct authenticated
+complete-report API. The new harness requires all three old/new/old comparisons
+to be Equal and records strict runtime equality independently. Current compiler
+controls and smoke cases are running; see perf/evidence/current-f149597f/.
+Earlier failed results below remain pinned to their historical source commits.
+No latest full-corpus verdict or compiler-patch readiness is claimed.
 
 ## Current-source confirmation
 

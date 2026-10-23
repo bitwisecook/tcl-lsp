@@ -255,7 +255,7 @@
          let config = super::super::pack_source_lexer_config(SourceSegmentationPurpose::WholeInput);
 --- a/rust/tcl-compiler/src/command_binding/original_name_value.rs
 +++ b/rust/tcl-compiler/src/command_binding/original_name_value.rs
-@@ -1133,50 +1133,8 @@
+@@ -1140,50 +1140,8 @@
                  && original.words.as_ref() == tokens.words())
              .then_some(original.config);
          }
@@ -308,7 +308,7 @@
          }
          #[cfg(test)]
          trace_original_word_config("declaration_site", tokens, self.invocation_site().is_some());
-@@ -1215,6 +1173,56 @@
+@@ -1222,6 +1180,56 @@
                  .all(|row| row.words == first.words && row.config == first.config))
          .then_some(first.config)
      }
@@ -365,7 +365,7 @@
      /// Same-vector source grammar from its original dispatch, compiler or
      /// declaration owner. This does not select a physical compiler engine.
      pub(crate) fn original_source_word_dialect_for_tokens(
-@@ -1879,10 +1887,24 @@
+@@ -1886,10 +1894,24 @@
          span: tcl_lexer::Span,
          config: tcl_lexer::LexerConfig,
      ) -> Option<(tcl_lexer::NativeWord, u32)> {
@@ -391,7 +391,7 @@
              (site.source.source_image() == image).then_some(())?;
              let current = (word, site.offset);
              if selected
-@@ -1906,11 +1928,23 @@
+@@ -1913,11 +1935,23 @@
          span: tcl_lexer::Span,
          config: tcl_lexer::LexerConfig,
      ) -> Option<(tcl_lexer::NativeWord, super::CommandAllocationSite)> {
@@ -416,7 +416,7 @@
          {
              if ordinal != 0 {
                  continue;
-@@ -1932,106 +1966,255 @@
+@@ -1939,78 +1973,65 @@
          &self,
          span: tcl_lexer::Span,
          config: tcl_lexer::LexerConfig,
@@ -443,6 +443,40 @@
 +    ) -> Option<Vec<OriginalWrittenWordObservation>> {
          let origin = self.root_origin.as_ref()?;
          let mut found = Vec::new();
+-        let mut offsets = self
+-            .dispatch_points
+-            .range(..=span.start())
+-            .map(|(offset, _)| *offset)
+-            .collect::<std::collections::BTreeSet<_>>();
+-        if self.original_logical_source_name_advice_input().is_some() {
+-            offsets.extend(self.declaration_layouts.keys().filter_map(|site| {
+-                (site.source == *origin && site.offset <= span.start()).then_some(site.offset)
+-            }));
+-        }
+-        for offset in offsets.iter().rev() {
+-            let binding = self.attach_invocation_reads(
+-                Self::query_dispatch_points(
+-                    self.dispatch_points_at(*offset)
+-                        .filter(|point| point.state.current_source_origin.as_ref() == Some(origin)),
+-                ),
+-                Some(origin),
+-                *offset,
+-            );
+-            let geometry = if let Some(input) = self.original_logical_source_name_advice_input() {
+-                binding.original_logical_source_geometry_words(input)
+-            } else {
+-                binding.original_recorded_name_words()
+-            };
+-            let Some((words, retained_config)) = geometry else {
+-                continue;
+-            };
+-            if retained_config != config
+-                || !words.iter().any(|word| {
+-                    word.original_written_span(origin.source_image().bytes())
+-                        .is_some_and(|written| {
+-                            written.start() <= span.start() && span.end() <= written.end()
+-                        })
+-                })
 +        if let Some(memo) = memo {
 +            let sites = memo
 +                .written_word_sites
@@ -476,7 +510,34 @@
 +                .original_written_word_site_offsets(origin, Some(span.start()))
 +                .iter()
 +                .rev()
-+            {
+             {
+-                continue;
+-            }
+-            let original = origin.original_lexical_command(words, *offset, config)?;
+-            let native = original.native_words();
+-            let mut ordinals =
+-                words
+-                    .iter()
+-                    .zip(native)
+-                    .enumerate()
+-                    .filter_map(|(index, (word, native))| {
+-                        (word.source().span == span
+-                            || native.span() == span
+-                            || native.content_span().ok() == Some(span)
+-                            || native
+-                                .tokens()
+-                                .first()
+-                                .is_some_and(|token| token.span == span))
+-                        .then_some(index)
+-                    });
+-            let Some(written) = ordinals.next() else {
+-                continue;
+-            };
+-            if ordinals.next().is_some() {
+-                return None;
+-            }
+-            let site = binding.invocation_site()?.clone();
+-            found.push((native[written].clone(), written, binding, site));
 +                let binding = self.original_written_word_site_binding(origin, *offset);
 +                match self.original_written_word_site_step(origin, *offset, &binding, span, config)
 +                {
@@ -487,34 +548,13 @@
 +                    }
 +                }
 +            }
-+        }
-+        if found.is_empty()
-+            && let Some(input) = self.original_logical_source_name_advice_input()
-+        {
-+            if config != input.lexer_config() {
-+                return None;
-+            }
-+            let tape = self.original_source_transition_advice_tape_for(
-+                input.borrowed_context_registry(),
-+                super::OriginalSourceCataloguePurpose::CompletePrefix,
-+            )?;
-+            for (word, written, site) in
-+                tape.logical_original_word_observations_at_span(origin, input, span)?
-+            {
-+                let binding = self.invocation_at_source("", site.offset);
-+                // A present original owner stays terminal even when its checks
-+                // refuse. Independent body geometry only fills an absent facet.
-+                if binding.original_written_words.is_some()
-+                    || binding.original_compiler_words.is_some()
-+                    || binding.declaration_layout_observations.is_some()
-+                {
-+                    continue;
-+                }
-+                found.push((word, written, binding, site));
-+            }
-+        }
-+        (!found.is_empty()).then_some(found)
-+    }
+         }
+         if found.is_empty()
+             && let Some(input) = self.original_logical_source_name_advice_input()
+@@ -2039,6 +2060,168 @@
+         }
+         (!found.is_empty()).then_some(found)
+     }
 +
 +    /// Root-origin dispatch offsets, plus Logical declaration-layout sites,
 +    /// at or before `limit` (every one when `None`), ascending.
@@ -524,34 +564,16 @@
 +        limit: Option<u32>,
 +    ) -> std::collections::BTreeSet<u32> {
 +        let limit = limit.unwrap_or(u32::MAX);
-         let mut offsets = self
-             .dispatch_points
--            .range(..=span.start())
++        let mut offsets = self
++            .dispatch_points
 +            .range(..=limit)
-             .map(|(offset, _)| *offset)
-             .collect::<std::collections::BTreeSet<_>>();
-         if self.original_logical_source_name_advice_input().is_some() {
--            offsets.extend(self.declaration_layouts.iter().filter_map(|(site, _)| {
--                (site.source == *origin && site.offset <= span.start()).then_some(site.offset)
++            .map(|(offset, _)| *offset)
++            .collect::<std::collections::BTreeSet<_>>();
++        if self.original_logical_source_name_advice_input().is_some() {
 +            offsets.extend(self.declaration_layouts.keys().filter_map(|site| {
 +                (site.source == *origin && site.offset <= limit).then_some(site.offset)
-             }));
-         }
--        for offset in offsets.iter().rev() {
--            let binding = self.attach_invocation_reads(
--                Self::query_dispatch_points(
--                    self.dispatch_points_at(*offset)
--                        .filter(|point| point.state.current_source_origin.as_ref() == Some(origin)),
--                ),
--                Some(origin),
--                *offset,
--            );
--            let geometry = if let Some(input) = self.original_logical_source_name_advice_input() {
--                binding.original_logical_source_geometry_words(input)
--            } else {
--                binding.original_recorded_name_words()
--            };
--            let Some((words, retained_config)) = geometry else {
++            }));
++        }
 +        offsets
 +    }
 +
@@ -590,71 +612,8 @@
 +        for offset in self.original_written_word_site_offsets(origin, None) {
 +            let binding = self.original_written_word_site_binding(origin, offset);
 +            let Some((words, config)) = self.original_written_word_site_geometry(&binding) else {
-                 continue;
-             };
--            if retained_config != config
--                || !words.iter().any(|word| {
--                    word.original_written_span(origin.source_image().bytes())
--                        .is_some_and(|written| {
--                            written.start() <= span.start() && span.end() <= written.end()
--                        })
--                })
--            {
--                continue;
--            }
--            let original = origin.original_lexical_command(words, *offset, config)?;
--            let native = original.native_words();
--            let mut ordinals =
--                words
--                    .iter()
--                    .zip(native)
--                    .enumerate()
--                    .filter_map(|(index, (word, native))| {
--                        (word.source().span == span
--                            || native.span() == span
--                            || native.content_span().ok() == Some(span)
--                            || native
--                                .tokens()
--                                .first()
--                                .is_some_and(|token| token.span == span))
--                        .then_some(index)
--                    });
--            let Some(written) = ordinals.next() else {
--                continue;
--            };
--            if ordinals.next().is_some() {
--                return None;
--            }
--            let site = binding.invocation_site()?.clone();
--            found.push((native[written].clone(), written, binding, site));
--        }
--        if found.is_empty() {
--            if let Some(input) = self.original_logical_source_name_advice_input() {
--                if config != input.lexer_config() {
--                    return None;
--                }
--                let tape = self.original_source_transition_advice_tape_for(
--                    input.borrowed_context_registry(),
--                    super::OriginalSourceCataloguePurpose::CompletePrefix,
--                )?;
--                for (word, written, site) in
--                    tape.logical_original_word_observations_at_span(origin, input, span)?
--                {
--                    let binding = self.invocation_at_source("", site.offset);
--                    // A present original owner stays terminal even when its checks
--                    // refuse. Independent body geometry only fills an absent facet.
--                    if binding.original_written_words.is_some()
--                        || binding.original_compiler_words.is_some()
--                        || binding.declaration_layout_observations.is_some()
--                    {
--                        continue;
--                    }
--                    found.push((word, written, binding, site));
--                }
--            }
--        }
--        (!found.is_empty()).then_some(found)
--    }
++                continue;
++            };
 +            let written = words
 +                .iter()
 +                .filter_map(|word| word.original_written_span(bytes))
