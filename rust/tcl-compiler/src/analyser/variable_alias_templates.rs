@@ -43,6 +43,58 @@ impl OriginalFrameCommandSites {
     }
 }
 
+fn extend_logical_alias_anchors(
+    anchors: &mut Vec<SourceAliasAnchor>,
+    source_templates: &[crate::registry_invocation::OriginalLogicalAliasTemplateSource],
+) {
+    anchors.extend(source_templates.iter().map(|source| {
+        let declaration = OriginalVariableAliasAdvice::from_receipt(source.relation());
+        SourceAliasAnchor {
+            span: declaration.span(),
+            input: declaration.original_name_input().clone(),
+            receiver: OriginalVariableSymbolReceiver::Operand(
+                tcl_registry::resolved_invocation::VariableReceiverOperandForm::Combined,
+            ),
+        }
+    }));
+}
+
+fn original_alias_template(
+    anchor: SourceAliasAnchor,
+    alias: &OriginalVariableAliasReceipt,
+    frame: &SourceOriginalVariableFrame,
+    direct: &mut OriginalFrameCommandSites,
+    source_templates: &[crate::registry_invocation::OriginalLogicalAliasTemplateSource],
+) -> Option<OriginalVariableAliasTemplate> {
+    let declaration = OriginalVariableAliasAdvice::from_receipt(alias);
+    // An immediate top-level declaration can introduce a later source
+    // template. A nested conditional alias requires its separate path
+    // owner; its declaration itself still names the written relation.
+    if anchor.span != declaration.span()
+        && !direct
+            .get(frame)
+            .is_some_and(|sites| sites.contains(&alias.invocation_offset()))
+    {
+        return None;
+    }
+    let mut sources = source_templates
+        .iter()
+        .filter(|source| source.relation() == alias);
+    let template = if let Some(source) = sources.next() {
+        if sources.any(|other| other != source) {
+            return None;
+        }
+        OriginalVariableAliasTemplate::from_logical_source(
+            anchor.span,
+            anchor.input,
+            source.clone(),
+        )
+    } else {
+        OriginalVariableAliasTemplate::new(anchor.span, anchor.input, alias.clone())
+    };
+    Some(template)
+}
+
 impl AnalysisResult {
     /// Conditional alias-name relationships in this complete current source.
     /// Every anchor retains its real lexical declaration frame and original
@@ -79,16 +131,7 @@ impl AnalysisResult {
             })
             .collect::<Vec<_>>();
         let mut anchors = self.original_alias_source_anchors();
-        anchors.extend(source_templates.iter().map(|source| {
-            let declaration = OriginalVariableAliasAdvice::from_receipt(source.relation());
-            SourceAliasAnchor {
-                span: declaration.span(),
-                input: declaration.original_name_input().clone(),
-                receiver: OriginalVariableSymbolReceiver::Operand(
-                    tcl_registry::resolved_invocation::VariableReceiverOperandForm::Combined,
-                ),
-            }
-        }));
+        extend_logical_alias_anchors(&mut anchors, &source_templates);
         let mut direct = OriginalFrameCommandSites::default();
         let mut templates = Vec::new();
         for anchor in anchors {
@@ -148,40 +191,14 @@ impl AnalysisResult {
                 other.invocation_offset() == alias.invocation_offset() && *other != alias
             }) || self.original_alias_source_has_later_blocker(image, config, alias, anchor.span)
                 || (logical_scope.is_some()
-                    && self
-                        .original_variable_alias_source_operands
-                        .iter()
-                        .any(|source| {
-                            source.blocks_logical_template(input, realm, alias, anchor.span)
-                        }))
+                    && self.logical_alias_source_has_blocker(input, realm, alias, anchor.span))
             {
                 continue;
             }
-            let declaration = OriginalVariableAliasAdvice::from_receipt(alias);
-            // An immediate top-level declaration can introduce a later source
-            // template. A nested conditional alias requires its separate path
-            // owner; its declaration itself still names the written relation.
-            if anchor.span != declaration.span()
-                && !direct
-                    .get(&frame)
-                    .is_some_and(|sites| sites.contains(&alias.invocation_offset()))
-            {
+            let Some(template) =
+                original_alias_template(anchor, alias, &frame, &mut direct, &source_templates)
+            else {
                 continue;
-            }
-            let mut sources = source_templates
-                .iter()
-                .filter(|source| source.relation() == alias);
-            let template = if let Some(source) = sources.next() {
-                if sources.any(|other| other != source) {
-                    continue;
-                }
-                OriginalVariableAliasTemplate::from_logical_source(
-                    anchor.span,
-                    anchor.input,
-                    source.clone(),
-                )
-            } else {
-                OriginalVariableAliasTemplate::new(anchor.span, anchor.input, alias.clone())
             };
             if !templates.contains(&template) {
                 templates.push(template);
@@ -189,6 +206,18 @@ impl AnalysisResult {
         }
         templates.sort_by_key(|template| (template.span().start(), template.span().end()));
         Some(templates)
+    }
+
+    fn logical_alias_source_has_blocker(
+        &self,
+        input: &super::ResolvedAnalysisInput,
+        realm: &crate::realm::CommandBindingRealm,
+        alias: &OriginalVariableAliasReceipt,
+        span: Span,
+    ) -> bool {
+        self.original_variable_alias_source_operands
+            .iter()
+            .any(|source| source.blocks_logical_template(input, realm, alias, span))
     }
 
     fn original_alias_source_anchors(&self) -> Vec<SourceAliasAnchor> {

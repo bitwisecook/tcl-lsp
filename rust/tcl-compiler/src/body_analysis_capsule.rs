@@ -489,6 +489,134 @@ fn authored_source_slot(
     (count == 1).then_some(slot)
 }
 
+fn closed_source_body_inventory(
+    unit: &CompilationUnit,
+    registry: &CommandRegistry,
+    authored: bool,
+) -> bool {
+    let module = &unit.ir_module;
+    if authored {
+        readonly_authored_coverage::ReadonlyAuthoredCoverage::capture(unit, registry).is_some_and(
+            |coverage| {
+                unit.body_lowering_functions().all(|(id, _)| {
+                    module
+                        .original_authored_declaration_body_units
+                        .contains_key(id)
+                        || coverage.source_for(*id).is_some()
+                })
+            },
+        )
+    } else {
+        unit.body_lowering_functions().all(|(id, _)| {
+            module
+                .original_native_declaration_body_units
+                .contains_key(id)
+                || module
+                    .original_authored_declaration_body_units
+                    .contains_key(id)
+        })
+    }
+}
+
+fn closed_source_declaration(
+    module: &crate::ir::Module,
+    procedure: &Procedure,
+    body_id: ProcedureId,
+    native_card: Option<&crate::command_binding::OriginalNativeProcedureBody>,
+    authored: bool,
+) -> Option<NeutralDeclaration> {
+    let publication = if let Some(card) = native_card {
+        if module
+            .original_native_declaration_body_units
+            .values()
+            .filter(|candidate| {
+                candidate.original_name_input().policy() == card.original_name_input().policy()
+                    && candidate.source_slot() == card.source_slot()
+            })
+            .count()
+            != 1
+        {
+            return None;
+        }
+        None
+    } else if authored {
+        authored_source_slot(module, body_id)?;
+        None
+    } else {
+        let publication = procedure.publication.as_ref()?;
+        if module
+            .procedures
+            .values()
+            .filter(|candidate| candidate.publication.as_ref() == Some(publication))
+            .count()
+            != 1
+        {
+            return None;
+        }
+        Some(publication.clone())
+    };
+    Some(NeutralDeclaration {
+        publication,
+        native_source_slot: native_card.map(|card| {
+            (
+                card.original_name_input().policy(),
+                card.source_slot().clone(),
+            )
+        }),
+        authored_source_slot: if authored {
+            Some(authored_source_slot(module, body_id)?)
+        } else {
+            None
+        },
+        namespace: procedure.body.namespace_context.as_deref()?.clone(),
+        written_name: procedure.name.clone(),
+        display: procedure.qualified_name.clone(),
+        parameters: procedure.params.clone(),
+        parameters_text: procedure.params_raw.clone(),
+        body_text: procedure.body_source.clone()?,
+        kind: procedure.body_kind,
+    })
+}
+
+fn rebase_closed_summary(
+    summary: &mut Option<crate::interprocedural::ProcSummary>,
+    procedure: &Procedure,
+) -> Option<()> {
+    if let Some(summary) = summary {
+        if !summary.calls.is_empty()
+            || !summary.direct_calls.is_empty()
+            || !summary.defined_callees.is_empty()
+        {
+            return None;
+        }
+        if let Some(offset) = summary.defined_at {
+            summary.defined_at =
+                Some(offset.checked_sub(procedure.declaration_site.as_ref()?.offset)?);
+        }
+    }
+    Some(())
+}
+
+fn closed_function_metadata(
+    function: &FunctionUnit,
+    module: &crate::ir::Module,
+    registry: &CommandRegistry,
+    authored: bool,
+) -> Option<()> {
+    if authored {
+        if function.source_metadata_input().is_some()
+            || !function.cfg.metadata_context.is_standalone()
+            || !module.source_entry.metadata_context.is_standalone()
+            || function.source_lexer_config() != module.native_lexer_config().nested().normalized()
+        {
+            return None;
+        }
+    } else {
+        function.invocation_metadata_context_for_module(registry, module)?;
+    }
+    Some(())
+}
+
 fn analytical_closed_projection(
     unit: &CompilationUnit,
     body_id: ProcedureId,
@@ -505,32 +633,10 @@ fn analytical_closed_projection(
         .get(&body_id)
         .filter(|card| card.matches_procedure(module, procedure));
     let readonly_source = native_card.is_some() || authored_card.is_some();
-    let source_body_inventory = || {
-        if authored_card.is_some() {
-            readonly_authored_coverage::ReadonlyAuthoredCoverage::capture(unit, registry)
-                .is_some_and(|coverage| {
-                    unit.body_lowering_functions().all(|(id, _)| {
-                        module
-                            .original_authored_declaration_body_units
-                            .contains_key(id)
-                            || coverage.source_for(*id).is_some()
-                    })
-                })
-        } else {
-            unit.body_lowering_functions().all(|(id, _)| {
-                module
-                    .original_native_declaration_body_units
-                    .contains_key(id)
-                    || module
-                        .original_authored_declaration_body_units
-                        .contains_key(id)
-            })
-        }
-    };
     if (!readonly_source && procedure.body_kind != crate::ir::ProcedureBodyKind::Named)
         || !unit.methods.is_empty()
         || (!readonly_source && !unit.body_units.is_empty())
-        || !source_body_inventory()
+        || !closed_source_body_inventory(unit, registry, authored_card.is_some())
         || unit.connection_scope.is_some()
         || !module.class_relations.is_empty()
         || !module.oo_unanalysed_classes.is_empty()
@@ -539,69 +645,15 @@ fn analytical_closed_projection(
     {
         return None;
     }
-    let publication = if let Some(card) = native_card {
-        if module
-            .original_native_declaration_body_units
-            .values()
-            .filter(|candidate| {
-                candidate.original_name_input().policy() == card.original_name_input().policy()
-                    && candidate.source_slot() == card.source_slot()
-            })
-            .count()
-            != 1
-        {
-            return None;
-        }
-        None
-    } else if authored_card.is_some() {
-        authored_source_slot(module, body_id)?;
-        None
-    } else {
-        let publication = procedure.publication.as_ref()?;
-        if module
-            .procedures
-            .values()
-            .filter(|candidate| candidate.publication.as_ref() == Some(publication))
-            .count()
-            != 1
-        {
-            return None;
-        }
-        Some(publication.clone())
-    };
-    let declaration = NeutralDeclaration {
-        publication,
-        native_source_slot: native_card.map(|card| {
-            (
-                card.original_name_input().policy(),
-                card.source_slot().clone(),
-            )
-        }),
-        authored_source_slot: if authored_card.is_some() {
-            Some(authored_source_slot(module, body_id)?)
-        } else {
-            None
-        },
-        namespace: procedure.body.namespace_context.as_deref()?.clone(),
-        written_name: procedure.name.clone(),
-        display: procedure.qualified_name.clone(),
-        parameters: procedure.params.clone(),
-        parameters_text: procedure.params_raw.clone(),
-        body_text: procedure.body_source.clone()?,
-        kind: procedure.body_kind,
-    };
+    let declaration = closed_source_declaration(
+        module,
+        procedure,
+        body_id,
+        native_card.map(Arc::as_ref),
+        authored_card.is_some(),
+    )?;
     let function = unit.function_for_body(Some(body_id))?;
-    if authored_card.is_some() {
-        if function.source_metadata_input().is_some()
-            || !function.cfg.metadata_context.is_standalone()
-            || !module.source_entry.metadata_context.is_standalone()
-            || function.source_lexer_config() != module.native_lexer_config().nested().normalized()
-        {
-            return None;
-        }
-    } else {
-        function.invocation_metadata_context_for_module(registry, module)?;
-    }
+    closed_function_metadata(function, module, registry, authored_card.is_some())?;
     let mut body = procedure.body.clone();
     crate::lattice_rebase::rebase_script(&mut body, -i64::from(procedure.span.start()));
     let bindings = crate::command_binding::ModuleCommandBindings::analyse(module, registry);
@@ -650,18 +702,7 @@ fn analytical_closed_projection(
         .as_ref()
         .and_then(|analysis| analysis.procedures.get(&body_id))
         .cloned();
-    if let Some(summary) = &mut summary {
-        if !summary.calls.is_empty()
-            || !summary.direct_calls.is_empty()
-            || !summary.defined_callees.is_empty()
-        {
-            return None;
-        }
-        if let Some(offset) = summary.defined_at {
-            summary.defined_at =
-                Some(offset.checked_sub(procedure.declaration_site.as_ref()?.offset)?);
-        }
-    }
+    rebase_closed_summary(&mut summary, procedure)?;
     Some(ClosedBodyProjection {
         body: correspondence.body.clone(),
         analytical: Some(correspondence),

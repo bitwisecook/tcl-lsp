@@ -953,153 +953,180 @@ fn scan_deep<'p>(
             .iter()
             .filter_map(|&(index, role)| (role == ArgRole::LambdaLiteral).then_some(index))
         {
-            if let Some((document, _, base)) = ctx.document {
-                let Some(current_base) = ctx.source_base.or(base) else {
-                    continue;
-                };
-                let Ok(start) = usize::try_from(current_base) else {
-                    continue;
-                };
-                let Some(end) = start.checked_add(source.len()) else {
-                    continue;
-                };
-                let Some(current_image) = document.get(start..end) else {
-                    continue;
-                };
-                if current_image.as_bytes() != source.as_bytes() {
-                    continue;
-                }
-            }
-            let selected_lambda = view
-                .as_ref()
-                .and_then(|view| view.logical_trait_caller_lambda(idx));
-            let selected_lambda_owner = view
-                .as_ref()
-                .and_then(|view| view.logical_trait_caller_lambda_owner(idx));
-            if selected_lambda_owner.is_some() && ctx.executed_source.is_some() {
-                // A retained Logical lambda is source-role advice, not an
-                // entered Native body or a replacement for that owner.
-                continue;
-            }
-            if (ctx.original_logical_body.is_some() || ctx.original_logical_lambda.is_some())
-                && (selected_lambda.is_none() || selected_lambda_owner.is_none())
-            {
-                continue;
-            }
-            let (lambda_param_defs, body_text, body_offset) = if let Some(body) = selected_lambda {
-                let Some((params_text, body_text)) =
-                    selected_logical_lambda_texts(source, ctx.source_base, &body, ctx.config)
-                else {
-                    continue;
-                };
-                let parameter_defs = crate::signature_scan::params::parse_param_list(
-                    params_text,
-                    tcl_syntax::word_rules::WordValueRules::from_config(&ctx.config),
-                );
-                let Some(body_offset) = ctx
-                    .source_base
-                    .and_then(|base| body.content_span().start().checked_sub(base))
-                else {
-                    continue;
-                };
-                (parameter_defs, body_text.to_owned(), body_offset)
-            } else if let Some((document, analysis, _)) = ctx.document {
-                let Some((params, body, offset)) = selected_lambda_source(
-                    document,
-                    analysis,
-                    seg.argv
-                        .first()
-                        .and_then(|head| head.span.start().checked_add(ctx.source_base?)),
-                    idx,
-                    ctx.config,
-                ) else {
-                    continue;
-                };
-                (params, body, offset)
-            } else {
-                let Some(&tok) = seg.argv.get(idx + 1) else {
-                    continue;
-                };
-                if tok.kind != tcl_lexer::TokenType::Str {
-                    continue;
-                }
-                let Some(elems) = crate::lambda_literal::split_lambda_literal(source, tok) else {
-                    continue;
-                };
-                let Some(body_span) = elems.body else {
-                    continue;
-                };
-                let Some(body_text) =
-                    source.get(body_span.start() as usize..body_span.end() as usize)
-                else {
-                    continue;
-                };
-                let Some(params_text) =
-                    source.get(elems.params.start() as usize..elems.params.end() as usize)
-                else {
-                    continue;
-                };
-                (
-                    crate::signature_scan::params::parse_param_list(
-                        params_text,
-                        tcl_syntax::word_rules::WordValueRules::from_config(&ctx.config),
-                    ),
-                    body_text.to_owned(),
-                    ctx.source_base
-                        .unwrap_or(0)
-                        .saturating_add(body_span.start()),
-                )
-            };
-            if body_text.trim().is_empty() {
-                continue;
-            }
-            let lambda_param_names: Vec<&str> =
-                lambda_param_defs.iter().map(|p| p.name.as_str()).collect();
-            if lambda_param_names.is_empty() {
-                continue;
-            }
-            let lambda_source = if ctx.executed_source.is_some() {
-                let Some(source_base) = ctx.source_base else {
-                    continue;
-                };
-                let Some(relative_body_offset) = body_offset.checked_sub(source_base) else {
-                    continue;
-                };
-                ctx.source_slice(&body_text, relative_body_offset)
-            } else {
-                None
-            };
-            if ctx.executed_source.is_some() && lambda_source.is_none() {
-                continue;
-            }
-            let lambda_traits = infer_param_traits_deep_at_depth(
-                &lambda_param_names,
-                &body_text,
-                TraitScanEnv {
-                    surface: ctx.surface,
-                    config: ctx.config,
-                    identities: ctx.identities,
-                    executed_source: lambda_source.as_ref(),
-                    original_logical_body: None,
-                },
-                depth + 1,
-                ctx.document
-                    .map(|(document, analysis, _)| (document, analysis, Some(body_offset))),
-                selected_lambda_owner.as_ref(),
+            scan_deep_lambda(
+                source,
+                &seg,
+                view.as_deref(),
+                ctx,
+                traits,
+                (idx, depth),
+                &values,
             );
-            if lambda_traits.is_empty() {
-                continue;
-            }
-            for (param_name, outer_param) in
-                lambda_input_bindings(view.as_deref(), idx, &lambda_param_defs, &values)
-            {
-                if let Some(lambda_param_traits) = lambda_traits.get(&param_name) {
-                    traits
-                        .entry(outer_param)
-                        .or_default()
-                        .extend(lambda_param_traits.iter().copied());
-                }
-            }
+        }
+    }
+}
+
+fn deep_lambda_parts(
+    source: &str,
+    seg: &crate::segmenter::SegmentedCommand,
+    ctx: &ScanCtx<'_, '_>,
+    idx: usize,
+    selected_lambda: Option<crate::registry_invocation::OriginalSourceScriptBody>,
+) -> Option<(Vec<crate::signature_scan::types::ParamDef>, String, u32)> {
+    let parts = if let Some(body) = selected_lambda {
+        let Some((params_text, body_text)) =
+            selected_logical_lambda_texts(source, ctx.source_base, &body, ctx.config)
+        else {
+            return None;
+        };
+        let parameter_defs = crate::signature_scan::params::parse_param_list(
+            params_text,
+            tcl_syntax::word_rules::WordValueRules::from_config(&ctx.config),
+        );
+        let Some(body_offset) = ctx
+            .source_base
+            .and_then(|base| body.content_span().start().checked_sub(base))
+        else {
+            return None;
+        };
+        (parameter_defs, body_text.to_owned(), body_offset)
+    } else if let Some((document, analysis, _)) = ctx.document {
+        let Some((params, body, offset)) = selected_lambda_source(
+            document,
+            analysis,
+            seg.argv
+                .first()
+                .and_then(|head| head.span.start().checked_add(ctx.source_base?)),
+            idx,
+            ctx.config,
+        ) else {
+            return None;
+        };
+        (params, body, offset)
+    } else {
+        let Some(&tok) = seg.argv.get(idx + 1) else {
+            return None;
+        };
+        if tok.kind != tcl_lexer::TokenType::Str {
+            return None;
+        }
+        let Some(elems) = crate::lambda_literal::split_lambda_literal(source, tok) else {
+            return None;
+        };
+        let Some(body_span) = elems.body else {
+            return None;
+        };
+        let Some(body_text) = source.get(body_span.start() as usize..body_span.end() as usize)
+        else {
+            return None;
+        };
+        let Some(params_text) =
+            source.get(elems.params.start() as usize..elems.params.end() as usize)
+        else {
+            return None;
+        };
+        (
+            crate::signature_scan::params::parse_param_list(
+                params_text,
+                tcl_syntax::word_rules::WordValueRules::from_config(&ctx.config),
+            ),
+            body_text.to_owned(),
+            ctx.source_base
+                .unwrap_or(0)
+                .saturating_add(body_span.start()),
+        )
+    };
+    Some(parts)
+}
+
+fn scan_deep_lambda<'p>(
+    source: &str,
+    seg: &crate::segmenter::SegmentedCommand,
+    view: Option<&crate::registry_invocation::InvocationBodyAssistance>,
+    ctx: &ScanCtx<'p, '_>,
+    traits: &mut HashMap<&'p str, HashSet<ProcArgTrait>>,
+    (idx, depth): (usize, u8),
+    values: &ArgumentValues<'p>,
+) {
+    if let Some((document, _, base)) = ctx.document {
+        let Some(current_base) = ctx.source_base.or(base) else {
+            return;
+        };
+        let Ok(start) = usize::try_from(current_base) else {
+            return;
+        };
+        let Some(end) = start.checked_add(source.len()) else {
+            return;
+        };
+        let Some(current_image) = document.get(start..end) else {
+            return;
+        };
+        if current_image.as_bytes() != source.as_bytes() {
+            return;
+        }
+    }
+    let selected_lambda = view.and_then(|view| view.logical_trait_caller_lambda(idx));
+    let selected_lambda_owner = view.and_then(|view| view.logical_trait_caller_lambda_owner(idx));
+    if selected_lambda_owner.is_some() && ctx.executed_source.is_some() {
+        // A retained Logical lambda is source-role advice, not an
+        // entered Native body or a replacement for that owner.
+        return;
+    }
+    if (ctx.original_logical_body.is_some() || ctx.original_logical_lambda.is_some())
+        && (selected_lambda.is_none() || selected_lambda_owner.is_none())
+    {
+        return;
+    }
+    let Some((lambda_param_defs, body_text, body_offset)) =
+        deep_lambda_parts(source, seg, ctx, idx, selected_lambda)
+    else {
+        return;
+    };
+    if body_text.trim().is_empty() {
+        return;
+    }
+    let lambda_param_names: Vec<&str> = lambda_param_defs.iter().map(|p| p.name.as_str()).collect();
+    if lambda_param_names.is_empty() {
+        return;
+    }
+    let lambda_source = if ctx.executed_source.is_some() {
+        let Some(source_base) = ctx.source_base else {
+            return;
+        };
+        let Some(relative_body_offset) = body_offset.checked_sub(source_base) else {
+            return;
+        };
+        ctx.source_slice(&body_text, relative_body_offset)
+    } else {
+        None
+    };
+    if ctx.executed_source.is_some() && lambda_source.is_none() {
+        return;
+    }
+    let lambda_traits = infer_param_traits_deep_at_depth(
+        &lambda_param_names,
+        &body_text,
+        TraitScanEnv {
+            surface: ctx.surface,
+            config: ctx.config,
+            identities: ctx.identities,
+            executed_source: lambda_source.as_ref(),
+            original_logical_body: None,
+        },
+        depth + 1,
+        ctx.document
+            .map(|(document, analysis, _)| (document, analysis, Some(body_offset))),
+        selected_lambda_owner.as_ref(),
+    );
+    if lambda_traits.is_empty() {
+        return;
+    }
+    for (param_name, outer_param) in lambda_input_bindings(view, idx, &lambda_param_defs, values) {
+        if let Some(lambda_param_traits) = lambda_traits.get(&param_name) {
+            traits
+                .entry(outer_param)
+                .or_default()
+                .extend(lambda_param_traits.iter().copied());
         }
     }
 }

@@ -89,6 +89,89 @@ fn owner_set_equal(
 }
 
 impl ObjectHandleFacts {
+    fn retain_report_class_owners(
+        &self,
+        other: &Self,
+        map: &ReportBodyCorrespondence<'_>,
+        original_classes: &mut [HashSet<ObjectFactOwner>; 2],
+    ) -> Option<()> {
+        for (facts, left) in [(self, true), (other, false)] {
+            let inventory = &mut original_classes[usize::from(!left)];
+            for owner in facts.by_scope.keys().map(|(owner, _)| owner).chain(
+                facts
+                    .owner_spans
+                    .iter()
+                    .filter_map(|row| row.class_owner.as_ref()),
+            ) {
+                if matches!(owner, ObjectFactOwner::OriginalClass { .. }) {
+                    inventory.insert(owner.clone());
+                }
+            }
+            if facts
+                .by_scope
+                .keys()
+                .any(|(owner, _)| !owner_valid(map, owner, left))
+                || facts.owner_spans.iter().any(|row| {
+                    !frame_valid(map, row.frame, left)
+                        || row
+                            .class_owner
+                            .as_ref()
+                            .is_some_and(|owner| !owner_valid(map, owner, left))
+                })
+                || facts
+                    .returns_object
+                    .keys()
+                    .any(|id| !map.contains_body(*id, left))
+            {
+                return None;
+            }
+        }
+        Some(())
+    }
+
+    fn reported_object_facets_equal(
+        &self,
+        other: &Self,
+        map: &ReportBodyCorrespondence<'_>,
+    ) -> (bool, bool, bool) {
+        let classes_equal = self.by_scope.len() == other.by_scope.len()
+            && self.by_scope.iter().all(|((owner, name), value)| {
+                let mut matches =
+                    other
+                        .by_scope
+                        .iter()
+                        .filter(|((candidate, candidate_name), _)| {
+                            name == candidate_name && owner_pair(map, owner, candidate)
+                        });
+                matches.next().is_some_and(|(_, other)| value == other) && matches.next().is_none()
+            });
+        let scopes_equal = self.owner_spans.len() == other.owner_spans.len()
+            && self
+                .owner_spans
+                .iter()
+                .zip(&other.owner_spans)
+                .all(|(a, b)| {
+                    a.span == b.span
+                        && a.unit == b.unit
+                        && a.class == b.class
+                        && frame_pair(map, a.frame, b.frame)
+                        && match (&a.class_owner, &b.class_owner) {
+                            (None, None) => true,
+                            (Some(a), Some(b)) => owner_pair(map, a, b),
+                            _ => false,
+                        }
+                });
+        let returns_equal = self.returns_object.len() == other.returns_object.len()
+            && self.returns_object.iter().all(|(id, value)| {
+                let mut matches = other
+                    .returns_object
+                    .iter()
+                    .filter(|(other, _)| map.bodies(*id, **other));
+                matches.next().is_some_and(|(_, other)| value == other) && matches.next().is_none()
+            });
+        (classes_equal, scopes_equal, returns_equal)
+    }
+
     /// Ordinary Eq, old eligibility and physical result/read facets stay exact.
     pub(crate) fn authenticated_full_report_eq(
         &self,
@@ -122,37 +205,7 @@ impl ObjectHandleFacts {
             return None;
         }
         let mut original_classes = [HashSet::new(), HashSet::new()];
-        for (facts, left) in [(self, true), (other, false)] {
-            let inventory = &mut original_classes[usize::from(!left)];
-            for owner in facts.by_scope.keys().map(|(owner, _)| owner).chain(
-                facts
-                    .owner_spans
-                    .iter()
-                    .filter_map(|row| row.class_owner.as_ref()),
-            ) {
-                if matches!(owner, ObjectFactOwner::OriginalClass { .. }) {
-                    inventory.insert(owner.clone());
-                }
-            }
-            if facts
-                .by_scope
-                .keys()
-                .any(|(owner, _)| !owner_valid(map, owner, left))
-                || facts.owner_spans.iter().any(|row| {
-                    !frame_valid(map, row.frame, left)
-                        || row
-                            .class_owner
-                            .as_ref()
-                            .is_some_and(|owner| !owner_valid(map, owner, left))
-                })
-                || facts
-                    .returns_object
-                    .keys()
-                    .any(|id| !map.contains_body(*id, left))
-            {
-                return None;
-            }
-        }
+        self.retain_report_class_owners(other, map, &mut original_classes)?;
         let candidate_pair = match (
             &self.logical_source_candidates,
             &other.logical_source_candidates,
@@ -204,41 +257,8 @@ impl ObjectHandleFacts {
         if original_classes[0] != original_classes[1] {
             return None;
         }
-        let classes_equal = self.by_scope.len() == other.by_scope.len()
-            && self.by_scope.iter().all(|((owner, name), value)| {
-                let mut matches =
-                    other
-                        .by_scope
-                        .iter()
-                        .filter(|((candidate, candidate_name), _)| {
-                            name == candidate_name && owner_pair(map, owner, candidate)
-                        });
-                matches.next().is_some_and(|(_, other)| value == other) && matches.next().is_none()
-            });
-        let scopes_equal = self.owner_spans.len() == other.owner_spans.len()
-            && self
-                .owner_spans
-                .iter()
-                .zip(&other.owner_spans)
-                .all(|(a, b)| {
-                    a.span == b.span
-                        && a.unit == b.unit
-                        && a.class == b.class
-                        && frame_pair(map, a.frame, b.frame)
-                        && match (&a.class_owner, &b.class_owner) {
-                            (None, None) => true,
-                            (Some(a), Some(b)) => owner_pair(map, a, b),
-                            _ => false,
-                        }
-                });
-        let returns_equal = self.returns_object.len() == other.returns_object.len()
-            && self.returns_object.iter().all(|(id, value)| {
-                let mut matches = other
-                    .returns_object
-                    .iter()
-                    .filter(|(other, _)| map.bodies(*id, **other));
-                matches.next().is_some_and(|(_, other)| value == other) && matches.next().is_none()
-            });
+        let (classes_equal, scopes_equal, returns_equal) =
+            self.reported_object_facets_equal(other, map);
         Some(
             candidate_pair
                 && classes_equal

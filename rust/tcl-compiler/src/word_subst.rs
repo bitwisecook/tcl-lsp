@@ -713,6 +713,155 @@ fn original_call_context(
     Some(site.offset)
 }
 
+fn collect_native_expression_calls(
+    tokens: &CommandTokens,
+    config: tcl_lexer::LexerConfig,
+    registry: &tcl_registry::CommandRegistry,
+    context: OriginalLiftedCallContext<'_>,
+    collected: &mut LiftedCallCollection,
+    binding: &crate::command_binding::SourceInvocationBinding,
+) -> Option<()> {
+    let held = binding.original_native_source_input_for_name_roles(tokens, registry)?;
+    let input = context.input()?;
+    if input != held && input != &held.for_nested_source() {
+        return None;
+    }
+    let words = binding.original_native_source_words(tokens, held, registry)?;
+    let crate::registry_invocation::source_structure::OriginalRegistrySource::SourceTransitions(
+        advice,
+    ) = words.source()
+    else {
+        return None;
+    };
+    let (roles, traits) =
+        words.with_source_schema(held.borrowed_context_registry(), |schema| {
+            let facts = schema.facts();
+            if !facts.arg_roles_complete
+                || words.origins().iter().enumerate().any(|(ordinal, origin)| {
+                    *origin != crate::registry_invocation::InvocationWordOrigin::Written(ordinal)
+                })
+                || advice
+                    .original_words()
+                    .iter()
+                    .any(|word| word.group().expand)
+            {
+                return None;
+            }
+            Some((
+                facts
+                    .arg_roles
+                    .into_iter()
+                    .map(|(ordinal, role)| (facts.argument_offset + usize::from(ordinal), role))
+                    .collect::<Vec<_>>(),
+                schema.semantics.traits,
+            ))
+        })??;
+    collect_original_braced_expression_calls(
+        tokens,
+        config,
+        advice.site(),
+        &roles,
+        traits,
+        context.input()?.analyser_profile(),
+        collected,
+    )
+}
+
+type OriginalExpressionRoles = (Vec<(usize, tcl_registry::ArgRole)>, tcl_registry::Traits);
+
+fn logical_expression_roles(
+    words: &crate::registry_invocation::source_structure::OriginalRegistryWords,
+    input: &crate::analyser::ResolvedAnalysisInput,
+) -> Option<OriginalExpressionRoles> {
+    words.with_source_schema(input.borrowed_context_registry(), |schema| {
+        let projection = schema.authored_logical_source_role_projection()?;
+        if projection.selection_unknown()
+            || projection.argument_roles().iter().any(|(argument, role)| {
+                *role == tcl_registry::ArgRole::Expr
+                    && !matches!(
+                        words
+                            .origins()
+                            .get(argument.checked_add(1).unwrap_or(usize::MAX)),
+                        Some(crate::registry_invocation::InvocationWordOrigin::Written(_))
+                    )
+            })
+            || (schema
+                .semantics
+                .traits
+                .contains(tcl_registry::Traits::EXPR_CONCATENATES_ARGS)
+                && words.origins().iter().any(|origin| {
+                    matches!(
+                        origin,
+                        crate::registry_invocation::InvocationWordOrigin::BindingPrefix(_)
+                    )
+                }))
+        {
+            return None;
+        }
+        Some((words.written_argument_roles(), schema.semantics.traits))
+    })?
+}
+
+fn selected_expression_roles(
+    invocation: &crate::registry_invocation::ResolvedStatementInvocation,
+    logical_source: bool,
+    tokens: &CommandTokens,
+    metadata: crate::registry_invocation::InvocationMetadataContext<'_>,
+    registry: &tcl_registry::CommandRegistry,
+) -> Option<OriginalExpressionRoles> {
+    let roles = if logical_source {
+        let realm = tokens
+            .source_binding
+            .as_ref()?
+            .original_source_realm_for_input(tokens, metadata.source_analysis_input()?, registry)?;
+        let projection = invocation.with_metadata_schema(registry, metadata, realm, |schema| {
+            schema.authored_logical_source_role_projection()
+        })?;
+        if projection.selection_unknown() {
+            return None;
+        }
+        // Captured Expr words belong to their original producer, rather
+        // than this caller's written braced-word inventory.
+        if projection.argument_roles().iter().any(|(argument, role)| {
+            *role == tcl_registry::ArgRole::Expr
+                && invocation.effective.written_argument(*argument).is_none()
+        }) {
+            return None;
+        }
+        projection
+            .argument_roles()
+            .iter()
+            .filter_map(|(argument, role)| {
+                invocation
+                    .effective
+                    .written_argument(*argument)
+                    .map(|written| (written, *role))
+            })
+            .collect()
+    } else {
+        // Native inventory keeps its separate complete-role permission.
+        if !invocation.facts.arg_roles_complete {
+            return None;
+        }
+        invocation.written_argument_roles()
+    };
+    if !invocation.effective.binding_prefix.is_empty()
+        && (invocation
+            .facts
+            .traits
+            .contains(tcl_registry::Traits::EXPR_CONCATENATES_ARGS)
+            || (!logical_source
+                && invocation
+                    .facts
+                    .arg_roles
+                    .iter()
+                    .any(|(_, role)| *role == tcl_registry::ArgRole::Expr)))
+    {
+        return None;
+    }
+    Some((roles, invocation.facts.traits))
+}
+
 fn collect_original_expression_calls(
     tokens: &CommandTokens,
     config: tcl_lexer::LexerConfig,
@@ -731,50 +880,8 @@ fn collect_original_expression_calls(
     }
     let binding = tokens.source_binding.as_ref()?;
     if binding.has_original_native_source_command() {
-        let held = binding.original_native_source_input_for_name_roles(tokens, registry)?;
-        let input = context.input()?;
-        if input != held && input != &held.for_nested_source() {
-            return None;
-        }
-        let words = binding.original_native_source_words(tokens, held, registry)?;
-        let crate::registry_invocation::source_structure::OriginalRegistrySource::SourceTransitions(
-            advice,
-        ) = words.source()
-        else {
-            return None;
-        };
-        let (roles, traits) =
-            words.with_source_schema(held.borrowed_context_registry(), |schema| {
-                let facts = schema.facts();
-                if !facts.arg_roles_complete
-                    || words.origins().iter().enumerate().any(|(ordinal, origin)| {
-                        *origin
-                            != crate::registry_invocation::InvocationWordOrigin::Written(ordinal)
-                    })
-                    || advice
-                        .original_words()
-                        .iter()
-                        .any(|word| word.group().expand)
-                {
-                    return None;
-                }
-                Some((
-                    facts
-                        .arg_roles
-                        .into_iter()
-                        .map(|(ordinal, role)| (facts.argument_offset + usize::from(ordinal), role))
-                        .collect::<Vec<_>>(),
-                    schema.semantics.traits,
-                ))
-            })??;
-        return collect_original_braced_expression_calls(
-            tokens,
-            config,
-            advice.site(),
-            &roles,
-            traits,
-            context.input()?.analyser_profile(),
-            collected,
+        return collect_native_expression_calls(
+            tokens, config, registry, context, collected, binding,
         );
     }
     let site = match context {
@@ -789,34 +896,7 @@ fn collect_original_expression_calls(
             .as_ref()?
             .original_logical_source_words(tokens, input, registry)
     {
-        let (roles, traits) =
-            words.with_source_schema(input.borrowed_context_registry(), |schema| {
-                let projection = schema.authored_logical_source_role_projection()?;
-                if projection.selection_unknown()
-                    || projection.argument_roles().iter().any(|(argument, role)| {
-                        *role == tcl_registry::ArgRole::Expr
-                            && !matches!(
-                                words
-                                    .origins()
-                                    .get(argument.checked_add(1).unwrap_or(usize::MAX)),
-                                Some(crate::registry_invocation::InvocationWordOrigin::Written(_))
-                            )
-                    })
-                    || (schema
-                        .semantics
-                        .traits
-                        .contains(tcl_registry::Traits::EXPR_CONCATENATES_ARGS)
-                        && words.origins().iter().any(|origin| {
-                            matches!(
-                                origin,
-                                crate::registry_invocation::InvocationWordOrigin::BindingPrefix(_)
-                            )
-                        }))
-                {
-                    return None;
-                }
-                Some((words.written_argument_roles(), schema.semantics.traits))
-            })??;
+        let (roles, traits) = logical_expression_roles(&words, input)?;
         return collect_original_braced_expression_calls(
             tokens,
             config,
@@ -854,62 +934,7 @@ fn collect_original_expression_calls(
         })
     };
     let (roles, traits) = if let Some(invocation) = invocation {
-        let roles = if logical_source {
-            let realm = tokens
-                .source_binding
-                .as_ref()?
-                .original_source_realm_for_input(
-                    tokens,
-                    metadata.source_analysis_input()?,
-                    registry,
-                )?;
-            let projection =
-                invocation.with_metadata_schema(registry, metadata, realm, |schema| {
-                    schema.authored_logical_source_role_projection()
-                })?;
-            if projection.selection_unknown() {
-                return None;
-            }
-            // Captured Expr words belong to their original producer, rather
-            // than this caller's written braced-word inventory.
-            if projection.argument_roles().iter().any(|(argument, role)| {
-                *role == tcl_registry::ArgRole::Expr
-                    && invocation.effective.written_argument(*argument).is_none()
-            }) {
-                return None;
-            }
-            projection
-                .argument_roles()
-                .iter()
-                .filter_map(|(argument, role)| {
-                    invocation
-                        .effective
-                        .written_argument(*argument)
-                        .map(|written| (written, *role))
-                })
-                .collect()
-        } else {
-            // Native inventory keeps its separate complete-role permission.
-            if !invocation.facts.arg_roles_complete {
-                return None;
-            }
-            invocation.written_argument_roles()
-        };
-        if !invocation.effective.binding_prefix.is_empty()
-            && (invocation
-                .facts
-                .traits
-                .contains(tcl_registry::Traits::EXPR_CONCATENATES_ARGS)
-                || (!logical_source
-                    && invocation
-                        .facts
-                        .arg_roles
-                        .iter()
-                        .any(|(_, role)| *role == tcl_registry::ArgRole::Expr)))
-        {
-            return None;
-        }
-        (roles, invocation.facts.traits)
+        selected_expression_roles(&invocation, logical_source, tokens, metadata, registry)?
     } else if let Some(invocation) = (!logical_source)
         .then(|| {
             crate::registry_invocation::logical_structured_invocation_with_metadata_context(

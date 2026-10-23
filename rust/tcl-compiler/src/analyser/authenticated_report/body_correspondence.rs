@@ -93,9 +93,41 @@ impl ReportBodyInventory {
             }
         }
         let mut bodies = Vec::new();
+        Self::collect_body_owners(module, registry, &mut bodies)?;
+        Self::validate_declaration_inventory(module, &bodies)?;
+        Self::retain_event_words(module, registry, &mut bodies)?;
+        // A reference into a definition scope must join this same complete
+        // inventory; a foreign ID or omitted parent never becomes a free label.
+        if bodies.iter().any(|body| {
+            body.definition_parent.is_some_and(|parent| {
+                !bodies.iter().any(|candidate| {
+                    candidate.id == parent
+                        && matches!(candidate.role, ReportBodyRole::Definition(_))
+                })
+            })
+        }) {
+            return None;
+        }
+        let module_id = module.procedure_ids.module_id();
+        let entry = module.source_entry.clone();
+        Some(Self {
+            prepared,
+            entry,
+            hosted_entry,
+            root,
+            module: module_id,
+            bodies,
+        })
+    }
+
+    fn collect_body_owners(
+        module: &crate::ir::Module,
+        registry: &CommandRegistry,
+        bodies: &mut Vec<ReportBodyOwner>,
+    ) -> Option<()> {
         for (id, body) in &module.procedures {
             Self::push(
-                &mut bodies,
+                bodies,
                 module,
                 registry,
                 *id,
@@ -109,7 +141,7 @@ impl ReportBodyInventory {
                 ReportBodyRole::Carried(body.body_kind)
             };
             Self::push(
-                &mut bodies,
+                bodies,
                 module,
                 registry,
                 *id,
@@ -118,7 +150,7 @@ impl ReportBodyInventory {
         }
         for (id, body) in &module.methods {
             Self::push(
-                &mut bodies,
+                bodies,
                 module,
                 registry,
                 *id,
@@ -139,7 +171,7 @@ impl ReportBodyInventory {
         for id in module.original_definition_scripts.keys() {
             let body = module.original_definition_script_source(*id, registry)?;
             Self::push(
-                &mut bodies,
+                bodies,
                 module,
                 registry,
                 *id,
@@ -157,6 +189,13 @@ impl ReportBodyInventory {
                 },
             )?;
         }
+        Some(())
+    }
+
+    fn validate_declaration_inventory(
+        module: &crate::ir::Module,
+        bodies: &[ReportBodyOwner],
+    ) -> Option<()> {
         for (purpose, ids) in [
             (
                 ReportDeclarationPurpose::Allocated,
@@ -207,6 +246,14 @@ impl ReportBodyInventory {
                 return None;
             }
         }
+        Some(())
+    }
+
+    fn retain_event_words(
+        module: &crate::ir::Module,
+        registry: &CommandRegistry,
+        bodies: &mut [ReportBodyOwner],
+    ) -> Option<()> {
         // Every additional event card must join an actual retained body, and
         // each original event word belongs to this complete source generation.
         for (id, card) in &module.irules_event_bodies {
@@ -226,28 +273,7 @@ impl ReportBodyInventory {
                     .clone(),
             );
         }
-        // A reference into a definition scope must join this same complete
-        // inventory; a foreign ID or omitted parent never becomes a free label.
-        if bodies.iter().any(|body| {
-            body.definition_parent.is_some_and(|parent| {
-                !bodies.iter().any(|candidate| {
-                    candidate.id == parent
-                        && matches!(candidate.role, ReportBodyRole::Definition(_))
-                })
-            })
-        }) {
-            return None;
-        }
-        let module_id = module.procedure_ids.module_id();
-        let entry = module.source_entry.clone();
-        Some(Self {
-            prepared,
-            entry,
-            hosted_entry,
-            root,
-            module: module_id,
-            bodies,
-        })
+        Some(())
     }
 
     fn procedure(

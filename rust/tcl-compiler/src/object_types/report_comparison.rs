@@ -211,6 +211,88 @@ impl ObjectReportSource {
     }
 }
 
+fn retain_body_coordinates(
+    module: &crate::ir::Module,
+    image: &SourceImage,
+    registry: &CommandRegistry,
+    coordinates: &mut HashSet<BodyCoordinate>,
+    bodies: &mut HashMap<ProcedureId, BodyCoordinate>,
+) -> Option<()> {
+    for (id, procedure) in module.original_source_procedure_bodies() {
+        let Some(original) = image.bytes().get(procedure.span.as_range()) else {
+            return None;
+        };
+        if !module.procedure_ids.owns(*id) || original.is_empty() {
+            return None;
+        }
+        if let Some(site) = procedure.declaration_site.as_ref() {
+            let count = module
+                .procedures
+                .at_declaration(site)
+                .chain(
+                    module
+                        .body_lowerings()
+                        .filter(|(_, body)| body.declaration_site.as_ref() == Some(site)),
+                )
+                .count();
+            if count != 1 {
+                return None;
+            }
+        }
+        let coordinate = BodyCoordinate {
+            kind: BodyKind::Procedure(procedure.body_kind),
+            declaration: procedure.declaration_site.as_ref().map(|site| site.offset),
+            span: procedure.span,
+            body_offset: Some(procedure.body_offset),
+            original: original.to_vec(),
+        };
+        if !coordinates.insert(coordinate.clone()) || bodies.insert(*id, coordinate).is_some() {
+            return None;
+        }
+    }
+    for (id, method) in &module.methods {
+        let Some(span) = method.span else {
+            return None;
+        };
+        let Some(original) = image.bytes().get(span.as_range()) else {
+            return None;
+        };
+        if !module.procedure_ids.owns(*id) || original.is_empty() {
+            return None;
+        }
+        let coordinate = BodyCoordinate {
+            kind: BodyKind::Method(method.kind),
+            declaration: Some(span.start()),
+            span,
+            body_offset: None,
+            original: original.to_vec(),
+        };
+        if !coordinates.insert(coordinate.clone()) || bodies.insert(*id, coordinate).is_some() {
+            return None;
+        }
+    }
+    for id in module.original_definition_scripts.keys() {
+        let Some(source) = module.original_definition_script_source(*id, registry) else {
+            return None;
+        };
+        let span = source.declaration_span();
+        let Some(original) = image.bytes().get(span.as_range()) else {
+            return None;
+        };
+        let coordinate = BodyCoordinate {
+            kind: BodyKind::Definition(source.family() as u8),
+            declaration: Some(span.start()),
+            span,
+            body_offset: Some(source.content_span().start()),
+            original: original.to_vec(),
+        };
+        if !coordinates.insert(coordinate.clone()) || bodies.insert(*id, coordinate).is_some() {
+            return None;
+        }
+    }
+    Some(())
+}
+
 impl ObjectHandleFacts {
     pub(crate) fn retain_report_source(
         &mut self,
@@ -265,77 +347,9 @@ impl ObjectHandleFacts {
         }
         let mut bodies = HashMap::new();
         let mut coordinates = HashSet::new();
-        for (id, procedure) in module.original_source_procedure_bodies() {
-            let Some(original) = image.bytes().get(procedure.span.as_range()) else {
-                return;
-            };
-            if !module.procedure_ids.owns(*id) || original.is_empty() {
-                return;
-            }
-            if let Some(site) = procedure.declaration_site.as_ref() {
-                let count = module
-                    .procedures
-                    .at_declaration(site)
-                    .chain(
-                        module
-                            .body_lowerings()
-                            .filter(|(_, body)| body.declaration_site.as_ref() == Some(site)),
-                    )
-                    .count();
-                if count != 1 {
-                    return;
-                }
-            }
-            let coordinate = BodyCoordinate {
-                kind: BodyKind::Procedure(procedure.body_kind),
-                declaration: procedure.declaration_site.as_ref().map(|site| site.offset),
-                span: procedure.span,
-                body_offset: Some(procedure.body_offset),
-                original: original.to_vec(),
-            };
-            if !coordinates.insert(coordinate.clone()) || bodies.insert(*id, coordinate).is_some() {
-                return;
-            }
-        }
-        for (id, method) in &module.methods {
-            let Some(span) = method.span else {
-                return;
-            };
-            let Some(original) = image.bytes().get(span.as_range()) else {
-                return;
-            };
-            if !module.procedure_ids.owns(*id) || original.is_empty() {
-                return;
-            }
-            let coordinate = BodyCoordinate {
-                kind: BodyKind::Method(method.kind),
-                declaration: Some(span.start()),
-                span,
-                body_offset: None,
-                original: original.to_vec(),
-            };
-            if !coordinates.insert(coordinate.clone()) || bodies.insert(*id, coordinate).is_some() {
-                return;
-            }
-        }
-        for id in module.original_definition_scripts.keys() {
-            let Some(source) = module.original_definition_script_source(*id, registry) else {
-                return;
-            };
-            let span = source.declaration_span();
-            let Some(original) = image.bytes().get(span.as_range()) else {
-                return;
-            };
-            let coordinate = BodyCoordinate {
-                kind: BodyKind::Definition(source.family() as u8),
-                declaration: Some(span.start()),
-                span,
-                body_offset: Some(source.content_span().start()),
-                original: original.to_vec(),
-            };
-            if !coordinates.insert(coordinate.clone()) || bodies.insert(*id, coordinate).is_some() {
-                return;
-            }
+        if retain_body_coordinates(module, image, registry, &mut coordinates, &mut bodies).is_none()
+        {
+            return;
         }
         self.report_source = Some(std::sync::Arc::new(ObjectReportSource {
             image: image.clone(),
