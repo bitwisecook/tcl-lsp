@@ -19,6 +19,7 @@
 """WORK-only original native startup diagnostics; no release gate admission."""
 
 import argparse
+import base64
 import datetime
 import hashlib
 import importlib.util
@@ -27,6 +28,7 @@ import os
 import re
 import resource
 import shutil
+import stat
 import subprocess
 import sys
 from pathlib import Path
@@ -67,6 +69,193 @@ def files(paths):
                     "symlink": os.readlink(path) if path.is_symlink() else None,
                 }
     return result
+
+
+SYSTEM_SEARCH_BASES = (
+    "/usr/lib",
+    "/usr/lib64",
+    "/usr/local/lib",
+    "/usr/local/lib64",
+    "/usr/share/tcltk",
+    "/usr/lib/tcltk",
+    "/usr/lib/x86_64-linux-gnu",
+    "/opt/local/lib",
+    "/opt/homebrew/lib",
+)
+SYSTEM_CONFIGURED_PATHS = (
+    "/opt/proj-a/tcl-lib",
+    "/opt/proj-b/tcl-lib",
+    "/usr/local/share/tcl",
+)
+SYSTEM_FILE_LIMIT = 50000
+SYSTEM_BYTE_LIMIT = 256 * 1024**2
+SYSTEM_INDEX_LIMIT = 4 * 1024**2
+
+
+def system_node(path) -> dict[str, object]:
+    try:
+        info = path.lstat()
+    except FileNotFoundError:
+        return {"kind": "absent"}
+    kind = stat.S_IFMT(info.st_mode)
+    return {
+        "kind": kind,
+        "symlink": os.readlink(path) if stat.S_ISLNK(info.st_mode) else None,
+        "resolved": str(path.resolve()),
+    }
+
+
+def system_providers(bases=None, supplied_environment=None):
+    # Evidence for filesystem discovery; the Rust owner remains authoritative.
+    require(sys.platform == "linux", "Linux system provider evidence only")
+    env = os.environ if supplied_environment is None else supplied_environment
+    overrides = {name: env.get(name) for name in ["TCL_LIBRARY", "TCLLIBPATH"]}
+    config_home = Path(env.get("XDG_CONFIG_HOME") or str(Path(env["HOME"]) / ".config"))
+    config = config_home / "tcl-lsp/config.ini"
+    config_state = system_node(config)
+    require(
+        all(value is None for value in overrides.values()),
+        "unhandled system discovery environment override: " + repr(overrides),
+    )
+    require(
+        config_state["kind"] == "absent",
+        "unhandled user library configuration: " + str(config),
+    )
+    selected_bases = [
+        Path(value) for value in (SYSTEM_SEARCH_BASES if bases is None else bases)
+    ]
+    geometry = []
+    libraries = []
+    for base in selected_bases:
+        children = list(base.iterdir()) if base.is_dir() else []
+        require(
+            len(children) <= SYSTEM_FILE_LIMIT,
+            "system discovery membership limit exceeded",
+        )
+        candidates = [base] + [child for child in children if child.is_dir()]
+        geometry.append(
+            {
+                "base": str(base),
+                "identity": system_node(base),
+                "children": [
+                    {"path": str(child), "identity": system_node(child)}
+                    for child in children
+                ],
+                "candidates": [
+                    {
+                        "path": str(candidate),
+                        "init": system_node(candidate / "init.tcl"),
+                        "init_sha256": sha(candidate / "init.tcl")
+                        if (candidate / "init.tcl").is_file()
+                        else None,
+                    }
+                    for candidate in candidates
+                ],
+            }
+        )
+        for candidate in candidates:
+            if (candidate / "init.tcl").is_file() and candidate not in libraries:
+                libraries.append(candidate)
+    roots = []
+    for library in libraries:
+        for path in [library.parent, library]:
+            if path not in roots:
+                roots.append(path)
+    optional_paths = (
+        [Path(path) for path in SYSTEM_CONFIGURED_PATHS] if bases is None else []
+    )
+    for path in optional_paths:
+        if path.is_dir() and path not in roots:
+            roots.append(path)
+    ancestry = {
+        str(parent): system_node(parent)
+        for path in selected_bases + roots
+        for parent in path.parents
+    }
+    nodes = {}
+    total_bytes = 0
+
+    def visit(path, ancestors):
+        nonlocal total_bytes
+        require(len(ancestors) <= 128, "system provider depth limit exceeded")
+        if str(path) in nodes:
+            return
+        require(
+            len(nodes) < SYSTEM_FILE_LIMIT, "system provider inventory limit exceeded"
+        )
+        entry = system_node(path)
+        nodes[str(path)] = entry
+        if path.is_dir():
+            physical = path.resolve(strict=True)
+            require(
+                physical not in ancestors,
+                "system provider directory symlink cycle: " + str(path),
+            )
+            children = sorted(path.iterdir())
+            entry["children"] = [child.name for child in children]
+            for child in children:
+                visit(child, ancestors + (physical,))
+        elif path.is_file():
+            size = path.stat().st_size
+            require(
+                total_bytes + size <= SYSTEM_BYTE_LIMIT,
+                "system provider byte limit exceeded",
+            )
+            total_bytes += size
+            entry.update(bytes=size, sha256=sha(path))
+        else:
+            require(
+                entry["kind"] == "absent" or path.is_symlink(),
+                "unsupported system provider node: " + str(path),
+            )
+
+    for path in roots:
+        visit(path, ())
+    return {
+        "scope": "Linux filesystem discovery evidence only; no independent discovery semantic authority",
+        "discovery_owner": "rust/tcl-lsp-core/src/tcl_install.rs",
+        "discovery_owner_sha256": sha(root / "rust/tcl-lsp-core/src/tcl_install.rs"),
+        "environment": overrides,
+        "user_config": {"path": str(config), "identity": config_state},
+        "ordered_bases": geometry,
+        "path_ancestors": ancestry,
+        "original_context_library_paths": {
+            str(path): system_node(path) for path in optional_paths
+        },
+        "lexical_library_paths": [str(path) for path in libraries],
+        "auto_path_roots": [str(path) for path in roots],
+        "nodes": nodes,
+        "hashed_file_bytes": total_bytes,
+    }
+
+
+def retain_system_indexes(snapshot):
+    indexes = []
+    total = 0
+    for name, entry in snapshot["nodes"].items():
+        if Path(name).name not in ["tclIndex", "pkgIndex.tcl"] or "sha256" not in entry:
+            continue
+        data = Path(name).read_bytes()
+        total += len(data)
+        require(
+            total <= SYSTEM_INDEX_LIMIT, "system index evidence byte limit exceeded"
+        )
+        require(
+            hashlib.sha256(data).hexdigest() == entry["sha256"],
+            "system index changed during retention",
+        )
+        indexes.append(
+            {
+                "path": name,
+                "sha256": entry["sha256"],
+                "bytes": len(data),
+                "base64": base64.b64encode(data).decode("ascii"),
+            }
+        )
+    return {
+        "scope": "All sealed system tclIndex/pkgIndex.tcl bytes; logs identify actually consumed paths",
+        "indexes": indexes,
+    }
 
 
 def source():
@@ -141,6 +330,7 @@ out.mkdir(parents=True)
 resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
 remaining = CAP
 before = providers_before = dependencies_before = artifact = tool_pins = None
+system_providers_before = None
 processes = []
 cases = []
 error = None
@@ -387,6 +577,12 @@ try:
         and files(list(tools.values())) == tool_pins,
         "pre-runtime source/provider/tool seal mismatch",
     )
+    system_providers_before = system_providers()
+    save(out / "system-providers-before.json", system_providers_before)
+    save(
+        out / "system-indexes-before.json",
+        retain_system_indexes(system_providers_before),
+    )
     work = Path(os.environ["RUNNER_TEMP"]) / "lsp-startup-workers"
     require(not work.exists(), "fresh worker materialisation required")
     shutil.copytree(BASE / "typical", work / "typical")
@@ -412,6 +608,10 @@ try:
     materialised_pins = files([work])
     save(out / "materialised-worker-inputs.json", materialised_pins)
     for case in ["typical", "context"]:
+        require(
+            system_providers() == system_providers_before,
+            "pre-worker system provider seal mismatch",
+        )
         require(
             remaining > 1024 * 1024, "insufficient aggregate budget for original worker"
         )
@@ -534,6 +734,7 @@ finally:
     for name, capture, original in [
         ("source", source, before),
         ("providers", lambda: files(provider_roots), providers_before),
+        ("system-providers", system_providers, system_providers_before),
         ("tools", lambda: files(list(tools.values())), tool_pins),
         ("dependencies", lambda: files(dependency_roots), dependencies_before),
     ]:
