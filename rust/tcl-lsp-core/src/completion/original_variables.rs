@@ -157,50 +157,102 @@ fn reference_candidates(
         );
     }
     if analysis.has_original_vendor_source_names() {
-        let home = analysis.original_vendor_variable_body_in_source(&image, config, cursor);
-        let mut candidates = Vec::new();
-        for advice in analysis.original_vendor_variable_advice() {
-            let visible = match (home, advice.home()) {
-                (Some(current), Some(owner)) => current == owner,
-                (None, None) => advice.is_source_root(),
-                _ => false,
-            };
-            if !visible
-                || excluded.is_some_and(|span| {
-                    advice.span().start() <= span.start() && span.end() <= advice.span().end()
-                })
-                || !advice
-                    .input()
-                    .original_occurrence()
-                    .name_input()
-                    .matches_source(&image, config)
-            {
-                continue;
-            }
-            let Some(spelling) =
-                tcl_compiler::signature_scan::vendor_variable::vendor_variable_source_reference(
-                    advice,
-                )
-            else {
-                continue;
-            };
-            if candidates
-                .iter()
-                .any(|item: &CompletionItem| item.insert_text == spelling)
-            {
-                continue;
-            }
-            candidates.push(CompletionItem {
-                label: spelling.clone(),
-                insert_text: spelling.clone(),
-                kind: CompletionKind::Variable,
-                detail: Some("variable — hosted source declaration candidate".to_owned()),
-                ..CompletionItem::default()
-            });
-        }
-        return candidates;
+        return vendor_reference_candidates(analysis, (&image, config), cursor, excluded);
     }
     let mut candidates = Vec::new();
+    extend_symbol_reference_candidates(
+        analysis,
+        (source, config),
+        (namespace, frame.as_ref()),
+        braced,
+        arrays,
+        excluded,
+        &mut candidates,
+    );
+    if !arrays {
+        extend_alias_reference_candidates(
+            analysis,
+            (source, &image, config),
+            frame.as_ref(),
+            braced,
+            excluded,
+            &mut candidates,
+        );
+        extend_write_reference_candidates(
+            analysis,
+            (source, config),
+            (namespace, frame.as_ref()),
+            braced,
+            excluded,
+            &mut candidates,
+        );
+    }
+    candidates
+}
+
+fn vendor_reference_candidates(
+    analysis: &AnalysisResult,
+    position: (&SourceImage, LexerConfig),
+    cursor: u32,
+    excluded: Option<Span>,
+) -> Vec<CompletionItem> {
+    let (image, config) = position;
+    let home = analysis.original_vendor_variable_body_in_source(image, config, cursor);
+    let mut candidates = Vec::new();
+    for advice in analysis.original_vendor_variable_advice() {
+        let visible = match (home, advice.home()) {
+            (Some(current), Some(owner)) => current == owner,
+            (None, None) => advice.is_source_root(),
+            _ => false,
+        };
+        if !visible
+            || excluded.is_some_and(|span| {
+                advice.span().start() <= span.start() && span.end() <= advice.span().end()
+            })
+            || !advice
+                .input()
+                .original_occurrence()
+                .name_input()
+                .matches_source(image, config)
+        {
+            continue;
+        }
+        let Some(spelling) =
+            tcl_compiler::signature_scan::vendor_variable::vendor_variable_source_reference(advice)
+        else {
+            continue;
+        };
+        if candidates
+            .iter()
+            .any(|item: &CompletionItem| item.insert_text == spelling)
+        {
+            continue;
+        }
+        candidates.push(CompletionItem {
+            label: spelling.clone(),
+            insert_text: spelling.clone(),
+            kind: CompletionKind::Variable,
+            detail: Some("variable — hosted source declaration candidate".to_owned()),
+            ..CompletionItem::default()
+        });
+    }
+    candidates
+}
+
+fn extend_symbol_reference_candidates(
+    analysis: &AnalysisResult,
+    position: (&str, LexerConfig),
+    scope: (
+        Option<&SignatureNamespaceScope>,
+        Option<&SourceOriginalVariableFrame>,
+    ),
+    braced: bool,
+    arrays: bool,
+    excluded: Option<Span>,
+    candidates: &mut Vec<CompletionItem>,
+) {
+    let (source, config) = position;
+    let (namespace, frame) = scope;
     for occurrence in &analysis.original_variable_symbols {
         // Cursor geometry cannot supply a new completion candidate from the
         // partial lexical reference currently being completed.
@@ -220,7 +272,7 @@ fn reference_candidates(
         let Some(root) = accessible_name(
             occurrence,
             namespace,
-            frame.as_ref(),
+            frame,
             &analysis.original_variable_symbols,
         ) else {
             continue;
@@ -254,105 +306,128 @@ fn reference_candidates(
             ..CompletionItem::default()
         });
     }
-    if !arrays {
-        for advice in analysis
-            .original_variable_alias_advice_in_source(&image, config)
-            .into_iter()
-            .flatten()
+}
+
+fn extend_alias_reference_candidates(
+    analysis: &AnalysisResult,
+    position: (&str, &SourceImage, LexerConfig),
+    frame: Option<&SourceOriginalVariableFrame>,
+    braced: bool,
+    excluded: Option<Span>,
+    candidates: &mut Vec<CompletionItem>,
+) {
+    let (source, image, config) = position;
+    for advice in analysis
+        .original_variable_alias_advice_in_source(image, config)
+        .into_iter()
+        .flatten()
+    {
+        let input = advice.original_name_input();
+        if Some(advice.original_frame()) != frame
+            || excluded.is_some_and(|span| {
+                advice.span().start() <= span.start() && span.end() <= advice.span().end()
+            })
+            || !crate::original_name_edit::original_input_matches_source(
+                source,
+                analysis,
+                input,
+                advice.span(),
+            )
         {
-            let input = advice.original_name_input();
-            if Some(advice.original_frame()) != frame.as_ref()
-                || excluded.is_some_and(|span| {
-                    advice.span().start() <= span.start() && span.end() <= advice.span().end()
-                })
-                || !crate::original_name_edit::original_input_matches_source(
-                    source,
-                    analysis,
-                    input,
-                    advice.span(),
-                )
-            {
-                continue;
-            }
-            let Some(spelling) = reference_spelling(
-                advice.local_name().as_bytes(),
-                None,
-                braced,
-                config,
-                input.policy(),
-            ) else {
-                continue;
-            };
-            if candidates
-                .iter()
-                .any(|item: &CompletionItem| item.insert_text == spelling)
-            {
-                continue;
-            }
-            candidates.push(CompletionItem {
-                label: spelling.clone(),
-                insert_text: spelling,
-                kind: CompletionKind::Variable,
-                detail: Some("variable — source alias declaration candidate".to_owned()),
-                ..CompletionItem::default()
-            });
+            continue;
         }
-        for advice in &analysis.original_variable_write_advice {
-            let visible = if let Some(owner) = advice.original_frame() {
-                Some(owner) == frame.as_ref()
-            } else {
-                frame.is_none() && namespace.is_some() && advice.original_namespace() == namespace
-            };
-            let input = advice.original_name_input();
-            if !visible
-                || excluded.is_some_and(|span| {
-                    advice.span().start() <= span.start() && span.end() <= advice.span().end()
-                })
-                || !crate::original_name_edit::original_input_matches_source(
-                    source,
-                    analysis,
-                    input,
-                    advice.span(),
-                )
-                || analysis.original_variable_symbols.iter().any(|occurrence| {
-                    occurrence.span() == advice.span() && occurrence.original_name_input() == input
-                })
-            {
-                continue;
-            }
-            let protocol = input.policy().recipe();
-            let Some(form) = advice.receiver_form().input_form(protocol, input.bytes()) else {
-                continue;
-            };
-            let root = match form {
-                tcl_syntax::naming::NativeVariableInputForm::Combined(bytes) => {
-                    protocol.combined_variable_input(bytes)
-                }
-                tcl_syntax::naming::NativeVariableInputForm::Separate { root, element } => {
-                    protocol.separate_variable_input(root, element)
-                }
-            };
-            let Some(spelling) =
-                reference_spelling(root.root().selected(), None, braced, config, input.policy())
-            else {
-                continue;
-            };
-            if candidates
-                .iter()
-                .any(|item: &CompletionItem| item.insert_text == spelling)
-            {
-                continue;
-            }
-            candidates.push(CompletionItem {
-                label: spelling.clone(),
-                insert_text: spelling.clone(),
-                kind: CompletionKind::Variable,
-                detail: Some("variable — conditional write-name candidate".to_owned()),
-                ..CompletionItem::default()
-            });
+        let Some(spelling) = reference_spelling(
+            advice.local_name().as_bytes(),
+            None,
+            braced,
+            config,
+            input.policy(),
+        ) else {
+            continue;
+        };
+        if candidates
+            .iter()
+            .any(|item: &CompletionItem| item.insert_text == spelling)
+        {
+            continue;
         }
+        candidates.push(CompletionItem {
+            label: spelling.clone(),
+            insert_text: spelling,
+            kind: CompletionKind::Variable,
+            detail: Some("variable — source alias declaration candidate".to_owned()),
+            ..CompletionItem::default()
+        });
     }
-    candidates
+}
+
+fn extend_write_reference_candidates(
+    analysis: &AnalysisResult,
+    position: (&str, LexerConfig),
+    scope: (
+        Option<&SignatureNamespaceScope>,
+        Option<&SourceOriginalVariableFrame>,
+    ),
+    braced: bool,
+    excluded: Option<Span>,
+    candidates: &mut Vec<CompletionItem>,
+) {
+    let (source, config) = position;
+    let (namespace, frame) = scope;
+    for advice in &analysis.original_variable_write_advice {
+        let visible = if let Some(owner) = advice.original_frame() {
+            Some(owner) == frame
+        } else {
+            frame.is_none() && namespace.is_some() && advice.original_namespace() == namespace
+        };
+        let input = advice.original_name_input();
+        if !visible
+            || excluded.is_some_and(|span| {
+                advice.span().start() <= span.start() && span.end() <= advice.span().end()
+            })
+            || !crate::original_name_edit::original_input_matches_source(
+                source,
+                analysis,
+                input,
+                advice.span(),
+            )
+            || analysis.original_variable_symbols.iter().any(|occurrence| {
+                occurrence.span() == advice.span() && occurrence.original_name_input() == input
+            })
+        {
+            continue;
+        }
+        let protocol = input.policy().recipe();
+        let Some(form) = advice.receiver_form().input_form(protocol, input.bytes()) else {
+            continue;
+        };
+        let root = match form {
+            tcl_syntax::naming::NativeVariableInputForm::Combined(bytes) => {
+                protocol.combined_variable_input(bytes)
+            }
+            tcl_syntax::naming::NativeVariableInputForm::Separate { root, element } => {
+                protocol.separate_variable_input(root, element)
+            }
+        };
+        let Some(spelling) =
+            reference_spelling(root.root().selected(), None, braced, config, input.policy())
+        else {
+            continue;
+        };
+        if candidates
+            .iter()
+            .any(|item: &CompletionItem| item.insert_text == spelling)
+        {
+            continue;
+        }
+        candidates.push(CompletionItem {
+            label: spelling.clone(),
+            insert_text: spelling.clone(),
+            kind: CompletionKind::Variable,
+            detail: Some("variable — conditional write-name candidate".to_owned()),
+            ..CompletionItem::default()
+        });
+    }
 }
 
 fn accessible_name(
