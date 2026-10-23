@@ -138,6 +138,120 @@ pub fn namespace_rename_edits(
     lexical_namespace_rename_edits(source, dialect, analysis, cell, new_tail)
 }
 
+fn record_lexical_namespace_references(
+    analysis: &AnalysisResult,
+    cell: &str,
+    variable_config: tcl_lexer::LexerConfig,
+    considered: &mut Vec<Span>,
+    record: &mut impl FnMut(Span, &str, WrittenNamePurpose, &mut Vec<Span>) -> Result<(), RenameRefusal>,
+) -> Result<(), RenameRefusal> {
+    // 1. Every `NamespaceName`-role word naming the namespace or one beneath
+    //    it — the `namespace eval` / `children` / `exists` / `delete` /
+    //    `upvar` / `inscope` arguments the analyser recorded.  Descendants
+    //    count: `namespace eval ::old::sub {}` writes `old` too, and it is
+    //    also how an implicitly-created namespace is renamed
+    //    at all — it has no declaring word of its own.
+    for nref in &analysis.namespace_refs {
+        if names_at_or_under(cell, &nref.qualified_name) {
+            record(
+                nref.span,
+                &nref.qualified_name,
+                WrittenNamePurpose::Namespace,
+                considered,
+            )?;
+        }
+    }
+    // 2. Qualified variable occurrences beneath it (`$::old::v`, `set
+    //    app::old::v 1`).
+    for vref in &analysis.qualified_var_refs {
+        if names_under(cell, &vref.qualified_name) {
+            record(
+                vref.span,
+                &vref.qualified_name,
+                WrittenNamePurpose::Variable(variable_config),
+                considered,
+            )?;
+        }
+    }
+    // 3. Command call sites resolved beneath it.  An indirect site's span is
+    //    not the written name, so it is never a rewrite target — and
+    //    never a silent miss either: the gate below sees it as an
+    //    unattributed word if it writes the namespace.
+    for inv in &analysis.command_invocations {
+        let Some(resolved) = inv.resolved_qualified_name.as_deref() else {
+            continue;
+        };
+        if inv.indirect || !names_under(cell, resolved) {
+            continue;
+        }
+        record(inv.range, resolved, WrittenNamePurpose::Entity, considered)?;
+    }
+    Ok(())
+}
+
+fn record_lexical_namespace_declarations(
+    analysis: &AnalysisResult,
+    cell: &str,
+    considered: &mut Vec<Span>,
+    record: &mut impl FnMut(Span, &str, WrittenNamePurpose, &mut Vec<Span>) -> Result<(), RenameRefusal>,
+) -> Result<(), RenameRefusal> {
+    // 4. Declaration name words beneath it — `proc ::old::p`, `oo::class
+    //    create ::old::C`.
+    for proc_def in analysis.all_procs.values() {
+        if names_under(cell, &proc_def.qualified_name) {
+            record(
+                proc_def.name_span,
+                &proc_def.qualified_name,
+                WrittenNamePurpose::Entity,
+                considered,
+            )?;
+        }
+    }
+    for class_def in analysis.all_classes.values() {
+        if names_under(cell, &class_def.qualified_name) {
+            record(
+                class_def.name_span,
+                &class_def.qualified_name,
+                WrittenNamePurpose::Entity,
+                considered,
+            )?;
+        }
+    }
+    // 5. Import / forget patterns naming it.  `namespace export` patterns are
+    //    never qualified — a `::`-qualified export is a hard error in real
+    //    Tcl (`invalid export pattern "::foo": pattern can't specify a
+    //    namespace`) — so they name no other namespace and need no edit.
+    for imp in &analysis.namespace_imports {
+        if let Some(source) = &imp.source {
+            let pattern = source.constructed_pattern();
+            if names_under(cell, &pattern) {
+                record(imp.range, &pattern, WrittenNamePurpose::Entity, considered)?;
+            }
+        }
+    }
+    for forget in &analysis.namespace_forgets {
+        let Some(source_ns) = forget.source_ns.as_deref() else {
+            continue;
+        };
+        if !names_at_or_under(cell, source_ns) {
+            continue;
+        }
+        // The recorded span covers the whole pattern word (`::old::p`), and
+        // the pattern's own namespace is what names the renamed one.
+        // The source namespace is constructed metadata; retain literal colon
+        // segments while the shared owner qualifies the written pattern tail.
+        let resolved = tcl_syntax::naming::qualify(source_ns, &forget.pattern);
+        record(
+            forget.range,
+            &resolved,
+            WrittenNamePurpose::Entity,
+            considered,
+        )?;
+    }
+
+    Ok(())
+}
+
 fn lexical_namespace_rename_edits(
     source: &str,
     dialect: &'static tcl_dialect::DialectProfile,
@@ -179,110 +293,14 @@ fn lexical_namespace_rename_edits(
         Ok(())
     };
 
-    // 1. Every `NamespaceName`-role word naming the namespace or one beneath
-    //    it — the `namespace eval` / `children` / `exists` / `delete` /
-    //    `upvar` / `inscope` arguments the analyser recorded.  Descendants
-    //    count: `namespace eval ::old::sub {}` writes `old` too, and it is
-    //    also how an implicitly-created namespace is renamed
-    //    at all — it has no declaring word of its own.
-    for nref in &analysis.namespace_refs {
-        if names_at_or_under(cell, &nref.qualified_name) {
-            record(
-                nref.span,
-                &nref.qualified_name,
-                WrittenNamePurpose::Namespace,
-                &mut considered,
-            )?;
-        }
-    }
-    // 2. Qualified variable occurrences beneath it (`$::old::v`, `set
-    //    app::old::v 1`).
-    for vref in &analysis.qualified_var_refs {
-        if names_under(cell, &vref.qualified_name) {
-            record(
-                vref.span,
-                &vref.qualified_name,
-                WrittenNamePurpose::Variable(variable_config),
-                &mut considered,
-            )?;
-        }
-    }
-    // 3. Command call sites resolved beneath it.  An indirect site's span is
-    //    not the written name, so it is never a rewrite target — and
-    //    never a silent miss either: the gate below sees it as an
-    //    unattributed word if it writes the namespace.
-    for inv in &analysis.command_invocations {
-        let Some(resolved) = inv.resolved_qualified_name.as_deref() else {
-            continue;
-        };
-        if inv.indirect || !names_under(cell, resolved) {
-            continue;
-        }
-        record(
-            inv.range,
-            resolved,
-            WrittenNamePurpose::Entity,
-            &mut considered,
-        )?;
-    }
-    // 4. Declaration name words beneath it — `proc ::old::p`, `oo::class
-    //    create ::old::C`.
-    for proc_def in analysis.all_procs.values() {
-        if names_under(cell, &proc_def.qualified_name) {
-            record(
-                proc_def.name_span,
-                &proc_def.qualified_name,
-                WrittenNamePurpose::Entity,
-                &mut considered,
-            )?;
-        }
-    }
-    for class_def in analysis.all_classes.values() {
-        if names_under(cell, &class_def.qualified_name) {
-            record(
-                class_def.name_span,
-                &class_def.qualified_name,
-                WrittenNamePurpose::Entity,
-                &mut considered,
-            )?;
-        }
-    }
-    // 5. Import / forget patterns naming it.  `namespace export` patterns are
-    //    never qualified — a `::`-qualified export is a hard error in real
-    //    Tcl (`invalid export pattern "::foo": pattern can't specify a
-    //    namespace`) — so they name no other namespace and need no edit.
-    for imp in &analysis.namespace_imports {
-        if let Some(source) = &imp.source {
-            let pattern = source.constructed_pattern();
-            if names_under(cell, &pattern) {
-                record(
-                    imp.range,
-                    &pattern,
-                    WrittenNamePurpose::Entity,
-                    &mut considered,
-                )?;
-            }
-        }
-    }
-    for forget in &analysis.namespace_forgets {
-        let Some(source_ns) = forget.source_ns.as_deref() else {
-            continue;
-        };
-        if !names_at_or_under(cell, source_ns) {
-            continue;
-        }
-        // The recorded span covers the whole pattern word (`::old::p`), and
-        // the pattern's own namespace is what names the renamed one.
-        // The source namespace is constructed metadata; retain literal colon
-        // segments while the shared owner qualifies the written pattern tail.
-        let resolved = tcl_syntax::naming::qualify(source_ns, &forget.pattern);
-        record(
-            forget.range,
-            &resolved,
-            WrittenNamePurpose::Entity,
-            &mut considered,
-        )?;
-    }
+    record_lexical_namespace_references(
+        analysis,
+        cell,
+        variable_config,
+        &mut considered,
+        &mut record,
+    )?;
+    record_lexical_namespace_declarations(analysis, cell, &mut considered, &mut record)?;
 
     if let Some(refusal) =
         namespace_rename_hazard(source, dialect, analysis, cell, &considered, &line_index)
@@ -425,17 +443,10 @@ fn written_cell_segment(source: &str, word: Span, resolved: &str, cell: &str) ->
     }
 }
 
-/// Why this document makes the namespace rename unprovable, if it does.
-///
-/// `considered` is the exact set of word spans the edit collector looked at,
-/// so "everything else" is what the gate examines — the coverage-equals-edits
-/// discipline the member tier applies, applied here.
-fn namespace_rename_hazard(
+fn computed_namespace_path_hazard(
     source: &str,
-    dialect: &'static tcl_dialect::DialectProfile,
     analysis: &AnalysisResult,
     cell: &str,
-    considered: &[Span],
     line_index: &LineIndex,
 ) -> Option<RenameRefusal> {
     // A `namespace path` word the analyser could not read as a literal list —
@@ -460,6 +471,106 @@ fn namespace_rename_hazard(
             line_index,
             Some(span),
         ));
+    }
+    None
+}
+
+fn unattributed_namespace_word(
+    source: &str,
+    cell: &str,
+    considered: &[Span],
+    nested: &[(usize, usize)],
+    cmd: &tcl_compiler::segmenter::SegmentedCommand,
+) -> Option<(Span, HazardKind)> {
+    for tok in &cmd.argv {
+        let span = tok.span;
+        if considered.iter().any(|c| spans_overlap(*c, span)) {
+            continue;
+        }
+        if nested
+            .iter()
+            .any(|(s, e)| (span.start() as usize) < *e && *s < span.end() as usize)
+        {
+            continue;
+        }
+        let Some(text) = source.get(span.start() as usize..span.end() as usize) else {
+            continue;
+        };
+        if embedded_rooted_name_under(text, cell) {
+            return Some((span, HazardKind::Unattributed));
+        }
+    }
+    None
+}
+
+fn namespace_hazard_reason(cell: &str, written: &str, kind: HazardKind) -> String {
+    match kind {
+        HazardKind::UnknownRole => format!(
+            "cannot rename `{cell}`: the original command's argument roles are unavailable for `{written}`, which may name this namespace"
+        ),
+        HazardKind::Computed => format!(
+            "cannot rename `{cell}`: this document names a namespace through a value \
+             computed at run time (`{written}`), which may be this very namespace — there \
+             is no word to rewrite, so the rename cannot be completed from source edits."
+        ),
+        HazardKind::Unattributed => format!(
+            "cannot rename `{cell}`: `{written}` names something beneath it in a position \
+             this rename cannot attribute — a callback script, a dispatch-table literal, or \
+             another embedded name. Rewriting the declarations would leave it naming a \
+             namespace that no longer exists."
+        ),
+    }
+}
+
+fn computed_namespace_word(
+    cmd: &tcl_compiler::segmenter::SegmentedCommand,
+    cell: &str,
+    roles: Option<&[(usize, tcl_registry::ArgRole)]>,
+    metadata: Option<tcl_compiler::registry_invocation::InvocationMetadataContext<'_>>,
+) -> Option<(Span, HazardKind)> {
+    for (idx, word) in cmd.texts.iter().skip(1).enumerate() {
+        if !word.contains(['$', '[']) {
+            continue;
+        }
+        let kind = match &roles {
+            Some(roles) if roles.contains(&(idx, tcl_registry::ArgRole::NamespaceName)) => {
+                HazardKind::Computed
+            }
+            Some(_) => continue,
+            None => HazardKind::UnknownRole,
+        };
+        if matches!(kind, HazardKind::Computed)
+            && tcl_compiler::dynamic_names::source_name_pattern_can_spell(
+                word,
+                cell,
+                tcl_compiler::dynamic_names::SourceNamePatternPurpose::NamespaceName,
+                metadata,
+            ) == Some(false)
+        {
+            continue;
+        }
+        if let Some(tok) = cmd.argv.get(idx + 1) {
+            return Some((tok.span, kind));
+        }
+    }
+    None
+}
+
+/// Why this document makes the namespace rename unprovable, if it does.
+///
+/// `considered` is the exact set of word spans the edit collector looked at,
+/// so "everything else" is what the gate examines — the coverage-equals-edits
+/// discipline the member tier applies, applied here.
+fn namespace_rename_hazard(
+    source: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
+    analysis: &AnalysisResult,
+    cell: &str,
+    considered: &[Span],
+    line_index: &LineIndex,
+) -> Option<RenameRefusal> {
+    if let Some(refusal) = computed_namespace_path_hazard(source, analysis, cell, line_index) {
+        return Some(refusal);
     }
     let unavailable = || {
         RenameRefusal::at(
@@ -514,51 +625,11 @@ fn namespace_rename_hazard(
             .as_ref()
             .filter(|words| words.roles().is_some())
             .map(tcl_compiler::registry_invocation::source_structure::OriginalRegistryWords::written_argument_roles);
-        for (idx, word) in cmd.texts.iter().skip(1).enumerate() {
-            if !word.contains(['$', '[']) {
-                continue;
-            }
-            let kind = match &roles {
-                Some(roles) if roles.contains(&(idx, tcl_registry::ArgRole::NamespaceName)) => {
-                    HazardKind::Computed
-                }
-                Some(_) => continue,
-                None => HazardKind::UnknownRole,
-            };
-            if matches!(kind, HazardKind::Computed)
-                && tcl_compiler::dynamic_names::source_name_pattern_can_spell(
-                    word,
-                    cell,
-                    tcl_compiler::dynamic_names::SourceNamePatternPurpose::NamespaceName,
-                    metadata,
-                ) == Some(false)
-            {
-                continue;
-            }
-            if let Some(tok) = cmd.argv.get(idx + 1) {
-                hazard = Some((tok.span, kind));
-                return;
-            }
+        if let Some(computed) = computed_namespace_word(cmd, cell, roles.as_deref(), metadata) {
+            hazard = Some(computed);
+            return;
         }
-        for tok in &cmd.argv {
-            let span = tok.span;
-            if considered.iter().any(|c| spans_overlap(*c, span)) {
-                continue;
-            }
-            if nested
-                .iter()
-                .any(|(s, e)| (span.start() as usize) < *e && *s < span.end() as usize)
-            {
-                continue;
-            }
-            let Some(text) = source.get(span.start() as usize..span.end() as usize) else {
-                continue;
-            };
-            if embedded_rooted_name_under(text, cell) {
-                hazard = Some((span, HazardKind::Unattributed));
-                return;
-            }
-        }
+        hazard = unattributed_namespace_word(source, cell, considered, nested, cmd);
     };
     let coverage = crate::executable_regions::visit_checked_analysis_executable_commands(
         source,
@@ -585,22 +656,7 @@ fn namespace_rename_hazard(
     let written = source
         .get(span.start() as usize..span.end() as usize)
         .unwrap_or("");
-    let reason = match kind {
-        HazardKind::UnknownRole => format!(
-            "cannot rename `{cell}`: the original command's argument roles are unavailable for `{written}`, which may name this namespace"
-        ),
-        HazardKind::Computed => format!(
-            "cannot rename `{cell}`: this document names a namespace through a value \
-             computed at run time (`{written}`), which may be this very namespace — there \
-             is no word to rewrite, so the rename cannot be completed from source edits."
-        ),
-        HazardKind::Unattributed => format!(
-            "cannot rename `{cell}`: `{written}` names something beneath it in a position \
-             this rename cannot attribute — a callback script, a dispatch-table literal, or \
-             another embedded name. Rewriting the declarations would leave it naming a \
-             namespace that no longer exists."
-        ),
-    };
+    let reason = namespace_hazard_reason(cell, written, kind);
     Some(RenameRefusal::at(reason, source, line_index, Some(span)))
 }
 

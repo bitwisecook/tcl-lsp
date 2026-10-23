@@ -155,6 +155,181 @@ fn original_method_body_region(
     Ok(content)
 }
 
+struct MemberRenameScan<'a, 'b> {
+    document: OriginalDeclarationDocument<'a>,
+    class: &'b tcl_compiler::signature_scan::original_name::SourceDeclarationMetadata<
+        tcl_compiler::analyser::ClassDef,
+    >,
+    method: &'b OriginalSourceMethodMetadata,
+    roster: &'b OriginalClassInstanceMethodRoster,
+    wanted: &'b [u8],
+    walk: &'b crate::refactor::FrameWalk<'a>,
+}
+
+impl MemberRenameScan<'_, '_> {
+    fn record_selected_request(
+        &self,
+        selected: &crate::receiver_identity::RetainedReceiverMethod<'_>,
+        words: &[tcl_lexer::NativeWord],
+        requests: &mut Vec<(SignatureSourceNameInput, NameBytes)>,
+    ) -> Result<(), OriginalMemberRenameRefusal> {
+        let Self {
+            document,
+            class,
+            method,
+            wanted,
+            ..
+        } = *self;
+        if selected.own_entry.is_some()
+            || selected.receiver != tcl_compiler::command_binding::SourceMethodReceiver::Instance
+            || selected.class != class.metadata()
+            || selected.receiver_class != class.metadata()
+        {
+            return Err(OriginalMemberRenameRefusal::IncompleteFamily);
+        }
+        let input = selected.original_selector_input();
+        if input.original_word_key().is_none()
+            || !crate::original_name_edit::original_input_matches_source(
+                document.source,
+                document.analysis,
+                input,
+                selected.selector,
+            )
+        {
+            return Err(OriginalMemberRenameRefusal::UneditableInput);
+        }
+        let captured = tcl_registry::native_compiler_words::NativeCompilerWords::capture(
+            words,
+            input.policy().string_protocol(),
+        )
+        .map_err(|_| OriginalMemberRenameRefusal::IncompleteCoverage)?;
+        if words
+            .iter()
+            .enumerate()
+            .skip(1)
+            .any(|(ordinal, word)| word.group().expand || captured.literal(ordinal).is_none())
+        {
+            return Err(OriginalMemberRenameRefusal::IncompleteCoverage);
+        }
+        if same_method(selected.metadata, method) {
+            requests.push((input.clone(), wanted.into()));
+        }
+        Ok(())
+    }
+
+    fn command(
+        &self,
+        command: &tcl_compiler::segmenter::SegmentedCommand,
+        region: (usize, usize, u32),
+        pending: &mut Vec<(usize, usize, u32)>,
+        requests: &mut Vec<(SignatureSourceNameInput, NameBytes)>,
+    ) -> Result<(), OriginalMemberRenameRefusal> {
+        let Self {
+            document,
+            class,
+            method: _,
+            roster,
+            wanted: _,
+            walk,
+        } = *self;
+        let (_, _, depth) = region;
+        #[cfg(test)]
+        let (start, end, _) = region;
+        let words = walk
+            .native_words(document.source, command)
+            .ok_or(OriginalMemberRenameRefusal::IncompleteCoverage)?;
+        let command_offset = words
+            .first()
+            .ok_or(OriginalMemberRenameRefusal::IncompleteCoverage)?
+            .span()
+            .start();
+        let tokens = walk.tokens(document.source, command);
+        #[cfg(test)]
+        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_MEMBER_RENAME").is_some() {
+            eprintln!(
+                "ORIGINAL_MEMBER_RENAME site={command_offset} command={} region={start}..{end} original_members={:?}",
+                command.name(),
+                class
+                    .metadata()
+                    .original_members
+                    .declarations()
+                    .map(|row| (row.declaration().site().offset, row.metadata().body_span))
+                    .collect::<Vec<_>>()
+            );
+        }
+        // The independently retained definition worker supplies source
+        // body geometry. It does not supply an ordinary runtime call.
+        if let Some(declaration) = class
+            .metadata()
+            .original_members
+            .declarations()
+            .find(|row| row.declaration().site().offset == command_offset)
+        {
+            if declaration.declaration().static_occurrence().is_none()
+                || !words.contains(declaration.declaration().original_word())
+            {
+                return Err(OriginalMemberRenameRefusal::UneditableDeclaration);
+            }
+            // The selected whole body word and shared delimiter/value
+            // owners provide source geometry; report spans supply no script.
+            let body = original_method_body_region(declaration, &words)?;
+            pending.push((body.start() as usize, body.end() as usize, depth + 1));
+            return Ok(());
+        }
+        let binding = tokens
+            .source_binding
+            .as_ref()
+            .ok_or(OriginalMemberRenameRefusal::IncompleteCoverage)?;
+        if let Some(selected) =
+            crate::receiver_identity::method_at_command(document.analysis, document.source, command)
+        {
+            self.record_selected_request(&selected, &words, requests)?;
+            return Ok(());
+        }
+        if let Some(shape) = binding.original_default_manufacture_shape(
+            &tokens,
+            document
+                .analysis
+                .resolved_registry()
+                .ok_or(OriginalMemberRenameRefusal::IncompleteCoverage)?,
+        ) {
+            if shape.class_definition() != roster.class_definition() {
+                return Err(OriginalMemberRenameRefusal::IncompleteFamily);
+            }
+            return Ok(());
+        }
+        let selected = walk
+            .structure(document.source, command)
+            .ok_or(OriginalMemberRenameRefusal::IncompleteCoverage)?;
+        registry_coverage(&selected).inspect_err(|&refusal| {
+            #[cfg(test)]
+            if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_MEMBER_RENAME").is_some() {
+                eprintln!("ORIGINAL_MEMBER_RENAME_REFUSAL site={command_offset} facts={:?} refusal={refusal:?}", selected.facts);
+            }
+            // Read only by the test-build trace above.
+            let _ = refusal;
+        })?;
+        for (a, b) in walk
+            .same_frame_regions(document.source, command)
+            .into_iter()
+            .chain(walk.frame_shifted_regions(document.source, command))
+        {
+            pending.push((a, b, depth + 1));
+        }
+        #[cfg(test)]
+        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_MEMBER_RENAME").is_some() {
+            eprintln!(
+                "ORIGINAL_MEMBER_RENAME_REGIONS site={command_offset} complete={} pending={pending:?}",
+                walk.complete()
+            );
+        }
+        if !walk.complete() {
+            return Err(OriginalMemberRenameRefusal::IncompleteCoverage);
+        }
+        Ok(())
+    }
+}
+
 fn requests(
     document: OriginalDeclarationDocument<'_>,
     class: &tcl_compiler::signature_scan::original_name::SourceDeclarationMetadata<
@@ -172,6 +347,14 @@ fn requests(
     )];
     let mut pending = vec![(0_usize, document.source.len(), 0_u32)];
     let mut visited = HashSet::new();
+    let scan = MemberRenameScan {
+        document,
+        class,
+        method,
+        roster,
+        wanted,
+        walk: &walk,
+    };
     while let Some((start, end, depth)) = pending.pop() {
         if crate::references::MAX_DISPATCH_SCAN_DEPTH.exceeded(depth)
             || start > end
@@ -192,130 +375,7 @@ fn requests(
         } else {
             walk.segment_nested(region, offset)
         } {
-            let words = walk
-                .native_words(document.source, &command)
-                .ok_or(OriginalMemberRenameRefusal::IncompleteCoverage)?;
-            let command_offset = words
-                .first()
-                .ok_or(OriginalMemberRenameRefusal::IncompleteCoverage)?
-                .span()
-                .start();
-            let tokens = walk.tokens(document.source, &command);
-            #[cfg(test)]
-            if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_MEMBER_RENAME").is_some() {
-                eprintln!(
-                    "ORIGINAL_MEMBER_RENAME site={command_offset} command={} region={start}..{end} original_members={:?}",
-                    command.name(),
-                    class
-                        .metadata()
-                        .original_members
-                        .declarations()
-                        .map(|row| (row.declaration().site().offset, row.metadata().body_span))
-                        .collect::<Vec<_>>()
-                );
-            }
-            // The independently retained definition worker supplies source
-            // body geometry. It does not supply an ordinary runtime call.
-            if let Some(declaration) = class
-                .metadata()
-                .original_members
-                .declarations()
-                .find(|row| row.declaration().site().offset == command_offset)
-            {
-                if declaration.declaration().static_occurrence().is_none()
-                    || !words.contains(declaration.declaration().original_word())
-                {
-                    return Err(OriginalMemberRenameRefusal::UneditableDeclaration);
-                }
-                // The selected whole body word and shared delimiter/value
-                // owners provide source geometry; report spans supply no script.
-                let body = original_method_body_region(declaration, &words)?;
-                pending.push((body.start() as usize, body.end() as usize, depth + 1));
-                continue;
-            }
-            let binding = tokens
-                .source_binding
-                .as_ref()
-                .ok_or(OriginalMemberRenameRefusal::IncompleteCoverage)?;
-            if let Some(selected) = crate::receiver_identity::method_at_command(
-                document.analysis,
-                document.source,
-                &command,
-            ) {
-                if selected.own_entry.is_some()
-                    || selected.receiver
-                        != tcl_compiler::command_binding::SourceMethodReceiver::Instance
-                    || selected.class != class.metadata()
-                    || selected.receiver_class != class.metadata()
-                {
-                    return Err(OriginalMemberRenameRefusal::IncompleteFamily);
-                }
-                let input = selected.original_selector_input();
-                if input.original_word_key().is_none()
-                    || !crate::original_name_edit::original_input_matches_source(
-                        document.source,
-                        document.analysis,
-                        input,
-                        selected.selector,
-                    )
-                {
-                    return Err(OriginalMemberRenameRefusal::UneditableInput);
-                }
-                let captured = tcl_registry::native_compiler_words::NativeCompilerWords::capture(
-                    &words,
-                    input.policy().string_protocol(),
-                )
-                .map_err(|_| OriginalMemberRenameRefusal::IncompleteCoverage)?;
-                if words.iter().enumerate().skip(1).any(|(ordinal, word)| {
-                    word.group().expand || captured.literal(ordinal).is_none()
-                }) {
-                    return Err(OriginalMemberRenameRefusal::IncompleteCoverage);
-                }
-                if same_method(selected.metadata, method) {
-                    requests.push((input.clone(), wanted.into()));
-                }
-                continue;
-            }
-            if let Some(shape) = binding.original_default_manufacture_shape(
-                &tokens,
-                document
-                    .analysis
-                    .resolved_registry()
-                    .ok_or(OriginalMemberRenameRefusal::IncompleteCoverage)?,
-            ) {
-                if shape.class_definition() != roster.class_definition() {
-                    return Err(OriginalMemberRenameRefusal::IncompleteFamily);
-                }
-                continue;
-            }
-            let selected = walk
-                .structure(document.source, &command)
-                .ok_or(OriginalMemberRenameRefusal::IncompleteCoverage)?;
-            registry_coverage(&selected).inspect_err(|&refusal| {
-                #[cfg(test)]
-                if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_MEMBER_RENAME").is_some() {
-                    eprintln!("ORIGINAL_MEMBER_RENAME_REFUSAL site={command_offset} facts={:?} refusal={refusal:?}", selected.facts);
-                }
-                // Read only by the test-build trace above.
-                let _ = refusal;
-            })?;
-            for (a, b) in walk
-                .same_frame_regions(document.source, &command)
-                .into_iter()
-                .chain(walk.frame_shifted_regions(document.source, &command))
-            {
-                pending.push((a, b, depth + 1));
-            }
-            #[cfg(test)]
-            if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_MEMBER_RENAME").is_some() {
-                eprintln!(
-                    "ORIGINAL_MEMBER_RENAME_REGIONS site={command_offset} complete={} pending={pending:?}",
-                    walk.complete()
-                );
-            }
-            if !walk.complete() {
-                return Err(OriginalMemberRenameRefusal::IncompleteCoverage);
-            }
+            scan.command(&command, (start, end, depth), &mut pending, &mut requests)?;
         }
     }
     Ok(requests)
@@ -351,29 +411,14 @@ pub fn original_member_rename_edits(
     original_member_rename_units(documents, identity, &wanted)
 }
 
-fn original_member_rename_units(
-    documents: &[OriginalDeclarationDocument<'_>],
+fn incomplete_member_family(
+    document: OriginalDeclarationDocument<'_>,
     identity: &OriginalDeclarationIdentity,
-    wanted: &[u8],
-) -> Result<Vec<WorkspaceTextEdit>, OriginalMemberRenameRefusal> {
-    let [document] = documents else {
-        return Err(OriginalMemberRenameRefusal::IncompleteFamily);
-    };
-    if document.uri != identity.uri() {
-        return Err(OriginalMemberRenameRefusal::AmbiguousOwner);
-    }
-    if !identity.is_current(document.uri, document.source, document.analysis) {
-        return Err(OriginalMemberRenameRefusal::StaleSource);
-    }
-    if identity.role() != OriginalDeclarationRole::Method(MemberSide::Instance) {
-        return Err(OriginalMemberRenameRefusal::IncompleteFamily);
-    }
-    let mut classes = document.analysis.original_class_declarations();
-    let class = classes
-        .next()
-        .ok_or(OriginalMemberRenameRefusal::IncompleteFamily)?;
-    if classes.next().is_some()
-        || identity.class_metadata(document.analysis) != Some(class)
+    class: &tcl_compiler::signature_scan::original_name::SourceDeclarationMetadata<
+        tcl_compiler::analyser::ClassDef,
+    >,
+) -> bool {
+    identity.class_metadata(document.analysis) != Some(class)
         || document
             .analysis
             .original_procedure_declarations()
@@ -414,7 +459,69 @@ fn original_member_rename_units(
                 || row.forward_prefix().is_some()
                 || row.declaration().static_occurrence().is_none()
         })
+}
+
+fn validate_member_roster(
+    method: &OriginalSourceMethodMetadata,
+    roster: &OriginalClassInstanceMethodRoster,
+    input: &SignatureSourceNameInput,
+    wanted: &[u8],
+) -> Result<(), OriginalMemberRenameRefusal> {
+    if roster.policy() != input.policy()
+        || input
+            .policy()
+            .recipe()
+            .oo_method_input(wanted)
+            .ok()
+            .is_none_or(|name| name.selected() != wanted)
     {
+        return Err(OriginalMemberRenameRefusal::InvalidName);
+    }
+    let current_entry = roster
+        .source_method_for_input(input)
+        .ok_or(OriginalMemberRenameRefusal::UnknownRoster)?;
+    if current_entry.declaration() != method.declaration().site()
+        || current_entry.name_source().span != method.metadata().name_span
+        || current_entry.is_exported() != method.exported()
+    {
+        return Err(OriginalMemberRenameRefusal::UnknownRoster);
+    }
+    if roster.default_exported(input.bytes()) != method.exported()
+        || roster.default_exported(wanted) != method.exported()
+    {
+        return Err(OriginalMemberRenameRefusal::ChangesVisibility);
+    }
+    if !roster.contains(input.bytes()) {
+        return Err(OriginalMemberRenameRefusal::UnknownRoster);
+    }
+    if wanted != input.bytes() && roster.contains(wanted) {
+        return Err(OriginalMemberRenameRefusal::Collision);
+    }
+    Ok(())
+}
+
+fn original_member_rename_units(
+    documents: &[OriginalDeclarationDocument<'_>],
+    identity: &OriginalDeclarationIdentity,
+    wanted: &[u8],
+) -> Result<Vec<WorkspaceTextEdit>, OriginalMemberRenameRefusal> {
+    let [document] = documents else {
+        return Err(OriginalMemberRenameRefusal::IncompleteFamily);
+    };
+    if document.uri != identity.uri() {
+        return Err(OriginalMemberRenameRefusal::AmbiguousOwner);
+    }
+    if !identity.is_current(document.uri, document.source, document.analysis) {
+        return Err(OriginalMemberRenameRefusal::StaleSource);
+    }
+    if identity.role() != OriginalDeclarationRole::Method(MemberSide::Instance) {
+        return Err(OriginalMemberRenameRefusal::IncompleteFamily);
+    }
+    let mut classes = document.analysis.original_class_declarations();
+    let class = classes
+        .next()
+        .ok_or(OriginalMemberRenameRefusal::IncompleteFamily)?;
+    if classes.next().is_some() || incomplete_member_family(*document, identity, class) {
         return Err(OriginalMemberRenameRefusal::IncompleteFamily);
     }
     let method = identity
@@ -478,36 +585,7 @@ fn original_member_rename_units(
         return Err(OriginalMemberRenameRefusal::UneditableDeclaration);
     };
 
-    if roster.policy() != input.policy()
-        || input
-            .policy()
-            .recipe()
-            .oo_method_input(wanted)
-            .ok()
-            .is_none_or(|name| name.selected() != wanted)
-    {
-        return Err(OriginalMemberRenameRefusal::InvalidName);
-    }
-    let current_entry = roster
-        .source_method_for_input(input)
-        .ok_or(OriginalMemberRenameRefusal::UnknownRoster)?;
-    if current_entry.declaration() != method.declaration().site()
-        || current_entry.name_source().span != method.metadata().name_span
-        || current_entry.is_exported() != method.exported()
-    {
-        return Err(OriginalMemberRenameRefusal::UnknownRoster);
-    }
-    if roster.default_exported(input.bytes()) != method.exported()
-        || roster.default_exported(wanted) != method.exported()
-    {
-        return Err(OriginalMemberRenameRefusal::ChangesVisibility);
-    }
-    if !roster.contains(input.bytes()) {
-        return Err(OriginalMemberRenameRefusal::UnknownRoster);
-    }
-    if wanted != input.bytes() && roster.contains(wanted) {
-        return Err(OriginalMemberRenameRefusal::Collision);
-    }
+    validate_member_roster(method, &roster, input, wanted)?;
     let requests = requests(*document, class, method, &roster, wanted)?;
     let edits = crate::original_name_edit::original_name_input_edits(
         &SourceImage::document(document.source),
