@@ -150,7 +150,69 @@ impl OriginalMethodSource {
     }
 }
 
+/// Conditional fresh Native source analysis under its original interpreter.
+/// This grants no runtime entry, physical store or completed invocation.
+pub(crate) struct FreshNativeSourceAnalysis<'a> {
+    retained: &'a RetainedSourceModuleBindings,
+    input: &'a crate::analyser::ResolvedAnalysisInput,
+    registry: &'a CommandRegistry,
+}
+
+impl FreshNativeSourceAnalysis<'_> {
+    pub(crate) fn matches_tokens(
+        &self,
+        tokens: &crate::ir::CommandTokens,
+        metadata: crate::registry_invocation::InvocationMetadataContext<'_>,
+    ) -> bool {
+        self.retained.owns_original_analysis_attachment(tokens)
+            && metadata.matches_registry(self.registry)
+            && metadata.source_analysis_input().is_some_and(|input| {
+                input == self.input || input == &self.input.for_nested_source()
+            })
+    }
+}
+
 impl RetainedSourceModuleBindings {
+    /// Project the original fresh-document source contract, never an execution entry.
+    pub(crate) fn fresh_native_source_analysis<'a>(
+        &'a self,
+        module: &'a Module,
+        registry: &'a CommandRegistry,
+    ) -> Option<FreshNativeSourceAnalysis<'a>> {
+        let positioned = self.positioned_for_module(module, registry)?;
+        let input = self.entry.metadata_context.source_analysis_input()?;
+        if self.kind != TopLevelKind::Script
+            || positioned.original_analysis_owner.is_none()
+            || input.has_logical_source_name_context()
+            || input.has_hosted_source_name_context()
+            || tcl_registry::InvocationDialect::of_profile(input.unit_profile())
+                .native_name_protocol()
+                .is_none()
+            || self.entry.native_entry.is_some()
+            || self.entry.source_point_entry.is_some()
+            || self.entry.unknown_entry
+            || self.entry.execution_name_policy.is_some()
+            || self.entry.logical_source_input.is_some()
+            || self.entry.vendor_source_input.is_some()
+        {
+            return None;
+        }
+        // The actual retained issuer is already joined above. This comparison
+        // recognises its complete fresh-source value contract, including any
+        // incoming activation, loader or history fields; it issues no Native entry.
+        let fresh = SourceAnalysisEntry::for_supplied_source(
+            registry,
+            input,
+            self.grammar,
+            Some(input.unit_profile()),
+        );
+        (self.entry == fresh).then_some(FreshNativeSourceAnalysis {
+            retained: self,
+            input,
+            registry,
+        })
+    }
+
     /// Reborrow the actual immutable CU-side attachment for full-report
     /// capture only. This grants no module, body, lookup or runtime authority.
     pub(crate) fn matches_full_report_capture_owner(
@@ -684,6 +746,38 @@ pub(crate) fn source_analysis_frame(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn fresh_source_transfer_refuses_a_matched_non_script_kind() {
+        let context = tcl_registry::model::ingress::static_context_for("tcl8.6");
+        let registry = context.commands();
+        let unit = crate::compilation_unit::CompilationUnit::build_for_dialect(
+            "set value VALUE",
+            registry,
+            false,
+            "tcl8.6",
+        );
+        let mut module = unit.ir_module.clone();
+        let mut retained = module
+            .retained_source_bindings
+            .as_ref()
+            .unwrap()
+            .as_ref()
+            .clone();
+        assert!(
+            retained
+                .fresh_native_source_analysis(&module, registry)
+                .is_some()
+        );
+        retained.kind = TopLevelKind::ProcedureBody;
+        module.top_level_kind = TopLevelKind::ProcedureBody;
+        assert!(retained.positioned_for_module(&module, registry).is_some());
+        assert!(
+            retained
+                .fresh_native_source_analysis(&module, registry)
+                .is_none()
+        );
+    }
 
     const SOURCE: &str = "namespace eval N {proc p {} {return OK}}; N::p";
 

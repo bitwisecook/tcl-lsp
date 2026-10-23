@@ -18,10 +18,16 @@ use crate::registry_invocation::{
 use crate::ssa::SsaFunction;
 use crate::ssa::ValueKey;
 
+enum NativeTransferPurpose<'a> {
+    ExecutionEntry,
+    FreshSource(crate::command_binding::FreshNativeSourceAnalysis<'a>),
+}
+
 pub(in crate::interprocedural::transfer) struct NativeSummaryContext<'a> {
     module: &'a Module,
     registry: &'a CommandRegistry,
     config: LexerConfig,
+    purpose: NativeTransferPurpose<'a>,
 }
 
 impl<'a> NativeSummaryContext<'a> {
@@ -37,17 +43,29 @@ impl<'a> NativeSummaryContext<'a> {
                 .retained_source_bindings
                 .as_ref()?
                 .matches_module(module, registry)
-            || module.original_invocation_source_purpose(
-                registry,
-                InvocationMetadataContext::for_module(registry, module)?,
-            ) != Some(OriginalInvocationSourcePurpose::Execution)
         {
             return None;
         }
+        let purpose = match module.original_invocation_source_purpose(
+            registry,
+            InvocationMetadataContext::for_module(registry, module)?,
+        ) {
+            Some(OriginalInvocationSourcePurpose::Execution) => {
+                NativeTransferPurpose::ExecutionEntry
+            }
+            None => NativeTransferPurpose::FreshSource(
+                module
+                    .retained_source_bindings
+                    .as_ref()?
+                    .fresh_native_source_analysis(module, registry)?,
+            ),
+            _ => return None,
+        };
         Some(Self {
             module,
             registry,
             config,
+            purpose,
         })
     }
 
@@ -59,7 +77,12 @@ impl<'a> NativeSummaryContext<'a> {
             .source_origin()?;
         let binding = tokens.source_binding.as_ref()?;
         std::sync::Arc::ptr_eq(origin, &binding.invocation_site()?.source).then_some(())?;
-        binding.original_invocation_metadata_for_module(tokens, self.module, self.registry)
+        let metadata =
+            binding.original_invocation_metadata_for_module(tokens, self.module, self.registry)?;
+        if let NativeTransferPurpose::FreshSource(source) = &self.purpose {
+            source.matches_tokens(tokens, metadata).then_some(())?;
+        }
+        Some(metadata)
     }
 
     fn operation(
@@ -378,6 +401,67 @@ mod tests {
                     &foreign_function.ssa,
                     |_, _| Some(())
                 )
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn fresh_native_source_analysis_refuses_foreign_or_changed_interpretations() {
+        let current = tcl_registry::model::ingress::static_context_for("tcl8.6");
+        let registry = current.commands();
+        let unit = CompilationUnit::build_for_dialect(
+            "proc p {} {set known [string length abcde]}",
+            registry,
+            false,
+            "tcl8.6",
+        );
+        let module = &unit.ir_module;
+        let source =
+            NativeSummaryContext::for_module(module, registry, module.lexer_config).unwrap();
+        assert!(module.source_entry.native_entry.is_none());
+        assert!(
+            module
+                .original_invocation_source_purpose(
+                    registry,
+                    InvocationMetadataContext::for_module(registry, module).unwrap()
+                )
+                .is_none()
+        );
+        assert!(matches!(
+            source.purpose,
+            NativeTransferPurpose::FreshSource(_)
+        ));
+        assert!(
+            module
+                .retained_source_bindings
+                .as_ref()
+                .unwrap()
+                .fresh_native_source_analysis(module, registry)
+                .is_some()
+        );
+        let mut unknown = module.clone();
+        unknown.source_entry.unknown_entry = true;
+        assert!(
+            NativeSummaryContext::for_module(&unknown, registry, unknown.lexer_config).is_none()
+        );
+        let mut changed = module.clone();
+        changed.source_metadata_input = None;
+        assert!(
+            NativeSummaryContext::for_module(&changed, registry, changed.lexer_config).is_none()
+        );
+        let foreign = tcl_registry::CommandRegistry::build_default();
+        assert!(NativeSummaryContext::for_module(module, &foreign, module.lexer_config).is_none());
+        let (context, logical) = crate::interprocedural::logical_completion_unit(
+            "proc p {} {set known VALUE}",
+            "tcl8.6",
+        );
+        assert!(
+            logical
+                .ir_module
+                .retained_source_bindings
+                .as_ref()
+                .unwrap()
+                .fresh_native_source_analysis(&logical.ir_module, context.commands())
                 .is_none()
         );
     }
